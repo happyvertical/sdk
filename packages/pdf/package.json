@@ -1,0 +1,33 @@
+{
+  "name": "@have/pdf",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "build": "tsc"
+  },
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "date-fns": "^4.1.0",
+    "pluralize": "^8.0.0",
+    "pdfjs-dist": "^4.10.38",
+    "scribe.js-ocr": "^0.7.0",
+    "tesseract.js": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/pdfjs-dist": "^2.10.378",
+    "@types/pluralize": "^0.0.33"
+  }
+}
