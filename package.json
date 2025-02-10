@@ -1,0 +1,29 @@
+{
+  "name": "have-sdk",
+  "private": true,
+  "author": "Will Griffin <willgriffin@gmail.com>",
+  "type": "module",
+  "scripts": {
+    "format": "prettier --write .",
+    "format-check": "prettier --check .",
+    "prepare": "husky",
+    "test": "vitest",
+    "test:watch": "vitest --watch"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "devDependencies": {
+    "@have/utils": "workspace:*",
+    "@have/files": "workspace:*",
+    "@changesets/cli": "^2.27.12",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.4.2",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  },
+  "engines": {
+    "node": "22.x"
+  }
+}
