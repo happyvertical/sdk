@@ -1,0 +1,127 @@
+import type { AIClientOptions } from '@have/ai';
+import YAML from 'yaml';
+import type { BaseCollectionOptions } from './collection';
+import type { ContentOptions } from './content';
+import { makeSlug } from '@have/utils';
+import { BaseCollection } from './collection';
+import { Content } from './content';
+import { Document } from './document';
+import path from 'path';
+import { ensureDirectoryExists } from '@have/files';
+import { writeFile } from 'node:fs/promises';
+export interface ContentsOptions extends BaseCollectionOptions {
+  ai?: AIClientOptions;
+  contentDir?: string;
+}
+
+export class Contents extends BaseCollection<Content> {
+  static _itemClass = Content;
+  public options: ContentsOptions = {} as ContentsOptions;
+  private exampleContent!: Content;
+  private loaded: Map<string, Content>;
+  public contentDir?: string;
+
+  static async create(options: ContentsOptions): Promise<Contents> {
+    const contents = new Contents(options);
+    await contents.initialize();
+    return contents;
+  }
+
+  constructor(options: ContentsOptions) {
+    super(options);
+    this.options = options; //needed cause redeclare above i think ?
+    this.loaded = new Map();
+  }
+
+  getDb() {
+    return this._db;
+  }
+
+  public async initialize(): Promise<void> {
+    await super.initialize();
+  }
+
+  // todo: param to force refresh
+  // todo: check age of mirror and if older than x check for updates
+  public async mirror(options: { url: string }) {
+    if (!options.url) {
+      throw new Error('No URL provided');
+    }
+    let url: URL;
+    try {
+      // const url = new URL(options.url);
+      // const existing = await this.db
+      //   .oO`SELECT * FROM contents WHERE url = ${options.url}`;
+      url = new URL(options.url); // validate url
+    } catch (error) {
+      console.error(error);
+      throw new Error(`Invalid URL provided: ${options.url}`);
+    }
+    const existing = await this.get({ url: options.url });
+    if (existing) {
+      return existing;
+    }
+    const doc = await Document.create({
+      url: options.url,
+    });
+
+    const filename = url.pathname.split('/').pop();
+    const nameWithoutExtension = filename?.replace(/\.[^/.]+$/, '');
+    const title = nameWithoutExtension?.replace(/[-_]/g, ' ');
+    const slug = makeSlug(title as string);
+    const body = await doc.getText();
+    const content = await Content.create({
+      db: this.options.db,
+      ai: this.options.ai,
+      url: options.url,
+      type: 'mirror',
+      title,
+      slug,
+      body,
+    });
+
+    await content.save();
+    return content;
+  }
+
+  public async writeContentFile(content: Content) {
+    const contentDir = this.options.contentDir;
+    if (!contentDir) {
+      throw new Error('No content dir provided');
+    }
+
+    const { body } = content;
+    const frontMatter = {
+      title: content.title,
+      slug: content.slug,
+      author: content.author,
+      publish_date: content.publish_date,
+    };
+
+    let output = '';
+    if (frontMatter && Object.keys(frontMatter).length > 0) {
+      output += '---\n';
+      output += YAML.stringify(frontMatter);
+      output += '---\n';
+    }
+    output += body || '';
+
+    const outputFile = path.join(contentDir, `${content.slug}`, 'index.html');
+    await ensureDirectoryExists(path.dirname(outputFile));
+    // todo: finish implementing fs aadapter
+    // await this.fs.write(outputFile, output);
+    await writeFile(outputFile, output);
+  }
+
+  public async syncContentDir() {
+    const contentFilter = {
+      type: 'article',
+    };
+
+    const contents = await this.list({ filter: contentFilter });
+    for (const content of contents) {
+      await this.writeContentFile(content);
+    }
+    // const files = await fs.readdir(dir);
+  }
+}
