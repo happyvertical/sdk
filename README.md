@@ -1,4 +1,4 @@
-# *HA*ppy *VE*rticle _SDK_
+# *HA*ppy *VE*ertical _SDK_
 
 # what
 
@@ -25,5 +25,6 @@ if shadcdn can do it on the frontend, why not
   - not trying to be an orm
 - web: tools for crawling the web, scraping content, and parsing it into a standardised format - maybe rename to spider
 - files: a library for interacting with file systems, provides a standardised interface for local and remote file systems
-- smrt: a library for building smart agents, probably anything but
+- smrt: a library for building vertical ai agents, probably anything but
   - standardised collection, object, classes .. all include db, fs, ai interfaces and options
+  - fast and loose database schemas defined by class properties supporting sqlite first and an eye on postgres
