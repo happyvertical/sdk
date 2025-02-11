@@ -3,6 +3,7 @@
   "private": true,
   "author": "Will Griffin <willgriffin@gmail.com>",
   "type": "module",
+  "version": "0.0.0",
   "scripts": {
     "format": "prettier --write .",
     "format-check": "prettier --check .",
@@ -11,7 +12,8 @@
     "test:watch": "vitest --watch",
     "clean": "pnpm -r exec rm -rf dist && pnpm -r exec rm -rf tsconfig.tsbuildinfo",
     "build": "pnpm clean && pnpm --filter @have/utils build && pnpm --filter @have/files build && pnpm --filter @have/spider build && pnpm --filter @have/sql build && pnpm --filter @have/pdf build && pnpm --filter @have/ai build && pnpm --filter @have/smrt build && pnpm --filter @have/svelte build",
-    "dev": "pnpm -r build --watch"
+    "dev": "pnpm -r build --watch",
+    "publish": "pnpm build && changeset publish"
   },
   "workspaces": [
     "packages/*"
