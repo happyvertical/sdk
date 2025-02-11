@@ -42,3 +42,9 @@ jobs:
           git commit -m "Bump version with changeset"
           git push
 
+      - name: Configure pnpm registry
+        run: pnpm config set @happyvertical:registry=https://git.grffn.net/api/packages/happyvertical/npm/
+
+      - name: Publish packages
+        run: pnpm run publish-packages
+
