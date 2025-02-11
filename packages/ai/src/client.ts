@@ -1,7 +1,7 @@
 import 'openai/shims/node';
 import OpenAI from 'openai';
 
-import { AIMessageOptions } from './message.js';
+import type { AIMessageOptions } from './message.js';
 export interface AIClientOptions {
   type?: string;
   responseFormat?: string;

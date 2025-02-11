@@ -7,11 +7,12 @@ import {
   formatDataSql,
 } from './utils';
 import { getDatabase, syncSchema, escapeSqlValue } from '@have/sql';
+import { BaseObject } from './object';
 
 export interface BaseCollectionOptions extends BaseClassOptions {}
 
 export class BaseCollection<
-  ModelType extends BaseClass<any>,
+  ModelType extends BaseObject<any>,
   T extends BaseCollectionOptions = BaseCollectionOptions,
 > extends BaseClass<T> {
   protected _db_setup_promise: Promise<void> | null = null;

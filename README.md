@@ -1,4 +1,4 @@
-# *HA*ppy *VE*ertical _SDK_
+# HAppy VEertical _SDK_
 
 # what
 
@@ -17,6 +17,11 @@ i want to test a crazy idea cheap and if it gets traction move to production wit
 if shadcdn can do it on the frontend, why not
 
 # how
+
+i hate vendor lock
+i hate overhead
+i hate dependencies
+sqlite is cool and can be useful on the edge
 
 # packages
 

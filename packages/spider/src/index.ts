@@ -1,13 +1,10 @@
 import { tmpdir } from 'os';
-import path, { dirname } from 'path';
-import { URL } from 'url';
+import path from 'path';
 import { chromium } from 'playwright-core';
 import type { Browser } from 'playwright-core';
 import { urlFilename, urlPath } from '@have/utils';
-import { ensureDirectoryExists, fetchText } from '@have/files';
+import { fetchText } from '@have/files';
 import * as cheerio from 'cheerio';
-
-const TMP_DIR = path.resolve(`${tmpdir()}/kissd`);
 
 import { getCached, setCached } from '@have/files';
 

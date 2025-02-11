@@ -8,20 +8,26 @@
     "format-check": "prettier --check .",
     "prepare": "husky",
     "test": "vitest",
-    "test:watch": "vitest --watch"
+    "test:watch": "vitest --watch",
+    "clean": "pnpm -r exec rm -rf dist && pnpm -r exec rm -rf tsconfig.tsbuildinfo",
+    "build": "pnpm clean && pnpm --filter @have/utils build && pnpm --filter @have/files build && pnpm --filter @have/spider build && pnpm --filter @have/sql build && pnpm --filter @have/pdf build && pnpm --filter @have/ai build && pnpm --filter @have/smrt build && pnpm --filter @have/svelte build",
+    "dev": "pnpm -r build --watch"
   },
   "workspaces": [
     "packages/*"
   ],
   "devDependencies": {
-    "@have/utils": "workspace:*",
     "@have/files": "workspace:*",
+    "@have/utils": "workspace:*",
     "@changesets/cli": "^2.27.12",
     "husky": "^9.1.7",
     "lint-staged": "^15.4.2",
     "prettier": "^3.4.2",
     "typescript": "^5.7.3",
     "vitest": "^2.1.8"
+  },
+  "resolutions": {
+    "@types/node": "22.13.0"
   },
   "engines": {
     "node": "22.x"

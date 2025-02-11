@@ -11,8 +11,8 @@ import {
   downloadFileWithCache,
   listFiles,
 } from './index.js';
-import { TMP_DIR } from '@have/utils';
 import { createServer, Server } from 'node:http';
+import { getTempDir } from '@have/utils';
 
 // Mock fs modulesq
 // vi.mock('node:fs');
@@ -25,7 +25,7 @@ describe('File utilities', () => {
 
   beforeEach(() => {
     // Create a unique temporary directory for each test
-    tmpDir = path.join(TMP_DIR, 'file-utils-test');
+    tmpDir = path.join(getTempDir(), 'file-utils-test');
     fs.mkdirSync(tmpDir, { recursive: true });
 
     // Create and start test server

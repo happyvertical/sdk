@@ -2,7 +2,7 @@ import { it, expect, describe, beforeEach, afterEach } from "vitest";
 import { randomUUID } from "crypto";
 import { getDatabase } from "./index.js";
 describe.skip("postgres tests", () => {
-  let db;
+  let db: Awaited<ReturnType<typeof getDatabase>>;
   beforeEach(async () => {
     db = await getDatabase({
       type: "postgres",
@@ -10,7 +10,7 @@ describe.skip("postgres tests", () => {
       host: process.env.SQLOO_HOST || "localhost",
       user: process.env.SQLOO_USER || "sqloo",
       password: process.env.SQLOO_PASS || "sqloo",
-      port: process.env.SQLOO_PORT || "5432",
+      port: Number(process.env.SQLOO_PORT) || 5432,
     });
 
     await db.execute`
@@ -104,8 +104,8 @@ describe.skip("postgres tests", () => {
     const result = await db.oO`
       select * from contents where id = ${id}
     `;
-    expect(result.id).toEqual(id);
-    expect(result.title).toEqual("hi");
-    expect(result.body).toEqual("universe");
+    expect(result?.id).toEqual(id);
+    expect(result?.title).toEqual("hi");
+    expect(result?.body).toEqual("universe");
   });
 });

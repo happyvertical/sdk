@@ -19,7 +19,7 @@ interface TableMethods {
     data: Record<string, any> | Record<string, any>[],
   ) => Promise<QueryResponse>;
   get: (data: Record<string, any>) => Promise<QueryResult>;
-  list: (data: Record<string, any>) => Promise<QueryResult>;
+  list: (data: Record<string, any>) => Promise<any[]>;
 }
 
 export function getDatabase(options: PostgresOptions = {}) {
@@ -104,14 +104,15 @@ export function getDatabase(options: PostgresOptions = {}) {
   const list = async (
     table: string,
     where: Record<string, any>,
-  ): Promise<QueryResult> => {
+  ): Promise<any[]> => {
     const keys = Object.keys(where);
     const values = Object.values(where);
     const whereClause = keys
       .map((key, i) => `${key} = $${i + 1}`)
       .join(" AND ");
     const query = `SELECT * FROM ${table} WHERE ${whereClause}`;
-    return client.query(query, values);
+    const result = await client.query(query, values);
+    return result.rows;
   };
 
   /**
@@ -201,15 +202,29 @@ export function getDatabase(options: PostgresOptions = {}) {
   const execute = async (
     strings: TemplateStringsArray,
     ...vars: any[]
-  ): Promise<QueryResult> => {
+  ): Promise<void> => {
     const { sql, values } = parseTemplate(strings, ...vars);
-    return client.query(sql, values);
+    await client.query(sql, values);
   };
 
-  const query = async (sql: string, values: any[]): Promise<QueryResult> => {
-    return client.query(sql, values);
+  const query = async (
+    sql: string,
+    values: any[],
+  ): Promise<{ rows: Record<string, any>[]; rowCount: number }> => {
+    const result = await client.query(sql, values);
+    return {
+      rows: result.rows,
+      rowCount: result.rowCount ?? 0,
+    };
   };
 
+  const tableExists = async (tableName: string): Promise<boolean> => {
+    const result = await client.query(
+      `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = $1)`,
+      [tableName],
+    );
+    return result.rows[0].exists;
+  };
   // cute aliases
   const oo = many;
   const oO = single;
@@ -233,5 +248,6 @@ export function getDatabase(options: PostgresOptions = {}) {
     oO,
     ox,
     xx,
+    tableExists,
   };
 }

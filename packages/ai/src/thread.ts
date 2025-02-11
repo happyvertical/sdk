@@ -1,4 +1,4 @@
-import { AIClient, AIClientOptions } from './client';
+import { AIClient, type AIClientOptions } from './client';
 import { AIMessage } from './message';
 import OpenAI from 'openai';
 export interface AIThreadOptions {

@@ -1,15 +1,14 @@
 import { it, expect } from 'vitest';
+import { parseAmazonDateString, sleep, waitFor } from './index';
 
 it('should have a test', () => {
   expect(true).toBe(true);
 });
 
-import { parseAmazonDateString, sleep, waitFor, addInterval } from './index.js';
-
 it.skip('should waitFor "it"', async () => {
   let attempts = 0;
   const result = await waitFor(
-    () => {
+    async () => {
       attempts++;
       if (attempts >= 5) {
         return true;
@@ -47,10 +46,3 @@ it.skip('shoulde able to parse an amazon date', () => {
   const result = parseAmazonDateString('20220223T215409Z');
   expect(result).toBeDefined();
 });
-
-// it('should be able to add an interval to a date', () => {
-//   const date = '2012-12-21';
-//   const interval = '1 day';
-//   const result = addInterval(date, interval);
-//   expect(result).toEqual('2012-12-22 00:00:00');
-// });

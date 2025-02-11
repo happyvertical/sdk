@@ -30,6 +30,7 @@ export interface DatabaseInterface {
   getOrInsert: (
     table: string,
     where: Record<string, any>,
+    data: Record<string, any>,
   ) => Promise<Record<string, any>>;
   table: (table: string) => TableInterface;
   tableExists: (table: string) => Promise<boolean>;

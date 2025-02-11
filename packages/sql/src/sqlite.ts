@@ -1,10 +1,5 @@
-import { createClient, Client } from "@libsql/client";
-import {
-  DatabaseOptions,
-  DatabaseInterface,
-  QueryResult,
-  TableInterface,
-} from "./types.js";
+import { createClient } from "@libsql/client";
+import type { QueryResult, DatabaseInterface, TableInterface } from "./types";
 import { validateColumnName } from "./index.js";
 
 export interface SqliteOptions {

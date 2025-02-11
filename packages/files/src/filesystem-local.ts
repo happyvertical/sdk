@@ -1,10 +1,11 @@
 import { FilesystemAdapter, FilesystemAdapterOptions } from './filesystem';
-
+import { getMimeType } from './index';
 export class LocalFilesystemAdapter extends FilesystemAdapter {
   protected cacheDir: string;
   public type: string;
   protected options: FilesystemAdapterOptions;
   constructor(options: FilesystemAdapterOptions) {
+    super(options);
     this.options = options;
     this.type = options.type || 'local';
     this.cacheDir = options.cacheDir || '.cache';
@@ -12,7 +13,10 @@ export class LocalFilesystemAdapter extends FilesystemAdapter {
 
   static async createFromUrl(url: string) {}
 
-  static async create(options: FilesystemAdapterOptions) {}
+  static async create(options: FilesystemAdapterOptions) {
+    const fs = new LocalFilesystemAdapter(options);
+    return fs;
+  }
 
   async exists(path: string) {
     return false;

@@ -5,14 +5,19 @@
     "moduleResolution": "Bundler",
     "declaration": true,
     "strict": true,
-    "baseUrl": ".",
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
-    "composite": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
     "paths": {
       "@have/*": ["packages/*/src"]
     },
     "lib": ["ES2020", "dom"]
   },
-  "include": ["packages/*/src", "packages/ai/_archived/chatgpt"]
+  "exclude": ["**/*.spec.ts", "node_modules", "**/dist"],
+  "references": [
+    { "path": "packages/spider" },
+    { "path": "packages/files" },
+    { "path": "packages/utils" }
+  ]
 }
