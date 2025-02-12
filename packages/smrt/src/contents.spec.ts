@@ -1,10 +1,12 @@
 import { it, expect } from 'vitest';
-import { TMP_DIR, makeId, makeSlug } from '@have/utils';
+import os from 'node:os';
+import path from 'node:path';
+
 import { Content } from './content';
 import { Contents } from './contents';
 
 import { faker } from '@faker-js/faker';
-
+const TMP_DIR = path.resolve(`${os.tmpdir()}/.have-sdk/tests`);
 it('should be able to getOrInsert a content item', async () => {
   const contents = await Contents.create({
     ai: {

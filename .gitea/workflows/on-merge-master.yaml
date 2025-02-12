@@ -26,6 +26,9 @@ jobs:
       - name: Install pnpm
         run: npm install -g pnpm
 
+      - name: Show pnpm version
+        run: pnpm --version
+
       # - name: Cache pnpm store
       #   uses: actions/cache@v2
       #   with:

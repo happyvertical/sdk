@@ -8,12 +8,7 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "skipLibCheck": true,
-    "baseUrl": ".",
-    "paths": {
-      "@have/*": ["packages/*/src"],
-      "*": ["node_modules/*"]
-    },
-    "lib": ["ES2020", "dom"]
+    "lib": ["ES2020"]
   },
   "exclude": ["node_modules", "**/dist"]
 }

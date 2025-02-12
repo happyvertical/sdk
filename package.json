@@ -15,9 +15,6 @@
     "dev": "pnpm -r build --watch",
     "publish-packages": "pnpm build && changeset publish"
   },
-  "workspaces": [
-    "packages/*"
-  ],
   "devDependencies": {
     "@changesets/cli": "^2.27.12",
     "husky": "^9.1.7",
@@ -30,6 +27,9 @@
     "@types/node": "22.13.0"
   },
   "engines": {
-    "node": "22.x"
+    "node": "22.x",
+    "pnpm": "^9.14.2",
+    "npm": "10.9.0",
+    "typescript": "5.7.3"
   }
 }

@@ -3,10 +3,9 @@ import path from 'path';
 import { chromium } from 'playwright-core';
 import type { Browser } from 'playwright-core';
 import { urlFilename, urlPath } from '@have/utils';
-import { fetchText } from '@have/files';
 import * as cheerio from 'cheerio';
 
-import { getCached, setCached } from '@have/files';
+import { fetchText, getCached, setCached } from '@have/files';
 
 interface FetchPageSourceOptions {
   url: string;

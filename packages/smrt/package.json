@@ -6,24 +6,16 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
-    },
-    "./utils": {
-      "types": "./dist/utils.d.ts",
-      "import": "./dist/utils.js",
-      "default": "./dist/utils.js"
-    }
+    ".": "./dist/index.js",
+    "./utils": "./dist/utils.js"
   },
   "dependencies": {
-    "@have/ai": "^0.0.1",
-    "@have/files": "^0.0.1",
-    "@have/pdf": "^0.0.1",
-    "@have/sql": "^0.0.1",
-    "@have/spider": "^0.0.1",
-    "@have/utils": "^0.0.1",
+    "@have/ai": "workspace:*",
+    "@have/files": "workspace:*",
+    "@have/pdf": "workspace:*",
+    "@have/sql": "workspace:*",
+    "@have/spider": "workspace:*",
+    "@have/utils": "workspace:*",
     "@langchain/community": "^0.3.24",
     "cheerio": "^1.0.0",
     "yaml": "^2.7.0"

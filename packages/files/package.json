@@ -5,23 +5,25 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
-    }
+    ".": "./dist/index.js"
   },
   "scripts": {
     "test": "vitest",
     "test:watch": "vitest --watch",
     "build": "tsc -b",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "prebuild": "npm run clean"
   },
   "engines": {
     "node": "22.x"
   },
   "dependencies": {
-    "@have/utils": "^0.0.1"
-  }
+    "@have/utils": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.8"
+  },
+  "files": [
+    "dist"
+  ]
 }

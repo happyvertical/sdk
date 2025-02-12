@@ -8,13 +8,5 @@
     "declarationMap": true
   },
   "include": ["src/**/*"],
-  "exclude": ["dist", "node_modules", "**/*.spec.ts"],
-  "references": [
-    { "path": "../utils" },
-    { "path": "../files" },
-    { "path": "../spider" },
-    { "path": "../sql" },
-    { "path": "../pdf" },
-    { "path": "../ai" }
-  ]
+  "exclude": ["dist", "node_modules", "**/*.spec.ts"]
 }
