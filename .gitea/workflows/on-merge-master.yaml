@@ -48,7 +48,8 @@ jobs:
           git config user.email "bot@example.com"
 
       - name: Bump version and release
-        run: pnpm run release
+        run: pnpm run release -- --no-verify
+        
 
       - name: Commit and push changes
         run: |
