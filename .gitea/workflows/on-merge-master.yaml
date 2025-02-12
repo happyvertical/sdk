@@ -40,8 +40,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      # - name: Build packages
-      #   run: pnpm build
+      - name: Build packages
+        run: pnpm build
 
       - name: Bump version with changeset
         run: pnpm changeset version
