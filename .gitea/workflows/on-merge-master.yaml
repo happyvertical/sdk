@@ -25,13 +25,19 @@ jobs:
       - name: Show pnpm version
         run: pnpm --version
 
-      # - name: Cache pnpm store
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: ~/.pnpm-store
-      #     key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-      #     restore-keys: |
-      #       ${{ runner.os }}-pnpm-store-
+      - name: Configure pnpm registry and authentication  # <-- Re-introduced and uncommented
+        run: |
+          pnpm config set @happyvertical:registry=https://git.grffn.net/api/packages/happyvertical/npm/
+          pnpm config set @have:registry=https://git.grffn.net/api/packages/happyvertical/npm/
+          echo "//git.grffn.net/api/packages/happyvertical/npm/:_authToken=${{ secrets.GITEA_TOKEN }}" > .npmrc
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
 
       - name: Install dependencies
         run: pnpm install
