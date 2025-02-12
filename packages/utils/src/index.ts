@@ -6,11 +6,7 @@ import { URL } from 'url';
 import pluralize from 'pluralize';
 import os from 'os';
 import { v4 as uuidv4 } from 'uuid';
-export const TMP_DIR = path.resolve(`${tmpdir()}/kissd`);
-
-export const getTempDir = () => {
-  return TMP_DIR;
-};
+export const TMP_DIR = path.resolve(`${tmpdir()}/.have-sdk/tests`);
 
 export const urlPath = (url: string) => {
   const parsedUrl = new URL(url);

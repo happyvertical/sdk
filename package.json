@@ -19,8 +19,6 @@
     "packages/*"
   ],
   "devDependencies": {
-    "@have/files": "workspace:*",
-    "@have/utils": "workspace:*",
     "@changesets/cli": "^2.27.12",
     "husky": "^9.1.7",
     "lint-staged": "^15.4.2",
