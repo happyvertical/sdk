@@ -9,7 +9,9 @@
 		"skipLibCheck": true,
 		"sourceMap": true,
 		"strict": true,
-		"module": "NodeNext",
-		"moduleResolution": "NodeNext"
+		"target": "ES2022",
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"declaration": true
 	}
 }
