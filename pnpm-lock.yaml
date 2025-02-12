@@ -14,12 +14,6 @@ importers:
       '@changesets/cli':
         specifier: ^2.27.12
         version: 2.27.12
-      '@have/files':
-        specifier: workspace:*
-        version: link:packages/files
-      '@have/utils':
-        specifier: workspace:*
-        version: link:packages/utils
       husky:
         specifier: ^9.1.7
         version: 9.1.7
@@ -90,6 +84,9 @@ importers:
       '@have/sql':
         specifier: workspace:*
         version: link:../sql
+      '@have/utils':
+        specifier: workspace:*
+        version: link:../utils
       '@langchain/community':
         specifier: ^0.3.24
         version: 0.3.29(@browserbasehq/sdk@2.2.0)(@browserbasehq/stagehand@1.12.0(@playwright/test@1.50.1)(deepmerge@4.3.1)(dotenv@16.4.7)(openai@4.83.0(ws@8.18.0)(zod@3.24.1))(zod@3.24.1))(@ibm-cloud/watsonx-ai@1.5.0(@langchain/core@0.3.39(openai@4.83.0(ws@8.18.0)(zod@3.24.1))))(@langchain/core@0.3.39(openai@4.83.0(ws@8.18.0)(zod@3.24.1)))(@libsql/client@0.14.0)(@mozilla/readability@0.5.0)(axios@1.7.9)(cheerio@1.0.0)(ibm-cloud-sdk-core@5.1.2)(ignore@5.3.2)(jsonwebtoken@9.0.2)(lodash@4.17.21)(openai@4.83.0(ws@8.18.0)(zod@3.24.1))(pdf-parse@1.1.1)(pg@8.13.1)(playwright@1.50.1)(ws@8.18.0)
@@ -124,6 +121,9 @@ importers:
       '@have/files':
         specifier: workspace:*
         version: link:../files
+      '@have/utils':
+        specifier: workspace:*
+        version: link:../utils
       '@mozilla/readability':
         specifier: ^0.5.0
         version: 0.5.0
@@ -3423,7 +3423,6 @@ packages:
 
   libsql@0.4.7:
     resolution: {integrity: sha512-T9eIRCs6b0J1SHKYIvD8+KCJMcWZ900iZyxdnSCdqxN12Z1ijzT+jY5nrk72Jw4B0HGzms2NgpryArlJqvc3Lw==}
-    cpu: [x64, arm64, wasm32]
     os: [darwin, linux, win32]
 
   lilconfig@2.1.0:

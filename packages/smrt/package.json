@@ -23,6 +23,7 @@
     "@have/pdf": "workspace:*",
     "@have/sql": "workspace:*",
     "@have/spider": "workspace:*",
+    "@have/utils": "workspace:*",
     "@langchain/community": "^0.3.24",
     "cheerio": "^1.0.0",
     "yaml": "^2.7.0"
