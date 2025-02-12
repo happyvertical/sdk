@@ -10,14 +10,10 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@have/*": ["packages/*/src"]
+      "@have/*": ["packages/*/src"],
+      "*": ["node_modules/*"]
     },
     "lib": ["ES2020", "dom"]
   },
-  "exclude": ["**/*.spec.ts", "node_modules", "**/dist"],
-  "references": [
-    { "path": "packages/spider" },
-    { "path": "packages/files" },
-    { "path": "packages/utils" }
-  ]
+  "exclude": ["node_modules", "**/dist"]
 }
