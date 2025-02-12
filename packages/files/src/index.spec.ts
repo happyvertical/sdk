@@ -10,7 +10,7 @@ import {
   download,
   downloadFileWithCache,
   listFiles,
-} from './index.js';
+} from './index';
 import { createServer, Server } from 'node:http';
 import { TMP_DIR } from '@have/utils';
 

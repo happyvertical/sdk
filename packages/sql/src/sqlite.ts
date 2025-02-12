@@ -1,6 +1,6 @@
 import { createClient } from "@libsql/client";
 import type { QueryResult, DatabaseInterface, TableInterface } from "./types";
-import { validateColumnName } from "./index.js";
+import { validateColumnName } from "./index";
 
 export interface SqliteOptions {
   url?: string;

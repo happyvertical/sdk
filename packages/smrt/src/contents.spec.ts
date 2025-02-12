@@ -1,7 +1,7 @@
 import { it, expect } from 'vitest';
 import { TMP_DIR, makeId, makeSlug } from '@have/utils';
-import { Content } from './content.js';
-import { Contents } from './contents.js';
+import { Content } from './content';
+import { Contents } from './contents';
 
 import { faker } from '@faker-js/faker';
 

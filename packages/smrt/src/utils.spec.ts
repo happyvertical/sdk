@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { fieldsFromClass } from './utils.js';
+import { fieldsFromClass } from './utils';
 // Test class with various field types
 class TestClass {
   test_string: string = 'test';

@@ -3,9 +3,9 @@ import {
   DatabaseInterface,
   QueryResult,
   TableInterface,
-} from "./types.js";
-import { PostgresOptions } from "./postgres.js";
-import { SqliteOptions } from "./sqlite.js";
+} from "./types";
+import { PostgresOptions } from "./postgres";
+import { SqliteOptions } from "./sqlite";
 
 type GetDatabaseOptions =
   | (PostgresOptions & { type?: "postgres" })
@@ -20,10 +20,10 @@ export async function getDatabase(
   }
 
   if (options.type === "postgres") {
-    const postgres = await import("./postgres.js");
+    const postgres = await import("./postgres");
     return postgres.getDatabase(options as PostgresOptions);
   } else if (options.type === "sqlite") {
-    const sqlite = await import("./sqlite.js");
+    const sqlite = await import("./sqlite");
     return sqlite.getDatabase(options as SqliteOptions);
   } else {
     throw new Error("Invalid database type");
@@ -130,6 +130,6 @@ export function validateColumnName(column: string): string {
   return column;
 }
 
-export * from "./types.js";
+export * from "./types";
 
 export default { getDatabase, syncSchema, tableExists };

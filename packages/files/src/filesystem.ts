@@ -1,8 +1,7 @@
 import path from 'path';
 import os from 'os';
-import { existsSync, statSync } from 'fs';
-import { mkdir, readFile, writeFile } from 'fs/promises';
-import { getCached, setCached } from './index.js';
+import { mkdir } from 'fs/promises';
+import { getCached, setCached } from './index';
 
 export interface FilesystemAdapterInterface {
   exists(path: string): Promise<boolean>;

@@ -2,9 +2,6 @@ import { tmpdir } from 'os';
 import path from 'path';
 import { URL } from 'url';
 
-// import * as dateFns from 'date-fns';
-import pluralize from 'pluralize';
-import os from 'os';
 import { v4 as uuidv4 } from 'uuid';
 export const TMP_DIR = path.resolve(`${tmpdir()}/.have-sdk/tests`);
 
