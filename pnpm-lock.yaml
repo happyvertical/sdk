@@ -39,8 +39,8 @@ importers:
   packages/files:
     dependencies:
       '@have/utils':
-        specifier: workspace:*
-        version: link:../utils
+        specifier: ^0.0.1
+        version: 0.0.1
 
   packages/pdf:
     dependencies:
@@ -745,6 +745,9 @@ packages:
   '@faker-js/faker@9.4.0':
     resolution: {integrity: sha512-85+k0AxaZSTowL0gXp8zYWDIrWclTbRPg/pm/V0dSFZ6W6D4lhcG3uuZl4zLsEKfEvs69xDbLN2cHQudwp95JA==}
     engines: {node: '>=18.0.0', npm: '>=9.0.0'}
+
+  '@have/utils@0.0.1':
+    resolution: {integrity: sha512-1LFi324PgrgNPNBZhC86fgfnZq8nflHDMEDqa4MBIFnvAK2lHa4uF8SiwVBfJ6s6n11vtq7wWFXFxQf98uneKA==, tarball: https://git.grffn.net/api/packages/happyvertical/npm/%40have%2Futils/-/0.0.1/utils-0.0.1.tgz}
 
   '@humanfs/core@0.19.1':
     resolution: {integrity: sha512-5DyQ4+1JEUzejeK1JGICcideyfUbGixgS9jNgex5nqkW+cY7WZhxBigmieN5Qnw9ZosSNVC9KQKyb+GUaGyKUA==}
@@ -5456,6 +5459,13 @@ snapshots:
       levn: 0.4.1
 
   '@faker-js/faker@9.4.0': {}
+
+  '@have/utils@0.0.1':
+    dependencies:
+      '@paralleldrive/cuid2': 2.2.2
+      date-fns: 3.6.0
+      pluralize: 8.0.0
+      uuid: 11.0.5
 
   '@humanfs/core@0.19.1': {}
 
