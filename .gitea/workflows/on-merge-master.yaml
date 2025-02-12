@@ -37,7 +37,7 @@ jobs:
         run: pnpm install
 
       - name: Install Playwright Browsers 
-        run: playwright install
+        run: pnpm dlx playwright install 
 
       - name: Build packages
         run: pnpm build
