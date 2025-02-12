@@ -17,6 +17,12 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Configure pnpm registry
+        run: pnpm config set @happyvertical:registry=https://git.grffn.net/api/packages/happyvertical/npm/
+
+      - name: Configure pnpm registry
+        run: pnpm config set @have:registry=https://git.grffn.net/api/packages/happyvertical/npm/
+
       - name: Install pnpm
         run: npm install -g pnpm
 
@@ -42,8 +48,6 @@ jobs:
           git commit -m "Bump version with changeset"
           git push
 
-      - name: Configure pnpm registry
-        run: pnpm config set @happyvertical:registry=https://git.grffn.net/api/packages/happyvertical/npm/
 
       - name: Publish packages
         run: pnpm run publish-packages
