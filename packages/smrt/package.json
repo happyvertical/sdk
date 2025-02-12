@@ -18,12 +18,12 @@
     }
   },
   "dependencies": {
-    "@have/ai": "workspace:*",
-    "@have/files": "workspace:*",
-    "@have/pdf": "workspace:*",
-    "@have/sql": "workspace:*",
-    "@have/spider": "workspace:*",
-    "@have/utils": "workspace:*",
+    "@have/ai": "^0.0.1",
+    "@have/files": "^0.0.1",
+    "@have/pdf": "^0.0.1",
+    "@have/sql": "^0.0.1",
+    "@have/spider": "^0.0.1",
+    "@have/utils": "^0.0.1",
     "@langchain/community": "^0.3.24",
     "cheerio": "^1.0.0",
     "yaml": "^2.7.0"
