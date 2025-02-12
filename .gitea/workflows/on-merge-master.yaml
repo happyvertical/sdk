@@ -40,6 +40,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Build packages
+        run: pnpm build
+
       - name: Bump version with changeset
         run: pnpm changeset version
 
@@ -48,7 +51,7 @@ jobs:
           git config user.name "Gitea Bot"
           git config user.email "bot@example.com"
           git add .
-          git commit -m "Bump version with changeset"
+          git commit -m "Bump version with changeset" --no-verify
           git push
 
 
