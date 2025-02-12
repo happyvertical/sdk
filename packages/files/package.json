@@ -22,6 +22,6 @@
     "node": "22.x"
   },
   "dependencies": {
-    "@have/utils": "workspace:*"
+    "@have/utils": "^0.0.1"
   }
 }
