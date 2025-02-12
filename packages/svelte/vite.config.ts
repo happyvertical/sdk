@@ -4,10 +4,10 @@ import { sveltekit } from '@sveltejs/kit/vite';
 
 export default defineConfig({
 	plugins: [
-		sveltekit(),
-		paraglide({
-			project: './project.inlang',
-			outdir: './src/lib/paraglide'
-		})
+		sveltekit()
+		// paraglide({
+		// 	project: './project.inlang',
+		// 	outdir: './src/lib/paraglide'
+		// })
 	]
 });
