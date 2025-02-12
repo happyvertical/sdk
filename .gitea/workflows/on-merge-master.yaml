@@ -17,11 +17,11 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Configure pnpm registry and authentication
-        run: |
-          pnpm config set @happyvertical:registry=https://git.grffn.net/api/packages/happyvertical/npm/
-          pnpm config set @have:registry=https://git.grffn.net/api/packages/happyvertical/npm/
-          echo "//git.grffn.net/api/packages/happyvertical/npm/:_authToken=${{ secrets.GITEA_TOKEN }}" > .npmrc
+      # - name: Configure pnpm registry and authentication
+      #   run: |
+      #     pnpm config set @happyvertical:registry=https://git.grffn.net/api/packages/happyvertical/npm/
+      #     pnpm config set @have:registry=https://git.grffn.net/api/packages/happyvertical/npm/
+      #     echo "//git.grffn.net/api/packages/happyvertical/npm/:_authToken=${{ secrets.GITEA_TOKEN }}" > .npmrc
 
       - name: Install pnpm
         run: npm install -g pnpm
