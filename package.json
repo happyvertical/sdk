@@ -3,7 +3,7 @@
   "private": true,
   "author": "Will Griffin <willgriffin@gmail.com>",
   "type": "module",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "scripts": {
     "format": "prettier --write .",
     "format-check": "prettier --check .",
@@ -15,7 +15,7 @@
     "dev": "pnpm -r build --watch",
     "publish-packages": "pnpm build && changeset publish",
     "release": "standard-version",
-    "postrelease": "node scripts/update-package-versions.js"
+    "postrelease": "node scripts/update-package-versions.cjs"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.12",
