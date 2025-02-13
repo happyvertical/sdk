@@ -3,7 +3,7 @@
   "private": true,
   "author": "Will Griffin <willgriffin@gmail.com>",
   "type": "module",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "scripts": {
     "format": "prettier --write .",
     "format-check": "prettier --check .",
