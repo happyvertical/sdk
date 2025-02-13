@@ -1,4 +1,4 @@
-import * as pdfJs from 'pdfjs-dist/legacy/build/pdf';
+import * as pdfJs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import scribe from 'scribe.js-ocr';
 
 import fs from 'fs';
