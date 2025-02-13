@@ -15,10 +15,10 @@ export async function getDatabase(
   }
 
   if (options.type === "postgres") {
-    const postgres = await import("./postgres");
+    const postgres = await import("./postgres.js");
     return postgres.getDatabase(options as PostgresOptions);
   } else if (options.type === "sqlite") {
-    const sqlite = await import("./sqlite");
+    const sqlite = await import("./sqlite.js");
     return sqlite.getDatabase(options as SqliteOptions);
   } else {
     throw new Error("Invalid database type");
