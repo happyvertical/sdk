@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.10](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.9...v0.0.10) (2025-02-13)
+
+
+### Bug Fixes
+
+* proper extension for pdfjs ([01ffa20](https://git.grffn.net/happyvertical/have-sdk/commit/01ffa20f236cae3b3f9e348b85b843d630f28bc1))
+
 ### [0.0.9](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.8...v0.0.9) (2025-02-13)
 
 
