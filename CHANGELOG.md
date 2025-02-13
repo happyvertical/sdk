@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.9](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.8...v0.0.9) (2025-02-13)
+
+
+### Bug Fixes
+
+* couple missed ones ([febcbb1](https://git.grffn.net/happyvertical/have-sdk/commit/febcbb1672cdeff05006c1e314d4fc27b6c43485))
+
 ### [0.0.8](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.7...v0.0.8) (2025-02-13)
 
 ### [0.0.7](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.6...v0.0.7) (2025-02-13)
