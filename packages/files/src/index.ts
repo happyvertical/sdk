@@ -186,5 +186,5 @@ export function getMimeType(fileOrUrl: string): string {
   return mimeTypes[extension.toLowerCase()] || 'application/octet-stream';
 }
 
-export * from './fetch';
-export * from './filesystem';
+export * from './fetch.js';
+export * from './filesystem.js';
