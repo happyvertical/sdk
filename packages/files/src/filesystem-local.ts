@@ -1,5 +1,5 @@
-import { FilesystemAdapter, FilesystemAdapterOptions } from './filesystem';
-import { getMimeType } from './index';
+import { FilesystemAdapter, FilesystemAdapterOptions } from './filesystem.js';
+import { getMimeType } from './index.js';
 export class LocalFilesystemAdapter extends FilesystemAdapter {
   protected cacheDir: string;
   public type: string;

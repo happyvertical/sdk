@@ -1,11 +1,11 @@
 import type { AIClientOptions } from '@have/ai';
 import YAML from 'yaml';
-import type { BaseCollectionOptions } from './collection';
-import type { ContentOptions } from './content';
+import type { BaseCollectionOptions } from './collection.js';
+import type { ContentOptions } from './content.js';
 import { makeSlug } from '@have/utils';
-import { BaseCollection } from './collection';
-import { Content } from './content';
-import { Document } from './document';
+import { BaseCollection } from './collection.js';
+import { Content } from './content.js';
+import { Document } from './document.js';
 import path from 'path';
 import { ensureDirectoryExists } from '@have/files';
 import { writeFile } from 'node:fs/promises';

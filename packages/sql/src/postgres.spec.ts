@@ -1,6 +1,6 @@
 import { it, expect, describe, beforeEach, afterEach } from "vitest";
 import { randomUUID } from "crypto";
-import { getDatabase } from "./index";
+import { getDatabase } from "./index.js";
 describe.skip("postgres tests", () => {
   let db: Awaited<ReturnType<typeof getDatabase>>;
   beforeEach(async () => {
