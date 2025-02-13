@@ -1,7 +1,7 @@
 import os from 'os';
 import path from 'path';
-import { FilesystemAdapter } from '@have/files';
 import { URL } from 'url';
+import { FilesystemAdapter } from '@have/files';
 import { downloadFileWithCache } from '@have/files';
 import { extractTextFromPDF } from '@have/pdf';
 import { getCached, setCached, getMimeType } from '@have/files';
