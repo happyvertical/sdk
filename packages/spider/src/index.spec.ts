@@ -1,4 +1,4 @@
-import { fetchPageSource, getBrowser } from './index';
+import { fetchPageSource, getBrowser } from './index.js';
 import { it, expect } from 'vitest';
 
 it('should fetch page source cheaply with caching', async () => {

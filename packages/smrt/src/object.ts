@@ -1,9 +1,9 @@
-import type { BaseClassOptions } from './class';
+import type { BaseClassOptions } from './class.js';
 import type { AIClientOptions, AIMessageOptions } from '@have/ai';
 import { getDatabase, syncSchema, escapeSqlValue } from '@have/sql';
 
-import { BaseClass } from './class';
-import { BaseCollection } from './collection';
+import { BaseClass } from './class.js';
+import { BaseCollection } from './collection.js';
 import {
   fieldsFromClass,
   tableNameFromClass,

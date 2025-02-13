@@ -1,3 +1,3 @@
-export * from './client';
+export * from './client.js';
 export * from './message.js';
-export * from './thread';
+export * from './thread.js';

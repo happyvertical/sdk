@@ -1,13 +1,13 @@
-import { BaseClass, BaseClassOptions } from './class';
+import { BaseClass, BaseClassOptions } from './class.js';
 import {
   fieldsFromClass,
   tableNameFromClass,
   generateSchema,
   formatDataJs,
   formatDataSql,
-} from './utils';
+} from './utils.js';
 import { getDatabase, syncSchema, escapeSqlValue } from '@have/sql';
-import { BaseObject } from './object';
+import { BaseObject } from './object.js';
 
 export interface BaseCollectionOptions extends BaseClassOptions {}
 

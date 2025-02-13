@@ -1,4 +1,4 @@
-import { AIThread } from './thread';
+import { AIThread } from './thread.js';
 
 export interface AIMessageOptions {
   role?: 'user' | 'assistant' | 'system';

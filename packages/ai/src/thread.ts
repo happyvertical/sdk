@@ -1,5 +1,5 @@
-import { AIClient, type AIClientOptions } from './client';
-import { AIMessage } from './message';
+import { AIClient, type AIClientOptions } from './client.js';
+import { AIMessage } from './message.js';
 import OpenAI from 'openai';
 export interface AIThreadOptions {
   ai: AIClientOptions;

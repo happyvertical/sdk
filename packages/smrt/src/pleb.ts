@@ -1,5 +1,5 @@
-import { BaseObject } from './object';
-import type { BaseObjectOptions } from './object';
+import { BaseObject } from './object.js';
+import type { BaseObjectOptions } from './object.js';
 
 export interface PlebOptions extends BaseObjectOptions {}
 

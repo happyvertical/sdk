@@ -1,7 +1,6 @@
 import { it, expect } from 'vitest';
-import scribe from 'scribe.js-ocr';
 import path from 'path';
-import { extractTextFromPDF } from './index';
+import { extractTextFromPDF } from './index.js';
 // skipping because it takes too long and doesnt provide much value
 it.skip('should extract text from an image pdf', async () => {
   // const pdfPath = path.join(

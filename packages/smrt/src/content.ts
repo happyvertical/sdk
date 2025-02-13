@@ -1,5 +1,5 @@
-import type { BaseObjectOptions } from './object';
-import { BaseObject } from './object';
+import type { BaseObjectOptions } from './object.js';
+import { BaseObject } from './object.js';
 
 export interface ContentOptions extends BaseObjectOptions {
   type?: string | null;

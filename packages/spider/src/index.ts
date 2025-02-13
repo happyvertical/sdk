@@ -1,4 +1,3 @@
-import { tmpdir } from 'os';
 import path from 'path';
 import { chromium } from 'playwright-core';
 import type { Browser } from 'playwright-core';

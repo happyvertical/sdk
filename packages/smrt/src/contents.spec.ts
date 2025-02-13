@@ -2,8 +2,8 @@ import { it, expect } from 'vitest';
 import os from 'node:os';
 import path from 'node:path';
 
-import { Content } from './content';
-import { Contents } from './contents';
+import { Content } from './content.js';
+import { Contents } from './contents.js';
 
 import { faker } from '@faker-js/faker';
 const TMP_DIR = path.resolve(`${os.tmpdir()}/.have-sdk/tests`);

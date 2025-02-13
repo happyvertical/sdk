@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { parseAmazonDateString, sleep, waitFor } from './index';
+import { parseAmazonDateString, sleep, waitFor } from './index.js';
 
 it('should have a test', () => {
   expect(true).toBe(true);
