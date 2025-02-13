@@ -1,4 +1,5 @@
-import { BaseClass, BaseClassOptions } from './class.js';
+import type { BaseClassOptions } from './class.js';
+import { BaseClass } from './class.js';
 import {
   fieldsFromClass,
   tableNameFromClass,

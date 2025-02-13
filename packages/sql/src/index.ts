@@ -1,11 +1,6 @@
-import {
-  DatabaseOptions,
-  DatabaseInterface,
-  QueryResult,
-  TableInterface,
-} from "./types.js";
-import { PostgresOptions } from "./postgres.js";
-import { SqliteOptions } from "./sqlite.js";
+import type { DatabaseInterface } from "./types.js";
+import type { PostgresOptions } from "./postgres.js";
+import type { SqliteOptions } from "./sqlite.js";
 
 type GetDatabaseOptions =
   | (PostgresOptions & { type?: "postgres" })

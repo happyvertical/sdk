@@ -1,16 +1,14 @@
-import type { BaseClassOptions } from './class.js';
-import type { AIClientOptions, AIMessageOptions } from '@have/ai';
-import { getDatabase, syncSchema, escapeSqlValue } from '@have/sql';
-
-import { BaseClass } from './class.js';
-import { BaseCollection } from './collection.js';
 import {
   fieldsFromClass,
   tableNameFromClass,
-  generateSchema,
   setupTableFromClass,
-  setupTriggers,
 } from '@have/smrt/utils';
+import type { AIMessageOptions } from '@have/ai';
+import { escapeSqlValue } from '@have/sql';
+import type { BaseClassOptions } from './class.js';
+
+import { BaseClass } from './class.js';
+import { BaseCollection } from './collection.js';
 
 export interface BaseObjectOptions extends BaseClassOptions {
   id?: string;
