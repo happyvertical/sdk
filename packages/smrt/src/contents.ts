@@ -103,13 +103,42 @@ export class Contents extends BaseCollection<Content> {
       output += YAML.stringify(frontMatter);
       output += '---\n';
     }
-    output += body || '';
 
-    const outputFile = path.join(contentDir, `${content.slug}`, 'index.html');
+    // Format body as markdown if it's plain text
+    let formattedBody = body || '';
+    if (body && !this.isMarkdown(body)) {
+      formattedBody = this.formatAsMarkdown(body);
+    }
+    output += formattedBody;
+
+    const outputFile = path.join(contentDir, `${content.slug}`, 'index.md');
     await ensureDirectoryExists(path.dirname(outputFile));
-    // todo: finish implementing fs aadapter
-    // await this.fs.write(outputFile, output);
     await writeFile(outputFile, output);
+  }
+
+  private isMarkdown(text: string): boolean {
+    // Basic check for common markdown indicators
+    const markdownIndicators = [
+      /^#\s/m, // Headers
+      /\*\*.+\*\*/, // Bold
+      /\*.+\*/, // Italic
+      /\[.+\]\(.+\)/, // Links
+      /^\s*[-*+]\s/m, // Lists
+      /^\s*\d+\.\s/m, // Numbered lists
+      /```[\s\S]*```/, // Code blocks
+      /^\s*>/m, // Blockquotes
+    ];
+
+    return markdownIndicators.some((indicator) => indicator.test(text));
+  }
+
+  private formatAsMarkdown(text: string): string {
+    // Basic formatting of plain text to markdown
+    return text
+      .split(/\n\n+/)
+      .map((paragraph) => paragraph.trim())
+      .filter(Boolean)
+      .join('\n\n');
   }
 
   public async syncContentDir() {

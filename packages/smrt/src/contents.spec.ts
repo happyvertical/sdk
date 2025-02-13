@@ -54,6 +54,7 @@ it.skip('should be able to mirror a bit of content give a url', async () => {
 }, 60000);
 
 it('should be able to sync a content dir', async () => {
+  console.log(`${TMP_DIR}/content`);
   const contents = await Contents.create({
     ai: {
       type: 'openai',
