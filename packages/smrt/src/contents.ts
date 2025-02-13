@@ -144,7 +144,7 @@ export class Contents extends BaseCollection<Content> {
       .join('\n\n');
   }
 
-  public async syncContentDir() {
+  public async syncContentDir(options: { contentDir?: string }) {
     const contentFilter = {
       type: 'article',
     };
@@ -153,7 +153,7 @@ export class Contents extends BaseCollection<Content> {
     for (const content of contents) {
       await this.writeContentFile({
         content,
-        contentDir: this.options.contentDir || '',
+        contentDir: options.contentDir || this.options.contentDir || '',
       });
     }
     // const files = await fs.readdir(dir);

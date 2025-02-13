@@ -67,7 +67,6 @@ it('should be able to sync a content dir', async () => {
       type: 'filesystem',
       cacheDir: `${TMP_DIR}/cache`,
     },
-    contentDir: `${TMP_DIR}/content`,
   });
 
   for (let x = 0; x < 10; x++) {
@@ -80,5 +79,5 @@ it('should be able to sync a content dir', async () => {
     });
   }
 
-  await contents.syncContentDir();
+  await contents.syncContentDir({ contentDir: `${TMP_DIR}/content` });
 });
