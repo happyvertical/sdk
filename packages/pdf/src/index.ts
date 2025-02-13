@@ -34,19 +34,24 @@ export async function extractImagesFromPDF(pdfPath: string): Promise<any[]> {
 }
 
 export async function extractTextFromPDF(pdfPath: string) {
-  const loadingTask = pdfJs.getDocument(pdfPath);
-  const pdf = await loadingTask.promise;
-  let text = '';
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    const strings = content.items.map((item: { str: string }) => item.str);
-    text += strings.join(' ');
+  try {
+    const loadingTask = pdfJs.getDocument(pdfPath);
+    const pdf = await loadingTask.promise;
+    let text = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      const strings = content.items.map((item: { str: string }) => item.str);
+      text += strings.join(' ');
+    }
+    if (!text.trim()) {
+      text = await scribe.extractText([pdfPath]);
+    }
+    return text;
+  } catch (error) {
+    console.error(`Error extracting text from ${pdfPath}:`, error);
+    throw error;
   }
-  if (!text.trim()) {
-    text = await scribe.extractText([pdfPath]);
-  }
-  return text;
 }
 
 // export function extractImagesFromPDF(pdfPath: string): Promise<string[]> {
