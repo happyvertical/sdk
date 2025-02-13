@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.14](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.13...v0.0.14) (2025-02-13)
+
+
+### Bug Fixes
+
+* **pdf:** add vite config, more pdfs ([386fcc7](https://git.grffn.net/happyvertical/have-sdk/commit/386fcc7a21263cc052aaa419a0647629d25b4464))
+
 ### [0.0.13](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.12...v0.0.13) (2025-02-13)
 
 ### [0.0.12](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.11...v0.0.12) (2025-02-13)
