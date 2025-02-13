@@ -125,6 +125,6 @@ export function validateColumnName(column: string): string {
   return column;
 }
 
-export * from "./types";
+export * from "./types.js";
 
 export default { getDatabase, syncSchema, tableExists };
