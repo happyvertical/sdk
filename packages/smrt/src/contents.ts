@@ -1,7 +1,6 @@
 import type { AIClientOptions } from '@have/ai';
-import YAML from 'yaml';
 import type { BaseCollectionOptions } from './collection.js';
-import type { ContentOptions } from './content.js';
+import YAML from 'yaml';
 import { makeSlug } from '@have/utils';
 import { BaseCollection } from './collection.js';
 import { Content } from './content.js';

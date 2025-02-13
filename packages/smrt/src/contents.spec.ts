@@ -2,7 +2,6 @@ import { it, expect } from 'vitest';
 import os from 'node:os';
 import path from 'node:path';
 
-import { Content } from './content.js';
 import { Contents } from './contents.js';
 
 import { faker } from '@faker-js/faker';

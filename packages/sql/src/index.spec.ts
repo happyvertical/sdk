@@ -1,5 +1,5 @@
 import { it, describe, expect } from "vitest";
-import { getDatabase } from "./index";
+import { getDatabase } from "./index.js";
 import path from "path";
 import { tmpdir } from "os";
 import { syncSchema } from "./index.js";
