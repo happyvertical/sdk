@@ -83,8 +83,11 @@ export class Contents extends BaseCollection<Content> {
     return content;
   }
 
-  public async writeContentFile(content: Content) {
-    const contentDir = this.options.contentDir;
+  public async writeContentFile(options: {
+    content: Content;
+    contentDir: string;
+  }) {
+    const { content, contentDir } = options;
     if (!contentDir) {
       throw new Error('No content dir provided');
     }
@@ -148,7 +151,10 @@ export class Contents extends BaseCollection<Content> {
 
     const contents = await this.list({ filter: contentFilter });
     for (const content of contents) {
-      await this.writeContentFile(content);
+      await this.writeContentFile({
+        content,
+        contentDir: this.options.contentDir || '',
+      });
     }
     // const files = await fs.readdir(dir);
   }
