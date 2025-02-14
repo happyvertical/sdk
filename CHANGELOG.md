@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.18](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.17...v0.0.18) (2025-02-14)
+
+
+### Bug Fixes
+
+* set custom registry to default and also also in the svelte npmrc ([9908bde](https://git.grffn.net/happyvertical/have-sdk/commit/9908bded4e9f2fa8d3029230ed3071d580d1fe91))
+
 ### [0.0.17](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.16...v0.0.17) (2025-02-14)
 
 
