@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.16](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.15...v0.0.16) (2025-02-14)
+
+
+### Features
+
+* installed eslint, fixed a couple errors, added some rules to skip others and a bunch of warnings ([c3178bc](https://git.grffn.net/happyvertical/have-sdk/commit/c3178bc7ec8433d32b8191d35f4c247f5d5ea441))
+* **svelte:** initial commit ([028c884](https://git.grffn.net/happyvertical/have-sdk/commit/028c884ecdf2c0e8f37e4298d30fb711dc2e6268))
+
+
+### Bug Fixes
+
+* better typing ([92c032d](https://git.grffn.net/happyvertical/have-sdk/commit/92c032dfdffceb66b87a742d3748054a135086fe))
+* unignore lib and commit sveltes ([4440ae1](https://git.grffn.net/happyvertical/have-sdk/commit/4440ae12ce72e01854f2680fa15555010b88e759))
+
 ### [0.0.15](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.14...v0.0.15) (2025-02-13)
 
 
