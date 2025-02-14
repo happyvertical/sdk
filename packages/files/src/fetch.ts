@@ -37,7 +37,8 @@ class RateLimiter {
     const domain = this.getDomain(url);
     const now = Date.now();
 
-    let domainConfig = this.domains.get(domain) || this.domains.get('default')!;
+    const domainConfig =
+      this.domains.get(domain) || this.domains.get('default')!;
 
     // Wait if we're over the limit
     if (domainConfig.queue >= domainConfig.limit) {

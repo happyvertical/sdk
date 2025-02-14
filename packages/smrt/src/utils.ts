@@ -155,7 +155,7 @@ export function generateSchema(ClassType: new (...args: any[]) => any) {
   return schema;
 }
 
-export function tableNameFromClass(ClassType: Function) {
+export function tableNameFromClass(ClassType: new (...args: any[]) => any) {
   return (
     ClassType.name
       // Insert underscore between lower & upper case letters
