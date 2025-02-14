@@ -1,3 +1,15 @@
-<h1>Welcome to your library project</h1>
-<p>Create your package using @sveltejs/package and preview/showcase your work with SvelteKit</p>
-<p>Visit <a href="https://svelte.dev/docs/kit">svelte.dev/docs/kit</a> to read the documentation</p>
+<script>
+	import * as Card from '../lib/components/card/index.js';
+</script>
+
+<Card.Root class="w-full max-w-sm">
+	<Card.Header>Hi</Card.Header>
+
+	<Card.Content>
+		<p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, quos.</p>
+	</Card.Content>
+
+	<Card.Footer>
+		<p>Lorem ipsum dolor sit amet consectetur adipisicing elit. Quisquam, quos.</p>
+	</Card.Footer>
+</Card.Root>

@@ -38,4 +38,7 @@ sqlite is cool and can be useful on the edge
 
 ```bash
 pnpx degit huntabyte/shadcdn-svelte/sites/docs/src/lib/registry/default/ui/card ./src/lib/components/card
+
 ```
+
+https://github.com/
