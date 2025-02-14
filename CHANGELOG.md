@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.21](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.20...v0.0.21) (2025-02-14)
+
+
+### Features
+
+* **svelte:** export styles ([e3a3c9e](https://git.grffn.net/happyvertical/have-sdk/commit/e3a3c9e632af89fa673e2e3220bcc79de0a3b6c8))
+
 ### [0.0.20](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.19...v0.0.20) (2025-02-14)
 
 
