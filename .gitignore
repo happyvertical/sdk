@@ -15,8 +15,6 @@ packages/*/dist
 # Build outputs
 dist/
 build/
-lib/
-coverage/
 
 # TypeScript
 *.tsbuildinfo
