@@ -33,3 +33,9 @@ sqlite is cool and can be useful on the edge
 - smrt: a library for building vertical ai agents, probably anything but
   - standardised collection, object, classes .. all include db, fs, ai interfaces and options
   - fast and loose database schemas defined by class properties supporting sqlite first and an eye on postgres
+
+# cheatsheet
+
+```bash
+pnpx degit huntabyte/shadcdn-svelte/sites/docs/src/lib/registry/default/ui/card ./src/lib/components/card
+```
