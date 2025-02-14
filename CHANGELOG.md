@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.19](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.18...v0.0.19) (2025-02-14)
+
+
+### Features
+
+* **svelte:** added utils and tailwind-merge dep ([2876a80](https://git.grffn.net/happyvertical/have-sdk/commit/2876a80501cbf18e53215c641847220c9f331134))
+
 ### [0.0.18](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.17...v0.0.18) (2025-02-14)
 
 
