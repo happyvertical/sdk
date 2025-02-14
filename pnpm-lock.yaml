@@ -185,6 +185,10 @@ importers:
         version: 1.6.1(@types/node@22.13.0)(lightningcss@1.29.1)
 
   packages/svelte:
+    dependencies:
+      tailwind-merge:
+        specifier: ^3.0.1
+        version: 3.0.1
     devDependencies:
       '@chromatic-com/storybook':
         specifier: ^3.2.4
@@ -4746,6 +4750,9 @@ packages:
   sveltedoc-parser@4.2.1:
     resolution: {integrity: sha512-sWJRa4qOfRdSORSVw9GhfDEwsbsYsegnDzBevUCF6k/Eis/QqCu9lJ6I0+d/E2wOWCjOhlcJ3+jl/Iur+5mmCw==}
     engines: {node: '>=10.0.0'}
+
+  tailwind-merge@3.0.1:
+    resolution: {integrity: sha512-AvzE8FmSoXC7nC+oU5GlQJbip2UO7tmOhOfQyOmPhrStOGXHU08j8mZEHZ4BmCqY5dWTCo4ClWkNyRNx1wpT0g==}
 
   tailwindcss@4.0.6:
     resolution: {integrity: sha512-mysewHYJKaXgNOW6pp5xon/emCsfAMnO8WMaGKZZ35fomnR/T5gYnRg2/yRTTrtXiEl1tiVkeRt0eMO6HxEZqw==}
@@ -9451,6 +9458,8 @@ snapshots:
       htmlparser2-svelte: 4.1.0
     transitivePeerDependencies:
       - supports-color
+
+  tailwind-merge@3.0.1: {}
 
   tailwindcss@4.0.6: {}
 
