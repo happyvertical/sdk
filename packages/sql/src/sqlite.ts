@@ -215,11 +215,9 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
     }
   };
 
-  const query = async (str: string, values?: any[]) => {
+  const query = async (str: string, ...values: any[]) => {
     const sql = str;
-    const args = Array.isArray(values)
-      ? values
-      : Array.from(arguments).slice(1);
+    const args = Array.isArray(values[0]) ? values[0] : values;
     try {
       const result = await client.execute({ sql, args });
       return {
