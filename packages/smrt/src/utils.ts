@@ -155,7 +155,10 @@ export function generateSchema(ClassType: new (...args: any[]) => any) {
   return schema;
 }
 
-export function tableNameFromClass(ClassType: new (...args: any[]) => any) {
+export function tableNameFromClass(
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+  ClassType: Function | (new (...args: any[]) => any),
+) {
   return (
     ClassType.name
       // Insert underscore between lower & upper case letters
