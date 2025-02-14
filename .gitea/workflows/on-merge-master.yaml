@@ -12,7 +12,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Fetch all history.
+          fetch-depth: 0 # Fetch all history.
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -25,11 +25,13 @@ jobs:
       - name: Show pnpm version
         run: pnpm --version
 
-      - name: Configure pnpm registry and authentication  # <-- Re-introduced and uncommented
+      - name: Configure pnpm registry and authentication
         run: |
           pnpm config set @happyvertical:registry=https://git.grffn.net/api/packages/happyvertical/npm/
           pnpm config set @have:registry=https://git.grffn.net/api/packages/happyvertical/npm/
           echo "//git.grffn.net/api/packages/happyvertical/npm/:_authToken=${{ secrets.GITEATOKEN }}" > .npmrc
+          echo "registry=https://git.grffn.net/api/packages/happyvertical/npm/" >> .npmrc
+          echo "always-auth=true" >> .npmrc
 
       - name: Cache pnpm store
         uses: actions/cache@v4
@@ -42,13 +44,13 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Install Playwright Browsers 
-        run: pnpm dlx playwright install 
+      - name: Install Playwright Browsers
+        run: pnpm dlx playwright install
 
       - name: Cache Playwright Browsers
         uses: actions/cache@v4
         with:
-          path: ~/.cache/ms-playwright  # Default Playwright cache directory.
+          path: ~/.cache/ms-playwright # Default Playwright cache directory.
           key: ${{ runner.os }}-playwright-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-playwright-
@@ -62,8 +64,7 @@ jobs:
           git config user.email "bot@example.com"
 
       - name: Bump version and release
-        run: pnpm run release 
-        
+        run: pnpm run release
 
       - name: Commit and push changes
         run: |
