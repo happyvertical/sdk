@@ -72,6 +72,7 @@
 		"vite": "^6.0.0"
 	},
 	"dependencies": {
+		"clsx": "^2.1.1",
 		"tailwind-merge": "^3.0.1"
 	}
 }
