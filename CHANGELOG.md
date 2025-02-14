@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.23](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.22...v0.0.23) (2025-02-14)
+
+
+### Bug Fixes
+
+* remove the import style that i thought i already had ([32cf26a](https://git.grffn.net/happyvertical/have-sdk/commit/32cf26a3b77374f3c357dabc35a649f37145cbc2))
+
 ### [0.0.22](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.21...v0.0.22) (2025-02-14)
 
 
