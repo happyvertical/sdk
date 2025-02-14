@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.22](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.21...v0.0.22) (2025-02-14)
+
+
+### Features
+
+* moved styles to own directory, renamed export styles ([00b9b6a](https://git.grffn.net/happyvertical/have-sdk/commit/00b9b6a67ed005c0e8dde0fef3a976db8f898fc7))
+
+
+### Bug Fixes
+
+* added clsx and tailwind-merge to deps ([caf1f5b](https://git.grffn.net/happyvertical/have-sdk/commit/caf1f5bc85352fa5e294f211492f116b02dafe2d))
+* dont import styles in index.ts ([96eab25](https://git.grffn.net/happyvertical/have-sdk/commit/96eab25070c1395cf18493905b95e703ea457d8b))
+
 ### [0.0.21](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.20...v0.0.21) (2025-02-14)
 
 
