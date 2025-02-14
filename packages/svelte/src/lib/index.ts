@@ -5,6 +5,8 @@ import Description from './components/card/card-description.svelte';
 import Footer from './components/card/card-footer.svelte';
 import Title from './components/card/card-title.svelte';
 
+import './index.css';
+
 export const Card: {
 	Root: typeof Root;
 	Content: typeof Content;
