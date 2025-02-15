@@ -67,7 +67,7 @@ it('should get fields from a class with values', () => {
   expect(fields).not.toHaveProperty('extraField');
 });
 
-it.only('should be able to parse a content string', async () => {
+it.only('should be able to parse a content string', () => {
   const data = {
     type: 'article',
     title: faker.lorem.sentence(),
@@ -76,7 +76,7 @@ it.only('should be able to parse a content string', async () => {
     body: faker.lorem.paragraph(),
   };
 
-  const toString = await contentToString(data as Content);
-  const toObject = await stringToContent(toString);
+  const toString = contentToString(data as Content);
+  const toObject = stringToContent(toString);
   expect(toObject).toEqual(data);
 });
