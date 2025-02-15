@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.32](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.31...v0.0.32) (2025-02-15)
+
+
+### Bug Fixes
+
+* contentToString and stringToContent dont need to be async ([8279dd9](https://git.grffn.net/happyvertical/have-sdk/commit/8279dd92feb7c61652e5191bc26cace16dc2d901))
+
 ### [0.0.31](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.30...v0.0.31) (2025-02-15)
 
 
