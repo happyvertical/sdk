@@ -1,5 +1,5 @@
 <script>
-	import * as Card from '../lib/components/card/index.js';
+	import * as Card from '../lib/components/cards/index.js';
 </script>
 
 <Card.Root class="w-full max-w-sm">
