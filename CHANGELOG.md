@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.31](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.30...v0.0.31) (2025-02-15)
+
+
+### Bug Fixes
+
+* move pg from devDeps to deps in sql ([d27cdca](https://git.grffn.net/happyvertical/have-sdk/commit/d27cdca65880a0f2d22fa984a3ad7a40572c5462))
+
 ### [0.0.30](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.29...v0.0.30) (2025-02-15)
 
 ### [0.0.29](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.28...v0.0.29) (2025-02-15)
