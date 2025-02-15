@@ -2,9 +2,9 @@ import { it, expect } from 'vitest';
 import os from 'node:os';
 import path from 'node:path';
 
-import { Contents } from './contents.js';
-
+import { Contents, stringToContent, contentToString } from './contents.js';
 import { faker } from '@faker-js/faker';
+import { Content } from './content.js';
 const TMP_DIR = path.resolve(`${os.tmpdir()}/.have-sdk/tests`);
 it('should be able to getOrInsert a content item', async () => {
   const contents = await Contents.create({
@@ -80,4 +80,18 @@ it('should be able to sync a content dir', async () => {
   }
 
   await contents.syncContentDir({ contentDir: `${TMP_DIR}/content` });
+});
+
+it.only('should be able to parse a content string', async () => {
+  const data = {
+    type: 'article',
+    title: faker.lorem.sentence(),
+    author: faker.person.fullName(),
+    publish_date: faker.date.recent(),
+    body: faker.lorem.paragraph(),
+  };
+
+  const toString = await contentToString(data as Content);
+  const toObject = await stringToContent(toString);
+  expect(toObject).toEqual(data);
 });
