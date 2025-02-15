@@ -1,5 +1,7 @@
 import { it, expect } from 'vitest';
-import { fieldsFromClass } from './utils.js';
+import { fieldsFromClass, contentToString, stringToContent } from './utils.js';
+import { faker } from '@faker-js/faker';
+import { Content } from './content.js';
 // Test class with various field types
 class TestClass {
   test_string: string = 'test';
@@ -63,4 +65,18 @@ it('should get fields from a class with values', () => {
 
   // Verify extra field from values doesn't appear
   expect(fields).not.toHaveProperty('extraField');
+});
+
+it.only('should be able to parse a content string', async () => {
+  const data = {
+    type: 'article',
+    title: faker.lorem.sentence(),
+    author: faker.person.fullName(),
+    publish_date: faker.date.recent(),
+    body: faker.lorem.paragraph(),
+  };
+
+  const toString = await contentToString(data as Content);
+  const toObject = await stringToContent(toString);
+  expect(toObject).toEqual(data);
 });
