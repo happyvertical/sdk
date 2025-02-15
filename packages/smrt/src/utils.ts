@@ -275,14 +275,14 @@ export async function setupTriggers(db: any, tableName: string) {
   }
 }
 
-export async function contentToString(content: Content) {
+export function contentToString(content: Content) {
   const { body, ...frontmatter } = content;
   const separator = '---';
   const frontmatterYAML = yaml.stringify(frontmatter);
   return `${separator}\n${frontmatterYAML}\n${separator}\n${body}`;
 }
 
-export async function stringToContent(data: string) {
+export function stringToContent(data: string) {
   const separator = '---';
   const frontmatterStart = data.indexOf(separator);
 
