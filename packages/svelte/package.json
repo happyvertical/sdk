@@ -38,35 +38,28 @@
 			"require": "./dist/styles/index.css",
 			"default": "./dist/styles/index.css"
 		},
-		"./components": {
-			"types": "./dist/components/index.d.ts",
-			"svelte": "./dist/components/index.js",
-			"import": "./dist/components/index.js",
-			"require": "./dist/components/index.js",
-			"default": "./dist/components/index.js"
-		},
-		"./components/Card": {
+		"./Card": {
 			"types": "./dist/components/cards/Card.svelte.d.ts",
 			"svelte": "./dist/components/cards/Card.svelte",
 			"import": "./dist/components/cards/Card.svelte",
 			"require": "./dist/components/cards/Card.svelte",
 			"default": "./dist/components/cards/Card.svelte"
 		},
-		"./components/Article": {
+		"./Article": {
 			"types": "./dist/components/articles/Article.svelte.d.ts",
 			"svelte": "./dist/components/articles/Article.svelte",
 			"import": "./dist/components/articles/Article.svelte",
 			"require": "./dist/components/articles/Article.svelte",
 			"default": "./dist/components/articles/Article.svelte"
 		},
-		"./components/ArticleList": {
+		"./ArticleList": {
 			"types": "./dist/components/articles/ArticleList.svelte.d.ts",
 			"svelte": "./dist/components/articles/ArticleList.svelte",
 			"import": "./dist/components/articles/ArticleList.svelte",
 			"require": "./dist/components/articles/ArticleList.svelte",
 			"default": "./dist/components/articles/ArticleList.svelte"
 		},
-		"./components/ArticleListItem": {
+		"./ArticleListItem": {
 			"types": "./dist/components/articles/ArticleListItem.svelte.d.ts",
 			"svelte": "./dist/components/articles/ArticleListItem.svelte",
 			"import": "./dist/components/articles/ArticleListItem.svelte",
