@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.28](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.27...v0.0.28) (2025-02-15)
+
+
+### Features
+
+* added vitest.config to smrt, vitest.workspace to root ([2791894](https://git.grffn.net/happyvertical/have-sdk/commit/279189473509d04054c6c46a0b1f7b8ceaa07ce4))
+* ignore .svelte-kit ([8ba87d9](https://git.grffn.net/happyvertical/have-sdk/commit/8ba87d936d9a720f608a635bfb346a484a14cc9a))
+* **smrt:** contentToString and stringToContent functions ([3b7b004](https://git.grffn.net/happyvertical/have-sdk/commit/3b7b004cc5261da990778e368ef23d85a5cb7740))
+
 ### [0.0.27](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.26...v0.0.27) (2025-02-15)
 
 ### [0.0.26](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.25...v0.0.26) (2025-02-15)
