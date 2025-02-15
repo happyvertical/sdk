@@ -7,5 +7,13 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     globalSetup: path.resolve(__dirname, './vitest.setup.ts'),
+    sequence: {
+      hooks: 'list',
+    },
+    poolOptions: {
+      threads: {
+        singleThread: true,
+      },
+    },
   },
 });

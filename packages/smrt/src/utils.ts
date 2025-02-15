@@ -1,5 +1,6 @@
 import { syncSchema } from '@have/sql';
-
+import yaml from 'yaml';
+import { Content } from './content.js';
 export function isDateField(key: string) {
   return key.endsWith('_date') || key.endsWith('_at') || key === 'date';
 }
@@ -16,32 +17,6 @@ export function dateAsObject(date: Date | string) {
     return date.toISOString();
   }
   return date;
-}
-
-export function formatDataJs(data: Record<string, any>) {
-  const normalizedData: Record<string, any> = {};
-  for (const [key, value] of Object.entries(data)) {
-    if (value instanceof Date) {
-      normalizedData[key] = value;
-    } else if (isDateField(key) && typeof value === 'string') {
-      normalizedData[key] = new Date(value);
-    } else {
-      normalizedData[key] = value;
-    }
-  }
-  return normalizedData;
-}
-
-export function formatDataSql(data: Record<string, any>) {
-  const normalizedData: Record<string, any> = {};
-  for (const [key, value] of Object.entries(data)) {
-    if (value instanceof Date) {
-      normalizedData[key] = value.toISOString(); // Postgres accepts ISO format with timezone
-    } else {
-      normalizedData[key] = value;
-    }
-  }
-  return normalizedData;
 }
 
 export function fieldsFromClass(
@@ -298,4 +273,65 @@ export async function setupTriggers(db: any, tableName: string) {
       }
     }
   }
+}
+
+export async function contentToString(content: Content) {
+  const { body, ...frontmatter } = content;
+  const separator = '---';
+  const frontmatterYAML = yaml.stringify(frontmatter);
+  return `${separator}\n${frontmatterYAML}\n${separator}\n${body}`;
+}
+
+export async function stringToContent(data: string) {
+  const separator = '---';
+  const frontmatterStart = data.indexOf(separator);
+
+  let frontmatter = {};
+  let body = data;
+
+  if (frontmatterStart !== -1) {
+    const frontmatterEnd = data.indexOf(
+      separator,
+      frontmatterStart + separator.length,
+    );
+
+    if (frontmatterEnd !== -1) {
+      const frontmatterYAML = data
+        .substring(frontmatterStart + separator.length, frontmatterEnd)
+        .trim();
+      frontmatter = yaml.parse(frontmatterYAML) || {}; // Handle potential YAML parsing errors
+      body = data.substring(frontmatterEnd + separator.length).trim();
+    }
+  }
+
+  return formatDataJs({
+    ...frontmatter,
+    body,
+  });
+}
+
+export function formatDataJs(data: Record<string, any>) {
+  const normalizedData: Record<string, any> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value instanceof Date) {
+      normalizedData[key] = value;
+    } else if (isDateField(key) && typeof value === 'string') {
+      normalizedData[key] = new Date(value);
+    } else {
+      normalizedData[key] = value;
+    }
+  }
+  return normalizedData;
+}
+
+export function formatDataSql(data: Record<string, any>) {
+  const normalizedData: Record<string, any> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value instanceof Date) {
+      normalizedData[key] = value.toISOString(); // Postgres accepts ISO format with timezone
+    } else {
+      normalizedData[key] = value;
+    }
+  }
+  return normalizedData;
 }
