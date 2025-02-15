@@ -19,12 +19,12 @@
   "license": "ISC",
   "dependencies": {
     "@libsql/client": "^0.14.0",
-    "sqlite-vss": "^0.1.2"
+    "sqlite-vss": "^0.1.2",
+    "pg": "^8.13.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",
     "@types/pg": "^8.11.10",
-    "pg": "^8.13.1",
     "vitest": "^1.2.2"
   },
   "engines": {
