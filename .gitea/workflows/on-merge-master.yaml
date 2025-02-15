@@ -68,7 +68,7 @@ jobs:
         run: |
           git add .
           git commit -m "chore(release): bump version to $(node -p "require('./package.json').version")" --no-verify
-          git push --follow-tags
+          git push --no-verify --follow-tags
 
       - name: Publish packages
         run: pnpm run publish-packages
