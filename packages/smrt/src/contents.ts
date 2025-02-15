@@ -8,6 +8,9 @@ import { Document } from './document.js';
 import path from 'path';
 import { ensureDirectoryExists } from '@have/files';
 import { writeFile } from 'node:fs/promises';
+import { formatDataJs } from './utils.js';
+import yaml from 'yaml';
+
 export interface ContentsOptions extends BaseCollectionOptions {
   ai?: AIClientOptions;
   contentDir?: string;
@@ -158,4 +161,39 @@ export class Contents extends BaseCollection<Content> {
     }
     // const files = await fs.readdir(dir);
   }
+}
+
+export async function contentToString(content: Content) {
+  const { body, ...frontmatter } = content;
+  const separator = '---';
+  const frontmatterYAML = yaml.stringify(frontmatter);
+  return `${separator}\n${frontmatterYAML}\n${separator}\n${body}`;
+}
+
+export async function stringToContent(data: string) {
+  const separator = '---';
+  const frontmatterStart = data.indexOf(separator);
+
+  let frontmatter = {};
+  let body = data;
+
+  if (frontmatterStart !== -1) {
+    const frontmatterEnd = data.indexOf(
+      separator,
+      frontmatterStart + separator.length,
+    );
+
+    if (frontmatterEnd !== -1) {
+      const frontmatterYAML = data
+        .substring(frontmatterStart + separator.length, frontmatterEnd)
+        .trim();
+      frontmatter = yaml.parse(frontmatterYAML) || {}; // Handle potential YAML parsing errors
+      body = data.substring(frontmatterEnd + separator.length).trim();
+    }
+  }
+
+  return formatDataJs({
+    ...frontmatter,
+    body,
+  });
 }
