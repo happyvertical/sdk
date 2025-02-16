@@ -6,18 +6,20 @@ import fs from 'fs';
 // Set up the worker
 // pdfjsLib.GlobalWorkerOptions.workerSrc = 'pdfjs-dist/legacy/build/pdf.worker';
 
-export async function extractImagesFromPDF(pdfPath: string): Promise<any[]> {
+export async function extractImagesFromPDF(
+  pdfPath: string,
+): Promise<any[] | null> {
   try {
     const data = new Uint8Array(fs.readFileSync(pdfPath));
     const loadingTask = pdfJs.getDocument(data);
     const pdf = await loadingTask.promise;
 
     const page = await pdf.getPage(1);
-    const operatorList = await page.getOperatorList();
+    // const operatorList = await page.getOperatorList();
 
     const images: any[] = [];
     // Get all image keys and their corresponding objects
-    console.log('page.commonObjs', page.commonObjs);
+    // console.log('page.commonObjs', page.commonObjs);
     const keys = page.commonObjs.getKeys();
     for (const key of keys) {
       if (key.startsWith('img_')) {
@@ -29,7 +31,8 @@ export async function extractImagesFromPDF(pdfPath: string): Promise<any[]> {
     return images;
   } catch (error) {
     console.error('Error extracting images:', error);
-    throw error;
+    return null;
+    // throw error;
   }
 }
 
@@ -50,7 +53,7 @@ export async function extractTextFromPDF(pdfPath: string) {
     return text;
   } catch (error) {
     console.error(`Error extracting text from ${pdfPath}:`, error);
-    throw error;
+    return null;
   }
 }
 

@@ -32,13 +32,25 @@ it.skip('should extract text from a problematic pdf', async () => {
 
   // const text = await scribe.extractText([pdfPath]);
   // console.log(text);
+
+  // // Agenda-Package-October-24-2023-Regular-Council-Meeting.pdf
+  // const pdfPath = join(
+  //   fileURLToPath(new URL('.', import.meta.url)),
+  //   '..',
+  //   'test',
+  //   'Signed-Meeting-Minutes-October-8-2024-Regular-Council-Meeting-1.pdf',
+  // );
+  // const text = await extractTextFromPDF(pdfPath);
+  // expect(text).toBeDefined();
+  // // console.log(text);
+
+  // Agenda-Package-October-24-2023-Regular-Council-Meeting.pdf
   const pdfPath = join(
     fileURLToPath(new URL('.', import.meta.url)),
     '..',
     'test',
-    'Signed-Meeting-Minutes-October-8-2024-Regular-Council-Meeting-1.pdf',
+    'Agenda-Package-October-24-2023-Regular-Council-Meeting.pdf',
   );
   const text = await extractTextFromPDF(pdfPath);
   expect(text).toBeDefined();
-  // console.log(text);
 }, 30000);

@@ -185,7 +185,7 @@ describe('File utilities', () => {
       const targetPath = path.join(tmpDir, 'test.txt');
 
       await downloadFileWithCache(`${serverUrl}/test.txt`, targetPath);
-      console.log('targetPath', targetPath);
+      // console.log('targetPath', targetPath);
       // Verify the file exists and has content
       expect(fs.existsSync(targetPath)).toBe(true);
     });
