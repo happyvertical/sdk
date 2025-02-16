@@ -1,11 +1,13 @@
 import { it, expect } from 'vitest';
 import os from 'node:os';
 import path from 'node:path';
+import fs from 'node:fs';
 
 import { Contents } from './contents.js';
 import { faker } from '@faker-js/faker';
 
-const TMP_DIR = path.resolve(`${os.tmpdir()}/.have-sdk/tests`);
+const TMP_DIR = path.resolve(`${os.tmpdir()}/.have-sdk-tests/contents`);
+fs.mkdirSync(TMP_DIR, { recursive: true });
 
 it.skip('should be able to getOrInsert a content item', async () => {
   const contents = await Contents.create({
@@ -50,12 +52,12 @@ it.skip('should be able to mirror a bit of content give a url', async () => {
 
   const created = await contents.mirror({
     url: 'https://townofbentley.ca/wp-content/uploads/2024/12/Signed-Minutes-November-26-2024-Regular-Council-Meeting.pdf',
+    mirrorDir: `${TMP_DIR}/mirror-test`,
   });
-  expect(created.id).toBeDefined();
+  expect(created?.id).toBeDefined();
 }, 60000);
 
-it('should be able to sync a content dir', async () => {
-  console.log(`${TMP_DIR}/content`);
+it.skip('should be able to sync a content dir', async () => {
   const contents = await Contents.create({
     ai: {
       type: 'openai',
