@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.34](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.33...v0.0.34) (2025-02-16)
+
+
+### Features
+
+* specify contents directory for mirror function ([868f7c8](https://git.grffn.net/happyvertical/have-sdk/commit/868f7c8f0fa7a5fcaa56ce9a13872930c3da0422))
+
 ### [0.0.33](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.32...v0.0.33) (2025-02-15)
 
 
