@@ -43,7 +43,7 @@ export class Contents extends BaseCollection<Content> {
 
   // todo: param to force refresh
   // todo: check age of mirror and if older than x check for updates
-  public async mirror(options: { url: string }) {
+  public async mirror(options: { url: string; mirrorDir?: string }) {
     if (!options.url) {
       throw new Error('No URL provided');
     }
@@ -61,7 +61,9 @@ export class Contents extends BaseCollection<Content> {
     if (existing) {
       return existing;
     }
+
     const doc = await Document.create({
+      cacheDir: options?.mirrorDir,
       url: options.url,
     });
 
@@ -70,18 +72,20 @@ export class Contents extends BaseCollection<Content> {
     const title = nameWithoutExtension?.replace(/[-_]/g, ' ');
     const slug = makeSlug(title as string);
     const body = await doc.getText();
-    const content = await Content.create({
-      db: this.options.db,
-      ai: this.options.ai,
-      url: options.url,
-      type: 'mirror',
-      title,
-      slug,
-      body,
-    });
+    if (body) {
+      const content = await Content.create({
+        db: this.options.db,
+        ai: this.options.ai,
+        url: options.url,
+        type: 'mirror',
+        title,
+        slug,
+        body,
+      });
 
-    await content.save();
-    return content;
+      await content.save();
+      return content;
+    }
   }
 
   public async writeContentFile(options: {

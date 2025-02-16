@@ -5,7 +5,7 @@ import { FilesystemAdapter } from '@have/files';
 import { downloadFileWithCache } from '@have/files';
 import { extractTextFromPDF } from '@have/pdf';
 import { getCached, setCached, getMimeType } from '@have/files';
-
+import { makeSlug } from '@have/utils';
 export interface DocumentOptions {
   fs?: FilesystemAdapter;
   cacheDir?: string;
@@ -33,7 +33,11 @@ export class Document {
       this.localPath = this.url.pathname;
       this.isRemote = false;
     } else {
-      this.localPath = path.join(this.cacheDir, this.url.pathname);
+      this.localPath = path.join(
+        this.cacheDir,
+        makeSlug(this.url.hostname),
+        this.url.pathname,
+      );
       this.isRemote = true;
     }
   }
@@ -57,7 +61,7 @@ export class Document {
       return cached;
     }
 
-    let extracted = '';
+    let extracted: string | null = '';
     switch (this.type) {
       case 'application/pdf':
         extracted = await extractTextFromPDF(this.localPath);

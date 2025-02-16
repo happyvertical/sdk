@@ -1,11 +1,12 @@
+import type { AIMessageOptions } from '@have/ai';
+import type { BaseClassOptions } from './class.js';
+
 import {
   fieldsFromClass,
   tableNameFromClass,
   setupTableFromClass,
 } from '@have/smrt/utils';
-import type { AIMessageOptions } from '@have/ai';
 import { escapeSqlValue } from '@have/sql';
-import type { BaseClassOptions } from './class.js';
 
 import { BaseClass } from './class.js';
 import { BaseCollection } from './collection.js';
