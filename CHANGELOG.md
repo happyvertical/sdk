@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.35](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.34...v0.0.35) (2025-02-17)
+
+
+### Bug Fixes
+
+* collection.get formats data to js ([a3e8dea](https://git.grffn.net/happyvertical/have-sdk/commit/a3e8deab555139eba8b03d8c40f6a9e16da7a4a2))
+
 ### [0.0.34](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.33...v0.0.34) (2025-02-16)
 
 
