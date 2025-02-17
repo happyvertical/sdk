@@ -10,6 +10,7 @@ export interface ContentOptions extends BaseObjectOptions {
   publish_date?: Date | null;
   url?: string | null;
   source?: string | null;
+  status?: 'published' | 'draft' | 'archived' | 'deleted' | null;
 }
 
 export class Content extends BaseObject<ContentOptions> {
@@ -23,7 +24,7 @@ export class Content extends BaseObject<ContentOptions> {
   public publish_date!: Date | null | undefined;
   public url!: string | null | undefined;
   public source!: string | null | undefined;
-
+  public status!: 'published' | 'draft' | 'archived' | 'deleted' | null;
   constructor(options: ContentOptions) {
     super(options);
     this.options = options;
@@ -36,6 +37,7 @@ export class Content extends BaseObject<ContentOptions> {
     this.fileKey = options.fileKey || null;
     this.url = options.url || null;
     this.source = options.source || null;
+    this.status = options.status || 'draft';
   }
 
   static async create(options: ContentOptions) {
