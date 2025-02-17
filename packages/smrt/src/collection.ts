@@ -69,7 +69,7 @@ export class BaseCollection<
       return null;
     }
 
-    return this.create(data);
+    return this.create(formatDataJs(data));
   }
 
   public async list(options: { filter: any }) {
