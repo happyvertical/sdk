@@ -6,7 +6,8 @@
 		title: 'Fake Article',
 		body: 'This is a fake article',
 		author: 'John Doe',
-		date: '2021-01-01'
+		date: '2021-01-01',
+		category: 'Town Council'
 	};
 
 	// More on how to set up stories at: https://storybook.js.org/docs/writing-stories
