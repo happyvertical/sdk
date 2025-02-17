@@ -30,13 +30,15 @@
 	});
 </script>
 
+
 <Story name="Article List Item Default">
-	<ArticleListItem title="First Article" url="https://example.com/1" />
+	<ArticleListItem title="Preview of Bentley Town Council Meeting Agenda for January 14, 2024" url="https://example.com/1" publishDate="2024-01-14" />
 </Story>
 
 <Story name="Article List Default">
 	<ArticleList>
-		<ArticleListItem title="First Article" url="https://example.com/1" />
-		<ArticleListItem title="Second Article" url="https://example.com/2" />
+		<ArticleListItem title="Preview of Bentley Town Council Meeting Agenda for January 14, 2024" url="https://example.com/1" publishDate="2024-01-14" category="Bentley Town Council" categoryUrl="https://example.com/1" />
+		<ArticleListItem title="Upcoming Bentley Town Council Meeting Agenda Highlights" url="https://example.com/2" publishDate="2024-01-14" category="Bentley Town Council" categoryUrl="https://example.com/2" />
+		<ArticleListItem title="Upcoming Bentley Town Council Meeting Agenda Set for December 10, 2024" url="https://example.com/3" publishDate="2024-01-14" category="Bentley Town Council" categoryUrl="https://example.com/3" />
 	</ArticleList>
 </Story>
