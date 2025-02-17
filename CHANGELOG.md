@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.36](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.35...v0.0.36) (2025-02-17)
+
+
+### Features
+
+* added status column to content ([7830150](https://git.grffn.net/happyvertical/have-sdk/commit/78301500e2ae8045ac0440df0d89b6f6f5ca2537))
+
 ### [0.0.35](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.34...v0.0.35) (2025-02-17)
 
 
