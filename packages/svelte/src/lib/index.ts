@@ -1,3 +1,5 @@
+import './styles/index.css';
+
 import CardRoot from './components/cards/Card.svelte';
 import Content from './components/cards/CardContent.svelte';
 import Header from './components/cards/CardHeader.svelte';

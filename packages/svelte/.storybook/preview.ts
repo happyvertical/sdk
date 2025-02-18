@@ -1,5 +1,6 @@
 import type { Preview } from '@storybook/svelte';
-import '../src/lib/styles/index.css'; // This should be your main CSS file that includes Tailwind
+import '../src/app.css';
+import '../src/lib/styles/index.css';
 
 const preview: Preview = {
 	parameters: {

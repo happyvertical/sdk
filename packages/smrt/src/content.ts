@@ -6,6 +6,7 @@ export interface ContentOptions extends BaseObjectOptions {
   fileKey?: string | null;
   author?: string | null;
   title?: string | null;
+  description?: string | null;
   body?: string | null;
   publish_date?: Date | null;
   url?: string | null;
@@ -20,6 +21,7 @@ export class Content extends BaseObject<ContentOptions> {
   public fileKey: string | null | undefined;
   public author!: string | null | undefined;
   public title!: string | null | undefined;
+  public description!: string | null | undefined;
   public body!: string | null | undefined;
   public publish_date!: Date | null | undefined;
   public url!: string | null | undefined;
@@ -32,6 +34,7 @@ export class Content extends BaseObject<ContentOptions> {
     this.name = options.title || '';
     this.author = options.author || null;
     this.title = options.title || '';
+    this.description = options.description || null;
     this.body = options.body || '';
     this.publish_date = options.publish_date || null;
     this.fileKey = options.fileKey || null;
