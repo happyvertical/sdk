@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.37](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.36...v0.0.37) (2025-02-17)
+
+
+### Features
+
+* (barely) improve styling of article list and article ([9e6b5be](https://git.grffn.net/happyvertical/have-sdk/commit/9e6b5be456d18a45ae771a1684af3cd1a8217ef6))
+
+
+### Bug Fixes
+
+* css imports ([4c92e94](https://git.grffn.net/happyvertical/have-sdk/commit/4c92e941f6753e46a6baa9a3e8bf0583f3b551e0))
+
 ### [0.0.36](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.35...v0.0.36) (2025-02-17)
 
 
