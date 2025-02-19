@@ -1,3 +1,4 @@
+import { Field } from './fields.js';
 import type { BaseObjectOptions } from './object.js';
 import { BaseObject } from './object.js';
 
@@ -73,5 +74,20 @@ export class Content extends BaseObject<ContentOptions> {
 
   public async getReferences() {
     return this.references;
+  }
+
+  toJSON() {
+    return {
+      type: this.type,
+      fileKey: this.fileKey,
+      author: this.author,
+      title: this.title,
+      description: this.description,
+      body: this.body,
+      publish_date: this.publish_date,
+      url: this.url,
+      source: this.source,
+      status: this.status,
+    };
   }
 }
