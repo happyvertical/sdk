@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.39](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.38...v0.0.39) (2025-02-19)
+
+
+### Features
+
+* **smrt:** added toJSON to Content ([897cb4f](https://git.grffn.net/happyvertical/have-sdk/commit/897cb4f431108b6b37ee51fea8b5f74cc4bea755))
+
 ### [0.0.38](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.37...v0.0.38) (2025-02-18)
 
 
