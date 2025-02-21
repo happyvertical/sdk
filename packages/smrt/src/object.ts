@@ -15,6 +15,7 @@ export interface BaseObjectOptions extends BaseClassOptions {
   id?: string;
   name?: string;
   slug?: string;
+  context?: string;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -25,7 +26,8 @@ export class BaseObject<
   public _collection!: BaseCollection<BaseObject<T>>;
   public _tableName!: string;
   protected _id: string | null | undefined; // a unique identifier for the object
-  protected _slug: string | null | undefined; // a slug, unique in its context suitable for lookups
+  protected _slug: string | null | undefined; // a slug, url friendly identifier
+  protected _context: string | null | undefined; // an option context to scope the slug, could contain a path, domain&path etc
 
   public name: string | null | undefined; // a friendly name, mostly for humans.. unique is better but not required
   public created_at: Date | null | undefined;
@@ -34,11 +36,11 @@ export class BaseObject<
   constructor(options: T) {
     super(options);
     if (options === null) {
-      console.trace(50);
       throw new Error('options cant be null');
     }
     this._id = options.id || null;
     this._slug = options.slug || null;
+    this._context = options.context || '';
     this.name = options.name || null;
     this.created_at = options.created_at || null;
     this.updated_at = options.updated_at || null;
@@ -50,7 +52,6 @@ export class BaseObject<
 
   set id(value: string | null | undefined) {
     if (!value || value === 'undefined' || value === 'null') {
-      console.trace(15);
       throw new Error(`id is required, ${value} given`);
     }
     this._id = value;
@@ -62,17 +63,31 @@ export class BaseObject<
 
   set slug(value: string | null | undefined) {
     if (!value || value === 'undefined' || value === 'null') {
-      console.trace(15);
       throw new Error(`slug is invalid, ${value} given`);
     }
 
     this._slug = value;
   }
 
+  get context(): string | null | undefined {
+    return this._context;
+  }
+
+  set context(value: string | null | undefined) {
+    if (!value || value === 'undefined' || value === 'null') {
+      throw new Error(`context is invalid, ${value} given`);
+    }
+    this._context = value;
+  }
+
   protected async initialize(): Promise<void> {
     await super.initialize();
     if (this.options.db) {
       await setupTableFromClass(this.db, this.constructor);
+      await this.db.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_${this.tableName}_slug_context 
+        ON ${this.tableName}(slug, context);
+      `);
     }
 
     if (this.options.id) {
@@ -120,42 +135,44 @@ export class BaseObject<
 
   generateUpsertStatement() {
     const fields = this.getFields();
-    const columns = ['id', 'slug'];
-    const values = [escapeSqlValue(this.id), escapeSqlValue(this.slug)];
-    const updates = [`slug = ${escapeSqlValue(this.slug)}`];
+    const columns = ['id', 'slug', 'context'];
+    const id = escapeSqlValue(this.id) || '';
+    const slug = escapeSqlValue(this.slug);
+    const context = escapeSqlValue(this.context || '');
+    const values = [id, slug, context];
+    const updates = [`slug = ${slug}`, `context = ${context}`];
 
     for (const [key, field] of Object.entries(fields)) {
-      if (key === 'slug') continue;
+      if (key === 'slug' || key === 'context') continue;
       columns.push(key);
       const value =
         typeof field.value === 'boolean' ? (field.value ? 1 : 0) : field.value;
+
       const escapedValue = escapeSqlValue(value);
 
       values.push(escapedValue);
       updates.push(`${key} = ${escapedValue}`);
     }
 
-    // Handle both id and slug conflicts in a single statement
+    // Use UPSERT syntax with explicit ON CONFLICT handling
     const sql = `
-      WITH new_values (${columns.join(', ')}) AS (
-        VALUES (${values.join(', ')})
-      )
-      INSERT OR REPLACE INTO ${this.tableName} (${columns.join(', ')})
-      SELECT * FROM new_values
-      WHERE NOT EXISTS (
-        SELECT 1 FROM ${this.tableName}
-        WHERE (slug = ${escapeSqlValue(this.slug)} AND id != ${escapeSqlValue(this.id)})
-        OR (id = ${escapeSqlValue(this.id)} AND slug != ${escapeSqlValue(this.slug)})
-      );`;
+      INSERT INTO ${this.tableName} (${columns.join(', ')})
+      VALUES (${values.join(', ')})
+      ON CONFLICT(slug, context) 
+      WHERE slug = ${slug} AND context = ${context}
+      DO UPDATE SET
+        ${updates.join(',\n        ')}
+      WHERE ${this.tableName}.slug = ${slug} AND ${this.tableName}.context = ${context};
+    `;
 
     return sql;
   }
 
   // needs to be async to allow looking up existing in db by slug
   async getId() {
-    // lookup by slug
+    // lookup by slug and context
     const saved = await this.db
-      .pluck`SELECT id FROM ${this.tableName} WHERE slug = ${this.slug} LIMIT 1`;
+      .pluck`SELECT id FROM ${this.tableName} WHERE slug = ${this.slug} AND context = ${this.context} LIMIT 1`;
     if (saved) {
       this.id = saved;
     }
@@ -231,9 +248,10 @@ export class BaseObject<
   public async loadFromSlug() {
     const {
       rows: [existing],
-    } = await this.db.query(`SELECT * FROM ${this.tableName} WHERE slug = ?`, [
-      this.options.slug,
-    ]);
+    } = await this.db.query(
+      `SELECT * FROM ${this.tableName} WHERE slug = ? AND context = ?`,
+      [this.options.slug, this.options.context],
+    );
     if (existing) {
       this.loadDataFromDb(existing);
     }

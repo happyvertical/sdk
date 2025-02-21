@@ -61,7 +61,7 @@ export class BaseCollection<
             filter,
           )
           ? { id: filter }
-          : { slug: filter }
+          : { slug: filter, context: '' }
         : filter;
 
     const data = await this.db.get(this.tableName, where);
@@ -86,33 +86,47 @@ export class BaseCollection<
     return this._itemClass.create(params);
   }
 
+  //todo: tx to protect against race condition
   public async getOrUpsert(data: any, defaults: any = {}) {
     data = formatDataSql(data);
     let where: any = {};
     if (data.id) {
       where = { id: data.id };
     } else if (data.slug) {
-      where = { slug: data.slug };
-      if (data.context) {
-        where.context = data.context;
-      }
+      where = { slug: data.slug, context: data.context || '' };
     } else {
       where = data;
     }
-
     const existing = await this.get(where);
     if (existing) {
+      const diff = this.getDiff(existing, data);
+      if (diff) {
+        Object.assign(existing, diff);
+        await existing.save();
+        return existing;
+      }
       return existing;
-      // return this._itemClass.create({
-      //   db: this.options.db,
-      //   ai: this.options.ai,
-      //   ...existing,
-      // });
-      // todo: check for diff and save
     }
-    const upserted = await this.create({ ...defaults, ...data });
+    const upsertData = { ...defaults, ...data };
+    const upserted = await this.create(upsertData);
     await upserted.save();
     return upserted;
+  }
+
+  getDiff(
+    existing: Record<string, any>,
+    data: Record<string, any>,
+  ): Record<string, any> {
+    const fields = this._itemClass.prototype.getFields();
+    return Object.keys(data).reduce(
+      (acc, key) => {
+        if (fields[key] && existing[key] !== data[key]) {
+          acc[key] = data[key];
+        }
+        return acc;
+      },
+      {} as Record<string, any>,
+    );
   }
 
   async setupDb() {
