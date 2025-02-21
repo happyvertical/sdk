@@ -2,14 +2,14 @@ import { it, expect } from 'vitest';
 import os from 'node:os';
 import path from 'node:path';
 import fs from 'node:fs';
-
+import { makeSlug } from '@have/utils';
 import { Contents } from './contents.js';
 import { faker } from '@faker-js/faker';
 
 const TMP_DIR = path.resolve(`${os.tmpdir()}/.have-sdk-tests/contents`);
 fs.mkdirSync(TMP_DIR, { recursive: true });
 
-it.skip('should be able to getOrInsert a content item', async () => {
+it('should be able to getOrInsert a content item', async () => {
   const contents = await Contents.create({
     ai: {
       type: 'openai',
@@ -32,6 +32,66 @@ it.skip('should be able to getOrInsert a content item', async () => {
 
   const content2 = await contents.getOrUpsert(fakeContentData);
   expect(content2.id).toBe(content.id);
+
+  const got = await contents.get({ id: content.id });
+  expect(got?.id).toEqual(content.id);
+});
+
+it('should respect the context of the slug', async () => {
+  const contents = await Contents.create({
+    ai: {
+      type: 'openai',
+      apiKey: process.env.OPENAI_API_KEY!,
+    },
+    db: {
+      url: `file:${TMP_DIR}/test.db`,
+    },
+  });
+
+  const fakeContentData = {
+    title: faker.lorem.sentence(),
+    body: faker.lorem.paragraph(),
+    author: faker.person.fullName(),
+    publish_date: faker.date.recent(),
+  };
+
+  const slug = makeSlug(fakeContentData.title);
+
+  const content = await contents.getOrUpsert({
+    ...fakeContentData,
+    url: 'http://setinfirst.com',
+    slug,
+    context: 'contextA',
+  });
+  expect(content.id).toBeDefined();
+
+  const different = await contents.getOrUpsert({
+    ...fakeContentData,
+    slug,
+    context: 'contextB',
+    source: 'set in different context',
+  });
+  expect(different.id).not.toBe(content.id);
+
+  const contextA = await contents.get({
+    slug,
+    context: 'contextA',
+  });
+
+  const contextB = await contents.get({
+    slug,
+    context: 'contextB',
+  });
+
+  const updated = await contents.getOrUpsert({
+    description: 'foo',
+    slug,
+    context: 'contextA',
+  });
+
+  expect(updated.id).toBeDefined();
+  expect(updated.description).toBe('foo');
+  expect(updated.id).toBe(contextA?.id);
 });
 
 // skipped because it takes a long time

@@ -113,20 +113,24 @@ export function generateSchema(ClassType: new (...args: any[]) => any) {
   // Add id field first (always required)
   schema += '  id TEXT PRIMARY KEY,\n';
 
-  // Add slug with UNIQUE constraint
-  schema += '  slug TEXT UNIQUE,\n';
+  // Add slug and context fields
+  schema += '  slug TEXT NOT NULL,\n';
+  schema += "  context TEXT NOT NULL DEFAULT '',\n";
 
   // Add other fields
   for (const [key, field] of Object.entries(fields)) {
-    if (key === 'id' || key === 'slug') continue;
+    if (key === 'id' || key === 'slug' || key === 'context') continue;
     schema += `  ${key} ${field.type},\n`;
   }
+
+  // Add composite unique constraint for slug and context
+  schema += '  UNIQUE(slug, context),\n';
 
   schema = schema.slice(0, -2); // Remove trailing comma and newline
   schema += '\n);';
 
   schema += `\nCREATE INDEX IF NOT EXISTS ${tableName}_id_idx ON ${tableName} (id);`;
-  schema += `\nCREATE INDEX IF NOT EXISTS ${tableName}_slug_idx ON ${tableName} (slug);`;
+  schema += `\nCREATE INDEX IF NOT EXISTS ${tableName}_slug_context_idx ON ${tableName} (slug, context);`;
   return schema;
 }
 

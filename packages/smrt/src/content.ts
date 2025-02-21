@@ -1,4 +1,3 @@
-import { Field } from './fields.js';
 import type { BaseObjectOptions } from './object.js';
 import { BaseObject } from './object.js';
 
@@ -13,6 +12,7 @@ export interface ContentOptions extends BaseObjectOptions {
   url?: string | null;
   source?: string | null;
   status?: 'published' | 'draft' | 'archived' | 'deleted' | null;
+  deprecated?: boolean;
 }
 
 export class Content extends BaseObject<ContentOptions> {
@@ -28,6 +28,7 @@ export class Content extends BaseObject<ContentOptions> {
   public url!: string | null | undefined;
   public source!: string | null | undefined;
   public status!: 'published' | 'draft' | 'archived' | 'deleted' | null;
+  public deprecated: boolean;
   constructor(options: ContentOptions) {
     super(options);
     this.options = options;
@@ -42,6 +43,7 @@ export class Content extends BaseObject<ContentOptions> {
     this.url = options.url || null;
     this.source = options.source || null;
     this.status = options.status || 'draft';
+    this.deprecated = options.deprecated || false;
   }
 
   static async create(options: ContentOptions) {
@@ -76,18 +78,22 @@ export class Content extends BaseObject<ContentOptions> {
     return this.references;
   }
 
-  toJSON() {
+  public toJSON() {
     return {
+      id: this.id || '',
+      slug: this.slug || '',
+      context: this.context || '',
       type: this.type,
-      fileKey: this.fileKey,
-      author: this.author,
-      title: this.title,
-      description: this.description,
-      body: this.body,
-      publish_date: this.publish_date,
-      url: this.url,
-      source: this.source,
-      status: this.status,
+      fileKey: this.fileKey || '',
+      author: this.author || '',
+      title: this.title || '',
+      description: this.description || '',
+      body: this.body || '',
+      publish_date: this.publish_date || '',
+      url: this.url || '',
+      source: this.source || '',
+      status: this.status || 'draft',
+      deprecated: this.deprecated,
     };
   }
 }
