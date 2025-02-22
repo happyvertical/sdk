@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.42](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.41...v0.0.42) (2025-02-22)
+
+
+### Bug Fixes
+
+* loadFromSlug context default to blank string ([2c07bf7](https://git.grffn.net/happyvertical/have-sdk/commit/2c07bf702683884e0632a5bce7aaecf0f42eb8b1))
+
 ### [0.0.41](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.40...v0.0.41) (2025-02-22)
 
 
