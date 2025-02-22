@@ -80,6 +80,7 @@ export class Contents extends BaseCollection<Content> {
         type: 'mirror',
         title,
         slug,
+        context: '',
         body,
       });
 
