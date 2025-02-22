@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.41](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.40...v0.0.41) (2025-02-22)
+
+
+### Bug Fixes
+
+* missing context vars ([e0c3db8](https://git.grffn.net/happyvertical/have-sdk/commit/e0c3db80d35eba692c7433a6fc7c705bd777b564))
+
 ### [0.0.40](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.39...v0.0.40) (2025-02-21)
 
 
