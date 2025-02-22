@@ -74,7 +74,7 @@ export class BaseObject<
   }
 
   set context(value: string | null | undefined) {
-    if (!value || value === 'undefined' || value === 'null') {
+    if (value !== '' && !value) {
       throw new Error(`context is invalid, ${value} given`);
     }
     this._context = value;
@@ -250,7 +250,7 @@ export class BaseObject<
       rows: [existing],
     } = await this.db.query(
       `SELECT * FROM ${this.tableName} WHERE slug = ? AND context = ?`,
-      [this.options.slug, this.options.context],
+      [this.options.slug, this.options.context || ''],
     );
     if (existing) {
       this.loadDataFromDb(existing);
