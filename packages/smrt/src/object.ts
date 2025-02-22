@@ -69,8 +69,8 @@ export class BaseObject<
     this._slug = value;
   }
 
-  get context(): string | null | undefined {
-    return this._context;
+  get context(): string {
+    return this._context || '';
   }
 
   set context(value: string | null | undefined) {
