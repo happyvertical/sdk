@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.43](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.42...v0.0.43) (2025-02-22)
+
+
+### Features
+
+* replace semi-implemented "depreacted" field with "state" ([75a0b4a](https://git.grffn.net/happyvertical/have-sdk/commit/75a0b4ac4a21a1092563d832e241093e0d2f42ff))
+
 ### [0.0.42](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.41...v0.0.42) (2025-02-22)
 
 
