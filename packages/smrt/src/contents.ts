@@ -43,7 +43,11 @@ export class Contents extends BaseCollection<Content> {
 
   // todo: param to force refresh
   // todo: check age of mirror and if older than x check for updates
-  public async mirror(options: { url: string; mirrorDir?: string }) {
+  public async mirror(options: {
+    url: string;
+    mirrorDir?: string;
+    context?: string;
+  }) {
     if (!options.url) {
       throw new Error('No URL provided');
     }
@@ -80,7 +84,7 @@ export class Contents extends BaseCollection<Content> {
         type: 'mirror',
         title,
         slug,
-        context: '',
+        context: options.context || '',
         body,
       });
 
