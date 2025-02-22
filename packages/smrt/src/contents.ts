@@ -101,6 +101,7 @@ export class Contents extends BaseCollection<Content> {
     const frontMatter = {
       title: content.title,
       slug: content.slug,
+      context: content.context,
       author: content.author,
       publish_date: content.publish_date,
     };
@@ -119,7 +120,14 @@ export class Contents extends BaseCollection<Content> {
     }
     output += formattedBody;
 
-    const outputFile = path.join(contentDir, `${content.slug}`, 'index.md');
+    const pathParts = [
+      contentDir,
+      content.context || '', // if empty, use empty string
+      content.slug,
+      'index.md',
+    ].filter(Boolean); // remove empty strings
+
+    const outputFile = path.join(...(pathParts as string[]));
     await ensureDirectoryExists(path.dirname(outputFile));
     await writeFile(outputFile, output);
   }
