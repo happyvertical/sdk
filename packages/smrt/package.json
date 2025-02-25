@@ -24,6 +24,7 @@
     "test": "vitest",
     "test:watch": "vitest --watch",
     "build": "tsc -b",
+    "build:watch": "tsc -b ../../tsconfig.build.json --watch",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean"
   },
