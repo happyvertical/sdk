@@ -11,6 +11,7 @@
     "test": "vitest",
     "test:watch": "vitest --watch",
     "build": "tsc -b",
+    "build:watch": "tsc -b --watch",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean"
   },
