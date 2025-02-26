@@ -4,7 +4,7 @@ import type {
   DatabaseInterface,
   TableInterface,
 } from "./types.js";
-import { validateColumnName } from "./index.js";
+import { buildWhere } from "./index";
 
 export interface SqliteOptions {
   url?: string;
@@ -72,12 +72,10 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
     table: string,
     where: Record<string, any>,
   ): Promise<Record<string, any>[]> => {
-    const keys = Object.keys(where);
-    const values = Object.values(where);
-    const whereClause = keys.map((key) => `${key} = ?`).join(" AND ");
-    const sql = `SELECT * FROM ${table} WHERE ${whereClause}`;
+    const { sql: whereClause, values } = buildWhere(where);
+    const sql = `SELECT * FROM ${table} ${whereClause}`;
     try {
-      const result = await client.execute({ sql: sql, args: values });
+      const result = await client.execute({ sql, args: values });
       return result.rows;
     } catch (e) {
       console.error(
@@ -241,35 +239,6 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
       );
       throw e;
     }
-  };
-
-  const addWhere = ({
-    sql,
-    replacements = [],
-    where = {},
-    required = true,
-  }: {
-    sql: string;
-    replacements?: any[];
-    where?: object;
-    required?: boolean;
-  }): { sql: string; replacements: any[] } => {
-    const wheres = [];
-    for (const [key, value] of Object.entries(where)) {
-      const safeColumnName = validateColumnName(key);
-      wheres.push(`${safeColumnName} = $${replacements.length + 1}`);
-      replacements.push(value);
-    }
-
-    if (wheres.length > 0) {
-      sql += ` WHERE ${wheres.join(" AND ")}`;
-    } else if (required) {
-      throw new Error(
-        "WHERE clause is required but no conditions were provided",
-      );
-    }
-
-    return { sql, replacements };
   };
 
   // cute aliases
