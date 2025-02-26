@@ -7,7 +7,7 @@ import {
   formatDataJs,
   formatDataSql,
 } from './utils.js';
-import { getDatabase, syncSchema, escapeSqlValue } from '@have/sql';
+import { syncSchema, buildWhere } from '@have/sql';
 import { BaseObject } from './object.js';
 
 export interface BaseCollectionOptions extends BaseClassOptions {}
@@ -41,6 +41,23 @@ export class BaseCollection<
   static readonly _itemClass: any;
   public _tableName!: string;
 
+  /**
+   * Valid SQL operators that can be used in where conditions.
+   * Keys are the operators as they appear in the query object,
+   * values are their SQL equivalents.
+   */
+  private readonly VALID_OPERATORS = {
+    '=': '=',
+    '>': '>',
+    '>=': '>=',
+    '<': '<',
+    '<=': '<=',
+    '!=': '!=',
+    like: 'LIKE',
+    in: 'IN',
+    // Add more operators as needed
+  } as const;
+
   constructor(options: T) {
     super(options);
   }
@@ -54,7 +71,7 @@ export class BaseCollection<
     }
   }
 
-  public async get(filter: string | object) {
+  public async get(filter: string | Record<string, any>) {
     const where =
       typeof filter === 'string'
         ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
@@ -64,17 +81,73 @@ export class BaseCollection<
           : { slug: filter, context: '' }
         : filter;
 
-    const data = await this.db.get(this.tableName, where);
-    if (!data) {
+    // let sql = `SELECT * FROM ${this.tableName}`;
+    const { sql: whereSql, values: whereValues } = buildWhere(where);
+
+    const { rows } = await this.db.query(
+      `SELECT * FROM ${this.tableName} ${whereSql}`,
+      whereValues,
+    );
+    if (!rows?.[0]) {
       return null;
     }
 
-    return this.create(formatDataJs(data));
+    return this.create(formatDataJs(rows[0]));
   }
 
-  public async list(options: { filter: any }) {
-    const data = await this.db.list(this.tableName, options.filter);
-    return await Promise.all(data.map((item) => this.create(item)));
+  /**
+   * Lists records from the collection with flexible filtering options.
+   *
+   * @param options Query options object
+   * @param options.where Record of conditions to filter results. Each key can include an operator
+   *                      separated by a space (e.g., 'price >', 'name like'). Default operator is '='.
+   * @param options.offset Number of records to skip
+   * @param options.limit Maximum number of records to return
+   *
+   * @example
+   * ```typescript
+   * // Find active products priced between $100-$200
+   * await collection.list({
+   *   where: {
+   *     'price >': 100,
+   *     'price <=': 200,
+   *     'status': 'active',              // equals operator is default
+   *     'category in': ['A', 'B', 'C'],  // IN operator for arrays
+   *     'name like': '%shirt%',          // LIKE for pattern matching
+   *     'deleted_at !=': null            // exclude deleted items
+   *   },
+   *   limit: 10,
+   *   offset: 0
+   * });
+   *
+   * // Find users matching pattern but not in specific roles
+   * await users.list({
+   *   where: {
+   *     'email like': '%@company.com',
+   *     'active': true,
+   *     'role in': ['guest', 'blocked'],
+   *     'last_login <': lastMonth
+   *   }
+   * });
+   * ```
+   *
+   * @returns Promise resolving to an array of model instances
+   */
+  public async list(options: {
+    where?: Record<string, any>;
+    offset?: number;
+    limit?: number;
+  }) {
+    const { where, offset, limit } = options;
+    const { sql: whereSql, values: whereValues } = buildWhere(where || {});
+
+    const { rows } = await this.db.query(
+      `SELECT * FROM ${this.tableName} ${whereSql} LIMIT ? OFFSET ?`,
+      [...whereValues, limit, offset],
+    );
+    return Promise.all(
+      rows.map((item: object) => this.create(formatDataJs(item))),
+    );
   }
 
   public create(options: any) {
