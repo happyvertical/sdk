@@ -71,7 +71,6 @@ export async function download(url: string, filepath: string): Promise<void> {
     }
 
     const fileStream = createWriteStream(filepath);
-    console.log({ filepath });
     await response.body?.pipeTo(
       new WritableStream({
         write(chunk) {
