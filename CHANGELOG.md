@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.45](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.44...v0.0.45) (2025-03-12)
+
+
+### Features
+
+* added orderBy to collection list ([caa9ded](https://git.grffn.net/happyvertical/have-sdk/commit/caa9ded99ad80bca8a1d3b135e82951dfec3d860))
+
 ### [0.0.44](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.43...v0.0.44) (2025-02-26)
 
 
