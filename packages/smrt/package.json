@@ -1,6 +1,6 @@
 {
   "name": "@have/smrt",
-  "version": "0.0.44",
+  "version": "0.0.45",
   "author": "Will Griffin <willgriffin@gmail.com>",
   "type": "module",
   "main": "dist/index.js",
