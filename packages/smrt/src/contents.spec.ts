@@ -141,3 +141,53 @@ it.skip('should be able to sync a content dir', async () => {
 
   // await contents.syncContentDir({ contentDir: `${TMP_DIR}/content` });
 });
+
+it('should be able to list content', async () => {
+  const contents = await Contents.create({
+    ai: {
+      type: 'openai',
+      apiKey: process.env.OPENAI_API_KEY!,
+    },
+    db: {
+      url: `file::memory:?cache=shared`, //todo: memory doesnt work because we pass around the connection,
+    },
+  });
+
+  const fakeContentData = {
+    title: faker.lorem.sentence(),
+    body: faker.lorem.paragraph(),
+    author: faker.person.fullName(),
+    publish_date: faker.date.recent(),
+  };
+
+  const content = await contents.getOrUpsert(fakeContentData);
+  await content.save();
+
+  const fakeContentData2 = {
+    title: faker.lorem.sentence(),
+    body: faker.lorem.paragraph(),
+    author: faker.person.fullName(),
+    publish_date: faker.date.recent(),
+  };
+
+  const content2 = await contents.getOrUpsert(fakeContentData2);
+  await content2.save();
+
+  const fakeContentData3 = {
+    title: faker.lorem.sentence(),
+    body: faker.lorem.paragraph(),
+    author: faker.person.fullName(),
+    publish_date: faker.date.recent(),
+  };
+  const content3 = await contents.getOrUpsert(fakeContentData3);
+  await content3.save();
+
+  expect(content.id).toBeDefined();
+
+  // const content2 = await contents.getOrUpsert(fakeContentData);
+  // expect(content2.id).toBe(content.id);
+
+  // const got = await contents.list({});
+  // console.log({ got });
+  // expect(got?.id).toEqual(content.id);
+});
