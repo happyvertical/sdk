@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.47](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.46...v0.0.47) (2025-03-12)
+
+
+### Bug Fixes
+
+* import uses .js ([f52f924](https://git.grffn.net/happyvertical/have-sdk/commit/f52f92491784b8c4bec87376ace4ca752af19e8a))
+
 ### [0.0.46](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.45...v0.0.46) (2025-03-12)
 
 ### [0.0.45](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.44...v0.0.45) (2025-03-12)
