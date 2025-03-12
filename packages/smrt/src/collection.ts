@@ -65,11 +65,9 @@ export class BaseCollection<
   public async initialize() {
     await super.initialize();
     if (this.options.db) {
-      // console.log('initializing db', this.options.db);
-      // console.log(this._itemClass.name);
       await this.setupDb();
     }
-  }
+  } 
 
   public async get(filter: string | Record<string, any>) {
     const where =
@@ -137,16 +135,57 @@ export class BaseCollection<
     where?: Record<string, any>;
     offset?: number;
     limit?: number;
+    orderBy?: string | string[];
   }) {
-    const { where, offset, limit } = options;
+    const { where, offset, limit, orderBy } = options;
     const { sql: whereSql, values: whereValues } = buildWhere(where || {});
 
-    const { rows } = await this.db.query(
-      `SELECT * FROM ${this.tableName} ${whereSql} LIMIT ? OFFSET ?`,
-      [...whereValues, limit, offset],
+    let orderBySql = '';
+    if (orderBy) {
+      orderBySql = ' ORDER BY ';
+      const orderByItems = Array.isArray(orderBy) ? orderBy : [orderBy];
+
+      orderBySql += orderByItems
+        .map((item) => {
+          const [field, direction = 'ASC'] = item.split(' ');
+
+          // Validate field name
+          if (!/^[a-zA-Z0-9_]+$/.test(field)) {
+            throw new Error(`Invalid field name for ordering: ${field}`);
+          }
+
+          // Validate direction
+          const normalizedDirection = direction.toUpperCase();
+          if (normalizedDirection !== 'ASC' && normalizedDirection !== 'DESC') {
+            throw new Error(
+              `Invalid sort direction: ${direction}. Must be ASC or DESC.`,
+            );
+          }
+
+          return `${field} ${normalizedDirection}`;
+        })
+        .join(', ');
+    }
+
+    let limitOffsetSql = '';
+    const limitOffsetValues = [];
+
+    if (limit !== undefined) {
+      limitOffsetSql += ' LIMIT ?';
+      limitOffsetValues.push(limit);
+    }
+
+    if (offset !== undefined) {
+      limitOffsetSql += ' OFFSET ?';
+      limitOffsetValues.push(offset);
+    }
+
+    const result = await this.db.query(
+      `SELECT * FROM ${this.tableName} ${whereSql} ${orderBySql} ${limitOffsetSql}`,
+      [...whereValues, ...limitOffsetValues],
     );
     return Promise.all(
-      rows.map((item: object) => this.create(formatDataJs(item))),
+      result.rows.map((item: object) => this.create(formatDataJs(item))),
     );
   }
 

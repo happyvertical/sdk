@@ -10,7 +10,10 @@ export async function getDatabase(
   options: GetDatabaseOptions = {},
 ): Promise<DatabaseInterface> {
   // if no type but url starts with file:, set to sqlite
-  if (!options.type && options.url?.startsWith("file:")) {
+  if (
+    !options.type &&
+    (options.url?.startsWith("file:") || options.url === ":memory:")
+  ) {
     options.type = "sqlite";
   }
 
