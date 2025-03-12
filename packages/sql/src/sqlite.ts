@@ -4,7 +4,7 @@ import type {
   DatabaseInterface,
   TableInterface,
 } from "./types.js";
-import { buildWhere } from "./index";
+import { buildWhere } from "./index.js";
 
 export interface SqliteOptions {
   url?: string;
