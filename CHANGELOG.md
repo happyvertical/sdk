@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.44](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.43...v0.0.44) (2025-02-26)
+
+
+### Features
+
+* build:watch script for packages ([2e05566](https://git.grffn.net/happyvertical/have-sdk/commit/2e05566816d1965a16e7d7db68ce34eec9f01260))
+* standardised buildWhere for sql queries, comparisons operators managed in object keys ([2b33211](https://git.grffn.net/happyvertical/have-sdk/commit/2b332118764d8731a32f38464c47244fab0f78ae))
+* standardized scripts in like packages, added dev script ([c388a34](https://git.grffn.net/happyvertical/have-sdk/commit/c388a344af994f05f51b573cc66ffbd9eda3bb7e))
+
 ### [0.0.43](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.42...v0.0.43) (2025-02-22)
 
 
