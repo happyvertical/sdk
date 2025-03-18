@@ -154,6 +154,7 @@ it('should be able to list content', async () => {
   });
 
   const fakeContentData = {
+    type: 'article',
     title: faker.lorem.sentence(),
     body: faker.lorem.paragraph(),
     author: faker.person.fullName(),
@@ -187,7 +188,17 @@ it('should be able to list content', async () => {
   // const content2 = await contents.getOrUpsert(fakeContentData);
   // expect(content2.id).toBe(content.id);
 
-  // const got = await contents.list({});
-  // console.log({ got });
-  // expect(got?.id).toEqual(content.id);
+  const articles = await contents.list({
+    where: {
+      type: 'article',
+    }
+  });
+  expect(articles?.length).toEqual(1);
+
+  const articleCount = await contents.count({
+    where: {
+      type: 'article',
+    }
+  });
+  expect(articleCount).toEqual(1);
 });

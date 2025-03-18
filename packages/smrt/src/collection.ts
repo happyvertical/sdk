@@ -327,4 +327,24 @@ export class BaseCollection<
 
     return tableName;
   }
+
+  /**
+   * Counts records in the collection matching the given filters.
+   * Accepts the same where conditions as list() but ignores limit/offset/orderBy.
+   * 
+   * @param options Query options object
+   * @param options.where Record of conditions to filter results
+   * @returns Promise resolving to the total count of matching records
+   */
+  public async count(options: { where?: Record<string, any> } = {}) {
+    const { where } = options;
+    const { sql: whereSql, values: whereValues } = buildWhere(where || {});
+
+    const result = await this.db.query(
+      `SELECT COUNT(*) as count FROM ${this.tableName} ${whereSql}`,
+      whereValues
+    );
+    
+    return parseInt(result.rows[0].count, 10);
+  }
 }
