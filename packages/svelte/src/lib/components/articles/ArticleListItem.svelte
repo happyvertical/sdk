@@ -28,16 +28,10 @@
 
 <Card class="article-list-item">
 	<CardTitle><a href={url}>{title}</a></CardTitle>
-	<CardDescription>{description}</CardDescription>
+	<CardDescription>{@html description}</CardDescription>
 	<CardFooter>
 		{date}
 		<a href={categoryUrl}>{category}</a>
 		{author}
 	</CardFooter>
-
-	<!-- <CardHeader>This is a card header</CardHeader>
-	<CardContent>
-		<p>This is a card content</p>
-	</CardContent>
-	<CardDescription>This is a card description</CardDescription> -->
 </Card>
