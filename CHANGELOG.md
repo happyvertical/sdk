@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.48](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.47...v0.0.48) (2025-03-26)
+
+
+### Features
+
+* **smrt:** added count method to collection ([1feef8d](https://git.grffn.net/happyvertical/have-sdk/commit/1feef8ddaecf1a2ebcfeb97ac950b82d8ce2a90e))
+
+
+### Bug Fixes
+
+* **svelte:** description in list rendered as html ([83284fb](https://git.grffn.net/happyvertical/have-sdk/commit/83284fbda58d829cd0b73ba09076cdd360375df3))
+
 ### [0.0.47](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.46...v0.0.47) (2025-03-12)
 
 
