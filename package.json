@@ -1,5 +1,5 @@
 {
-  "name": "have-sdk",
+  "name": "@have/sdk",
   "private": true,
   "author": "Will Griffin <willgriffin@gmail.com>",
   "type": "module",
