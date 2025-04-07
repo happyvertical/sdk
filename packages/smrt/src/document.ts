@@ -27,7 +27,7 @@ export class Document {
 
     this.type = options.type || getMimeType(this.url.toString());
     this.cacheDir =
-      options.cacheDir || path.resolve(os.tmpdir(), '.cache', 'kissd');
+      options.cacheDir || path.resolve(os.tmpdir(), '.cache', 'have-sdk');
 
     if (this.url.protocol.startsWith('file')) {
       this.localPath = this.url.pathname;

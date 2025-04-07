@@ -2,12 +2,14 @@ import 'openai/shims/node';
 import OpenAI from 'openai';
 
 import type { AIMessageOptions } from './message.js';
+
 export interface AIClientOptions {
   type?: string;
   responseFormat?: string;
   apiKey?: string;
   baseUrl?: string;
 }
+
 
 export interface AIClientInterface {
   options: AIClientOptions;
@@ -256,7 +258,6 @@ export class OpenAIClient extends AIClient {
 
       return fullContent;
     } else {
-      console.log({ messages });
       const response = await this.openai.chat.completions.create({
         model,
         messages,

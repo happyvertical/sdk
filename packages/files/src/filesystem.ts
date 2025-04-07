@@ -24,7 +24,7 @@ export class FilesystemAdapter {
   constructor(options: FilesystemAdapterOptions) {
     this.options = options;
     this.cacheDir =
-      options.cacheDir || path.join(os.tmpdir(), 'kissd', '.cache');
+      options.cacheDir || path.join(os.tmpdir(), 'have-sdk', '.cache');
   }
 
   static async create<T extends FilesystemAdapterOptions>(

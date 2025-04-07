@@ -23,7 +23,7 @@
     "date-fns": "^4.1.0",
     "pluralize": "^8.0.0",
     "pdfjs-dist": "^4.10.38",
-    "scribe.js-ocr": "^0.7.0",
+    "scribe.js-ocr": "^0.8.0",
     "tesseract.js": "^6.0.0"
   },
   "devDependencies": {

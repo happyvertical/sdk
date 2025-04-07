@@ -1,13 +1,13 @@
 import type { AIClientOptions } from '@have/ai';
 import type { BaseCollectionOptions } from './collection.js';
 import YAML from 'yaml';
+import path from 'path';
+import { writeFile } from 'node:fs/promises';
+import { ensureDirectoryExists } from '@have/files';
 import { makeSlug } from '@have/utils';
 import { BaseCollection } from './collection.js';
 import { Content } from './content.js';
 import { Document } from './document.js';
-import path from 'path';
-import { ensureDirectoryExists } from '@have/files';
-import { writeFile } from 'node:fs/promises';
 
 export interface ContentsOptions extends BaseCollectionOptions {
   ai?: AIClientOptions;
