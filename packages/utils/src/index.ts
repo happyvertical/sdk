@@ -304,3 +304,13 @@ export const dateInString = (str: string): Date | null => {
   const date = new Date(year, foundMonth - 1, day);
   return !isNaN(date.getTime()) ? date : null;
 };
+
+
+export const prettyDate = (dateString: string) => {
+  const date = new Date(dateString);
+  return new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  }).format(date);
+};
