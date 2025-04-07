@@ -5,13 +5,13 @@
   "type": "module",
   "version": "0.0.48",
   "scripts": {
-    "format": "prettier --write .",
-    "format-check": "prettier --check .",
+    "format": "biome format --write .",
+    "format-check": "biome format --check .",
     "prepare": "husky",
     "test": "vitest",
     "test:watch": "vitest --watch",
-    "lint": "eslint -c eslint.config.mjs",
-    "lint:fix": "pnpm lint --fix",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --apply .",
     "clean": "pnpm -r exec rm -rf dist && pnpm -r exec rm -rf tsconfig.tsbuildinfo",
     "build": "pnpm clean && pnpm --filter @have/utils build && pnpm --filter @have/files build && pnpm --filter @have/spider build && pnpm --filter @have/sql build && pnpm --filter @have/pdf build && pnpm --filter @have/ai build && pnpm --filter @have/smrt build && pnpm --filter @have/svelte build",
     "dev": "pnpm --parallel -r build:watch",
@@ -20,17 +20,13 @@
     "postrelease": "node scripts/update-package-versions.cjs"
   },
   "devDependencies": {
+    "@biomejs/biome": "^1.5.3",
     "@changesets/cli": "^2.27.12",
-    "@eslint/js": "^9.24.0",
     "conventional-changelog-cli": "^5.0.0",
-    "eslint": "^9.24.0",
-    "globals": "^15.14.0",
     "husky": "^9.1.7",
     "lint-staged": "^15.4.2",
-    "prettier": "^3.4.2",
     "standard-version": "^9.5.0",
     "typescript": "^5.7.3",
-    "typescript-eslint": "^8.20.0",
     "vitest": "^3.1.1"
   },
   "resolutions": {
