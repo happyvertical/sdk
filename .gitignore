@@ -56,3 +56,4 @@ coverage/
 
 *.traineddata
 .svelte-kit
+.npmrc.local
