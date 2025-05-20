@@ -7,7 +7,7 @@ on:
 jobs:
   create-pr-on-assignment:
     runs-on: ubuntu-latest
-    if: gitea.event.assignee.login == 'claude'
+    if: gitea.event.issue.assignee.login == 'claude'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -61,8 +61,7 @@ jobs:
           git config user.email "actions-bot@example.com"
           git add .
           git commit -m "Address issue #${{ gitea.event.issue.number }}" || echo "No changes to commit"
-          git push origin $BRANCH_NAME
-          
+          git push origin $BRANCH_NAME          
           # Create PR using tea CLI
           REPO_NAME="${{ gitea.repository }}"
           tea pulls create \
@@ -72,8 +71,7 @@ jobs:
             --title "Fix #${{ gitea.event.issue.number }}: ${{ steps.issue.outputs.title }}" \
             --body "This PR addresses issue #${{ gitea.event.issue.number }} \
               Original issue description: \
-              ${{ steps.issue.outputs.body }}"
-                        
+              ${{ steps.issue.outputs.body }}"          
           # Add a comment on the issue with the PR link
           PR_URL="${{ vars.GITEA_URL }}/$REPO_NAME/pulls/$(tea pulls list --repo "$REPO_NAME" --head "$BRANCH_NAME" --format '{{ .Index }}')"
           tea issue comment "$REPO_NAME#${{ gitea.event.issue.number }}" --body "I've created PR: $PR_URL to address this issue."

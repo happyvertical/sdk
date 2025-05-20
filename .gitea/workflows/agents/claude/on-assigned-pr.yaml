@@ -8,7 +8,7 @@ jobs:
   process-pr-on-assignment:
     runs-on: ubuntu-latest
     # Only run when the PR is assigned to the designated bot user
-    if: gitea.event.assignee.login == 'claude-bot'
+    if: gitea.event.pr.assignee.login == 'claude'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
