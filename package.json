@@ -3,7 +3,7 @@
   "private": true,
   "author": "Will Griffin <willgriffin@gmail.com>",
   "type": "module",
-  "version": "0.0.48",
+  "version": "0.0.49",
   "scripts": {
     "format": "biome format --write .",
     "format-check": "biome format --check .",
