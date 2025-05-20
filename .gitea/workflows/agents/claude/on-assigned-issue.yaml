@@ -21,9 +21,6 @@ jobs:
           echo "Gitea URL: ${{ vars.GITEA_URL }}"
           echo "Gitea Token: ${{ secrets.GITEA_TOKEN }}"
 
-          echo "BUILTIN TOKEN ${{ GITEA_TOKEN }}"
-          echo "BUILTIN URL ${{ GITEA_URL }}"
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
