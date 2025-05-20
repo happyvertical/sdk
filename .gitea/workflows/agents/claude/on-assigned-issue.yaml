@@ -54,7 +54,7 @@ jobs:
           git checkout -b $BRANCH_NAME
           
           # Call Claude Code with issue content as context
-          claude "Create changes to address this issue: 
+          claude  --print "Create changes to address this issue: 
           Title: ${{ steps.issue.outputs.title }}
           Description: ${{ steps.issue.outputs.body }}"
         env:
