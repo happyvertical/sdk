@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.0.49](https://git.grffn.net/happyvertical/sdk/compare/v0.0.48...v0.0.49) (2025-05-20)
+
+
+### Features
+
+* a setup_dev script for those who have all the repos in the same parent, eg me ([176c9da](https://git.grffn.net/happyvertical/sdk/commit/176c9daa057cd1237ca931980910ca98d2cf7b80))
+* add gitea workflows for Claude agent integration ([a293227](https://git.grffn.net/happyvertical/sdk/commit/a2932276a0fb7de73dc5af86187e77ea1edb827c))
+* added prettyDate function to utils ([41b0dfc](https://git.grffn.net/happyvertical/sdk/commit/41b0dfcdd484106105b6274cea2479e2bf6aca02))
+* here comes the agentic coding, CLAUDE.md ([0bde29f](https://git.grffn.net/happyvertical/sdk/commit/0bde29f22ac9063fa6c21554088108306574ee98))
+* migrated to biome ([b2c611c](https://git.grffn.net/happyvertical/sdk/commit/b2c611c7b8948f0cc0d0703434bb765ea4973429))
+* the starts of a contributing guide ripped off from repomix base rules ([c0d7425](https://git.grffn.net/happyvertical/sdk/commit/c0d7425a605107df9707452cd41fc1bde6a0b7d6))
+* update git hooks to use lefthook ([ad5261e](https://git.grffn.net/happyvertical/sdk/commit/ad5261ef917c1815c4f08cd56d1d8504acc33f2c))
+
+
+### Bug Fixes
+
+* setup_dev relative to script and use bin/env ([af3ccd1](https://git.grffn.net/happyvertical/sdk/commit/af3ccd17fbc262f27828f795c147bace54812f36))
+
 ### [0.0.48](https://git.grffn.net/happyvertical/have-sdk/compare/v0.0.47...v0.0.48) (2025-03-26)
 
 
