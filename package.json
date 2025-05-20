@@ -7,7 +7,7 @@
   "scripts": {
     "format": "biome format --write .",
     "format-check": "biome format --check .",
-    "prepare": "husky",
+    "prepare": "lefthook install",
     "test": "vitest",
     "test:watch": "vitest --watch",
     "lint": "biome lint .",
@@ -23,8 +23,7 @@
     "@biomejs/biome": "^1.5.3",
     "@changesets/cli": "^2.27.12",
     "conventional-changelog-cli": "^5.0.0",
-    "husky": "^9.1.7",
-    "lint-staged": "^15.4.2",
+    "lefthook": "^1.11.13",
     "standard-version": "^9.5.0",
     "typescript": "^5.7.3",
     "vitest": "^3.1.1"
