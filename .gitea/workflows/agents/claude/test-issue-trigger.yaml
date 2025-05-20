@@ -1,0 +1,10 @@
+name: Test Issue Assignment Trigger
+on:
+  issues:
+    types: [assigned]
+jobs:
+  test_job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print a message
+        run: echo "Issue assigned event was triggered!"
