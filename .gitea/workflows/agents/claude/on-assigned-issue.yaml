@@ -34,10 +34,10 @@ jobs:
           ISSUE_TITLE=$(tea issue view "$REPO_NAME#$ISSUE_NUM" --format '{{ .Title }}')
           ISSUE_BODY=$(tea issue view "$REPO_NAME#$ISSUE_NUM" --format '{{ .Body }}')
           
-          echo "title=$ISSUE_TITLE" >> $GITHUB_OUTPUT
-          echo "body<<EOF" >> $GITHUB_OUTPUT
-          echo "$ISSUE_BODY" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "title=$ISSUE_TITLE" >> $GITEA_OUTPUT
+          echo "body<<EOF" >> $GITEA_OUTPUT
+          echo "$ISSUE_BODY" >> $GITEA_OUTPUT
+          echo "EOF" >> $GITEA_OUTPUT
         
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -55,7 +55,7 @@ jobs:
           
           # Call Claude Code with issue content as context
           claude  --print "Create changes to address this issue: 
-          Title: ${{ steps.issue.outputs.title }}
+          Title: ${{ steps.issue.outputs.title }} 
           Description: ${{ steps.issue.outputs.body }}"
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
