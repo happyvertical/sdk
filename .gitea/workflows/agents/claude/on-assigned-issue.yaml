@@ -27,17 +27,15 @@ jobs:
             chmod +x tea
             mv tea /usr/local/bin/
           fi
-          tea --help
           REPO_NAME="${{ gitea.repository }}"
           echo $REPO_NAME
           ISSUE_NUM="${{ gitea.event.issue.number }}"
+          echo $ISSUE_NUM
           
           ISSUE_TITLE=$(tea issue view "$REPO_NAME#$ISSUE_NUM" --format '{{ .Title }}')
+          echo $ISSUE_TITLE
           ISSUE_BODY=$(tea issue view "$REPO_NAME#$ISSUE_NUM" --format '{{ .Body }}')
-          echo $REPO_NAME;
-          echo $ISSUE_NUM;
-          echo $ISSUE_TITLE;
-          echo $ISSUE_BODY;
+          echo $ISSUE_BODY
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
