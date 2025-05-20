@@ -1,7 +1,7 @@
 name: Test Issue Assignment Trigger
 on:
   issues:
-    types: [assigned]
+    types: [labeled]
 jobs:
   test_job:
     runs-on: ubuntu-latest
