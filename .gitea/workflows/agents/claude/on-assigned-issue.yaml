@@ -18,8 +18,6 @@ jobs:
         id: issue
         run: |
           echo "Fetching issue details..."
-          # echo "Repository: ${{ gitea.repository }}"
-          # echo "Issue Number: ${{ gitea.event.issue.number }}"
 
           # echo "Gitea URL: ${{ vars.GITEA_URL }}"
           # echo "Gitea Token: ${{ secrets.GITEA_TOKEN }}"
@@ -29,9 +27,10 @@ jobs:
 
           # Install gitea-cli if needed
           if ! command -v tea &> /dev/null; then
-            curl -sL https://dl.gitea.io/tea/main/tea-main-linux-amd64 -o tea
-            chmod +x tea
-            mv tea /usr/local/bin/
+            echo "Installing gitea-cli..."
+            # curl -sL https://dl.gitea.io/tea/main/tea-main-linux-amd64 -o tea
+            # chmod +x tea
+            # mv tea /usr/local/bin/
           fi
           # echo "Logging in to Gitea CLI"
           # # Configure tea client
