@@ -39,10 +39,14 @@ jobs:
           echo "$ISSUE_BODY" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
         
-      - name: Setup Claude Code
-        uses: anthropics/claude-code-action@beta
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          node-version: '22'
+          cache: 'npm'
+      
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
       
       - name: Create branch and changes
         run: |
@@ -54,6 +58,8 @@ jobs:
           claude "Create changes to address this issue: 
           Title: ${{ steps.issue.outputs.title }}
           Description: ${{ steps.issue.outputs.body }}"
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       
       - name: Push changes and create PR
         run: |

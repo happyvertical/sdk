@@ -48,10 +48,14 @@ jobs:
           echo "$PR_REVIEW_COMMENTS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
       
-      - name: Setup Claude Code
-        uses: anthropics/claude-code-action@beta
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          node-version: '22'
+          cache: 'npm'
+      
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
       
       - name: Checkout PR branch
         run: |
@@ -63,6 +67,8 @@ jobs:
           ${{ steps.pr.outputs.comments }}"
           # Pass the comments to Claude Code to process and make changes
           claude "Review the following PR feedback and make the requested changes: $ALL_COMMENTS"
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       
       - name: Commit and push changes
         run: |
