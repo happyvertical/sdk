@@ -33,11 +33,11 @@ jobs:
           echo $ISSUE_NUM
           tea login add -u https://git.grffn.net/ --token ${{ secrets.GITEA_TOKEN }}
           echo "logged in successfully"
-          tea issue view "$REPO_NAME#$ISSUE_NUM" --format '{{ .Title }}
-          # ISSUE_TITLE=$(tea issue view "$REPO_NAME#$ISSUE_NUM" --format '{{ .Title }}')
-          # echo $ISSUE_TITLE
-          # ISSUE_BODY=$(tea issue view "$REPO_NAME#$ISSUE_NUM" --format '{{ .Body }}')
-          # echo $ISSUE_BODY
+          # tea issue view "$REPO_NAME#$ISSUE_NUM" --format '{{ .Title }}''
+          ISSUE_TITLE=$(tea issue view "$REPO_NAME#$ISSUE_NUM" --format '{{ .Title }}')
+          echo $ISSUE_TITLE
+          ISSUE_BODY=$(tea issue view "$REPO_NAME#$ISSUE_NUM" --format '{{ .Body }}')
+          echo $ISSUE_BODY
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
