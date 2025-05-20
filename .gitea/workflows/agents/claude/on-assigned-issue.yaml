@@ -52,7 +52,8 @@ jobs:
           # Use issue number for branch name
           BRANCH_NAME="issue-${{ gitea.event.issue.number }}"
           git checkout -b $BRANCH_NAME
-          
+          git push --set-upstream origin $BRANCH_NAME
+
           # Call Claude Code with issue content as context
           claude  --print "Create changes to address this issue: 
           Title: ${{ steps.issue.outputs.title }} 
