@@ -19,7 +19,7 @@ jobs:
         run: |
           # Install gitea-cli if needed
           if ! command -v tea &> /dev/null; then
-            curl -sL https://dl.gitea.io/tea/latest/linux/amd64/tea -o tea
+            curl -sL https://dl.gitea.io/tea/main/tea-main-linux-amd64 -o tea
             chmod +x tea
             mv tea /usr/local/bin/
           fi
