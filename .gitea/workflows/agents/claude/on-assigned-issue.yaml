@@ -7,7 +7,6 @@ on:
 jobs:
   create-pr-on-assignment:
     runs-on: ubuntu-latest
-    # Only run when the issue is assigned to a specific user (e.g., claude)
     if: gitea.event.assignee.login == 'claude'
     steps:
       - name: Checkout repository

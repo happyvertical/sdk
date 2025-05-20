@@ -6,5 +6,9 @@ jobs:
   test_job:
     runs-on: ubuntu-latest
     steps:
-      - name: Print a message
+      - name: Print assignee details
         run: echo "Issue assigned event was triggered!"
+      - name: Show Assignee Login
+        run: echo "Issue was assigned to: ${{ gitea.event.assignee.login }}"
+      - name: Dump Assignee Object
+        run: echo "Assignee object: ${{ toJson(gitea.event.assignee) }}"
