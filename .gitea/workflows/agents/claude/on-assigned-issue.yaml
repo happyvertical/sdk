@@ -70,16 +70,11 @@ jobs:
             --base "main" \
             --head "$BRANCH_NAME" \
             --title "Fix #${{ gitea.event.issue.number }}: ${{ steps.issue.outputs.title }}" \
-            --body "This PR addresses issue #${{ gitea.event.issue.number }}
-
-Original issue description:
-${{ steps.issue.outputs.body }}
-
-Created by Claude Code based on the issue description."
-          
+            --body "This PR addresses issue #${{ gitea.event.issue.number }} \
+              Original issue description: \
+              ${{ steps.issue.outputs.body }}"
+                        
           # Add a comment on the issue with the PR link
           PR_URL="${{ vars.GITEA_URL }}/$REPO_NAME/pulls/$(tea pulls list --repo "$REPO_NAME" --head "$BRANCH_NAME" --format '{{ .Index }}')"
           tea issue comment "$REPO_NAME#${{ gitea.event.issue.number }}" --body "I've created PR: $PR_URL to address this issue."
-          
-          # Add a label to the issue to mark it as being worked on
           tea issue label "$REPO_NAME#${{ gitea.event.issue.number }}" --add "pr-created"
