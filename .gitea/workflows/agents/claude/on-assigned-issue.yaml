@@ -28,6 +28,8 @@ jobs:
             mv tea /usr/local/bin/
           fi
           tea --help
+          REPO_NAME="${{ gitea.repository }}"
+          echo $REPO_NAME
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
