@@ -1,14 +1,28 @@
 name: Test Issue Assignment Trigger
 on:
   issues:
-    types: [labeled]
+    types: [labeled, assigned] # Add 'assigned' to test that trigger too, or keep only 'labeled'
 jobs:
   test_job:
     runs-on: ubuntu-latest
     steps:
-      - name: Print assignee details
-        run: echo "Issue assigned event was triggered!"
-      - name: Show Assignee Login
-        run: echo "Issue was assigned to: ${{ gitea.event.assignee.login }}"
-      - name: Dump Assignee Object
-        run: echo "Assignee object: ${{ toJson(gitea.event.assignee) }}"
+      - name: Show Event Details
+        run: |
+          echo "Workflow triggered by event: ${{ gitea.event_name }}"
+          echo "Action type: ${{ gitea.event.action }}"
+          echo "Issue Number: ${{ gitea.event.issue.number }}"
+          echo "Issue Title: ${{ gitea.event.issue.title }}"
+          echo "Sender (user performing the action): ${{ gitea.event.sender.login }}"
+
+      - name: Show Label Details (if action is 'labeled')
+        if: gitea.event.action == 'labeled'
+        run: |
+          echo "Label Name: ${{ gitea.event.label.name }}"
+          echo "Label Color: ${{ gitea.event.label.color }}"
+
+      - name: Show Assignee Information
+        run: |
+          echo "Issue's Current Assignee (from issue object): ${{ gitea.event.issue.assignee.login }}"
+          echo "Full Issue Assignee Object (from issue object): ${{ toJson(gitea.event.issue.assignee) }}"
+          echo "Direct Event Assignee (populated for 'assigned' action): ${{ gitea.event.assignee.login }}"
+          echo "Full Direct Event Assignee Object (for 'assigned' action): ${{ toJson(gitea.event.assignee) }}"
