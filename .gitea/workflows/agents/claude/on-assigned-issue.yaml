@@ -19,7 +19,14 @@ jobs:
         run: |
           echo "Fetching issue details..."
           echo "Gitea Token: ${{ secrets.GITEA_TOKEN }}"
-          echo "BUILTIN URL ${{ GITEA_URL }}"
+
+          # Install gitea-cli if needed
+          if ! command -v tea &> /dev/null; then
+            echo "Installing gitea-cli..."
+            curl -sL https://dl.gitea.io/tea/main/tea-main-linux-amd64 -o tea
+            chmod +x tea
+            mv tea /usr/local/bin/
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
