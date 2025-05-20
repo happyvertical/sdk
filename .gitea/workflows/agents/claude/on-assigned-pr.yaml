@@ -8,7 +8,7 @@ jobs:
   process-pr-on-assignment:
     runs-on: ubuntu-latest
     # Only run when the PR is assigned to the designated bot user
-    if: gitea.event.assignee.login == 'claude-bot'
+    if: gitea.event.pr.assignee.login == 'claude'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
@@ -48,10 +48,14 @@ jobs:
           echo "$PR_REVIEW_COMMENTS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
       
-      - name: Setup Claude Code
-        uses: anthropic/claude-code-action@v1
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          node-version: '22'
+          cache: 'npm'
+      
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
       
       - name: Checkout PR branch
         run: |
@@ -59,13 +63,12 @@ jobs:
       
       - name: Process PR comments with Claude Code
         run: |
-          # Combine all comments for context
           ALL_COMMENTS="${{ steps.pr.outputs.review_comments }}
-
-${{ steps.pr.outputs.comments }}"
-          
+          ${{ steps.pr.outputs.comments }}"
           # Pass the comments to Claude Code to process and make changes
-          claude-code "Review the following PR feedback and make the requested changes: $ALL_COMMENTS"
+          claude --print "Review the following PR feedback and make the requested changes: $ALL_COMMENTS"
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       
       - name: Commit and push changes
         run: |
