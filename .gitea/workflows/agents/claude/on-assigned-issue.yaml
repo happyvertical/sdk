@@ -19,7 +19,6 @@ jobs:
         run: |
           echo "Fetching issue details..."
           echo "Gitea Token: ${{ secrets.GITEA_TOKEN }}"
-          echo "BUILTIN TOKEN ${{ GITEA_TOKEN }}"
           echo "BUILTIN URL ${{ GITEA_URL }}"
 
       - name: Setup Node.js
