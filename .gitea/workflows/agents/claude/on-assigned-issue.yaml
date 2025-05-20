@@ -25,7 +25,7 @@ jobs:
           fi
           
           # Configure tea client
-          tea login add -u ${{ vars.GITEA_URL }} --token ${{ secrets.GITEA_TOKEN }}
+          tea login add -u ${{ GITEA_URL }} --token ${{ GITEA_TOKEN }}
           
           # Get issue details
           REPO_NAME="${{ gitea.repository }}"
