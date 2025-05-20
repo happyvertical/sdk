@@ -1,3 +1,0 @@
-{
-  "*.{js,ts,jsx,tsx,json}": ["biome format --write", "biome lint --apply"]
-}

@@ -57,3 +57,5 @@ coverage/
 *.traineddata
 .svelte-kit
 .npmrc.local
+
+**/.claude/settings.local.json
