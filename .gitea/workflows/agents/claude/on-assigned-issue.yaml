@@ -26,12 +26,12 @@ jobs:
           # echo "BUILTIN URL ${{ GITEA_URL }}"
 
           # Install gitea-cli if needed
-          if ! command -v tea &> /dev/null; then
-            echo "Installing gitea-cli..."
+          #if ! command -v tea &> /dev/null; then
+            # echo "Installing gitea-cli..."
             # curl -sL https://dl.gitea.io/tea/main/tea-main-linux-amd64 -o tea
             # chmod +x tea
             # mv tea /usr/local/bin/
-          fi
+          #fi
           # echo "Logging in to Gitea CLI"
           # # Configure tea client
           # tea login add -u https://git.grffn.net/ --token ${{ secrets.GITEATOKEN }}
