@@ -23,7 +23,7 @@ jobs:
             chmod +x tea
             mv tea /usr/local/bin/
           fi
-          
+          echo "Logging in to Gitea CLI"
           # Configure tea client
           tea login add -u ${{ GITEA_URL }} --token ${{ GITEA_TOKEN }}
           
@@ -33,7 +33,11 @@ jobs:
           
           ISSUE_TITLE=$(tea issue view "$REPO_NAME#$ISSUE_NUM" --format '{{ .Title }}')
           ISSUE_BODY=$(tea issue view "$REPO_NAME#$ISSUE_NUM" --format '{{ .Body }}')
-          
+          echo $REPO_NAME;
+          echo $ISSUE_NUM;
+          echo $ISSUE_TITLE;
+          echo $ISSUE_BODY;
+
           echo "title=$ISSUE_TITLE" >> $GITEA_OUTPUT
           echo "body<<EOF" >> $GITEA_OUTPUT
           echo "$ISSUE_BODY" >> $GITEA_OUTPUT
