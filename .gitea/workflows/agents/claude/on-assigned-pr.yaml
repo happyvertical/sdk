@@ -49,7 +49,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
       
       - name: Setup Claude Code
-        uses: anthropic/claude-code-action@v1
+        uses: anthropics/claude-code-action@v1
         with:
           api_key: ${{ secrets.ANTHROPIC_API_KEY }}
       
