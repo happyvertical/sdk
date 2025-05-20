@@ -49,7 +49,7 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
       
       - name: Setup Claude Code
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@beta
         with:
           api_key: ${{ secrets.ANTHROPIC_API_KEY }}
       
@@ -59,13 +59,10 @@ jobs:
       
       - name: Process PR comments with Claude Code
         run: |
-          # Combine all comments for context
           ALL_COMMENTS="${{ steps.pr.outputs.review_comments }}
-
-${{ steps.pr.outputs.comments }}"
-          
+          ${{ steps.pr.outputs.comments }}"
           # Pass the comments to Claude Code to process and make changes
-          claude-code "Review the following PR feedback and make the requested changes: $ALL_COMMENTS"
+          claude "Review the following PR feedback and make the requested changes: $ALL_COMMENTS"
       
       - name: Commit and push changes
         run: |
