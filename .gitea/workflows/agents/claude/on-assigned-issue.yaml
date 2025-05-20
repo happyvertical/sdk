@@ -17,6 +17,7 @@ jobs:
       - name: Get issue details
         id: issue
         run: |
+          echo "Fetching issue details..."
           # Install gitea-cli if needed
           if ! command -v tea &> /dev/null; then
             curl -sL https://dl.gitea.io/tea/main/tea-main-linux-amd64 -o tea
