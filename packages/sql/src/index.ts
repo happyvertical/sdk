@@ -2,10 +2,20 @@ import type { DatabaseInterface } from "./types.js";
 import type { PostgresOptions } from "./postgres.js";
 import type { SqliteOptions } from "./sqlite.js";
 
+/**
+ * Union type of options for creating different database types
+ */
 type GetDatabaseOptions =
   | (PostgresOptions & { type?: "postgres" })
   | (SqliteOptions & { type?: "sqlite" });
 
+/**
+ * Creates a database connection based on the provided options
+ * 
+ * @param options - Configuration options for the database connection
+ * @returns Promise resolving to a DatabaseInterface implementation
+ * @throws Error if the database type is invalid
+ */
 export async function getDatabase(
   options: GetDatabaseOptions = {},
 ): Promise<DatabaseInterface> {
@@ -28,13 +38,26 @@ export async function getDatabase(
   }
 }
 
+/**
+ * Validates if a table name consists only of alphanumeric characters and underscores
+ * 
+ * @param name - Table name to validate
+ * @returns Boolean indicating if the name is valid
+ */
 function isValidTableName(name: string): boolean {
   // Simple regex to allow only alphanumeric characters and underscores
   return /^[a-zA-Z0-9_]+$/.test(name);
 }
 
-// takes a table definition and syncs it to the database
-// caution: this will only be tested for schenarios within the sdk
+/**
+ * Synchronizes a SQL schema definition with a database
+ * Creates tables if they don't exist and adds missing columns to existing tables
+ * 
+ * @param options - Object containing database and schema
+ * @param options.db - Database interface to use
+ * @param options.schema - SQL schema definition
+ * @throws Error if db or schema are missing or if table name is invalid
+ */
 export async function syncSchema(options: {
   db: DatabaseInterface;
   schema: string;
@@ -97,12 +120,25 @@ export async function syncSchema(options: {
   }
 }
 
+/**
+ * Checks if a table exists in the database
+ * 
+ * @param db - Database interface to use
+ * @param tableName - Name of the table to check
+ * @returns Promise resolving to boolean indicating if the table exists
+ */
 export async function tableExists(db: DatabaseInterface, tableName: string) {
   const tableExists =
     await db.pluck`SELECT name FROM sqlite_master WHERE type='table' AND name='${tableName}'`;
   return !!tableExists;
 }
 
+/**
+ * Escapes and formats a value for use in SQL queries
+ * 
+ * @param value - Value to escape
+ * @returns String representation of the value safe for SQL use
+ */
 export function escapeSqlValue(value: any): string {
   if (value === null) {
     return "NULL";
@@ -120,6 +156,13 @@ export function escapeSqlValue(value: any): string {
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 
+/**
+ * Validates a column name for use in SQL queries
+ * 
+ * @param column - Column name to validate
+ * @returns The validated column name
+ * @throws Error if the column name contains invalid characters
+ */
 export function validateColumnName(column: string): string {
   // Only allow alphanumeric characters, underscores, and dots (for table.column notation)
   if (!/^[a-zA-Z0-9_.]+$/.test(column)) {
@@ -128,6 +171,9 @@ export function validateColumnName(column: string): string {
   return column;
 }
 
+/**
+ * Map of valid SQL operators for use in WHERE clauses
+ */
 const VALID_OPERATORS = {
   "=": "=",
   ">": ">",
@@ -142,8 +188,8 @@ const VALID_OPERATORS = {
 /**
  * Builds a SQL WHERE clause with parameterized values and flexible operators
  *
- * @param where Record of conditions with optional operators in keys
- * @param startIndex Starting index for parameter numbering (default: 1)
+ * @param where - Record of conditions with optional operators in keys
+ * @param startIndex - Starting index for parameter numbering (default: 1)
  * @returns Object containing the SQL clause and array of values
  *
  * @example Basic Usage:

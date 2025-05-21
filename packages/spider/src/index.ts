@@ -6,14 +6,42 @@ import * as cheerio from 'cheerio';
 
 import { fetchText, getCached, setCached } from '@have/files';
 
+/**
+ * Options for fetching a web page's source
+ */
 interface FetchPageSourceOptions {
+  /**
+   * URL to fetch
+   */
   url: string;
+  
+  /**
+   * Whether to use a simple HTTP fetch instead of a browser
+   */
   cheap: boolean;
-  browser?: Browser; // if not supplied, we'll use a cheap fetch
+  
+  /**
+   * Browser instance to use for fetching (required if cheap is false)
+   */
+  browser?: Browser;
+  
+  /**
+   * Whether to use cached content if available
+   */
   cache?: boolean;
+  
+  /**
+   * Cache expiry time in milliseconds
+   */
   cacheExpiry?: number;
 }
 
+/**
+ * Fetches the HTML source of a web page using either a simple HTTP request or a headless browser
+ * 
+ * @param options - Configuration options for the fetch operation
+ * @returns Promise resolving to the HTML content of the page
+ */
 export async function fetchPageSource(
   options: FetchPageSourceOptions,
 ): Promise<string> {
@@ -50,6 +78,12 @@ export async function fetchPageSource(
   return content;
 }
 
+/**
+ * Parses an HTML page to extract links or content
+ * 
+ * @param indexSource - HTML source to parse
+ * @returns Promise resolving to an array of URLs extracted from the page
+ */
 export async function parseIndexSource(indexSource: string): Promise<string[]> {
   const $ = cheerio.load(indexSource);
 
@@ -70,6 +104,11 @@ export async function parseIndexSource(indexSource: string): Promise<string[]> {
   return items;
 }
 
+/**
+ * Creates and launches a headless Chromium browser instance
+ * 
+ * @returns Promise resolving to a Browser instance
+ */
 export async function getBrowser(): Promise<Browser> {
   const browser = await chromium.launch({
     headless: true,
