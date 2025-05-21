@@ -39,9 +39,9 @@ jobs:
           ISSUE_BODY=$(tea issue --repo $REPO_NAME $ISSUE_NUM)
           echo $ISSUE_BODY
           echo "title=$ISSUE_TITLE" >> $GITHUB_OUTPUT
-          echo "body<<EOF" >> $GITHUB_OUTPUT
-          echo "$ISSUE_BODY" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          # echo "body=<<EOF" >> $GITHUB_OUTPUT
+          # echo "$ISSUE_BODY" >> $GITHUB_OUTPUT
+          # echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -57,6 +57,11 @@ jobs:
           BRANCH_NAME="issue-${{ gitea.event.issue.number }}"
           git checkout -b $BRANCH_NAME
           git push --set-upstream origin $BRANCH_NAME
+
+
+          echo "Create changes to address this issue: 
+          Title: ${{ steps.issue.outputs.title }} 
+          Description: ${{ steps.issue.outputs.body }}"
 
           # Call Claude Code with issue content as context
           claude  --print "Create changes to address this issue: 
