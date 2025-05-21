@@ -1,10 +1,23 @@
 import { syncSchema } from '@have/sql';
 import yaml from 'yaml';
 import { Content } from './content.js';
+
+/**
+ * Checks if a field name indicates a date field based on naming conventions
+ * 
+ * @param key - Field name to check
+ * @returns Boolean indicating if the field is likely a date field
+ */
 export function isDateField(key: string) {
   return key.endsWith('_date') || key.endsWith('_at') || key === 'date';
 }
 
+/**
+ * Converts a date string to a Date object
+ * 
+ * @param date - Date as string or Date object
+ * @returns Date object
+ */
 export function dateAsString(date: Date | string) {
   if (typeof date === 'string') {
     return new Date(date);
@@ -12,6 +25,12 @@ export function dateAsString(date: Date | string) {
   return date;
 }
 
+/**
+ * Converts a Date object to an ISO string
+ * 
+ * @param date - Date as Date object or string
+ * @returns ISO date string or the original string
+ */
 export function dateAsObject(date: Date | string) {
   if (date instanceof Date) {
     return date.toISOString();
@@ -19,6 +38,13 @@ export function dateAsObject(date: Date | string) {
   return date;
 }
 
+/**
+ * Extracts field definitions from a class
+ * 
+ * @param ClassType - Class constructor to extract fields from
+ * @param values - Optional values to set for the fields
+ * @returns Object containing field definitions
+ */
 export function fieldsFromClass(
   ClassType: new (...args: any[]) => any,
   values?: Record<string, any>,
@@ -105,6 +131,12 @@ export function fieldsFromClass(
   return fields;
 }
 
+/**
+ * Generates a database schema SQL statement for a class
+ * 
+ * @param ClassType - Class constructor to generate schema for
+ * @returns SQL schema creation statement
+ */
 export function generateSchema(ClassType: new (...args: any[]) => any) {
   const tableName = tableNameFromClass(ClassType);
   const fields = fieldsFromClass(ClassType);
@@ -134,6 +166,12 @@ export function generateSchema(ClassType: new (...args: any[]) => any) {
   return schema;
 }
 
+/**
+ * Generates a table name from a class constructor
+ * 
+ * @param ClassType - Class constructor or function
+ * @returns Pluralized snake_case table name
+ */
 export function tableNameFromClass(
   // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
   ClassType: Function | (new (...args: any[]) => any),
@@ -203,6 +241,12 @@ export function tableNameFromClass(
 //   return { sql, replacements };
 // }
 
+/**
+ * Converts a class name to a table name with pluralization
+ * 
+ * @param className - Name of the class
+ * @returns Pluralized snake_case table name
+ */
 export function classnameToTablename(className: string) {
   // Convert camelCase/PascalCase to snake_case and pluralize
   const tableName = className
@@ -218,9 +262,19 @@ export function classnameToTablename(className: string) {
   return tableName;
 }
 
+/**
+ * Cache of table setup promises to avoid duplicate setup operations
+ */
 const _setup_table_from_class_promises: Record<string, Promise<void> | null> =
   {};
 
+/**
+ * Sets up database tables for a class
+ * 
+ * @param db - Database connection
+ * @param ClassType - Class constructor to create tables for
+ * @returns Promise that resolves when setup is complete
+ */
 export async function setupTableFromClass(db: any, ClassType: any) {
   const tableName = classnameToTablename(ClassType.name);
 
@@ -242,6 +296,13 @@ export async function setupTableFromClass(db: any, ClassType: any) {
   return _setup_table_from_class_promises[tableName];
 }
 
+/**
+ * Sets up database triggers for automatic timestamp updates
+ * 
+ * @param db - Database connection
+ * @param tableName - Name of the table to set up triggers for
+ * @returns Promise that resolves when triggers are set up
+ */
 export async function setupTriggers(db: any, tableName: string) {
   const triggers = [
     `${tableName}_set_created_at`,
@@ -279,6 +340,12 @@ export async function setupTriggers(db: any, tableName: string) {
   }
 }
 
+/**
+ * Converts a Content object to a string with YAML frontmatter
+ * 
+ * @param content - Content object to convert
+ * @returns String with YAML frontmatter and body content
+ */
 export function contentToString(content: Content) {
   const { body, ...frontmatter } = content;
   const separator = '---';
@@ -286,6 +353,12 @@ export function contentToString(content: Content) {
   return `${separator}\n${frontmatterYAML}\n${separator}\n${body}`;
 }
 
+/**
+ * Converts a string with YAML frontmatter to a Content object
+ * 
+ * @param data - String with YAML frontmatter and body content
+ * @returns Object with parsed frontmatter and body content
+ */
 export function stringToContent(data: string) {
   const separator = '---';
   const frontmatterStart = data.indexOf(separator);
@@ -314,6 +387,12 @@ export function stringToContent(data: string) {
   });
 }
 
+/**
+ * Formats data for JavaScript by converting date strings to Date objects
+ * 
+ * @param data - Object with data to format
+ * @returns Object with properly typed values for JavaScript
+ */
 export function formatDataJs(data: Record<string, any>) {
   const normalizedData: Record<string, any> = {};
   for (const [key, value] of Object.entries(data)) {
@@ -328,6 +407,12 @@ export function formatDataJs(data: Record<string, any>) {
   return normalizedData;
 }
 
+/**
+ * Formats data for SQL by converting Date objects to ISO strings
+ * 
+ * @param data - Object with data to format
+ * @returns Object with properly formatted values for SQL
+ */
 export function formatDataSql(data: Record<string, any>) {
   const normalizedData: Record<string, any> = {};
   for (const [key, value] of Object.entries(data)) {

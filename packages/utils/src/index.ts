@@ -3,23 +3,50 @@ import path from 'path';
 import { URL } from 'url';
 
 import { v4 as uuidv4 } from 'uuid';
+
+/**
+ * Default temporary directory for SDK tests
+ */
 export const TMP_DIR = path.resolve(`${tmpdir()}/.have-sdk/tests`);
 
+/**
+ * Converts a URL to a file path by joining hostname and pathname
+ * 
+ * @param url - The URL to convert to a path
+ * @returns The path representation of the URL (hostname/pathname)
+ */
 export const urlPath = (url: string) => {
   const parsedUrl = new URL(url);
   return path.join(parsedUrl.hostname, parsedUrl.pathname);
 };
 
+/**
+ * Extracts the filename from a URL's pathname
+ * 
+ * @param url - The URL to extract filename from
+ * @returns The filename from the URL or 'index.html' if no filename found
+ */
 export const urlFilename = (url: string) => {
   const parsedUrl = new URL(url);
   const filename = path.basename(parsedUrl.pathname);
   return filename || 'index.html';
 };
 
+/**
+ * Generates a unique UUID v4 identifier
+ * 
+ * @returns A UUID v4 string
+ */
 export const makeId = () => {
   return uuidv4();
 };
 
+/**
+ * Converts a string to a URL-friendly slug
+ * 
+ * @param str - The string to convert to a slug
+ * @returns A lowercase, hyphenated slug with special characters removed
+ */
 export const makeSlug = (str: string) => {
   const from =
     'àáâäæãåāăąçćčđďèéêëēėęěğǵḧîïíīįìıİłḿñńǹňôöòóœøōõőṕŕřßśšşșťțûüùúūǘůűųẃẍÿýžźż+·/_,:;';
@@ -43,12 +70,25 @@ export const makeSlug = (str: string) => {
     .replace(/-+$/, ''); // Trim - from end of text
 };
 
+/**
+ * Gets current time in milliseconds using high-resolution timer
+ * 
+ * @returns Current time in milliseconds
+ */
 export const timeNow = () => {
   const time = process.hrtime();
   return Math.round(time[0] * 1e3 + time[1] / 1e6);
 };
 
-// it function
+/**
+ * Repeatedly calls a function until it returns a defined value or times out
+ * 
+ * @param it - Function to call repeatedly that returns a Promise
+ * @param options - Configuration options
+ * @param options.timeout - Maximum time to wait in milliseconds (0 = no timeout)
+ * @param options.delay - Delay between attempts in milliseconds
+ * @returns Promise that resolves with the first defined result or rejects on timeout
+ */
 export function waitFor(
   it: () => Promise<any>,
   { timeout = 0, delay = 1000 }: { timeout?: number; delay?: number },
@@ -70,6 +110,12 @@ export function waitFor(
   });
 }
 
+/**
+ * Creates a Promise that resolves after a specified duration
+ * 
+ * @param duration - Time to sleep in milliseconds
+ * @returns Promise that resolves after the specified duration
+ */
 export const sleep = (duration: number) => {
   return new Promise<void>((resolve) => {
     console.log(`sleeping for ${duration}ms`);
@@ -77,10 +123,22 @@ export const sleep = (duration: number) => {
   });
 };
 
+/**
+ * Type guard to check if a value is an array
+ * 
+ * @param obj - Value to check
+ * @returns True if the value is an array, false otherwise
+ */
 export const isArray = (obj: unknown): obj is unknown[] => {
   return Array.isArray(obj);
 };
 
+/**
+ * Recursively converts all object keys to camelCase
+ * 
+ * @param obj - Object to convert
+ * @returns Object with all keys converted to camelCase
+ */
 export const keysToCamel = (obj: unknown): unknown => {
   if (isPlainObject(obj)) {
     const n: Record<string, unknown> = {};
@@ -95,8 +153,20 @@ export const keysToCamel = (obj: unknown): unknown => {
   return obj;
 };
 
+/**
+ * Converts a domain string to camelCase
+ * 
+ * @param domain - Domain string to convert
+ * @returns camelCase version of the domain string
+ */
 export const domainToCamel = (domain: string): string => camelCase(domain);
 
+/**
+ * Recursively converts all object keys to snake_case
+ * 
+ * @param obj - Object to convert
+ * @returns Object with all keys converted to snake_case
+ */
 export const keysToSnake = (obj: unknown): unknown => {
   if (isPlainObject(obj)) {
     const n: Record<string, unknown> = {};
@@ -111,6 +181,13 @@ export const keysToSnake = (obj: unknown): unknown => {
   return obj;
 };
 
+/**
+ * Parses an Amazon date string format (YYYYMMDDTHHMMSSZ) to a Date object
+ * 
+ * @param dateStr - Amazon format date string (YYYYMMDDTHHMMSSZ)
+ * @returns Parsed Date object
+ * @throws Error if the date string format is invalid
+ */
 export const parseAmazonDateString = (dateStr: string): Date => {
   const regex =
     /^([0-9]{4})([0-9]{2})([0-9]{2})T([0-9]{2})([0-9]{2})([0-9]{2})([A-Z0-9]+)/;
@@ -129,7 +206,14 @@ export const parseAmazonDateString = (dateStr: string): Date => {
   return date;
 };
 
-// to append the repeated messages to indicate things are still happening
+/**
+ * Creates a visual progress indicator by cycling through a sequence of characters
+ * 
+ * @param tick - Current tick state or null to initialize
+ * @param options - Configuration options
+ * @param options.chars - Array of characters to cycle through
+ * @returns The next character in the sequence
+ */
 export const logTicker = (
   tick: string | null,
   options: { chars?: string[] } = {},
@@ -193,6 +277,12 @@ export const logTicker = (
 //   return dateFns.format(calculatedDate, 'yyyy-MM-dd HH:mm:ss');
 // }
 
+/**
+ * Checks if a string is a valid URL
+ * 
+ * @param url - String to check
+ * @returns True if the string is a valid URL, false otherwise
+ */
 export const isUrl = (url: string): boolean => {
   try {
     const parsed = new URL(url);
@@ -202,10 +292,22 @@ export const isUrl = (url: string): boolean => {
   }
 };
 
+/**
+ * Type guard to check if a value is a plain object
+ * 
+ * @param obj - Value to check
+ * @returns True if the value is a plain object, false otherwise
+ */
 export const isPlainObject = (obj: unknown): obj is Record<string, unknown> => {
   return typeof obj === 'object' && obj !== null && !Array.isArray(obj);
 };
 
+/**
+ * Converts a string to camelCase
+ * 
+ * @param str - String to convert
+ * @returns camelCase version of the string
+ */
 export const camelCase = (str: string): string => {
   return str
     .toLowerCase()
@@ -216,6 +318,12 @@ export const camelCase = (str: string): string => {
     .replace(/^(.)/, (_, char) => char.toLowerCase());
 };
 
+/**
+ * Converts a string to snake_case
+ * 
+ * @param str - String to convert
+ * @returns snake_case version of the string
+ */
 export const snakeCase = (str: string): string => {
   return str
     .replace(/([A-Z])/g, '_$1')
@@ -226,7 +334,8 @@ export const snakeCase = (str: string): string => {
 
 /**
  * Extracts and parses a date from a string
- * @param str The string to parse
+ * 
+ * @param str - The string to parse (typically a filename)
  * @returns Date object if found, null otherwise
  */
 export const dateInString = (str: string): Date | null => {
@@ -305,7 +414,12 @@ export const dateInString = (str: string): Date | null => {
   return !isNaN(date.getTime()) ? date : null;
 };
 
-
+/**
+ * Formats a date string into a human-readable format using the system locale
+ * 
+ * @param dateString - Date string to format
+ * @returns Formatted date string (e.g., "January 1, 2023")
+ */
 export const prettyDate = (dateString: string) => {
   const date = new Date(dateString);
   return new Intl.DateTimeFormat(undefined, {
