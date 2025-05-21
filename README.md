@@ -63,6 +63,8 @@ pnpm format
 
 # Documentation
 
+## Local Documentation
+
 The SDK provides automatically generated HTML documentation in the `docs/manual` directory.
 This is generated during the build process and can be viewed by opening `docs/manual/index.html` in your browser.
 
@@ -71,3 +73,13 @@ You can generate the documentation separately by running:
 ```bash
 pnpm docs
 ```
+
+## Online Documentation
+
+The latest API documentation is also available online at:
+
+```
+https://happyvertical.github.io/sdk/
+```
+
+This documentation is automatically updated whenever changes are merged to the master branch.
