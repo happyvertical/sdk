@@ -15,7 +15,7 @@ jobs:
           fetch-depth: 0
 
       - name: Get issue details
-        id: issue
+        id: get-issue-details
         run: |
           echo "Fetching issue details..."
           echo "Gitea Token: ${{ secrets.GITEA_TOKEN }}"
@@ -39,9 +39,9 @@ jobs:
           ISSUE_BODY=$(tea issue --repo $REPO_NAME $ISSUE_NUM)
           echo $ISSUE_BODY
           echo "title=$ISSUE_TITLE" >> $GITHUB_OUTPUT
-          # echo "body=<<EOF" >> $GITHUB_OUTPUT
-          # echo "$ISSUE_BODY" >> $GITHUB_OUTPUT
-          # echo "EOF" >> $GITHUB_OUTPUT
+          echo "body=<<EOF" >> $GITHUB_OUTPUT
+          echo "$ISSUE_BODY" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -60,13 +60,13 @@ jobs:
 
 
           echo "Create changes to address this issue: 
-          Title: ${{ steps.issue.outputs.title }} 
-          Description: ${{ steps.issue.outputs.body }}"
+          Title: ${{ steps.get-issue-details.outputs.title }} 
+          Description: ${{ steps.get-issue-details.outputs.body }}"
 
           # Call Claude Code with issue content as context
           claude  --print "Create changes to address this issue: 
-          Title: ${{ steps.issue.outputs.title }} 
-          Description: ${{ steps.issue.outputs.body }}"
+          Title: ${{ steps.get-issue-details.outputs.title }} 
+          Description: ${{ steps.get-issue-details.outputs.body }}"
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       
@@ -83,10 +83,10 @@ jobs:
             --repo "$REPO_NAME" \
             --base "main" \
             --head "$BRANCH_NAME" \
-            --title "Fix #${{ gitea.event.issue.number }}: ${{ steps.issue.outputs.title }}" \
+            --title "Fix #${{ gitea.event.issue.number }}: ${{ steps.get-issue-details.outputs.title }}" \
             --body "This PR addresses issue #${{ gitea.event.issue.number }} \
               Original issue description: \
-              ${{ steps.issue.outputs.body }}"          
+              ${{ steps.get-issue-details.outputs.body }}"          
           # Add a comment on the issue with the PR link
           PR_URL="${{ vars.GITEA_URL }}/$REPO_NAME/pulls/$(tea pulls list --repo "$REPO_NAME" --head "$BRANCH_NAME" --format '{{ .Index }}')"
           tea issue comment "$REPO_NAME#${{ gitea.event.issue.number }}" --body "I've created PR: $PR_URL to address this issue."
