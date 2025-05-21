@@ -57,7 +57,12 @@ jobs:
           BRANCH_NAME="issue-${{ gitea.event.issue.number }}"
           git checkout -b $BRANCH_NAME
           git push --set-upstream origin $BRANCH_NAME
+          REPO_NAME="${{ gitea.repository }}"
+          echo $REPO_NAME
+          ISSUE_NUM="${{ gitea.event.issue.number }}"
+          echo $ISSUE_NUM
 
+          ISSUE_BODY=$(tea issue --repo $REPO_NAME $ISSUE_NUM)
 
           echo "Create changes to address this issue: 
           Title: ${{ steps.get-issue-details.outputs.title }} 
@@ -66,7 +71,7 @@ jobs:
           # Call Claude Code with issue content as context
           claude  --print "Create changes to address this issue: 
           Title: ${{ steps.get-issue-details.outputs.title }} 
-          Description: ${{ steps.get-issue-details.outputs.body }}"
+          Description: $ISSUE_BODY"
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
       
