@@ -54,6 +54,7 @@ The build process follows a specific order to respect internal dependencies:
 - Use camelCase for variables and functions, PascalCase for classes
 - Use conventional commits
 - Dont include claude branding in commit messages
+- use pnpm 
 
 ### Testing
 
@@ -112,6 +113,23 @@ When adding new features, maintain this dependency hierarchy to avoid circular d
 - **pnpm**: Package management with workspace support
 - **Vitest**: Testing framework
 - **Changesets**: Used for versioning and publishing packages
+- **TypeDoc**: Used for generating API documentation
+
+## Documentation
+
+The SDK includes automatic API documentation generation using TypeDoc. The documentation is stored in the `docs/manual` directory and can be viewed by opening `docs/manual/index.html` in a browser.
+
+Documentation is generated as part of the build process, but can also be generated separately:
+
+```bash
+pnpm docs
+```
+
+The build pipeline integrates documentation generation after all packages are built and before repomix is run:
+
+```bash
+pnpm build  # Includes documentation generation
+```
 
 This repository is designed to support building AI agents with minimal overhead and maximum flexibility.
 

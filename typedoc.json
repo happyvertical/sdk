@@ -1,0 +1,13 @@
+{
+  "entryPoints": ["packages/*/src/index.ts"],
+  "out": "docs/manual",
+  "name": "HAVE SDK API Reference",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "theme": "default",
+  "readme": "README.md",
+  "plugin": ["typedoc-plugin-markdown"],
+  "categorizeByGroup": true,
+  "includeVersion": true,
+  "hideGenerator": true
+}

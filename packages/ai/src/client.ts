@@ -3,61 +3,216 @@ import OpenAI from 'openai';
 
 import type { AIMessageOptions } from './message.js';
 
+/**
+ * Common options for AI client configuration
+ */
 export interface AIClientOptions {
+  /**
+   * Type of AI client (e.g., 'openai')
+   */
   type?: string;
+  
+  /**
+   * Response format for AI completions
+   */
   responseFormat?: string;
+  
+  /**
+   * API key for authentication
+   */
   apiKey?: string;
+  
+  /**
+   * Base URL for API requests
+   */
   baseUrl?: string;
 }
 
-
+/**
+ * Interface defining required methods for AI clients
+ */
 export interface AIClientInterface {
+  /**
+   * Configuration options for this client
+   */
   options: AIClientOptions;
+  
+  /**
+   * Sends a message to the AI and gets a response
+   * 
+   * @param text - Message text
+   * @param options - Message options
+   * @returns Promise resolving to the AI response
+   */
   message(text: string, options: AIMessageOptions): Promise<unknown>;
+  
+  /**
+   * Gets a text completion from the AI
+   * 
+   * @param text - Input text for completion
+   * @param options - Completion options
+   * @returns Promise resolving to the completion result
+   */
   textCompletion(text: string, options: AIMessageOptions): Promise<unknown>;
 }
 
+/**
+ * Type guard to check if options are for OpenAI client
+ * 
+ * @param options - Options to check
+ * @returns True if options are valid for OpenAI client
+ */
 function isOpenAIClientOptions(
   options: AIClientOptions,
 ): options is OpenAIClientOptions {
   return options.type === 'openai' && 'apiKey' in options;
 }
 
+/**
+ * Options for AI text completion requests
+ */
 export interface AITextCompletionOptions {
+  /**
+   * Model identifier to use
+   */
   model?: string;
+  
+  /**
+   * Timeout in milliseconds
+   */
   timeout?: number;
+  
+  /**
+   * Role of the message sender
+   */
   role?: OpenAI.Chat.ChatCompletionRole;
+  
+  /**
+   * Previous messages in the conversation
+   */
   history?: OpenAI.Chat.ChatCompletionMessageParam[];
+  
+  /**
+   * Name of the message sender
+   */
   name?: string;
+  
+  /**
+   * Penalty for token frequency
+   */
   frequencyPenalty?: number;
+  
+  /**
+   * Token bias adjustments
+   */
   logitBias?: Record<string, number>;
+  
+  /**
+   * Whether to return log probabilities
+   */
   logprobs?: boolean;
+  
+  /**
+   * Number of top log probabilities to return
+   */
   topLogprobs?: number;
+  
+  /**
+   * Maximum tokens to generate
+   */
   maxTokens?: number;
+  
+  /**
+   * Number of completions to generate
+   */
   n?: number;
+  
+  /**
+   * Penalty for token presence
+   */
   presencePenalty?: number;
+  
+  /**
+   * Format for the response
+   */
   responseFormat?: { type: 'text' | 'json_object' };
+  
+  /**
+   * Random seed for deterministic results
+   */
   seed?: number;
+  
+  /**
+   * Sequences that stop generation
+   */
   stop?: string | Array<string>;
+  
+  /**
+   * Whether to stream responses
+   */
   stream?: boolean;
+  
+  /**
+   * Sampling temperature
+   */
   temperature?: number;
+  
+  /**
+   * Top-p sampling parameter
+   */
   topProbability?: number;
+  
+  /**
+   * Available tools for the model
+   */
   tools?: Array<any>; // todo: figure out generic solution - Array<OpenAI.Chat.ChatCompletionTool>;
+  
+  /**
+   * Tool selection behavior
+   */
   toolChoice?:
     | 'none'
     | 'auto'
     | { type: 'function'; function: { name: string } };
+  
+  /**
+   * User identifier
+   */
   user?: string;
+  
+  /**
+   * Callback for handling streaming responses
+   */
   onProgress?: (partialMessage: string) => void;
 }
 
+/**
+ * Base class for AI clients
+ * Provides a common interface for different AI service providers
+ */
 export class AIClient {
+  /**
+   * Configuration options for this client
+   */
   public options: AIClientOptions;
 
+  /**
+   * Creates a new AIClient
+   * 
+   * @param options - Client configuration options
+   */
   constructor(options: AIClientOptions) {
     this.options = options;
   }
 
+  /**
+   * Sends a message to the AI
+   * Base implementation returns a placeholder response
+   * 
+   * @param text - Message text
+   * @param options - Message options
+   * @returns Promise resolving to a placeholder response
+   */
   public async message(
     text: string,
     options: AITextCompletionOptions = { role: 'user' },
@@ -65,6 +220,13 @@ export class AIClient {
     return 'not a real ai message, this is the base class!';
   }
 
+  /**
+   * Factory method to create appropriate AI client based on options
+   * 
+   * @param options - Client configuration options
+   * @returns Promise resolving to an initialized AI client
+   * @throws Error if client type is invalid
+   */
   public static async create<T extends AIClientOptions>(
     options: T,
   ): Promise<AIClient | OpenAIClient> {
@@ -74,6 +236,14 @@ export class AIClient {
     throw new Error('Invalid client type');
   }
 
+  /**
+   * Gets a text completion from the AI
+   * In base class, delegates to message method
+   * 
+   * @param text - Input text for completion
+   * @param options - Completion options
+   * @returns Promise resolving to the completion result
+   */
   public textCompletion(
     text: string,
     options: AITextCompletionOptions = {
@@ -84,6 +254,12 @@ export class AIClient {
   }
 }
 
+/**
+ * Creates an OpenAI client instance
+ * 
+ * @param options - OpenAI configuration options
+ * @returns Promise resolving to an OpenAI client
+ */
 export async function getOpenAI(options: {
   apiKey?: string;
   baseUrl?: string;
@@ -94,48 +270,170 @@ export async function getOpenAI(options: {
   });
 }
 
+/**
+ * Options specific to OpenAI text completion requests
+ */
 export interface OpenAITextCompletionOptions {
+  /**
+   * Model identifier to use
+   */
   model?: string;
+  
+  /**
+   * Timeout in milliseconds
+   */
   timeout?: number;
+  
+  /**
+   * Role of the message sender
+   */
   role?: OpenAI.Chat.ChatCompletionRole;
+  
+  /**
+   * Previous messages in the conversation
+   */
   history?: Array<OpenAI.Chat.ChatCompletionMessageParam>;
+  
+  /**
+   * Name of the message sender
+   */
   name?: string;
+  
+  /**
+   * Penalty for token frequency
+   */
   frequencyPenalty?: number;
+  
+  /**
+   * Token bias adjustments
+   */
   logitBias?: Record<string, number>;
+  
+  /**
+   * Whether to return log probabilities
+   */
   logprobs?: boolean;
+  
+  /**
+   * Number of top log probabilities to return
+   */
   topLogprobs?: number;
+  
+  /**
+   * Maximum tokens to generate
+   */
   maxTokens?: number;
+  
+  /**
+   * Number of completions to generate
+   */
   n?: number;
+  
+  /**
+   * Penalty for token presence
+   */
   presencePenalty?: number;
+  
+  /**
+   * Format for the response
+   */
   responseFormat?: { type: 'text' | 'json_object' };
+  
+  /**
+   * Random seed for deterministic results
+   */
   seed?: number;
+  
+  /**
+   * Sequences that stop generation
+   */
   stop?: string | Array<string>;
+  
+  /**
+   * Whether to stream responses
+   */
   stream?: boolean;
+  
+  /**
+   * Sampling temperature
+   */
   temperature?: number;
+  
+  /**
+   * Top-p sampling parameter
+   */
   topProbability?: number;
+  
+  /**
+   * Available tools for the model
+   */
   tools?: Array<OpenAI.Chat.ChatCompletionTool>;
+  
+  /**
+   * Tool selection behavior
+   */
   toolChoice?:
     | 'none'
     | 'auto'
     | { type: 'function'; function: { name: string } };
+  
+  /**
+   * User identifier
+   */
   user?: string;
+  
+  /**
+   * Callback for handling streaming responses
+   */
   onProgress?: (partialMessage: string) => void;
 }
 
+/**
+ * Configuration options specific to OpenAI client
+ */
 export interface OpenAIClientOptions extends AIClientOptions {
+  /**
+   * OpenAI API key
+   */
   apiKey?: string;
+  
+  /**
+   * OpenAI API base URL
+   */
   baseUrl?: string;
 }
 
+/**
+ * Client implementation for the OpenAI API
+ */
 export class OpenAIClient extends AIClient {
+  /**
+   * OpenAI client instance
+   */
   protected openai!: OpenAI;
+  
+  /**
+   * Configuration options for this client
+   */
   public options: OpenAIClientOptions;
 
+  /**
+   * Creates a new OpenAIClient
+   * 
+   * @param options - OpenAI client configuration options
+   */
   constructor(options: OpenAIClientOptions) {
     super(options);
     this.options = options;
   }
 
+  /**
+   * Sends a message to OpenAI
+   * 
+   * @param text - Message text
+   * @param options - Message options
+   * @returns Promise resolving to the OpenAI response
+   */
   public async message(
     text: string,
     options: AIMessageOptions = { role: 'user' },
@@ -144,6 +442,12 @@ export class OpenAIClient extends AIClient {
     return response;
   }
 
+  /**
+   * Factory method to create and initialize an OpenAIClient
+   * 
+   * @param options - OpenAI client configuration options
+   * @returns Promise resolving to an initialized OpenAIClient
+   */
   public static async create(
     options: OpenAIClientOptions,
   ): Promise<OpenAIClient> {
@@ -152,6 +456,9 @@ export class OpenAIClient extends AIClient {
     return client;
   }
 
+  /**
+   * Initializes the OpenAI client
+   */
   protected async initialize() {
     this.openai = new OpenAI({
       apiKey: this.options.apiKey,
@@ -160,37 +467,13 @@ export class OpenAIClient extends AIClient {
   }
 
   /**
-   * Sends a message using the OpenAI Chat API.
+   * Sends a text completion request to the OpenAI API
    *
-   * @param {string} message - The message to send.
-   * @param {object} options - Configuration options for the message.
-   * @param {OpenAI} options.openai - The OpenAI instance to use.
-   * @param {string} [options.model='gpt-4'] - ID of the model to use. See the model endpoint compatibility table for details on which models work with the Chat API.
-   * @param {number} [options.timeout=10000] - Timeout for the API call in milliseconds.
-   * @param {string} [options.role='user'] - The role of the sender in the conversation.
-   * @param {Array<object>} [options.history=[]] - A list of previous messages in the conversation.
-   * @param {string} options.name - The name of the sender.
-   * @param {number} [options.frequencyPenalty=0] - Number between -2.0 and 2.0. Penalizes new tokens based on their existing frequency in the text.
-   * @param {Record<string, number>} [options.logitBias] - Modifies the likelihood of specified tokens appearing in the completion.
-   * @param {boolean} [options.logprobs=false] - Whether to return log probabilities of the output tokens.
-   * @param {number} [options.topLogprobs] - Specifies the number of most likely tokens to return at each token position with log probabilities.
-   * @param {number} [options.maxTokens] - The maximum number of tokens for chat completion.
-   * @param {number} [options.n=1] - Number of chat completion choices to generate.
-   * @param {number} [options.presencePenalty=0] - Number between -2.0 and 2.0. Penalizes new tokens based on their appearance in the text.
-   * @param {object} [options.responseFormat] - Specifies the format of the model's output.
-   * @param {number} [options.seed] - Seed for deterministic sampling.
-   * @param {string|string[]} [options.stop] - Sequences where the API stops generating further tokens.
-   * @param {boolean} [options.stream=false] - If true, sends partial message deltas.
-   * @param {number} [options.temperature=1] - Sampling temperature, between 0 and 2.
-   * @param {number} [options.topProbability=1] - Nucleus sampling parameter.
-   * @param {Array<OpenAI.Chat.ChatCompletionTool>} [options.tools] - List of tools the model may call.
-   * @param {string|object} [options.toolChoice] - Controls which function is called by the model.
-   * @param {string} [options.user] - Unique identifier for the end-user.
-   * @param {function} [options.onProgress] - Callback function to handle partial message updates.
-   *
-   * @returns {Promise<string>} The response from the OpenAI API.
+   * @param message - The message to send
+   * @param options - Configuration options for the completion request
+   * @returns Promise resolving to the completion text
+   * @throws Error if the OpenAI API response is invalid
    */
-
   public async textCompletion(
     message: string,
     options: OpenAITextCompletionOptions = {},
@@ -288,8 +571,18 @@ export class OpenAIClient extends AIClient {
   }
 }
 
+/**
+ * Options for getting an AI client with type information
+ */
 type GetAIClientOptions = OpenAIClientOptions & { type?: 'openai' };
 
+/**
+ * Factory function to create and initialize an appropriate AI client
+ * 
+ * @param options - Client configuration options
+ * @returns Promise resolving to an initialized AI client
+ * @throws Error if client type is invalid
+ */
 export async function getAIClient(
   options: GetAIClientOptions,
 ): Promise<AIClient> {
