@@ -11,6 +11,8 @@ jobs:
     permissions:
       contents: write  # For creating git tags/releases
       packages: write  # For publishing packages
+      pages: write    # For GitHub Pages
+      id-token: write # For GitHub Pages
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -78,3 +80,15 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+        
+      - name: Upload documentation artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'docs/manual'
+          
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
