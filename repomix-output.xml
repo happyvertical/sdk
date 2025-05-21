@@ -55,8 +55,12 @@ The content is organized as follows:
   workflows/
     agents/
       claude.yaml
-    dependabot.yml
-  dependabot.yml
+    on-pr-master-dependabot.yml
+  config-dependabot.yml
+.husky/
+  _/
+    pre-commit
+    prepare-commit-msg
 packages/
   ai/
     src/
@@ -185,165 +189,142 @@ We have a quick list of common questions to get you started engaging with this p
 [our documentation](https://github.com/changesets/changesets/blob/main/docs/common-questions.md)
 </file>
 
-<file path=".github/workflows/dependabot.yml">
-name: Dependabot Automation
+<file path=".husky/_/pre-commit">
+#!/bin/sh
 
-on:
-  pull_request:
-    branches: [ master ]
+if [ "$LEFTHOOK_VERBOSE" = "1" -o "$LEFTHOOK_VERBOSE" = "true" ]; then
+  set -x
+fi
 
-permissions:
-  contents: write
-  pull-requests: write
+if [ "$LEFTHOOK" = "0" ]; then
+  exit 0
+fi
 
-jobs:
-  dependabot:
-    runs-on: ubuntu-latest
-    if: ${{ github.actor == 'dependabot[bot]' }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: latest
-          
-      - name: Install dependencies
-        run: pnpm install
-        
-      - name: Build packages
-        run: pnpm build
-        
-      - name: Run tests
-        run: pnpm test
-        
-      - name: Dependabot metadata
-        id: metadata
-        uses: dependabot/fetch-metadata@v2
-        with:
-          github-token: "${{ secrets.GITHUB_TOKEN }}"
-          
-      - name: Approve PR
-        if: ${{ steps.metadata.outputs.update-type != 'version-update:semver-major' }}
-        run: gh pr review --approve "$PR_URL"
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
-      - name: Enable auto-merge for minor and patch updates
-        if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-minor' || steps.metadata.outputs.update-type == 'version-update:semver-patch' }}
-        run: gh pr merge --auto --merge "$PR_URL"
-        env:
-          PR_URL: ${{ github.event.pull_request.html_url }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+call_lefthook()
+{
+  if test -n "$LEFTHOOK_BIN"
+  then
+    "$LEFTHOOK_BIN" "$@"
+  elif lefthook -h >/dev/null 2>&1
+  then
+    lefthook "$@"
+  else
+    dir="$(git rev-parse --show-toplevel)"
+    osArch=$(uname | tr '[:upper:]' '[:lower:]')
+    cpuArch=$(uname -m | sed 's/aarch64/arm64/;s/x86_64/x64/')
+    if test -f "$dir/node_modules/lefthook-${osArch}-${cpuArch}/bin/lefthook"
+    then
+      "$dir/node_modules/lefthook-${osArch}-${cpuArch}/bin/lefthook" "$@"
+    elif test -f "$dir/node_modules/@evilmartians/lefthook/bin/lefthook-${osArch}-${cpuArch}/lefthook"
+    then
+      "$dir/node_modules/@evilmartians/lefthook/bin/lefthook-${osArch}-${cpuArch}/lefthook" "$@"
+    elif test -f "$dir/node_modules/@evilmartians/lefthook-installer/bin/lefthook"
+    then
+      "$dir/node_modules/@evilmartians/lefthook-installer/bin/lefthook" "$@"
+    elif test -f "$dir/node_modules/lefthook/bin/index.js"
+    then
+      "$dir/node_modules/lefthook/bin/index.js" "$@"
+    
+    elif go tool lefthook -h >/dev/null 2>&1
+    then
+      go tool lefthook "$@"
+    elif bundle exec lefthook -h >/dev/null 2>&1
+    then
+      bundle exec lefthook "$@"
+    elif yarn lefthook -h >/dev/null 2>&1
+    then
+      yarn lefthook "$@"
+    elif pnpm lefthook -h >/dev/null 2>&1
+    then
+      pnpm lefthook "$@"
+    elif swift package lefthook >/dev/null 2>&1
+    then
+      swift package --build-path .build/lefthook --disable-sandbox lefthook "$@"
+    elif command -v mint >/dev/null 2>&1
+    then
+      mint run csjones/lefthook-plugin "$@"
+    elif uv run lefthook -h >/dev/null 2>&1
+    then
+      uv run lefthook "$@"
+    elif mise exec -- lefthook -h >/dev/null 2>&1
+    then
+      mise exec -- lefthook "$@"
+    else
+      echo "Can't find lefthook in PATH"
+    fi
+  fi
+}
+
+call_lefthook run "pre-commit" "$@"
 </file>
 
-<file path=".github/dependabot.yml">
-version: 2
-updates:
-  # Enable version updates for npm/pnpm
-  - package-ecosystem: "npm"
-    # Look for `package.json` and `lock` files in the root directory
-    directory: "/"
-    # Check for updates once a week
-    schedule:
-      interval: "weekly"
-    # Allow up to 10 open pull requests at a time
-    open-pull-requests-limit: 10
-    # Set a version update strategy
-    versioning-strategy: increase
-    # Specify package manager
-    package-manager: "pnpm"
-    # Groups to reduce PR noise
-    groups:
-      # Group all dev dependencies together
-      dev-dependencies:
-        patterns:
-          - "@biomejs/*"
-          - "typescript"
-          - "vitest"
-          - "lefthook"
-          - "standard-version"
-          - "@changesets/*"
-          - "conventional-changelog-cli"
+<file path=".husky/_/prepare-commit-msg">
+#!/bin/sh
+
+if [ "$LEFTHOOK_VERBOSE" = "1" -o "$LEFTHOOK_VERBOSE" = "true" ]; then
+  set -x
+fi
+
+if [ "$LEFTHOOK" = "0" ]; then
+  exit 0
+fi
+
+call_lefthook()
+{
+  if test -n "$LEFTHOOK_BIN"
+  then
+    "$LEFTHOOK_BIN" "$@"
+  elif lefthook -h >/dev/null 2>&1
+  then
+    lefthook "$@"
+  else
+    dir="$(git rev-parse --show-toplevel)"
+    osArch=$(uname | tr '[:upper:]' '[:lower:]')
+    cpuArch=$(uname -m | sed 's/aarch64/arm64/;s/x86_64/x64/')
+    if test -f "$dir/node_modules/lefthook-${osArch}-${cpuArch}/bin/lefthook"
+    then
+      "$dir/node_modules/lefthook-${osArch}-${cpuArch}/bin/lefthook" "$@"
+    elif test -f "$dir/node_modules/@evilmartians/lefthook/bin/lefthook-${osArch}-${cpuArch}/lefthook"
+    then
+      "$dir/node_modules/@evilmartians/lefthook/bin/lefthook-${osArch}-${cpuArch}/lefthook" "$@"
+    elif test -f "$dir/node_modules/@evilmartians/lefthook-installer/bin/lefthook"
+    then
+      "$dir/node_modules/@evilmartians/lefthook-installer/bin/lefthook" "$@"
+    elif test -f "$dir/node_modules/lefthook/bin/index.js"
+    then
+      "$dir/node_modules/lefthook/bin/index.js" "$@"
     
-  # Also check for updates in each package directory
-  - package-ecosystem: "npm"
-    directory: "/packages/utils"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-    versioning-strategy: increase
-    package-manager: "pnpm"
-    
-  - package-ecosystem: "npm"
-    directory: "/packages/files"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-    versioning-strategy: increase
-    package-manager: "pnpm"
-    
-  - package-ecosystem: "npm"
-    directory: "/packages/spider"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-    versioning-strategy: increase
-    package-manager: "pnpm"
-    
-  - package-ecosystem: "npm"
-    directory: "/packages/sql"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-    versioning-strategy: increase
-    package-manager: "pnpm"
-    
-  - package-ecosystem: "npm"
-    directory: "/packages/pdf"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-    versioning-strategy: increase
-    package-manager: "pnpm"
-    
-  - package-ecosystem: "npm"
-    directory: "/packages/ai"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-    versioning-strategy: increase
-    package-manager: "pnpm"
-    
-  - package-ecosystem: "npm"
-    directory: "/packages/smrt"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-    versioning-strategy: increase
-    package-manager: "pnpm"
-    
-  - package-ecosystem: "npm"
-    directory: "/packages/svelte"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
-    versioning-strategy: increase
-    package-manager: "pnpm"
-    
-  # Enable version updates for GitHub Actions
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
+    elif go tool lefthook -h >/dev/null 2>&1
+    then
+      go tool lefthook "$@"
+    elif bundle exec lefthook -h >/dev/null 2>&1
+    then
+      bundle exec lefthook "$@"
+    elif yarn lefthook -h >/dev/null 2>&1
+    then
+      yarn lefthook "$@"
+    elif pnpm lefthook -h >/dev/null 2>&1
+    then
+      pnpm lefthook "$@"
+    elif swift package lefthook >/dev/null 2>&1
+    then
+      swift package --build-path .build/lefthook --disable-sandbox lefthook "$@"
+    elif command -v mint >/dev/null 2>&1
+    then
+      mint run csjones/lefthook-plugin "$@"
+    elif uv run lefthook -h >/dev/null 2>&1
+    then
+      uv run lefthook "$@"
+    elif mise exec -- lefthook -h >/dev/null 2>&1
+    then
+      mise exec -- lefthook "$@"
+    else
+      echo "Can't find lefthook in PATH"
+    fi
+  fi
+}
+
+call_lefthook run "prepare-commit-msg" "$@"
 </file>
 
 <file path="packages/ai/src/index.spec.ts">
@@ -1440,6 +1421,350 @@ it.only('should be able to parse a content string', () => {
   const toObject = stringToContent(toString);
   expect(toObject).toEqual(data);
 });
+</file>
+
+<file path="packages/smrt/src/utils.ts">
+import { syncSchema } from '@have/sql';
+import yaml from 'yaml';
+import { Content } from './content.js';
+export function isDateField(key: string) {
+  return key.endsWith('_date') || key.endsWith('_at') || key === 'date';
+}
+
+export function dateAsString(date: Date | string) {
+  if (typeof date === 'string') {
+    return new Date(date);
+  }
+  return date;
+}
+
+export function dateAsObject(date: Date | string) {
+  if (date instanceof Date) {
+    return date.toISOString();
+  }
+  return date;
+}
+
+export function fieldsFromClass(
+  ClassType: new (...args: any[]) => any,
+  values?: Record<string, any>,
+) {
+  const fields: Record<string, any> = {};
+  // just for introspection, dont need real creds
+  const instance = new ClassType({
+    ai: {
+      type: 'openai',
+      apiKey: 'sk-proj-1234567890',
+    },
+    db: {
+      url: 'file:/tmp/dummy.db',
+    },
+  });
+
+  // Get descriptors from the instance and all ancestors
+  const descriptors = new Map<string, PropertyDescriptor>();
+
+  // Start with the instance
+  Object.entries(Object.getOwnPropertyDescriptors(instance)).forEach(
+    ([key, descriptor]) => {
+      descriptors.set(key, descriptor);
+    },
+  );
+
+  // Walk up the prototype chain
+  let proto = Object.getPrototypeOf(instance);
+  while (proto && proto !== Object.prototype) {
+    Object.entries(Object.getOwnPropertyDescriptors(proto)).forEach(
+      ([key, descriptor]) => {
+        // Only add if we haven't seen this property before
+        if (!descriptors.has(key)) {
+          descriptors.set(key, descriptor);
+        }
+      },
+    );
+    proto = Object.getPrototypeOf(proto);
+  }
+
+  // Process all collected descriptors
+  for (const [key, descriptor] of descriptors) {
+    // Skip methods, getters/setters, and internal properties
+    if (
+      typeof descriptor.value === 'function' ||
+      descriptor.get ||
+      descriptor.set ||
+      key.startsWith('_') ||
+      key.startsWith('#') ||
+      key === 'constructor'
+    ) {
+      continue;
+    }
+
+    // If it's a data property with a defined type
+    if (descriptor.value !== undefined) {
+      let type: string | undefined;
+
+      // Check the property definition
+      const defaultValue = descriptor.value;
+      if (defaultValue instanceof Date || isDateField(key)) {
+        type = 'DATETIME';
+      } else if (typeof defaultValue === 'string') {
+        type = 'TEXT';
+      } else if (typeof defaultValue === 'number') {
+        type = 'INTEGER';
+      } else if (defaultValue === null) {
+        type = 'TEXT';
+      }
+
+      if (type) {
+        fields[key] = {
+          name: key,
+          type,
+          ...(values && key in values
+            ? {
+                value: values[key],
+              }
+            : {}),
+        };
+      }
+    }
+  }
+  return fields;
+}
+
+export function generateSchema(ClassType: new (...args: any[]) => any) {
+  const tableName = tableNameFromClass(ClassType);
+  const fields = fieldsFromClass(ClassType);
+  let schema = `CREATE TABLE IF NOT EXISTS ${tableName} (\n`;
+
+  // Add id field first (always required)
+  schema += '  id TEXT PRIMARY KEY,\n';
+
+  // Add slug and context fields
+  schema += '  slug TEXT NOT NULL,\n';
+  schema += "  context TEXT NOT NULL DEFAULT '',\n";
+
+  // Add other fields
+  for (const [key, field] of Object.entries(fields)) {
+    if (key === 'id' || key === 'slug' || key === 'context') continue;
+    schema += `  ${key} ${field.type},\n`;
+  }
+
+  // Add composite unique constraint for slug and context
+  schema += '  UNIQUE(slug, context),\n';
+
+  schema = schema.slice(0, -2); // Remove trailing comma and newline
+  schema += '\n);';
+
+  schema += `\nCREATE INDEX IF NOT EXISTS ${tableName}_id_idx ON ${tableName} (id);`;
+  schema += `\nCREATE INDEX IF NOT EXISTS ${tableName}_slug_context_idx ON ${tableName} (slug, context);`;
+  return schema;
+}
+
+export function tableNameFromClass(
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+  ClassType: Function | (new (...args: any[]) => any),
+) {
+  return (
+    ClassType.name
+      // Insert underscore between lower & upper case letters
+      .replace(/([a-z])([A-Z])/g, '$1_$2')
+      // Convert to lowercase
+      .toLowerCase()
+      // Handle basic pluralization rules
+      .replace(/([^s])$/, '$1s')
+      // Handle special cases ending in 'y'
+      .replace(/y$/, 'ies')
+  );
+}
+
+// export function escapeSqlValue(value: any): string {
+//   if (value === null) {
+//     return 'NULL';
+//   }
+//   if (value instanceof Date) {
+//     return `'${value.toISOString()}'`;
+//   }
+//   if (typeof value === 'number') {
+//     return value.toString();
+//   }
+//   if (typeof value === 'boolean') {
+//     return value ? '1' : '0';
+//   }
+//   // Escape single quotes and wrap in quotes
+//   return `'${String(value).replace(/'/g, "''")}'`;
+// }
+
+// function validateColumnName(column: string): string {
+//   // Only allow alphanumeric characters, underscores, and dots (for table.column notation)
+//   if (!/^[a-zA-Z0-9_.]+$/.test(column)) {
+//     throw new Error(`Invalid column name: ${column}`);
+//   }
+//   return column;
+// }
+
+// export function addWhere({
+//   sql,
+//   replacements = [],
+//   where = {},
+//   required = true,
+// }: {
+//   sql: string;
+//   replacements?: any[];
+//   where?: object;
+//   required?: boolean;
+// }): { sql: string; replacements: any[] } {
+//   const wheres = [];
+//   for (const [key, value] of Object.entries(where)) {
+//     const safeColumnName = validateColumnName(key);
+//     wheres.push(`${safeColumnName} = $${replacements.length + 1}`);
+//     replacements.push(value);
+//   }
+
+//   if (wheres.length > 0) {
+//     sql += ` WHERE ${wheres.join(' AND ')}`;
+//   } else if (required) {
+//     throw new Error('WHERE clause is required but no conditions were provided');
+//   }
+
+//   return { sql, replacements };
+// }
+
+export function classnameToTablename(className: string) {
+  // Convert camelCase/PascalCase to snake_case and pluralize
+  const tableName = className
+    // Insert underscore between lower & upper case letters
+    .replace(/([a-z])([A-Z])/g, '$1_$2')
+    // Convert to lowercase
+    .toLowerCase()
+    // Handle basic pluralization rules
+    .replace(/([^s])$/, '$1s')
+    // Handle special cases ending in 'y'
+    .replace(/y$/, 'ies');
+
+  return tableName;
+}
+
+const _setup_table_from_class_promises: Record<string, Promise<void> | null> =
+  {};
+
+export async function setupTableFromClass(db: any, ClassType: any) {
+  const tableName = classnameToTablename(ClassType.name);
+
+  if (_setup_table_from_class_promises[tableName] !== undefined || null) {
+    return _setup_table_from_class_promises[tableName];
+  }
+
+  _setup_table_from_class_promises[tableName] = (async () => {
+    try {
+      const schema = generateSchema(ClassType);
+      await syncSchema({ db, schema });
+      await setupTriggers(db, tableName);
+    } catch (error) {
+      _setup_table_from_class_promises[tableName] = null; // Allow retry on failure
+      throw error;
+    }
+  })();
+
+  return _setup_table_from_class_promises[tableName];
+}
+
+export async function setupTriggers(db: any, tableName: string) {
+  const triggers = [
+    `${tableName}_set_created_at`,
+    `${tableName}_set_updated_at`,
+  ];
+
+  for (const trigger of triggers) {
+    const exists =
+      await db.pluck`SELECT name FROM sqlite_master WHERE type='trigger' AND name=${trigger}`;
+    if (!exists) {
+      if (trigger === `${tableName}_set_created_at`) {
+        const createTriggerSQL = `
+          CREATE TRIGGER ${trigger}
+          AFTER INSERT ON ${tableName}
+          BEGIN
+            UPDATE ${tableName} 
+            SET created_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
+            WHERE id = NEW.id;
+          END;
+        `;
+        await db.query(createTriggerSQL);
+      } else if (trigger === `${tableName}_set_updated_at`) {
+        const createTriggerSQL = `
+          CREATE TRIGGER ${trigger}
+          AFTER UPDATE ON ${tableName}
+          BEGIN
+            UPDATE ${tableName} 
+            SET updated_at = CURRENT_TIMESTAMP 
+            WHERE id = NEW.id;
+          END;
+        `;
+        await db.query(createTriggerSQL);
+      }
+    }
+  }
+}
+
+export function contentToString(content: Content) {
+  const { body, ...frontmatter } = content;
+  const separator = '---';
+  const frontmatterYAML = yaml.stringify(frontmatter);
+  return `${separator}\n${frontmatterYAML}\n${separator}\n${body}`;
+}
+
+export function stringToContent(data: string) {
+  const separator = '---';
+  const frontmatterStart = data.indexOf(separator);
+
+  let frontmatter = {};
+  let body = data;
+
+  if (frontmatterStart !== -1) {
+    const frontmatterEnd = data.indexOf(
+      separator,
+      frontmatterStart + separator.length,
+    );
+
+    if (frontmatterEnd !== -1) {
+      const frontmatterYAML = data
+        .substring(frontmatterStart + separator.length, frontmatterEnd)
+        .trim();
+      frontmatter = yaml.parse(frontmatterYAML) || {}; // Handle potential YAML parsing errors
+      body = data.substring(frontmatterEnd + separator.length).trim();
+    }
+  }
+
+  return formatDataJs({
+    ...frontmatter,
+    body,
+  });
+}
+
+export function formatDataJs(data: Record<string, any>) {
+  const normalizedData: Record<string, any> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value instanceof Date) {
+      normalizedData[key] = value;
+    } else if (isDateField(key) && typeof value === 'string') {
+      normalizedData[key] = new Date(value);
+    } else {
+      normalizedData[key] = value;
+    }
+  }
+  return normalizedData;
+}
+
+export function formatDataSql(data: Record<string, any>) {
+  const normalizedData: Record<string, any> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value instanceof Date) {
+      normalizedData[key] = value.toISOString(); // Postgres accepts ISO format with timezone
+    } else {
+      normalizedData[key] = value;
+    }
+  }
+  return normalizedData;
+}
 </file>
 
 <file path="packages/smrt/README.md">
@@ -2806,6 +3131,167 @@ jobs:
           # assignee_trigger: "claude"
 </file>
 
+<file path=".github/workflows/on-pr-master-dependabot.yml">
+name: Dependabot Automation
+
+on:
+  pull_request:
+    branches: [ master ]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  dependabot:
+    runs-on: ubuntu-latest
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: latest
+          
+      - name: Install dependencies
+        run: pnpm install
+        
+      - name: Build packages
+        run: pnpm build
+        
+      - name: Run tests
+        run: pnpm test
+        
+      - name: Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+          
+      - name: Approve PR
+        if: ${{ steps.metadata.outputs.update-type != 'version-update:semver-major' }}
+        run: gh pr review --approve "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Enable auto-merge for minor and patch updates
+        if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-minor' || steps.metadata.outputs.update-type == 'version-update:semver-patch' }}
+        run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+</file>
+
+<file path=".github/config-dependabot.yml">
+version: 2
+updates:
+  # Enable version updates for npm/pnpm
+  - package-ecosystem: "npm"
+    # Look for `package.json` and `lock` files in the root directory
+    directory: "/"
+    # Check for updates once a week
+    schedule:
+      interval: "weekly"
+    # Allow up to 10 open pull requests at a time
+    open-pull-requests-limit: 10
+    # Set a version update strategy
+    versioning-strategy: increase
+    # Specify package manager
+    package-manager: "pnpm"
+    # Groups to reduce PR noise
+    groups:
+      # Group all dev dependencies together
+      dev-dependencies:
+        patterns:
+          - "@biomejs/*"
+          - "typescript"
+          - "vitest"
+          - "lefthook"
+          - "standard-version"
+          - "@changesets/*"
+          - "conventional-changelog-cli"
+    
+  # Also check for updates in each package directory
+  - package-ecosystem: "npm"
+    directory: "/packages/utils"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    package-manager: "pnpm"
+    
+  - package-ecosystem: "npm"
+    directory: "/packages/files"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    package-manager: "pnpm"
+    
+  - package-ecosystem: "npm"
+    directory: "/packages/spider"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    package-manager: "pnpm"
+    
+  - package-ecosystem: "npm"
+    directory: "/packages/sql"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    package-manager: "pnpm"
+    
+  - package-ecosystem: "npm"
+    directory: "/packages/pdf"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    package-manager: "pnpm"
+    
+  - package-ecosystem: "npm"
+    directory: "/packages/ai"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    package-manager: "pnpm"
+    
+  - package-ecosystem: "npm"
+    directory: "/packages/smrt"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    package-manager: "pnpm"
+    
+  - package-ecosystem: "npm"
+    directory: "/packages/svelte"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    package-manager: "pnpm"
+    
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+</file>
+
 <file path="packages/ai/src/client.ts">
 import 'openai/shims/node';
 import OpenAI from 'openai';
@@ -3916,6 +4402,108 @@ pnpm build:watch # Build in watch mode
 This package provides specialized tools for working with PDF documents, making them accessible to AI agents and other components of the HAVE SDK.
 </file>
 
+<file path="packages/smrt/src/content.ts">
+import type { BaseObjectOptions } from './object.js';
+import { BaseObject } from './object.js';
+
+export interface ContentOptions extends BaseObjectOptions {
+  type?: string | null;
+  fileKey?: string | null;
+  author?: string | null;
+  title?: string | null;
+  description?: string | null;
+  body?: string | null;
+  publish_date?: Date | null;
+  url?: string | null;
+  source?: string | null;
+  status?: 'published' | 'draft' | 'archived' | 'deleted' | null;
+  state?: 'deprecated' | 'active' | 'highlighted' | null;
+}
+
+export class Content extends BaseObject<ContentOptions> {
+  protected options: ContentOptions;
+  protected references: Content[] = [];
+  public type?: string | null;
+  public fileKey: string | null | undefined;
+  public author!: string | null | undefined;
+  public title!: string | null | undefined;
+  public description!: string | null | undefined;
+  public body!: string | null | undefined;
+  public publish_date!: Date | null | undefined;
+  public url!: string | null | undefined;
+  public source!: string | null | undefined;
+  public status!: 'published' | 'draft' | 'archived' | 'deleted' | null;
+  public state!: 'deprecated' | 'active' | 'highlighted' | null; // contested?
+  constructor(options: ContentOptions) {
+    super(options);
+    this.options = options;
+    this.type = options.type || null;
+    this.name = options.title || '';
+    this.author = options.author || null;
+    this.title = options.title || '';
+    this.description = options.description || null;
+    this.body = options.body || '';
+    this.publish_date = options.publish_date || null;
+    this.fileKey = options.fileKey || null;
+    this.url = options.url || null;
+    this.source = options.source || null;
+    this.status = options.status || 'draft';
+    this.state = options.state || 'active';
+  }
+
+  static async create(options: ContentOptions) {
+    if (!options.db) {
+      options.db = {
+        url: process.env.CONTENT_DB_URL || process.env.KISSD_DB_URL,
+      };
+    }
+    const content = new Content(options);
+    await content.initialize();
+    return content;
+  }
+
+  async initialize() {
+    await super.initialize();
+  }
+
+  public async loadReferences() {}
+
+  public async addReference(content: Content | string) {
+    if (typeof content === 'string') {
+      content = await Content.create({
+        db: this.options.db,
+        ai: this.options.ai,
+        url: content,
+      });
+    }
+    this.references.push(content);
+  }
+
+  public async getReferences() {
+    return this.references;
+  }
+
+  public toJSON() {
+    return {
+      id: this.id || '',
+      slug: this.slug || '',
+      context: this.context || '',
+      type: this.type,
+      fileKey: this.fileKey || '',
+      author: this.author || '',
+      title: this.title || '',
+      description: this.description || '',
+      body: this.body || '',
+      publish_date: this.publish_date || '',
+      url: this.url || '',
+      source: this.source || '',
+      status: this.status || 'draft',
+      state: this.state || 'active',
+    };
+  }
+}
+</file>
+
 <file path="packages/smrt/src/document.ts">
 import os from 'os';
 import path from 'path';
@@ -4002,350 +4590,6 @@ export class Document {
 export default {
   File,
 };
-</file>
-
-<file path="packages/smrt/src/utils.ts">
-import { syncSchema } from '@have/sql';
-import yaml from 'yaml';
-import { Content } from './content.js';
-export function isDateField(key: string) {
-  return key.endsWith('_date') || key.endsWith('_at') || key === 'date';
-}
-
-export function dateAsString(date: Date | string) {
-  if (typeof date === 'string') {
-    return new Date(date);
-  }
-  return date;
-}
-
-export function dateAsObject(date: Date | string) {
-  if (date instanceof Date) {
-    return date.toISOString();
-  }
-  return date;
-}
-
-export function fieldsFromClass(
-  ClassType: new (...args: any[]) => any,
-  values?: Record<string, any>,
-) {
-  const fields: Record<string, any> = {};
-  // just for introspection, dont need real creds
-  const instance = new ClassType({
-    ai: {
-      type: 'openai',
-      apiKey: 'sk-proj-1234567890',
-    },
-    db: {
-      url: 'file:/tmp/dummy.db',
-    },
-  });
-
-  // Get descriptors from the instance and all ancestors
-  const descriptors = new Map<string, PropertyDescriptor>();
-
-  // Start with the instance
-  Object.entries(Object.getOwnPropertyDescriptors(instance)).forEach(
-    ([key, descriptor]) => {
-      descriptors.set(key, descriptor);
-    },
-  );
-
-  // Walk up the prototype chain
-  let proto = Object.getPrototypeOf(instance);
-  while (proto && proto !== Object.prototype) {
-    Object.entries(Object.getOwnPropertyDescriptors(proto)).forEach(
-      ([key, descriptor]) => {
-        // Only add if we haven't seen this property before
-        if (!descriptors.has(key)) {
-          descriptors.set(key, descriptor);
-        }
-      },
-    );
-    proto = Object.getPrototypeOf(proto);
-  }
-
-  // Process all collected descriptors
-  for (const [key, descriptor] of descriptors) {
-    // Skip methods, getters/setters, and internal properties
-    if (
-      typeof descriptor.value === 'function' ||
-      descriptor.get ||
-      descriptor.set ||
-      key.startsWith('_') ||
-      key.startsWith('#') ||
-      key === 'constructor'
-    ) {
-      continue;
-    }
-
-    // If it's a data property with a defined type
-    if (descriptor.value !== undefined) {
-      let type: string | undefined;
-
-      // Check the property definition
-      const defaultValue = descriptor.value;
-      if (defaultValue instanceof Date || isDateField(key)) {
-        type = 'DATETIME';
-      } else if (typeof defaultValue === 'string') {
-        type = 'TEXT';
-      } else if (typeof defaultValue === 'number') {
-        type = 'INTEGER';
-      } else if (defaultValue === null) {
-        type = 'TEXT';
-      }
-
-      if (type) {
-        fields[key] = {
-          name: key,
-          type,
-          ...(values && key in values
-            ? {
-                value: values[key],
-              }
-            : {}),
-        };
-      }
-    }
-  }
-  return fields;
-}
-
-export function generateSchema(ClassType: new (...args: any[]) => any) {
-  const tableName = tableNameFromClass(ClassType);
-  const fields = fieldsFromClass(ClassType);
-  let schema = `CREATE TABLE IF NOT EXISTS ${tableName} (\n`;
-
-  // Add id field first (always required)
-  schema += '  id TEXT PRIMARY KEY,\n';
-
-  // Add slug and context fields
-  schema += '  slug TEXT NOT NULL,\n';
-  schema += "  context TEXT NOT NULL DEFAULT '',\n";
-
-  // Add other fields
-  for (const [key, field] of Object.entries(fields)) {
-    if (key === 'id' || key === 'slug' || key === 'context') continue;
-    schema += `  ${key} ${field.type},\n`;
-  }
-
-  // Add composite unique constraint for slug and context
-  schema += '  UNIQUE(slug, context),\n';
-
-  schema = schema.slice(0, -2); // Remove trailing comma and newline
-  schema += '\n);';
-
-  schema += `\nCREATE INDEX IF NOT EXISTS ${tableName}_id_idx ON ${tableName} (id);`;
-  schema += `\nCREATE INDEX IF NOT EXISTS ${tableName}_slug_context_idx ON ${tableName} (slug, context);`;
-  return schema;
-}
-
-export function tableNameFromClass(
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
-  ClassType: Function | (new (...args: any[]) => any),
-) {
-  return (
-    ClassType.name
-      // Insert underscore between lower & upper case letters
-      .replace(/([a-z])([A-Z])/g, '$1_$2')
-      // Convert to lowercase
-      .toLowerCase()
-      // Handle basic pluralization rules
-      .replace(/([^s])$/, '$1s')
-      // Handle special cases ending in 'y'
-      .replace(/y$/, 'ies')
-  );
-}
-
-// export function escapeSqlValue(value: any): string {
-//   if (value === null) {
-//     return 'NULL';
-//   }
-//   if (value instanceof Date) {
-//     return `'${value.toISOString()}'`;
-//   }
-//   if (typeof value === 'number') {
-//     return value.toString();
-//   }
-//   if (typeof value === 'boolean') {
-//     return value ? '1' : '0';
-//   }
-//   // Escape single quotes and wrap in quotes
-//   return `'${String(value).replace(/'/g, "''")}'`;
-// }
-
-// function validateColumnName(column: string): string {
-//   // Only allow alphanumeric characters, underscores, and dots (for table.column notation)
-//   if (!/^[a-zA-Z0-9_.]+$/.test(column)) {
-//     throw new Error(`Invalid column name: ${column}`);
-//   }
-//   return column;
-// }
-
-// export function addWhere({
-//   sql,
-//   replacements = [],
-//   where = {},
-//   required = true,
-// }: {
-//   sql: string;
-//   replacements?: any[];
-//   where?: object;
-//   required?: boolean;
-// }): { sql: string; replacements: any[] } {
-//   const wheres = [];
-//   for (const [key, value] of Object.entries(where)) {
-//     const safeColumnName = validateColumnName(key);
-//     wheres.push(`${safeColumnName} = $${replacements.length + 1}`);
-//     replacements.push(value);
-//   }
-
-//   if (wheres.length > 0) {
-//     sql += ` WHERE ${wheres.join(' AND ')}`;
-//   } else if (required) {
-//     throw new Error('WHERE clause is required but no conditions were provided');
-//   }
-
-//   return { sql, replacements };
-// }
-
-export function classnameToTablename(className: string) {
-  // Convert camelCase/PascalCase to snake_case and pluralize
-  const tableName = className
-    // Insert underscore between lower & upper case letters
-    .replace(/([a-z])([A-Z])/g, '$1_$2')
-    // Convert to lowercase
-    .toLowerCase()
-    // Handle basic pluralization rules
-    .replace(/([^s])$/, '$1s')
-    // Handle special cases ending in 'y'
-    .replace(/y$/, 'ies');
-
-  return tableName;
-}
-
-const _setup_table_from_class_promises: Record<string, Promise<void> | null> =
-  {};
-
-export async function setupTableFromClass(db: any, ClassType: any) {
-  const tableName = classnameToTablename(ClassType.name);
-
-  if (_setup_table_from_class_promises[tableName] !== undefined || null) {
-    return _setup_table_from_class_promises[tableName];
-  }
-
-  _setup_table_from_class_promises[tableName] = (async () => {
-    try {
-      const schema = generateSchema(ClassType);
-      await syncSchema({ db, schema });
-      await setupTriggers(db, tableName);
-    } catch (error) {
-      _setup_table_from_class_promises[tableName] = null; // Allow retry on failure
-      throw error;
-    }
-  })();
-
-  return _setup_table_from_class_promises[tableName];
-}
-
-export async function setupTriggers(db: any, tableName: string) {
-  const triggers = [
-    `${tableName}_set_created_at`,
-    `${tableName}_set_updated_at`,
-  ];
-
-  for (const trigger of triggers) {
-    const exists =
-      await db.pluck`SELECT name FROM sqlite_master WHERE type='trigger' AND name=${trigger}`;
-    if (!exists) {
-      if (trigger === `${tableName}_set_created_at`) {
-        const createTriggerSQL = `
-          CREATE TRIGGER ${trigger}
-          AFTER INSERT ON ${tableName}
-          BEGIN
-            UPDATE ${tableName} 
-            SET created_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
-            WHERE id = NEW.id;
-          END;
-        `;
-        await db.query(createTriggerSQL);
-      } else if (trigger === `${tableName}_set_updated_at`) {
-        const createTriggerSQL = `
-          CREATE TRIGGER ${trigger}
-          AFTER UPDATE ON ${tableName}
-          BEGIN
-            UPDATE ${tableName} 
-            SET updated_at = CURRENT_TIMESTAMP 
-            WHERE id = NEW.id;
-          END;
-        `;
-        await db.query(createTriggerSQL);
-      }
-    }
-  }
-}
-
-export function contentToString(content: Content) {
-  const { body, ...frontmatter } = content;
-  const separator = '---';
-  const frontmatterYAML = yaml.stringify(frontmatter);
-  return `${separator}\n${frontmatterYAML}\n${separator}\n${body}`;
-}
-
-export function stringToContent(data: string) {
-  const separator = '---';
-  const frontmatterStart = data.indexOf(separator);
-
-  let frontmatter = {};
-  let body = data;
-
-  if (frontmatterStart !== -1) {
-    const frontmatterEnd = data.indexOf(
-      separator,
-      frontmatterStart + separator.length,
-    );
-
-    if (frontmatterEnd !== -1) {
-      const frontmatterYAML = data
-        .substring(frontmatterStart + separator.length, frontmatterEnd)
-        .trim();
-      frontmatter = yaml.parse(frontmatterYAML) || {}; // Handle potential YAML parsing errors
-      body = data.substring(frontmatterEnd + separator.length).trim();
-    }
-  }
-
-  return formatDataJs({
-    ...frontmatter,
-    body,
-  });
-}
-
-export function formatDataJs(data: Record<string, any>) {
-  const normalizedData: Record<string, any> = {};
-  for (const [key, value] of Object.entries(data)) {
-    if (value instanceof Date) {
-      normalizedData[key] = value;
-    } else if (isDateField(key) && typeof value === 'string') {
-      normalizedData[key] = new Date(value);
-    } else {
-      normalizedData[key] = value;
-    }
-  }
-  return normalizedData;
-}
-
-export function formatDataSql(data: Record<string, any>) {
-  const normalizedData: Record<string, any> = {};
-  for (const [key, value] of Object.entries(data)) {
-    if (value instanceof Date) {
-      normalizedData[key] = value.toISOString(); // Postgres accepts ISO format with timezone
-    } else {
-      normalizedData[key] = value;
-    }
-  }
-  return normalizedData;
-}
 </file>
 
 <file path="packages/smrt/CLAUDE.md">
@@ -5571,125 +5815,6 @@ This package should remain lightweight and focused on general-purpose utilities 
 }
 </file>
 
-<file path="CLAUDE.md">
-# HAppy VErtical SDK: Architecture and Development Guide
-
-## Overview
-
-The HAppy VErtical (HAVE) SDK is a TypeScript monorepo designed for building vertical AI agents. It follows these core principles:
-
-- Pure TypeScript implementation to avoid CommonJS vs ESM compatibility issues
-- Minimized dependencies through a modular monorepo architecture
-- Compartmentalized code to keep AI agents lean and focused
-- Support for testing and scaling with minimal overhead
-- Standardized interfaces across different packages
-
-## Monorepo Structure
-
-The SDK is organized as a pnpm workspace with several packages that provide specific functionality:
-
-- **ai**: A standardized interface for AI model interactions, currently supporting OpenAI
-- **files**: Tools for interacting with file systems (local and remote)
-- **pdf**: Utilities for parsing and processing PDF documents
-- **smrt**: Core library for building AI agents with standardized collections and objects 
-- **spider**: Web crawling and content parsing tools (renamed from "web")
-- **sql**: Database interaction with support for SQLite and Postgres
-- **utils**: Shared utility functions used across packages
-
-## Development Patterns
-
-### Dependency Management
-
-- Package versioning is synchronized across the monorepo
-- Internal dependencies use `workspace:*` to reference other packages
-- External dependencies are kept to a minimum
-- Node.js v22.x is required for all packages
-
-### Build Process
-
-The build process follows a specific order to respect internal dependencies:
-
-1. `@have/utils` (base utilities used by all packages)
-2. `@have/files` (file system interactions)
-3. `@have/spider` (web crawling)
-4. `@have/sql` (database interactions)
-5. `@have/pdf` (PDF processing)
-6. `@have/ai` (AI model interfaces)
-7. `@have/smrt` (agent framework that depends on all the above)
-
-### Code Style and Conventions
-
-- Code formatting is enforced by Biome
-- Spaces (2) for indentation
-- Single quotes for strings
-- Line width of 80 characters
-- ESM module format exclusively
-- Each package has its own tsconfig that extends from the root
-- Use camelCase for variables and functions, PascalCase for classes
-- Use conventional commits
-- Dont include claude branding in commit messages
-
-### Testing
-
-- Tests are written using Vitest
-- Each package has its own test suite
-- Run tests with `pnpm test` or `pnpm test:watch`
-
-### Common Development Commands
-
-```bash
-# Install dependencies
-pnpm install
-
-# Run tests
-pnpm test
-
-# Build all packages in correct order
-pnpm build
-
-# Watch mode development
-pnpm dev
-
-# Lint code
-pnpm lint
-
-# Format code
-pnpm format
-```
-
-## Cross-Package Dependencies
-
-The packages have these dependency relationships:
-
-- `utils`: No internal dependencies
-- `files`: Depends on `utils`
-- `spider`: Depends on `utils` and `files`
-- `sql`: No internal dependencies
-- `pdf`: No internal dependencies
-- `ai`: No internal dependencies
-- `smrt`: Depends on all other packages
-
-When adding new features, maintain this dependency hierarchy to avoid circular dependencies.
-
-## Contribution Guidelines
-
-1. Ensure code passes Biome linting (`pnpm lint`)
-2. Write tests for new functionality
-3. Update package documentation when adding new features
-4. Follow existing code patterns in each package
-5. Run the full test suite before submitting changes
-
-## Tooling Configuration
-
-- **TypeScript**: Configured for ES2022 with strict type checking
-- **Biome**: Used for linting and formatting
-- **pnpm**: Package management with workspace support
-- **Vitest**: Testing framework
-- **Changesets**: Used for versioning and publishing packages
-
-This repository is designed to support building AI agents with minimal overhead and maximum flexibility.
-</file>
-
 <file path="CONTRIBUTING.md">
 # Coding Guidelines
 - Follow the Airbnb JavaScript Style Guide.
@@ -5759,106 +5884,533 @@ pre-commit:
       stage_fixed: true
 </file>
 
-<file path="packages/smrt/src/content.ts">
-import type { BaseObjectOptions } from './object.js';
-import { BaseObject } from './object.js';
+<file path="packages/smrt/src/contents.spec.ts">
+import { it, expect } from 'vitest';
+import os from 'node:os';
+import path from 'node:path';
+import fs from 'node:fs';
+import { makeSlug } from '@have/utils';
+import { Contents } from './contents.js';
+import { faker } from '@faker-js/faker';
 
-export interface ContentOptions extends BaseObjectOptions {
-  type?: string | null;
-  fileKey?: string | null;
-  author?: string | null;
-  title?: string | null;
-  description?: string | null;
-  body?: string | null;
-  publish_date?: Date | null;
-  url?: string | null;
-  source?: string | null;
-  status?: 'published' | 'draft' | 'archived' | 'deleted' | null;
-  state?: 'deprecated' | 'active' | 'highlighted' | null;
+const TMP_DIR = path.resolve(`${os.tmpdir()}/.have-sdk-tests/contents`);
+fs.mkdirSync(TMP_DIR, { recursive: true });
+
+it('should be able to getOrInsert a content item', async () => {
+  const contents = await Contents.create({
+    ai: {
+      type: 'openai',
+      apiKey: process.env.OPENAI_API_KEY!,
+    },
+    db: {
+      url: `file:${TMP_DIR}/test.db`,
+    },
+  });
+
+  const fakeContentData = {
+    title: faker.lorem.sentence(),
+    body: faker.lorem.paragraph(),
+    author: faker.person.fullName(),
+    publish_date: faker.date.recent(),
+  };
+
+  const content = await contents.getOrUpsert(fakeContentData);
+  expect(content.id).toBeDefined();
+
+  const content2 = await contents.getOrUpsert(fakeContentData);
+  expect(content2.id).toBe(content.id);
+
+  const got = await contents.get({ id: content.id });
+  expect(got?.id).toEqual(content.id);
+});
+
+it('should respect the context of the slug', async () => {
+  const contents = await Contents.create({
+    ai: {
+      type: 'openai',
+      apiKey: process.env.OPENAI_API_KEY!,
+    },
+    db: {
+      url: `file:${TMP_DIR}/test.db`,
+    },
+  });
+
+  const fakeContentData = {
+    title: faker.lorem.sentence(),
+    body: faker.lorem.paragraph(),
+    author: faker.person.fullName(),
+    publish_date: faker.date.recent(),
+  };
+
+  const slug = makeSlug(fakeContentData.title);
+
+  const content = await contents.getOrUpsert({
+    ...fakeContentData,
+    url: 'http://setinfirst.com',
+    slug,
+    context: 'contextA',
+  });
+  expect(content.id).toBeDefined();
+
+  const different = await contents.getOrUpsert({
+    ...fakeContentData,
+    slug,
+    context: 'contextB',
+    source: 'set in different context',
+  });
+  expect(different.id).not.toBe(content.id);
+
+  const contextA = await contents.get({
+    slug,
+    context: 'contextA',
+  });
+
+  const contextB = await contents.get({
+    slug,
+    context: 'contextB',
+  });
+
+  const updated = await contents.getOrUpsert({
+    description: 'foo',
+    slug,
+    context: 'contextA',
+  });
+
+  expect(updated.id).toBeDefined();
+  expect(updated.description).toBe('foo');
+  expect(updated.id).toBe(contextA?.id);
+});
+
+// skipped because it takes a long time
+it.skip('should be able to mirror a bit of content give a url', async () => {
+  const contents = await Contents.create({
+    ai: {
+      type: 'openai',
+      apiKey: process.env.OPENAI_API_KEY!,
+    },
+    db: {
+      url: `file:${TMP_DIR}/test.db`,
+    },
+  });
+
+  const created = await contents.mirror({
+    url: 'https://townofbentley.ca/wp-content/uploads/2024/12/Signed-Minutes-November-26-2024-Regular-Council-Meeting.pdf',
+    mirrorDir: `${TMP_DIR}/mirror-test`,
+  });
+  expect(created?.id).toBeDefined();
+}, 60000);
+
+it.skip('should be able to sync a content dir', async () => {
+  const contents = await Contents.create({
+    ai: {
+      type: 'openai',
+      apiKey: process.env.OPENAI_API_KEY!,
+    },
+    db: {
+      url: `file:${TMP_DIR}/test.db`,
+    },
+    fs: {
+      type: 'filesystem',
+      cacheDir: `${TMP_DIR}/cache`,
+    },
+  });
+
+  // for (let x = 0; x < 10; x++) {
+  await contents.getOrUpsert({
+    type: 'article',
+    title: faker.lorem.sentence(),
+    description: faker.lorem.sentence(),
+    body: faker.lorem.paragraph(),
+    author: faker.person.fullName(),
+    publish_date: faker.date.recent(),
+  });
+  // }
+
+  // await contents.syncContentDir({ contentDir: `${TMP_DIR}/content` });
+});
+
+it('should be able to list content', async () => {
+  const contents = await Contents.create({
+    ai: {
+      type: 'openai',
+      apiKey: process.env.OPENAI_API_KEY!,
+    },
+    db: {
+      url: `file::memory:?cache=shared`, //todo: memory doesnt work because we pass around the connection,
+    },
+  });
+
+  const fakeContentData = {
+    type: 'article',
+    title: faker.lorem.sentence(),
+    body: faker.lorem.paragraph(),
+    author: faker.person.fullName(),
+    publish_date: faker.date.recent(),
+  };
+
+  const content = await contents.getOrUpsert(fakeContentData);
+  await content.save();
+
+  const fakeContentData2 = {
+    title: faker.lorem.sentence(),
+    body: faker.lorem.paragraph(),
+    author: faker.person.fullName(),
+    publish_date: faker.date.recent(),
+  };
+
+  const content2 = await contents.getOrUpsert(fakeContentData2);
+  await content2.save();
+
+  const fakeContentData3 = {
+    title: faker.lorem.sentence(),
+    body: faker.lorem.paragraph(),
+    author: faker.person.fullName(),
+    publish_date: faker.date.recent(),
+  };
+  const content3 = await contents.getOrUpsert(fakeContentData3);
+  await content3.save();
+
+  expect(content.id).toBeDefined();
+
+  // const content2 = await contents.getOrUpsert(fakeContentData);
+  // expect(content2.id).toBe(content.id);
+
+  const articles = await contents.list({
+    where: {
+      type: 'article',
+    }
+  });
+  expect(articles?.length).toEqual(1);
+
+  const articleCount = await contents.count({
+    where: {
+      type: 'article',
+    }
+  });
+  expect(articleCount).toEqual(1);
+});
+</file>
+
+<file path="packages/smrt/src/object.ts">
+import type { AIMessageOptions } from '@have/ai';
+import type { BaseClassOptions } from './class.js';
+
+import {
+  fieldsFromClass,
+  tableNameFromClass,
+  setupTableFromClass,
+} from '@have/smrt/utils';
+import { escapeSqlValue } from '@have/sql';
+
+import { BaseClass } from './class.js';
+import { BaseCollection } from './collection.js';
+
+export interface BaseObjectOptions extends BaseClassOptions {
+  id?: string;
+  name?: string;
+  slug?: string;
+  context?: string;
+  created_at?: Date;
+  updated_at?: Date;
 }
 
-export class Content extends BaseObject<ContentOptions> {
-  protected options: ContentOptions;
-  protected references: Content[] = [];
-  public type?: string | null;
-  public fileKey: string | null | undefined;
-  public author!: string | null | undefined;
-  public title!: string | null | undefined;
-  public description!: string | null | undefined;
-  public body!: string | null | undefined;
-  public publish_date!: Date | null | undefined;
-  public url!: string | null | undefined;
-  public source!: string | null | undefined;
-  public status!: 'published' | 'draft' | 'archived' | 'deleted' | null;
-  public state!: 'deprecated' | 'active' | 'highlighted' | null; // contested?
-  constructor(options: ContentOptions) {
+export class BaseObject<
+  T extends BaseObjectOptions = BaseObjectOptions,
+> extends BaseClass<T> {
+  public _collection!: BaseCollection<BaseObject<T>>;
+  public _tableName!: string;
+  protected _id: string | null | undefined; // a unique identifier for the object
+  protected _slug: string | null | undefined; // a slug, url friendly identifier
+  protected _context: string | null | undefined; // an option context to scope the slug, could contain a path, domain&path etc
+
+  public name: string | null | undefined; // a friendly name, mostly for humans.. unique is better but not required
+  public created_at: Date | null | undefined;
+  public updated_at: Date | null | undefined;
+
+  constructor(options: T) {
     super(options);
-    this.options = options;
-    this.type = options.type || null;
-    this.name = options.title || '';
-    this.author = options.author || null;
-    this.title = options.title || '';
-    this.description = options.description || null;
-    this.body = options.body || '';
-    this.publish_date = options.publish_date || null;
-    this.fileKey = options.fileKey || null;
-    this.url = options.url || null;
-    this.source = options.source || null;
-    this.status = options.status || 'draft';
-    this.state = options.state || 'active';
-  }
-
-  static async create(options: ContentOptions) {
-    if (!options.db) {
-      options.db = {
-        url: process.env.CONTENT_DB_URL || process.env.KISSD_DB_URL,
-      };
+    if (options === null) {
+      throw new Error('options cant be null');
     }
-    const content = new Content(options);
-    await content.initialize();
-    return content;
+    this._id = options.id || null;
+    this._slug = options.slug || null;
+    this._context = options.context || '';
+    this.name = options.name || null;
+    this.created_at = options.created_at || null;
+    this.updated_at = options.updated_at || null;
   }
 
-  async initialize() {
+  get id(): string | null | undefined {
+    return this._id;
+  }
+
+  set id(value: string | null | undefined) {
+    if (!value || value === 'undefined' || value === 'null') {
+      throw new Error(`id is required, ${value} given`);
+    }
+    this._id = value;
+  }
+
+  get slug(): string | null | undefined {
+    return this._slug;
+  }
+
+  set slug(value: string | null | undefined) {
+    if (!value || value === 'undefined' || value === 'null') {
+      throw new Error(`slug is invalid, ${value} given`);
+    }
+
+    this._slug = value;
+  }
+
+  get context(): string {
+    return this._context || '';
+  }
+
+  set context(value: string | null | undefined) {
+    if (value !== '' && !value) {
+      throw new Error(`context is invalid, ${value} given`);
+    }
+    this._context = value;
+  }
+
+  protected async initialize(): Promise<void> {
     await super.initialize();
-  }
-
-  public async loadReferences() {}
-
-  public async addReference(content: Content | string) {
-    if (typeof content === 'string') {
-      content = await Content.create({
-        db: this.options.db,
-        ai: this.options.ai,
-        url: content,
-      });
+    if (this.options.db) {
+      await setupTableFromClass(this.db, this.constructor);
+      await this.db.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_${this.tableName}_slug_context 
+        ON ${this.tableName}(slug, context);
+      `);
     }
-    this.references.push(content);
+
+    if (this.options.id) {
+      await this.loadFromId();
+    } else if (this.options.slug) {
+      await this.loadFromSlug();
+    }
   }
 
-  public async getReferences() {
-    return this.references;
+  loadDataFromDb(data: any) {
+    const fields = this.getFields();
+    for (const field in fields) {
+      if (fields.hasOwnProperty(field)) {
+        this[field as keyof this] = data[field];
+      }
+    }
   }
 
-  public toJSON() {
-    return {
-      id: this.id || '',
-      slug: this.slug || '',
-      context: this.context || '',
-      type: this.type,
-      fileKey: this.fileKey || '',
-      author: this.author || '',
-      title: this.title || '',
-      description: this.description || '',
-      body: this.body || '',
-      publish_date: this.publish_date || '',
-      url: this.url || '',
-      source: this.source || '',
-      status: this.status || 'draft',
-      state: this.state || 'active',
-    };
+  allDescriptors() {
+    const proto = Object.getPrototypeOf(this);
+    const descriptors = Object.getOwnPropertyDescriptors(proto);
+    return descriptors;
+  }
+
+  get tableName() {
+    if (!this._tableName) {
+      this._tableName = tableNameFromClass(this.constructor);
+    }
+    return this._tableName;
+  }
+
+  getFields() {
+    // Get the static fields definition from the class
+    const fields = fieldsFromClass(
+      this.constructor as new (...args: any[]) => any,
+    );
+
+    // Add current instance values to the fields
+    for (const key in fields) {
+      fields[key].value = this[key as keyof this];
+    }
+
+    return fields;
+  }
+
+  generateUpsertStatement() {
+    const fields = this.getFields();
+    const columns = ['id', 'slug', 'context'];
+    const id = escapeSqlValue(this.id) || '';
+    const slug = escapeSqlValue(this.slug);
+    const context = escapeSqlValue(this.context || '');
+    const values = [id, slug, context];
+    const updates = [`slug = ${slug}`, `context = ${context}`];
+
+    for (const [key, field] of Object.entries(fields)) {
+      if (key === 'slug' || key === 'context') continue;
+      columns.push(key);
+      const value =
+        typeof field.value === 'boolean' ? (field.value ? 1 : 0) : field.value;
+
+      const escapedValue = escapeSqlValue(value);
+
+      values.push(escapedValue);
+      updates.push(`${key} = ${escapedValue}`);
+    }
+
+    // Use UPSERT syntax with explicit ON CONFLICT handling
+    const sql = `
+      INSERT INTO ${this.tableName} (${columns.join(', ')})
+      VALUES (${values.join(', ')})
+      ON CONFLICT(slug, context) 
+      WHERE slug = ${slug} AND context = ${context}
+      DO UPDATE SET
+        ${updates.join(',\n        ')}
+      WHERE ${this.tableName}.slug = ${slug} AND ${this.tableName}.context = ${context};
+    `;
+
+    return sql;
+  }
+
+  // needs to be async to allow looking up existing in db by slug
+  async getId() {
+    // lookup by slug and context
+    const saved = await this.db
+      .pluck`SELECT id FROM ${this.tableName} WHERE slug = ${this.slug} AND context = ${this.context} LIMIT 1`;
+    if (saved) {
+      this.id = saved;
+    }
+
+    if (!this.id) {
+      this.id = crypto.randomUUID();
+    }
+    return this.id;
+  }
+
+  // Objects will be named to match table names
+
+  async getSlug() {
+    if (!this.slug && this.name) {
+      // Generate slug from name if not set
+      this.slug = this.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '');
+    }
+
+    // check for existing slug and make unique?
+    return this.slug;
+  }
+
+  async getSavedId() {
+    const { pluck } = this.db;
+    const saved =
+      await pluck`SELECT id FROM ${this.tableName} WHERE id = ${this.id} OR slug = ${this.slug} LIMIT 1`;
+    return saved;
+  }
+
+  async isSaved() {
+    const saved = await this.getSavedId();
+    return !!saved;
+  }
+
+  async save() {
+    if (!this.id) {
+      this.id = crypto.randomUUID();
+    }
+
+    if (!this.slug) {
+      this.slug = await this.getSlug();
+    }
+
+    // Update the updated_at timestamp
+    this.updated_at = new Date();
+
+    if (!this.created_at) {
+      this.created_at = new Date();
+    }
+
+    await setupTableFromClass(this.options.db, this.constructor);
+
+    const sql = this.generateUpsertStatement();
+    await this.db.query(sql);
+
+    return this;
+  }
+
+  public async loadFromId() {
+    const {
+      rows: [existing],
+    } = await this.db.query(`SELECT * FROM ${this.tableName} WHERE id = ?`, [
+      this.options.id,
+    ]);
+    if (existing) {
+      this.loadDataFromDb(existing);
+    }
+  }
+
+  public async loadFromSlug() {
+    const {
+      rows: [existing],
+    } = await this.db.query(
+      `SELECT * FROM ${this.tableName} WHERE slug = ? AND context = ?`,
+      [this.options.slug, this.options.context || ''],
+    );
+    if (existing) {
+      this.loadDataFromDb(existing);
+    }
+  }
+
+  public async is(criteria: string, options: AIMessageOptions = {}) {
+    const prompt = `--- Beginning of criteria ---\n${criteria}\n--- End of criteria ---\nDoes the content meet all the given criteria? Reply with a json object with a single boolean 'result' property`;
+    const message = await this.ai.message(prompt, {
+      ...(options as any),
+      responseFormat: { type: 'json_object' },
+    });
+    try {
+      const { result } = JSON.parse(message);
+      if (result === true || result === false) {
+        return result;
+      }
+    } catch (e) {
+      throw new Error(`Unexpected answer: ${message}`);
+    }
+  }
+
+  public async do(instructions: string, options: AIMessageOptions = {}) {
+    const prompt = `--- Beginning of instructions ---\n${instructions}\n--- End of instructions ---\nBased on the content body, please follow the instructions and provide a response. Never make use of codeblocks.`;
+    const result = await this.ai.message(prompt, options);
+    return result;
   }
 }
+
+// async function ensureTriggersExist(db: any, tableName: string) {
+//   const triggers = [
+//     `${tableName}_set_created_at`,
+//     `${tableName}_set_updated_at`,
+//   ];
+
+//   for (const trigger of triggers) {
+//     const exists = await db.get(
+//       `SELECT name FROM sqlite_master WHERE type='trigger' AND name=?`,
+//       [trigger],
+//     );
+
+//     if (!exists) {
+//       if (trigger === `${tableName}_set_created_at`) {
+//         await db.exec(`
+//           CREATE TRIGGER ${trigger}
+//           AFTER INSERT ON ${tableName}
+//           BEGIN
+//             UPDATE ${tableName}
+//             SET created_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+//             WHERE id = NEW.id;
+//           END;
+//         `);
+//       } else if (trigger === `${tableName}_set_updated_at`) {
+//         await db.exec(`
+//           CREATE TRIGGER ${trigger}
+//           AFTER UPDATE ON ${tableName}
+//           BEGIN
+//             UPDATE ${tableName}
+//             SET updated_at = CURRENT_TIMESTAMP
+//             WHERE id = NEW.id;
+//           END;
+//         `);
+//       }
+//     }
+//   }
+// }
 </file>
 
 <file path="packages/sql/src/index.ts">
@@ -6436,6 +6988,128 @@ coverage/
 **/.claude/settings.local.json
 </file>
 
+<file path="CLAUDE.md">
+# HAppy VErtical SDK: Architecture and Development Guide
+
+## Overview
+
+The HAppy VErtical (HAVE) SDK is a TypeScript monorepo designed for building vertical AI agents. It follows these core principles:
+
+- Pure TypeScript implementation to avoid CommonJS vs ESM compatibility issues
+- Minimized dependencies through a modular monorepo architecture
+- Compartmentalized code to keep AI agents lean and focused
+- Support for testing and scaling with minimal overhead
+- Standardized interfaces across different packages
+
+## Monorepo Structure
+
+The SDK is organized as a pnpm workspace with several packages that provide specific functionality:
+
+- **ai**: A standardized interface for AI model interactions, currently supporting OpenAI
+- **files**: Tools for interacting with file systems (local and remote)
+- **pdf**: Utilities for parsing and processing PDF documents
+- **smrt**: Core library for building AI agents with standardized collections and objects 
+- **spider**: Web crawling and content parsing tools (renamed from "web")
+- **sql**: Database interaction with support for SQLite and Postgres
+- **utils**: Shared utility functions used across packages
+
+## Development Patterns
+
+### Dependency Management
+
+- Package versioning is synchronized across the monorepo
+- Internal dependencies use `workspace:*` to reference other packages
+- External dependencies are kept to a minimum
+- Node.js v22.x is required for all packages
+
+### Build Process
+
+The build process follows a specific order to respect internal dependencies:
+
+1. `@have/utils` (base utilities used by all packages)
+2. `@have/files` (file system interactions)
+3. `@have/spider` (web crawling)
+4. `@have/sql` (database interactions)
+5. `@have/pdf` (PDF processing)
+6. `@have/ai` (AI model interfaces)
+7. `@have/smrt` (agent framework that depends on all the above)
+
+### Code Style and Conventions
+
+- Code formatting is enforced by Biome
+- Spaces (2) for indentation
+- Single quotes for strings
+- Line width of 80 characters
+- ESM module format exclusively
+- Each package has its own tsconfig that extends from the root
+- Use camelCase for variables and functions, PascalCase for classes
+- Use conventional commits
+- Dont include claude branding in commit messages
+
+### Testing
+
+- Tests are written using Vitest
+- Each package has its own test suite
+- Run tests with `pnpm test` or `pnpm test:watch`
+
+### Common Development Commands
+
+```bash
+# Install dependencies
+pnpm install
+
+# Run tests
+pnpm test
+
+# Build all packages in correct order
+pnpm build
+
+# Watch mode development
+pnpm dev
+
+# Lint code
+pnpm lint
+
+# Format code
+pnpm format
+```
+
+## Cross-Package Dependencies
+
+The packages have these dependency relationships:
+
+- `utils`: No internal dependencies
+- `files`: Depends on `utils`
+- `spider`: Depends on `utils` and `files`
+- `sql`: No internal dependencies
+- `pdf`: No internal dependencies
+- `ai`: No internal dependencies
+- `smrt`: Depends on all other packages
+
+When adding new features, maintain this dependency hierarchy to avoid circular dependencies.
+
+## Contribution Guidelines
+
+1. Ensure code passes Biome linting (`pnpm lint`)
+2. Write tests for new functionality
+3. Update package documentation when adding new features
+4. Follow existing code patterns in each package
+5. Run the full test suite before submitting changes
+
+## Tooling Configuration
+
+- **TypeScript**: Configured for ES2022 with strict type checking
+- **Biome**: Used for linting and formatting
+- **pnpm**: Package management with workspace support
+- **Vitest**: Testing framework
+- **Changesets**: Used for versioning and publishing packages
+
+This repository is designed to support building AI agents with minimal overhead and maximum flexibility.
+
+Check for a repomix-output.xml file before crawling the codebase. Repomix is a tool that packs your entire repository into a single, AI-friendly file. It's designed to help you feed your codebase to Large Language Models (LLMs) like ChatGPT, DeepSeek, Perplexity, Gemini, Gemma, Llama, Grok, and more.
+##
+</file>
+
 <file path="setup_dev.sh">
 #!/usr/bin/env bash
 
@@ -6469,535 +7143,6 @@ pnpm link --global
 cd "$SCRIPT_DIR/../bentleyalberta.com"
 pnpm unlink @happyvertical/praeco @have/smrt @have/svelte @have/utils
 pnpm link --global @happyvertical/praeco @have/smrt @have/svelte @have/utils
-</file>
-
-<file path="packages/smrt/src/contents.spec.ts">
-import { it, expect } from 'vitest';
-import os from 'node:os';
-import path from 'node:path';
-import fs from 'node:fs';
-import { makeSlug } from '@have/utils';
-import { Contents } from './contents.js';
-import { faker } from '@faker-js/faker';
-
-const TMP_DIR = path.resolve(`${os.tmpdir()}/.have-sdk-tests/contents`);
-fs.mkdirSync(TMP_DIR, { recursive: true });
-
-it('should be able to getOrInsert a content item', async () => {
-  const contents = await Contents.create({
-    ai: {
-      type: 'openai',
-      apiKey: process.env.OPENAI_API_KEY!,
-    },
-    db: {
-      url: `file:${TMP_DIR}/test.db`,
-    },
-  });
-
-  const fakeContentData = {
-    title: faker.lorem.sentence(),
-    body: faker.lorem.paragraph(),
-    author: faker.person.fullName(),
-    publish_date: faker.date.recent(),
-  };
-
-  const content = await contents.getOrUpsert(fakeContentData);
-  expect(content.id).toBeDefined();
-
-  const content2 = await contents.getOrUpsert(fakeContentData);
-  expect(content2.id).toBe(content.id);
-
-  const got = await contents.get({ id: content.id });
-  expect(got?.id).toEqual(content.id);
-});
-
-it('should respect the context of the slug', async () => {
-  const contents = await Contents.create({
-    ai: {
-      type: 'openai',
-      apiKey: process.env.OPENAI_API_KEY!,
-    },
-    db: {
-      url: `file:${TMP_DIR}/test.db`,
-    },
-  });
-
-  const fakeContentData = {
-    title: faker.lorem.sentence(),
-    body: faker.lorem.paragraph(),
-    author: faker.person.fullName(),
-    publish_date: faker.date.recent(),
-  };
-
-  const slug = makeSlug(fakeContentData.title);
-
-  const content = await contents.getOrUpsert({
-    ...fakeContentData,
-    url: 'http://setinfirst.com',
-    slug,
-    context: 'contextA',
-  });
-  expect(content.id).toBeDefined();
-
-  const different = await contents.getOrUpsert({
-    ...fakeContentData,
-    slug,
-    context: 'contextB',
-    source: 'set in different context',
-  });
-  expect(different.id).not.toBe(content.id);
-
-  const contextA = await contents.get({
-    slug,
-    context: 'contextA',
-  });
-
-  const contextB = await contents.get({
-    slug,
-    context: 'contextB',
-  });
-
-  const updated = await contents.getOrUpsert({
-    description: 'foo',
-    slug,
-    context: 'contextA',
-  });
-
-  expect(updated.id).toBeDefined();
-  expect(updated.description).toBe('foo');
-  expect(updated.id).toBe(contextA?.id);
-});
-
-// skipped because it takes a long time
-it.skip('should be able to mirror a bit of content give a url', async () => {
-  const contents = await Contents.create({
-    ai: {
-      type: 'openai',
-      apiKey: process.env.OPENAI_API_KEY!,
-    },
-    db: {
-      url: `file:${TMP_DIR}/test.db`,
-    },
-  });
-
-  const created = await contents.mirror({
-    url: 'https://townofbentley.ca/wp-content/uploads/2024/12/Signed-Minutes-November-26-2024-Regular-Council-Meeting.pdf',
-    mirrorDir: `${TMP_DIR}/mirror-test`,
-  });
-  expect(created?.id).toBeDefined();
-}, 60000);
-
-it.skip('should be able to sync a content dir', async () => {
-  const contents = await Contents.create({
-    ai: {
-      type: 'openai',
-      apiKey: process.env.OPENAI_API_KEY!,
-    },
-    db: {
-      url: `file:${TMP_DIR}/test.db`,
-    },
-    fs: {
-      type: 'filesystem',
-      cacheDir: `${TMP_DIR}/cache`,
-    },
-  });
-
-  // for (let x = 0; x < 10; x++) {
-  await contents.getOrUpsert({
-    type: 'article',
-    title: faker.lorem.sentence(),
-    description: faker.lorem.sentence(),
-    body: faker.lorem.paragraph(),
-    author: faker.person.fullName(),
-    publish_date: faker.date.recent(),
-  });
-  // }
-
-  // await contents.syncContentDir({ contentDir: `${TMP_DIR}/content` });
-});
-
-it('should be able to list content', async () => {
-  const contents = await Contents.create({
-    ai: {
-      type: 'openai',
-      apiKey: process.env.OPENAI_API_KEY!,
-    },
-    db: {
-      url: `file::memory:?cache=shared`, //todo: memory doesnt work because we pass around the connection,
-    },
-  });
-
-  const fakeContentData = {
-    type: 'article',
-    title: faker.lorem.sentence(),
-    body: faker.lorem.paragraph(),
-    author: faker.person.fullName(),
-    publish_date: faker.date.recent(),
-  };
-
-  const content = await contents.getOrUpsert(fakeContentData);
-  await content.save();
-
-  const fakeContentData2 = {
-    title: faker.lorem.sentence(),
-    body: faker.lorem.paragraph(),
-    author: faker.person.fullName(),
-    publish_date: faker.date.recent(),
-  };
-
-  const content2 = await contents.getOrUpsert(fakeContentData2);
-  await content2.save();
-
-  const fakeContentData3 = {
-    title: faker.lorem.sentence(),
-    body: faker.lorem.paragraph(),
-    author: faker.person.fullName(),
-    publish_date: faker.date.recent(),
-  };
-  const content3 = await contents.getOrUpsert(fakeContentData3);
-  await content3.save();
-
-  expect(content.id).toBeDefined();
-
-  // const content2 = await contents.getOrUpsert(fakeContentData);
-  // expect(content2.id).toBe(content.id);
-
-  const articles = await contents.list({
-    where: {
-      type: 'article',
-    }
-  });
-  expect(articles?.length).toEqual(1);
-
-  const articleCount = await contents.count({
-    where: {
-      type: 'article',
-    }
-  });
-  expect(articleCount).toEqual(1);
-});
-</file>
-
-<file path="packages/smrt/src/object.ts">
-import type { AIMessageOptions } from '@have/ai';
-import type { BaseClassOptions } from './class.js';
-
-import {
-  fieldsFromClass,
-  tableNameFromClass,
-  setupTableFromClass,
-} from '@have/smrt/utils';
-import { escapeSqlValue } from '@have/sql';
-
-import { BaseClass } from './class.js';
-import { BaseCollection } from './collection.js';
-
-export interface BaseObjectOptions extends BaseClassOptions {
-  id?: string;
-  name?: string;
-  slug?: string;
-  context?: string;
-  created_at?: Date;
-  updated_at?: Date;
-}
-
-export class BaseObject<
-  T extends BaseObjectOptions = BaseObjectOptions,
-> extends BaseClass<T> {
-  public _collection!: BaseCollection<BaseObject<T>>;
-  public _tableName!: string;
-  protected _id: string | null | undefined; // a unique identifier for the object
-  protected _slug: string | null | undefined; // a slug, url friendly identifier
-  protected _context: string | null | undefined; // an option context to scope the slug, could contain a path, domain&path etc
-
-  public name: string | null | undefined; // a friendly name, mostly for humans.. unique is better but not required
-  public created_at: Date | null | undefined;
-  public updated_at: Date | null | undefined;
-
-  constructor(options: T) {
-    super(options);
-    if (options === null) {
-      throw new Error('options cant be null');
-    }
-    this._id = options.id || null;
-    this._slug = options.slug || null;
-    this._context = options.context || '';
-    this.name = options.name || null;
-    this.created_at = options.created_at || null;
-    this.updated_at = options.updated_at || null;
-  }
-
-  get id(): string | null | undefined {
-    return this._id;
-  }
-
-  set id(value: string | null | undefined) {
-    if (!value || value === 'undefined' || value === 'null') {
-      throw new Error(`id is required, ${value} given`);
-    }
-    this._id = value;
-  }
-
-  get slug(): string | null | undefined {
-    return this._slug;
-  }
-
-  set slug(value: string | null | undefined) {
-    if (!value || value === 'undefined' || value === 'null') {
-      throw new Error(`slug is invalid, ${value} given`);
-    }
-
-    this._slug = value;
-  }
-
-  get context(): string {
-    return this._context || '';
-  }
-
-  set context(value: string | null | undefined) {
-    if (value !== '' && !value) {
-      throw new Error(`context is invalid, ${value} given`);
-    }
-    this._context = value;
-  }
-
-  protected async initialize(): Promise<void> {
-    await super.initialize();
-    if (this.options.db) {
-      await setupTableFromClass(this.db, this.constructor);
-      await this.db.query(`
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_${this.tableName}_slug_context 
-        ON ${this.tableName}(slug, context);
-      `);
-    }
-
-    if (this.options.id) {
-      await this.loadFromId();
-    } else if (this.options.slug) {
-      await this.loadFromSlug();
-    }
-  }
-
-  loadDataFromDb(data: any) {
-    const fields = this.getFields();
-    for (const field in fields) {
-      if (fields.hasOwnProperty(field)) {
-        this[field as keyof this] = data[field];
-      }
-    }
-  }
-
-  allDescriptors() {
-    const proto = Object.getPrototypeOf(this);
-    const descriptors = Object.getOwnPropertyDescriptors(proto);
-    return descriptors;
-  }
-
-  get tableName() {
-    if (!this._tableName) {
-      this._tableName = tableNameFromClass(this.constructor);
-    }
-    return this._tableName;
-  }
-
-  getFields() {
-    // Get the static fields definition from the class
-    const fields = fieldsFromClass(
-      this.constructor as new (...args: any[]) => any,
-    );
-
-    // Add current instance values to the fields
-    for (const key in fields) {
-      fields[key].value = this[key as keyof this];
-    }
-
-    return fields;
-  }
-
-  generateUpsertStatement() {
-    const fields = this.getFields();
-    const columns = ['id', 'slug', 'context'];
-    const id = escapeSqlValue(this.id) || '';
-    const slug = escapeSqlValue(this.slug);
-    const context = escapeSqlValue(this.context || '');
-    const values = [id, slug, context];
-    const updates = [`slug = ${slug}`, `context = ${context}`];
-
-    for (const [key, field] of Object.entries(fields)) {
-      if (key === 'slug' || key === 'context') continue;
-      columns.push(key);
-      const value =
-        typeof field.value === 'boolean' ? (field.value ? 1 : 0) : field.value;
-
-      const escapedValue = escapeSqlValue(value);
-
-      values.push(escapedValue);
-      updates.push(`${key} = ${escapedValue}`);
-    }
-
-    // Use UPSERT syntax with explicit ON CONFLICT handling
-    const sql = `
-      INSERT INTO ${this.tableName} (${columns.join(', ')})
-      VALUES (${values.join(', ')})
-      ON CONFLICT(slug, context) 
-      WHERE slug = ${slug} AND context = ${context}
-      DO UPDATE SET
-        ${updates.join(',\n        ')}
-      WHERE ${this.tableName}.slug = ${slug} AND ${this.tableName}.context = ${context};
-    `;
-
-    return sql;
-  }
-
-  // needs to be async to allow looking up existing in db by slug
-  async getId() {
-    // lookup by slug and context
-    const saved = await this.db
-      .pluck`SELECT id FROM ${this.tableName} WHERE slug = ${this.slug} AND context = ${this.context} LIMIT 1`;
-    if (saved) {
-      this.id = saved;
-    }
-
-    if (!this.id) {
-      this.id = crypto.randomUUID();
-    }
-    return this.id;
-  }
-
-  // Objects will be named to match table names
-
-  async getSlug() {
-    if (!this.slug && this.name) {
-      // Generate slug from name if not set
-      this.slug = this.name
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '');
-    }
-
-    // check for existing slug and make unique?
-    return this.slug;
-  }
-
-  async getSavedId() {
-    const { pluck } = this.db;
-    const saved =
-      await pluck`SELECT id FROM ${this.tableName} WHERE id = ${this.id} OR slug = ${this.slug} LIMIT 1`;
-    return saved;
-  }
-
-  async isSaved() {
-    const saved = await this.getSavedId();
-    return !!saved;
-  }
-
-  async save() {
-    if (!this.id) {
-      this.id = crypto.randomUUID();
-    }
-
-    if (!this.slug) {
-      this.slug = await this.getSlug();
-    }
-
-    // Update the updated_at timestamp
-    this.updated_at = new Date();
-
-    if (!this.created_at) {
-      this.created_at = new Date();
-    }
-
-    await setupTableFromClass(this.options.db, this.constructor);
-
-    const sql = this.generateUpsertStatement();
-    await this.db.query(sql);
-
-    return this;
-  }
-
-  public async loadFromId() {
-    const {
-      rows: [existing],
-    } = await this.db.query(`SELECT * FROM ${this.tableName} WHERE id = ?`, [
-      this.options.id,
-    ]);
-    if (existing) {
-      this.loadDataFromDb(existing);
-    }
-  }
-
-  public async loadFromSlug() {
-    const {
-      rows: [existing],
-    } = await this.db.query(
-      `SELECT * FROM ${this.tableName} WHERE slug = ? AND context = ?`,
-      [this.options.slug, this.options.context || ''],
-    );
-    if (existing) {
-      this.loadDataFromDb(existing);
-    }
-  }
-
-  public async is(criteria: string, options: AIMessageOptions = {}) {
-    const prompt = `--- Beginning of criteria ---\n${criteria}\n--- End of criteria ---\nDoes the content meet all the given criteria? Reply with a json object with a single boolean 'result' property`;
-    const message = await this.ai.message(prompt, {
-      ...(options as any),
-      responseFormat: { type: 'json_object' },
-    });
-    try {
-      const { result } = JSON.parse(message);
-      if (result === true || result === false) {
-        return result;
-      }
-    } catch (e) {
-      throw new Error(`Unexpected answer: ${message}`);
-    }
-  }
-
-  public async do(instructions: string, options: AIMessageOptions = {}) {
-    const prompt = `--- Beginning of instructions ---\n${instructions}\n--- End of instructions ---\nBased on the content body, please follow the instructions and provide a response. Never make use of codeblocks.`;
-    const result = await this.ai.message(prompt, options);
-    return result;
-  }
-}
-
-// async function ensureTriggersExist(db: any, tableName: string) {
-//   const triggers = [
-//     `${tableName}_set_created_at`,
-//     `${tableName}_set_updated_at`,
-//   ];
-
-//   for (const trigger of triggers) {
-//     const exists = await db.get(
-//       `SELECT name FROM sqlite_master WHERE type='trigger' AND name=?`,
-//       [trigger],
-//     );
-
-//     if (!exists) {
-//       if (trigger === `${tableName}_set_created_at`) {
-//         await db.exec(`
-//           CREATE TRIGGER ${trigger}
-//           AFTER INSERT ON ${tableName}
-//           BEGIN
-//             UPDATE ${tableName}
-//             SET created_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-//             WHERE id = NEW.id;
-//           END;
-//         `);
-//       } else if (trigger === `${tableName}_set_updated_at`) {
-//         await db.exec(`
-//           CREATE TRIGGER ${trigger}
-//           AFTER UPDATE ON ${tableName}
-//           BEGIN
-//             UPDATE ${tableName}
-//             SET updated_at = CURRENT_TIMESTAMP
-//             WHERE id = NEW.id;
-//           END;
-//         `);
-//       }
-//     }
-//   }
-// }
 </file>
 
 <file path="packages/smrt/src/collection.ts">
@@ -8371,7 +8516,7 @@ All notable changes to this project will be documented in this file. See [standa
     "lint": "biome lint .",
     "lint:fix": "biome lint --apply .",
     "clean": "pnpm -r exec rm -rf dist && pnpm -r exec rm -rf tsconfig.tsbuildinfo",
-    "build": "pnpm clean && pnpm --filter @have/utils build && pnpm --filter @have/files build && pnpm --filter @have/spider build && pnpm --filter @have/sql build && pnpm --filter @have/pdf build && pnpm --filter @have/ai build && pnpm --filter @have/smrt build && pnpm --filter @have/svelte build",
+    "build": "pnpm clean && pnpm --filter @have/utils build && pnpm --filter @have/files build && pnpm --filter @have/spider build && pnpm --filter @have/sql build && pnpm --filter @have/pdf build && pnpm --filter @have/ai build && pnpm --filter @have/smrt build && pnpm --filter @have/svelte build && pnpm repomix",
     "dev": "pnpm --parallel -r build:watch",
     "publish-packages": "pnpm build && changeset publish",
     "release": "standard-version --no-verify",
@@ -8382,6 +8527,7 @@ All notable changes to this project will be documented in this file. See [standa
     "@changesets/cli": "^2.27.12",
     "conventional-changelog-cli": "^5.0.0",
     "lefthook": "^1.11.13",
+    "repomix": "^0.3.6",
     "standard-version": "^9.5.0",
     "typescript": "^5.7.3",
     "vitest": "^3.1.1"
