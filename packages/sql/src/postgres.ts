@@ -1,27 +1,92 @@
 import { Pool, PoolClient, QueryResult } from "pg";
 
+/**
+ * Configuration options for PostgreSQL database connections
+ */
 export interface PostgresOptions {
+  /**
+   * Connection URL for PostgreSQL
+   */
   url?: string;
+  
+  /**
+   * Database name
+   */
   database?: string;
+  
+  /**
+   * Database server hostname
+   */
   host?: string;
+  
+  /**
+   * Username for authentication
+   */
   user?: string;
+  
+  /**
+   * Password for authentication
+   */
   password?: string;
+  
+  /**
+   * Port number for the PostgreSQL server
+   */
   port?: number;
 }
 
+/**
+ * Result of a database operation that modifies data
+ */
 interface QueryResponse {
+  /**
+   * Type of operation performed (e.g., "insert", "update", "delete")
+   */
   operation: string;
+  
+  /**
+   * Number of rows affected by the operation
+   */
   affected: number;
 }
 
+/**
+ * Interface for table-specific operations
+ */
 interface TableMethods {
+  /**
+   * Inserts one or more records into the table
+   * 
+   * @param data - Single record or array of records to insert
+   * @returns Promise resolving to operation result
+   */
   insert: (
     data: Record<string, any> | Record<string, any>[],
   ) => Promise<QueryResponse>;
+  
+  /**
+   * Retrieves a single record from the table matching the where criteria
+   * 
+   * @param data - Criteria to match records
+   * @returns Promise resolving to query result
+   */
   get: (data: Record<string, any>) => Promise<QueryResult>;
+  
+  /**
+   * Retrieves multiple records from the table matching the where criteria
+   * 
+   * @param data - Criteria to match records
+   * @returns Promise resolving to array of records
+   */
   list: (data: Record<string, any>) => Promise<any[]>;
 }
 
+/**
+ * Creates a PostgreSQL database adapter
+ * 
+ * @param options - PostgreSQL connection options
+ * @returns Database interface for PostgreSQL
+ */
 export function getDatabase(options: PostgresOptions = {}) {
   const {
     url = process.env.SQLOO_URL,
@@ -32,6 +97,7 @@ export function getDatabase(options: PostgresOptions = {}) {
     port = Number(process.env.SQLOO_PORT) || 5432,
   } = options;
 
+  // Create a connection pool
   const client = new Pool(
     url
       ? { connectionString: url }
@@ -45,7 +111,11 @@ export function getDatabase(options: PostgresOptions = {}) {
   );
 
   /**
-   * Inserts data into a table and returns the inserted rows.
+   * Inserts data into a table and returns the operation result
+   * 
+   * @param table - Table name
+   * @param data - Single record or array of records to insert
+   * @returns Promise resolving to operation result
    */
   const insert = async (
     table: string,
@@ -83,7 +153,11 @@ export function getDatabase(options: PostgresOptions = {}) {
   };
 
   /**
-   * Retrieves a row from a table based on a where clause.
+   * Retrieves a single record matching the where criteria
+   * 
+   * @param table - Table name
+   * @param where - Criteria to match records
+   * @returns Promise resolving to query result
    */
   const get = async (
     table: string,
@@ -99,7 +173,11 @@ export function getDatabase(options: PostgresOptions = {}) {
   };
 
   /**
-   * Retrieves multiple rows from a table based on a where clause.
+   * Retrieves multiple records matching the where criteria
+   * 
+   * @param table - Table name
+   * @param where - Criteria to match records
+   * @returns Promise resolving to array of records
    */
   const list = async (
     table: string,
@@ -116,7 +194,12 @@ export function getDatabase(options: PostgresOptions = {}) {
   };
 
   /**
-   * Updates rows in a table based on a where clause and returns the updated rows.
+   * Updates records matching the where criteria
+   * 
+   * @param table - Table name
+   * @param where - Criteria to match records to update
+   * @param data - New data to set
+   * @returns Promise resolving to operation result
    */
   const update = async (
     table: string,
@@ -137,6 +220,13 @@ export function getDatabase(options: PostgresOptions = {}) {
     return { operation: "update", affected: result.rowCount ?? 0 };
   };
 
+  /**
+   * Gets a record matching the where criteria or inserts it if not found
+   * 
+   * @param table - Table name
+   * @param where - Criteria to match existing record
+   * @returns Promise resolving to the query result or insert result
+   */
   const getOrInsert = async (
     table: string,
     where: Record<string, any>,
@@ -146,6 +236,12 @@ export function getDatabase(options: PostgresOptions = {}) {
     return insert(table, where);
   };
 
+  /**
+   * Creates a table-specific interface for simplified table operations
+   * 
+   * @param tableName - Table name
+   * @returns TableMethods interface for the specified table
+   */
   const table = (tableName: string): TableMethods => {
     return {
       insert: (data) => insert(tableName, data),
@@ -154,11 +250,28 @@ export function getDatabase(options: PostgresOptions = {}) {
     };
   };
 
+  /**
+   * Template and values extracted from a tagged template literal
+   */
   interface SqlTemplate {
+    /**
+     * SQL query with parameter placeholders
+     */
     sql: string;
+    
+    /**
+     * Values to use as parameters
+     */
     values: any[];
   }
 
+  /**
+   * Parses a tagged template literal into a SQL query and values
+   * 
+   * @param strings - Template strings
+   * @param vars - Variables to interpolate into the query
+   * @returns Object with SQL query and values array
+   */
   const parseTemplate = (
     strings: TemplateStringsArray,
     ...vars: any[]
@@ -172,6 +285,13 @@ export function getDatabase(options: PostgresOptions = {}) {
     return { sql, values };
   };
 
+  /**
+   * Executes a SQL query using template literals and returns a single value
+   * 
+   * @param strings - Template strings
+   * @param vars - Variables to interpolate into the query
+   * @returns Promise resolving to a single value (first column of first row)
+   */
   const pluck = async (
     strings: TemplateStringsArray,
     ...vars: any[]
@@ -181,6 +301,13 @@ export function getDatabase(options: PostgresOptions = {}) {
     return result.rows[0][0];
   };
 
+  /**
+   * Executes a SQL query using template literals and returns a single row
+   * 
+   * @param strings - Template strings
+   * @param vars - Variables to interpolate into the query
+   * @returns Promise resolving to a single result record or null
+   */
   const single = async (
     strings: TemplateStringsArray,
     ...vars: any[]
@@ -190,6 +317,13 @@ export function getDatabase(options: PostgresOptions = {}) {
     return result.rows[0];
   };
 
+  /**
+   * Executes a SQL query using template literals and returns multiple rows
+   * 
+   * @param strings - Template strings
+   * @param vars - Variables to interpolate into the query
+   * @returns Promise resolving to array of result records
+   */
   const many = async (
     strings: TemplateStringsArray,
     ...vars: any[]
@@ -199,6 +333,13 @@ export function getDatabase(options: PostgresOptions = {}) {
     return rows;
   };
 
+  /**
+   * Executes a SQL query using template literals without returning results
+   * 
+   * @param strings - Template strings
+   * @param vars - Variables to interpolate into the query
+   * @returns Promise that resolves when the query completes
+   */
   const execute = async (
     strings: TemplateStringsArray,
     ...vars: any[]
@@ -207,6 +348,13 @@ export function getDatabase(options: PostgresOptions = {}) {
     await client.query(sql, values);
   };
 
+  /**
+   * Executes a raw SQL query with parameterized values
+   * 
+   * @param sql - SQL query string
+   * @param values - Variables to use as parameters
+   * @returns Promise resolving to query result with rows and count
+   */
   const query = async (
     sql: string,
     values: any[],
@@ -218,6 +366,12 @@ export function getDatabase(options: PostgresOptions = {}) {
     };
   };
 
+  /**
+   * Checks if a table exists in the database
+   * 
+   * @param tableName - Name of the table to check
+   * @returns Promise resolving to boolean indicating if the table exists
+   */
   const tableExists = async (tableName: string): Promise<boolean> => {
     const result = await client.query(
       `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = $1)`,
@@ -225,11 +379,12 @@ export function getDatabase(options: PostgresOptions = {}) {
     );
     return result.rows[0].exists;
   };
-  // cute aliases
-  const oo = many;
-  const oO = single;
-  const ox = pluck;
-  const xx = execute;
+  
+  // Shorthand aliases for query methods
+  const oo = many;   // (o)bjective-(o)bjects: returns multiple rows
+  const oO = single; // (o)bjective-(O)bject: returns a single row
+  const ox = pluck;  // (o)bjective-(x): returns a single value
+  const xx = execute; // (x)ecute-(x)ecute: executes without returning
 
   return {
     client,
