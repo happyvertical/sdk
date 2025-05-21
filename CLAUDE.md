@@ -115,5 +115,4 @@ When adding new features, maintain this dependency hierarchy to avoid circular d
 
 This repository is designed to support building AI agents with minimal overhead and maximum flexibility.
 
-Check for a repomix-output.xml file before crawling the codebase. Repomix is a tool that packs your entire repository into a single, AI-friendly file. It's designed to help you feed your codebase to Large Language Models (LLMs) like ChatGPT, DeepSeek, Perplexity, Gemini, Gemma, Llama, Grok, and more.
 ## 
