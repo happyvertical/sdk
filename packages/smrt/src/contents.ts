@@ -9,40 +9,108 @@ import { BaseCollection } from './collection.js';
 import { Content } from './content.js';
 import { Document } from './document.js';
 
+/**
+ * Configuration options for Contents collection
+ */
 export interface ContentsOptions extends BaseCollectionOptions {
+  /**
+   * AI client configuration options
+   */
   ai?: AIClientOptions;
+  
+  /**
+   * Directory to store content files
+   */
   contentDir?: string;
 }
 
+/**
+ * Collection for managing Content objects
+ * 
+ * The Contents collection provides functionality for managing and manipulating
+ * collections of Content objects, including saving to the filesystem and
+ * mirroring content from remote URLs.
+ */
 export class Contents extends BaseCollection<Content> {
+  /**
+   * Class constructor for collection items
+   */
   static _itemClass = Content;
+  
+  /**
+   * Configuration options
+   */
   public options: ContentsOptions = {} as ContentsOptions;
+  
+  /**
+   * Sample content for reference
+   */
   private exampleContent!: Content;
+  
+  /**
+   * Map of loaded content objects
+   */
   private loaded: Map<string, Content>;
+  
+  /**
+   * Directory to store content files
+   */
   public contentDir?: string;
 
+  /**
+   * Creates and initializes a Contents collection
+   * 
+   * @param options - Configuration options
+   * @returns Promise resolving to the initialized Contents collection
+   */
   static async create(options: ContentsOptions): Promise<Contents> {
     const contents = new Contents(options);
     await contents.initialize();
     return contents;
   }
 
+  /**
+   * Creates a new Contents collection
+   * 
+   * @param options - Configuration options
+   */
   constructor(options: ContentsOptions) {
     super(options);
     this.options = options; //needed cause redeclare above i think ?
     this.loaded = new Map();
   }
 
+  /**
+   * Gets the database interface
+   * 
+   * @returns Database interface
+   */
   getDb() {
     return this._db;
   }
 
+  /**
+   * Initializes the collection
+   * 
+   * @returns Promise that resolves when initialization is complete
+   */
   public async initialize(): Promise<void> {
     await super.initialize();
   }
 
-  // todo: param to force refresh
-  // todo: check age of mirror and if older than x check for updates
+  /**
+   * Mirrors content from a remote URL
+   * 
+   * Downloads and stores content from a remote URL, extracting text
+   * and saving it as a Content object.
+   * 
+   * @param options - Mirror options
+   * @param options.url - URL to mirror
+   * @param options.mirrorDir - Directory for caching mirrored files
+   * @param options.context - Context for the mirrored content
+   * @returns Promise resolving to the mirrored Content object
+   * @throws Error if URL is invalid or missing
+   */
   public async mirror(options: {
     url: string;
     mirrorDir?: string;
@@ -93,6 +161,15 @@ export class Contents extends BaseCollection<Content> {
     }
   }
 
+  /**
+   * Writes a Content object to the filesystem as a markdown file
+   * 
+   * @param options - Options for writing the content file
+   * @param options.content - Content object to write
+   * @param options.contentDir - Directory to write the file to
+   * @returns Promise that resolves when the file is written
+   * @throws Error if contentDir is not provided
+   */
   public async writeContentFile(options: {
     content: Content;
     contentDir: string;
@@ -137,6 +214,12 @@ export class Contents extends BaseCollection<Content> {
     await writeFile(outputFile, output);
   }
 
+  /**
+   * Checks if text appears to be in markdown format
+   * 
+   * @param text - Text to check
+   * @returns Boolean indicating if the text contains markdown syntax
+   */
   private isMarkdown(text: string): boolean {
     // Basic check for common markdown indicators
     const markdownIndicators = [
@@ -153,6 +236,12 @@ export class Contents extends BaseCollection<Content> {
     return markdownIndicators.some((indicator) => indicator.test(text));
   }
 
+  /**
+   * Formats plain text as simple markdown
+   * 
+   * @param text - Plain text to format
+   * @returns Text formatted as basic markdown
+   */
   private formatAsMarkdown(text: string): string {
     // Basic formatting of plain text to markdown
     return text
@@ -162,6 +251,16 @@ export class Contents extends BaseCollection<Content> {
       .join('\n\n');
   }
 
+  /**
+   * Synchronizes content to the filesystem
+   * 
+   * Writes all article-type Content objects to the filesystem
+   * as markdown files.
+   * 
+   * @param options - Sync options
+   * @param options.contentDir - Directory to write content files to
+   * @returns Promise that resolves when synchronization is complete
+   */
   public async syncContentDir(options: { contentDir?: string }) {
     const contentFilter = {
       type: 'article',

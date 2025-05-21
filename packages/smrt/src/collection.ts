@@ -10,13 +10,30 @@ import {
 import { syncSchema, buildWhere } from '@have/sql';
 import { BaseObject } from './object.js';
 
+/**
+ * Configuration options for BaseCollection
+ */
 export interface BaseCollectionOptions extends BaseClassOptions {}
 
+/**
+ * Collection interface for managing sets of BaseObjects
+ * 
+ * BaseCollection provides methods for querying, creating, and managing
+ * collections of persistent objects. It handles database setup, schema
+ * generation, and provides a fluent interface for querying objects.
+ */
 export class BaseCollection<
   ModelType extends BaseObject<any>,
   T extends BaseCollectionOptions = BaseCollectionOptions,
 > extends BaseClass<T> {
+  /**
+   * Promise tracking the database setup operation
+   */
   protected _db_setup_promise: Promise<void> | null = null;
+  
+  /**
+   * Gets the class constructor for items in this collection
+   */
   protected get _itemClass(): (new (options: any) => ModelType) & {
     create(options: any): ModelType | Promise<ModelType>;
   } {
@@ -38,7 +55,14 @@ export class BaseCollection<
     return constructor._itemClass;
   }
 
+  /**
+   * Static reference to the item class constructor
+   */
   static readonly _itemClass: any;
+  
+  /**
+   * Database table name for this collection
+   */
   public _tableName!: string;
 
   /**
@@ -58,10 +82,20 @@ export class BaseCollection<
     // Add more operators as needed
   } as const;
 
+  /**
+   * Creates a new BaseCollection instance
+   * 
+   * @param options - Configuration options
+   */
   constructor(options: T) {
     super(options);
   }
 
+  /**
+   * Initializes the collection, setting up database tables
+   * 
+   * @returns Promise that resolves when initialization is complete
+   */
   public async initialize() {
     await super.initialize();
     if (this.options.db) {
@@ -69,6 +103,12 @@ export class BaseCollection<
     }
   } 
 
+  /**
+   * Retrieves a single object from the collection by ID, slug, or custom filter
+   * 
+   * @param filter - String ID/slug or object with filter conditions
+   * @returns Promise resolving to the object or null if not found
+   */
   public async get(filter: string | Record<string, any>) {
     const where =
       typeof filter === 'string'
@@ -94,13 +134,14 @@ export class BaseCollection<
   }
 
   /**
-   * Lists records from the collection with flexible filtering options.
+   * Lists records from the collection with flexible filtering options
    *
-   * @param options Query options object
-   * @param options.where Record of conditions to filter results. Each key can include an operator
+   * @param options - Query options object
+   * @param options.where - Record of conditions to filter results. Each key can include an operator
    *                      separated by a space (e.g., 'price >', 'name like'). Default operator is '='.
-   * @param options.offset Number of records to skip
-   * @param options.limit Maximum number of records to return
+   * @param options.offset - Number of records to skip
+   * @param options.limit - Maximum number of records to return
+   * @param options.orderBy - Field(s) to order results by, with optional direction
    *
    * @example
    * ```typescript
@@ -189,6 +230,12 @@ export class BaseCollection<
     );
   }
 
+  /**
+   * Creates a new instance of the collection's item class
+   * 
+   * @param options - Options for creating the item
+   * @returns New item instance
+   */
   public create(options: any) {
     const params = {
       ai: this.options.ai,
@@ -198,7 +245,13 @@ export class BaseCollection<
     return this._itemClass.create(params);
   }
 
-  //todo: tx to protect against race condition
+  /**
+   * Gets an existing item or creates a new one if it doesn't exist
+   * 
+   * @param data - Object data to find or create
+   * @param defaults - Default values to use if creating a new object
+   * @returns Promise resolving to the existing or new object
+   */
   public async getOrUpsert(data: any, defaults: any = {}) {
     data = formatDataSql(data);
     let where: any = {};
@@ -225,6 +278,13 @@ export class BaseCollection<
     return upserted;
   }
 
+  /**
+   * Gets differences between an existing object and new data
+   * 
+   * @param existing - Existing object
+   * @param data - New data
+   * @returns Object containing only the changed fields
+   */
   getDiff(
     existing: Record<string, any>,
     data: Record<string, any>,
@@ -241,6 +301,11 @@ export class BaseCollection<
     );
   }
 
+  /**
+   * Sets up the database schema for this collection
+   * 
+   * @returns Promise that resolves when setup is complete
+   */
   async setupDb() {
     if (this._db_setup_promise) {
       return this._db_setup_promise;
@@ -260,15 +325,30 @@ export class BaseCollection<
     return this._db_setup_promise;
   }
 
+  /**
+   * Gets field definitions for the collection's item class
+   * 
+   * @returns Object containing field definitions
+   */
   getFields() {
     return fieldsFromClass(this._itemClass);
   }
 
+  /**
+   * Generates database schema for the collection's item class
+   * 
+   * @returns Schema object for database setup
+   */
   generateSchema() {
     // Use the imported generateSchema function with the item class
     return generateSchema(this._itemClass);
   }
 
+  /**
+   * Sets up database triggers for automatically updating timestamps
+   * 
+   * @returns Promise that resolves when triggers are set up
+   */
   async setupTriggers() {
     const triggers = [
       `${this.tableName}_set_created_at`,
@@ -306,6 +386,9 @@ export class BaseCollection<
     }
   }
 
+  /**
+   * Gets the database table name for this collection
+   */
   get tableName() {
     if (!this._tableName) {
       this._tableName = tableNameFromClass(this.constructor);
@@ -313,6 +396,11 @@ export class BaseCollection<
     return this._tableName;
   }
 
+  /**
+   * Generates a table name from the collection class name
+   * 
+   * @returns Generated table name
+   */
   generateTableName() {
     // Convert camelCase/PascalCase to snake_case and pluralize
     const tableName = this._className
@@ -329,11 +417,12 @@ export class BaseCollection<
   }
 
   /**
-   * Counts records in the collection matching the given filters.
+   * Counts records in the collection matching the given filters
+   * 
    * Accepts the same where conditions as list() but ignores limit/offset/orderBy.
    * 
-   * @param options Query options object
-   * @param options.where Record of conditions to filter results
+   * @param options - Query options object
+   * @param options.where - Record of conditions to filter results
    * @returns Promise resolving to the total count of matching records
    */
   public async count(options: { where?: Record<string, any> } = {}) {

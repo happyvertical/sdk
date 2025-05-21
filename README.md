@@ -34,11 +34,52 @@ sqlite is cool and can be useful on the edge
   - standardised collection, object, classes .. all include db, fs, ai interfaces and options
   - fast and loose database schemas defined by class properties supporting sqlite first and an eye on postgres
 
-# cheatsheet
+# Development
+
+Check the CONTRIBUTING.md file for detailed contribution guidelines.
 
 ```bash
-pnpx degit huntabyte/shadcdn-svelte/sites/docs/src/lib/registry/default/ui/card ./src/lib/components/card
+# Install dependencies
+pnpm install
 
+# Run tests
+pnpm test
+
+# Build all packages in correct order
+pnpm build
+
+# Generate documentation only
+pnpm docs
+
+# Watch mode development
+pnpm dev
+
+# Lint code
+pnpm lint
+
+# Format code
+pnpm format
 ```
 
-https://github.com/
+# Documentation
+
+## Local Documentation
+
+The SDK provides automatically generated HTML documentation in the `docs/manual` directory.
+This is generated during the build process and can be viewed by opening `docs/manual/index.html` in your browser.
+
+You can generate the documentation separately by running:
+
+```bash
+pnpm docs
+```
+
+## Online Documentation
+
+The latest API documentation is also available online at:
+
+```
+https://happyvertical.github.io/sdk/
+```
+
+This documentation is automatically updated whenever changes are merged to the master branch.
