@@ -71,6 +71,24 @@ jobs:
           git commit -m "chore(release): bump version to $(node -p "require('./package.json').version")"
           git push --follow-tags
 
+      - name: "Convert and add TODOs to github issues"
+        uses: "alstr/todo-to-issue-action@v5"
+        with:
+          INSERT_ISSUE_URLS: "true"
+          IDENTIFIERS: [{"name": "TODO", "labels": []}]
+          PROJECT_SECRET: ${{ secrets.GITHUB_TOKEN }}
+          PROJECT: happyvertical/sdk
+
+      - name: Commit and Push Changes
+        run: |
+          git add -A
+          if [[ `git status --porcelain` ]]; then
+            git commit -m "chore(release): Automatically added GitHub issue links to TODOs"
+            git push origin master
+          else
+            echo "No changes to commit"
+          fi
+
       - name: Publish packages
         run: |
           # Create .npmrc file with GitHub registry configuration
@@ -80,15 +98,16 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
+
+      # disabled until repo goes public          
+      # - name: Setup Pages
+      #   uses: actions/configure-pages@v4
         
-      - name: Upload documentation artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: 'docs/manual'
+      # - name: Upload documentation artifact
+      #   uses: actions/upload-pages-artifact@v3
+      #   with:
+      #     path: 'docs/manual'
           
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      # - name: Deploy to GitHub Pages
+      #   id: deployment
+      #   uses: actions/deploy-pages@v4

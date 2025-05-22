@@ -1,178 +1,178 @@
-# formerly sqloo
+# @have/sql
 
-a simple interface to sqlite and/or postgres for basic tasks
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-```js
-// get a postgres database
-const db = await getDatabase({
-  host: "localhost",
+Database interaction library with support for SQLite and PostgreSQL in the HAVE SDK.
+
+## Overview
+
+The `@have/sql` package provides a simple and consistent interface for interacting with SQL databases. It supports both SQLite and PostgreSQL with the same API, making it easy to develop locally with SQLite and deploy to production with PostgreSQL.
+
+## Features
+
+- Unified API for SQLite and PostgreSQL
+- Template literal query interface with automatic parameterization
+- Type-safe query results
+- Simple CRUD operations with minimal boilerplate
+- Connection pooling and efficient resource management
+- Transaction support
+- Migration utilities
+- No ORM overhead, just raw SQL with safety features
+
+## Installation
+
+```bash
+# Install with npm
+npm install @have/sql
+
+# Or with yarn
+yarn add @have/sql
+
+# Or with pnpm
+pnpm add @have/sql
+```
+
+## Usage
+
+### Connecting to a Database
+
+```typescript
+import { getDatabase } from '@have/sql';
+
+// Connect to SQLite
+const sqliteDb = await getDatabase({
+  file: ':memory:', // In-memory database
+  // Or use a file path:
+  // file: './my-database.sqlite',
+});
+
+// Connect to PostgreSQL
+const pgDb = await getDatabase({
+  host: 'localhost',
   port: 5432,
-  database: "sqlooooo",
-  user: "oO",
-  password: "ackBillD.C@",
+  database: 'my_database',
+  user: 'username',
+  password: 'password',
 });
 ```
 
-```js
-// get a sqlite database
-const db = await getDatabase({
-  file: "::memory::",
-});
-```
+### Executing Queries
 
-```js
-// fetch all the posts
+The package provides several template literal functions for different query types:
+
+- `oo` - Returns all rows from a query
+- `oO` - Returns a single row
+- `ox` - Returns a single value (first column of first row)
+- `xx` - Executes a statement (no return value)
+
+```typescript
+// Fetch all posts
 const { oo } = db;
 const posts = await oo`
-  select * from posts
+  SELECT * FROM posts
+  WHERE published = true
+  ORDER BY created_at DESC
 `;
-```
+console.log(posts);
 
-```js
-// fetch a single post
+// Fetch a single post
 const { oO } = db;
 const post = await oO`
-  select * from posts where author = ${author} order by created_at desc limit 1
+  SELECT * FROM posts
+  WHERE id = ${postId}
 `;
-```
+console.log(post);
 
-```js
-// pluck the first value from the first row
+// Get a count
 const { ox } = db;
-const id = await ox`
-  select id from posts where author = ${author} order by created_at desc limit 1
+const count = await ox`
+  SELECT COUNT(*) FROM posts
+  WHERE author = ${authorName}
 `;
-```
+console.log(`Found ${count} posts by ${authorName}`);
 
-```js
-// execute a statement
+// Execute a statement
 const { xx } = db;
 await xx`
-  delete from posts where author = ${author}
+  DELETE FROM posts
+  WHERE id = ${postId}
 `;
 ```
 
-## Functions (db.\*)
+### Using CRUD Helper Functions
 
-### `insert(table, data)`
+```typescript
+// Insert data
+const newPost = await db.insert('posts', {
+  title: 'Hello World',
+  content: 'This is my first post',
+  author: 'Jane Doe',
+  created_at: new Date()
+});
 
-Inserts data into a table and returns the inserted rows.
+// Get a record by criteria
+const post = await db.get('posts', { id: 123 });
 
-- `table` (string): The name of the table.
-- `data` (Object | Object[]): The data to insert.
-- Returns: `Promise<Object | Object[]>`: The inserted rows, return type will match data.
+// List records with filters
+const recentPosts = await db.list('posts', {
+  author: 'Jane Doe',
+  published: true
+});
 
-### `get(table, where)`
+// Update records
+await db.update('posts', 
+  { id: 123 }, // where
+  { title: 'Updated Title' } // set
+);
 
-Retrieves a row from a table based on a where clause.
+// Create a table-specific helper
+const postsTable = db.table('posts');
+const post = await postsTable.get({ id: 123 });
+const newPost = await postsTable.insert({
+  title: 'Another Post',
+  content: 'More content here',
+  author: 'John Smith'
+});
+```
 
-- `table` (string): The name of the table.
-- `where` (Object): The where clause.
-- Returns: `Promise<Object>`: The retrieved row.
+### Using Transactions
 
-### `list(table, where)`
+```typescript
+// Start a transaction
+await db.transaction(async (tx) => {
+  // Use transaction object like the db object
+  await tx.xx`
+    INSERT INTO categories (name) 
+    VALUES (${categoryName})
+  `;
+  
+  const categoryId = await tx.ox`
+    SELECT id FROM categories 
+    WHERE name = ${categoryName}
+  `;
+  
+  await tx.xx`
+    INSERT INTO posts (title, category_id)
+    VALUES (${title}, ${categoryId})
+  `;
+  
+  // Transaction automatically commits if no errors
+  // Or rolls back if any error is thrown
+});
+```
 
-Retrieves multiple rows from a table based on a where clause.
+## Important Notes
 
-- `table` (string): The name of the table.
-- `where` (Object): The where clause.
-- Returns: `Promise<Array>`: The retrieved rows.
+- Always use parameterized queries with the template literal functions
+- Don't use variables for table or column names - only for values
+- Don't accept unsanitized user input for table or column names
+- Keep raw SQL as ANSI-compatible as possible for database portability
+- Move complex operations to per-database-adapter functions
 
-### `update(table, where, data)`
+## API Reference
 
-Updates rows in a table based on a where clause and returns the updated rows.
+See the [API documentation](https://happyvertical.github.io/sdk/modules/_have_sql.html) for detailed information on all available methods and options.
 
-- `table` (string): The name of the table.
-- `where` (Object): The where clause.
-- `data` (Object): The data to update.
-- Returns: `Promise<Object>`: The updated rows.
+## License
 
-### `table(table)`
-
-Returns an object with insert, get, and list methods for a specific table.
-
-- `table` (string): The name of the table.
-- Returns: `Object`: An object with insert, get, and list methods.
-
-### `parseTemplate(strings, ...vars)`
-
-Parses a SQL template into a SQL string and an array of values.
-
-- `strings` (Array): The strings in the SQL template.
-- `vars` (...any): The variables in the SQL template.
-- Returns: `Object`: An object with a sql property and a values property.
-
-### `pluck(strings, ...vars)`
-
-Executes a SQL query and returns the first column of the first row. Handles templates with it's alias "xo"
-
-- `strings` (TemplateStringsArray): The strings in the SQL template.
-- `vars` (...any): The variables in the SQL template.
-- Returns: `Promise<any>`: The first column of the first row.
-
-### `single(strings, ...vars)`
-
-Executes a SQL query and returns the first row. Handles templates with it's alias "oO"
-
-- `strings` (TemplateStringsArray): The strings in the SQL template.
-- `vars` (...any): The variables in the SQL template.
-- Returns: `Promise<Object>`: The first row.
-
-### `many(strings, ...vars)`
-
-Executes a SQL query and returns all rows. Handles templates with it's alias "oo"
-
-- `strings` (TemplateStringsArray): The strings in the SQL template.
-- `vars` (...any): The variables in the SQL template.
-- Returns: `Promise<Array>`: All rows.
-
-### `execute(strings, ...vars)`
-
-Executes a SQL query. Handles templates with it's alias "xx"
-
-- `strings` (TemplateStringsArray): The strings in the SQL template.
-- `vars` (...any): The variables in the SQL template.
-- Returns: `Promise<pg.QueryResult>`: The result of the query.
-
-## Warning
-
-- dont use variables for anything except values in template queries
-- dont accept unsantized user input for table or column names
-
-# chats
-
-## raw sql
-
-is there a standard both sqlite and postgres adhere to? What does ANSI compatible mean exactly?
-
-If I say, "raw sql should be kept as ANSI compatible with more complex operations moved to per-database-adapter functions " does that make sense ?
-
-The goal being the raw sql remains compatible between sqlite and postgres/mysql
-
-ChatGPT said:
-ChatGPT
-Yes, both SQLite and PostgreSQL adhere to SQL standards, specifically versions of ANSI SQL (American National Standards Institute SQL), also known as ISO SQL (since it’s standardized by ISO/IEC as well). However, no database fully implements the standard, and each has its own extensions and deviations.
-
-What "ANSI Compatible" Means
-When you say "ANSI-compatible," it generally means:
-
-Using standard SQL syntax (e.g., SELECT, INSERT, UPDATE, DELETE, JOIN, WHERE, GROUP BY).
-Avoiding database-specific extensions (e.g., ILIKE in PostgreSQL, AUTOINCREMENT in SQLite).
-Using standard data types where possible (INTEGER, TEXT, DECIMAL instead of SERIAL in Postgres or BOOLEAN in SQLite).
-Ensuring compatibility in functions and operators (COALESCE(), CASE WHEN, etc.).
-Your Approach
-Your statement:
-
-"Raw SQL should be kept as ANSI compatible with more complex operations moved to per-database-adapter functions."
-Makes sense and is a good practice. This means:
-
-Keep simple queries ANSI-compliant, so they work across SQLite, PostgreSQL, and potentially MySQL.
-Move complex operations (e.g., JSON handling, CTEs, window functions, full-text search, advanced indexing) into per-database adapters.
-Considerations
-Column types: BOOLEAN is not standard; SQLite treats it as INTEGER. Use INTEGER (0/1) instead.
-Auto-increment: PostgreSQL uses SERIAL, while SQLite uses INTEGER PRIMARY KEY AUTOINCREMENT. Standard SQL uses IDENTITY.
-Upserts: Use INSERT ... ON CONFLICT DO UPDATE (PostgreSQL, SQLite) vs. INSERT ... ON DUPLICATE KEY UPDATE (MySQL).
-JSON: PostgreSQL has jsonb, while SQLite requires extensions.
-Date/Time: Use TEXT with ISO 8601 format (YYYY-MM-DD HH:MM:SS) for portability.
-Summary
-Your approach is solid: keep simple SQL portable and delegate complex operations to database-specific adapters.
+This package is part of the HAVE SDK and is licensed under the MIT License - see the [LICENSE](../../LICENSE) file for details.
