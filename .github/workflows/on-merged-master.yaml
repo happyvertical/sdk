@@ -75,7 +75,7 @@ jobs:
         uses: "alstr/todo-to-issue-action@v5"
         with:
           INSERT_ISSUE_URLS: "true"
-          IDENTIFIERS: [{"name": "TODO", "labels": []}]
+          IDENTIFIERS: '[{"name": "TODO", "labels": []}]'
           PROJECT_SECRET: ${{ secrets.GITHUB_TOKEN }}
           PROJECT: happyvertical/sdk
 
