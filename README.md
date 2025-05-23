@@ -1,42 +1,70 @@
-# HAppy VEertical _SDK_
+# HAppy VErtical SDK (HAVE SDK)
 
-# what
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-- a dangerous library for fools and madmen (currently)
-- pure ts, never want to worry about cjs vs esm agin
-- test cheap scale easy
-- minimise dependencies with monorepo maintained by robots .. shadcdn philosophy applied to backend
-- re-useable libraries for building vertical ai agents
-- code compartmentalised to keep robots lean
-- i want to be able to run stuff in cicd jobs and as part of a (sveltekit) site build
+A modular TypeScript SDK for building vertical AI agents with minimal dependencies and maximum flexibility.
 
-# why
+## Overview
 
-i want to replace dependency hell with robots work
-i want to test a crazy idea cheap and if it gets traction move to production without requiring a massive refactor
-if shadcdn can do it on the frontend, why not
+HAVE SDK is designed with these core principles:
 
-# how
+- **Pure TypeScript** implementation to avoid CommonJS vs ESM compatibility issues
+- **Minimal dependencies** through a carefully designed monorepo architecture
+- **Compartmentalized code** to keep AI agents lean and focused
+- **Easy testing and scaling** with minimal overhead
+- **Standardized interfaces** across different packages
 
-i hate vendor lock
-i hate overhead
-i hate dependencies
-sqlite is cool and can be useful on the edge
+## Packages
 
-# packages
+| Package | Description |
+|---------|-------------|
+| [@have/ai](./packages/ai/) | Standardized interface for AI model interactions, currently supporting OpenAI |
+| [@have/files](./packages/files/) | Tools for interacting with file systems (local and remote) |
+| [@have/pdf](./packages/pdf/) | Utilities for parsing and processing PDF documents |
+| [@have/smrt](./packages/smrt/) | Core library for building AI agents with standardized collections and objects |
+| [@have/spider](./packages/spider/) | Web crawling and content parsing tools |
+| [@have/sql](./packages/sql/) | Database interaction with support for SQLite and Postgres |
+| [@have/utils](./packages/utils/) | Shared utility functions used across packages |
 
-- ai: a library for interacting with ai models, provides a standardised interface
-- sql: a library for interacting with sql databases, provides a standardised interface (sqlite and postgres)
-  - not trying to be an orm
-- web: tools for crawling the web, scraping content, and parsing it into a standardised format - maybe rename to spider
-- files: a library for interacting with file systems, provides a standardised interface for local and remote file systems
-- smrt: a library for building vertical ai agents, probably anything but
-  - standardised collection, object, classes .. all include db, fs, ai interfaces and options
-  - fast and loose database schemas defined by class properties supporting sqlite first and an eye on postgres
+## Installation
 
-# Development
+```bash
+# Install with npm
+npm install @have/smrt
 
-Check the CONTRIBUTING.md file for detailed contribution guidelines.
+# Or with yarn
+yarn add @have/smrt
+
+# Or with pnpm
+pnpm add @have/smrt
+```
+
+You can also install individual packages based on your needs:
+
+```bash
+pnpm add @have/ai @have/files @have/spider
+```
+
+## Getting Started
+
+```typescript
+import { Agent } from '@have/smrt';
+import { OpenAIModel } from '@have/ai';
+
+// Create a new agent
+const agent = new Agent({
+  model: new OpenAIModel({ apiKey: process.env.OPENAI_API_KEY }),
+  // Configure additional tools as needed
+});
+
+// Use the agent
+const result = await agent.run('Analyze this text and extract key insights');
+console.log(result);
+```
+
+See each package's README for more detailed usage examples.
+
+## Development
 
 ```bash
 # Install dependencies
@@ -48,9 +76,6 @@ pnpm test
 # Build all packages in correct order
 pnpm build
 
-# Generate documentation only
-pnpm docs
-
 # Watch mode development
 pnpm dev
 
@@ -61,9 +86,9 @@ pnpm lint
 pnpm format
 ```
 
-# Documentation
+## Documentation
 
-## Local Documentation
+### Local Documentation
 
 The SDK provides automatically generated HTML documentation in the `docs/manual` directory.
 This is generated during the build process and can be viewed by opening `docs/manual/index.html` in your browser.
@@ -74,12 +99,18 @@ You can generate the documentation separately by running:
 pnpm docs
 ```
 
-## Online Documentation
+### Online Documentation
 
-The latest API documentation is also available online at:
+The latest API documentation is available online at:
 
-```
-https://happyvertical.github.io/sdk/
-```
+[https://happyvertical.github.io/sdk/](https://happyvertical.github.io/sdk/)
 
 This documentation is automatically updated whenever changes are merged to the master branch.
+
+## Contributing
+
+We welcome contributions! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for details on how to submit pull requests, the development process, and coding standards.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
