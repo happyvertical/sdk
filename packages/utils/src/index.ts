@@ -4,6 +4,155 @@ import { URL } from 'url';
 
 import { v4 as uuidv4 } from 'uuid';
 
+export enum ErrorCode {
+  VALIDATION_ERROR = 'VALIDATION_ERROR',
+  API_ERROR = 'API_ERROR',
+  FILE_ERROR = 'FILE_ERROR',
+  NETWORK_ERROR = 'NETWORK_ERROR',
+  DATABASE_ERROR = 'DATABASE_ERROR',
+  PARSING_ERROR = 'PARSING_ERROR',
+  TIMEOUT_ERROR = 'TIMEOUT_ERROR',
+  UNKNOWN_ERROR = 'UNKNOWN_ERROR',
+}
+
+export class BaseError extends Error {
+  public readonly code: ErrorCode;
+  public readonly context?: Record<string, unknown>;
+  public readonly timestamp: Date;
+
+  constructor(
+    message: string,
+    code: ErrorCode = ErrorCode.UNKNOWN_ERROR,
+    context?: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = this.constructor.name;
+    this.code = code;
+    this.context = context;
+    this.timestamp = new Date();
+    Error.captureStackTrace(this, this.constructor);
+  }
+
+  toJSON() {
+    return {
+      name: this.name,
+      message: this.message,
+      code: this.code,
+      context: this.context,
+      timestamp: this.timestamp.toISOString(),
+      stack: this.stack,
+    };
+  }
+}
+
+export class ValidationError extends BaseError {
+  constructor(message: string, context?: Record<string, unknown>) {
+    super(message, ErrorCode.VALIDATION_ERROR, context);
+  }
+}
+
+export class ApiError extends BaseError {
+  constructor(message: string, context?: Record<string, unknown>) {
+    super(message, ErrorCode.API_ERROR, context);
+  }
+}
+
+export class FileError extends BaseError {
+  constructor(message: string, context?: Record<string, unknown>) {
+    super(message, ErrorCode.FILE_ERROR, context);
+  }
+}
+
+export class NetworkError extends BaseError {
+  constructor(message: string, context?: Record<string, unknown>) {
+    super(message, ErrorCode.NETWORK_ERROR, context);
+  }
+}
+
+export class DatabaseError extends BaseError {
+  constructor(message: string, context?: Record<string, unknown>) {
+    super(message, ErrorCode.DATABASE_ERROR, context);
+  }
+}
+
+export class ParsingError extends BaseError {
+  constructor(message: string, context?: Record<string, unknown>) {
+    super(message, ErrorCode.PARSING_ERROR, context);
+  }
+}
+
+export class TimeoutError extends BaseError {
+  constructor(message: string, context?: Record<string, unknown>) {
+    super(message, ErrorCode.TIMEOUT_ERROR, context);
+  }
+}
+
+export interface Logger {
+  debug(message: string, context?: Record<string, unknown>): void;
+  info(message: string, context?: Record<string, unknown>): void;
+  warn(message: string, context?: Record<string, unknown>): void;
+  error(message: string, context?: Record<string, unknown>): void;
+}
+
+class ConsoleLogger implements Logger {
+  debug(message: string, context?: Record<string, unknown>): void {
+    if (context) {
+      console.debug(message, context);
+    } else {
+      console.debug(message);
+    }
+  }
+
+  info(message: string, context?: Record<string, unknown>): void {
+    if (context) {
+      console.info(message, context);
+    } else {
+      console.info(message);
+    }
+  }
+
+  warn(message: string, context?: Record<string, unknown>): void {
+    if (context) {
+      console.warn(message, context);
+    } else {
+      console.warn(message);
+    }
+  }
+
+  error(message: string, context?: Record<string, unknown>): void {
+    if (context) {
+      console.error(message, context);
+    } else {
+      console.error(message);
+    }
+  }
+}
+
+class NoOpLogger implements Logger {
+  debug(): void {}
+  info(): void {}
+  warn(): void {}
+  error(): void {}
+}
+
+let globalLogger: Logger = new ConsoleLogger();
+
+export const setLogger = (logger: Logger): void => {
+  globalLogger = logger;
+};
+
+export const getLogger = (): Logger => {
+  return globalLogger;
+};
+
+export const disableLogging = (): void => {
+  globalLogger = new NoOpLogger();
+};
+
+export const enableLogging = (): void => {
+  globalLogger = new ConsoleLogger();
+};
+
 /**
  * Default temporary directory for SDK tests
  */
@@ -102,7 +251,13 @@ export function waitFor(
       }
       if (timeout > 0) {
         if (timeNow() > beginTime + timeout) {
-          return reject('Timed out');
+          return reject(
+            new TimeoutError('Function call timed out', {
+              timeout,
+              delay,
+              elapsedTime: timeNow() - beginTime,
+            }),
+          );
         }
       }
       setTimeout(waitATick, delay);
@@ -118,7 +273,7 @@ export function waitFor(
  */
 export const sleep = (duration: number) => {
   return new Promise<void>((resolve) => {
-    console.log(`sleeping for ${duration}ms`);
+    getLogger().debug(`Sleeping for ${duration}ms`);
     setTimeout(resolve, duration);
   });
 };
@@ -193,11 +348,18 @@ export const parseAmazonDateString = (dateStr: string): Date => {
     /^([0-9]{4})([0-9]{2})([0-9]{2})T([0-9]{2})([0-9]{2})([0-9]{2})([A-Z0-9]+)/;
   const match = dateStr.match(regex);
   if (!match) {
-    throw new Error('Couldnt parse date');
+    throw new ParsingError('Could not parse Amazon date string', {
+      dateString: dateStr,
+      expectedFormat: 'YYYYMMDDTHHMMSSZ',
+    });
   }
   const [matched, year, month, day, hour, minutes, seconds, timezone] = match;
   if (matched !== dateStr) {
-    throw new Error('Couldnt parse date');
+    throw new ParsingError('Invalid Amazon date string format', {
+      dateString: dateStr,
+      matched,
+      expectedFormat: 'YYYYMMDDTHHMMSSZ',
+    });
   }
 
   const date = new Date(

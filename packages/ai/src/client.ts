@@ -1,5 +1,6 @@
 import 'openai/shims/node';
 import OpenAI from 'openai';
+import { ApiError, ValidationError } from '@have/utils';
 
 import type { AIMessageOptions } from './message.js';
 
@@ -233,7 +234,10 @@ export class AIClient {
     if (isOpenAIClientOptions(options)) {
       return OpenAIClient.create(options);
     }
-    throw new Error('Invalid client type');
+    throw new ValidationError('Invalid client type specified', {
+      supportedTypes: ['openai'],
+      providedType: (options as any).type,
+    });
   }
 
   /**
@@ -564,7 +568,14 @@ export class OpenAIClient extends AIClient {
 
       const choice = response.choices[0];
       if (!choice || !choice.message || !choice.message.content) {
-        throw new Error('Invalid response from OpenAI API: Missing content');
+        throw new ApiError('Invalid response from OpenAI API: Missing content', {
+          model,
+          responseId: response.id,
+          choices: response.choices?.length || 0,
+          hasChoice: !!choice,
+          hasMessage: !!choice?.message,
+          hasContent: !!choice?.message?.content,
+        });
       }
       return choice.message.content;
     }
@@ -589,6 +600,9 @@ export async function getAIClient(
   if (options.type === 'openai') {
     return OpenAIClient.create(options);
   } else {
-    throw new Error('Invalid client type');
+    throw new ValidationError('Invalid client type specified', {
+      supportedTypes: ['openai'],
+      providedType: options.type,
+    });
   }
 }
