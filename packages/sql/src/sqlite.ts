@@ -5,6 +5,7 @@ import type {
   TableInterface,
 } from "./types.js";
 import { buildWhere } from "./index.js";
+import { DatabaseError, getLogger } from '@have/utils';
 
 /**
  * Configuration options for SQLite database connections
@@ -66,10 +67,12 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
       const result = await client.execute({ sql: sql, args: values });
       return { operation: "insert", affected: result.rowsAffected };
     } catch (e) {
-      console.error(
-        `Error executing SQL: ${sql}\nValues: ${JSON.stringify(values)}\nError: ${e}`,
-      );
-      throw e;
+      throw new DatabaseError('Failed to insert records into table', {
+        table,
+        sql,
+        values,
+        originalError: e instanceof Error ? e.message : String(e),
+      });
     }
   };
 
@@ -93,10 +96,12 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
       const result = await client.execute({ sql: sql, args: values });
       return result.rows[0] || null;
     } catch (e) {
-      console.error(
-        `Error executing SQL: ${sql}\nValues: ${JSON.stringify(values)}\nError: ${e}`,
-      );
-      throw e;
+      throw new DatabaseError('Failed to retrieve record from table', {
+        table,
+        sql,
+        values,
+        originalError: e instanceof Error ? e.message : String(e),
+      });
     }
   };
 
@@ -118,10 +123,12 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
       const result = await client.execute({ sql, args: values });
       return result.rows;
     } catch (e) {
-      console.error(
-        `Error executing SQL: ${sql}\nValues: ${JSON.stringify(values)}\nError: ${e}`,
-      );
-      throw e;
+      throw new DatabaseError('Failed to list records from table', {
+        table,
+        sql,
+        values,
+        originalError: e instanceof Error ? e.message : String(e),
+      });
     }
   };
 
@@ -154,10 +161,12 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
       });
       return { operation: "update", affected: result.rowsAffected };
     } catch (e) {
-      console.error(
-        `Error executing SQL: ${sql}\nValues: ${JSON.stringify([...values, ...whereValues])}\nError: ${e}`,
-      );
-      throw e;
+      throw new DatabaseError('Failed to update records in table', {
+        table,
+        sql,
+        values: [...values, ...whereValues],
+        originalError: e instanceof Error ? e.message : String(e),
+      });
     }
   };
 
@@ -181,7 +190,11 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
 
     const inserted = await get(table, where);
     if (!inserted) {
-      throw new Error("Failed to insert and retrieve record");
+      throw new DatabaseError('Failed to insert and retrieve record', {
+        table,
+        where,
+        data,
+      });
     }
     return inserted;
   };
@@ -244,10 +257,11 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
       const result = await client.execute({ sql, args: values });
       return result.rows[0]?.[Object.keys(result.rows[0])[0]] ?? null;
     } catch (e) {
-      console.error(
-        `Error executing SQL: ${sql}\nValues: ${JSON.stringify(values)}\nError: ${e}`,
-      );
-      throw e;
+      throw new DatabaseError('Failed to execute pluck query', {
+        sql,
+        values,
+        originalError: e instanceof Error ? e.message : String(e),
+      });
     }
   };
 
@@ -268,10 +282,11 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
       const result = await client.execute({ sql, args: values });
       return result.rows[0] || null;
     } catch (e) {
-      console.error(
-        `Error executing SQL: ${sql}\nValues: ${JSON.stringify(values)}\nError: ${e}`,
-      );
-      throw e;
+      throw new DatabaseError('Failed to execute single query', {
+        sql,
+        values,
+        originalError: e instanceof Error ? e.message : String(e),
+      });
     }
   };
 
@@ -292,10 +307,11 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
       const result = await client.execute({ sql, args: values });
       return result.rows;
     } catch (e) {
-      console.error(
-        `Error executing SQL: ${sql}\nValues: ${JSON.stringify(values)}\nError: ${e}`,
-      );
-      throw e;
+      throw new DatabaseError('Failed to execute many query', {
+        sql,
+        values,
+        originalError: e instanceof Error ? e.message : String(e),
+      });
     }
   };
 
@@ -315,10 +331,11 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
     try {
       await client.execute({ sql, args: values });
     } catch (e) {
-      console.error(
-        `Error executing SQL: ${sql}\nValues: ${JSON.stringify(values)}\nError: ${e}`,
-      );
-      throw e;
+      throw new DatabaseError('Failed to execute query', {
+        sql,
+        values,
+        originalError: e instanceof Error ? e.message : String(e),
+      });
     }
   };
 
@@ -351,10 +368,11 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
         rows: result.rows,
       };
     } catch (e) {
-      console.error(
-        `Error executing SQL: ${sql}\nValues: ${JSON.stringify(args)}\nError: ${e}`,
-      );
-      throw e;
+      throw new DatabaseError('Failed to execute raw query', {
+        sql,
+        args,
+        originalError: e instanceof Error ? e.message : String(e),
+      });
     }
   };
 
