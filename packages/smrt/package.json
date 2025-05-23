@@ -38,6 +38,7 @@
     "@types/node": "^22.10.7",
     "pdf-parse": "^1.1.1",
     "pdfjs-dist": "^4.10.38",
-    "scribe.js-ocr": "^0.7.0"
+    "scribe.js-ocr": "^0.7.0",
+    "vitest": "^3.1.1"
   }
 }
