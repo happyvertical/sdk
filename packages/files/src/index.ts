@@ -138,9 +138,13 @@ export const downloadFileWithCache = async (
   targetPath: string | null = null,
 ): Promise<string> => {
   const parsedUrl = new URL(url);
+
+  console.log(targetPath);
   const downloadPath =
     targetPath ||
     `${TMP_DIR}/downloads/${parsedUrl.hostname}${parsedUrl.pathname}`;
+
+
 
   if (!isFile(downloadPath)) {
     await ensureDirectoryExists(dirname(downloadPath));
