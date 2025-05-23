@@ -188,5 +188,6 @@ pnpm build:watch # Build in watch mode
 - Handle path separators carefully for cross-platform compatibility
 - Use appropriate file permissions when creating files
 - Consider file locking for operations that need exclusive access
+- Dont include branding in commit messages
 
 This package provides the foundation for file operations across the HAVE SDK, ensuring consistent behavior regardless of the environment.
