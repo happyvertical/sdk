@@ -23,6 +23,8 @@
 //   }
 // }
 
+import { getLogger, NetworkError, TimeoutError } from '@have/utils';
+
 /**
  * Factory function to create a Crawler instance
  * 
@@ -215,7 +217,8 @@ class Crawler {
    * @param requestData - Crawl request configuration
    * @param timeout - Maximum time to wait for completion in milliseconds
    * @returns Promise resolving to the task status with crawl results
-   * @throws Error if the task times out
+   * @throws {TimeoutError} if the task times out
+   * @throws {NetworkError} if there are network-related failures
    */
   async submitAndWait(
     requestData: CrawlRequest,
@@ -230,17 +233,57 @@ class Crawler {
       body: JSON.stringify(requestData),
     });
 
-    const { task_id } = (await response.json()) as CrawlResponse;
-    console.log(`Task ID: ${task_id}`);
+    if (!response.ok) {
+      throw new NetworkError(
+        `Failed to submit crawl request: ${response.status} ${response.statusText}`,
+        { 
+          url: `${this.baseUrl}/crawl`,
+          status: response.status,
+          statusText: response.statusText,
+          requestData 
+        }
+      );
+    }
+
+    const responseData = await response.json() as CrawlResponse;
+    if (!responseData.task_id) {
+      throw new NetworkError(
+        'Invalid response: missing task_id',
+        { responseData, url: `${this.baseUrl}/crawl` }
+      );
+    }
+
+    const { task_id } = responseData;
+    getLogger().info(`Crawler task submitted`, { taskId: task_id, urls: requestData.urls });
 
     // Poll for result
     const startTime = Date.now();
     while (true) {
       if (Date.now() - startTime > timeout) {
-        throw new Error(`Task ${task_id} timeout`);
+        throw new TimeoutError(
+          `Crawler task timed out`,
+          { 
+            taskId: task_id, 
+            timeout, 
+            elapsedTime: Date.now() - startTime 
+          }
+        );
       }
 
       const result = await fetch(`${this.baseUrl}/task/${task_id}`);
+      
+      if (!result.ok) {
+        throw new NetworkError(
+          `Failed to fetch task status: ${result.status} ${result.statusText}`,
+          { 
+            taskId: task_id,
+            url: `${this.baseUrl}/task/${task_id}`,
+            status: result.status,
+            statusText: result.statusText 
+          }
+        );
+      }
+
       const status = (await result.json()) as TaskStatus;
 
       if (status.status === 'completed') {

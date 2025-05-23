@@ -10,6 +10,8 @@
     "prepare": "lefthook install",
     "test": "vitest",
     "test:watch": "vitest --watch",
+    "test:run": "vitest --run",
+    "test:packages": "pnpm -r test --run",
     "lint": "biome lint .",
     "lint:fix": "biome lint --apply .",
     "clean": "pnpm -r exec rm -rf dist && pnpm -r exec rm -rf tsconfig.tsbuildinfo",

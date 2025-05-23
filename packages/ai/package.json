@@ -20,10 +20,11 @@
     "node": "22.x"
   },
   "dependencies": {
+    "@have/utils": "workspace:*",
     "openai": "^4.78.1"
   },
   "devDependencies": {
-    "vitest": "^1.2.2",
+    "vitest": "^3.1.1",
     "@types/node": "^22.10.7"
   }
 }

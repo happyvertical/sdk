@@ -16,4 +16,14 @@ export default defineConfig({
       },
     },
   },
+  // Configure workspace projects
+  workspace: [
+    'packages/utils',
+    'packages/files', 
+    'packages/ai',
+    'packages/spider',
+    'packages/sql',
+    'packages/pdf',
+    'packages/smrt',
+  ],
 });
