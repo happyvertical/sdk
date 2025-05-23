@@ -59,6 +59,7 @@ export const isDirectory = (dir: string): boolean => {
  */
 export const ensureDirectoryExists = async (dir: string): Promise<void> => {
   if (!isDirectory(dir)) {
+    console.log(`Creating directory: ${dir}`);
     await mkdir(dir, { recursive: true });
   }
 };
@@ -109,16 +110,26 @@ export async function download(url: string, filepath: string): Promise<void> {
     }
 
     const fileStream = createWriteStream(filepath);
-    await response.body?.pipeTo(
-      new WritableStream({
-        write(chunk) {
-          fileStream.write(Buffer.from(chunk));
-        },
-        close() {
-          fileStream.end();
-        },
-      }),
-    );
+    
+    return new Promise<void>((resolve, reject) => {
+      fileStream.on('error', reject);
+      fileStream.on('finish', resolve);
+      
+      response.body?.pipeTo(
+        new WritableStream({
+          write(chunk) {
+            fileStream.write(Buffer.from(chunk));
+          },
+          close() {
+            fileStream.end();
+          },
+          abort(reason) {
+            fileStream.destroy();
+            reject(reason);
+          },
+        }),
+      ).catch(reject);
+    });
   } catch (error) {
     const err = error as Error;
     console.error('Error downloading file:', err);
@@ -144,8 +155,7 @@ export const downloadFileWithCache = async (
     targetPath ||
     `${TMP_DIR}/downloads/${parsedUrl.hostname}${parsedUrl.pathname}`;
 
-
-
+  console.log('downloadPath', downloadPath);
   if (!isFile(downloadPath)) {
     await ensureDirectoryExists(dirname(downloadPath));
     await download(url, downloadPath);
