@@ -4,7 +4,7 @@
 
 An issue is considered "Ready" when it contains sufficient information and context for a developer to begin work without significant clarification or discovery. This definition ensures efficient development and reduces context switching.
 
-The Definition of Ready is checked when transitioning issues from "Todo" to "In Progress" status, serving as a quality gate before development begins.
+The Definition of Ready is checked when transitioning issues from "To Do" to "Developing" status, serving as a quality gate before development begins.
 
 ## Criteria
 
