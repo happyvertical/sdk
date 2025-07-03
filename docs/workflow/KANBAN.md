@@ -30,12 +30,17 @@ The project board uses GitHub Projects v2 with the built-in Status field for tra
 
 1. Create a new Project and select the **Board** layout.
 2. Configure the board's columns to be grouped by the **Status** field.
-3. Use GitHub's standard Status options for simplicity:
-   - **Todo**: Items ready to be worked on
-   - **In Progress**: Items currently being developed
-   - **Done**: Completed items
+3. Configure custom Status options for the 8-stage workflow:
+   - **Fresh**: Newly created items requiring triage
+   - **Icebox**: Low priority items for future consideration  
+   - **Backlog**: Prioritized items waiting for development
+   - **To Do**: Items ready for immediate development (meet Definition of Ready)
+   - **Developing**: Items currently being actively developed
+   - **Quality Assurance**: Items under review and testing
+   - **Deploying**: Items approved and currently being deployed
+   - **Done**: Completed and deployed items
 
-This approach leverages GitHub's native project automation and eliminates the complexity of custom label management.
+This comprehensive workflow provides clear visibility into work progress while maintaining proper quality gates.
 
 ### Automation Workflows
 
@@ -54,48 +59,84 @@ This native approach provides better reliability and requires no custom GitHub A
 
 ## Workflow Stages
 
-The simplified three-stage workflow aligns with GitHub's standard project automation.
+The 8-stage workflow provides comprehensive tracking from initial issue creation through final deployment.
 
-### Todo
+### Fresh
 
-This encompasses all work that needs to be done, including:
-- **New Issues**: Initial triage and validation
-- **Backlog**: Prioritized and refined work ready for development
-- **Ready Items**: Issues meeting the Definition of Ready
+The entry point for all work items. Fresh issues require initial triage to determine validity and priority:
+- **Validation**: Confirm issue is clear, actionable, and within project scope
+- **Duplicate Check**: Ensure no similar issues already exist
+- **Initial Classification**: Add appropriate type and priority labels
+- **Assignment**: Route to appropriate team member or keep unassigned for later triage
 
-All new issues start in "Todo" status and remain there through triage, prioritization, and refinement until development begins.
+Issues should not remain in "Fresh" long - they move quickly to either Icebox, Backlog, or are closed.
 
-**Priority Management**: Use GitHub's priority field or labels to distinguish between:
-- High priority items ready for immediate development
-- Medium priority items in the refined backlog
-- Low priority items requiring further analysis
+### Icebox
 
-**Icebox Alternative**: For "someday/maybe" items, consider:
-- Closing issues with a "future consideration" label
-- Using GitHub Discussions for ideas that aren't actionable issues
-- Creating an "Ideas" repository for long-term concepts
+Low priority items that may be addressed in the future but are not currently planned:
+- **Future Consideration**: Valid ideas that aren't current priorities
+- **Needs More Info**: Issues requiring additional research or clarification
+- **Low Priority**: Work that's useful but not urgent
+- **Parking Lot**: Items to revisit during planning cycles
 
-### In Progress
+Items in Icebox are reviewed periodically (quarterly) to determine if they should move to Backlog or be closed.
 
-This is the active development stage where developers:
-- Write high-quality code following team standards
-- Create comprehensive tests for the functionality
-- Open Pull Requests when ready for review
-- Respond to review feedback and iterate on the solution
+### Backlog
 
-Issues remain "In Progress" throughout the entire development and review cycle until the work is complete and merged.
+Prioritized work that will be addressed but hasn't been refined enough to start development:
+- **Prioritized**: Items have been ranked in order of importance
+- **Refined**: Issues have sufficient detail for estimation
+- **Dependent Work**: Items waiting for other work to complete
+- **Ready for Planning**: Will be refined to meet Definition of Ready
+
+The Backlog serves as the funnel for upcoming development work.
+
+### To Do  
+
+Issues that meet the Definition of Ready and are prepared for immediate development:
+- **Definition of Ready Complete**: All acceptance criteria, technical requirements, and implementation gameplan are clear
+- **No Blockers**: All dependencies resolved, resources available
+- **Assigned**: Clear ownership established
+- **Estimated**: Effort and complexity understood
+
+Work should only enter "To Do" when a developer can immediately begin implementation.
+
+### Developing
+
+Active development work in progress:
+- **Implementation**: Writing code according to acceptance criteria
+- **Testing**: Creating and running tests for the functionality  
+- **Documentation**: Updating relevant documentation
+- **Pull Request Creation**: Opening PRs when ready for review
+
+Issues remain in "Developing" throughout the entire development cycle until work is ready for review.
+
+### Quality Assurance
+
+Work under review and testing before deployment:
+- **Code Review**: Peer review of implementation and tests
+- **CI/CD Validation**: Automated testing and quality checks
+- **Manual Testing**: User acceptance testing when appropriate
+- **Documentation Review**: Ensuring all documentation is complete and accurate
+
+Items move through Quality Assurance when all review feedback is addressed and tests pass.
+
+### Deploying
+
+Approved work currently being deployed to production:
+- **Review Complete**: All code review feedback addressed
+- **Tests Passing**: Full CI/CD pipeline success
+- **Documentation Updated**: All relevant docs reflect the changes
+- **Deployment Approved**: Ready for production release
+
+This stage allows for batching deployments and final validation before release.
 
 ### Done
 
-Work moves to "Done" when:
-- Code has been merged to the main branch
-- All automated tests are passing
-- The feature/fix is deployed to production (if applicable)
-- Any necessary documentation has been updated
+Completed work that has been successfully deployed to production:
+- **Live in Production**: Feature/fix is available to end users
+- **Post-Deploy Validation**: Confirming functionality works as expected
+- **Monitoring**: Tracking metrics and error rates post-deployment
+- **Issue Closure**: Original issue can be closed as complete
 
-The "Done" column serves as a historical record of completed work and can be periodically archived to keep the board clean.
-
-**Deployment Tracking**: For projects requiring deployment tracking, consider:
-- Using GitHub Environments to track deployment status
-- Adding deployment-specific labels for release management
-- Implementing automated deployment status updates through GitHub Actions
+Done items serve as a historical record and can be archived periodically to keep the board clean.

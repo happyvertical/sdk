@@ -1,22 +1,22 @@
 ---
-name: issues-new
-description: Process all issues in "New Issues" status assigned to me
-usage: /issues-new [notes]
+name: fresh
+description: Process all issues in "Fresh" status assigned to me
+usage: /fresh [notes]
 ---
 
-# New Issues Lane Command
+# Fresh Lane Command
 
-Processes all issues in the "New Issues" status that are assigned to the current user.
+Processes all issues in the "Fresh" status that are assigned to the current user.
 
 ## Usage
 ```
-/issues-new
-/issues-new "triage and prioritize"
+/fresh
+/fresh "triage and prioritize"
 ```
 
 ## Description
 This command:
-1. Finds all issues in "New Issues" status assigned to you
+1. Finds all issues in "Fresh" status assigned to you
 2. Runs `/issue` command on each one
 3. Performs initial triage and assessment
 4. Moves valid issues to appropriate next status (Backlog/Icebox)
@@ -37,5 +37,5 @@ Optional notes guide how to process the issues:
 
 ## Example
 ```
-/issues-new "prioritize security issues"
+/fresh "prioritize security issues"
 ```

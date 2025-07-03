@@ -5,24 +5,27 @@ on:
     branches: [ master ]
 
 permissions:
-  contents: write       # Required for auto-merging PRs
-  pull-requests: write  # Required for approving PRs
+  contents: write      # Required for auto-merge functionality
+  pull-requests: write # Required for approving and merging PRs
 
 jobs:
   dependabot:
     runs-on: ubuntu-latest
     if: ${{ github.actor == 'dependabot[bot]' }}
     steps:
-      - name: Validate required secrets
+      - name: Validate security requirements
         run: |
           if [ -z "${{ secrets.GITHUB_TOKEN }}" ]; then
-            echo "Error: GITHUB_TOKEN secret is not configured"
+            echo "::error::GITHUB_TOKEN is not available"
             exit 1
           fi
-          echo "All required secrets are configured"
+          echo "✅ Security requirements validated"
+          echo "::notice::Processing dependabot PR with enhanced security checks"
 
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
         
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -30,9 +33,9 @@ jobs:
           node-version: '22'
           
       - name: Setup pnpm
-        uses: pnpm/action-setup@v3
+        uses: pnpm/action-setup@v4  # Pinned to specific major version
         with:
-          version: latest
+          version: 9  # Pinned to specific major version instead of latest
           
       - name: Install dependencies
         run: pnpm install
@@ -45,29 +48,36 @@ jobs:
         
       - name: Dependabot metadata
         id: metadata
-        uses: dependabot/fetch-metadata@v2.1.0
+        uses: dependabot/fetch-metadata@v2.2.0  # Pinned to specific version
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
           
-      - name: Security validation
+      - name: Security scan for dependency changes
         run: |
+          echo "::notice::Checking for security vulnerabilities in dependencies"
           echo "Dependency update type: ${{ steps.metadata.outputs.update-type }}"
           echo "Package ecosystem: ${{ steps.metadata.outputs.package-ecosystem }}"
           echo "Package name: ${{ steps.metadata.outputs.dependency-names }}"
-          
-          # Additional security checks can be added here
-          # For example: scanning for known vulnerabilities, checking package reputation, etc.
-          
-      - name: Approve PR (non-major updates only)
+          pnpm audit --audit-level moderate || {
+            echo "::error::Security vulnerabilities found in dependencies"
+            exit 1
+          }
+          echo "✅ No security vulnerabilities detected"
+
+      - name: Approve PR with security validation
         if: ${{ steps.metadata.outputs.update-type != 'version-update:semver-major' }}
-        run: gh pr review --approve "$PR_URL"
+        run: |
+          echo "::notice::Approving dependabot PR after security validation"
+          gh pr review --approve "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
       - name: Enable auto-merge for minor and patch updates
         if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-minor' || steps.metadata.outputs.update-type == 'version-update:semver-patch' }}
-        run: gh pr merge --auto --merge "$PR_URL"
+        run: |
+          echo "::notice::Enabling auto-merge for ${{ steps.metadata.outputs.update-type }} update"
+          gh pr merge --auto --merge "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

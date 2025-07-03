@@ -1,7 +1,7 @@
 ---
-name: issues-todo
+name: todo
 description: Process all issues in "To Do" status assigned to me
-usage: /issues-todo [notes]
+usage: /todo [notes]
 ---
 
 # To Do Lane Command
@@ -10,8 +10,8 @@ Processes all issues in the "To Do" status that are assigned to the current user
 
 ## Usage
 ```
-/issues-todo
-/issues-todo "start highest priority"
+/todo
+/todo "start highest priority"
 ```
 
 ## Description
@@ -20,14 +20,14 @@ This command:
 2. Runs `/issue` command on each one
 3. Validates Definition of Ready compliance
 4. Creates feature branches and starts implementation
-5. Moves issues to "In Progress" status
+5. Moves issues to "Developing" status
 
 ## Behavior
 - Final DoR validation before development
 - Creates appropriately named feature branches
 - Validates git state before branch creation
 - Begins implementation following gameplan
-- Updates status to "In Progress"
+- Updates status to "Developing"
 
 ## Notes Parameter
 Optional notes guide how to process the issues:
@@ -38,5 +38,5 @@ Optional notes guide how to process the issues:
 
 ## Example
 ```
-/issues-todo "start bug fixes first"
+/todo "start bug fixes first"
 ```
