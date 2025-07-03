@@ -34,7 +34,11 @@
     }
   },
   "files": {
-    "include": ["packages/**/src/**/*.{ts,tsx,js,jsx,json}"],
+    "include": [
+      "packages/**/src/**/*.{ts,tsx,js,jsx,json}",
+      "*.{ts,tsx,js,jsx,json}",
+      ".claude/**/*.{ts,tsx,js,jsx,json,md}"
+    ],
     "ignore": [
       "**/node_modules/**",
       "**/.svelte-kit/**",
