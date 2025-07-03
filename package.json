@@ -18,7 +18,7 @@
     "build": "pnpm validate-build && pnpm clean && pnpm --filter @have/utils build && pnpm --filter @have/files build && pnpm --filter @have/spider build && pnpm --filter @have/sql build && pnpm --filter @have/pdf build && pnpm --filter @have/ai build && pnpm --filter @have/smrt build && pnpm docs && pnpm repomix",
     "docs": "node scripts/generate-docs.js",
     "validate-build": "node scripts/validate-build.js",
-    "dev": "pnpm --parallel -r build:watch",
+    "dev": "pnpm -r build:watch",
     "publish-packages": "pnpm build && changeset publish",
     "release": "standard-version --no-verify",
     "postrelease": "node scripts/update-package-versions.cjs"
