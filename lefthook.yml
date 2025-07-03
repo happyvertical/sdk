@@ -8,3 +8,6 @@ pre-commit:
       glob: "*.{js,ts,cjs,mjs,jsx,tsx,json}"
       run: pnpm biome lint --apply {staged_files}
       stage_fixed: true
+    validate-package-json:
+      glob: "**/package.json"
+      run: node scripts/validate-package-json.js {staged_files}
