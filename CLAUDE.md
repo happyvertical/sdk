@@ -106,6 +106,16 @@ When adding new features, maintain this dependency hierarchy to avoid circular d
 4. Follow existing code patterns in each package
 5. Run the full test suite before submitting changes
 
+## Development Workflow
+
+HAppy VErtical follows a standardized development workflow across all projects. The workflow documentation serves as the organization's source of truth:
+
+- **[Definition of Ready](./docs/workflow/DEFINITION_OF_READY.md)**: Criteria that must be met before an issue can be started
+- **[Definition of Done](./docs/workflow/DEFINITION_OF_DONE.md)**: Checklist for completing Pull Requests
+- **[Kanban Process](./docs/workflow/KANBAN.md)**: Kanban CI/CD workflow with automation setup
+
+All HAppy VErtical projects should reference and follow these workflow standards to ensure consistency across the organization.
+
 ## Tooling Configuration
 
 - **TypeScript**: Configured for ES2022 with strict type checking
