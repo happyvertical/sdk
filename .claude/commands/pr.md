@@ -23,9 +23,9 @@ When this command is used with a PR number:
 2. **Follow Workflow Progression**
    Based on current PR state, update the GitHub Project Status field:
    
-   - **Draft PR**: Ensure related issue has "In Progress" status
-   - **Ready for Review**: Keep issue "In Progress" during review process
-   - **Approved PR with passing CI**: Issue can remain "In Progress" until merge
+   - **Draft PR**: Ensure related issue has "Developing" status
+   - **Ready for Review**: Keep issue "Developing" during review process
+   - **Approved PR with passing CI**: Issue can remain "Developing" until merge
    - **Merged PR**: Update related issue(s) to "Done" status
 
 3. **Update Project Board**
@@ -53,9 +53,9 @@ When this command is used with a PR number:
 
 | PR State | Project Status | Next Action |
 |----------|----------------|-------------|
-| Draft | In Progress | Complete development |
-| Ready for Review | In Progress | Await review + CI |
-| Approved + CI Passing | In Progress | Merge PR |
+| Draft | Developing | Complete development |
+| Ready for Review | Developing | Await review + CI |
+| Approved + CI Passing | Developing | Merge PR |
 | Merged | Done | Verify deployment and close issues |
 
 ## Validation Safeguards
