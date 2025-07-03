@@ -53,7 +53,7 @@ The Definition of Ready is checked when transitioning issues from "To Do" to "De
  "When a user clicks the 'Export' button, a CSV file containing all visible table data should download with columns matching the table headers"
 
 ### Poor Acceptance Criteria
-L "Add export functionality"
+"Add export functionality"
 
 ### Good Bug Report
  
@@ -69,7 +69,7 @@ Actual: Application crashes with 500 error
 ```
 
 ### Poor Bug Report
-L "Dashboard is broken"
+"Dashboard is broken"
 
 ## Workflow Integration
 
