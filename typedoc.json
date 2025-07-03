@@ -1,34 +1,5 @@
 {
-  "entryPoints": [
-    {
-      "displayName": "AI",
-      "path": "packages/ai/src/index.ts"
-    },
-    {
-      "displayName": "Files", 
-      "path": "packages/files/src/index.ts"
-    },
-    {
-      "displayName": "PDF",
-      "path": "packages/pdf/src/index.ts"
-    },
-    {
-      "displayName": "SMRT",
-      "path": "packages/smrt/src/index.ts"
-    },
-    {
-      "displayName": "Spider",
-      "path": "packages/spider/src/index.ts"
-    },
-    {
-      "displayName": "SQL",
-      "path": "packages/sql/src/index.ts"
-    },
-    {
-      "displayName": "Utils",
-      "path": "packages/utils/src/index.ts"
-    }
-  ],
+  "entryPoints": ["packages/*/src/index.ts"],
   "entryPointStrategy": "packages",
   "out": "docs/manual",
   "name": "HAVE SDK API Reference",

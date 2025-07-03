@@ -12,7 +12,7 @@
     "test:watch": "vitest --watch",
     "build": "tsc -b",
     "build:watch": "tsc -b --watch",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist tsconfig.tsbuildinfo"
   },
   "engines": {
     "node": "22.x"
