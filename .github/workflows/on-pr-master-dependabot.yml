@@ -5,14 +5,22 @@ on:
     branches: [ master ]
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: write       # Required for auto-merging PRs
+  pull-requests: write  # Required for approving PRs
 
 jobs:
   dependabot:
     runs-on: ubuntu-latest
     if: ${{ github.actor == 'dependabot[bot]' }}
     steps:
+      - name: Validate required secrets
+        run: |
+          if [ -z "${{ secrets.GITHUB_TOKEN }}" ]; then
+            echo "Error: GITHUB_TOKEN secret is not configured"
+            exit 1
+          fi
+          echo "All required secrets are configured"
+
       - name: Checkout repository
         uses: actions/checkout@v4
         
@@ -37,11 +45,20 @@ jobs:
         
       - name: Dependabot metadata
         id: metadata
-        uses: dependabot/fetch-metadata@v2
+        uses: dependabot/fetch-metadata@v2.1.0
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
           
-      - name: Approve PR
+      - name: Security validation
+        run: |
+          echo "Dependency update type: ${{ steps.metadata.outputs.update-type }}"
+          echo "Package ecosystem: ${{ steps.metadata.outputs.package-ecosystem }}"
+          echo "Package name: ${{ steps.metadata.outputs.dependency-names }}"
+          
+          # Additional security checks can be added here
+          # For example: scanning for known vulnerabilities, checking package reputation, etc.
+          
+      - name: Approve PR (non-major updates only)
         if: ${{ steps.metadata.outputs.update-type != 'version-update:semver-major' }}
         run: gh pr review --approve "$PR_URL"
         env:
@@ -51,6 +68,16 @@ jobs:
       - name: Enable auto-merge for minor and patch updates
         if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-minor' || steps.metadata.outputs.update-type == 'version-update:semver-patch' }}
         run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Require manual review for major updates
+        if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-major' }}
+        run: |
+          echo "Major version update detected. Manual review required."
+          echo "This PR will not be automatically approved or merged."
+          gh pr comment "$PR_URL" --body "⚠️ **Major version update detected**. Manual review is required before merging."
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
