@@ -11,3 +11,6 @@ pre-commit:
     validate-package-json:
       glob: "**/package.json"
       run: node scripts/validate-package-json.js {staged_files}
+    validate-changeset-config:
+      glob: ".changeset/**/*"
+      run: node scripts/validate-changeset-config.js
