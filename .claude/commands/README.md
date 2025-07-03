@@ -11,15 +11,14 @@ Simple, powerful issue management that automatically advances issues through the
 This command intelligently advances issues through the workflow by detecting the current state and performing the next appropriate action:
 
 **Workflow Progression:**
-- **New Issue/No Status** → Triages (search duplicates, assess clarity, move to backlog/icebox)
+- **Fresh** → Triages (search duplicates, assess clarity, move to backlog/icebox)
 - **Icebox** → Reviews relevance, moves to backlog or closes if stale
-- **Backlog** → Checks Definition of Ready, requests info or moves to todo
-- **To-Do** → Assigns self, creates branch, starts implementation
-- **In Progress** → Implements solution or creates PR when ready
-- **Code Review** → Handles feedback or merges when approved
-- **Testing** → Monitors CI/CD, fixes failures or advances
-- **Ready for Deploy** → Triggers deployment if automated
-- **Deployed** → Monitors for issues, closes when stable
+- **Backlog** → Checks Definition of Ready, requests info or moves to to do
+- **To Do** → Assigns self, creates branch, starts implementation
+- **Developing** → Implements solution or creates PR when ready
+- **Quality Assurance** → Handles feedback or merges when approved
+- **Deploying** → Triggers deployment if automated
+- **Done** → Monitors for issues, closes when stable
 
 **Re-run Behavior:**
 When run again on the same issue, Claude checks for new comments/feedback and acts accordingly.
@@ -35,29 +34,29 @@ When run again on the same issue, Claude checks for new comments/feedback and ac
 
 Process all issues assigned to you in a specific workflow stage:
 
-### `/issues-new [notes]`
-Processes all "New Issues" - performs triage, checks for duplicates, moves to backlog/icebox
+### `/fresh [notes]`
+Processes all "Fresh" issues - performs triage, checks for duplicates, moves to backlog/icebox
 
-### `/issues-icebox [notes]`
+### `/icebox [notes]`
 Processes all "Icebox" issues - reviews relevance, promotes to backlog or closes stale
 
-### `/issues-backlog [notes]`
+### `/backlog [notes]`
 Processes all "Backlog" issues - applies Definition of Ready, moves ready items to "To Do"
 
-### `/issues-todo [notes]`
-Processes all "To Do" issues - creates branches, starts implementation, moves to "In Progress"
+### `/todo [notes]`
+Processes all "To Do" issues - creates branches, starts implementation, moves to "Developing"
 
-### `/issues-progress [notes]`
-Processes all "In Progress" issues - continues development, creates PRs when ready
+### `/develop [notes]`
+Processes all "Developing" issues - continues development, creates PRs when ready
 
-### `/issues-review [notes]`
-Processes all "Review & Testing" issues - handles feedback, merges approved PRs
+### `/qa [notes]`
+Processes all "Quality Assurance" issues - handles feedback, merges approved PRs
 
-### `/issues-deploy [notes]`
-Processes all "Ready for Deployment" issues - merges and deploys to production
+### `/deploy [notes]`
+Processes all "Deploying" issues - merges and deploys to production
 
 ### `/issues-close [notes]`
-Processes all "Deployed" issues - monitors stability, closes completed work
+Processes all "Done" issues - monitors stability, closes completed work
 
 ## Notes Parameter
 All lane commands accept optional notes to guide processing:

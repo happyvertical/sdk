@@ -1,26 +1,26 @@
 ---
-name: issues-deploy
-description: Process all issues in "Ready for Deployment" status assigned to me
-usage: /issues-deploy [notes]
+name: deploy
+description: Process all issues in "Deploying" status assigned to me
+usage: /deploy [notes]
 ---
 
-# Ready for Deployment Lane Command
+# Deploying Lane Command
 
-Processes all issues in the "Ready for Deployment" status that are assigned to the current user.
+Processes all issues in the "Deploying" status that are assigned to the current user.
 
 ## Usage
 ```
-/issues-deploy
-/issues-deploy "merge and deploy"
+/deploy
+/deploy "merge and deploy"
 ```
 
 ## Description
 This command:
-1. Finds all issues in "Ready for Deployment" status assigned to you
+1. Finds all issues in "Deploying" status assigned to you
 2. Runs `/issue` command on each one
 3. Validates deployment readiness
 4. Merges approved PRs
-5. Moves to "Deployed" status after successful deployment
+5. Moves to "Done" status after successful deployment
 
 ## Behavior
 - Final validation before merge
@@ -38,5 +38,5 @@ Optional notes guide how to process the issues:
 
 ## Example
 ```
-/issues-deploy "deploy to production"
+/deploy "deploy to production"
 ```
