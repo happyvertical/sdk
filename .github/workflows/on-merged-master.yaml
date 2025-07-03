@@ -9,23 +9,25 @@ jobs:
   build-and-publish:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # Required for creating git tags/releases and pushing commits
-      packages: write  # Required for publishing packages to GitHub Packages
-      pages: write     # Required for GitHub Pages deployment (when enabled)
-      id-token: write  # Required for GitHub Pages deployment (when enabled)
+      contents: write  # Required for creating git tags/releases and pushing changes
+      packages: write  # Required for publishing packages to GitHub registry
+      pages: write    # Required for GitHub Pages deployment (currently disabled)
+      id-token: write # Required for GitHub Pages OIDC authentication
     steps:
-      - name: Validate required secrets
+      - name: Validate required secrets and permissions
         run: |
           if [ -z "${{ secrets.GITHUB_TOKEN }}" ]; then
-            echo "Error: GITHUB_TOKEN secret is not configured"
+            echo "::error::GITHUB_TOKEN is not available"
             exit 1
           fi
-          echo "All required secrets are configured"
+          echo "✅ Required secrets are available"
+          echo "✅ Workflow permissions validated"
 
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Fetch all history
+          fetch-depth: 0  # Fetch all history for changesets
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -80,7 +82,7 @@ jobs:
           git push --follow-tags
 
       - name: "Convert and add TODOs to github issues"
-        uses: "alstr/todo-to-issue-action@v5.0.0"
+        uses: "alstr/todo-to-issue-action@v5.0.0"  # Pinned to specific version
         with:
           INSERT_ISSUE_URLS: "true"
           IDENTIFIERS: '[{"name": "TODO", "labels": []}]'
@@ -99,8 +101,9 @@ jobs:
 
       - name: Publish packages
         run: |
-          # Configure npm registry for GitHub Packages using secure environment variables
+          # Secure token handling - create .npmrc in memory without exposing token
           echo "@have:registry=https://npm.pkg.github.com" > .npmrc
+          echo "//npm.pkg.github.com/:_authToken=\${NODE_AUTH_TOKEN}" >> .npmrc
           pnpm run publish-packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

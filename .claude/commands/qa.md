@@ -1,22 +1,22 @@
 ---
-name: issues-review
-description: Process all issues in "Review & Testing" status assigned to me
-usage: /issues-review [notes]
+name: qa
+description: Process all issues in "Quality Assurance" status assigned to me
+usage: /qa [notes]
 ---
 
-# Review & Testing Lane Command
+# Quality Assurance Lane Command
 
-Processes all issues in the "Review & Testing" status that are assigned to the current user.
+Processes all issues in the "Quality Assurance" status that are assigned to the current user.
 
 ## Usage
 ```
-/issues-review
-/issues-review "address feedback"
+/qa
+/qa "address feedback"
 ```
 
 ## Description
 This command:
-1. Finds all issues in "Review & Testing" status assigned to you
+1. Finds all issues in "Quality Assurance" status assigned to you
 2. Runs `/issue` command on each one
 3. Checks PR review status and CI results
 4. Addresses feedback or moves to next stage
@@ -38,5 +38,5 @@ Optional notes guide how to process the issues:
 
 ## Example
 ```
-/issues-review "implement review suggestions"
+/qa "implement review suggestions"
 ```

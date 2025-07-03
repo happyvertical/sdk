@@ -1,12 +1,12 @@
 ---
 name: issues-close
-description: Process all issues in "Deployed" status assigned to me
+description: Process all issues in "Done" status assigned to me
 usage: /issues-close [notes]
 ---
 
-# Deployed/Close Lane Command
+# Done/Close Lane Command
 
-Processes all issues in the "Deployed" status that are assigned to the current user.
+Processes all issues in the "Done" status that are assigned to the current user.
 
 ## Usage
 ```
@@ -16,7 +16,7 @@ Processes all issues in the "Deployed" status that are assigned to the current u
 
 ## Description
 This command:
-1. Finds all issues in "Deployed" status assigned to you
+1. Finds all issues in "Done" status assigned to you
 2. Runs `/issue` command on each one
 3. Monitors for production issues
 4. Creates follow-up issues if needed

@@ -6,5 +6,11 @@ pre-commit:
       stage_fixed: true
     lint:
       glob: "*.{js,ts,cjs,mjs,jsx,tsx,json}"
-      run: pnpm biome lint --apply {staged_files}
+      run: pnpm biome lint --write {staged_files}
       stage_fixed: true
+    validate-package-json:
+      glob: "**/package.json"
+      run: node scripts/validate-package-json.js {staged_files}
+    validate-changeset-config:
+      glob: ".changeset/**/*"
+      run: node scripts/validate-changeset-config.js
