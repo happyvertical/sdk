@@ -12,7 +12,7 @@
     "test:watch": "vitest --watch",
     "build": "tsc -b",
     "build:watch": "tsc -b --watch",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "prebuild": "npm run clean",
     "dev": "pnpm run build:watch & pnpm run test:watch"
   },
