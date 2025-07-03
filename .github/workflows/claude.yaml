@@ -19,18 +19,18 @@ jobs:
       (github.event_name == 'issues' && contains(github.event.issue.body, '@claude'))
     runs-on: ubuntu-latest
     permissions:
-      contents: read        # Required to checkout repository code
+      contents: read         # Required to checkout repository
       pull-requests: read   # Required to read PR comments and reviews
       issues: read          # Required to read issue comments
-      id-token: write       # Required for Claude action authentication
+      id-token: write      # Required by claude-code-action for OIDC authentication
     steps:
       - name: Validate required secrets
         run: |
           if [ -z "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
-            echo "Error: ANTHROPIC_API_KEY secret is not configured"
+            echo "::error::ANTHROPIC_API_KEY secret is not configured"
             exit 1
           fi
-          echo "All required secrets are configured"
+          echo "✅ Required secrets are configured"
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -38,7 +38,7 @@ jobs:
           fetch-depth: 1
 
       - name: Run Claude PR Action
-        uses: anthropics/claude-code-action@v1.0.0
+        uses: anthropics/claude-code-action@v1.1.0  # Pinned to specific version
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           timeout_minutes: "60"

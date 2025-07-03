@@ -1,26 +1,26 @@
 ---
-name: issues-progress
-description: Process all issues in "In Progress" status assigned to me
-usage: /issues-progress [notes]
+name: develop
+description: Process all issues in "Developing" status assigned to me
+usage: /develop [notes]
 ---
 
-# In Progress Lane Command
+# Develop Lane Command
 
-Processes all issues in the "In Progress" status that are assigned to the current user.
+Processes all issues in the "Developing" status that are assigned to the current user.
 
 ## Usage
 ```
-/issues-progress
-/issues-progress "create PRs when ready"
+/develop
+/develop "create PRs when ready"
 ```
 
 ## Description
 This command:
-1. Finds all issues in "In Progress" status assigned to you
+1. Finds all issues in "Developing" status assigned to you
 2. Runs `/issue` command on each one
 3. Checks implementation progress
 4. Creates PRs when work is complete
-5. Moves to "Review & Testing" when PR is opened
+5. Moves to "Quality Assurance" when PR is opened
 
 ## Behavior
 - Reviews current implementation status
@@ -38,5 +38,5 @@ Optional notes guide how to process the issues:
 
 ## Example
 ```
-/issues-progress "finalize and create PRs"
+/develop "finalize and create PRs"
 ```
