@@ -1,8 +1,8 @@
-# Claude Issue Command
+# Claude Issue Commands
 
 Simple, powerful issue management that automatically advances issues through the complete workflow.
 
-## Command
+## Individual Issue Command
 
 ### `/issue <issue_number>`
 
@@ -31,9 +31,43 @@ When run again on the same issue, Claude checks for new comments/feedback and ac
 /issue 22   # Work on issue #22
 ```
 
+## Lane Commands
+
+Process all issues assigned to you in a specific workflow stage:
+
+### `/issues-new [notes]`
+Processes all "New Issues" - performs triage, checks for duplicates, moves to backlog/icebox
+
+### `/issues-icebox [notes]`
+Processes all "Icebox" issues - reviews relevance, promotes to backlog or closes stale
+
+### `/issues-backlog [notes]`
+Processes all "Backlog" issues - applies Definition of Ready, moves ready items to "To Do"
+
+### `/issues-todo [notes]`
+Processes all "To Do" issues - creates branches, starts implementation, moves to "In Progress"
+
+### `/issues-progress [notes]`
+Processes all "In Progress" issues - continues development, creates PRs when ready
+
+### `/issues-review [notes]`
+Processes all "Review & Testing" issues - handles feedback, merges approved PRs
+
+### `/issues-deploy [notes]`
+Processes all "Ready for Deployment" issues - merges and deploys to production
+
+### `/issues-close [notes]`
+Processes all "Deployed" issues - monitors stability, closes completed work
+
+## Notes Parameter
+All lane commands accept optional notes to guide processing:
+- `"all in the same pr"` - Group multiple issues in single PR
+- `"prioritize security"` - Focus on security-related issues first
+- `"quick triage"` - Fast processing with minimal analysis
+
 ## Setup
 
-This command automatically follows the workflow defined in `docs/workflow/KANBAN.md` and requires:
+These commands automatically follow the workflow defined in `docs/workflow/KANBAN.md` and require:
 - GitHub CLI (`gh`) authenticated
 - Git repository with proper remote configuration
 - Appropriate permissions to manage issues and create PRs
