@@ -64,6 +64,21 @@ async function validateBuild() {
     if (extraPackages.length > 0) {
       console.warn('⚠️  Packages exist but not in build script:', extraPackages);
       console.warn('   Consider adding them to the build script if they need building');
+      
+      // Validate that each package has a package.json
+      for (const pkg of extraPackages) {
+        const pkgJsonPath = path.join(packagesDir, pkg, 'package.json');
+        try {
+          await fs.access(pkgJsonPath);
+          const pkgContent = await fs.readFile(pkgJsonPath, 'utf8');
+          const pkgJson = JSON.parse(pkgContent);
+          if (pkgJson.scripts?.build) {
+            console.warn(`   📦 ${pkg} has a build script but is not in the main build`);
+          }
+        } catch {
+          console.warn(`   ❌ ${pkg} missing package.json`);
+        }
+      }
     }
     
     console.log('✅ Build validation passed - all referenced packages exist');
