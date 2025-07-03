@@ -55,6 +55,9 @@ jobs:
       - name: Security scan for dependency changes
         run: |
           echo "::notice::Checking for security vulnerabilities in dependencies"
+          echo "Dependency update type: ${{ steps.metadata.outputs.update-type }}"
+          echo "Package ecosystem: ${{ steps.metadata.outputs.package-ecosystem }}"
+          echo "Package name: ${{ steps.metadata.outputs.dependency-names }}"
           pnpm audit --audit-level moderate || {
             echo "::error::Security vulnerabilities found in dependencies"
             exit 1
@@ -75,6 +78,16 @@ jobs:
         run: |
           echo "::notice::Enabling auto-merge for ${{ steps.metadata.outputs.update-type }} update"
           gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Require manual review for major updates
+        if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-major' }}
+        run: |
+          echo "Major version update detected. Manual review required."
+          echo "This PR will not be automatically approved or merged."
+          gh pr comment "$PR_URL" --body "⚠️ **Major version update detected**. Manual review is required before merging."
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
