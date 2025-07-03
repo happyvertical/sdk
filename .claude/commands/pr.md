@@ -31,6 +31,7 @@ When this command is used with a PR number:
 3. **Update Project Board**
    - Update the Status field for associated issue(s) in the GitHub Project
    - Link PR to related issues if not already linked
+   - **Issue Closing**: Ensure PR description uses closing keywords (`closes #123`, `fixes #123`, `resolves #123`) to automatically close issues when merged
    - Use GitHub's built-in automation where possible
 
 4. **Review & Testing Management**
@@ -73,6 +74,7 @@ When this command is used with a PR number:
 - Only update to "Done" after successful merge
 - Validate CI status before progression
 - Ensure review requirements are met
+- **Closing Keywords**: Verify PR description includes appropriate closing keywords for related issues
 - Prevent invalid status transitions
 
 ### Error Recovery
