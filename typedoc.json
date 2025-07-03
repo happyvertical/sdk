@@ -1,5 +1,6 @@
 {
   "entryPoints": ["packages/*/src/index.ts"],
+  "entryPointStrategy": "packages",
   "out": "docs/manual",
   "name": "HAVE SDK API Reference",
   "excludePrivate": true,

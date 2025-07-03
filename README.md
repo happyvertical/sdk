@@ -117,7 +117,7 @@ HAppy VErtical follows standardized development workflows across all projects:
 
 - **[Definition of Ready](./docs/workflow/DEFINITION_OF_READY.md)** - Criteria before starting work
 - **[Definition of Done](./docs/workflow/DEFINITION_OF_DONE.md)** - PR completion checklist  
-- **[Workflow Process](./docs/workflow/WORKFLOW.md)** - Kanban CI/CD process
+- **[Workflow Process](./docs/workflow/KANBAN.md)** - Kanban CI/CD process
 
 These workflow standards are the organization-wide source of truth. See the [workflow documentation](./docs/workflow/) for implementation details.
 
