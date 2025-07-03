@@ -111,6 +111,16 @@ This documentation is automatically updated whenever changes are merged to the m
 
 We welcome contributions! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for details on how to submit pull requests, the development process, and coding standards.
 
+### Development Workflow
+
+HAppy VErtical follows standardized development workflows across all projects:
+
+- **[Definition of Ready](./docs/workflow/DEFINITION_OF_READY.md)** - Criteria before starting work
+- **[Definition of Done](./docs/workflow/DEFINITION_OF_DONE.md)** - PR completion checklist  
+- **[Workflow Process](./docs/workflow/WORKFLOW.md)** - Kanban CI/CD process
+
+These workflow standards are the organization-wide source of truth. See the [workflow documentation](./docs/workflow/) for implementation details.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
