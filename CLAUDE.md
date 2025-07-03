@@ -116,6 +116,30 @@ HAppy VErtical follows a standardized development workflow across all projects. 
 
 All HAppy VErtical projects should reference and follow these workflow standards to ensure consistency across the organization.
 
+### GitHub Issue Management
+
+When creating Pull Requests, use closing keywords in the PR description or commit messages to automatically close related issues when the PR is merged:
+
+- `closes #123` - Closes issue #123 when PR is merged
+- `fixes #123` - Closes issue #123 when PR is merged  
+- `resolves #123` - Closes issue #123 when PR is merged
+
+Example PR description:
+```
+## Summary
+Implement user authentication system
+
+## Changes
+- Add login/logout functionality
+- Implement JWT token management
+- Add user session handling
+
+Closes #45
+Fixes #67
+```
+
+This ensures issues are automatically moved through the workflow and closed when work is complete.
+
 ## Tooling Configuration
 
 - **TypeScript**: Configured for ES2022 with strict type checking

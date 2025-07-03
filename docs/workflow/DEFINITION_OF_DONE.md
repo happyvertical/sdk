@@ -9,6 +9,7 @@ An issue or story is not "Done" until every applicable item on this list has bee
 - [ ] The code implements all acceptance criteria outlined in the original issue.
 - [ ] The solution is successfully deployed to a staging/preview environment and has been verified.
 - [ ] The original issue has been updated with a link to the Pull Request.
+- [ ] The Pull Request description or commit messages use closing keywords (`closes #123`, `fixes #123`, or `resolves #123`) to automatically close issues when merged.
 - [ ] The issue's Status in the GitHub Project has been updated to "Done" upon merge.
 
 ## Code Quality & Standards
