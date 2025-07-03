@@ -1,7 +1,7 @@
 ---
-name: issues-backlog
+name: backlog
 description: Process all issues in "Backlog" status assigned to me
-usage: /issues-backlog [notes]
+usage: /backlog [notes]
 ---
 
 # Backlog Lane Command
@@ -10,8 +10,8 @@ Processes all issues in the "Backlog" status that are assigned to the current us
 
 ## Usage
 ```
-/issues-backlog
-/issues-backlog "all in the same pr"
+/backlog
+/backlog "all in the same pr"
 ```
 
 ## Description
@@ -38,5 +38,5 @@ Optional notes guide how to process the issues:
 
 ## Example
 ```
-/issues-backlog "group by component"
+/backlog "group by component"
 ```

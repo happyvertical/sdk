@@ -1,7 +1,7 @@
 ---
-name: issues-icebox
+name: icebox
 description: Process all issues in "Icebox" status assigned to me
-usage: /issues-icebox [notes]
+usage: /icebox [notes]
 ---
 
 # Icebox Lane Command
@@ -10,8 +10,8 @@ Processes all issues in the "Icebox" status that are assigned to the current use
 
 ## Usage
 ```
-/issues-icebox
-/issues-icebox "review for relevance"
+/icebox
+/icebox "review for relevance"
 ```
 
 ## Description
@@ -35,5 +35,5 @@ Optional notes guide how to process the issues:
 
 ## Example
 ```
-/issues-icebox "review Q1 priorities"
+/icebox "review Q1 priorities"
 ```
