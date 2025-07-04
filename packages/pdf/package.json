@@ -1,7 +1,7 @@
 {
   "name": "@have/pdf",
   "version": "0.0.50",
-  "description": "Modern PDF processing utilities with text extraction and OCR support using unpdf and Tesseract.js",
+  "description": "Modern PDF processing utilities with text extraction and OCR support using unpdf and @gutenye/ocr-node",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -24,7 +24,7 @@
     "node": ">=22.0.0"
   },
   "dependencies": {
-    "tesseract.js": "^6.0.0",
+    "@gutenye/ocr-node": "^1.4.8",
     "unpdf": "^1.0.6"
   },
   "devDependencies": {

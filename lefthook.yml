@@ -1,15 +1,13 @@
 pre-commit:
   commands:
     format:
-      glob: "*.{js,ts,cjs,mjs,jsx,tsx,json}"
-      run: bun biome format --write {staged_files}
+      glob: "**/*.{js,ts,cjs,mjs,jsx,tsx,json}"
+      run: 'if [ "{staged_files}" ]; then bun biome format --write {staged_files}; fi'
       stage_fixed: true
-      skip_on_empty: true
     lint:
-      glob: "*.{js,ts,cjs,mjs,jsx,tsx,json}"
-      run: bun biome lint --write {staged_files}
+      glob: "**/*.{js,ts,cjs,mjs,jsx,tsx,json}"
+      run: 'if [ "{staged_files}" ]; then bun biome lint --write {staged_files}; fi'
       stage_fixed: true
-      skip_on_empty: true
     validate-package-json:
       glob: "**/package.json"
       run: node scripts/validate-package-json.js {staged_files}

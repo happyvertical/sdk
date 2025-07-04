@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ../..:/workspaces:cached
+      - node_modules:/workspaces/node_modules
+    command: sleep infinity
+    environment:
+      - NODE_ENV=development
+      - FORCE_COLOR=1
+    ports:
+      - "3000:3000"
+      - "5173:5173"
+      - "8080:8080"
+
+volumes:
+  node_modules:
