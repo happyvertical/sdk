@@ -1,6 +1,36 @@
 import { extractText, extractImages, getDocumentProxy } from 'unpdf'
 import OcrNode from '@gutenye/ocr-node'
 import fs from 'fs/promises'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+
+const execAsync = promisify(exec)
+
+/**
+ * Checks if required system libraries are available
+ * 
+ * @returns Promise resolving to boolean indicating if system libraries are available
+ * 
+ * @remarks
+ * This function checks for the presence of required system libraries including
+ * libstdc++.so.6 and libonnxruntime.so using ldconfig.
+ */
+async function checkSystemLibraries(): Promise<boolean> {
+  try {
+    // Check for libstdc++.so.6 (C++ Standard Library)
+    const { stdout: libstdcResult } = await execAsync('ldconfig -p | grep libstdc++.so.6 || echo "not found"')
+    const hasLibstdc = !libstdcResult.includes('not found')
+    
+    // Check for ONNX Runtime library
+    const { stdout: onnxResult } = await execAsync('ldconfig -p | grep libonnxruntime.so || echo "not found"')
+    const hasOnnx = !onnxResult.includes('not found')
+    
+    return hasLibstdc && hasOnnx
+  } catch (error) {
+    // If we can't run ldconfig, assume libraries are not available
+    return false
+  }
+}
 
 /**
  * Checks if OCR dependencies are available in the current environment
@@ -35,13 +65,15 @@ export async function checkOCRDependencies(): Promise<{
   }
 
   try {
+    // First check if system libraries are available
+    result.details.systemLibraries = await checkSystemLibraries()
+    
     // Test if OCR Node module can be imported and initialized
     const ocr = await OcrNode.create()
     
     if (ocr && typeof ocr.detect === 'function') {
       result.details.ocrNode = true
-      result.details.systemLibraries = true
-      result.available = true
+      result.available = result.details.systemLibraries && result.details.ocrNode
       
       // Clean up test instance
       if (typeof ocr.destroy === 'function') {
@@ -166,7 +198,7 @@ export async function extractTextFromPDF(pdfPath: string): Promise<string | null
  * 
  * The function includes dependency checking and graceful degradation.
  */
-async function performOCROnImages(images: any[]): Promise<string> {
+export async function performOCROnImages(images: any[]): Promise<string> {
   if (!images || images.length === 0) {
     return ''
   }
