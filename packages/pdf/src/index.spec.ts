@@ -1,7 +1,7 @@
 import { it, expect, beforeAll, describe } from 'vitest';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { extractTextFromPDF, checkOCRDependencies } from './index.js';
+import { extractTextFromPDF, checkOCRDependencies, performOCROnImages } from './index.js';
 
 describe('PDF Processing with OCR', () => {
   let ocrAvailable = false;
@@ -69,5 +69,63 @@ describe('PDF Processing with OCR', () => {
     expect(deps.details).toHaveProperty('systemLibraries');
     
     console.log('OCR dependency check result:', deps);
+  });
+
+  it('should handle empty images array in performOCROnImages', async () => {
+    const result = await performOCROnImages([]);
+    expect(result).toBe('');
+  });
+
+  it('should handle null images array in performOCROnImages', async () => {
+    const result = await performOCROnImages(null as any);
+    expect(result).toBe('');
+  });
+
+  it('should handle undefined images array in performOCROnImages', async () => {
+    const result = await performOCROnImages(undefined as any);
+    expect(result).toBe('');
+  });
+
+  it('should return empty string when OCR dependencies are not available', async () => {
+    // Mock images data - doesn't matter what format since dependencies won't be available
+    const mockImages = [
+      { data: Buffer.from('fake-image-data') },
+      { data: Buffer.from('another-fake-image') }
+    ];
+    
+    const result = await performOCROnImages(mockImages);
+    
+    // Should return empty string if dependencies aren't available
+    expect(typeof result).toBe('string');
+    
+    if (ocrAvailable) {
+      console.log('OCR available - processed images, result length:', result.length);
+    } else {
+      console.log('OCR not available - returned empty string as expected');
+      expect(result).toBe('');
+    }
+  });
+
+  it('should handle invalid image data gracefully', async () => {
+    // Test with invalid image data
+    const invalidImages = [
+      { data: null },
+      { data: undefined },
+      {},
+      null,
+      undefined
+    ];
+    
+    const result = await performOCROnImages(invalidImages);
+    
+    // Should always return a string, never throw
+    expect(typeof result).toBe('string');
+    
+    if (ocrAvailable) {
+      console.log('OCR available - handled invalid images, result:', result);
+    } else {
+      console.log('OCR not available - returned empty string');
+      expect(result).toBe('');
+    }
   });
 });

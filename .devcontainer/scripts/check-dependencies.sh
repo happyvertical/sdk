@@ -87,6 +87,9 @@ echo "📚 Checking system libraries..."
 # Check C++ standard library
 check_library "libstdc++.so.6" "libstdc++ (C++ Standard Library)" "apt-get install libstdc++6 (Ubuntu) / nix-shell -p stdenv.cc.cc.lib (NixOS)"
 
+# Check ONNX Runtime library
+check_library "libonnxruntime.so" "ONNX Runtime (ML inference)" "apt-get install onnxruntime (Ubuntu) / nix-shell -p onnxruntime (NixOS)"
+
 # Check if we're in a development environment
 if [ -f "package.json" ]; then
     echo ""
