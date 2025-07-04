@@ -36,36 +36,31 @@ jobs:
           registry-url: 'https://npm.pkg.github.com'
           scope: '@have'
 
-      - name: Install pnpm
-        run: npm install -g pnpm
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.2.17"
 
-      - name: Show pnpm version
-        run: pnpm --version
+      - name: Show Bun version
+        run: bun --version
 
-      - name: Cache pnpm store
+      - name: Cache Bun dependencies
         uses: actions/cache@v4
         with:
-          path: ~/.pnpm-store
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
           restore-keys: |
-            ${{ runner.os }}-pnpm-store-
+            ${{ runner.os }}-bun-
 
       - name: Install dependencies
-        run: pnpm install
+        run: bun install
 
-      - name: Install Playwright Browsers
-        run: pnpm dlx playwright install
-
-      - name: Cache Playwright Browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
+      # Playwright no longer needed - using happy-dom for web scraping
+      # - name: Install Playwright Browsers
+      #   run: bunx playwright install
 
       - name: Build packages
-        run: pnpm build
+        run: bun run build
 
       - name: Configure Git
         run: |
@@ -73,7 +68,7 @@ jobs:
           git config user.email "actions@github.com"
 
       - name: Bump version and release
-        run: pnpm run release
+        run: bun run release
 
       - name: Commit and push changes
         run: |
@@ -104,7 +99,7 @@ jobs:
           # Secure token handling - create .npmrc in memory without exposing token
           echo "@have:registry=https://npm.pkg.github.com" > .npmrc
           echo "//npm.pkg.github.com/:_authToken=\${NODE_AUTH_TOKEN}" >> .npmrc
-          pnpm run publish-packages
+          bun run publish-packages
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

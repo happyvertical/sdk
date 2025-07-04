@@ -127,8 +127,8 @@ The package has the following dependencies:
 The package includes tests for verifying PDF processing:
 
 ```bash
-pnpm test        # Run tests once
-pnpm test:watch  # Run tests in watch mode
+bun test        # Run tests once
+bun test:watch  # Run tests in watch mode
 ```
 
 Tests use sample PDFs of different types and complexity.
@@ -138,8 +138,8 @@ Tests use sample PDFs of different types and complexity.
 Build the package with:
 
 ```bash
-pnpm build       # Build once
-pnpm build:watch # Build in watch mode
+bun run build       # Build once
+bun run build:watch # Build in watch mode
 ```
 
 ### Best Practices

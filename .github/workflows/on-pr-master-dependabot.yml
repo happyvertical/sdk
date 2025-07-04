@@ -32,19 +32,19 @@ jobs:
         with:
           node-version: '22'
           
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4  # Pinned to specific major version
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          version: 9  # Pinned to specific major version instead of latest
+          bun-version: "1.2.17"
           
       - name: Install dependencies
-        run: pnpm install
+        run: bun install
         
       - name: Build packages
-        run: pnpm build
+        run: bun run build
         
       - name: Run tests
-        run: pnpm test
+        run: bun test --run
         
       - name: Dependabot metadata
         id: metadata
@@ -58,7 +58,7 @@ jobs:
           echo "Dependency update type: ${{ steps.metadata.outputs.update-type }}"
           echo "Package ecosystem: ${{ steps.metadata.outputs.package-ecosystem }}"
           echo "Package name: ${{ steps.metadata.outputs.dependency-names }}"
-          pnpm audit --audit-level moderate || {
+          bun audit || {
             echo "::error::Security vulnerabilities found in dependencies"
             exit 1
           }

@@ -115,8 +115,8 @@ When adding new utility functions:
 The package uses Vitest for testing. Run tests with:
 
 ```bash
-pnpm test        # Run tests once
-pnpm test:watch  # Run tests in watch mode
+bun test        # Run tests once
+bun test:watch  # Run tests in watch mode
 ```
 
 ### Building
@@ -124,8 +124,8 @@ pnpm test:watch  # Run tests in watch mode
 Build the package with:
 
 ```bash
-pnpm build       # Build once
-pnpm build:watch # Build in watch mode
+bun run build       # Build once
+bun run build:watch # Build in watch mode
 ```
 
 ### Best Practices
