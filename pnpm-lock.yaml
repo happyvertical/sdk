@@ -73,31 +73,16 @@ importers:
 
   packages/pdf:
     dependencies:
-      date-fns:
-        specifier: ^4.1.0
-        version: 4.1.0
-      pdfjs-dist:
-        specifier: ^4.10.38
-        version: 4.10.38
-      pluralize:
-        specifier: ^8.0.0
-        version: 8.0.0
-      scribe.js-ocr:
-        specifier: ^0.8.0
-        version: 0.8.0
       tesseract.js:
         specifier: ^6.0.0
         version: 6.0.0
+      unpdf:
+        specifier: ^1.0.6
+        version: 1.0.6
     devDependencies:
       '@types/node':
         specifier: 22.13.0
         version: 22.13.0
-      '@types/pdfjs-dist':
-        specifier: ^2.10.378
-        version: 2.10.378
-      '@types/pluralize':
-        specifier: ^0.0.33
-        version: 0.0.33
       vitest:
         specifier: ^3.1.1
         version: 3.1.1(@types/debug@4.1.12)(@types/node@22.13.0)(jiti@2.4.2)(lightningcss@1.29.1)(yaml@2.8.0)
@@ -1385,10 +1370,6 @@ packages:
     resolution: {integrity: sha512-EULJ8LApcVEPbrfND0cRQqutIOdiIgJ1Mgrhpy755r14xMohPTEpkV/k28SJvuOs9bHRFW8x+KeDAEPiGQPB9Q==}
     deprecated: This is a stub types definition. parse-path provides its own type definitions, so you do not need this installed.
 
-  '@types/pdfjs-dist@2.10.378':
-    resolution: {integrity: sha512-TRdIPqdsvKmPla44kVy4jv5Nt5vjMfVjbIEke1CRULIrwKNRC4lIiZvNYDJvbUMNCFPNIUcOKhXTyMJrX18IMA==}
-    deprecated: This is a stub types definition. pdfjs-dist provides its own type definitions, so you do not need this installed.
-
   '@types/pg@8.11.11':
     resolution: {integrity: sha512-kGT1qKM8wJQ5qlawUrEkXgvMSXoV213KfMGXcwfDwUIfUHXqXYXOfS1nE1LINRJVVVx5wCm70XnFlMHaIcQAfw==}
 
@@ -1871,9 +1852,6 @@ packages:
 
   date-fns@3.6.0:
     resolution: {integrity: sha512-fRHTG8g/Gif+kSh50gaGEdToemgfj74aRX3swtiouboip5JDLAyDE9F11nHMIcvOaXeOC6D7SpNhi7uFyB7Uww==}
-
-  date-fns@4.1.0:
-    resolution: {integrity: sha512-Ukq0owbQXxa/U3EGtsdVBkR1w7KOQ5gIBqdH2hkvknzZPYvBxb/aa6E8L7tmjFtkwZBu3UXBbjIgPo/Ez4xaNg==}
 
   dateformat@3.0.3:
     resolution: {integrity: sha512-jyCETtSl3VMZMWeRo7iY1FL19ges1t55hMo5yaam4Jrsm5EPL89UQkoQRyiI+Yf4k8r2ZpdngkV8hr1lIdjb3Q==}
@@ -3478,10 +3456,6 @@ packages:
   scribe.js-ocr@0.7.1:
     resolution: {integrity: sha512-t9xALGmOfnNG91KQHUQf7wmsTAcuOZKcwzzuVmD4Kf+Gi0SyM+s3ve8jxxHCmvnUvFnPNYs1XKZUOmqhhfOyUw==}
 
-  scribe.js-ocr@0.8.0:
-    resolution: {integrity: sha512-ADEU2gydKCMS2paI/g1ronhUkGHLb3UzWFaLOK12S+++WesgTEr8l/LQYPOxkt1LMhtbC6B2FGZfkBqAQXSxLw==}
-    hasBin: true
-
   semver@5.7.2:
     resolution: {integrity: sha512-cBznnQ9KjJqU67B52RMC65CMarK2600WFnbkcaiwWq3xy/5haFJlshgnpjovMVJ+Hff49d8GEn0b87C5pDQ10g==}
     hasBin: true
@@ -3853,6 +3827,14 @@ packages:
   universalify@0.2.0:
     resolution: {integrity: sha512-CJ1QgKmNg3CwvAv/kOFmtnEN05f0D/cn9QntgNOQlQF9dgvVTHj3t+8JPdjqawCHk7V/KA+fbUqzZ9XWhcqPUg==}
     engines: {node: '>= 4.0.0'}
+
+  unpdf@1.0.6:
+    resolution: {integrity: sha512-TNFs2rzgDCnl7qJ0Iw7WkuVLkiOERtZlG+hFEOtTU6jPwxllqB5X4eKXzcqtwOVozDMEI+A1VYFLXlzlP2i8QQ==}
+    peerDependencies:
+      '@napi-rs/canvas': ^0.1.69
+    peerDependenciesMeta:
+      '@napi-rs/canvas':
+        optional: true
 
   unpipe@1.0.0:
     resolution: {integrity: sha512-pjy2bYhSsufwWlKwPc+l3cN7+wuJlK6uz0YdJEOlQDbl6jo/YlPi4mb8agUkVC8BF7V8NuzeyPNqRksA3hztKQ==}
@@ -4863,10 +4845,6 @@ snapshots:
     dependencies:
       parse-path: 7.1.0
 
-  '@types/pdfjs-dist@2.10.378':
-    dependencies:
-      pdfjs-dist: 4.10.38
-
   '@types/pg@8.11.11':
     dependencies:
       '@types/node': 22.13.0
@@ -5422,8 +5400,6 @@ snapshots:
   data-uri-to-buffer@4.0.1: {}
 
   date-fns@3.6.0: {}
-
-  date-fns@4.1.0: {}
 
   dateformat@3.0.3: {}
 
@@ -6992,14 +6968,6 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  scribe.js-ocr@0.8.0:
-    dependencies:
-      '@scribe.js/tesseract.js': 6.0.2
-      canvaskit-wasm: 0.39.1
-      commander: 11.1.0
-    transitivePeerDependencies:
-      - encoding
-
   semver@5.7.2: {}
 
   semver@6.3.1: {}
@@ -7350,6 +7318,8 @@ snapshots:
   universalify@0.1.2: {}
 
   universalify@0.2.0: {}
+
+  unpdf@1.0.6: {}
 
   unpipe@1.0.0: {}
 
