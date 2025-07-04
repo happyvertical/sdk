@@ -127,7 +127,10 @@ describe('File utilities', () => {
       const dirPath = path.join(tmpDir, 'existing-dir');
       fs.mkdirSync(dirPath);
 
-      await expect(ensureDirectoryExists(dirPath)).resolves.not.toThrow();
+      // Should complete without throwing
+      await expect(ensureDirectoryExists(dirPath)).resolves.toBeUndefined();
+      // Directory should still exist
+      expect(fs.existsSync(dirPath)).toBe(true);
     });
   });
 

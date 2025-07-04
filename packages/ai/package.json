@@ -1,6 +1,7 @@
 {
   "name": "@have/ai",
   "version": "0.0.50",
+  "description": "AI client library with support for OpenAI and standardized interfaces",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,10 +18,10 @@
     "build:watch": "tsc -b --watch",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean",
-    "dev": "pnpm run build:watch & pnpm run test:watch"
+    "dev": "bun run build:watch & bun run test:watch"
   },
   "engines": {
-    "node": "22.x"
+    "node": ">=22.0.0"
   },
   "dependencies": {
     "@have/utils": "workspace:*",
