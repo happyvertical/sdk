@@ -1,6 +1,76 @@
 import { extractText, extractImages, getDocumentProxy } from 'unpdf'
-import { createWorker } from 'tesseract.js'
+import OcrNode from '@gutenye/ocr-node'
 import fs from 'fs/promises'
+
+/**
+ * Checks if OCR dependencies are available in the current environment
+ * 
+ * @returns Promise resolving to dependency check result
+ * 
+ * @remarks
+ * This function verifies that ONNX Runtime and required system libraries
+ * are available for OCR functionality. Useful for graceful degradation.
+ */
+export async function checkOCRDependencies(): Promise<{
+  available: boolean
+  error?: string
+  details: {
+    ocrNode: boolean
+    systemLibraries: boolean
+  }
+}> {
+  const result: {
+    available: boolean
+    error?: string
+    details: {
+      ocrNode: boolean
+      systemLibraries: boolean
+    }
+  } = {
+    available: false,
+    details: {
+      ocrNode: false,
+      systemLibraries: false
+    }
+  }
+
+  try {
+    // Test if OCR Node module can be imported and initialized
+    const ocr = await OcrNode.create()
+    
+    if (ocr && typeof ocr.detect === 'function') {
+      result.details.ocrNode = true
+      result.details.systemLibraries = true
+      result.available = true
+      
+      // Clean up test instance
+      if (typeof ocr.destroy === 'function') {
+        try {
+          await ocr.destroy()
+        } catch {
+          // Ignore cleanup errors
+        }
+      }
+    }
+    
+    return result
+  } catch (error: any) {
+    const errorMessage = error.message || error.toString()
+    
+    // Categorize the error
+    if (errorMessage.includes('libstdc++') || errorMessage.includes('GLIBC') || errorMessage.includes('cannot open shared object')) {
+      result.error = `Missing system libraries: ${errorMessage}`
+      result.details.systemLibraries = false
+    } else if (errorMessage.includes('onnxruntime') || errorMessage.includes('ONNX')) {
+      result.error = `ONNX Runtime error: ${errorMessage}`
+      result.details.systemLibraries = false
+    } else {
+      result.error = `OCR initialization failed: ${errorMessage}`
+    }
+    
+    return result
+  }
+}
 
 /**
  * Extracts images from all pages of a PDF file
@@ -84,24 +154,38 @@ export async function extractTextFromPDF(pdfPath: string): Promise<string | null
 }
 
 /**
- * Performs OCR on image data using Tesseract.js
+ * Performs OCR on image data using @gutenye/ocr-node
  * 
  * @param images - Array of image objects from PDF extraction
  * @returns Promise resolving to the OCR text
  * 
  * @remarks
- * This function processes image data through Tesseract.js OCR engine.
+ * This function processes image data through PaddleOCR + ONNX Runtime.
  * It's used as a fallback when direct text extraction fails.
+ * This implementation is Bun-compatible unlike the previous Tesseract.js version.
+ * 
+ * The function includes dependency checking and graceful degradation.
  */
 async function performOCROnImages(images: any[]): Promise<string> {
   if (!images || images.length === 0) {
     return ''
   }
 
-  const worker = await createWorker()
+  // Check OCR dependencies first
+  const dependencyCheck = await checkOCRDependencies()
+  if (!dependencyCheck.available) {
+    console.warn('OCR dependencies not available:', dependencyCheck.error)
+    console.warn('Skipping OCR processing. Install system dependencies for OCR functionality.')
+    return ''
+  }
+
   let ocrText = ''
+  let ocr: any = null
   
   try {
+    // Initialize OCR engine once for all images
+    ocr = await OcrNode.create()
+    
     for (const image of images) {
       try {
         // Handle different image data formats from unpdf
@@ -112,26 +196,36 @@ async function performOCROnImages(images: any[]): Promise<string> {
           continue
         }
         
-        // Try to recognize the image
-        // Note: Tesseract.js may fail with certain image formats in Bun
-        const { data } = await worker.recognize(imageData)
-        ocrText += data.text + ' '
-      } catch (imageError: any) {
-        // Known issue: Tesseract.js has compatibility issues with Bun
-        // Error: "Error attempting to read image" is expected in some cases
-        if (imageError?.message?.includes('Error attempting to read image')) {
-          console.warn('Tesseract.js image format compatibility issue (known Bun limitation):', imageError.message)
-        } else {
-          console.warn('Failed to process image for OCR:', imageError)
+        // Convert image data to Buffer if needed
+        const buffer = imageData instanceof Buffer ? imageData : Buffer.from(imageData)
+        
+        // Perform OCR using @gutenye/ocr-node
+        const result = await ocr.detect(buffer)
+        
+        // Extract text from OCR results
+        if (result && Array.isArray(result)) {
+          for (const detection of result) {
+            if (detection && detection.text) {
+              ocrText += detection.text + ' '
+            }
+          }
         }
+      } catch (imageError: any) {
+        console.warn('Failed to process image for OCR:', imageError.message || imageError)
         continue
       }
     }
+  } catch (error: any) {
+    console.error('OCR processing failed:', error.message || error)
+    console.error('This may indicate missing system dependencies. Run checkOCRDependencies() for details.')
   } finally {
-    try {
-      await worker.terminate()
-    } catch (terminateError) {
-      // Ignore termination errors
+    // Clean up OCR resources if needed
+    if (ocr && typeof ocr.destroy === 'function') {
+      try {
+        await ocr.destroy()
+      } catch (cleanupError) {
+        // Ignore cleanup errors
+      }
     }
   }
   
