@@ -20,16 +20,16 @@ Reference these documents directly from other repositories using GitHub URLs:
 
 We follow the HAppy VErtical organization workflow standards:
 
-- [Definition of Ready](https://github.com/happyvertical/sdk/blob/main/docs/workflow/DEFINITION_OF_READY.md)
-- [Definition of Done](https://github.com/happyvertical/sdk/blob/main/docs/workflow/DEFINITION_OF_DONE.md)  
-- [Kanban Process](https://github.com/happyvertical/sdk/blob/main/docs/workflow/KANBAN.md)
+- [Definition of Ready](https://github.com/happyvertical/sdk-ts/blob/main/docs/workflow/DEFINITION_OF_READY.md)
+- [Definition of Done](https://github.com/happyvertical/sdk-ts/blob/main/docs/workflow/DEFINITION_OF_DONE.md)  
+- [Kanban Process](https://github.com/happyvertical/sdk-ts/blob/main/docs/workflow/KANBAN.md)
 ```
 
 ### Option 2: Git Submodule
 Add this workflow directory as a submodule:
 
 ```bash
-git submodule add https://github.com/happyvertical/sdk.git workflow-standards
+git submodule add https://github.com/happyvertical/sdk-ts.git workflow-standards
 git submodule init
 git submodule update --remote --merge
 ```
@@ -57,13 +57,13 @@ jobs:
       - name: Sync workflow docs
         run: |
           mkdir -p .github/workflow-standards
-          curl -L https://raw.githubusercontent.com/happyvertical/sdk/main/docs/workflow/DEFINITION_OF_READY.md -o .github/workflow-standards/DEFINITION_OF_READY.md
-          curl -L https://raw.githubusercontent.com/happyvertical/sdk/main/docs/workflow/DEFINITION_OF_DONE.md -o .github/workflow-standards/DEFINITION_OF_DONE.md
-          curl -L https://raw.githubusercontent.com/happyvertical/sdk/main/docs/workflow/KANBAN.md -o .github/workflow-standards/KANBAN.md
+          curl -L https://raw.githubusercontent.com/happyvertical/sdk-ts/main/docs/workflow/DEFINITION_OF_READY.md -o .github/workflow-standards/DEFINITION_OF_READY.md
+          curl -L https://raw.githubusercontent.com/happyvertical/sdk-ts/main/docs/workflow/DEFINITION_OF_DONE.md -o .github/workflow-standards/DEFINITION_OF_DONE.md
+          curl -L https://raw.githubusercontent.com/happyvertical/sdk-ts/main/docs/workflow/KANBAN.md -o .github/workflow-standards/KANBAN.md
       - uses: peter-evans/create-pull-request@v5
         with:
           title: Update workflow standards
-          body: Automated sync of workflow documentation from happyvertical/sdk
+          body: Automated sync of workflow documentation from happyvertical/sdk-ts
 ```
 
 ## Project Setup
@@ -126,7 +126,7 @@ If you prefer manual setup:
 ## Updates and Changes
 
 Changes to these workflow standards should be:
-1. Proposed via Pull Request to the happyvertical/sdk repository
+1. Proposed via Pull Request to the happyvertical/sdk-ts repository
 2. Reviewed by team leads across affected projects
 3. Documented with rationale in the PR description
 4. Communicated to all teams upon merge
