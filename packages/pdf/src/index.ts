@@ -112,15 +112,27 @@ async function performOCROnImages(images: any[]): Promise<string> {
           continue
         }
         
+        // Try to recognize the image
+        // Note: Tesseract.js may fail with certain image formats in Bun
         const { data } = await worker.recognize(imageData)
         ocrText += data.text + ' '
-      } catch (imageError) {
-        console.warn('Failed to process image for OCR:', imageError)
+      } catch (imageError: any) {
+        // Known issue: Tesseract.js has compatibility issues with Bun
+        // Error: "Error attempting to read image" is expected in some cases
+        if (imageError?.message?.includes('Error attempting to read image')) {
+          console.warn('Tesseract.js image format compatibility issue (known Bun limitation):', imageError.message)
+        } else {
+          console.warn('Failed to process image for OCR:', imageError)
+        }
         continue
       }
     }
   } finally {
-    await worker.terminate()
+    try {
+      await worker.terminate()
+    } catch (terminateError) {
+      // Ignore termination errors
+    }
   }
   
   return ocrText.trim()

@@ -116,12 +116,21 @@ export async function fetchPageSource(
 
     const content = await response.body.text();
     
-    // Process the HTML with happy-dom to ensure it's well-formed
-    const window = new Window();
-    const document = window.document;
-    document.documentElement.innerHTML = content;
-    
-    const processedContent = document.documentElement.outerHTML;
+    // Try to process the HTML with happy-dom to ensure it's well-formed
+    // Some HTML with event handlers may cause issues in happy-dom
+    let processedContent = content;
+    try {
+      const window = new Window();
+      const document = window.document;
+      document.documentElement.innerHTML = content;
+      processedContent = document.documentElement.outerHTML;
+    } catch (domError) {
+      // If happy-dom fails (e.g., with event attribute parsing), use raw HTML
+      getLogger().warn('happy-dom failed to parse HTML, using raw content', { 
+        url, 
+        error: domError instanceof Error ? domError.message : String(domError) 
+      });
+    }
     
     await setCached(cachedFile, processedContent);
     return processedContent;
