@@ -1,6 +1,7 @@
 {
   "name": "@have/utils",
   "version": "0.0.50",
+  "description": "Shared utility functions and type definitions",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -12,10 +13,11 @@
     "test:watch": "vitest --watch",
     "build": "tsc -b",
     "build:watch": "tsc -b --watch",
-    "clean": "rm -rf dist tsconfig.tsbuildinfo"
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "dev": "bun run build:watch & bun run test:watch"
   },
   "engines": {
-    "node": "22.x"
+    "node": ">=22.0.0"
   },
   "dependencies": {
     "@paralleldrive/cuid2": "^2.2.2",

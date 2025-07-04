@@ -1,6 +1,7 @@
 {
   "name": "@have/files",
   "version": "0.0.50",
+  "description": "File system utilities for local and remote file operations",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -14,10 +15,10 @@
     "build:watch": "tsc -b --watch",
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "prebuild": "npm run clean",
-    "dev": "pnpm run build:watch & pnpm run test:watch"
+    "dev": "bun run build:watch & bun run test:watch"
   },
   "engines": {
-    "node": "22.x"
+    "node": ">=22.0.0"
   },
   "dependencies": {
     "@have/utils": "workspace:*"
