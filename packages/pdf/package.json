@@ -1,6 +1,7 @@
 {
   "name": "@have/pdf",
   "version": "0.0.50",
+  "description": "Modern PDF processing utilities with text extraction and OCR support using unpdf and Tesseract.js",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -20,18 +21,13 @@
     "dev": "pnpm run build:watch & pnpm run test:watch"
   },
   "engines": {
-    "node": "22.x"
+    "node": ">=22.0.0"
   },
   "dependencies": {
-    "date-fns": "^4.1.0",
-    "pluralize": "^8.0.0",
-    "pdfjs-dist": "^4.10.38",
-    "scribe.js-ocr": "^0.8.0",
-    "tesseract.js": "^6.0.0"
+    "tesseract.js": "^6.0.0",
+    "unpdf": "^1.0.6"
   },
   "devDependencies": {
-    "@types/pdfjs-dist": "^2.10.378",
-    "@types/pluralize": "^0.0.33",
     "@types/node": "^22.13.0",
     "vitest": "^3.1.1"
   }
