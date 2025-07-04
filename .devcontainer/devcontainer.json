@@ -1,0 +1,76 @@
+{
+  "name": "HAVE SDK Development",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces",
+
+  "containerEnv": {
+    "NODE_ENV": "development",
+    "FORCE_COLOR": "1"
+  },
+
+  "initializeCommand": [
+    "bash",
+    "-c",
+    "echo 'Initializing HAVE SDK development environment with ONNX Runtime support...'"
+  ],
+
+  "onCreateCommand": [
+    "bash",
+    "-c",
+    "export PATH=\"$HOME/.bun/bin:$PATH\" && git lfs install"
+  ],
+
+  "postCreateCommand": [
+    "bash",
+    "-c", 
+    "export PATH=\"$HOME/.bun/bin:$PATH\" && bun install && bun run build"
+  ],
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.vscode-typescript-next",
+        "bradlc.vscode-tailwindcss",
+        "esbenp.prettier-vscode",
+        "ms-vscode.vscode-json",
+        "GitHub.copilot",
+        "GitHub.copilot-chat",
+        "biomejs.biome",
+        "vitest.explorer"
+      ],
+      "settings": {
+        "typescript.preferences.importModuleSpecifier": "relative",
+        "typescript.suggest.autoImports": true,
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "biomejs.biome",
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": "explicit",
+          "source.fixAll": "explicit"
+        },
+        "files.exclude": {
+          "**/node_modules": true,
+          "**/dist": true,
+          "**/.git": true,
+          "**/.DS_Store": true,
+          "**/Thumbs.db": true
+        },
+        "search.exclude": {
+          "**/node_modules": true,
+          "**/dist": true,
+          "**/coverage": true
+        }
+      }
+    }
+  },
+
+  "forwardPorts": [3000, 5173, 8080],
+
+  "remoteUser": "node",
+
+  "workspaceFolder": "/workspaces/sdk-ts",
+
+  "mounts": [
+    "source=${localWorkspaceFolder}/.devcontainer/scripts,target=/workspaces/.devcontainer/scripts,type=bind,consistency=cached"
+  ]
+}
