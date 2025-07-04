@@ -11,15 +11,15 @@
     "test": "vitest",
     "test:watch": "vitest --watch",
     "test:run": "vitest --run",
-    "test:packages": "pnpm -r test --run",
+    "test:packages": "bun test --cwd packages/utils && bun test --cwd packages/files && bun test --cwd packages/spider && bun test --cwd packages/sql && bun test --cwd packages/pdf && bun test --cwd packages/ai && bun test --cwd packages/smrt",
     "lint": "biome lint .",
     "lint:fix": "biome lint --apply .",
-    "clean": "pnpm -r exec rm -rf dist && pnpm -r exec rm -rf tsconfig.tsbuildinfo",
-    "build": "pnpm validate-build && pnpm clean && pnpm --filter @have/utils build && pnpm --filter @have/files build && pnpm --filter @have/spider build && pnpm --filter @have/sql build && pnpm --filter @have/pdf build && pnpm --filter @have/ai build && pnpm --filter @have/smrt build && pnpm docs && pnpm repomix",
+    "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo",
+    "build": "bun clean && (cd packages/utils && bun run build) && (cd packages/files && bun run build) && (cd packages/spider && bun run build) && (cd packages/sql && bun run build) && (cd packages/pdf && bun run build) && (cd packages/ai && bun run build) && (cd packages/smrt && bun run build) && bun docs && bun repomix",
     "docs": "node scripts/generate-docs.js",
     "validate-build": "node scripts/validate-build.js",
-    "dev": "pnpm -r build:watch",
-    "publish-packages": "pnpm build && changeset publish",
+    "dev": "bun run build:watch",
+    "publish-packages": "bun build && changeset publish",
     "release": "standard-version --no-verify",
     "postrelease": "node scripts/update-package-versions.cjs"
   },
@@ -39,6 +39,7 @@
     "@types/node": "22.13.0"
   },
   "engines": {
-    "node": "22.x"
+    "node": ">=22.0.0",
+    "bun": ">=1.0.0"
   }
 }
