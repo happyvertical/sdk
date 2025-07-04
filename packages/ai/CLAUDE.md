@@ -109,8 +109,8 @@ To add support for a new AI provider:
 The package includes tests for verifying client behavior:
 
 ```bash
-pnpm test        # Run tests once
-pnpm test:watch  # Run tests in watch mode
+bun test        # Run tests once
+bun test:watch  # Run tests in watch mode
 ```
 
 Mock the actual API calls in tests to avoid external dependencies.
@@ -120,8 +120,8 @@ Mock the actual API calls in tests to avoid external dependencies.
 Build the package with:
 
 ```bash
-pnpm build       # Build once
-pnpm build:watch # Build in watch mode
+bun run build       # Build once
+bun run build:watch # Build in watch mode
 ```
 
 ### Best Practices

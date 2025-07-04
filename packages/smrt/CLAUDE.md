@@ -193,15 +193,15 @@ To extend the framework:
 ### Testing
 
 ```bash
-pnpm test        # Run tests once
-pnpm test:watch  # Run tests in watch mode
+bun test        # Run tests once
+bun test:watch  # Run tests in watch mode
 ```
 
 ### Building
 
 ```bash
-pnpm build       # Build once
-pnpm build:watch # Build in watch mode
+bun run build       # Build once
+bun run build:watch # Build in watch mode
 ```
 
 ### Best Practices
