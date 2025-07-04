@@ -40,7 +40,7 @@ importers:
         version: 5.7.3
       vitest:
         specifier: ^3.1.1
-        version: 3.1.1(@types/debug@4.1.12)(@types/node@22.13.0)(jiti@2.4.2)(lightningcss@1.29.1)(yaml@2.8.0)
+        version: 3.1.1(@types/debug@4.1.12)(@types/node@22.13.0)(happy-dom@18.0.1)(jiti@2.4.2)(lightningcss@1.29.1)(yaml@2.8.0)
 
   packages/ai:
     dependencies:
@@ -56,7 +56,7 @@ importers:
         version: 22.13.0
       vitest:
         specifier: ^3.1.1
-        version: 3.1.1(@types/debug@4.1.12)(@types/node@22.13.0)(jiti@2.4.2)(lightningcss@1.29.1)(yaml@2.8.0)
+        version: 3.1.1(@types/debug@4.1.12)(@types/node@22.13.0)(happy-dom@18.0.1)(jiti@2.4.2)(lightningcss@1.29.1)(yaml@2.8.0)
 
   packages/files:
     dependencies:
@@ -69,7 +69,7 @@ importers:
         version: 22.13.0
       vitest:
         specifier: ^3.1.1
-        version: 3.1.1(@types/debug@4.1.12)(@types/node@22.13.0)(jiti@2.4.2)(lightningcss@1.29.1)(yaml@2.8.0)
+        version: 3.1.1(@types/debug@4.1.12)(@types/node@22.13.0)(happy-dom@18.0.1)(jiti@2.4.2)(lightningcss@1.29.1)(yaml@2.8.0)
 
   packages/pdf:
     dependencies:
@@ -85,7 +85,7 @@ importers:
         version: 22.13.0
       vitest:
         specifier: ^3.1.1
-        version: 3.1.1(@types/debug@4.1.12)(@types/node@22.13.0)(jiti@2.4.2)(lightningcss@1.29.1)(yaml@2.8.0)
+        version: 3.1.1(@types/debug@4.1.12)(@types/node@22.13.0)(happy-dom@18.0.1)(jiti@2.4.2)(lightningcss@1.29.1)(yaml@2.8.0)
 
   packages/smrt:
     dependencies:
@@ -137,7 +137,7 @@ importers:
         version: 0.7.1
       vitest:
         specifier: ^3.1.1
-        version: 3.1.1(@types/debug@4.1.12)(@types/node@22.13.0)(jiti@2.4.2)(lightningcss@1.29.1)(yaml@2.8.0)
+        version: 3.1.1(@types/debug@4.1.12)(@types/node@22.13.0)(happy-dom@18.0.1)(jiti@2.4.2)(lightningcss@1.29.1)(yaml@2.8.0)
 
   packages/spider:
     dependencies:
@@ -156,19 +156,25 @@ importers:
       cheerio:
         specifier: ^1.0.0
         version: 1.0.0
+      happy-dom:
+        specifier: ^18.0.1
+        version: 18.0.1
       playwright:
         specifier: ^1.49.1
         version: 1.50.1
       playwright-core:
         specifier: ^1.49.1
         version: 1.50.1
+      undici:
+        specifier: ^7.11.0
+        version: 7.11.0
     devDependencies:
       '@types/node':
         specifier: 22.13.0
         version: 22.13.0
       vitest:
         specifier: ^3.1.1
-        version: 3.1.1(@types/debug@4.1.12)(@types/node@22.13.0)(jiti@2.4.2)(lightningcss@1.29.1)(yaml@2.8.0)
+        version: 3.1.1(@types/debug@4.1.12)(@types/node@22.13.0)(happy-dom@18.0.1)(jiti@2.4.2)(lightningcss@1.29.1)(yaml@2.8.0)
 
   packages/sql:
     dependencies:
@@ -193,7 +199,7 @@ importers:
         version: 8.11.11
       vitest:
         specifier: ^3.1.1
-        version: 3.1.1(@types/debug@4.1.12)(@types/node@22.13.0)(jiti@2.4.2)(lightningcss@1.29.1)(yaml@2.8.0)
+        version: 3.1.1(@types/debug@4.1.12)(@types/node@22.13.0)(happy-dom@18.0.1)(jiti@2.4.2)(lightningcss@1.29.1)(yaml@2.8.0)
 
   packages/utils:
     dependencies:
@@ -221,7 +227,7 @@ importers:
         version: 10.0.0
       vitest:
         specifier: ^3.1.1
-        version: 3.1.1(@types/debug@4.1.12)(@types/node@22.13.0)(jiti@2.4.2)(lightningcss@1.29.1)(yaml@2.8.0)
+        version: 3.1.1(@types/debug@4.1.12)(@types/node@22.13.0)(happy-dom@18.0.1)(jiti@2.4.2)(lightningcss@1.29.1)(yaml@2.8.0)
 
 packages:
 
@@ -1391,6 +1397,9 @@ packages:
   '@types/uuid@10.0.0':
     resolution: {integrity: sha512-7gqG38EyHgyP1S+7+xomFtL+ZNHcKv6DwNaCZmJmo1vgMugyF3TCnXVg4t1uk89mLNwnLtnY3TpOpCOyp1/xHQ==}
 
+  '@types/whatwg-mimetype@3.0.2':
+    resolution: {integrity: sha512-c2AKvDT8ToxLIOUlN51gTiHXflsfIFisS4pO7pDPoKouJCESkhZnEy623gwP9laCy5lnLDAw1vAzu2vM2YLOrA==}
+
   '@types/ws@8.5.14':
     resolution: {integrity: sha512-bd/YFLW+URhBzMXurx7lWByOu+xzU9+kb3RboOteXYDfW+tr+JZa99OyNmPINEGB/ahzKrEuc8rcv4gnpJmxTw==}
 
@@ -2277,6 +2286,10 @@ packages:
     resolution: {integrity: sha512-vafaFqs8MZkRrSX7sFVUdo3ap/eNiLnb4IakshzvP56X5Nr1iGKAIqdX6tMlm6HcNRIkr6AxO5jFEoJzzpT8aQ==}
     engines: {node: '>=0.4.7'}
     hasBin: true
+
+  happy-dom@18.0.1:
+    resolution: {integrity: sha512-qn+rKOW7KWpVTtgIUi6RVmTBZJSe2k0Db0vh1f7CWrWclkkc7/Q+FrOfkZIb2eiErLyqu5AXEzE7XthO9JVxRA==}
+    engines: {node: '>=20.0.0'}
 
   hard-rejection@2.1.0:
     resolution: {integrity: sha512-VIZB+ibDhx7ObhAe7OVtoEbuP4h/MuOTHJ+J8h/eBXotJYl0fBgR72xDFCKgIh22OJZIOVNxBMWuhAr10r8HdA==}
@@ -3812,6 +3825,10 @@ packages:
     resolution: {integrity: sha512-q/1rj5D0/zayJB2FraXdaWxbhWiNKDvu8naDT2dl1yTlvJp4BLtOcp2a5BvgGNQpYYJzau7tf1WgKv3b+7mqpQ==}
     engines: {node: '>=18.17'}
 
+  undici@7.11.0:
+    resolution: {integrity: sha512-heTSIac3iLhsmZhUCjyS3JQEkZELateufzZuBaVM5RHXdSBMb1LPMQf5x+FH7qjsZYDP0ttAc3nnVpUB+wYbOg==}
+    engines: {node: '>=20.18.1'}
+
   unicorn-magic@0.1.0:
     resolution: {integrity: sha512-lRfVq8fE8gz6QMBuDM6a+LO3IAzTi05H6gCVaUpir2E1Rwpo4ZUog45KpNXKC/Mn3Yb9UDuHumeFTo9iV/D9FQ==}
     engines: {node: '>=18'}
@@ -3958,6 +3975,10 @@ packages:
   whatwg-encoding@3.1.1:
     resolution: {integrity: sha512-6qN4hJdMwfYBtE3YBTTHhoeuUrDBPZmbQaxWAqSALV/MeEnR5z1xd8UKud2RAkFoPkmB+hli1TZSnyi84xz1vQ==}
     engines: {node: '>=18'}
+
+  whatwg-mimetype@3.0.0:
+    resolution: {integrity: sha512-nt+N2dzIutVRxARx1nghPKGv1xHikU7HKdfafKkLNLindmPU/ch3U31NOCGGA/dmPcmb1VlofO0vnKAcsm0o/Q==}
+    engines: {node: '>=12'}
 
   whatwg-mimetype@4.0.0:
     resolution: {integrity: sha512-QaKxh0eNIi2mE9p2vEdzfagOKHCcj1pJ56EEHGQOVxp8r9/iszLUUV7v89x9O1p/T+NlTM5W7jW6+cz4Fq1YVg==}
@@ -4862,6 +4883,8 @@ snapshots:
   '@types/unist@3.0.3': {}
 
   '@types/uuid@10.0.0': {}
+
+  '@types/whatwg-mimetype@3.0.2': {}
 
   '@types/ws@8.5.14':
     dependencies:
@@ -5869,6 +5892,12 @@ snapshots:
       wordwrap: 1.0.0
     optionalDependencies:
       uglify-js: 3.19.3
+
+  happy-dom@18.0.1:
+    dependencies:
+      '@types/node': 22.13.0
+      '@types/whatwg-mimetype': 3.0.2
+      whatwg-mimetype: 3.0.0
 
   hard-rejection@2.1.0: {}
 
@@ -7311,6 +7340,8 @@ snapshots:
 
   undici@6.21.1: {}
 
+  undici@7.11.0: {}
+
   unicorn-magic@0.1.0: {}
 
   unicorn-magic@0.3.0: {}
@@ -7376,7 +7407,7 @@ snapshots:
       lightningcss: 1.29.1
       yaml: 2.8.0
 
-  vitest@3.1.1(@types/debug@4.1.12)(@types/node@22.13.0)(jiti@2.4.2)(lightningcss@1.29.1)(yaml@2.8.0):
+  vitest@3.1.1(@types/debug@4.1.12)(@types/node@22.13.0)(happy-dom@18.0.1)(jiti@2.4.2)(lightningcss@1.29.1)(yaml@2.8.0):
     dependencies:
       '@vitest/expect': 3.1.1
       '@vitest/mocker': 3.1.1(vite@6.1.0(@types/node@22.13.0)(jiti@2.4.2)(lightningcss@1.29.1)(yaml@2.8.0))
@@ -7401,6 +7432,7 @@ snapshots:
     optionalDependencies:
       '@types/debug': 4.1.12
       '@types/node': 22.13.0
+      happy-dom: 18.0.1
     transitivePeerDependencies:
       - jiti
       - less
@@ -7428,6 +7460,8 @@ snapshots:
   whatwg-encoding@3.1.1:
     dependencies:
       iconv-lite: 0.6.3
+
+  whatwg-mimetype@3.0.0: {}
 
   whatwg-mimetype@4.0.0: {}
 

@@ -1,6 +1,6 @@
 import path from 'path';
-import { chromium } from 'playwright-core';
-import type { Browser } from 'playwright-core';
+import { Window } from 'happy-dom';
+import { request } from 'undici';
 import { urlFilename, urlPath, getLogger, ValidationError, NetworkError, ParsingError, isUrl } from '@have/utils';
 import * as cheerio from 'cheerio';
 
@@ -16,14 +16,9 @@ interface FetchPageSourceOptions {
   url: string;
   
   /**
-   * Whether to use a simple HTTP fetch instead of a browser
+   * Whether to use a simple HTTP fetch instead of DOM processing
    */
   cheap: boolean;
-  
-  /**
-   * Browser instance to use for fetching (required if cheap is false)
-   */
-  browser?: Browser;
   
   /**
    * Whether to use cached content if available
@@ -34,20 +29,36 @@ interface FetchPageSourceOptions {
    * Cache expiry time in milliseconds
    */
   cacheExpiry?: number;
+  
+  /**
+   * Custom headers to include with the request
+   */
+  headers?: Record<string, string>;
+  
+  /**
+   * Timeout for the request in milliseconds
+   */
+  timeout?: number;
 }
 
 /**
- * Fetches the HTML source of a web page using either a simple HTTP request or a headless browser
+ * Fetches the HTML source of a web page using either a simple HTTP request or DOM processing
  * 
  * @param options - Configuration options for the fetch operation
  * @returns Promise resolving to the HTML content of the page
- * @throws {ValidationError} if the URL is invalid or browser is missing when required
+ * @throws {ValidationError} if the URL is invalid
  * @throws {NetworkError} if there are network-related failures
  */
 export async function fetchPageSource(
   options: FetchPageSourceOptions,
 ): Promise<string> {
-  const { url, cheap = true, browser, cacheExpiry = 300000 } = options;
+  const { 
+    url, 
+    cheap = true, 
+    cacheExpiry = 300000, 
+    headers = {}, 
+    timeout = 30000 
+  } = options;
 
   // Validate URL
   if (!url || typeof url !== 'string') {
@@ -58,12 +69,7 @@ export async function fetchPageSource(
     throw new ValidationError('Invalid URL format', { url });
   }
 
-  // Validate browser requirement for non-cheap mode
-  if (!cheap && !browser) {
-    throw new ValidationError('Browser instance is required when cheap mode is disabled', { cheap, browser });
-  }
-
-  if (cheap || !browser) {
+  if (cheap) {
     const cachedFile = path.join(urlPath(url), '.cheap', urlFilename(url));
     const cached = await getCached(cachedFile, cacheExpiry);
     if (cached) {
@@ -71,11 +77,7 @@ export async function fetchPageSource(
       return cached;
     }
 
-    // const response = await fetch(url);
-    // const content = await response.text();
-
     const content = await fetchText(url);
-
     await setCached(cachedFile, content);
     return content;
   }
@@ -87,19 +89,46 @@ export async function fetchPageSource(
   }
 
   try {
-    const page = await browser.newPage();
-    try {
-      await page.goto(url, { waitUntil: 'networkidle' });
-      const content = await page.content();
-      await setCached(cachedFile, content);
-      return content;
-    } finally {
-      await page.close();
+    const defaultHeaders = {
+      'User-Agent': 'Mozilla/5.0 (compatible; HAppyVertical Spider/1.0)',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.5',
+      'Accept-Encoding': 'gzip, deflate',
+      'DNT': '1',
+      'Connection': 'keep-alive',
+      'Upgrade-Insecure-Requests': '1',
+      ...headers
+    };
+
+    const response = await request(url, {
+      method: 'GET',
+      headers: defaultHeaders,
+      headersTimeout: timeout,
+      bodyTimeout: timeout
+    });
+
+    if (response.statusCode >= 400) {
+      throw new NetworkError(
+        `HTTP ${response.statusCode}: ${response.headers['status'] || 'Request failed'}`,
+        { url, statusCode: response.statusCode, headers: response.headers }
+      );
     }
+
+    const content = await response.body.text();
+    
+    // Process the HTML with happy-dom to ensure it's well-formed
+    const window = new Window();
+    const document = window.document;
+    document.documentElement.innerHTML = content;
+    
+    const processedContent = document.documentElement.outerHTML;
+    
+    await setCached(cachedFile, processedContent);
+    return processedContent;
   } catch (error) {
     if (error instanceof Error) {
       throw new NetworkError(
-        `Failed to fetch page source with browser: ${error.message}`,
+        `Failed to fetch page source: ${error.message}`,
         { url, error: error.message, stack: error.stack }
       );
     }
@@ -150,21 +179,32 @@ export async function parseIndexSource(indexSource: string): Promise<string[]> {
 }
 
 /**
- * Creates and launches a headless Chromium browser instance
+ * Creates a new happy-dom window instance for DOM manipulation
  * 
- * @returns Promise resolving to a Browser instance
- * @throws {NetworkError} if browser launch fails
+ * @returns A new Window instance
  */
-export async function getBrowser(): Promise<Browser> {
+export function createWindow(): Window {
+  return new Window();
+}
+
+/**
+ * Processes HTML content using happy-dom to ensure proper DOM structure
+ * 
+ * @param html - HTML content to process
+ * @returns Promise resolving to the processed HTML
+ * @throws {ParsingError} if HTML processing fails
+ */
+export async function processHtml(html: string): Promise<string> {
   try {
-    const browser = await chromium.launch({
-      headless: true,
-    });
-    return browser;
+    const window = new Window();
+    const document = window.document;
+    document.documentElement.innerHTML = html;
+    
+    return document.documentElement.outerHTML;
   } catch (error) {
     if (error instanceof Error) {
-      throw new NetworkError(
-        `Failed to launch browser: ${error.message}`,
+      throw new ParsingError(
+        `Failed to process HTML: ${error.message}`,
         { error: error.message, stack: error.stack }
       );
     }
@@ -175,5 +215,6 @@ export async function getBrowser(): Promise<Browser> {
 export default {
   fetchPageSource,
   parseIndexSource,
-  getBrowser,
+  createWindow,
+  processHtml,
 };
