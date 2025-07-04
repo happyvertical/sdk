@@ -1,0 +1,35 @@
+# Bun workspace configuration
+[install]
+# Use exact versions for reproducible builds
+exact = true
+
+# Enable workspace linking
+cache = true
+
+# Prefer local registry
+registry = "https://registry.npmjs.org/"
+
+# Install peer dependencies automatically
+auto = true
+
+# Production optimizations
+production = false
+
+# Trust configuration
+trusted = ["@have/*"]
+
+[install.scopes]
+# Workspace packages
+"@have" = { registry = "workspace:" }
+
+[run]
+# Use system shell for scripts
+shell = "system"
+
+# Environment variables
+env = { NODE_ENV = "development" }
+
+# Workspace configuration
+[workspace]
+# Define workspace packages
+packages = ["packages/*"]

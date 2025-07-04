@@ -17,7 +17,7 @@
     "build:watch": "tsc -b --watch",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean",
-    "dev": "pnpm run build:watch & pnpm run test:watch"
+    "dev": "bun run build:watch & bun run test:watch"
   },
   "description": "Web scraping and content extraction using happy-dom and undici for lightweight, fast operations",
   "engines": {

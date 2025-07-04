@@ -1,6 +1,7 @@
 {
   "name": "@have/sql",
   "version": "0.0.50",
+  "description": "Database interface with support for SQLite and PostgreSQL",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -17,7 +18,7 @@
     "build:watch": "tsc -b --watch",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean",
-    "dev": "pnpm run build:watch & pnpm run test:watch"
+    "dev": "bun run build:watch & bun run test:watch"
   },
   "keywords": [],
   "author": "willgriffin@gmail.com",
@@ -34,6 +35,6 @@
     "vitest": "^3.1.1"
   },
   "engines": {
-    "node": "22.x"
+    "node": ">=22.0.0"
   }
 }
