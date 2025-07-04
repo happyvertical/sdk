@@ -54,34 +54,34 @@ The build process follows a specific order to respect internal dependencies:
 - Use camelCase for variables and functions, PascalCase for classes
 - Use conventional commits
 - Dont include claude branding in commit messages
-- use pnpm 
+- use bun 
 
 ### Testing
 
 - Tests are written using Vitest
 - Each package has its own test suite
-- Run tests with `pnpm test` or `pnpm test:watch`
+- Run tests with `bun test` or `bun test --watch`
 
 ### Common Development Commands
 
 ```bash
 # Install dependencies
-pnpm install
+bun install
 
 # Run tests
-pnpm test
+bun test
 
 # Build all packages in correct order
-pnpm build
+bun run build
 
 # Watch mode development
-pnpm dev
+bun run dev
 
 # Lint code
-pnpm lint
+bun run lint
 
 # Format code
-pnpm format
+bun run format
 ```
 
 ## Cross-Package Dependencies
@@ -144,7 +144,7 @@ This ensures issues are automatically moved through the workflow and closed when
 
 - **TypeScript**: Configured for ES2022 with strict type checking
 - **Biome**: Used for linting and formatting
-- **pnpm**: Package management with workspace support
+- **Bun**: Package management with workspace support
 - **Vitest**: Testing framework
 - **Changesets**: Used for versioning and publishing packages
 - **TypeDoc**: Used for generating API documentation
@@ -156,13 +156,13 @@ The SDK includes automatic API documentation generation using TypeDoc. The docum
 Documentation is generated as part of the build process, but can also be generated separately:
 
 ```bash
-pnpm docs
+bun run docs
 ```
 
 The build pipeline integrates documentation generation after all packages are built and before repomix is run:
 
 ```bash
-pnpm build  # Includes documentation generation
+bun run build  # Includes documentation generation
 ```
 
 This repository is designed to support building AI agents with minimal overhead and maximum flexibility.
