@@ -18,7 +18,7 @@
     "build:watch": "tsc -b --watch",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean",
-    "dev": "pnpm run build:watch & pnpm run test:watch"
+    "dev": "bun run build:watch & bun run test:watch"
   },
   "engines": {
     "node": ">=22.0.0"

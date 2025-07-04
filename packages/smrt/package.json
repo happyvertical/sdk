@@ -1,6 +1,7 @@
 {
   "name": "@have/smrt",
   "version": "0.0.50",
+  "description": "Core AI agent framework with standardized collections and content processing",
   "author": "Will Griffin <willgriffin@gmail.com>",
   "type": "module",
   "main": "dist/index.js",
@@ -30,10 +31,10 @@
     "build:watch": "tsc -b --watch",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean",
-    "dev": "pnpm run build:watch & pnpm run test:watch"
+    "dev": "bun run build:watch & bun run test:watch"
   },
   "engines": {
-    "node": "22.x"
+    "node": ">=22.0.0"
   },
   "devDependencies": {
     "@faker-js/faker": "^9.4.0",
