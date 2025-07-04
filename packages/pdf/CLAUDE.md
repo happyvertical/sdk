@@ -93,11 +93,49 @@ console.log(metadata.keywords);    // Keywords
 
 The package has the following dependencies:
 
-- `pdfjs-dist`: Mozilla's PDF.js for PDF parsing and rendering
-- `tesseract.js`: For OCR capabilities
-- `scribe.js-ocr`: Enhanced OCR processing
-- `date-fns`: For date manipulation
-- `pluralize`: For text processing utilities
+- `unpdf`: Modern PDF processing library for text and image extraction
+- `@gutenye/ocr-node`: OCR capabilities using PaddleOCR + ONNX Runtime
+
+### System Requirements
+
+For OCR functionality, the following system dependencies are required:
+
+- **C++ Standard Library**: `libstdc++.so.6` (usually pre-installed)
+- **ONNX Runtime**: Compatible environment for machine learning inference
+
+#### Platform-Specific Installation
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get install libstdc++6 libc6-dev build-essential
+```
+
+**NixOS:**
+```bash
+nix-shell -p onnxruntime stdenv.cc.cc.lib gcc
+# Or add to configuration.nix:
+# environment.systemPackages = with pkgs; [ onnxruntime stdenv.cc.cc.lib gcc ];
+```
+
+**macOS:**
+```bash
+xcode-select --install  # Usually sufficient
+```
+
+#### Dependency Validation
+
+Use the built-in dependency check to verify OCR availability:
+
+```typescript
+import { checkOCRDependencies } from '@have/pdf';
+
+const deps = await checkOCRDependencies();
+if (deps.available) {
+  console.log('OCR functionality is available');
+} else {
+  console.warn('OCR dependencies missing:', deps.error);
+}
+```
 
 ## Development Guidelines
 
