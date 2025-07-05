@@ -1,6 +1,6 @@
 import { 
   FilesystemCapabilities, 
-  NextcloudOptions, 
+  WebDAVOptions, 
   ReadOptions, 
   WriteOptions,
   CreateDirOptions,
@@ -14,19 +14,21 @@ import {
 import { BaseFilesystemProvider } from './base.js';
 
 /**
- * Nextcloud filesystem provider
+ * WebDAV filesystem provider
  * 
- * This provider uses Nextcloud's WebDAV and REST APIs for file operations.
- * It supports app password authentication and chunked uploads for large files.
+ * This provider uses WebDAV protocol for file operations and supports various
+ * WebDAV-compatible servers including Nextcloud, ownCloud, Apache mod_dav,
+ * Nginx WebDAV module, Windows IIS, SabreDAV, and others.
+ * It supports basic authentication and chunked uploads for large files.
  */
-export class NextcloudFilesystemProvider extends BaseFilesystemProvider {
+export class WebDAVFilesystemProvider extends BaseFilesystemProvider {
   private readonly baseUrl: string;
   private readonly username: string;
   private readonly password: string;
   private readonly davPath: string;
   private webdavClient: any; // Will be initialized when WebDAV client is available
 
-  constructor(options: NextcloudOptions) {
+  constructor(options: WebDAVOptions) {
     super(options);
     this.baseUrl = options.baseUrl.replace(/\/$/, ''); // Remove trailing slash
     this.username = options.username;
@@ -52,7 +54,7 @@ export class NextcloudFilesystemProvider extends BaseFilesystemProvider {
       });
     } catch (error) {
       throw new FilesystemError(
-        'WebDAV client is not available. Install webdav to use Nextcloud provider.',
+        'WebDAV client is not available. Install webdav to use WebDAV provider.',
         'ENOTFOUND'
       );
     }
@@ -75,10 +77,10 @@ export class NextcloudFilesystemProvider extends BaseFilesystemProvider {
     // Placeholder implementation
     await this.initializeWebDAVClient();
     throw new FilesystemError(
-      'Nextcloud provider not fully implemented yet',
+      'WebDAV provider not fully implemented yet',
       'ENOTIMPL',
       path,
-      'nextcloud'
+      'webdav'
     );
   }
 
@@ -86,10 +88,10 @@ export class NextcloudFilesystemProvider extends BaseFilesystemProvider {
     // Placeholder implementation
     await this.initializeWebDAVClient();
     throw new FilesystemError(
-      'Nextcloud provider not fully implemented yet',
+      'WebDAV provider not fully implemented yet',
       'ENOTIMPL',
       path,
-      'nextcloud'
+      'webdav'
     );
   }
 
@@ -97,10 +99,10 @@ export class NextcloudFilesystemProvider extends BaseFilesystemProvider {
     // Placeholder implementation
     await this.initializeWebDAVClient();
     throw new FilesystemError(
-      'Nextcloud provider not fully implemented yet',
+      'WebDAV provider not fully implemented yet',
       'ENOTIMPL',
       path,
-      'nextcloud'
+      'webdav'
     );
   }
 
@@ -111,7 +113,7 @@ export class NextcloudFilesystemProvider extends BaseFilesystemProvider {
       'Nextcloud provider not fully implemented yet',
       'ENOTIMPL',
       sourcePath,
-      'nextcloud'
+      'webdav'
     );
   }
 
@@ -122,7 +124,7 @@ export class NextcloudFilesystemProvider extends BaseFilesystemProvider {
       'Nextcloud provider not fully implemented yet',
       'ENOTIMPL',
       sourcePath,
-      'nextcloud'
+      'webdav'
     );
   }
 
@@ -130,10 +132,10 @@ export class NextcloudFilesystemProvider extends BaseFilesystemProvider {
     // Placeholder implementation
     await this.initializeWebDAVClient();
     throw new FilesystemError(
-      'Nextcloud provider not fully implemented yet',
+      'WebDAV provider not fully implemented yet',
       'ENOTIMPL',
       path,
-      'nextcloud'
+      'webdav'
     );
   }
 
@@ -147,10 +149,10 @@ export class NextcloudFilesystemProvider extends BaseFilesystemProvider {
     // Placeholder implementation
     await this.initializeWebDAVClient();
     throw new FilesystemError(
-      'Nextcloud provider not fully implemented yet',
+      'WebDAV provider not fully implemented yet',
       'ENOTIMPL',
       path,
-      'nextcloud'
+      'webdav'
     );
   }
 
@@ -170,7 +172,7 @@ export class NextcloudFilesystemProvider extends BaseFilesystemProvider {
       'Nextcloud provider not fully implemented yet',
       'ENOTIMPL',
       remotePath,
-      'nextcloud'
+      'webdav'
     );
   }
 
@@ -181,7 +183,7 @@ export class NextcloudFilesystemProvider extends BaseFilesystemProvider {
       'Nextcloud provider not fully implemented yet',
       'ENOTIMPL',
       remotePath,
-      'nextcloud'
+      'webdav'
     );
   }
 

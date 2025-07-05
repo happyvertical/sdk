@@ -335,9 +335,15 @@ describe('Provider Registration', () => {
   it('should handle unavailable providers', async () => {
     const { getProviderInfo } = await import('./factory.js');
     
-    const info = getProviderInfo('s3');
-    expect(info.description).toContain('S3');
-    expect(info.requiredOptions).toContain('region');
-    expect(info.requiredOptions).toContain('bucket');
+    const s3Info = getProviderInfo('s3');
+    expect(s3Info.description).toContain('S3');
+    expect(s3Info.requiredOptions).toContain('region');
+    expect(s3Info.requiredOptions).toContain('bucket');
+    
+    const webdavInfo = getProviderInfo('webdav');
+    expect(webdavInfo.description).toContain('WebDAV');
+    expect(webdavInfo.requiredOptions).toContain('baseUrl');
+    expect(webdavInfo.requiredOptions).toContain('username');
+    expect(webdavInfo.requiredOptions).toContain('password');
   });
 });
