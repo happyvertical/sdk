@@ -98,27 +98,7 @@ describe('HuggingFace Provider', () => {
 });
 
 describe('Provider Implementations', () => {
-  it('should throw not implemented errors for incomplete providers', () => {
-    // Gemini should throw
-    expect(() => new GeminiProvider({
-      type: 'gemini',
-      apiKey: 'test-key',
-    })).toThrow(AIError);
-
-    // Anthropic should throw  
-    expect(() => new AnthropicProvider({
-      type: 'anthropic',
-      apiKey: 'test-key',
-    })).toThrow(AIError);
-
-    // Bedrock should throw
-    expect(() => new BedrockProvider({
-      type: 'bedrock',
-      region: 'us-east-1',
-    })).toThrow(AIError);
-  });
-
-  it('should create working providers for implemented ones', () => {
+  it('should create all provider instances successfully', () => {
     // OpenAI should work
     const openaiProvider = new OpenAIProvider({ apiKey: 'test-key' });
     expect(openaiProvider).toBeInstanceOf(OpenAIProvider);
@@ -129,6 +109,26 @@ describe('Provider Implementations', () => {
       apiToken: 'test-token',
     });
     expect(hfProvider).toBeInstanceOf(HuggingFaceProvider);
+
+    // Gemini should work now
+    const geminiProvider = new GeminiProvider({
+      type: 'gemini',
+      apiKey: 'test-key',
+    });
+    expect(geminiProvider).toBeInstanceOf(GeminiProvider);
+  });
+
+  it('should throw for providers that still need implementation', () => {
+    // Anthropic and Bedrock still throw until we implement them
+    expect(() => new AnthropicProvider({
+      type: 'anthropic',
+      apiKey: 'test-key',
+    })).toThrow(AIError);
+
+    expect(() => new BedrockProvider({
+      type: 'bedrock',
+      region: 'us-east-1',
+    })).toThrow(AIError);
   });
 });
 

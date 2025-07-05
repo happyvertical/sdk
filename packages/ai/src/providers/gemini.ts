@@ -28,7 +28,7 @@ import {
 
 export class GeminiProvider implements AIInterface {
   private options: GeminiOptions;
-  private client: any; // Will be GoogleGenerativeAI instance
+  private client: any; // GoogleGenerativeAI instance
 
   constructor(options: GeminiOptions) {
     this.options = {
@@ -36,28 +36,67 @@ export class GeminiProvider implements AIInterface {
       ...options,
     };
 
-    // TODO: Initialize Google Generative AI client
-    // const { GoogleGenerativeAI } = await import('@google/generative-ai');
-    // this.client = new GoogleGenerativeAI(this.options.apiKey);
-    
-    throw new AIError(
-      'Gemini provider not yet implemented. Please install @google/generative-ai package.',
-      'NOT_IMPLEMENTED',
-      'gemini'
-    );
+    // Initialize Google Generative AI client
+    this.initializeClientSync();
+  }
+
+  private initializeClientSync() {
+    try {
+      // Dynamic import in constructor - this will work if the package is installed
+      import('@google/generative-ai').then(({ GoogleGenerativeAI }) => {
+        this.client = new GoogleGenerativeAI(this.options.apiKey);
+      }).catch(() => {
+        // Client will be null and we'll handle it in methods
+      });
+    } catch (error) {
+      // Client will be null and we'll handle it in methods
+    }
+  }
+
+  private async ensureClient() {
+    if (!this.client) {
+      try {
+        const { GoogleGenerativeAI } = await import('@google/generative-ai');
+        this.client = new GoogleGenerativeAI(this.options.apiKey);
+      } catch (error) {
+        throw new AIError(
+          'Failed to initialize Gemini client. Make sure @google/generative-ai is installed.',
+          'INITIALIZATION_ERROR',
+          'gemini'
+        );
+      }
+    }
   }
 
   async chat(messages: AIMessage[], options: ChatOptions = {}): Promise<AIResponse> {
     try {
-      // TODO: Implement Gemini chat completion
-      // const model = this.client.getGenerativeModel({ 
-      //   model: options.model || this.options.defaultModel 
-      // });
+      await this.ensureClient();
+
+      const model = this.client.getGenerativeModel({ 
+        model: options.model || this.options.defaultModel,
+        generationConfig: {
+          maxOutputTokens: options.maxTokens,
+          temperature: options.temperature,
+          topP: options.topP,
+          stopSequences: Array.isArray(options.stop) ? options.stop : options.stop ? [options.stop] : undefined,
+        },
+      });
       
-      // Convert messages to Gemini format and make request
-      // const result = await model.generateContent(prompt);
+      // Convert messages to Gemini format
+      const prompt = this.messagesToGeminiFormat(messages);
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
       
-      throw new AIError('Gemini chat not implemented', 'NOT_IMPLEMENTED', 'gemini');
+      return {
+        content: response.text() || '',
+        model: options.model || this.options.defaultModel,
+        finishReason: 'stop',
+        usage: {
+          promptTokens: result.response.usageMetadata?.promptTokenCount || 0,
+          completionTokens: result.response.usageMetadata?.candidatesTokenCount || 0,
+          totalTokens: result.response.usageMetadata?.totalTokenCount || 0,
+        },
+      };
     } catch (error) {
       throw this.mapError(error);
     }
@@ -165,16 +204,44 @@ export class GeminiProvider implements AIInterface {
     };
   }
 
+  private messagesToGeminiFormat(messages: AIMessage[]): string {
+    // Gemini expects a simple text prompt, so convert chat messages to text
+    return messages
+      .map(message => {
+        switch (message.role) {
+          case 'system':
+            return `Instructions: ${message.content}`;
+          case 'user':
+            return `Human: ${message.content}`;
+          case 'assistant':
+            return `Assistant: ${message.content}`;
+          default:
+            return message.content;
+        }
+      })
+      .join('\n\n') + '\n\nAssistant:';
+  }
+
   private mapError(error: any): AIError {
-    // TODO: Map Gemini-specific errors
     if (error instanceof AIError) {
       return error;
     }
     
-    return new AIError(
-      error?.message || 'Unknown Gemini error occurred',
-      'UNKNOWN_ERROR',
-      'gemini'
-    );
+    // Map common Gemini error patterns
+    const message = error?.message || 'Unknown Gemini error occurred';
+    
+    if (message.includes('API_KEY_INVALID') || message.includes('401')) {
+      return new AuthenticationError('gemini');
+    }
+    
+    if (message.includes('QUOTA_EXCEEDED') || message.includes('429')) {
+      return new RateLimitError('gemini');
+    }
+    
+    if (message.includes('MODEL_NOT_FOUND') || message.includes('404')) {
+      return new ModelNotFoundError(message, 'gemini');
+    }
+    
+    return new AIError(message, 'UNKNOWN_ERROR', 'gemini');
   }
 }
