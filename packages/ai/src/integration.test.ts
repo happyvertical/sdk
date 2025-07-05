@@ -188,12 +188,12 @@ describe('Provider Interface Compliance', () => {
       apiToken: 'fake-token',
     });
 
-    // These should throw because they're not implemented yet, but that's expected
-    await expect(getAI({
+    const geminiProvider = await getAI({
       type: 'gemini',
       apiKey: 'fake-key',
-    })).rejects.toThrow();
+    });
 
+    // These should throw because they're not implemented yet
     await expect(getAI({
       type: 'anthropic', 
       apiKey: 'fake-key',
@@ -204,7 +204,8 @@ describe('Provider Interface Compliance', () => {
       region: 'us-east-1',
     })).rejects.toThrow();
 
-    // Only HuggingFace should work for now
+    // HuggingFace and Gemini should work
     expect(hfProvider).toBeInstanceOf(HuggingFaceProvider);
+    expect(geminiProvider).toBeDefined();
   });
 });
