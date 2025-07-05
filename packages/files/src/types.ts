@@ -404,10 +404,10 @@ export interface GoogleDriveOptions extends BaseProviderOptions {
 }
 
 /**
- * Nextcloud provider options
+ * WebDAV provider options (supports Nextcloud, ownCloud, Apache, etc.)
  */
-export interface NextcloudOptions extends BaseProviderOptions {
-  type: 'nextcloud';
+export interface WebDAVOptions extends BaseProviderOptions {
+  type: 'webdav';
   baseUrl: string;
   username: string;
   password: string;
@@ -421,7 +421,7 @@ export type GetFilesystemOptions =
   | LocalOptions
   | S3Options
   | GoogleDriveOptions
-  | NextcloudOptions;
+  | WebDAVOptions;
 
 /**
  * Error types for filesystem operations

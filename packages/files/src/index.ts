@@ -14,7 +14,7 @@ export * from './types.js';
 export { LocalFilesystemProvider } from './providers/local.js';
 export { S3FilesystemProvider } from './providers/s3.js';
 export { GoogleDriveFilesystemProvider } from './providers/gdrive.js';
-export { NextcloudFilesystemProvider } from './providers/nextcloud.js';
+export { WebDAVFilesystemProvider } from './providers/webdav.js';
 
 // Re-export legacy functions for backward compatibility
 export {
