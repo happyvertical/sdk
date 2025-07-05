@@ -2,7 +2,7 @@
 
 ## Purpose and Responsibilities
 
-The `@have/ai` package provides a standardized interface for interacting with various AI models. It currently focuses on OpenAI's API but is designed with an abstraction layer to potentially support other AI providers in the future. This package:
+The `@have/ai` package provides a standardized interface for interacting with various AI models. It supports multiple providers including OpenAI, Google Gemini, Anthropic Claude, Hugging Face, and AWS Bedrock. This package:
 
 - Offers a unified client interface for AI text completions
 - Handles configuration for different AI providers
@@ -14,49 +14,124 @@ The `@have/ai` package provides a standardized interface for interacting with va
 ### Creating an AI Client
 
 ```typescript
-import { getAIClient } from '@have/ai';
+import { getAI } from '@have/ai';
 
 // Create an OpenAI client (default)
-const client = await getAIClient({
+const client = await getAI({
+  type: 'openai', // optional, defaults to openai
   apiKey: 'your-api-key',
   baseUrl: 'https://api.openai.com/v1' // optional
 });
 
-// The client can then be used for text completions
+// Create a Gemini client
+const geminiClient = await getAI({
+  type: 'gemini',
+  apiKey: 'your-gemini-api-key',
+  projectId: 'your-project-id' // optional
+});
+
+// Create an Anthropic client
+const anthropicClient = await getAI({
+  type: 'anthropic',
+  apiKey: 'your-anthropic-api-key'
+});
+
+// Create a Hugging Face client
+const hfClient = await getAI({
+  type: 'huggingface',
+  apiToken: 'your-hf-token',
+  model: 'microsoft/DialoGPT-medium' // optional
+});
+
+// Create an AWS Bedrock client
+const bedrockClient = await getAI({
+  type: 'bedrock',
+  region: 'us-east-1',
+  credentials: {
+    accessKeyId: 'your-access-key',
+    secretAccessKey: 'your-secret-key'
+  }
+});
+```
+
+### Chat Completions
+
+```typescript
+import { getAI } from '@have/ai';
+
+const client = await getAI({ apiKey: 'your-api-key' });
+
+// Basic chat completion
+const response = await client.chat([
+  { role: 'user', content: 'What is the capital of France?' }
+]);
+
+// Chat with options
+const chatResponse = await client.chat([
+  { role: 'system', content: 'You are a helpful coding assistant.' },
+  { role: 'user', content: 'Generate a poem about coding' }
+], {
+  model: "gpt-4o",
+  temperature: 0.7,
+  maxTokens: 500
+});
+
+console.log(chatResponse.content);
 ```
 
 ### Text Completions
 
 ```typescript
-import { getAIClient } from '@have/ai';
+import { getAI } from '@have/ai';
 
-const client = await getAIClient({ apiKey: 'your-api-key' });
+const client = await getAI({ apiKey: 'your-api-key' });
 
 // Basic completion
-const result = await client.textCompletion("What is the capital of France?");
+const result = await client.complete("What is the capital of France?");
 
 // Completion with options
-const resultWithOptions = await client.textCompletion("Generate a poem about coding", {
+const resultWithOptions = await client.complete("Generate a poem about coding", {
   model: "gpt-4o",
   temperature: 0.7,
   maxTokens: 500
 });
+
+console.log(resultWithOptions.content);
+```
+
+### Embeddings
+
+```typescript
+import { getAI } from '@have/ai';
+
+const client = await getAI({ apiKey: 'your-api-key' });
+
+// Single text embedding
+const embedding = await client.embed("Hello, world!");
+
+// Multiple text embeddings
+const embeddings = await client.embed([
+  "First document",
+  "Second document",
+  "Third document"
+]);
+
+console.log(embeddings.embeddings); // Array of number arrays
 ```
 
 ### Streaming Responses
 
 ```typescript
-import { getAIClient } from '@have/ai';
+import { getAI } from '@have/ai';
 
-const client = await getAIClient({ apiKey: 'your-api-key' });
+const client = await getAI({ apiKey: 'your-api-key' });
 
-// Stream response with progress callback
-const result = await client.textCompletion("Generate a long story", {
-  stream: true,
-  onProgress: (partialMessage) => {
-    console.log("Received chunk:", partialMessage);
-  }
-});
+// Stream chat response
+for await (const chunk of client.stream([
+  { role: 'user', content: 'Generate a long story' }
+])) {
+  process.stdout.write(chunk);
+}
 ```
 
 ### Configuration Options
