@@ -352,12 +352,13 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
   }
 
   async download(remotePath: string, localPath?: string, options: DownloadOptions = {}): Promise<string> {
-    const { writeFile } = await import('node:fs/promises');
-    const { join } = await import('node:path');
+    const { writeFile, mkdir } = await import('node:fs/promises');
+    const { join, dirname } = await import('node:path');
     
     const content = await this.read(remotePath, { raw: true }) as Buffer;
     const targetPath = localPath || join(this.cacheDir, remotePath);
     
+    await mkdir(dirname(targetPath), { recursive: true });
     await writeFile(targetPath, content);
     return targetPath;
   }

@@ -110,7 +110,7 @@ export class WebDAVFilesystemProvider extends BaseFilesystemProvider {
     // Placeholder implementation
     await this.initializeWebDAVClient();
     throw new FilesystemError(
-      'Nextcloud provider not fully implemented yet',
+      'WebDAV provider not fully implemented yet',
       'ENOTIMPL',
       sourcePath,
       'webdav'
@@ -121,7 +121,7 @@ export class WebDAVFilesystemProvider extends BaseFilesystemProvider {
     // Placeholder implementation
     await this.initializeWebDAVClient();
     throw new FilesystemError(
-      'Nextcloud provider not fully implemented yet',
+      'WebDAV provider not fully implemented yet',
       'ENOTIMPL',
       sourcePath,
       'webdav'
@@ -169,7 +169,7 @@ export class WebDAVFilesystemProvider extends BaseFilesystemProvider {
     // Placeholder implementation
     await this.initializeWebDAVClient();
     throw new FilesystemError(
-      'Nextcloud provider not fully implemented yet',
+      'WebDAV provider not fully implemented yet',
       'ENOTIMPL',
       remotePath,
       'webdav'
@@ -180,7 +180,7 @@ export class WebDAVFilesystemProvider extends BaseFilesystemProvider {
     // Placeholder implementation
     await this.initializeWebDAVClient();
     throw new FilesystemError(
-      'Nextcloud provider not fully implemented yet',
+      'WebDAV provider not fully implemented yet',
       'ENOTIMPL',
       remotePath,
       'webdav'
