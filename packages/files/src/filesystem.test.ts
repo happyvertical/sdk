@@ -345,5 +345,11 @@ describe('Provider Registration', () => {
     expect(webdavInfo.requiredOptions).toContain('baseUrl');
     expect(webdavInfo.requiredOptions).toContain('username');
     expect(webdavInfo.requiredOptions).toContain('password');
+    
+    const gdriveInfo = getProviderInfo('gdrive');
+    expect(gdriveInfo.description).toContain('Google Drive');
+    expect(gdriveInfo.requiredOptions).toContain('clientId');
+    expect(gdriveInfo.requiredOptions).toContain('clientSecret');
+    expect(gdriveInfo.requiredOptions).toContain('refreshToken');
   });
 });
