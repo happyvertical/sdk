@@ -4,7 +4,7 @@ import {
   LocalOptions,
   S3Options,
   GoogleDriveOptions,
-  NextcloudOptions,
+  WebDAVOptions,
   FilesystemError
 } from './types.js';
 
@@ -86,23 +86,23 @@ function validateOptions(options: GetFilesystemOptions): void {
       }
       break;
       
-    case 'nextcloud':
-      const nextcloudOpts = options as NextcloudOptions;
-      if (!nextcloudOpts.baseUrl) {
+    case 'webdav':
+      const webdavOpts = options as WebDAVOptions;
+      if (!webdavOpts.baseUrl) {
         throw new FilesystemError(
-          'Nextcloud provider requires baseUrl',
+          'WebDAV provider requires baseUrl',
           'EINVAL'
         );
       }
-      if (!nextcloudOpts.username) {
+      if (!webdavOpts.username) {
         throw new FilesystemError(
-          'Nextcloud provider requires username',
+          'WebDAV provider requires username',
           'EINVAL'
         );
       }
-      if (!nextcloudOpts.password) {
+      if (!webdavOpts.password) {
         throw new FilesystemError(
-          'Nextcloud provider requires password',
+          'WebDAV provider requires password',
           'EINVAL'
         );
       }
@@ -134,7 +134,7 @@ function detectProviderType(options: GetFilesystemOptions): string {
   }
   
   if ('baseUrl' in options && 'username' in options) {
-    return 'nextcloud';
+    return 'webdav';
   }
 
   // Default to local
@@ -206,14 +206,14 @@ export async function initializeProviders(): Promise<void> {
     // Google Drive provider not available, skip silently
   }
 
-  // Register Nextcloud provider if dependencies are available
+  // Register WebDAV provider if dependencies are available
   try {
-    registerProvider('nextcloud', async () => {
-      const { NextcloudFilesystemProvider } = await import('./providers/nextcloud.js');
-      return NextcloudFilesystemProvider;
+    registerProvider('webdav', async () => {
+      const { WebDAVFilesystemProvider } = await import('./providers/webdav.js');
+      return WebDAVFilesystemProvider;
     });
   } catch (error) {
-    // Nextcloud provider not available, skip silently
+    // WebDAV provider not available, skip silently
   }
 }
 
@@ -236,14 +236,14 @@ export function getProviderInfo(type: string): {
     local: 'Local filesystem provider using Node.js fs module',
     s3: 'S3-compatible provider supporting AWS S3, MinIO, and other S3-compatible services',
     gdrive: 'Google Drive provider using Google Drive API v3',
-    nextcloud: 'Nextcloud provider using WebDAV and REST APIs'
+    webdav: 'WebDAV provider supporting Nextcloud, ownCloud, Apache mod_dav, and other WebDAV servers'
   };
 
   const requiredOptions = {
     local: [],
     s3: ['region', 'bucket'],
     gdrive: ['clientId', 'clientSecret', 'refreshToken'],
-    nextcloud: ['baseUrl', 'username', 'password']
+    webdav: ['baseUrl', 'username', 'password']
   };
 
   return {
