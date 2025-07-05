@@ -2,14 +2,18 @@
  * @have/ai - A standardized interface for AI model interactions
  * 
  * This package provides a unified interface for interacting with various AI models.
- * Currently supports OpenAI's models through their API.
+ * Supports multiple providers: OpenAI, Gemini, Anthropic, Hugging Face, and AWS Bedrock.
  * 
  * Key components:
- * - AIClient - Base class and factory for creating AI service clients
- * - AIMessage - Represents messages in AI conversations
- * - AIThread - Manages conversation threads with AI models
+ * - getAI() - Factory function for creating AI provider instances
+ * - AIInterface - Standardized interface for all AI providers
+ * - Provider-specific implementations for each supported service
  */
 
+export * from './types.js';
+export * from './factory.js';
+
+// Legacy exports for backward compatibility
 export * from './client.js';
 export * from './message.js';
 export * from './thread.js';

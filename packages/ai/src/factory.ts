@@ -1,0 +1,118 @@
+/**
+ * Factory functions for creating AI provider instances
+ */
+
+import { ValidationError } from '@have/utils';
+
+import type {
+  AIInterface,
+  GetAIOptions,
+  OpenAIOptions,
+  GeminiOptions,
+  AnthropicOptions,
+  HuggingFaceOptions,
+  BedrockOptions,
+} from './types.js';
+
+/**
+ * Type guards for provider options
+ */
+function isOpenAIOptions(options: GetAIOptions): options is OpenAIOptions {
+  return !options.type || options.type === 'openai';
+}
+
+function isGeminiOptions(options: GetAIOptions): options is GeminiOptions {
+  return options.type === 'gemini';
+}
+
+function isAnthropicOptions(options: GetAIOptions): options is AnthropicOptions {
+  return options.type === 'anthropic';
+}
+
+function isHuggingFaceOptions(options: GetAIOptions): options is HuggingFaceOptions {
+  return options.type === 'huggingface';
+}
+
+function isBedrockOptions(options: GetAIOptions): options is BedrockOptions {
+  return options.type === 'bedrock';
+}
+
+/**
+ * Creates an AI provider instance based on the provided options
+ * 
+ * @param options - Configuration options for the AI provider
+ * @returns Promise resolving to an AI provider instance
+ * @throws ValidationError if the provider type is unsupported
+ */
+export async function getAI(options: GetAIOptions): Promise<AIInterface> {
+  if (isOpenAIOptions(options)) {
+    const { OpenAIProvider } = await import('./providers/openai.js');
+    return new OpenAIProvider(options);
+  }
+
+  if (isGeminiOptions(options)) {
+    const { GeminiProvider } = await import('./providers/gemini.js');
+    return new GeminiProvider(options);
+  }
+
+  if (isAnthropicOptions(options)) {
+    const { AnthropicProvider } = await import('./providers/anthropic.js');
+    return new AnthropicProvider(options);
+  }
+
+  if (isHuggingFaceOptions(options)) {
+    const { HuggingFaceProvider } = await import('./providers/huggingface.js');
+    return new HuggingFaceProvider(options);
+  }
+
+  if (isBedrockOptions(options)) {
+    const { BedrockProvider } = await import('./providers/bedrock.js');
+    return new BedrockProvider(options);
+  }
+
+  throw new ValidationError('Unsupported AI provider type', {
+    supportedTypes: ['openai', 'gemini', 'anthropic', 'huggingface', 'bedrock'],
+    providedType: (options as any).type,
+  });
+}
+
+/**
+ * Auto-detects AI provider based on available credentials in options
+ * 
+ * @param options - Configuration options that may contain provider-specific credentials
+ * @returns Promise resolving to an AI provider instance
+ * @throws ValidationError if no provider can be detected from the options
+ */
+export async function getAIAuto(options: Record<string, any>): Promise<AIInterface> {
+  // Auto-detect provider based on available credentials
+  if (options.apiKey && !options.type) {
+    // Default to OpenAI if apiKey is provided without explicit type
+    return getAI({ ...options, type: 'openai' } as OpenAIOptions);
+  }
+
+  if (options.apiToken) {
+    // Hugging Face uses apiToken
+    return getAI({ ...options, type: 'huggingface' } as HuggingFaceOptions);
+  }
+
+  if (options.region && (options.credentials || process.env.AWS_ACCESS_KEY_ID)) {
+    // AWS Bedrock uses region and AWS credentials
+    return getAI({ ...options, type: 'bedrock' } as BedrockOptions);
+  }
+
+  if (options.projectId || options.anthropicVersion) {
+    // Try to detect based on provider-specific options
+    if (options.anthropicVersion) {
+      return getAI({ ...options, type: 'anthropic' } as AnthropicOptions);
+    }
+    if (options.projectId) {
+      return getAI({ ...options, type: 'gemini' } as GeminiOptions);
+    }
+  }
+
+  throw new ValidationError('Could not auto-detect AI provider from options', {
+    hint: 'Please specify a "type" field in options or provide provider-specific credentials',
+    supportedTypes: ['openai', 'gemini', 'anthropic', 'huggingface', 'bedrock'],
+    providedOptions: Object.keys(options),
+  });
+}
