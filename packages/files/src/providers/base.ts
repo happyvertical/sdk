@@ -139,8 +139,9 @@ export abstract class BaseFilesystemProvider implements FilesystemInterface {
     },
 
     clear: async (key?: string): Promise<void> => {
-      // Implementation depends on the cache backend
-      // For now, this is a no-op
+      // This function is currently a no-op and does not clear the cache.
+      // Cache clearing is not supported at this time. Future implementations
+      // may depend on the specific cache backend being used.
     }
   };
 }
