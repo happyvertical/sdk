@@ -22,8 +22,6 @@ RUN apt-get update && apt-get install -y \
     ghostscript \
     # Git LFS for large files
     git-lfs \
-    # GitHub CLI
-    gh \
     # Cleanup
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
@@ -38,29 +36,10 @@ RUN echo 'export PATH="/root/.bun/bin:$PATH"' >> /etc/bash.bashrc
 # Set working directory
 WORKDIR /workspaces
 
-# Create non-root user for development
-RUN useradd -m -s /bin/bash devuser && \
-    echo "devuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
-
-# Install Bun for devuser as well
-USER devuser
+# Install Bun for the node user (from base image)
+USER node
 RUN curl -fsSL https://bun.sh/install | bash
 RUN echo 'export PATH="$HOME/.bun/bin:$PATH"' >> ~/.bashrc
-
-# Switch back to root for container initialization
-USER root
-
-# Copy package files for dependency installation
-COPY package.json bun.lock* ./
-
-# Install dependencies if package files exist
-RUN if [ -f "package.json" ]; then \
-    export PATH="/root/.bun/bin:$PATH" && \
-    bun install; \
-    fi
-
-# Set the default user
-USER devuser
 
 # Default command
 CMD ["sleep", "infinity"]

@@ -16,8 +16,7 @@
 
   "onCreateCommand": [
     "bash",
-    "-c",
-    "export PATH=\"$HOME/.bun/bin:$PATH\" && git lfs install"
+    "/workspaces/.devcontainer/scripts/setup.sh"
   ],
 
   "postCreateCommand": [
@@ -35,8 +34,7 @@
         "ms-vscode.vscode-json",
         "GitHub.copilot",
         "GitHub.copilot-chat",
-        "biomejs.biome",
-        "vitest.explorer"
+        "biomejs.biome"
       ],
       "settings": {
         "typescript.preferences.importModuleSpecifier": "relative",
@@ -71,5 +69,9 @@
 
   "mounts": [
     "source=${localWorkspaceFolder}/.devcontainer/scripts,target=/workspaces/.devcontainer/scripts,type=bind,consistency=cached"
-  ]
+  ],
+  
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  }
 }

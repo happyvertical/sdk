@@ -7,10 +7,12 @@ This directory contains the development container configuration for the HAVE SDK
 - **Node.js 22** with TypeScript support
 - **Bun** package manager pre-installed
 - **ONNX Runtime** system dependencies for OCR functionality
+- **Ghostscript** for professional PDF ink coverage calculation
 - **Build tools** (GCC, G++, CMake) for native dependencies
 - **Git LFS** for handling large files
 - **GitHub CLI** for repository management
 - **VS Code extensions** optimized for TypeScript development
+- **GitHub Codespaces** ready
 
 ## System Dependencies Included
 
@@ -24,11 +26,30 @@ This directory contains the development container configuration for the HAVE SDK
 - `gcc` & `g++` - GNU C/C++ compilers
 - `cmake` - Cross-platform build system
 
+### PDF Processing
+- `ghostscript` - Professional PDF processing and ink coverage calculation
+
 ### Development Tools
 - `git-lfs` - Git Large File Storage
-- `gh` - GitHub CLI
+- `gh` - GitHub CLI (via devcontainer feature)
 
 ## Quick Start
+
+### GitHub Codespaces (Recommended)
+
+1. **Create a Codespace:**
+   - Navigate to the repository on GitHub
+   - Click the green "Code" button
+   - Select "Codespaces" tab
+   - Click "Create codespace on main"
+   - Wait 2-3 minutes for the environment to build
+
+2. **Start developing:**
+   ```bash
+   # All dependencies are pre-installed!
+   bun test  # Run tests
+   bun run build  # Build packages
+   ```
 
 ### Using VS Code Dev Containers
 
