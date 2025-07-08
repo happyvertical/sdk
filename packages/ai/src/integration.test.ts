@@ -158,6 +158,52 @@ describe('Error Classes Integration', () => {
   });
 });
 
+describe('Real API Integration', () => {
+  it('should work with Gemini API if token is provided', async () => {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.log('Skipping Gemini API test - no GEMINI_API_KEY provided');
+      return;
+    }
+
+    const provider = await getAI({
+      type: 'gemini',
+      apiKey,
+    });
+
+    // Test basic chat
+    const response = await provider.chat([
+      { role: 'user', content: 'Say "Hello from Gemini" and nothing else' }
+    ]);
+
+    expect(response.content).toBeTruthy();
+    expect(typeof response.content).toBe('string');
+    console.log('Gemini response:', response.content);
+  });
+
+  it('should work with Anthropic API if token is provided', async () => {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      console.log('Skipping Anthropic API test - no ANTHROPIC_API_KEY provided');
+      return;
+    }
+
+    const provider = await getAI({
+      type: 'anthropic',
+      apiKey,
+    });
+
+    // Test basic chat
+    const response = await provider.chat([
+      { role: 'user', content: 'Say "Hello from Claude" and nothing else' }
+    ]);
+
+    expect(response.content).toBeTruthy();
+    expect(typeof response.content).toBe('string');
+    console.log('Anthropic response:', response.content);
+  });
+});
+
 describe('Provider Interface Compliance', () => {
   it('should implement all required interface methods', async () => {
     const provider = await getAI({
@@ -193,19 +239,20 @@ describe('Provider Interface Compliance', () => {
       apiKey: 'fake-key',
     });
 
-    // These should throw because they're not implemented yet
-    await expect(getAI({
+    const anthropicProvider = await getAI({
       type: 'anthropic', 
       apiKey: 'fake-key',
-    })).rejects.toThrow();
+    });
 
-    await expect(getAI({
+    const bedrockProvider = await getAI({
       type: 'bedrock',
       region: 'us-east-1',
-    })).rejects.toThrow();
+    });
 
-    // HuggingFace and Gemini should work
+    // All providers should work now!
     expect(hfProvider).toBeInstanceOf(HuggingFaceProvider);
     expect(geminiProvider).toBeDefined();
+    expect(anthropicProvider).toBeDefined();
+    expect(bedrockProvider).toBeDefined();
   });
 });

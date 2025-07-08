@@ -36,25 +36,49 @@ export class BedrockProvider implements AIInterface {
       ...options,
     };
 
-    // TODO: Initialize AWS Bedrock client
-    // const { BedrockRuntimeClient } = await import('@aws-sdk/client-bedrock-runtime');
-    // this.client = new BedrockRuntimeClient({
-    //   region: this.options.region,
-    //   credentials: this.options.credentials,
-    //   endpoint: this.options.endpoint,
-    // });
-    
-    throw new AIError(
-      'Bedrock provider not yet implemented. Please install @aws-sdk/client-bedrock-runtime package.',
-      'NOT_IMPLEMENTED',
-      'bedrock'
-    );
+    // Initialize AWS Bedrock client
+    this.initializeClientSync();
+  }
+
+  private initializeClientSync() {
+    try {
+      // Dynamic import in constructor - this will work if the package is installed
+      import('@aws-sdk/client-bedrock-runtime').then(({ BedrockRuntimeClient }) => {
+        this.client = new BedrockRuntimeClient({
+          region: this.options.region,
+          credentials: this.options.credentials,
+          endpoint: this.options.endpoint,
+        });
+      }).catch(() => {
+        // Client will be null and we'll handle it in methods
+      });
+    } catch (error) {
+      // Client will be null and we'll handle it in methods
+    }
+  }
+
+  private async ensureClient() {
+    if (!this.client) {
+      try {
+        const { BedrockRuntimeClient } = await import('@aws-sdk/client-bedrock-runtime');
+        this.client = new BedrockRuntimeClient({
+          region: this.options.region,
+          credentials: this.options.credentials,
+          endpoint: this.options.endpoint,
+        });
+      } catch (error) {
+        throw new AIError(
+          'Failed to initialize Bedrock client. Make sure @aws-sdk/client-bedrock-runtime is installed.',
+          'INITIALIZATION_ERROR',
+          'bedrock'
+        );
+      }
+    }
   }
 
   async chat(messages: AIMessage[], options: ChatOptions = {}): Promise<AIResponse> {
     try {
-      // TODO: Implement Bedrock chat completion
-      // Different models (Claude, Titan, Cohere, etc.) have different message formats
+      await this.ensureClient();
       
       const modelId = options.model || this.options.defaultModel;
       
@@ -68,7 +92,8 @@ export class BedrockProvider implements AIInterface {
         return this.chatWithLlama(messages, options);
       }
       
-      throw new AIError('Bedrock chat not implemented', 'NOT_IMPLEMENTED', 'bedrock');
+      // Default to Claude format for unknown models
+      return this.chatWithClaude(messages, options);
     } catch (error) {
       throw this.mapError(error);
     }
@@ -194,8 +219,41 @@ export class BedrockProvider implements AIInterface {
   }
 
   private async chatWithClaude(messages: AIMessage[], options: ChatOptions): Promise<AIResponse> {
-    // TODO: Implement Claude-specific format for Bedrock
-    throw new AIError('Claude on Bedrock not implemented', 'NOT_IMPLEMENTED', 'bedrock');
+    const { InvokeModelCommand } = await import('@aws-sdk/client-bedrock-runtime');
+    
+    // Convert messages to Claude format for Bedrock
+    const { system, anthropicMessages } = this.mapMessagesToClaude(messages);
+    
+    const payload = {
+      anthropic_version: 'bedrock-2023-05-31',
+      max_tokens: options.maxTokens || 4096,
+      messages: anthropicMessages,
+      temperature: options.temperature,
+      top_p: options.topP,
+      stop_sequences: Array.isArray(options.stop) ? options.stop : options.stop ? [options.stop] : undefined,
+      system: system || undefined,
+    };
+
+    const command = new InvokeModelCommand({
+      modelId: options.model || this.options.defaultModel,
+      contentType: 'application/json',
+      accept: 'application/json',
+      body: JSON.stringify(payload),
+    });
+
+    const response = await this.client.send(command);
+    const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+
+    return {
+      content: responseBody.content?.[0]?.text || '',
+      model: options.model || this.options.defaultModel,
+      finishReason: this.mapClaudeFinishReason(responseBody.stop_reason),
+      usage: {
+        promptTokens: responseBody.usage?.input_tokens || 0,
+        completionTokens: responseBody.usage?.output_tokens || 0,
+        totalTokens: (responseBody.usage?.input_tokens || 0) + (responseBody.usage?.output_tokens || 0),
+      },
+    };
   }
 
   private async chatWithTitan(messages: AIMessage[], options: ChatOptions): Promise<AIResponse> {
@@ -213,8 +271,36 @@ export class BedrockProvider implements AIInterface {
     throw new AIError('Llama on Bedrock not implemented', 'NOT_IMPLEMENTED', 'bedrock');
   }
 
+  private mapMessagesToClaude(messages: AIMessage[]): { system?: string; anthropicMessages: any[] } {
+    // Same as Anthropic provider - separate system messages
+    let system: string | undefined;
+    const anthropicMessages: any[] = [];
+
+    for (const message of messages) {
+      if (message.role === 'system') {
+        system = system ? `${system}\n\n${message.content}` : message.content;
+      } else {
+        anthropicMessages.push({
+          role: message.role === 'assistant' ? 'assistant' : 'user',
+          content: message.content,
+        });
+      }
+    }
+
+    return { system, anthropicMessages };
+  }
+
+  private mapClaudeFinishReason(reason: string | null): AIResponse['finishReason'] {
+    switch (reason) {
+      case 'end_turn': return 'stop';
+      case 'max_tokens': return 'length';
+      case 'stop_sequence': return 'stop';
+      case 'tool_use': return 'function_call';
+      default: return 'stop';
+    }
+  }
+
   private mapError(error: any): AIError {
-    // TODO: Map AWS Bedrock-specific errors
     if (error instanceof AIError) {
       return error;
     }

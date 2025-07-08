@@ -116,19 +116,29 @@ describe('Provider Implementations', () => {
       apiKey: 'test-key',
     });
     expect(geminiProvider).toBeInstanceOf(GeminiProvider);
-  });
 
-  it('should throw for providers that still need implementation', () => {
-    // Anthropic and Bedrock still throw until we implement them
-    expect(() => new AnthropicProvider({
+    // Anthropic should work now
+    const anthropicProvider = new AnthropicProvider({
       type: 'anthropic',
       apiKey: 'test-key',
-    })).toThrow(AIError);
+    });
+    expect(anthropicProvider).toBeInstanceOf(AnthropicProvider);
 
-    expect(() => new BedrockProvider({
+    // Bedrock should work now
+    const bedrockProvider = new BedrockProvider({
       type: 'bedrock',
       region: 'us-east-1',
-    })).toThrow(AIError);
+    });
+    expect(bedrockProvider).toBeInstanceOf(BedrockProvider);
+  });
+
+  it('should create all providers successfully', () => {
+    // All providers should work now!
+    expect(() => new OpenAIProvider({ apiKey: 'test-key' })).not.toThrow();
+    expect(() => new HuggingFaceProvider({ type: 'huggingface', apiToken: 'test-token' })).not.toThrow();
+    expect(() => new GeminiProvider({ type: 'gemini', apiKey: 'test-key' })).not.toThrow();
+    expect(() => new AnthropicProvider({ type: 'anthropic', apiKey: 'test-key' })).not.toThrow();
+    expect(() => new BedrockProvider({ type: 'bedrock', region: 'us-east-1' })).not.toThrow();
   });
 });
 
