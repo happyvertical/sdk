@@ -25,7 +25,10 @@
   },
   "dependencies": {
     "@have/utils": "workspace:*",
-    "openai": "^4.78.1"
+    "openai": "^4.78.1",
+    "@google/generative-ai": "^0.21.0",
+    "@anthropic-ai/sdk": "^0.30.1",
+    "@aws-sdk/client-bedrock-runtime": "^3.703.0"
   },
   "devDependencies": {
     "@types/node": "^22.13.0",
