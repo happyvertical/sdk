@@ -37,40 +37,83 @@ export class AnthropicProvider implements AIInterface {
       ...options,
     };
 
-    // TODO: Initialize Anthropic client
-    // const { Anthropic } = await import('@anthropic-ai/sdk');
-    // this.client = new Anthropic({
-    //   apiKey: this.options.apiKey,
-    //   baseURL: this.options.baseUrl,
-    //   timeout: this.options.timeout,
-    //   maxRetries: this.options.maxRetries,
-    //   defaultHeaders: {
-    //     'anthropic-version': this.options.anthropicVersion,
-    //     ...this.options.headers,
-    //   },
-    // });
-    
-    throw new AIError(
-      'Anthropic provider not yet implemented. Please install @anthropic-ai/sdk package.',
-      'NOT_IMPLEMENTED',
-      'anthropic'
-    );
+    // Initialize Anthropic client
+    this.initializeClientSync();
+  }
+
+  private initializeClientSync() {
+    try {
+      // Dynamic import in constructor - this will work if the package is installed
+      import('@anthropic-ai/sdk').then(({ Anthropic }) => {
+        this.client = new Anthropic({
+          apiKey: this.options.apiKey,
+          baseURL: this.options.baseUrl,
+          timeout: this.options.timeout,
+          maxRetries: this.options.maxRetries,
+          defaultHeaders: {
+            'anthropic-version': this.options.anthropicVersion,
+            ...this.options.headers,
+          },
+        });
+      }).catch(() => {
+        // Client will be null and we'll handle it in methods
+      });
+    } catch (error) {
+      // Client will be null and we'll handle it in methods
+    }
+  }
+
+  private async ensureClient() {
+    if (!this.client) {
+      try {
+        const { Anthropic } = await import('@anthropic-ai/sdk');
+        this.client = new Anthropic({
+          apiKey: this.options.apiKey,
+          baseURL: this.options.baseUrl,
+          timeout: this.options.timeout,
+          maxRetries: this.options.maxRetries,
+          defaultHeaders: {
+            'anthropic-version': this.options.anthropicVersion,
+            ...this.options.headers,
+          },
+        });
+      } catch (error) {
+        throw new AIError(
+          'Failed to initialize Anthropic client. Make sure @anthropic-ai/sdk is installed.',
+          'INITIALIZATION_ERROR',
+          'anthropic'
+        );
+      }
+    }
   }
 
   async chat(messages: AIMessage[], options: ChatOptions = {}): Promise<AIResponse> {
     try {
-      // TODO: Implement Anthropic chat completion
-      // const response = await this.client.messages.create({
-      //   model: options.model || this.options.defaultModel,
-      //   messages: this.mapMessagesToAnthropic(messages),
-      //   max_tokens: options.maxTokens || 4096,
-      //   temperature: options.temperature,
-      //   top_p: options.topP,
-      //   stop_sequences: Array.isArray(options.stop) ? options.stop : [options.stop].filter(Boolean),
-      //   stream: false,
-      // });
+      await this.ensureClient();
+
+      const { system, anthropicMessages } = this.mapMessagesToAnthropic(messages);
       
-      throw new AIError('Anthropic chat not implemented', 'NOT_IMPLEMENTED', 'anthropic');
+      const response = await this.client.messages.create({
+        model: options.model || this.options.defaultModel,
+        messages: anthropicMessages,
+        max_tokens: options.maxTokens || 4096,
+        temperature: options.temperature,
+        top_p: options.topP,
+        stop_sequences: Array.isArray(options.stop) ? options.stop : options.stop ? [options.stop] : undefined,
+        system: system || undefined,
+        stream: false,
+      });
+
+      return {
+        content: response.content[0]?.text || '',
+        model: response.model,
+        finishReason: this.mapFinishReason(response.stop_reason),
+        usage: {
+          promptTokens: response.usage.input_tokens,
+          completionTokens: response.usage.output_tokens,
+          totalTokens: response.usage.input_tokens + response.usage.output_tokens,
+        },
+      };
     } catch (error) {
       throw this.mapError(error);
     }
@@ -100,27 +143,29 @@ export class AnthropicProvider implements AIInterface {
 
   async *stream(messages: AIMessage[], options: ChatOptions = {}): AsyncIterable<string> {
     try {
-      // TODO: Implement Anthropic streaming
-      // const stream = await this.client.messages.create({
-      //   model: options.model || this.options.defaultModel,
-      //   messages: this.mapMessagesToAnthropic(messages),
-      //   max_tokens: options.maxTokens || 4096,
-      //   temperature: options.temperature,
-      //   top_p: options.topP,
-      //   stop_sequences: Array.isArray(options.stop) ? options.stop : [options.stop].filter(Boolean),
-      //   stream: true,
-      // });
+      await this.ensureClient();
+
+      const { system, anthropicMessages } = this.mapMessagesToAnthropic(messages);
       
-      // for await (const chunk of stream) {
-      //   if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
-      //     if (options.onProgress) {
-      //       options.onProgress(chunk.delta.text);
-      //     }
-      //     yield chunk.delta.text;
-      //   }
-      // }
+      const stream = await this.client.messages.create({
+        model: options.model || this.options.defaultModel,
+        messages: anthropicMessages,
+        max_tokens: options.maxTokens || 4096,
+        temperature: options.temperature,
+        top_p: options.topP,
+        stop_sequences: Array.isArray(options.stop) ? options.stop : options.stop ? [options.stop] : undefined,
+        system: system || undefined,
+        stream: true,
+      });
       
-      throw new AIError('Anthropic streaming not implemented', 'NOT_IMPLEMENTED', 'anthropic');
+      for await (const chunk of stream) {
+        if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+          if (options.onProgress) {
+            options.onProgress(chunk.delta.text);
+          }
+          yield chunk.delta.text;
+        }
+      }
     } catch (error) {
       throw this.mapError(error);
     }
@@ -197,13 +242,34 @@ export class AnthropicProvider implements AIInterface {
     };
   }
 
-  private mapMessagesToAnthropic(messages: AIMessage[]): any[] {
-    // TODO: Convert AIMessage format to Anthropic format
-    // Anthropic uses a different message format with system messages handled separately
-    return messages.map(message => ({
-      role: message.role === 'assistant' ? 'assistant' : 'user',
-      content: message.content,
-    }));
+  private mapMessagesToAnthropic(messages: AIMessage[]): { system?: string; anthropicMessages: any[] } {
+    // Anthropic handles system messages separately
+    let system: string | undefined;
+    const anthropicMessages: any[] = [];
+
+    for (const message of messages) {
+      if (message.role === 'system') {
+        // Combine multiple system messages
+        system = system ? `${system}\n\n${message.content}` : message.content;
+      } else {
+        anthropicMessages.push({
+          role: message.role === 'assistant' ? 'assistant' : 'user',
+          content: message.content,
+        });
+      }
+    }
+
+    return { system, anthropicMessages };
+  }
+
+  private mapFinishReason(reason: string | null): AIResponse['finishReason'] {
+    switch (reason) {
+      case 'end_turn': return 'stop';
+      case 'max_tokens': return 'length';
+      case 'stop_sequence': return 'stop';
+      case 'tool_use': return 'function_call';
+      default: return 'stop';
+    }
   }
 
   private mapError(error: any): AIError {
