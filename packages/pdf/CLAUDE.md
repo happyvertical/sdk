@@ -89,37 +89,71 @@ console.log(metadata.creationDate); // Creation date
 console.log(metadata.keywords);    // Keywords
 ```
 
+### PDF Print Information and Ink Coverage
+
+```typescript
+import { printInfo, PaperSizes } from '@have/pdf';
+
+// Calculate ink coverage for printing cost estimation
+const info = await printInfo('/path/to/document.pdf');
+
+console.log(info.inkCoverage.black);   // Black ink coverage percentage
+console.log(info.inkCoverage.cyan);    // Cyan ink coverage percentage
+console.log(info.inkCoverage.magenta); // Magenta ink coverage percentage
+console.log(info.inkCoverage.yellow);  // Yellow ink coverage percentage
+console.log(info.totalCoverage);       // Total ink coverage percentage
+console.log(info.pagesAnalyzed);       // Number of pages analyzed
+
+// Use custom paper size
+const customInfo = await printInfo('/path/to/document.pdf', {
+  paperSize: PaperSizes.A4,
+  pages: [1, 2, 3] // Analyze specific pages only
+});
+
+// Use custom paper dimensions
+const customPaper = await printInfo('/path/to/document.pdf', {
+  paperSize: { width: 11, height: 17 }, // Tabloid size
+  pages: 'all' // Analyze all pages (default)
+});
+```
+
 ## Dependencies
 
 The package has the following dependencies:
 
 - `unpdf`: Modern PDF processing library for text and image extraction
 - `@gutenye/ocr-node`: OCR capabilities using PaddleOCR + ONNX Runtime
+- `node-gs`: Node.js wrapper for Ghostscript (used for accurate ink coverage calculation)
 
 ### System Requirements
 
-For OCR functionality, the following system dependencies are required:
+The package requires the following system dependencies:
 
+**For OCR functionality:**
 - **C++ Standard Library**: `libstdc++.so.6` (usually pre-installed)
 - **ONNX Runtime**: Compatible environment for machine learning inference
+
+**For ink coverage calculation:**
+- **Ghostscript**: `gs` command-line tool for PDF processing
 
 #### Platform-Specific Installation
 
 **Ubuntu/Debian:**
 ```bash
-sudo apt-get install libstdc++6 libc6-dev build-essential
+sudo apt-get install libstdc++6 libc6-dev build-essential ghostscript
 ```
 
 **NixOS:**
 ```bash
-nix-shell -p onnxruntime stdenv.cc.cc.lib gcc
+nix-shell -p onnxruntime stdenv.cc.cc.lib gcc ghostscript
 # Or add to configuration.nix:
-# environment.systemPackages = with pkgs; [ onnxruntime stdenv.cc.cc.lib gcc ];
+# environment.systemPackages = with pkgs; [ onnxruntime stdenv.cc.cc.lib gcc ghostscript ];
 ```
 
 **macOS:**
 ```bash
-xcode-select --install  # Usually sufficient
+xcode-select --install  # For build tools
+brew install ghostscript  # For PDF ink coverage
 ```
 
 #### Dependency Validation

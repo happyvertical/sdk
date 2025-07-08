@@ -44,5 +44,8 @@
   },
   "workspaces": [
     "packages/*"
-  ]
+  ],
+  "dependencies": {
+    "node-gs": "0.1.1"
+  }
 }

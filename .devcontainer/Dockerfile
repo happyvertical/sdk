@@ -6,7 +6,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV NODE_ENV=development
 ENV FORCE_COLOR=1
 
-# Install system dependencies for ONNX Runtime and OCR
+# Install system dependencies for ONNX Runtime, OCR, and Ghostscript
 RUN apt-get update && apt-get install -y \
     # C++ standard library and build tools
     libstdc++6 \
@@ -18,6 +18,8 @@ RUN apt-get update && apt-get install -y \
     # Additional dependencies for ONNX Runtime
     libgomp1 \
     libprotobuf-dev \
+    # Ghostscript for PDF processing
+    ghostscript \
     # Git LFS for large files
     git-lfs \
     # GitHub CLI

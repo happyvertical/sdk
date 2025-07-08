@@ -3,6 +3,7 @@ import OcrNode from '@gutenye/ocr-node'
 import fs from 'fs/promises'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import gs from 'node-gs'
 
 const execAsync = promisify(exec)
 
@@ -262,4 +263,231 @@ export async function performOCROnImages(images: any[]): Promise<string> {
   }
   
   return ocrText.trim()
+}
+
+/**
+ * Paper size definitions in inches
+ */
+export const PaperSizes = {
+  LETTER: { width: 8.5, height: 11 },
+  LEGAL: { width: 8.5, height: 14 },
+  A4: { width: 8.27, height: 11.69 },
+  A3: { width: 11.69, height: 16.54 },
+  TABLOID: { width: 11, height: 17 },
+} as const
+
+/**
+ * Options for printInfo function
+ */
+export interface PrintInfoOptions {
+  /**
+   * Paper size in inches. Defaults to US Letter (8.5" x 11")
+   */
+  paperSize?: {
+    width: number
+    height: number
+  }
+  /**
+   * Whether to analyze all pages or specific pages
+   */
+  pages?: number[] | 'all'
+}
+
+/**
+ * Print information result interface
+ */
+export interface PrintInfo {
+  /**
+   * Ink coverage percentage for each CMYK channel
+   */
+  inkCoverage: {
+    cyan: number
+    magenta: number
+    yellow: number
+    black: number
+  }
+  /**
+   * Paper size used for calculations (in inches)
+   */
+  paperSize: {
+    width: number
+    height: number
+  }
+  /**
+   * Total ink coverage percentage (sum of all channels capped at 100%)
+   */
+  totalCoverage: number
+  /**
+   * Number of pages analyzed
+   */
+  pagesAnalyzed: number
+}
+
+/**
+ * Calculates printing information for a PDF including ink coverage estimates using Ghostscript
+ * 
+ * @param pdfPath - Path to the PDF file
+ * @param options - Options for print analysis
+ * @returns Promise resolving to print information including CMYK ink coverage
+ * 
+ * @remarks
+ * This function uses Ghostscript's inkcov device to calculate actual ink coverage
+ * for each CMYK color channel. This provides accurate estimates for printing costs.
+ * 
+ * @example
+ * ```typescript
+ * const printInfo = await printInfo('/path/to/document.pdf');
+ * console.log(`Total ink coverage: ${printInfo.totalCoverage}%`);
+ * console.log(`Black ink: ${printInfo.inkCoverage.black}%`);
+ * ```
+ */
+export async function printInfo(
+  pdfPath: string,
+  options: PrintInfoOptions = {}
+): Promise<PrintInfo> {
+  const paperSize = options.paperSize || PaperSizes.LETTER
+  
+  try {
+    // Use Ghostscript's inkcov device to calculate ink coverage
+    const inkCoverage = await calculateInkCoverageWithGhostscript(pdfPath, options.pages)
+    
+    return {
+      inkCoverage: {
+        cyan: Math.round(inkCoverage.cyan * 100) / 100,
+        magenta: Math.round(inkCoverage.magenta * 100) / 100,
+        yellow: Math.round(inkCoverage.yellow * 100) / 100,
+        black: Math.round(inkCoverage.black * 100) / 100,
+      },
+      paperSize,
+      totalCoverage: Math.round(inkCoverage.total * 100) / 100,
+      pagesAnalyzed: inkCoverage.pagesAnalyzed
+    }
+  } catch (error) {
+    console.error('Error calculating print info:', error)
+    throw new Error(`Failed to calculate print info: ${error instanceof Error ? error.message : 'Unknown error'}`)
+  }
+}
+
+/**
+ * Uses Ghostscript's inkcov device to calculate actual ink coverage
+ */
+async function calculateInkCoverageWithGhostscript(
+  pdfPath: string,
+  pages?: number[] | 'all'
+): Promise<{
+  cyan: number
+  magenta: number
+  yellow: number
+  black: number
+  total: number
+  pagesAnalyzed: number
+}> {
+  return new Promise((resolve, reject) => {
+    // Configure Ghostscript options for ink coverage calculation
+    const gsOptions = [
+      '-dNOPAUSE',
+      '-dBATCH',
+      '-dSAFER',
+      '-sDEVICE=inkcov',
+      '-sOutputFile=%stdout'
+    ]
+    
+    // Add page range if specified
+    if (pages && pages !== 'all' && Array.isArray(pages) && pages.length > 0) {
+      const pageRange = pages.sort((a, b) => a - b).join(',')
+      gsOptions.push(`-sPageList=${pageRange}`)
+    }
+    
+    gsOptions.push(pdfPath)
+    
+    // Execute Ghostscript
+    gs()
+      .device('inkcov')
+      .option('-dNOPAUSE')
+      .option('-dBATCH')
+      .option('-dSAFER')
+      .input(pdfPath)
+      .output('%stdout')
+      .exec((err: any, stdout: string, stderr: string) => {
+        if (err) {
+          reject(new Error(`Ghostscript error: ${err.message || err}`))
+          return
+        }
+        
+        try {
+          // Parse Ghostscript inkcov output
+          const result = parseInkCoverageOutput(stdout)
+          resolve(result)
+        } catch (parseError) {
+          reject(new Error(`Failed to parse ink coverage output: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`))
+        }
+      })
+  })
+}
+
+/**
+ * Parses Ghostscript inkcov output format
+ * 
+ * @param output - Raw output from Ghostscript inkcov device
+ * @returns Parsed ink coverage data
+ * 
+ * @remarks
+ * Ghostscript inkcov output format per page:
+ * Page 1
+ *  0.12345  0.23456  0.34567  0.45678 CMYK OK
+ * 
+ * Values are decimal percentages (0.0 to 1.0)
+ */
+function parseInkCoverageOutput(output: string): {
+  cyan: number
+  magenta: number
+  yellow: number
+  black: number
+  total: number
+  pagesAnalyzed: number
+} {
+  const lines = output.split('\n').filter(line => line.trim())
+  let totalCyan = 0
+  let totalMagenta = 0
+  let totalYellow = 0
+  let totalBlack = 0
+  let pagesAnalyzed = 0
+  
+  for (const line of lines) {
+    // Look for lines with CMYK coverage data
+    const cmykMatch = line.match(/^\s*([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+CMYK/)
+    
+    if (cmykMatch) {
+      const [, cyan, magenta, yellow, black] = cmykMatch
+      
+      // Convert from decimal (0.0-1.0) to percentage (0-100)
+      totalCyan += parseFloat(cyan) * 100
+      totalMagenta += parseFloat(magenta) * 100
+      totalYellow += parseFloat(yellow) * 100
+      totalBlack += parseFloat(black) * 100
+      pagesAnalyzed++
+    }
+  }
+  
+  if (pagesAnalyzed === 0) {
+    throw new Error('No ink coverage data found in Ghostscript output')
+  }
+  
+  // Calculate averages
+  const avgCyan = totalCyan / pagesAnalyzed
+  const avgMagenta = totalMagenta / pagesAnalyzed
+  const avgYellow = totalYellow / pagesAnalyzed
+  const avgBlack = totalBlack / pagesAnalyzed
+  
+  // Total coverage is sum of all channels (can exceed 100% for overlapping colors)
+  const total = avgCyan + avgMagenta + avgYellow + avgBlack
+  
+  return {
+    cyan: avgCyan,
+    magenta: avgMagenta,
+    yellow: avgYellow,
+    black: avgBlack,
+    total: Math.min(100, total), // Cap at 100% for UI display
+    pagesAnalyzed
+  }
 }

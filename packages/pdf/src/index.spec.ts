@@ -1,7 +1,7 @@
 import { it, expect, beforeAll, describe } from 'vitest';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { extractTextFromPDF, checkOCRDependencies, performOCROnImages } from './index.js';
+import { extractTextFromPDF, checkOCRDependencies, performOCROnImages, printInfo, PaperSizes } from './index.js';
 
 describe('PDF Processing with OCR', () => {
   let ocrAvailable = false;
@@ -127,5 +127,157 @@ describe('PDF Processing with OCR', () => {
       console.log('OCR not available - returned empty string');
       expect(result).toBe('');
     }
+  });
+});
+
+describe('PDF Print Info', () => {
+  it('should calculate print info for a text-based PDF', async () => {
+    const pdfPath = join(
+      fileURLToPath(new URL('.', import.meta.url)),
+      '..',
+      'test',
+      'Agenda-Package-October-24-2023-Regular-Council-Meeting.pdf',
+    );
+    
+    const info = await printInfo(pdfPath);
+    
+    // Verify structure
+    expect(info).toHaveProperty('inkCoverage');
+    expect(info.inkCoverage).toHaveProperty('cyan');
+    expect(info.inkCoverage).toHaveProperty('magenta');
+    expect(info.inkCoverage).toHaveProperty('yellow');
+    expect(info.inkCoverage).toHaveProperty('black');
+    expect(info).toHaveProperty('paperSize');
+    expect(info).toHaveProperty('totalCoverage');
+    expect(info).toHaveProperty('pagesAnalyzed');
+    
+    // Verify values are numbers
+    expect(typeof info.inkCoverage.cyan).toBe('number');
+    expect(typeof info.inkCoverage.magenta).toBe('number');
+    expect(typeof info.inkCoverage.yellow).toBe('number');
+    expect(typeof info.inkCoverage.black).toBe('number');
+    expect(typeof info.totalCoverage).toBe('number');
+    expect(typeof info.pagesAnalyzed).toBe('number');
+    
+    // Verify ranges (0-100%)
+    expect(info.inkCoverage.cyan).toBeGreaterThanOrEqual(0);
+    expect(info.inkCoverage.cyan).toBeLessThanOrEqual(100);
+    expect(info.inkCoverage.magenta).toBeGreaterThanOrEqual(0);
+    expect(info.inkCoverage.magenta).toBeLessThanOrEqual(100);
+    expect(info.inkCoverage.yellow).toBeGreaterThanOrEqual(0);
+    expect(info.inkCoverage.yellow).toBeLessThanOrEqual(100);
+    expect(info.inkCoverage.black).toBeGreaterThanOrEqual(0);
+    expect(info.inkCoverage.black).toBeLessThanOrEqual(100);
+    expect(info.totalCoverage).toBeGreaterThanOrEqual(0);
+    expect(info.totalCoverage).toBeLessThanOrEqual(100);
+    
+    // Default paper size should be US Letter
+    expect(info.paperSize).toEqual(PaperSizes.LETTER);
+    
+    console.log('Print info for text PDF:', info);
+  }, 30000);
+
+  it('should calculate print info for an image-based PDF', async () => {
+    const pdfPath = join(
+      fileURLToPath(new URL('.', import.meta.url)),
+      '..',
+      'test',
+      'Signed-Meeting-Minutes-October-8-2024-Regular-Council-Meeting-1.pdf',
+    );
+    
+    const info = await printInfo(pdfPath);
+    
+    // Verify it returns valid info even for image PDFs
+    expect(info).toHaveProperty('inkCoverage');
+    expect(info).toHaveProperty('totalCoverage');
+    expect(info.pagesAnalyzed).toBeGreaterThan(0);
+    
+    console.log('Print info for image PDF:', info);
+  }, 30000);
+
+  it('should use custom paper size when provided', async () => {
+    const pdfPath = join(
+      fileURLToPath(new URL('.', import.meta.url)),
+      '..',
+      'test',
+      'Agenda-Package-October-24-2023-Regular-Council-Meeting.pdf',
+    );
+    
+    const customPaperSize = { width: 11, height: 17 }; // Tabloid
+    const info = await printInfo(pdfPath, { paperSize: customPaperSize });
+    
+    expect(info.paperSize).toEqual(customPaperSize);
+    expect(info.paperSize.width).toBe(11);
+    expect(info.paperSize.height).toBe(17);
+  });
+
+  it('should analyze specific pages when requested', async () => {
+    const pdfPath = join(
+      fileURLToPath(new URL('.', import.meta.url)),
+      '..',
+      'test',
+      'Agenda-Package-October-24-2023-Regular-Council-Meeting.pdf',
+    );
+    
+    // Analyze only first 2 pages
+    const info = await printInfo(pdfPath, { pages: [1, 2] });
+    
+    expect(info.pagesAnalyzed).toBeLessThanOrEqual(2);
+    expect(info.inkCoverage.black).toBeGreaterThanOrEqual(0);
+  });
+
+  it('should use predefined paper sizes', async () => {
+    const pdfPath = join(
+      fileURLToPath(new URL('.', import.meta.url)),
+      '..',
+      'test',
+      'Agenda-Package-October-24-2023-Regular-Council-Meeting.pdf',
+    );
+    
+    // Test with A4 paper
+    const info = await printInfo(pdfPath, { paperSize: PaperSizes.A4 });
+    
+    expect(info.paperSize).toEqual(PaperSizes.A4);
+    expect(info.paperSize.width).toBeCloseTo(8.27, 2);
+    expect(info.paperSize.height).toBeCloseTo(11.69, 2);
+  });
+
+  it('should handle invalid PDF path gracefully', async () => {
+    const invalidPath = '/path/to/nonexistent.pdf';
+    
+    await expect(printInfo(invalidPath)).rejects.toThrow();
+  });
+
+  it('should handle empty pages array', async () => {
+    const pdfPath = join(
+      fileURLToPath(new URL('.', import.meta.url)),
+      '..',
+      'test',
+      'Agenda-Package-October-24-2023-Regular-Council-Meeting.pdf',
+    );
+    
+    const info = await printInfo(pdfPath, { pages: [] });
+    
+    expect(info.pagesAnalyzed).toBe(0);
+    expect(info.inkCoverage.cyan).toBe(0);
+    expect(info.inkCoverage.magenta).toBe(0);
+    expect(info.inkCoverage.yellow).toBe(0);
+    expect(info.inkCoverage.black).toBe(0);
+    expect(info.totalCoverage).toBe(0);
+  });
+
+  it('should handle out-of-range page numbers', async () => {
+    const pdfPath = join(
+      fileURLToPath(new URL('.', import.meta.url)),
+      '..',
+      'test',
+      'Agenda-Package-October-24-2023-Regular-Council-Meeting.pdf',
+    );
+    
+    // Request pages that don't exist
+    const info = await printInfo(pdfPath, { pages: [999, 1000] });
+    
+    expect(info.pagesAnalyzed).toBe(0);
+    expect(info.totalCoverage).toBe(0);
   });
 });

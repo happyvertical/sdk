@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@gutenye/ocr-node": "^1.4.8",
+    "ghostscript4js": "3.2.3",
     "unpdf": "^1.0.6"
   },
   "devDependencies": {
