@@ -92,29 +92,86 @@ console.log(metadata.keywords);    // Keywords
 ### PDF Print Information and Ink Coverage
 
 ```typescript
-import { printInfo, PaperSizes } from '@have/pdf';
+import { printInfo, PaperSizes, PaperTypes, PrintQualities } from '@have/pdf';
 
-// Calculate ink coverage for printing cost estimation
+// Basic ink coverage calculation with default settings (plain paper, normal quality)
 const info = await printInfo('/path/to/document.pdf');
 
-console.log(info.inkCoverage.black);   // Black ink coverage percentage
-console.log(info.inkCoverage.cyan);    // Cyan ink coverage percentage
-console.log(info.inkCoverage.magenta); // Magenta ink coverage percentage
-console.log(info.inkCoverage.yellow);  // Yellow ink coverage percentage
-console.log(info.totalCoverage);       // Total ink coverage percentage
-console.log(info.pagesAnalyzed);       // Number of pages analyzed
+console.log(info.rawInkCoverage.black);     // Raw black ink coverage percentage
+console.log(info.estimatedInkUsage.black);  // Estimated ink usage with paper factors
+console.log(info.rawTotalCoverage);         // Raw total coverage percentage
+console.log(info.estimatedTotalUsage);      // Estimated total ink usage
+console.log(info.pagesAnalyzed);            // Number of pages analyzed
+console.log(info.paperType.name);           // Paper type used: "Plain Paper"
+console.log(info.printQuality.name);        // Print quality: "Normal"
 
-// Use custom paper size
-const customInfo = await printInfo('/path/to/document.pdf', {
-  paperSize: PaperSizes.A4,
+// Photo printing with glossy paper and photo quality
+const photoInfo = await printInfo('/path/to/photo.pdf', {
+  paperType: 'PHOTO_GLOSSY',
+  printQuality: 'PHOTO',
+  paperSize: PaperSizes.A4
+});
+
+console.log(photoInfo.usageFactors.overallMultiplier); // 0.84 (0.7 * 0.8 * 1.5)
+console.log(photoInfo.estimatedTotalUsage);            // Adjusted for photo paper properties
+
+// Draft printing on recycled paper for cost savings
+const draftInfo = await printInfo('/path/to/document.pdf', {
+  paperType: 'RECYCLED',
+  printQuality: 'DRAFT',
   pages: [1, 2, 3] // Analyze specific pages only
 });
 
-// Use custom paper dimensions
-const customPaper = await printInfo('/path/to/document.pdf', {
-  paperSize: { width: 11, height: 17 }, // Tabloid size
-  pages: 'all' // Analyze all pages (default)
+console.log(draftInfo.estimatedTotalUsage); // Lower ink usage due to draft quality
+
+// Custom material properties for specialized paper
+const customInfo = await printInfo('/path/to/document.pdf', {
+  customMaterialProperties: {
+    absorptionMultiplier: 0.85,
+    coatingFactor: 0.9,
+    description: 'Premium matte photo paper'
+  },
+  printQuality: 'HIGH'
 });
+
+// Available paper types and their properties
+console.log(PaperTypes.PLAIN);        // Standard office paper
+console.log(PaperTypes.PHOTO_GLOSSY);  // Glossy photo paper (less ink usage)
+console.log(PaperTypes.PHOTO_MATTE);   // Matte photo paper
+console.log(PaperTypes.CARDSTOCK);     // Heavy cardstock (more ink usage)
+console.log(PaperTypes.PREMIUM);       // Premium office paper
+console.log(PaperTypes.RECYCLED);      // Recycled paper (higher absorption)
+
+// Available print qualities
+console.log(PrintQualities.DRAFT);     // 70% ink usage
+console.log(PrintQualities.NORMAL);    // 100% ink usage (baseline)
+console.log(PrintQualities.HIGH);      // 130% ink usage
+console.log(PrintQualities.PHOTO);     // 150% ink usage
+```
+
+#### Understanding Ink Usage Calculation
+
+The library provides both **raw ink coverage** (from Ghostscript) and **estimated ink usage** (adjusted for paper and quality):
+
+```typescript
+const result = await printInfo('/path/to/document.pdf', {
+  paperType: 'CARDSTOCK',
+  printQuality: 'HIGH'
+});
+
+// Raw values: What Ghostscript measures from the PDF
+console.log(result.rawInkCoverage);    // Base CMYK percentages
+console.log(result.rawTotalCoverage);  // Sum of raw CMYK values
+
+// Estimated values: Adjusted for real-world printing
+console.log(result.estimatedInkUsage);   // Adjusted CMYK values
+console.log(result.estimatedTotalUsage); // Realistic ink consumption estimate
+
+// Usage factors applied
+console.log(result.usageFactors.absorptionMultiplier); // 1.2 (cardstock absorbs more)
+console.log(result.usageFactors.coatingFactor);        // 1.1 (surface properties)
+console.log(result.usageFactors.qualityMultiplier);    // 1.3 (high quality uses more)
+console.log(result.usageFactors.overallMultiplier);    // 1.72 (1.2 * 1.1 * 1.3)
 ```
 
 ## Dependencies

@@ -142,34 +142,54 @@ describe('PDF Print Info', () => {
     const info = await printInfo(pdfPath);
     
     // Verify structure
-    expect(info).toHaveProperty('inkCoverage');
-    expect(info.inkCoverage).toHaveProperty('cyan');
-    expect(info.inkCoverage).toHaveProperty('magenta');
-    expect(info.inkCoverage).toHaveProperty('yellow');
-    expect(info.inkCoverage).toHaveProperty('black');
+    expect(info).toHaveProperty('rawInkCoverage');
+    expect(info).toHaveProperty('estimatedInkUsage');
+    expect(info.rawInkCoverage).toHaveProperty('cyan');
+    expect(info.rawInkCoverage).toHaveProperty('magenta');
+    expect(info.rawInkCoverage).toHaveProperty('yellow');
+    expect(info.rawInkCoverage).toHaveProperty('black');
+    expect(info.estimatedInkUsage).toHaveProperty('cyan');
+    expect(info.estimatedInkUsage).toHaveProperty('magenta');
+    expect(info.estimatedInkUsage).toHaveProperty('yellow');
+    expect(info.estimatedInkUsage).toHaveProperty('black');
     expect(info).toHaveProperty('paperSize');
-    expect(info).toHaveProperty('totalCoverage');
+    expect(info).toHaveProperty('paperType');
+    expect(info).toHaveProperty('printQuality');
+    expect(info).toHaveProperty('rawTotalCoverage');
+    expect(info).toHaveProperty('estimatedTotalUsage');
     expect(info).toHaveProperty('pagesAnalyzed');
+    expect(info).toHaveProperty('usageFactors');
     
     // Verify values are numbers
-    expect(typeof info.inkCoverage.cyan).toBe('number');
-    expect(typeof info.inkCoverage.magenta).toBe('number');
-    expect(typeof info.inkCoverage.yellow).toBe('number');
-    expect(typeof info.inkCoverage.black).toBe('number');
-    expect(typeof info.totalCoverage).toBe('number');
+    expect(typeof info.rawInkCoverage.cyan).toBe('number');
+    expect(typeof info.rawInkCoverage.magenta).toBe('number');
+    expect(typeof info.rawInkCoverage.yellow).toBe('number');
+    expect(typeof info.rawInkCoverage.black).toBe('number');
+    expect(typeof info.estimatedInkUsage.cyan).toBe('number');
+    expect(typeof info.estimatedInkUsage.magenta).toBe('number');
+    expect(typeof info.estimatedInkUsage.yellow).toBe('number');
+    expect(typeof info.estimatedInkUsage.black).toBe('number');
+    expect(typeof info.rawTotalCoverage).toBe('number');
+    expect(typeof info.estimatedTotalUsage).toBe('number');
     expect(typeof info.pagesAnalyzed).toBe('number');
     
     // Verify ranges (0-100%)
-    expect(info.inkCoverage.cyan).toBeGreaterThanOrEqual(0);
-    expect(info.inkCoverage.cyan).toBeLessThanOrEqual(100);
-    expect(info.inkCoverage.magenta).toBeGreaterThanOrEqual(0);
-    expect(info.inkCoverage.magenta).toBeLessThanOrEqual(100);
-    expect(info.inkCoverage.yellow).toBeGreaterThanOrEqual(0);
-    expect(info.inkCoverage.yellow).toBeLessThanOrEqual(100);
-    expect(info.inkCoverage.black).toBeGreaterThanOrEqual(0);
-    expect(info.inkCoverage.black).toBeLessThanOrEqual(100);
-    expect(info.totalCoverage).toBeGreaterThanOrEqual(0);
-    expect(info.totalCoverage).toBeLessThanOrEqual(100);
+    expect(info.rawInkCoverage.cyan).toBeGreaterThanOrEqual(0);
+    expect(info.rawInkCoverage.cyan).toBeLessThanOrEqual(100);
+    expect(info.estimatedInkUsage.cyan).toBeGreaterThanOrEqual(0);
+    expect(info.rawInkCoverage.magenta).toBeGreaterThanOrEqual(0);
+    expect(info.rawInkCoverage.magenta).toBeLessThanOrEqual(100);
+    expect(info.rawInkCoverage.yellow).toBeGreaterThanOrEqual(0);
+    expect(info.rawInkCoverage.yellow).toBeLessThanOrEqual(100);
+    expect(info.rawInkCoverage.black).toBeGreaterThanOrEqual(0);
+    expect(info.rawInkCoverage.black).toBeLessThanOrEqual(100);
+    expect(info.rawTotalCoverage).toBeGreaterThanOrEqual(0);
+    expect(info.rawTotalCoverage).toBeLessThanOrEqual(100);
+    expect(info.estimatedTotalUsage).toBeGreaterThanOrEqual(0);
+    
+    // Verify default paper type and quality
+    expect(info.paperType.name).toBe('Plain Paper');
+    expect(info.printQuality.name).toBe('Normal');
     
     // Default paper size should be US Letter
     expect(info.paperSize).toEqual(PaperSizes.LETTER);
@@ -188,8 +208,10 @@ describe('PDF Print Info', () => {
     const info = await printInfo(pdfPath);
     
     // Verify it returns valid info even for image PDFs
-    expect(info).toHaveProperty('inkCoverage');
-    expect(info).toHaveProperty('totalCoverage');
+    expect(info).toHaveProperty('rawInkCoverage');
+    expect(info).toHaveProperty('estimatedInkUsage');
+    expect(info).toHaveProperty('rawTotalCoverage');
+    expect(info).toHaveProperty('estimatedTotalUsage');
     expect(info.pagesAnalyzed).toBeGreaterThan(0);
     
     console.log('Print info for image PDF:', info);
@@ -223,7 +245,8 @@ describe('PDF Print Info', () => {
     const info = await printInfo(pdfPath, { pages: [1, 2] });
     
     expect(info.pagesAnalyzed).toBeLessThanOrEqual(2);
-    expect(info.inkCoverage.black).toBeGreaterThanOrEqual(0);
+    expect(info.rawInkCoverage.black).toBeGreaterThanOrEqual(0);
+    expect(info.estimatedInkUsage.black).toBeGreaterThanOrEqual(0);
   });
 
   it('should use predefined paper sizes', async () => {
@@ -259,11 +282,16 @@ describe('PDF Print Info', () => {
     const info = await printInfo(pdfPath, { pages: [] });
     
     expect(info.pagesAnalyzed).toBe(0);
-    expect(info.inkCoverage.cyan).toBe(0);
-    expect(info.inkCoverage.magenta).toBe(0);
-    expect(info.inkCoverage.yellow).toBe(0);
-    expect(info.inkCoverage.black).toBe(0);
-    expect(info.totalCoverage).toBe(0);
+    expect(info.rawInkCoverage.cyan).toBe(0);
+    expect(info.rawInkCoverage.magenta).toBe(0);
+    expect(info.rawInkCoverage.yellow).toBe(0);
+    expect(info.rawInkCoverage.black).toBe(0);
+    expect(info.estimatedInkUsage.cyan).toBe(0);
+    expect(info.estimatedInkUsage.magenta).toBe(0);
+    expect(info.estimatedInkUsage.yellow).toBe(0);
+    expect(info.estimatedInkUsage.black).toBe(0);
+    expect(info.rawTotalCoverage).toBe(0);
+    expect(info.estimatedTotalUsage).toBe(0);
   });
 
   it('should handle out-of-range page numbers', async () => {
@@ -278,6 +306,117 @@ describe('PDF Print Info', () => {
     const info = await printInfo(pdfPath, { pages: [999, 1000] });
     
     expect(info.pagesAnalyzed).toBe(0);
-    expect(info.totalCoverage).toBe(0);
+    expect(info.rawTotalCoverage).toBe(0);
+    expect(info.estimatedTotalUsage).toBe(0);
+  });
+
+  describe('Paper Type and Print Quality', () => {
+    const testPdfPath = join(
+      fileURLToPath(new URL('.', import.meta.url)),
+      '..',
+      'test',
+      'Signed-Meeting-Minutes-October-8-2024-Regular-Council-Meeting-1.pdf',
+    );
+
+    it('should use photo paper type with different ink usage', async () => {
+      const info = await printInfo(testPdfPath, {
+        paperType: 'PHOTO_GLOSSY',
+        printQuality: 'PHOTO'
+      });
+
+      expect(info.paperType.name).toBe('Photo Paper (Glossy)');
+      expect(info.printQuality.name).toBe('Photo');
+      expect(info.usageFactors.absorptionMultiplier).toBe(0.7);
+      expect(info.usageFactors.coatingFactor).toBe(0.8);
+      expect(info.usageFactors.qualityMultiplier).toBe(1.5);
+      expect(info.usageFactors.overallMultiplier).toBe(0.84); // 0.7 * 0.8 * 1.5
+
+      // Estimated usage should be different from raw coverage
+      expect(info.estimatedInkUsage.black).not.toBe(info.rawInkCoverage.black);
+      expect(info.estimatedTotalUsage).not.toBe(info.rawTotalCoverage);
+    });
+
+    it('should use cardstock paper type with higher ink usage', async () => {
+      const info = await printInfo(testPdfPath, {
+        paperType: 'CARDSTOCK',
+        printQuality: 'HIGH'
+      });
+
+      expect(info.paperType.name).toBe('Cardstock');
+      expect(info.printQuality.name).toBe('High');
+      expect(info.usageFactors.absorptionMultiplier).toBe(1.2);
+      expect(info.usageFactors.coatingFactor).toBe(1.1);
+      expect(info.usageFactors.qualityMultiplier).toBe(1.3);
+      expect(info.usageFactors.overallMultiplier).toBe(1.72); // 1.2 * 1.1 * 1.3
+
+      // Higher multiplier should result in higher estimated usage
+      expect(info.estimatedTotalUsage).toBeGreaterThan(info.rawTotalCoverage);
+    });
+
+    it('should use draft quality with reduced ink usage', async () => {
+      const info = await printInfo(testPdfPath, {
+        paperType: 'PLAIN',
+        printQuality: 'DRAFT'
+      });
+
+      expect(info.paperType.name).toBe('Plain Paper');
+      expect(info.printQuality.name).toBe('Draft');
+      expect(info.usageFactors.qualityMultiplier).toBe(0.7);
+      expect(info.usageFactors.overallMultiplier).toBe(0.7); // 1.0 * 1.0 * 0.7
+
+      // Draft quality should use less ink
+      expect(info.estimatedTotalUsage).toBeLessThan(info.rawTotalCoverage);
+    });
+
+    it('should accept custom material properties', async () => {
+      const customProperties = {
+        absorptionMultiplier: 0.85,
+        coatingFactor: 0.9,
+        description: 'Custom test paper'
+      };
+
+      const info = await printInfo(testPdfPath, {
+        customMaterialProperties: customProperties,
+        printQuality: 'NORMAL'
+      });
+
+      expect(info.paperType.name).toBe('Custom');
+      expect(info.paperType.description).toBe('Custom test paper');
+      expect(info.usageFactors.absorptionMultiplier).toBe(0.85);
+      expect(info.usageFactors.coatingFactor).toBe(0.9);
+      expect(info.usageFactors.overallMultiplier).toBe(0.77); // 0.85 * 0.9 * 1.0
+    });
+
+    it('should accept paper type as object', async () => {
+      const customPaperType = {
+        name: 'Premium Matte',
+        absorptionMultiplier: 0.95,
+        coatingFactor: 0.92,
+        description: 'Premium matte finish paper'
+      };
+
+      const info = await printInfo(testPdfPath, {
+        paperType: customPaperType
+      });
+
+      expect(info.paperType.name).toBe('Premium Matte');
+      expect(info.paperType.description).toBe('Premium matte finish paper');
+      expect(info.usageFactors.absorptionMultiplier).toBe(0.95);
+      expect(info.usageFactors.coatingFactor).toBe(0.92);
+    });
+
+    it('should provide accurate usage factors calculation', async () => {
+      const info = await printInfo(testPdfPath, {
+        paperType: 'PHOTO_MATTE',
+        printQuality: 'HIGH'
+      });
+
+      const expectedOverall = 0.8 * 0.9 * 1.3; // absorption * coating * quality
+      expect(info.usageFactors.overallMultiplier).toBe(Math.round(expectedOverall * 100) / 100);
+
+      // Verify that estimated values are correctly calculated
+      const expectedCyan = info.rawInkCoverage.cyan * expectedOverall;
+      expect(info.estimatedInkUsage.cyan).toBe(Math.round(expectedCyan * 100) / 100);
+    });
   });
 });

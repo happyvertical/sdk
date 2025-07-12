@@ -9,14 +9,17 @@
     "dist"
   ],
   "exports": {
-    ".": "./dist/index.js"
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   },
   "scripts": {
     "test": "vitest",
     "test:watch": "vitest --watch",
     "build": "tsc -b",
     "build:watch": "tsc -b --watch",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "prebuild": "npm run clean",
     "dev": "bun run build:watch & bun run test:watch"
   },

@@ -1,9 +1,7 @@
 import { extractText, extractImages, getDocumentProxy } from 'unpdf'
-import OcrNode from '@gutenye/ocr-node'
 import fs from 'fs/promises'
 import { exec } from 'child_process'
 import { promisify } from 'util'
-import gs from 'node-gs'
 
 const execAsync = promisify(exec)
 
@@ -70,6 +68,7 @@ export async function checkOCRDependencies(): Promise<{
     result.details.systemLibraries = await checkSystemLibraries()
     
     // Test if OCR Node module can be imported and initialized
+    const { default: OcrNode } = await import('@gutenye/ocr-node')
     const ocr = await OcrNode.create()
     
     if (ocr && typeof ocr.detect === 'function') {
@@ -217,6 +216,7 @@ export async function performOCROnImages(images: any[]): Promise<string> {
   
   try {
     // Initialize OCR engine once for all images
+    const { default: OcrNode } = await import('@gutenye/ocr-node')
     ocr = await OcrNode.create()
     
     for (const image of images) {
@@ -277,6 +277,129 @@ export const PaperSizes = {
 } as const
 
 /**
+ * Paper type definitions with material properties for ink usage calculations
+ */
+export const PaperTypes = {
+  /**
+   * Standard office paper (20lb bond, uncoated)
+   * Base absorption rate, moderate ink usage
+   */
+  PLAIN: {
+    name: 'Plain Paper',
+    absorptionMultiplier: 1.0,
+    coatingFactor: 1.0,
+    description: 'Standard office paper, uncoated'
+  },
+  /**
+   * Photo paper with glossy coating
+   * Low absorption, ink sits on surface
+   */
+  PHOTO_GLOSSY: {
+    name: 'Photo Paper (Glossy)',
+    absorptionMultiplier: 0.7,
+    coatingFactor: 0.8,
+    description: 'Glossy photo paper, coated surface'
+  },
+  /**
+   * Photo paper with matte finish
+   * Medium absorption, slightly more ink usage than glossy
+   */
+  PHOTO_MATTE: {
+    name: 'Photo Paper (Matte)',
+    absorptionMultiplier: 0.8,
+    coatingFactor: 0.9,
+    description: 'Matte photo paper, semi-coated'
+  },
+  /**
+   * Heavy cardstock paper
+   * Higher absorption due to thickness and texture
+   */
+  CARDSTOCK: {
+    name: 'Cardstock',
+    absorptionMultiplier: 1.2,
+    coatingFactor: 1.1,
+    description: 'Heavy cardstock, higher absorption'
+  },
+  /**
+   * Premium office paper (24lb bond, lightly coated)
+   * Slightly less absorption than plain paper
+   */
+  PREMIUM: {
+    name: 'Premium Paper',
+    absorptionMultiplier: 0.9,
+    coatingFactor: 0.95,
+    description: 'Premium office paper, lightly coated'
+  },
+  /**
+   * Recycled paper
+   * Higher absorption due to fiber composition
+   */
+  RECYCLED: {
+    name: 'Recycled Paper',
+    absorptionMultiplier: 1.1,
+    coatingFactor: 1.05,
+    description: 'Recycled paper, higher absorption'
+  }
+} as const
+
+/**
+ * Print quality settings that affect ink usage
+ */
+export const PrintQualities = {
+  /**
+   * Draft quality - less ink usage
+   */
+  DRAFT: {
+    name: 'Draft',
+    inkMultiplier: 0.7,
+    description: 'Draft quality, reduced ink usage'
+  },
+  /**
+   * Normal quality - standard ink usage
+   */
+  NORMAL: {
+    name: 'Normal',
+    inkMultiplier: 1.0,
+    description: 'Normal quality, standard ink usage'
+  },
+  /**
+   * High quality - increased ink usage
+   */
+  HIGH: {
+    name: 'High',
+    inkMultiplier: 1.3,
+    description: 'High quality, increased ink usage'
+  },
+  /**
+   * Photo quality - maximum ink usage
+   */
+  PHOTO: {
+    name: 'Photo',
+    inkMultiplier: 1.5,
+    description: 'Photo quality, maximum ink usage'
+  }
+} as const
+
+/**
+ * Paper type definition interface
+ */
+export interface PaperTypeDefinition {
+  name: string
+  absorptionMultiplier: number
+  coatingFactor: number
+  description: string
+}
+
+/**
+ * Print quality definition interface
+ */
+export interface PrintQualityDefinition {
+  name: string
+  inkMultiplier: number
+  description: string
+}
+
+/**
  * Options for printInfo function
  */
 export interface PrintInfoOptions {
@@ -291,6 +414,22 @@ export interface PrintInfoOptions {
    * Whether to analyze all pages or specific pages
    */
   pages?: number[] | 'all'
+  /**
+   * Paper type affecting ink absorption and usage. Defaults to PLAIN
+   */
+  paperType?: PaperTypeDefinition | keyof typeof PaperTypes
+  /**
+   * Print quality setting affecting ink usage. Defaults to NORMAL
+   */
+  printQuality?: PrintQualityDefinition | keyof typeof PrintQualities
+  /**
+   * Custom material properties for advanced users
+   */
+  customMaterialProperties?: {
+    absorptionMultiplier: number
+    coatingFactor: number
+    description?: string
+  }
 }
 
 /**
@@ -298,9 +437,18 @@ export interface PrintInfoOptions {
  */
 export interface PrintInfo {
   /**
-   * Ink coverage percentage for each CMYK channel
+   * Raw ink coverage percentage from Ghostscript (base measurements)
    */
-  inkCoverage: {
+  rawInkCoverage: {
+    cyan: number
+    magenta: number
+    yellow: number
+    black: number
+  }
+  /**
+   * Adjusted ink usage estimates accounting for paper type and print quality
+   */
+  estimatedInkUsage: {
     cyan: number
     magenta: number
     yellow: number
@@ -314,13 +462,34 @@ export interface PrintInfo {
     height: number
   }
   /**
-   * Total ink coverage percentage (sum of all channels capped at 100%)
+   * Paper type information used for calculations
    */
-  totalCoverage: number
+  paperType: PaperTypeDefinition
+  /**
+   * Print quality information used for calculations
+   */
+  printQuality: PrintQualityDefinition
+  /**
+   * Raw total coverage percentage (sum of raw channels capped at 100%)
+   */
+  rawTotalCoverage: number
+  /**
+   * Estimated total ink usage (sum of adjusted channels capped at 100%)
+   */
+  estimatedTotalUsage: number
   /**
    * Number of pages analyzed
    */
   pagesAnalyzed: number
+  /**
+   * Ink usage factors applied to calculations
+   */
+  usageFactors: {
+    absorptionMultiplier: number
+    coatingFactor: number
+    qualityMultiplier: number
+    overallMultiplier: number
+  }
 }
 
 /**
@@ -336,9 +505,27 @@ export interface PrintInfo {
  * 
  * @example
  * ```typescript
- * const printInfo = await printInfo('/path/to/document.pdf');
- * console.log(`Total ink coverage: ${printInfo.totalCoverage}%`);
- * console.log(`Black ink: ${printInfo.inkCoverage.black}%`);
+ * // Basic usage with default paper type (plain) and quality (normal)
+ * const info = await printInfo('/path/to/document.pdf');
+ * console.log(`Raw total coverage: ${info.rawTotalCoverage}%`);
+ * console.log(`Estimated ink usage: ${info.estimatedTotalUsage}%`);
+ * console.log(`Black ink (raw): ${info.rawInkCoverage.black}%`);
+ * console.log(`Black ink (estimated): ${info.estimatedInkUsage.black}%`);
+ * 
+ * // Using specific paper type and print quality
+ * const photoInfo = await printInfo('/path/to/photo.pdf', {
+ *   paperType: 'PHOTO_GLOSSY',
+ *   printQuality: 'PHOTO'
+ * });
+ * 
+ * // Using custom material properties
+ * const customInfo = await printInfo('/path/to/document.pdf', {
+ *   customMaterialProperties: {
+ *     absorptionMultiplier: 0.85,
+ *     coatingFactor: 0.9,
+ *     description: 'Custom premium paper'
+ *   }
+ * });
  * ```
  */
 export async function printInfo(
@@ -347,20 +534,83 @@ export async function printInfo(
 ): Promise<PrintInfo> {
   const paperSize = options.paperSize || PaperSizes.LETTER
   
+  // Resolve paper type
+  let paperType: PaperTypeDefinition
+  if (options.customMaterialProperties) {
+    paperType = {
+      name: 'Custom',
+      absorptionMultiplier: options.customMaterialProperties.absorptionMultiplier,
+      coatingFactor: options.customMaterialProperties.coatingFactor,
+      description: options.customMaterialProperties.description || 'Custom material properties'
+    }
+  } else if (typeof options.paperType === 'string') {
+    paperType = PaperTypes[options.paperType as keyof typeof PaperTypes]
+  } else if (options.paperType) {
+    paperType = options.paperType
+  } else {
+    paperType = PaperTypes.PLAIN
+  }
+  
+  // Resolve print quality
+  let printQuality: PrintQualityDefinition
+  if (typeof options.printQuality === 'string') {
+    printQuality = PrintQualities[options.printQuality as keyof typeof PrintQualities]
+  } else if (options.printQuality) {
+    printQuality = options.printQuality
+  } else {
+    printQuality = PrintQualities.NORMAL
+  }
+  
   try {
-    // Use Ghostscript's inkcov device to calculate ink coverage
-    const inkCoverage = await calculateInkCoverageWithGhostscript(pdfPath, options.pages)
+    // Use Ghostscript's inkcov device to calculate raw ink coverage
+    const rawInkCoverage = await calculateInkCoverageWithGhostscript(pdfPath, options.pages)
+    
+    // Calculate usage factors
+    const absorptionMultiplier = paperType.absorptionMultiplier
+    const coatingFactor = paperType.coatingFactor
+    const qualityMultiplier = printQuality.inkMultiplier
+    const overallMultiplier = absorptionMultiplier * coatingFactor * qualityMultiplier
+    
+    // Apply paper type and quality adjustments to ink usage
+    const estimatedInkUsage = {
+      cyan: rawInkCoverage.cyan * overallMultiplier,
+      magenta: rawInkCoverage.magenta * overallMultiplier,
+      yellow: rawInkCoverage.yellow * overallMultiplier,
+      black: rawInkCoverage.black * overallMultiplier
+    }
+    
+    // Calculate totals
+    const rawTotalCoverage = Math.min(100, rawInkCoverage.total)
+    const estimatedTotalUsage = Math.min(100, 
+      estimatedInkUsage.cyan + estimatedInkUsage.magenta + 
+      estimatedInkUsage.yellow + estimatedInkUsage.black
+    )
     
     return {
-      inkCoverage: {
-        cyan: Math.round(inkCoverage.cyan * 100) / 100,
-        magenta: Math.round(inkCoverage.magenta * 100) / 100,
-        yellow: Math.round(inkCoverage.yellow * 100) / 100,
-        black: Math.round(inkCoverage.black * 100) / 100,
+      rawInkCoverage: {
+        cyan: Math.round(rawInkCoverage.cyan * 100) / 100,
+        magenta: Math.round(rawInkCoverage.magenta * 100) / 100,
+        yellow: Math.round(rawInkCoverage.yellow * 100) / 100,
+        black: Math.round(rawInkCoverage.black * 100) / 100,
+      },
+      estimatedInkUsage: {
+        cyan: Math.round(estimatedInkUsage.cyan * 100) / 100,
+        magenta: Math.round(estimatedInkUsage.magenta * 100) / 100,
+        yellow: Math.round(estimatedInkUsage.yellow * 100) / 100,
+        black: Math.round(estimatedInkUsage.black * 100) / 100,
       },
       paperSize,
-      totalCoverage: Math.round(inkCoverage.total * 100) / 100,
-      pagesAnalyzed: inkCoverage.pagesAnalyzed
+      paperType,
+      printQuality,
+      rawTotalCoverage: Math.round(rawTotalCoverage * 100) / 100,
+      estimatedTotalUsage: Math.round(estimatedTotalUsage * 100) / 100,
+      pagesAnalyzed: rawInkCoverage.pagesAnalyzed,
+      usageFactors: {
+        absorptionMultiplier: Math.round(absorptionMultiplier * 100) / 100,
+        coatingFactor: Math.round(coatingFactor * 100) / 100,
+        qualityMultiplier: Math.round(qualityMultiplier * 100) / 100,
+        overallMultiplier: Math.round(overallMultiplier * 100) / 100
+      }
     }
   } catch (error) {
     console.error('Error calculating print info:', error)
@@ -382,47 +632,53 @@ async function calculateInkCoverageWithGhostscript(
   total: number
   pagesAnalyzed: number
 }> {
-  return new Promise((resolve, reject) => {
-    // Configure Ghostscript options for ink coverage calculation
-    const gsOptions = [
-      '-dNOPAUSE',
-      '-dBATCH',
-      '-dSAFER',
-      '-sDEVICE=inkcov',
-      '-sOutputFile=%stdout'
-    ]
-    
-    // Add page range if specified
-    if (pages && pages !== 'all' && Array.isArray(pages) && pages.length > 0) {
-      const pageRange = pages.sort((a, b) => a - b).join(',')
-      gsOptions.push(`-sPageList=${pageRange}`)
+  // Build the ghostscript command manually using execAsync
+  const gsArgs = [
+    '-sDEVICE=inkcov',
+    '-dNOPAUSE',
+    '-dBATCH',
+    '-dSAFER',
+    '-dQUIET',
+    '-sOutputFile=%stdout'
+  ]
+  
+  // Add page range if specified
+  if (pages && pages !== 'all' && Array.isArray(pages)) {
+    if (pages.length === 0) {
+      // Empty pages array means no pages should be processed
+      return {
+        cyan: 0,
+        magenta: 0,
+        yellow: 0,
+        black: 0,
+        total: 0,
+        pagesAnalyzed: 0
+      }
     }
     
-    gsOptions.push(pdfPath)
+    const pageRange = pages.sort((a, b) => a - b).join(',')
+    gsArgs.push(`-sPageList=${pageRange}`)
+  }
+  
+  // Add the PDF file path
+  gsArgs.push(pdfPath)
+  
+  // Execute Ghostscript command
+  const command = `gs ${gsArgs.join(' ')}`
+  
+  try {
+    const { stdout } = await execAsync(command)
     
-    // Execute Ghostscript
-    gs()
-      .device('inkcov')
-      .option('-dNOPAUSE')
-      .option('-dBATCH')
-      .option('-dSAFER')
-      .input(pdfPath)
-      .output('%stdout')
-      .exec((err: any, stdout: string, stderr: string) => {
-        if (err) {
-          reject(new Error(`Ghostscript error: ${err.message || err}`))
-          return
-        }
-        
-        try {
-          // Parse Ghostscript inkcov output
-          const result = parseInkCoverageOutput(stdout)
-          resolve(result)
-        } catch (parseError) {
-          reject(new Error(`Failed to parse ink coverage output: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`))
-        }
-      })
-  })
+    if (!stdout) {
+      throw new Error('Ghostscript did not produce any output')
+    }
+    
+    // Parse Ghostscript inkcov output
+    const result = parseInkCoverageOutput(stdout)
+    return result
+  } catch (execError) {
+    throw new Error(`Ghostscript error: ${execError instanceof Error ? execError.message : 'Unknown error'}`)
+  }
 }
 
 /**
@@ -446,6 +702,10 @@ function parseInkCoverageOutput(output: string): {
   total: number
   pagesAnalyzed: number
 } {
+  if (!output || typeof output !== 'string') {
+    throw new Error('Invalid output: expected non-empty string')
+  }
+  
   const lines = output.split('\n').filter(line => line.trim())
   let totalCyan = 0
   let totalMagenta = 0
@@ -470,7 +730,15 @@ function parseInkCoverageOutput(output: string): {
   }
   
   if (pagesAnalyzed === 0) {
-    throw new Error('No ink coverage data found in Ghostscript output')
+    // No pages were analyzed (possibly out-of-range page numbers)
+    return {
+      cyan: 0,
+      magenta: 0,
+      yellow: 0,
+      black: 0,
+      total: 0,
+      pagesAnalyzed: 0
+    }
   }
   
   // Calculate averages
