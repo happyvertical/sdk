@@ -34,7 +34,8 @@
         "ms-vscode.vscode-json",
         "GitHub.copilot",
         "GitHub.copilot-chat",
-        "biomejs.biome"
+        "biomejs.biome",
+        "ms-playwright.playwright"
       ],
       "settings": {
         "typescript.preferences.importModuleSpecifier": "relative",

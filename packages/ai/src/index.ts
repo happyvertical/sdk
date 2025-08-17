@@ -13,7 +13,7 @@
 export * from './types.js';
 export * from './factory.js';
 
-// Legacy exports for backward compatibility
+// Legacy exports for backward compatibility - explicitly excluding AIMessage to avoid conflict
 export * from './client.js';
-export * from './message.js';
+export { AIMessage as AIMessageClass } from './message.js';
 export * from './thread.js';

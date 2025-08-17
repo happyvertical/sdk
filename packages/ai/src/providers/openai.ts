@@ -205,13 +205,21 @@ export class OpenAIProvider implements AIInterface {
   }
 
   private mapMessagesToOpenAI(messages: AIMessage[]): OpenAI.Chat.ChatCompletionMessageParam[] {
-    return messages.map(message => ({
-      role: message.role as OpenAI.Chat.ChatCompletionRole,
-      content: message.content,
-      name: message.name,
-      function_call: message.function_call,
-      tool_calls: message.tool_calls,
-    }));
+    return messages.map(message => {
+      const baseMessage: any = {
+        role: message.role,
+        content: message.content,
+      };
+      
+      if (message.name) baseMessage.name = message.name;
+      
+      if (message.role === 'assistant') {
+        if (message.function_call) baseMessage.function_call = message.function_call;
+        if (message.tool_calls) baseMessage.tool_calls = message.tool_calls;
+      }
+      
+      return baseMessage as OpenAI.Chat.ChatCompletionMessageParam;
+    });
   }
 
   private mapToolChoice(
@@ -225,11 +233,11 @@ export class OpenAIProvider implements AIInterface {
     };
   }
 
-  private mapUsage(usage?: OpenAI.Completions.CompletionUsage): TokenUsage | undefined {
+  private mapUsage(usage?: OpenAI.Completions.CompletionUsage | { prompt_tokens: number; total_tokens: number }): TokenUsage | undefined {
     if (!usage) return undefined;
     return {
       promptTokens: usage.prompt_tokens,
-      completionTokens: usage.completion_tokens,
+      completionTokens: 'completion_tokens' in usage ? usage.completion_tokens : 0,
       totalTokens: usage.total_tokens,
     };
   }

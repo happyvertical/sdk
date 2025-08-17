@@ -9,6 +9,7 @@
       "devDependencies": {
         "@biomejs/biome": "^1.5.3",
         "@changesets/cli": "^2.27.12",
+        "@types/node": "22.13.0",
         "conventional-changelog-cli": "^5.0.0",
         "lefthook": "^1.11.13",
         "repomix": "^0.3.6",

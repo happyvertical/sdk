@@ -1,4 +1,4 @@
-import type { AIMessageOptions } from '@have/ai';
+import type { ChatOptions } from '@have/ai';
 import type { BaseClassOptions } from './class.js';
 
 import {
@@ -421,7 +421,7 @@ export class BaseObject<
    * @returns Promise resolving to true if criteria are met, false otherwise
    * @throws Error if the AI response is invalid
    */
-  public async is(criteria: string, options: AIMessageOptions = {}) {
+  public async is(criteria: string, options: ChatOptions = {}) {
     const prompt = `--- Beginning of criteria ---\n${criteria}\n--- End of criteria ---\nDoes the content meet all the given criteria? Reply with a json object with a single boolean 'result' property`;
     const message = await this.ai.message(prompt, {
       ...(options as any),
@@ -444,7 +444,7 @@ export class BaseObject<
    * @param options - AI message options
    * @returns Promise resolving to the AI response
    */
-  public async do(instructions: string, options: AIMessageOptions = {}) {
+  public async do(instructions: string, options: ChatOptions = {}) {
     const prompt = `--- Beginning of instructions ---\n${instructions}\n--- End of instructions ---\nBased on the content body, please follow the instructions and provide a response. Never make use of codeblocks.`;
     const result = await this.ai.message(prompt, options);
     return result;

@@ -143,8 +143,8 @@ describe('Error Classes Integration', () => {
       throw error;
     } catch (e) {
       expect(e).toBeInstanceOf(AIError);
-      expect(e.code).toBe('TEST_CODE');
-      expect(e.provider).toBe('test-provider');
+      expect((e as AIError).code).toBe('TEST_CODE');
+      expect((e as AIError).provider).toBe('test-provider');
     }
   });
 
@@ -223,7 +223,7 @@ describe('Provider Interface Compliance', () => {
     ];
 
     for (const method of requiredMethods) {
-      expect(typeof provider[method]).toBe('function');
+      expect(typeof (provider as any)[method]).toBe('function');
     }
   });
 
