@@ -29,8 +29,8 @@ npm install @have/spider
 # Or with yarn
 yarn add @have/spider
 
-# Or with pnpm
-pnpm add @have/spider
+# Or with bun
+bun add @have/spider
 ```
 
 ## Usage

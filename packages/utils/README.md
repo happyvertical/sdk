@@ -30,8 +30,8 @@ npm install @have/utils
 # Or with yarn
 yarn add @have/utils
 
-# Or with pnpm
-pnpm add @have/utils
+# Or with bun
+bun add @have/utils
 ```
 
 ## Usage
