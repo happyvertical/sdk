@@ -4,25 +4,24 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 # Unlink all packages globally first
-pnpm unlink --global @have/ai @have/files @have/pdf @have/smrt @have/spider @have/sql @have/utils
-pnpm unlink --global @happyvertical/praeco
+bun unlink @have/ai @have/files @have/pdf @have/smrt @have/spider @have/sql @have/utils
+bun unlink @happyvertical/praeco
 
 # Link SDK packages
-cd "$SCRIPT_DIR/packages/ai" && pnpm unlink && pnpm link --global
-cd "$SCRIPT_DIR/packages/files" && pnpm unlink && pnpm link --global
-cd "$SCRIPT_DIR/packages/pdf" && pnpm unlink && pnpm link --global
-cd "$SCRIPT_DIR/packages/smrt" && pnpm unlink && pnpm link --global
-cd "$SCRIPT_DIR/packages/spider" && pnpm unlink && pnpm link --global
-cd "$SCRIPT_DIR/packages/sql" && pnpm unlink && pnpm link --global
-cd "$SCRIPT_DIR/packages/utils" && pnpm unlink && pnpm link --global
+cd "$SCRIPT_DIR/packages/ai" && bun unlink && bun link
+cd "$SCRIPT_DIR/packages/files" && bun unlink && bun link
+cd "$SCRIPT_DIR/packages/pdf" && bun unlink && bun link
+cd "$SCRIPT_DIR/packages/smrt" && bun unlink && bun link
+cd "$SCRIPT_DIR/packages/spider" && bun unlink && bun link
+cd "$SCRIPT_DIR/packages/sql" && bun unlink && bun link
+cd "$SCRIPT_DIR/packages/utils" && bun unlink && bun link
 
 # Link to praeco
 cd "$SCRIPT_DIR/../praeco"
-pnpm unlink @have/ai @have/files @have/smrt @have/spider @have/sql @have/utils
-pnpm link --global @have/ai @have/files @have/smrt @have/spider @have/sql @have/utils
-pnpm link --global
+bun unlink @have/ai @have/files @have/smrt @have/spider @have/sql @have/utils
+bun link @have/ai @have/files @have/smrt @have/spider @have/sql @have/utils
 
 # Link to bentleyalberta.com
 cd "$SCRIPT_DIR/../bentleyalberta.com"
-pnpm unlink @happyvertical/praeco @have/smrt @have/utils
-pnpm link --global @happyvertical/praeco @have/smrt @have/utils
+bun unlink @happyvertical/praeco @have/smrt @have/utils
+bun link @happyvertical/praeco @have/smrt @have/utils

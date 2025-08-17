@@ -35,14 +35,14 @@ npm install @have/smrt
 # Or with yarn
 yarn add @have/smrt
 
-# Or with pnpm
-pnpm add @have/smrt
+# Or with bun
+bun add @have/smrt
 ```
 
 You can also install individual packages based on your needs:
 
 ```bash
-pnpm add @have/ai @have/files @have/spider
+bun add @have/ai @have/files @have/spider
 ```
 
 ## Getting Started
@@ -68,22 +68,22 @@ See each package's README for more detailed usage examples.
 
 ```bash
 # Install dependencies
-pnpm install
+bun install
 
 # Run tests
-pnpm test
+bun test
 
 # Build all packages in correct order
-pnpm build
+bun build
 
 # Watch mode development
-pnpm dev
+bun dev
 
 # Lint code
-pnpm lint
+bun lint
 
 # Format code
-pnpm format
+bun format
 ```
 
 ## Documentation
@@ -96,7 +96,7 @@ This is generated during the build process and can be viewed by opening `docs/ma
 You can generate the documentation separately by running:
 
 ```bash
-pnpm docs
+bun docs
 ```
 
 ### Online Documentation

@@ -6,8 +6,8 @@
 - Provide corresponding unit tests for all new features.
 - After implementation, verify changes by running:
   ```bash
-  pnpm lint  # Ensure code style compliance
-  pnpm test  # Verify all tests pass
+  bun lint  # Ensure code style compliance
+  bun test  # Verify all tests pass
   ```
 
 ## Commit Messages
@@ -26,8 +26,8 @@
 
   ## Checklist
 
-  - [ ] Run `pnpm test`
-  - [ ] Run `pnpm lint`
+  - [ ] Run `bun test`
+  - [ ] Run `bun lint`
   ```
 - Include a clear summary of the changes at the top of the pull request description
 - Reference any related issues using the format `#issue-number` 

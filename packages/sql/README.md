@@ -28,8 +28,8 @@ npm install @have/sql
 # Or with yarn
 yarn add @have/sql
 
-# Or with pnpm
-pnpm add @have/sql
+# Or with bun
+bun add @have/sql
 ```
 
 ## Usage

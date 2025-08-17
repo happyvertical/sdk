@@ -26,8 +26,8 @@ npm install @have/files
 # Or with yarn
 yarn add @have/files
 
-# Or with pnpm
-pnpm add @have/files
+# Or with bun
+bun add @have/files
 ```
 
 ## Usage

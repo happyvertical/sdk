@@ -28,8 +28,8 @@ npm install @have/pdf
 # Or with yarn
 yarn add @have/pdf
 
-# Or with pnpm
-pnpm add @have/pdf
+# Or with bun
+bun add @have/pdf
 ```
 
 ## Usage

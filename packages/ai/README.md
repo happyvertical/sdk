@@ -26,8 +26,8 @@ npm install @have/ai
 # Or with yarn
 yarn add @have/ai
 
-# Or with pnpm
-pnpm add @have/ai
+# Or with bun
+bun add @have/ai
 ```
 
 ## Usage

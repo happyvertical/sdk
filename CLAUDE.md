@@ -12,7 +12,7 @@ The HAppy VErtical (HAVE) SDK is a TypeScript monorepo designed for building ver
 
 ## Monorepo Structure
 
-The SDK is organized as a pnpm workspace with several packages that provide specific functionality:
+The SDK is organized as a bun workspace with several packages that provide specific functionality:
 
 - **ai**: A standardized interface for AI model interactions, currently supporting OpenAI
 - **files**: Tools for interacting with file systems (local and remote)
@@ -100,7 +100,7 @@ When adding new features, maintain this dependency hierarchy to avoid circular d
 
 ## Contribution Guidelines
 
-1. Ensure code passes Biome linting (`pnpm lint`)
+1. Ensure code passes Biome linting (`bun lint`)
 2. Write tests for new functionality
 3. Update package documentation when adding new features
 4. Follow existing code patterns in each package
