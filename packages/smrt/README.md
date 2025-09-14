@@ -27,8 +27,8 @@ npm install @have/smrt
 # Or with yarn
 yarn add @have/smrt
 
-# Or with pnpm
-pnpm add @have/smrt
+# Or with bun
+bun add @have/smrt
 ```
 
 ## Usage
