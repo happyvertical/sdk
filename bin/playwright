@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Wrapper script for playwright that uses system chromium on NixOS
+
+if [ "$1" = "open" ]; then
+  shift
+  exec chromium "$@"
+else
+  exec npx playwright-core "$@"
+fi
