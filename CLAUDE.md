@@ -54,7 +54,8 @@ The build process follows a specific order to respect internal dependencies:
 - Use camelCase for variables and functions, PascalCase for classes
 - Use conventional commits
 - Dont include claude branding in commit messages
-- use bun 
+- Use bun for all package management and builds
+- Ensure all scripts and tools are nix-friendly (use /usr/bin/env in shebangs)
 
 ### Testing
 
@@ -167,4 +168,83 @@ bun run build  # Includes documentation generation
 
 This repository is designed to support building AI agents with minimal overhead and maximum flexibility.
 
-## 
+## Agent Orchestration Guidelines
+
+When working with multiple agents in the HAVE SDK, follow these orchestration patterns:
+
+### Delegation Patterns
+
+**Sequential Pattern** - Use when tasks have clear dependencies:
+1. First agent completes foundation work
+2. Next agent builds on previous output
+3. Final agent refines or validates results
+
+Example: `agent-reviewer` → `agent-trainer` (review first, then train based on findings)
+
+**Parallel Pattern** - Use when tasks can be done independently:
+1. Delegate multiple non-dependent tasks simultaneously
+2. Coordinate results at completion
+
+Example: Multiple domain agents analyzing different packages concurrently
+
+**Hierarchical Pattern** - Use when tasks have sub-components:
+1. Break down into major components
+2. Delegate sub-components to specialized agents
+3. Integrate results at each level
+
+### Best Practices for Multi-Agent Coordination
+
+- **Single Responsibility**: Each agent should focus on one domain
+- **Clear Handoffs**: Pass relevant context between agent delegations
+- **Avoid Redundancy**: Don't have multiple agents doing the same work
+- **Validate Integration**: Ensure combined outputs meet requirements
+- **Use TodoWrite**: Track complex multi-step workflows
+
+### Agent Performance Tracking
+
+All agents sign their commits using `type(agent-name):` format, enabling:
+- Performance analysis via `git log --grep="(agent-name):"`
+- Error pattern detection through fix-to-feat ratios
+- Continuous improvement based on actual performance
+
+### When to Delegate
+
+Delegate to specialized agents when:
+- The task matches an agent's specific expertise
+- Multiple domains need coordination
+- Systematic review or updates are needed
+- Complex workflows require specialized knowledge
+
+Direct implementation is preferred when:
+- The task is straightforward and within general capabilities
+- No specialized domain knowledge is required
+- The overhead of delegation exceeds the benefit
+
+## MCP Server Management
+
+### Installation Guidelines
+
+When adding MCP servers to the project:
+- **Use the mcp-server-manager agent** - Always delegate MCP server setup to this specialized agent
+- **Prefer bridge scripts** - Create nix-friendly bridge scripts in `scripts/mcp-servers/`
+- **Use bun** - All package management should use bun, not npm or yarn
+- **Nix compatibility** - Ensure all scripts use `/usr/bin/env` in shebangs
+- **Local installation** - Install servers locally within the project when possible
+- **Avoid global dependencies** - Keep dependencies project-scoped for reproducibility
+
+### Bridge Script Pattern
+
+MCP servers should be wrapped in bridge scripts that:
+1. Handle connection setup and health monitoring
+2. Use localhost-only binding for security
+3. Implement proper error handling and cleanup
+4. Are nix-friendly with proper shebangs
+5. Use bun for any package operations
+
+Example structure:
+```bash
+#!/usr/bin/env bash
+# Bridge script for MCP server
+# Uses bun for package management
+# Implements health checks and error handling
+``` 
