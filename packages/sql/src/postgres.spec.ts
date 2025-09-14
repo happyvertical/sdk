@@ -1,4 +1,4 @@
-import { it, expect, describe, beforeEach, afterEach } from "vitest";
+import { it, expect, describe, beforeEach, afterEach } from "bun:test";
 import { randomUUID } from "crypto";
 import { getDatabase } from "./index.js";
 describe.skip("postgres tests", () => {

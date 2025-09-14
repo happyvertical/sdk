@@ -3,8 +3,8 @@ import type {
   QueryResult,
   DatabaseInterface,
   TableInterface,
-} from "./types.js";
-import { buildWhere } from "./index.js";
+} from "./shared/types.js";
+import { buildWhere } from "./shared/utils.js";
 import { DatabaseError, getLogger } from '@have/utils';
 
 /**

@@ -1,4 +1,4 @@
-import { it, describe, expect } from "vitest";
+import { it, describe, expect } from "bun:test";
 import { getDatabase } from "./index.js";
 import path from "path";
 import { tmpdir } from "os";
