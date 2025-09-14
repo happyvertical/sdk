@@ -2,22 +2,54 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "declaration": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
     "strict": true,
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
+    "declaration": true,
+    "declarationMap": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
-    "lib": ["ES2022"]
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "types": ["node", "bun"],
+    
+    // Workspace path mapping for @have/* packages
+    "baseUrl": ".",
+    "paths": {
+      "@have/utils": ["./packages/utils/dist/node.d.ts", "./packages/utils/dist/node.js"],
+      "@have/utils/*": ["./packages/utils/dist/*"],
+      "@have/files": ["./packages/files/dist/node.js"],
+      "@have/files/*": ["./packages/files/dist/*"],
+      "@have/spider": ["./packages/spider/src/index.ts"],
+      "@have/spider/*": ["./packages/spider/src/*"],
+      "@have/sql": ["./packages/sql/dist/node.d.ts", "./packages/sql/dist/node.js"],
+      "@have/sql/*": ["./packages/sql/dist/*"],
+      "@have/ocr": ["./packages/ocr/dist/node.d.ts", "./packages/ocr/dist/node.js"],
+      "@have/ocr/*": ["./packages/ocr/dist/*"],
+      "@have/pdf": ["./packages/pdf/dist/node.d.ts", "./packages/pdf/dist/node.js"],
+      "@have/pdf/*": ["./packages/pdf/dist/*"],
+      "@have/ai": ["./packages/ai/dist/node.d.ts", "./packages/ai/dist/node.js"],
+      "@have/ai/*": ["./packages/ai/dist/*"],
+      "@have/smrt": ["./packages/smrt/src/index.ts"],
+      "@have/smrt/*": ["./packages/smrt/src/*"],
+      "@have/svelte": ["./packages/svelte/src/lib/index.ts"],
+      "@have/svelte/*": ["./packages/svelte/src/lib/*"]
+    }
   },
+  "include": [],
+  "exclude": ["node_modules", "dist", "**/dist", "**/node_modules"],
   "references": [
     { "path": "./packages/utils" },
     { "path": "./packages/files" },
     { "path": "./packages/spider" },
     { "path": "./packages/sql" },
+    { "path": "./packages/ocr" },
     { "path": "./packages/pdf" },
     { "path": "./packages/ai" },
-    { "path": "./packages/smrt" }
-  ],
-  "exclude": ["node_modules", "**/dist"]
+    { "path": "./packages/smrt" },
+    { "path": "./packages/smrt-template" }
+  ]
 }
