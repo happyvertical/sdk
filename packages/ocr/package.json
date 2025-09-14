@@ -1,0 +1,47 @@
+{
+  "name": "@have/ocr",
+  "version": "0.0.50",
+  "main": "dist/node.js",
+  "dependencies": {
+    "@have/utils": "workspace:*",
+    "@gutenye/ocr-node": "^1.4.8",
+    "jpeg-js": "0.4.4",
+    "pngjs": "7.0.0",
+    "tesseract.js": "^5.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "@types/pngjs": "6.0.5"
+  },
+  "exports": {
+    ".": {
+      "browser": "./dist/browser.js",
+      "node": "./dist/node.js",
+      "default": "./dist/node.js"
+    },
+    "./browser": "./dist/browser.js",
+    "./node": "./dist/node.js",
+    "./types": "./dist/shared/types.js"
+  },
+  "browser": "dist/browser.js",
+  "description": "Standardized OCR interface with support for multiple providers including Tesseract.js and ONNX (PaddleOCR)",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "test": "bun test --timeout 120000",
+    "test:watch": "bun test --watch --timeout 120000",
+    "build": "bun run build:browser && bun run build:node",
+    "build:browser": "tsc -p tsconfig.browser.json",
+    "build:node": "tsc -p tsconfig.node.json",
+    "build:watch": "bun run build:browser --watch & bun run build:node --watch",
+    "clean": "rm -rf dist tsconfig.*.tsbuildinfo",
+    "prebuild": "bun run clean",
+    "dev": "bun run build:watch & bun run test:watch"
+  },
+  "type": "module",
+  "types": "dist/shared/types.d.ts"
+}

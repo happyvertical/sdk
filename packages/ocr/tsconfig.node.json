@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "module": "ES2022",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "allowImportingTsExtensions": false,
+    "types": ["node", "bun"],
+    "noEmit": false
+  },
+  "include": [
+    "src/shared/**/*",
+    "src/node/**/*",
+    "src/index.ts",
+    "src/node.ts"
+  ]
+}
