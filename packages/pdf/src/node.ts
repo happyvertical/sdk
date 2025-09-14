@@ -1,35 +1,39 @@
 /**
- * @have/pdf - Shared entry point with automatic environment detection
+ * @have/pdf - Node.js entry point
  * 
- * This entry point automatically detects the runtime environment and provides
- * the appropriate PDF processing capabilities for both Node.js and browser environments.
+ * This entry point provides PDF processing capabilities specifically for Node.js environments,
+ * including unpdf for text/metadata/image extraction and @gutenye/ocr-node for OCR processing.
  */
 
 // Export main factory function and types
 export { getPDFReader, getAvailableProviders, isProviderAvailable, getProviderInfo, initializeProviders } from './shared/factory.js';
 export * from './shared/types.js';
 
+// Export Node.js specific providers for direct instantiation if needed
+export { UnpdfProvider } from './node/unpdf.js';
+export { CombinedNodeProvider } from './node/combined.js';
+
 // Re-export base provider for custom implementations
 export { BasePDFReader } from './shared/base.js';
 
-// Legacy compatibility exports for backward compatibility with existing code
-import { getPDFReader } from './shared/factory.js';
+// Legacy compatibility exports - re-export existing functions with new names
+import { CombinedNodeProvider } from './node/combined.js';
 
 /**
  * Extract text from a PDF file (legacy compatibility)
  * @deprecated Use getPDFReader().extractText() instead
  */
 export async function extractTextFromPDF(pdfPath: string): Promise<string | null> {
-  const reader = await getPDFReader();
+  const reader = new CombinedNodeProvider();
   return reader.extractText(pdfPath);
 }
 
 /**
- * Extract images from all pages of a PDF file (legacy compatibility)  
+ * Extract images from all pages of a PDF file (legacy compatibility)
  * @deprecated Use getPDFReader().extractImages() instead
  */
 export async function extractImagesFromPDF(pdfPath: string): Promise<any[] | null> {
-  const reader = await getPDFReader();
+  const reader = new CombinedNodeProvider();
   const images = await reader.extractImages(pdfPath);
   return images.length > 0 ? images : null;
 }
@@ -39,7 +43,7 @@ export async function extractImagesFromPDF(pdfPath: string): Promise<any[] | nul
  * @deprecated Use getPDFReader().performOCR() instead
  */
 export async function performOCROnImages(images: any[]): Promise<string> {
-  const reader = await getPDFReader();
+  const reader = new CombinedNodeProvider();
   const result = await reader.performOCR(images);
   return result.text;
 }
@@ -49,7 +53,7 @@ export async function performOCROnImages(images: any[]): Promise<string> {
  * @deprecated Use getPDFReader().checkDependencies() instead
  */
 export async function checkOCRDependencies() {
-  const reader = await getPDFReader();
+  const reader = new CombinedNodeProvider();
   return reader.checkDependencies();
 }
 
