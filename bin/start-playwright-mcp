@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Start the NixOS-compatible Playwright MCP server
+
+CHROMIUM_PATH="${PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH:-$(which chromium)}"
+echo "Starting Playwright MCP server with Chromium at: $CHROMIUM_PATH"
+
+exec mcp-server-playwright \
+  --executable-path "$CHROMIUM_PATH" \
+  --headless \
+  "$@"
