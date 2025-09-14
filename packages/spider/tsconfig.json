@@ -15,6 +15,6 @@
     "incremental": true,
     "declarationMap": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "src/**/*.{test,spec}.{ts,js}"]
+  "include": ["src/index.ts"],
+  "exclude": ["node_modules", "dist"]
 }
