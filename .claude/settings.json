@@ -1,0 +1,25 @@
+{
+  "agents": {
+    "registryPath": "./.claude/agents/registry.json"
+  },
+  "mcpServers": {
+    "mcp-svelte-docs": {
+      "command": "wsl.exe",
+      "args": ["bash", "-c", "npx -y mcp-svelte-docs"]
+    },
+    "shadcn-ui": {
+      "command": "bash",
+      "args": ["./scripts/mcp-servers/shadcn-ui.sh"],
+      "env": {
+        "FRAMEWORK": "svelte"
+      }
+    },
+    "playwright": {
+      "command": "bash",
+      "args": ["./scripts/mcp-servers/playwright.sh"],
+      "env": {
+        "PLAYWRIGHT_MCP_ISOLATED": "true"
+      }
+    }
+  }
+}
