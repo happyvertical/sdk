@@ -50,6 +50,13 @@ pnpm-debug.log*
 coverage/
 .nyc_output
 
+# Playwright
+playwright-report/
+test-results/
+.playwright-mcp/*.png
+.playwright-mcp/*.jpg
+.playwright-mcp/*.jpeg
+
 # Misc
 .DS_Store
 *.pem
