@@ -4,12 +4,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { OpenAIProvider } from './providers/openai.js';
-import { HuggingFaceProvider } from './providers/huggingface.js';
-import { GeminiProvider } from './providers/gemini.js';
-import { AnthropicProvider } from './providers/anthropic.js';
-import { BedrockProvider } from './providers/bedrock.js';
-import { AIError } from './types.js';
+import { OpenAIProvider } from './shared/providers/openai.js';
+import { HuggingFaceProvider } from './shared/providers/huggingface.js';
+import { GeminiProvider } from './shared/providers/gemini.js';
+import { AnthropicProvider } from './shared/providers/anthropic.js';
+import { BedrockProvider } from './shared/providers/bedrock.js';
+import { AIError } from './shared/types.js';
 
 describe('OpenAI Provider', () => {
   it('should initialize with valid options', () => {

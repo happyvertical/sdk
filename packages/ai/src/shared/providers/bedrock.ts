@@ -28,7 +28,7 @@ import {
 
 export class BedrockProvider implements AIInterface {
   private options: BedrockOptions;
-  private client: any; // Will be BedrockRuntimeClient instance
+  private client: any; // Will be BedrockRuntimeClient instance from @aws-sdk/client-bedrock-runtime
 
   constructor(options: BedrockOptions) {
     this.options = {
@@ -271,10 +271,10 @@ export class BedrockProvider implements AIInterface {
     throw new AIError('Llama on Bedrock not implemented', 'NOT_IMPLEMENTED', 'bedrock');
   }
 
-  private mapMessagesToClaude(messages: AIMessage[]): { system?: string; anthropicMessages: any[] } {
+  private mapMessagesToClaude(messages: AIMessage[]): { system?: string; anthropicMessages: Array<{ role: 'user' | 'assistant'; content: string }> } {
     // Same as Anthropic provider - separate system messages
     let system: string | undefined;
-    const anthropicMessages: any[] = [];
+    const anthropicMessages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
 
     for (const message of messages) {
       if (message.role === 'system') {
@@ -300,32 +300,33 @@ export class BedrockProvider implements AIInterface {
     }
   }
 
-  private mapError(error: any): AIError {
+  private mapError(error: unknown): AIError {
     if (error instanceof AIError) {
       return error;
     }
     
     // Map common AWS error codes
-    if (error?.name === 'AccessDeniedException') {
-      return new AuthenticationError('bedrock');
+    if (typeof error === 'object' && error !== null) {
+      const awsError = error as { name?: string; message?: string };
+      
+      if (awsError.name === 'AccessDeniedException') {
+        return new AuthenticationError('bedrock');
+      }
+      
+      if (awsError.name === 'ThrottlingException') {
+        return new RateLimitError('bedrock');
+      }
+      
+      if (awsError.name === 'ResourceNotFoundException') {
+        return new ModelNotFoundError(awsError.message || 'Model not found', 'bedrock');
+      }
+      
+      if (awsError.name === 'ValidationException' && awsError.message?.includes('input is too long')) {
+        return new ContextLengthError('bedrock');
+      }
     }
     
-    if (error?.name === 'ThrottlingException') {
-      return new RateLimitError('bedrock');
-    }
-    
-    if (error?.name === 'ResourceNotFoundException') {
-      return new ModelNotFoundError(error.message || 'Model not found', 'bedrock');
-    }
-    
-    if (error?.name === 'ValidationException' && error?.message?.includes('input is too long')) {
-      return new ContextLengthError('bedrock');
-    }
-    
-    return new AIError(
-      error?.message || 'Unknown Bedrock error occurred',
-      'UNKNOWN_ERROR',
-      'bedrock'
-    );
+    const errorMessage = error instanceof Error ? error.message : 'Unknown Bedrock error occurred';
+    return new AIError(errorMessage, 'UNKNOWN_ERROR', 'bedrock');
   }
 }

@@ -205,13 +205,28 @@ export class OpenAIProvider implements AIInterface {
   }
 
   private mapMessagesToOpenAI(messages: AIMessage[]): OpenAI.Chat.ChatCompletionMessageParam[] {
-    return messages.map(message => ({
-      role: message.role as OpenAI.Chat.ChatCompletionRole,
-      content: message.content,
-      name: message.name,
-      function_call: message.function_call,
-      tool_calls: message.tool_calls,
-    }));
+    return messages.map(message => {
+      // Build message based on role and content
+      const baseMessage = {
+        role: message.role as OpenAI.Chat.ChatCompletionRole,
+        content: message.content,
+      };
+      
+      // Add optional fields based on role and availability
+      if (message.name && (message.role === 'system' || message.role === 'user' || message.role === 'function')) {
+        (baseMessage as any).name = message.name;
+      }
+      
+      if (message.function_call && message.role === 'assistant') {
+        (baseMessage as any).function_call = message.function_call;
+      }
+      
+      if (message.tool_calls && message.role === 'assistant') {
+        (baseMessage as any).tool_calls = message.tool_calls;
+      }
+      
+      return baseMessage as OpenAI.Chat.ChatCompletionMessageParam;
+    });
   }
 
   private mapToolChoice(
@@ -225,12 +240,12 @@ export class OpenAIProvider implements AIInterface {
     };
   }
 
-  private mapUsage(usage?: OpenAI.Completions.CompletionUsage): TokenUsage | undefined {
+  private mapUsage(usage?: OpenAI.CompletionUsage | OpenAI.Completions.CompletionUsage | OpenAI.Embeddings.CreateEmbeddingResponse.Usage): TokenUsage | undefined {
     if (!usage) return undefined;
     return {
-      promptTokens: usage.prompt_tokens,
-      completionTokens: usage.completion_tokens,
-      totalTokens: usage.total_tokens,
+      promptTokens: usage.prompt_tokens || 0,
+      completionTokens: (usage as any).completion_tokens || 0,
+      totalTokens: usage.total_tokens || 0,
     };
   }
 
@@ -267,7 +282,7 @@ export class OpenAIProvider implements AIInterface {
     return capabilities;
   }
 
-  private mapError(error: any): AIError {
+  private mapError(error: unknown): AIError {
     if (error instanceof OpenAI.APIError) {
       switch (error.status) {
         case 401:
@@ -275,7 +290,7 @@ export class OpenAIProvider implements AIInterface {
         case 429:
           // Try to extract retry-after from headers
           const retryAfter = error.headers?.['retry-after'];
-          const retryAfterSeconds = retryAfter ? parseInt(retryAfter) : undefined;
+          const retryAfterSeconds = retryAfter ? parseInt(retryAfter, 10) : undefined;
           return new RateLimitError('openai', retryAfterSeconds);
         case 404:
           return new ModelNotFoundError(error.message, 'openai');
@@ -293,10 +308,7 @@ export class OpenAIProvider implements AIInterface {
       return error;
     }
     
-    return new AIError(
-      error?.message || 'Unknown error occurred',
-      'UNKNOWN_ERROR',
-      'openai'
-    );
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    return new AIError(errorMessage, 'UNKNOWN_ERROR', 'openai');
   }
 }

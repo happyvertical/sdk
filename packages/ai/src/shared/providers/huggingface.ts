@@ -256,12 +256,12 @@ export class HuggingFaceProvider implements AIInterface {
     return response.json();
   }
 
-  private mapError(error: any): AIError {
+  private mapError(error: unknown): AIError {
     if (error instanceof AIError) {
       return error;
     }
     
-    const message = error?.message || 'Unknown error';
+    const message = error instanceof Error ? error.message : 'Unknown error';
     
     // Map common HTTP status codes
     if (message.includes('401') || message.includes('Unauthorized')) {

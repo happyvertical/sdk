@@ -1,5 +1,6 @@
 /**
- * Factory functions for creating AI provider instances
+ * Universal factory functions for creating AI provider instances
+ * Works in both browser and Node.js environments
  */
 
 import { ValidationError } from '@have/utils';
@@ -39,6 +40,7 @@ function isBedrockOptions(options: GetAIOptions): options is BedrockOptions {
 
 /**
  * Creates an AI provider instance based on the provided options
+ * Universal version that works in both browser and Node.js environments
  * 
  * @param options - Configuration options for the AI provider
  * @returns Promise resolving to an AI provider instance
@@ -77,7 +79,8 @@ export async function getAI(options: GetAIOptions): Promise<AIInterface> {
 }
 
 /**
- * Auto-detects AI provider based on available credentials in options
+ * Browser-compatible auto-detection of AI provider based on available credentials
+ * Does not rely on process.env
  * 
  * @param options - Configuration options that may contain provider-specific credentials
  * @returns Promise resolving to an AI provider instance
@@ -95,8 +98,8 @@ export async function getAIAuto(options: Record<string, any>): Promise<AIInterfa
     return getAI({ ...options, type: 'huggingface' } as HuggingFaceOptions);
   }
 
-  if (options.region && (options.credentials || process.env.AWS_ACCESS_KEY_ID)) {
-    // AWS Bedrock uses region and AWS credentials
+  if (options.region && options.credentials) {
+    // AWS Bedrock uses region and explicit credentials
     return getAI({ ...options, type: 'bedrock' } as BedrockOptions);
   }
 

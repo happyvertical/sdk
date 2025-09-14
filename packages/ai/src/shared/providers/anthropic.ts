@@ -28,7 +28,7 @@ import {
 
 export class AnthropicProvider implements AIInterface {
   private options: AnthropicOptions;
-  private client: any; // Will be Anthropic instance
+  private client: any; // Will be Anthropic instance from @anthropic-ai/sdk
 
   constructor(options: AnthropicOptions) {
     this.options = {
@@ -242,10 +242,10 @@ export class AnthropicProvider implements AIInterface {
     };
   }
 
-  private mapMessagesToAnthropic(messages: AIMessage[]): { system?: string; anthropicMessages: any[] } {
+  private mapMessagesToAnthropic(messages: AIMessage[]): { system?: string; anthropicMessages: Array<{ role: 'user' | 'assistant'; content: string }> } {
     // Anthropic handles system messages separately
     let system: string | undefined;
-    const anthropicMessages: any[] = [];
+    const anthropicMessages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
 
     for (const message of messages) {
       if (message.role === 'system') {
@@ -272,30 +272,27 @@ export class AnthropicProvider implements AIInterface {
     }
   }
 
-  private mapError(error: any): AIError {
-    // TODO: Map Anthropic-specific errors
+  private mapError(error: unknown): AIError {
     if (error instanceof AIError) {
       return error;
     }
     
     // Map common HTTP status codes from Anthropic API
-    if (error?.status) {
-      switch (error.status) {
+    if (typeof error === 'object' && error !== null && 'status' in error) {
+      const apiError = error as { status: number; message?: string };
+      switch (apiError.status) {
         case 401:
           return new AuthenticationError('anthropic');
         case 429:
           return new RateLimitError('anthropic');
         case 404:
-          return new ModelNotFoundError(error.message || 'Model not found', 'anthropic');
+          return new ModelNotFoundError(apiError.message || 'Model not found', 'anthropic');
         case 413:
           return new ContextLengthError('anthropic');
       }
     }
     
-    return new AIError(
-      error?.message || 'Unknown Anthropic error occurred',
-      'UNKNOWN_ERROR',
-      'anthropic'
-    );
+    const errorMessage = error instanceof Error ? error.message : 'Unknown Anthropic error occurred';
+    return new AIError(errorMessage, 'UNKNOWN_ERROR', 'anthropic');
   }
 }
