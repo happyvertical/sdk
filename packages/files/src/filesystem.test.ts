@@ -1,17 +1,21 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { getTempDirectory } from '@have/utils';
 import { mkdir, rmdir, writeFile } from 'node:fs/promises';
 import { getFilesystem, LocalFilesystemProvider } from './index.js';
-import { FilesystemError, FileNotFoundError } from './types.js';
+import { FilesystemError, FileNotFoundError } from './shared/types.js';
 
 describe('Filesystem Interface', () => {
   let testDir: string;
   let fs: LocalFilesystemProvider;
 
   beforeEach(async () => {
+    // Initialize providers for testing
+    const { initializeProviders } = await import('./shared/factory.js');
+    await initializeProviders();
+    
     // Create a temporary test directory
-    testDir = join(tmpdir(), 'have-files-test', Math.random().toString(36));
+    testDir = join(getTempDirectory(), 'have-files-test', Math.random().toString(36));
     await mkdir(testDir, { recursive: true });
     
     // Create filesystem instance
@@ -252,7 +256,8 @@ describe('Filesystem Interface', () => {
       const retrieved1 = await fs.cache.get(key, 10000); // 10 seconds
       expect(retrieved1).toBe(data);
       
-      // Should not retrieve with very short expiry (assuming test takes < 1ms)
+      // Should not retrieve with very short expiry - wait a bit to ensure expiry
+      await new Promise(resolve => setTimeout(resolve, 10)); // Wait 10ms
       const retrieved2 = await fs.cache.get(key, 1); // 1 millisecond
       expect(retrieved2).toBeUndefined();
     });
@@ -317,14 +322,16 @@ describe('Filesystem Interface', () => {
 
 describe('Provider Registration', () => {
   it('should have local provider available', async () => {
-    const { getAvailableProviders, isProviderAvailable } = await import('./factory.js');
+    const { getAvailableProviders, isProviderAvailable, initializeProviders } = await import('./shared/factory.js');
+    await initializeProviders();
     
     expect(getAvailableProviders()).toContain('local');
     expect(isProviderAvailable('local')).toBe(true);
   });
 
   it('should provide provider information', async () => {
-    const { getProviderInfo } = await import('./factory.js');
+    const { getProviderInfo, initializeProviders } = await import('./shared/factory.js');
+    await initializeProviders();
     
     const info = getProviderInfo('local');
     expect(info.available).toBe(true);
@@ -333,7 +340,8 @@ describe('Provider Registration', () => {
   });
 
   it('should handle unavailable providers', async () => {
-    const { getProviderInfo } = await import('./factory.js');
+    const { getProviderInfo, initializeProviders } = await import('./shared/factory.js');
+    await initializeProviders();
     
     const s3Info = getProviderInfo('s3');
     expect(s3Info.description).toContain('S3');

@@ -128,6 +128,16 @@ export interface CacheOptions {
 }
 
 /**
+ * Options for listing files (legacy compatibility)
+ */
+export interface ListFilesOptions {
+  /**
+   * Optional regular expression to filter files by name
+   */
+  match?: RegExp;
+}
+
+/**
  * File information structure
  */
 export interface FileInfo {
@@ -349,6 +359,53 @@ export interface FilesystemInterface {
    * Get provider capabilities
    */
   getCapabilities(): Promise<FilesystemCapabilities>;
+
+  // Legacy method compatibility - all providers must implement these
+  
+  /**
+   * Check if a path is a file (legacy)
+   */
+  isFile(file: string): Promise<false | FileStats>;
+  
+  /**
+   * Check if a path is a directory (legacy)
+   */
+  isDirectory(dir: string): Promise<boolean>;
+  
+  /**
+   * Create a directory if it doesn't exist (legacy)
+   */
+  ensureDirectoryExists(dir: string): Promise<void>;
+  
+  /**
+   * Upload data to a URL using PUT method (legacy)
+   */
+  uploadToUrl(url: string, data: string | Buffer): Promise<Response>;
+  
+  /**
+   * Download a file from a URL and save it to a local file (legacy)
+   */
+  downloadFromUrl(url: string, filepath: string): Promise<void>;
+  
+  /**
+   * Download a file with caching support (legacy)
+   */
+  downloadFileWithCache(url: string, targetPath?: string | null): Promise<string>;
+  
+  /**
+   * List files in a directory with optional filtering (legacy)
+   */
+  listFiles(dirPath: string, options?: ListFilesOptions): Promise<string[]>;
+  
+  /**
+   * Get data from cache if available and not expired (legacy)
+   */
+  getCached(file: string, expiry?: number): Promise<string | undefined>;
+  
+  /**
+   * Set data in cache (legacy)
+   */
+  setCached(file: string, data: string): Promise<void>;
 }
 
 /**
@@ -415,13 +472,29 @@ export interface WebDAVOptions extends BaseProviderOptions {
 }
 
 /**
+ * Browser storage provider options (uses IndexedDB for app storage)
+ */
+export interface BrowserStorageOptions extends BaseProviderOptions {
+  type: 'browser-storage';
+  /**
+   * Database name for IndexedDB
+   */
+  databaseName?: string;
+  /**
+   * Maximum storage quota to request (in bytes)
+   */
+  storageQuota?: number;
+}
+
+/**
  * Union type for all provider options
  */
 export type GetFilesystemOptions = 
   | LocalOptions
   | S3Options
   | GoogleDriveOptions
-  | WebDAVOptions;
+  | WebDAVOptions
+  | BrowserStorageOptions;
 
 /**
  * Error types for filesystem operations
