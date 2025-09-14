@@ -112,7 +112,8 @@ it('should parse dates', () => {
 });
 
 it('should handle date intervals', () => {
-  const date = new Date('2023-01-15');
+  const date = new Date('2023-01-15T00:00:00.000Z');
   const newDate = addInterval(date, { days: 7 });
-  expect(formatDate(newDate)).toBe('2023-01-22');
+  const expectedDate = new Date('2023-01-22T00:00:00.000Z');
+  expect(newDate.toISOString()).toBe(expectedDate.toISOString());
 });
