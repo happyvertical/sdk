@@ -23,8 +23,8 @@ import {
   ContentFilterError,
 } from '../types.js';
 
-// Note: This implementation will require @google/generative-ai package
-// For now, this is a placeholder that defines the interface
+// Note: This implementation uses the new @google/genai package
+// @google/generative-ai is deprecated - migrated to @google/genai
 
 export class GeminiProvider implements AIInterface {
   private options: GeminiOptions;
@@ -43,8 +43,8 @@ export class GeminiProvider implements AIInterface {
   private initializeClientSync() {
     try {
       // Dynamic import in constructor - this will work if the package is installed
-      import('@google/generative-ai').then(({ GoogleGenerativeAI }) => {
-        this.client = new GoogleGenerativeAI(this.options.apiKey);
+      import('@google/genai').then(({ GoogleGenAI }) => {
+        this.client = new GoogleGenAI({ apiKey: this.options.apiKey });
       }).catch(() => {
         // Client will be null and we'll handle it in methods
       });
@@ -56,11 +56,11 @@ export class GeminiProvider implements AIInterface {
   private async ensureClient() {
     if (!this.client) {
       try {
-        const { GoogleGenerativeAI } = await import('@google/generative-ai');
-        this.client = new GoogleGenerativeAI(this.options.apiKey);
+        const { GoogleGenAI } = await import('@google/genai');
+        this.client = new GoogleGenAI({ apiKey: this.options.apiKey });
       } catch (error) {
         throw new AIError(
-          'Failed to initialize Gemini client. Make sure @google/generative-ai is installed.',
+          'Failed to initialize Gemini client. Make sure @google/genai is installed.',
           'INITIALIZATION_ERROR',
           'gemini'
         );
@@ -222,13 +222,13 @@ export class GeminiProvider implements AIInterface {
       .join('\n\n') + '\n\nAssistant:';
   }
 
-  private mapError(error: any): AIError {
+  private mapError(error: unknown): AIError {
     if (error instanceof AIError) {
       return error;
     }
     
     // Map common Gemini error patterns
-    const message = error?.message || 'Unknown Gemini error occurred';
+    const message = error instanceof Error ? error.message : 'Unknown Gemini error occurred';
     
     if (message.includes('API_KEY_INVALID') || message.includes('401')) {
       return new AuthenticationError('gemini');

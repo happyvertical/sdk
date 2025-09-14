@@ -1,23 +1,31 @@
 {
   "name": "@have/ai",
-  "version": "0.0.50",
-  "description": "AI client library with support for OpenAI and standardized interfaces",
+  "version": "0.0.50", 
+  "description": "Context-aware AI client library with support for multiple providers",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/node.js",
+  "browser": "dist/browser.js",
+  "types": "dist/shared/types.d.ts",
   "exports": {
-    ".": "./dist/index.js"
+    ".": {
+      "browser": "./dist/browser.js",
+      "node": "./dist/node.js",
+      "default": "./dist/node.js"
+    },
+    "./browser": "./dist/browser.js",
+    "./node": "./dist/node.js"
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "test": "vitest",
-    "test:watch": "vitest --watch",
-    "build": "tsc -b",
-    "build:watch": "tsc -b --watch",
-    "clean": "rm -rf dist",
-    "prebuild": "npm run clean",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "build": "bun run build:browser && bun run build:node",
+    "build:browser": "tsc -p tsconfig.browser.json",
+    "build:node": "tsc -p tsconfig.node.json",
+    "build:watch": "bun run build:browser --watch & bun run build:node --watch",
+    "clean": "rm -rf dist *.tsbuildinfo",
     "dev": "bun run build:watch & bun run test:watch"
   },
   "engines": {
@@ -26,12 +34,12 @@
   "dependencies": {
     "@have/utils": "workspace:*",
     "openai": "^4.78.1",
-    "@google/generative-ai": "^0.21.0",
+    "@google/genai": "^0.3.0",
     "@anthropic-ai/sdk": "^0.30.1",
     "@aws-sdk/client-bedrock-runtime": "^3.703.0"
   },
   "devDependencies": {
     "@types/node": "^22.13.0",
-    "vitest": "^3.1.1"
+    "vitest": "^3.2.4"
   }
 }

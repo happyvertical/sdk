@@ -5,9 +5,9 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ValidationError } from '@have/utils';
-import { getAI, getAIAuto } from './factory.js';
-import { AIError } from './types.js';
-import { HuggingFaceProvider } from './providers/huggingface.js';
+import { getAI, getAIAuto } from './shared/factory.js';
+import { AIError } from './shared/types.js';
+import { HuggingFaceProvider } from './shared/providers/huggingface.js';
 
 describe('AI Factory Integration', () => {
   it('should create HuggingFace provider', async () => {
@@ -141,10 +141,12 @@ describe('Error Classes Integration', () => {
     
     try {
       throw error;
-    } catch (e) {
+    } catch (e: unknown) {
       expect(e).toBeInstanceOf(AIError);
-      expect(e.code).toBe('TEST_CODE');
-      expect(e.provider).toBe('test-provider');
+      if (e instanceof AIError) {
+        expect(e.code).toBe('TEST_CODE');
+        expect(e.provider).toBe('test-provider');
+      }
     }
   });
 
@@ -223,7 +225,7 @@ describe('Provider Interface Compliance', () => {
     ];
 
     for (const method of requiredMethods) {
-      expect(typeof provider[method]).toBe('function');
+      expect(typeof (provider as any)[method]).toBe('function');
     }
   });
 
