@@ -1,12 +1,14 @@
-import type { AIMessageOptions } from '@have/ai';
+// import type { AIMessageOptions } from '@have/ai';
 import type { BaseClassOptions } from './class.js';
 
 import {
   fieldsFromClass,
   tableNameFromClass,
   setupTableFromClass,
-} from '@have/smrt/utils';
+} from './utils.js';
 import { escapeSqlValue } from '@have/sql';
+import { Field } from './fields/index.js';
+import { ObjectRegistry } from './registry.js';
 
 import { BaseClass } from './class.js';
 import { BaseCollection } from './collection.js';
@@ -113,6 +115,32 @@ export class BaseObject<
     this.name = options.name || null;
     this.created_at = options.created_at || null;
     this.updated_at = options.updated_at || null;
+    
+    // Initialize field values from options
+    this.initializeFields(options);
+  }
+  
+  /**
+   * Initialize field values from constructor options
+   */
+  private initializeFields(options: any): void {
+    const proto = Object.getPrototypeOf(this);
+    const descriptors = Object.getOwnPropertyDescriptors(proto.constructor.prototype);
+    
+    for (const [key, descriptor] of Object.entries(descriptors)) {
+      if (descriptor.value instanceof Field) {
+        const field = descriptor.value as Field;
+        
+        // Set value from options or use field default
+        if (options[key] !== undefined) {
+          this[key as keyof this] = options[key];
+          field.value = options[key];
+        } else if (field.options.default !== undefined) {
+          this[key as keyof this] = field.options.default;
+          field.value = field.options.default;
+        }
+      }
+    }
   }
 
   /**
@@ -421,7 +449,7 @@ export class BaseObject<
    * @returns Promise resolving to true if criteria are met, false otherwise
    * @throws Error if the AI response is invalid
    */
-  public async is(criteria: string, options: AIMessageOptions = {}) {
+  public async is(criteria: string, options: any = {}) {
     const prompt = `--- Beginning of criteria ---\n${criteria}\n--- End of criteria ---\nDoes the content meet all the given criteria? Reply with a json object with a single boolean 'result' property`;
     const message = await this.ai.message(prompt, {
       ...(options as any),
@@ -444,47 +472,55 @@ export class BaseObject<
    * @param options - AI message options
    * @returns Promise resolving to the AI response
    */
-  public async do(instructions: string, options: AIMessageOptions = {}) {
+  public async do(instructions: string, options: any = {}) {
     const prompt = `--- Beginning of instructions ---\n${instructions}\n--- End of instructions ---\nBased on the content body, please follow the instructions and provide a response. Never make use of codeblocks.`;
     const result = await this.ai.message(prompt, options);
     return result;
   }
+
+  /**
+   * Runs a lifecycle hook if it's defined in the object's configuration
+   * 
+   * @param hookName - Name of the hook to run (e.g., 'beforeDelete', 'afterDelete')
+   * @returns Promise that resolves when the hook completes
+   */
+  protected async runHook(hookName: string): Promise<void> {
+    const config = ObjectRegistry.getConfig(this.constructor.name);
+    const hook = config.hooks?.[hookName as keyof typeof config.hooks];
+    
+    if (!hook) {
+      return; // No hook defined, nothing to do
+    }
+
+    if (typeof hook === 'string') {
+      // Hook is a method name to call on this instance
+      const method = (this as any)[hook];
+      if (typeof method === 'function') {
+        await method.call(this);
+      } else {
+        console.warn(`Hook method '${hook}' not found on ${this.constructor.name}`);
+      }
+    } else if (typeof hook === 'function') {
+      // Hook is a function to call with this instance as parameter
+      await hook(this);
+    }
+  }
+  
+
+  /**
+   * Delete this object from the database
+   * 
+   * @returns Promise that resolves when deletion is complete
+   */
+  public async delete(): Promise<void> {
+    await this.runHook('beforeDelete');
+    
+    await this.db.query(
+      `DELETE FROM ${this.tableName} WHERE id = ?`,
+      [this.id]
+    );
+    
+    await this.runHook('afterDelete');
+  }
 }
 
-// async function ensureTriggersExist(db: any, tableName: string) {
-//   const triggers = [
-//     `${tableName}_set_created_at`,
-//     `${tableName}_set_updated_at`,
-//   ];
-
-//   for (const trigger of triggers) {
-//     const exists = await db.get(
-//       `SELECT name FROM sqlite_master WHERE type='trigger' AND name=?`,
-//       [trigger],
-//     );
-
-//     if (!exists) {
-//       if (trigger === `${tableName}_set_created_at`) {
-//         await db.exec(`
-//           CREATE TRIGGER ${trigger}
-//           AFTER INSERT ON ${tableName}
-//           BEGIN
-//             UPDATE ${tableName}
-//             SET created_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-//             WHERE id = NEW.id;
-//           END;
-//         `);
-//       } else if (trigger === `${tableName}_set_updated_at`) {
-//         await db.exec(`
-//           CREATE TRIGGER ${trigger}
-//           AFTER UPDATE ON ${tableName}
-//           BEGIN
-//             UPDATE ${tableName}
-//             SET updated_at = CURRENT_TIMESTAMP
-//             WHERE id = NEW.id;
-//           END;
-//         `);
-//       }
-//     }
-//   }
-// }

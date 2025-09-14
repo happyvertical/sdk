@@ -3,7 +3,7 @@ import path from 'path';
 import { URL } from 'url';
 import { FilesystemAdapter } from '@have/files';
 import { downloadFileWithCache } from '@have/files';
-import { extractTextFromPDF } from '@have/pdf';
+import { getPDFReader } from '@have/pdf';
 import { getCached, setCached, getMimeType } from '@have/files';
 import { makeSlug } from '@have/utils';
 
@@ -119,17 +119,34 @@ export class Document {
    */
   async initialize() {
     if (this.isRemote) {
-      //todo: should be getCached?
       await downloadFileWithCache(this.url.toString(), this.localPath);
     }
   }
 
   /**
+   * Checks if the document is a text-based file that can be read directly
+   *
+   * @returns Boolean indicating if the file is text-based
+   */
+  private isTextFile(): boolean {
+    if (!this.type) return false;
+
+    return this.type.startsWith('text/') ||
+           this.type === 'application/json' ||
+           this.type === 'application/xml' ||
+           this.type === 'application/javascript' ||
+           this.type === 'application/typescript' ||
+           ['.txt', '.md', '.json', '.xml', '.html', '.css', '.js', '.ts', '.yaml', '.yml'].some(ext =>
+             this.localPath.toLowerCase().endsWith(ext)
+           );
+  }
+
+  /**
    * Extracts text content from the document
-   * 
-   * Currently supports PDF documents with planned support for other types.
+   *
+   * Currently supports PDF documents and text-based files.
    * Uses caching to avoid repeatedly processing the same document.
-   * 
+   *
    * @returns Promise resolving to the extracted text content
    * @throws Error if the document type is not supported
    */
@@ -142,14 +159,23 @@ export class Document {
     let extracted: string | null = '';
     switch (this.type) {
       case 'application/pdf':
-        extracted = await extractTextFromPDF(this.localPath);
+        const reader = await getPDFReader();
+        extracted = await reader.extractText(this.localPath);
         break;
       case 'text':
       case 'json':
       default:
-        throw new Error(
-          'Getting text from ${this.type} types not yet implemented. I should check to see if its a text file here',
-        );
+        // Handle text-based files by reading them directly
+        if (this.isTextFile()) {
+          try {
+            const fs = await import('fs/promises');
+            extracted = await fs.readFile(this.localPath, 'utf-8');
+          } catch (error) {
+            throw new Error(`Failed to read text file ${this.localPath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          }
+        } else {
+          throw new Error(`Getting text from ${this.type} types not yet implemented.`);
+        }
     }
     if (extracted) {
       await setCached(this.localPath + '.extracted_text', extracted);

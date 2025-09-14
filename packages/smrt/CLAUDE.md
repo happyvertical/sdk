@@ -2,15 +2,27 @@
 
 ## Purpose and Responsibilities
 
-The `@have/smrt` package is the core framework for building vertical AI agents in the HAVE SDK. It integrates functionality from all other packages to provide:
+The `@have/smrt` package is the core framework for building vertical AI agents in the HAVE SDK. It provides a comprehensive foundation for creating intelligent agents with persistent storage, cross-package integration, and automatic code generation capabilities:
 
-- A coherent object model for AI agents with database persistence
-- Collection-based management of objects
-- Automatic schema generation and database table creation
-- Standardized interfaces for AI interactions
-- Utilities for working with different data sources
+### Core Framework Architecture
+- **Object-Relational Mapping**: Automatic schema generation from TypeScript class properties
+- **AI-First Design**: Native integration with multiple AI providers via `@have/ai`
+- **Collection Management**: Standardized CRUD operations with advanced querying
+- **Cross-Package Integration**: Unified access to all HAVE SDK capabilities
 
-Despite its tongue-in-cheek name, this package is the central nervous system of the SDK, connecting database capabilities, file system operations, and AI model interactions.
+### Advanced Code Generation
+- **CLI Generators**: Create administrative command-line tools from SMRT objects
+- **REST API Generators**: Auto-generate complete REST APIs with OpenAPI documentation
+- **MCP Server Generators**: Generate Model Context Protocol servers for AI integration
+- **Vite Plugin Integration**: Automatic service generation during development
+
+### Runtime Environment Support
+- **Universal Deployment**: Node.js server environments and browser/edge runtimes
+- **AST Scanning**: Automatic discovery of SMRT objects in codebases
+- **Virtual Module System**: Dynamic code generation through Vite plugins
+- **Type Safety**: Automatic TypeScript declaration generation
+
+**Expert Agent Expertise**: When working with this package, always proactively check the latest documentation for foundational libraries (@langchain/community, cheerio, yaml) as they frequently add new features that can enhance agent capabilities. The SMRT framework is designed to leverage the latest capabilities from its dependencies for optimal agent performance.
 
 ## Key Concepts
 
@@ -39,37 +51,57 @@ Extends BaseClass to represent collections of objects that:
 
 ## Key APIs
 
-### Defining a Custom Object
+### Defining Custom SMRT Objects
 
 ```typescript
 import { BaseObject } from '@have/smrt';
+import { Field } from '@have/smrt/fields';
 
 class Document extends BaseObject<any> {
+  // Schema properties with Field definitions
   title: string = '';
   content: string = '';
   category: string = '';
   tags: string[] = [];
   isPriority: boolean = false;
+  wordCount: number = 0;
   
   constructor(options: any) {
     super(options);
-    // Copy properties from options to this instance
     Object.assign(this, options);
   }
   
+  // AI-powered content analysis
   async summarize() {
-    // Use AI to summarize the document
-    if (this.options.ai && this.content) {
-      return this.options.ai.textCompletion(
-        `Summarize this document: ${this.content.substring(0, 2000)}`
+    if (this.ai && this.content) {
+      return await this.ai.message(
+        `Summarize this document in 2-3 sentences: ${this.content.substring(0, 2000)}`
       );
     }
     return null;
   }
+  
+  // Smart content validation using AI
+  async isValid(criteria: string) {
+    return await this.is(criteria);
+  }
+  
+  // AI-driven content transformation
+  async transform(instructions: string) {
+    return await this.do(instructions);
+  }
+  
+  // Lifecycle hooks
+  async beforeSave() {
+    this.wordCount = this.content.split(/\s+/).length;
+    if (!this.slug && this.title) {
+      this.slug = await this.getSlug();
+    }
+  }
 }
 ```
 
-### Defining a Collection
+### Advanced Collection Management
 
 ```typescript
 import { BaseCollection } from '@have/smrt';
@@ -78,79 +110,182 @@ import { Document } from './document';
 class DocumentCollection extends BaseCollection<Document> {
   static readonly _itemClass = Document;
   
-  constructor(options: any) {
-    super(options);
-  }
-  
-  async findSimilar(documentId: string) {
+  // Advanced querying with AI assistance
+  async findSimilar(documentId: string, threshold: number = 0.8) {
     const document = await this.get(documentId);
     if (!document) return [];
     
-    // Custom logic to find similar documents
+    // Use vector similarity or AI-based classification
     return this.list({
-      where: { category: document.category },
-      limit: 5
+      where: { 
+        category: document.category,
+        'wordCount >': document.wordCount * 0.5,
+        'wordCount <': document.wordCount * 1.5
+      },
+      limit: 5,
+      orderBy: 'created_at DESC'
     });
+  }
+  
+  // Bulk operations with AI processing
+  async bulkAnalyze(criteria: string) {
+    const documents = await this.list({ limit: 100 });
+    const results = await Promise.all(
+      documents.map(async (doc) => ({
+        id: doc.id,
+        title: doc.title,
+        meetscriteria: await doc.isValid(criteria)
+      }))
+    );
+    return results.filter(r => r.meetsCategories);
+  }
+  
+  // Advanced filtering with AI
+  async searchBySemantics(query: string) {
+    // Use AI to enhance search beyond simple text matching
+    const allDocs = await this.list({});
+    const relevantDocs = [];
+    
+    for (const doc of allDocs) {
+      const relevance = await doc.do(`Rate the relevance of this content to "${query}" on a scale of 1-10. Respond with only the number.`);
+      if (parseInt(relevance) >= 7) {
+        relevantDocs.push(doc);
+      }
+    }
+    
+    return relevantDocs;
   }
 }
 ```
 
-### Using Objects and Collections
+### Code Generation and Automation
 
 ```typescript
-import { getAIClient } from '@have/ai';
-import { getSqliteClient } from '@have/sql';
+import { CLIGenerator, APIGenerator, MCPGenerator } from '@have/smrt/generators';
 import { DocumentCollection } from './documentCollection';
 
-async function main() {
-  // Set up dependencies
-  const ai = await getAIClient({ apiKey: 'your-api-key' });
-  const db = await getSqliteClient({ filename: 'documents.db' });
-  
-  // Create and initialize collection
-  const documents = new DocumentCollection({ ai, db });
-  await documents.initialize();
-  
-  // Create and save an object
-  const doc = await documents.create({
-    title: 'Getting Started',
-    content: 'This is a guide to getting started with the HAVE SDK...',
-    category: 'Documentation'
-  });
-  await doc.save();
-  
-  // Query objects
-  const docs = await documents.list({
-    where: { category: 'Documentation' },
-    limit: 10,
-    orderBy: 'created_at DESC'
-  });
-  
-  // Use AI capabilities
-  const summary = await doc.summarize();
-}
+// Generate CLI tools automatically
+const cliGenerator = new CLIGenerator({
+  collections: [DocumentCollection],
+  outputDir: './cli',
+  includeAI: true
+});
+
+await cliGenerator.generate();
+// Creates: ./cli/documents-cli.js with CRUD operations
+
+// Generate REST API server
+const apiGenerator = new APIGenerator({
+  collections: [DocumentCollection],
+  outputDir: './api',
+  includeSwagger: true,
+  middleware: ['auth', 'validation']
+});
+
+await apiGenerator.generate();
+// Creates: ./api/documents-routes.js with full REST endpoints
+
+// Generate MCP server for AI integration
+const mcpGenerator = new MCPGenerator({
+  collections: [DocumentCollection],
+  outputDir: './mcp',
+  tools: ['list', 'get', 'create', 'update', 'delete', 'search']
+});
+
+await mcpGenerator.generate();
+// Creates: ./mcp/documents-mcp-server.js for Claude/AI integration
 ```
 
-### Advanced Querying
+### Vite Plugin Integration
 
 ```typescript
-// Complex query example
+// vite.config.js
+import { smrtPlugin } from '@have/smrt/vite-plugin';
+
+export default {
+  plugins: [
+    smrtPlugin({
+      include: ['src/**/*.ts'],
+      exclude: ['**/*.test.ts'],
+      generateTypes: true,
+      hmr: true,
+      baseClasses: ['BaseObject', 'SmartObject']
+    })
+  ]
+};
+
+// Auto-generated virtual modules available:
+import { setupRoutes } from '@smrt/routes';        // REST routes
+import { createClient } from '@smrt/client';       // API client
+import { tools } from '@smrt/mcp';                 // MCP tools
+import { manifest } from '@smrt/manifest';         // Object manifest
+```
+
+### Advanced Querying and Relationships
+
+```typescript
+// Complex queries with multiple operators
 const results = await collection.list({
   where: {
     'created_at >': '2023-01-01',
-    'priority': 'high',
-    'status in': ['pending', 'in-progress'],
-    'title like': '%important%'
+    'wordCount >=': 1000,
+    'category in': ['research', 'analysis'],
+    'title like': '%AI%',
+    'isPriority': true
   },
-  orderBy: ['priority DESC', 'created_at DESC'],
+  orderBy: ['wordCount DESC', 'created_at DESC'],
   limit: 20,
   offset: 0
 });
 
-// Count matching records
-const count = await collection.count({
-  where: { category: 'reports' }
-});
+// Relationship management
+class Author extends BaseObject<any> {
+  name: string = '';
+  email: string = '';
+  
+  async getDocuments() {
+    const docCollection = new DocumentCollection(this.options);
+    return docCollection.list({
+      where: { authorId: this.id }
+    });
+  }
+}
+
+// Cross-collection operations
+const authorDocs = await author.getDocuments();
+const summaries = await Promise.all(
+  authorDocs.map(doc => doc.summarize())
+);
+```
+
+### AI-Powered Object Operations
+
+```typescript
+// Use built-in AI methods for smart operations
+const document = await documents.get('doc-123');
+
+// Validate against complex criteria
+const isHighQuality = await document.is(`
+  - Contains more than 1000 words
+  - Has clear structure with headings
+  - Includes references or citations
+  - Uses professional language
+`);
+
+// Transform content based on instructions
+const summary = await document.do(`
+  Create a 3-sentence executive summary of this document.
+  Focus on key findings and actionable insights.
+  Use business-appropriate language.
+`);
+
+// Batch AI operations
+const qualityCheck = await documents.bulkAnalyze(`
+  Document meets publication standards:
+  - Proper grammar and spelling
+  - Clear argument structure
+  - Adequate supporting evidence
+`);
 ```
 
 ## Internal Architecture
@@ -161,56 +296,232 @@ The package uses:
 - A consistent pattern for database operations
 - Integration with AI models via the `@have/ai` package
 
-## Dependencies on Other Packages
+## Dependencies
 
-`@have/smrt` depends on all other packages in the SDK:
+The SMRT framework integrates with multiple packages to provide comprehensive agent capabilities:
 
-- `@have/ai`: For AI model interactions
-- `@have/files`: For file system operations
-- `@have/pdf`: For PDF document processing
-- `@have/sql`: For database operations
-- `@have/spider`: For web content retrieval
-- `@have/utils`: For utility functions
+### Internal HAVE SDK Dependencies
+- **@have/ai**: AI model interactions and completions across multiple providers
+- **@have/files**: File system operations and content management
+- **@have/pdf**: PDF document processing and text extraction
+- **@have/sql**: Database operations with SQLite and PostgreSQL support
+- **@have/spider**: Web content extraction and processing
+- **@have/utils**: Shared utility functions and type definitions
+
+### External Dependencies
+- **@langchain/community**: Third-party integrations for LLM applications
+  - Tools, chains, and retrieval strategies
+  - Modular building blocks for AI applications
+  - Extensive ecosystem integrations
+- **cheerio**: Server-side HTML parsing and manipulation
+  - jQuery-like syntax for content processing
+  - Blazingly fast HTML/XML parsing
+  - Removes browser inconsistencies for clean server-side processing
+- **yaml**: Configuration management and data serialization
+  - Full YAML 1.1 and 1.2 standard support
+  - AST manipulation capabilities
+  - Schema flexibility with custom tags
 
 ## Development Guidelines
 
-### Extending the Framework
+### Framework Architecture Patterns
 
-To extend the framework:
+**Object-Relational Mapping**
+- Properties automatically generate database schema with TypeScript types
+- Use Field decorators for advanced schema configuration
+- Implement lifecycle hooks (beforeSave, afterDelete) for data validation
+- Leverage automatic timestamp management and indexing
 
-1. Create custom objects by extending `BaseObject`
-2. Create custom collections by extending `BaseCollection`
-3. Define properties on objects that will be persisted to the database
-4. Implement custom methods that leverage AI capabilities when needed
+**AI-First Development**
+- Design objects with AI interaction as primary consideration
+- Use built-in `is()` and `do()` methods for intelligent operations
+- Implement semantic search and content analysis methods
+- Cache AI responses for performance optimization
 
-### Database Schema Considerations
+**Collection Patterns**
+- Use collections for standardized CRUD operations
+- Implement custom query methods for domain-specific searches
+- Apply bulk operations for efficiency at scale
+- Design relationships through collection methods
 
-- Object properties define the database schema
-- Initialize properties with default values in the constructor
-- Use appropriate JavaScript types for proper schema generation
-- Properties are converted to snake_case for database columns
+### Code Generation Workflows
 
-### Testing
-
+**CLI Development**
 ```bash
-bun test        # Run tests once
-bun test:watch  # Run tests in watch mode
+# Generate CLI tools from SMRT objects
+import { CLIGenerator } from '@have/smrt/generators';
+const generator = new CLIGenerator({
+  collections: [MyCollection],
+  outputDir: './cli'
+});
+await generator.generate();
 ```
 
-### Building
-
+**API Generation**
 ```bash
-bun run build       # Build once
-bun run build:watch # Build in watch mode
+# Create REST APIs with OpenAPI documentation
+import { APIGenerator } from '@have/smrt/generators';
+const generator = new APIGenerator({
+  collections: [MyCollection],
+  includeSwagger: true,
+  middleware: ['auth', 'validation']
+});
+await generator.generate();
 ```
 
-### Best Practices
+**MCP Server Generation**
+```bash
+# Generate Model Context Protocol servers
+import { MCPGenerator } from '@have/smrt/generators';
+const generator = new MCPGenerator({
+  collections: [MyCollection],
+  tools: ['list', 'search', 'analyze']
+});
+await generator.generate();
+```
 
-- Clearly define object schemas with appropriate defaults
-- Use transactions for complex database operations
-- Keep AI prompts clear and focused
-- Handle failures gracefully, especially for AI and database operations
-- Follow the collection pattern for managing groups of related objects
-- Initialize properties in constructors to ensure proper schema generation
+### Runtime Environment Considerations
 
-The `@have/smrt` package exemplifies the "fast and loose" approach mentioned in the README, prioritizing developer velocity while maintaining enough structure for consistent and reliable behavior.
+**Universal Deployment**
+- Use conditional imports for Node.js vs browser environments
+- Leverage static manifests for client-side builds
+- Implement proper error handling for missing dependencies
+- Design for both SSR and CSR scenarios
+
+**Performance Optimization**
+- Use database indexes for frequently queried fields
+- Implement pagination for large datasets
+- Cache AI responses and computed values
+- Apply lazy loading for related objects
+
+**Schema Evolution**
+- Plan for database migrations with schema changes
+- Use backward-compatible field additions
+- Implement proper validation for data integrity
+- Handle legacy data gracefully
+
+### Testing Strategies
+
+```bash
+bun test                    # Run all tests
+bun test --watch           # Watch mode for development
+bun test:integration       # Integration tests with dependencies
+bun test:generators        # Test code generation functionality
+```
+
+**Testing Patterns**
+- Mock AI responses for consistent testing
+- Use in-memory databases for unit tests
+- Test generated code with actual runtime scenarios
+- Validate schema generation and migration scripts
+
+### Building and Development
+
+```bash
+bun run build             # Production build
+bun run build:watch       # Development watch mode
+bun run dev               # Combined build and test watch
+bun run clean             # Clean build artifacts
+bun run docs              # Generate API documentation
+```
+
+### Agent Framework Best Practices
+
+**Object Design**
+- Initialize all properties with appropriate defaults
+- Use descriptive property names that generate good schemas
+- Implement domain-specific validation logic
+- Design for AI interaction patterns
+
+**Collection Management**
+- Keep collections focused on single entity types
+- Implement efficient querying with proper indexing
+- Use bulk operations for performance at scale
+- Design clear relationships between objects
+
+**AI Integration**
+- Write clear, specific prompts for consistent results
+- Implement proper error handling for AI failures
+- Use structured response formats when possible
+- Cache expensive AI operations appropriately
+
+**Cross-Package Integration**
+- Leverage @have/spider for content ingestion
+- Use @have/pdf for document processing workflows
+- Integrate @have/files for asset management
+- Apply @have/sql for complex querying needs
+
+**Code Generation**
+- Use AST scanning for automatic service discovery
+- Implement proper TypeScript declaration generation
+- Design for hot module replacement in development
+- Generate comprehensive API documentation
+
+### Expert Agent Development
+
+When building agents with the SMRT framework:
+
+1. **Design AI-First**: Plan object methods with AI capabilities in mind
+2. **Use Code Generation**: Leverage generators for boilerplate reduction
+3. **Implement Proper Schema**: Design database schemas for efficient querying
+4. **Plan for Scale**: Use collections and bulk operations for large datasets
+5. **Test Thoroughly**: Validate both generated code and runtime behavior
+6. **Monitor Performance**: Track AI usage and database query efficiency
+
+## Documentation Links
+
+Always reference the latest documentation when developing AI agents with the SMRT framework, as foundational libraries frequently add new features that can enhance agent capabilities:
+
+### Core Agent Libraries
+- **@langchain/community**: [LangChain.js Documentation](https://js.langchain.com/docs/introduction/)
+  - Third-party integrations for LLM applications
+  - Tools, chains, and retrieval strategies for building stateful agents
+  - Check for new modules and platform integrations regularly
+
+- **cheerio**: [Official Documentation](https://cheerio.js.org/)
+  - Server-side jQuery implementation for HTML processing
+  - Review for new selectors, traversal methods, and parsing optimizations
+  - Essential for web content processing in agent workflows
+
+- **yaml**: [Documentation](https://eemeli.org/yaml/)
+  - YAML parsing and manipulation with AST support
+  - Monitor for schema enhancements and parsing improvements
+  - Critical for configuration management in agent deployments
+
+### HAVE SDK Integration Points
+- **@have/ai**: AI model interactions and completions
+- **@have/files**: File system operations and content management
+- **@have/pdf**: PDF processing and document analysis
+- **@have/sql**: Database operations and schema management
+- **@have/spider**: Web content extraction and processing
+- **@have/utils**: Utility functions and type definitions
+
+### Expert Agent Instructions
+
+When working with @have/smrt:
+
+1. **Always check latest documentation** before implementing agent solutions using WebFetch tool
+2. **Stay current with framework updates** - agent frameworks evolve rapidly with new AI capabilities
+3. **Review new code generation features** that could improve development workflow
+4. **Check for breaking changes** in major version updates across dependencies
+5. **Look for new AI integration patterns** and cross-package capabilities
+6. **Monitor performance improvements** in database operations and AI processing
+
+Example workflow for staying current:
+```typescript
+// Before implementing agent solutions, verify current best practices
+await WebFetch.get('https://js.langchain.com/docs/introduction/');
+await WebFetch.get('https://cheerio.js.org/');
+// Then implement with latest patterns and capabilities
+```
+
+### Agent Framework Resources
+
+The SMRT package serves as the central orchestrator for building intelligent agents that leverage:
+- **Persistent object storage** with automatic schema generation
+- **AI-powered operations** through built-in methods
+- **Code generation tools** for rapid prototyping and deployment
+- **Cross-package integration** for comprehensive agent capabilities
+- **Runtime flexibility** across server and browser environments
+
+This framework enables rapid development of vertical AI agents while maintaining production-ready scalability and performance.

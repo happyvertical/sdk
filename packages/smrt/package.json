@@ -1,17 +1,28 @@
 {
   "name": "@have/smrt",
   "version": "0.0.50",
-  "description": "Core AI agent framework with standardized collections and content processing",
+  "description": "Core AI agent framework with standardized collections, content processing, and code generators",
   "author": "Will Griffin <willgriffin@gmail.com>",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "smrt": "dist/generators/cli.js"
+  },
   "files": [
     "dist"
   ],
   "exports": {
     ".": "./dist/index.js",
-    "./utils": "./dist/utils.js"
+    "./utils": "./dist/utils.js",
+    "./generators": "./dist/generators/index.js",
+    "./generators/cli": "./dist/generators/cli.js",
+    "./generators/rest": "./dist/generators/rest.js",
+    "./generators/mcp": "./dist/generators/mcp.js",
+    "./generators/swagger": "./dist/generators/swagger.js",
+    "./scanner": "./dist/scanner/index.js",
+    "./vite-plugin": "./dist/vite-plugin/index.js",
+    "./runtime": "./dist/runtime/index.js"
   },
   "dependencies": {
     "@have/ai": "workspace:*",
@@ -25,8 +36,8 @@
     "yaml": "^2.7.0"
   },
   "scripts": {
-    "test": "vitest",
-    "test:watch": "vitest --watch",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
     "build": "tsc -b",
     "build:watch": "tsc -b --watch",
     "clean": "rm -rf dist",
@@ -39,10 +50,16 @@
   "devDependencies": {
     "@faker-js/faker": "^9.4.0",
     "@paralleldrive/cuid2": "^2.2.2",
+    "@types/bun": "1.2.20",
+    "@types/flexsearch": "0.7.42",
     "@types/node": "^22.13.0",
+    "fast-glob": "3.3.3",
+    "minimatch": "10.0.3",
     "pdf-parse": "^1.1.1",
     "pdfjs-dist": "^4.10.38",
     "scribe.js-ocr": "^0.7.0",
-    "vitest": "^3.1.1"
+    "typescript": "5.9.2",
+    "vite": "7.1.3",
+    "vitest": "^3.2.4"
   }
 }
