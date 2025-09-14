@@ -11,6 +11,8 @@ packages/*/dist
 .env.development
 .env.production
 .env.test
+.direnv/
+.venv/
 
 # Build outputs
 dist/
