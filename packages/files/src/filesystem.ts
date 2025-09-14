@@ -1,7 +1,7 @@
 import path from 'path';
-import os from 'os';
 import { mkdir } from 'fs/promises';
 import { getCached, setCached } from './index.js';
+import { getTempDirectory } from '@have/utils';
 
 /**
  * Interface defining the required methods for a filesystem adapter
@@ -94,7 +94,7 @@ export class FilesystemAdapter {
   constructor(options: FilesystemAdapterOptions) {
     this.options = options;
     this.cacheDir =
-      options.cacheDir || path.join(os.tmpdir(), 'have-sdk', '.cache');
+      options.cacheDir || getTempDirectory('cache');
   }
 
   /**

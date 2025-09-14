@@ -13,15 +13,15 @@ import {
   writeFile,
   readFile,
 } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { dirname } from 'node:path';
 import { URL } from 'node:url';
+import { getTempDirectory } from '@have/utils';
 
 /**
  * Default temporary directory for caching and intermediate files
  */
-const TMP_DIR = path.resolve(`${tmpdir()}/kissd`);
+const TMP_DIR = path.resolve(getTempDirectory('kissd'));
 
 /**
  * Checks if a path is a file

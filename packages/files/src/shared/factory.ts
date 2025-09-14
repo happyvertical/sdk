@@ -5,8 +5,9 @@ import {
   S3Options,
   GoogleDriveOptions,
   WebDAVOptions,
+  BrowserStorageOptions,
   FilesystemError
-} from './shared/types.js';
+} from './types.js';
 
 /**
  * Registry of available filesystem providers
@@ -108,6 +109,10 @@ function validateOptions(options: GetFilesystemOptions): void {
       }
       break;
       
+    case 'browser-storage':
+      // Browser storage provider has no required options
+      break;
+      
     default:
       throw new FilesystemError(
         `Unknown provider type: ${type}`,
@@ -136,8 +141,22 @@ function detectProviderType(options: GetFilesystemOptions): string {
   if ('baseUrl' in options && 'username' in options) {
     return 'webdav';
   }
+  
+  if ('databaseName' in options || 'storageQuota' in options) {
+    return 'browser-storage';
+  }
 
-  // Default to local
+  // Default depends on environment
+  if (typeof globalThis !== 'undefined') {
+    // Check for browser environment indicators
+    if (typeof (globalThis as any).window !== 'undefined' && typeof (globalThis as any).indexedDB !== 'undefined') {
+      return 'browser-storage';
+    } else if (typeof (globalThis as any).process !== 'undefined' && (globalThis as any).process.versions?.node) {
+      return 'local';
+    }
+  }
+  
+  // Fallback detection
   return 'local';
 }
 
@@ -180,45 +199,14 @@ export async function getFilesystem(
  * Initialize providers by registering them
  */
 export async function initializeProviders(): Promise<void> {
-  // Register local provider (always available)
+  // Register local provider (always available in Node.js environment)
   registerProvider('local', async () => {
-    const { LocalFilesystemProvider } = await import('./node/local.js');
+    const { LocalFilesystemProvider } = await import('../node/local.js');
     return LocalFilesystemProvider;
   });
-
-  // Note: S3, Google Drive, and WebDAV providers are currently backed up
-  // due to external dependency issues during context-aware transformation.
-  // They can be restored when dependencies are properly handled.
   
-  // Register S3 provider if dependencies are available
-  // try {
-  //   registerProvider('s3', async () => {
-  //     const { S3FilesystemProvider } = await import('./shared/s3.js');
-  //     return S3FilesystemProvider;
-  //   });
-  // } catch (error) {
-  //   // S3 provider not available, skip silently
-  // }
-
-  // Register Google Drive provider if dependencies are available
-  // try {
-  //   registerProvider('gdrive', async () => {
-  //     const { GoogleDriveFilesystemProvider } = await import('./shared/gdrive.js');
-  //     return GoogleDriveFilesystemProvider;
-  //   });
-  // } catch (error) {
-  //   // Google Drive provider not available, skip silently
-  // }
-
-  // Register WebDAV provider if dependencies are available
-  // try {
-  //   registerProvider('webdav', async () => {
-  //     const { WebDAVFilesystemProvider } = await import('./shared/webdav.js');
-  //     return WebDAVFilesystemProvider;
-  //   });
-  // } catch (error) {
-  //   // WebDAV provider not available, skip silently
-  // }
+  // In browser context, the browser entry point will register the browser-storage provider
+  // For tests running in Node.js, we only register the local provider
 }
 
 /**
@@ -240,14 +228,16 @@ export function getProviderInfo(type: string): {
     local: 'Local filesystem provider using Node.js fs module',
     s3: 'S3-compatible provider supporting AWS S3, MinIO, and other S3-compatible services',
     gdrive: 'Google Drive provider using Google Drive API v3',
-    webdav: 'WebDAV provider supporting Nextcloud, ownCloud, Apache mod_dav, and other WebDAV servers'
+    webdav: 'WebDAV provider supporting Nextcloud, ownCloud, Apache mod_dav, and other WebDAV servers',
+    'browser-storage': 'Browser storage provider using IndexedDB for app file management'
   };
 
   const requiredOptions = {
     local: [],
     s3: ['region', 'bucket'],
     gdrive: ['clientId', 'clientSecret', 'refreshToken'],
-    webdav: ['baseUrl', 'username', 'password']
+    webdav: ['baseUrl', 'username', 'password'],
+    'browser-storage': []
   };
 
   return {

@@ -3,18 +3,28 @@
   "version": "0.0.50",
   "description": "File system utilities for local and remote file operations",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/node.js",
+  "browser": "dist/browser.js", 
+  "types": "dist/shared/types.d.ts",
   "exports": {
-    ".": "./dist/index.js"
+    ".": {
+      "browser": "./dist/browser.js",
+      "node": "./dist/node.js", 
+      "default": "./dist/node.js"
+    },
+    "./browser": "./dist/browser.js",
+    "./node": "./dist/node.js",
+    "./types": "./dist/shared/types.js"
   },
   "scripts": {
-    "test": "vitest",
-    "test:watch": "vitest --watch",
-    "build": "tsc -b",
-    "build:watch": "tsc -b --watch",
-    "clean": "rm -rf dist tsconfig.tsbuildinfo",
-    "prebuild": "npm run clean",
+    "test": "bun test",
+    "test:watch": "bun test --watch", 
+    "build": "bun run build:browser && bun run build:node",
+    "build:browser": "tsc -p tsconfig.browser.json",
+    "build:node": "tsc -p tsconfig.node.json",
+    "build:watch": "bun run build:browser --watch & bun run build:node --watch",
+    "clean": "rm -rf dist tsconfig.*.tsbuildinfo",
+    "prebuild": "bun run clean",
     "dev": "bun run build:watch & bun run test:watch"
   },
   "engines": {
@@ -24,8 +34,12 @@
     "@have/utils": "workspace:*"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "6.8.0",
+    "@testing-library/svelte": "5.2.8",
     "@types/node": "^22.13.0",
-    "vitest": "^3.1.1"
+    "happy-dom": "18.0.1",
+    "jsdom": "26.1.0",
+    "vitest": "^3.2.4"
   },
   "files": [
     "dist"
