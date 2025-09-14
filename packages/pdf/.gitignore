@@ -1,0 +1,30 @@
+# Build artifacts
+dist/
+*.tsbuildinfo
+
+# Dependencies (handled at workspace root)
+node_modules/
+
+# Temporary/extracted files
+extracted-image-*.png
+*.png
+*.jpg
+*.jpeg
+
+# OCR training data
+*.traineddata
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+
+# Lock files (handled at workspace root)
+bun.lock

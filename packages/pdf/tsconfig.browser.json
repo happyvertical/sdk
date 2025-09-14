@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "declaration": true,
+    "strict": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "skipLibCheck": true,
+    "lib": ["ES2022", "DOM"],
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "types": [],
+    "composite": true,
+    "incremental": true,
+    "declarationMap": true
+  },
+  "include": [
+    "src/browser/**/*",
+    "src/browser.ts",
+    "src/shared/types.ts",
+    "src/shared/base.ts"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules",
+    "src/**/*.{test,spec}.{ts,js}",
+    "src/node/**/*",
+    "src/node.ts"
+  ]
+}
