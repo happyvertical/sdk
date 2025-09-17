@@ -11,6 +11,7 @@
   ],
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "browser": "./dist/browser.js",
       "node": "./dist/node.js",
       "default": "./dist/node.js"
@@ -21,13 +22,10 @@
   "scripts": {
     "test": "bun test --timeout 60000",
     "test:watch": "bun test --watch --timeout 60000",
-    "build": "bun run build:node && bun run build:browser",
-    "build:node": "tsc -p tsconfig.node.json",
-    "build:browser": "tsc -p tsconfig.browser.json",
-    "build:watch": "bun run build:node --watch & bun run build:browser --watch",
+    "build": "tsc --build",
+    "build:watch": "tsc --build --watch",
     "clean": "rm -rf dist",
     "clean:all": "rm -rf dist *.tsbuildinfo node_modules",
-    "prebuild": "bun run clean",
     "dev": "bun run build:watch & bun run test:watch"
   },
   "engines": {

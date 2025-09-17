@@ -1,20 +1,11 @@
 {
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "declaration": true,
-    "strict": true,
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-    "skipLibCheck": true,
-    "lib": ["ES2022"],
     "outDir": "./dist",
     "rootDir": "./src",
-    "composite": true,
-    "incremental": true,
-    "declarationMap": true
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    "composite": true
   },
-  "include": ["src/index.ts"],
-  "exclude": ["node_modules", "dist"]
+  "include": ["src/**/*"],
+  "exclude": ["**/*.test.ts", "**/*.spec.ts"]
 }
