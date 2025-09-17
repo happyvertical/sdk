@@ -34,12 +34,9 @@
   "scripts": {
     "test": "bun test --timeout 120000",
     "test:watch": "bun test --watch --timeout 120000",
-    "build": "bun run build:browser && bun run build:node",
-    "build:browser": "tsc -p tsconfig.browser.json",
-    "build:node": "tsc -p tsconfig.node.json",
-    "build:watch": "bun run build:browser --watch & bun run build:node --watch",
+    "build": "tsc --build",
+    "build:watch": "tsc --build --watch",
     "clean": "rm -rf dist tsconfig.*.tsbuildinfo",
-    "prebuild": "bun run clean",
     "dev": "bun run build:watch & bun run test:watch"
   },
   "type": "module",

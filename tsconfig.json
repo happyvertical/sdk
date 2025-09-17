@@ -1,46 +1,58 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
+    // Language and Environment
+    "target": "ES2023",
+    "lib": ["ES2023"],
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
+
+    // Strict Type Checking
     "strict": true,
-    "declaration": true,
-    "declarationMap": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "skipLibCheck": true,
+
+    // Code Quality
+    "allowUnusedLabels": false,
+    "allowUnreachableCode": false,
+    "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true,
+
+    // Module System
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true,
+
+    // Emit Configuration
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+
+    // Performance
+    "skipLibCheck": true,
+
+    // Types
     "types": ["node", "bun"],
-    
-    // Workspace path mapping for @have/* packages
+
+    // Path Mapping
     "baseUrl": ".",
     "paths": {
-      "@have/utils": ["./packages/utils/dist/node.d.ts", "./packages/utils/dist/node.js"],
-      "@have/utils/*": ["./packages/utils/dist/*"],
-      "@have/files": ["./packages/files/dist/node.js"],
-      "@have/files/*": ["./packages/files/dist/*"],
+      "@have/utils": ["./packages/utils/src/index.ts"],
+      "@have/utils/*": ["./packages/utils/src/*"],
+      "@have/files": ["./packages/files/src/index.ts"],
+      "@have/files/*": ["./packages/files/src/*"],
       "@have/spider": ["./packages/spider/src/index.ts"],
       "@have/spider/*": ["./packages/spider/src/*"],
-      "@have/sql": ["./packages/sql/dist/node.d.ts", "./packages/sql/dist/node.js"],
-      "@have/sql/*": ["./packages/sql/dist/*"],
-      "@have/ocr": ["./packages/ocr/dist/node.d.ts", "./packages/ocr/dist/node.js"],
-      "@have/ocr/*": ["./packages/ocr/dist/*"],
-      "@have/pdf": ["./packages/pdf/dist/node.d.ts", "./packages/pdf/dist/node.js"],
-      "@have/pdf/*": ["./packages/pdf/dist/*"],
-      "@have/ai": ["./packages/ai/dist/node.d.ts", "./packages/ai/dist/node.js"],
-      "@have/ai/*": ["./packages/ai/dist/*"],
+      "@have/sql": ["./packages/sql/src/index.ts"],
+      "@have/sql/*": ["./packages/sql/src/*"],
+      "@have/ocr": ["./packages/ocr/src/index.ts"],
+      "@have/ocr/*": ["./packages/ocr/src/*"],
+      "@have/pdf": ["./packages/pdf/src/index.ts"],
+      "@have/pdf/*": ["./packages/pdf/src/*"],
+      "@have/ai": ["./packages/ai/src/index.ts"],
+      "@have/ai/*": ["./packages/ai/src/*"],
       "@have/smrt": ["./packages/smrt/src/index.ts"],
       "@have/smrt/*": ["./packages/smrt/src/*"],
-      "@have/svelte": ["./packages/svelte/src/lib/index.ts"],
-      "@have/svelte/*": ["./packages/svelte/src/lib/*"]
+      "@have/smrt-template": ["./packages/smrt-template/src/index.ts"],
+      "@have/smrt-template/*": ["./packages/smrt-template/src/*"]
     }
   },
-  "include": [],
-  "exclude": ["node_modules", "dist", "**/dist", "**/node_modules"],
   "references": [
     { "path": "./packages/utils" },
     { "path": "./packages/files" },
