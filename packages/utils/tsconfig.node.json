@@ -1,17 +1,12 @@
 {
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "Bundler", 
-    "declaration": true,
-    "declarationMap": true,
-    "emitDeclarationOnly": false,
-    "strict": true,
-    "skipLibCheck": true,
-    "lib": ["ES2022"],
     "outDir": "./dist",
-    "rootDir": "src"
+    "rootDir": "./src",
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    "types": ["node", "bun"],
+    "composite": true
   },
-  "include": ["src/node.ts", "src/shared/**/*", "src/node/**/*"],
+  "include": ["src/node.ts", "src/shared/**/*", "src/node/**/*", "src/index.ts"],
   "exclude": ["src/browser/**/*", "**/*.test.ts", "**/*.spec.ts"]
 }

@@ -3,43 +3,31 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "Node",
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "strict": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "emitDeclarationOnly": false,
-    "noEmit": false,
-    "allowImportingTsExtensions": false
+    "tsBuildInfoFile": "./dist/.tsbuildinfo-browser",
+    "lib": ["ES2023", "DOM", "DOM.Iterable", "WebWorker"],
+    "types": [],
+    "composite": true
   },
   "include": [
     "src/shared/types.ts",
-    "src/shared/base.ts", 
+    "src/shared/base.ts",
     "src/shared/factory.ts",
-    "src/browser/**/*", 
-    "src/browser.ts"
+    "src/browser/**/*",
+    "src/browser.ts",
+    "src/index.ts"
   ],
   "exclude": [
     "src/node/**/*",
     "src/node.ts",
-    "src/index.ts",
     "src/providers/**/*",
-    "src/providers.backup/**/*",
     "src/shared/s3.ts",
-    "src/shared/webdav.ts", 
+    "src/shared/webdav.ts",
     "src/shared/gdrive.ts",
     "src/legacy.ts",
     "src/factory.ts",
     "src/filesystem*.ts",
     "src/fetch.ts",
-    "src/**/*.test.ts",
-    "src/**/*.spec.ts"
+    "**/*.test.ts",
+    "**/*.spec.ts"
   ]
 }

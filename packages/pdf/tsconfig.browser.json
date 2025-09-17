@@ -1,32 +1,26 @@
 {
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "Bundler",
-    "declaration": true,
-    "strict": true,
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-    "skipLibCheck": true,
-    "lib": ["ES2022", "DOM"],
     "outDir": "./dist",
     "rootDir": "./src",
+    "tsBuildInfoFile": "./dist/.tsbuildinfo-browser",
+    "lib": ["ES2023", "DOM"],
     "types": [],
     "composite": true,
-    "incremental": true,
-    "declarationMap": true
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
   },
   "include": [
     "src/browser/**/*",
     "src/browser.ts",
     "src/shared/types.ts",
-    "src/shared/base.ts"
+    "src/shared/base.ts",
+    "src/index.ts"
   ],
   "exclude": [
-    "dist",
-    "node_modules",
-    "src/**/*.{test,spec}.{ts,js}",
     "src/node/**/*",
-    "src/node.ts"
+    "src/node.ts",
+    "**/*.test.ts",
+    "**/*.spec.ts"
   ]
 }

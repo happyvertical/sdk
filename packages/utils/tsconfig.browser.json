@@ -1,17 +1,13 @@
 {
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext", 
-    "moduleResolution": "Bundler",
-    "declaration": true,
-    "declarationMap": true,
-    "emitDeclarationOnly": false,
-    "strict": true,
-    "skipLibCheck": true,
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "outDir": "./dist",
-    "rootDir": "src"
+    "rootDir": "./src",
+    "tsBuildInfoFile": "./dist/.tsbuildinfo-browser",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": [],
+    "composite": true
   },
-  "include": ["src/browser.ts", "src/shared/**/*"],
+  "include": ["src/browser.ts", "src/shared/**/*", "src/browser/**/*", "src/index.ts"],
   "exclude": ["src/node/**/*", "**/*.test.ts", "**/*.spec.ts"]
 }
