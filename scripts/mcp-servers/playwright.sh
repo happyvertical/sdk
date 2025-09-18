@@ -16,7 +16,17 @@ MAX_RESTART_ATTEMPTS=3
 
 # Port configuration for multi-repo support
 # Use project name hash to generate unique port in range 58000-58999
-PROJECT_HASH=$(echo -n "$PROJECT_ROOT" | md5sum | cut -c1-8)
+# Cross-platform compatible hash generation
+if command -v md5sum >/dev/null 2>&1; then
+    # Linux/NixOS
+    PROJECT_HASH=$(echo -n "$PROJECT_ROOT" | md5sum | cut -c1-8)
+elif command -v md5 >/dev/null 2>&1; then
+    # macOS
+    PROJECT_HASH=$(echo -n "$PROJECT_ROOT" | md5 | cut -c1-8)
+else
+    # Fallback: use a simple hash based on path length and first characters
+    PROJECT_HASH=$(printf "%08x" $(($(echo -n "$PROJECT_ROOT" | wc -c) * 31 + $(printf "%d" "'$(echo "$PROJECT_ROOT" | cut -c1)"))))
+fi
 BASE_PORT=58000
 PORT_RANGE=1000
 DEFAULT_PORT=$((BASE_PORT + (0x$PROJECT_HASH % PORT_RANGE)))

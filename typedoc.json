@@ -1,22 +1,31 @@
 {
   "entryPoints": [
     "packages/utils/src/index.ts",
-    "packages/files/src/index.ts", 
+    "packages/files/src/index.ts",
     "packages/spider/src/index.ts",
     "packages/sql/src/index.ts",
+    "packages/ocr/src/index.ts",
     "packages/pdf/src/index.ts",
     "packages/ai/src/index.ts",
     "packages/smrt/src/index.ts"
   ],
-  "entryPointStrategy": "expand",
+  "entryPointStrategy": "resolve",
   "out": "docs/manual",
   "name": "HAVE SDK API Reference",
+  "tsconfig": "./tsconfig.docs.json",
   "excludePrivate": true,
   "excludeInternal": true,
   "theme": "default",
   "readme": "README.md",
-  "plugin": ["typedoc-plugin-markdown"],
   "categorizeByGroup": true,
   "includeVersion": true,
-  "hideGenerator": true
+  "hideGenerator": true,
+  "githubPages": true,
+  "cleanOutputDir": true,
+  "navigation": {
+    "includeCategories": true,
+    "includeGroups": true
+  },
+  "searchInComments": true,
+  "searchInDocuments": true
 }

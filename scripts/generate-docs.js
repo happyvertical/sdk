@@ -9,6 +9,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(__dirname, '..');
 const DOCS_DIR = path.join(ROOT_DIR, 'docs/manual');
 
+// Parse command line arguments
+const args = process.argv.slice(2);
+const watchMode = args.includes('--watch') || args.includes('-w');
+
 // Ensure docs directory exists
 if (!fs.existsSync(DOCS_DIR)) {
   fs.mkdirSync(DOCS_DIR, { recursive: true });
@@ -30,9 +34,8 @@ try {
     console.log('Created .nojekyll file for GitHub Pages');
   }
 
-  // Generate an index.html if it doesn't exist
+  // Generate a custom index.html to replace TypeDoc's default
   const indexPath = path.join(DOCS_DIR, 'index.html');
-  if (!fs.existsSync(indexPath)) {
     const moduleLinks = fs.readdirSync(DOCS_DIR)
       .filter(item => fs.statSync(path.join(DOCS_DIR, item)).isDirectory() && !item.startsWith('.'))
       .map(moduleName => `<li><a href="./${moduleName}/index.html">${moduleName}</a></li>`)
@@ -41,7 +44,10 @@ try {
     // Read the package.json to get the current version
     const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, 'package.json'), 'utf8'));
     const version = packageJson.version || 'latest';
-    
+
+    // Include livereload script if in watch mode
+    const livereloadScript = watchMode ? '<script src="http://localhost:35729/livereload.js?snipver=1"></script>' : '';
+
     const indexContent = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -162,6 +168,7 @@ try {
       }
     }
   </style>
+  ${livereloadScript}
 </head>
 <body>
   <header>
@@ -188,38 +195,43 @@ try {
     <div class="package-list">
       <div class="package-item">
         <h3>@have/ai</h3>
-        <p>A standardized interface for AI model interactions, currently supporting OpenAI</p>
-        <a href="./ai/src/README.html">View Documentation</a>
+        <p>A standardized interface for AI model interactions across multiple providers (OpenAI, Anthropic, Google Gemini, AWS Bedrock)</p>
+        <a href="/modules/ai_src.html">View Documentation</a>
       </div>
       <div class="package-item">
         <h3>@have/files</h3>
-        <p>Tools for interacting with file systems (local and remote)</p>
-        <a href="./files/src/README.html">View Documentation</a>
+        <p>Tools for interacting with file systems (local and remote, Node.js-focused)</p>
+        <a href="/modules/files_src.html">View Documentation</a>
+      </div>
+      <div class="package-item">
+        <h3>@have/ocr</h3>
+        <p>Optical Character Recognition with support for multiple providers including Tesseract.js and ONNX</p>
+        <a href="/modules/ocr_src.html">View Documentation</a>
       </div>
       <div class="package-item">
         <h3>@have/pdf</h3>
-        <p>Utilities for parsing and processing PDF documents</p>
-        <a href="./pdf/src/README.html">View Documentation</a>
+        <p>Utilities for parsing and processing PDF documents with OCR fallback</p>
+        <a href="/modules/pdf_src.html">View Documentation</a>
       </div>
       <div class="package-item">
         <h3>@have/smrt</h3>
-        <p>Core library for building AI agents with standardized collections and objects</p>
-        <a href="./smrt/src/README.html">View Documentation</a>
+        <p>Core AI agent framework with standardized collections, content processing, and code generators</p>
+        <a href="/modules/smrt_src.html">View Documentation</a>
       </div>
       <div class="package-item">
         <h3>@have/spider</h3>
-        <p>Web crawling and content parsing tools</p>
-        <a href="./spider/src/README.html">View Documentation</a>
+        <p>Web scraping and content extraction using happy-dom and undici for lightweight, fast operations</p>
+        <a href="/modules/spider_src.html">View Documentation</a>
       </div>
       <div class="package-item">
         <h3>@have/sql</h3>
-        <p>Database interaction with support for SQLite and Postgres</p>
-        <a href="./sql/src/README.html">View Documentation</a>
+        <p>Database interface with support for SQLite and PostgreSQL</p>
+        <a href="/modules/sql_src.html">View Documentation</a>
       </div>
       <div class="package-item">
         <h3>@have/utils</h3>
-        <p>Shared utility functions used across packages</p>
-        <a href="./utils/src/README.html">View Documentation</a>
+        <p>Context-aware utility functions and type definitions</p>
+        <a href="/modules/utils_src.html">View Documentation</a>
       </div>
     </div>
   </section>
@@ -233,7 +245,6 @@ try {
     
     fs.writeFileSync(indexPath, indexContent);
     console.log('Generated custom index.html');
-  }
 } catch (error) {
   console.error('Error generating documentation:', error);
   process.exit(1);
