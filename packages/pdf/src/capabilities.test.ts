@@ -104,7 +104,7 @@ describe("PDF Reader Capabilities and Dependencies", () => {
     if (!dependencies.available) {
       expect(dependencies).toHaveProperty('error');
       expect(typeof dependencies.error).toBe('string');
-      expect(dependencies.error.length).toBeGreaterThan(0);
+      expect(dependencies.error?.length).toBeGreaterThan(0);
     }
   });
 });

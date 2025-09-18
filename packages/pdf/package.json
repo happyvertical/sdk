@@ -3,29 +3,26 @@
   "version": "0.0.50",
   "description": "Modern PDF processing utilities with text extraction and OCR support using unpdf and @gutenye/ocr-node",
   "type": "module",
-  "main": "dist/node.js",
-  "browser": "dist/browser.js",
-  "types": "dist/index.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
     "dist"
   ],
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "browser": "./dist/browser.js",
-      "node": "./dist/node.js",
-      "default": "./dist/node.js"
-    },
-    "./browser": "./dist/browser.js",
-    "./node": "./dist/node.js"
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   },
   "scripts": {
     "test": "bun test --timeout 60000",
     "test:watch": "bun test --watch --timeout 60000",
     "build": "tsc --build",
     "build:watch": "tsc --build --watch",
-    "clean": "rm -rf dist",
-    "clean:all": "rm -rf dist *.tsbuildinfo node_modules",
+    "docs": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules",
+    "docs:watch": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules --watch",
+    "clean": "rm -rf dist docs",
+    "clean:all": "rm -rf dist docs *.tsbuildinfo node_modules",
     "dev": "bun run build:watch & bun run test:watch"
   },
   "engines": {
