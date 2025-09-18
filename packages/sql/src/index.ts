@@ -1,4 +1,4 @@
-import type { DatabaseInterface } from "./types.js";
+import type { DatabaseInterface } from "./shared/types.js";
 import type { PostgresOptions } from "./postgres.js";
 import type { SqliteOptions } from "./sqlite.js";
 
