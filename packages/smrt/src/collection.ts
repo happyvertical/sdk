@@ -8,7 +8,7 @@ import {
   formatDataSql,
 } from './utils.js';
 import { syncSchema, buildWhere } from '@have/sql';
-import { BaseObject } from './object.js';
+import type { BaseObject } from './object.js';
 
 /**
  * Configuration options for BaseCollection
@@ -43,14 +43,19 @@ export class BaseCollection<
       };
     };
     if (!constructor._itemClass) {
-      // todo: sort out why Meetings._itemClass is undefined
-      throw new Error(
-        `Collection ${this.constructor.name} must define static _itemClass`,
-      );
-      //   console.warn(
-      //     `Collection ${this.constructor.name} must define static _itemClass`,
-      //   );
-      // }
+      const className = this.constructor.name;
+      const errorMessage = [
+        `Collection "${className}" must define a static _itemClass property.`,
+        ``,
+        `Example:`,
+        `  class ${className} extends BaseCollection<YourItemClass> {`,
+        `    static readonly _itemClass = YourItemClass;`,
+        `  }`,
+        ``,
+        `Make sure your item class is imported and defined before the collection class.`
+      ].join('\n');
+
+      throw new Error(errorMessage);
     }
     return constructor._itemClass;
   }
@@ -59,6 +64,41 @@ export class BaseCollection<
    * Static reference to the item class constructor
    */
   static readonly _itemClass: any;
+
+  /**
+   * Validates that the collection is properly configured
+   * Call this during development to catch configuration issues early
+   */
+  static validate(): void {
+    if (!this._itemClass) {
+      const className = this.name;
+      const errorMessage = [
+        `Collection "${className}" is missing required static _itemClass property.`,
+        ``,
+        `Fix by adding:`,
+        `  class ${className} extends BaseCollection<YourItemClass> {`,
+        `    static readonly _itemClass = YourItemClass;`,
+        `  }`,
+      ].join('\n');
+      throw new Error(errorMessage);
+    }
+
+    // Validate that _itemClass has required methods
+    if (typeof this._itemClass !== 'function') {
+      throw new Error(`Collection "${this.name}"._itemClass must be a constructor function`);
+    }
+
+    // Check if it has a create method (static or prototype)
+    const hasCreateMethod =
+      typeof this._itemClass.create === 'function' ||
+      typeof this._itemClass.prototype?.create === 'function';
+
+    if (!hasCreateMethod) {
+      console.warn(
+        `Collection "${this.name}"._itemClass should have a create() method for optimal functionality`
+      );
+    }
+  }
   
   /**
    * Database table name for this collection

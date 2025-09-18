@@ -1,5 +1,5 @@
 import { getDatabase } from '@have/sql';
-import type { DatabaseOptions, DatabaseInterface } from '@have/sql';
+import type { DatabaseInterface } from '@have/sql';
 import { FilesystemAdapter } from '@have/files';
 import type { FilesystemAdapterOptions } from '@have/files';
 import type { AIClientOptions } from '@have/ai';
@@ -17,7 +17,12 @@ export interface BaseClassOptions {
   /**
    * Database configuration options
    */
-  db?: DatabaseOptions;
+  db?: {
+    url?: string;
+    type?: 'sqlite' | 'postgres';
+    authToken?: string;
+    [key: string]: any;
+  };
   
   /**
    * Filesystem adapter configuration options

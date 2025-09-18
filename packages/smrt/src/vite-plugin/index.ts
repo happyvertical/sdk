@@ -76,27 +76,20 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
 
       console.log(`[smrt] Running in ${pluginMode} mode`);
 
-      // Scan files and generate initial manifest (server mode only)
-      if (pluginMode === 'server') {
-        manifest = await scanAndGenerateManifest();
-      } else {
-        // Client mode: use static manifest or create empty one
-        manifest = staticManifest || await loadStaticManifest() || createEmptyManifest();
-      }
+      // Scan files and generate initial manifest in all modes
+      manifest = await scanAndGenerateManifest();
     },
 
     async buildStart() {
-      // Rescan files on build start (server mode only)
-      if (pluginMode === 'server') {
-        manifest = await scanAndGenerateManifest();
-      }
+      // Rescan files on build start in all modes
+      manifest = await scanAndGenerateManifest();
     },
 
     configureServer(devServer) {
       server = devServer;
       
-      // Only set up file watching in server mode
-      if (watch && hmr && pluginMode === 'server') {
+      // Set up file watching in all modes when enabled
+      if (watch && hmr) {
         // Watch for file changes
         const watcher = devServer.watcher;
         
@@ -121,8 +114,6 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
             manifest = await scanAndGenerateManifest();
           }
         });
-      } else if (pluginMode === 'client') {
-        console.log('[smrt] File watching disabled in client mode');
       }
     },
 
@@ -144,11 +135,7 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
 
       switch (cleanId) {
         case 'smrt:routes':
-          // Routes module only available in server mode
-          if (pluginMode === 'client') {
-            console.warn('[smrt] Routes module not available in client mode');
-            return 'export function setupRoutes() { console.warn("Routes not available in client mode"); }';
-          }
+          // Routes module available in all modes
           return await generateRoutesModule(manifest);
           
         case 'smrt:client':
@@ -156,11 +143,7 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
           return generateClientModule(manifest);
           
         case 'smrt:mcp':
-          // MCP module only available in server mode  
-          if (pluginMode === 'client') {
-            console.warn('[smrt] MCP module not available in client mode');
-            return 'export const tools = []; export function createMCPServer() { console.warn("MCP not available in client mode"); return { name: "smrt-client", version: "1.0.0", tools: [] }; }';
-          }
+          // MCP module available in all modes
           return await generateMCPModule(manifest);
           
         case 'smrt:types':
@@ -200,11 +183,7 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
   }
 
   async function scanAndGenerateManifest(): Promise<SmartObjectManifest> {
-    // This function should only be called in server mode
-    if (pluginMode === 'client') {
-      console.warn('[smrt] scanAndGenerateManifest called in client mode - returning empty manifest');
-      return createEmptyManifest();
-    }
+    // Generate manifest in all modes
 
     try {
       // Conditionally import Node.js dependencies
