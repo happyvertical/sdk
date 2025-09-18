@@ -10,7 +10,7 @@ import {
   ModelNotFoundError,
   ContextLengthError,
   ContentFilterError,
-} from './types.js';
+} from './shared/types.js';
 
 describe('AI Error Classes', () => {
   describe('AIError', () => {
