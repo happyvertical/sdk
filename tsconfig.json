@@ -30,27 +30,25 @@
     // Types
     "types": ["node", "bun"],
 
-    // Path Mapping
+    // Path Mapping (generalized for monorepo)
     "baseUrl": ".",
     "paths": {
-      "@have/utils": ["./packages/utils/src/index.ts"],
-      "@have/utils/*": ["./packages/utils/src/*"],
-      "@have/files": ["./packages/files/src/index.ts"],
-      "@have/files/*": ["./packages/files/src/*"],
-      "@have/spider": ["./packages/spider/src/index.ts"],
-      "@have/spider/*": ["./packages/spider/src/*"],
-      "@have/sql": ["./packages/sql/src/index.ts"],
-      "@have/sql/*": ["./packages/sql/src/*"],
-      "@have/ocr": ["./packages/ocr/src/index.ts"],
-      "@have/ocr/*": ["./packages/ocr/src/*"],
-      "@have/pdf": ["./packages/pdf/src/index.ts"],
-      "@have/pdf/*": ["./packages/pdf/src/*"],
-      "@have/ai": ["./packages/ai/src/index.ts"],
-      "@have/ai/*": ["./packages/ai/src/*"],
-      "@have/smrt": ["./packages/smrt/src/index.ts"],
-      "@have/smrt/*": ["./packages/smrt/src/*"],
-      "@have/smrt-template": ["./packages/smrt-template/src/index.ts"],
-      "@have/smrt-template/*": ["./packages/smrt-template/src/*"]
+      "@have/utils": ["./packages/utils/dist/index.d.ts", "./packages/utils/src/index.ts"],
+      "@have/utils/*": ["./packages/utils/dist/*", "./packages/utils/src/*"],
+      "@have/files": ["./packages/files/dist/index.d.ts", "./packages/files/src/index.ts"],
+      "@have/files/*": ["./packages/files/dist/*", "./packages/files/src/*"],
+      "@have/spider": ["./packages/spider/dist/index.d.ts", "./packages/spider/src/index.ts"],
+      "@have/spider/*": ["./packages/spider/dist/*", "./packages/spider/src/*"],
+      "@have/sql": ["./packages/sql/dist/index.d.ts", "./packages/sql/src/index.ts"],
+      "@have/sql/*": ["./packages/sql/dist/*", "./packages/sql/src/*"],
+      "@have/ocr": ["./packages/ocr/dist/index.d.ts", "./packages/ocr/src/index.ts"],
+      "@have/ocr/*": ["./packages/ocr/dist/*", "./packages/ocr/src/*"],
+      "@have/pdf": ["./packages/pdf/dist/index.d.ts", "./packages/pdf/src/index.ts"],
+      "@have/pdf/*": ["./packages/pdf/dist/*", "./packages/pdf/src/*"],
+      "@have/ai": ["./packages/ai/dist/index.d.ts", "./packages/ai/src/index.ts"],
+      "@have/ai/*": ["./packages/ai/dist/*", "./packages/ai/src/*"],
+      "@have/smrt": ["./packages/smrt/dist/index.d.ts", "./packages/smrt/src/index.ts"],
+      "@have/smrt/*": ["./packages/smrt/dist/*", "./packages/smrt/src/*"]
     }
   },
   "references": [
@@ -61,7 +59,6 @@
     { "path": "./packages/ocr" },
     { "path": "./packages/pdf" },
     { "path": "./packages/ai" },
-    { "path": "./packages/smrt" },
-    { "path": "./packages/smrt-template" }
+    { "path": "./packages/smrt" }
   ]
 }

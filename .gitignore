@@ -2,6 +2,8 @@
 node_modules
 packages/*/node_modules
 packages/*/dist
+smrt/*/node_modules
+smrt/*/dist
 .pnpm-store
 
 # Environment variables
@@ -18,6 +20,16 @@ packages/*/dist
 dist/
 build/
 docs/manual/
+
+# Prevent built files in src directories (they should only be in dist)
+packages/*/src/**/*.js
+packages/*/src/**/*.d.ts
+packages/*/src/**/*.js.map
+packages/*/src/**/*.d.ts.map
+smrt/*/src/**/*.js
+smrt/*/src/**/*.d.ts
+smrt/*/src/**/*.js.map
+smrt/*/src/**/*.d.ts.map
 
 # TypeScript
 *.tsbuildinfo

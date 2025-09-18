@@ -14,11 +14,15 @@
     "test:packages": "bun test --cwd packages/utils && bun test --cwd packages/files && bun test --cwd packages/spider && bun test --cwd packages/sql && bun test --cwd packages/ocr && bun test --cwd packages/pdf && bun test --cwd packages/ai && bun test --cwd packages/smrt",
     "lint": "biome lint .",
     "lint:fix": "biome lint --apply .",
-    "clean": "rm -rf packages/*/dist packages/*/tsconfig.*.tsbuildinfo .tsbuildinfo",
-    "build": "tsc --build && bun docs && bun repomix",
-    "build:clean": "bun clean && tsc --build && bun docs && bun repomix",
-    "build:watch": "tsc --build --watch",
+    "clean": "rm -rf packages/*/dist packages/*/docs smrt/*/dist packages/*/tsconfig.*.tsbuildinfo .tsbuildinfo",
+    "build": "tsc --build packages/utils packages/files packages/spider packages/sql packages/ocr packages/pdf packages/ai packages/smrt && bun docs:packages && bun docs && bun repomix",
+    "build:clean": "bun clean && tsc --build packages/utils packages/files packages/spider packages/sql packages/ocr packages/pdf packages/ai packages/smrt && bun docs:packages && bun repomix",
+    "build:docs": "tsc --build packages/utils packages/files packages/spider packages/sql packages/ocr packages/pdf packages/ai packages/smrt && bun docs:packages && bun docs && bun repomix",
+    "build:watch": "tsc --build packages/utils packages/files packages/spider packages/sql packages/ocr packages/pdf packages/ai packages/smrt --watch",
     "docs": "node scripts/generate-docs.js",
+    "docs:packages": "bun run --cwd packages/utils docs && bun run --cwd packages/files docs && bun run --cwd packages/spider docs && bun run --cwd packages/sql docs && bun run --cwd packages/ocr docs && bun run --cwd packages/pdf docs && bun run --cwd packages/ai docs && bun run --cwd packages/smrt docs",
+    "docs:serve": "node scripts/serve-docs.js",
+    "docs:dev": "node scripts/serve-docs.js --watch",
     "validate-build": "node scripts/validate-build.js",
     "dev": "bun run build:watch",
     "publish-packages": "bun build && changeset publish",
@@ -31,8 +35,11 @@
     "@jpisnice/shadcn-ui-mcp-server": "1.1.0",
     "@playwright/mcp": "0.0.34",
     "@playwright/test": "^1.54.2",
+    "chokidar": "^4.0.1",
     "conventional-changelog-cli": "^5.0.0",
+    "express": "^4.21.2",
     "lefthook": "^1.11.13",
+    "livereload": "^0.9.3",
     "playwright-core": "^1.54.2",
     "repomix": "^0.3.6",
     "standard-version": "^9.5.0",
@@ -48,6 +55,7 @@
     "bun": ">=1.0.0"
   },
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "smrt/*"
   ]
 }

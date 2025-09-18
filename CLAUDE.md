@@ -14,11 +14,13 @@ The HAppy VErtical (HAVE) SDK is a TypeScript monorepo designed for building ver
 
 The SDK is organized as a bun workspace with several packages that provide specific functionality:
 
-- **ai**: A standardized interface for AI model interactions, currently supporting OpenAI
-- **files**: Tools for interacting with file systems (local and remote)
-- **pdf**: Utilities for parsing and processing PDF documents
-- **smrt**: Core library for building AI agents with standardized collections and objects 
-- **spider**: Web crawling and content parsing tools (renamed from "web")
+- **ai**: A standardized interface for AI model interactions across multiple providers (OpenAI, Anthropic, Google Gemini, AWS Bedrock)
+- **content**: Content processing module for documents, web content, and media (separated from SMRT for modularity)
+- **files**: Tools for interacting with file systems (local and remote, Node.js-focused)
+- **ocr**: Optical Character Recognition with multiple provider support
+- **pdf**: Utilities for parsing and processing PDF documents with OCR fallback
+- **smrt**: Core AI agent framework with standardized collections and code generators (simplified, no longer includes content processing)
+- **spider**: Web crawling and content parsing tools
 - **sql**: Database interaction with support for SQLite and Postgres
 - **utils**: Shared utility functions used across packages
 
@@ -37,11 +39,21 @@ The build process follows a specific order to respect internal dependencies:
 
 1. `@have/utils` (base utilities used by all packages)
 2. `@have/files` (file system interactions)
-3. `@have/spider` (web crawling)
-4. `@have/sql` (database interactions)
-5. `@have/pdf` (PDF processing)
-6. `@have/ai` (AI model interfaces)
-7. `@have/smrt` (agent framework that depends on all the above)
+3. `@have/sql` (database interactions, no internal dependencies)
+4. `@have/ocr` (OCR processing, no internal dependencies)
+5. `@have/pdf` (PDF processing with OCR integration)
+6. `@have/ai` (AI model interfaces, no internal dependencies)
+7. `@have/spider` (web crawling with files integration)
+8. `@have/smrt` (core agent framework, depends on ai, files, sql, utils)
+
+### SMRT Modules (smrt/ directory)
+
+The following packages are SMRT-specific modules located in the `smrt/` directory and excluded from the main build:
+
+- `@have/content` (content processing, depends on smrt, pdf, spider)
+- `@have/products` (microservice template and examples)
+
+**Note**: All packages now use Node.js-only builds for simplified deployment and better performance. The dual-target (browser/node) architecture has been removed in favor of focused Node.js development.
 
 ### Code Style and Conventions
 
