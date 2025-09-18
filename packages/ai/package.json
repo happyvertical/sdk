@@ -3,17 +3,13 @@
   "version": "0.0.50", 
   "description": "Context-aware AI client library with support for multiple providers",
   "type": "module",
-  "main": "dist/node.js",
-  "browser": "dist/browser.js",
-  "types": "dist/shared/types.d.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "browser": "./dist/browser.js",
-      "node": "./dist/node.js",
-      "default": "./dist/node.js"
-    },
-    "./browser": "./dist/browser.js",
-    "./node": "./dist/node.js"
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   },
   "files": [
     "dist"
@@ -23,7 +19,9 @@
     "test:watch": "bun test --watch",
     "build": "tsc --build",
     "build:watch": "tsc --build --watch",
-    "clean": "rm -rf dist *.tsbuildinfo",
+    "docs": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules",
+    "docs:watch": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules --watch",
+    "clean": "rm -rf dist docs *.tsbuildinfo",
     "dev": "bun run build:watch & bun run test:watch"
   },
   "engines": {
