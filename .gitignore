@@ -96,4 +96,7 @@ test-results/
 .svelte-kit
 .npmrc.local
 
+# Package artifacts
+*.tgz
+
 **/.claude/settings.local.json
