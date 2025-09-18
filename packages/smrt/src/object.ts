@@ -9,9 +9,14 @@ import {
 import { escapeSqlValue } from '@have/sql';
 import { Field } from './fields/index.js';
 import { ObjectRegistry } from './registry.js';
+import {
+  DatabaseError,
+  ValidationError,
+  RuntimeError,
+  ErrorUtils
+} from './errors.js';
 
 import { BaseClass } from './class.js';
-import { BaseCollection } from './collection.js';
 
 /**
  * Options for BaseObject initialization
@@ -58,11 +63,6 @@ export interface BaseObjectOptions extends BaseClassOptions {
 export class BaseObject<
   T extends BaseObjectOptions = BaseObjectOptions,
 > extends BaseClass<T> {
-  /**
-   * Reference to the collection this object belongs to
-   */
-  public _collection!: BaseCollection<BaseObject<T>>;
-  
   /**
    * Database table name for this object
    */
@@ -385,42 +385,155 @@ export class BaseObject<
    * @returns Promise resolving to this object
    */
   async save() {
-    if (!this.id) {
-      this.id = crypto.randomUUID();
+    try {
+      // Validate object state before saving
+      await this.validateBeforeSave();
+
+      if (!this.id) {
+        this.id = crypto.randomUUID();
+      }
+
+      if (!this.slug) {
+        this.slug = await this.getSlug();
+      }
+
+      // Update the updated_at timestamp
+      this.updated_at = new Date();
+
+      if (!this.created_at) {
+        this.created_at = new Date();
+      }
+
+      // Setup database table with proper error handling
+      try {
+        await setupTableFromClass(this.options.db, this.constructor);
+      } catch (error) {
+        throw DatabaseError.schemaError(
+          this._tableName || this.constructor.name,
+          'table setup',
+          error instanceof Error ? error : new Error(String(error))
+        );
+      }
+
+      // Execute save operation with retry logic for transient failures
+      const sql = this.generateUpsertStatement();
+
+      await ErrorUtils.withRetry(async () => {
+        try {
+          await this.db.query(sql);
+        } catch (error) {
+          // Detect specific database error types
+          if (error instanceof Error) {
+            if (error.message.includes('UNIQUE constraint failed')) {
+              const field = this.extractConstraintField(error.message);
+              throw ValidationError.uniqueConstraint(field, this.getFieldValue(field));
+            }
+            if (error.message.includes('NOT NULL constraint failed')) {
+              const field = this.extractConstraintField(error.message);
+              throw ValidationError.requiredField(field, this.constructor.name);
+            }
+            throw DatabaseError.queryFailed(sql, error);
+          }
+          throw error;
+        }
+      }, 3, 500);
+
+      return this;
+
+    } catch (error) {
+      // Re-throw SMRT errors as-is, wrap others
+      if (error instanceof ValidationError || error instanceof DatabaseError) {
+        throw error;
+      }
+
+      throw RuntimeError.operationFailed(
+        'save',
+        `${this.constructor.name}#${this.id}`,
+        error instanceof Error ? error : new Error(String(error))
+      );
+    }
+  }
+
+  /**
+   * Validates object state before saving
+   * Override in subclasses to add custom validation logic
+   */
+  protected async validateBeforeSave(): Promise<void> {
+    // Basic validation - ensure required fields are present
+    const fields = fieldsFromClass(this.constructor as any);
+
+    for (const [fieldName, field] of Object.entries(fields)) {
+      if (field instanceof Field && field.options.required) {
+        const value = this.getFieldValue(fieldName);
+        if (value === null || value === undefined || value === '') {
+          throw ValidationError.requiredField(fieldName, this.constructor.name);
+        }
+      }
+    }
+  }
+
+  /**
+   * Gets the value of a field on this object
+   */
+  protected getFieldValue(fieldName: string): any {
+    return (this as any)[fieldName];
+  }
+
+  /**
+   * Extracts field name from database constraint error messages
+   */
+  protected extractConstraintField(errorMessage: string): string {
+    // Try to extract field name from common SQLite constraint patterns
+    const patterns = [
+      /UNIQUE constraint failed: \w+\.(\w+)/,
+      /NOT NULL constraint failed: \w+\.(\w+)/,
+      /constraint failed: (\w+)/i
+    ];
+
+    for (const pattern of patterns) {
+      const match = errorMessage.match(pattern);
+      if (match && match[1]) {
+        return match[1];
+      }
     }
 
-    if (!this.slug) {
-      this.slug = await this.getSlug();
-    }
-
-    // Update the updated_at timestamp
-    this.updated_at = new Date();
-
-    if (!this.created_at) {
-      this.created_at = new Date();
-    }
-
-    await setupTableFromClass(this.options.db, this.constructor);
-
-    const sql = this.generateUpsertStatement();
-    await this.db.query(sql);
-
-    return this;
+    return 'unknown_field';
   }
 
   /**
    * Loads this object's data from the database using its ID
-   * 
+   *
    * @returns Promise that resolves when loading is complete
    */
   public async loadFromId() {
-    const {
-      rows: [existing],
-    } = await this.db.query(`SELECT * FROM ${this.tableName} WHERE id = ?`, [
-      this.options.id,
-    ]);
-    if (existing) {
-      this.loadDataFromDb(existing);
+    try {
+      if (!this.options.id) {
+        throw ValidationError.requiredField('id', this.constructor.name);
+      }
+
+      const sql = `SELECT * FROM ${this.tableName} WHERE id = ?`;
+
+      await ErrorUtils.withRetry(async () => {
+        try {
+          const { rows: [existing] } = await this.db.query(sql, [this.options.id]);
+          if (existing) {
+            this.loadDataFromDb(existing);
+          }
+        } catch (error) {
+          throw DatabaseError.queryFailed(sql, error instanceof Error ? error : new Error(String(error)));
+        }
+      }, 3, 250);
+
+    } catch (error) {
+      if (error instanceof ValidationError || error instanceof DatabaseError) {
+        throw error;
+      }
+
+      throw RuntimeError.operationFailed(
+        'loadFromId',
+        `${this.constructor.name}#${this.options.id}`,
+        error instanceof Error ? error : new Error(String(error))
+      );
     }
   }
 

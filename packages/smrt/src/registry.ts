@@ -236,6 +236,7 @@ export class ObjectRegistry {
     const registered = this.classes.get(name);
     return registered ? registered.config : {};
   }
+
 }
 
 /**
