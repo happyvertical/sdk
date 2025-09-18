@@ -355,3 +355,16 @@ export const parseDate = (dateStr: string, formatStr?: string): Date => {
 
 export const isValidDate = isValid;
 export const addInterval = add;
+
+/**
+ * Gets a temporary directory path (cross-platform)
+ */
+export const getTempDirectory = (subfolder?: string): string => {
+  // Use Node.js os.tmpdir() or fallback
+  const tmpBase = typeof process !== 'undefined' && process.env
+    ? (process.env.TMPDIR || process.env.TMP || process.env.TEMP || '/tmp')
+    : '/tmp';
+
+  const basePath = `${tmpBase}/.have-sdk`;
+  return subfolder ? `${basePath}/${subfolder}` : basePath;
+};

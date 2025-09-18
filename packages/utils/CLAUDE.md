@@ -396,6 +396,46 @@ bun run build:watch   # Build in watch mode
 - **Error messages**: Provide clear, actionable error messages with context
 - **Version compatibility**: Consider backward compatibility when updating APIs
 
+## API Documentation
+
+The @have/utils package generates comprehensive API documentation in both HTML and markdown formats using TypeDoc:
+
+### Generated Documentation Formats
+
+**HTML Documentation** (recommended for browsing):
+- Generated in `docs/` directory for public website
+- Full API reference with interactive navigation
+- Cross-linked type definitions and examples
+- Accessible via development server at `http://localhost:3030/`
+
+**Markdown Documentation** (great for development):
+- Generated in `packages/utils/docs/` directory
+- Markdown format perfect for IDE integration
+- Accessible via development server at `http://localhost:3030/packages/utils/`
+
+### Generating Documentation
+
+```bash
+# Generate documentation for this package
+npm run docs
+
+# Generate and watch for changes during development
+npm run docs:watch
+
+# Start development server to browse documentation
+npm run dev  # Serves docs at http://localhost:3030
+```
+
+### Development Workflow
+
+Documentation is automatically generated during the build process and can be viewed alongside development:
+
+1. **During Development**: Use `npm run docs:watch` to regenerate docs as you code
+2. **Local Browsing**: Access HTML docs at `http://localhost:3030/` or markdown at `http://localhost:3030/packages/utils/`
+3. **IDE Integration**: Point your editor to `packages/utils/docs/` for offline markdown reference
+
+The documentation includes complete API coverage, usage examples, and cross-references to related HAVE SDK packages.
+
 ## Documentation Links
 
 Always reference the latest documentation when planning utility implementations, as these libraries frequently add new features and performance improvements:

@@ -14,7 +14,7 @@ import {
   parseDate,
   isValidDate,
   addInterval
-} from './node.js';
+} from './index.js';
 
 it('should have a test', () => {
   expect(true).toBe(true);
