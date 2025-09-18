@@ -27,9 +27,7 @@
   "dependencies": {
     "@have/ai": "workspace:*",
     "@have/files": "workspace:*",
-    "@have/pdf": "workspace:*",
     "@have/sql": "workspace:*",
-    "@have/spider": "workspace:*",
     "@have/utils": "workspace:*",
     "@langchain/community": "^0.3.24",
     "cheerio": "^1.0.0",
@@ -42,7 +40,9 @@
     "test:watch": "bun test --watch",
     "build": "tsc --build",
     "build:watch": "tsc --build --watch",
-    "clean": "rm -rf dist",
+    "docs": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules",
+    "docs:watch": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules --watch",
+    "clean": "rm -rf dist docs",
     "dev": "bun run build:watch & bun run test:watch"
   },
   "engines": {
