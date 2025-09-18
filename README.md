@@ -18,13 +18,16 @@ HAVE SDK is designed with these core principles:
 
 | Package | Description |
 |---------|-------------|
-| [@have/ai](./packages/ai/) | Standardized interface for AI model interactions, currently supporting OpenAI |
+| [@have/ai](./packages/ai/) | Standardized interface for AI model interactions across multiple providers |
+| [@have/content](./smrt/content/) | Content processing module for documents, web content, and media |
 | [@have/files](./packages/files/) | Tools for interacting with file systems (local and remote) |
+| [@have/ocr](./packages/ocr/) | Optical Character Recognition with multiple provider support |
 | [@have/pdf](./packages/pdf/) | Utilities for parsing and processing PDF documents |
-| [@have/smrt](./packages/smrt/) | Core library for building AI agents with standardized collections and objects |
+| [@have/smrt](./packages/smrt/) | Core AI agent framework with standardized collections and code generators |
 | [@have/spider](./packages/spider/) | Web crawling and content parsing tools |
 | [@have/sql](./packages/sql/) | Database interaction with support for SQLite and Postgres |
 | [@have/utils](./packages/utils/) | Shared utility functions used across packages |
+| [@have/products](./smrt/products/) | SMRT products module - triple-purpose microservice template |
 
 ## Installation
 
