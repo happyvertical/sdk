@@ -1,7 +1,8 @@
 {
   "name": "@have/ocr",
   "version": "0.0.50",
-  "main": "dist/node.js",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "dependencies": {
     "@have/utils": "workspace:*",
     "@gutenye/ocr-node": "^1.4.8",
@@ -15,15 +16,10 @@
   },
   "exports": {
     ".": {
-      "browser": "./dist/browser.js",
-      "node": "./dist/node.js",
-      "default": "./dist/node.js"
-    },
-    "./browser": "./dist/browser.js",
-    "./node": "./dist/node.js",
-    "./types": "./dist/shared/types.js"
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
   },
-  "browser": "dist/browser.js",
   "description": "Standardized OCR interface with support for multiple providers including Tesseract.js and ONNX (PaddleOCR)",
   "engines": {
     "node": ">=22.0.0"
@@ -36,7 +32,9 @@
     "test:watch": "bun test --watch --timeout 120000",
     "build": "tsc --build",
     "build:watch": "tsc --build --watch",
-    "clean": "rm -rf dist tsconfig.*.tsbuildinfo",
+    "docs": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules",
+    "docs:watch": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules --watch",
+    "clean": "rm -rf dist docs tsconfig.*.tsbuildinfo",
     "dev": "bun run build:watch & bun run test:watch"
   },
   "type": "module",
