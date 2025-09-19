@@ -1,4 +1,11 @@
 import { Pool, PoolClient, QueryResult } from "pg";
+import type {
+  QueryResult as BaseQueryResult,
+  DatabaseInterface,
+  TableInterface,
+} from "./shared/types.js";
+import { buildWhere } from "./shared/utils.js";
+import { DatabaseError, getLogger } from '@have/utils';
 
 /**
  * Configuration options for PostgreSQL database connections
@@ -35,51 +42,6 @@ export interface PostgresOptions {
   port?: number;
 }
 
-/**
- * Result of a database operation that modifies data
- */
-interface QueryResponse {
-  /**
-   * Type of operation performed (e.g., "insert", "update", "delete")
-   */
-  operation: string;
-  
-  /**
-   * Number of rows affected by the operation
-   */
-  affected: number;
-}
-
-/**
- * Interface for table-specific operations
- */
-interface TableMethods {
-  /**
-   * Inserts one or more records into the table
-   * 
-   * @param data - Single record or array of records to insert
-   * @returns Promise resolving to operation result
-   */
-  insert: (
-    data: Record<string, any> | Record<string, any>[],
-  ) => Promise<QueryResponse>;
-  
-  /**
-   * Retrieves a single record from the table matching the where criteria
-   * 
-   * @param data - Criteria to match records
-   * @returns Promise resolving to query result
-   */
-  get: (data: Record<string, any>) => Promise<QueryResult>;
-  
-  /**
-   * Retrieves multiple records from the table matching the where criteria
-   * 
-   * @param data - Criteria to match records
-   * @returns Promise resolving to array of records
-   */
-  list: (data: Record<string, any>) => Promise<any[]>;
-}
 
 /**
  * Creates a PostgreSQL database adapter
@@ -87,7 +49,7 @@ interface TableMethods {
  * @param options - PostgreSQL connection options
  * @returns Database interface for PostgreSQL
  */
-export function getDatabase(options: PostgresOptions = {}) {
+export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
   const {
     url = process.env.SQLOO_URL,
     database = process.env.SQLOO_DATABASE,
@@ -111,16 +73,33 @@ export function getDatabase(options: PostgresOptions = {}) {
   );
 
   /**
-   * Inserts data into a table and returns the operation result
-   * 
+   * Inserts one or more records into a table
+   *
    * @param table - Table name
    * @param data - Single record or array of records to insert
    * @returns Promise resolving to operation result
+   * @throws Error if the insert operation fails
+   *
+   * @example Single record insert:
+   * ```typescript
+   * await db.insert('users', {
+   *   name: 'John Doe',
+   *   email: 'john@example.com'
+   * });
+   * ```
+   *
+   * @example Multiple record insert:
+   * ```typescript
+   * await db.insert('users', [
+   *   { name: 'John', email: 'john@example.com' },
+   *   { name: 'Jane', email: 'jane@example.com' }
+   * ]);
+   * ```
    */
   const insert = async (
     table: string,
     data: Record<string, any> | Record<string, any>[],
-  ): Promise<QueryResponse> => {
+  ): Promise<BaseQueryResult> => {
     // If data is an array, we need to handle multiple rows
     if (Array.isArray(data)) {
       const keys = Object.keys(data[0]);

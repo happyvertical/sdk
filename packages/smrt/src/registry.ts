@@ -1,13 +1,43 @@
 /**
- * Global object registry for smrt classes
- * 
- * Maintains a central registry of all @smrt decorated classes,
- * enabling module awareness and automatic API generation.
+ * Global object registry for SMRT classes
+ *
+ * Maintains a central registry of all @smrt decorated classes, enabling
+ * module awareness, automatic API generation, and runtime introspection.
+ * The registry tracks class definitions, field metadata, and configuration
+ * options for code generation and runtime operations.
+ *
+ * @example Registering a class manually
+ * ```typescript
+ * import { ObjectRegistry } from '@have/smrt';
+ *
+ * ObjectRegistry.register(MyClass, {
+ *   api: { exclude: ['delete'] },
+ *   cli: true
+ * });
+ * ```
+ *
+ * @example Using the decorator (recommended)
+ * ```typescript
+ * import { smrt } from '@have/smrt';
+ *
+ * @smrt({ api: { exclude: ['delete'] } })
+ * class Product extends BaseObject {
+ *   name = text({ required: true });
+ * }
+ * ```
  */
 
 import type { BaseObject } from './object.js';
 import type { BaseCollection } from './collection.js';
 
+/**
+ * Configuration options for SMRT objects registered in the system
+ *
+ * Controls how objects are exposed through generated APIs, CLIs, and MCP servers.
+ * Each section configures a different aspect of code generation and runtime behavior.
+ *
+ * @interface SmartObjectConfig
+ */
 export interface SmartObjectConfig {
   /**
    * Custom name for the object (defaults to class name)
@@ -90,6 +120,12 @@ export interface SmartObjectConfig {
   };
 }
 
+/**
+ * Internal representation of a registered SMRT class
+ *
+ * @interface RegisteredClass
+ * @private
+ */
 interface RegisteredClass {
   name: string;
   constructor: typeof BaseObject;
@@ -106,7 +142,19 @@ export class ObjectRegistry {
   private static collections = new Map<string, typeof BaseCollection>();
   
   /**
-   * Register a new smrt object class
+   * Register a new SMRT object class with the global registry
+   *
+   * @param constructor - The class constructor extending BaseObject
+   * @param config - Configuration options for API/CLI/MCP generation
+   * @throws {Error} If the class cannot be introspected for field definitions
+   * @example
+   * ```typescript
+   * ObjectRegistry.register(Product, {
+   *   api: { exclude: ['delete'] },
+   *   cli: true,
+   *   mcp: { include: ['list', 'get'] }
+   * });
+   * ```
    */
   static register(
     constructor: typeof BaseObject,
@@ -129,6 +177,13 @@ export class ObjectRegistry {
   
   /**
    * Register a collection class for an object
+   *
+   * @param objectName - Name of the object class this collection manages
+   * @param collectionConstructor - The collection class constructor
+   * @example
+   * ```typescript
+   * ObjectRegistry.registerCollection('Product', ProductCollection);
+   * ```
    */
   static registerCollection(
     objectName: string,
@@ -144,6 +199,16 @@ export class ObjectRegistry {
   
   /**
    * Get a registered class by name
+   *
+   * @param name - Name of the registered class
+   * @returns Registered class information or undefined if not found
+   * @example
+   * ```typescript
+   * const productInfo = ObjectRegistry.getClass('Product');
+   * if (productInfo) {
+   *   console.log(productInfo.config.api?.exclude);
+   * }
+   * ```
    */
   static getClass(name: string): RegisteredClass | undefined {
     return this.classes.get(name);
@@ -151,6 +216,15 @@ export class ObjectRegistry {
   
   /**
    * Get all registered classes
+   *
+   * @returns Map of class names to registered class information
+   * @example
+   * ```typescript
+   * const allClasses = ObjectRegistry.getAllClasses();
+   * for (const [name, info] of allClasses) {
+   *   console.log(`Class: ${name}, Fields: ${info.fields.size}`);
+   * }
+   * ```
    */
   static getAllClasses(): Map<string, RegisteredClass> {
     return new Map(this.classes);

@@ -1,25 +1,68 @@
 /**
  * @have/ocr - Shared type definitions for OCR processing
+ *
+ * This module provides comprehensive type definitions for all OCR operations,
+ * including input formats, configuration options, results, and provider interfaces.
  */
 
 /**
- * Options for OCR processing
+ * Configuration options for OCR processing operations.
+ *
+ * These options control how OCR processing is performed across all providers,
+ * allowing fine-tuning of accuracy, performance, and output format.
+ *
+ * @example Basic usage
+ * ```typescript
+ * const options: OCROptions = {
+ *   language: 'eng',
+ *   confidenceThreshold: 70
+ * };
+ * ```
  */
 export interface OCROptions {
-  /** Language for OCR recognition (default: 'eng') */
+  /**
+   * Language code for OCR recognition. Supports single languages or
+   * combinations separated by '+' for multi-language processing.
+   * @default 'eng'
+   * @example 'eng' - English only
+   * @example 'eng+chi_sim' - English and Chinese
+   */
   language?: string;
-  /** Whether to enhance image resolution before OCR */
+  /**
+   * Whether to enhance image resolution before OCR processing.
+   * This can improve accuracy for low-resolution images but increases processing time.
+   * @default false
+   */
   improveResolution?: boolean;
-  /** Output format for OCR results */
+  /**
+   * Desired output format for OCR results.
+   * - 'text' - Plain text only (fastest)
+   * - 'json' - Structured data with bounding boxes and confidence
+   * - 'hocr' - HTML-based OCR format with positioning data
+   * @default 'text'
+   */
   outputFormat?: 'text' | 'json' | 'hocr';
-  /** Confidence threshold for OCR results (0-100) */
+  /**
+   * Minimum confidence threshold for including text in results (0-100).
+   * Text detections with confidence below this threshold will be filtered out.
+   * @default undefined (no filtering)
+   */
   confidenceThreshold?: number;
-  /** Timeout in milliseconds for OCR processing */
+  /**
+   * Maximum time to wait for OCR processing to complete, in milliseconds.
+   * @default 30000 (30 seconds)
+   */
   timeout?: number;
 }
 
 /**
- * Image data input for OCR processing
+ * Represents an image input for OCR processing operations.
+ *
+ * Supports multiple input formats to accommodate different use cases:
+ * - Raw image files (PNG, JPEG, etc.) as Buffer
+ * - RGB pixel data with dimensions
+ * - Base64 encoded image strings
+ * - File paths (as strings)
  */
 export interface OCRImage {
   /** Image data as Buffer, Uint8Array, or string (base64/path) */
@@ -37,7 +80,10 @@ export interface OCRImage {
 }
 
 /**
- * OCR result with confidence information
+ * Result object returned from OCR processing operations.
+ *
+ * Contains the extracted text, confidence metrics, and optional
+ * detailed detection information including bounding boxes.
  */
 export interface OCRResult {
   /** Extracted text */
@@ -102,7 +148,10 @@ export interface OCRCapabilities {
 }
 
 /**
- * Core OCR provider interface
+ * Core interface that all OCR providers must implement.
+ *
+ * This interface standardizes OCR operations across different engines
+ * providing a consistent API for text extraction.
  */
 export interface OCRProvider {
   /** Provider name identifier */
