@@ -56,7 +56,7 @@ export class ONNXGutenyeProvider implements OCRProvider {
   private rgbToJpegBuffer(rgbData: Buffer, width: number, height: number): Buffer {
     // Convert RGB to RGBA format that jpeg-js expects
     const rgbaData = Buffer.alloc(width * height * 4);
-    
+
     for (let i = 0; i < rgbData.length; i += 3) {
       const rgbaIndex = (i / 3) * 4;
       rgbaData[rgbaIndex] = rgbData[i];     // R
@@ -64,15 +64,78 @@ export class ONNXGutenyeProvider implements OCRProvider {
       rgbaData[rgbaIndex + 2] = rgbData[i + 2]; // B
       rgbaData[rgbaIndex + 3] = 255;        // A (fully opaque)
     }
-    
+
     // Encode as JPEG with high quality
     const jpegData = jpeg.encode({
       data: rgbaData,
       width: width,
       height: height
     }, 90); // 90% quality for good OCR results
-    
+
     return Buffer.from(jpegData.data);
+  }
+
+  /**
+   * Decode standard image formats (PNG, JPEG) to RGB data
+   */
+  private decodeImageToRGB(imageBuffer: Buffer): { rgbData: Buffer; width: number; height: number } | null {
+    try {
+      // Try PNG first
+      if (imageBuffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))) {
+        console.log('Detected PNG format, decoding...');
+        const png = PNG.sync.read(imageBuffer);
+
+        // Convert RGBA to RGB
+        const rgbData = Buffer.alloc(png.width * png.height * 3);
+        for (let i = 0; i < png.data.length; i += 4) {
+          const rgbIndex = (i / 4) * 3;
+          rgbData[rgbIndex] = png.data[i];     // R
+          rgbData[rgbIndex + 1] = png.data[i + 1]; // G
+          rgbData[rgbIndex + 2] = png.data[i + 2]; // B
+          // Skip alpha channel
+        }
+
+        return {
+          rgbData,
+          width: png.width,
+          height: png.height
+        };
+      }
+
+      // Try JPEG
+      if (imageBuffer.subarray(0, 2).equals(Buffer.from([0xFF, 0xD8]))) {
+        console.log('Detected JPEG format, decoding...');
+        const jpegData = jpeg.decode(imageBuffer);
+
+        // Convert RGBA to RGB if needed
+        let rgbData: Buffer;
+        if (jpegData.data.length === jpegData.width * jpegData.height * 4) {
+          // RGBA format, convert to RGB
+          rgbData = Buffer.alloc(jpegData.width * jpegData.height * 3);
+          for (let i = 0; i < jpegData.data.length; i += 4) {
+            const rgbIndex = (i / 4) * 3;
+            rgbData[rgbIndex] = jpegData.data[i];     // R
+            rgbData[rgbIndex + 1] = jpegData.data[i + 1]; // G
+            rgbData[rgbIndex + 2] = jpegData.data[i + 2]; // B
+          }
+        } else {
+          // Already RGB format
+          rgbData = Buffer.from(jpegData.data);
+        }
+
+        return {
+          rgbData,
+          width: jpegData.width,
+          height: jpegData.height
+        };
+      }
+
+      console.warn('Unknown image format - not PNG or JPEG');
+      return null;
+    } catch (error) {
+      console.error('Failed to decode image:', (error as Error).message);
+      return null;
+    }
   }
 
 
@@ -100,49 +163,79 @@ export class ONNXGutenyeProvider implements OCRProvider {
 
     for (const image of images) {
       try {
-        // Convert RGB data to JPEG (faster than PNG)
+        let rgbData: Buffer;
+        let width: number;
+        let height: number;
+
+        // Handle different image input formats
         if (image.data instanceof Buffer && image.width && image.height) {
-          console.log(`Converting RGB data ${image.width}x${image.height} to JPEG`);
-          const jpegBuffer = this.rgbToJpegBuffer(image.data, image.width, image.height);
+          // Already RGB data with dimensions
+          console.log(`Processing RGB data ${image.width}x${image.height}`);
+          rgbData = image.data;
+          width = image.width;
+          height = image.height;
+        } else if (image.data instanceof Buffer) {
+          // Standard image file (PNG, JPEG) - decode it
+          console.log('Attempting to decode image file...');
+          const decoded = this.decodeImageToRGB(image.data);
+          if (!decoded) {
+            const formatInfo = image.data.length > 8
+              ? `First 8 bytes: ${Array.from(image.data.subarray(0, 8)).map(b => '0x' + b.toString(16).padStart(2, '0')).join(' ')}`
+              : `Buffer too small (${image.data.length} bytes)`;
+            console.warn(`Failed to decode image - unsupported format. ${formatInfo}`);
+            console.warn('Supported formats: PNG (starts with 89 50 4E 47), JPEG (starts with FF D8)');
+            continue;
+          }
+          rgbData = decoded.rgbData;
+          width = decoded.width;
+          height = decoded.height;
+          console.log(`Successfully decoded image: ${width}x${height}`);
+        } else {
+          const dataType = typeof image.data;
+          const isArray = Array.isArray(image.data);
+          console.warn(`Unsupported image data type: ${dataType}${isArray ? ' (array)' : ''} - expected Buffer with image file data or RGB data with width/height`);
+          continue;
+        }
 
-          // Process with @gutenye/ocr-node - let it handle everything
-          console.log('Processing with @gutenye/ocr-node...');
-          const detections = await this.ocrInstance.detect(jpegBuffer, {
-            language: options?.language || 'eng',
-          });
+        // Convert RGB data to JPEG for @gutenye/ocr-node
+        console.log(`Converting RGB data ${width}x${height} to JPEG`);
+        const jpegBuffer = this.rgbToJpegBuffer(rgbData, width, height);
 
-          console.log('@gutenye/ocr-node result:', detections);
+        // Process with @gutenye/ocr-node
+        console.log('Processing with @gutenye/ocr-node...');
+        const detections = await this.ocrInstance.detect(jpegBuffer, {
+          language: options?.language || 'eng',
+        });
 
-          // Simply pass through the detections with minimal processing
-          if (detections && Array.isArray(detections)) {
-            for (const detection of detections) {
-              if (detection.text) {
-                combinedText += detection.text + ' ';
-                
-                // Convert to our format, handling both API formats
-                const confidence = (detection.score || detection.mean || 0) * 100;
-                const boundingBox = detection.frame ? {
-                  x: detection.frame.left,
-                  y: detection.frame.top,
-                  width: detection.frame.width,
-                  height: detection.frame.height,
-                } : detection.box ? {
-                  x: detection.box[0][0],
-                  y: detection.box[0][1], 
-                  width: detection.box[1][0] - detection.box[0][0],
-                  height: detection.box[2][1] - detection.box[0][1],
-                } : undefined;
+        console.log('@gutenye/ocr-node result:', detections);
 
-                allDetections.push({
-                  text: detection.text,
-                  confidence: confidence,
-                  boundingBox: boundingBox,
-                });
-              }
+        // Process the detections
+        if (detections && Array.isArray(detections)) {
+          for (const detection of detections) {
+            if (detection.text) {
+              combinedText += detection.text + ' ';
+
+              // Convert to our format, handling both API formats
+              const confidence = (detection.score || detection.mean || 0) * 100;
+              const boundingBox = detection.frame ? {
+                x: detection.frame.left,
+                y: detection.frame.top,
+                width: detection.frame.width,
+                height: detection.frame.height,
+              } : detection.box ? {
+                x: detection.box[0][0],
+                y: detection.box[0][1],
+                width: detection.box[1][0] - detection.box[0][0],
+                height: detection.box[2][1] - detection.box[0][1],
+              } : undefined;
+
+              allDetections.push({
+                text: detection.text,
+                confidence: confidence,
+                boundingBox: boundingBox,
+              });
             }
           }
-        } else {
-          console.warn('Unsupported image format - expected RGB data with width/height');
         }
 
       } catch (imageError: any) {
