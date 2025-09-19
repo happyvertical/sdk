@@ -17,6 +17,8 @@
   "scripts": {
     "test": "bun test",
     "test:watch": "bun test --watch",
+    "test:sqlite": "bun test src/sqlite.spec.ts",
+    "test:postgres": "bun test src/postgres.spec.ts",
     "build": "tsc --build",
     "build:watch": "tsc --build --watch",
     "docs": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules",
