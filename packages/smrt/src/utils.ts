@@ -3,9 +3,18 @@ import yaml from 'yaml';
 
 /**
  * Checks if a field name indicates a date field based on naming conventions
- * 
+ *
+ * Recognizes common date field patterns like '_at', '_date', and 'date'.
+ * Used for automatic type inference during schema generation.
+ *
  * @param key - Field name to check
  * @returns Boolean indicating if the field is likely a date field
+ * @example
+ * ```typescript
+ * isDateField('created_at'); // true
+ * isDateField('updated_date'); // true
+ * isDateField('name'); // false
+ * ```
  */
 export function isDateField(key: string) {
   return key.endsWith('_date') || key.endsWith('_at') || key === 'date';
@@ -38,11 +47,21 @@ export function dateAsObject(date: Date | string) {
 }
 
 /**
- * Extracts field definitions from a class
- * 
+ * Extracts field definitions from a class constructor
+ *
+ * Creates a temporary instance to introspect field definitions and their types.
+ * This enables automatic schema generation from TypeScript class properties.
+ *
  * @param ClassType - Class constructor to extract fields from
  * @param values - Optional values to set for the fields
- * @returns Object containing field definitions
+ * @returns Object containing field definitions with names, types, and values
+ * @throws {Error} If the class cannot be instantiated for introspection
+ * @example
+ * ```typescript
+ * const fields = fieldsFromClass(Product);
+ * console.log(fields.name.type); // 'TEXT'
+ * console.log(fields.price.type); // 'INTEGER'
+ * ```
  */
 export function fieldsFromClass(
   ClassType: new (...args: any[]) => any,
@@ -131,10 +150,27 @@ export function fieldsFromClass(
 }
 
 /**
- * Generates a database schema SQL statement for a class
- * 
+ * Generates a complete database schema SQL statement for a class
+ *
+ * Creates CREATE TABLE statement with all fields, constraints, and indexes.
+ * Automatically adds id, slug, and context fields for SMRT object support.
+ *
  * @param ClassType - Class constructor to generate schema for
- * @returns SQL schema creation statement
+ * @returns SQL schema creation statement with CREATE TABLE and CREATE INDEX statements
+ * @example
+ * ```typescript
+ * const schema = generateSchema(Product);
+ * console.log(schema);
+ * // Output:
+ * // CREATE TABLE IF NOT EXISTS products (
+ * //   id TEXT PRIMARY KEY,
+ * //   slug TEXT NOT NULL,
+ * //   context TEXT NOT NULL DEFAULT '',
+ * //   name TEXT,
+ * //   price INTEGER,
+ * //   UNIQUE(slug, context)
+ * // );
+ * ```
  */
 export function generateSchema(ClassType: new (...args: any[]) => any) {
   const tableName = tableNameFromClass(ClassType);
@@ -188,57 +224,6 @@ export function tableNameFromClass(
   );
 }
 
-// export function escapeSqlValue(value: any): string {
-//   if (value === null) {
-//     return 'NULL';
-//   }
-//   if (value instanceof Date) {
-//     return `'${value.toISOString()}'`;
-//   }
-//   if (typeof value === 'number') {
-//     return value.toString();
-//   }
-//   if (typeof value === 'boolean') {
-//     return value ? '1' : '0';
-//   }
-//   // Escape single quotes and wrap in quotes
-//   return `'${String(value).replace(/'/g, "''")}'`;
-// }
-
-// function validateColumnName(column: string): string {
-//   // Only allow alphanumeric characters, underscores, and dots (for table.column notation)
-//   if (!/^[a-zA-Z0-9_.]+$/.test(column)) {
-//     throw new Error(`Invalid column name: ${column}`);
-//   }
-//   return column;
-// }
-
-// export function addWhere({
-//   sql,
-//   replacements = [],
-//   where = {},
-//   required = true,
-// }: {
-//   sql: string;
-//   replacements?: any[];
-//   where?: object;
-//   required?: boolean;
-// }): { sql: string; replacements: any[] } {
-//   const wheres = [];
-//   for (const [key, value] of Object.entries(where)) {
-//     const safeColumnName = validateColumnName(key);
-//     wheres.push(`${safeColumnName} = $${replacements.length + 1}`);
-//     replacements.push(value);
-//   }
-
-//   if (wheres.length > 0) {
-//     sql += ` WHERE ${wheres.join(' AND ')}`;
-//   } else if (required) {
-//     throw new Error('WHERE clause is required but no conditions were provided');
-//   }
-
-//   return { sql, replacements };
-// }
 
 /**
  * Converts a class name to a table name with pluralization
@@ -268,11 +253,20 @@ const _setup_table_from_class_promises: Record<string, Promise<void> | null> =
   {};
 
 /**
- * Sets up database tables for a class
- * 
- * @param db - Database connection
+ * Sets up database tables for a class with caching to prevent duplicate operations
+ *
+ * Creates the database table, indexes, and triggers for a SMRT class.
+ * Uses promise caching to ensure each table is only set up once.
+ *
+ * @param db - Database connection interface
  * @param ClassType - Class constructor to create tables for
  * @returns Promise that resolves when setup is complete
+ * @throws {Error} If schema creation or trigger setup fails
+ * @example
+ * ```typescript
+ * await setupTableFromClass(db, Product);
+ * // Table 'products' is now ready for use
+ * ```
  */
 export async function setupTableFromClass(db: any, ClassType: any) {
   const tableName = classnameToTablename(ClassType.name);

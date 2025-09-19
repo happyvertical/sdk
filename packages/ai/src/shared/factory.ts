@@ -18,33 +18,76 @@ import type {
 /**
  * Type guards for provider options
  */
+
+/**
+ * Checks if the options are for OpenAI provider
+ * @param options - The AI provider options to check
+ * @returns True if options are for OpenAI provider (including default case)
+ */
 function isOpenAIOptions(options: GetAIOptions): options is OpenAIOptions {
   return !options.type || options.type === 'openai';
 }
 
+/**
+ * Checks if the options are for Google Gemini provider
+ * @param options - The AI provider options to check
+ * @returns True if options are for Gemini provider
+ */
 function isGeminiOptions(options: GetAIOptions): options is GeminiOptions {
   return options.type === 'gemini';
 }
 
+/**
+ * Checks if the options are for Anthropic Claude provider
+ * @param options - The AI provider options to check
+ * @returns True if options are for Anthropic provider
+ */
 function isAnthropicOptions(options: GetAIOptions): options is AnthropicOptions {
   return options.type === 'anthropic';
 }
 
+/**
+ * Checks if the options are for Hugging Face provider
+ * @param options - The AI provider options to check
+ * @returns True if options are for Hugging Face provider
+ */
 function isHuggingFaceOptions(options: GetAIOptions): options is HuggingFaceOptions {
   return options.type === 'huggingface';
 }
 
+/**
+ * Checks if the options are for AWS Bedrock provider
+ * @param options - The AI provider options to check
+ * @returns True if options are for Bedrock provider
+ */
 function isBedrockOptions(options: GetAIOptions): options is BedrockOptions {
   return options.type === 'bedrock';
 }
 
 /**
- * Creates an AI provider instance based on the provided options
- * Universal version that works in both browser and Node.js environments
- * 
- * @param options - Configuration options for the AI provider
- * @returns Promise resolving to an AI provider instance
- * @throws ValidationError if the provider type is unsupported
+ * Creates an AI provider instance based on the provided options.
+ * Universal version that works in both browser and Node.js environments.
+ *
+ * @param options - Configuration options for the AI provider. Must include provider type and credentials.
+ * @returns Promise resolving to an AI provider instance that implements the AIInterface
+ * @throws {ValidationError} When the provider type is unsupported or invalid
+ *
+ * @example
+ * ```typescript
+ * // Create OpenAI client
+ * const openai = await getAI({
+ *   type: 'openai',
+ *   apiKey: process.env.OPENAI_API_KEY!,
+ *   defaultModel: 'gpt-4o'
+ * });
+ *
+ * // Create Anthropic client
+ * const anthropic = await getAI({
+ *   type: 'anthropic',
+ *   apiKey: process.env.ANTHROPIC_API_KEY!,
+ *   defaultModel: 'claude-3-5-sonnet-20241022'
+ * });
+ * ```
  */
 export async function getAI(options: GetAIOptions): Promise<AIInterface> {
   if (isOpenAIOptions(options)) {
@@ -79,12 +122,36 @@ export async function getAI(options: GetAIOptions): Promise<AIInterface> {
 }
 
 /**
- * Browser-compatible auto-detection of AI provider based on available credentials
- * Does not rely on process.env
- * 
+ * Browser-compatible auto-detection of AI provider based on available credentials.
+ * Does not rely on process.env, making it suitable for browser environments.
+ *
  * @param options - Configuration options that may contain provider-specific credentials
- * @returns Promise resolving to an AI provider instance
- * @throws ValidationError if no provider can be detected from the options
+ * @returns Promise resolving to an AI provider instance based on detected credentials
+ * @throws {ValidationError} When no provider can be detected from the provided options
+ *
+ * @example
+ * ```typescript
+ * // Auto-detect OpenAI from apiKey
+ * const client1 = await getAIAuto({
+ *   apiKey: 'sk-...', // Detected as OpenAI
+ *   defaultModel: 'gpt-4o'
+ * });
+ *
+ * // Auto-detect Hugging Face from apiToken
+ * const client2 = await getAIAuto({
+ *   apiToken: 'hf_...', // Detected as Hugging Face
+ *   model: 'microsoft/DialoGPT-medium'
+ * });
+ *
+ * // Auto-detect AWS Bedrock from region and credentials
+ * const client3 = await getAIAuto({
+ *   region: 'us-east-1',
+ *   credentials: {
+ *     accessKeyId: 'AKIA...',
+ *     secretAccessKey: 'xxx'
+ *   }
+ * });
+ * ```
  */
 export async function getAIAuto(options: Record<string, any>): Promise<AIInterface> {
   // Auto-detect provider based on available credentials

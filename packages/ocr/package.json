@@ -21,6 +21,25 @@
     }
   },
   "description": "Standardized OCR interface with support for multiple providers including Tesseract.js and ONNX (PaddleOCR)",
+  "keywords": [
+    "ocr",
+    "optical-character-recognition",
+    "text-extraction",
+    "tesseract",
+    "onnx",
+    "paddleocr",
+    "image-to-text",
+    "text-recognition",
+    "multi-provider",
+    "typescript",
+    "browser",
+    "nodejs"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/happyvertical/sdk.git",
+    "directory": "packages/ocr"
+  },
   "engines": {
     "node": ">=22.0.0"
   },
@@ -37,6 +56,5 @@
     "clean": "rm -rf dist docs tsconfig.*.tsbuildinfo",
     "dev": "bun run build:watch & bun run test:watch"
   },
-  "type": "module",
-  "types": "dist/shared/types.d.ts"
+  "type": "module"
 }
