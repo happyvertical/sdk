@@ -8,7 +8,7 @@
 
 ### DirectoryNotEmptyError
 
-Defined in: [packages/files/src/shared/types.ts:528](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L528)
+Defined in: [packages/files/src/shared/types.ts:528](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L528)
 
 Error types for filesystem operations
 
@@ -22,7 +22,7 @@ Error types for filesystem operations
 
 > **new DirectoryNotEmptyError**(`path`, `provider?`): [`DirectoryNotEmptyError`](#directorynotemptyerror)
 
-Defined in: [packages/files/src/shared/types.ts:529](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L529)
+Defined in: [packages/files/src/shared/types.ts:529](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L529)
 
 ###### Parameters
 
@@ -60,7 +60,7 @@ The cause of the error.
 
 > **code**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:505](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L505)
+Defined in: [packages/files/src/shared/types.ts:505](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L505)
 
 ###### Inherited from
 
@@ -90,7 +90,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1076
 
 > `optional` **path**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:506](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L506)
+Defined in: [packages/files/src/shared/types.ts:506](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L506)
 
 ###### Inherited from
 
@@ -100,7 +100,7 @@ Defined in: [packages/files/src/shared/types.ts:506](https://github.com/happyver
 
 > `optional` **provider**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:507](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L507)
+Defined in: [packages/files/src/shared/types.ts:507](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L507)
 
 ###### Inherited from
 
@@ -244,7 +244,7 @@ True if the value is an instance of Error, false otherwise
 
 ### FileNotFoundError
 
-Defined in: [packages/files/src/shared/types.ts:514](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L514)
+Defined in: [packages/files/src/shared/types.ts:514](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L514)
 
 Error types for filesystem operations
 
@@ -258,7 +258,7 @@ Error types for filesystem operations
 
 > **new FileNotFoundError**(`path`, `provider?`): [`FileNotFoundError`](#filenotfounderror)
 
-Defined in: [packages/files/src/shared/types.ts:515](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L515)
+Defined in: [packages/files/src/shared/types.ts:515](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L515)
 
 ###### Parameters
 
@@ -296,7 +296,7 @@ The cause of the error.
 
 > **code**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:505](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L505)
+Defined in: [packages/files/src/shared/types.ts:505](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L505)
 
 ###### Inherited from
 
@@ -326,7 +326,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1076
 
 > `optional` **path**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:506](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L506)
+Defined in: [packages/files/src/shared/types.ts:506](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L506)
 
 ###### Inherited from
 
@@ -336,7 +336,7 @@ Defined in: [packages/files/src/shared/types.ts:506](https://github.com/happyver
 
 > `optional` **provider**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:507](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L507)
+Defined in: [packages/files/src/shared/types.ts:507](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L507)
 
 ###### Inherited from
 
@@ -480,7 +480,7 @@ True if the value is an instance of Error, false otherwise
 
 ### FilesystemAdapter
 
-Defined in: [packages/files/src/filesystem.ts:78](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L78)
+Defined in: [packages/files/src/filesystem.ts:78](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L78)
 
 Base class for filesystem adapters providing common functionality
 
@@ -490,7 +490,7 @@ Base class for filesystem adapters providing common functionality
 
 > **new FilesystemAdapter**(`options`): [`FilesystemAdapter`](#filesystemadapter)
 
-Defined in: [packages/files/src/filesystem.ts:94](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L94)
+Defined in: [packages/files/src/filesystem.ts:94](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L94)
 
 Creates a new FilesystemAdapter instance
 
@@ -512,7 +512,7 @@ Configuration options
 
 > `protected` **cacheDir**: `string`
 
-Defined in: [packages/files/src/filesystem.ts:87](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L87)
+Defined in: [packages/files/src/filesystem.ts:87](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L87)
 
 Cache directory path
 
@@ -520,7 +520,7 @@ Cache directory path
 
 > `protected` **options**: [`FilesystemAdapterOptions`](#filesystemadapteroptions-1)
 
-Defined in: [packages/files/src/filesystem.ts:82](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L82)
+Defined in: [packages/files/src/filesystem.ts:82](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L82)
 
 Configuration options
 
@@ -530,7 +530,7 @@ Configuration options
 
 > **delete**(`path`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/filesystem.ts:179](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L179)
+Defined in: [packages/files/src/filesystem.ts:179](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L179)
 
 Deletes a file or directory
 
@@ -552,7 +552,7 @@ Promise that resolves when the deletion is complete
 
 > **download**(`url`, `options`): `Promise`\<`string`\>
 
-Defined in: [packages/files/src/filesystem.ts:129](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L129)
+Defined in: [packages/files/src/filesystem.ts:129](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L129)
 
 Downloads a file from a URL
 
@@ -584,7 +584,7 @@ Promise resolving to the path of the downloaded file
 
 > **exists**(`path`): `Promise`\<`boolean`\>
 
-Defined in: [packages/files/src/filesystem.ts:146](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L146)
+Defined in: [packages/files/src/filesystem.ts:146](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L146)
 
 Checks if a file or directory exists
 
@@ -606,7 +606,7 @@ Promise resolving to boolean indicating existence
 
 > **getCached**(`file`, `expiry`): `Promise`\<`undefined` \| `string`\>
 
-Defined in: [packages/files/src/filesystem.ts:201](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L201)
+Defined in: [packages/files/src/filesystem.ts:201](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L201)
 
 Gets data from cache if available and not expired
 
@@ -634,7 +634,7 @@ Promise resolving to the cached data or undefined if not found/expired
 
 > `protected` **initialize**(): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/filesystem.ts:117](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L117)
+Defined in: [packages/files/src/filesystem.ts:117](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L117)
 
 Initializes the adapter by creating the cache directory
 
@@ -646,7 +646,7 @@ Initializes the adapter by creating the cache directory
 
 > **list**(`path`): `Promise`\<`string`[]\>
 
-Defined in: [packages/files/src/filesystem.ts:189](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L189)
+Defined in: [packages/files/src/filesystem.ts:189](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L189)
 
 Lists files in a directory
 
@@ -668,7 +668,7 @@ Promise resolving to an array of file names
 
 > **read**(`path`): `Promise`\<`string`\>
 
-Defined in: [packages/files/src/filesystem.ts:157](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L157)
+Defined in: [packages/files/src/filesystem.ts:157](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L157)
 
 Reads a file's contents
 
@@ -690,7 +690,7 @@ Promise resolving to the file contents as a string
 
 > **setCached**(`file`, `data`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/filesystem.ts:212](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L212)
+Defined in: [packages/files/src/filesystem.ts:212](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L212)
 
 Sets data in cache
 
@@ -718,7 +718,7 @@ Promise that resolves when the data is cached
 
 > **write**(`path`, `content`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/filesystem.ts:169](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L169)
+Defined in: [packages/files/src/filesystem.ts:169](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L169)
 
 Writes content to a file
 
@@ -746,7 +746,7 @@ Promise that resolves when the write is complete
 
 > `static` **create**\<`T`\>(`options`): `Promise`\<[`FilesystemAdapter`](#filesystemadapter)\>
 
-Defined in: [packages/files/src/filesystem.ts:106](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L106)
+Defined in: [packages/files/src/filesystem.ts:106](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L106)
 
 Factory method to create and initialize a FilesystemAdapter
 
@@ -774,7 +774,7 @@ Promise resolving to an initialized FilesystemAdapter
 
 ### FilesystemError
 
-Defined in: [packages/files/src/shared/types.ts:502](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L502)
+Defined in: [packages/files/src/shared/types.ts:502](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L502)
 
 Error types for filesystem operations
 
@@ -795,7 +795,7 @@ Error types for filesystem operations
 
 > **new FilesystemError**(`message`, `code`, `path?`, `provider?`): [`FilesystemError`](#filesystemerror)
 
-Defined in: [packages/files/src/shared/types.ts:503](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L503)
+Defined in: [packages/files/src/shared/types.ts:503](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L503)
 
 ###### Parameters
 
@@ -841,7 +841,7 @@ The cause of the error.
 
 > **code**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:505](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L505)
+Defined in: [packages/files/src/shared/types.ts:505](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L505)
 
 ##### message
 
@@ -867,13 +867,13 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1076
 
 > `optional` **path**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:506](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L506)
+Defined in: [packages/files/src/shared/types.ts:506](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L506)
 
 ##### provider?
 
 > `optional` **provider**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:507](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L507)
+Defined in: [packages/files/src/shared/types.ts:507](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L507)
 
 ##### stack?
 
@@ -1013,7 +1013,7 @@ True if the value is an instance of Error, false otherwise
 
 ### InvalidPathError
 
-Defined in: [packages/files/src/shared/types.ts:535](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L535)
+Defined in: [packages/files/src/shared/types.ts:535](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L535)
 
 Error types for filesystem operations
 
@@ -1027,7 +1027,7 @@ Error types for filesystem operations
 
 > **new InvalidPathError**(`path`, `provider?`): [`InvalidPathError`](#invalidpatherror)
 
-Defined in: [packages/files/src/shared/types.ts:536](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L536)
+Defined in: [packages/files/src/shared/types.ts:536](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L536)
 
 ###### Parameters
 
@@ -1065,7 +1065,7 @@ The cause of the error.
 
 > **code**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:505](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L505)
+Defined in: [packages/files/src/shared/types.ts:505](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L505)
 
 ###### Inherited from
 
@@ -1095,7 +1095,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1076
 
 > `optional` **path**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:506](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L506)
+Defined in: [packages/files/src/shared/types.ts:506](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L506)
 
 ###### Inherited from
 
@@ -1105,7 +1105,7 @@ Defined in: [packages/files/src/shared/types.ts:506](https://github.com/happyver
 
 > `optional` **provider**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:507](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L507)
+Defined in: [packages/files/src/shared/types.ts:507](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L507)
 
 ###### Inherited from
 
@@ -1249,7 +1249,7 @@ True if the value is an instance of Error, false otherwise
 
 ### LocalFilesystemProvider
 
-Defined in: [packages/files/src/node/local.ts:37](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/node/local.ts#L37)
+Defined in: [packages/files/src/node/local.ts:37](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/node/local.ts#L37)
 
 Local filesystem provider using Node.js fs module with full feature support
 
@@ -1263,7 +1263,7 @@ Local filesystem provider using Node.js fs module with full feature support
 
 > **new LocalFilesystemProvider**(`options`): [`LocalFilesystemProvider`](#localfilesystemprovider)
 
-Defined in: [packages/files/src/node/local.ts:40](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/node/local.ts#L40)
+Defined in: [packages/files/src/node/local.ts:40](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/node/local.ts#L40)
 
 ###### Parameters
 
@@ -1285,7 +1285,7 @@ Defined in: [packages/files/src/node/local.ts:40](https://github.com/happyvertic
 
 > `protected` **basePath**: `string`
 
-Defined in: [packages/files/src/shared/base.ts:22](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/base.ts#L22)
+Defined in: [packages/files/src/shared/base.ts:22](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/base.ts#L22)
 
 ###### Inherited from
 
@@ -1295,7 +1295,7 @@ Defined in: [packages/files/src/shared/base.ts:22](https://github.com/happyverti
 
 > **cache**: `object`
 
-Defined in: [packages/files/src/node/local.ts:481](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/node/local.ts#L481)
+Defined in: [packages/files/src/node/local.ts:481](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/node/local.ts#L481)
 
 Cache implementation using file system
 
@@ -1357,7 +1357,7 @@ Cache implementation using file system
 
 > `protected` **cacheDir**: `string`
 
-Defined in: [packages/files/src/shared/base.ts:23](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/base.ts#L23)
+Defined in: [packages/files/src/shared/base.ts:23](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/base.ts#L23)
 
 ###### Inherited from
 
@@ -1367,7 +1367,7 @@ Defined in: [packages/files/src/shared/base.ts:23](https://github.com/happyverti
 
 > `protected` **createMissing**: `boolean`
 
-Defined in: [packages/files/src/shared/base.ts:24](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/base.ts#L24)
+Defined in: [packages/files/src/shared/base.ts:24](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/base.ts#L24)
 
 ###### Inherited from
 
@@ -1377,7 +1377,7 @@ Defined in: [packages/files/src/shared/base.ts:24](https://github.com/happyverti
 
 > `protected` **providerType**: `string`
 
-Defined in: [packages/files/src/shared/base.ts:25](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/base.ts#L25)
+Defined in: [packages/files/src/shared/base.ts:25](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/base.ts#L25)
 
 ###### Inherited from
 
@@ -1389,7 +1389,7 @@ Defined in: [packages/files/src/shared/base.ts:25](https://github.com/happyverti
 
 > **copy**(`sourcePath`, `destPath`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/node/local.ts:164](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/node/local.ts#L164)
+Defined in: [packages/files/src/node/local.ts:164](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/node/local.ts#L164)
 
 Copy file from source to destination
 
@@ -1415,7 +1415,7 @@ Copy file from source to destination
 
 > **createDirectory**(`path`, `options`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/node/local.ts:224](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/node/local.ts#L224)
+Defined in: [packages/files/src/node/local.ts:224](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/node/local.ts#L224)
 
 Create directory
 
@@ -1441,7 +1441,7 @@ Create directory
 
 > **delete**(`path`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/node/local.ts:132](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/node/local.ts#L132)
+Defined in: [packages/files/src/node/local.ts:132](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/node/local.ts#L132)
 
 Delete file or directory
 
@@ -1463,7 +1463,7 @@ Delete file or directory
 
 > **download**(`remotePath`, `localPath?`, `options?`): `Promise`\<`string`\>
 
-Defined in: [packages/files/src/shared/base.ts:144](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/base.ts#L144)
+Defined in: [packages/files/src/shared/base.ts:144](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/base.ts#L144)
 
 Download a file (for remote providers)
 
@@ -1493,7 +1493,7 @@ Download a file (for remote providers)
 
 > **downloadFileWithCache**(`url`, `targetPath`): `Promise`\<`string`\>
 
-Defined in: [packages/files/src/node/local.ts:440](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/node/local.ts#L440)
+Defined in: [packages/files/src/node/local.ts:440](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/node/local.ts#L440)
 
 Download a file with caching support (legacy)
 
@@ -1519,7 +1519,7 @@ Download a file with caching support (legacy)
 
 > **downloadFromUrl**(`url`, `filepath`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/node/local.ts:402](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/node/local.ts#L402)
+Defined in: [packages/files/src/node/local.ts:402](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/node/local.ts#L402)
 
 Download a file from a URL and save it to a local file (legacy)
 
@@ -1545,7 +1545,7 @@ Download a file from a URL and save it to a local file (legacy)
 
 > **downloadWithCache**(`remotePath`, `options`): `Promise`\<`string`\>
 
-Defined in: [packages/files/src/shared/base.ts:148](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/base.ts#L148)
+Defined in: [packages/files/src/shared/base.ts:148](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/base.ts#L148)
 
 Download file with caching
 
@@ -1571,7 +1571,7 @@ Download file with caching
 
 > **ensureDirectoryExists**(`dir`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/shared/base.ts:215](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/base.ts#L215)
+Defined in: [packages/files/src/shared/base.ts:215](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/base.ts#L215)
 
 Create a directory if it doesn't exist (legacy)
 
@@ -1593,7 +1593,7 @@ Create a directory if it doesn't exist (legacy)
 
 > **exists**(`path`): `Promise`\<`boolean`\>
 
-Defined in: [packages/files/src/node/local.ts:57](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/node/local.ts#L57)
+Defined in: [packages/files/src/node/local.ts:57](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/node/local.ts#L57)
 
 Check if file or directory exists
 
@@ -1615,7 +1615,7 @@ Check if file or directory exists
 
 > **getCached**(`file`, `expiry`): `Promise`\<`undefined` \| `string`\>
 
-Defined in: [packages/files/src/node/local.ts:454](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/node/local.ts#L454)
+Defined in: [packages/files/src/node/local.ts:454](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/node/local.ts#L454)
 
 Get data from cache if available and not expired (legacy)
 
@@ -1641,7 +1641,7 @@ Get data from cache if available and not expired (legacy)
 
 > `protected` **getCacheKey**(`path`): `string`
 
-Defined in: [packages/files/src/shared/base.ts:118](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/base.ts#L118)
+Defined in: [packages/files/src/shared/base.ts:118](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/base.ts#L118)
 
 Get cache key for a given path
 
@@ -1663,7 +1663,7 @@ Get cache key for a given path
 
 > **getCapabilities**(): `Promise`\<[`FilesystemCapabilities`](#filesystemcapabilities)\>
 
-Defined in: [packages/files/src/node/local.ts:513](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/node/local.ts#L513)
+Defined in: [packages/files/src/node/local.ts:513](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/node/local.ts#L513)
 
 Get provider capabilities
 
@@ -1679,7 +1679,7 @@ Get provider capabilities
 
 > **getMimeType**(`path`): `Promise`\<`string`\>
 
-Defined in: [packages/files/src/node/local.ts:348](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/node/local.ts#L348)
+Defined in: [packages/files/src/node/local.ts:348](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/node/local.ts#L348)
 
 Get MIME type for a file
 
@@ -1701,7 +1701,7 @@ Get MIME type for a file
 
 > **getStats**(`path`): `Promise`\<[`FileStats`](#filestats)\>
 
-Defined in: [packages/files/src/node/local.ts:312](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/node/local.ts#L312)
+Defined in: [packages/files/src/node/local.ts:312](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/node/local.ts#L312)
 
 Get file statistics
 
@@ -1723,7 +1723,7 @@ Get file statistics
 
 > **isDirectory**(`dir`): `Promise`\<`boolean`\>
 
-Defined in: [packages/files/src/shared/base.ts:203](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/base.ts#L203)
+Defined in: [packages/files/src/shared/base.ts:203](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/base.ts#L203)
 
 Check if a path is a directory (legacy)
 
@@ -1745,7 +1745,7 @@ Check if a path is a directory (legacy)
 
 > **isFile**(`file`): `Promise`\<`false` \| [`FileStats`](#filestats)\>
 
-Defined in: [packages/files/src/shared/base.ts:191](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/base.ts#L191)
+Defined in: [packages/files/src/shared/base.ts:191](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/base.ts#L191)
 
 Check if a path is a file (legacy)
 
@@ -1767,7 +1767,7 @@ Check if a path is a file (legacy)
 
 > **list**(`path`, `options`): `Promise`\<[`FileInfo`](#fileinfo)[]\>
 
-Defined in: [packages/files/src/node/local.ts:247](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/node/local.ts#L247)
+Defined in: [packages/files/src/node/local.ts:247](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/node/local.ts#L247)
 
 List directory contents
 
@@ -1793,7 +1793,7 @@ List directory contents
 
 > **listFiles**(`dirPath`, `options`): `Promise`\<`string`[]\>
 
-Defined in: [packages/files/src/shared/base.ts:245](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/base.ts#L245)
+Defined in: [packages/files/src/shared/base.ts:245](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/base.ts#L245)
 
 List files in a directory with optional filtering (legacy)
 
@@ -1819,7 +1819,7 @@ List files in a directory with optional filtering (legacy)
 
 > **move**(`sourcePath`, `destPath`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/node/local.ts:194](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/node/local.ts#L194)
+Defined in: [packages/files/src/node/local.ts:194](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/node/local.ts#L194)
 
 Move file from source to destination
 
@@ -1845,7 +1845,7 @@ Move file from source to destination
 
 > `protected` **normalizePath**(`path`): `string`
 
-Defined in: [packages/files/src/shared/base.ts:73](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/base.ts#L73)
+Defined in: [packages/files/src/shared/base.ts:73](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/base.ts#L73)
 
 Normalize path by removing leading/trailing slashes and resolving relative paths
 
@@ -1867,7 +1867,7 @@ Normalize path by removing leading/trailing slashes and resolving relative paths
 
 > **read**(`path`, `options`): `Promise`\<`string` \| `Buffer`\<`ArrayBufferLike`\>\>
 
-Defined in: [packages/files/src/node/local.ts:70](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/node/local.ts#L70)
+Defined in: [packages/files/src/node/local.ts:70](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/node/local.ts#L70)
 
 Read file contents
 
@@ -1893,7 +1893,7 @@ Read file contents
 
 > **setCached**(`file`, `data`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/node/local.ts:472](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/node/local.ts#L472)
+Defined in: [packages/files/src/node/local.ts:472](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/node/local.ts#L472)
 
 Set data in cache (legacy)
 
@@ -1919,7 +1919,7 @@ Set data in cache (legacy)
 
 > `protected` **throwUnsupported**(`operation`): `never`
 
-Defined in: [packages/files/src/shared/base.ts:61](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/base.ts#L61)
+Defined in: [packages/files/src/shared/base.ts:61](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/base.ts#L61)
 
 Throw error for unsupported operations
 
@@ -1941,7 +1941,7 @@ Throw error for unsupported operations
 
 > **upload**(`localPath`, `remotePath`, `options`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/shared/base.ts:140](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/base.ts#L140)
+Defined in: [packages/files/src/shared/base.ts:140](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/base.ts#L140)
 
 Provider methods with default implementations (may be overridden)
 
@@ -1971,7 +1971,7 @@ Provider methods with default implementations (may be overridden)
 
 > **uploadToUrl**(`url`, `data`): `Promise`\<`Response`\>
 
-Defined in: [packages/files/src/node/local.ts:380](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/node/local.ts#L380)
+Defined in: [packages/files/src/node/local.ts:380](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/node/local.ts#L380)
 
 Upload data to a URL using PUT method (legacy)
 
@@ -1997,7 +1997,7 @@ Upload data to a URL using PUT method (legacy)
 
 > `protected` **validatePath**(`path`): `void`
 
-Defined in: [packages/files/src/shared/base.ts:100](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/base.ts#L100)
+Defined in: [packages/files/src/shared/base.ts:100](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/base.ts#L100)
 
 Validate that a path is safe (no directory traversal)
 
@@ -2019,7 +2019,7 @@ Validate that a path is safe (no directory traversal)
 
 > **write**(`path`, `content`, `options`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/node/local.ts:100](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/node/local.ts#L100)
+Defined in: [packages/files/src/node/local.ts:100](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/node/local.ts#L100)
 
 Write content to file
 
@@ -2049,7 +2049,7 @@ Write content to file
 
 ### PermissionError
 
-Defined in: [packages/files/src/shared/types.ts:521](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L521)
+Defined in: [packages/files/src/shared/types.ts:521](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L521)
 
 Error types for filesystem operations
 
@@ -2063,7 +2063,7 @@ Error types for filesystem operations
 
 > **new PermissionError**(`path`, `provider?`): [`PermissionError`](#permissionerror)
 
-Defined in: [packages/files/src/shared/types.ts:522](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L522)
+Defined in: [packages/files/src/shared/types.ts:522](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L522)
 
 ###### Parameters
 
@@ -2101,7 +2101,7 @@ The cause of the error.
 
 > **code**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:505](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L505)
+Defined in: [packages/files/src/shared/types.ts:505](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L505)
 
 ###### Inherited from
 
@@ -2131,7 +2131,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1076
 
 > `optional` **path**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:506](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L506)
+Defined in: [packages/files/src/shared/types.ts:506](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L506)
 
 ###### Inherited from
 
@@ -2141,7 +2141,7 @@ Defined in: [packages/files/src/shared/types.ts:506](https://github.com/happyver
 
 > `optional` **provider**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:507](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L507)
+Defined in: [packages/files/src/shared/types.ts:507](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L507)
 
 ###### Inherited from
 
@@ -2285,7 +2285,7 @@ True if the value is an instance of Error, false otherwise
 
 ### BaseProviderOptions
 
-Defined in: [packages/files/src/shared/types.ts:414](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L414)
+Defined in: [packages/files/src/shared/types.ts:414](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L414)
 
 Base configuration options for all providers
 
@@ -2303,7 +2303,7 @@ Base configuration options for all providers
 
 > `optional` **basePath**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:418](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L418)
+Defined in: [packages/files/src/shared/types.ts:418](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L418)
 
 Base path for operations
 
@@ -2311,7 +2311,7 @@ Base path for operations
 
 > `optional` **cacheDir**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:423](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L423)
+Defined in: [packages/files/src/shared/types.ts:423](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L423)
 
 Cache directory location
 
@@ -2319,7 +2319,7 @@ Cache directory location
 
 > `optional` **createMissing**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:428](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L428)
+Defined in: [packages/files/src/shared/types.ts:428](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L428)
 
 Whether to create missing directories
 
@@ -2327,7 +2327,7 @@ Whether to create missing directories
 
 ### BrowserStorageOptions
 
-Defined in: [packages/files/src/shared/types.ts:477](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L477)
+Defined in: [packages/files/src/shared/types.ts:477](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L477)
 
 Browser storage provider options (uses IndexedDB for app storage)
 
@@ -2341,7 +2341,7 @@ Browser storage provider options (uses IndexedDB for app storage)
 
 > `optional` **basePath**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:418](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L418)
+Defined in: [packages/files/src/shared/types.ts:418](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L418)
 
 Base path for operations
 
@@ -2353,7 +2353,7 @@ Base path for operations
 
 > `optional` **cacheDir**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:423](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L423)
+Defined in: [packages/files/src/shared/types.ts:423](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L423)
 
 Cache directory location
 
@@ -2365,7 +2365,7 @@ Cache directory location
 
 > `optional` **createMissing**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:428](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L428)
+Defined in: [packages/files/src/shared/types.ts:428](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L428)
 
 Whether to create missing directories
 
@@ -2377,7 +2377,7 @@ Whether to create missing directories
 
 > `optional` **databaseName**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:482](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L482)
+Defined in: [packages/files/src/shared/types.ts:482](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L482)
 
 Database name for IndexedDB
 
@@ -2385,7 +2385,7 @@ Database name for IndexedDB
 
 > `optional` **storageQuota**: `number`
 
-Defined in: [packages/files/src/shared/types.ts:486](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L486)
+Defined in: [packages/files/src/shared/types.ts:486](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L486)
 
 Maximum storage quota to request (in bytes)
 
@@ -2393,13 +2393,13 @@ Maximum storage quota to request (in bytes)
 
 > **type**: `"browser-storage"`
 
-Defined in: [packages/files/src/shared/types.ts:478](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L478)
+Defined in: [packages/files/src/shared/types.ts:478](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L478)
 
 ***
 
 ### CacheOptions
 
-Defined in: [packages/files/src/shared/types.ts:118](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L118)
+Defined in: [packages/files/src/shared/types.ts:118](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L118)
 
 Options for caching operations
 
@@ -2409,7 +2409,7 @@ Options for caching operations
 
 > `optional` **expiry**: `number`
 
-Defined in: [packages/files/src/shared/types.ts:122](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L122)
+Defined in: [packages/files/src/shared/types.ts:122](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L122)
 
 Cache expiry time in milliseconds
 
@@ -2417,7 +2417,7 @@ Cache expiry time in milliseconds
 
 > `optional` **force**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:127](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L127)
+Defined in: [packages/files/src/shared/types.ts:127](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L127)
 
 Whether to force download even if cached
 
@@ -2425,7 +2425,7 @@ Whether to force download even if cached
 
 ### CreateDirOptions
 
-Defined in: [packages/files/src/shared/types.ts:43](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L43)
+Defined in: [packages/files/src/shared/types.ts:43](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L43)
 
 Options for creating directories
 
@@ -2435,7 +2435,7 @@ Options for creating directories
 
 > `optional` **mode**: `number`
 
-Defined in: [packages/files/src/shared/types.ts:52](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L52)
+Defined in: [packages/files/src/shared/types.ts:52](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L52)
 
 Directory mode (permissions)
 
@@ -2443,7 +2443,7 @@ Directory mode (permissions)
 
 > `optional` **recursive**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:47](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L47)
+Defined in: [packages/files/src/shared/types.ts:47](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L47)
 
 Whether to create parent directories recursively
 
@@ -2451,7 +2451,7 @@ Whether to create parent directories recursively
 
 ### DownloadOptions
 
-Defined in: [packages/files/src/shared/types.ts:103](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L103)
+Defined in: [packages/files/src/shared/types.ts:103](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L103)
 
 Options for file download operations
 
@@ -2461,7 +2461,7 @@ Options for file download operations
 
 > `optional` **force**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:107](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L107)
+Defined in: [packages/files/src/shared/types.ts:107](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L107)
 
 Whether to force download even if local copy exists
 
@@ -2469,7 +2469,7 @@ Whether to force download even if local copy exists
 
 > `optional` **onProgress**: (`progress`) => `void`
 
-Defined in: [packages/files/src/shared/types.ts:112](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L112)
+Defined in: [packages/files/src/shared/types.ts:112](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L112)
 
 Progress callback function
 
@@ -2493,7 +2493,7 @@ Progress callback function
 
 ### FileInfo
 
-Defined in: [packages/files/src/shared/types.ts:143](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L143)
+Defined in: [packages/files/src/shared/types.ts:143](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L143)
 
 File information structure
 
@@ -2503,7 +2503,7 @@ File information structure
 
 > `optional` **extension**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:177](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L177)
+Defined in: [packages/files/src/shared/types.ts:177](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L177)
 
 File extension
 
@@ -2511,7 +2511,7 @@ File extension
 
 > **isDirectory**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:162](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L162)
+Defined in: [packages/files/src/shared/types.ts:162](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L162)
 
 Whether this is a directory
 
@@ -2519,7 +2519,7 @@ Whether this is a directory
 
 > **lastModified**: `Date`
 
-Defined in: [packages/files/src/shared/types.ts:167](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L167)
+Defined in: [packages/files/src/shared/types.ts:167](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L167)
 
 Last modified date
 
@@ -2527,7 +2527,7 @@ Last modified date
 
 > `optional` **mimeType**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:172](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L172)
+Defined in: [packages/files/src/shared/types.ts:172](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L172)
 
 MIME type of the file
 
@@ -2535,7 +2535,7 @@ MIME type of the file
 
 > **name**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:147](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L147)
+Defined in: [packages/files/src/shared/types.ts:147](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L147)
 
 File name
 
@@ -2543,7 +2543,7 @@ File name
 
 > **path**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:152](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L152)
+Defined in: [packages/files/src/shared/types.ts:152](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L152)
 
 Full path to the file
 
@@ -2551,7 +2551,7 @@ Full path to the file
 
 > **size**: `number`
 
-Defined in: [packages/files/src/shared/types.ts:157](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L157)
+Defined in: [packages/files/src/shared/types.ts:157](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L157)
 
 File size in bytes
 
@@ -2559,7 +2559,7 @@ File size in bytes
 
 ### FileStats
 
-Defined in: [packages/files/src/shared/types.ts:183](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L183)
+Defined in: [packages/files/src/shared/types.ts:183](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L183)
 
 File statistics structure
 
@@ -2569,7 +2569,7 @@ File statistics structure
 
 > **atime**: `Date`
 
-Defined in: [packages/files/src/shared/types.ts:207](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L207)
+Defined in: [packages/files/src/shared/types.ts:207](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L207)
 
 Last access time
 
@@ -2577,7 +2577,7 @@ Last access time
 
 > **birthtime**: `Date`
 
-Defined in: [packages/files/src/shared/types.ts:202](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L202)
+Defined in: [packages/files/src/shared/types.ts:202](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L202)
 
 Creation time
 
@@ -2585,7 +2585,7 @@ Creation time
 
 > **ctime**: `Date`
 
-Defined in: [packages/files/src/shared/types.ts:217](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L217)
+Defined in: [packages/files/src/shared/types.ts:217](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L217)
 
 Last status change time
 
@@ -2593,7 +2593,7 @@ Last status change time
 
 > **gid**: `number`
 
-Defined in: [packages/files/src/shared/types.ts:232](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L232)
+Defined in: [packages/files/src/shared/types.ts:232](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L232)
 
 Group ID of file owner
 
@@ -2601,7 +2601,7 @@ Group ID of file owner
 
 > **isDirectory**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:192](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L192)
+Defined in: [packages/files/src/shared/types.ts:192](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L192)
 
 Whether this is a directory
 
@@ -2609,7 +2609,7 @@ Whether this is a directory
 
 > **isFile**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:197](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L197)
+Defined in: [packages/files/src/shared/types.ts:197](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L197)
 
 Whether this is a regular file
 
@@ -2617,7 +2617,7 @@ Whether this is a regular file
 
 > **mode**: `number`
 
-Defined in: [packages/files/src/shared/types.ts:222](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L222)
+Defined in: [packages/files/src/shared/types.ts:222](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L222)
 
 File mode (permissions)
 
@@ -2625,7 +2625,7 @@ File mode (permissions)
 
 > **mtime**: `Date`
 
-Defined in: [packages/files/src/shared/types.ts:212](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L212)
+Defined in: [packages/files/src/shared/types.ts:212](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L212)
 
 Last modification time
 
@@ -2633,7 +2633,7 @@ Last modification time
 
 > **size**: `number`
 
-Defined in: [packages/files/src/shared/types.ts:187](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L187)
+Defined in: [packages/files/src/shared/types.ts:187](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L187)
 
 File size in bytes
 
@@ -2641,7 +2641,7 @@ File size in bytes
 
 > **uid**: `number`
 
-Defined in: [packages/files/src/shared/types.ts:227](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L227)
+Defined in: [packages/files/src/shared/types.ts:227](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L227)
 
 User ID of file owner
 
@@ -2649,7 +2649,7 @@ User ID of file owner
 
 ### FilesystemAdapterInterface
 
-Defined in: [packages/files/src/filesystem.ts:9](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L9)
+Defined in: [packages/files/src/filesystem.ts:9](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L9)
 
 Interface defining the required methods for a filesystem adapter
 
@@ -2659,7 +2659,7 @@ Interface defining the required methods for a filesystem adapter
 
 > **delete**(`path`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/filesystem.ts:41](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L41)
+Defined in: [packages/files/src/filesystem.ts:41](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L41)
 
 Deletes a file or directory
 
@@ -2681,7 +2681,7 @@ Promise that resolves when the deletion is complete
 
 > **exists**(`path`): `Promise`\<`boolean`\>
 
-Defined in: [packages/files/src/filesystem.ts:16](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L16)
+Defined in: [packages/files/src/filesystem.ts:16](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L16)
 
 Checks if a file or directory exists
 
@@ -2703,7 +2703,7 @@ Promise resolving to boolean indicating existence
 
 > **list**(`path`): `Promise`\<`string`[]\>
 
-Defined in: [packages/files/src/filesystem.ts:49](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L49)
+Defined in: [packages/files/src/filesystem.ts:49](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L49)
 
 Lists files in a directory
 
@@ -2725,7 +2725,7 @@ Promise resolving to an array of file names
 
 > **mimeType**(`path`): `Promise`\<`string`\>
 
-Defined in: [packages/files/src/filesystem.ts:57](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L57)
+Defined in: [packages/files/src/filesystem.ts:57](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L57)
 
 Gets the MIME type for a file
 
@@ -2747,7 +2747,7 @@ Promise resolving to the MIME type string
 
 > **read**(`path`): `Promise`\<`string`\>
 
-Defined in: [packages/files/src/filesystem.ts:24](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L24)
+Defined in: [packages/files/src/filesystem.ts:24](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L24)
 
 Reads a file's contents
 
@@ -2769,7 +2769,7 @@ Promise resolving to the file contents as a string
 
 > **write**(`path`, `content`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/filesystem.ts:33](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L33)
+Defined in: [packages/files/src/filesystem.ts:33](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L33)
 
 Writes content to a file
 
@@ -2797,7 +2797,7 @@ Promise that resolves when the write is complete
 
 ### FilesystemAdapterOptions
 
-Defined in: [packages/files/src/filesystem.ts:63](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L63)
+Defined in: [packages/files/src/filesystem.ts:63](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L63)
 
 Configuration options for filesystem adapters
 
@@ -2807,7 +2807,7 @@ Configuration options for filesystem adapters
 
 > `optional` **cacheDir**: `string`
 
-Defined in: [packages/files/src/filesystem.ts:72](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L72)
+Defined in: [packages/files/src/filesystem.ts:72](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L72)
 
 Directory to use for caching
 
@@ -2815,7 +2815,7 @@ Directory to use for caching
 
 > `optional` **type**: `string`
 
-Defined in: [packages/files/src/filesystem.ts:67](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/filesystem.ts#L67)
+Defined in: [packages/files/src/filesystem.ts:67](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/filesystem.ts#L67)
 
 Type of filesystem adapter
 
@@ -2823,7 +2823,7 @@ Type of filesystem adapter
 
 ### FilesystemCapabilities
 
-Defined in: [packages/files/src/shared/types.ts:238](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L238)
+Defined in: [packages/files/src/shared/types.ts:238](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L238)
 
 Filesystem capabilities structure
 
@@ -2833,7 +2833,7 @@ Filesystem capabilities structure
 
 > **atomicOperations**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:247](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L247)
+Defined in: [packages/files/src/shared/types.ts:247](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L247)
 
 Whether the filesystem supports atomic operations
 
@@ -2841,7 +2841,7 @@ Whether the filesystem supports atomic operations
 
 > `optional` **maxFileSize**: `number`
 
-Defined in: [packages/files/src/shared/types.ts:272](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L272)
+Defined in: [packages/files/src/shared/types.ts:272](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L272)
 
 Maximum file size supported (in bytes)
 
@@ -2849,7 +2849,7 @@ Maximum file size supported (in bytes)
 
 > **offlineCapable**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:267](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L267)
+Defined in: [packages/files/src/shared/types.ts:267](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L267)
 
 Whether the filesystem can work offline
 
@@ -2857,7 +2857,7 @@ Whether the filesystem can work offline
 
 > **realTimeSync**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:262](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L262)
+Defined in: [packages/files/src/shared/types.ts:262](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L262)
 
 Whether the filesystem supports real-time synchronization
 
@@ -2865,7 +2865,7 @@ Whether the filesystem supports real-time synchronization
 
 > **sharing**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:257](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L257)
+Defined in: [packages/files/src/shared/types.ts:257](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L257)
 
 Whether the filesystem supports sharing/permissions
 
@@ -2873,7 +2873,7 @@ Whether the filesystem supports sharing/permissions
 
 > **streaming**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:242](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L242)
+Defined in: [packages/files/src/shared/types.ts:242](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L242)
 
 Whether the filesystem supports streaming
 
@@ -2881,7 +2881,7 @@ Whether the filesystem supports streaming
 
 > **supportedOperations**: `string`[]
 
-Defined in: [packages/files/src/shared/types.ts:277](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L277)
+Defined in: [packages/files/src/shared/types.ts:277](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L277)
 
 Supported file operations
 
@@ -2889,7 +2889,7 @@ Supported file operations
 
 > **versioning**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:252](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L252)
+Defined in: [packages/files/src/shared/types.ts:252](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L252)
 
 Whether the filesystem supports file versioning
 
@@ -2897,7 +2897,7 @@ Whether the filesystem supports file versioning
 
 ### FilesystemInterface
 
-Defined in: [packages/files/src/shared/types.ts:283](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L283)
+Defined in: [packages/files/src/shared/types.ts:283](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L283)
 
 Core filesystem interface that all providers must implement
 
@@ -2907,7 +2907,7 @@ Core filesystem interface that all providers must implement
 
 > **cache**: `object`
 
-Defined in: [packages/files/src/shared/types.ts:352](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L352)
+Defined in: [packages/files/src/shared/types.ts:352](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L352)
 
 Caching operations
 
@@ -2967,7 +2967,7 @@ Caching operations
 
 > **copy**(`sourcePath`, `destPath`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/shared/types.ts:307](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L307)
+Defined in: [packages/files/src/shared/types.ts:307](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L307)
 
 Copy a file from source to destination
 
@@ -2989,7 +2989,7 @@ Copy a file from source to destination
 
 > **createDirectory**(`path`, `options?`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/shared/types.ts:317](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L317)
+Defined in: [packages/files/src/shared/types.ts:317](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L317)
 
 Create a directory
 
@@ -3011,7 +3011,7 @@ Create a directory
 
 > **delete**(`path`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/shared/types.ts:302](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L302)
+Defined in: [packages/files/src/shared/types.ts:302](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L302)
 
 Delete a file or directory
 
@@ -3029,7 +3029,7 @@ Delete a file or directory
 
 > **download**(`remotePath`, `localPath?`, `options?`): `Promise`\<`string`\>
 
-Defined in: [packages/files/src/shared/types.ts:342](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L342)
+Defined in: [packages/files/src/shared/types.ts:342](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L342)
 
 Download a file (for remote providers)
 
@@ -3055,7 +3055,7 @@ Download a file (for remote providers)
 
 > **downloadFileWithCache**(`url`, `targetPath?`): `Promise`\<`string`\>
 
-Defined in: [packages/files/src/shared/types.ts:393](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L393)
+Defined in: [packages/files/src/shared/types.ts:393](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L393)
 
 Download a file with caching support (legacy)
 
@@ -3077,7 +3077,7 @@ Download a file with caching support (legacy)
 
 > **downloadFromUrl**(`url`, `filepath`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/shared/types.ts:388](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L388)
+Defined in: [packages/files/src/shared/types.ts:388](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L388)
 
 Download a file from a URL and save it to a local file (legacy)
 
@@ -3099,7 +3099,7 @@ Download a file from a URL and save it to a local file (legacy)
 
 > **downloadWithCache**(`remotePath`, `options?`): `Promise`\<`string`\>
 
-Defined in: [packages/files/src/shared/types.ts:347](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L347)
+Defined in: [packages/files/src/shared/types.ts:347](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L347)
 
 Download file with caching
 
@@ -3121,7 +3121,7 @@ Download file with caching
 
 > **ensureDirectoryExists**(`dir`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/shared/types.ts:378](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L378)
+Defined in: [packages/files/src/shared/types.ts:378](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L378)
 
 Create a directory if it doesn't exist (legacy)
 
@@ -3139,7 +3139,7 @@ Create a directory if it doesn't exist (legacy)
 
 > **exists**(`path`): `Promise`\<`boolean`\>
 
-Defined in: [packages/files/src/shared/types.ts:287](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L287)
+Defined in: [packages/files/src/shared/types.ts:287](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L287)
 
 Check if a file or directory exists
 
@@ -3157,7 +3157,7 @@ Check if a file or directory exists
 
 > **getCached**(`file`, `expiry?`): `Promise`\<`undefined` \| `string`\>
 
-Defined in: [packages/files/src/shared/types.ts:403](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L403)
+Defined in: [packages/files/src/shared/types.ts:403](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L403)
 
 Get data from cache if available and not expired (legacy)
 
@@ -3179,7 +3179,7 @@ Get data from cache if available and not expired (legacy)
 
 > **getCapabilities**(): `Promise`\<[`FilesystemCapabilities`](#filesystemcapabilities)\>
 
-Defined in: [packages/files/src/shared/types.ts:361](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L361)
+Defined in: [packages/files/src/shared/types.ts:361](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L361)
 
 Get provider capabilities
 
@@ -3191,7 +3191,7 @@ Get provider capabilities
 
 > **getMimeType**(`path`): `Promise`\<`string`\>
 
-Defined in: [packages/files/src/shared/types.ts:332](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L332)
+Defined in: [packages/files/src/shared/types.ts:332](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L332)
 
 Get MIME type for a file
 
@@ -3209,7 +3209,7 @@ Get MIME type for a file
 
 > **getStats**(`path`): `Promise`\<[`FileStats`](#filestats)\>
 
-Defined in: [packages/files/src/shared/types.ts:327](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L327)
+Defined in: [packages/files/src/shared/types.ts:327](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L327)
 
 Get file statistics
 
@@ -3227,7 +3227,7 @@ Get file statistics
 
 > **isDirectory**(`dir`): `Promise`\<`boolean`\>
 
-Defined in: [packages/files/src/shared/types.ts:373](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L373)
+Defined in: [packages/files/src/shared/types.ts:373](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L373)
 
 Check if a path is a directory (legacy)
 
@@ -3245,7 +3245,7 @@ Check if a path is a directory (legacy)
 
 > **isFile**(`file`): `Promise`\<`false` \| [`FileStats`](#filestats)\>
 
-Defined in: [packages/files/src/shared/types.ts:368](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L368)
+Defined in: [packages/files/src/shared/types.ts:368](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L368)
 
 Check if a path is a file (legacy)
 
@@ -3263,7 +3263,7 @@ Check if a path is a file (legacy)
 
 > **list**(`path`, `options?`): `Promise`\<[`FileInfo`](#fileinfo)[]\>
 
-Defined in: [packages/files/src/shared/types.ts:322](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L322)
+Defined in: [packages/files/src/shared/types.ts:322](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L322)
 
 List directory contents
 
@@ -3285,7 +3285,7 @@ List directory contents
 
 > **listFiles**(`dirPath`, `options?`): `Promise`\<`string`[]\>
 
-Defined in: [packages/files/src/shared/types.ts:398](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L398)
+Defined in: [packages/files/src/shared/types.ts:398](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L398)
 
 List files in a directory with optional filtering (legacy)
 
@@ -3307,7 +3307,7 @@ List files in a directory with optional filtering (legacy)
 
 > **move**(`sourcePath`, `destPath`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/shared/types.ts:312](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L312)
+Defined in: [packages/files/src/shared/types.ts:312](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L312)
 
 Move a file from source to destination
 
@@ -3329,7 +3329,7 @@ Move a file from source to destination
 
 > **read**(`path`, `options?`): `Promise`\<`string` \| `Buffer`\<`ArrayBufferLike`\>\>
 
-Defined in: [packages/files/src/shared/types.ts:292](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L292)
+Defined in: [packages/files/src/shared/types.ts:292](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L292)
 
 Read file contents
 
@@ -3351,7 +3351,7 @@ Read file contents
 
 > **setCached**(`file`, `data`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/shared/types.ts:408](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L408)
+Defined in: [packages/files/src/shared/types.ts:408](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L408)
 
 Set data in cache (legacy)
 
@@ -3373,7 +3373,7 @@ Set data in cache (legacy)
 
 > **upload**(`localPath`, `remotePath`, `options?`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/shared/types.ts:337](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L337)
+Defined in: [packages/files/src/shared/types.ts:337](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L337)
 
 Upload a file (for remote providers)
 
@@ -3399,7 +3399,7 @@ Upload a file (for remote providers)
 
 > **uploadToUrl**(`url`, `data`): `Promise`\<`Response`\>
 
-Defined in: [packages/files/src/shared/types.ts:383](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L383)
+Defined in: [packages/files/src/shared/types.ts:383](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L383)
 
 Upload data to a URL using PUT method (legacy)
 
@@ -3421,7 +3421,7 @@ Upload data to a URL using PUT method (legacy)
 
 > **write**(`path`, `content`, `options?`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/shared/types.ts:297](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L297)
+Defined in: [packages/files/src/shared/types.ts:297](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L297)
 
 Write content to a file
 
@@ -3447,7 +3447,7 @@ Write content to a file
 
 ### GoogleDriveOptions
 
-Defined in: [packages/files/src/shared/types.ts:454](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L454)
+Defined in: [packages/files/src/shared/types.ts:454](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L454)
 
 Google Drive provider options
 
@@ -3461,7 +3461,7 @@ Google Drive provider options
 
 > `optional` **basePath**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:418](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L418)
+Defined in: [packages/files/src/shared/types.ts:418](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L418)
 
 Base path for operations
 
@@ -3473,7 +3473,7 @@ Base path for operations
 
 > `optional` **cacheDir**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:423](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L423)
+Defined in: [packages/files/src/shared/types.ts:423](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L423)
 
 Cache directory location
 
@@ -3485,19 +3485,19 @@ Cache directory location
 
 > **clientId**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:456](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L456)
+Defined in: [packages/files/src/shared/types.ts:456](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L456)
 
 ##### clientSecret
 
 > **clientSecret**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:457](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L457)
+Defined in: [packages/files/src/shared/types.ts:457](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L457)
 
 ##### createMissing?
 
 > `optional` **createMissing**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:428](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L428)
+Defined in: [packages/files/src/shared/types.ts:428](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L428)
 
 Whether to create missing directories
 
@@ -3509,31 +3509,31 @@ Whether to create missing directories
 
 > `optional` **folderId**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:459](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L459)
+Defined in: [packages/files/src/shared/types.ts:459](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L459)
 
 ##### refreshToken
 
 > **refreshToken**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:458](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L458)
+Defined in: [packages/files/src/shared/types.ts:458](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L458)
 
 ##### scopes?
 
 > `optional` **scopes**: `string`[]
 
-Defined in: [packages/files/src/shared/types.ts:460](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L460)
+Defined in: [packages/files/src/shared/types.ts:460](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L460)
 
 ##### type
 
 > **type**: `"gdrive"`
 
-Defined in: [packages/files/src/shared/types.ts:455](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L455)
+Defined in: [packages/files/src/shared/types.ts:455](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L455)
 
 ***
 
 ### ListFilesOptions
 
-Defined in: [packages/files/src/shared/types.ts:133](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L133)
+Defined in: [packages/files/src/shared/types.ts:133](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L133)
 
 Options for listing files (legacy compatibility)
 
@@ -3543,7 +3543,7 @@ Options for listing files (legacy compatibility)
 
 > `optional` **match**: `RegExp`
 
-Defined in: [packages/files/src/shared/types.ts:137](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L137)
+Defined in: [packages/files/src/shared/types.ts:137](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L137)
 
 Optional regular expression to filter files by name
 
@@ -3551,7 +3551,7 @@ Optional regular expression to filter files by name
 
 ### ListOptions
 
-Defined in: [packages/files/src/shared/types.ts:58](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L58)
+Defined in: [packages/files/src/shared/types.ts:58](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L58)
 
 Options for listing directory contents
 
@@ -3561,7 +3561,7 @@ Options for listing directory contents
 
 > `optional` **detailed**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:72](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L72)
+Defined in: [packages/files/src/shared/types.ts:72](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L72)
 
 Whether to return full file information
 
@@ -3569,7 +3569,7 @@ Whether to return full file information
 
 > `optional` **filter**: `string` \| `RegExp`
 
-Defined in: [packages/files/src/shared/types.ts:67](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L67)
+Defined in: [packages/files/src/shared/types.ts:67](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L67)
 
 Filter pattern for file names
 
@@ -3577,7 +3577,7 @@ Filter pattern for file names
 
 > `optional` **recursive**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:62](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L62)
+Defined in: [packages/files/src/shared/types.ts:62](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L62)
 
 Whether to include subdirectories
 
@@ -3585,7 +3585,7 @@ Whether to include subdirectories
 
 ### LocalOptions
 
-Defined in: [packages/files/src/shared/types.ts:434](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L434)
+Defined in: [packages/files/src/shared/types.ts:434](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L434)
 
 Local filesystem provider options
 
@@ -3599,7 +3599,7 @@ Local filesystem provider options
 
 > `optional` **basePath**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:418](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L418)
+Defined in: [packages/files/src/shared/types.ts:418](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L418)
 
 Base path for operations
 
@@ -3611,7 +3611,7 @@ Base path for operations
 
 > `optional` **cacheDir**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:423](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L423)
+Defined in: [packages/files/src/shared/types.ts:423](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L423)
 
 Cache directory location
 
@@ -3623,7 +3623,7 @@ Cache directory location
 
 > `optional` **createMissing**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:428](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L428)
+Defined in: [packages/files/src/shared/types.ts:428](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L428)
 
 Whether to create missing directories
 
@@ -3635,13 +3635,13 @@ Whether to create missing directories
 
 > `optional` **type**: `"local"`
 
-Defined in: [packages/files/src/shared/types.ts:435](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L435)
+Defined in: [packages/files/src/shared/types.ts:435](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L435)
 
 ***
 
 ### ReadOptions
 
-Defined in: [packages/files/src/shared/types.ts:8](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L8)
+Defined in: [packages/files/src/shared/types.ts:8](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L8)
 
 Options for reading files
 
@@ -3651,7 +3651,7 @@ Options for reading files
 
 > `optional` **encoding**: `BufferEncoding`
 
-Defined in: [packages/files/src/shared/types.ts:12](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L12)
+Defined in: [packages/files/src/shared/types.ts:12](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L12)
 
 Text encoding for reading the file
 
@@ -3659,7 +3659,7 @@ Text encoding for reading the file
 
 > `optional` **raw**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:17](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L17)
+Defined in: [packages/files/src/shared/types.ts:17](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L17)
 
 Whether to return raw buffer data instead of string
 
@@ -3667,7 +3667,7 @@ Whether to return raw buffer data instead of string
 
 ### S3Options
 
-Defined in: [packages/files/src/shared/types.ts:441](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L441)
+Defined in: [packages/files/src/shared/types.ts:441](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L441)
 
 S3-compatible provider options
 
@@ -3681,13 +3681,13 @@ S3-compatible provider options
 
 > `optional` **accessKeyId**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:445](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L445)
+Defined in: [packages/files/src/shared/types.ts:445](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L445)
 
 ##### basePath?
 
 > `optional` **basePath**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:418](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L418)
+Defined in: [packages/files/src/shared/types.ts:418](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L418)
 
 Base path for operations
 
@@ -3699,13 +3699,13 @@ Base path for operations
 
 > **bucket**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:444](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L444)
+Defined in: [packages/files/src/shared/types.ts:444](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L444)
 
 ##### cacheDir?
 
 > `optional` **cacheDir**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:423](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L423)
+Defined in: [packages/files/src/shared/types.ts:423](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L423)
 
 Cache directory location
 
@@ -3717,7 +3717,7 @@ Cache directory location
 
 > `optional` **createMissing**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:428](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L428)
+Defined in: [packages/files/src/shared/types.ts:428](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L428)
 
 Whether to create missing directories
 
@@ -3729,37 +3729,37 @@ Whether to create missing directories
 
 > `optional` **endpoint**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:447](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L447)
+Defined in: [packages/files/src/shared/types.ts:447](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L447)
 
 ##### forcePathStyle?
 
 > `optional` **forcePathStyle**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:448](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L448)
+Defined in: [packages/files/src/shared/types.ts:448](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L448)
 
 ##### region
 
 > **region**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:443](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L443)
+Defined in: [packages/files/src/shared/types.ts:443](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L443)
 
 ##### secretAccessKey?
 
 > `optional` **secretAccessKey**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:446](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L446)
+Defined in: [packages/files/src/shared/types.ts:446](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L446)
 
 ##### type
 
 > **type**: `"s3"`
 
-Defined in: [packages/files/src/shared/types.ts:442](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L442)
+Defined in: [packages/files/src/shared/types.ts:442](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L442)
 
 ***
 
 ### UploadOptions
 
-Defined in: [packages/files/src/shared/types.ts:78](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L78)
+Defined in: [packages/files/src/shared/types.ts:78](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L78)
 
 Options for file upload operations
 
@@ -3769,7 +3769,7 @@ Options for file upload operations
 
 > `optional` **contentType**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:82](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L82)
+Defined in: [packages/files/src/shared/types.ts:82](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L82)
 
 Content type for the upload
 
@@ -3777,7 +3777,7 @@ Content type for the upload
 
 > `optional` **metadata**: `Record`\<`string`, `string`\>
 
-Defined in: [packages/files/src/shared/types.ts:92](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L92)
+Defined in: [packages/files/src/shared/types.ts:92](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L92)
 
 Custom metadata to attach to the file
 
@@ -3785,7 +3785,7 @@ Custom metadata to attach to the file
 
 > `optional` **onProgress**: (`progress`) => `void`
 
-Defined in: [packages/files/src/shared/types.ts:97](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L97)
+Defined in: [packages/files/src/shared/types.ts:97](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L97)
 
 Progress callback function
 
@@ -3809,7 +3809,7 @@ Progress callback function
 
 > `optional` **overwrite**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:87](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L87)
+Defined in: [packages/files/src/shared/types.ts:87](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L87)
 
 Whether to overwrite existing files
 
@@ -3817,7 +3817,7 @@ Whether to overwrite existing files
 
 ### WebDAVOptions
 
-Defined in: [packages/files/src/shared/types.ts:466](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L466)
+Defined in: [packages/files/src/shared/types.ts:466](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L466)
 
 WebDAV provider options (supports Nextcloud, ownCloud, Apache, etc.)
 
@@ -3831,7 +3831,7 @@ WebDAV provider options (supports Nextcloud, ownCloud, Apache, etc.)
 
 > `optional` **basePath**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:418](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L418)
+Defined in: [packages/files/src/shared/types.ts:418](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L418)
 
 Base path for operations
 
@@ -3843,13 +3843,13 @@ Base path for operations
 
 > **baseUrl**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:468](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L468)
+Defined in: [packages/files/src/shared/types.ts:468](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L468)
 
 ##### cacheDir?
 
 > `optional` **cacheDir**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:423](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L423)
+Defined in: [packages/files/src/shared/types.ts:423](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L423)
 
 Cache directory location
 
@@ -3861,7 +3861,7 @@ Cache directory location
 
 > `optional` **createMissing**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:428](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L428)
+Defined in: [packages/files/src/shared/types.ts:428](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L428)
 
 Whether to create missing directories
 
@@ -3873,31 +3873,31 @@ Whether to create missing directories
 
 > `optional` **davPath**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:471](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L471)
+Defined in: [packages/files/src/shared/types.ts:471](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L471)
 
 ##### password
 
 > **password**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:470](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L470)
+Defined in: [packages/files/src/shared/types.ts:470](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L470)
 
 ##### type
 
 > **type**: `"webdav"`
 
-Defined in: [packages/files/src/shared/types.ts:467](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L467)
+Defined in: [packages/files/src/shared/types.ts:467](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L467)
 
 ##### username
 
 > **username**: `string`
 
-Defined in: [packages/files/src/shared/types.ts:469](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L469)
+Defined in: [packages/files/src/shared/types.ts:469](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L469)
 
 ***
 
 ### WriteOptions
 
-Defined in: [packages/files/src/shared/types.ts:23](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L23)
+Defined in: [packages/files/src/shared/types.ts:23](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L23)
 
 Options for writing files
 
@@ -3907,7 +3907,7 @@ Options for writing files
 
 > `optional` **createParents**: `boolean`
 
-Defined in: [packages/files/src/shared/types.ts:37](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L37)
+Defined in: [packages/files/src/shared/types.ts:37](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L37)
 
 Whether to create parent directories if they don't exist
 
@@ -3915,7 +3915,7 @@ Whether to create parent directories if they don't exist
 
 > `optional` **encoding**: `BufferEncoding`
 
-Defined in: [packages/files/src/shared/types.ts:27](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L27)
+Defined in: [packages/files/src/shared/types.ts:27](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L27)
 
 Text encoding for writing the file
 
@@ -3923,7 +3923,7 @@ Text encoding for writing the file
 
 > `optional` **mode**: `number`
 
-Defined in: [packages/files/src/shared/types.ts:32](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L32)
+Defined in: [packages/files/src/shared/types.ts:32](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L32)
 
 File mode (permissions)
 
@@ -3933,7 +3933,7 @@ File mode (permissions)
 
 > **GetFilesystemOptions** = [`LocalOptions`](#localoptions) \| [`S3Options`](#s3options) \| [`GoogleDriveOptions`](#googledriveoptions) \| [`WebDAVOptions`](#webdavoptions) \| [`BrowserStorageOptions`](#browserstorageoptions)
 
-Defined in: [packages/files/src/shared/types.ts:492](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/types.ts#L492)
+Defined in: [packages/files/src/shared/types.ts:492](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/types.ts#L492)
 
 Union type for all provider options
 
@@ -3943,7 +3943,7 @@ Union type for all provider options
 
 > **addRateLimit**(`domain`, `limit`, `interval`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/fetch.ts:123](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/fetch.ts#L123)
+Defined in: [packages/files/src/fetch.ts:123](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/fetch.ts#L123)
 
 Sets rate limit for a specific domain
 
@@ -3977,7 +3977,7 @@ Interval in milliseconds
 
 > **download**(`url`, `filepath`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/legacy.ts:112](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/legacy.ts#L112)
+Defined in: [packages/files/src/legacy.ts:112](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/legacy.ts#L112)
 
 Downloads a file from a URL and saves it to a local file
 
@@ -4011,7 +4011,7 @@ Error if the download fails
 
 > **downloadFileWithCache**(`url`, `targetPath`): `Promise`\<`string`\>
 
-Defined in: [packages/files/src/legacy.ts:154](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/legacy.ts#L154)
+Defined in: [packages/files/src/legacy.ts:154](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/legacy.ts#L154)
 
 Downloads a file with caching support
 
@@ -4041,7 +4041,7 @@ Promise that resolves with the path to the downloaded file
 
 > **ensureDirectoryExists**(`dir`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/legacy.ts:67](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/legacy.ts#L67)
+Defined in: [packages/files/src/legacy.ts:67](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/legacy.ts#L67)
 
 Creates a directory if it doesn't exist
 
@@ -4065,7 +4065,7 @@ Promise that resolves when the directory exists or has been created
 
 > **fetchBuffer**(`url`): `Promise`\<`Buffer`\<`ArrayBufferLike`\>\>
 
-Defined in: [packages/files/src/fetch.ts:190](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/fetch.ts#L190)
+Defined in: [packages/files/src/fetch.ts:190](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/fetch.ts#L190)
 
 Fetches a URL and returns the response as a Buffer
 
@@ -4089,7 +4089,7 @@ Promise resolving to the response body as a Buffer
 
 > **fetchJSON**(`url`): `Promise`\<`any`\>
 
-Defined in: [packages/files/src/fetch.ts:179](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/fetch.ts#L179)
+Defined in: [packages/files/src/fetch.ts:179](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/fetch.ts#L179)
 
 Fetches a URL and returns the response as parsed JSON
 
@@ -4113,7 +4113,7 @@ Promise resolving to the parsed JSON response
 
 > **fetchText**(`url`): `Promise`\<`string`\>
 
-Defined in: [packages/files/src/fetch.ts:168](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/fetch.ts#L168)
+Defined in: [packages/files/src/fetch.ts:168](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/fetch.ts#L168)
 
 Fetches a URL and returns the response as text
 
@@ -4137,7 +4137,7 @@ Promise resolving to the response body as a string
 
 > **fetchToFile**(`url`, `filepath`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/fetch.ts:202](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/fetch.ts#L202)
+Defined in: [packages/files/src/fetch.ts:202](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/fetch.ts#L202)
 
 Fetches a URL and saves the response to a file
 
@@ -4167,7 +4167,7 @@ Promise that resolves when the file is saved
 
 > **getAvailableProviders**(): `string`[]
 
-Defined in: [packages/files/src/shared/factory.ts:30](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/factory.ts#L30)
+Defined in: [packages/files/src/shared/factory.ts:30](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/factory.ts#L30)
 
 Get list of available provider types
 
@@ -4181,7 +4181,7 @@ Get list of available provider types
 
 > **getCached**(`file`, `expiry`): `Promise`\<`undefined` \| `string`\>
 
-Defined in: [packages/files/src/legacy.ts:211](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/legacy.ts#L211)
+Defined in: [packages/files/src/legacy.ts:211](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/legacy.ts#L211)
 
 Gets data from cache if available and not expired
 
@@ -4211,7 +4211,7 @@ Promise that resolves with the cached data or undefined if not found/expired
 
 > **getFilesystem**(`options`): `Promise`\<[`FilesystemInterface`](#filesysteminterface)\>
 
-Defined in: [packages/files/src/shared/factory.ts:166](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/factory.ts#L166)
+Defined in: [packages/files/src/shared/factory.ts:166](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/factory.ts#L166)
 
 Main factory function to create filesystem instances
 
@@ -4231,7 +4231,7 @@ Main factory function to create filesystem instances
 
 > **getMimeType**(`fileOrUrl`): `string`
 
-Defined in: [packages/files/src/legacy.ts:273](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/legacy.ts#L273)
+Defined in: [packages/files/src/legacy.ts:273](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/legacy.ts#L273)
 
 Gets the MIME type for a file or URL based on its extension
 
@@ -4255,7 +4255,7 @@ MIME type string, defaults to 'application/octet-stream' if not found
 
 > **getProviderInfo**(`type`): `object`
 
-Defined in: [packages/files/src/shared/factory.ts:222](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/factory.ts#L222)
+Defined in: [packages/files/src/shared/factory.ts:222](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/factory.ts#L222)
 
 Get provider information
 
@@ -4287,7 +4287,7 @@ Get provider information
 
 > **getRateLimit**(`domain`): `Promise`\<\{ `interval`: `number`; `limit`: `number`; \}\>
 
-Defined in: [packages/files/src/fetch.ts:137](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/fetch.ts#L137)
+Defined in: [packages/files/src/fetch.ts:137](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/fetch.ts#L137)
 
 Gets rate limit configuration for a domain
 
@@ -4311,7 +4311,7 @@ Rate limit configuration object with limit and interval properties
 
 > **initializeProviders**(): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/shared/factory.ts:201](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/factory.ts#L201)
+Defined in: [packages/files/src/shared/factory.ts:201](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/factory.ts#L201)
 
 Initialize providers by registering them
 
@@ -4325,7 +4325,7 @@ Initialize providers by registering them
 
 > **isDirectory**(`dir`): `boolean`
 
-Defined in: [packages/files/src/legacy.ts:48](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/legacy.ts#L48)
+Defined in: [packages/files/src/legacy.ts:48](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/legacy.ts#L48)
 
 Checks if a path is a directory
 
@@ -4353,7 +4353,7 @@ Error if the path exists but is not a directory
 
 > **isFile**(`file`): `undefined` \| `false` \| `Stats` \| `BigIntStats`
 
-Defined in: [packages/files/src/legacy.ts:32](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/legacy.ts#L32)
+Defined in: [packages/files/src/legacy.ts:32](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/legacy.ts#L32)
 
 Checks if a path is a file
 
@@ -4377,7 +4377,7 @@ File stats if the path is a file, false otherwise
 
 > **isProviderAvailable**(`type`): `boolean`
 
-Defined in: [packages/files/src/shared/factory.ts:215](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/factory.ts#L215)
+Defined in: [packages/files/src/shared/factory.ts:215](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/factory.ts#L215)
 
 Check if a provider is available
 
@@ -4397,7 +4397,7 @@ Check if a provider is available
 
 > **listFiles**(`dirPath`, `options`): `Promise`\<`string`[]\>
 
-Defined in: [packages/files/src/legacy.ts:190](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/legacy.ts#L190)
+Defined in: [packages/files/src/legacy.ts:190](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/legacy.ts#L190)
 
 Lists files in a directory with optional filtering
 
@@ -4427,7 +4427,7 @@ Promise that resolves with an array of file names
 
 > **setCached**(`file`, `data`): `Promise`\<`void`\>
 
-Defined in: [packages/files/src/legacy.ts:232](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/legacy.ts#L232)
+Defined in: [packages/files/src/legacy.ts:232](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/legacy.ts#L232)
 
 Sets data in cache
 
@@ -4457,7 +4457,7 @@ Promise that resolves when the data is cached
 
 > **upload**(`url`, `data`): `Promise`\<`Response`\>
 
-Defined in: [packages/files/src/legacy.ts:82](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/legacy.ts#L82)
+Defined in: [packages/files/src/legacy.ts:82](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/legacy.ts#L82)
 
 Uploads data to a URL using PUT method
 
