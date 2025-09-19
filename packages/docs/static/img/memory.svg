@@ -1,0 +1,7 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="100" cy="100" r="60" stroke="#8b5cf6" stroke-width="3" fill="none"/>
+  <circle cx="100" cy="100" r="40" stroke="#a78bfa" stroke-width="2" fill="none"/>
+  <circle cx="100" cy="100" r="20" stroke="#c4b5fd" stroke-width="2" fill="none"/>
+  <circle cx="100" cy="100" r="8" fill="#8b5cf6"/>
+  <text x="100" y="180" text-anchor="middle" font-family="system-ui" font-size="14" fill="#374151">Memory</text>
+</svg>
