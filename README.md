@@ -1,71 +1,88 @@
-# HAppy VErtical SDK (HAVE SDK)
+# Happy Vertical SDK
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-A modular TypeScript SDK for building vertical AI agents with minimal dependencies and maximum flexibility.
+Build powerful AI agents in TypeScript with the SMRT framework. Define your business logic once and get REST APIs, AI tools, and CLI commands automatically generated.
 
-## Overview
-
-HAVE SDK is designed with these core principles:
-
-- **Pure TypeScript** implementation to avoid CommonJS vs ESM compatibility issues
-- **Minimal dependencies** through a carefully designed monorepo architecture
-- **Compartmentalized code** to keep AI agents lean and focused
-- **Easy testing and scaling** with minimal overhead
-- **Standardized interfaces** across different packages
-
-## Packages
-
-| Package | Description |
-|---------|-------------|
-| [@have/ai](./packages/ai/) | Standardized interface for AI model interactions across multiple providers |
-| [@have/content](./smrt/content/) | Content processing module for documents, web content, and media |
-| [@have/files](./packages/files/) | Tools for interacting with file systems (local and remote) |
-| [@have/ocr](./packages/ocr/) | Optical Character Recognition with multiple provider support |
-| [@have/pdf](./packages/pdf/) | Utilities for parsing and processing PDF documents |
-| [@have/smrt](./packages/smrt/) | Core AI agent framework with standardized collections and code generators |
-| [@have/spider](./packages/spider/) | Web crawling and content parsing tools |
-| [@have/sql](./packages/sql/) | Database interaction with support for SQLite and Postgres |
-| [@have/utils](./packages/utils/) | Shared utility functions used across packages |
-| [@have/products](./smrt/products/) | SMRT products module - triple-purpose microservice template |
-
-## Installation
+## Quick Start
 
 ```bash
-# Install with npm
-npm install @have/smrt
-
-# Or with yarn
-yarn add @have/smrt
-
-# Or with bun
-bun add @have/smrt
+bun add @have/smrt @have/ai
 ```
 
-You can also install individual packages based on your needs:
+## Define a Product
 
-```bash
-bun add @have/ai @have/files @have/spider
-```
-
-## Getting Started
+### Simple Definition
 
 ```typescript
-import { Agent } from '@have/smrt';
-import { OpenAIModel } from '@have/ai';
+import { BaseObject, smrt } from '@have/smrt';
 
-// Create a new agent
-const agent = new Agent({
-  model: new OpenAIModel({ apiKey: process.env.OPENAI_API_KEY }),
-  // Configure additional tools as needed
-});
-
-// Use the agent
-const result = await agent.run('Analyze this text and extract key insights');
-console.log(result);
+@smrt()
+export class Product extends BaseObject {
+  name: string = '';
+  description: string = '';
+  price: number = 0;
+  category: string = '';
+}
 ```
 
-See each package's README for more detailed usage examples.
+### With Auto-Generated Features
+
+```typescript
+import { BaseObject, smrt } from '@have/smrt';
+
+@smrt({
+  api: {
+    include: ['list', 'get', 'create', 'update']  // Auto-generates REST endpoints
+  },
+  mcp: {
+    include: ['list', 'get', 'search']           // Auto-generates AI tools
+  },
+  cli: true                                      // Auto-generates CLI commands
+})
+export class Product extends BaseObject {
+  name: string = '';
+  description: string = '';
+  price: number = 0;
+  category: string = '';
+  manufacturer: string = '';
+  specifications: Record<string, any> = {};
+  tags: string[] = [];
+
+  // AI-powered business logic
+  async summarize(): Promise<string> {
+    return await this.do(`Create a brief summary of this product: ${this.name} - ${this.description}`);
+  }
+
+  async isCompatibleWith(other: Product): Promise<boolean> {
+    return await this.is(`compatible with ${other.name} based on specifications and category`);
+  }
+}
+```
+
+That's it. Your `Product` class now automatically provides:
+- **REST API** endpoints at `/api/products/*`
+- **AI Tools** for Claude/GPT to manipulate products
+- **CLI Commands** like `bun product create --name "Widget"`
+- **Database persistence** with automatic schema generation
+- **Type-safe operations** across all interfaces
+
+## Core Packages
+
+| Package | Purpose |
+|---------|---------|
+| **[@have/smrt](./packages/smrt/)** | Core framework with agents, smart objects, and code generation |
+| **[@have/ai](./packages/ai/)** | Multi-provider AI client (OpenAI, Anthropic, Google, AWS) |
+| **[@have/files](./packages/files/)** | File system operations and utilities |
+| **[@have/spider](./packages/spider/)** | Web crawling and content extraction |
+| **[@have/sql](./packages/sql/)** | Database operations for SQLite and Postgres |
+| **[@have/pdf](./packages/pdf/)** | PDF parsing and text extraction |
+| **[@have/ocr](./packages/ocr/)** | Optical Character Recognition |
+| **[@have/utils](./packages/utils/)** | Shared utilities and helpers |
+
+## Documentation
+
+Full documentation available at [https://happyvertical.github.io/sdk/](https://happyvertical.github.io/sdk/)
 
 ## Development
 
@@ -76,54 +93,13 @@ bun install
 # Run tests
 bun test
 
-# Build all packages in correct order
+# Build packages
 bun build
 
-# Watch mode development
+# Development mode
 bun dev
-
-# Lint code
-bun lint
-
-# Format code
-bun format
 ```
-
-## Documentation
-
-### Local Documentation
-
-The SDK provides automatically generated HTML documentation in the `docs/manual` directory.
-This is generated during the build process and can be viewed by opening `docs/manual/index.html` in your browser.
-
-You can generate the documentation separately by running:
-
-```bash
-bun docs
-```
-
-### Online Documentation
-
-The latest API documentation is available online at:
-
-[https://happyvertical.github.io/sdk/](https://happyvertical.github.io/sdk/)
-
-This documentation is automatically updated whenever changes are merged to the master branch.
-
-## Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for details on how to submit pull requests, the development process, and coding standards.
-
-### Development Workflow
-
-HAppy VErtical follows standardized development workflows across all projects:
-
-- **[Definition of Ready](./docs/workflow/DEFINITION_OF_READY.md)** - Criteria before starting work
-- **[Definition of Done](./docs/workflow/DEFINITION_OF_DONE.md)** - PR completion checklist  
-- **[Workflow Process](./docs/workflow/KANBAN.md)** - Kanban CI/CD process
-
-These workflow standards are the organization-wide source of truth. See the [workflow documentation](./docs/workflow/) for implementation details.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
+MIT License - see [LICENSE](./LICENSE) file for details.
