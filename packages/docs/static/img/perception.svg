@@ -1,0 +1,6 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M100 60 L140 100 L100 140 L60 100 Z" stroke="#f59e0b" stroke-width="3" fill="none"/>
+  <circle cx="100" cy="100" r="15" fill="#f59e0b"/>
+  <path d="M100 40 L100 60 M160 100 L140 100 M100 160 L100 140 M40 100 L60 100" stroke="#fbbf24" stroke-width="2"/>
+  <text x="100" y="180" text-anchor="middle" font-family="system-ui" font-size="14" fill="#374151">Perception</text>
+</svg>
