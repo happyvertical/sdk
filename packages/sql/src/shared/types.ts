@@ -188,7 +188,7 @@ export interface DatabaseInterface {
   
   /**
    * Executes a raw SQL query with parameterized values
-   * 
+   *
    * @param str - SQL query string
    * @param vars - Variables to use as parameters
    * @returns Promise resolving to query result with rows and count
@@ -197,6 +197,26 @@ export interface DatabaseInterface {
     str: string,
     ...vars: any[]
   ) => Promise<{ rows: Record<string, any>[]; rowCount: number }>;
+
+  /**
+   * Synchronizes database schema with provided SQL DDL
+   * Creates tables if they don't exist and adds missing columns
+   *
+   * @param schema - SQL schema definition with CREATE TABLE statements
+   * @returns Promise that resolves when schema is synchronized
+   */
+  syncSchema?: (schema: string) => Promise<void>;
+
+  /**
+   * Executes a callback within a database transaction
+   * Automatically commits on success or rolls back on error
+   *
+   * @param callback - Function to execute within transaction
+   * @returns Promise resolving to callback result
+   */
+  transaction?: <T>(
+    callback: (tx: DatabaseInterface) => Promise<T>
+  ) => Promise<T>;
 }
 
 /**
