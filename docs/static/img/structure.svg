@@ -1,0 +1,7 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="40" y="40" width="120" height="120" rx="8" stroke="#3b82f6" stroke-width="3" fill="none"/>
+  <rect x="60" y="60" width="80" height="20" rx="4" fill="#3b82f6"/>
+  <rect x="60" y="90" width="80" height="20" rx="4" fill="#60a5fa"/>
+  <rect x="60" y="120" width="80" height="20" rx="4" fill="#93c5fd"/>
+  <text x="100" y="180" text-anchor="middle" font-family="system-ui" font-size="14" fill="#374151">Structure</text>
+</svg>
