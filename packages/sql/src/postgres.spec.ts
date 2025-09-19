@@ -1,15 +1,15 @@
 import { it, expect, describe, beforeEach, afterEach } from "bun:test";
 import { randomUUID } from "crypto";
 import { getDatabase } from "./index.js";
-describe.skip("postgres tests", () => {
+describe("postgres tests", () => {
   let db: Awaited<ReturnType<typeof getDatabase>>;
   beforeEach(async () => {
     db = await getDatabase({
       type: "postgres",
-      database: process.env.SQLOO_NAME || "sqloo",
+      database: process.env.SQLOO_DATABASE || "testdb",
       host: process.env.SQLOO_HOST || "localhost",
-      user: process.env.SQLOO_USER || "sqloo",
-      password: process.env.SQLOO_PASS || "sqloo",
+      user: process.env.SQLOO_USER || "postgres",
+      password: process.env.SQLOO_PASSWORD || "postgres",
       port: Number(process.env.SQLOO_PORT) || 5432,
     });
 
@@ -25,7 +25,7 @@ describe.skip("postgres tests", () => {
   });
 
   afterEach(async () => {
-    await db.execute`drop table contents`;
+    await db.execute`drop table if exists contents`;
     await db.client.end();
   });
 
@@ -107,5 +107,57 @@ describe.skip("postgres tests", () => {
     expect(result?.id).toEqual(id);
     expect(result?.title).toEqual("hi");
     expect(result?.body).toEqual("universe");
+  });
+
+  it("should support transactions with commit", async () => {
+    const id = randomUUID();
+
+    await db.transaction(async (tx) => {
+      await tx.insert("contents", {
+        id,
+        title: "Transaction Test",
+        body: "This should be committed"
+      });
+
+      // Verify within transaction
+      const result = await tx.get("contents", { id });
+      expect(result).toBeTruthy();
+      expect(result?.title).toBe("Transaction Test");
+    });
+
+    // Verify after transaction commits
+    const result = await db.get("contents", { id });
+    expect(result).toBeTruthy();
+    expect(result?.title).toBe("Transaction Test");
+  });
+
+  it("should support transactions with rollback on error", async () => {
+    const id = randomUUID();
+
+    try {
+      await db.transaction(async (tx) => {
+        await tx.insert("contents", {
+          id,
+          title: "Rollback Test",
+          body: "This should be rolled back"
+        });
+
+        // Verify within transaction
+        const result = await tx.get("contents", { id });
+        expect(result).toBeTruthy();
+
+        // Force an error
+        throw new Error("Intentional rollback");
+      });
+
+      // Should not reach here
+      expect(true).toBe(false);
+    } catch (error: any) {
+      expect(error.message).toBe("Intentional rollback");
+    }
+
+    // Verify record was rolled back
+    const result = await db.get("contents", { id });
+    expect(result).toBeNull();
   });
 });
