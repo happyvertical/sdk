@@ -1,5 +1,9 @@
 /**
  * Anthropic Claude provider implementation
+ *
+ * Provides a standardized interface for interacting with Anthropic's Claude models,
+ * including chat completions, streaming responses, and vision capabilities.
+ * Note: Claude models do not support embeddings - use OpenAI or another provider for that.
  */
 
 import type {
@@ -26,10 +30,19 @@ import {
 // Note: This implementation will require @anthropic-ai/sdk package
 // For now, this is a placeholder that defines the interface
 
+/**
+ * Anthropic Claude provider implementation that handles all interactions with Anthropic's API.
+ * Supports Claude models, streaming, vision capabilities, and function calling.
+ * Does not support embeddings (use OpenAI or another provider for embeddings).
+ */
 export class AnthropicProvider implements AIInterface {
   private options: AnthropicOptions;
   private client: any; // Will be Anthropic instance from @anthropic-ai/sdk
 
+  /**
+   * Creates a new Anthropic provider instance
+   * @param options - Configuration options for the Anthropic provider
+   */
   constructor(options: AnthropicOptions) {
     this.options = {
       defaultModel: 'claude-3-5-sonnet-20241022',
@@ -63,6 +76,11 @@ export class AnthropicProvider implements AIInterface {
     }
   }
 
+  /**
+   * Ensures the Anthropic client is initialized by dynamically importing the SDK
+   * @throws {AIError} When the Anthropic SDK cannot be loaded
+   * @private
+   */
   private async ensureClient() {
     if (!this.client) {
       try {
@@ -87,6 +105,24 @@ export class AnthropicProvider implements AIInterface {
     }
   }
 
+  /**
+   * Generate a chat completion using Claude models
+   * @param messages - Array of conversation messages
+   * @param options - Optional configuration for the chat completion
+   * @returns Promise resolving to the AI response with content and metadata
+   * @throws {AIError} When the API request fails or SDK is not available
+   *
+   * @example
+   * ```typescript
+   * const response = await provider.chat([
+   *   { role: 'system', content: 'You are a helpful assistant.' },
+   *   { role: 'user', content: 'Explain quantum computing' }
+   * ], {
+   *   model: 'claude-3-5-sonnet-20241022',
+   *   maxTokens: 1000
+   * });
+   * ```
+   */
   async chat(messages: AIMessage[], options: ChatOptions = {}): Promise<AIResponse> {
     try {
       await this.ensureClient();
