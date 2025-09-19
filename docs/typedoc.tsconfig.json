@@ -1,0 +1,27 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "skipLibCheck": true,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "moduleResolution": "bundler"
+  },
+  "include": [
+    "../ai/src/**/*",
+    "../files/src/**/*",
+    "../pdf/src/**/*",
+    "../spider/src/**/*",
+    "../sql/src/**/*",
+    "../utils/src/**/*",
+    "../ocr/src/**/*"
+  ],
+  "exclude": [
+    "src/**/*",
+    "node_modules",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/dist/**",
+    "**/build/**"
+  ]
+}

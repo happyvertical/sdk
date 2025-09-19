@@ -4,7 +4,7 @@
 
 ### AIError
 
-Defined in: packages/smrt/src/errors.ts:105
+Defined in: [packages/smrt/src/errors.ts:105](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L105)
 
 AI integration errors
 
@@ -18,7 +18,7 @@ AI integration errors
 
 > **new AIError**(`message`, `code`, `details?`, `cause?`): [`AIError`](#aierror)
 
-Defined in: packages/smrt/src/errors.ts:106
+Defined in: [packages/smrt/src/errors.ts:106](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L106)
 
 ###### Parameters
 
@@ -52,7 +52,7 @@ Defined in: packages/smrt/src/errors.ts:106
 
 > `readonly` **category**: `"database"` \| `"ai"` \| `"filesystem"` \| `"validation"` \| `"network"` \| `"configuration"` \| `"runtime"`
 
-Defined in: packages/smrt/src/errors.ts:13
+Defined in: [packages/smrt/src/errors.ts:13](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L13)
 
 ###### Inherited from
 
@@ -62,7 +62,7 @@ Defined in: packages/smrt/src/errors.ts:13
 
 > `readonly` `optional` **cause**: `Error`
 
-Defined in: packages/smrt/src/errors.ts:15
+Defined in: [packages/smrt/src/errors.ts:15](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L15)
 
 The cause of the error.
 
@@ -74,7 +74,7 @@ The cause of the error.
 
 > `readonly` **code**: `string`
 
-Defined in: packages/smrt/src/errors.ts:12
+Defined in: [packages/smrt/src/errors.ts:12](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L12)
 
 ###### Inherited from
 
@@ -84,7 +84,7 @@ Defined in: packages/smrt/src/errors.ts:12
 
 > `readonly` `optional` **details**: `Record`\<`string`, `any`\>
 
-Defined in: packages/smrt/src/errors.ts:14
+Defined in: [packages/smrt/src/errors.ts:14](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L14)
 
 ###### Inherited from
 
@@ -168,7 +168,7 @@ The maximum number of stack frames to capture.
 
 > **toJSON**(): `object`
 
-Defined in: packages/smrt/src/errors.ts:40
+Defined in: [packages/smrt/src/errors.ts:40](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L40)
 
 Converts error to a serializable object for logging/debugging
 
@@ -212,7 +212,7 @@ Converts error to a serializable object for logging/debugging
 
 > `static` **authenticationFailed**(`provider`): [`AIError`](#aierror)
 
-Defined in: packages/smrt/src/errors.ts:135
+Defined in: [packages/smrt/src/errors.ts:135](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L135)
 
 ###### Parameters
 
@@ -282,7 +282,7 @@ Create .stack property on a target object
 
 > `static` **invalidResponse**(`provider`, `response`): [`AIError`](#aierror)
 
-Defined in: packages/smrt/src/errors.ts:127
+Defined in: [packages/smrt/src/errors.ts:127](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L127)
 
 ###### Parameters
 
@@ -328,7 +328,7 @@ True if the value is an instance of Error, false otherwise
 
 > `static` **providerError**(`provider`, `operation`, `cause?`): [`AIError`](#aierror)
 
-Defined in: packages/smrt/src/errors.ts:110
+Defined in: [packages/smrt/src/errors.ts:110](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L110)
 
 ###### Parameters
 
@@ -352,7 +352,7 @@ Defined in: packages/smrt/src/errors.ts:110
 
 > `static` **rateLimitExceeded**(`provider`, `retryAfter?`): [`AIError`](#aierror)
 
-Defined in: packages/smrt/src/errors.ts:119
+Defined in: [packages/smrt/src/errors.ts:119](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L119)
 
 ###### Parameters
 
@@ -372,7 +372,7 @@ Defined in: packages/smrt/src/errors.ts:119
 
 ### APIGenerator
 
-Defined in: [packages/smrt/src/generators/rest.ts:33](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L33)
+Defined in: [packages/smrt/src/generators/rest.ts:33](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L33)
 
 High-performance API generator using native Bun
 
@@ -382,7 +382,7 @@ High-performance API generator using native Bun
 
 > **new APIGenerator**(`config`, `context`): [`APIGenerator`](#apigenerator)
 
-Defined in: [packages/smrt/src/generators/rest.ts:38](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L38)
+Defined in: [packages/smrt/src/generators/rest.ts:38](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L38)
 
 ###### Parameters
 
@@ -404,7 +404,7 @@ Defined in: [packages/smrt/src/generators/rest.ts:38](https://github.com/happyve
 
 > **createServer**(): `object`
 
-Defined in: [packages/smrt/src/generators/rest.ts:52](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L52)
+Defined in: [packages/smrt/src/generators/rest.ts:52](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L52)
 
 Create Bun server with all routes
 
@@ -424,7 +424,7 @@ Create Bun server with all routes
 
 > **generateHandler**(): (`req`) => `Promise`\<`Response`\>
 
-Defined in: [packages/smrt/src/generators/rest.ts:68](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L68)
+Defined in: [packages/smrt/src/generators/rest.ts:68](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L68)
 
 Generate fetch handler function (for serverless environments)
 
@@ -446,7 +446,7 @@ Generate fetch handler function (for serverless environments)
 
 ### ASTScanner
 
-Defined in: [packages/smrt/src/scanner/ast-scanner.ts:16](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/ast-scanner.ts#L16)
+Defined in: [packages/smrt/src/scanner/ast-scanner.ts:16](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/ast-scanner.ts#L16)
 
 AST scanning and manifest generation for SMRT objects
 
@@ -456,7 +456,7 @@ AST scanning and manifest generation for SMRT objects
 
 > **new ASTScanner**(`filePaths`, `options`): [`ASTScanner`](#astscanner)
 
-Defined in: [packages/smrt/src/scanner/ast-scanner.ts:21](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/ast-scanner.ts#L21)
+Defined in: [packages/smrt/src/scanner/ast-scanner.ts:21](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/ast-scanner.ts#L21)
 
 ###### Parameters
 
@@ -478,7 +478,7 @@ Defined in: [packages/smrt/src/scanner/ast-scanner.ts:21](https://github.com/hap
 
 > **scanFiles**(): [`ScanResult`](#scanresult)[]
 
-Defined in: [packages/smrt/src/scanner/ast-scanner.ts:47](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/ast-scanner.ts#L47)
+Defined in: [packages/smrt/src/scanner/ast-scanner.ts:47](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/ast-scanner.ts#L47)
 
 Scan files for SMRT object definitions
 
@@ -490,7 +490,7 @@ Scan files for SMRT object definitions
 
 ### BaseClass\<T\>
 
-Defined in: [packages/smrt/src/class.ts:45](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L45)
+Defined in: [packages/smrt/src/class.ts:45](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L45)
 
 Foundation class providing core functionality for the SMRT framework
 
@@ -515,7 +515,7 @@ SMRT framework.
 
 > **new BaseClass**\<`T`\>(`options`): [`BaseClass`](#baseclass)\<`T`\>
 
-Defined in: [packages/smrt/src/class.ts:76](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L76)
+Defined in: [packages/smrt/src/class.ts:76](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L76)
 
 Creates a new BaseClass instance
 
@@ -537,7 +537,7 @@ Configuration options for database, filesystem, and AI clients
 
 > `protected` **\_ai**: `AIClient`
 
-Defined in: [packages/smrt/src/class.ts:49](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L49)
+Defined in: [packages/smrt/src/class.ts:49](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L49)
 
 AI client instance for interacting with AI models
 
@@ -545,7 +545,7 @@ AI client instance for interacting with AI models
 
 > `protected` **\_className**: `string`
 
-Defined in: [packages/smrt/src/class.ts:64](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L64)
+Defined in: [packages/smrt/src/class.ts:64](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L64)
 
 Class name used for identification
 
@@ -553,7 +553,7 @@ Class name used for identification
 
 > `protected` **\_db**: `DatabaseInterface`
 
-Defined in: [packages/smrt/src/class.ts:59](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L59)
+Defined in: [packages/smrt/src/class.ts:59](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L59)
 
 Database interface for data persistence
 
@@ -561,7 +561,7 @@ Database interface for data persistence
 
 > `protected` **\_fs**: `FilesystemAdapter`
 
-Defined in: [packages/smrt/src/class.ts:54](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L54)
+Defined in: [packages/smrt/src/class.ts:54](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L54)
 
 Filesystem adapter for file operations
 
@@ -569,7 +569,7 @@ Filesystem adapter for file operations
 
 > `protected` **options**: `T`
 
-Defined in: [packages/smrt/src/class.ts:69](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L69)
+Defined in: [packages/smrt/src/class.ts:69](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L69)
 
 Configuration options provided to the class
 
@@ -581,7 +581,7 @@ Configuration options provided to the class
 
 > **get** **ai**(): `AIClient`
 
-Defined in: [packages/smrt/src/class.ts:118](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L118)
+Defined in: [packages/smrt/src/class.ts:118](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L118)
 
 Gets the AI client instance
 
@@ -595,7 +595,7 @@ Gets the AI client instance
 
 > **get** **db**(): `DatabaseInterface`
 
-Defined in: [packages/smrt/src/class.ts:111](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L111)
+Defined in: [packages/smrt/src/class.ts:111](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L111)
 
 Gets the database interface instance
 
@@ -609,7 +609,7 @@ Gets the database interface instance
 
 > **get** **fs**(): `FilesystemAdapter`
 
-Defined in: [packages/smrt/src/class.ts:104](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L104)
+Defined in: [packages/smrt/src/class.ts:104](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L104)
 
 Gets the filesystem adapter instance
 
@@ -623,7 +623,7 @@ Gets the filesystem adapter instance
 
 > `protected` **initialize**(): `Promise`\<`void`\>
 
-Defined in: [packages/smrt/src/class.ts:89](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L89)
+Defined in: [packages/smrt/src/class.ts:89](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L89)
 
 Initializes database, filesystem, and AI client connections
 
@@ -640,7 +640,7 @@ Promise that resolves when initialization is complete
 
 ### BaseCollection\<ModelType, T\>
 
-Defined in: [packages/smrt/src/collection.ts:25](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/collection.ts#L25)
+Defined in: [packages/smrt/src/collection.ts:25](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/collection.ts#L25)
 
 Collection interface for managing sets of BaseObjects
 
@@ -668,7 +668,7 @@ generation, and provides a fluent interface for querying objects.
 
 > **new BaseCollection**\<`ModelType`, `T`\>(`options`): [`BaseCollection`](#basecollection)\<`ModelType`, `T`\>
 
-Defined in: [packages/smrt/src/collection.ts:130](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/collection.ts#L130)
+Defined in: [packages/smrt/src/collection.ts:130](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/collection.ts#L130)
 
 Creates a new BaseCollection instance
 
@@ -694,7 +694,7 @@ Configuration options
 
 > `protected` **\_ai**: `AIClient`
 
-Defined in: [packages/smrt/src/class.ts:49](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L49)
+Defined in: [packages/smrt/src/class.ts:49](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L49)
 
 AI client instance for interacting with AI models
 
@@ -706,7 +706,7 @@ AI client instance for interacting with AI models
 
 > `protected` **\_className**: `string`
 
-Defined in: [packages/smrt/src/class.ts:64](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L64)
+Defined in: [packages/smrt/src/class.ts:64](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L64)
 
 Class name used for identification
 
@@ -718,7 +718,7 @@ Class name used for identification
 
 > `protected` **\_db**: `DatabaseInterface`
 
-Defined in: [packages/smrt/src/class.ts:59](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L59)
+Defined in: [packages/smrt/src/class.ts:59](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L59)
 
 Database interface for data persistence
 
@@ -730,7 +730,7 @@ Database interface for data persistence
 
 > `protected` **\_db\_setup\_promise**: `null` \| `Promise`\<`void`\> = `null`
 
-Defined in: [packages/smrt/src/collection.ts:32](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/collection.ts#L32)
+Defined in: [packages/smrt/src/collection.ts:32](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/collection.ts#L32)
 
 Promise tracking the database setup operation
 
@@ -738,7 +738,7 @@ Promise tracking the database setup operation
 
 > `protected` **\_fs**: `FilesystemAdapter`
 
-Defined in: [packages/smrt/src/class.ts:54](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L54)
+Defined in: [packages/smrt/src/class.ts:54](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L54)
 
 Filesystem adapter for file operations
 
@@ -750,7 +750,7 @@ Filesystem adapter for file operations
 
 > **\_tableName**: `string`
 
-Defined in: [packages/smrt/src/collection.ts:106](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/collection.ts#L106)
+Defined in: [packages/smrt/src/collection.ts:106](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/collection.ts#L106)
 
 Database table name for this collection
 
@@ -758,7 +758,7 @@ Database table name for this collection
 
 > `protected` **options**: `T`
 
-Defined in: [packages/smrt/src/class.ts:69](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L69)
+Defined in: [packages/smrt/src/class.ts:69](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L69)
 
 Configuration options provided to the class
 
@@ -770,7 +770,7 @@ Configuration options provided to the class
 
 > `readonly` `static` **\_itemClass**: `any`
 
-Defined in: [packages/smrt/src/collection.ts:66](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/collection.ts#L66)
+Defined in: [packages/smrt/src/collection.ts:66](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/collection.ts#L66)
 
 Static reference to the item class constructor
 
@@ -782,7 +782,7 @@ Static reference to the item class constructor
 
 > **get** `protected` **\_itemClass**(): (`options`) => `ModelType` & `object`
 
-Defined in: [packages/smrt/src/collection.ts:37](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/collection.ts#L37)
+Defined in: [packages/smrt/src/collection.ts:37](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/collection.ts#L37)
 
 Gets the class constructor for items in this collection
 
@@ -796,7 +796,7 @@ Gets the class constructor for items in this collection
 
 > **get** **ai**(): `AIClient`
 
-Defined in: [packages/smrt/src/class.ts:118](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L118)
+Defined in: [packages/smrt/src/class.ts:118](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L118)
 
 Gets the AI client instance
 
@@ -814,7 +814,7 @@ Gets the AI client instance
 
 > **get** **db**(): `DatabaseInterface`
 
-Defined in: [packages/smrt/src/class.ts:111](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L111)
+Defined in: [packages/smrt/src/class.ts:111](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L111)
 
 Gets the database interface instance
 
@@ -832,7 +832,7 @@ Gets the database interface instance
 
 > **get** **fs**(): `FilesystemAdapter`
 
-Defined in: [packages/smrt/src/class.ts:104](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L104)
+Defined in: [packages/smrt/src/class.ts:104](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L104)
 
 Gets the filesystem adapter instance
 
@@ -850,7 +850,7 @@ Gets the filesystem adapter instance
 
 > **get** **tableName**(): `string`
 
-Defined in: [packages/smrt/src/collection.ts:432](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/collection.ts#L432)
+Defined in: [packages/smrt/src/collection.ts:432](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/collection.ts#L432)
 
 Gets the database table name for this collection
 
@@ -864,7 +864,7 @@ Gets the database table name for this collection
 
 > **count**(`options`): `Promise`\<`number`\>
 
-Defined in: [packages/smrt/src/collection.ts:468](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/collection.ts#L468)
+Defined in: [packages/smrt/src/collection.ts:468](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/collection.ts#L468)
 
 Counts records in the collection matching the given filters
 
@@ -892,7 +892,7 @@ Promise resolving to the total count of matching records
 
 > **create**(`options`): `ModelType` \| `Promise`\<`ModelType`\>
 
-Defined in: [packages/smrt/src/collection.ts:279](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/collection.ts#L279)
+Defined in: [packages/smrt/src/collection.ts:279](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/collection.ts#L279)
 
 Creates a new instance of the collection's item class
 
@@ -914,7 +914,7 @@ New item instance
 
 > **generateSchema**(): `string`
 
-Defined in: [packages/smrt/src/collection.ts:382](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/collection.ts#L382)
+Defined in: [packages/smrt/src/collection.ts:382](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/collection.ts#L382)
 
 Generates database schema for the collection's item class
 
@@ -928,7 +928,7 @@ Schema object for database setup
 
 > **generateTableName**(): `string`
 
-Defined in: [packages/smrt/src/collection.ts:444](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/collection.ts#L444)
+Defined in: [packages/smrt/src/collection.ts:444](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/collection.ts#L444)
 
 Generates a table name from the collection class name
 
@@ -942,7 +942,7 @@ Generated table name
 
 > **get**(`filter`): `Promise`\<`null` \| `ModelType`\>
 
-Defined in: [packages/smrt/src/collection.ts:152](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/collection.ts#L152)
+Defined in: [packages/smrt/src/collection.ts:152](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/collection.ts#L152)
 
 Retrieves a single object from the collection by ID, slug, or custom filter
 
@@ -964,7 +964,7 @@ Promise resolving to the object or null if not found
 
 > **getDiff**(`existing`, `data`): `Record`\<`string`, `any`\>
 
-Defined in: [packages/smrt/src/collection.ts:328](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/collection.ts#L328)
+Defined in: [packages/smrt/src/collection.ts:328](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/collection.ts#L328)
 
 Gets differences between an existing object and new data
 
@@ -992,7 +992,7 @@ Object containing only the changed fields
 
 > **getFields**(): `Record`\<`string`, `any`\>
 
-Defined in: [packages/smrt/src/collection.ts:373](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/collection.ts#L373)
+Defined in: [packages/smrt/src/collection.ts:373](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/collection.ts#L373)
 
 Gets field definitions for the collection's item class
 
@@ -1006,7 +1006,7 @@ Object containing field definitions
 
 > **getOrUpsert**(`data`, `defaults`): `Promise`\<`ModelType`\>
 
-Defined in: [packages/smrt/src/collection.ts:295](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/collection.ts#L295)
+Defined in: [packages/smrt/src/collection.ts:295](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/collection.ts#L295)
 
 Gets an existing item or creates a new one if it doesn't exist
 
@@ -1034,7 +1034,7 @@ Promise resolving to the existing or new object
 
 > **initialize**(): `Promise`\<`void`\>
 
-Defined in: [packages/smrt/src/collection.ts:139](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/collection.ts#L139)
+Defined in: [packages/smrt/src/collection.ts:139](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/collection.ts#L139)
 
 Initializes the collection, setting up database tables
 
@@ -1052,7 +1052,7 @@ Promise that resolves when initialization is complete
 
 > **list**(`options`): `Promise`\<`Awaited`\<`ModelType`\>[]\>
 
-Defined in: [packages/smrt/src/collection.ts:215](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/collection.ts#L215)
+Defined in: [packages/smrt/src/collection.ts:215](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/collection.ts#L215)
 
 Lists records from the collection with flexible filtering options
 
@@ -1125,7 +1125,7 @@ await users.list({
 
 > **setupDb**(): `Promise`\<`void`\>
 
-Defined in: [packages/smrt/src/collection.ts:349](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/collection.ts#L349)
+Defined in: [packages/smrt/src/collection.ts:349](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/collection.ts#L349)
 
 Sets up the database schema for this collection
 
@@ -1139,7 +1139,7 @@ Promise that resolves when setup is complete
 
 > **setupTriggers**(): `Promise`\<`void`\>
 
-Defined in: [packages/smrt/src/collection.ts:392](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/collection.ts#L392)
+Defined in: [packages/smrt/src/collection.ts:392](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/collection.ts#L392)
 
 Sets up database triggers for automatically updating timestamps
 
@@ -1153,7 +1153,7 @@ Promise that resolves when triggers are set up
 
 > `static` **validate**(): `void`
 
-Defined in: [packages/smrt/src/collection.ts:72](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/collection.ts#L72)
+Defined in: [packages/smrt/src/collection.ts:72](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/collection.ts#L72)
 
 Validates that the collection is properly configured
 Call this during development to catch configuration issues early
@@ -1166,7 +1166,7 @@ Call this during development to catch configuration issues early
 
 ### BaseObject\<T\>
 
-Defined in: [packages/smrt/src/object.ts:63](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L63)
+Defined in: [packages/smrt/src/object.ts:63](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L63)
 
 Base persistent object with unique identifiers and database storage
 
@@ -1194,7 +1194,7 @@ slugs, with optional context scoping.
 
 > **new BaseObject**\<`T`\>(`options`): [`BaseObject`](#baseobject)\<`T`\>
 
-Defined in: [packages/smrt/src/object.ts:107](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L107)
+Defined in: [packages/smrt/src/object.ts:107](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L107)
 
 Creates a new BaseObject instance
 
@@ -1224,7 +1224,7 @@ Error if options is null
 
 > `protected` **\_ai**: `AIClient`
 
-Defined in: [packages/smrt/src/class.ts:49](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L49)
+Defined in: [packages/smrt/src/class.ts:49](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L49)
 
 AI client instance for interacting with AI models
 
@@ -1236,7 +1236,7 @@ AI client instance for interacting with AI models
 
 > `protected` **\_className**: `string`
 
-Defined in: [packages/smrt/src/class.ts:64](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L64)
+Defined in: [packages/smrt/src/class.ts:64](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L64)
 
 Class name used for identification
 
@@ -1248,7 +1248,7 @@ Class name used for identification
 
 > `protected` **\_context**: `undefined` \| `null` \| `string`
 
-Defined in: [packages/smrt/src/object.ts:84](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L84)
+Defined in: [packages/smrt/src/object.ts:84](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L84)
 
 Optional context to scope the slug
 
@@ -1256,7 +1256,7 @@ Optional context to scope the slug
 
 > `protected` **\_db**: `DatabaseInterface`
 
-Defined in: [packages/smrt/src/class.ts:59](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L59)
+Defined in: [packages/smrt/src/class.ts:59](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L59)
 
 Database interface for data persistence
 
@@ -1268,7 +1268,7 @@ Database interface for data persistence
 
 > `protected` **\_fs**: `FilesystemAdapter`
 
-Defined in: [packages/smrt/src/class.ts:54](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L54)
+Defined in: [packages/smrt/src/class.ts:54](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L54)
 
 Filesystem adapter for file operations
 
@@ -1280,7 +1280,7 @@ Filesystem adapter for file operations
 
 > `protected` **\_id**: `undefined` \| `null` \| `string`
 
-Defined in: [packages/smrt/src/object.ts:74](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L74)
+Defined in: [packages/smrt/src/object.ts:74](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L74)
 
 Unique identifier for the object
 
@@ -1288,7 +1288,7 @@ Unique identifier for the object
 
 > `protected` **\_slug**: `undefined` \| `null` \| `string`
 
-Defined in: [packages/smrt/src/object.ts:79](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L79)
+Defined in: [packages/smrt/src/object.ts:79](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L79)
 
 URL-friendly identifier
 
@@ -1296,7 +1296,7 @@ URL-friendly identifier
 
 > **\_tableName**: `string`
 
-Defined in: [packages/smrt/src/object.ts:69](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L69)
+Defined in: [packages/smrt/src/object.ts:69](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L69)
 
 Database table name for this object
 
@@ -1304,7 +1304,7 @@ Database table name for this object
 
 > **created\_at**: `undefined` \| `null` \| `Date`
 
-Defined in: [packages/smrt/src/object.ts:94](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L94)
+Defined in: [packages/smrt/src/object.ts:94](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L94)
 
 Creation timestamp
 
@@ -1312,7 +1312,7 @@ Creation timestamp
 
 > **name**: `undefined` \| `null` \| `string`
 
-Defined in: [packages/smrt/src/object.ts:89](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L89)
+Defined in: [packages/smrt/src/object.ts:89](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L89)
 
 Human-readable name, primarily for display purposes
 
@@ -1320,7 +1320,7 @@ Human-readable name, primarily for display purposes
 
 > `protected` **options**: `T`
 
-Defined in: [packages/smrt/src/class.ts:69](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L69)
+Defined in: [packages/smrt/src/class.ts:69](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L69)
 
 Configuration options provided to the class
 
@@ -1332,7 +1332,7 @@ Configuration options provided to the class
 
 > **updated\_at**: `undefined` \| `null` \| `Date`
 
-Defined in: [packages/smrt/src/object.ts:99](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L99)
+Defined in: [packages/smrt/src/object.ts:99](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L99)
 
 Last update timestamp
 
@@ -1344,7 +1344,7 @@ Last update timestamp
 
 > **get** **ai**(): `AIClient`
 
-Defined in: [packages/smrt/src/class.ts:118](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L118)
+Defined in: [packages/smrt/src/class.ts:118](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L118)
 
 Gets the AI client instance
 
@@ -1362,7 +1362,7 @@ Gets the AI client instance
 
 > **get** **context**(): `string`
 
-Defined in: [packages/smrt/src/object.ts:190](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L190)
+Defined in: [packages/smrt/src/object.ts:190](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L190)
 
 Gets the context that scopes this object's slug
 
@@ -1374,7 +1374,7 @@ Gets the context that scopes this object's slug
 
 > **set** **context**(`value`): `void`
 
-Defined in: [packages/smrt/src/object.ts:200](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L200)
+Defined in: [packages/smrt/src/object.ts:200](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L200)
 
 Sets the context that scopes this object's slug
 
@@ -1400,7 +1400,7 @@ The context to set
 
 > **get** **db**(): `DatabaseInterface`
 
-Defined in: [packages/smrt/src/class.ts:111](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L111)
+Defined in: [packages/smrt/src/class.ts:111](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L111)
 
 Gets the database interface instance
 
@@ -1418,7 +1418,7 @@ Gets the database interface instance
 
 > **get** **fs**(): `FilesystemAdapter`
 
-Defined in: [packages/smrt/src/class.ts:104](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L104)
+Defined in: [packages/smrt/src/class.ts:104](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L104)
 
 Gets the filesystem adapter instance
 
@@ -1436,7 +1436,7 @@ Gets the filesystem adapter instance
 
 > **get** **id**(): `undefined` \| `null` \| `string`
 
-Defined in: [packages/smrt/src/object.ts:149](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L149)
+Defined in: [packages/smrt/src/object.ts:149](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L149)
 
 Gets the unique identifier for this object
 
@@ -1448,7 +1448,7 @@ Gets the unique identifier for this object
 
 > **set** **id**(`value`): `void`
 
-Defined in: [packages/smrt/src/object.ts:159](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L159)
+Defined in: [packages/smrt/src/object.ts:159](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L159)
 
 Sets the unique identifier for this object
 
@@ -1474,7 +1474,7 @@ The ID to set
 
 > **get** **slug**(): `undefined` \| `null` \| `string`
 
-Defined in: [packages/smrt/src/object.ts:169](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L169)
+Defined in: [packages/smrt/src/object.ts:169](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L169)
 
 Gets the URL-friendly slug for this object
 
@@ -1486,7 +1486,7 @@ Gets the URL-friendly slug for this object
 
 > **set** **slug**(`value`): `void`
 
-Defined in: [packages/smrt/src/object.ts:179](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L179)
+Defined in: [packages/smrt/src/object.ts:179](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L179)
 
 Sets the URL-friendly slug for this object
 
@@ -1512,7 +1512,7 @@ The slug to set
 
 > **get** **tableName**(): `string`
 
-Defined in: [packages/smrt/src/object.ts:257](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L257)
+Defined in: [packages/smrt/src/object.ts:257](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L257)
 
 Gets the database table name for this object
 
@@ -1526,7 +1526,7 @@ Gets the database table name for this object
 
 > **allDescriptors**(): `object` & `object`
 
-Defined in: [packages/smrt/src/object.ts:248](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L248)
+Defined in: [packages/smrt/src/object.ts:248](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L248)
 
 Gets all property descriptors from this object's prototype
 
@@ -1540,7 +1540,7 @@ Object containing all property descriptors
 
 > **delete**(): `Promise`\<`void`\>
 
-Defined in: [packages/smrt/src/object.ts:628](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L628)
+Defined in: [packages/smrt/src/object.ts:628](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L628)
 
 Delete this object from the database
 
@@ -1554,7 +1554,7 @@ Promise that resolves when deletion is complete
 
 > **do**(`instructions`, `options`): `Promise`\<`string`\>
 
-Defined in: [packages/smrt/src/object.ts:588](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L588)
+Defined in: [packages/smrt/src/object.ts:588](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L588)
 
 Performs actions on this object based on instructions using AI
 
@@ -1582,7 +1582,7 @@ Promise resolving to the AI response
 
 > `protected` **extractConstraintField**(`errorMessage`): `string`
 
-Defined in: [packages/smrt/src/object.ts:485](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L485)
+Defined in: [packages/smrt/src/object.ts:485](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L485)
 
 Extracts field name from database constraint error messages
 
@@ -1600,7 +1600,7 @@ Extracts field name from database constraint error messages
 
 > **generateUpsertStatement**(): `string`
 
-Defined in: [packages/smrt/src/object.ts:288](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L288)
+Defined in: [packages/smrt/src/object.ts:288](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L288)
 
 Generates an SQL UPSERT statement for saving this object to the database
 
@@ -1614,7 +1614,7 @@ SQL statement for inserting or updating this object
 
 > **getFields**(): `Record`\<`string`, `any`\>
 
-Defined in: [packages/smrt/src/object.ts:269](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L269)
+Defined in: [packages/smrt/src/object.ts:269](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L269)
 
 Gets field definitions and current values for this object
 
@@ -1628,7 +1628,7 @@ Object containing field definitions with current values
 
 > `protected` **getFieldValue**(`fieldName`): `any`
 
-Defined in: [packages/smrt/src/object.ts:478](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L478)
+Defined in: [packages/smrt/src/object.ts:478](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L478)
 
 Gets the value of a field on this object
 
@@ -1646,7 +1646,7 @@ Gets the value of a field on this object
 
 > **getId**(): `Promise`\<`string`\>
 
-Defined in: [packages/smrt/src/object.ts:328](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L328)
+Defined in: [packages/smrt/src/object.ts:328](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L328)
 
 Gets or generates a unique ID for this object
 
@@ -1660,7 +1660,7 @@ Promise resolving to the object's ID
 
 > **getSavedId**(): `Promise`\<`any`\>
 
-Defined in: [packages/smrt/src/object.ts:365](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L365)
+Defined in: [packages/smrt/src/object.ts:365](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L365)
 
 Gets the ID of this object if it's already saved in the database
 
@@ -1674,7 +1674,7 @@ Promise resolving to the saved ID or null if not saved
 
 > **getSlug**(): `Promise`\<`undefined` \| `null` \| `string`\>
 
-Defined in: [packages/smrt/src/object.ts:347](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L347)
+Defined in: [packages/smrt/src/object.ts:347](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L347)
 
 Gets or generates a slug for this object based on its name
 
@@ -1688,7 +1688,7 @@ Promise resolving to the object's slug
 
 > `protected` **initialize**(): `Promise`\<`void`\>
 
-Defined in: [packages/smrt/src/object.ts:212](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L212)
+Defined in: [packages/smrt/src/object.ts:212](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L212)
 
 Initializes this object, setting up database tables and loading data if identifiers are provided
 
@@ -1706,7 +1706,7 @@ Promise that resolves when initialization is complete
 
 > **is**(`criteria`, `options`): `Promise`\<`any`\>
 
-Defined in: [packages/smrt/src/object.ts:565](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L565)
+Defined in: [packages/smrt/src/object.ts:565](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L565)
 
 Evaluates whether this object meets given criteria using AI
 
@@ -1738,7 +1738,7 @@ Error if the AI response is invalid
 
 > **isSaved**(): `Promise`\<`boolean`\>
 
-Defined in: [packages/smrt/src/object.ts:377](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L377)
+Defined in: [packages/smrt/src/object.ts:377](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L377)
 
 Checks if this object is already saved in the database
 
@@ -1752,7 +1752,7 @@ Promise resolving to true if saved, false otherwise
 
 > **loadDataFromDb**(`data`): `void`
 
-Defined in: [packages/smrt/src/object.ts:234](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L234)
+Defined in: [packages/smrt/src/object.ts:234](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L234)
 
 Loads data from a database row into this object's properties
 
@@ -1772,7 +1772,7 @@ Database row data
 
 > **loadFromId**(): `Promise`\<`void`\>
 
-Defined in: [packages/smrt/src/object.ts:508](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L508)
+Defined in: [packages/smrt/src/object.ts:508](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L508)
 
 Loads this object's data from the database using its ID
 
@@ -1786,7 +1786,7 @@ Promise that resolves when loading is complete
 
 > **loadFromSlug**(): `Promise`\<`void`\>
 
-Defined in: [packages/smrt/src/object.ts:545](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L545)
+Defined in: [packages/smrt/src/object.ts:545](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L545)
 
 Loads this object's data from the database using its slug and context
 
@@ -1800,7 +1800,7 @@ Promise that resolves when loading is complete
 
 > `protected` **runHook**(`hookName`): `Promise`\<`void`\>
 
-Defined in: [packages/smrt/src/object.ts:600](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L600)
+Defined in: [packages/smrt/src/object.ts:600](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L600)
 
 Runs a lifecycle hook if it's defined in the object's configuration
 
@@ -1822,7 +1822,7 @@ Promise that resolves when the hook completes
 
 > **save**(): `Promise`\<[`BaseObject`](#baseobject)\<`T`\>\>
 
-Defined in: [packages/smrt/src/object.ts:387](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L387)
+Defined in: [packages/smrt/src/object.ts:387](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L387)
 
 Saves this object to the database
 
@@ -1836,7 +1836,7 @@ Promise resolving to this object
 
 > `protected` **validateBeforeSave**(): `Promise`\<`void`\>
 
-Defined in: [packages/smrt/src/object.ts:461](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L461)
+Defined in: [packages/smrt/src/object.ts:461](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L461)
 
 Validates object state before saving
 Override in subclasses to add custom validation logic
@@ -1849,7 +1849,7 @@ Override in subclasses to add custom validation logic
 
 ### CLIGenerator
 
-Defined in: [packages/smrt/src/generators/cli.ts:53](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L53)
+Defined in: [packages/smrt/src/generators/cli.ts:53](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L53)
 
 Generate CLI commands for smrt objects
 
@@ -1859,7 +1859,7 @@ Generate CLI commands for smrt objects
 
 > **new CLIGenerator**(`config`, `context`): [`CLIGenerator`](#cligenerator)
 
-Defined in: [packages/smrt/src/generators/cli.ts:58](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L58)
+Defined in: [packages/smrt/src/generators/cli.ts:58](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L58)
 
 ###### Parameters
 
@@ -1881,7 +1881,7 @@ Defined in: [packages/smrt/src/generators/cli.ts:58](https://github.com/happyver
 
 > **executeCommand**(`parsed`, `commands`): `Promise`\<`void`\>
 
-Defined in: [packages/smrt/src/generators/cli.ts:285](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L285)
+Defined in: [packages/smrt/src/generators/cli.ts:285](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L285)
 
 Execute a parsed command
 
@@ -1903,7 +1903,7 @@ Execute a parsed command
 
 > **generateHandler**(): (`argv`) => `Promise`\<`void`\>
 
-Defined in: [packages/smrt/src/generators/cli.ts:73](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L73)
+Defined in: [packages/smrt/src/generators/cli.ts:73](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L73)
 
 Generate CLI handler function
 
@@ -1925,7 +1925,7 @@ Generate CLI handler function
 
 > **generateUtilityCommands**(): [`CLICommand`](#clicommand)[]
 
-Defined in: [packages/smrt/src/generators/cli.ts:318](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L318)
+Defined in: [packages/smrt/src/generators/cli.ts:318](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L318)
 
 Generate utility commands
 
@@ -1937,7 +1937,7 @@ Generate utility commands
 
 > **parseArguments**(`argv`, `commands`): [`ParsedArgs`](#parsedargs)
 
-Defined in: [packages/smrt/src/generators/cli.ts:232](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L232)
+Defined in: [packages/smrt/src/generators/cli.ts:232](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L232)
 
 Parse command line arguments
 
@@ -1959,7 +1959,7 @@ Parse command line arguments
 
 > **showHelp**(`commands`): `void`
 
-Defined in: [packages/smrt/src/generators/cli.ts:374](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L374)
+Defined in: [packages/smrt/src/generators/cli.ts:374](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L374)
 
 Show help information
 
@@ -1977,7 +1977,7 @@ Show help information
 
 ### ConfigurationError
 
-Defined in: packages/smrt/src/errors.ts:261
+Defined in: [packages/smrt/src/errors.ts:261](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L261)
 
 Configuration and setup errors
 
@@ -1991,7 +1991,7 @@ Configuration and setup errors
 
 > **new ConfigurationError**(`message`, `code`, `details?`, `cause?`): [`ConfigurationError`](#configurationerror)
 
-Defined in: packages/smrt/src/errors.ts:262
+Defined in: [packages/smrt/src/errors.ts:262](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L262)
 
 ###### Parameters
 
@@ -2025,7 +2025,7 @@ Defined in: packages/smrt/src/errors.ts:262
 
 > `readonly` **category**: `"database"` \| `"ai"` \| `"filesystem"` \| `"validation"` \| `"network"` \| `"configuration"` \| `"runtime"`
 
-Defined in: packages/smrt/src/errors.ts:13
+Defined in: [packages/smrt/src/errors.ts:13](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L13)
 
 ###### Inherited from
 
@@ -2035,7 +2035,7 @@ Defined in: packages/smrt/src/errors.ts:13
 
 > `readonly` `optional` **cause**: `Error`
 
-Defined in: packages/smrt/src/errors.ts:15
+Defined in: [packages/smrt/src/errors.ts:15](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L15)
 
 The cause of the error.
 
@@ -2047,7 +2047,7 @@ The cause of the error.
 
 > `readonly` **code**: `string`
 
-Defined in: packages/smrt/src/errors.ts:12
+Defined in: [packages/smrt/src/errors.ts:12](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L12)
 
 ###### Inherited from
 
@@ -2057,7 +2057,7 @@ Defined in: packages/smrt/src/errors.ts:12
 
 > `readonly` `optional` **details**: `Record`\<`string`, `any`\>
 
-Defined in: packages/smrt/src/errors.ts:14
+Defined in: [packages/smrt/src/errors.ts:14](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L14)
 
 ###### Inherited from
 
@@ -2141,7 +2141,7 @@ The maximum number of stack frames to capture.
 
 > **toJSON**(): `object`
 
-Defined in: packages/smrt/src/errors.ts:40
+Defined in: [packages/smrt/src/errors.ts:40](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L40)
 
 Converts error to a serializable object for logging/debugging
 
@@ -2239,7 +2239,7 @@ Create .stack property on a target object
 
 > `static` **initializationFailed**(`component`, `cause?`): [`ConfigurationError`](#configurationerror)
 
-Defined in: packages/smrt/src/errors.ts:282
+Defined in: [packages/smrt/src/errors.ts:282](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L282)
 
 ###### Parameters
 
@@ -2259,7 +2259,7 @@ Defined in: packages/smrt/src/errors.ts:282
 
 > `static` **invalidConfiguration**(`configKey`, `value`, `expected`): [`ConfigurationError`](#configurationerror)
 
-Defined in: packages/smrt/src/errors.ts:274
+Defined in: [packages/smrt/src/errors.ts:274](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L274)
 
 ###### Parameters
 
@@ -2309,7 +2309,7 @@ True if the value is an instance of Error, false otherwise
 
 > `static` **missingConfiguration**(`configKey`, `context?`): [`ConfigurationError`](#configurationerror)
 
-Defined in: packages/smrt/src/errors.ts:266
+Defined in: [packages/smrt/src/errors.ts:266](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L266)
 
 ###### Parameters
 
@@ -2329,7 +2329,7 @@ Defined in: packages/smrt/src/errors.ts:266
 
 ### DatabaseError
 
-Defined in: packages/smrt/src/errors.ts:60
+Defined in: [packages/smrt/src/errors.ts:60](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L60)
 
 Database-related errors
 
@@ -2343,7 +2343,7 @@ Database-related errors
 
 > **new DatabaseError**(`message`, `code`, `details?`, `cause?`): [`DatabaseError`](#databaseerror)
 
-Defined in: packages/smrt/src/errors.ts:61
+Defined in: [packages/smrt/src/errors.ts:61](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L61)
 
 ###### Parameters
 
@@ -2377,7 +2377,7 @@ Defined in: packages/smrt/src/errors.ts:61
 
 > `readonly` **category**: `"database"` \| `"ai"` \| `"filesystem"` \| `"validation"` \| `"network"` \| `"configuration"` \| `"runtime"`
 
-Defined in: packages/smrt/src/errors.ts:13
+Defined in: [packages/smrt/src/errors.ts:13](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L13)
 
 ###### Inherited from
 
@@ -2387,7 +2387,7 @@ Defined in: packages/smrt/src/errors.ts:13
 
 > `readonly` `optional` **cause**: `Error`
 
-Defined in: packages/smrt/src/errors.ts:15
+Defined in: [packages/smrt/src/errors.ts:15](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L15)
 
 The cause of the error.
 
@@ -2399,7 +2399,7 @@ The cause of the error.
 
 > `readonly` **code**: `string`
 
-Defined in: packages/smrt/src/errors.ts:12
+Defined in: [packages/smrt/src/errors.ts:12](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L12)
 
 ###### Inherited from
 
@@ -2409,7 +2409,7 @@ Defined in: packages/smrt/src/errors.ts:12
 
 > `readonly` `optional` **details**: `Record`\<`string`, `any`\>
 
-Defined in: packages/smrt/src/errors.ts:14
+Defined in: [packages/smrt/src/errors.ts:14](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L14)
 
 ###### Inherited from
 
@@ -2493,7 +2493,7 @@ The maximum number of stack frames to capture.
 
 > **toJSON**(): `object`
 
-Defined in: packages/smrt/src/errors.ts:40
+Defined in: [packages/smrt/src/errors.ts:40](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L40)
 
 Converts error to a serializable object for logging/debugging
 
@@ -2591,7 +2591,7 @@ Create .stack property on a target object
 
 > `static` **connectionFailed**(`dbUrl`, `cause?`): [`DatabaseError`](#databaseerror)
 
-Defined in: packages/smrt/src/errors.ts:65
+Defined in: [packages/smrt/src/errors.ts:65](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L65)
 
 ###### Parameters
 
@@ -2611,7 +2611,7 @@ Defined in: packages/smrt/src/errors.ts:65
 
 > `static` **constraintViolation**(`constraint`, `value`, `cause?`): [`DatabaseError`](#databaseerror)
 
-Defined in: packages/smrt/src/errors.ts:92
+Defined in: [packages/smrt/src/errors.ts:92](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L92)
 
 ###### Parameters
 
@@ -2661,7 +2661,7 @@ True if the value is an instance of Error, false otherwise
 
 > `static` **queryFailed**(`query`, `cause?`): [`DatabaseError`](#databaseerror)
 
-Defined in: packages/smrt/src/errors.ts:74
+Defined in: [packages/smrt/src/errors.ts:74](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L74)
 
 ###### Parameters
 
@@ -2681,7 +2681,7 @@ Defined in: packages/smrt/src/errors.ts:74
 
 > `static` **schemaError**(`tableName`, `operation`, `cause?`): [`DatabaseError`](#databaseerror)
 
-Defined in: packages/smrt/src/errors.ts:83
+Defined in: [packages/smrt/src/errors.ts:83](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L83)
 
 ###### Parameters
 
@@ -2705,7 +2705,7 @@ Defined in: packages/smrt/src/errors.ts:83
 
 ### ErrorUtils
 
-Defined in: packages/smrt/src/errors.ts:329
+Defined in: [packages/smrt/src/errors.ts:329](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L329)
 
 Utility functions for error handling
 
@@ -2725,7 +2725,7 @@ Utility functions for error handling
 
 > `static` **isRetryable**(`error`): `boolean`
 
-Defined in: packages/smrt/src/errors.ts:367
+Defined in: [packages/smrt/src/errors.ts:367](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L367)
 
 Checks if an error is retryable
 
@@ -2743,7 +2743,7 @@ Checks if an error is retryable
 
 > `static` **sanitizeError**(`error`): `Record`\<`string`, `any`\>
 
-Defined in: packages/smrt/src/errors.ts:390
+Defined in: [packages/smrt/src/errors.ts:390](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L390)
 
 Sanitizes an error for safe logging (removes sensitive information)
 
@@ -2761,7 +2761,7 @@ Sanitizes an error for safe logging (removes sensitive information)
 
 > `static` **withRetry**\<`T`\>(`operation`, `maxRetries`, `delay`, `backoffMultiplier`): `Promise`\<`T`\>
 
-Defined in: packages/smrt/src/errors.ts:333
+Defined in: [packages/smrt/src/errors.ts:333](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L333)
 
 Wraps a function with error handling and automatic retry logic
 
@@ -2797,7 +2797,7 @@ Wraps a function with error handling and automatic retry logic
 
 ### Field
 
-Defined in: [packages/smrt/src/fields/index.ts:47](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L47)
+Defined in: [packages/smrt/src/fields/index.ts:47](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L47)
 
 Base field class that all field types extend
 
@@ -2807,7 +2807,7 @@ Base field class that all field types extend
 
 > **new Field**(`type`, `options`): [`Field`](#field)
 
-Defined in: [packages/smrt/src/fields/index.ts:52](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L52)
+Defined in: [packages/smrt/src/fields/index.ts:52](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L52)
 
 ###### Parameters
 
@@ -2829,19 +2829,19 @@ Defined in: [packages/smrt/src/fields/index.ts:52](https://github.com/happyverti
 
 > `readonly` **options**: [`FieldOptions`](#fieldoptions-1)
 
-Defined in: [packages/smrt/src/fields/index.ts:49](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L49)
+Defined in: [packages/smrt/src/fields/index.ts:49](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L49)
 
 ##### type
 
 > `readonly` **type**: `string`
 
-Defined in: [packages/smrt/src/fields/index.ts:48](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L48)
+Defined in: [packages/smrt/src/fields/index.ts:48](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L48)
 
 ##### value
 
 > **value**: `any`
 
-Defined in: [packages/smrt/src/fields/index.ts:50](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L50)
+Defined in: [packages/smrt/src/fields/index.ts:50](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L50)
 
 #### Methods
 
@@ -2849,7 +2849,7 @@ Defined in: [packages/smrt/src/fields/index.ts:50](https://github.com/happyverti
 
 > **getSqlConstraints**(): `string`[]
 
-Defined in: [packages/smrt/src/fields/index.ts:77](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L77)
+Defined in: [packages/smrt/src/fields/index.ts:77](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L77)
 
 Get field constraints for SQL
 
@@ -2861,7 +2861,7 @@ Get field constraints for SQL
 
 > **getSqlType**(): `string`
 
-Defined in: [packages/smrt/src/fields/index.ts:61](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L61)
+Defined in: [packages/smrt/src/fields/index.ts:61](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L61)
 
 Get the SQL type for this field
 
@@ -2873,7 +2873,7 @@ Get the SQL type for this field
 
 ### FilesystemError
 
-Defined in: packages/smrt/src/errors.ts:147
+Defined in: [packages/smrt/src/errors.ts:147](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L147)
 
 Filesystem operation errors
 
@@ -2887,7 +2887,7 @@ Filesystem operation errors
 
 > **new FilesystemError**(`message`, `code`, `details?`, `cause?`): [`FilesystemError`](#filesystemerror)
 
-Defined in: packages/smrt/src/errors.ts:148
+Defined in: [packages/smrt/src/errors.ts:148](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L148)
 
 ###### Parameters
 
@@ -2921,7 +2921,7 @@ Defined in: packages/smrt/src/errors.ts:148
 
 > `readonly` **category**: `"database"` \| `"ai"` \| `"filesystem"` \| `"validation"` \| `"network"` \| `"configuration"` \| `"runtime"`
 
-Defined in: packages/smrt/src/errors.ts:13
+Defined in: [packages/smrt/src/errors.ts:13](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L13)
 
 ###### Inherited from
 
@@ -2931,7 +2931,7 @@ Defined in: packages/smrt/src/errors.ts:13
 
 > `readonly` `optional` **cause**: `Error`
 
-Defined in: packages/smrt/src/errors.ts:15
+Defined in: [packages/smrt/src/errors.ts:15](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L15)
 
 The cause of the error.
 
@@ -2943,7 +2943,7 @@ The cause of the error.
 
 > `readonly` **code**: `string`
 
-Defined in: packages/smrt/src/errors.ts:12
+Defined in: [packages/smrt/src/errors.ts:12](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L12)
 
 ###### Inherited from
 
@@ -2953,7 +2953,7 @@ Defined in: packages/smrt/src/errors.ts:12
 
 > `readonly` `optional` **details**: `Record`\<`string`, `any`\>
 
-Defined in: packages/smrt/src/errors.ts:14
+Defined in: [packages/smrt/src/errors.ts:14](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L14)
 
 ###### Inherited from
 
@@ -3037,7 +3037,7 @@ The maximum number of stack frames to capture.
 
 > **toJSON**(): `object`
 
-Defined in: packages/smrt/src/errors.ts:40
+Defined in: [packages/smrt/src/errors.ts:40](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L40)
 
 Converts error to a serializable object for logging/debugging
 
@@ -3135,7 +3135,7 @@ Create .stack property on a target object
 
 > `static` **diskSpaceExceeded**(`path`, `requiredBytes`): [`FilesystemError`](#filesystemerror)
 
-Defined in: packages/smrt/src/errors.ts:168
+Defined in: [packages/smrt/src/errors.ts:168](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L168)
 
 ###### Parameters
 
@@ -3155,7 +3155,7 @@ Defined in: packages/smrt/src/errors.ts:168
 
 > `static` **fileNotFound**(`path`): [`FilesystemError`](#filesystemerror)
 
-Defined in: packages/smrt/src/errors.ts:152
+Defined in: [packages/smrt/src/errors.ts:152](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L152)
 
 ###### Parameters
 
@@ -3197,7 +3197,7 @@ True if the value is an instance of Error, false otherwise
 
 > `static` **permissionDenied**(`path`, `operation`): [`FilesystemError`](#filesystemerror)
 
-Defined in: packages/smrt/src/errors.ts:160
+Defined in: [packages/smrt/src/errors.ts:160](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L160)
 
 ###### Parameters
 
@@ -3217,7 +3217,7 @@ Defined in: packages/smrt/src/errors.ts:160
 
 ### ManifestGenerator
 
-Defined in: [packages/smrt/src/scanner/manifest-generator.ts:11](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/manifest-generator.ts#L11)
+Defined in: [packages/smrt/src/scanner/manifest-generator.ts:11](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/manifest-generator.ts#L11)
 
 #### Constructors
 
@@ -3235,7 +3235,7 @@ Defined in: [packages/smrt/src/scanner/manifest-generator.ts:11](https://github.
 
 > **generateManifest**(`scanResults`): [`SmartObjectManifest`](#smartobjectmanifest)
 
-Defined in: [packages/smrt/src/scanner/manifest-generator.ts:15](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/manifest-generator.ts#L15)
+Defined in: [packages/smrt/src/scanner/manifest-generator.ts:15](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/manifest-generator.ts#L15)
 
 Generate manifest from scan results
 
@@ -3253,7 +3253,7 @@ Generate manifest from scan results
 
 > **generateMCPTools**(`manifest`): `string`
 
-Defined in: [packages/smrt/src/scanner/manifest-generator.ts:165](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/manifest-generator.ts#L165)
+Defined in: [packages/smrt/src/scanner/manifest-generator.ts:165](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/manifest-generator.ts#L165)
 
 Generate MCP tool definitions
 
@@ -3271,7 +3271,7 @@ Generate MCP tool definitions
 
 > **generateRestEndpoints**(`manifest`): `string`
 
-Defined in: [packages/smrt/src/scanner/manifest-generator.ts:78](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/manifest-generator.ts#L78)
+Defined in: [packages/smrt/src/scanner/manifest-generator.ts:78](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/manifest-generator.ts#L78)
 
 Generate REST endpoint definitions
 
@@ -3289,7 +3289,7 @@ Generate REST endpoint definitions
 
 > **generateTypeDefinitions**(`manifest`): `string`
 
-Defined in: [packages/smrt/src/scanner/manifest-generator.ts:34](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/manifest-generator.ts#L34)
+Defined in: [packages/smrt/src/scanner/manifest-generator.ts:34](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/manifest-generator.ts#L34)
 
 Generate TypeScript interfaces from manifest
 
@@ -3307,7 +3307,7 @@ Generate TypeScript interfaces from manifest
 
 > **loadManifest**(`filePath`): [`SmartObjectManifest`](#smartobjectmanifest)
 
-Defined in: [packages/smrt/src/scanner/manifest-generator.ts:291](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/manifest-generator.ts#L291)
+Defined in: [packages/smrt/src/scanner/manifest-generator.ts:291](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/manifest-generator.ts#L291)
 
 Load manifest from file
 
@@ -3325,7 +3325,7 @@ Load manifest from file
 
 > **saveManifest**(`manifest`, `filePath`): `void`
 
-Defined in: [packages/smrt/src/scanner/manifest-generator.ts:283](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/manifest-generator.ts#L283)
+Defined in: [packages/smrt/src/scanner/manifest-generator.ts:283](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/manifest-generator.ts#L283)
 
 Save manifest to file
 
@@ -3347,7 +3347,7 @@ Save manifest to file
 
 ### MCPGenerator
 
-Defined in: [packages/smrt/src/generators/mcp.ts:58](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L58)
+Defined in: [packages/smrt/src/generators/mcp.ts:58](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L58)
 
 Generate MCP server from smrt objects
 
@@ -3357,7 +3357,7 @@ Generate MCP server from smrt objects
 
 > **new MCPGenerator**(`config`, `context`): [`MCPGenerator`](#mcpgenerator)
 
-Defined in: [packages/smrt/src/generators/mcp.ts:63](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L63)
+Defined in: [packages/smrt/src/generators/mcp.ts:63](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L63)
 
 ###### Parameters
 
@@ -3379,7 +3379,7 @@ Defined in: [packages/smrt/src/generators/mcp.ts:63](https://github.com/happyver
 
 > **generateTools**(): [`MCPTool`](#mcptool)[]
 
-Defined in: [packages/smrt/src/generators/mcp.ts:80](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L80)
+Defined in: [packages/smrt/src/generators/mcp.ts:80](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L80)
 
 Generate all available tools from registered objects
 
@@ -3391,7 +3391,7 @@ Generate all available tools from registered objects
 
 > **getServerInfo**(): `object`
 
-Defined in: [packages/smrt/src/generators/mcp.ts:459](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L459)
+Defined in: [packages/smrt/src/generators/mcp.ts:459](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L459)
 
 Generate MCP server info
 
@@ -3415,7 +3415,7 @@ Generate MCP server info
 
 > **handleToolCall**(`request`): `Promise`\<[`MCPResponse`](#mcpresponse)\>
 
-Defined in: [packages/smrt/src/generators/mcp.ts:290](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L290)
+Defined in: [packages/smrt/src/generators/mcp.ts:290](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L290)
 
 Handle MCP tool calls
 
@@ -3433,7 +3433,7 @@ Handle MCP tool calls
 
 ### NetworkError
 
-Defined in: packages/smrt/src/errors.ts:227
+Defined in: [packages/smrt/src/errors.ts:227](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L227)
 
 Network and external service errors
 
@@ -3447,7 +3447,7 @@ Network and external service errors
 
 > **new NetworkError**(`message`, `code`, `details?`, `cause?`): [`NetworkError`](#networkerror)
 
-Defined in: packages/smrt/src/errors.ts:228
+Defined in: [packages/smrt/src/errors.ts:228](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L228)
 
 ###### Parameters
 
@@ -3481,7 +3481,7 @@ Defined in: packages/smrt/src/errors.ts:228
 
 > `readonly` **category**: `"database"` \| `"ai"` \| `"filesystem"` \| `"validation"` \| `"network"` \| `"configuration"` \| `"runtime"`
 
-Defined in: packages/smrt/src/errors.ts:13
+Defined in: [packages/smrt/src/errors.ts:13](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L13)
 
 ###### Inherited from
 
@@ -3491,7 +3491,7 @@ Defined in: packages/smrt/src/errors.ts:13
 
 > `readonly` `optional` **cause**: `Error`
 
-Defined in: packages/smrt/src/errors.ts:15
+Defined in: [packages/smrt/src/errors.ts:15](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L15)
 
 The cause of the error.
 
@@ -3503,7 +3503,7 @@ The cause of the error.
 
 > `readonly` **code**: `string`
 
-Defined in: packages/smrt/src/errors.ts:12
+Defined in: [packages/smrt/src/errors.ts:12](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L12)
 
 ###### Inherited from
 
@@ -3513,7 +3513,7 @@ Defined in: packages/smrt/src/errors.ts:12
 
 > `readonly` `optional` **details**: `Record`\<`string`, `any`\>
 
-Defined in: packages/smrt/src/errors.ts:14
+Defined in: [packages/smrt/src/errors.ts:14](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L14)
 
 ###### Inherited from
 
@@ -3597,7 +3597,7 @@ The maximum number of stack frames to capture.
 
 > **toJSON**(): `object`
 
-Defined in: packages/smrt/src/errors.ts:40
+Defined in: [packages/smrt/src/errors.ts:40](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L40)
 
 Converts error to a serializable object for logging/debugging
 
@@ -3721,7 +3721,7 @@ True if the value is an instance of Error, false otherwise
 
 > `static` **requestFailed**(`url`, `status?`, `cause?`): [`NetworkError`](#networkerror)
 
-Defined in: packages/smrt/src/errors.ts:232
+Defined in: [packages/smrt/src/errors.ts:232](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L232)
 
 ###### Parameters
 
@@ -3745,7 +3745,7 @@ Defined in: packages/smrt/src/errors.ts:232
 
 > `static` **serviceUnavailable**(`service`): [`NetworkError`](#networkerror)
 
-Defined in: packages/smrt/src/errors.ts:249
+Defined in: [packages/smrt/src/errors.ts:249](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L249)
 
 ###### Parameters
 
@@ -3761,7 +3761,7 @@ Defined in: packages/smrt/src/errors.ts:249
 
 > `static` **timeout**(`url`, `timeoutMs`): [`NetworkError`](#networkerror)
 
-Defined in: packages/smrt/src/errors.ts:241
+Defined in: [packages/smrt/src/errors.ts:241](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L241)
 
 ###### Parameters
 
@@ -3781,7 +3781,7 @@ Defined in: packages/smrt/src/errors.ts:241
 
 ### ObjectRegistry
 
-Defined in: [packages/smrt/src/registry.ts:104](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/registry.ts#L104)
+Defined in: [packages/smrt/src/registry.ts:104](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/registry.ts#L104)
 
 Central registry for all SMRT objects
 
@@ -3801,7 +3801,7 @@ Central registry for all SMRT objects
 
 > `static` **clear**(): `void`
 
-Defined in: [packages/smrt/src/registry.ts:176](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/registry.ts#L176)
+Defined in: [packages/smrt/src/registry.ts:176](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/registry.ts#L176)
 
 Clear all registered classes (mainly for testing)
 
@@ -3813,7 +3813,7 @@ Clear all registered classes (mainly for testing)
 
 > `static` **getAllClasses**(): `Map`\<`string`, `RegisteredClass`\>
 
-Defined in: [packages/smrt/src/registry.ts:155](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/registry.ts#L155)
+Defined in: [packages/smrt/src/registry.ts:155](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/registry.ts#L155)
 
 Get all registered classes
 
@@ -3825,7 +3825,7 @@ Get all registered classes
 
 > `static` **getClass**(`name`): `undefined` \| `RegisteredClass`
 
-Defined in: [packages/smrt/src/registry.ts:148](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/registry.ts#L148)
+Defined in: [packages/smrt/src/registry.ts:148](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/registry.ts#L148)
 
 Get a registered class by name
 
@@ -3843,7 +3843,7 @@ Get a registered class by name
 
 > `static` **getClassNames**(): `string`[]
 
-Defined in: [packages/smrt/src/registry.ts:162](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/registry.ts#L162)
+Defined in: [packages/smrt/src/registry.ts:162](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/registry.ts#L162)
 
 Get class names
 
@@ -3855,7 +3855,7 @@ Get class names
 
 > `static` **getConfig**(`name`): [`SmartObjectConfig`](#smartobjectconfig)
 
-Defined in: [packages/smrt/src/registry.ts:235](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/registry.ts#L235)
+Defined in: [packages/smrt/src/registry.ts:235](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/registry.ts#L235)
 
 Get configuration for a registered class
 
@@ -3873,7 +3873,7 @@ Get configuration for a registered class
 
 > `static` **getFields**(`name`): `Map`\<`string`, `any`\>
 
-Defined in: [packages/smrt/src/registry.ts:227](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/registry.ts#L227)
+Defined in: [packages/smrt/src/registry.ts:227](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/registry.ts#L227)
 
 Get field definitions for a registered class
 
@@ -3891,7 +3891,7 @@ Get field definitions for a registered class
 
 > `static` **hasClass**(`name`): `boolean`
 
-Defined in: [packages/smrt/src/registry.ts:169](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/registry.ts#L169)
+Defined in: [packages/smrt/src/registry.ts:169](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/registry.ts#L169)
 
 Check if a class is registered
 
@@ -3909,7 +3909,7 @@ Check if a class is registered
 
 > `static` **register**(`constructor`, `config`): `void`
 
-Defined in: [packages/smrt/src/registry.ts:111](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/registry.ts#L111)
+Defined in: [packages/smrt/src/registry.ts:111](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/registry.ts#L111)
 
 Register a new smrt object class
 
@@ -3931,7 +3931,7 @@ Register a new smrt object class
 
 > `static` **registerCollection**(`objectName`, `collectionConstructor`): `void`
 
-Defined in: [packages/smrt/src/registry.ts:133](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/registry.ts#L133)
+Defined in: [packages/smrt/src/registry.ts:133](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/registry.ts#L133)
 
 Register a collection class for an object
 
@@ -3953,7 +3953,7 @@ Register a collection class for an object
 
 ### Pleb\<T\>
 
-Defined in: [packages/smrt/src/pleb.ts:6](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/pleb.ts#L6)
+Defined in: [packages/smrt/src/pleb.ts:6](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/pleb.ts#L6)
 
 Base persistent object with unique identifiers and database storage
 
@@ -3977,7 +3977,7 @@ slugs, with optional context scoping.
 
 > **new Pleb**\<`T`\>(`options`): [`Pleb`](#pleb)\<`T`\>
 
-Defined in: [packages/smrt/src/pleb.ts:7](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/pleb.ts#L7)
+Defined in: [packages/smrt/src/pleb.ts:7](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/pleb.ts#L7)
 
 ###### Parameters
 
@@ -3999,7 +3999,7 @@ Defined in: [packages/smrt/src/pleb.ts:7](https://github.com/happyvertical/sdk/b
 
 > `protected` **\_ai**: `AIClient`
 
-Defined in: [packages/smrt/src/class.ts:49](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L49)
+Defined in: [packages/smrt/src/class.ts:49](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L49)
 
 AI client instance for interacting with AI models
 
@@ -4011,7 +4011,7 @@ AI client instance for interacting with AI models
 
 > `protected` **\_className**: `string`
 
-Defined in: [packages/smrt/src/class.ts:64](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L64)
+Defined in: [packages/smrt/src/class.ts:64](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L64)
 
 Class name used for identification
 
@@ -4023,7 +4023,7 @@ Class name used for identification
 
 > `protected` **\_context**: `undefined` \| `null` \| `string`
 
-Defined in: [packages/smrt/src/object.ts:84](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L84)
+Defined in: [packages/smrt/src/object.ts:84](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L84)
 
 Optional context to scope the slug
 
@@ -4035,7 +4035,7 @@ Optional context to scope the slug
 
 > `protected` **\_db**: `DatabaseInterface`
 
-Defined in: [packages/smrt/src/class.ts:59](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L59)
+Defined in: [packages/smrt/src/class.ts:59](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L59)
 
 Database interface for data persistence
 
@@ -4047,7 +4047,7 @@ Database interface for data persistence
 
 > `protected` **\_fs**: `FilesystemAdapter`
 
-Defined in: [packages/smrt/src/class.ts:54](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L54)
+Defined in: [packages/smrt/src/class.ts:54](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L54)
 
 Filesystem adapter for file operations
 
@@ -4059,7 +4059,7 @@ Filesystem adapter for file operations
 
 > `protected` **\_id**: `undefined` \| `null` \| `string`
 
-Defined in: [packages/smrt/src/object.ts:74](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L74)
+Defined in: [packages/smrt/src/object.ts:74](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L74)
 
 Unique identifier for the object
 
@@ -4071,7 +4071,7 @@ Unique identifier for the object
 
 > `protected` **\_slug**: `undefined` \| `null` \| `string`
 
-Defined in: [packages/smrt/src/object.ts:79](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L79)
+Defined in: [packages/smrt/src/object.ts:79](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L79)
 
 URL-friendly identifier
 
@@ -4083,7 +4083,7 @@ URL-friendly identifier
 
 > **\_tableName**: `string`
 
-Defined in: [packages/smrt/src/object.ts:69](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L69)
+Defined in: [packages/smrt/src/object.ts:69](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L69)
 
 Database table name for this object
 
@@ -4095,7 +4095,7 @@ Database table name for this object
 
 > **created\_at**: `undefined` \| `null` \| `Date`
 
-Defined in: [packages/smrt/src/object.ts:94](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L94)
+Defined in: [packages/smrt/src/object.ts:94](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L94)
 
 Creation timestamp
 
@@ -4107,7 +4107,7 @@ Creation timestamp
 
 > **name**: `undefined` \| `null` \| `string`
 
-Defined in: [packages/smrt/src/object.ts:89](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L89)
+Defined in: [packages/smrt/src/object.ts:89](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L89)
 
 Human-readable name, primarily for display purposes
 
@@ -4119,7 +4119,7 @@ Human-readable name, primarily for display purposes
 
 > `protected` **options**: `T`
 
-Defined in: [packages/smrt/src/class.ts:69](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L69)
+Defined in: [packages/smrt/src/class.ts:69](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L69)
 
 Configuration options provided to the class
 
@@ -4131,7 +4131,7 @@ Configuration options provided to the class
 
 > **updated\_at**: `undefined` \| `null` \| `Date`
 
-Defined in: [packages/smrt/src/object.ts:99](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L99)
+Defined in: [packages/smrt/src/object.ts:99](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L99)
 
 Last update timestamp
 
@@ -4147,7 +4147,7 @@ Last update timestamp
 
 > **get** **ai**(): `AIClient`
 
-Defined in: [packages/smrt/src/class.ts:118](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L118)
+Defined in: [packages/smrt/src/class.ts:118](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L118)
 
 Gets the AI client instance
 
@@ -4165,7 +4165,7 @@ Gets the AI client instance
 
 > **get** **context**(): `string`
 
-Defined in: [packages/smrt/src/object.ts:190](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L190)
+Defined in: [packages/smrt/src/object.ts:190](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L190)
 
 Gets the context that scopes this object's slug
 
@@ -4177,7 +4177,7 @@ Gets the context that scopes this object's slug
 
 > **set** **context**(`value`): `void`
 
-Defined in: [packages/smrt/src/object.ts:200](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L200)
+Defined in: [packages/smrt/src/object.ts:200](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L200)
 
 Sets the context that scopes this object's slug
 
@@ -4207,7 +4207,7 @@ The context to set
 
 > **get** **db**(): `DatabaseInterface`
 
-Defined in: [packages/smrt/src/class.ts:111](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L111)
+Defined in: [packages/smrt/src/class.ts:111](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L111)
 
 Gets the database interface instance
 
@@ -4225,7 +4225,7 @@ Gets the database interface instance
 
 > **get** **fs**(): `FilesystemAdapter`
 
-Defined in: [packages/smrt/src/class.ts:104](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L104)
+Defined in: [packages/smrt/src/class.ts:104](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L104)
 
 Gets the filesystem adapter instance
 
@@ -4243,7 +4243,7 @@ Gets the filesystem adapter instance
 
 > **get** **id**(): `undefined` \| `null` \| `string`
 
-Defined in: [packages/smrt/src/object.ts:149](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L149)
+Defined in: [packages/smrt/src/object.ts:149](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L149)
 
 Gets the unique identifier for this object
 
@@ -4255,7 +4255,7 @@ Gets the unique identifier for this object
 
 > **set** **id**(`value`): `void`
 
-Defined in: [packages/smrt/src/object.ts:159](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L159)
+Defined in: [packages/smrt/src/object.ts:159](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L159)
 
 Sets the unique identifier for this object
 
@@ -4285,7 +4285,7 @@ The ID to set
 
 > **get** **slug**(): `undefined` \| `null` \| `string`
 
-Defined in: [packages/smrt/src/object.ts:169](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L169)
+Defined in: [packages/smrt/src/object.ts:169](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L169)
 
 Gets the URL-friendly slug for this object
 
@@ -4297,7 +4297,7 @@ Gets the URL-friendly slug for this object
 
 > **set** **slug**(`value`): `void`
 
-Defined in: [packages/smrt/src/object.ts:179](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L179)
+Defined in: [packages/smrt/src/object.ts:179](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L179)
 
 Sets the URL-friendly slug for this object
 
@@ -4327,7 +4327,7 @@ The slug to set
 
 > **get** **tableName**(): `string`
 
-Defined in: [packages/smrt/src/object.ts:257](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L257)
+Defined in: [packages/smrt/src/object.ts:257](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L257)
 
 Gets the database table name for this object
 
@@ -4345,7 +4345,7 @@ Gets the database table name for this object
 
 > **allDescriptors**(): `object` & `object`
 
-Defined in: [packages/smrt/src/object.ts:248](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L248)
+Defined in: [packages/smrt/src/object.ts:248](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L248)
 
 Gets all property descriptors from this object's prototype
 
@@ -4363,7 +4363,7 @@ Object containing all property descriptors
 
 > **delete**(): `Promise`\<`void`\>
 
-Defined in: [packages/smrt/src/object.ts:628](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L628)
+Defined in: [packages/smrt/src/object.ts:628](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L628)
 
 Delete this object from the database
 
@@ -4381,7 +4381,7 @@ Promise that resolves when deletion is complete
 
 > **do**(`instructions`, `options`): `Promise`\<`string`\>
 
-Defined in: [packages/smrt/src/object.ts:588](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L588)
+Defined in: [packages/smrt/src/object.ts:588](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L588)
 
 Performs actions on this object based on instructions using AI
 
@@ -4413,7 +4413,7 @@ Promise resolving to the AI response
 
 > `protected` **extractConstraintField**(`errorMessage`): `string`
 
-Defined in: [packages/smrt/src/object.ts:485](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L485)
+Defined in: [packages/smrt/src/object.ts:485](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L485)
 
 Extracts field name from database constraint error messages
 
@@ -4435,7 +4435,7 @@ Extracts field name from database constraint error messages
 
 > **generateUpsertStatement**(): `string`
 
-Defined in: [packages/smrt/src/object.ts:288](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L288)
+Defined in: [packages/smrt/src/object.ts:288](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L288)
 
 Generates an SQL UPSERT statement for saving this object to the database
 
@@ -4453,7 +4453,7 @@ SQL statement for inserting or updating this object
 
 > **getFields**(): `Record`\<`string`, `any`\>
 
-Defined in: [packages/smrt/src/object.ts:269](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L269)
+Defined in: [packages/smrt/src/object.ts:269](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L269)
 
 Gets field definitions and current values for this object
 
@@ -4471,7 +4471,7 @@ Object containing field definitions with current values
 
 > `protected` **getFieldValue**(`fieldName`): `any`
 
-Defined in: [packages/smrt/src/object.ts:478](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L478)
+Defined in: [packages/smrt/src/object.ts:478](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L478)
 
 Gets the value of a field on this object
 
@@ -4493,7 +4493,7 @@ Gets the value of a field on this object
 
 > **getId**(): `Promise`\<`string`\>
 
-Defined in: [packages/smrt/src/object.ts:328](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L328)
+Defined in: [packages/smrt/src/object.ts:328](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L328)
 
 Gets or generates a unique ID for this object
 
@@ -4511,7 +4511,7 @@ Promise resolving to the object's ID
 
 > **getSavedId**(): `Promise`\<`any`\>
 
-Defined in: [packages/smrt/src/object.ts:365](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L365)
+Defined in: [packages/smrt/src/object.ts:365](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L365)
 
 Gets the ID of this object if it's already saved in the database
 
@@ -4529,7 +4529,7 @@ Promise resolving to the saved ID or null if not saved
 
 > **getSlug**(): `Promise`\<`undefined` \| `null` \| `string`\>
 
-Defined in: [packages/smrt/src/object.ts:347](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L347)
+Defined in: [packages/smrt/src/object.ts:347](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L347)
 
 Gets or generates a slug for this object based on its name
 
@@ -4547,7 +4547,7 @@ Promise resolving to the object's slug
 
 > `protected` **initialize**(): `Promise`\<`void`\>
 
-Defined in: [packages/smrt/src/pleb.ts:18](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/pleb.ts#L18)
+Defined in: [packages/smrt/src/pleb.ts:18](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/pleb.ts#L18)
 
 Initializes this object, setting up database tables and loading data if identifiers are provided
 
@@ -4565,7 +4565,7 @@ Promise that resolves when initialization is complete
 
 > **is**(`criteria`, `options`): `Promise`\<`any`\>
 
-Defined in: [packages/smrt/src/object.ts:565](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L565)
+Defined in: [packages/smrt/src/object.ts:565](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L565)
 
 Evaluates whether this object meets given criteria using AI
 
@@ -4601,7 +4601,7 @@ Error if the AI response is invalid
 
 > **isSaved**(): `Promise`\<`boolean`\>
 
-Defined in: [packages/smrt/src/object.ts:377](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L377)
+Defined in: [packages/smrt/src/object.ts:377](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L377)
 
 Checks if this object is already saved in the database
 
@@ -4619,7 +4619,7 @@ Promise resolving to true if saved, false otherwise
 
 > **loadDataFromDb**(`data`): `void`
 
-Defined in: [packages/smrt/src/object.ts:234](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L234)
+Defined in: [packages/smrt/src/object.ts:234](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L234)
 
 Loads data from a database row into this object's properties
 
@@ -4643,7 +4643,7 @@ Database row data
 
 > **loadFromId**(): `Promise`\<`void`\>
 
-Defined in: [packages/smrt/src/object.ts:508](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L508)
+Defined in: [packages/smrt/src/object.ts:508](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L508)
 
 Loads this object's data from the database using its ID
 
@@ -4661,7 +4661,7 @@ Promise that resolves when loading is complete
 
 > **loadFromSlug**(): `Promise`\<`void`\>
 
-Defined in: [packages/smrt/src/object.ts:545](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L545)
+Defined in: [packages/smrt/src/object.ts:545](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L545)
 
 Loads this object's data from the database using its slug and context
 
@@ -4679,7 +4679,7 @@ Promise that resolves when loading is complete
 
 > `protected` **runHook**(`hookName`): `Promise`\<`void`\>
 
-Defined in: [packages/smrt/src/object.ts:600](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L600)
+Defined in: [packages/smrt/src/object.ts:600](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L600)
 
 Runs a lifecycle hook if it's defined in the object's configuration
 
@@ -4705,7 +4705,7 @@ Promise that resolves when the hook completes
 
 > **save**(): `Promise`\<[`Pleb`](#pleb)\<`T`\>\>
 
-Defined in: [packages/smrt/src/object.ts:387](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L387)
+Defined in: [packages/smrt/src/object.ts:387](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L387)
 
 Saves this object to the database
 
@@ -4723,7 +4723,7 @@ Promise resolving to this object
 
 > `protected` **validateBeforeSave**(): `Promise`\<`void`\>
 
-Defined in: [packages/smrt/src/object.ts:461](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L461)
+Defined in: [packages/smrt/src/object.ts:461](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L461)
 
 Validates object state before saving
 Override in subclasses to add custom validation logic
@@ -4740,7 +4740,7 @@ Override in subclasses to add custom validation logic
 
 > `static` **create**(`options`): `Promise`\<[`Pleb`](#pleb)\<[`PlebOptions`](#pleboptions-1)\>\>
 
-Defined in: [packages/smrt/src/pleb.ts:12](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/pleb.ts#L12)
+Defined in: [packages/smrt/src/pleb.ts:12](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/pleb.ts#L12)
 
 ###### Parameters
 
@@ -4756,7 +4756,7 @@ Defined in: [packages/smrt/src/pleb.ts:12](https://github.com/happyvertical/sdk/
 
 ### RuntimeError
 
-Defined in: packages/smrt/src/errors.ts:295
+Defined in: [packages/smrt/src/errors.ts:295](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L295)
 
 Runtime execution errors
 
@@ -4770,7 +4770,7 @@ Runtime execution errors
 
 > **new RuntimeError**(`message`, `code`, `details?`, `cause?`): [`RuntimeError`](#runtimeerror)
 
-Defined in: packages/smrt/src/errors.ts:296
+Defined in: [packages/smrt/src/errors.ts:296](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L296)
 
 ###### Parameters
 
@@ -4804,7 +4804,7 @@ Defined in: packages/smrt/src/errors.ts:296
 
 > `readonly` **category**: `"database"` \| `"ai"` \| `"filesystem"` \| `"validation"` \| `"network"` \| `"configuration"` \| `"runtime"`
 
-Defined in: packages/smrt/src/errors.ts:13
+Defined in: [packages/smrt/src/errors.ts:13](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L13)
 
 ###### Inherited from
 
@@ -4814,7 +4814,7 @@ Defined in: packages/smrt/src/errors.ts:13
 
 > `readonly` `optional` **cause**: `Error`
 
-Defined in: packages/smrt/src/errors.ts:15
+Defined in: [packages/smrt/src/errors.ts:15](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L15)
 
 The cause of the error.
 
@@ -4826,7 +4826,7 @@ The cause of the error.
 
 > `readonly` **code**: `string`
 
-Defined in: packages/smrt/src/errors.ts:12
+Defined in: [packages/smrt/src/errors.ts:12](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L12)
 
 ###### Inherited from
 
@@ -4836,7 +4836,7 @@ Defined in: packages/smrt/src/errors.ts:12
 
 > `readonly` `optional` **details**: `Record`\<`string`, `any`\>
 
-Defined in: packages/smrt/src/errors.ts:14
+Defined in: [packages/smrt/src/errors.ts:14](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L14)
 
 ###### Inherited from
 
@@ -4920,7 +4920,7 @@ The maximum number of stack frames to capture.
 
 > **toJSON**(): `object`
 
-Defined in: packages/smrt/src/errors.ts:40
+Defined in: [packages/smrt/src/errors.ts:40](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L40)
 
 Converts error to a serializable object for logging/debugging
 
@@ -5018,7 +5018,7 @@ Create .stack property on a target object
 
 > `static` **invalidState**(`state`, `expected`): [`RuntimeError`](#runtimeerror)
 
-Defined in: packages/smrt/src/errors.ts:309
+Defined in: [packages/smrt/src/errors.ts:309](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L309)
 
 ###### Parameters
 
@@ -5064,7 +5064,7 @@ True if the value is an instance of Error, false otherwise
 
 > `static` **operationFailed**(`operation`, `context?`, `cause?`): [`RuntimeError`](#runtimeerror)
 
-Defined in: packages/smrt/src/errors.ts:300
+Defined in: [packages/smrt/src/errors.ts:300](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L300)
 
 ###### Parameters
 
@@ -5088,7 +5088,7 @@ Defined in: packages/smrt/src/errors.ts:300
 
 > `static` **resourceExhausted**(`resource`, `limit`): [`RuntimeError`](#runtimeerror)
 
-Defined in: packages/smrt/src/errors.ts:317
+Defined in: [packages/smrt/src/errors.ts:317](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L317)
 
 ###### Parameters
 
@@ -5108,7 +5108,7 @@ Defined in: packages/smrt/src/errors.ts:317
 
 ### `abstract` SmrtError
 
-Defined in: packages/smrt/src/errors.ts:11
+Defined in: [packages/smrt/src/errors.ts:11](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L11)
 
 Base error class for all SMRT framework errors
 
@@ -5132,7 +5132,7 @@ Base error class for all SMRT framework errors
 
 > **new SmrtError**(`message`, `code`, `category`, `details?`, `cause?`): [`SmrtError`](#smrterror)
 
-Defined in: packages/smrt/src/errors.ts:17
+Defined in: [packages/smrt/src/errors.ts:17](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L17)
 
 ###### Parameters
 
@@ -5170,13 +5170,13 @@ Defined in: packages/smrt/src/errors.ts:17
 
 > `readonly` **category**: `"database"` \| `"ai"` \| `"filesystem"` \| `"validation"` \| `"network"` \| `"configuration"` \| `"runtime"`
 
-Defined in: packages/smrt/src/errors.ts:13
+Defined in: [packages/smrt/src/errors.ts:13](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L13)
 
 ##### cause?
 
 > `readonly` `optional` **cause**: `Error`
 
-Defined in: packages/smrt/src/errors.ts:15
+Defined in: [packages/smrt/src/errors.ts:15](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L15)
 
 The cause of the error.
 
@@ -5188,13 +5188,13 @@ The cause of the error.
 
 > `readonly` **code**: `string`
 
-Defined in: packages/smrt/src/errors.ts:12
+Defined in: [packages/smrt/src/errors.ts:12](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L12)
 
 ##### details?
 
 > `readonly` `optional` **details**: `Record`\<`string`, `any`\>
 
-Defined in: packages/smrt/src/errors.ts:14
+Defined in: [packages/smrt/src/errors.ts:14](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L14)
 
 ##### message
 
@@ -5274,7 +5274,7 @@ The maximum number of stack frames to capture.
 
 > **toJSON**(): `object`
 
-Defined in: packages/smrt/src/errors.ts:40
+Defined in: [packages/smrt/src/errors.ts:40](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L40)
 
 Converts error to a serializable object for logging/debugging
 
@@ -5394,7 +5394,7 @@ True if the value is an instance of Error, false otherwise
 
 ### ValidationError
 
-Defined in: packages/smrt/src/errors.ts:180
+Defined in: [packages/smrt/src/errors.ts:180](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L180)
 
 Data validation errors
 
@@ -5408,7 +5408,7 @@ Data validation errors
 
 > **new ValidationError**(`message`, `code`, `details?`, `cause?`): [`ValidationError`](#validationerror)
 
-Defined in: packages/smrt/src/errors.ts:181
+Defined in: [packages/smrt/src/errors.ts:181](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L181)
 
 ###### Parameters
 
@@ -5442,7 +5442,7 @@ Defined in: packages/smrt/src/errors.ts:181
 
 > `readonly` **category**: `"database"` \| `"ai"` \| `"filesystem"` \| `"validation"` \| `"network"` \| `"configuration"` \| `"runtime"`
 
-Defined in: packages/smrt/src/errors.ts:13
+Defined in: [packages/smrt/src/errors.ts:13](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L13)
 
 ###### Inherited from
 
@@ -5452,7 +5452,7 @@ Defined in: packages/smrt/src/errors.ts:13
 
 > `readonly` `optional` **cause**: `Error`
 
-Defined in: packages/smrt/src/errors.ts:15
+Defined in: [packages/smrt/src/errors.ts:15](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L15)
 
 The cause of the error.
 
@@ -5464,7 +5464,7 @@ The cause of the error.
 
 > `readonly` **code**: `string`
 
-Defined in: packages/smrt/src/errors.ts:12
+Defined in: [packages/smrt/src/errors.ts:12](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L12)
 
 ###### Inherited from
 
@@ -5474,7 +5474,7 @@ Defined in: packages/smrt/src/errors.ts:12
 
 > `readonly` `optional` **details**: `Record`\<`string`, `any`\>
 
-Defined in: packages/smrt/src/errors.ts:14
+Defined in: [packages/smrt/src/errors.ts:14](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L14)
 
 ###### Inherited from
 
@@ -5558,7 +5558,7 @@ The maximum number of stack frames to capture.
 
 > **toJSON**(): `object`
 
-Defined in: packages/smrt/src/errors.ts:40
+Defined in: [packages/smrt/src/errors.ts:40](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L40)
 
 Converts error to a serializable object for logging/debugging
 
@@ -5656,7 +5656,7 @@ Create .stack property on a target object
 
 > `static` **invalidValue**(`fieldName`, `value`, `expectedType`): [`ValidationError`](#validationerror)
 
-Defined in: packages/smrt/src/errors.ts:193
+Defined in: [packages/smrt/src/errors.ts:193](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L193)
 
 ###### Parameters
 
@@ -5706,7 +5706,7 @@ True if the value is an instance of Error, false otherwise
 
 > `static` **rangeError**(`fieldName`, `value`, `min?`, `max?`): [`ValidationError`](#validationerror)
 
-Defined in: packages/smrt/src/errors.ts:209
+Defined in: [packages/smrt/src/errors.ts:209](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L209)
 
 ###### Parameters
 
@@ -5734,7 +5734,7 @@ Defined in: packages/smrt/src/errors.ts:209
 
 > `static` **requiredField**(`fieldName`, `objectType`): [`ValidationError`](#validationerror)
 
-Defined in: packages/smrt/src/errors.ts:185
+Defined in: [packages/smrt/src/errors.ts:185](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L185)
 
 ###### Parameters
 
@@ -5754,7 +5754,7 @@ Defined in: packages/smrt/src/errors.ts:185
 
 > `static` **uniqueConstraint**(`fieldName`, `value`): [`ValidationError`](#validationerror)
 
-Defined in: packages/smrt/src/errors.ts:201
+Defined in: [packages/smrt/src/errors.ts:201](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/errors.ts#L201)
 
 ###### Parameters
 
@@ -5774,7 +5774,7 @@ Defined in: packages/smrt/src/errors.ts:201
 
 ### APIConfig
 
-Defined in: [packages/smrt/src/generators/rest.ts:11](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L11)
+Defined in: [packages/smrt/src/generators/rest.ts:11](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L11)
 
 #### Extended by
 
@@ -5786,7 +5786,7 @@ Defined in: [packages/smrt/src/generators/rest.ts:11](https://github.com/happyve
 
 > `optional` **authMiddleware**: (`objectName`, `action`) => (`req`) => `Promise`\<`Request` \| `Response`\>
 
-Defined in: [packages/smrt/src/generators/rest.ts:15](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L15)
+Defined in: [packages/smrt/src/generators/rest.ts:15](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L15)
 
 ###### Parameters
 
@@ -5816,37 +5816,37 @@ Defined in: [packages/smrt/src/generators/rest.ts:15](https://github.com/happyve
 
 > `optional` **basePath**: `string`
 
-Defined in: [packages/smrt/src/generators/rest.ts:12](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L12)
+Defined in: [packages/smrt/src/generators/rest.ts:12](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L12)
 
 ##### customRoutes?
 
 > `optional` **customRoutes**: `Record`\<`string`, (`req`) => `Promise`\<`Response`\>\>
 
-Defined in: [packages/smrt/src/generators/rest.ts:14](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L14)
+Defined in: [packages/smrt/src/generators/rest.ts:14](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L14)
 
 ##### enableCors?
 
 > `optional` **enableCors**: `boolean`
 
-Defined in: [packages/smrt/src/generators/rest.ts:13](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L13)
+Defined in: [packages/smrt/src/generators/rest.ts:13](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L13)
 
 ##### hostname?
 
 > `optional` **hostname**: `string`
 
-Defined in: [packages/smrt/src/generators/rest.ts:17](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L17)
+Defined in: [packages/smrt/src/generators/rest.ts:17](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L17)
 
 ##### port?
 
 > `optional` **port**: `number`
 
-Defined in: [packages/smrt/src/generators/rest.ts:16](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L16)
+Defined in: [packages/smrt/src/generators/rest.ts:16](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L16)
 
 ***
 
 ### APIContext
 
-Defined in: [packages/smrt/src/generators/rest.ts:20](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L20)
+Defined in: [packages/smrt/src/generators/rest.ts:20](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L20)
 
 #### Properties
 
@@ -5854,19 +5854,19 @@ Defined in: [packages/smrt/src/generators/rest.ts:20](https://github.com/happyve
 
 > `optional` **ai**: `any`
 
-Defined in: [packages/smrt/src/generators/rest.ts:22](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L22)
+Defined in: [packages/smrt/src/generators/rest.ts:22](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L22)
 
 ##### db?
 
 > `optional` **db**: `any`
 
-Defined in: [packages/smrt/src/generators/rest.ts:21](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L21)
+Defined in: [packages/smrt/src/generators/rest.ts:21](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L21)
 
 ##### user?
 
 > `optional` **user**: `object`
 
-Defined in: [packages/smrt/src/generators/rest.ts:23](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L23)
+Defined in: [packages/smrt/src/generators/rest.ts:23](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L23)
 
 ###### id
 
@@ -5884,7 +5884,7 @@ Defined in: [packages/smrt/src/generators/rest.ts:23](https://github.com/happyve
 
 ### BaseClassOptions
 
-Defined in: [packages/smrt/src/class.ts:11](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L11)
+Defined in: [packages/smrt/src/class.ts:11](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L11)
 
 Configuration options for the BaseClass
 
@@ -5899,7 +5899,7 @@ Configuration options for the BaseClass
 
 > `optional` **\_className**: `string`
 
-Defined in: [packages/smrt/src/class.ts:15](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L15)
+Defined in: [packages/smrt/src/class.ts:15](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L15)
 
 Optional custom class name override
 
@@ -5907,7 +5907,7 @@ Optional custom class name override
 
 > `optional` **ai**: `AIClientOptions`
 
-Defined in: [packages/smrt/src/class.ts:35](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L35)
+Defined in: [packages/smrt/src/class.ts:35](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L35)
 
 AI client configuration options
 
@@ -5915,7 +5915,7 @@ AI client configuration options
 
 > `optional` **db**: `object`
 
-Defined in: [packages/smrt/src/class.ts:20](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L20)
+Defined in: [packages/smrt/src/class.ts:20](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L20)
 
 Database configuration options
 
@@ -5939,7 +5939,7 @@ Database configuration options
 
 > `optional` **fs**: `FilesystemAdapterOptions`
 
-Defined in: [packages/smrt/src/class.ts:30](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L30)
+Defined in: [packages/smrt/src/class.ts:30](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L30)
 
 Filesystem adapter configuration options
 
@@ -5947,7 +5947,7 @@ Filesystem adapter configuration options
 
 ### BaseCollectionOptions
 
-Defined in: [packages/smrt/src/collection.ts:16](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/collection.ts#L16)
+Defined in: [packages/smrt/src/collection.ts:16](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/collection.ts#L16)
 
 Configuration options for BaseCollection
 
@@ -5961,7 +5961,7 @@ Configuration options for BaseCollection
 
 > `optional` **\_className**: `string`
 
-Defined in: [packages/smrt/src/class.ts:15](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L15)
+Defined in: [packages/smrt/src/class.ts:15](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L15)
 
 Optional custom class name override
 
@@ -5973,7 +5973,7 @@ Optional custom class name override
 
 > `optional` **ai**: `AIClientOptions`
 
-Defined in: [packages/smrt/src/class.ts:35](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L35)
+Defined in: [packages/smrt/src/class.ts:35](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L35)
 
 AI client configuration options
 
@@ -5985,7 +5985,7 @@ AI client configuration options
 
 > `optional` **db**: `object`
 
-Defined in: [packages/smrt/src/class.ts:20](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L20)
+Defined in: [packages/smrt/src/class.ts:20](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L20)
 
 Database configuration options
 
@@ -6013,7 +6013,7 @@ Database configuration options
 
 > `optional` **fs**: `FilesystemAdapterOptions`
 
-Defined in: [packages/smrt/src/class.ts:30](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L30)
+Defined in: [packages/smrt/src/class.ts:30](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L30)
 
 Filesystem adapter configuration options
 
@@ -6025,7 +6025,7 @@ Filesystem adapter configuration options
 
 ### BaseObjectOptions
 
-Defined in: [packages/smrt/src/object.ts:24](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L24)
+Defined in: [packages/smrt/src/object.ts:24](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L24)
 
 Options for BaseObject initialization
 
@@ -6043,7 +6043,7 @@ Options for BaseObject initialization
 
 > `optional` **\_className**: `string`
 
-Defined in: [packages/smrt/src/class.ts:15](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L15)
+Defined in: [packages/smrt/src/class.ts:15](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L15)
 
 Optional custom class name override
 
@@ -6055,7 +6055,7 @@ Optional custom class name override
 
 > `optional` **ai**: `AIClientOptions`
 
-Defined in: [packages/smrt/src/class.ts:35](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L35)
+Defined in: [packages/smrt/src/class.ts:35](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L35)
 
 AI client configuration options
 
@@ -6067,7 +6067,7 @@ AI client configuration options
 
 > `optional` **context**: `string`
 
-Defined in: [packages/smrt/src/object.ts:43](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L43)
+Defined in: [packages/smrt/src/object.ts:43](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L43)
 
 Optional context to scope the slug (could be a path, domain, etc.)
 
@@ -6075,7 +6075,7 @@ Optional context to scope the slug (could be a path, domain, etc.)
 
 > `optional` **created\_at**: `Date`
 
-Defined in: [packages/smrt/src/object.ts:48](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L48)
+Defined in: [packages/smrt/src/object.ts:48](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L48)
 
 Creation timestamp
 
@@ -6083,7 +6083,7 @@ Creation timestamp
 
 > `optional` **db**: `object`
 
-Defined in: [packages/smrt/src/class.ts:20](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L20)
+Defined in: [packages/smrt/src/class.ts:20](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L20)
 
 Database configuration options
 
@@ -6111,7 +6111,7 @@ Database configuration options
 
 > `optional` **fs**: `FilesystemAdapterOptions`
 
-Defined in: [packages/smrt/src/class.ts:30](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L30)
+Defined in: [packages/smrt/src/class.ts:30](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L30)
 
 Filesystem adapter configuration options
 
@@ -6123,7 +6123,7 @@ Filesystem adapter configuration options
 
 > `optional` **id**: `string`
 
-Defined in: [packages/smrt/src/object.ts:28](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L28)
+Defined in: [packages/smrt/src/object.ts:28](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L28)
 
 Unique identifier for the object
 
@@ -6131,7 +6131,7 @@ Unique identifier for the object
 
 > `optional` **name**: `string`
 
-Defined in: [packages/smrt/src/object.ts:33](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L33)
+Defined in: [packages/smrt/src/object.ts:33](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L33)
 
 Human-readable name for the object
 
@@ -6139,7 +6139,7 @@ Human-readable name for the object
 
 > `optional` **slug**: `string`
 
-Defined in: [packages/smrt/src/object.ts:38](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L38)
+Defined in: [packages/smrt/src/object.ts:38](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L38)
 
 URL-friendly identifier
 
@@ -6147,7 +6147,7 @@ URL-friendly identifier
 
 > `optional` **updated\_at**: `Date`
 
-Defined in: [packages/smrt/src/object.ts:53](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L53)
+Defined in: [packages/smrt/src/object.ts:53](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L53)
 
 Last update timestamp
 
@@ -6155,7 +6155,7 @@ Last update timestamp
 
 ### CLICommand
 
-Defined in: [packages/smrt/src/generators/cli.ts:30](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L30)
+Defined in: [packages/smrt/src/generators/cli.ts:30](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L30)
 
 #### Properties
 
@@ -6163,25 +6163,25 @@ Defined in: [packages/smrt/src/generators/cli.ts:30](https://github.com/happyver
 
 > `optional` **aliases**: `string`[]
 
-Defined in: [packages/smrt/src/generators/cli.ts:33](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L33)
+Defined in: [packages/smrt/src/generators/cli.ts:33](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L33)
 
 ##### args?
 
 > `optional` **args**: `string`[]
 
-Defined in: [packages/smrt/src/generators/cli.ts:40](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L40)
+Defined in: [packages/smrt/src/generators/cli.ts:40](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L40)
 
 ##### description
 
 > **description**: `string`
 
-Defined in: [packages/smrt/src/generators/cli.ts:32](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L32)
+Defined in: [packages/smrt/src/generators/cli.ts:32](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L32)
 
 ##### handler()
 
 > **handler**: (`args`, `options`) => `Promise`\<`void`\>
 
-Defined in: [packages/smrt/src/generators/cli.ts:41](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L41)
+Defined in: [packages/smrt/src/generators/cli.ts:41](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L41)
 
 ###### Parameters
 
@@ -6201,19 +6201,19 @@ Defined in: [packages/smrt/src/generators/cli.ts:41](https://github.com/happyver
 
 > **name**: `string`
 
-Defined in: [packages/smrt/src/generators/cli.ts:31](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L31)
+Defined in: [packages/smrt/src/generators/cli.ts:31](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L31)
 
 ##### options?
 
 > `optional` **options**: `Record`\<`string`, \{ `default?`: `any`; `description`: `string`; `short?`: `string`; `type`: `"string"` \| `"boolean"`; \}\>
 
-Defined in: [packages/smrt/src/generators/cli.ts:34](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L34)
+Defined in: [packages/smrt/src/generators/cli.ts:34](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L34)
 
 ***
 
 ### CLIConfig
 
-Defined in: [packages/smrt/src/generators/cli.ts:13](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L13)
+Defined in: [packages/smrt/src/generators/cli.ts:13](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L13)
 
 #### Properties
 
@@ -6221,37 +6221,37 @@ Defined in: [packages/smrt/src/generators/cli.ts:13](https://github.com/happyver
 
 > `optional` **colors**: `boolean`
 
-Defined in: [packages/smrt/src/generators/cli.ts:18](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L18)
+Defined in: [packages/smrt/src/generators/cli.ts:18](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L18)
 
 ##### description?
 
 > `optional` **description**: `string`
 
-Defined in: [packages/smrt/src/generators/cli.ts:16](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L16)
+Defined in: [packages/smrt/src/generators/cli.ts:16](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L16)
 
 ##### name?
 
 > `optional` **name**: `string`
 
-Defined in: [packages/smrt/src/generators/cli.ts:14](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L14)
+Defined in: [packages/smrt/src/generators/cli.ts:14](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L14)
 
 ##### prompt?
 
 > `optional` **prompt**: `boolean`
 
-Defined in: [packages/smrt/src/generators/cli.ts:17](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L17)
+Defined in: [packages/smrt/src/generators/cli.ts:17](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L17)
 
 ##### version?
 
 > `optional` **version**: `string`
 
-Defined in: [packages/smrt/src/generators/cli.ts:15](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L15)
+Defined in: [packages/smrt/src/generators/cli.ts:15](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L15)
 
 ***
 
 ### CLIContext
 
-Defined in: [packages/smrt/src/generators/cli.ts:21](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L21)
+Defined in: [packages/smrt/src/generators/cli.ts:21](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L21)
 
 #### Properties
 
@@ -6259,19 +6259,19 @@ Defined in: [packages/smrt/src/generators/cli.ts:21](https://github.com/happyver
 
 > `optional` **ai**: `any`
 
-Defined in: [packages/smrt/src/generators/cli.ts:23](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L23)
+Defined in: [packages/smrt/src/generators/cli.ts:23](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L23)
 
 ##### db?
 
 > `optional` **db**: `any`
 
-Defined in: [packages/smrt/src/generators/cli.ts:22](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L22)
+Defined in: [packages/smrt/src/generators/cli.ts:22](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L22)
 
 ##### user?
 
 > `optional` **user**: `object`
 
-Defined in: [packages/smrt/src/generators/cli.ts:24](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L24)
+Defined in: [packages/smrt/src/generators/cli.ts:24](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L24)
 
 ###### id
 
@@ -6285,7 +6285,7 @@ Defined in: [packages/smrt/src/generators/cli.ts:24](https://github.com/happyver
 
 ### FieldDefinition
 
-Defined in: [packages/smrt/src/scanner/types.ts:5](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L5)
+Defined in: [packages/smrt/src/scanner/types.ts:5](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L5)
 
 Type definitions for AST scanning and manifest generation
 
@@ -6295,67 +6295,67 @@ Type definitions for AST scanning and manifest generation
 
 > `optional` **default**: `any`
 
-Defined in: [packages/smrt/src/scanner/types.ts:8](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L8)
+Defined in: [packages/smrt/src/scanner/types.ts:8](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L8)
 
 ##### description?
 
 > `optional` **description**: `string`
 
-Defined in: [packages/smrt/src/scanner/types.ts:14](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L14)
+Defined in: [packages/smrt/src/scanner/types.ts:14](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L14)
 
 ##### max?
 
 > `optional` **max**: `number`
 
-Defined in: [packages/smrt/src/scanner/types.ts:10](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L10)
+Defined in: [packages/smrt/src/scanner/types.ts:10](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L10)
 
 ##### maxLength?
 
 > `optional` **maxLength**: `number`
 
-Defined in: [packages/smrt/src/scanner/types.ts:11](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L11)
+Defined in: [packages/smrt/src/scanner/types.ts:11](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L11)
 
 ##### min?
 
 > `optional` **min**: `number`
 
-Defined in: [packages/smrt/src/scanner/types.ts:9](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L9)
+Defined in: [packages/smrt/src/scanner/types.ts:9](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L9)
 
 ##### minLength?
 
 > `optional` **minLength**: `number`
 
-Defined in: [packages/smrt/src/scanner/types.ts:12](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L12)
+Defined in: [packages/smrt/src/scanner/types.ts:12](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L12)
 
 ##### options?
 
 > `optional` **options**: `Record`\<`string`, `any`\>
 
-Defined in: [packages/smrt/src/scanner/types.ts:15](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L15)
+Defined in: [packages/smrt/src/scanner/types.ts:15](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L15)
 
 ##### related?
 
 > `optional` **related**: `string`
 
-Defined in: [packages/smrt/src/scanner/types.ts:13](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L13)
+Defined in: [packages/smrt/src/scanner/types.ts:13](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L13)
 
 ##### required?
 
 > `optional` **required**: `boolean`
 
-Defined in: [packages/smrt/src/scanner/types.ts:7](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L7)
+Defined in: [packages/smrt/src/scanner/types.ts:7](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L7)
 
 ##### type
 
 > **type**: `"boolean"` \| `"text"` \| `"integer"` \| `"decimal"` \| `"datetime"` \| `"json"` \| `"foreignKey"`
 
-Defined in: [packages/smrt/src/scanner/types.ts:6](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L6)
+Defined in: [packages/smrt/src/scanner/types.ts:6](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L6)
 
 ***
 
 ### FieldOptions
 
-Defined in: [packages/smrt/src/fields/index.ts:19](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L19)
+Defined in: [packages/smrt/src/fields/index.ts:19](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L19)
 
 Clean field syntax for smrt objects
 
@@ -6386,37 +6386,37 @@ class Product extends BaseObject {
 
 > `optional` **default**: `any`
 
-Defined in: [packages/smrt/src/fields/index.ts:21](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L21)
+Defined in: [packages/smrt/src/fields/index.ts:21](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L21)
 
 ##### description?
 
 > `optional` **description**: `string`
 
-Defined in: [packages/smrt/src/fields/index.ts:24](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L24)
+Defined in: [packages/smrt/src/fields/index.ts:24](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L24)
 
 ##### index?
 
 > `optional` **index**: `boolean`
 
-Defined in: [packages/smrt/src/fields/index.ts:23](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L23)
+Defined in: [packages/smrt/src/fields/index.ts:23](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L23)
 
 ##### required?
 
 > `optional` **required**: `boolean`
 
-Defined in: [packages/smrt/src/fields/index.ts:20](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L20)
+Defined in: [packages/smrt/src/fields/index.ts:20](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L20)
 
 ##### unique?
 
 > `optional` **unique**: `boolean`
 
-Defined in: [packages/smrt/src/fields/index.ts:22](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L22)
+Defined in: [packages/smrt/src/fields/index.ts:22](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L22)
 
 ***
 
 ### MCPConfig
 
-Defined in: [packages/smrt/src/generators/mcp.ts:11](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L11)
+Defined in: [packages/smrt/src/generators/mcp.ts:11](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L11)
 
 #### Properties
 
@@ -6424,19 +6424,19 @@ Defined in: [packages/smrt/src/generators/mcp.ts:11](https://github.com/happyver
 
 > `optional` **description**: `string`
 
-Defined in: [packages/smrt/src/generators/mcp.ts:14](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L14)
+Defined in: [packages/smrt/src/generators/mcp.ts:14](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L14)
 
 ##### name?
 
 > `optional` **name**: `string`
 
-Defined in: [packages/smrt/src/generators/mcp.ts:12](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L12)
+Defined in: [packages/smrt/src/generators/mcp.ts:12](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L12)
 
 ##### server?
 
 > `optional` **server**: `object`
 
-Defined in: [packages/smrt/src/generators/mcp.ts:15](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L15)
+Defined in: [packages/smrt/src/generators/mcp.ts:15](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L15)
 
 ###### name
 
@@ -6450,13 +6450,13 @@ Defined in: [packages/smrt/src/generators/mcp.ts:15](https://github.com/happyver
 
 > `optional` **version**: `string`
 
-Defined in: [packages/smrt/src/generators/mcp.ts:13](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L13)
+Defined in: [packages/smrt/src/generators/mcp.ts:13](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L13)
 
 ***
 
 ### MCPContext
 
-Defined in: [packages/smrt/src/generators/mcp.ts:21](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L21)
+Defined in: [packages/smrt/src/generators/mcp.ts:21](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L21)
 
 #### Properties
 
@@ -6464,19 +6464,19 @@ Defined in: [packages/smrt/src/generators/mcp.ts:21](https://github.com/happyver
 
 > `optional` **ai**: `any`
 
-Defined in: [packages/smrt/src/generators/mcp.ts:23](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L23)
+Defined in: [packages/smrt/src/generators/mcp.ts:23](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L23)
 
 ##### db?
 
 > `optional` **db**: `any`
 
-Defined in: [packages/smrt/src/generators/mcp.ts:22](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L22)
+Defined in: [packages/smrt/src/generators/mcp.ts:22](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L22)
 
 ##### user?
 
 > `optional` **user**: `object`
 
-Defined in: [packages/smrt/src/generators/mcp.ts:24](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L24)
+Defined in: [packages/smrt/src/generators/mcp.ts:24](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L24)
 
 ###### id
 
@@ -6490,7 +6490,7 @@ Defined in: [packages/smrt/src/generators/mcp.ts:24](https://github.com/happyver
 
 ### MCPRequest
 
-Defined in: [packages/smrt/src/generators/mcp.ts:40](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L40)
+Defined in: [packages/smrt/src/generators/mcp.ts:40](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L40)
 
 #### Properties
 
@@ -6498,13 +6498,13 @@ Defined in: [packages/smrt/src/generators/mcp.ts:40](https://github.com/happyver
 
 > **method**: `string`
 
-Defined in: [packages/smrt/src/generators/mcp.ts:41](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L41)
+Defined in: [packages/smrt/src/generators/mcp.ts:41](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L41)
 
 ##### params
 
 > **params**: `object`
 
-Defined in: [packages/smrt/src/generators/mcp.ts:42](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L42)
+Defined in: [packages/smrt/src/generators/mcp.ts:42](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L42)
 
 ###### arguments
 
@@ -6518,7 +6518,7 @@ Defined in: [packages/smrt/src/generators/mcp.ts:42](https://github.com/happyver
 
 ### MCPResponse
 
-Defined in: [packages/smrt/src/generators/mcp.ts:48](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L48)
+Defined in: [packages/smrt/src/generators/mcp.ts:48](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L48)
 
 #### Properties
 
@@ -6526,7 +6526,7 @@ Defined in: [packages/smrt/src/generators/mcp.ts:48](https://github.com/happyver
 
 > **content**: `object`[]
 
-Defined in: [packages/smrt/src/generators/mcp.ts:49](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L49)
+Defined in: [packages/smrt/src/generators/mcp.ts:49](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L49)
 
 ###### text
 
@@ -6540,7 +6540,7 @@ Defined in: [packages/smrt/src/generators/mcp.ts:49](https://github.com/happyver
 
 ### MCPTool
 
-Defined in: [packages/smrt/src/generators/mcp.ts:30](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L30)
+Defined in: [packages/smrt/src/generators/mcp.ts:30](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L30)
 
 #### Properties
 
@@ -6548,13 +6548,13 @@ Defined in: [packages/smrt/src/generators/mcp.ts:30](https://github.com/happyver
 
 > **description**: `string`
 
-Defined in: [packages/smrt/src/generators/mcp.ts:32](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L32)
+Defined in: [packages/smrt/src/generators/mcp.ts:32](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L32)
 
 ##### inputSchema
 
 > **inputSchema**: `object`
 
-Defined in: [packages/smrt/src/generators/mcp.ts:33](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L33)
+Defined in: [packages/smrt/src/generators/mcp.ts:33](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L33)
 
 ###### properties
 
@@ -6572,13 +6572,13 @@ Defined in: [packages/smrt/src/generators/mcp.ts:33](https://github.com/happyver
 
 > **name**: `string`
 
-Defined in: [packages/smrt/src/generators/mcp.ts:31](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/mcp.ts#L31)
+Defined in: [packages/smrt/src/generators/mcp.ts:31](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/mcp.ts#L31)
 
 ***
 
 ### MethodDefinition
 
-Defined in: [packages/smrt/src/scanner/types.ts:18](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L18)
+Defined in: [packages/smrt/src/scanner/types.ts:18](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L18)
 
 #### Properties
 
@@ -6586,37 +6586,37 @@ Defined in: [packages/smrt/src/scanner/types.ts:18](https://github.com/happyvert
 
 > **async**: `boolean`
 
-Defined in: [packages/smrt/src/scanner/types.ts:20](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L20)
+Defined in: [packages/smrt/src/scanner/types.ts:20](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L20)
 
 ##### description?
 
 > `optional` **description**: `string`
 
-Defined in: [packages/smrt/src/scanner/types.ts:28](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L28)
+Defined in: [packages/smrt/src/scanner/types.ts:28](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L28)
 
 ##### isPublic
 
 > **isPublic**: `boolean`
 
-Defined in: [packages/smrt/src/scanner/types.ts:30](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L30)
+Defined in: [packages/smrt/src/scanner/types.ts:30](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L30)
 
 ##### isStatic
 
 > **isStatic**: `boolean`
 
-Defined in: [packages/smrt/src/scanner/types.ts:29](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L29)
+Defined in: [packages/smrt/src/scanner/types.ts:29](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L29)
 
 ##### name
 
 > **name**: `string`
 
-Defined in: [packages/smrt/src/scanner/types.ts:19](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L19)
+Defined in: [packages/smrt/src/scanner/types.ts:19](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L19)
 
 ##### parameters
 
 > **parameters**: `object`[]
 
-Defined in: [packages/smrt/src/scanner/types.ts:21](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L21)
+Defined in: [packages/smrt/src/scanner/types.ts:21](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L21)
 
 ###### default?
 
@@ -6638,13 +6638,13 @@ Defined in: [packages/smrt/src/scanner/types.ts:21](https://github.com/happyvert
 
 > **returnType**: `string`
 
-Defined in: [packages/smrt/src/scanner/types.ts:27](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L27)
+Defined in: [packages/smrt/src/scanner/types.ts:27](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L27)
 
 ***
 
 ### NumericFieldOptions
 
-Defined in: [packages/smrt/src/fields/index.ts:27](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L27)
+Defined in: [packages/smrt/src/fields/index.ts:27](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L27)
 
 Clean field syntax for smrt objects
 
@@ -6673,7 +6673,7 @@ class Product extends BaseObject {
 
 > `optional` **default**: `any`
 
-Defined in: [packages/smrt/src/fields/index.ts:21](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L21)
+Defined in: [packages/smrt/src/fields/index.ts:21](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L21)
 
 ###### Inherited from
 
@@ -6683,7 +6683,7 @@ Defined in: [packages/smrt/src/fields/index.ts:21](https://github.com/happyverti
 
 > `optional` **description**: `string`
 
-Defined in: [packages/smrt/src/fields/index.ts:24](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L24)
+Defined in: [packages/smrt/src/fields/index.ts:24](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L24)
 
 ###### Inherited from
 
@@ -6693,7 +6693,7 @@ Defined in: [packages/smrt/src/fields/index.ts:24](https://github.com/happyverti
 
 > `optional` **index**: `boolean`
 
-Defined in: [packages/smrt/src/fields/index.ts:23](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L23)
+Defined in: [packages/smrt/src/fields/index.ts:23](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L23)
 
 ###### Inherited from
 
@@ -6703,19 +6703,19 @@ Defined in: [packages/smrt/src/fields/index.ts:23](https://github.com/happyverti
 
 > `optional` **max**: `number`
 
-Defined in: [packages/smrt/src/fields/index.ts:29](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L29)
+Defined in: [packages/smrt/src/fields/index.ts:29](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L29)
 
 ##### min?
 
 > `optional` **min**: `number`
 
-Defined in: [packages/smrt/src/fields/index.ts:28](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L28)
+Defined in: [packages/smrt/src/fields/index.ts:28](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L28)
 
 ##### required?
 
 > `optional` **required**: `boolean`
 
-Defined in: [packages/smrt/src/fields/index.ts:20](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L20)
+Defined in: [packages/smrt/src/fields/index.ts:20](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L20)
 
 ###### Inherited from
 
@@ -6725,7 +6725,7 @@ Defined in: [packages/smrt/src/fields/index.ts:20](https://github.com/happyverti
 
 > `optional` **unique**: `boolean`
 
-Defined in: [packages/smrt/src/fields/index.ts:22](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L22)
+Defined in: [packages/smrt/src/fields/index.ts:22](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L22)
 
 ###### Inherited from
 
@@ -6735,7 +6735,7 @@ Defined in: [packages/smrt/src/fields/index.ts:22](https://github.com/happyverti
 
 ### OpenAPIConfig
 
-Defined in: [packages/smrt/src/generators/swagger.ts:9](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/swagger.ts#L9)
+Defined in: [packages/smrt/src/generators/swagger.ts:9](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/swagger.ts#L9)
 
 #### Properties
 
@@ -6743,37 +6743,37 @@ Defined in: [packages/smrt/src/generators/swagger.ts:9](https://github.com/happy
 
 > `optional` **basePath**: `string`
 
-Defined in: [packages/smrt/src/generators/swagger.ts:13](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/swagger.ts#L13)
+Defined in: [packages/smrt/src/generators/swagger.ts:13](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/swagger.ts#L13)
 
 ##### description?
 
 > `optional` **description**: `string`
 
-Defined in: [packages/smrt/src/generators/swagger.ts:12](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/swagger.ts#L12)
+Defined in: [packages/smrt/src/generators/swagger.ts:12](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/swagger.ts#L12)
 
 ##### serverUrl?
 
 > `optional` **serverUrl**: `string`
 
-Defined in: [packages/smrt/src/generators/swagger.ts:14](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/swagger.ts#L14)
+Defined in: [packages/smrt/src/generators/swagger.ts:14](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/swagger.ts#L14)
 
 ##### title?
 
 > `optional` **title**: `string`
 
-Defined in: [packages/smrt/src/generators/swagger.ts:10](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/swagger.ts#L10)
+Defined in: [packages/smrt/src/generators/swagger.ts:10](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/swagger.ts#L10)
 
 ##### version?
 
 > `optional` **version**: `string`
 
-Defined in: [packages/smrt/src/generators/swagger.ts:11](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/swagger.ts#L11)
+Defined in: [packages/smrt/src/generators/swagger.ts:11](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/swagger.ts#L11)
 
 ***
 
 ### ParsedArgs
 
-Defined in: [packages/smrt/src/generators/cli.ts:44](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L44)
+Defined in: [packages/smrt/src/generators/cli.ts:44](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L44)
 
 #### Properties
 
@@ -6781,25 +6781,25 @@ Defined in: [packages/smrt/src/generators/cli.ts:44](https://github.com/happyver
 
 > **args**: `string`[]
 
-Defined in: [packages/smrt/src/generators/cli.ts:46](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L46)
+Defined in: [packages/smrt/src/generators/cli.ts:46](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L46)
 
 ##### command?
 
 > `optional` **command**: `string`
 
-Defined in: [packages/smrt/src/generators/cli.ts:45](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L45)
+Defined in: [packages/smrt/src/generators/cli.ts:45](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L45)
 
 ##### options
 
 > **options**: `Record`\<`string`, `any`\>
 
-Defined in: [packages/smrt/src/generators/cli.ts:47](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/cli.ts#L47)
+Defined in: [packages/smrt/src/generators/cli.ts:47](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/cli.ts#L47)
 
 ***
 
 ### PlebOptions
 
-Defined in: [packages/smrt/src/pleb.ts:4](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/pleb.ts#L4)
+Defined in: [packages/smrt/src/pleb.ts:4](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/pleb.ts#L4)
 
 Options for BaseObject initialization
 
@@ -6813,7 +6813,7 @@ Options for BaseObject initialization
 
 > `optional` **\_className**: `string`
 
-Defined in: [packages/smrt/src/class.ts:15](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L15)
+Defined in: [packages/smrt/src/class.ts:15](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L15)
 
 Optional custom class name override
 
@@ -6825,7 +6825,7 @@ Optional custom class name override
 
 > `optional` **ai**: `AIClientOptions`
 
-Defined in: [packages/smrt/src/class.ts:35](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L35)
+Defined in: [packages/smrt/src/class.ts:35](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L35)
 
 AI client configuration options
 
@@ -6837,7 +6837,7 @@ AI client configuration options
 
 > `optional` **context**: `string`
 
-Defined in: [packages/smrt/src/object.ts:43](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L43)
+Defined in: [packages/smrt/src/object.ts:43](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L43)
 
 Optional context to scope the slug (could be a path, domain, etc.)
 
@@ -6849,7 +6849,7 @@ Optional context to scope the slug (could be a path, domain, etc.)
 
 > `optional` **created\_at**: `Date`
 
-Defined in: [packages/smrt/src/object.ts:48](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L48)
+Defined in: [packages/smrt/src/object.ts:48](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L48)
 
 Creation timestamp
 
@@ -6861,7 +6861,7 @@ Creation timestamp
 
 > `optional` **db**: `object`
 
-Defined in: [packages/smrt/src/class.ts:20](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L20)
+Defined in: [packages/smrt/src/class.ts:20](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L20)
 
 Database configuration options
 
@@ -6889,7 +6889,7 @@ Database configuration options
 
 > `optional` **fs**: `FilesystemAdapterOptions`
 
-Defined in: [packages/smrt/src/class.ts:30](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/class.ts#L30)
+Defined in: [packages/smrt/src/class.ts:30](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/class.ts#L30)
 
 Filesystem adapter configuration options
 
@@ -6901,7 +6901,7 @@ Filesystem adapter configuration options
 
 > `optional` **id**: `string`
 
-Defined in: [packages/smrt/src/object.ts:28](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L28)
+Defined in: [packages/smrt/src/object.ts:28](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L28)
 
 Unique identifier for the object
 
@@ -6913,7 +6913,7 @@ Unique identifier for the object
 
 > `optional` **name**: `string`
 
-Defined in: [packages/smrt/src/object.ts:33](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L33)
+Defined in: [packages/smrt/src/object.ts:33](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L33)
 
 Human-readable name for the object
 
@@ -6925,7 +6925,7 @@ Human-readable name for the object
 
 > `optional` **slug**: `string`
 
-Defined in: [packages/smrt/src/object.ts:38](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L38)
+Defined in: [packages/smrt/src/object.ts:38](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L38)
 
 URL-friendly identifier
 
@@ -6937,7 +6937,7 @@ URL-friendly identifier
 
 > `optional` **updated\_at**: `Date`
 
-Defined in: [packages/smrt/src/object.ts:53](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/object.ts#L53)
+Defined in: [packages/smrt/src/object.ts:53](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/object.ts#L53)
 
 Last update timestamp
 
@@ -6949,7 +6949,7 @@ Last update timestamp
 
 ### RelationshipFieldOptions
 
-Defined in: [packages/smrt/src/fields/index.ts:39](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L39)
+Defined in: [packages/smrt/src/fields/index.ts:39](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L39)
 
 Clean field syntax for smrt objects
 
@@ -6978,7 +6978,7 @@ class Product extends BaseObject {
 
 > `optional` **default**: `any`
 
-Defined in: [packages/smrt/src/fields/index.ts:21](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L21)
+Defined in: [packages/smrt/src/fields/index.ts:21](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L21)
 
 ###### Inherited from
 
@@ -6988,7 +6988,7 @@ Defined in: [packages/smrt/src/fields/index.ts:21](https://github.com/happyverti
 
 > `optional` **description**: `string`
 
-Defined in: [packages/smrt/src/fields/index.ts:24](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L24)
+Defined in: [packages/smrt/src/fields/index.ts:24](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L24)
 
 ###### Inherited from
 
@@ -6998,7 +6998,7 @@ Defined in: [packages/smrt/src/fields/index.ts:24](https://github.com/happyverti
 
 > `optional` **index**: `boolean`
 
-Defined in: [packages/smrt/src/fields/index.ts:23](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L23)
+Defined in: [packages/smrt/src/fields/index.ts:23](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L23)
 
 ###### Inherited from
 
@@ -7008,19 +7008,19 @@ Defined in: [packages/smrt/src/fields/index.ts:23](https://github.com/happyverti
 
 > `optional` **onDelete**: `"cascade"` \| `"restrict"` \| `"set_null"`
 
-Defined in: [packages/smrt/src/fields/index.ts:40](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L40)
+Defined in: [packages/smrt/src/fields/index.ts:40](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L40)
 
 ##### related?
 
 > `optional` **related**: `string`
 
-Defined in: [packages/smrt/src/fields/index.ts:41](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L41)
+Defined in: [packages/smrt/src/fields/index.ts:41](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L41)
 
 ##### required?
 
 > `optional` **required**: `boolean`
 
-Defined in: [packages/smrt/src/fields/index.ts:20](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L20)
+Defined in: [packages/smrt/src/fields/index.ts:20](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L20)
 
 ###### Inherited from
 
@@ -7030,7 +7030,7 @@ Defined in: [packages/smrt/src/fields/index.ts:20](https://github.com/happyverti
 
 > `optional` **unique**: `boolean`
 
-Defined in: [packages/smrt/src/fields/index.ts:22](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L22)
+Defined in: [packages/smrt/src/fields/index.ts:22](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L22)
 
 ###### Inherited from
 
@@ -7040,7 +7040,7 @@ Defined in: [packages/smrt/src/fields/index.ts:22](https://github.com/happyverti
 
 ### RestServerConfig
 
-Defined in: [packages/smrt/src/generators/rest.ts:345](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L345)
+Defined in: [packages/smrt/src/generators/rest.ts:345](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L345)
 
 #### Extends
 
@@ -7052,7 +7052,7 @@ Defined in: [packages/smrt/src/generators/rest.ts:345](https://github.com/happyv
 
 > `optional` **authMiddleware**: (`objectName`, `action`) => (`req`) => `Promise`\<`Request` \| `Response`\>
 
-Defined in: [packages/smrt/src/generators/rest.ts:15](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L15)
+Defined in: [packages/smrt/src/generators/rest.ts:15](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L15)
 
 ###### Parameters
 
@@ -7086,7 +7086,7 @@ Defined in: [packages/smrt/src/generators/rest.ts:15](https://github.com/happyve
 
 > `optional` **basePath**: `string`
 
-Defined in: [packages/smrt/src/generators/rest.ts:12](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L12)
+Defined in: [packages/smrt/src/generators/rest.ts:12](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L12)
 
 ###### Inherited from
 
@@ -7096,7 +7096,7 @@ Defined in: [packages/smrt/src/generators/rest.ts:12](https://github.com/happyve
 
 > `optional` **customRoutes**: `Record`\<`string`, (`req`) => `Promise`\<`Response`\>\>
 
-Defined in: [packages/smrt/src/generators/rest.ts:14](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L14)
+Defined in: [packages/smrt/src/generators/rest.ts:14](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L14)
 
 ###### Inherited from
 
@@ -7106,7 +7106,7 @@ Defined in: [packages/smrt/src/generators/rest.ts:14](https://github.com/happyve
 
 > `optional` **enableCors**: `boolean`
 
-Defined in: [packages/smrt/src/generators/rest.ts:13](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L13)
+Defined in: [packages/smrt/src/generators/rest.ts:13](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L13)
 
 ###### Inherited from
 
@@ -7116,7 +7116,7 @@ Defined in: [packages/smrt/src/generators/rest.ts:13](https://github.com/happyve
 
 > `optional` **healthCheck**: `object`
 
-Defined in: [packages/smrt/src/generators/rest.ts:346](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L346)
+Defined in: [packages/smrt/src/generators/rest.ts:346](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L346)
 
 ###### customChecks?
 
@@ -7138,7 +7138,7 @@ Defined in: [packages/smrt/src/generators/rest.ts:346](https://github.com/happyv
 
 > `optional` **hostname**: `string`
 
-Defined in: [packages/smrt/src/generators/rest.ts:17](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L17)
+Defined in: [packages/smrt/src/generators/rest.ts:17](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L17)
 
 ###### Inherited from
 
@@ -7148,7 +7148,7 @@ Defined in: [packages/smrt/src/generators/rest.ts:17](https://github.com/happyve
 
 > `optional` **port**: `number`
 
-Defined in: [packages/smrt/src/generators/rest.ts:16](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L16)
+Defined in: [packages/smrt/src/generators/rest.ts:16](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L16)
 
 ###### Inherited from
 
@@ -7158,7 +7158,7 @@ Defined in: [packages/smrt/src/generators/rest.ts:16](https://github.com/happyve
 
 ### ScanOptions
 
-Defined in: [packages/smrt/src/scanner/types.ts:73](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L73)
+Defined in: [packages/smrt/src/scanner/types.ts:73](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L73)
 
 #### Properties
 
@@ -7166,31 +7166,31 @@ Defined in: [packages/smrt/src/scanner/types.ts:73](https://github.com/happyvert
 
 > `optional` **baseClasses**: `string`[]
 
-Defined in: [packages/smrt/src/scanner/types.ts:77](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L77)
+Defined in: [packages/smrt/src/scanner/types.ts:77](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L77)
 
 ##### followImports?
 
 > `optional` **followImports**: `boolean`
 
-Defined in: [packages/smrt/src/scanner/types.ts:76](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L76)
+Defined in: [packages/smrt/src/scanner/types.ts:76](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L76)
 
 ##### includePrivateMethods?
 
 > `optional` **includePrivateMethods**: `boolean`
 
-Defined in: [packages/smrt/src/scanner/types.ts:74](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L74)
+Defined in: [packages/smrt/src/scanner/types.ts:74](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L74)
 
 ##### includeStaticMethods?
 
 > `optional` **includeStaticMethods**: `boolean`
 
-Defined in: [packages/smrt/src/scanner/types.ts:75](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L75)
+Defined in: [packages/smrt/src/scanner/types.ts:75](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L75)
 
 ***
 
 ### ScanResult
 
-Defined in: [packages/smrt/src/scanner/types.ts:63](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L63)
+Defined in: [packages/smrt/src/scanner/types.ts:63](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L63)
 
 #### Properties
 
@@ -7198,7 +7198,7 @@ Defined in: [packages/smrt/src/scanner/types.ts:63](https://github.com/happyvert
 
 > **errors**: `object`[]
 
-Defined in: [packages/smrt/src/scanner/types.ts:66](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L66)
+Defined in: [packages/smrt/src/scanner/types.ts:66](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L66)
 
 ###### column?
 
@@ -7216,19 +7216,19 @@ Defined in: [packages/smrt/src/scanner/types.ts:66](https://github.com/happyvert
 
 > **filePath**: `string`
 
-Defined in: [packages/smrt/src/scanner/types.ts:64](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L64)
+Defined in: [packages/smrt/src/scanner/types.ts:64](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L64)
 
 ##### objects
 
 > **objects**: [`SmartObjectDefinition`](#smartobjectdefinition)[]
 
-Defined in: [packages/smrt/src/scanner/types.ts:65](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L65)
+Defined in: [packages/smrt/src/scanner/types.ts:65](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L65)
 
 ***
 
 ### SmartObjectConfig
 
-Defined in: [packages/smrt/src/registry.ts:11](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/registry.ts#L11)
+Defined in: [packages/smrt/src/registry.ts:11](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/registry.ts#L11)
 
 #### Properties
 
@@ -7236,7 +7236,7 @@ Defined in: [packages/smrt/src/registry.ts:11](https://github.com/happyvertical/
 
 > `optional` **api**: `object`
 
-Defined in: [packages/smrt/src/registry.ts:20](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/registry.ts#L20)
+Defined in: [packages/smrt/src/registry.ts:20](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/registry.ts#L20)
 
 API configuration
 
@@ -7358,7 +7358,7 @@ Custom middleware for this object's endpoints
 
 > `optional` **cli**: `boolean` \| \{ `exclude?`: (`"list"` \| `"get"` \| `"create"` \| `"update"` \| `"delete"`)[]; `include?`: (`"list"` \| `"get"` \| `"create"` \| `"update"` \| `"delete"`)[]; \}
 
-Defined in: [packages/smrt/src/registry.ts:66](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/registry.ts#L66)
+Defined in: [packages/smrt/src/registry.ts:66](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/registry.ts#L66)
 
 CLI configuration
 
@@ -7384,7 +7384,7 @@ Include specific commands
 
 > `optional` **hooks**: `object`
 
-Defined in: [packages/smrt/src/registry.ts:81](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/registry.ts#L81)
+Defined in: [packages/smrt/src/registry.ts:81](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/registry.ts#L81)
 
 Lifecycle hooks
 
@@ -7424,7 +7424,7 @@ Lifecycle hooks
 
 > `optional` **mcp**: `object`
 
-Defined in: [packages/smrt/src/registry.ts:51](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/registry.ts#L51)
+Defined in: [packages/smrt/src/registry.ts:51](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/registry.ts#L51)
 
 MCP server configuration
 
@@ -7444,7 +7444,7 @@ Include specific tools
 
 > `optional` **name**: `string`
 
-Defined in: [packages/smrt/src/registry.ts:15](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/registry.ts#L15)
+Defined in: [packages/smrt/src/registry.ts:15](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/registry.ts#L15)
 
 Custom name for the object (defaults to class name)
 
@@ -7452,7 +7452,7 @@ Custom name for the object (defaults to class name)
 
 ### SmartObjectDefinition
 
-Defined in: [packages/smrt/src/scanner/types.ts:33](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L33)
+Defined in: [packages/smrt/src/scanner/types.ts:33](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L33)
 
 #### Properties
 
@@ -7460,19 +7460,19 @@ Defined in: [packages/smrt/src/scanner/types.ts:33](https://github.com/happyvert
 
 > **className**: `string`
 
-Defined in: [packages/smrt/src/scanner/types.ts:35](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L35)
+Defined in: [packages/smrt/src/scanner/types.ts:35](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L35)
 
 ##### collection
 
 > **collection**: `string`
 
-Defined in: [packages/smrt/src/scanner/types.ts:36](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L36)
+Defined in: [packages/smrt/src/scanner/types.ts:36](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L36)
 
 ##### decoratorConfig
 
 > **decoratorConfig**: `object`
 
-Defined in: [packages/smrt/src/scanner/types.ts:40](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L40)
+Defined in: [packages/smrt/src/scanner/types.ts:40](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L40)
 
 ###### api?
 
@@ -7490,37 +7490,37 @@ Defined in: [packages/smrt/src/scanner/types.ts:40](https://github.com/happyvert
 
 > `optional` **extends**: `string`
 
-Defined in: [packages/smrt/src/scanner/types.ts:54](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L54)
+Defined in: [packages/smrt/src/scanner/types.ts:54](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L54)
 
 ##### fields
 
 > **fields**: `Record`\<`string`, [`FieldDefinition`](#fielddefinition)\>
 
-Defined in: [packages/smrt/src/scanner/types.ts:38](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L38)
+Defined in: [packages/smrt/src/scanner/types.ts:38](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L38)
 
 ##### filePath
 
 > **filePath**: `string`
 
-Defined in: [packages/smrt/src/scanner/types.ts:37](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L37)
+Defined in: [packages/smrt/src/scanner/types.ts:37](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L37)
 
 ##### methods
 
 > **methods**: `Record`\<`string`, [`MethodDefinition`](#methoddefinition)\>
 
-Defined in: [packages/smrt/src/scanner/types.ts:39](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L39)
+Defined in: [packages/smrt/src/scanner/types.ts:39](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L39)
 
 ##### name
 
 > **name**: `string`
 
-Defined in: [packages/smrt/src/scanner/types.ts:34](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L34)
+Defined in: [packages/smrt/src/scanner/types.ts:34](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L34)
 
 ***
 
 ### SmartObjectManifest
 
-Defined in: [packages/smrt/src/scanner/types.ts:57](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L57)
+Defined in: [packages/smrt/src/scanner/types.ts:57](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L57)
 
 #### Properties
 
@@ -7528,25 +7528,25 @@ Defined in: [packages/smrt/src/scanner/types.ts:57](https://github.com/happyvert
 
 > **objects**: `Record`\<`string`, [`SmartObjectDefinition`](#smartobjectdefinition)\>
 
-Defined in: [packages/smrt/src/scanner/types.ts:60](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L60)
+Defined in: [packages/smrt/src/scanner/types.ts:60](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L60)
 
 ##### timestamp
 
 > **timestamp**: `number`
 
-Defined in: [packages/smrt/src/scanner/types.ts:59](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L59)
+Defined in: [packages/smrt/src/scanner/types.ts:59](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L59)
 
 ##### version
 
 > **version**: `string`
 
-Defined in: [packages/smrt/src/scanner/types.ts:58](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/types.ts#L58)
+Defined in: [packages/smrt/src/scanner/types.ts:58](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/types.ts#L58)
 
 ***
 
 ### SmrtClientOptions
 
-Defined in: [packages/smrt/src/runtime/types.ts:20](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/runtime/types.ts#L20)
+Defined in: [packages/smrt/src/runtime/types.ts:20](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/runtime/types.ts#L20)
 
 #### Properties
 
@@ -7554,7 +7554,7 @@ Defined in: [packages/smrt/src/runtime/types.ts:20](https://github.com/happyvert
 
 > `optional` **auth**: `object`
 
-Defined in: [packages/smrt/src/runtime/types.ts:23](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/runtime/types.ts#L23)
+Defined in: [packages/smrt/src/runtime/types.ts:23](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/runtime/types.ts#L23)
 
 ###### password?
 
@@ -7576,25 +7576,25 @@ Defined in: [packages/smrt/src/runtime/types.ts:23](https://github.com/happyvert
 
 > `optional` **basePath**: `string`
 
-Defined in: [packages/smrt/src/runtime/types.ts:22](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/runtime/types.ts#L22)
+Defined in: [packages/smrt/src/runtime/types.ts:22](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/runtime/types.ts#L22)
 
 ##### baseUrl?
 
 > `optional` **baseUrl**: `string`
 
-Defined in: [packages/smrt/src/runtime/types.ts:21](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/runtime/types.ts#L21)
+Defined in: [packages/smrt/src/runtime/types.ts:21](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/runtime/types.ts#L21)
 
 ##### fetch?
 
 > `optional` **fetch**: *typeof* `fetch`
 
-Defined in: [packages/smrt/src/runtime/types.ts:29](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/runtime/types.ts#L29)
+Defined in: [packages/smrt/src/runtime/types.ts:29](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/runtime/types.ts#L29)
 
 ***
 
 ### SmrtServerOptions
 
-Defined in: [packages/smrt/src/runtime/types.ts:5](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/runtime/types.ts#L5)
+Defined in: [packages/smrt/src/runtime/types.ts:5](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/runtime/types.ts#L5)
 
 Runtime type definitions for SMRT services
 
@@ -7604,7 +7604,7 @@ Runtime type definitions for SMRT services
 
 > `optional` **auth**: `object`
 
-Defined in: [packages/smrt/src/runtime/types.ts:14](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/runtime/types.ts#L14)
+Defined in: [packages/smrt/src/runtime/types.ts:14](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/runtime/types.ts#L14)
 
 ###### type
 
@@ -7628,31 +7628,31 @@ Defined in: [packages/smrt/src/runtime/types.ts:14](https://github.com/happyvert
 
 > `optional` **basePath**: `string`
 
-Defined in: [packages/smrt/src/runtime/types.ts:8](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/runtime/types.ts#L8)
+Defined in: [packages/smrt/src/runtime/types.ts:8](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/runtime/types.ts#L8)
 
 ##### cors?
 
 > `optional` **cors**: `boolean` \| \{ `headers?`: `string`[]; `methods?`: `string`[]; `origin?`: `string` \| `string`[]; \}
 
-Defined in: [packages/smrt/src/runtime/types.ts:9](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/runtime/types.ts#L9)
+Defined in: [packages/smrt/src/runtime/types.ts:9](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/runtime/types.ts#L9)
 
 ##### hostname?
 
 > `optional` **hostname**: `string`
 
-Defined in: [packages/smrt/src/runtime/types.ts:7](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/runtime/types.ts#L7)
+Defined in: [packages/smrt/src/runtime/types.ts:7](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/runtime/types.ts#L7)
 
 ##### port?
 
 > `optional` **port**: `number`
 
-Defined in: [packages/smrt/src/runtime/types.ts:6](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/runtime/types.ts#L6)
+Defined in: [packages/smrt/src/runtime/types.ts:6](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/runtime/types.ts#L6)
 
 ***
 
 ### TextFieldOptions
 
-Defined in: [packages/smrt/src/fields/index.ts:32](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L32)
+Defined in: [packages/smrt/src/fields/index.ts:32](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L32)
 
 Clean field syntax for smrt objects
 
@@ -7681,7 +7681,7 @@ class Product extends BaseObject {
 
 > `optional` **default**: `any`
 
-Defined in: [packages/smrt/src/fields/index.ts:21](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L21)
+Defined in: [packages/smrt/src/fields/index.ts:21](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L21)
 
 ###### Inherited from
 
@@ -7691,7 +7691,7 @@ Defined in: [packages/smrt/src/fields/index.ts:21](https://github.com/happyverti
 
 > `optional` **description**: `string`
 
-Defined in: [packages/smrt/src/fields/index.ts:24](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L24)
+Defined in: [packages/smrt/src/fields/index.ts:24](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L24)
 
 ###### Inherited from
 
@@ -7701,13 +7701,13 @@ Defined in: [packages/smrt/src/fields/index.ts:24](https://github.com/happyverti
 
 > `optional` **encrypted**: `boolean`
 
-Defined in: [packages/smrt/src/fields/index.ts:36](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L36)
+Defined in: [packages/smrt/src/fields/index.ts:36](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L36)
 
 ##### index?
 
 > `optional` **index**: `boolean`
 
-Defined in: [packages/smrt/src/fields/index.ts:23](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L23)
+Defined in: [packages/smrt/src/fields/index.ts:23](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L23)
 
 ###### Inherited from
 
@@ -7717,25 +7717,25 @@ Defined in: [packages/smrt/src/fields/index.ts:23](https://github.com/happyverti
 
 > `optional` **maxLength**: `number`
 
-Defined in: [packages/smrt/src/fields/index.ts:33](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L33)
+Defined in: [packages/smrt/src/fields/index.ts:33](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L33)
 
 ##### minLength?
 
 > `optional` **minLength**: `number`
 
-Defined in: [packages/smrt/src/fields/index.ts:34](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L34)
+Defined in: [packages/smrt/src/fields/index.ts:34](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L34)
 
 ##### pattern?
 
 > `optional` **pattern**: `string`
 
-Defined in: [packages/smrt/src/fields/index.ts:35](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L35)
+Defined in: [packages/smrt/src/fields/index.ts:35](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L35)
 
 ##### required?
 
 > `optional` **required**: `boolean`
 
-Defined in: [packages/smrt/src/fields/index.ts:20](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L20)
+Defined in: [packages/smrt/src/fields/index.ts:20](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L20)
 
 ###### Inherited from
 
@@ -7745,7 +7745,7 @@ Defined in: [packages/smrt/src/fields/index.ts:20](https://github.com/happyverti
 
 > `optional` **unique**: `boolean`
 
-Defined in: [packages/smrt/src/fields/index.ts:22](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L22)
+Defined in: [packages/smrt/src/fields/index.ts:22](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L22)
 
 ###### Inherited from
 
@@ -7757,7 +7757,7 @@ Defined in: [packages/smrt/src/fields/index.ts:22](https://github.com/happyverti
 
 > **boolean**(`options`): [`Field`](#field)
 
-Defined in: [packages/smrt/src/fields/index.ts:127](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L127)
+Defined in: [packages/smrt/src/fields/index.ts:127](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L127)
 
 Boolean field for true/false values
 
@@ -7777,7 +7777,7 @@ Boolean field for true/false values
 
 > **createMCPServer**(`options?`): `SmrtMCPServer`
 
-Defined in: [packages/smrt/src/runtime/mcp.ts:85](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/runtime/mcp.ts#L85)
+Defined in: [packages/smrt/src/runtime/mcp.ts:85](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/runtime/mcp.ts#L85)
 
 Create a new SMRT MCP server instance
 
@@ -7797,7 +7797,7 @@ Create a new SMRT MCP server instance
 
 > **createRestServer**(`objects`, `context`, `config`): `object`
 
-Defined in: [packages/smrt/src/generators/rest.ts:356](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L356)
+Defined in: [packages/smrt/src/generators/rest.ts:356](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L356)
 
 Create REST server with health checks using Bun
 
@@ -7833,7 +7833,7 @@ Create REST server with health checks using Bun
 
 > **createSmrtClient**(`options?`): `SmrtClient`
 
-Defined in: [packages/smrt/src/runtime/client.ts:124](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/runtime/client.ts#L124)
+Defined in: [packages/smrt/src/runtime/client.ts:124](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/runtime/client.ts#L124)
 
 Create a new SMRT client instance
 
@@ -7853,7 +7853,7 @@ Create a new SMRT client instance
 
 > **createSmrtServer**(`options?`): `SmrtServer`
 
-Defined in: [packages/smrt/src/runtime/server.ts:269](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/runtime/server.ts#L269)
+Defined in: [packages/smrt/src/runtime/server.ts:269](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/runtime/server.ts#L269)
 
 Create a new SMRT server instance
 
@@ -7873,7 +7873,7 @@ Create a new SMRT server instance
 
 > **datetime**(`options`): [`Field`](#field)
 
-Defined in: [packages/smrt/src/fields/index.ts:134](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L134)
+Defined in: [packages/smrt/src/fields/index.ts:134](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L134)
 
 DateTime field for timestamps
 
@@ -7893,7 +7893,7 @@ DateTime field for timestamps
 
 > **decimal**(`options`): [`Field`](#field)
 
-Defined in: [packages/smrt/src/fields/index.ts:120](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L120)
+Defined in: [packages/smrt/src/fields/index.ts:120](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L120)
 
 Decimal field for floating point numbers
 
@@ -7913,7 +7913,7 @@ Decimal field for floating point numbers
 
 > **foreignKey**(`relatedClass`, `options`): [`Field`](#field)
 
-Defined in: [packages/smrt/src/fields/index.ts:148](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L148)
+Defined in: [packages/smrt/src/fields/index.ts:148](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L148)
 
 Foreign key relationship to another object
 
@@ -7937,7 +7937,7 @@ Foreign key relationship to another object
 
 > **generateManifest**(`scanResults`): [`SmartObjectManifest`](#smartobjectmanifest)
 
-Defined in: [packages/smrt/src/scanner/manifest-generator.ts:301](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/manifest-generator.ts#L301)
+Defined in: [packages/smrt/src/scanner/manifest-generator.ts:301](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/manifest-generator.ts#L301)
 
 Convenience function to generate manifest
 
@@ -7957,7 +7957,7 @@ Convenience function to generate manifest
 
 > **generateOpenAPISpec**(`config`): `any`
 
-Defined in: [packages/smrt/src/generators/swagger.ts:20](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/swagger.ts#L20)
+Defined in: [packages/smrt/src/generators/swagger.ts:20](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/swagger.ts#L20)
 
 Generate OpenAPI specification (tree-shakeable)
 
@@ -7977,7 +7977,7 @@ Generate OpenAPI specification (tree-shakeable)
 
 > **integer**(`options`): [`Field`](#field)
 
-Defined in: [packages/smrt/src/fields/index.ts:113](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L113)
+Defined in: [packages/smrt/src/fields/index.ts:113](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L113)
 
 Integer field for whole numbers
 
@@ -7997,7 +7997,7 @@ Integer field for whole numbers
 
 > **json**(`options`): [`Field`](#field)
 
-Defined in: [packages/smrt/src/fields/index.ts:141](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L141)
+Defined in: [packages/smrt/src/fields/index.ts:141](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L141)
 
 JSON field for structured data
 
@@ -8017,7 +8017,7 @@ JSON field for structured data
 
 > **manyToMany**(`relatedClass`, `options`): [`Field`](#field)
 
-Defined in: [packages/smrt/src/fields/index.ts:178](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L178)
+Defined in: [packages/smrt/src/fields/index.ts:178](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L178)
 
 Many-to-many relationship
 
@@ -8041,7 +8041,7 @@ Many-to-many relationship
 
 > **oneToMany**(`relatedClass`, `options`): [`Field`](#field)
 
-Defined in: [packages/smrt/src/fields/index.ts:163](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L163)
+Defined in: [packages/smrt/src/fields/index.ts:163](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L163)
 
 One-to-many relationship
 
@@ -8065,7 +8065,7 @@ One-to-many relationship
 
 > **scanFile**(`filePath`, `options?`): [`ScanResult`](#scanresult)
 
-Defined in: [packages/smrt/src/scanner/ast-scanner.ts:376](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/ast-scanner.ts#L376)
+Defined in: [packages/smrt/src/scanner/ast-scanner.ts:376](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/ast-scanner.ts#L376)
 
 Scan a single file
 
@@ -8089,7 +8089,7 @@ Scan a single file
 
 > **scanFiles**(`filePaths`, `options?`): [`ScanResult`](#scanresult)[]
 
-Defined in: [packages/smrt/src/scanner/ast-scanner.ts:368](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/scanner/ast-scanner.ts#L368)
+Defined in: [packages/smrt/src/scanner/ast-scanner.ts:368](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/scanner/ast-scanner.ts#L368)
 
 Convenience function to scan files
 
@@ -8113,7 +8113,7 @@ Convenience function to scan files
 
 > **setupSwaggerUI**(`app`, `spec`, `path`): `void`
 
-Defined in: [packages/smrt/src/generators/swagger.ts:309](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/swagger.ts#L309)
+Defined in: [packages/smrt/src/generators/swagger.ts:309](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/swagger.ts#L309)
 
 Setup Swagger UI (optional peer dependency)
 
@@ -8141,7 +8141,7 @@ Setup Swagger UI (optional peer dependency)
 
 > **smrt**(`config`): \<`T`\>(`constructor`) => `T`
 
-Defined in: [packages/smrt/src/registry.ts:259](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/registry.ts#L259)
+Defined in: [packages/smrt/src/registry.ts:259](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/registry.ts#L259)
 
 #### Parameters
 
@@ -8194,7 +8194,7 @@ class SensitiveData extends BaseObject {
 
 > **smrtPlugin**(`options`): `Plugin$1`
 
-Defined in: [packages/smrt/src/vite-plugin/index.ts:42](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/vite-plugin/index.ts#L42)
+Defined in: [packages/smrt/src/vite-plugin/index.ts:42](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/vite-plugin/index.ts#L42)
 
 #### Parameters
 
@@ -8212,7 +8212,7 @@ Defined in: [packages/smrt/src/vite-plugin/index.ts:42](https://github.com/happy
 
 > **startRestServer**(`objects`, `context`, `config`): `Promise`\<() => `Promise`\<`void`\>\>
 
-Defined in: [packages/smrt/src/generators/rest.ts:379](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/generators/rest.ts#L379)
+Defined in: [packages/smrt/src/generators/rest.ts:379](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/generators/rest.ts#L379)
 
 Start server with graceful shutdown
 
@@ -8240,7 +8240,7 @@ Start server with graceful shutdown
 
 > **text**(`options`): [`Field`](#field)
 
-Defined in: [packages/smrt/src/fields/index.ts:106](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/smrt/src/fields/index.ts#L106)
+Defined in: [packages/smrt/src/fields/index.ts:106](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/smrt/src/fields/index.ts#L106)
 
 Text field for strings
 

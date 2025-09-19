@@ -4,7 +4,7 @@
 
 ### OCRDependencyError
 
-Defined in: [packages/ocr/src/shared/types.ts:161](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L161)
+Defined in: [packages/ocr/src/shared/types.ts:161](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L161)
 
 Error classes for OCR operations
 
@@ -18,7 +18,7 @@ Error classes for OCR operations
 
 > **new OCRDependencyError**(`provider`, `message`, `context?`): [`OCRDependencyError`](#ocrdependencyerror)
 
-Defined in: [packages/ocr/src/shared/types.ts:162](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L162)
+Defined in: [packages/ocr/src/shared/types.ts:162](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L162)
 
 ###### Parameters
 
@@ -60,7 +60,7 @@ The cause of the error.
 
 > `readonly` `optional` **context**: `any`
 
-Defined in: [packages/ocr/src/shared/types.ts:155](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L155)
+Defined in: [packages/ocr/src/shared/types.ts:155](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L155)
 
 ###### Inherited from
 
@@ -90,7 +90,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1076
 
 > `readonly` `optional` **provider**: `string`
 
-Defined in: [packages/ocr/src/shared/types.ts:155](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L155)
+Defined in: [packages/ocr/src/shared/types.ts:155](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L155)
 
 ###### Inherited from
 
@@ -234,7 +234,7 @@ True if the value is an instance of Error, false otherwise
 
 ### OCRError
 
-Defined in: [packages/ocr/src/shared/types.ts:154](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L154)
+Defined in: [packages/ocr/src/shared/types.ts:154](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L154)
 
 Error classes for OCR operations
 
@@ -254,7 +254,7 @@ Error classes for OCR operations
 
 > **new OCRError**(`message`, `provider?`, `context?`): [`OCRError`](#ocrerror)
 
-Defined in: [packages/ocr/src/shared/types.ts:155](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L155)
+Defined in: [packages/ocr/src/shared/types.ts:155](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L155)
 
 ###### Parameters
 
@@ -296,7 +296,7 @@ The cause of the error.
 
 > `readonly` `optional` **context**: `any`
 
-Defined in: [packages/ocr/src/shared/types.ts:155](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L155)
+Defined in: [packages/ocr/src/shared/types.ts:155](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L155)
 
 ##### message
 
@@ -322,7 +322,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1076
 
 > `readonly` `optional` **provider**: `string`
 
-Defined in: [packages/ocr/src/shared/types.ts:155](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L155)
+Defined in: [packages/ocr/src/shared/types.ts:155](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L155)
 
 ##### stack?
 
@@ -462,7 +462,7 @@ True if the value is an instance of Error, false otherwise
 
 ### OCRFactory
 
-Defined in: [packages/ocr/src/shared/factory.ts:44](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/factory.ts#L44)
+Defined in: [packages/ocr/src/shared/factory.ts:44](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/factory.ts#L44)
 
 OCR factory that manages multiple OCR providers with intelligent fallback
 
@@ -478,7 +478,7 @@ This factory:
 
 > **new OCRFactory**(`options`): [`OCRFactory`](#ocrfactory)
 
-Defined in: [packages/ocr/src/shared/factory.ts:52](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/factory.ts#L52)
+Defined in: [packages/ocr/src/shared/factory.ts:52](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/factory.ts#L52)
 
 ###### Parameters
 
@@ -496,7 +496,7 @@ Defined in: [packages/ocr/src/shared/factory.ts:52](https://github.com/happyvert
 
 > **addProvider**(`name`, `provider`): `void`
 
-Defined in: [packages/ocr/src/shared/factory.ts:322](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/factory.ts#L322)
+Defined in: [packages/ocr/src/shared/factory.ts:322](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/factory.ts#L322)
 
 Add a custom OCR provider
 
@@ -518,7 +518,7 @@ Add a custom OCR provider
 
 > **cleanup**(): `Promise`\<`void`\>
 
-Defined in: [packages/ocr/src/shared/factory.ts:305](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/factory.ts#L305)
+Defined in: [packages/ocr/src/shared/factory.ts:305](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/factory.ts#L305)
 
 Clean up all OCR providers and their resources
 
@@ -530,7 +530,7 @@ Clean up all OCR providers and their resources
 
 > **getAvailableProviderNames**(): `string`[]
 
-Defined in: [packages/ocr/src/shared/factory.ts:340](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/factory.ts#L340)
+Defined in: [packages/ocr/src/shared/factory.ts:340](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/factory.ts#L340)
 
 Get available provider names in current environment
 
@@ -542,7 +542,7 @@ Get available provider names in current environment
 
 > **getBestProvider**(): `Promise`\<`null` \| [`OCRProvider`](#ocrprovider)\>
 
-Defined in: [packages/ocr/src/shared/factory.ts:103](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/factory.ts#L103)
+Defined in: [packages/ocr/src/shared/factory.ts:103](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/factory.ts#L103)
 
 Get the best available OCR provider based on dependencies and environment
 
@@ -554,7 +554,7 @@ Get the best available OCR provider based on dependencies and environment
 
 > **getEnvironment**(): [`OCREnvironment`](#ocrenvironment)
 
-Defined in: [packages/ocr/src/shared/factory.ts:347](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/factory.ts#L347)
+Defined in: [packages/ocr/src/shared/factory.ts:347](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/factory.ts#L347)
 
 Get current environment
 
@@ -566,7 +566,7 @@ Get current environment
 
 > **getProvidersInfo**(): `Promise`\<[`OCRProviderInfo`](#ocrproviderinfo)[]\>
 
-Defined in: [packages/ocr/src/shared/factory.ts:247](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/factory.ts#L247)
+Defined in: [packages/ocr/src/shared/factory.ts:247](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/factory.ts#L247)
 
 Get information about all available OCR providers
 
@@ -578,7 +578,7 @@ Get information about all available OCR providers
 
 > **getSupportedLanguages**(): `Promise`\<`string`[]\>
 
-Defined in: [packages/ocr/src/shared/factory.ts:293](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/factory.ts#L293)
+Defined in: [packages/ocr/src/shared/factory.ts:293](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/factory.ts#L293)
 
 Get supported languages from the best available provider
 
@@ -590,7 +590,7 @@ Get supported languages from the best available provider
 
 > **isOCRAvailable**(): `Promise`\<`boolean`\>
 
-Defined in: [packages/ocr/src/shared/factory.ts:285](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/factory.ts#L285)
+Defined in: [packages/ocr/src/shared/factory.ts:285](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/factory.ts#L285)
 
 Check if any OCR provider is available
 
@@ -602,7 +602,7 @@ Check if any OCR provider is available
 
 > **performOCR**(`images`, `options?`): `Promise`\<[`OCRResult`](#ocrresult)\>
 
-Defined in: [packages/ocr/src/shared/factory.ts:174](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/factory.ts#L174)
+Defined in: [packages/ocr/src/shared/factory.ts:174](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/factory.ts#L174)
 
 Perform OCR using the best available provider with fallback
 
@@ -624,7 +624,7 @@ Perform OCR using the best available provider with fallback
 
 > **removeProvider**(`name`): `Promise`\<`void`\>
 
-Defined in: [packages/ocr/src/shared/factory.ts:329](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/factory.ts#L329)
+Defined in: [packages/ocr/src/shared/factory.ts:329](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/factory.ts#L329)
 
 Remove an OCR provider
 
@@ -642,7 +642,7 @@ Remove an OCR provider
 
 ### OCRProcessingError
 
-Defined in: [packages/ocr/src/shared/types.ts:175](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L175)
+Defined in: [packages/ocr/src/shared/types.ts:175](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L175)
 
 Error classes for OCR operations
 
@@ -656,7 +656,7 @@ Error classes for OCR operations
 
 > **new OCRProcessingError**(`provider`, `message`, `context?`): [`OCRProcessingError`](#ocrprocessingerror)
 
-Defined in: [packages/ocr/src/shared/types.ts:176](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L176)
+Defined in: [packages/ocr/src/shared/types.ts:176](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L176)
 
 ###### Parameters
 
@@ -698,7 +698,7 @@ The cause of the error.
 
 > `readonly` `optional` **context**: `any`
 
-Defined in: [packages/ocr/src/shared/types.ts:155](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L155)
+Defined in: [packages/ocr/src/shared/types.ts:155](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L155)
 
 ###### Inherited from
 
@@ -728,7 +728,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1076
 
 > `readonly` `optional` **provider**: `string`
 
-Defined in: [packages/ocr/src/shared/types.ts:155](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L155)
+Defined in: [packages/ocr/src/shared/types.ts:155](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L155)
 
 ###### Inherited from
 
@@ -872,7 +872,7 @@ True if the value is an instance of Error, false otherwise
 
 ### OCRUnsupportedError
 
-Defined in: [packages/ocr/src/shared/types.ts:168](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L168)
+Defined in: [packages/ocr/src/shared/types.ts:168](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L168)
 
 Error classes for OCR operations
 
@@ -886,7 +886,7 @@ Error classes for OCR operations
 
 > **new OCRUnsupportedError**(`provider`, `operation`, `context?`): [`OCRUnsupportedError`](#ocrunsupportederror)
 
-Defined in: [packages/ocr/src/shared/types.ts:169](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L169)
+Defined in: [packages/ocr/src/shared/types.ts:169](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L169)
 
 ###### Parameters
 
@@ -928,7 +928,7 @@ The cause of the error.
 
 > `readonly` `optional` **context**: `any`
 
-Defined in: [packages/ocr/src/shared/types.ts:155](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L155)
+Defined in: [packages/ocr/src/shared/types.ts:155](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L155)
 
 ###### Inherited from
 
@@ -958,7 +958,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1076
 
 > `readonly` `optional` **provider**: `string`
 
-Defined in: [packages/ocr/src/shared/types.ts:155](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L155)
+Defined in: [packages/ocr/src/shared/types.ts:155](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L155)
 
 ###### Inherited from
 
@@ -1102,7 +1102,7 @@ True if the value is an instance of Error, false otherwise
 
 ### DependencyCheckResult
 
-Defined in: [packages/ocr/src/shared/types.ts:73](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L73)
+Defined in: [packages/ocr/src/shared/types.ts:73](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L73)
 
 Dependency check result for OCR providers
 
@@ -1112,7 +1112,7 @@ Dependency check result for OCR providers
 
 > **available**: `boolean`
 
-Defined in: [packages/ocr/src/shared/types.ts:75](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L75)
+Defined in: [packages/ocr/src/shared/types.ts:75](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L75)
 
 Whether all dependencies are available
 
@@ -1120,7 +1120,7 @@ Whether all dependencies are available
 
 > **details**: `Record`\<`string`, `any`\>
 
-Defined in: [packages/ocr/src/shared/types.ts:79](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L79)
+Defined in: [packages/ocr/src/shared/types.ts:79](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L79)
 
 Detailed information about specific dependencies
 
@@ -1128,7 +1128,7 @@ Detailed information about specific dependencies
 
 > `optional` **error**: `string`
 
-Defined in: [packages/ocr/src/shared/types.ts:77](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L77)
+Defined in: [packages/ocr/src/shared/types.ts:77](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L77)
 
 Error message if dependencies are missing
 
@@ -1136,7 +1136,7 @@ Error message if dependencies are missing
 
 > `optional` **version**: `string`
 
-Defined in: [packages/ocr/src/shared/types.ts:81](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L81)
+Defined in: [packages/ocr/src/shared/types.ts:81](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L81)
 
 Version information if available
 
@@ -1144,7 +1144,7 @@ Version information if available
 
 ### OCRCapabilities
 
-Defined in: [packages/ocr/src/shared/types.ts:87](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L87)
+Defined in: [packages/ocr/src/shared/types.ts:87](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L87)
 
 OCR provider capabilities information
 
@@ -1154,7 +1154,7 @@ OCR provider capabilities information
 
 > **canPerformOCR**: `boolean`
 
-Defined in: [packages/ocr/src/shared/types.ts:89](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L89)
+Defined in: [packages/ocr/src/shared/types.ts:89](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L89)
 
 Whether the provider can perform OCR
 
@@ -1162,7 +1162,7 @@ Whether the provider can perform OCR
 
 > `optional` **hasBoundingBoxes**: `boolean`
 
-Defined in: [packages/ocr/src/shared/types.ts:99](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L99)
+Defined in: [packages/ocr/src/shared/types.ts:99](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L99)
 
 Whether the provider supports bounding boxes
 
@@ -1170,7 +1170,7 @@ Whether the provider supports bounding boxes
 
 > `optional` **hasConfidenceScores**: `boolean`
 
-Defined in: [packages/ocr/src/shared/types.ts:97](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L97)
+Defined in: [packages/ocr/src/shared/types.ts:97](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L97)
 
 Whether the provider supports confidence scores
 
@@ -1178,7 +1178,7 @@ Whether the provider supports confidence scores
 
 > `optional` **maxImageSize**: `number`
 
-Defined in: [packages/ocr/src/shared/types.ts:93](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L93)
+Defined in: [packages/ocr/src/shared/types.ts:93](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L93)
 
 Maximum supported image size in pixels
 
@@ -1186,7 +1186,7 @@ Maximum supported image size in pixels
 
 > `optional` **providerSpecific**: `Record`\<`string`, `any`\>
 
-Defined in: [packages/ocr/src/shared/types.ts:101](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L101)
+Defined in: [packages/ocr/src/shared/types.ts:101](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L101)
 
 Provider-specific capabilities
 
@@ -1194,7 +1194,7 @@ Provider-specific capabilities
 
 > `optional` **supportedFormats**: `string`[]
 
-Defined in: [packages/ocr/src/shared/types.ts:95](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L95)
+Defined in: [packages/ocr/src/shared/types.ts:95](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L95)
 
 Supported image formats
 
@@ -1202,7 +1202,7 @@ Supported image formats
 
 > **supportedLanguages**: `string`[]
 
-Defined in: [packages/ocr/src/shared/types.ts:91](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L91)
+Defined in: [packages/ocr/src/shared/types.ts:91](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L91)
 
 List of supported languages
 
@@ -1210,7 +1210,7 @@ List of supported languages
 
 ### OCRFactoryOptions
 
-Defined in: [packages/ocr/src/shared/types.ts:140](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L140)
+Defined in: [packages/ocr/src/shared/types.ts:140](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L140)
 
 OCR factory configuration options
 
@@ -1220,7 +1220,7 @@ OCR factory configuration options
 
 > `optional` **defaultOptions**: [`OCROptions`](#ocroptions)
 
-Defined in: [packages/ocr/src/shared/types.ts:146](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L146)
+Defined in: [packages/ocr/src/shared/types.ts:146](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L146)
 
 Default options for OCR operations
 
@@ -1228,7 +1228,7 @@ Default options for OCR operations
 
 > `optional` **fallbackProviders**: `string`[]
 
-Defined in: [packages/ocr/src/shared/types.ts:144](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L144)
+Defined in: [packages/ocr/src/shared/types.ts:144](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L144)
 
 Fallback providers to try if primary fails
 
@@ -1236,7 +1236,7 @@ Fallback providers to try if primary fails
 
 > `optional` **provider**: `string`
 
-Defined in: [packages/ocr/src/shared/types.ts:142](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L142)
+Defined in: [packages/ocr/src/shared/types.ts:142](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L142)
 
 Primary provider to use ('auto', 'tesseract', 'onnx')
 
@@ -1244,7 +1244,7 @@ Primary provider to use ('auto', 'tesseract', 'onnx')
 
 > `optional` **providerConfig**: `Record`\<`string`, `any`\>
 
-Defined in: [packages/ocr/src/shared/types.ts:148](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L148)
+Defined in: [packages/ocr/src/shared/types.ts:148](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L148)
 
 Provider-specific configuration
 
@@ -1252,7 +1252,7 @@ Provider-specific configuration
 
 ### OCRImage
 
-Defined in: [packages/ocr/src/shared/types.ts:24](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L24)
+Defined in: [packages/ocr/src/shared/types.ts:24](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L24)
 
 Image data input for OCR processing
 
@@ -1262,7 +1262,7 @@ Image data input for OCR processing
 
 > `optional` **channels**: `number`
 
-Defined in: [packages/ocr/src/shared/types.ts:32](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L32)
+Defined in: [packages/ocr/src/shared/types.ts:32](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L32)
 
 Number of color channels
 
@@ -1270,7 +1270,7 @@ Number of color channels
 
 > **data**: `string` \| `Buffer`\<`ArrayBufferLike`\> \| `Uint8Array`\<`ArrayBufferLike`\>
 
-Defined in: [packages/ocr/src/shared/types.ts:26](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L26)
+Defined in: [packages/ocr/src/shared/types.ts:26](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L26)
 
 Image data as Buffer, Uint8Array, or string (base64/path)
 
@@ -1278,7 +1278,7 @@ Image data as Buffer, Uint8Array, or string (base64/path)
 
 > `optional` **format**: `string`
 
-Defined in: [packages/ocr/src/shared/types.ts:34](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L34)
+Defined in: [packages/ocr/src/shared/types.ts:34](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L34)
 
 Image format/type
 
@@ -1286,7 +1286,7 @@ Image format/type
 
 > `optional` **height**: `number`
 
-Defined in: [packages/ocr/src/shared/types.ts:30](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L30)
+Defined in: [packages/ocr/src/shared/types.ts:30](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L30)
 
 Image height in pixels
 
@@ -1294,7 +1294,7 @@ Image height in pixels
 
 > `optional` **metadata**: `Record`\<`string`, `any`\>
 
-Defined in: [packages/ocr/src/shared/types.ts:36](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L36)
+Defined in: [packages/ocr/src/shared/types.ts:36](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L36)
 
 Optional metadata for tracking
 
@@ -1302,7 +1302,7 @@ Optional metadata for tracking
 
 > `optional` **width**: `number`
 
-Defined in: [packages/ocr/src/shared/types.ts:28](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L28)
+Defined in: [packages/ocr/src/shared/types.ts:28](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L28)
 
 Image width in pixels
 
@@ -1310,7 +1310,7 @@ Image width in pixels
 
 ### OCROptions
 
-Defined in: [packages/ocr/src/shared/types.ts:8](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L8)
+Defined in: [packages/ocr/src/shared/types.ts:8](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L8)
 
 Options for OCR processing
 
@@ -1320,7 +1320,7 @@ Options for OCR processing
 
 > `optional` **confidenceThreshold**: `number`
 
-Defined in: [packages/ocr/src/shared/types.ts:16](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L16)
+Defined in: [packages/ocr/src/shared/types.ts:16](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L16)
 
 Confidence threshold for OCR results (0-100)
 
@@ -1328,7 +1328,7 @@ Confidence threshold for OCR results (0-100)
 
 > `optional` **improveResolution**: `boolean`
 
-Defined in: [packages/ocr/src/shared/types.ts:12](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L12)
+Defined in: [packages/ocr/src/shared/types.ts:12](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L12)
 
 Whether to enhance image resolution before OCR
 
@@ -1336,7 +1336,7 @@ Whether to enhance image resolution before OCR
 
 > `optional` **language**: `string`
 
-Defined in: [packages/ocr/src/shared/types.ts:10](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L10)
+Defined in: [packages/ocr/src/shared/types.ts:10](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L10)
 
 Language for OCR recognition (default: 'eng')
 
@@ -1344,7 +1344,7 @@ Language for OCR recognition (default: 'eng')
 
 > `optional` **outputFormat**: `"text"` \| `"json"` \| `"hocr"`
 
-Defined in: [packages/ocr/src/shared/types.ts:14](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L14)
+Defined in: [packages/ocr/src/shared/types.ts:14](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L14)
 
 Output format for OCR results
 
@@ -1352,7 +1352,7 @@ Output format for OCR results
 
 > `optional` **timeout**: `number`
 
-Defined in: [packages/ocr/src/shared/types.ts:18](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L18)
+Defined in: [packages/ocr/src/shared/types.ts:18](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L18)
 
 Timeout in milliseconds for OCR processing
 
@@ -1360,7 +1360,7 @@ Timeout in milliseconds for OCR processing
 
 ### OCRProvider
 
-Defined in: [packages/ocr/src/shared/types.ts:107](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L107)
+Defined in: [packages/ocr/src/shared/types.ts:107](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L107)
 
 Core OCR provider interface
 
@@ -1370,7 +1370,7 @@ Core OCR provider interface
 
 > `readonly` **name**: `string`
 
-Defined in: [packages/ocr/src/shared/types.ts:109](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L109)
+Defined in: [packages/ocr/src/shared/types.ts:109](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L109)
 
 Provider name identifier
 
@@ -1380,7 +1380,7 @@ Provider name identifier
 
 > **checkCapabilities**(): `Promise`\<[`OCRCapabilities`](#ocrcapabilities)\>
 
-Defined in: [packages/ocr/src/shared/types.ts:124](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L124)
+Defined in: [packages/ocr/src/shared/types.ts:124](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L124)
 
 Get provider capabilities
 
@@ -1392,7 +1392,7 @@ Get provider capabilities
 
 > **checkDependencies**(): `Promise`\<[`DependencyCheckResult`](#dependencycheckresult)\>
 
-Defined in: [packages/ocr/src/shared/types.ts:119](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L119)
+Defined in: [packages/ocr/src/shared/types.ts:119](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L119)
 
 Check if provider dependencies are available
 
@@ -1404,7 +1404,7 @@ Check if provider dependencies are available
 
 > `optional` **cleanup**(): `Promise`\<`void`\>
 
-Defined in: [packages/ocr/src/shared/types.ts:134](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L134)
+Defined in: [packages/ocr/src/shared/types.ts:134](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L134)
 
 Clean up provider resources (optional)
 
@@ -1416,7 +1416,7 @@ Clean up provider resources (optional)
 
 > **getSupportedLanguages**(): `string`[]
 
-Defined in: [packages/ocr/src/shared/types.ts:129](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L129)
+Defined in: [packages/ocr/src/shared/types.ts:129](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L129)
 
 Get supported languages
 
@@ -1428,7 +1428,7 @@ Get supported languages
 
 > **performOCR**(`images`, `options?`): `Promise`\<[`OCRResult`](#ocrresult)\>
 
-Defined in: [packages/ocr/src/shared/types.ts:114](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L114)
+Defined in: [packages/ocr/src/shared/types.ts:114](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L114)
 
 Perform OCR on image data
 
@@ -1450,7 +1450,7 @@ Perform OCR on image data
 
 ### OCRProviderInfo
 
-Defined in: [packages/ocr/src/shared/types.ts:185](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L185)
+Defined in: [packages/ocr/src/shared/types.ts:185](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L185)
 
 Provider information for discovery
 
@@ -1460,31 +1460,31 @@ Provider information for discovery
 
 > **available**: `boolean`
 
-Defined in: [packages/ocr/src/shared/types.ts:187](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L187)
+Defined in: [packages/ocr/src/shared/types.ts:187](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L187)
 
 ##### capabilities
 
 > **capabilities**: `null` \| [`OCRCapabilities`](#ocrcapabilities)
 
-Defined in: [packages/ocr/src/shared/types.ts:189](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L189)
+Defined in: [packages/ocr/src/shared/types.ts:189](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L189)
 
 ##### dependencies
 
 > **dependencies**: [`DependencyCheckResult`](#dependencycheckresult)
 
-Defined in: [packages/ocr/src/shared/types.ts:188](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L188)
+Defined in: [packages/ocr/src/shared/types.ts:188](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L188)
 
 ##### name
 
 > **name**: `string`
 
-Defined in: [packages/ocr/src/shared/types.ts:186](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L186)
+Defined in: [packages/ocr/src/shared/types.ts:186](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L186)
 
 ***
 
 ### OCRResult
 
-Defined in: [packages/ocr/src/shared/types.ts:42](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L42)
+Defined in: [packages/ocr/src/shared/types.ts:42](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L42)
 
 OCR result with confidence information
 
@@ -1494,7 +1494,7 @@ OCR result with confidence information
 
 > **confidence**: `number`
 
-Defined in: [packages/ocr/src/shared/types.ts:46](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L46)
+Defined in: [packages/ocr/src/shared/types.ts:46](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L46)
 
 Overall confidence score (0-100)
 
@@ -1502,7 +1502,7 @@ Overall confidence score (0-100)
 
 > `optional` **detections**: `object`[]
 
-Defined in: [packages/ocr/src/shared/types.ts:48](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L48)
+Defined in: [packages/ocr/src/shared/types.ts:48](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L48)
 
 Detailed detection results
 
@@ -1538,7 +1538,7 @@ Detailed detection results
 
 > `optional` **metadata**: `object`
 
-Defined in: [packages/ocr/src/shared/types.ts:59](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L59)
+Defined in: [packages/ocr/src/shared/types.ts:59](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L59)
 
 Processing metadata
 
@@ -1574,7 +1574,7 @@ Processing metadata
 
 > **text**: `string`
 
-Defined in: [packages/ocr/src/shared/types.ts:44](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L44)
+Defined in: [packages/ocr/src/shared/types.ts:44](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L44)
 
 Extracted text
 
@@ -1582,7 +1582,7 @@ Extracted text
 
 ### ProviderCompatibility
 
-Defined in: [packages/ocr/src/shared/types.ts:200](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L200)
+Defined in: [packages/ocr/src/shared/types.ts:200](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L200)
 
 Provider compatibility matrix
 
@@ -1592,25 +1592,25 @@ Provider compatibility matrix
 
 > **environment**: [`OCREnvironment`](#ocrenvironment)
 
-Defined in: [packages/ocr/src/shared/types.ts:201](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L201)
+Defined in: [packages/ocr/src/shared/types.ts:201](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L201)
 
 ##### provider
 
 > **provider**: `string`
 
-Defined in: [packages/ocr/src/shared/types.ts:202](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L202)
+Defined in: [packages/ocr/src/shared/types.ts:202](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L202)
 
 ##### reason?
 
 > `optional` **reason**: `string`
 
-Defined in: [packages/ocr/src/shared/types.ts:204](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L204)
+Defined in: [packages/ocr/src/shared/types.ts:204](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L204)
 
 ##### supported
 
 > **supported**: `boolean`
 
-Defined in: [packages/ocr/src/shared/types.ts:203](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L203)
+Defined in: [packages/ocr/src/shared/types.ts:203](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L203)
 
 ## Type Aliases
 
@@ -1618,7 +1618,7 @@ Defined in: [packages/ocr/src/shared/types.ts:203](https://github.com/happyverti
 
 > **OCREnvironment** = `"node"` \| `"browser"` \| `"unknown"`
 
-Defined in: [packages/ocr/src/shared/types.ts:195](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/types.ts#L195)
+Defined in: [packages/ocr/src/shared/types.ts:195](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/types.ts#L195)
 
 Environment-specific provider availability
 
@@ -1628,7 +1628,7 @@ Environment-specific provider availability
 
 > **getAvailableProviders**(): `Promise`\<`string`[]\>
 
-Defined in: [packages/ocr/src/shared/factory.ts:389](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/factory.ts#L389)
+Defined in: [packages/ocr/src/shared/factory.ts:389](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/factory.ts#L389)
 
 Get available OCR providers in current environment
 
@@ -1642,7 +1642,7 @@ Get available OCR providers in current environment
 
 > **getOCR**(`options?`): [`OCRFactory`](#ocrfactory)
 
-Defined in: [packages/ocr/src/shared/factory.ts:361](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/factory.ts#L361)
+Defined in: [packages/ocr/src/shared/factory.ts:361](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/factory.ts#L361)
 
 Get or create an OCR factory instance
 
@@ -1665,7 +1665,7 @@ If options are provided, creates a new instance with those options.
 
 > **getProviderInfo**(`providerName`): `Promise`\<`null` \| [`OCRProviderInfo`](#ocrproviderinfo)\>
 
-Defined in: [packages/ocr/src/shared/factory.ts:408](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/factory.ts#L408)
+Defined in: [packages/ocr/src/shared/factory.ts:408](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/factory.ts#L408)
 
 Get information about a specific OCR provider
 
@@ -1685,7 +1685,7 @@ Get information about a specific OCR provider
 
 > **isProviderAvailable**(`providerName`): `Promise`\<`boolean`\>
 
-Defined in: [packages/ocr/src/shared/factory.ts:398](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/factory.ts#L398)
+Defined in: [packages/ocr/src/shared/factory.ts:398](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/factory.ts#L398)
 
 Check if a specific OCR provider is available
 
@@ -1705,7 +1705,7 @@ Check if a specific OCR provider is available
 
 > **resetOCRFactory**(): `void`
 
-Defined in: [packages/ocr/src/shared/factory.ts:377](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ocr/src/shared/factory.ts#L377)
+Defined in: [packages/ocr/src/shared/factory.ts:377](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ocr/src/shared/factory.ts#L377)
 
 Reset the global OCR factory (useful for testing)
 
