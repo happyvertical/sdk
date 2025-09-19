@@ -11,7 +11,19 @@ import type {
 } from '@have/ocr';
 
 /**
- * Options for text extraction from PDF
+ * Configuration options for extracting text content from PDF documents
+ *
+ * @example
+ * ```typescript
+ * // Extract text from specific pages
+ * const options: ExtractTextOptions = {
+ *   pages: [1, 2, 3],
+ *   mergePages: true,
+ *   preserveFormatting: true
+ * };
+ *
+ * const text = await reader.extractText('/path/to/doc.pdf', options);
+ * ```
  */
 export interface ExtractTextOptions {
   /** Specific pages to extract (1-based indexing). If not provided, extracts all pages */
@@ -30,7 +42,18 @@ export interface ExtractTextOptions {
 export type { OCROptions } from '@have/ocr';
 
 /**
- * PDF metadata information
+ * Comprehensive metadata information extracted from PDF documents
+ *
+ * Contains both standard PDF metadata fields (title, author, etc.) and
+ * technical document properties (page count, version, encryption status).
+ *
+ * @example
+ * ```typescript
+ * const metadata = await reader.extractMetadata('/path/to/doc.pdf');
+ * console.log(`Title: ${metadata.title}`);
+ * console.log(`Pages: ${metadata.pageCount}`);
+ * console.log(`Encrypted: ${metadata.encrypted}`);
+ * ```
  */
 export interface PDFMetadata {
   /** Document title */
@@ -69,7 +92,24 @@ export interface PDFImage extends BaseOCRImage {
 export type { OCRResult } from '@have/ocr';
 
 /**
- * PDF processing capabilities of a provider
+ * Describes the processing capabilities and limitations of a PDF provider
+ *
+ * Different providers (unpdf, PDF.js) have varying capabilities based on their
+ * target environment and underlying implementation. Use this interface to
+ * determine what operations are supported before attempting them.
+ *
+ * @example
+ * ```typescript
+ * const capabilities = await reader.checkCapabilities();
+ *
+ * if (capabilities.canPerformOCR) {
+ *   console.log(`OCR supported with languages: ${capabilities.ocrLanguages}`);
+ * }
+ *
+ * if (capabilities.maxFileSize) {
+ *   console.log(`Max file size: ${capabilities.maxFileSize / 1024 / 1024} MB`);
+ * }
+ * ```
  */
 export interface PDFCapabilities {
   /** Whether the provider can extract text */
@@ -89,7 +129,25 @@ export interface PDFCapabilities {
 }
 
 /**
- * Options for creating a PDF reader
+ * Configuration options for creating and customizing a PDF reader instance
+ *
+ * Controls provider selection, OCR behavior, and processing limits. The 'auto'
+ * provider setting automatically selects the best available provider for the
+ * current environment (unpdf for Node.js, PDF.js for browsers).
+ *
+ * @example
+ * ```typescript
+ * // Auto-detect best provider with OCR enabled
+ * const reader = await getPDFReader({
+ *   provider: 'auto',
+ *   enableOCR: true,
+ *   timeout: 30000,
+ *   maxFileSize: 50 * 1024 * 1024 // 50MB
+ * });
+ *
+ * // Force specific provider
+ * const unpdfReader = await getPDFReader({ provider: 'unpdf' });
+ * ```
  */
 export interface PDFReaderOptions {
   /** Preferred provider type */
@@ -112,14 +170,71 @@ export type { OCRProvider } from '@have/ocr';
 export type { OCRFactoryOptions } from '@have/ocr';
 
 /**
- * Main PDF reader interface that all providers must implement
+ * Main PDF reader interface providing comprehensive PDF processing capabilities
+ *
+ * This interface defines the standard contract that all PDF providers must implement,
+ * ensuring consistent behavior across different environments and underlying libraries.
+ * Providers may throw PDFUnsupportedError for operations they cannot perform.
+ *
+ * @example
+ * ```typescript
+ * // Create reader and process document
+ * const reader = await getPDFReader();
+ *
+ * // Get quick document analysis
+ * const info = await reader.getInfo('/path/to/doc.pdf');
+ * console.log(`Strategy: ${info.recommendedStrategy}`);
+ *
+ * // Extract text with fallback handling
+ * try {
+ *   const text = await reader.extractText('/path/to/doc.pdf');
+ *   if (!text && info.hasImages) {
+ *     // No text found, try OCR
+ *     const images = await reader.extractImages('/path/to/doc.pdf');
+ *     const ocrResult = await reader.performOCR(images);
+ *     console.log('OCR text:', ocrResult.text);
+ *   }
+ * } catch (error) {
+ *   if (error instanceof PDFUnsupportedError) {
+ *     console.warn('Operation not supported:', error.message);
+ *   } else {
+ *     console.error('Processing failed:', error);
+ *   }
+ * }
+ * ```
  */
 export interface PDFReader {
   /**
-   * Extract text content from a PDF
-   * @param source - PDF file path, Buffer, or Uint8Array
-   * @param options - Text extraction options
-   * @returns Promise resolving to extracted text or null if extraction fails
+   * Extract text content from a PDF document with intelligent fallback strategies
+   *
+   * Attempts direct text extraction first, then falls back to OCR for image-based
+   * content if enabled. Returns null if no text can be extracted through any method.
+   *
+   * @param source - PDF source: file path (Node.js only), Buffer, or Uint8Array
+   * @param options - Text extraction configuration options
+   * @returns Promise resolving to extracted text string or null if extraction fails
+   *
+   * @throws {PDFError} When PDF data is invalid or corrupted
+   * @throws {PDFDependencyError} When required dependencies are missing
+   *
+   * @example
+   * ```typescript
+   * // Basic text extraction
+   * const text = await reader.extractText('/path/to/doc.pdf');
+   *
+   * // Extract specific pages without OCR fallback
+   * const text = await reader.extractText('/path/to/doc.pdf', {
+   *   pages: [1, 2, 3],
+   *   skipOCRFallback: true,
+   *   mergePages: true
+   * });
+   *
+   * // Handle extraction failures
+   * const text = await reader.extractText(buffer);
+   * if (!text) {
+   *   console.log('No text found - may be image-based PDF');
+   * }
+   * ```
    */
   extractText(
     source: string | ArrayBuffer | Uint8Array,
@@ -127,43 +242,194 @@ export interface PDFReader {
   ): Promise<string | null>;
 
   /**
-   * Extract metadata from a PDF
-   * @param source - PDF file path, ArrayBuffer, or Uint8Array
-   * @returns Promise resolving to PDF metadata
+   * Extract comprehensive metadata and document properties from a PDF
+   *
+   * Retrieves both standard PDF metadata (title, author, subject) and technical
+   * properties (page count, version, encryption status). Always returns a metadata
+   * object, with default values if extraction fails.
+   *
+   * @param source - PDF source: file path (Node.js only), ArrayBuffer, or Uint8Array
+   * @returns Promise resolving to comprehensive PDF metadata object
+   *
+   * @throws {PDFError} When PDF data is invalid or corrupted
+   * @throws {PDFDependencyError} When required dependencies are missing
+   *
+   * @example
+   * ```typescript
+   * const metadata = await reader.extractMetadata('/path/to/doc.pdf');
+   *
+   * console.log(`Title: ${metadata.title || 'Unknown'}`);
+   * console.log(`Author: ${metadata.author || 'Unknown'}`);
+   * console.log(`Pages: ${metadata.pageCount}`);
+   * console.log(`Created: ${metadata.creationDate?.toLocaleDateString()}`);
+   * console.log(`Encrypted: ${metadata.encrypted ? 'Yes' : 'No'}`);
+   * ```
    */
   extractMetadata(source: string | ArrayBuffer | Uint8Array): Promise<PDFMetadata>;
 
   /**
-   * Extract images from a PDF
-   * @param source - PDF file path, ArrayBuffer, or Uint8Array
-   * @returns Promise resolving to array of extracted images
+   * Extract all images from a PDF document for further processing or OCR
+   *
+   * Retrieves image data in a format suitable for OCR processing or display.
+   * Images include page number information for context. Returns empty array
+   * if no images are found or extraction fails.
+   *
+   * @param source - PDF source: file path (Node.js only), ArrayBuffer, or Uint8Array
+   * @returns Promise resolving to array of extracted PDFImage objects with raw data
+   *
+   * @throws {PDFUnsupportedError} When provider doesn't support image extraction
+   * @throws {PDFError} When PDF data is invalid or corrupted
+   * @throws {PDFDependencyError} When required dependencies are missing
+   *
+   * @example
+   * ```typescript
+   * const images = await reader.extractImages('/path/to/scan.pdf');
+   *
+   * if (images.length > 0) {
+   *   console.log(`Found ${images.length} images`);
+   *   for (const image of images) {
+   *     console.log(`Page ${image.pageNumber}: ${image.width}x${image.height}`);
+   *   }
+   *
+   *   // Process with OCR
+   *   const ocrResult = await reader.performOCR(images);
+   *   console.log('Extracted text:', ocrResult.text);
+   * } else {
+   *   console.log('No images found in PDF');
+   * }
+   * ```
    */
   extractImages(source: string | ArrayBuffer | Uint8Array): Promise<PDFImage[]>;
 
   /**
-   * Perform OCR on image data
-   * @param images - Array of image data to process
-   * @param options - OCR processing options
-   * @returns Promise resolving to OCR result
+   * Perform Optical Character Recognition (OCR) on extracted image data
+   *
+   * Processes image data to extract text content using advanced OCR engines.
+   * Supports multiple languages, confidence filtering, and various output formats.
+   * Quality and accuracy depend on image resolution and text clarity.
+   *
+   * @param images - Array of PDFImage objects containing raw image data
+   * @param options - OCR configuration options including language and confidence settings
+   * @returns Promise resolving to OCR result with extracted text and confidence metrics
+   *
+   * @throws {PDFUnsupportedError} When provider doesn't support OCR operations
+   * @throws {PDFDependencyError} When OCR dependencies are missing
+   * @throws {PDFError} When image data is invalid or processing fails
+   *
+   * @example
+   * ```typescript
+   * // Basic OCR with English language
+   * const images = await reader.extractImages('/path/to/scan.pdf');
+   * const result = await reader.performOCR(images);
+   * console.log('Text:', result.text);
+   * console.log('Confidence:', result.confidence);
+   *
+   * // Advanced OCR with multiple languages and filtering
+   * const result = await reader.performOCR(images, {
+   *   language: 'eng+chi_sim+deu',
+   *   confidenceThreshold: 70,
+   *   outputFormat: 'text',
+   *   improveResolution: true
+   * });
+   *
+   * if (result.confidence < 60) {
+   *   console.warn('Low confidence OCR result');
+   * }
+   * ```
    */
   performOCR(images: PDFImage[], options?: OCROptions): Promise<OCRResult>;
 
   /**
-   * Check the capabilities of this PDF reader
-   * @returns Promise resolving to capability information
+   * Check the processing capabilities and limitations of this PDF reader
+   *
+   * Returns detailed information about what operations are supported by the current
+   * provider, including OCR availability, supported formats, and size limits.
+   * Use this to determine what operations are possible before attempting them.
+   *
+   * @returns Promise resolving to comprehensive capability information
+   *
+   * @example
+   * ```typescript
+   * const capabilities = await reader.checkCapabilities();
+   *
+   * console.log('Text extraction:', capabilities.canExtractText ? '✅' : '❌');
+   * console.log('Image extraction:', capabilities.canExtractImages ? '✅' : '❌');
+   * console.log('OCR support:', capabilities.canPerformOCR ? '✅' : '❌');
+   *
+   * if (capabilities.canPerformOCR) {
+   *   console.log('OCR languages:', capabilities.ocrLanguages?.join(', '));
+   * }
+   *
+   * if (capabilities.maxFileSize) {
+   *   const maxMB = capabilities.maxFileSize / 1024 / 1024;
+   *   console.log(`Maximum file size: ${maxMB.toFixed(1)} MB`);
+   * }
+   * ```
    */
   checkCapabilities(): Promise<PDFCapabilities>;
 
   /**
-   * Check if dependencies for this reader are available
-   * @returns Promise resolving to dependency check result
+   * Verify that all required dependencies and libraries are properly installed
+   *
+   * Performs comprehensive dependency checking to ensure the reader can function
+   * correctly. Returns detailed information about what's available and what's missing,
+   * allowing for graceful degradation or user guidance.
+   *
+   * @returns Promise resolving to detailed dependency status information
+   *
+   * @example
+   * ```typescript
+   * const deps = await reader.checkDependencies();
+   *
+   * if (deps.available) {
+   *   console.log('✅ All dependencies available');
+   *   console.log('Details:', deps.details);
+   * } else {
+   *   console.error('❌ Missing dependencies:', deps.error);
+   *   console.log('Available:', deps.details);
+   *
+   *   // Handle graceful degradation
+   *   if (deps.details.unpdf) {
+   *     console.log('Text extraction available, OCR not available');
+   *   }
+   * }
+   * ```
    */
   checkDependencies(): Promise<DependencyCheckResult>;
 
   /**
-   * Get quick information about a PDF without expensive processing
-   * @param source - PDF file path, ArrayBuffer, or Uint8Array
-   * @returns Promise resolving to PDF document information
+   * Analyze PDF document structure and recommend optimal processing strategy
+   *
+   * Performs lightweight analysis to determine document characteristics and suggest
+   * the most efficient processing approach. This is much faster than full extraction
+   * and helps optimize processing workflows for large document collections.
+   *
+   * @param source - PDF source: file path (Node.js only), ArrayBuffer, or Uint8Array
+   * @returns Promise resolving to comprehensive document analysis and recommendations
+   *
+   * @throws {PDFError} When PDF data is invalid or corrupted
+   * @throws {PDFDependencyError} When required dependencies are missing
+   *
+   * @example
+   * ```typescript
+   * // Analyze document before processing
+   * const info = await reader.getInfo('/path/to/doc.pdf');
+   *
+   * console.log(`Document: ${info.pageCount} pages`);
+   * console.log(`Strategy: ${info.recommendedStrategy}`);
+   * console.log(`Text available: ${info.hasEmbeddedText}`);
+   * console.log(`Images present: ${info.hasImages}`);
+   *
+   * // Optimize processing based on analysis
+   * if (info.recommendedStrategy === 'text') {
+   *   // Fast text extraction without OCR
+   *   const text = await reader.extractText(source, { skipOCRFallback: true });
+   * } else if (info.recommendedStrategy === 'ocr') {
+   *   // OCR required - prepare for longer processing
+   *   console.log(`Expected time: ${info.estimatedProcessingTime?.ocrProcessing}`);
+   *   const text = await reader.extractText(source);
+   * }
+   * ```
    */
   getInfo(source: string | ArrayBuffer | Uint8Array): Promise<PDFInfo>;
 }
@@ -200,7 +466,29 @@ export class PDFDependencyError extends PDFError {
 }
 
 /**
- * Quick PDF document information without expensive processing
+ * Lightweight PDF document analysis providing processing strategy recommendations
+ *
+ * This interface provides essential document information and intelligent processing
+ * recommendations without performing expensive full-text extraction or OCR. Use this
+ * to make informed decisions about how to process a document efficiently.
+ *
+ * @example
+ * ```typescript
+ * const info = await reader.getInfo('/path/to/doc.pdf');
+ *
+ * // Make processing decision based on analysis
+ * if (info.recommendedStrategy === 'text') {
+ *   console.log('✅ Text-based PDF - fast extraction available');
+ *   const text = await reader.extractText('/path/to/doc.pdf', { skipOCRFallback: true });
+ * } else if (info.recommendedStrategy === 'ocr') {
+ *   console.log('🔍 Image-based PDF - OCR required');
+ *   console.log(`Estimated time: ${info.estimatedProcessingTime?.ocrProcessing}`);
+ *   const text = await reader.extractText('/path/to/doc.pdf'); // Will use OCR
+ * } else {
+ *   console.log('🔄 Hybrid PDF - contains both text and images');
+ *   const text = await reader.extractText('/path/to/doc.pdf');
+ * }
+ * ```
  */
 export interface PDFInfo {
   /** Number of pages in the document */
@@ -212,23 +500,23 @@ export interface PDFInfo {
   /** Whether the document is encrypted/password protected */
   encrypted: boolean;
   
-  /** Whether the PDF contains extractable text content */
+  /** Whether the PDF contains extractable text content (can use fast text extraction) */
   hasEmbeddedText: boolean;
-  /** Whether the PDF contains images */
+  /** Whether the PDF contains images (may benefit from OCR processing) */
   hasImages: boolean;
   /** Rough estimate of text content length (without full extraction) */
   estimatedTextLength?: number;
   
-  /** Recommended processing strategy based on document analysis */
+  /** Recommended processing strategy: 'text' for direct extraction, 'ocr' for image-based, 'hybrid' for mixed content */
   recommendedStrategy: 'text' | 'ocr' | 'hybrid';
-  /** True if OCR will definitely be required for text extraction */
+  /** True if OCR processing will definitely be required to extract meaningful text content */
   ocrRequired: boolean;
   
-  /** Performance estimates for different operations */
+  /** Performance estimates to help plan processing workflows and user experience */
   estimatedProcessingTime?: {
-    /** Expected time category for text extraction */
+    /** Expected time category for direct text extraction (fast: <1s, medium: 1-5s, slow: >5s) */
     textExtraction: 'fast' | 'medium' | 'slow';
-    /** Expected time category for OCR processing (if needed) */
+    /** Expected time category for OCR processing if needed (fast: <10s, medium: 10-60s, slow: >60s) */
     ocrProcessing?: 'fast' | 'medium' | 'slow';
   };
   

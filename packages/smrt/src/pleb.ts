@@ -1,58 +1,67 @@
 import { BaseObject } from './object.js';
 import type { BaseObjectOptions } from './object.js';
 
+/**
+ * Configuration options for Pleb objects
+ *
+ * @interface PlebOptions
+ * @extends BaseObjectOptions
+ */
 export interface PlebOptions extends BaseObjectOptions {}
 
+/**
+ * Basic implementation class extending BaseObject
+ *
+ * Pleb provides a simple BaseObject implementation for quick prototyping
+ * and testing without requiring custom field definitions.
+ *
+ * @class Pleb
+ * @extends BaseObject
+ * @example
+ * ```typescript
+ * const pleb = await Pleb.create({
+ *   name: 'Test Object',
+ *   db: { url: 'sqlite://test.db' }
+ * });
+ * ```
+ */
 export class Pleb<T extends PlebOptions = PlebOptions> extends BaseObject<T> {
+  /**
+   * Creates a new Pleb instance
+   *
+   * @param options - Configuration options for the Pleb object
+   */
   constructor(options: T) {
     super(options);
     this._className = this.constructor.name;
   }
 
+  /**
+   * Creates and initializes a new Pleb instance
+   *
+   * @param options - Configuration options for the Pleb object
+   * @returns Promise resolving to the initialized Pleb instance
+   * @example
+   * ```typescript
+   * const pleb = await Pleb.create({
+   *   name: 'Sample Object',
+   *   db: { url: 'sqlite://data.db' }
+   * });
+   * ```
+   */
   static async create(options: PlebOptions) {
     const pleb = new Pleb(options);
     await pleb.initialize();
     return pleb;
   }
 
+  /**
+   * Initializes the Pleb instance and sets up database connections
+   *
+   * @returns Promise that resolves when initialization is complete
+   * @protected
+   */
   protected async initialize(): Promise<void> {
     await super.initialize();
-    // const db = await getDatabase();
-    // const schema = await syncSchema(options.schema);
   }
-
-  // protected async getThread(options: {
-  //   prompt: string;
-  //   references: Content[];
-  //   ai: GetAIClientOptions;
-  // }) {
-  //   const ai = options.ai
-  //     ? await getAIClient(options.ai)
-  //     : await getAIClient(this.options.ai);
-
-  //   const thread = await AIThread.create({
-  //     ai,
-  //   });
-
-  //   thread.addMessage({
-  //     role: 'system',
-  //     content: options.prompt,
-  //   });
-
-  //   for (const reference of options.references) {
-  //     thread.addMessage({
-  //       role: 'system',
-  //       content: JSON.stringify(reference),
-  //     });
-  //   }
-
-  //   const contentPrompt = `
-  //     You are a writer for a local newspaper.
-  //     You are given a bit of content from the internet and you are asked to write a short article about it.
-  //     The article should be 100 words or less.
-  //   `;
-  //   const body = await thread.addMessage(contentPrompt);
-
-  //   console.log(body);
-  // }
 }
