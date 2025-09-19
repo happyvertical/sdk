@@ -2,7 +2,8 @@
   "name": "@have/docs",
   "version": "0.0.50",
   "private": true,
-  "description": "SMRT Agent Framework Documentation - Build powerful AI agents in TypeScript",
+  "main": "docusaurus.config.ts",
+  "description": "Happy Vertical SDK Documentation - Build powerful AI agents in TypeScript",
   "scripts": {
     "docusaurus": "docusaurus",
     "start": "docusaurus start",

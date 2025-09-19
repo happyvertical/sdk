@@ -4,7 +4,7 @@
 
 ### AIClient
 
-Defined in: [packages/ai/src/shared/client.ts:194](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L194)
+Defined in: [packages/ai/src/shared/client.ts:194](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L194)
 
 Base class for AI clients
 Provides a common interface for different AI service providers
@@ -19,7 +19,7 @@ Provides a common interface for different AI service providers
 
 > **new AIClient**(`options`): [`AIClient`](#aiclient)
 
-Defined in: [packages/ai/src/shared/client.ts:205](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L205)
+Defined in: [packages/ai/src/shared/client.ts:205](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L205)
 
 Creates a new AIClient
 
@@ -41,7 +41,7 @@ Client configuration options
 
 > **options**: [`AIClientOptions`](#aiclientoptions-1)
 
-Defined in: [packages/ai/src/shared/client.ts:198](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L198)
+Defined in: [packages/ai/src/shared/client.ts:198](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L198)
 
 Configuration options for this client
 
@@ -51,7 +51,7 @@ Configuration options for this client
 
 > **message**(`text`, `options`): `Promise`\<`string`\>
 
-Defined in: [packages/ai/src/shared/client.ts:217](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L217)
+Defined in: [packages/ai/src/shared/client.ts:217](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L217)
 
 Sends a message to the AI
 Base implementation returns a placeholder response
@@ -80,7 +80,7 @@ Promise resolving to a placeholder response
 
 > **textCompletion**(`text`, `options`): `Promise`\<`string`\>
 
-Defined in: [packages/ai/src/shared/client.ts:251](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L251)
+Defined in: [packages/ai/src/shared/client.ts:251](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L251)
 
 Gets a text completion from the AI
 In base class, delegates to message method
@@ -109,7 +109,7 @@ Promise resolving to the completion result
 
 > `static` **create**\<`T`\>(`options`): `Promise`\<[`AIClient`](#aiclient) \| [`OpenAIClient`](#openaiclient)\>
 
-Defined in: [packages/ai/src/shared/client.ts:231](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L231)
+Defined in: [packages/ai/src/shared/client.ts:231](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L231)
 
 Factory method to create appropriate AI client based on options
 
@@ -141,7 +141,7 @@ Error if client type is invalid
 
 ### AIError
 
-Defined in: [packages/ai/src/shared/types.ts:545](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L545)
+Defined in: [packages/ai/src/shared/types.ts:545](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L545)
 
 Error types for AI operations
 
@@ -163,7 +163,7 @@ Error types for AI operations
 
 > **new AIError**(`message`, `code`, `provider?`, `model?`): [`AIError`](#aierror)
 
-Defined in: [packages/ai/src/shared/types.ts:546](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L546)
+Defined in: [packages/ai/src/shared/types.ts:546](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L546)
 
 ###### Parameters
 
@@ -209,7 +209,7 @@ The cause of the error.
 
 > **code**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:548](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L548)
+Defined in: [packages/ai/src/shared/types.ts:548](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L548)
 
 ##### message
 
@@ -225,7 +225,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1077
 
 > `optional` **model**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:550](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L550)
+Defined in: [packages/ai/src/shared/types.ts:550](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L550)
 
 ##### name
 
@@ -241,7 +241,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1076
 
 > `optional` **provider**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:549](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L549)
+Defined in: [packages/ai/src/shared/types.ts:549](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L549)
 
 ##### stack?
 
@@ -381,7 +381,7 @@ True if the value is an instance of Error, false otherwise
 
 ### AIMessageClass
 
-Defined in: [packages/ai/src/shared/message.ts:21](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/message.ts#L21)
+Defined in: [packages/ai/src/shared/message.ts:21](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/message.ts#L21)
 
 Represents a message in an AI conversation
 
@@ -391,7 +391,7 @@ Represents a message in an AI conversation
 
 > **new AIMessageClass**(`options`): [`AIMessageClass`](#aimessageclass)
 
-Defined in: [packages/ai/src/shared/message.ts:50](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/message.ts#L50)
+Defined in: [packages/ai/src/shared/message.ts:50](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/message.ts#L50)
 
 Creates a new AI message
 
@@ -429,7 +429,7 @@ Role of the message sender
 
 > **content**: `string`
 
-Defined in: [packages/ai/src/shared/message.ts:35](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/message.ts#L35)
+Defined in: [packages/ai/src/shared/message.ts:35](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/message.ts#L35)
 
 Content of the message
 
@@ -437,7 +437,7 @@ Content of the message
 
 > **name**: `string`
 
-Defined in: [packages/ai/src/shared/message.ts:30](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/message.ts#L30)
+Defined in: [packages/ai/src/shared/message.ts:30](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/message.ts#L30)
 
 Name of the message sender
 
@@ -445,7 +445,7 @@ Name of the message sender
 
 > `protected` **options**: `object`
 
-Defined in: [packages/ai/src/shared/message.ts:25](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/message.ts#L25)
+Defined in: [packages/ai/src/shared/message.ts:25](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/message.ts#L25)
 
 Original options used to create this message
 
@@ -465,7 +465,7 @@ Original options used to create this message
 
 > **role**: `"system"` \| `"user"` \| `"assistant"`
 
-Defined in: [packages/ai/src/shared/message.ts:40](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/message.ts#L40)
+Defined in: [packages/ai/src/shared/message.ts:40](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/message.ts#L40)
 
 Role of the message sender in the conversation
 
@@ -475,7 +475,7 @@ Role of the message sender in the conversation
 
 > `static` **create**(`options`): `Promise`\<[`AIMessageClass`](#aimessageclass)\>
 
-Defined in: [packages/ai/src/shared/message.ts:71](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/message.ts#L71)
+Defined in: [packages/ai/src/shared/message.ts:71](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/message.ts#L71)
 
 Factory method to create a new AI message
 
@@ -519,7 +519,7 @@ Promise resolving to a new AIMessage instance
 
 ### AIThread
 
-Defined in: [packages/ai/src/shared/thread.ts:19](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/thread.ts#L19)
+Defined in: [packages/ai/src/shared/thread.ts:19](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/thread.ts#L19)
 
 Represents a conversation thread with an AI model
 Manages messages, references, and conversation state
@@ -530,7 +530,7 @@ Manages messages, references, and conversation state
 
 > **new AIThread**(`options`): [`AIThread`](#aithread)
 
-Defined in: [packages/ai/src/shared/thread.ts:45](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/thread.ts#L45)
+Defined in: [packages/ai/src/shared/thread.ts:45](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/thread.ts#L45)
 
 Creates a new AI thread
 
@@ -552,7 +552,7 @@ Thread configuration options
 
 > `protected` **ai**: [`AIClient`](#aiclient)
 
-Defined in: [packages/ai/src/shared/thread.ts:23](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/thread.ts#L23)
+Defined in: [packages/ai/src/shared/thread.ts:23](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/thread.ts#L23)
 
 AI client instance for this thread
 
@@ -560,7 +560,7 @@ AI client instance for this thread
 
 > `protected` **options**: [`AIThreadOptions`](#aithreadoptions-1)
 
-Defined in: [packages/ai/src/shared/thread.ts:28](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/thread.ts#L28)
+Defined in: [packages/ai/src/shared/thread.ts:28](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/thread.ts#L28)
 
 Options used to configure this thread
 
@@ -570,7 +570,7 @@ Options used to configure this thread
 
 > **add**(`options`): `Promise`\<[`AIMessageClass`](#aimessageclass)\>
 
-Defined in: [packages/ai/src/shared/thread.ts:95](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/thread.ts#L95)
+Defined in: [packages/ai/src/shared/thread.ts:95](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/thread.ts#L95)
 
 Adds a message to the conversation
 
@@ -608,7 +608,7 @@ Promise resolving to the created AIMessage
 
 > **addReference**(`name`, `body`): `void`
 
-Defined in: [packages/ai/src/shared/thread.ts:126](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/thread.ts#L126)
+Defined in: [packages/ai/src/shared/thread.ts:126](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/thread.ts#L126)
 
 Adds a reference to be included in the conversation context
 
@@ -634,7 +634,7 @@ Content of the reference
 
 > **addSystem**(`prompt`): `Promise`\<[`AIMessageClass`](#aimessageclass)\>
 
-Defined in: [packages/ai/src/shared/thread.ts:74](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/thread.ts#L74)
+Defined in: [packages/ai/src/shared/thread.ts:74](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/thread.ts#L74)
 
 Adds a system message to the conversation
 
@@ -656,7 +656,7 @@ Promise resolving to the created AIMessage
 
 > **assembleHistory**(): `ChatCompletionMessageParam`[]
 
-Defined in: [packages/ai/src/shared/thread.ts:136](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/thread.ts#L136)
+Defined in: [packages/ai/src/shared/thread.ts:136](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/thread.ts#L136)
 
 Assembles the conversation history for sending to the AI
 Properly orders system message, references, and conversation messages
@@ -671,7 +671,7 @@ Array of message parameters formatted for the OpenAI API
 
 > **do**(`prompt`, `options`): `Promise`\<`string`\>
 
-Defined in: [packages/ai/src/shared/thread.ts:174](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/thread.ts#L174)
+Defined in: [packages/ai/src/shared/thread.ts:174](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/thread.ts#L174)
 
 Sends a prompt to the AI and gets a response
 
@@ -703,7 +703,7 @@ Promise resolving to the AI response
 
 > **get**(): [`AIMessageClass`](#aimessageclass)[]
 
-Defined in: [packages/ai/src/shared/thread.ts:116](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/thread.ts#L116)
+Defined in: [packages/ai/src/shared/thread.ts:116](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/thread.ts#L116)
 
 Gets all messages in this thread
 
@@ -717,7 +717,7 @@ Array of AIMessage objects
 
 > **initialize**(): `Promise`\<`void`\>
 
-Defined in: [packages/ai/src/shared/thread.ts:64](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/thread.ts#L64)
+Defined in: [packages/ai/src/shared/thread.ts:64](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/thread.ts#L64)
 
 Initializes the AI client for this thread
 
@@ -729,7 +729,7 @@ Initializes the AI client for this thread
 
 > `static` **create**(`options`): `Promise`\<[`AIThread`](#aithread)\>
 
-Defined in: [packages/ai/src/shared/thread.ts:55](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/thread.ts#L55)
+Defined in: [packages/ai/src/shared/thread.ts:55](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/thread.ts#L55)
 
 Factory method to create and initialize a new AI thread
 
@@ -751,7 +751,7 @@ Promise resolving to an initialized AIThread
 
 ### AuthenticationError
 
-Defined in: [packages/ai/src/shared/types.ts:557](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L557)
+Defined in: [packages/ai/src/shared/types.ts:557](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L557)
 
 Error types for AI operations
 
@@ -765,7 +765,7 @@ Error types for AI operations
 
 > **new AuthenticationError**(`provider?`): [`AuthenticationError`](#authenticationerror)
 
-Defined in: [packages/ai/src/shared/types.ts:558](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L558)
+Defined in: [packages/ai/src/shared/types.ts:558](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L558)
 
 ###### Parameters
 
@@ -799,7 +799,7 @@ The cause of the error.
 
 > **code**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:548](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L548)
+Defined in: [packages/ai/src/shared/types.ts:548](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L548)
 
 ###### Inherited from
 
@@ -819,7 +819,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1077
 
 > `optional` **model**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:550](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L550)
+Defined in: [packages/ai/src/shared/types.ts:550](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L550)
 
 ###### Inherited from
 
@@ -839,7 +839,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1076
 
 > `optional` **provider**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:549](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L549)
+Defined in: [packages/ai/src/shared/types.ts:549](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L549)
 
 ###### Inherited from
 
@@ -983,7 +983,7 @@ True if the value is an instance of Error, false otherwise
 
 ### ContentFilterError
 
-Defined in: [packages/ai/src/shared/types.ts:585](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L585)
+Defined in: [packages/ai/src/shared/types.ts:585](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L585)
 
 Error types for AI operations
 
@@ -997,7 +997,7 @@ Error types for AI operations
 
 > **new ContentFilterError**(`provider?`, `model?`): [`ContentFilterError`](#contentfiltererror)
 
-Defined in: [packages/ai/src/shared/types.ts:586](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L586)
+Defined in: [packages/ai/src/shared/types.ts:586](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L586)
 
 ###### Parameters
 
@@ -1035,7 +1035,7 @@ The cause of the error.
 
 > **code**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:548](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L548)
+Defined in: [packages/ai/src/shared/types.ts:548](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L548)
 
 ###### Inherited from
 
@@ -1055,7 +1055,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1077
 
 > `optional` **model**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:550](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L550)
+Defined in: [packages/ai/src/shared/types.ts:550](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L550)
 
 ###### Inherited from
 
@@ -1075,7 +1075,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1076
 
 > `optional` **provider**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:549](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L549)
+Defined in: [packages/ai/src/shared/types.ts:549](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L549)
 
 ###### Inherited from
 
@@ -1219,7 +1219,7 @@ True if the value is an instance of Error, false otherwise
 
 ### ContextLengthError
 
-Defined in: [packages/ai/src/shared/types.ts:578](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L578)
+Defined in: [packages/ai/src/shared/types.ts:578](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L578)
 
 Error types for AI operations
 
@@ -1233,7 +1233,7 @@ Error types for AI operations
 
 > **new ContextLengthError**(`provider?`, `model?`): [`ContextLengthError`](#contextlengtherror)
 
-Defined in: [packages/ai/src/shared/types.ts:579](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L579)
+Defined in: [packages/ai/src/shared/types.ts:579](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L579)
 
 ###### Parameters
 
@@ -1271,7 +1271,7 @@ The cause of the error.
 
 > **code**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:548](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L548)
+Defined in: [packages/ai/src/shared/types.ts:548](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L548)
 
 ###### Inherited from
 
@@ -1291,7 +1291,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1077
 
 > `optional` **model**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:550](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L550)
+Defined in: [packages/ai/src/shared/types.ts:550](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L550)
 
 ###### Inherited from
 
@@ -1311,7 +1311,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1076
 
 > `optional` **provider**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:549](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L549)
+Defined in: [packages/ai/src/shared/types.ts:549](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L549)
 
 ###### Inherited from
 
@@ -1455,7 +1455,7 @@ True if the value is an instance of Error, false otherwise
 
 ### ModelNotFoundError
 
-Defined in: [packages/ai/src/shared/types.ts:571](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L571)
+Defined in: [packages/ai/src/shared/types.ts:571](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L571)
 
 Error types for AI operations
 
@@ -1469,7 +1469,7 @@ Error types for AI operations
 
 > **new ModelNotFoundError**(`model`, `provider?`): [`ModelNotFoundError`](#modelnotfounderror)
 
-Defined in: [packages/ai/src/shared/types.ts:572](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L572)
+Defined in: [packages/ai/src/shared/types.ts:572](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L572)
 
 ###### Parameters
 
@@ -1507,7 +1507,7 @@ The cause of the error.
 
 > **code**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:548](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L548)
+Defined in: [packages/ai/src/shared/types.ts:548](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L548)
 
 ###### Inherited from
 
@@ -1527,7 +1527,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1077
 
 > `optional` **model**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:550](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L550)
+Defined in: [packages/ai/src/shared/types.ts:550](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L550)
 
 ###### Inherited from
 
@@ -1547,7 +1547,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1076
 
 > `optional` **provider**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:549](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L549)
+Defined in: [packages/ai/src/shared/types.ts:549](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L549)
 
 ###### Inherited from
 
@@ -1691,7 +1691,7 @@ True if the value is an instance of Error, false otherwise
 
 ### OpenAIClient
 
-Defined in: [packages/ai/src/shared/client.ts:413](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L413)
+Defined in: [packages/ai/src/shared/client.ts:413](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L413)
 
 Client implementation for the OpenAI API
 
@@ -1705,7 +1705,7 @@ Client implementation for the OpenAI API
 
 > **new OpenAIClient**(`options`): [`OpenAIClient`](#openaiclient)
 
-Defined in: [packages/ai/src/shared/client.ts:429](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L429)
+Defined in: [packages/ai/src/shared/client.ts:429](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L429)
 
 Creates a new OpenAIClient
 
@@ -1731,7 +1731,7 @@ OpenAI client configuration options
 
 > `protected` **openai**: `OpenAI`
 
-Defined in: [packages/ai/src/shared/client.ts:417](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L417)
+Defined in: [packages/ai/src/shared/client.ts:417](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L417)
 
 OpenAI client instance
 
@@ -1739,7 +1739,7 @@ OpenAI client instance
 
 > **options**: [`OpenAIClientOptions`](#openaiclientoptions-1)
 
-Defined in: [packages/ai/src/shared/client.ts:422](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L422)
+Defined in: [packages/ai/src/shared/client.ts:422](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L422)
 
 Configuration options for this client
 
@@ -1753,7 +1753,7 @@ Configuration options for this client
 
 > `protected` **initialize**(): `Promise`\<`void`\>
 
-Defined in: [packages/ai/src/shared/client.ts:466](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L466)
+Defined in: [packages/ai/src/shared/client.ts:466](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L466)
 
 Initializes the OpenAI client
 
@@ -1765,7 +1765,7 @@ Initializes the OpenAI client
 
 > **message**(`text`, `options`): `Promise`\<`string`\>
 
-Defined in: [packages/ai/src/shared/client.ts:441](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L441)
+Defined in: [packages/ai/src/shared/client.ts:441](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L441)
 
 Sends a message to OpenAI
 
@@ -1797,7 +1797,7 @@ Promise resolving to the OpenAI response
 
 > **textCompletion**(`message`, `options`): `Promise`\<`string`\>
 
-Defined in: [packages/ai/src/shared/client.ts:481](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L481)
+Defined in: [packages/ai/src/shared/client.ts:481](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L481)
 
 Sends a text completion request to the OpenAI API
 
@@ -1833,7 +1833,7 @@ Error if the OpenAI API response is invalid
 
 > `static` **create**(`options`): `Promise`\<[`OpenAIClient`](#openaiclient)\>
 
-Defined in: [packages/ai/src/shared/client.ts:455](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L455)
+Defined in: [packages/ai/src/shared/client.ts:455](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L455)
 
 Factory method to create and initialize an OpenAIClient
 
@@ -1859,7 +1859,7 @@ Promise resolving to an initialized OpenAIClient
 
 ### RateLimitError
 
-Defined in: [packages/ai/src/shared/types.ts:564](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L564)
+Defined in: [packages/ai/src/shared/types.ts:564](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L564)
 
 Error types for AI operations
 
@@ -1873,7 +1873,7 @@ Error types for AI operations
 
 > **new RateLimitError**(`provider?`, `retryAfter?`): [`RateLimitError`](#ratelimiterror)
 
-Defined in: [packages/ai/src/shared/types.ts:565](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L565)
+Defined in: [packages/ai/src/shared/types.ts:565](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L565)
 
 ###### Parameters
 
@@ -1911,7 +1911,7 @@ The cause of the error.
 
 > **code**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:548](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L548)
+Defined in: [packages/ai/src/shared/types.ts:548](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L548)
 
 ###### Inherited from
 
@@ -1931,7 +1931,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1077
 
 > `optional` **model**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:550](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L550)
+Defined in: [packages/ai/src/shared/types.ts:550](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L550)
 
 ###### Inherited from
 
@@ -1951,7 +1951,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1076
 
 > `optional` **provider**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:549](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L549)
+Defined in: [packages/ai/src/shared/types.ts:549](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L549)
 
 ###### Inherited from
 
@@ -2095,7 +2095,7 @@ True if the value is an instance of Error, false otherwise
 
 ### AICapabilities
 
-Defined in: [packages/ai/src/shared/types.ts:278](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L278)
+Defined in: [packages/ai/src/shared/types.ts:278](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L278)
 
 AI provider capabilities
 
@@ -2105,7 +2105,7 @@ AI provider capabilities
 
 > **chat**: `boolean`
 
-Defined in: [packages/ai/src/shared/types.ts:282](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L282)
+Defined in: [packages/ai/src/shared/types.ts:282](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L282)
 
 Whether the provider supports chat completions
 
@@ -2113,7 +2113,7 @@ Whether the provider supports chat completions
 
 > **completion**: `boolean`
 
-Defined in: [packages/ai/src/shared/types.ts:287](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L287)
+Defined in: [packages/ai/src/shared/types.ts:287](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L287)
 
 Whether the provider supports text completions
 
@@ -2121,7 +2121,7 @@ Whether the provider supports text completions
 
 > **embeddings**: `boolean`
 
-Defined in: [packages/ai/src/shared/types.ts:292](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L292)
+Defined in: [packages/ai/src/shared/types.ts:292](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L292)
 
 Whether the provider supports embeddings
 
@@ -2129,7 +2129,7 @@ Whether the provider supports embeddings
 
 > **fineTuning**: `boolean`
 
-Defined in: [packages/ai/src/shared/types.ts:312](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L312)
+Defined in: [packages/ai/src/shared/types.ts:312](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L312)
 
 Whether the provider supports fine-tuning
 
@@ -2137,7 +2137,7 @@ Whether the provider supports fine-tuning
 
 > **functions**: `boolean`
 
-Defined in: [packages/ai/src/shared/types.ts:302](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L302)
+Defined in: [packages/ai/src/shared/types.ts:302](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L302)
 
 Whether the provider supports function calling
 
@@ -2145,7 +2145,7 @@ Whether the provider supports function calling
 
 > **maxContextLength**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:317](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L317)
+Defined in: [packages/ai/src/shared/types.ts:317](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L317)
 
 Maximum context length supported
 
@@ -2153,7 +2153,7 @@ Maximum context length supported
 
 > **streaming**: `boolean`
 
-Defined in: [packages/ai/src/shared/types.ts:297](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L297)
+Defined in: [packages/ai/src/shared/types.ts:297](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L297)
 
 Whether the provider supports streaming
 
@@ -2161,7 +2161,7 @@ Whether the provider supports streaming
 
 > **supportedOperations**: `string`[]
 
-Defined in: [packages/ai/src/shared/types.ts:322](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L322)
+Defined in: [packages/ai/src/shared/types.ts:322](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L322)
 
 Supported operations
 
@@ -2169,7 +2169,7 @@ Supported operations
 
 > **vision**: `boolean`
 
-Defined in: [packages/ai/src/shared/types.ts:307](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L307)
+Defined in: [packages/ai/src/shared/types.ts:307](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L307)
 
 Whether the provider supports vision/multimodal
 
@@ -2177,7 +2177,7 @@ Whether the provider supports vision/multimodal
 
 ### AIClientInterface
 
-Defined in: [packages/ai/src/shared/client.ts:35](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L35)
+Defined in: [packages/ai/src/shared/client.ts:35](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L35)
 
 Interface defining required methods for AI clients
 
@@ -2187,7 +2187,7 @@ Interface defining required methods for AI clients
 
 > **options**: [`AIClientOptions`](#aiclientoptions-1)
 
-Defined in: [packages/ai/src/shared/client.ts:39](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L39)
+Defined in: [packages/ai/src/shared/client.ts:39](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L39)
 
 Configuration options for this client
 
@@ -2197,7 +2197,7 @@ Configuration options for this client
 
 > **message**(`text`, `options`): `Promise`\<`unknown`\>
 
-Defined in: [packages/ai/src/shared/client.ts:48](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L48)
+Defined in: [packages/ai/src/shared/client.ts:48](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L48)
 
 Sends a message to the AI and gets a response
 
@@ -2225,7 +2225,7 @@ Promise resolving to the AI response
 
 > **textCompletion**(`text`, `options`): `Promise`\<`unknown`\>
 
-Defined in: [packages/ai/src/shared/client.ts:57](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L57)
+Defined in: [packages/ai/src/shared/client.ts:57](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L57)
 
 Gets a text completion from the AI
 
@@ -2253,7 +2253,7 @@ Promise resolving to the completion result
 
 ### AIClientOptions
 
-Defined in: [packages/ai/src/shared/client.ts:10](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L10)
+Defined in: [packages/ai/src/shared/client.ts:10](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L10)
 
 Common options for AI client configuration
 
@@ -2267,7 +2267,7 @@ Common options for AI client configuration
 
 > `optional` **apiKey**: `string`
 
-Defined in: [packages/ai/src/shared/client.ts:24](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L24)
+Defined in: [packages/ai/src/shared/client.ts:24](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L24)
 
 API key for authentication
 
@@ -2275,7 +2275,7 @@ API key for authentication
 
 > `optional` **baseUrl**: `string`
 
-Defined in: [packages/ai/src/shared/client.ts:29](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L29)
+Defined in: [packages/ai/src/shared/client.ts:29](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L29)
 
 Base URL for API requests
 
@@ -2283,7 +2283,7 @@ Base URL for API requests
 
 > `optional` **responseFormat**: `string`
 
-Defined in: [packages/ai/src/shared/client.ts:19](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L19)
+Defined in: [packages/ai/src/shared/client.ts:19](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L19)
 
 Response format for AI completions
 
@@ -2291,7 +2291,7 @@ Response format for AI completions
 
 > `optional` **type**: `string`
 
-Defined in: [packages/ai/src/shared/client.ts:14](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L14)
+Defined in: [packages/ai/src/shared/client.ts:14](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L14)
 
 Type of AI client (e.g., 'openai')
 
@@ -2299,7 +2299,7 @@ Type of AI client (e.g., 'openai')
 
 ### AIInterface
 
-Defined in: [packages/ai/src/shared/types.ts:413](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L413)
+Defined in: [packages/ai/src/shared/types.ts:413](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L413)
 
 Core AI interface that all providers must implement
 
@@ -2309,7 +2309,7 @@ Core AI interface that all providers must implement
 
 > **chat**(`messages`, `options?`): `Promise`\<[`AIResponse`](#airesponse)\>
 
-Defined in: [packages/ai/src/shared/types.ts:417](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L417)
+Defined in: [packages/ai/src/shared/types.ts:417](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L417)
 
 Generate chat completion
 
@@ -2331,7 +2331,7 @@ Generate chat completion
 
 > **complete**(`prompt`, `options?`): `Promise`\<[`AIResponse`](#airesponse)\>
 
-Defined in: [packages/ai/src/shared/types.ts:422](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L422)
+Defined in: [packages/ai/src/shared/types.ts:422](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L422)
 
 Generate text completion (for non-chat models)
 
@@ -2353,7 +2353,7 @@ Generate text completion (for non-chat models)
 
 > **countTokens**(`text`): `Promise`\<`number`\>
 
-Defined in: [packages/ai/src/shared/types.ts:437](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L437)
+Defined in: [packages/ai/src/shared/types.ts:437](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L437)
 
 Count tokens in text
 
@@ -2371,7 +2371,7 @@ Count tokens in text
 
 > **embed**(`text`, `options?`): `Promise`\<[`EmbeddingResponse`](#embeddingresponse)\>
 
-Defined in: [packages/ai/src/shared/types.ts:427](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L427)
+Defined in: [packages/ai/src/shared/types.ts:427](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L427)
 
 Generate embeddings for text
 
@@ -2393,7 +2393,7 @@ Generate embeddings for text
 
 > **getCapabilities**(): `Promise`\<[`AICapabilities`](#aicapabilities)\>
 
-Defined in: [packages/ai/src/shared/types.ts:447](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L447)
+Defined in: [packages/ai/src/shared/types.ts:447](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L447)
 
 Get provider capabilities
 
@@ -2405,7 +2405,7 @@ Get provider capabilities
 
 > **getModels**(): `Promise`\<[`AIModel`](#aimodel)[]\>
 
-Defined in: [packages/ai/src/shared/types.ts:442](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L442)
+Defined in: [packages/ai/src/shared/types.ts:442](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L442)
 
 Get available models
 
@@ -2417,7 +2417,7 @@ Get available models
 
 > **stream**(`messages`, `options?`): `AsyncIterable`\<`string`\>
 
-Defined in: [packages/ai/src/shared/types.ts:432](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L432)
+Defined in: [packages/ai/src/shared/types.ts:432](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L432)
 
 Stream chat completion
 
@@ -2439,7 +2439,7 @@ Stream chat completion
 
 ### AIMessage
 
-Defined in: [packages/ai/src/shared/types.ts:8](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L8)
+Defined in: [packages/ai/src/shared/types.ts:8](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L8)
 
 AI message structure for chat interactions
 
@@ -2449,7 +2449,7 @@ AI message structure for chat interactions
 
 > **content**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:17](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L17)
+Defined in: [packages/ai/src/shared/types.ts:17](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L17)
 
 Content of the message
 
@@ -2457,7 +2457,7 @@ Content of the message
 
 > `optional` **function\_call**: `object`
 
-Defined in: [packages/ai/src/shared/types.ts:27](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L27)
+Defined in: [packages/ai/src/shared/types.ts:27](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L27)
 
 Optional function call information
 
@@ -2473,7 +2473,7 @@ Optional function call information
 
 > `optional` **name**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:22](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L22)
+Defined in: [packages/ai/src/shared/types.ts:22](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L22)
 
 Optional name for the message sender
 
@@ -2481,7 +2481,7 @@ Optional name for the message sender
 
 > **role**: `"function"` \| `"system"` \| `"user"` \| `"assistant"` \| `"tool"`
 
-Defined in: [packages/ai/src/shared/types.ts:12](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L12)
+Defined in: [packages/ai/src/shared/types.ts:12](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L12)
 
 Role of the message sender
 
@@ -2489,7 +2489,7 @@ Role of the message sender
 
 > `optional` **tool\_calls**: `object`[]
 
-Defined in: [packages/ai/src/shared/types.ts:35](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L35)
+Defined in: [packages/ai/src/shared/types.ts:35](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L35)
 
 Optional tool calls
 
@@ -2517,7 +2517,7 @@ Optional tool calls
 
 ### AIModel
 
-Defined in: [packages/ai/src/shared/types.ts:228](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L228)
+Defined in: [packages/ai/src/shared/types.ts:228](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L228)
 
 Model information structure
 
@@ -2527,7 +2527,7 @@ Model information structure
 
 > **capabilities**: `string`[]
 
-Defined in: [packages/ai/src/shared/types.ts:252](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L252)
+Defined in: [packages/ai/src/shared/types.ts:252](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L252)
 
 Supported capabilities
 
@@ -2535,7 +2535,7 @@ Supported capabilities
 
 > **contextLength**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:247](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L247)
+Defined in: [packages/ai/src/shared/types.ts:247](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L247)
 
 Maximum context length in tokens
 
@@ -2543,7 +2543,7 @@ Maximum context length in tokens
 
 > `optional` **description**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:242](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L242)
+Defined in: [packages/ai/src/shared/types.ts:242](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L242)
 
 Model description
 
@@ -2551,7 +2551,7 @@ Model description
 
 > **id**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:232](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L232)
+Defined in: [packages/ai/src/shared/types.ts:232](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L232)
 
 Model identifier
 
@@ -2559,7 +2559,7 @@ Model identifier
 
 > `optional` **inputCostPer1k**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:267](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L267)
+Defined in: [packages/ai/src/shared/types.ts:267](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L267)
 
 Cost per input token (if available)
 
@@ -2567,7 +2567,7 @@ Cost per input token (if available)
 
 > **name**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:237](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L237)
+Defined in: [packages/ai/src/shared/types.ts:237](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L237)
 
 Human-readable model name
 
@@ -2575,7 +2575,7 @@ Human-readable model name
 
 > `optional` **outputCostPer1k**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:272](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L272)
+Defined in: [packages/ai/src/shared/types.ts:272](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L272)
 
 Cost per output token (if available)
 
@@ -2583,7 +2583,7 @@ Cost per output token (if available)
 
 > **supportsFunctions**: `boolean`
 
-Defined in: [packages/ai/src/shared/types.ts:257](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L257)
+Defined in: [packages/ai/src/shared/types.ts:257](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L257)
 
 Whether the model supports function calling
 
@@ -2591,7 +2591,7 @@ Whether the model supports function calling
 
 > **supportsVision**: `boolean`
 
-Defined in: [packages/ai/src/shared/types.ts:262](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L262)
+Defined in: [packages/ai/src/shared/types.ts:262](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L262)
 
 Whether the model supports vision/multimodal input
 
@@ -2599,7 +2599,7 @@ Whether the model supports vision/multimodal input
 
 ### AIResponse
 
-Defined in: [packages/ai/src/shared/types.ts:348](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L348)
+Defined in: [packages/ai/src/shared/types.ts:348](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L348)
 
 AI response structure
 
@@ -2609,7 +2609,7 @@ AI response structure
 
 > **content**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:352](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L352)
+Defined in: [packages/ai/src/shared/types.ts:352](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L352)
 
 Generated content
 
@@ -2617,7 +2617,7 @@ Generated content
 
 > `optional` **finishReason**: `"stop"` \| `"length"` \| `"function_call"` \| `"tool_calls"` \| `"content_filter"`
 
-Defined in: [packages/ai/src/shared/types.ts:367](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L367)
+Defined in: [packages/ai/src/shared/types.ts:367](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L367)
 
 Finish reason
 
@@ -2625,7 +2625,7 @@ Finish reason
 
 > `optional` **functionCalls**: `object`[]
 
-Defined in: [packages/ai/src/shared/types.ts:372](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L372)
+Defined in: [packages/ai/src/shared/types.ts:372](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L372)
 
 Function calls made by the model
 
@@ -2641,7 +2641,7 @@ Function calls made by the model
 
 > `optional` **model**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:362](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L362)
+Defined in: [packages/ai/src/shared/types.ts:362](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L362)
 
 Model used for generation
 
@@ -2649,7 +2649,7 @@ Model used for generation
 
 > `optional` **toolCalls**: `object`[]
 
-Defined in: [packages/ai/src/shared/types.ts:380](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L380)
+Defined in: [packages/ai/src/shared/types.ts:380](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L380)
 
 Tool calls made by the model
 
@@ -2677,7 +2677,7 @@ Tool calls made by the model
 
 > `optional` **usage**: [`TokenUsage`](#tokenusage)
 
-Defined in: [packages/ai/src/shared/types.ts:357](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L357)
+Defined in: [packages/ai/src/shared/types.ts:357](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L357)
 
 Token usage information
 
@@ -2685,7 +2685,7 @@ Token usage information
 
 ### AITextCompletionOptions
 
-Defined in: [packages/ai/src/shared/client.ts:75](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L75)
+Defined in: [packages/ai/src/shared/client.ts:75](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L75)
 
 Options for AI text completion requests
 
@@ -2695,7 +2695,7 @@ Options for AI text completion requests
 
 > `optional` **frequencyPenalty**: `number`
 
-Defined in: [packages/ai/src/shared/client.ts:104](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L104)
+Defined in: [packages/ai/src/shared/client.ts:104](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L104)
 
 Penalty for token frequency
 
@@ -2703,7 +2703,7 @@ Penalty for token frequency
 
 > `optional` **history**: `ChatCompletionMessageParam`[]
 
-Defined in: [packages/ai/src/shared/client.ts:94](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L94)
+Defined in: [packages/ai/src/shared/client.ts:94](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L94)
 
 Previous messages in the conversation
 
@@ -2711,7 +2711,7 @@ Previous messages in the conversation
 
 > `optional` **logitBias**: `Record`\<`string`, `number`\>
 
-Defined in: [packages/ai/src/shared/client.ts:109](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L109)
+Defined in: [packages/ai/src/shared/client.ts:109](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L109)
 
 Token bias adjustments
 
@@ -2719,7 +2719,7 @@ Token bias adjustments
 
 > `optional` **logprobs**: `boolean`
 
-Defined in: [packages/ai/src/shared/client.ts:114](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L114)
+Defined in: [packages/ai/src/shared/client.ts:114](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L114)
 
 Whether to return log probabilities
 
@@ -2727,7 +2727,7 @@ Whether to return log probabilities
 
 > `optional` **maxTokens**: `number`
 
-Defined in: [packages/ai/src/shared/client.ts:124](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L124)
+Defined in: [packages/ai/src/shared/client.ts:124](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L124)
 
 Maximum tokens to generate
 
@@ -2735,7 +2735,7 @@ Maximum tokens to generate
 
 > `optional` **model**: `string`
 
-Defined in: [packages/ai/src/shared/client.ts:79](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L79)
+Defined in: [packages/ai/src/shared/client.ts:79](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L79)
 
 Model identifier to use
 
@@ -2743,7 +2743,7 @@ Model identifier to use
 
 > `optional` **n**: `number`
 
-Defined in: [packages/ai/src/shared/client.ts:129](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L129)
+Defined in: [packages/ai/src/shared/client.ts:129](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L129)
 
 Number of completions to generate
 
@@ -2751,7 +2751,7 @@ Number of completions to generate
 
 > `optional` **name**: `string`
 
-Defined in: [packages/ai/src/shared/client.ts:99](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L99)
+Defined in: [packages/ai/src/shared/client.ts:99](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L99)
 
 Name of the message sender
 
@@ -2759,7 +2759,7 @@ Name of the message sender
 
 > `optional` **onProgress**: (`partialMessage`) => `void`
 
-Defined in: [packages/ai/src/shared/client.ts:187](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L187)
+Defined in: [packages/ai/src/shared/client.ts:187](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L187)
 
 Callback for handling streaming responses
 
@@ -2777,7 +2777,7 @@ Callback for handling streaming responses
 
 > `optional` **presencePenalty**: `number`
 
-Defined in: [packages/ai/src/shared/client.ts:134](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L134)
+Defined in: [packages/ai/src/shared/client.ts:134](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L134)
 
 Penalty for token presence
 
@@ -2785,7 +2785,7 @@ Penalty for token presence
 
 > `optional` **responseFormat**: `object`
 
-Defined in: [packages/ai/src/shared/client.ts:139](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L139)
+Defined in: [packages/ai/src/shared/client.ts:139](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L139)
 
 Format for the response
 
@@ -2797,7 +2797,7 @@ Format for the response
 
 > `optional` **role**: `ChatCompletionRole`
 
-Defined in: [packages/ai/src/shared/client.ts:89](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L89)
+Defined in: [packages/ai/src/shared/client.ts:89](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L89)
 
 Role of the message sender
 
@@ -2805,7 +2805,7 @@ Role of the message sender
 
 > `optional` **seed**: `number`
 
-Defined in: [packages/ai/src/shared/client.ts:144](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L144)
+Defined in: [packages/ai/src/shared/client.ts:144](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L144)
 
 Random seed for deterministic results
 
@@ -2813,7 +2813,7 @@ Random seed for deterministic results
 
 > `optional` **stop**: `string` \| `string`[]
 
-Defined in: [packages/ai/src/shared/client.ts:149](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L149)
+Defined in: [packages/ai/src/shared/client.ts:149](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L149)
 
 Sequences that stop generation
 
@@ -2821,7 +2821,7 @@ Sequences that stop generation
 
 > `optional` **stream**: `boolean`
 
-Defined in: [packages/ai/src/shared/client.ts:154](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L154)
+Defined in: [packages/ai/src/shared/client.ts:154](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L154)
 
 Whether to stream responses
 
@@ -2829,7 +2829,7 @@ Whether to stream responses
 
 > `optional` **temperature**: `number`
 
-Defined in: [packages/ai/src/shared/client.ts:159](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L159)
+Defined in: [packages/ai/src/shared/client.ts:159](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L159)
 
 Sampling temperature
 
@@ -2837,7 +2837,7 @@ Sampling temperature
 
 > `optional` **timeout**: `number`
 
-Defined in: [packages/ai/src/shared/client.ts:84](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L84)
+Defined in: [packages/ai/src/shared/client.ts:84](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L84)
 
 Timeout in milliseconds
 
@@ -2845,7 +2845,7 @@ Timeout in milliseconds
 
 > `optional` **toolChoice**: `"auto"` \| `"none"` \| \{ `function`: \{ `name`: `string`; \}; `type`: `"function"`; \}
 
-Defined in: [packages/ai/src/shared/client.ts:174](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L174)
+Defined in: [packages/ai/src/shared/client.ts:174](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L174)
 
 Tool selection behavior
 
@@ -2853,7 +2853,7 @@ Tool selection behavior
 
 > `optional` **tools**: `any`[]
 
-Defined in: [packages/ai/src/shared/client.ts:169](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L169)
+Defined in: [packages/ai/src/shared/client.ts:169](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L169)
 
 Available tools for the model
 
@@ -2861,7 +2861,7 @@ Available tools for the model
 
 > `optional` **topLogprobs**: `number`
 
-Defined in: [packages/ai/src/shared/client.ts:119](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L119)
+Defined in: [packages/ai/src/shared/client.ts:119](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L119)
 
 Number of top log probabilities to return
 
@@ -2869,7 +2869,7 @@ Number of top log probabilities to return
 
 > `optional` **topProbability**: `number`
 
-Defined in: [packages/ai/src/shared/client.ts:164](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L164)
+Defined in: [packages/ai/src/shared/client.ts:164](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L164)
 
 Top-p sampling parameter
 
@@ -2877,7 +2877,7 @@ Top-p sampling parameter
 
 > `optional` **user**: `string`
 
-Defined in: [packages/ai/src/shared/client.ts:182](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L182)
+Defined in: [packages/ai/src/shared/client.ts:182](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L182)
 
 User identifier
 
@@ -2885,7 +2885,7 @@ User identifier
 
 ### AIThreadOptions
 
-Defined in: [packages/ai/src/shared/thread.ts:8](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/thread.ts#L8)
+Defined in: [packages/ai/src/shared/thread.ts:8](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/thread.ts#L8)
 
 Options for creating an AI conversation thread
 
@@ -2895,7 +2895,7 @@ Options for creating an AI conversation thread
 
 > **ai**: [`AIClientOptions`](#aiclientoptions-1)
 
-Defined in: [packages/ai/src/shared/thread.ts:12](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/thread.ts#L12)
+Defined in: [packages/ai/src/shared/thread.ts:12](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/thread.ts#L12)
 
 Options for the AI client to use in this thread
 
@@ -2903,7 +2903,7 @@ Options for the AI client to use in this thread
 
 ### AITool
 
-Defined in: [packages/ai/src/shared/types.ts:198](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L198)
+Defined in: [packages/ai/src/shared/types.ts:198](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L198)
 
 Tool/function definition for AI models
 
@@ -2913,7 +2913,7 @@ Tool/function definition for AI models
 
 > **function**: `object`
 
-Defined in: [packages/ai/src/shared/types.ts:207](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L207)
+Defined in: [packages/ai/src/shared/types.ts:207](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L207)
 
 Function definition
 
@@ -2939,7 +2939,7 @@ JSON schema for function parameters
 
 > **type**: `"function"`
 
-Defined in: [packages/ai/src/shared/types.ts:202](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L202)
+Defined in: [packages/ai/src/shared/types.ts:202](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L202)
 
 Type of tool
 
@@ -2947,7 +2947,7 @@ Type of tool
 
 ### AnthropicOptions
 
-Defined in: [packages/ai/src/shared/types.ts:499](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L499)
+Defined in: [packages/ai/src/shared/types.ts:499](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L499)
 
 Anthropic provider options
 
@@ -2961,25 +2961,25 @@ Anthropic provider options
 
 > `optional` **anthropicVersion**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:503](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L503)
+Defined in: [packages/ai/src/shared/types.ts:503](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L503)
 
 ##### apiKey
 
 > **apiKey**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:501](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L501)
+Defined in: [packages/ai/src/shared/types.ts:501](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L501)
 
 ##### baseUrl?
 
 > `optional` **baseUrl**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:502](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L502)
+Defined in: [packages/ai/src/shared/types.ts:502](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L502)
 
 ##### defaultModel?
 
 > `optional` **defaultModel**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:472](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L472)
+Defined in: [packages/ai/src/shared/types.ts:472](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L472)
 
 Default model to use
 
@@ -2991,7 +2991,7 @@ Default model to use
 
 > `optional` **headers**: `Record`\<`string`, `string`\>
 
-Defined in: [packages/ai/src/shared/types.ts:467](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L467)
+Defined in: [packages/ai/src/shared/types.ts:467](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L467)
 
 Custom headers
 
@@ -3003,7 +3003,7 @@ Custom headers
 
 > `optional` **maxRetries**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:462](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L462)
+Defined in: [packages/ai/src/shared/types.ts:462](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L462)
 
 Maximum number of retries
 
@@ -3015,7 +3015,7 @@ Maximum number of retries
 
 > `optional` **timeout**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:457](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L457)
+Defined in: [packages/ai/src/shared/types.ts:457](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L457)
 
 API timeout in milliseconds
 
@@ -3027,13 +3027,13 @@ API timeout in milliseconds
 
 > **type**: `"anthropic"`
 
-Defined in: [packages/ai/src/shared/types.ts:500](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L500)
+Defined in: [packages/ai/src/shared/types.ts:500](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L500)
 
 ***
 
 ### BaseAIOptions
 
-Defined in: [packages/ai/src/shared/types.ts:453](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L453)
+Defined in: [packages/ai/src/shared/types.ts:453](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L453)
 
 Base configuration options for all providers
 
@@ -3051,7 +3051,7 @@ Base configuration options for all providers
 
 > `optional` **defaultModel**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:472](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L472)
+Defined in: [packages/ai/src/shared/types.ts:472](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L472)
 
 Default model to use
 
@@ -3059,7 +3059,7 @@ Default model to use
 
 > `optional` **headers**: `Record`\<`string`, `string`\>
 
-Defined in: [packages/ai/src/shared/types.ts:467](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L467)
+Defined in: [packages/ai/src/shared/types.ts:467](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L467)
 
 Custom headers
 
@@ -3067,7 +3067,7 @@ Custom headers
 
 > `optional` **maxRetries**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:462](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L462)
+Defined in: [packages/ai/src/shared/types.ts:462](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L462)
 
 Maximum number of retries
 
@@ -3075,7 +3075,7 @@ Maximum number of retries
 
 > `optional` **timeout**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:457](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L457)
+Defined in: [packages/ai/src/shared/types.ts:457](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L457)
 
 API timeout in milliseconds
 
@@ -3083,7 +3083,7 @@ API timeout in milliseconds
 
 ### BedrockOptions
 
-Defined in: [packages/ai/src/shared/types.ts:521](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L521)
+Defined in: [packages/ai/src/shared/types.ts:521](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L521)
 
 AWS Bedrock provider options
 
@@ -3097,7 +3097,7 @@ AWS Bedrock provider options
 
 > `optional` **credentials**: `object`
 
-Defined in: [packages/ai/src/shared/types.ts:524](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L524)
+Defined in: [packages/ai/src/shared/types.ts:524](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L524)
 
 ###### accessKeyId
 
@@ -3115,7 +3115,7 @@ Defined in: [packages/ai/src/shared/types.ts:524](https://github.com/happyvertic
 
 > `optional` **defaultModel**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:472](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L472)
+Defined in: [packages/ai/src/shared/types.ts:472](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L472)
 
 Default model to use
 
@@ -3127,13 +3127,13 @@ Default model to use
 
 > `optional` **endpoint**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:529](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L529)
+Defined in: [packages/ai/src/shared/types.ts:529](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L529)
 
 ##### headers?
 
 > `optional` **headers**: `Record`\<`string`, `string`\>
 
-Defined in: [packages/ai/src/shared/types.ts:467](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L467)
+Defined in: [packages/ai/src/shared/types.ts:467](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L467)
 
 Custom headers
 
@@ -3145,7 +3145,7 @@ Custom headers
 
 > `optional` **maxRetries**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:462](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L462)
+Defined in: [packages/ai/src/shared/types.ts:462](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L462)
 
 Maximum number of retries
 
@@ -3157,13 +3157,13 @@ Maximum number of retries
 
 > **region**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:523](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L523)
+Defined in: [packages/ai/src/shared/types.ts:523](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L523)
 
 ##### timeout?
 
 > `optional` **timeout**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:457](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L457)
+Defined in: [packages/ai/src/shared/types.ts:457](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L457)
 
 API timeout in milliseconds
 
@@ -3175,13 +3175,13 @@ API timeout in milliseconds
 
 > **type**: `"bedrock"`
 
-Defined in: [packages/ai/src/shared/types.ts:522](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L522)
+Defined in: [packages/ai/src/shared/types.ts:522](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L522)
 
 ***
 
 ### ChatOptions
 
-Defined in: [packages/ai/src/shared/types.ts:48](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L48)
+Defined in: [packages/ai/src/shared/types.ts:48](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L48)
 
 Options for chat completion requests
 
@@ -3191,7 +3191,7 @@ Options for chat completion requests
 
 > `optional` **frequencyPenalty**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:87](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L87)
+Defined in: [packages/ai/src/shared/types.ts:87](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L87)
 
 Penalty for frequency of tokens
 
@@ -3199,7 +3199,7 @@ Penalty for frequency of tokens
 
 > `optional` **maxTokens**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:57](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L57)
+Defined in: [packages/ai/src/shared/types.ts:57](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L57)
 
 Maximum number of tokens to generate
 
@@ -3207,7 +3207,7 @@ Maximum number of tokens to generate
 
 > `optional` **model**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:52](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L52)
+Defined in: [packages/ai/src/shared/types.ts:52](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L52)
 
 Model to use for completion
 
@@ -3215,7 +3215,7 @@ Model to use for completion
 
 > `optional` **n**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:72](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L72)
+Defined in: [packages/ai/src/shared/types.ts:72](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L72)
 
 Number of completions to generate
 
@@ -3223,7 +3223,7 @@ Number of completions to generate
 
 > `optional` **onProgress**: (`chunk`) => `void`
 
-Defined in: [packages/ai/src/shared/types.ts:122](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L122)
+Defined in: [packages/ai/src/shared/types.ts:122](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L122)
 
 Callback for streaming responses
 
@@ -3241,7 +3241,7 @@ Callback for streaming responses
 
 > `optional` **presencePenalty**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:92](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L92)
+Defined in: [packages/ai/src/shared/types.ts:92](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L92)
 
 Penalty for presence of tokens
 
@@ -3249,7 +3249,7 @@ Penalty for presence of tokens
 
 > `optional` **responseFormat**: `object`
 
-Defined in: [packages/ai/src/shared/types.ts:112](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L112)
+Defined in: [packages/ai/src/shared/types.ts:112](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L112)
 
 Response format specification
 
@@ -3261,7 +3261,7 @@ Response format specification
 
 > `optional` **seed**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:117](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L117)
+Defined in: [packages/ai/src/shared/types.ts:117](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L117)
 
 Random seed for deterministic results
 
@@ -3269,7 +3269,7 @@ Random seed for deterministic results
 
 > `optional` **stop**: `string` \| `string`[]
 
-Defined in: [packages/ai/src/shared/types.ts:77](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L77)
+Defined in: [packages/ai/src/shared/types.ts:77](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L77)
 
 Sequences that stop generation
 
@@ -3277,7 +3277,7 @@ Sequences that stop generation
 
 > `optional` **stream**: `boolean`
 
-Defined in: [packages/ai/src/shared/types.ts:82](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L82)
+Defined in: [packages/ai/src/shared/types.ts:82](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L82)
 
 Whether to stream the response
 
@@ -3285,7 +3285,7 @@ Whether to stream the response
 
 > `optional` **temperature**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:62](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L62)
+Defined in: [packages/ai/src/shared/types.ts:62](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L62)
 
 Sampling temperature (0-2)
 
@@ -3293,7 +3293,7 @@ Sampling temperature (0-2)
 
 > `optional` **toolChoice**: \{ `function`: \{ `name`: `string`; \}; `type`: `"function"`; \} \| `"auto"` \| `"none"`
 
-Defined in: [packages/ai/src/shared/types.ts:107](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L107)
+Defined in: [packages/ai/src/shared/types.ts:107](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L107)
 
 Tool choice behavior
 
@@ -3301,7 +3301,7 @@ Tool choice behavior
 
 > `optional` **tools**: [`AITool`](#aitool)[]
 
-Defined in: [packages/ai/src/shared/types.ts:102](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L102)
+Defined in: [packages/ai/src/shared/types.ts:102](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L102)
 
 Available tools/functions
 
@@ -3309,7 +3309,7 @@ Available tools/functions
 
 > `optional` **topP**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:67](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L67)
+Defined in: [packages/ai/src/shared/types.ts:67](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L67)
 
 Top-p sampling parameter
 
@@ -3317,7 +3317,7 @@ Top-p sampling parameter
 
 > `optional` **user**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:97](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L97)
+Defined in: [packages/ai/src/shared/types.ts:97](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L97)
 
 User identifier for monitoring
 
@@ -3325,7 +3325,7 @@ User identifier for monitoring
 
 ### CompletionOptions
 
-Defined in: [packages/ai/src/shared/types.ts:128](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L128)
+Defined in: [packages/ai/src/shared/types.ts:128](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L128)
 
 Options for text completion requests (non-chat models)
 
@@ -3335,7 +3335,7 @@ Options for text completion requests (non-chat models)
 
 > `optional` **maxTokens**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:137](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L137)
+Defined in: [packages/ai/src/shared/types.ts:137](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L137)
 
 Maximum number of tokens to generate
 
@@ -3343,7 +3343,7 @@ Maximum number of tokens to generate
 
 > `optional` **model**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:132](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L132)
+Defined in: [packages/ai/src/shared/types.ts:132](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L132)
 
 Model to use for completion
 
@@ -3351,7 +3351,7 @@ Model to use for completion
 
 > `optional` **n**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:152](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L152)
+Defined in: [packages/ai/src/shared/types.ts:152](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L152)
 
 Number of completions to generate
 
@@ -3359,7 +3359,7 @@ Number of completions to generate
 
 > `optional` **onProgress**: (`chunk`) => `void`
 
-Defined in: [packages/ai/src/shared/types.ts:167](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L167)
+Defined in: [packages/ai/src/shared/types.ts:167](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L167)
 
 Callback for streaming responses
 
@@ -3377,7 +3377,7 @@ Callback for streaming responses
 
 > `optional` **stop**: `string` \| `string`[]
 
-Defined in: [packages/ai/src/shared/types.ts:157](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L157)
+Defined in: [packages/ai/src/shared/types.ts:157](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L157)
 
 Sequences that stop generation
 
@@ -3385,7 +3385,7 @@ Sequences that stop generation
 
 > `optional` **stream**: `boolean`
 
-Defined in: [packages/ai/src/shared/types.ts:162](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L162)
+Defined in: [packages/ai/src/shared/types.ts:162](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L162)
 
 Whether to stream the response
 
@@ -3393,7 +3393,7 @@ Whether to stream the response
 
 > `optional` **temperature**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:142](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L142)
+Defined in: [packages/ai/src/shared/types.ts:142](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L142)
 
 Sampling temperature
 
@@ -3401,7 +3401,7 @@ Sampling temperature
 
 > `optional` **topP**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:147](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L147)
+Defined in: [packages/ai/src/shared/types.ts:147](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L147)
 
 Top-p sampling parameter
 
@@ -3409,7 +3409,7 @@ Top-p sampling parameter
 
 ### EmbeddingOptions
 
-Defined in: [packages/ai/src/shared/types.ts:173](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L173)
+Defined in: [packages/ai/src/shared/types.ts:173](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L173)
 
 Options for embedding generation
 
@@ -3419,7 +3419,7 @@ Options for embedding generation
 
 > `optional` **dimensions**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:192](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L192)
+Defined in: [packages/ai/src/shared/types.ts:192](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L192)
 
 Number of dimensions for the embedding
 
@@ -3427,7 +3427,7 @@ Number of dimensions for the embedding
 
 > `optional` **encodingFormat**: `"float"` \| `"base64"`
 
-Defined in: [packages/ai/src/shared/types.ts:187](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L187)
+Defined in: [packages/ai/src/shared/types.ts:187](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L187)
 
 Encoding format for embeddings
 
@@ -3435,7 +3435,7 @@ Encoding format for embeddings
 
 > `optional` **model**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:177](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L177)
+Defined in: [packages/ai/src/shared/types.ts:177](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L177)
 
 Model to use for embeddings
 
@@ -3443,7 +3443,7 @@ Model to use for embeddings
 
 > `optional` **user**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:182](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L182)
+Defined in: [packages/ai/src/shared/types.ts:182](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L182)
 
 User identifier for monitoring
 
@@ -3451,7 +3451,7 @@ User identifier for monitoring
 
 ### EmbeddingResponse
 
-Defined in: [packages/ai/src/shared/types.ts:393](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L393)
+Defined in: [packages/ai/src/shared/types.ts:393](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L393)
 
 Embedding response structure
 
@@ -3461,7 +3461,7 @@ Embedding response structure
 
 > **embeddings**: `number`[][]
 
-Defined in: [packages/ai/src/shared/types.ts:397](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L397)
+Defined in: [packages/ai/src/shared/types.ts:397](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L397)
 
 Generated embeddings
 
@@ -3469,7 +3469,7 @@ Generated embeddings
 
 > `optional` **model**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:407](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L407)
+Defined in: [packages/ai/src/shared/types.ts:407](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L407)
 
 Model used for embeddings
 
@@ -3477,7 +3477,7 @@ Model used for embeddings
 
 > `optional` **usage**: [`TokenUsage`](#tokenusage)
 
-Defined in: [packages/ai/src/shared/types.ts:402](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L402)
+Defined in: [packages/ai/src/shared/types.ts:402](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L402)
 
 Token usage information
 
@@ -3485,7 +3485,7 @@ Token usage information
 
 ### GeminiOptions
 
-Defined in: [packages/ai/src/shared/types.ts:488](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L488)
+Defined in: [packages/ai/src/shared/types.ts:488](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L488)
 
 Gemini provider options
 
@@ -3499,19 +3499,19 @@ Gemini provider options
 
 > **apiKey**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:490](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L490)
+Defined in: [packages/ai/src/shared/types.ts:490](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L490)
 
 ##### baseUrl?
 
 > `optional` **baseUrl**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:491](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L491)
+Defined in: [packages/ai/src/shared/types.ts:491](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L491)
 
 ##### defaultModel?
 
 > `optional` **defaultModel**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:472](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L472)
+Defined in: [packages/ai/src/shared/types.ts:472](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L472)
 
 Default model to use
 
@@ -3523,7 +3523,7 @@ Default model to use
 
 > `optional` **headers**: `Record`\<`string`, `string`\>
 
-Defined in: [packages/ai/src/shared/types.ts:467](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L467)
+Defined in: [packages/ai/src/shared/types.ts:467](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L467)
 
 Custom headers
 
@@ -3535,13 +3535,13 @@ Custom headers
 
 > `optional` **location**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:493](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L493)
+Defined in: [packages/ai/src/shared/types.ts:493](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L493)
 
 ##### maxRetries?
 
 > `optional` **maxRetries**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:462](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L462)
+Defined in: [packages/ai/src/shared/types.ts:462](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L462)
 
 Maximum number of retries
 
@@ -3553,13 +3553,13 @@ Maximum number of retries
 
 > `optional` **projectId**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:492](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L492)
+Defined in: [packages/ai/src/shared/types.ts:492](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L492)
 
 ##### timeout?
 
 > `optional` **timeout**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:457](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L457)
+Defined in: [packages/ai/src/shared/types.ts:457](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L457)
 
 API timeout in milliseconds
 
@@ -3571,13 +3571,13 @@ API timeout in milliseconds
 
 > **type**: `"gemini"`
 
-Defined in: [packages/ai/src/shared/types.ts:489](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L489)
+Defined in: [packages/ai/src/shared/types.ts:489](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L489)
 
 ***
 
 ### HuggingFaceOptions
 
-Defined in: [packages/ai/src/shared/types.ts:509](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L509)
+Defined in: [packages/ai/src/shared/types.ts:509](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L509)
 
 Hugging Face provider options
 
@@ -3591,13 +3591,13 @@ Hugging Face provider options
 
 > **apiToken**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:511](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L511)
+Defined in: [packages/ai/src/shared/types.ts:511](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L511)
 
 ##### defaultModel?
 
 > `optional` **defaultModel**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:472](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L472)
+Defined in: [packages/ai/src/shared/types.ts:472](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L472)
 
 Default model to use
 
@@ -3609,13 +3609,13 @@ Default model to use
 
 > `optional` **endpoint**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:512](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L512)
+Defined in: [packages/ai/src/shared/types.ts:512](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L512)
 
 ##### headers?
 
 > `optional` **headers**: `Record`\<`string`, `string`\>
 
-Defined in: [packages/ai/src/shared/types.ts:467](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L467)
+Defined in: [packages/ai/src/shared/types.ts:467](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L467)
 
 Custom headers
 
@@ -3627,7 +3627,7 @@ Custom headers
 
 > `optional` **maxRetries**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:462](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L462)
+Defined in: [packages/ai/src/shared/types.ts:462](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L462)
 
 Maximum number of retries
 
@@ -3639,13 +3639,13 @@ Maximum number of retries
 
 > `optional` **model**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:513](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L513)
+Defined in: [packages/ai/src/shared/types.ts:513](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L513)
 
 ##### timeout?
 
 > `optional` **timeout**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:457](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L457)
+Defined in: [packages/ai/src/shared/types.ts:457](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L457)
 
 API timeout in milliseconds
 
@@ -3657,25 +3657,25 @@ API timeout in milliseconds
 
 > **type**: `"huggingface"`
 
-Defined in: [packages/ai/src/shared/types.ts:510](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L510)
+Defined in: [packages/ai/src/shared/types.ts:510](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L510)
 
 ##### useCache?
 
 > `optional` **useCache**: `boolean`
 
-Defined in: [packages/ai/src/shared/types.ts:514](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L514)
+Defined in: [packages/ai/src/shared/types.ts:514](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L514)
 
 ##### waitForModel?
 
 > `optional` **waitForModel**: `boolean`
 
-Defined in: [packages/ai/src/shared/types.ts:515](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L515)
+Defined in: [packages/ai/src/shared/types.ts:515](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L515)
 
 ***
 
 ### OpenAIClientOptions
 
-Defined in: [packages/ai/src/shared/client.ts:398](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L398)
+Defined in: [packages/ai/src/shared/client.ts:398](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L398)
 
 Configuration options specific to OpenAI client
 
@@ -3689,7 +3689,7 @@ Configuration options specific to OpenAI client
 
 > `optional` **apiKey**: `string`
 
-Defined in: [packages/ai/src/shared/client.ts:402](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L402)
+Defined in: [packages/ai/src/shared/client.ts:402](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L402)
 
 OpenAI API key
 
@@ -3701,7 +3701,7 @@ OpenAI API key
 
 > `optional` **baseUrl**: `string`
 
-Defined in: [packages/ai/src/shared/client.ts:407](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L407)
+Defined in: [packages/ai/src/shared/client.ts:407](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L407)
 
 OpenAI API base URL
 
@@ -3713,7 +3713,7 @@ OpenAI API base URL
 
 > `optional` **responseFormat**: `string`
 
-Defined in: [packages/ai/src/shared/client.ts:19](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L19)
+Defined in: [packages/ai/src/shared/client.ts:19](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L19)
 
 Response format for AI completions
 
@@ -3725,7 +3725,7 @@ Response format for AI completions
 
 > `optional` **type**: `string`
 
-Defined in: [packages/ai/src/shared/client.ts:14](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L14)
+Defined in: [packages/ai/src/shared/client.ts:14](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L14)
 
 Type of AI client (e.g., 'openai')
 
@@ -3737,7 +3737,7 @@ Type of AI client (e.g., 'openai')
 
 ### OpenAIOptions
 
-Defined in: [packages/ai/src/shared/types.ts:478](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L478)
+Defined in: [packages/ai/src/shared/types.ts:478](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L478)
 
 OpenAI provider options
 
@@ -3751,19 +3751,19 @@ OpenAI provider options
 
 > **apiKey**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:480](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L480)
+Defined in: [packages/ai/src/shared/types.ts:480](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L480)
 
 ##### baseUrl?
 
 > `optional` **baseUrl**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:481](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L481)
+Defined in: [packages/ai/src/shared/types.ts:481](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L481)
 
 ##### defaultModel?
 
 > `optional` **defaultModel**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:472](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L472)
+Defined in: [packages/ai/src/shared/types.ts:472](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L472)
 
 Default model to use
 
@@ -3775,7 +3775,7 @@ Default model to use
 
 > `optional` **headers**: `Record`\<`string`, `string`\>
 
-Defined in: [packages/ai/src/shared/types.ts:467](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L467)
+Defined in: [packages/ai/src/shared/types.ts:467](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L467)
 
 Custom headers
 
@@ -3787,7 +3787,7 @@ Custom headers
 
 > `optional` **maxRetries**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:462](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L462)
+Defined in: [packages/ai/src/shared/types.ts:462](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L462)
 
 Maximum number of retries
 
@@ -3799,13 +3799,13 @@ Maximum number of retries
 
 > `optional` **organization**: `string`
 
-Defined in: [packages/ai/src/shared/types.ts:482](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L482)
+Defined in: [packages/ai/src/shared/types.ts:482](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L482)
 
 ##### timeout?
 
 > `optional` **timeout**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:457](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L457)
+Defined in: [packages/ai/src/shared/types.ts:457](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L457)
 
 API timeout in milliseconds
 
@@ -3817,13 +3817,13 @@ API timeout in milliseconds
 
 > `optional` **type**: `"openai"`
 
-Defined in: [packages/ai/src/shared/types.ts:479](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L479)
+Defined in: [packages/ai/src/shared/types.ts:479](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L479)
 
 ***
 
 ### OpenAITextCompletionOptions
 
-Defined in: [packages/ai/src/shared/client.ts:280](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L280)
+Defined in: [packages/ai/src/shared/client.ts:280](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L280)
 
 Options specific to OpenAI text completion requests
 
@@ -3833,7 +3833,7 @@ Options specific to OpenAI text completion requests
 
 > `optional` **frequencyPenalty**: `number`
 
-Defined in: [packages/ai/src/shared/client.ts:309](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L309)
+Defined in: [packages/ai/src/shared/client.ts:309](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L309)
 
 Penalty for token frequency
 
@@ -3841,7 +3841,7 @@ Penalty for token frequency
 
 > `optional` **history**: `ChatCompletionMessageParam`[]
 
-Defined in: [packages/ai/src/shared/client.ts:299](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L299)
+Defined in: [packages/ai/src/shared/client.ts:299](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L299)
 
 Previous messages in the conversation
 
@@ -3849,7 +3849,7 @@ Previous messages in the conversation
 
 > `optional` **logitBias**: `Record`\<`string`, `number`\>
 
-Defined in: [packages/ai/src/shared/client.ts:314](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L314)
+Defined in: [packages/ai/src/shared/client.ts:314](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L314)
 
 Token bias adjustments
 
@@ -3857,7 +3857,7 @@ Token bias adjustments
 
 > `optional` **logprobs**: `boolean`
 
-Defined in: [packages/ai/src/shared/client.ts:319](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L319)
+Defined in: [packages/ai/src/shared/client.ts:319](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L319)
 
 Whether to return log probabilities
 
@@ -3865,7 +3865,7 @@ Whether to return log probabilities
 
 > `optional` **maxTokens**: `number`
 
-Defined in: [packages/ai/src/shared/client.ts:329](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L329)
+Defined in: [packages/ai/src/shared/client.ts:329](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L329)
 
 Maximum tokens to generate
 
@@ -3873,7 +3873,7 @@ Maximum tokens to generate
 
 > `optional` **model**: `string`
 
-Defined in: [packages/ai/src/shared/client.ts:284](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L284)
+Defined in: [packages/ai/src/shared/client.ts:284](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L284)
 
 Model identifier to use
 
@@ -3881,7 +3881,7 @@ Model identifier to use
 
 > `optional` **n**: `number`
 
-Defined in: [packages/ai/src/shared/client.ts:334](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L334)
+Defined in: [packages/ai/src/shared/client.ts:334](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L334)
 
 Number of completions to generate
 
@@ -3889,7 +3889,7 @@ Number of completions to generate
 
 > `optional` **name**: `string`
 
-Defined in: [packages/ai/src/shared/client.ts:304](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L304)
+Defined in: [packages/ai/src/shared/client.ts:304](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L304)
 
 Name of the message sender
 
@@ -3897,7 +3897,7 @@ Name of the message sender
 
 > `optional` **onProgress**: (`partialMessage`) => `void`
 
-Defined in: [packages/ai/src/shared/client.ts:392](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L392)
+Defined in: [packages/ai/src/shared/client.ts:392](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L392)
 
 Callback for handling streaming responses
 
@@ -3915,7 +3915,7 @@ Callback for handling streaming responses
 
 > `optional` **presencePenalty**: `number`
 
-Defined in: [packages/ai/src/shared/client.ts:339](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L339)
+Defined in: [packages/ai/src/shared/client.ts:339](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L339)
 
 Penalty for token presence
 
@@ -3923,7 +3923,7 @@ Penalty for token presence
 
 > `optional` **responseFormat**: `object`
 
-Defined in: [packages/ai/src/shared/client.ts:344](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L344)
+Defined in: [packages/ai/src/shared/client.ts:344](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L344)
 
 Format for the response
 
@@ -3935,7 +3935,7 @@ Format for the response
 
 > `optional` **role**: `ChatCompletionRole`
 
-Defined in: [packages/ai/src/shared/client.ts:294](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L294)
+Defined in: [packages/ai/src/shared/client.ts:294](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L294)
 
 Role of the message sender
 
@@ -3943,7 +3943,7 @@ Role of the message sender
 
 > `optional` **seed**: `number`
 
-Defined in: [packages/ai/src/shared/client.ts:349](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L349)
+Defined in: [packages/ai/src/shared/client.ts:349](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L349)
 
 Random seed for deterministic results
 
@@ -3951,7 +3951,7 @@ Random seed for deterministic results
 
 > `optional` **stop**: `string` \| `string`[]
 
-Defined in: [packages/ai/src/shared/client.ts:354](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L354)
+Defined in: [packages/ai/src/shared/client.ts:354](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L354)
 
 Sequences that stop generation
 
@@ -3959,7 +3959,7 @@ Sequences that stop generation
 
 > `optional` **stream**: `boolean`
 
-Defined in: [packages/ai/src/shared/client.ts:359](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L359)
+Defined in: [packages/ai/src/shared/client.ts:359](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L359)
 
 Whether to stream responses
 
@@ -3967,7 +3967,7 @@ Whether to stream responses
 
 > `optional` **temperature**: `number`
 
-Defined in: [packages/ai/src/shared/client.ts:364](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L364)
+Defined in: [packages/ai/src/shared/client.ts:364](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L364)
 
 Sampling temperature
 
@@ -3975,7 +3975,7 @@ Sampling temperature
 
 > `optional` **timeout**: `number`
 
-Defined in: [packages/ai/src/shared/client.ts:289](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L289)
+Defined in: [packages/ai/src/shared/client.ts:289](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L289)
 
 Timeout in milliseconds
 
@@ -3983,7 +3983,7 @@ Timeout in milliseconds
 
 > `optional` **toolChoice**: `"auto"` \| `"none"` \| \{ `function`: \{ `name`: `string`; \}; `type`: `"function"`; \}
 
-Defined in: [packages/ai/src/shared/client.ts:379](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L379)
+Defined in: [packages/ai/src/shared/client.ts:379](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L379)
 
 Tool selection behavior
 
@@ -3991,7 +3991,7 @@ Tool selection behavior
 
 > `optional` **tools**: `ChatCompletionTool`[]
 
-Defined in: [packages/ai/src/shared/client.ts:374](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L374)
+Defined in: [packages/ai/src/shared/client.ts:374](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L374)
 
 Available tools for the model
 
@@ -3999,7 +3999,7 @@ Available tools for the model
 
 > `optional` **topLogprobs**: `number`
 
-Defined in: [packages/ai/src/shared/client.ts:324](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L324)
+Defined in: [packages/ai/src/shared/client.ts:324](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L324)
 
 Number of top log probabilities to return
 
@@ -4007,7 +4007,7 @@ Number of top log probabilities to return
 
 > `optional` **topProbability**: `number`
 
-Defined in: [packages/ai/src/shared/client.ts:369](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L369)
+Defined in: [packages/ai/src/shared/client.ts:369](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L369)
 
 Top-p sampling parameter
 
@@ -4015,7 +4015,7 @@ Top-p sampling parameter
 
 > `optional` **user**: `string`
 
-Defined in: [packages/ai/src/shared/client.ts:387](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L387)
+Defined in: [packages/ai/src/shared/client.ts:387](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L387)
 
 User identifier
 
@@ -4023,7 +4023,7 @@ User identifier
 
 ### TokenUsage
 
-Defined in: [packages/ai/src/shared/types.ts:328](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L328)
+Defined in: [packages/ai/src/shared/types.ts:328](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L328)
 
 Token usage information
 
@@ -4033,7 +4033,7 @@ Token usage information
 
 > **completionTokens**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:337](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L337)
+Defined in: [packages/ai/src/shared/types.ts:337](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L337)
 
 Number of completion tokens
 
@@ -4041,7 +4041,7 @@ Number of completion tokens
 
 > **promptTokens**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:332](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L332)
+Defined in: [packages/ai/src/shared/types.ts:332](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L332)
 
 Number of prompt tokens
 
@@ -4049,7 +4049,7 @@ Number of prompt tokens
 
 > **totalTokens**: `number`
 
-Defined in: [packages/ai/src/shared/types.ts:342](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L342)
+Defined in: [packages/ai/src/shared/types.ts:342](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L342)
 
 Total tokens used
 
@@ -4059,7 +4059,7 @@ Total tokens used
 
 > **GetAIOptions** = [`OpenAIOptions`](#openaioptions) \| [`GeminiOptions`](#geminioptions) \| [`AnthropicOptions`](#anthropicoptions) \| [`HuggingFaceOptions`](#huggingfaceoptions) \| [`BedrockOptions`](#bedrockoptions)
 
-Defined in: [packages/ai/src/shared/types.ts:535](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/types.ts#L535)
+Defined in: [packages/ai/src/shared/types.ts:535](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/types.ts#L535)
 
 Union type for all provider options
 
@@ -4069,7 +4069,7 @@ Union type for all provider options
 
 > **getAI**(`options`): `Promise`\<[`AIInterface`](#aiinterface)\>
 
-Defined in: [packages/ai/src/shared/factory.ts:49](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/factory.ts#L49)
+Defined in: [packages/ai/src/shared/factory.ts:49](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/factory.ts#L49)
 
 Creates an AI provider instance based on the provided options
 Universal version that works in both browser and Node.js environments
@@ -4098,7 +4098,7 @@ ValidationError if the provider type is unsupported
 
 > **getAIAuto**(`options`): `Promise`\<[`AIInterface`](#aiinterface)\>
 
-Defined in: [packages/ai/src/shared/factory.ts:89](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/factory.ts#L89)
+Defined in: [packages/ai/src/shared/factory.ts:89](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/factory.ts#L89)
 
 Browser-compatible auto-detection of AI provider based on available credentials
 Does not rely on process.env
@@ -4127,7 +4127,7 @@ ValidationError if no provider can be detected from the options
 
 > **getAIClient**(`options`): `Promise`\<[`AIClient`](#aiclient)\>
 
-Defined in: [packages/ai/src/shared/client.ts:597](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L597)
+Defined in: [packages/ai/src/shared/client.ts:597](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L597)
 
 Factory function to create and initialize an appropriate AI client
 
@@ -4155,7 +4155,7 @@ Error if client type is invalid
 
 > **getOpenAI**(`options`): `Promise`\<`OpenAI`\>
 
-Defined in: [packages/ai/src/shared/client.ts:267](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/ai/src/shared/client.ts#L267)
+Defined in: [packages/ai/src/shared/client.ts:267](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/ai/src/shared/client.ts#L267)
 
 Creates an OpenAI client instance
 

@@ -8,7 +8,7 @@
 
 > **registerProvider**(`type`, `factory`): `void`
 
-Defined in: [packages/files/src/shared/factory.ts:20](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/files/src/shared/factory.ts#L20)
+Defined in: [packages/files/src/shared/factory.ts:20](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/files/src/shared/factory.ts#L20)
 
 Register a filesystem provider
 

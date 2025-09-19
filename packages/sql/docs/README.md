@@ -4,7 +4,7 @@
 
 ### DatabaseInterface
 
-Defined in: [shared/types.ts:35](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L35)
+Defined in: [shared/types.ts:35](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L35)
 
 Common interface for database adapters
 Provides a unified API for different database backends
@@ -15,7 +15,7 @@ Provides a unified API for different database backends
 
 > **client**: `any`
 
-Defined in: [shared/types.ts:39](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L39)
+Defined in: [shared/types.ts:39](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L39)
 
 Underlying database client instance
 
@@ -23,7 +23,7 @@ Underlying database client instance
 
 > **execute**: (`strings`, ...`vars`) => `Promise`\<`void`\>
 
-Defined in: [shared/types.ts:161](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L161)
+Defined in: [shared/types.ts:161](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L161)
 
 Executes a SQL query using template literals without returning results
 
@@ -51,7 +51,7 @@ Promise that resolves when the query completes
 
 > **get**: (`table`, `where`) => `Promise`\<`null` \| `Record`\<`string`, `any`\>\>
 
-Defined in: [shared/types.ts:60](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L60)
+Defined in: [shared/types.ts:60](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L60)
 
 Retrieves a single record matching the where criteria
 
@@ -79,7 +79,7 @@ Promise resolving to matching record or null if not found
 
 > **getOrInsert**: (`table`, `where`, `data`) => `Promise`\<`Record`\<`string`, `any`\>\>
 
-Defined in: [shared/types.ts:99](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L99)
+Defined in: [shared/types.ts:99](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L99)
 
 Gets a record matching the where criteria or inserts it if not found
 
@@ -113,7 +113,7 @@ Promise resolving to the record (either retrieved or newly inserted)
 
 > **insert**: (`table`, `data`) => `Promise`\<[`QueryResult`](#queryresult)\>
 
-Defined in: [shared/types.ts:48](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L48)
+Defined in: [shared/types.ts:48](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L48)
 
 Inserts one or more records into a table
 
@@ -141,7 +141,7 @@ Promise resolving to operation result
 
 > **list**: (`table`, `where`) => `Promise`\<`Record`\<`string`, `any`\>[]\>
 
-Defined in: [shared/types.ts:72](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L72)
+Defined in: [shared/types.ts:72](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L72)
 
 Retrieves multiple records matching the where criteria
 
@@ -169,7 +169,7 @@ Promise resolving to array of matching records
 
 > **many**: (`strings`, ...`vars`) => `Promise`\<`Record`\<`string`, `any`\>[]\>
 
-Defined in: [shared/types.ts:128](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L128)
+Defined in: [shared/types.ts:128](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L128)
 
 Executes a SQL query using template literals and returns multiple rows
 
@@ -197,7 +197,7 @@ Promise resolving to array of result records
 
 > **oo**: (`strings`, ...`vars`) => `Promise`\<`Record`\<`string`, `any`\>[]\>
 
-Defined in: [shared/types.ts:166](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L166)
+Defined in: [shared/types.ts:166](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L166)
 
 Alias for many() - Executes a SQL query and returns multiple rows
 
@@ -219,7 +219,7 @@ Alias for many() - Executes a SQL query and returns multiple rows
 
 > **oO**: (`strings`, ...`vars`) => `Promise`\<`null` \| `Record`\<`string`, `any`\>\>
 
-Defined in: [shared/types.ts:174](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L174)
+Defined in: [shared/types.ts:174](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L174)
 
 Alias for single() - Executes a SQL query and returns a single row
 
@@ -241,7 +241,7 @@ Alias for single() - Executes a SQL query and returns a single row
 
 > **ox**: (`strings`, ...`vars`) => `Promise`\<`any`\>
 
-Defined in: [shared/types.ts:182](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L182)
+Defined in: [shared/types.ts:182](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L182)
 
 Alias for pluck() - Executes a SQL query and returns a single value
 
@@ -263,7 +263,7 @@ Alias for pluck() - Executes a SQL query and returns a single value
 
 > **pluck**: (`strings`, ...`vars`) => `Promise`\<`any`\>
 
-Defined in: [shared/types.ts:152](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L152)
+Defined in: [shared/types.ts:152](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L152)
 
 Executes a SQL query using template literals and returns a single value
 
@@ -291,7 +291,7 @@ Promise resolving to a single value (first column of first row)
 
 > **query**: (`str`, ...`vars`) => `Promise`\<\{ `rowCount`: `number`; `rows`: `Record`\<`string`, `any`\>[]; \}\>
 
-Defined in: [shared/types.ts:196](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L196)
+Defined in: [shared/types.ts:196](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L196)
 
 Executes a raw SQL query with parameterized values
 
@@ -319,7 +319,7 @@ Promise resolving to query result with rows and count
 
 > **single**: (`strings`, ...`vars`) => `Promise`\<`null` \| `Record`\<`string`, `any`\>\>
 
-Defined in: [shared/types.ts:140](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L140)
+Defined in: [shared/types.ts:140](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L140)
 
 Executes a SQL query using template literals and returns a single row
 
@@ -347,7 +347,7 @@ Promise resolving to a single result record or null
 
 > **table**: (`table`) => [`TableInterface`](#tableinterface)
 
-Defined in: [shared/types.ts:111](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L111)
+Defined in: [shared/types.ts:111](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L111)
 
 Creates a table-specific interface for simplified table operations
 
@@ -369,7 +369,7 @@ TableInterface for the specified table
 
 > **tableExists**: (`table`) => `Promise`\<`boolean`\>
 
-Defined in: [shared/types.ts:119](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L119)
+Defined in: [shared/types.ts:119](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L119)
 
 Checks if a table exists in the database
 
@@ -391,7 +391,7 @@ Promise resolving to boolean indicating existence
 
 > **update**: (`table`, `where`, `data`) => `Promise`\<[`QueryResult`](#queryresult)\>
 
-Defined in: [shared/types.ts:85](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L85)
+Defined in: [shared/types.ts:85](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L85)
 
 Updates records matching the where criteria
 
@@ -425,7 +425,7 @@ Promise resolving to operation result
 
 > **xx**: (`strings`, ...`vars`) => `Promise`\<`void`\>
 
-Defined in: [shared/types.ts:187](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L187)
+Defined in: [shared/types.ts:187](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L187)
 
 Alias for execute() - Executes a SQL query without returning results
 
@@ -447,7 +447,7 @@ Alias for execute() - Executes a SQL query without returning results
 
 ### DatabaseOptions
 
-Defined in: [shared/types.ts:4](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L4)
+Defined in: [shared/types.ts:4](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L4)
 
 Common database connection options
 
@@ -457,7 +457,7 @@ Common database connection options
 
 > `optional` **authToken**: `string`
 
-Defined in: [shared/types.ts:13](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L13)
+Defined in: [shared/types.ts:13](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L13)
 
 Authentication token for the database connection
 
@@ -465,7 +465,7 @@ Authentication token for the database connection
 
 > `optional` **url**: `string`
 
-Defined in: [shared/types.ts:8](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L8)
+Defined in: [shared/types.ts:8](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L8)
 
 Database connection URL
 
@@ -473,7 +473,7 @@ Database connection URL
 
 ### QueryResult
 
-Defined in: [shared/types.ts:19](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L19)
+Defined in: [shared/types.ts:19](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L19)
 
 Result of a database operation that modifies data
 
@@ -483,7 +483,7 @@ Result of a database operation that modifies data
 
 > **affected**: `number`
 
-Defined in: [shared/types.ts:28](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L28)
+Defined in: [shared/types.ts:28](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L28)
 
 Number of rows affected by the operation
 
@@ -491,7 +491,7 @@ Number of rows affected by the operation
 
 > **operation**: `string`
 
-Defined in: [shared/types.ts:23](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L23)
+Defined in: [shared/types.ts:23](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L23)
 
 Type of operation performed (e.g., "insert", "update", "delete")
 
@@ -499,7 +499,7 @@ Type of operation performed (e.g., "insert", "update", "delete")
 
 ### TableInterface
 
-Defined in: [shared/types.ts:205](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L205)
+Defined in: [shared/types.ts:205](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L205)
 
 Simplified interface for table-specific operations
 
@@ -509,7 +509,7 @@ Simplified interface for table-specific operations
 
 > **get**: (`where`) => `Promise`\<`null` \| `Record`\<`string`, `any`\>\>
 
-Defined in: [shared/types.ts:222](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L222)
+Defined in: [shared/types.ts:222](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L222)
 
 Retrieves a single record from the table matching the where criteria
 
@@ -531,7 +531,7 @@ Promise resolving to matching record or null if not found
 
 > **insert**: (`data`) => `Promise`\<[`QueryResult`](#queryresult)\>
 
-Defined in: [shared/types.ts:212](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L212)
+Defined in: [shared/types.ts:212](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L212)
 
 Inserts one or more records into the table
 
@@ -553,7 +553,7 @@ Promise resolving to operation result
 
 > **list**: (`where`) => `Promise`\<`Record`\<`string`, `any`\>[]\>
 
-Defined in: [shared/types.ts:230](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/types.ts#L230)
+Defined in: [shared/types.ts:230](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/types.ts#L230)
 
 Retrieves multiple records from the table matching the where criteria
 
@@ -577,7 +577,7 @@ Promise resolving to array of matching records
 
 > **default**: `object`
 
-Defined in: [index.ts:180](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/index.ts#L180)
+Defined in: [index.ts:180](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/index.ts#L180)
 
 #### Type declaration
 
@@ -760,7 +760,7 @@ Promise resolving to boolean indicating if the table exists
 
 > **buildWhere**(`where`, `startIndex`): `object`
 
-Defined in: [shared/utils.ts:83](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/shared/utils.ts#L83)
+Defined in: [shared/utils.ts:83](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/shared/utils.ts#L83)
 
 Builds a SQL WHERE clause with parameterized values and flexible operators
 
@@ -854,7 +854,7 @@ The function handles:
 
 > **escapeSqlValue**(`value`): `string`
 
-Defined in: [index.ts:142](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/index.ts#L142)
+Defined in: [index.ts:142](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/index.ts#L142)
 
 Escapes and formats a value for use in SQL queries
 
@@ -878,7 +878,7 @@ String representation of the value safe for SQL use
 
 > **getDatabase**(`options`): `Promise`\<[`DatabaseInterface`](#databaseinterface)\>
 
-Defined in: [index.ts:19](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/index.ts#L19)
+Defined in: [index.ts:19](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/index.ts#L19)
 
 Creates a database connection based on the provided options
 
@@ -906,7 +906,7 @@ Error if the database type is invalid
 
 > **syncSchema**(`options`): `Promise`\<`void`\>
 
-Defined in: [index.ts:61](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/index.ts#L61)
+Defined in: [index.ts:61](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/index.ts#L61)
 
 Synchronizes a SQL schema definition with a database
 Creates tables if they don't exist and adds missing columns to existing tables
@@ -943,7 +943,7 @@ Error if db or schema are missing or if table name is invalid
 
 > **tableExists**(`db`, `tableName`): `Promise`\<`boolean`\>
 
-Defined in: [index.ts:130](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/index.ts#L130)
+Defined in: [index.ts:130](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/index.ts#L130)
 
 Checks if a table exists in the database
 
@@ -973,7 +973,7 @@ Promise resolving to boolean indicating if the table exists
 
 > **validateColumnName**(`column`): `string`
 
-Defined in: [index.ts:166](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/sql/src/index.ts#L166)
+Defined in: [index.ts:166](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/sql/src/index.ts#L166)
 
 Validates a column name for use in SQL queries
 

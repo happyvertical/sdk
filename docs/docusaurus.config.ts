@@ -30,7 +30,7 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          editUrl: 'https://github.com/happyvertical/sdk/tree/main/packages/docs/',
+          editUrl: 'https://github.com/happyvertical/sdk/tree/main/docs/',
           showLastUpdateTime: true,
           showLastUpdateAuthor: true,
           remarkPlugins: [],
@@ -53,17 +53,18 @@ const config: Config = {
   ],
 
   plugins: [
+    './plugins/esm-resolver',
     [
       'docusaurus-plugin-typedoc',
       {
         entryPoints: [
-          '../ai/src/index.ts',
-          '../files/src/index.ts',
-          '../pdf/src/index.ts',
-          '../spider/src/index.ts',
-          '../sql/src/index.ts',
-          '../utils/src/index.ts',
-          '../ocr/src/index.ts',
+          '../packages/ai/src/index.ts',
+          '../packages/files/src/index.ts',
+          '../packages/pdf/src/index.ts',
+          '../packages/spider/src/index.ts',
+          '../packages/sql/src/index.ts',
+          '../packages/utils/src/index.ts',
+          '../packages/ocr/src/index.ts',
         ],
         tsconfig: './typedoc.tsconfig.json',
         out: 'api',

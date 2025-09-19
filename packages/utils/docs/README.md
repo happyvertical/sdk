@@ -6,7 +6,7 @@
 
 > `const` **addInterval**: \<`DateType`\>(`date`, `duration`) => `DateType` = `add`
 
-Defined in: [packages/utils/src/shared/universal.ts:357](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L357)
+Defined in: [packages/utils/src/shared/universal.ts:357](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L357)
 
 #### Type Parameters
 
@@ -78,7 +78,7 @@ const result = add(new Date(2014, 8, 1, 10, 19, 50), {
 
 > `const` **isValidDate**: (`date`) => `boolean` = `isValid`
 
-Defined in: [packages/utils/src/shared/universal.ts:356](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L356)
+Defined in: [packages/utils/src/shared/universal.ts:356](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L356)
 
 #### Parameters
 
@@ -130,7 +130,7 @@ const result = isValid(new Date(''))
 
 ### ErrorCode
 
-Defined in: [packages/utils/src/shared/types.ts:5](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L5)
+Defined in: [packages/utils/src/shared/types.ts:5](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L5)
 
 Shared type definitions and interfaces for universal use
 
@@ -140,55 +140,55 @@ Shared type definitions and interfaces for universal use
 
 > **API\_ERROR**: `"API_ERROR"`
 
-Defined in: [packages/utils/src/shared/types.ts:7](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L7)
+Defined in: [packages/utils/src/shared/types.ts:7](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L7)
 
 ##### DATABASE\_ERROR
 
 > **DATABASE\_ERROR**: `"DATABASE_ERROR"`
 
-Defined in: [packages/utils/src/shared/types.ts:10](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L10)
+Defined in: [packages/utils/src/shared/types.ts:10](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L10)
 
 ##### FILE\_ERROR
 
 > **FILE\_ERROR**: `"FILE_ERROR"`
 
-Defined in: [packages/utils/src/shared/types.ts:8](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L8)
+Defined in: [packages/utils/src/shared/types.ts:8](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L8)
 
 ##### NETWORK\_ERROR
 
 > **NETWORK\_ERROR**: `"NETWORK_ERROR"`
 
-Defined in: [packages/utils/src/shared/types.ts:9](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L9)
+Defined in: [packages/utils/src/shared/types.ts:9](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L9)
 
 ##### PARSING\_ERROR
 
 > **PARSING\_ERROR**: `"PARSING_ERROR"`
 
-Defined in: [packages/utils/src/shared/types.ts:11](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L11)
+Defined in: [packages/utils/src/shared/types.ts:11](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L11)
 
 ##### TIMEOUT\_ERROR
 
 > **TIMEOUT\_ERROR**: `"TIMEOUT_ERROR"`
 
-Defined in: [packages/utils/src/shared/types.ts:12](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L12)
+Defined in: [packages/utils/src/shared/types.ts:12](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L12)
 
 ##### UNKNOWN\_ERROR
 
 > **UNKNOWN\_ERROR**: `"UNKNOWN_ERROR"`
 
-Defined in: [packages/utils/src/shared/types.ts:13](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L13)
+Defined in: [packages/utils/src/shared/types.ts:13](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L13)
 
 ##### VALIDATION\_ERROR
 
 > **VALIDATION\_ERROR**: `"VALIDATION_ERROR"`
 
-Defined in: [packages/utils/src/shared/types.ts:6](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L6)
+Defined in: [packages/utils/src/shared/types.ts:6](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L6)
 
 ***
 
 ### ApiError
 
-Defined in: [packages/utils/src/shared/types.ts:52](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L52)
+Defined in: [packages/utils/src/shared/types.ts:52](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L52)
 
 #### Extends
 
@@ -200,7 +200,7 @@ Defined in: [packages/utils/src/shared/types.ts:52](https://github.com/happyvert
 
 > **new ApiError**(`message`, `context?`): [`ApiError`](#apierror)
 
-Defined in: [packages/utils/src/shared/types.ts:53](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L53)
+Defined in: [packages/utils/src/shared/types.ts:53](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L53)
 
 ###### Parameters
 
@@ -238,7 +238,7 @@ The cause of the error.
 
 > `readonly` **code**: [`ErrorCode`](#errorcode)
 
-Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L17)
+Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L17)
 
 ###### Inherited from
 
@@ -248,7 +248,7 @@ Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvert
 
 > `readonly` `optional` **context**: `Record`\<`string`, `unknown`\>
 
-Defined in: [packages/utils/src/shared/types.ts:18](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L18)
+Defined in: [packages/utils/src/shared/types.ts:18](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L18)
 
 ###### Inherited from
 
@@ -288,7 +288,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1078
 
 > `readonly` **timestamp**: `Date`
 
-Defined in: [packages/utils/src/shared/types.ts:19](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L19)
+Defined in: [packages/utils/src/shared/types.ts:19](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L19)
 
 ###### Inherited from
 
@@ -342,7 +342,7 @@ The maximum number of stack frames to capture.
 
 > **toJSON**(): `object`
 
-Defined in: [packages/utils/src/shared/types.ts:34](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L34)
+Defined in: [packages/utils/src/shared/types.ts:34](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L34)
 
 ###### Returns
 
@@ -460,7 +460,7 @@ True if the value is an instance of Error, false otherwise
 
 ### BaseError
 
-Defined in: [packages/utils/src/shared/types.ts:16](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L16)
+Defined in: [packages/utils/src/shared/types.ts:16](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L16)
 
 #### Extends
 
@@ -482,7 +482,7 @@ Defined in: [packages/utils/src/shared/types.ts:16](https://github.com/happyvert
 
 > **new BaseError**(`message`, `code`, `context?`): [`BaseError`](#baseerror)
 
-Defined in: [packages/utils/src/shared/types.ts:21](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L21)
+Defined in: [packages/utils/src/shared/types.ts:21](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L21)
 
 ###### Parameters
 
@@ -524,13 +524,13 @@ The cause of the error.
 
 > `readonly` **code**: [`ErrorCode`](#errorcode)
 
-Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L17)
+Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L17)
 
 ##### context?
 
 > `readonly` `optional` **context**: `Record`\<`string`, `unknown`\>
 
-Defined in: [packages/utils/src/shared/types.ts:18](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L18)
+Defined in: [packages/utils/src/shared/types.ts:18](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L18)
 
 ##### message
 
@@ -566,7 +566,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1078
 
 > `readonly` **timestamp**: `Date`
 
-Defined in: [packages/utils/src/shared/types.ts:19](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L19)
+Defined in: [packages/utils/src/shared/types.ts:19](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L19)
 
 ##### prepareStackTrace()?
 
@@ -616,7 +616,7 @@ The maximum number of stack frames to capture.
 
 > **toJSON**(): `object`
 
-Defined in: [packages/utils/src/shared/types.ts:34](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L34)
+Defined in: [packages/utils/src/shared/types.ts:34](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L34)
 
 ###### Returns
 
@@ -730,7 +730,7 @@ True if the value is an instance of Error, false otherwise
 
 ### DatabaseError
 
-Defined in: [packages/utils/src/shared/types.ts:70](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L70)
+Defined in: [packages/utils/src/shared/types.ts:70](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L70)
 
 #### Extends
 
@@ -742,7 +742,7 @@ Defined in: [packages/utils/src/shared/types.ts:70](https://github.com/happyvert
 
 > **new DatabaseError**(`message`, `context?`): [`DatabaseError`](#databaseerror)
 
-Defined in: [packages/utils/src/shared/types.ts:71](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L71)
+Defined in: [packages/utils/src/shared/types.ts:71](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L71)
 
 ###### Parameters
 
@@ -780,7 +780,7 @@ The cause of the error.
 
 > `readonly` **code**: [`ErrorCode`](#errorcode)
 
-Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L17)
+Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L17)
 
 ###### Inherited from
 
@@ -790,7 +790,7 @@ Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvert
 
 > `readonly` `optional` **context**: `Record`\<`string`, `unknown`\>
 
-Defined in: [packages/utils/src/shared/types.ts:18](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L18)
+Defined in: [packages/utils/src/shared/types.ts:18](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L18)
 
 ###### Inherited from
 
@@ -830,7 +830,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1078
 
 > `readonly` **timestamp**: `Date`
 
-Defined in: [packages/utils/src/shared/types.ts:19](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L19)
+Defined in: [packages/utils/src/shared/types.ts:19](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L19)
 
 ###### Inherited from
 
@@ -884,7 +884,7 @@ The maximum number of stack frames to capture.
 
 > **toJSON**(): `object`
 
-Defined in: [packages/utils/src/shared/types.ts:34](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L34)
+Defined in: [packages/utils/src/shared/types.ts:34](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L34)
 
 ###### Returns
 
@@ -1002,7 +1002,7 @@ True if the value is an instance of Error, false otherwise
 
 ### FileError
 
-Defined in: [packages/utils/src/shared/types.ts:58](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L58)
+Defined in: [packages/utils/src/shared/types.ts:58](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L58)
 
 #### Extends
 
@@ -1014,7 +1014,7 @@ Defined in: [packages/utils/src/shared/types.ts:58](https://github.com/happyvert
 
 > **new FileError**(`message`, `context?`): [`FileError`](#fileerror)
 
-Defined in: [packages/utils/src/shared/types.ts:59](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L59)
+Defined in: [packages/utils/src/shared/types.ts:59](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L59)
 
 ###### Parameters
 
@@ -1052,7 +1052,7 @@ The cause of the error.
 
 > `readonly` **code**: [`ErrorCode`](#errorcode)
 
-Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L17)
+Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L17)
 
 ###### Inherited from
 
@@ -1062,7 +1062,7 @@ Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvert
 
 > `readonly` `optional` **context**: `Record`\<`string`, `unknown`\>
 
-Defined in: [packages/utils/src/shared/types.ts:18](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L18)
+Defined in: [packages/utils/src/shared/types.ts:18](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L18)
 
 ###### Inherited from
 
@@ -1102,7 +1102,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1078
 
 > `readonly` **timestamp**: `Date`
 
-Defined in: [packages/utils/src/shared/types.ts:19](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L19)
+Defined in: [packages/utils/src/shared/types.ts:19](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L19)
 
 ###### Inherited from
 
@@ -1156,7 +1156,7 @@ The maximum number of stack frames to capture.
 
 > **toJSON**(): `object`
 
-Defined in: [packages/utils/src/shared/types.ts:34](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L34)
+Defined in: [packages/utils/src/shared/types.ts:34](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L34)
 
 ###### Returns
 
@@ -1274,7 +1274,7 @@ True if the value is an instance of Error, false otherwise
 
 ### NetworkError
 
-Defined in: [packages/utils/src/shared/types.ts:64](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L64)
+Defined in: [packages/utils/src/shared/types.ts:64](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L64)
 
 #### Extends
 
@@ -1286,7 +1286,7 @@ Defined in: [packages/utils/src/shared/types.ts:64](https://github.com/happyvert
 
 > **new NetworkError**(`message`, `context?`): [`NetworkError`](#networkerror)
 
-Defined in: [packages/utils/src/shared/types.ts:65](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L65)
+Defined in: [packages/utils/src/shared/types.ts:65](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L65)
 
 ###### Parameters
 
@@ -1324,7 +1324,7 @@ The cause of the error.
 
 > `readonly` **code**: [`ErrorCode`](#errorcode)
 
-Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L17)
+Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L17)
 
 ###### Inherited from
 
@@ -1334,7 +1334,7 @@ Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvert
 
 > `readonly` `optional` **context**: `Record`\<`string`, `unknown`\>
 
-Defined in: [packages/utils/src/shared/types.ts:18](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L18)
+Defined in: [packages/utils/src/shared/types.ts:18](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L18)
 
 ###### Inherited from
 
@@ -1374,7 +1374,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1078
 
 > `readonly` **timestamp**: `Date`
 
-Defined in: [packages/utils/src/shared/types.ts:19](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L19)
+Defined in: [packages/utils/src/shared/types.ts:19](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L19)
 
 ###### Inherited from
 
@@ -1428,7 +1428,7 @@ The maximum number of stack frames to capture.
 
 > **toJSON**(): `object`
 
-Defined in: [packages/utils/src/shared/types.ts:34](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L34)
+Defined in: [packages/utils/src/shared/types.ts:34](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L34)
 
 ###### Returns
 
@@ -1546,7 +1546,7 @@ True if the value is an instance of Error, false otherwise
 
 ### ParsingError
 
-Defined in: [packages/utils/src/shared/types.ts:76](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L76)
+Defined in: [packages/utils/src/shared/types.ts:76](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L76)
 
 #### Extends
 
@@ -1558,7 +1558,7 @@ Defined in: [packages/utils/src/shared/types.ts:76](https://github.com/happyvert
 
 > **new ParsingError**(`message`, `context?`): [`ParsingError`](#parsingerror)
 
-Defined in: [packages/utils/src/shared/types.ts:77](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L77)
+Defined in: [packages/utils/src/shared/types.ts:77](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L77)
 
 ###### Parameters
 
@@ -1596,7 +1596,7 @@ The cause of the error.
 
 > `readonly` **code**: [`ErrorCode`](#errorcode)
 
-Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L17)
+Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L17)
 
 ###### Inherited from
 
@@ -1606,7 +1606,7 @@ Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvert
 
 > `readonly` `optional` **context**: `Record`\<`string`, `unknown`\>
 
-Defined in: [packages/utils/src/shared/types.ts:18](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L18)
+Defined in: [packages/utils/src/shared/types.ts:18](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L18)
 
 ###### Inherited from
 
@@ -1646,7 +1646,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1078
 
 > `readonly` **timestamp**: `Date`
 
-Defined in: [packages/utils/src/shared/types.ts:19](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L19)
+Defined in: [packages/utils/src/shared/types.ts:19](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L19)
 
 ###### Inherited from
 
@@ -1700,7 +1700,7 @@ The maximum number of stack frames to capture.
 
 > **toJSON**(): `object`
 
-Defined in: [packages/utils/src/shared/types.ts:34](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L34)
+Defined in: [packages/utils/src/shared/types.ts:34](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L34)
 
 ###### Returns
 
@@ -1818,7 +1818,7 @@ True if the value is an instance of Error, false otherwise
 
 ### TimeoutError
 
-Defined in: [packages/utils/src/shared/types.ts:82](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L82)
+Defined in: [packages/utils/src/shared/types.ts:82](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L82)
 
 #### Extends
 
@@ -1830,7 +1830,7 @@ Defined in: [packages/utils/src/shared/types.ts:82](https://github.com/happyvert
 
 > **new TimeoutError**(`message`, `context?`): [`TimeoutError`](#timeouterror)
 
-Defined in: [packages/utils/src/shared/types.ts:83](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L83)
+Defined in: [packages/utils/src/shared/types.ts:83](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L83)
 
 ###### Parameters
 
@@ -1868,7 +1868,7 @@ The cause of the error.
 
 > `readonly` **code**: [`ErrorCode`](#errorcode)
 
-Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L17)
+Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L17)
 
 ###### Inherited from
 
@@ -1878,7 +1878,7 @@ Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvert
 
 > `readonly` `optional` **context**: `Record`\<`string`, `unknown`\>
 
-Defined in: [packages/utils/src/shared/types.ts:18](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L18)
+Defined in: [packages/utils/src/shared/types.ts:18](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L18)
 
 ###### Inherited from
 
@@ -1918,7 +1918,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1078
 
 > `readonly` **timestamp**: `Date`
 
-Defined in: [packages/utils/src/shared/types.ts:19](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L19)
+Defined in: [packages/utils/src/shared/types.ts:19](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L19)
 
 ###### Inherited from
 
@@ -1972,7 +1972,7 @@ The maximum number of stack frames to capture.
 
 > **toJSON**(): `object`
 
-Defined in: [packages/utils/src/shared/types.ts:34](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L34)
+Defined in: [packages/utils/src/shared/types.ts:34](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L34)
 
 ###### Returns
 
@@ -2090,7 +2090,7 @@ True if the value is an instance of Error, false otherwise
 
 ### ValidationError
 
-Defined in: [packages/utils/src/shared/types.ts:46](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L46)
+Defined in: [packages/utils/src/shared/types.ts:46](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L46)
 
 #### Extends
 
@@ -2102,7 +2102,7 @@ Defined in: [packages/utils/src/shared/types.ts:46](https://github.com/happyvert
 
 > **new ValidationError**(`message`, `context?`): [`ValidationError`](#validationerror)
 
-Defined in: [packages/utils/src/shared/types.ts:47](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L47)
+Defined in: [packages/utils/src/shared/types.ts:47](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L47)
 
 ###### Parameters
 
@@ -2140,7 +2140,7 @@ The cause of the error.
 
 > `readonly` **code**: [`ErrorCode`](#errorcode)
 
-Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L17)
+Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L17)
 
 ###### Inherited from
 
@@ -2150,7 +2150,7 @@ Defined in: [packages/utils/src/shared/types.ts:17](https://github.com/happyvert
 
 > `readonly` `optional` **context**: `Record`\<`string`, `unknown`\>
 
-Defined in: [packages/utils/src/shared/types.ts:18](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L18)
+Defined in: [packages/utils/src/shared/types.ts:18](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L18)
 
 ###### Inherited from
 
@@ -2190,7 +2190,7 @@ Defined in: node\_modules/typescript/lib/lib.es5.d.ts:1078
 
 > `readonly` **timestamp**: `Date`
 
-Defined in: [packages/utils/src/shared/types.ts:19](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L19)
+Defined in: [packages/utils/src/shared/types.ts:19](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L19)
 
 ###### Inherited from
 
@@ -2244,7 +2244,7 @@ The maximum number of stack frames to capture.
 
 > **toJSON**(): `object`
 
-Defined in: [packages/utils/src/shared/types.ts:34](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L34)
+Defined in: [packages/utils/src/shared/types.ts:34](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L34)
 
 ###### Returns
 
@@ -2362,7 +2362,7 @@ True if the value is an instance of Error, false otherwise
 
 ### Logger
 
-Defined in: [packages/utils/src/shared/types.ts:88](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L88)
+Defined in: [packages/utils/src/shared/types.ts:88](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L88)
 
 #### Methods
 
@@ -2370,7 +2370,7 @@ Defined in: [packages/utils/src/shared/types.ts:88](https://github.com/happyvert
 
 > **debug**(`message`, `context?`): `void`
 
-Defined in: [packages/utils/src/shared/types.ts:89](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L89)
+Defined in: [packages/utils/src/shared/types.ts:89](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L89)
 
 ###### Parameters
 
@@ -2390,7 +2390,7 @@ Defined in: [packages/utils/src/shared/types.ts:89](https://github.com/happyvert
 
 > **error**(`message`, `context?`): `void`
 
-Defined in: [packages/utils/src/shared/types.ts:92](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L92)
+Defined in: [packages/utils/src/shared/types.ts:92](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L92)
 
 ###### Parameters
 
@@ -2410,7 +2410,7 @@ Defined in: [packages/utils/src/shared/types.ts:92](https://github.com/happyvert
 
 > **info**(`message`, `context?`): `void`
 
-Defined in: [packages/utils/src/shared/types.ts:90](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L90)
+Defined in: [packages/utils/src/shared/types.ts:90](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L90)
 
 ###### Parameters
 
@@ -2430,7 +2430,7 @@ Defined in: [packages/utils/src/shared/types.ts:90](https://github.com/happyvert
 
 > **warn**(`message`, `context?`): `void`
 
-Defined in: [packages/utils/src/shared/types.ts:91](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/types.ts#L91)
+Defined in: [packages/utils/src/shared/types.ts:91](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/types.ts#L91)
 
 ###### Parameters
 
@@ -2452,7 +2452,7 @@ Defined in: [packages/utils/src/shared/types.ts:91](https://github.com/happyvert
 
 > `const` **createId**: () => `string` = `cuid2CreateId`
 
-Defined in: [packages/utils/src/shared/universal.ts:35](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L35)
+Defined in: [packages/utils/src/shared/universal.ts:35](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L35)
 
 Generates a CUID2 identifier (collision-resistant, more secure than UUID)
 
@@ -2466,7 +2466,7 @@ Generates a CUID2 identifier (collision-resistant, more secure than UUID)
 
 > `const` **isPlural**: (`word`) => `boolean` = `pluralize.isPlural`
 
-Defined in: [packages/utils/src/shared/universal.ts:338](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L338)
+Defined in: [packages/utils/src/shared/universal.ts:338](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L338)
 
 Test if provided word is plural.
 
@@ -2486,7 +2486,7 @@ Test if provided word is plural.
 
 > `const` **isSingular**: (`word`) => `boolean` = `pluralize.isSingular`
 
-Defined in: [packages/utils/src/shared/universal.ts:339](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L339)
+Defined in: [packages/utils/src/shared/universal.ts:339](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L339)
 
 Test if provided word is singular.
 
@@ -2506,7 +2506,7 @@ Test if provided word is singular.
 
 > `const` **pluralizeWord**: *typeof* `pluralize` = `pluralize`
 
-Defined in: [packages/utils/src/shared/universal.ts:336](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L336)
+Defined in: [packages/utils/src/shared/universal.ts:336](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L336)
 
 String pluralization utilities using the pluralize library
 
@@ -2516,7 +2516,7 @@ String pluralization utilities using the pluralize library
 
 > `const` **singularize**: (`word`) => `string` = `pluralize.singular`
 
-Defined in: [packages/utils/src/shared/universal.ts:337](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L337)
+Defined in: [packages/utils/src/shared/universal.ts:337](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L337)
 
 Singularize a word based.
 
@@ -2536,7 +2536,7 @@ Singularize a word based.
 
 > **camelCase**(`str`): `string`
 
-Defined in: [packages/utils/src/shared/universal.ts:163](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L163)
+Defined in: [packages/utils/src/shared/universal.ts:163](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L163)
 
 Converts a string to camelCase
 
@@ -2556,7 +2556,7 @@ Converts a string to camelCase
 
 > **dateInString**(`str`): `null` \| `Date`
 
-Defined in: [packages/utils/src/shared/universal.ts:269](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L269)
+Defined in: [packages/utils/src/shared/universal.ts:269](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L269)
 
 Extracts and parses a date from a string
 
@@ -2576,7 +2576,7 @@ Extracts and parses a date from a string
 
 > **disableLogging**(): `void`
 
-Defined in: [packages/utils/src/shared/logger.ts:58](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/logger.ts#L58)
+Defined in: [packages/utils/src/shared/logger.ts:58](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/logger.ts#L58)
 
 #### Returns
 
@@ -2588,7 +2588,7 @@ Defined in: [packages/utils/src/shared/logger.ts:58](https://github.com/happyver
 
 > **domainToCamel**(`domain`): `string`
 
-Defined in: [packages/utils/src/shared/universal.ts:219](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L219)
+Defined in: [packages/utils/src/shared/universal.ts:219](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L219)
 
 Converts a domain string to camelCase
 
@@ -2608,7 +2608,7 @@ Converts a domain string to camelCase
 
 > **enableLogging**(): `void`
 
-Defined in: [packages/utils/src/shared/logger.ts:62](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/logger.ts#L62)
+Defined in: [packages/utils/src/shared/logger.ts:62](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/logger.ts#L62)
 
 #### Returns
 
@@ -2620,7 +2620,7 @@ Defined in: [packages/utils/src/shared/logger.ts:62](https://github.com/happyver
 
 > **formatDate**(`date`, `formatStr`): `string`
 
-Defined in: [packages/utils/src/shared/universal.ts:344](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L344)
+Defined in: [packages/utils/src/shared/universal.ts:344](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L344)
 
 Enhanced date utilities using date-fns library
 
@@ -2644,7 +2644,7 @@ Enhanced date utilities using date-fns library
 
 > **getLogger**(): [`Logger`](#logger)
 
-Defined in: [packages/utils/src/shared/logger.ts:54](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/logger.ts#L54)
+Defined in: [packages/utils/src/shared/logger.ts:54](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/logger.ts#L54)
 
 #### Returns
 
@@ -2656,7 +2656,7 @@ Defined in: [packages/utils/src/shared/logger.ts:54](https://github.com/happyver
 
 > **getTempDirectory**(`subfolder?`): `string`
 
-Defined in: [packages/utils/src/shared/universal.ts:362](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L362)
+Defined in: [packages/utils/src/shared/universal.ts:362](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L362)
 
 Gets a temporary directory path (cross-platform)
 
@@ -2676,7 +2676,7 @@ Gets a temporary directory path (cross-platform)
 
 > **isArray**(`obj`): `obj is unknown[]`
 
-Defined in: [packages/utils/src/shared/universal.ts:137](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L137)
+Defined in: [packages/utils/src/shared/universal.ts:137](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L137)
 
 Type guard to check if a value is an array
 
@@ -2716,7 +2716,7 @@ Checks if a string is a valid CUID2
 
 > **isPlainObject**(`obj`): `obj is Record<string, unknown>`
 
-Defined in: [packages/utils/src/shared/universal.ts:144](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L144)
+Defined in: [packages/utils/src/shared/universal.ts:144](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L144)
 
 Type guard to check if a value is a plain object
 
@@ -2736,7 +2736,7 @@ Type guard to check if a value is a plain object
 
 > **isUrl**(`url`): `boolean`
 
-Defined in: [packages/utils/src/shared/universal.ts:151](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L151)
+Defined in: [packages/utils/src/shared/universal.ts:151](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L151)
 
 Checks if a string is a valid URL
 
@@ -2756,7 +2756,7 @@ Checks if a string is a valid URL
 
 > **keysToCamel**(`obj`): `unknown`
 
-Defined in: [packages/utils/src/shared/universal.ts:187](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L187)
+Defined in: [packages/utils/src/shared/universal.ts:187](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L187)
 
 Recursively converts all object keys to camelCase
 
@@ -2776,7 +2776,7 @@ Recursively converts all object keys to camelCase
 
 > **keysToSnake**(`obj`): `unknown`
 
-Defined in: [packages/utils/src/shared/universal.ts:203](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L203)
+Defined in: [packages/utils/src/shared/universal.ts:203](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L203)
 
 Recursively converts all object keys to snake_case
 
@@ -2796,7 +2796,7 @@ Recursively converts all object keys to snake_case
 
 > **logTicker**(`tick`, `options`): `string`
 
-Defined in: [packages/utils/src/shared/universal.ts:224](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L224)
+Defined in: [packages/utils/src/shared/universal.ts:224](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L224)
 
 Creates a visual progress indicator by cycling through a sequence of characters
 
@@ -2822,7 +2822,7 @@ Creates a visual progress indicator by cycling through a sequence of characters
 
 > **makeId**(`type`): `string`
 
-Defined in: [packages/utils/src/shared/universal.ts:14](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L14)
+Defined in: [packages/utils/src/shared/universal.ts:14](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L14)
 
 Generates a unique identifier using CUID2 (preferred) or UUID fallback
 
@@ -2844,7 +2844,7 @@ ID type: 'cuid2' (default) or 'uuid'
 
 > **makeSlug**(`str`): `string`
 
-Defined in: [packages/utils/src/shared/universal.ts:45](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L45)
+Defined in: [packages/utils/src/shared/universal.ts:45](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L45)
 
 Converts a string to a URL-friendly slug
 
@@ -2864,7 +2864,7 @@ Converts a string to a URL-friendly slug
 
 > **parseAmazonDateString**(`dateStr`): `Date`
 
-Defined in: [packages/utils/src/shared/universal.ts:240](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L240)
+Defined in: [packages/utils/src/shared/universal.ts:240](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L240)
 
 Parses an Amazon date string format (YYYYMMDDTHHMMSSZ) to a Date object
 
@@ -2884,7 +2884,7 @@ Parses an Amazon date string format (YYYYMMDDTHHMMSSZ) to a Date object
 
 > **parseDate**(`dateStr`, `formatStr?`): `Date`
 
-Defined in: [packages/utils/src/shared/universal.ts:349](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L349)
+Defined in: [packages/utils/src/shared/universal.ts:349](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L349)
 
 #### Parameters
 
@@ -2906,7 +2906,7 @@ Defined in: [packages/utils/src/shared/universal.ts:349](https://github.com/happ
 
 > **prettyDate**(`dateString`): `string`
 
-Defined in: [packages/utils/src/shared/universal.ts:324](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L324)
+Defined in: [packages/utils/src/shared/universal.ts:324](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L324)
 
 Formats a date string into a human-readable format using the system locale
 
@@ -2926,7 +2926,7 @@ Formats a date string into a human-readable format using the system locale
 
 > **setLogger**(`logger`): `void`
 
-Defined in: [packages/utils/src/shared/logger.ts:50](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/logger.ts#L50)
+Defined in: [packages/utils/src/shared/logger.ts:50](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/logger.ts#L50)
 
 #### Parameters
 
@@ -2944,7 +2944,7 @@ Defined in: [packages/utils/src/shared/logger.ts:50](https://github.com/happyver
 
 > **sleep**(`duration`): `Promise`\<`void`\>
 
-Defined in: [packages/utils/src/shared/universal.ts:90](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L90)
+Defined in: [packages/utils/src/shared/universal.ts:90](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L90)
 
 Creates a Promise that resolves after a specified duration
 
@@ -2964,7 +2964,7 @@ Creates a Promise that resolves after a specified duration
 
 > **snakeCase**(`str`): `string`
 
-Defined in: [packages/utils/src/shared/universal.ts:176](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L176)
+Defined in: [packages/utils/src/shared/universal.ts:176](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L176)
 
 Converts a string to snake_case
 
@@ -2984,7 +2984,7 @@ Converts a string to snake_case
 
 > **urlFilename**(`url`): `string`
 
-Defined in: [packages/utils/src/shared/universal.ts:71](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L71)
+Defined in: [packages/utils/src/shared/universal.ts:71](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L71)
 
 Extracts the filename from a URL's pathname
 
@@ -3004,7 +3004,7 @@ Extracts the filename from a URL's pathname
 
 > **urlPath**(`url`): `string`
 
-Defined in: [packages/utils/src/shared/universal.ts:81](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L81)
+Defined in: [packages/utils/src/shared/universal.ts:81](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L81)
 
 Converts a URL to a file path by joining hostname and pathname
 
@@ -3024,7 +3024,7 @@ Converts a URL to a file path by joining hostname and pathname
 
 > **waitFor**(`it`, `__namedParameters`): `Promise`\<`any`\>
 
-Defined in: [packages/utils/src/shared/universal.ts:100](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/utils/src/shared/universal.ts#L100)
+Defined in: [packages/utils/src/shared/universal.ts:100](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/utils/src/shared/universal.ts#L100)
 
 Repeatedly calls a function until it returns a defined value or times out
 
