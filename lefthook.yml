@@ -9,7 +9,7 @@ pre-commit:
       run: 'if [ "{staged_files}" ]; then bun biome lint --write {staged_files}; fi'
       stage_fixed: true
     validate-package-json:
-      glob: "**/package.json"
+      glob: "{packages,smrt}/**/package.json"
       run: node scripts/validate-package-json.js {staged_files}
     validate-changeset-config:
       glob: ".changeset/**/*"
