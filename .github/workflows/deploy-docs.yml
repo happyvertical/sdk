@@ -1,15 +1,16 @@
 name: Deploy Documentation to GitHub Pages
 
-on:
-  # Runs on pushes targeting the main branch
-  push:
-    branches: [main]
-    paths:
-      - 'packages/docs/**'
-      - '.github/workflows/deploy-docs.yml'
+# Workflow disabled - uncomment to re-enable
+# on:
+#   # Runs on pushes targeting the main branch
+#   push:
+#     branches: [main]
+#     paths:
+#       - 'packages/docs/**'
+#       - '.github/workflows/deploy-docs.yml'
 
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
+#   # Allows you to run this workflow manually from the Actions tab
+#   workflow_dispatch:
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
@@ -27,6 +28,7 @@ concurrency:
 defaults:
   run:
     shell: bash
+    working-directory: docs
 
 jobs:
   # Build job
@@ -50,8 +52,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            packages/docs/.docusaurus
-            packages/docs/node_modules
+            docs/.docusaurus
+            docs/node_modules
             ~/.bun/install/cache
           key: ${{ runner.os }}-docs-build-${{ hashFiles('**/bun.lockb') }}
           restore-keys: |
@@ -59,18 +61,16 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
-        working-directory: packages/docs
 
       - name: Build documentation site
         run: bun run build
-        working-directory: packages/docs
         env:
           NODE_OPTIONS: --max_old_space_size=8192
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: packages/docs/build
+          path: docs/build
 
   # Deployment job
   deploy:
@@ -103,8 +103,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            packages/docs/.docusaurus
-            packages/docs/node_modules
+            docs/.docusaurus
+            docs/node_modules
             ~/.bun/install/cache
           key: ${{ runner.os }}-docs-test-${{ hashFiles('**/bun.lockb') }}
           restore-keys: |
@@ -112,10 +112,8 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
-        working-directory: packages/docs
 
       - name: Test build
         run: bun run build
-        working-directory: packages/docs
         env:
           NODE_OPTIONS: --max_old_space_size=8192
