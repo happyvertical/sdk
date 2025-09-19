@@ -6,7 +6,7 @@
 
 > **default**: `object`
 
-Defined in: [index.ts:224](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/spider/src/index.ts#L224)
+Defined in: [index.ts:224](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/spider/src/index.ts#L224)
 
 #### Type declaration
 
@@ -108,7 +108,7 @@ if HTML processing fails
 
 > **createWindow**(): `Window`
 
-Defined in: [index.ts:195](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/spider/src/index.ts#L195)
+Defined in: [index.ts:195](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/spider/src/index.ts#L195)
 
 Creates a new happy-dom window instance for DOM manipulation
 
@@ -124,7 +124,7 @@ A new Window instance
 
 > **fetchPageSource**(`options`): `Promise`\<`string`\>
 
-Defined in: [index.ts:52](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/spider/src/index.ts#L52)
+Defined in: [index.ts:52](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/spider/src/index.ts#L52)
 
 Fetches the HTML source of a web page using either a simple HTTP request or DOM processing
 
@@ -156,7 +156,7 @@ if there are network-related failures
 
 > **parseIndexSource**(`indexSource`): `Promise`\<`string`[]\>
 
-Defined in: [index.ts:156](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/spider/src/index.ts#L156)
+Defined in: [index.ts:156](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/spider/src/index.ts#L156)
 
 Parses an HTML page to extract links or content
 
@@ -188,7 +188,7 @@ if HTML parsing fails
 
 > **processHtml**(`html`): `Promise`\<`string`\>
 
-Defined in: [index.ts:206](https://github.com/happyvertical/sdk/blob/80a6c47fe85b9796ffdbac5379a03ea69133c54c/packages/spider/src/index.ts#L206)
+Defined in: [index.ts:206](https://github.com/happyvertical/sdk/blob/bc1c53169cc6d4b5478bd15943b0131ef3ff8653/packages/spider/src/index.ts#L206)
 
 Processes HTML content using happy-dom to ensure proper DOM structure
 
