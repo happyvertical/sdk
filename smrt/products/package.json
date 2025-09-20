@@ -68,7 +68,7 @@
     "test": "bun test",
     "test:watch": "bun test --watch",
     "clean": "rm -rf dist",
-    "prepare": "npm run build:lib"
+    "prepare": "test -f ../smrt/dist/vite-plugin/index.js && npm run build:lib || echo 'Skipping products build:lib (smrt vite-plugin not available yet)'"
   },
   "engines": {
     "node": ">=22.0.0"
