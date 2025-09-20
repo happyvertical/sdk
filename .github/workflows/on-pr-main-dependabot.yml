@@ -12,6 +12,22 @@ jobs:
   dependabot:
     runs-on: ubuntu-latest
     if: ${{ github.actor == 'dependabot[bot]' }}
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+          PGUSER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Validate security requirements
         run: |
@@ -45,6 +61,12 @@ jobs:
         
       - name: Run tests
         run: bun test --run
+        env:
+          SQLOO_HOST: localhost
+          SQLOO_USER: postgres
+          SQLOO_PASSWORD: postgres
+          SQLOO_DATABASE: testdb
+          SQLOO_PORT: 5432
         
       - name: Dependabot metadata
         id: metadata
