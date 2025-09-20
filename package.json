@@ -1,6 +1,7 @@
 {
   "name": "@have/sdk",
   "private": true,
+  "description": "HAppy VErtical SDK - A TypeScript monorepo for building vertical AI agents",
   "author": "Will Griffin <willgriffin@gmail.com>",
   "type": "module",
   "version": "0.0.50",
@@ -28,6 +29,7 @@
     "docs:site:dev": "bun run --cwd docs dev",
     "validate-build": "node scripts/validate-build.js",
     "dev": "bun run build:watch",
+    "dev:shell": "docker compose -f .devcontainer/docker-compose.yml up -d && docker compose -f .devcontainer/docker-compose.yml exec app bash -c '/workspaces/sdk/.devcontainer/scripts/setup-claude-container.sh && exec bash'",
     "publish-packages": "bun build && changeset publish",
     "release": "standard-version --no-verify",
     "postrelease": "node scripts/update-package-versions.cjs"
