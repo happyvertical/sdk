@@ -45,20 +45,35 @@ USER devuser
 RUN curl -fsSL https://bun.sh/install | bash
 RUN echo 'export PATH="$HOME/.bun/bin:$PATH"' >> ~/.bashrc
 
-# Switch back to root for container initialization
+# Install Bun for node user (the default user)
+USER node
+RUN curl -fsSL https://bun.sh/install | bash
+RUN echo 'export PATH="$HOME/.bun/bin:$PATH"' >> ~/.bashrc
+
+# Add bun to global PATH for all users including git hooks
 USER root
+RUN echo 'PATH="/home/node/.bun/bin:/root/.bun/bin:$PATH"' >> /etc/environment
+
+# Switch back to root for container initialization
 
 # Copy package files for dependency installation
 COPY package.json bun.lock* ./
 
-# Install dependencies if package files exist
+# Install dependencies if package files exist (skip prepare scripts during build)
 RUN if [ -f "package.json" ]; then \
     export PATH="/root/.bun/bin:$PATH" && \
-    bun install; \
+    bun install --ignore-scripts; \
     fi
 
+# Install Claude Code globally
+USER root
+RUN npm install -g @anthropic-ai/claude-code
+
+# Create Claude directory for node user and set permissions
+RUN mkdir -p /home/node/.claude && chown -R node:node /home/node/.claude
+
 # Set the default user
-USER devuser
+USER node
 
 # Default command
 CMD ["sleep", "infinity"]
