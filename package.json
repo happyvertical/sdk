@@ -8,7 +8,7 @@
   "scripts": {
     "format": "biome format --write .",
     "format-check": "biome format --check .",
-    "prepare": "lefthook install",
+    "prepare": "git rev-parse --git-dir > /dev/null 2>&1 && lefthook install || echo 'Skipping lefthook install (not in git repository)'",
     "test": "bun test",
     "test:watch": "bun test --watch",
     "test:run": "bun test",
