@@ -49,7 +49,6 @@ tests/**/*.d.ts
 tests/**/*.d.ts.map
 tests/**/*.js
 tests/**/*.js.map
-tsconfig.docs.json
 typedoc.html.json
 vitest.setup.d.ts
 vitest.setup.d.ts.map
