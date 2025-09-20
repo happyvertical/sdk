@@ -37,7 +37,9 @@
     "include": [
       "packages/**/*.{ts,tsx,js,jsx,json}",
       "*.{ts,tsx,js,jsx,json}",
-      ".claude/**/*.{ts,tsx,js,jsx,json,md}"
+      ".claude/**/*.{ts,tsx,js,jsx,json,md}",
+      ".devcontainer/**/*.{json,yml,yaml}",
+      ".github/**/*.{json,yml,yaml}"
     ],
     "ignore": [
       "**/node_modules/**",
