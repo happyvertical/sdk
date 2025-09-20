@@ -1,0 +1,5 @@
+-P ubuntu-latest=catthehacker/ubuntu:act-latest
+--container-architecture linux/amd64
+--use-gitignore=false
+--artifact-server-path /tmp/act-artifacts
+--env-file .env.act

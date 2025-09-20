@@ -6,6 +6,7 @@ services:
     volumes:
       - ..:/workspaces/sdk:cached
       - node_modules:/workspaces/sdk/node_modules
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     command: sleep infinity
     environment:
       - NODE_ENV=development
@@ -16,6 +17,9 @@ services:
       - SQLOO_PASSWORD=postgres
       - SQLOO_DATABASE=testdb
       - SQLOO_PORT=5432
+      # Act (GitHub Actions) configuration
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - ACT_RUNNER_IMAGE=catthehacker/ubuntu:act-latest
     ports:
       - "3000:3000"
       - "5173:5173"

@@ -91,6 +91,11 @@ test-results/
 .playwright-mcp/*.jpg
 .playwright-mcp/*.jpeg
 
+# Act (GitHub Actions local runner)
+ci-artifacts/
+ci-debug-*.log
+/tmp/act-artifacts
+
 # Misc
 .DS_Store
 *.pem

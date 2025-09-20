@@ -22,9 +22,29 @@ RUN apt-get update && apt-get install -y \
     git-lfs \
     # GitHub CLI
     gh \
+    # Docker CLI dependencies
+    ca-certificates \
+    curl \
+    gnupg \
+    lsb-release \
     # Cleanup
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Docker CLI for act to use
+RUN install -m 0755 -d /etc/apt/keyrings \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg \
+    && chmod a+r /etc/apt/keyrings/docker.gpg \
+    && echo "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/debian "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null \
+    && apt-get update \
+    && apt-get install -y docker-ce-cli \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install act (GitHub Actions local runner)
+RUN curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | bash \
+    && mv bin/act /usr/local/bin/act \
+    && chmod +x /usr/local/bin/act
 
 # Install Bun
 RUN curl -fsSL https://bun.sh/install | bash
@@ -39,6 +59,11 @@ WORKDIR /workspaces
 # Create non-root user for development
 RUN useradd -m -s /bin/bash devuser && \
     echo "devuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Add users to docker group for act support
+RUN groupadd -f docker \
+    && usermod -aG docker node \
+    && usermod -aG docker devuser
 
 # Install Bun for devuser as well
 USER devuser
