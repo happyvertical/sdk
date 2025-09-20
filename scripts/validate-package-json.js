@@ -10,10 +10,18 @@ import { resolve, dirname, basename } from 'path';
 
 const REQUIRED_FIELDS = [
   'name',
-  'version', 
+  'version',
   'description',
   'type',
   'main',
+  'scripts'
+];
+
+const ROOT_PACKAGE_FIELDS = [
+  'name',
+  'version',
+  'description',
+  'type',
   'scripts'
 ];
 
@@ -36,8 +44,13 @@ function validatePackageJson(filePath) {
     const pkg = JSON.parse(content);
     const packageName = basename(dirname(filePath));
     
-    // Check required fields
-    for (const field of REQUIRED_FIELDS) {
+    // Check required fields (different for root package vs sub-packages)
+    const absolutePath = resolve(filePath);
+    const isRootPackage = basename(absolutePath) === 'package.json' &&
+                          (dirname(absolutePath).endsWith('/sdk') || basename(dirname(absolutePath)) === 'sdk');
+    const requiredFields = isRootPackage ? ROOT_PACKAGE_FIELDS : REQUIRED_FIELDS;
+
+    for (const field of requiredFields) {
       if (!pkg[field]) {
         errors.push(`Missing required field: ${field}`);
       }

@@ -5,7 +5,13 @@
 
   "containerEnv": {
     "NODE_ENV": "development",
-    "FORCE_COLOR": "1"
+    "FORCE_COLOR": "1",
+    "PATH": "/home/node/.bun/bin:/root/.bun/bin:/usr/local/share/nvm/current/bin:/usr/local/share/npm-global/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/node/.local/bin",
+    "SQLOO_HOST": "db",
+    "SQLOO_USER": "postgres",
+    "SQLOO_PASSWORD": "postgres",
+    "SQLOO_DATABASE": "testdb",
+    "SQLOO_PORT": "5432"
   },
 
   "initializeCommand": [
@@ -36,7 +42,8 @@
         "GitHub.copilot",
         "GitHub.copilot-chat",
         "biomejs.biome",
-        "vitest.explorer"
+        "vitest.explorer",
+        "ms-ossdata.vscode-postgresql"
       ],
       "settings": {
         "typescript.preferences.importModuleSpecifier": "relative",
@@ -58,18 +65,26 @@
           "**/node_modules": true,
           "**/dist": true,
           "**/coverage": true
+        },
+        "postgresqlConnection": {
+          "host": "db",
+          "user": "postgres",
+          "password": "postgres",
+          "database": "testdb",
+          "port": 5432
         }
       }
     }
   },
 
-  "forwardPorts": [3000, 5173, 8080],
+  "forwardPorts": [3000, 5173, 8080, 65432],
 
   "remoteUser": "node",
 
-  "workspaceFolder": "/workspaces/sdk-ts",
+  "workspaceFolder": "/workspaces/sdk",
 
   "mounts": [
-    "source=${localWorkspaceFolder}/.devcontainer/scripts,target=/workspaces/.devcontainer/scripts,type=bind,consistency=cached"
+    "source=${localWorkspaceFolder}/.devcontainer/scripts,target=/workspaces/sdk/.devcontainer/scripts,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.claude,target=/home/node/.claude,type=bind,consistency=cached"
   ]
 }
