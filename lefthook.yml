@@ -2,11 +2,11 @@ pre-commit:
   commands:
     format:
       glob: "**/*.{js,ts,cjs,mjs,jsx,tsx,json}"
-      run: 'if [ "{staged_files}" ]; then ./node_modules/.bin/biome format --write {staged_files} || bun biome format --write {staged_files}; fi'
+      run: './node_modules/.bin/biome format --write --staged --no-errors-on-unmatched'
       stage_fixed: true
     lint:
       glob: "**/*.{js,ts,cjs,mjs,jsx,tsx,json}"
-      run: 'if [ "{staged_files}" ]; then ./node_modules/.bin/biome lint --write {staged_files} || bun biome lint --write {staged_files}; fi'
+      run: './node_modules/.bin/biome lint --write --staged --no-errors-on-unmatched'
       stage_fixed: true
     validate-package-json:
       glob: "{packages,smrt}/**/package.json"
