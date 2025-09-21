@@ -33,7 +33,7 @@
     "@docusaurus/module-type-aliases": "^3.8.1",
     "@docusaurus/tsconfig": "^3.8.1",
     "@docusaurus/types": "^3.8.1",
-    "@types/node": "22.13.0",
+    "@types/node": "24.0.0",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.1",
     "docusaurus-plugin-typedoc": "^1.1.2",
@@ -54,6 +54,6 @@
     ]
   },
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=24.0.0"
   }
 }

@@ -1,4 +1,4 @@
-import { it, expect, describe, beforeEach } from "bun:test";
+import { it, expect, describe, beforeEach } from "vitest";
 import { getPDFReader } from "./index.js";
 import type { PDFReader, PDFCapabilities, DependencyCheckResult } from "./shared/types.js";
 

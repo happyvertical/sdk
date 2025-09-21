@@ -1,4 +1,4 @@
-import { it, expect, describe } from "bun:test";
+import { it, expect, describe } from "vitest";
 import { getPDFReader, getAvailableProviders, isProviderAvailable, getProviderInfo } from "./index.js";
 
 describe("PDF Factory Tests", () => {

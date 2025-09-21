@@ -1,4 +1,4 @@
-import { it, expect, beforeAll, describe } from 'bun:test';
+import { it, expect, beforeAll, describe } from 'vitest';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getPDFReader, extractTextFromPDF, checkOCRDependencies } from './index.js';

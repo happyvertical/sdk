@@ -4,7 +4,7 @@ This directory contains the development container configuration for the HAVE SDK
 
 ## Features
 
-- **Node.js 22** with TypeScript support
+- **Node.js 24** with TypeScript support
 - **Bun** package manager pre-installed
 - **Claude Code** AI assistant pre-installed and configured
 - **PostgreSQL 16** database for testing and development

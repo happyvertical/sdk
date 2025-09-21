@@ -21,16 +21,13 @@
     "clean": "rm -rf dist docs tsconfig.*.tsbuildinfo",
     "dev": "bun run build:watch & bun run test:watch"
   },
-  "engines": {
-    "node": ">=22.0.0"
-  },
   "dependencies": {
     "@have/utils": "workspace:*"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "6.8.0",
     "@testing-library/svelte": "5.2.8",
-    "@types/node": "^22.13.0",
+    "@types/node": "^24.0.0",
     "happy-dom": "18.0.1",
     "jsdom": "26.1.0",
     "vitest": "^3.2.4"

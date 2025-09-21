@@ -1,4 +1,4 @@
-import { it, expect, describe, beforeEach, afterEach } from "bun:test";
+import { it, expect, describe, beforeEach, afterEach } from "vitest";
 import { randomUUID } from "node:crypto";
 import { getDatabase } from "./index.js";
 // import type { Database } from "./types";

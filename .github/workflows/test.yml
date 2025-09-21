@@ -33,11 +33,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -66,14 +61,3 @@ jobs:
           SQLOO_DATABASE: testdb
           SQLOO_PORT: 5432
 
-      - name: Run SQLite tests specifically
-        run: bun test packages/sql/src/sqlite.spec.ts
-
-      - name: Run PostgreSQL tests specifically
-        run: bun test packages/sql/src/postgres.spec.ts
-        env:
-          SQLOO_HOST: localhost
-          SQLOO_USER: postgres
-          SQLOO_PASSWORD: postgres
-          SQLOO_DATABASE: testdb
-          SQLOO_PORT: 5432
