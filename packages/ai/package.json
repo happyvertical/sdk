@@ -24,9 +24,6 @@
     "clean": "rm -rf dist docs *.tsbuildinfo",
     "dev": "bun run build:watch & bun run test:watch"
   },
-  "engines": {
-    "node": ">=22.0.0"
-  },
   "dependencies": {
     "@have/utils": "workspace:*",
     "openai": "^4.78.1",
@@ -35,7 +32,7 @@
     "@aws-sdk/client-bedrock-runtime": "^3.703.0"
   },
   "devDependencies": {
-    "@types/node": "^22.13.0",
+    "@types/node": "^24.0.0",
     "vitest": "^3.2.4"
   }
 }

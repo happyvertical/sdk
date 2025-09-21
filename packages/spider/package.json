@@ -21,9 +21,6 @@
     "dev": "bun run build:watch & bun run test:watch"
   },
   "description": "Web scraping and content extraction using happy-dom and undici for lightweight, fast operations",
-  "engines": {
-    "node": ">=22.0.0"
-  },
   "dependencies": {
     "@have/files": "workspace:*",
     "@have/utils": "workspace:*",
@@ -33,7 +30,7 @@
     "undici": "^7.11.0"
   },
   "devDependencies": {
-    "@types/node": "^22.13.0",
+    "@types/node": "^24.0.0",
     "vitest": "^3.2.4"
   }
 }

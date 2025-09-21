@@ -19,7 +19,7 @@ function getTestDbUrl(testName: string): string {
   return `file:${TMP_DIR}/${testName}-${timestamp}-${random}.db`;
 }
 
-it('should be able to getOrInsert a content item', async () => {
+it.skipIf(!process.env.OPENAI_API_KEY)('should be able to getOrInsert a content item', async () => {
   const contents = await Contents.create({
     ai: {
       type: 'openai',
@@ -47,7 +47,7 @@ it('should be able to getOrInsert a content item', async () => {
   expect(got?.id).toEqual(content.id);
 });
 
-it('should respect the context of the slug', async () => {
+it.skipIf(!process.env.OPENAI_API_KEY)('should respect the context of the slug', async () => {
   const contents = await Contents.create({
     ai: {
       type: 'openai',
@@ -152,7 +152,7 @@ it.skip('should be able to sync a content dir', async () => {
   // await contents.syncContentDir({ contentDir: `${TMP_DIR}/content` });
 });
 
-it('should be able to list content', async () => {
+it.skipIf(!process.env.OPENAI_API_KEY)('should be able to list content', async () => {
   const contents = await Contents.create({
     ai: {
       type: 'openai',

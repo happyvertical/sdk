@@ -2,7 +2,7 @@
  * @have/ocr - Basic integration tests
  */
 
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, test } from 'vitest';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getOCR, getAvailableProviders, isProviderAvailable, OCRFactory } from './index.js';

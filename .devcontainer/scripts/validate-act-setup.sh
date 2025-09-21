@@ -21,17 +21,23 @@ else
     exit 1
 fi
 
-# Check if Docker socket is accessible
-if [ -S "/var/run/docker.sock" ]; then
-    echo "✅ Docker socket is accessible"
-    if docker ps >/dev/null 2>&1; then
-        echo "✅ Docker daemon is reachable"
-    else
-        echo "⚠️  Docker socket exists but daemon is not reachable"
-        echo "    This might be a permission issue"
+# Check Docker connectivity (DinD or socket)
+if docker ps >/dev/null 2>&1; then
+    echo "✅ Docker daemon is reachable"
+    echo "🐳 Docker info:"
+    docker version --format '    Client: {{.Client.Version}}'
+    docker version --format '    Server: {{.Server.Version}}'
+    if [ -n "$DOCKER_HOST" ]; then
+        echo "📡 Using Docker host: $DOCKER_HOST"
     fi
 else
-    echo "❌ Docker socket not found at /var/run/docker.sock"
+    echo "❌ Docker daemon is not reachable"
+    if [ -n "$DOCKER_HOST" ]; then
+        echo "    Configured Docker host: $DOCKER_HOST"
+        echo "    Check if DinD service is running"
+    else
+        echo "    No DOCKER_HOST configured"
+    fi
 fi
 
 # Check if configuration files exist
@@ -59,3 +65,8 @@ fi
 echo ""
 echo "🎯 Ready to test Act integration!"
 echo "Try: bun run test:ci"
+echo ""
+echo "🔧 DinD Troubleshooting:"
+echo "  - If Docker fails, check: docker-compose logs dind"
+echo "  - Verify certificates: ls -la /certs/client/"
+echo "  - Test connectivity: docker --host tcp://dind:2376 --tls ps"

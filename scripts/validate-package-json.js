@@ -1,8 +1,8 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
 /**
  * Package.json validation script for pre-commit hooks
- * Validates package.json files for required fields, version consistency, and format
+ * Validates package.json files for required fields, version consistency, and Bun compatibility
  */
 
 import { readFileSync } from 'fs';
@@ -75,9 +75,14 @@ function validatePackageJson(filePath) {
       errors.push(`Invalid version format: ${pkg.version} (should be semver)`);
     }
     
-    // Check for Node.js version consistency
-    if (pkg.engines?.node && pkg.engines.node !== '>=22.0.0') {
-      errors.push(`Node.js version should be >=22.0.0 (got: ${pkg.engines.node})`);
+    // Check for Bun version consistency (Node.js engines removed)
+    if (pkg.engines?.node) {
+      errors.push(`Package should not specify Node.js engine (found: ${pkg.engines.node}). Use Bun only.`);
+    }
+
+    // Check for required Bun version in root package
+    if (isRootPackage && (!pkg.engines?.bun || pkg.engines.bun !== '>=1.0.0')) {
+      errors.push(`Root package should specify Bun version >=1.0.0 (got: ${pkg.engines?.bun || 'none'})`);
     }
     
     // Validate workspace dependencies format

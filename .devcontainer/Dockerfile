@@ -1,5 +1,5 @@
-# Use official Node.js runtime as base image
-FROM mcr.microsoft.com/devcontainers/typescript-node:22-bookworm
+# Use Debian base image for Bun-only environment
+FROM mcr.microsoft.com/devcontainers/base:bookworm
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive
@@ -60,9 +60,9 @@ WORKDIR /workspaces
 RUN useradd -m -s /bin/bash devuser && \
     echo "devuser ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
-# Add users to docker group for act support
+# Add users to docker group for DinD support
 RUN groupadd -f docker \
-    && usermod -aG docker node \
+    && usermod -aG docker vscode \
     && usermod -aG docker devuser
 
 # Install Bun for devuser as well
@@ -70,14 +70,14 @@ USER devuser
 RUN curl -fsSL https://bun.sh/install | bash
 RUN echo 'export PATH="$HOME/.bun/bin:$PATH"' >> ~/.bashrc
 
-# Install Bun for node user (the default user)
-USER node
+# Install Bun for vscode user (the default user)
+USER vscode
 RUN curl -fsSL https://bun.sh/install | bash
 RUN echo 'export PATH="$HOME/.bun/bin:$PATH"' >> ~/.bashrc
 
 # Add bun to global PATH for all users including git hooks
 USER root
-RUN echo 'PATH="/home/node/.bun/bin:/root/.bun/bin:$PATH"' >> /etc/environment
+RUN echo 'PATH="/home/vscode/.bun/bin:/root/.bun/bin:$PATH"' >> /etc/environment
 
 # Switch back to root for container initialization
 
@@ -90,15 +90,18 @@ RUN if [ -f "package.json" ]; then \
     bun install --ignore-scripts; \
     fi
 
-# Install Claude Code globally
+# Install Claude Code globally using Bun
 USER root
-RUN npm install -g @anthropic-ai/claude-code
+RUN export PATH="/root/.bun/bin:$PATH" && bun add -g @anthropic-ai/claude-code
 
-# Create Claude directory for node user and set permissions
-RUN mkdir -p /home/node/.claude && chown -R node:node /home/node/.claude
+# Create certificates directory for DinD TLS
+RUN mkdir -p /certs/client && chmod 755 /certs/client
+
+# Create Claude directory for vscode user and set permissions
+RUN mkdir -p /home/vscode/.claude && chown -R vscode:vscode /home/vscode/.claude
 
 # Set the default user
-USER node
+USER vscode
 
 # Default command
 CMD ["sleep", "infinity"]

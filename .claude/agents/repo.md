@@ -99,7 +99,7 @@ utils → files → spider → sql → pdf → ai → smrt
   "types": "dist/index.d.ts", 
   "exports": { ".": "./dist/index.js" },
   "files": ["dist"],
-  "engines": { "node": ">=22.0.0" },
+  "engines": { "node": ">=24.0.0" },
   "scripts": {
     "build": "tsc -b",           // TypeScript composite build
     "clean": "rm -rf dist tsconfig.tsbuildinfo",

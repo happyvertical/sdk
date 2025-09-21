@@ -55,6 +55,12 @@ vitest.setup.d.ts.map
 vitest.setup.js
 vitest.setup.js.map
 
+# E2E test compilation artifacts
+e2e-tests/**/*.js
+e2e-tests/**/*.js.map
+e2e-tests/**/*.d.ts
+e2e-tests/**/*.d.ts.map
+
 # IDE and editors
 .idea/
 .vscode/
