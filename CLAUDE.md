@@ -31,7 +31,7 @@ The SDK is organized as a bun workspace with several packages that provide speci
 - Package versioning is synchronized across the monorepo
 - Internal dependencies use `workspace:*` to reference other packages
 - External dependencies are kept to a minimum
-- Node.js v22.x is required for all packages
+- Bun 1.0+ is required for all development and runtime environments
 
 ### Build Process
 

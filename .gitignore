@@ -49,12 +49,17 @@ tests/**/*.d.ts
 tests/**/*.d.ts.map
 tests/**/*.js
 tests/**/*.js.map
-tsconfig.docs.json
 typedoc.html.json
 vitest.setup.d.ts
 vitest.setup.d.ts.map
 vitest.setup.js
 vitest.setup.js.map
+
+# E2E test compilation artifacts
+e2e-tests/**/*.js
+e2e-tests/**/*.js.map
+e2e-tests/**/*.d.ts
+e2e-tests/**/*.d.ts.map
 
 # IDE and editors
 .idea/
@@ -91,6 +96,11 @@ test-results/
 .playwright-mcp/*.png
 .playwright-mcp/*.jpg
 .playwright-mcp/*.jpeg
+
+# Act (GitHub Actions local runner)
+ci-artifacts/
+ci-debug-*.log
+/tmp/act-artifacts
 
 # Misc
 .DS_Store
