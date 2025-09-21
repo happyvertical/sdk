@@ -3,3 +3,6 @@
 --use-gitignore=false
 --artifact-server-path /tmp/act-artifacts
 --env-file .env.act
+# DinD network configuration
+--network=devcontainer_default
+--reuse

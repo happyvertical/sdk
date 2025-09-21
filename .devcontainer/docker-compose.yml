@@ -6,7 +6,8 @@ services:
     volumes:
       - ..:/workspaces/sdk:cached
       - node_modules:/workspaces/sdk/node_modules
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # DinD volume sharing
+      - dind_data:/var/lib/docker
     command: sleep infinity
     environment:
       - NODE_ENV=development
@@ -17,8 +18,12 @@ services:
       - SQLOO_PASSWORD=postgres
       - SQLOO_DATABASE=testdb
       - SQLOO_PORT=5432
+      # DinD Docker host configuration
+      - DOCKER_HOST=tcp://dind:2376
+      - DOCKER_TLS_CERTDIR=/certs
+      - DOCKER_TLS_VERIFY=1
+      - DOCKER_CERT_PATH=/certs/client
       # Act (GitHub Actions) configuration
-      - DOCKER_HOST=unix:///var/run/docker.sock
       - ACT_RUNNER_IMAGE=catthehacker/ubuntu:act-latest
     ports:
       - "3000:3000"
@@ -27,6 +32,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      dind:
+        condition: service_started
 
   db:
     image: postgres:16-alpine
@@ -48,6 +55,21 @@ services:
       retries: 5
       start_period: 30s
 
+  # Docker-in-Docker service
+  dind:
+    image: docker:dind
+    privileged: true
+    environment:
+      - DOCKER_TLS_CERTDIR=/certs
+    volumes:
+      - dind_data:/var/lib/docker
+      - dind_certs:/certs
+    ports:
+      - "2376:2376"
+    command: ["dockerd", "--host=tcp://0.0.0.0:2376", "--host=unix:///var/run/docker.sock", "--tls=true", "--tlscert=/certs/server/cert.pem", "--tlskey=/certs/server/key.pem", "--tlsverify", "--tlscacert=/certs/ca.pem"]
+
 volumes:
   node_modules:
   postgres_data:
+  dind_data:
+  dind_certs:

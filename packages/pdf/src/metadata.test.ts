@@ -1,4 +1,4 @@
-import { it, expect, describe, beforeEach } from "bun:test";
+import { it, expect, describe, beforeEach } from "vitest";
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getPDFReader } from "./index.js";
