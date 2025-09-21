@@ -1,4 +1,4 @@
-import { it, describe, expect } from "bun:test";
+import { it, describe, expect } from "vitest";
 import { getDatabase } from "./index.js";
 import path from "path";
 import { tmpdir } from "os";
@@ -60,9 +60,9 @@ it("should handle basic usage with different operators", () => {
   });
 
   expect(result.sql).toBe(
-    "WHERE status = $1 AND price > $2 AND stock <= $3 AND category IN $4 AND name LIKE $5",
+    "WHERE status = $1 AND price > $2 AND stock <= $3 AND category IN ($4, $5) AND name LIKE $6",
   );
-  expect(result.values).toEqual(["active", 100, 5, ["A", "B"], "%shirt%"]);
+  expect(result.values).toEqual(["active", 100, 5, "A", "B", "%shirt%"]);
 });
 
 it("should handle NULL values correctly", () => {
@@ -125,7 +125,7 @@ it("should handle IN clauses with arrays", () => {
   });
 
   expect(result.sql).toBe(
-    "WHERE role IN $1 AND active = $2 AND last_login IS NOT NULL",
+    "WHERE role IN ($1, $2) AND active = $3 AND last_login IS NOT NULL",
   );
-  expect(result.values).toEqual([["admin", "editor"], true]);
+  expect(result.values).toEqual(["admin", "editor", true]);
 });

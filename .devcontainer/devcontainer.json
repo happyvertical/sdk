@@ -5,7 +5,19 @@
 
   "containerEnv": {
     "NODE_ENV": "development",
-    "FORCE_COLOR": "1"
+    "FORCE_COLOR": "1",
+    "PATH": "/home/vscode/.bun/bin:/root/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/vscode/.local/bin",
+    "SQLOO_HOST": "db",
+    "SQLOO_USER": "postgres",
+    "SQLOO_PASSWORD": "postgres",
+    "SQLOO_DATABASE": "testdb",
+    "SQLOO_PORT": "5432",
+    "DEVCONTAINER": "true",
+    "PLAYWRIGHT_BROWSERS_PATH": "/home/vscode/.cache/ms-playwright",
+    "DOCKER_HOST": "tcp://dind:2376",
+    "DOCKER_TLS_VERIFY": "1",
+    "DOCKER_CERT_PATH": "/certs/client",
+    "DOCKER_TLS_CERTDIR": "/certs"
   },
 
   "initializeCommand": [
@@ -22,8 +34,8 @@
 
   "postCreateCommand": [
     "bash",
-    "-c", 
-    "export PATH=\"$HOME/.bun/bin:$PATH\" && bun install && bun run build"
+    "-c",
+    "export PATH=\"$HOME/.bun/bin:$PATH\" && bun install && bun run build && npx playwright install --with-deps chromium"
   ],
 
   "customizations": {
@@ -36,7 +48,8 @@
         "GitHub.copilot",
         "GitHub.copilot-chat",
         "biomejs.biome",
-        "vitest.explorer"
+        "vitest.explorer",
+        "ms-ossdata.vscode-postgresql"
       ],
       "settings": {
         "typescript.preferences.importModuleSpecifier": "relative",
@@ -58,18 +71,33 @@
           "**/node_modules": true,
           "**/dist": true,
           "**/coverage": true
+        },
+        "postgresqlConnection": {
+          "host": "db",
+          "user": "postgres",
+          "password": "postgres",
+          "database": "testdb",
+          "port": 5432
         }
       }
     }
   },
 
-  "forwardPorts": [3000, 5173, 8080],
+  "forwardPorts": [3000, 5173, 8080, 65432],
 
-  "remoteUser": "node",
+  "remoteUser": "vscode",
 
-  "workspaceFolder": "/workspaces/sdk-ts",
+  "workspaceFolder": "/workspaces/sdk",
 
   "mounts": [
-    "source=${localWorkspaceFolder}/.devcontainer/scripts,target=/workspaces/.devcontainer/scripts,type=bind,consistency=cached"
-  ]
+    "source=${localWorkspaceFolder}/.devcontainer/scripts,target=/workspaces/sdk/.devcontainer/scripts,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached"
+  ],
+
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {
+      "enableNonRootDocker": "true",
+      "moby": "false"
+    }
+  }
 }

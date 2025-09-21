@@ -201,7 +201,7 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
 
   /**
    * Checks if a table exists in the database
-   * 
+   *
    * @param tableName - Name of the table to check
    * @returns Promise resolving to boolean indicating if the table exists
    */
@@ -209,6 +209,128 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
     const tableExists =
       !!(await pluck`SELECT name FROM sqlite_master WHERE type='table' AND name=${tableName}`);
     return tableExists;
+  };
+
+  /**
+   * Synchronizes database schema with provided SQL DDL
+   * Creates tables if they don't exist and adds missing columns
+   *
+   * @param schema - SQL schema definition with CREATE TABLE statements
+   * @returns Promise that resolves when schema is synchronized
+   */
+  const syncSchema = async (schema: string): Promise<void> => {
+    const commands = schema
+      .trim()
+      .split(";")
+      .filter((command) => command.trim() !== "");
+
+    for (const command of commands) {
+      const createTableRegex =
+        /CREATE TABLE (IF NOT EXISTS )?(\w+) \(([\s\S]+)\)/i;
+      const match = command.match(createTableRegex);
+
+      if (match) {
+        const tableName = match[2];
+        const columns = match[3].trim().split(",\n");
+
+        // Check if table exists
+        const exists = await tableExists(tableName);
+
+        if (!exists) {
+          // Table doesn't exist, create it
+          await client.execute(command);
+        } else {
+          // Table exists, check for missing columns
+          for (const column of columns) {
+            const columnDef = column.trim();
+            const columnMatch = columnDef.match(/(\w+)\s+(\w+[^,]*)/);
+
+            if (columnMatch) {
+              const columnName = columnMatch[1];
+
+              // Skip constraint definitions
+              if (columnName.toUpperCase() === 'PRIMARY' ||
+                  columnName.toUpperCase() === 'FOREIGN' ||
+                  columnName.toUpperCase() === 'UNIQUE' ||
+                  columnName.toUpperCase() === 'CHECK' ||
+                  columnName.toUpperCase() === 'CONSTRAINT') {
+                continue;
+              }
+
+              try {
+                // Check if column exists using pragma_table_info
+                const columnInfo = await single`
+                  SELECT *
+                  FROM pragma_table_info(${tableName})
+                  WHERE name = ${columnName}
+                `;
+
+                if (!columnInfo) {
+                  // Column doesn't exist, add it
+                  const alterCommand = `ALTER TABLE ${tableName} ADD COLUMN ${columnDef}`;
+                  await client.execute(alterCommand);
+                }
+              } catch (error) {
+                // If there's an error checking/adding the column, try alternate method
+                try {
+                  const alterCommand = `ALTER TABLE ${tableName} ADD COLUMN ${columnDef}`;
+                  await client.execute(alterCommand);
+                } catch (alterError) {
+                  // Column might already exist, continue
+                  console.error(`Error adding column ${columnName} to ${tableName}:`, alterError);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  };
+
+  /**
+   * Executes a callback within a database transaction
+   * Automatically commits on success or rolls back on error
+   *
+   * @param callback - Function to execute within transaction
+   * @returns Promise resolving to callback result
+   */
+  const transaction = async <T>(
+    callback: (tx: DatabaseInterface) => Promise<T>
+  ): Promise<T> => {
+    try {
+      await client.execute('BEGIN TRANSACTION');
+
+      // Create a transaction-scoped database interface
+      // SQLite doesn't have separate transaction clients, so we reuse the same client
+      const txDb: DatabaseInterface = {
+        client,
+        insert,
+        get,
+        list,
+        update,
+        getOrInsert,
+        table,
+        many,
+        single,
+        pluck,
+        execute,
+        query,
+        oo: many,
+        oO: single,
+        ox: pluck,
+        xx: execute,
+        tableExists,
+        syncSchema,
+        transaction,
+      };
+
+      const result = await callback(txDb);
+      await client.execute('COMMIT');
+      return result;
+    } catch (error) {
+      await client.execute('ROLLBACK');
+      throw error;
+    }
   };
 
   /**
@@ -400,5 +522,7 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
     oO,
     ox,
     xx,
+    syncSchema,
+    transaction,
   };
 }

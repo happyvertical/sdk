@@ -29,6 +29,23 @@ shell = "system"
 # Environment variables
 env = { NODE_ENV = "development" }
 
+# Test configuration
+[test]
+# Exclude Playwright tests from bun test runner
+# Playwright tests should be run with `npx playwright test`
+exclude = [
+  "e2e-tests/**/*",
+  "**/playwright.config.*"
+]
+
+# Include only package test files
+include = [
+  "packages/**/*.spec.ts",
+  "packages/**/*.test.ts",
+  "smrt/**/*.spec.ts",
+  "smrt/**/*.test.ts"
+]
+
 # Workspace configuration
 [workspace]
 # Define workspace packages

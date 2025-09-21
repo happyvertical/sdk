@@ -1,6 +1,6 @@
 {
   "name": "@have/content",
-  "version": "0.1.0",
+  "version": "0.0.50",
   "description": "Content processing module for SMRT framework - handles documents, web content, and media",
   "type": "module",
   "main": "./dist/index.js",
@@ -27,7 +27,7 @@
   "devDependencies": {
     "@faker-js/faker": "^9.3.0",
     "@sveltejs/vite-plugin-svelte": "^5.0.2",
-    "@types/node": "^22.9.1",
+    "@types/node": "^24.0.0",
     "svelte": "^5.18.2",
     "typescript": "^5.7.2",
     "vite": "^7.1.3",

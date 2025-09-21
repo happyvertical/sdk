@@ -13,7 +13,7 @@ Get started with the SMRT Agent Framework in seconds. One command installs every
 
 Before installing SMRT, ensure you have:
 
-- **Node.js 22+** or **Bun 1.0+** installed
+- **Bun 1.0+** installed (our recommended JavaScript runtime)
 - **TypeScript 5.0+** for type safety
 - An **API key** from at least one AI provider (OpenAI, Anthropic, etc.)
 
@@ -27,23 +27,9 @@ SMRT is designed to be installed with a single command:
 bun add @have/smrt
 ```
 
-### Using npm
-
-```bash
-npm install @have/smrt
-```
-
-### Using yarn
-
-```bash
-yarn add @have/smrt
-```
-
-### Using pnpm
-
-```bash
-pnpm add @have/smrt
-```
+:::info
+While other package managers work, we **strongly recommend Bun** for the best performance and compatibility with the HAVE SDK ecosystem.
+:::
 
 ## What Gets Installed?
 
@@ -200,24 +186,25 @@ bun add @have/sql
 ## Platform-Specific Notes
 
 ### macOS
-- Works out of the box with Homebrew-installed Node.js
-- Native SQLite support included
+- Install Bun: `curl -fsSL https://bun.sh/install | bash`
+- Native SQLite support included with Bun
 
 ### Windows
-- Use WSL2 for best compatibility
-- Or ensure Windows Build Tools are installed for native modules
+- Use WSL2 for best compatibility with Bun
+- Install Bun in WSL2: `curl -fsSL https://bun.sh/install | bash`
 
 ### Linux
+- Install Bun: `curl -fsSL https://bun.sh/install | bash`
 - Install build-essential for native module compilation:
   ```bash
   sudo apt-get install build-essential
   ```
 
 ### Docker
-- Use our official Docker image for containerized deployments:
+- Use Bun in your Docker images for optimal performance:
   ```dockerfile
-  FROM node:22-alpine
-  RUN npm install -g @have/smrt
+  FROM oven/bun:latest
+  RUN bun add -g @have/smrt
   ```
 
 ## Troubleshooting
