@@ -124,7 +124,7 @@ const transformStream = new Transform({
 
 await pipeline(readStream, transformStream, writeStream);
 
-// Web Streams support (Node.js 22+)
+// Web Streams support (Node.js 24+)
 const file = await fs.open('/path/to/file.txt');
 for await (const chunk of file.readableWebStream()) {
   console.log(chunk);
@@ -551,7 +551,7 @@ Always reference the latest Node.js LTS documentation when implementing file sys
   
 - **Node.js path module**: [https://nodejs.org/api/path.html](https://nodejs.org/api/path.html)
   - Cross-platform path manipulation and normalization utilities
-  - Review for new methods like `path.matchesGlob()` (Node.js 22+)
+  - Review for new methods like `path.matchesGlob()` (Node.js 24+)
   
 - **Node.js stream API**: [https://nodejs.org/api/stream.html](https://nodejs.org/api/stream.html)
   - Stream processing for efficient large file operations

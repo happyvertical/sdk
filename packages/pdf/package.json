@@ -25,14 +25,12 @@
     "clean:all": "rm -rf dist docs *.tsbuildinfo node_modules",
     "dev": "bun run build:watch & bun run test:watch"
   },
-  "engines": {
-    "node": ">=22.0.0"
-  },
   "dependencies": {
     "@have/ocr": "workspace:*",
     "unpdf": "^1.0.6"
   },
   "devDependencies": {
-    "@types/node": "^22.13.0"
+    "@sveltejs/vite-plugin-svelte": "6.2.0",
+    "@types/node": "^24.0.0"
   }
 }

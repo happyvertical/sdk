@@ -542,7 +542,7 @@ test('Store works in different contexts', async () => {
 
 ```dockerfile
 # Dockerfile.standalone
-FROM node:22-alpine
+FROM node:24-alpine
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci --only=production

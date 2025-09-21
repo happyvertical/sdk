@@ -1,21 +1,75 @@
-version: '3.8'
-
 services:
   app:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
     volumes:
-      - ../..:/workspaces:cached
-      - node_modules:/workspaces/node_modules
+      - ..:/workspaces/sdk:cached
+      - node_modules:/workspaces/sdk/node_modules
+      # DinD volume sharing
+      - dind_data:/var/lib/docker
     command: sleep infinity
     environment:
       - NODE_ENV=development
       - FORCE_COLOR=1
+      # PostgreSQL connection for @have/sql tests
+      - SQLOO_HOST=db
+      - SQLOO_USER=postgres
+      - SQLOO_PASSWORD=postgres
+      - SQLOO_DATABASE=testdb
+      - SQLOO_PORT=5432
+      # DinD Docker host configuration
+      - DOCKER_HOST=tcp://dind:2376
+      - DOCKER_TLS_CERTDIR=/certs
+      - DOCKER_TLS_VERIFY=1
+      - DOCKER_CERT_PATH=/certs/client
+      # Act (GitHub Actions) configuration
+      - ACT_RUNNER_IMAGE=catthehacker/ubuntu:act-latest
     ports:
       - "3000:3000"
       - "5173:5173"
       - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+      dind:
+        condition: service_started
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: testdb
+      PGUSER: postgres # For health check
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "65432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d testdb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Docker-in-Docker service
+  dind:
+    image: docker:dind
+    privileged: true
+    environment:
+      - DOCKER_TLS_CERTDIR=/certs
+    volumes:
+      - dind_data:/var/lib/docker
+      - dind_certs:/certs
+    ports:
+      - "2376:2376"
+    command: ["dockerd", "--host=tcp://0.0.0.0:2376", "--host=unix:///var/run/docker.sock", "--tls=true", "--tlscert=/certs/server/cert.pem", "--tlskey=/certs/server/key.pem", "--tlsverify", "--tlscacert=/certs/ca.pem"]
 
 volumes:
   node_modules:
+  postgres_data:
+  dind_data:
+  dind_certs:

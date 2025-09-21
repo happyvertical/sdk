@@ -68,6 +68,28 @@ export class CLIGenerator {
   }
 
   /**
+   * Check if running in test environment
+   */
+  private isTestMode(): boolean {
+    return process.env.NODE_ENV === 'test' ||
+           process.env.VITEST === 'true' ||
+           typeof (global as any).it === 'function' ||
+           typeof (global as any).describe === 'function';
+  }
+
+  /**
+   * Handle exits safely in test mode
+   */
+  private exitWithError(message: string, code: number = 1): void {
+    if (this.isTestMode()) {
+      throw new Error(message);
+    } else {
+      console.error(message);
+      process.exit(code);
+    }
+  }
+
+  /**
    * Generate CLI handler function
    */
   generateHandler(): (argv: string[]) => Promise<void> {
@@ -232,13 +254,22 @@ export class CLIGenerator {
   parseArguments(argv: string[], commands: CLICommand[]): ParsedArgs {
     // Remove node and script name if present
     const args = argv.slice(0, 2).some(arg => arg.endsWith('node') || arg.endsWith('.js')) ? argv.slice(2) : argv;
-    
+
     if (args.length === 0) {
       return { args: [], options: {} };
     }
 
+    // Handle global flags first
+    if (args.includes('--help') || args.includes('-h')) {
+      return { command: 'help', args: [], options: {} };
+    }
+
+    if (args.includes('--version') || args.includes('-v')) {
+      return { command: 'version', args: [], options: {} };
+    }
+
     const commandName = args[0];
-    const command = commands.find(cmd => 
+    const command = commands.find(cmd =>
       cmd.name === commandName || (cmd.aliases && cmd.aliases.includes(commandName))
     );
 
@@ -247,23 +278,26 @@ export class CLIGenerator {
     }
 
     // Build parseArgs config from command definition
-    const config: any = { args: args.slice(1), options: {} };
-    
+    const parseConfig: any = {
+      args: args.slice(1),
+      options: {},
+      strict: false // Allow unknown options
+    };
+
     if (command.options) {
-      config.options = {};
       for (const [name, option] of Object.entries(command.options)) {
-        config.options[name] = {
+        parseConfig.options[name] = {
           type: option.type === 'boolean' ? 'boolean' : 'string',
-          default: option.default
+          ...(option.default !== undefined && { default: option.default })
         };
         if (option.short) {
-          config.options[name].short = option.short;
+          parseConfig.options[name].short = option.short;
         }
       }
     }
 
     try {
-      const parsed = parseArgs(config);
+      const parsed = parseArgs(parseConfig);
       return {
         command: commandName,
         args: parsed.positionals || [],
@@ -271,6 +305,7 @@ export class CLIGenerator {
       };
     } catch (error) {
       // Fallback for parse errors
+      console.warn('Argument parsing failed, using fallback:', error);
       return {
         command: commandName,
         args: args.slice(1).filter(arg => !arg.startsWith('-')),
@@ -293,22 +328,20 @@ export class CLIGenerator {
     );
 
     if (!command) {
-      console.error(`Error: Unknown command '${parsed.command}'`);
-      this.showHelp(commands);
-      process.exit(1);
+      this.exitWithError(`Unknown command '${parsed.command}'`);
+      return;
     }
 
     // Validate required arguments
     if (command.args && parsed.args.length < command.args.length) {
-      console.error(`Error: Missing required arguments: ${command.args.slice(parsed.args.length).join(', ')}`);
-      process.exit(1);
+      this.exitWithError(`Missing required arguments: ${command.args.slice(parsed.args.length).join(', ')}`);
+      return;
     }
 
     try {
       await command.handler(parsed.args, parsed.options);
     } catch (error) {
-      console.error('Error:', error instanceof Error ? error.message : 'Unknown error');
-      process.exit(1);
+      this.exitWithError(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -337,22 +370,7 @@ export class CLIGenerator {
       name: 'schema',
       description: 'Show schema for an object',
       args: ['object'],
-      handler: async (args, options) => {
-        const objectName = args[0];
-        const fields = ObjectRegistry.getFields(objectName);
-        if (fields.size === 0) {
-          console.error('Error:', `Object ${objectName} not found`);
-          process.exit(1);
-        }
-
-        console.log(`Schema for ${objectName}:`);
-        for (const [fieldName, field] of fields) {
-          console.log(`  ${fieldName}: ${field.type}${field.options?.required ? ' (required)' : ''}`);
-          if (field.options?.description) {
-            console.log(`    ${field.options.description}`);
-          }
-        }
-      }
+      handler: this.createSchemaHandler()
     });
 
     // Help command
@@ -365,7 +383,52 @@ export class CLIGenerator {
       }
     });
 
+    // Version command
+    commands.push({
+      name: 'version',
+      description: 'Show version information',
+      aliases: ['v'],
+      handler: async (args, options) => {
+        console.log(`${this.config.name} v${this.config.version}`);
+      }
+    });
+
+    // Status command
+    commands.push({
+      name: 'status',
+      description: 'Show system status',
+      handler: async (args, options) => {
+        console.log('System Status:');
+        console.log(`- CLI: ${this.config.name} v${this.config.version}`);
+        console.log(`- Database: ${this.context.db ? 'Connected' : 'Not connected'}`);
+        console.log(`- AI: ${this.context.ai ? 'Available' : 'Not available'}`);
+        console.log(`- User: ${this.context.user?.id || 'Not authenticated'}`);
+      }
+    });
+
     return commands;
+  }
+
+  /**
+   * Create schema command handler
+   */
+  private createSchemaHandler(): (args: any, options: any) => Promise<void> {
+    return async (args: any, options: any) => {
+      const objectName = args[0];
+      const fields = ObjectRegistry.getFields(objectName);
+      if (fields.size === 0) {
+        this.exitWithError(`Object ${objectName} not found`);
+        return;
+      }
+
+      console.log(`Schema for ${objectName}:`);
+      for (const [fieldName, field] of fields) {
+        console.log(`  ${fieldName}: ${field.type}${field.options?.required ? ' (required)' : ''}`);
+        if (field.options?.description) {
+          console.log(`    ${field.options.description}`);
+        }
+      }
+    };
   }
 
   /**
@@ -504,7 +567,8 @@ export class CLIGenerator {
 
       if (!result) {
         spinner.fail(`${objectName} not found`);
-        process.exit(1);
+        this.exitWithError(`${objectName} not found`);
+        return;
       }
 
       spinner.succeed(`Found ${objectName}`);
@@ -559,8 +623,7 @@ export class CLIGenerator {
         console.log(JSON.stringify(result, null, 2));
       }
     } catch (error) {
-      console.error('Error:', error instanceof Error ? error.message : 'Unknown error');
-      process.exit(1);
+      this.exitWithError(error instanceof Error ? error.message : 'Unknown error');
     }
   }
 
@@ -573,8 +636,8 @@ export class CLIGenerator {
       const existing = await collection.get(id);
 
       if (!existing) {
-        console.error('Error:', `${objectName} not found`);
-        process.exit(1);
+        this.exitWithError(`${objectName} not found`);
+        return;
       }
 
       let data: any = {};
@@ -609,8 +672,7 @@ export class CLIGenerator {
         console.log(JSON.stringify(existing, null, 2));
       }
     } catch (error) {
-      console.error('Error:', error instanceof Error ? error.message : 'Unknown error');
-      process.exit(1);
+      this.exitWithError(error instanceof Error ? error.message : 'Unknown error');
     }
   }
 
@@ -623,8 +685,8 @@ export class CLIGenerator {
       const existing = await collection.get(id);
 
       if (!existing) {
-        console.error('Error:', `${objectName} not found`);
-        process.exit(1);
+        this.exitWithError(`${objectName} not found`);
+        return;
       }
 
       // Confirmation prompt
@@ -642,8 +704,7 @@ export class CLIGenerator {
 
       spinner.succeed(`Deleted ${objectName}`);
     } catch (error) {
-      console.error('Error:', error instanceof Error ? error.message : 'Unknown error');
-      process.exit(1);
+      this.exitWithError(error instanceof Error ? error.message : 'Unknown error');
     }
   }
 

@@ -4,8 +4,10 @@ This directory contains the development container configuration for the HAVE SDK
 
 ## Features
 
-- **Node.js 22** with TypeScript support
+- **Node.js 24** with TypeScript support
 - **Bun** package manager pre-installed
+- **Claude Code** AI assistant pre-installed and configured
+- **PostgreSQL 16** database for testing and development
 - **ONNX Runtime** system dependencies for OCR functionality
 - **Build tools** (GCC, G++, CMake) for native dependencies
 - **Git LFS** for handling large files
@@ -168,3 +170,102 @@ The devcontainer uses a multi-stage approach:
 5. **Project Dependencies**: Automated npm/bun package installation
 
 This ensures a reproducible environment that matches production requirements while providing excellent developer experience.
+
+## Claude Code Integration
+
+The devcontainer includes Claude Code AI assistant pre-installed and configured for seamless development. Claude has full access to the containerized environment, including PostgreSQL database for testing the @have/sql package.
+
+### Two Usage Patterns
+
+#### Option 1: Claude Code Inside Container (Recommended)
+
+**Benefits:**
+- Zero setup - Claude ready immediately upon container start
+- Complete isolation and security
+- Direct database access via container networking
+- Consistent team environment
+
+**Usage:**
+```bash
+# Open in VS Code and select "Reopen in Container"
+# Once container starts, Claude is ready:
+claude
+
+# Claude automatically has access to:
+# - PostgreSQL at db:5432
+# - All HAVE SDK packages and dependencies
+# - Complete development environment
+```
+
+**Environment Variables (Automatic):**
+```bash
+SQLOO_HOST=db
+SQLOO_USER=postgres
+SQLOO_PASSWORD=postgres
+SQLOO_DATABASE=testdb
+SQLOO_PORT=5432
+```
+
+#### Option 2: Claude Code on Host + Container Services
+
+**Benefits:**
+- Use existing Claude installation
+- Lighter container resource usage
+- Familiar host environment
+
+**Setup:**
+```bash
+# 1. Start devcontainer in VS Code (for PostgreSQL service)
+# 2. Configure host environment:
+./.devcontainer/scripts/setup-claude-host.sh
+
+# 3. Load environment and start Claude:
+source ~/.claude-env-host
+claude
+```
+
+**Environment Variables (Host):**
+```bash
+SQLOO_HOST=localhost
+SQLOO_USER=postgres
+SQLOO_PASSWORD=postgres
+SQLOO_DATABASE=testdb
+SQLOO_PORT=65432  # External port mapping
+```
+
+### Database Testing with Claude
+
+The PostgreSQL database is automatically configured for testing the @have/sql package:
+
+```bash
+# Test database connections
+./.devcontainer/scripts/test-postgres-connection.sh
+
+# Run @have/sql tests
+./.devcontainer/scripts/run-sql-tests.sh
+
+# Claude can now help with database operations:
+claude "Test the PostgreSQL implementation in @have/sql"
+claude "Run the database migration tests"
+```
+
+### Setup Scripts
+
+- **`scripts/setup-claude-container.sh`** - Configure Claude inside container
+- **`scripts/setup-claude-host.sh`** - Configure host environment for external Claude
+- **`scripts/test-postgres-connection.sh`** - Test database connectivity
+- **`scripts/run-sql-tests.sh`** - Run @have/sql package tests
+
+### Claude Credentials
+
+Your Claude credentials are automatically mounted and persisted:
+- **Container path:** `/home/node/.claude`
+- **Host path:** `~/.claude`
+- **Persistence:** Survives container rebuilds
+
+### Security Features
+
+- Claude's access is scoped to the container environment
+- Database credentials are contained within the development environment
+- No production systems accessible from the container
+- All network access is controlled and logged

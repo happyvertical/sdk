@@ -275,7 +275,7 @@ The package uses different providers based on the runtime environment:
 OCR functionality has different requirements based on the environment:
 
 #### Node.js OCR Requirements
-- **Node.js v22+**: Required for all operations
+- **Node.js v24+**: Required for all operations
 - **Memory**: Sufficient RAM for processing large images (2GB+ recommended)
 - **Optional: EasyOCR Dependencies**: For enhanced OCR accuracy (falls back to Tesseract.js)
 
@@ -288,7 +288,7 @@ OCR functionality has different requirements based on the environment:
 
 **NixOS:**
 ```bash
-nix-shell -p nodejs_22
+nix-shell -p nodejs_24
 # For enhanced OCR (optional):
 nix-shell -p python3 python3Packages.easyocr
 ```

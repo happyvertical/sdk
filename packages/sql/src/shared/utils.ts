@@ -98,6 +98,10 @@ export const buildWhere = (where: Record<string, any>, startIndex = 1) => {
 
       if (value === null) {
         sql += `${field} IS ${sqlOperator === "=" ? "NULL" : "NOT NULL"}`;
+      } else if (sqlOperator === "IN" && Array.isArray(value)) {
+        const placeholders = value.map(() => `$${currIndex++}`).join(", ");
+        sql += `${field} IN (${placeholders})`;
+        values.push(...value);
       } else {
         sql += `${field} ${sqlOperator} $${currIndex++}`;
         values.push(value);
