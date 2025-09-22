@@ -11,8 +11,6 @@ jobs:
     permissions:
       contents: write  # Required for creating git tags/releases and pushing changes
       packages: write  # Required for publishing packages to GitHub registry
-      pages: write    # Required for GitHub Pages deployment (currently disabled)
-      id-token: write # Required for GitHub Pages OIDC authentication
     steps:
       - name: Validate required secrets and permissions
         run: |
@@ -70,7 +68,7 @@ jobs:
           git push --follow-tags
 
       - name: "Convert and add TODOs to github issues"
-        uses: "alstr/todo-to-issue-action@v5.0.0"  # Pinned to specific version
+        uses: "alstr/todo-to-issue-action@v5.1.13"  # Pinned to specific version
         with:
           INSERT_ISSUE_URLS: "true"
           IDENTIFIERS: '[{"name": "TODO", "labels": []}]'
@@ -98,15 +96,3 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # disabled until repo goes public          
-      # - name: Setup Pages
-      #   uses: actions/configure-pages@v4
-        
-      # - name: Upload documentation artifact
-      #   uses: actions/upload-pages-artifact@v3
-      #   with:
-      #     path: 'docs/manual'
-          
-      # - name: Deploy to GitHub Pages
-      #   id: deployment
-      #   uses: actions/deploy-pages@v4
