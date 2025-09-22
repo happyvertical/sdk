@@ -12,7 +12,7 @@ updates:
     # Set a version update strategy
     versioning-strategy: increase
     # Specify package manager
-    package-manager: "pnpm"
+    package-manager: "npm"
     # Groups to reduce PR noise
     groups:
       # Group all dev dependencies together
@@ -33,7 +33,7 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     versioning-strategy: increase
-    package-manager: "pnpm"
+    package-manager: "npm"
     
   - package-ecosystem: "npm"
     directory: "/packages/files"
@@ -41,7 +41,7 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     versioning-strategy: increase
-    package-manager: "pnpm"
+    package-manager: "npm"
     
   - package-ecosystem: "npm"
     directory: "/packages/spider"
@@ -49,7 +49,7 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     versioning-strategy: increase
-    package-manager: "pnpm"
+    package-manager: "npm"
     
   - package-ecosystem: "npm"
     directory: "/packages/sql"
@@ -57,7 +57,7 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     versioning-strategy: increase
-    package-manager: "pnpm"
+    package-manager: "npm"
     
   - package-ecosystem: "npm"
     directory: "/packages/pdf"
@@ -65,7 +65,7 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     versioning-strategy: increase
-    package-manager: "pnpm"
+    package-manager: "npm"
     
   - package-ecosystem: "npm"
     directory: "/packages/ai"
@@ -73,7 +73,7 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     versioning-strategy: increase
-    package-manager: "pnpm"
+    package-manager: "npm"
     
   - package-ecosystem: "npm"
     directory: "/packages/smrt"
@@ -81,16 +81,24 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
     versioning-strategy: increase
-    package-manager: "pnpm"
+    package-manager: "npm"
     
   - package-ecosystem: "npm"
-    directory: "/packages/svelte"
+    directory: "/packages/ocr"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
     versioning-strategy: increase
-    package-manager: "pnpm"
-    
+    package-manager: "npm"
+
+  - package-ecosystem: "npm"
+    directory: "/docs"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    package-manager: "npm"
+
   # Enable version updates for GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
