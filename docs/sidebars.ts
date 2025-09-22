@@ -50,8 +50,18 @@ const sidebars: SidebarsConfig = {
         'supporting-libraries/utils',
       ],
     },
-    // API Reference temporarily disabled due to MDX compatibility issues with TypeDoc output
-    // Will be re-enabled with proper TypeDoc-to-Docusaurus formatting
+    // API Reference - will be re-enabled after fixing typedoc-docusaurus integration
+    // {
+    //   type: 'category',
+    //   label: 'API Reference',
+    //   collapsed: true,
+    //   link: {
+    //     type: 'generated-index',
+    //     title: 'API Reference',
+    //     description: 'Complete API documentation for all SDK packages',
+    //   },
+    //   items: require('./api/typedoc-sidebar.cjs'),
+    // },
   ],
 };
 

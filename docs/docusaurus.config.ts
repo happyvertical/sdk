@@ -65,6 +65,7 @@ const config: Config = {
           '../packages/sql/src/index.ts',
           '../packages/utils/src/index.ts',
           '../packages/ocr/src/index.ts',
+          '../packages/smrt/src/index.ts',
         ],
         tsconfig: './typedoc.tsconfig.json',
         out: 'api',
