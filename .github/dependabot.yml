@@ -1,8 +1,8 @@
 version: 2
 updates:
-  # Enable version updates for npm/pnpm
-  - package-ecosystem: "npm"
-    # Look for `package.json` and `lock` files in the root directory
+  # Enable version updates for Bun
+  - package-ecosystem: "bun"
+    # Look for `package.json` and `bun.lock` files in the root directory
     directory: "/"
     # Check for updates once a week
     schedule:
@@ -11,8 +11,6 @@ updates:
     open-pull-requests-limit: 10
     # Set a version update strategy
     versioning-strategy: increase
-    # Specify package manager
-    package-manager: "npm"
     # Groups to reduce PR noise
     groups:
       # Group all dev dependencies together
@@ -27,7 +25,7 @@ updates:
           - "conventional-changelog-cli"
     
   # Also check for updates in each package directory
-  - package-ecosystem: "npm"
+  - package-ecosystem: "bun"
     directory: "/packages/utils"
     schedule:
       interval: "weekly"
@@ -35,7 +33,7 @@ updates:
     versioning-strategy: increase
     package-manager: "npm"
     
-  - package-ecosystem: "npm"
+  - package-ecosystem: "bun"
     directory: "/packages/files"
     schedule:
       interval: "weekly"
@@ -43,7 +41,7 @@ updates:
     versioning-strategy: increase
     package-manager: "npm"
     
-  - package-ecosystem: "npm"
+  - package-ecosystem: "bun"
     directory: "/packages/spider"
     schedule:
       interval: "weekly"
@@ -51,7 +49,7 @@ updates:
     versioning-strategy: increase
     package-manager: "npm"
     
-  - package-ecosystem: "npm"
+  - package-ecosystem: "bun"
     directory: "/packages/sql"
     schedule:
       interval: "weekly"
@@ -59,7 +57,7 @@ updates:
     versioning-strategy: increase
     package-manager: "npm"
     
-  - package-ecosystem: "npm"
+  - package-ecosystem: "bun"
     directory: "/packages/pdf"
     schedule:
       interval: "weekly"
@@ -67,7 +65,7 @@ updates:
     versioning-strategy: increase
     package-manager: "npm"
     
-  - package-ecosystem: "npm"
+  - package-ecosystem: "bun"
     directory: "/packages/ai"
     schedule:
       interval: "weekly"
@@ -75,7 +73,7 @@ updates:
     versioning-strategy: increase
     package-manager: "npm"
     
-  - package-ecosystem: "npm"
+  - package-ecosystem: "bun"
     directory: "/packages/smrt"
     schedule:
       interval: "weekly"
@@ -83,7 +81,7 @@ updates:
     versioning-strategy: increase
     package-manager: "npm"
     
-  - package-ecosystem: "npm"
+  - package-ecosystem: "bun"
     directory: "/packages/ocr"
     schedule:
       interval: "weekly"
@@ -91,7 +89,7 @@ updates:
     versioning-strategy: increase
     package-manager: "npm"
 
-  - package-ecosystem: "npm"
+  - package-ecosystem: "bun"
     directory: "/docs"
     schedule:
       interval: "weekly"
