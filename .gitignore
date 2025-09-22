@@ -115,3 +115,4 @@ ci-debug-*.log
 *.tgz
 
 **/.claude/settings.local.json
+repomix-output.xml
