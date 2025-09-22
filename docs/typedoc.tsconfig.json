@@ -1,5 +1,5 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "../tsconfig.json",
   "compilerOptions": {
     "skipLibCheck": true,
     "declaration": true,
@@ -8,13 +8,14 @@
     "moduleResolution": "bundler"
   },
   "include": [
-    "../ai/src/**/*",
-    "../files/src/**/*",
-    "../pdf/src/**/*",
-    "../spider/src/**/*",
-    "../sql/src/**/*",
-    "../utils/src/**/*",
-    "../ocr/src/**/*"
+    "../packages/ai/src/**/*",
+    "../packages/files/src/**/*",
+    "../packages/pdf/src/**/*",
+    "../packages/spider/src/**/*",
+    "../packages/sql/src/**/*",
+    "../packages/utils/src/**/*",
+    "../packages/ocr/src/**/*",
+    "../packages/smrt/src/**/*"
   ],
   "exclude": [
     "src/**/*",
