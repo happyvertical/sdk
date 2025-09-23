@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "smrt-dev-server": {
+      "command": "./scripts/mcp-smrt.sh",
+      "args": [],
+      "env": {
+        "NODE_ENV": "development",
+        "PROJECT_ROOT": "/path/to/your/project"
+      }
+    }
+  }
+}
