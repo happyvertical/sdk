@@ -19,7 +19,7 @@ import type {
 
 /**
  * Combined PDF reader for Node.js that integrates unpdf and OCR capabilities
- * 
+ *
  * This provider:
  * - Uses unpdf for text, metadata, and image extraction
  * - Falls back to OCR when direct text extraction yields no results
@@ -40,16 +40,16 @@ export class CombinedNodeProvider extends BasePDFReader {
    */
   async extractText(
     source: PDFSource,
-    options?: ExtractTextOptions
+    options?: ExtractTextOptions,
   ): Promise<string | null> {
     try {
       // First try direct text extraction using unpdf
       const text = await this.unpdfProvider.extractText(source, options);
-      
+
       // If no text was found and OCR fallback is not disabled, try OCR
       if (!text?.trim() && !options?.skipOCRFallback) {
         console.log('No direct text found, attempting OCR fallback...');
-        
+
         try {
           const images = await this.unpdfProvider.extractImages(source);
           if (images && images.length > 0) {
@@ -60,7 +60,7 @@ export class CombinedNodeProvider extends BasePDFReader {
           console.warn('OCR fallback failed:', ocrError);
         }
       }
-      
+
       return text;
     } catch (error) {
       console.error(`Combined text extraction failed:`, error);
@@ -85,7 +85,10 @@ export class CombinedNodeProvider extends BasePDFReader {
   /**
    * Perform OCR on image data
    */
-  async performOCR(images: PDFImage[], options?: OCROptions): Promise<OCRResult> {
+  async performOCR(
+    images: PDFImage[],
+    options?: OCROptions,
+  ): Promise<OCRResult> {
     return this.ocrFactory.performOCR(images, options);
   }
 
@@ -165,14 +168,14 @@ export class CombinedNodeProvider extends BasePDFReader {
     try {
       // First, get detailed analysis from unpdf provider (primary)
       const unpdfInfo = await this.unpdfProvider.getInfo(source);
-      
+
       // Check OCR availability to enhance recommendations
       const ocrAvailable = await this.ocrFactory.isOCRAvailable();
-      
+
       // Enhance the analysis with OCR-aware recommendations
       let enhancedStrategy = unpdfInfo.recommendedStrategy;
       let enhancedOcrRequired = unpdfInfo.ocrRequired;
-      let enhancedProcessingTime = { ...unpdfInfo.estimatedProcessingTime };
+      const enhancedProcessingTime = { ...unpdfInfo.estimatedProcessingTime };
 
       // If unpdf recommends OCR but OCR is not available, adjust strategy
       if (unpdfInfo.recommendedStrategy === 'ocr' && !ocrAvailable) {
@@ -190,12 +193,20 @@ export class CombinedNodeProvider extends BasePDFReader {
       }
 
       // If OCR is available and document has images but little text, suggest hybrid
-      if (ocrAvailable && unpdfInfo.hasImages && 
-          unpdfInfo.hasEmbeddedText && 
-          unpdfInfo.estimatedTextLength && unpdfInfo.estimatedTextLength < 1000) {
+      if (
+        ocrAvailable &&
+        unpdfInfo.hasImages &&
+        unpdfInfo.hasEmbeddedText &&
+        unpdfInfo.estimatedTextLength &&
+        unpdfInfo.estimatedTextLength < 1000
+      ) {
         enhancedStrategy = 'hybrid';
-        enhancedProcessingTime.ocrProcessing = unpdfInfo.pageCount > 10 ? 'slow' :
-                                             unpdfInfo.pageCount > 3 ? 'medium' : 'fast';
+        enhancedProcessingTime.ocrProcessing =
+          unpdfInfo.pageCount > 10
+            ? 'slow'
+            : unpdfInfo.pageCount > 3
+              ? 'medium'
+              : 'fast';
       }
 
       return {
@@ -209,14 +220,16 @@ export class CombinedNodeProvider extends BasePDFReader {
       };
     } catch (error) {
       console.error('Combined getInfo failed:', error);
-      
+
       // Return minimal default info if unpdf fails
       return {
         pageCount: 0,
         encrypted: false,
         hasEmbeddedText: false,
         hasImages: false,
-        recommendedStrategy: await this.ocrFactory.isOCRAvailable() ? 'hybrid' : 'text',
+        recommendedStrategy: (await this.ocrFactory.isOCRAvailable())
+          ? 'hybrid'
+          : 'text',
         ocrRequired: false,
         estimatedProcessingTime: {
           textExtraction: 'fast',

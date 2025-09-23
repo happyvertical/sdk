@@ -30,7 +30,7 @@ export interface ApiResponse<T> {
 }
 
 // Mock data store
-let mockContents: ContentData[] = [
+const mockContents: ContentData[] = [
   {
     id: '1',
     title: 'Sample Article',
@@ -45,7 +45,7 @@ let mockContents: ContentData[] = [
     fileKey: null,
     publish_date: new Date('2024-01-15').toISOString(),
     createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
   },
   {
     id: '2',
@@ -61,7 +61,7 @@ let mockContents: ContentData[] = [
     fileKey: null,
     publish_date: new Date('2024-01-16').toISOString(),
     createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
   },
   {
     id: '3',
@@ -77,8 +77,8 @@ let mockContents: ContentData[] = [
     fileKey: 'documents/sample.pdf',
     publish_date: new Date('2024-01-17').toISOString(),
     createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  }
+    updatedAt: new Date().toISOString(),
+  },
 ];
 
 class MockApiClient {
@@ -87,19 +87,19 @@ class MockApiClient {
   contents = {
     async list(): Promise<ApiResponse<ContentData[]>> {
       // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       return {
         data: [...mockContents],
         success: true,
-        message: 'Contents retrieved successfully'
+        message: 'Contents retrieved successfully',
       };
     },
 
     async get(id: string): Promise<ApiResponse<ContentData>> {
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
-      const content = mockContents.find(c => c.id === id);
+      const content = mockContents.find((c) => c.id === id);
       if (!content) {
         throw new Error(`Content with id ${id} not found`);
       }
@@ -107,12 +107,14 @@ class MockApiClient {
       return {
         data: content,
         success: true,
-        message: 'Content retrieved successfully'
+        message: 'Content retrieved successfully',
       };
     },
 
-    async create(contentData: Partial<ContentData>): Promise<ApiResponse<ContentData>> {
-      await new Promise(resolve => setTimeout(resolve, 300));
+    async create(
+      contentData: Partial<ContentData>,
+    ): Promise<ApiResponse<ContentData>> {
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
       const newContent: ContentData = {
         id: (mockContents.length + 1).toString(),
@@ -129,7 +131,7 @@ class MockApiClient {
         publish_date: contentData.publish_date || new Date().toISOString(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        references: contentData.references || []
+        references: contentData.references || [],
       };
 
       mockContents.push(newContent);
@@ -137,14 +139,17 @@ class MockApiClient {
       return {
         data: newContent,
         success: true,
-        message: 'Content created successfully'
+        message: 'Content created successfully',
       };
     },
 
-    async update(id: string, updates: Partial<ContentData>): Promise<ApiResponse<ContentData>> {
-      await new Promise(resolve => setTimeout(resolve, 300));
+    async update(
+      id: string,
+      updates: Partial<ContentData>,
+    ): Promise<ApiResponse<ContentData>> {
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
-      const index = mockContents.findIndex(c => c.id === id);
+      const index = mockContents.findIndex((c) => c.id === id);
       if (index === -1) {
         throw new Error(`Content with id ${id} not found`);
       }
@@ -152,7 +157,7 @@ class MockApiClient {
       const updatedContent = {
         ...mockContents[index],
         ...updates,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       };
 
       mockContents[index] = updatedContent;
@@ -160,14 +165,14 @@ class MockApiClient {
       return {
         data: updatedContent,
         success: true,
-        message: 'Content updated successfully'
+        message: 'Content updated successfully',
       };
     },
 
     async delete(id: string): Promise<ApiResponse<void>> {
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
-      const index = mockContents.findIndex(c => c.id === id);
+      const index = mockContents.findIndex((c) => c.id === id);
       if (index === -1) {
         throw new Error(`Content with id ${id} not found`);
       }
@@ -177,9 +182,9 @@ class MockApiClient {
       return {
         data: undefined as any,
         success: true,
-        message: 'Content deleted successfully'
+        message: 'Content deleted successfully',
       };
-    }
+    },
   };
 }
 

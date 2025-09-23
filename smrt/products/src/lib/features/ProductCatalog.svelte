@@ -1,79 +1,79 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import ProductCard from '$lib/components/ProductCard.svelte';
-  import ProductForm from '$lib/components/ProductForm.svelte';
-  import { productStore } from '$lib/stores/product-store.svelte.js';
-  import type { ProductData } from '../types.js';
-  
-  interface Props {
-    readonly?: boolean;
-    showCreateForm?: boolean;
-  }
-  
-  let { readonly = false, showCreateForm = false }: Props = $props();
-  
-  let searchQuery = $state('');
-  let selectedCategory = $state('');
-  let showForm = $state(false);
-  let editingProduct = $state<ProductData | null>(null);
-  
-  // Reactive filtered products
-  let filteredProducts = $derived.by(() => {
-    let products = productStore.items;
+import { onMount } from 'svelte';
+import ProductCard from '$lib/components/ProductCard.svelte';
+import ProductForm from '$lib/components/ProductForm.svelte';
+import { productStore } from '$lib/stores/product-store.svelte.js';
+import type { ProductData } from '../types.js';
 
-    if (searchQuery) {
-      products = productStore.searchProducts(searchQuery);
-    }
+interface Props {
+  readonly?: boolean;
+  showCreateForm?: boolean;
+}
 
-    if (selectedCategory) {
-      products = products.filter(p => p.category === selectedCategory);
-    }
+const { readonly = false, showCreateForm = false }: Props = $props();
 
-    return products;
-  });
-  
-  onMount(() => {
-    productStore.loadProducts();
-  });
-  
-  function handleCreateProduct() {
-    editingProduct = null;
-    showForm = true;
+const searchQuery = $state('');
+const selectedCategory = $state('');
+let showForm = $state(false);
+let editingProduct = $state<ProductData | null>(null);
+
+// Reactive filtered products
+const filteredProducts = $derived.by(() => {
+  let products = productStore.items;
+
+  if (searchQuery) {
+    products = productStore.searchProducts(searchQuery);
   }
-  
-  function handleEditProduct(product: ProductData) {
-    editingProduct = product;
-    showForm = true;
+
+  if (selectedCategory) {
+    products = products.filter((p) => p.category === selectedCategory);
   }
-  
-  async function handleDeleteProduct(id: string) {
-    if (confirm('Are you sure you want to delete this product?')) {
-      try {
-        await productStore.deleteProduct(id);
-      } catch (error) {
-        console.error('Failed to delete product:', error);
-      }
-    }
-  }
-  
-  async function handleSubmitProduct(productData: Partial<ProductData>) {
+
+  return products;
+});
+
+onMount(() => {
+  productStore.loadProducts();
+});
+
+function handleCreateProduct() {
+  editingProduct = null;
+  showForm = true;
+}
+
+function handleEditProduct(product: ProductData) {
+  editingProduct = product;
+  showForm = true;
+}
+
+async function handleDeleteProduct(id: string) {
+  if (confirm('Are you sure you want to delete this product?')) {
     try {
-      if (editingProduct) {
-        await productStore.updateProduct(editingProduct.id!, productData);
-      } else {
-        await productStore.createProduct(productData);
-      }
-      showForm = false;
-      editingProduct = null;
+      await productStore.deleteProduct(id);
     } catch (error) {
-      console.error('Failed to save product:', error);
+      console.error('Failed to delete product:', error);
     }
   }
-  
-  function handleCancelForm() {
+}
+
+async function handleSubmitProduct(productData: Partial<ProductData>) {
+  try {
+    if (editingProduct) {
+      await productStore.updateProduct(editingProduct.id!, productData);
+    } else {
+      await productStore.createProduct(productData);
+    }
     showForm = false;
     editingProduct = null;
+  } catch (error) {
+    console.error('Failed to save product:', error);
   }
+}
+
+function handleCancelForm() {
+  showForm = false;
+  editingProduct = null;
+}
 </script>
 
 <div class="product-catalog">

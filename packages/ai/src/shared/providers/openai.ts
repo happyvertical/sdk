@@ -80,7 +80,10 @@ export class OpenAIProvider implements AIInterface {
    * console.log(response.content); // "Paris is the capital of France."
    * ```
    */
-  async chat(messages: AIMessage[], options: ChatOptions = {}): Promise<AIResponse> {
+  async chat(
+    messages: AIMessage[],
+    options: ChatOptions = {},
+  ): Promise<AIResponse> {
     try {
       const response = await this.client.chat.completions.create({
         model: options.model || this.options.defaultModel || 'gpt-4o',
@@ -93,7 +96,7 @@ export class OpenAIProvider implements AIInterface {
         frequency_penalty: options.frequencyPenalty,
         presence_penalty: options.presencePenalty,
         user: options.user,
-        tools: options.tools?.map(tool => ({
+        tools: options.tools?.map((tool) => ({
           type: 'function' as const,
           function: {
             name: tool.function.name,
@@ -109,7 +112,11 @@ export class OpenAIProvider implements AIInterface {
 
       const choice = response.choices[0];
       if (!choice) {
-        throw new AIError('No choices returned from OpenAI', 'NO_CHOICES', 'openai');
+        throw new AIError(
+          'No choices returned from OpenAI',
+          'NO_CHOICES',
+          'openai',
+        );
       }
 
       return {
@@ -117,11 +124,15 @@ export class OpenAIProvider implements AIInterface {
         usage: this.mapUsage(response.usage),
         model: response.model,
         finishReason: this.mapFinishReason(choice.finish_reason),
-        functionCalls: choice.message.function_call ? [{
-          name: choice.message.function_call.name,
-          arguments: choice.message.function_call.arguments,
-        }] : undefined,
-        toolCalls: choice.message.tool_calls?.map(call => ({
+        functionCalls: choice.message.function_call
+          ? [
+              {
+                name: choice.message.function_call.name,
+                arguments: choice.message.function_call.arguments,
+              },
+            ]
+          : undefined,
+        toolCalls: choice.message.tool_calls?.map((call) => ({
           id: call.id,
           type: call.type,
           function: {
@@ -151,7 +162,10 @@ export class OpenAIProvider implements AIInterface {
    * });
    * ```
    */
-  async complete(prompt: string, options: CompletionOptions = {}): Promise<AIResponse> {
+  async complete(
+    prompt: string,
+    options: CompletionOptions = {},
+  ): Promise<AIResponse> {
     return this.chat([{ role: 'user', content: prompt }], {
       model: options.model,
       maxTokens: options.maxTokens,
@@ -182,7 +196,10 @@ export class OpenAIProvider implements AIInterface {
    * console.log(response2.embeddings.length); // 2
    * ```
    */
-  async embed(text: string | string[], options: EmbeddingOptions = {}): Promise<EmbeddingResponse> {
+  async embed(
+    text: string | string[],
+    options: EmbeddingOptions = {},
+  ): Promise<EmbeddingResponse> {
     try {
       const input = Array.isArray(text) ? text : [text];
       const response = await this.client.embeddings.create({
@@ -194,7 +211,7 @@ export class OpenAIProvider implements AIInterface {
       });
 
       return {
-        embeddings: response.data.map(item => item.embedding),
+        embeddings: response.data.map((item) => item.embedding),
         usage: this.mapUsage(response.usage),
         model: response.model,
       };
@@ -219,7 +236,10 @@ export class OpenAIProvider implements AIInterface {
    * }
    * ```
    */
-  async *stream(messages: AIMessage[], options: ChatOptions = {}): AsyncIterable<string> {
+  async *stream(
+    messages: AIMessage[],
+    options: ChatOptions = {},
+  ): AsyncIterable<string> {
     try {
       const stream = await this.client.chat.completions.create({
         model: options.model || this.options.defaultModel || 'gpt-4o',
@@ -285,14 +305,18 @@ export class OpenAIProvider implements AIInterface {
     try {
       const response = await this.client.models.list();
       return response.data
-        .filter(model => model.id.includes('gpt') || model.id.includes('text-embedding'))
-        .map(model => ({
+        .filter(
+          (model) =>
+            model.id.includes('gpt') || model.id.includes('text-embedding'),
+        )
+        .map((model) => ({
           id: model.id,
           name: model.id,
           description: `OpenAI model: ${model.id}`,
           contextLength: this.getContextLength(model.id),
           capabilities: this.getModelCapabilities(model.id),
-          supportsFunctions: model.id.includes('gpt-4') || model.id.includes('gpt-3.5'),
+          supportsFunctions:
+            model.id.includes('gpt-4') || model.id.includes('gpt-3.5'),
           supportsVision: model.id.includes('vision') || model.id === 'gpt-4o',
         }));
     } catch (error) {
@@ -322,7 +346,14 @@ export class OpenAIProvider implements AIInterface {
       vision: true,
       fineTuning: true,
       maxContextLength: 128000,
-      supportedOperations: ['chat', 'completion', 'embedding', 'streaming', 'functions', 'vision'],
+      supportedOperations: [
+        'chat',
+        'completion',
+        'embedding',
+        'streaming',
+        'functions',
+        'vision',
+      ],
     };
   }
 
@@ -332,27 +363,34 @@ export class OpenAIProvider implements AIInterface {
    * @returns Array of OpenAI-compatible message parameters
    * @private
    */
-  private mapMessagesToOpenAI(messages: AIMessage[]): OpenAI.Chat.ChatCompletionMessageParam[] {
-    return messages.map(message => {
+  private mapMessagesToOpenAI(
+    messages: AIMessage[],
+  ): OpenAI.Chat.ChatCompletionMessageParam[] {
+    return messages.map((message) => {
       // Build message based on role and content
       const baseMessage = {
         role: message.role as OpenAI.Chat.ChatCompletionRole,
         content: message.content,
       };
-      
+
       // Add optional fields based on role and availability
-      if (message.name && (message.role === 'system' || message.role === 'user' || message.role === 'function')) {
+      if (
+        message.name &&
+        (message.role === 'system' ||
+          message.role === 'user' ||
+          message.role === 'function')
+      ) {
         (baseMessage as any).name = message.name;
       }
-      
+
       if (message.function_call && message.role === 'assistant') {
         (baseMessage as any).function_call = message.function_call;
       }
-      
+
       if (message.tool_calls && message.role === 'assistant') {
         (baseMessage as any).tool_calls = message.tool_calls;
       }
-      
+
       return baseMessage as OpenAI.Chat.ChatCompletionMessageParam;
     });
   }
@@ -364,7 +402,10 @@ export class OpenAIProvider implements AIInterface {
    * @private
    */
   private mapToolChoice(
-    toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } }
+    toolChoice?:
+      | 'auto'
+      | 'none'
+      | { type: 'function'; function: { name: string } },
   ): OpenAI.Chat.ChatCompletionToolChoiceOption | undefined {
     if (!toolChoice) return undefined;
     if (typeof toolChoice === 'string') return toolChoice;
@@ -380,7 +421,12 @@ export class OpenAIProvider implements AIInterface {
    * @returns Internal token usage object or undefined
    * @private
    */
-  private mapUsage(usage?: OpenAI.CompletionUsage | OpenAI.Completions.CompletionUsage | OpenAI.Embeddings.CreateEmbeddingResponse.Usage): TokenUsage | undefined {
+  private mapUsage(
+    usage?:
+      | OpenAI.CompletionUsage
+      | OpenAI.Completions.CompletionUsage
+      | OpenAI.Embeddings.CreateEmbeddingResponse.Usage,
+  ): TokenUsage | undefined {
     if (!usage) return undefined;
     return {
       promptTokens: usage.prompt_tokens || 0,
@@ -397,12 +443,18 @@ export class OpenAIProvider implements AIInterface {
    */
   private mapFinishReason(reason: string | null): AIResponse['finishReason'] {
     switch (reason) {
-      case 'stop': return 'stop';
-      case 'length': return 'length';
-      case 'function_call': return 'function_call';
-      case 'tool_calls': return 'tool_calls';
-      case 'content_filter': return 'content_filter';
-      default: return 'stop';
+      case 'stop':
+        return 'stop';
+      case 'length':
+        return 'length';
+      case 'function_call':
+        return 'function_call';
+      case 'tool_calls':
+        return 'tool_calls';
+      case 'content_filter':
+        return 'content_filter';
+      default:
+        return 'stop';
     }
   }
 
@@ -451,11 +503,14 @@ export class OpenAIProvider implements AIInterface {
       switch (error.status) {
         case 401:
           return new AuthenticationError('openai');
-        case 429:
+        case 429: {
           // Try to extract retry-after from headers
           const retryAfter = error.headers?.['retry-after'];
-          const retryAfterSeconds = retryAfter ? parseInt(retryAfter, 10) : undefined;
+          const retryAfterSeconds = retryAfter
+            ? parseInt(retryAfter, 10)
+            : undefined;
           return new RateLimitError('openai', retryAfterSeconds);
+        }
         case 404:
           return new ModelNotFoundError(error.message, 'openai');
         case 413:
@@ -467,12 +522,13 @@ export class OpenAIProvider implements AIInterface {
           return new AIError(error.message, 'API_ERROR', 'openai');
       }
     }
-    
+
     if (error instanceof AIError) {
       return error;
     }
-    
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+
+    const errorMessage =
+      error instanceof Error ? error.message : 'Unknown error occurred';
     return new AIError(errorMessage, 'UNKNOWN_ERROR', 'openai');
   }
 }

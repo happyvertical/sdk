@@ -43,7 +43,7 @@ export interface SmartObjectConfig {
    * Custom name for the object (defaults to class name)
    */
   name?: string;
-  
+
   /**
    * API configuration
    */
@@ -52,17 +52,17 @@ export interface SmartObjectConfig {
      * Exclude specific endpoints
      */
     exclude?: ('list' | 'get' | 'create' | 'update' | 'delete')[];
-    
+
     /**
      * Include only specific endpoints
      */
     include?: ('list' | 'get' | 'create' | 'update' | 'delete')[];
-    
+
     /**
      * Custom middleware for this object's endpoints
      */
     middleware?: any[];
-    
+
     /**
      * Custom endpoint handlers
      */
@@ -74,7 +74,7 @@ export interface SmartObjectConfig {
       delete?: (req: any, collection: any) => Promise<any>;
     };
   };
-  
+
   /**
    * MCP server configuration
    */
@@ -83,28 +83,30 @@ export interface SmartObjectConfig {
      * Include specific tools
      */
     include?: ('list' | 'get' | 'create' | 'update' | 'delete')[];
-    
+
     /**
      * Exclude specific tools
      */
     exclude?: ('list' | 'get' | 'create' | 'update' | 'delete')[];
   };
-  
+
   /**
    * CLI configuration
    */
-  cli?: boolean | {
-    /**
-     * Include specific commands
-     */
-    include?: ('list' | 'get' | 'create' | 'update' | 'delete')[];
-    
-    /**
-     * Exclude specific commands
-     */
-    exclude?: ('list' | 'get' | 'create' | 'update' | 'delete')[];
-  };
-  
+  cli?:
+    | boolean
+    | {
+        /**
+         * Include specific commands
+         */
+        include?: ('list' | 'get' | 'create' | 'update' | 'delete')[];
+
+        /**
+         * Exclude specific commands
+         */
+        exclude?: ('list' | 'get' | 'create' | 'update' | 'delete')[];
+      };
+
   /**
    * Lifecycle hooks
    */
@@ -140,7 +142,7 @@ interface RegisteredClass {
 export class ObjectRegistry {
   private static classes = new Map<string, RegisteredClass>();
   private static collections = new Map<string, typeof BaseCollection>();
-  
+
   /**
    * Register a new SMRT object class with the global registry
    *
@@ -158,23 +160,23 @@ export class ObjectRegistry {
    */
   static register(
     constructor: typeof BaseObject,
-    config: SmartObjectConfig = {}
+    config: SmartObjectConfig = {},
   ): void {
     const name = config.name || constructor.name;
-    
+
     // Extract field definitions from the class
-    const fields = this.extractFields(constructor);
-    
-    this.classes.set(name, {
+    const fields = ObjectRegistry.extractFields(constructor);
+
+    ObjectRegistry.classes.set(name, {
       name,
       constructor,
       config,
-      fields
+      fields,
     });
-    
+
     console.log(`🎯 Registered smrt object: ${name}`);
   }
-  
+
   /**
    * Register a collection class for an object
    *
@@ -187,16 +189,16 @@ export class ObjectRegistry {
    */
   static registerCollection(
     objectName: string,
-    collectionConstructor: typeof BaseCollection
+    collectionConstructor: typeof BaseCollection,
   ): void {
-    const registered = this.classes.get(objectName);
+    const registered = ObjectRegistry.classes.get(objectName);
     if (registered) {
       registered.collectionConstructor = collectionConstructor;
     }
-    
-    this.collections.set(objectName, collectionConstructor);
+
+    ObjectRegistry.collections.set(objectName, collectionConstructor);
   }
-  
+
   /**
    * Get a registered class by name
    *
@@ -211,9 +213,9 @@ export class ObjectRegistry {
    * ```
    */
   static getClass(name: string): RegisteredClass | undefined {
-    return this.classes.get(name);
+    return ObjectRegistry.classes.get(name);
   }
-  
+
   /**
    * Get all registered classes
    *
@@ -227,43 +229,47 @@ export class ObjectRegistry {
    * ```
    */
   static getAllClasses(): Map<string, RegisteredClass> {
-    return new Map(this.classes);
+    return new Map(ObjectRegistry.classes);
   }
-  
+
   /**
    * Get class names
    */
   static getClassNames(): string[] {
-    return Array.from(this.classes.keys());
+    return Array.from(ObjectRegistry.classes.keys());
   }
-  
+
   /**
    * Check if a class is registered
    */
   static hasClass(name: string): boolean {
-    return this.classes.has(name);
+    return ObjectRegistry.classes.has(name);
   }
-  
+
   /**
    * Clear all registered classes (mainly for testing)
    */
   static clear(): void {
-    this.classes.clear();
-    this.collections.clear();
+    ObjectRegistry.classes.clear();
+    ObjectRegistry.collections.clear();
   }
-  
+
   /**
    * Extract field definitions from a class constructor
    */
-  private static extractFields(constructor: typeof BaseObject): Map<string, any> {
+  private static extractFields(
+    constructor: typeof BaseObject,
+  ): Map<string, any> {
     const fields = new Map();
-    
+
     try {
-      // Create a temporary instance to inspect field definitions  
+      // Create a temporary instance to inspect field definitions
       const tempInstance = new (constructor as any)({
-        db: null, ai: null, fs: null
+        db: null,
+        ai: null,
+        fs: null,
       });
-      
+
       // Look for Field instances on the instance
       for (const key of Object.getOwnPropertyNames(tempInstance)) {
         const value = tempInstance[key];
@@ -271,51 +277,61 @@ export class ObjectRegistry {
           fields.set(key, value);
         }
       }
-      
+
       // Also check the prototype for field definitions
       const proto = Object.getPrototypeOf(tempInstance);
-      const descriptors = Object.getOwnPropertyDescriptors(proto.constructor.prototype);
-      
+      const descriptors = Object.getOwnPropertyDescriptors(
+        proto.constructor.prototype,
+      );
+
       for (const [key, descriptor] of Object.entries(descriptors)) {
-        if (descriptor.value && typeof descriptor.value === 'object' && descriptor.value.type) {
+        if (
+          descriptor.value &&
+          typeof descriptor.value === 'object' &&
+          descriptor.value.type
+        ) {
           fields.set(key, descriptor.value);
         }
       }
-      
+
       // Check static field definitions if they exist
       if ((constructor as any).fields) {
-        for (const [key, field] of Object.entries((constructor as any).fields)) {
+        for (const [key, field] of Object.entries(
+          (constructor as any).fields,
+        )) {
           fields.set(key, field);
         }
       }
     } catch (error) {
-      console.warn(`Warning: Could not extract fields from ${constructor.name}:`, error);
+      console.warn(
+        `Warning: Could not extract fields from ${constructor.name}:`,
+        error,
+      );
     }
-    
+
     return fields;
   }
-  
+
   /**
    * Get field definitions for a registered class
    */
   static getFields(name: string): Map<string, any> {
-    const registered = this.classes.get(name);
+    const registered = ObjectRegistry.classes.get(name);
     return registered ? registered.fields : new Map();
   }
-  
+
   /**
    * Get configuration for a registered class
    */
   static getConfig(name: string): SmartObjectConfig {
-    const registered = this.classes.get(name);
+    const registered = ObjectRegistry.classes.get(name);
     return registered ? registered.config : {};
   }
-
 }
 
 /**
  * @smrt decorator for registering classes with the global registry
- * 
+ *
  * @example
  * ```typescript
  * @smrt()
@@ -323,7 +339,7 @@ export class ObjectRegistry {
  *   name = text({ required: true });
  *   price = decimal({ min: 0 });
  * }
- * 
+ *
  * @smrt({ api: { exclude: ['delete'] } })
  * class SensitiveData extends BaseObject {
  *   secret = text({ encrypted: true });
@@ -331,7 +347,7 @@ export class ObjectRegistry {
  * ```
  */
 export function smrt(config: SmartObjectConfig = {}) {
-  return function <T extends typeof BaseObject>(constructor: T): T {
+  return <T extends typeof BaseObject>(constructor: T): T => {
     ObjectRegistry.register(constructor, config);
     return constructor;
   };

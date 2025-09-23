@@ -43,11 +43,11 @@ export class TestDataFactory {
   private static idCounter = 1;
 
   static generateId(): string {
-    return `test-${this.idCounter++}`;
+    return `test-${TestDataFactory.idCounter++}`;
   }
 
   static generateTestUser(overrides: Partial<MockObject> = {}): MockObject {
-    const id = this.generateId();
+    const id = TestDataFactory.generateId();
     return {
       id,
       slug: `user-${id}`,
@@ -58,14 +58,14 @@ export class TestDataFactory {
       created_at: '2023-01-01T00:00:00Z',
       updated_at: '2023-01-01T00:00:00Z',
       ...overrides,
-      save: vi.fn().mockResolvedValue(this),
+      save: vi.fn().mockResolvedValue(TestDataFactory),
       delete: vi.fn().mockResolvedValue(undefined),
-      initialize: vi.fn().mockResolvedValue(undefined)
+      initialize: vi.fn().mockResolvedValue(undefined),
     };
   }
 
   static generateTestProduct(overrides: Partial<MockObject> = {}): MockObject {
-    const id = this.generateId();
+    const id = TestDataFactory.generateId();
     return {
       id,
       slug: `product-${id}`,
@@ -75,9 +75,9 @@ export class TestDataFactory {
       created_at: '2023-01-01T00:00:00Z',
       updated_at: '2023-01-01T00:00:00Z',
       ...overrides,
-      save: vi.fn().mockResolvedValue(this),
+      save: vi.fn().mockResolvedValue(TestDataFactory),
       delete: vi.fn().mockResolvedValue(undefined),
-      initialize: vi.fn().mockResolvedValue(undefined)
+      initialize: vi.fn().mockResolvedValue(undefined),
     };
   }
 
@@ -87,12 +87,14 @@ export class TestDataFactory {
   static generateMultiple<T extends MockObject>(
     generator: (overrides?: Partial<T>) => T,
     count: number,
-    overrides: Partial<T> = {}
+    overrides: Partial<T> = {},
   ): T[] {
-    return Array.from({ length: count }, (_, i) => generator({
-      ...overrides,
-      id: this.generateId()
-    }));
+    return Array.from({ length: count }, (_, i) =>
+      generator({
+        ...overrides,
+        id: TestDataFactory.generateId(),
+      }),
+    );
   }
 }
 
@@ -105,10 +107,13 @@ export class MockCollectionFactory {
   /**
    * Create a mock collection with realistic behavior
    */
-  createMockCollection(objectType: 'user' | 'product' = 'user'): MockCollection {
-    const generator = objectType === 'user'
-      ? TestDataFactory.generateTestUser
-      : TestDataFactory.generateTestProduct;
+  createMockCollection(
+    objectType: 'user' | 'product' = 'user',
+  ): MockCollection {
+    const generator =
+      objectType === 'user'
+        ? TestDataFactory.generateTestUser
+        : TestDataFactory.generateTestProduct;
 
     // Pre-populate with some test data
     for (let i = 0; i < 3; i++) {
@@ -122,30 +127,37 @@ export class MockCollectionFactory {
 
         // Apply where filters
         if (options.where) {
-          results = results.filter(obj => {
-            return Object.entries(options.where).every(([key, value]: [string, any]) => {
-              if (key.includes(' >')) {
-                const field = key.replace(' >', '');
-                return obj[field] > (value as number);
-              }
-              if (key.includes(' <')) {
-                const field = key.replace(' <', '');
-                return obj[field] < (value as number);
-              }
-              if (key.includes(' >=')) {
-                const field = key.replace(' >=', '');
-                return obj[field] >= (value as number);
-              }
-              if (key.includes(' like')) {
-                const field = key.replace(' like', '');
-                return obj[field]?.toString().includes((value as string).replace(/%/g, ''));
-              }
-              if (key.includes(' in')) {
-                const field = key.replace(' in', '');
-                return Array.isArray(value) && (value as any[]).includes(obj[field]);
-              }
-              return obj[key] === value;
-            });
+          results = results.filter((obj) => {
+            return Object.entries(options.where).every(
+              ([key, value]: [string, any]) => {
+                if (key.includes(' >')) {
+                  const field = key.replace(' >', '');
+                  return obj[field] > (value as number);
+                }
+                if (key.includes(' <')) {
+                  const field = key.replace(' <', '');
+                  return obj[field] < (value as number);
+                }
+                if (key.includes(' >=')) {
+                  const field = key.replace(' >=', '');
+                  return obj[field] >= (value as number);
+                }
+                if (key.includes(' like')) {
+                  const field = key.replace(' like', '');
+                  return obj[field]
+                    ?.toString()
+                    .includes((value as string).replace(/%/g, ''));
+                }
+                if (key.includes(' in')) {
+                  const field = key.replace(' in', '');
+                  return (
+                    Array.isArray(value) &&
+                    (value as any[]).includes(obj[field])
+                  );
+                }
+                return obj[key] === value;
+              },
+            );
           });
         }
 
@@ -181,7 +193,11 @@ export class MockCollectionFactory {
         if (!existing) {
           throw new Error(`Object with id ${id} not found`);
         }
-        const updated = { ...existing, ...data, updated_at: new Date().toISOString() };
+        const updated = {
+          ...existing,
+          ...data,
+          updated_at: new Date().toISOString(),
+        };
         this.storage.set(id, updated);
         return updated;
       }),
@@ -198,7 +214,7 @@ export class MockCollectionFactory {
       save: vi.fn().mockImplementation(async (object: MockObject) => {
         this.storage.set(object.id, object);
         return object;
-      })
+      }),
     };
   }
 
@@ -233,19 +249,19 @@ export class MockContextFactory {
         close: vi.fn().mockResolvedValue(undefined),
         type: 'sqlite',
         database: ':memory:',
-        ...overrides.db
+        ...overrides.db,
       },
       ai: {
         message: vi.fn().mockResolvedValue('AI response'),
-        ...overrides.ai
+        ...overrides.ai,
       },
       user: {
         id: 'test-user-123',
         username: 'testuser',
         roles: ['admin'],
-        ...overrides.user
+        ...overrides.user,
       },
-      ...overrides
+      ...overrides,
     };
   }
 
@@ -255,7 +271,7 @@ export class MockContextFactory {
   createMockCollections() {
     return {
       TestUser: this.collectionFactory.createMockCollection('user'),
-      TestProduct: this.collectionFactory.createMockCollection('product')
+      TestProduct: this.collectionFactory.createMockCollection('product'),
     };
   }
 
@@ -281,9 +297,9 @@ export class TestSetup {
     process.env.NODE_ENV = 'test';
 
     return {
-      mockContext: this.mockFactory.createMockContext(),
-      mockCollections: this.mockFactory.createMockCollections(),
-      cleanup: () => this.mockFactory.clear()
+      mockContext: TestSetup.mockFactory.createMockContext(),
+      mockCollections: TestSetup.mockFactory.createMockCollections(),
+      cleanup: () => TestSetup.mockFactory.clear(),
     };
   }
 
@@ -292,7 +308,8 @@ export class TestSetup {
    */
   static mockCollectionConstructors(mockCollections: any) {
     return vi.fn().mockImplementation((options: any) => {
-      const mockCollection = mockCollections.TestUser || mockCollections.TestProduct;
+      const mockCollection =
+        mockCollections.TestUser || mockCollections.TestProduct;
       // Add context options to mock if needed
       if (options) {
         Object.assign(mockCollection, options);
@@ -305,9 +322,10 @@ export class TestSetup {
    * Create realistic database query responses
    */
   static createDatabaseResponses(objectType: 'user' | 'product' = 'user') {
-    const generator = objectType === 'user'
-      ? TestDataFactory.generateTestUser
-      : TestDataFactory.generateTestProduct;
+    const generator =
+      objectType === 'user'
+        ? TestDataFactory.generateTestUser
+        : TestDataFactory.generateTestProduct;
 
     return {
       list: { rows: TestDataFactory.generateMultiple(generator, 3) },
@@ -315,7 +333,7 @@ export class TestSetup {
       create: { rows: [generator()] },
       update: { rows: [generator()] },
       delete: { rows: [] },
-      empty: { rows: [] }
+      empty: { rows: [] },
     };
   }
 }
