@@ -16,7 +16,7 @@
     onChange?: (data: ProductData) => void;
   }
 
-  let {
+  const {
     data = {},
     title = 'Product Information',
     submitLabel = 'Save',

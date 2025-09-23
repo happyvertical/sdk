@@ -15,7 +15,7 @@ import { PDFDependencyError, PDFUnsupportedError } from '../shared/types.js';
 
 /**
  * PDF reader implementation using PDF.js for browser environments
- * 
+ *
  * This provider handles:
  * - Text extraction from PDF files in the browser
  * - Basic metadata extraction
@@ -42,12 +42,18 @@ export class PDFJSProvider extends BasePDFReader {
     try {
       // Try to load PDF.js from CDN or local installation
       // This is a placeholder - actual implementation would depend on how PDF.js is loaded
-      if (typeof globalThis !== 'undefined' && (globalThis as any).window && (globalThis as any).window.pdfjsLib) {
+      if (
+        typeof globalThis !== 'undefined' &&
+        (globalThis as any).window &&
+        (globalThis as any).window.pdfjsLib
+      ) {
         this.pdfjs = (globalThis as any).window.pdfjsLib;
       } else {
-        throw new Error('PDF.js library not found. Please include PDF.js in your project.');
+        throw new Error(
+          'PDF.js library not found. Please include PDF.js in your project.',
+        );
       }
-      
+
       return this.pdfjs;
     } catch (error) {
       throw new PDFDependencyError('PDF.js', (error as Error).message);
@@ -59,7 +65,7 @@ export class PDFJSProvider extends BasePDFReader {
    */
   async extractText(
     source: PDFSource,
-    options?: ExtractTextOptions
+    options?: ExtractTextOptions,
   ): Promise<string | null> {
     try {
       const pdfjs = await this.loadPDFJS();
@@ -75,35 +81,38 @@ export class PDFJSProvider extends BasePDFReader {
 
       // Normalize pages to extract
       const pagesToExtract = this.normalizePages(options?.pages, totalPages);
-      
+
       if (pagesToExtract.length === 0) {
         return null;
       }
 
       // Extract text from specified pages
       const pageTexts: string[] = [];
-      
+
       for (const pageNum of pagesToExtract) {
         try {
           const page = await pdf.getPage(pageNum);
           const textContent = await page.getTextContent();
-          
+
           // Combine text items into a single string
           const pageText = textContent.items
             .map((item: any) => item.str || '')
             .join(' ')
             .trim();
-            
+
           pageTexts.push(pageText);
         } catch (pageError) {
-          console.warn(`Failed to extract text from page ${pageNum}:`, pageError);
+          console.warn(
+            `Failed to extract text from page ${pageNum}:`,
+            pageError,
+          );
           pageTexts.push(''); // Add empty string to maintain page order
         }
       }
 
       // Merge page texts according to options
       const mergedText = this.mergePageTexts(pageTexts, options?.mergePages);
-      
+
       return mergedText || null;
     } catch (error) {
       console.error('PDF.js text extraction failed:', error);
@@ -124,15 +133,19 @@ export class PDFJSProvider extends BasePDFReader {
       }
       const pdf = await pdfjs.getDocument({ data: typedArray }).promise;
       const metadata = await pdf.getMetadata();
-      
+
       return {
         pageCount: pdf.numPages,
         title: metadata?.info?.Title || undefined,
         author: metadata?.info?.Author || undefined,
         subject: metadata?.info?.Subject || undefined,
         keywords: metadata?.info?.Keywords || undefined,
-        creationDate: metadata?.info?.CreationDate ? new Date(metadata.info.CreationDate) : undefined,
-        modificationDate: metadata?.info?.ModDate ? new Date(metadata.info.ModDate) : undefined,
+        creationDate: metadata?.info?.CreationDate
+          ? new Date(metadata.info.CreationDate)
+          : undefined,
+        modificationDate: metadata?.info?.ModDate
+          ? new Date(metadata.info.ModDate)
+          : undefined,
         version: metadata?.info?.PDFFormatVersion || undefined,
         creator: metadata?.info?.Creator || undefined,
         producer: metadata?.info?.Producer || undefined,
@@ -173,7 +186,7 @@ export class PDFJSProvider extends BasePDFReader {
         try {
           const page = await pdf.getPage(pageNum);
           const operators = await page.getOperatorList();
-          
+
           // This is a simplified implementation - PDF.js doesn't have
           // a direct equivalent to unpdf's extractImages function
           // In a real implementation, you'd need to parse the operator list
@@ -181,11 +194,14 @@ export class PDFJSProvider extends BasePDFReader {
 
           // PDF.js has limited image extraction capabilities in browsers
           // For browser environments, users should rely on OCR fallback
-          throw new PDFUnsupportedError('extractImages (PDF.js browser image extraction has limited capabilities - use OCR fallback)');
-          
+          throw new PDFUnsupportedError(
+            'extractImages (PDF.js browser image extraction has limited capabilities - use OCR fallback)',
+          );
         } catch (pageError) {
-          console.warn(`Failed to extract images from page ${pageNum}:`, pageError);
-          continue;
+          console.warn(
+            `Failed to extract images from page ${pageNum}:`,
+            pageError,
+          );
         }
       }
 
@@ -201,7 +217,7 @@ export class PDFJSProvider extends BasePDFReader {
    */
   async checkCapabilities(): Promise<PDFCapabilities> {
     const deps = await this.checkDependencies();
-    
+
     return {
       canExtractText: deps.available,
       canExtractMetadata: deps.available,
@@ -239,7 +255,9 @@ export class PDFJSProvider extends BasePDFReader {
   /**
    * Get quick information about a PDF document
    */
-  async getInfo(source: PDFSource): Promise<import('../shared/types.js').PDFInfo> {
+  async getInfo(
+    source: PDFSource,
+  ): Promise<import('../shared/types.js').PDFInfo> {
     try {
       const metadata = await this.extractMetadata(source);
 

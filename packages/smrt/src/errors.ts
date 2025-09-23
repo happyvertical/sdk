@@ -10,7 +10,14 @@
  */
 export abstract class SmrtError extends Error {
   public readonly code: string;
-  public readonly category: 'database' | 'ai' | 'filesystem' | 'validation' | 'network' | 'configuration' | 'runtime';
+  public readonly category:
+    | 'database'
+    | 'ai'
+    | 'filesystem'
+    | 'validation'
+    | 'network'
+    | 'configuration'
+    | 'runtime';
   public readonly details?: Record<string, any>;
   public readonly cause?: Error;
 
@@ -19,7 +26,7 @@ export abstract class SmrtError extends Error {
     code: string,
     category: SmrtError['category'],
     details?: Record<string, any>,
-    cause?: Error
+    cause?: Error,
   ) {
     super(message);
     this.name = this.constructor.name;
@@ -45,11 +52,13 @@ export abstract class SmrtError extends Error {
       category: this.category,
       details: this.details,
       stack: this.stack,
-      cause: this.cause ? {
-        name: this.cause.name,
-        message: this.cause.message,
-        stack: this.cause.stack
-      } : undefined
+      cause: this.cause
+        ? {
+            name: this.cause.name,
+            message: this.cause.message,
+            stack: this.cause.stack,
+          }
+        : undefined,
     };
   }
 }
@@ -58,7 +67,12 @@ export abstract class SmrtError extends Error {
  * Database-related errors
  */
 export class DatabaseError extends SmrtError {
-  constructor(message: string, code: string, details?: Record<string, any>, cause?: Error) {
+  constructor(
+    message: string,
+    code: string,
+    details?: Record<string, any>,
+    cause?: Error,
+  ) {
     super(message, code, 'database', details, cause);
   }
 
@@ -67,7 +81,7 @@ export class DatabaseError extends SmrtError {
       `Failed to connect to database: ${dbUrl}`,
       'DB_CONNECTION_FAILED',
       { dbUrl },
-      cause
+      cause,
     );
   }
 
@@ -76,25 +90,33 @@ export class DatabaseError extends SmrtError {
       `Database query failed: ${query.substring(0, 100)}${query.length > 100 ? '...' : ''}`,
       'DB_QUERY_FAILED',
       { query },
-      cause
+      cause,
     );
   }
 
-  static schemaError(tableName: string, operation: string, cause?: Error): DatabaseError {
+  static schemaError(
+    tableName: string,
+    operation: string,
+    cause?: Error,
+  ): DatabaseError {
     return new DatabaseError(
       `Schema operation failed for table '${tableName}': ${operation}`,
       'DB_SCHEMA_ERROR',
       { tableName, operation },
-      cause
+      cause,
     );
   }
 
-  static constraintViolation(constraint: string, value: any, cause?: Error): DatabaseError {
+  static constraintViolation(
+    constraint: string,
+    value: any,
+    cause?: Error,
+  ): DatabaseError {
     return new DatabaseError(
       `Database constraint violation: ${constraint}`,
       'DB_CONSTRAINT_VIOLATION',
       { constraint, value },
-      cause
+      cause,
     );
   }
 }
@@ -103,16 +125,25 @@ export class DatabaseError extends SmrtError {
  * AI integration errors
  */
 export class AIError extends SmrtError {
-  constructor(message: string, code: string, details?: Record<string, any>, cause?: Error) {
+  constructor(
+    message: string,
+    code: string,
+    details?: Record<string, any>,
+    cause?: Error,
+  ) {
     super(message, code, 'ai', details, cause);
   }
 
-  static providerError(provider: string, operation: string, cause?: Error): AIError {
+  static providerError(
+    provider: string,
+    operation: string,
+    cause?: Error,
+  ): AIError {
     return new AIError(
       `AI provider '${provider}' failed during ${operation}`,
       'AI_PROVIDER_ERROR',
       { provider, operation },
-      cause
+      cause,
     );
   }
 
@@ -120,7 +151,7 @@ export class AIError extends SmrtError {
     return new AIError(
       `AI provider '${provider}' rate limit exceeded`,
       'AI_RATE_LIMIT',
-      { provider, retryAfter }
+      { provider, retryAfter },
     );
   }
 
@@ -128,7 +159,7 @@ export class AIError extends SmrtError {
     return new AIError(
       `AI provider '${provider}' returned invalid response`,
       'AI_INVALID_RESPONSE',
-      { provider, response }
+      { provider, response },
     );
   }
 
@@ -136,7 +167,7 @@ export class AIError extends SmrtError {
     return new AIError(
       `AI provider '${provider}' authentication failed`,
       'AI_AUTH_FAILED',
-      { provider }
+      { provider },
     );
   }
 }
@@ -145,31 +176,37 @@ export class AIError extends SmrtError {
  * Filesystem operation errors
  */
 export class FilesystemError extends SmrtError {
-  constructor(message: string, code: string, details?: Record<string, any>, cause?: Error) {
+  constructor(
+    message: string,
+    code: string,
+    details?: Record<string, any>,
+    cause?: Error,
+  ) {
     super(message, code, 'filesystem', details, cause);
   }
 
   static fileNotFound(path: string): FilesystemError {
-    return new FilesystemError(
-      `File not found: ${path}`,
-      'FS_FILE_NOT_FOUND',
-      { path }
-    );
+    return new FilesystemError(`File not found: ${path}`, 'FS_FILE_NOT_FOUND', {
+      path,
+    });
   }
 
   static permissionDenied(path: string, operation: string): FilesystemError {
     return new FilesystemError(
       `Permission denied for ${operation} on: ${path}`,
       'FS_PERMISSION_DENIED',
-      { path, operation }
+      { path, operation },
     );
   }
 
-  static diskSpaceExceeded(path: string, requiredBytes: number): FilesystemError {
+  static diskSpaceExceeded(
+    path: string,
+    requiredBytes: number,
+  ): FilesystemError {
     return new FilesystemError(
       `Insufficient disk space for operation on: ${path}`,
       'FS_DISK_SPACE_EXCEEDED',
-      { path, requiredBytes }
+      { path, requiredBytes },
     );
   }
 }
@@ -178,7 +215,12 @@ export class FilesystemError extends SmrtError {
  * Data validation errors
  */
 export class ValidationError extends SmrtError {
-  constructor(message: string, code: string, details?: Record<string, any>, cause?: Error) {
+  constructor(
+    message: string,
+    code: string,
+    details?: Record<string, any>,
+    cause?: Error,
+  ) {
     super(message, code, 'validation', details, cause);
   }
 
@@ -186,15 +228,19 @@ export class ValidationError extends SmrtError {
     return new ValidationError(
       `Required field '${fieldName}' is missing for ${objectType}`,
       'VALIDATION_REQUIRED_FIELD',
-      { fieldName, objectType }
+      { fieldName, objectType },
     );
   }
 
-  static invalidValue(fieldName: string, value: any, expectedType: string): ValidationError {
+  static invalidValue(
+    fieldName: string,
+    value: any,
+    expectedType: string,
+  ): ValidationError {
     return new ValidationError(
       `Invalid value for field '${fieldName}': expected ${expectedType}, got ${typeof value}`,
       'VALIDATION_INVALID_VALUE',
-      { fieldName, value, expectedType }
+      { fieldName, value, expectedType },
     );
   }
 
@@ -202,21 +248,27 @@ export class ValidationError extends SmrtError {
     return new ValidationError(
       `Unique constraint violation for field '${fieldName}' with value: ${value}`,
       'VALIDATION_UNIQUE_CONSTRAINT',
-      { fieldName, value }
+      { fieldName, value },
     );
   }
 
-  static rangeError(fieldName: string, value: number, min?: number, max?: number): ValidationError {
-    const range = min !== undefined && max !== undefined
-      ? `between ${min} and ${max}`
-      : min !== undefined
-        ? `>= ${min}`
-        : `<= ${max}`;
+  static rangeError(
+    fieldName: string,
+    value: number,
+    min?: number,
+    max?: number,
+  ): ValidationError {
+    const range =
+      min !== undefined && max !== undefined
+        ? `between ${min} and ${max}`
+        : min !== undefined
+          ? `>= ${min}`
+          : `<= ${max}`;
 
     return new ValidationError(
       `Value for field '${fieldName}' must be ${range}, got: ${value}`,
       'VALIDATION_RANGE_ERROR',
-      { fieldName, value, min, max }
+      { fieldName, value, min, max },
     );
   }
 }
@@ -225,16 +277,25 @@ export class ValidationError extends SmrtError {
  * Network and external service errors
  */
 export class NetworkError extends SmrtError {
-  constructor(message: string, code: string, details?: Record<string, any>, cause?: Error) {
+  constructor(
+    message: string,
+    code: string,
+    details?: Record<string, any>,
+    cause?: Error,
+  ) {
     super(message, code, 'network', details, cause);
   }
 
-  static requestFailed(url: string, status?: number, cause?: Error): NetworkError {
+  static requestFailed(
+    url: string,
+    status?: number,
+    cause?: Error,
+  ): NetworkError {
     return new NetworkError(
       `Network request failed: ${url}${status ? ` (Status: ${status})` : ''}`,
       'NETWORK_REQUEST_FAILED',
       { url, status },
-      cause
+      cause,
     );
   }
 
@@ -242,7 +303,7 @@ export class NetworkError extends SmrtError {
     return new NetworkError(
       `Network request timed out after ${timeoutMs}ms: ${url}`,
       'NETWORK_TIMEOUT',
-      { url, timeoutMs }
+      { url, timeoutMs },
     );
   }
 
@@ -250,7 +311,7 @@ export class NetworkError extends SmrtError {
     return new NetworkError(
       `External service unavailable: ${service}`,
       'NETWORK_SERVICE_UNAVAILABLE',
-      { service }
+      { service },
     );
   }
 }
@@ -259,32 +320,47 @@ export class NetworkError extends SmrtError {
  * Configuration and setup errors
  */
 export class ConfigurationError extends SmrtError {
-  constructor(message: string, code: string, details?: Record<string, any>, cause?: Error) {
+  constructor(
+    message: string,
+    code: string,
+    details?: Record<string, any>,
+    cause?: Error,
+  ) {
     super(message, code, 'configuration', details, cause);
   }
 
-  static missingConfiguration(configKey: string, context?: string): ConfigurationError {
+  static missingConfiguration(
+    configKey: string,
+    context?: string,
+  ): ConfigurationError {
     return new ConfigurationError(
       `Missing required configuration: ${configKey}${context ? ` in ${context}` : ''}`,
       'CONFIG_MISSING',
-      { configKey, context }
+      { configKey, context },
     );
   }
 
-  static invalidConfiguration(configKey: string, value: any, expected: string): ConfigurationError {
+  static invalidConfiguration(
+    configKey: string,
+    value: any,
+    expected: string,
+  ): ConfigurationError {
     return new ConfigurationError(
       `Invalid configuration for ${configKey}: expected ${expected}, got ${typeof value}`,
       'CONFIG_INVALID',
-      { configKey, value, expected }
+      { configKey, value, expected },
     );
   }
 
-  static initializationFailed(component: string, cause?: Error): ConfigurationError {
+  static initializationFailed(
+    component: string,
+    cause?: Error,
+  ): ConfigurationError {
     return new ConfigurationError(
       `Failed to initialize component: ${component}`,
       'CONFIG_INIT_FAILED',
       { component },
-      cause
+      cause,
     );
   }
 }
@@ -293,16 +369,25 @@ export class ConfigurationError extends SmrtError {
  * Runtime execution errors
  */
 export class RuntimeError extends SmrtError {
-  constructor(message: string, code: string, details?: Record<string, any>, cause?: Error) {
+  constructor(
+    message: string,
+    code: string,
+    details?: Record<string, any>,
+    cause?: Error,
+  ) {
     super(message, code, 'runtime', details, cause);
   }
 
-  static operationFailed(operation: string, context?: string, cause?: Error): RuntimeError {
+  static operationFailed(
+    operation: string,
+    context?: string,
+    cause?: Error,
+  ): RuntimeError {
     return new RuntimeError(
       `Operation failed: ${operation}${context ? ` in ${context}` : ''}`,
       'RUNTIME_OPERATION_FAILED',
       { operation, context },
-      cause
+      cause,
     );
   }
 
@@ -310,7 +395,7 @@ export class RuntimeError extends SmrtError {
     return new RuntimeError(
       `Invalid state: expected '${expected}', got '${state}'`,
       'RUNTIME_INVALID_STATE',
-      { state, expected }
+      { state, expected },
     );
   }
 
@@ -318,7 +403,7 @@ export class RuntimeError extends SmrtError {
     return new RuntimeError(
       `Resource exhausted: ${resource} exceeded limit of ${limit}`,
       'RUNTIME_RESOURCE_EXHAUSTED',
-      { resource, limit }
+      { resource, limit },
     );
   }
 }
@@ -334,7 +419,7 @@ export class ErrorUtils {
     operation: () => Promise<T>,
     maxRetries: number = 3,
     delay: number = 1000,
-    backoffMultiplier: number = 2
+    backoffMultiplier: number = 2,
   ): Promise<T> {
     let lastError: Error;
 
@@ -349,12 +434,17 @@ export class ErrorUtils {
         }
 
         // Skip retry for certain error types
-        if (error instanceof ValidationError || error instanceof ConfigurationError) {
+        if (
+          error instanceof ValidationError ||
+          error instanceof ConfigurationError
+        ) {
           throw error;
         }
 
         // Wait before retrying with exponential backoff
-        await new Promise(resolve => setTimeout(resolve, delay * Math.pow(backoffMultiplier, attempt)));
+        await new Promise((resolve) =>
+          setTimeout(resolve, delay * backoffMultiplier ** attempt),
+        );
       }
     }
 
@@ -378,10 +468,10 @@ export class ErrorUtils {
       /timeout/i,
       /503/,
       /502/,
-      /500/
+      /500/,
     ];
 
-    return retryablePatterns.some(pattern => pattern.test(error.message));
+    return retryablePatterns.some((pattern) => pattern.test(error.message));
   }
 
   /**
@@ -391,7 +481,7 @@ export class ErrorUtils {
     const sanitized: Record<string, any> = {
       name: error.name,
       message: error.message,
-      stack: error.stack
+      stack: error.stack,
     };
 
     if (error instanceof SmrtError) {
@@ -403,7 +493,13 @@ export class ErrorUtils {
         sanitized.details = { ...error.details };
 
         // Remove common sensitive fields
-        const sensitiveFields = ['password', 'token', 'key', 'secret', 'apiKey'];
+        const sensitiveFields = [
+          'password',
+          'token',
+          'key',
+          'secret',
+          'apiKey',
+        ];
         for (const field of sensitiveFields) {
           if (sanitized.details[field]) {
             sanitized.details[field] = '[REDACTED]';

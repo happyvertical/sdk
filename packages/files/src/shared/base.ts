@@ -1,18 +1,18 @@
-import { 
-  FilesystemInterface, 
-  BaseProviderOptions, 
-  FilesystemCapabilities,
-  CacheOptions,
+import {
+  type FilesystemInterface,
+  type BaseProviderOptions,
+  type FilesystemCapabilities,
+  type CacheOptions,
   FilesystemError,
-  FileStats,
-  ListFilesOptions,
-  ReadOptions,
-  WriteOptions,
-  CreateDirOptions,
-  ListOptions,
-  FileInfo,
-  UploadOptions,
-  DownloadOptions
+  type FileStats,
+  type ListFilesOptions,
+  type ReadOptions,
+  type WriteOptions,
+  type CreateDirOptions,
+  type ListOptions,
+  type FileInfo,
+  type UploadOptions,
+  type DownloadOptions,
 } from './types.js';
 
 /**
@@ -29,7 +29,9 @@ export abstract class BaseFilesystemProvider implements FilesystemInterface {
     // Use a universal cache directory approach - will be context-specific
     this.cacheDir = options.cacheDir || this.getDefaultCacheDir();
     this.createMissing = options.createMissing ?? true;
-    this.providerType = this.constructor.name.toLowerCase().replace('filesystemprovider', '');
+    this.providerType = this.constructor.name
+      .toLowerCase()
+      .replace('filesystemprovider', '');
   }
 
   /**
@@ -63,7 +65,7 @@ export abstract class BaseFilesystemProvider implements FilesystemInterface {
       `Operation '${operation}' not supported by ${this.providerType} provider`,
       'ENOTSUP',
       undefined,
-      this.providerType
+      this.providerType,
     );
   }
 
@@ -72,15 +74,15 @@ export abstract class BaseFilesystemProvider implements FilesystemInterface {
    */
   protected normalizePath(path: string): string {
     if (!path) return '';
-    
+
     // Remove leading slash for consistency
     let normalized = path.startsWith('/') ? path.slice(1) : path;
-    
+
     // Combine with base path if configured
     if (this.basePath) {
       normalized = this.joinPaths(this.basePath, normalized);
     }
-    
+
     return normalized;
   }
 
@@ -89,8 +91,8 @@ export abstract class BaseFilesystemProvider implements FilesystemInterface {
    */
   private joinPaths(...paths: string[]): string {
     return paths
-      .filter(p => p && p.length > 0)
-      .map(p => p.replace(/^\/+|\/+$/g, ''))
+      .filter((p) => p && p.length > 0)
+      .map((p) => p.replace(/^\/+|\/+$/g, ''))
       .join('/');
   }
 
@@ -101,13 +103,13 @@ export abstract class BaseFilesystemProvider implements FilesystemInterface {
     if (!path) {
       throw new FilesystemError('Path cannot be empty', 'EINVAL', path);
     }
-    
+
     // Check for directory traversal attempts
     if (path.includes('..') || path.includes('~')) {
       throw new FilesystemError(
         'Path contains invalid characters (directory traversal)',
         'EINVAL',
-        path
+        path,
       );
     }
   }
@@ -124,11 +126,18 @@ export abstract class BaseFilesystemProvider implements FilesystemInterface {
    */
   abstract exists(path: string): Promise<boolean>;
   abstract read(path: string, options?: ReadOptions): Promise<string | Buffer>;
-  abstract write(path: string, content: string | Buffer, options?: WriteOptions): Promise<void>;
+  abstract write(
+    path: string,
+    content: string | Buffer,
+    options?: WriteOptions,
+  ): Promise<void>;
   abstract delete(path: string): Promise<void>;
   abstract copy(sourcePath: string, destPath: string): Promise<void>;
   abstract move(sourcePath: string, destPath: string): Promise<void>;
-  abstract createDirectory(path: string, options?: CreateDirOptions): Promise<void>;
+  abstract createDirectory(
+    path: string,
+    options?: CreateDirOptions,
+  ): Promise<void>;
   abstract list(path: string, options?: ListOptions): Promise<FileInfo[]>;
   abstract getStats(path: string): Promise<FileStats>;
   abstract getMimeType(path: string): Promise<string>;
@@ -137,17 +146,28 @@ export abstract class BaseFilesystemProvider implements FilesystemInterface {
   /**
    * Provider methods with default implementations (may be overridden)
    */
-  async upload(localPath: string, remotePath: string, options: UploadOptions = {}): Promise<void> {
+  async upload(
+    localPath: string,
+    remotePath: string,
+    options: UploadOptions = {},
+  ): Promise<void> {
     this.throwUnsupported('upload');
   }
 
-  async download(remotePath: string, localPath?: string, options: DownloadOptions = {}): Promise<string> {
+  async download(
+    remotePath: string,
+    localPath?: string,
+    options: DownloadOptions = {},
+  ): Promise<string> {
     this.throwUnsupported('download');
   }
 
-  async downloadWithCache(remotePath: string, options: CacheOptions = {}): Promise<string> {
+  async downloadWithCache(
+    remotePath: string,
+    options: CacheOptions = {},
+  ): Promise<string> {
     const cacheKey = this.getCacheKey(remotePath);
-    
+
     // Check cache first
     if (!options.force) {
       const cached = await this.cache.get(cacheKey, options.expiry);
@@ -155,11 +175,11 @@ export abstract class BaseFilesystemProvider implements FilesystemInterface {
         return cached;
       }
     }
-    
+
     // Download and cache
     const localPath = await this.download(remotePath, undefined, options);
     await this.cache.set(cacheKey, localPath);
-    
+
     return localPath;
   }
 
@@ -180,7 +200,7 @@ export abstract class BaseFilesystemProvider implements FilesystemInterface {
     clear: async (key?: string): Promise<void> => {
       // Default implementation - providers should override this
       this.throwUnsupported('cache.clear');
-    }
+    },
   };
 
   // Legacy method implementations - providers can override or use default ENOTSUP errors
@@ -235,28 +255,37 @@ export abstract class BaseFilesystemProvider implements FilesystemInterface {
   /**
    * Download a file with caching support (legacy)
    */
-  async downloadFileWithCache(url: string, targetPath?: string | null): Promise<string> {
+  async downloadFileWithCache(
+    url: string,
+    targetPath?: string | null,
+  ): Promise<string> {
     this.throwUnsupported('downloadFileWithCache');
   }
 
   /**
    * List files in a directory with optional filtering (legacy)
    */
-  async listFiles(dirPath: string, options: ListFilesOptions = { match: /.*/ }): Promise<string[]> {
+  async listFiles(
+    dirPath: string,
+    options: ListFilesOptions = { match: /.*/ },
+  ): Promise<string[]> {
     const files = await this.list(dirPath);
     const fileNames = files
-      .filter(file => !file.isDirectory)
-      .map(file => file.name);
+      .filter((file) => !file.isDirectory)
+      .map((file) => file.name);
 
     return options.match
-      ? fileNames.filter(name => options.match?.test(name))
+      ? fileNames.filter((name) => options.match?.test(name))
       : fileNames;
   }
 
   /**
    * Get data from cache if available and not expired (legacy)
    */
-  async getCached(file: string, expiry: number = 300000): Promise<string | undefined> {
+  async getCached(
+    file: string,
+    expiry: number = 300000,
+  ): Promise<string | undefined> {
     return await this.cache.get(file, expiry);
   }
 

@@ -1,33 +1,33 @@
-import { 
-  stat, 
-  readFile, 
-  writeFile, 
-  unlink, 
-  mkdir, 
-  readdir, 
-  copyFile, 
+import {
+  stat,
+  readFile,
+  writeFile,
+  unlink,
+  mkdir,
+  readdir,
+  copyFile,
   rename,
   rmdir,
-  access
+  access,
 } from 'node:fs/promises';
 import { statSync, existsSync, constants, createWriteStream } from 'node:fs';
 import { dirname, extname, join, resolve } from 'node:path';
 import { URL } from 'node:url';
 import { getTempDirectory } from '@have/utils';
-import { 
-  FilesystemCapabilities, 
-  LocalOptions, 
-  ReadOptions, 
-  WriteOptions,
-  CreateDirOptions,
-  ListOptions,
-  FileInfo,
-  FileStats,
+import {
+  type FilesystemCapabilities,
+  type LocalOptions,
+  type ReadOptions,
+  type WriteOptions,
+  type CreateDirOptions,
+  type ListOptions,
+  type FileInfo,
+  type FileStats,
   FileNotFoundError,
   PermissionError,
   DirectoryNotEmptyError,
   FilesystemError,
-  ListFilesOptions
+  ListFilesOptions,
 } from '../shared/types.js';
 import { BaseFilesystemProvider } from '../shared/base.js';
 
@@ -57,7 +57,9 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
 
   constructor(options: LocalOptions = {}) {
     super(options);
-    this.rootPath = options.basePath ? resolve(options.basePath) : process.cwd();
+    this.rootPath = options.basePath
+      ? resolve(options.basePath)
+      : process.cwd();
   }
 
   /**
@@ -134,10 +136,13 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
    * const latin1Text = await fs.read('legacy.txt', { encoding: 'latin1' });
    * ```
    */
-  async read(path: string, options: ReadOptions = {}): Promise<string | Buffer> {
+  async read(
+    path: string,
+    options: ReadOptions = {},
+  ): Promise<string | Buffer> {
     try {
       const resolvedPath = this.resolvePath(path);
-      
+
       if (options.raw) {
         // Return raw buffer
         return await readFile(resolvedPath);
@@ -156,7 +161,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
         `Failed to read file: ${error.message}`,
         error.code || 'UNKNOWN',
         path,
-        'local'
+        'local',
       );
     }
   }
@@ -195,18 +200,22 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
    * await fs.write('existing/dir/file.txt', 'content', { createParents: false });
    * ```
    */
-  async write(path: string, content: string | Buffer, options: WriteOptions = {}): Promise<void> {
+  async write(
+    path: string,
+    content: string | Buffer,
+    options: WriteOptions = {},
+  ): Promise<void> {
     try {
       const resolvedPath = this.resolvePath(path);
-      
+
       // Create parent directories if needed
       if (options.createParents ?? this.createMissing) {
         await mkdir(dirname(resolvedPath), { recursive: true });
       }
-      
+
       await writeFile(resolvedPath, content, {
         encoding: options.encoding,
-        mode: options.mode
+        mode: options.mode,
       });
     } catch (error: any) {
       if (error.code === 'ENOENT') {
@@ -219,7 +228,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
         `Failed to write file: ${error.message}`,
         error.code || 'UNKNOWN',
         path,
-        'local'
+        'local',
       );
     }
   }
@@ -250,7 +259,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
     try {
       const resolvedPath = this.resolvePath(path);
       const stats = await stat(resolvedPath);
-      
+
       if (stats.isDirectory()) {
         await rmdir(resolvedPath);
       } else {
@@ -270,7 +279,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
         `Failed to delete: ${error.message}`,
         error.code || 'UNKNOWN',
         path,
-        'local'
+        'local',
       );
     }
   }
@@ -302,12 +311,12 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
     try {
       const resolvedSource = this.resolvePath(sourcePath);
       const resolvedDest = this.resolvePath(destPath);
-      
+
       // Create parent directories if needed
       if (this.createMissing) {
         await mkdir(dirname(resolvedDest), { recursive: true });
       }
-      
+
       await copyFile(resolvedSource, resolvedDest);
     } catch (error: any) {
       if (error.code === 'ENOENT') {
@@ -320,7 +329,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
         `Failed to copy: ${error.message}`,
         error.code || 'UNKNOWN',
         sourcePath,
-        'local'
+        'local',
       );
     }
   }
@@ -352,12 +361,12 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
     try {
       const resolvedSource = this.resolvePath(sourcePath);
       const resolvedDest = this.resolvePath(destPath);
-      
+
       // Create parent directories if needed
       if (this.createMissing) {
         await mkdir(dirname(resolvedDest), { recursive: true });
       }
-      
+
       await rename(resolvedSource, resolvedDest);
     } catch (error: any) {
       if (error.code === 'ENOENT') {
@@ -370,7 +379,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
         `Failed to move: ${error.message}`,
         error.code || 'UNKNOWN',
         sourcePath,
-        'local'
+        'local',
       );
     }
   }
@@ -401,12 +410,15 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
    * await fs.createDirectory('existing-parent/new-dir', { recursive: false });
    * ```
    */
-  async createDirectory(path: string, options: CreateDirOptions = {}): Promise<void> {
+  async createDirectory(
+    path: string,
+    options: CreateDirOptions = {},
+  ): Promise<void> {
     try {
       const resolvedPath = this.resolvePath(path);
       await mkdir(resolvedPath, {
         recursive: options.recursive ?? true,
-        mode: options.mode
+        mode: options.mode,
       });
     } catch (error: any) {
       if (error.code === 'EACCES') {
@@ -416,7 +428,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
         `Failed to create directory: ${error.message}`,
         error.code || 'UNKNOWN',
         path,
-        'local'
+        'local',
       );
     }
   }
@@ -459,24 +471,25 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
     try {
       const resolvedPath = this.resolvePath(path);
       const entries = await readdir(resolvedPath, { withFileTypes: true });
-      
+
       const results: FileInfo[] = [];
-      
+
       for (const entry of entries) {
         const fullPath = join(resolvedPath, entry.name);
         const relativePath = join(path, entry.name);
-        
+
         // Apply filter if provided
         if (options.filter) {
-          const filterPattern = typeof options.filter === 'string' 
-            ? new RegExp(options.filter) 
-            : options.filter;
-          
+          const filterPattern =
+            typeof options.filter === 'string'
+              ? new RegExp(options.filter)
+              : options.filter;
+
           if (!filterPattern.test(entry.name)) {
             continue;
           }
         }
-        
+
         const stats = await stat(fullPath);
         const fileInfo: FileInfo = {
           name: entry.name,
@@ -484,22 +497,22 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
           size: stats.size,
           isDirectory: entry.isDirectory(),
           lastModified: stats.mtime,
-          extension: entry.isFile() ? extname(entry.name).slice(1) : undefined
+          extension: entry.isFile() ? extname(entry.name).slice(1) : undefined,
         };
-        
+
         if (options.detailed) {
           fileInfo.mimeType = await this.getMimeType(relativePath);
         }
-        
+
         results.push(fileInfo);
-        
+
         // Recursively list subdirectories if requested
         if (options.recursive && entry.isDirectory()) {
           const subResults = await this.list(relativePath, options);
           results.push(...subResults);
         }
       }
-      
+
       return results;
     } catch (error: any) {
       if (error.code === 'ENOENT') {
@@ -512,7 +525,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
         `Failed to list directory: ${error.message}`,
         error.code || 'UNKNOWN',
         path,
-        'local'
+        'local',
       );
     }
   }
@@ -542,7 +555,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
     try {
       const resolvedPath = this.resolvePath(path);
       const stats = await stat(resolvedPath);
-      
+
       return {
         size: stats.size,
         isDirectory: stats.isDirectory(),
@@ -553,7 +566,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
         ctime: stats.ctime,
         mode: stats.mode,
         uid: stats.uid,
-        gid: stats.gid
+        gid: stats.gid,
       };
     } catch (error: any) {
       if (error.code === 'ENOENT') {
@@ -566,7 +579,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
         `Failed to get stats: ${error.message}`,
         error.code || 'UNKNOWN',
         path,
-        'local'
+        'local',
       );
     }
   }
@@ -602,9 +615,11 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
       '.gif': 'image/gif',
       '.txt': 'text/plain',
       '.doc': 'application/msword',
-      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      '.docx':
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       '.xls': 'application/vnd.ms-excel',
-      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      '.xlsx':
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       '.pdf': 'application/pdf',
       '.xml': 'application/xml',
       '.zip': 'application/zip',
@@ -612,7 +627,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
       '.mp3': 'audio/mpeg',
       '.mp4': 'video/mp4',
       '.avi': 'video/x-msvideo',
-      '.mov': 'video/quicktime'
+      '.mov': 'video/quicktime',
     };
 
     const extension = extname(path).toLowerCase();
@@ -652,25 +667,27 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
       }
 
       const fileStream = createWriteStream(this.resolvePath(filepath));
-      
+
       return new Promise<void>((resolve, reject) => {
         fileStream.on('error', reject);
         fileStream.on('finish', resolve);
-        
-        response.body?.pipeTo(
-          new WritableStream({
-            write(chunk) {
-              fileStream.write(Buffer.from(chunk));
-            },
-            close() {
-              fileStream.end();
-            },
-            abort(reason) {
-              fileStream.destroy();
-              reject(reason);
-            },
-          }),
-        ).catch(reject);
+
+        response.body
+          ?.pipeTo(
+            new WritableStream({
+              write(chunk) {
+                fileStream.write(Buffer.from(chunk));
+              },
+              close() {
+                fileStream.end();
+              },
+              abort(reason) {
+                fileStream.destroy();
+                reject(reason);
+              },
+            }),
+          )
+          .catch(reject);
       });
     } catch (error) {
       const err = error as Error;
@@ -682,10 +699,18 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
   /**
    * Download a file with caching support (legacy)
    */
-  async downloadFileWithCache(url: string, targetPath: string | null = null): Promise<string> {
+  async downloadFileWithCache(
+    url: string,
+    targetPath: string | null = null,
+  ): Promise<string> {
     const parsedUrl = new URL(url);
-    const downloadPath = targetPath || join(getTempDirectory('downloads'), parsedUrl.hostname + parsedUrl.pathname);
-    
+    const downloadPath =
+      targetPath ||
+      join(
+        getTempDirectory('downloads'),
+        parsedUrl.hostname + parsedUrl.pathname,
+      );
+
     if (!existsSync(downloadPath)) {
       await mkdir(dirname(downloadPath), { recursive: true });
       await this.downloadFromUrl(url, downloadPath);
@@ -696,7 +721,10 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
   /**
    * Get data from cache if available and not expired (legacy)
    */
-  async getCached(file: string, expiry: number = 300000): Promise<string | undefined> {
+  async getCached(
+    file: string,
+    expiry: number = 300000,
+  ): Promise<string | undefined> {
     const cacheFile = resolve(getTempDirectory('cache'), file);
     const cached = existsSync(cacheFile);
     if (cached) {
@@ -749,7 +777,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
           // Ignore errors if directory doesn't exist
         }
       }
-    }
+    },
   };
 
   /**
@@ -764,13 +792,29 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
       realTimeSync: false,
       offlineCapable: true,
       supportedOperations: [
-        'exists', 'read', 'write', 'delete', 'copy', 'move',
-        'createDirectory', 'list', 'getStats', 'getMimeType',
-        'upload', 'download', 'downloadWithCache',
-        'isFile', 'isDirectory', 'ensureDirectoryExists',
-        'uploadToUrl', 'downloadFromUrl', 'downloadFileWithCache',
-        'listFiles', 'getCached', 'setCached'
-      ]
+        'exists',
+        'read',
+        'write',
+        'delete',
+        'copy',
+        'move',
+        'createDirectory',
+        'list',
+        'getStats',
+        'getMimeType',
+        'upload',
+        'download',
+        'downloadWithCache',
+        'isFile',
+        'isDirectory',
+        'ensureDirectoryExists',
+        'uploadToUrl',
+        'downloadFromUrl',
+        'downloadFileWithCache',
+        'listFiles',
+        'getCached',
+        'setCached',
+      ],
     };
   }
 }

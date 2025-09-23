@@ -1,11 +1,11 @@
 /**
  * Legacy compatibility functions
- * 
+ *
  * These functions maintain backward compatibility with the existing @have/files API
  * while internally using the new standardized interface.
  */
 
-import { statSync, createWriteStream, Dirent, existsSync } from 'node:fs';
+import { statSync, createWriteStream, type Dirent, existsSync } from 'node:fs';
 import {
   copyFile,
   mkdir,
@@ -195,25 +195,27 @@ export async function download(url: string, filepath: string): Promise<void> {
     }
 
     const fileStream = createWriteStream(filepath);
-    
+
     return new Promise<void>((resolve, reject) => {
       fileStream.on('error', reject);
       fileStream.on('finish', resolve);
-      
-      response.body?.pipeTo(
-        new WritableStream({
-          write(chunk) {
-            fileStream.write(Buffer.from(chunk));
-          },
-          close() {
-            fileStream.end();
-          },
-          abort(reason) {
-            fileStream.destroy();
-            reject(reason);
-          },
-        }),
-      ).catch(reject);
+
+      response.body
+        ?.pipeTo(
+          new WritableStream({
+            write(chunk) {
+              fileStream.write(Buffer.from(chunk));
+            },
+            close() {
+              fileStream.end();
+            },
+            abort(reason) {
+              fileStream.destroy();
+              reject(reason);
+            },
+          }),
+        )
+        .catch(reject);
     });
   } catch (error) {
     const err = error as Error;
@@ -321,7 +323,7 @@ export const listFiles = async (
 
 /**
  * Gets data from cache if available and not expired
- * 
+ *
  * @param file - Cache file identifier
  * @param expiry - Cache expiry time in milliseconds
  * @returns Promise that resolves with the cached data or undefined if not found/expired
@@ -342,7 +344,7 @@ export async function getCached(file: string, expiry: number = 300000) {
 
 /**
  * Sets data in cache
- * 
+ *
  * @param file - Cache file identifier
  * @param data - Data to cache
  * @returns Promise that resolves when the data is cached
@@ -384,7 +386,7 @@ const mimeTypes: { [key: string]: string } = {
 
 /**
  * Gets the MIME type for a file or URL based on its extension
- * 
+ *
  * @param fileOrUrl - File path or URL to get MIME type for
  * @returns MIME type string, defaults to 'application/octet-stream' if not found
  */

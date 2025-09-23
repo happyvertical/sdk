@@ -9,8 +9,8 @@
   let error = $state(null);
   let showAddForm = $state(false);
   let editingContent = $state(null);
-  let searchTerm = $state('');
-  let selectedType = $state('All Types');
+  const searchTerm = $state('');
+  const selectedType = $state('All Types');
 
   let newContent = $state({
     title: '',
@@ -25,13 +25,13 @@
     fileKey: ''
   });
 
-  let stats = $derived({
+  const stats = $derived({
     total: contents.length,
     published: contents.filter(c => c.status === 'published').length,
     highlighted: contents.filter(c => c.state === 'highlighted').length
   });
 
-  let filteredContents = $derived(
+  const filteredContents = $derived(
     contents.filter(content => {
       const matchesSearch = searchTerm === '' ||
         content.title.toLowerCase().includes(searchTerm.toLowerCase()) ||

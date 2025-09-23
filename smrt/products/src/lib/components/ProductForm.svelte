@@ -8,9 +8,9 @@
     loading?: boolean;
   }
   
-  let { product = {}, onSubmit, onCancel, loading = false }: Props = $props();
+  const { product = {}, onSubmit, onCancel, loading = false }: Props = $props();
   
-  let formData = $state({
+  const formData = $state({
     name: product.name || '',
     description: product.description || '',
     price: product.price || 0,

@@ -115,18 +115,23 @@ export class WebOCRProvider implements OCRProvider {
 
     // Check if we're in a browser environment
     const globalObj = globalThis as any;
-    if (typeof globalObj.window === 'undefined' || typeof globalObj.document === 'undefined') {
-      throw new Error('WebOCRProvider can only be used in browser environments');
+    if (
+      typeof globalObj.window === 'undefined' ||
+      typeof globalObj.document === 'undefined'
+    ) {
+      throw new Error(
+        'WebOCRProvider can only be used in browser environments',
+      );
     }
 
     try {
       const TesseractModule = await import('tesseract.js');
       this.tesseract = TesseractModule.default || TesseractModule;
-      
+
       if (!this.tesseract || !this.tesseract.createWorker) {
         throw new Error('Tesseract.js module structure unexpected');
       }
-      
+
       return this.tesseract;
     } catch (error) {
       throw new OCRDependencyError(this.name, (error as Error).message);
@@ -158,13 +163,16 @@ export class WebOCRProvider implements OCRProvider {
           if (m.status === 'recognizing text') {
             console.debug(`OCR Progress: ${m.progress * 100}%`);
           }
-        }
+        },
       });
-      
+
       this.workers.set(language, worker);
       return worker;
     } catch (error) {
-      throw new OCRDependencyError(this.name, `Failed to create worker for ${language}: ${(error as Error).message}`);
+      throw new OCRDependencyError(
+        this.name,
+        `Failed to create worker for ${language}: ${(error as Error).message}`,
+      );
     }
   }
 
@@ -184,14 +192,14 @@ export class WebOCRProvider implements OCRProvider {
    *
    * @example File input processing
    * ```typescript
- * const fileInput = document.getElementById('imageFile');
- * const file = fileInput.files[0];
- * const result = await provider.performOCR([
- *   { data: file }
- * ], {
- *   language: 'eng',
- *   timeout: 30000 // Browser timeout
- * });
+   * const fileInput = document.getElementById('imageFile');
+   * const file = fileInput.files[0];
+   * const result = await provider.performOCR([
+   *   { data: file }
+   * ], {
+   *   language: 'eng',
+   *   timeout: 30000 // Browser timeout
+   * });
    * ```
    *
    * @example Canvas data processing
@@ -203,7 +211,10 @@ export class WebOCRProvider implements OCRProvider {
    * ]);
    * ```
    */
-  async performOCR(images: OCRImage[], options?: OCROptions): Promise<OCRResult> {
+  async performOCR(
+    images: OCRImage[],
+    options?: OCROptions,
+  ): Promise<OCRResult> {
     if (!images || images.length === 0) {
       return {
         text: '',
@@ -219,7 +230,10 @@ export class WebOCRProvider implements OCRProvider {
     // Check dependencies first
     const dependencyCheck = await this.checkDependencies();
     if (!dependencyCheck.available) {
-      throw new OCRDependencyError(this.name, dependencyCheck.error || 'Dependencies not available');
+      throw new OCRDependencyError(
+        this.name,
+        dependencyCheck.error || 'Dependencies not available',
+      );
     }
 
     const startTime = Date.now();
@@ -237,14 +251,17 @@ export class WebOCRProvider implements OCRProvider {
         try {
           // Handle different image data formats for browser
           let imageData: string | ArrayBuffer | Uint8Array | any; // Using any to avoid DOM type issues
-          
+
           if (!image.data) {
             continue;
           }
-          
+
           if (image.data instanceof Uint8Array) {
             imageData = image.data;
-          } else if (typeof Buffer !== 'undefined' && (image.data as any).constructor?.name === 'Buffer') {
+          } else if (
+            typeof Buffer !== 'undefined' &&
+            (image.data as any).constructor?.name === 'Buffer'
+          ) {
             // Handle Buffer-like objects in browser
             imageData = new Uint8Array(image.data as any);
           } else if (typeof image.data === 'string') {
@@ -267,21 +284,21 @@ export class WebOCRProvider implements OCRProvider {
           } else {
             continue;
           }
-          
+
           // Perform OCR using Tesseract.js
           const result = await worker.recognize(imageData);
-          
+
           // Process Tesseract results
           if (result && result.data) {
             const text = result.data.text?.trim() || '';
             if (text) {
               ocrText += text + ' ';
-              
+
               // Extract confidence
               const confidence = result.data.confidence || 0;
               totalConfidence += confidence;
               detectionCount++;
-              
+
               // Process word-level detections if available
               if (result.data.words) {
                 for (const word of result.data.words) {
@@ -289,12 +306,14 @@ export class WebOCRProvider implements OCRProvider {
                     allDetections.push({
                       text: word.text,
                       confidence: word.confidence || 0,
-                      boundingBox: word.bbox ? {
-                        x: word.bbox.x0,
-                        y: word.bbox.y0,
-                        width: word.bbox.x1 - word.bbox.x0,
-                        height: word.bbox.y1 - word.bbox.y0,
-                      } : undefined,
+                      boundingBox: word.bbox
+                        ? {
+                            x: word.bbox.x0,
+                            y: word.bbox.y0,
+                            width: word.bbox.x1 - word.bbox.x0,
+                            height: word.bbox.y1 - word.bbox.y0,
+                          }
+                        : undefined,
                     });
                   }
                 }
@@ -309,24 +328,27 @@ export class WebOCRProvider implements OCRProvider {
             }
           }
         } catch (imageError: any) {
-          console.warn('Web OCR failed to process image:', imageError.message || imageError);
-          continue;
+          console.warn(
+            'Web OCR failed to process image:',
+            imageError.message || imageError,
+          );
         }
       }
     } catch (error: any) {
       const processingTime = Date.now() - startTime;
       console.error('Web OCR processing failed:', error.message || error);
-      
+
       throw new OCRProcessingError(
         this.name,
         `Processing failed: ${error.message || error}`,
-        { ...error, processingTime }
+        { ...error, processingTime },
       );
     }
-    
+
     const processingTime = Date.now() - startTime;
-    const averageConfidence = detectionCount > 0 ? totalConfidence / detectionCount : 0;
-    
+    const averageConfidence =
+      detectionCount > 0 ? totalConfidence / detectionCount : 0;
+
     return {
       text: ocrText.trim(),
       confidence: averageConfidence,
@@ -352,23 +374,23 @@ export class WebOCRProvider implements OCRProvider {
    */
   private mapLanguageCode(code: string): string {
     const langMap: { [key: string]: string } = {
-      'en': 'eng',
-      'zh': 'chi_sim',
+      en: 'eng',
+      zh: 'chi_sim',
       'zh-cn': 'chi_sim',
       'zh-tw': 'chi_tra',
-      'ja': 'jpn',
-      'ko': 'kor',
-      'ar': 'ara',
-      'hi': 'hin',
-      'ru': 'rus',
-      'es': 'spa',
-      'fr': 'fra',
-      'de': 'deu',
-      'it': 'ita',
-      'pt': 'por',
-      'pl': 'pol',
-      'nl': 'nld',
-      'tr': 'tur',
+      ja: 'jpn',
+      ko: 'kor',
+      ar: 'ara',
+      hi: 'hin',
+      ru: 'rus',
+      es: 'spa',
+      fr: 'fra',
+      de: 'deu',
+      it: 'ita',
+      pt: 'por',
+      pl: 'pol',
+      nl: 'nld',
+      tr: 'tur',
     };
 
     return langMap[code.toLowerCase()] || code;
@@ -392,8 +414,22 @@ export class WebOCRProvider implements OCRProvider {
   getSupportedLanguages(): string[] {
     // Same as Tesseract.js but commonly used in browsers
     return [
-      'eng', 'chi_sim', 'chi_tra', 'jpn', 'kor', 'ara', 'hin', 'rus',
-      'spa', 'fra', 'deu', 'ita', 'por', 'nld', 'tur', 'pol'
+      'eng',
+      'chi_sim',
+      'chi_tra',
+      'jpn',
+      'kor',
+      'ara',
+      'hin',
+      'rus',
+      'spa',
+      'fra',
+      'deu',
+      'ita',
+      'por',
+      'nld',
+      'tur',
+      'pol',
     ];
   }
 
@@ -414,7 +450,7 @@ export class WebOCRProvider implements OCRProvider {
    */
   async checkCapabilities(): Promise<OCRCapabilities> {
     const deps = await this.checkDependencies();
-    
+
     return {
       canPerformOCR: deps.available,
       supportedLanguages: this.getSupportedLanguages(),
@@ -466,7 +502,10 @@ export class WebOCRProvider implements OCRProvider {
     try {
       // Check if we're in a browser environment
       const globalObj = globalThis as any;
-      if (typeof globalObj.window === 'undefined' || typeof globalObj.document === 'undefined') {
+      if (
+        typeof globalObj.window === 'undefined' ||
+        typeof globalObj.document === 'undefined'
+      ) {
         result.error = 'WebOCRProvider requires a browser environment';
         return result;
       }
@@ -482,18 +521,24 @@ export class WebOCRProvider implements OCRProvider {
       // Test if tesseract.js module can be imported
       const tesseract = await this.loadTesseract();
       result.details.tesseractJs = true;
-      
+
       // Test if a worker can be created with reasonable timeout
       const workerCreationPromise = tesseract.createWorker('eng');
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Worker creation timeout after 15 seconds')), 15000);
+        setTimeout(
+          () => reject(new Error('Worker creation timeout after 15 seconds')),
+          15000,
+        );
       });
-      
+
       try {
-        const testWorker = await Promise.race([workerCreationPromise, timeoutPromise]);
+        const testWorker = await Promise.race([
+          workerCreationPromise,
+          timeoutPromise,
+        ]);
         result.details.worker = true;
         result.available = true;
-        
+
         // Clean up test worker
         if (testWorker && typeof testWorker.terminate === 'function') {
           try {
@@ -508,7 +553,7 @@ export class WebOCRProvider implements OCRProvider {
         result.details.worker = false;
         return result;
       }
-      
+
       return result;
     } catch (error: any) {
       const errorMessage = error.message || error.toString();
@@ -543,21 +588,24 @@ export class WebOCRProvider implements OCRProvider {
    */
   async cleanup(): Promise<void> {
     const cleanupPromises: Promise<any>[] = [];
-    
+
     for (const [language, worker] of this.workers) {
       if (worker && typeof worker.terminate === 'function') {
         cleanupPromises.push(
           worker.terminate().catch((error: any) => {
-            console.warn(`Failed to terminate Web OCR worker for ${language}:`, error);
-          })
+            console.warn(
+              `Failed to terminate Web OCR worker for ${language}:`,
+              error,
+            );
+          }),
         );
       }
     }
-    
+
     if (cleanupPromises.length > 0) {
       await Promise.allSettled(cleanupPromises);
     }
-    
+
     this.workers.clear();
   }
 }
