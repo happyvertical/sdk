@@ -1,4 +1,4 @@
-import { AIThread } from './thread.js';
+import type { AIThread } from './thread.js';
 
 /**
  * Options for creating AI messages
@@ -8,7 +8,7 @@ export interface AIMessageOptions {
    * Role of the message sender
    */
   role?: 'user' | 'assistant' | 'system';
-  
+
   /**
    * Format for the AI response
    */
@@ -23,17 +23,17 @@ export class AIMessage {
    * Original options used to create this message
    */
   protected options;
-  
+
   /**
    * Name of the message sender
    */
   public name: string;
-  
+
   /**
    * Content of the message
    */
   public content: string;
-  
+
   /**
    * Role of the message sender in the conversation
    */
@@ -41,7 +41,7 @@ export class AIMessage {
 
   /**
    * Creates a new AI message
-   * 
+   *
    * @param options - Message configuration
    * @param options.role - Role of the message sender
    * @param options.content - Content of the message
@@ -60,7 +60,7 @@ export class AIMessage {
 
   /**
    * Factory method to create a new AI message
-   * 
+   *
    * @param options - Message configuration
    * @param options.thread - Thread this message belongs to
    * @param options.role - Role of the message sender

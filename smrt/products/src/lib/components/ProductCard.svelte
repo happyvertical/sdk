@@ -1,13 +1,13 @@
 <script lang="ts">
-  import type { ProductData } from '../types.js';
-  
-  interface Props {
-    product: ProductData;
-    onEdit?: (product: ProductData) => void;
-    onDelete?: (id: string) => void;
-  }
-  
-  let { product, onEdit, onDelete }: Props = $props();
+import type { ProductData } from '../types.js';
+
+interface Props {
+  product: ProductData;
+  onEdit?: (product: ProductData) => void;
+  onDelete?: (id: string) => void;
+}
+
+const { product, onEdit, onDelete }: Props = $props();
 </script>
 
 <div class="product-card">

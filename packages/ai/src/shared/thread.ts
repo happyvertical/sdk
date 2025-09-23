@@ -1,6 +1,6 @@
 import { AIClient, type AIClientOptions } from './client.js';
 import { AIMessage } from './message.js';
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
 
 /**
  * Options for creating an AI conversation thread
@@ -21,17 +21,17 @@ export class AIThread {
    * AI client instance for this thread
    */
   protected ai!: AIClient;
-  
+
   /**
    * Options used to configure this thread
    */
   protected options: AIThreadOptions;
-  
+
   /**
    * Messages in this conversation thread
    */
   private messages: AIMessage[] = [];
-  
+
   /**
    * Reference materials to include in the conversation context
    */
@@ -39,7 +39,7 @@ export class AIThread {
 
   /**
    * Creates a new AI thread
-   * 
+   *
    * @param options - Thread configuration options
    */
   constructor(options: AIThreadOptions) {
@@ -48,7 +48,7 @@ export class AIThread {
 
   /**
    * Factory method to create and initialize a new AI thread
-   * 
+   *
    * @param options - Thread configuration options
    * @returns Promise resolving to an initialized AIThread
    */
@@ -67,7 +67,7 @@ export class AIThread {
 
   /**
    * Adds a system message to the conversation
-   * 
+   *
    * @param prompt - System message content
    * @returns Promise resolving to the created AIMessage
    */
@@ -85,7 +85,7 @@ export class AIThread {
 
   /**
    * Adds a message to the conversation
-   * 
+   *
    * @param options - Message options
    * @param options.role - Role of the message sender
    * @param options.name - Optional name of the message sender
@@ -110,7 +110,7 @@ export class AIThread {
 
   /**
    * Gets all messages in this thread
-   * 
+   *
    * @returns Array of AIMessage objects
    */
   public get(): AIMessage[] {
@@ -119,7 +119,7 @@ export class AIThread {
 
   /**
    * Adds a reference to be included in the conversation context
-   * 
+   *
    * @param name - Name of the reference
    * @param body - Content of the reference
    */
@@ -130,7 +130,7 @@ export class AIThread {
   /**
    * Assembles the conversation history for sending to the AI
    * Properly orders system message, references, and conversation messages
-   * 
+   *
    * @returns Array of message parameters formatted for the OpenAI API
    */
   public assembleHistory(): OpenAI.Chat.ChatCompletionMessageParam[] {
@@ -165,7 +165,7 @@ export class AIThread {
 
   /**
    * Sends a prompt to the AI and gets a response
-   * 
+   *
    * @param prompt - Prompt message to send
    * @param options - Options for the AI response
    * @param options.responseFormat - Format for the AI to respond with

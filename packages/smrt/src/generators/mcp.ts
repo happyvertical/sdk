@@ -1,11 +1,11 @@
 /**
  * MCP (Model Context Protocol) server generator for smrt objects
- * 
+ *
  * Exposes smrt objects as AI tools for Claude, GPT, and other AI models
  */
 
 import { ObjectRegistry } from '../registry.js';
-import { BaseCollection } from '../collection.js';
+import type { BaseCollection } from '../collection.js';
 import type { BaseObject } from '../object.js';
 
 export interface MCPConfig {
@@ -67,9 +67,9 @@ export class MCPGenerator {
       description: 'Auto-generated MCP server from smrt objects',
       server: {
         name: 'smrt-mcp',
-        version: '1.0.0'
+        version: '1.0.0',
       },
-      ...config
+      ...config,
     };
     this.context = context;
   }
@@ -84,18 +84,24 @@ export class MCPGenerator {
     for (const [name, classInfo] of registeredClasses) {
       const config = ObjectRegistry.getConfig(name);
       const mcpConfig = config.mcp || {};
-      
+
       // Skip excluded endpoints
       const excluded = mcpConfig.exclude || [];
       const included = mcpConfig.include;
-      
-      const shouldInclude = (endpoint: 'list' | 'get' | 'create' | 'update' | 'delete') => {
+
+      const shouldInclude = (
+        endpoint: 'list' | 'get' | 'create' | 'update' | 'delete',
+      ) => {
         if (included && !included.includes(endpoint)) return false;
         if (excluded.includes(endpoint)) return false;
         return true;
       };
 
-      const objectTools = this.generateObjectTools(name, (endpoint: string) => shouldInclude(endpoint as 'list' | 'get' | 'create' | 'update' | 'delete'));
+      const objectTools = this.generateObjectTools(name, (endpoint: string) =>
+        shouldInclude(
+          endpoint as 'list' | 'get' | 'create' | 'update' | 'delete',
+        ),
+      );
       tools.push(...objectTools);
     }
 
@@ -105,7 +111,10 @@ export class MCPGenerator {
   /**
    * Generate tools for a specific object
    */
-  private generateObjectTools(objectName: string, shouldInclude: (endpoint: string) => boolean): MCPTool[] {
+  private generateObjectTools(
+    objectName: string,
+    shouldInclude: (endpoint: string) => boolean,
+  ): MCPTool[] {
     const tools: MCPTool[] = [];
     const fields = ObjectRegistry.getFields(objectName);
     const lowerName = objectName.toLowerCase();
@@ -123,25 +132,25 @@ export class MCPGenerator {
               description: 'Maximum number of items to return',
               default: 50,
               minimum: 1,
-              maximum: 1000
+              maximum: 1000,
             },
             offset: {
               type: 'integer',
               description: 'Number of items to skip',
               default: 0,
-              minimum: 0
+              minimum: 0,
             },
             orderBy: {
               type: 'string',
-              description: 'Field to order by (e.g., "created_at DESC")'
+              description: 'Field to order by (e.g., "created_at DESC")',
             },
             where: {
               type: 'object',
               description: 'Filter conditions as key-value pairs',
-              additionalProperties: true
-            }
-          }
-        }
+              additionalProperties: true,
+            },
+          },
+        },
       });
     }
 
@@ -155,15 +164,15 @@ export class MCPGenerator {
           properties: {
             id: {
               type: 'string',
-              description: 'Unique identifier of the object'
+              description: 'Unique identifier of the object',
             },
             slug: {
               type: 'string',
-              description: 'URL-friendly identifier of the object'
-            }
+              description: 'URL-friendly identifier of the object',
+            },
           },
-          required: []
-        }
+          required: [],
+        },
       });
     }
 
@@ -185,8 +194,8 @@ export class MCPGenerator {
         inputSchema: {
           type: 'object',
           properties,
-          required
-        }
+          required,
+        },
       });
     }
 
@@ -195,8 +204,8 @@ export class MCPGenerator {
       const properties: Record<string, any> = {
         id: {
           type: 'string',
-          description: 'ID of the object to update'
-        }
+          description: 'ID of the object to update',
+        },
       };
 
       for (const [fieldName, field] of fields) {
@@ -209,8 +218,8 @@ export class MCPGenerator {
         inputSchema: {
           type: 'object',
           properties,
-          required: ['id']
-        }
+          required: ['id'],
+        },
       });
     }
 
@@ -224,11 +233,11 @@ export class MCPGenerator {
           properties: {
             id: {
               type: 'string',
-              description: 'ID of the object to delete'
-            }
+              description: 'ID of the object to delete',
+            },
           },
-          required: ['id']
-        }
+          required: ['id'],
+        },
       });
     }
 
@@ -240,24 +249,30 @@ export class MCPGenerator {
    */
   private fieldToMCPSchema(field: any): any {
     const schema: any = {
-      description: field.options?.description || `${field.type} field`
+      description: field.options?.description || `${field.type} field`,
     };
 
     switch (field.type) {
       case 'text':
         schema.type = 'string';
-        if (field.options?.maxLength) schema.maxLength = field.options.maxLength;
-        if (field.options?.minLength) schema.minLength = field.options.minLength;
+        if (field.options?.maxLength)
+          schema.maxLength = field.options.maxLength;
+        if (field.options?.minLength)
+          schema.minLength = field.options.minLength;
         break;
       case 'integer':
         schema.type = 'integer';
-        if (field.options?.min !== undefined) schema.minimum = field.options.min;
-        if (field.options?.max !== undefined) schema.maximum = field.options.max;
+        if (field.options?.min !== undefined)
+          schema.minimum = field.options.min;
+        if (field.options?.max !== undefined)
+          schema.maximum = field.options.max;
         break;
       case 'decimal':
         schema.type = 'number';
-        if (field.options?.min !== undefined) schema.minimum = field.options.min;
-        if (field.options?.max !== undefined) schema.maximum = field.options.max;
+        if (field.options?.min !== undefined)
+          schema.minimum = field.options.min;
+        if (field.options?.max !== undefined)
+          schema.maximum = field.options.max;
         break;
       case 'boolean':
         schema.type = 'boolean';
@@ -289,11 +304,11 @@ export class MCPGenerator {
    */
   async handleToolCall(request: MCPRequest): Promise<MCPResponse> {
     const { name, arguments: args } = request.params;
-    
+
     try {
       // Parse tool name: objectname_action
       const [objectName, action] = name.split('_');
-      
+
       if (!objectName || !action) {
         throw new Error(`Invalid tool name format: ${name}`);
       }
@@ -317,23 +332,26 @@ export class MCPGenerator {
 
       // Get or create collection
       const collection = this.getCollection(actualObjectName, classInfo);
-      
+
       // Execute the action
       const result = await this.executeAction(collection, action, args);
-      
+
       return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify(result, null, 2)
-        }]
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify(result, null, 2),
+          },
+        ],
       };
-      
     } catch (error) {
       return {
-        content: [{
-          type: 'text',
-          text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-        }]
+        content: [
+          {
+            type: 'text',
+            text: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          },
+        ],
       };
     }
   }
@@ -341,11 +359,14 @@ export class MCPGenerator {
   /**
    * Get or create collection for an object
    */
-  private getCollection(objectName: string, classInfo: any): BaseCollection<any> {
+  private getCollection(
+    objectName: string,
+    classInfo: any,
+  ): BaseCollection<any> {
     if (!this.collections.has(objectName)) {
       const collection = new classInfo.collectionConstructor({
         ai: this.context.ai,
-        db: this.context.db
+        db: this.context.db,
       });
       this.collections.set(objectName, collection);
     }
@@ -355,98 +376,107 @@ export class MCPGenerator {
   /**
    * Execute action on collection
    */
-  private async executeAction(collection: BaseCollection<any>, action: string, args: any): Promise<any> {
+  private async executeAction(
+    collection: BaseCollection<any>,
+    action: string,
+    args: any,
+  ): Promise<any> {
     switch (action) {
-      case 'list':
+      case 'list': {
         const listOptions: any = {
           limit: Math.min(args.limit || 50, 1000),
-          offset: args.offset || 0
+          offset: args.offset || 0,
         };
-        
+
         if (args.where) {
           listOptions.where = args.where;
         }
-        
+
         if (args.orderBy) {
           listOptions.orderBy = args.orderBy;
         }
-        
+
         const results = await collection.list(listOptions);
         const total = await collection.count({ where: args.where || {} });
-        
+
         return {
           data: results,
           meta: {
             total,
             limit: listOptions.limit,
             offset: listOptions.offset,
-            count: results.length
-          }
+            count: results.length,
+          },
         };
+      }
 
-      case 'get':
+      case 'get': {
         if (!args.id && !args.slug) {
           throw new Error('Either id or slug is required');
         }
-        
+
         const filter = args.id ? args.id : args.slug;
         const item = await collection.get(filter);
-        
+
         if (!item) {
           throw new Error('Object not found');
         }
-        
-        return item;
 
-      case 'create':
+        return item;
+      }
+
+      case 'create': {
         // Add user context if available
         const createData = { ...args };
         if (this.context.user) {
           createData.created_by = this.context.user.id;
           createData.owner_id = this.context.user.id;
         }
-        
+
         const newItem = await collection.create(createData);
         await newItem.save();
-        
-        return newItem;
 
-      case 'update':
+        return newItem;
+      }
+
+      case 'update': {
         const { id, ...updateData } = args;
         if (!id) {
           throw new Error('ID is required for update');
         }
-        
+
         const existing = await collection.get(id);
         if (!existing) {
           throw new Error('Object not found');
         }
-        
+
         // Update properties
         Object.assign(existing, updateData);
-        
+
         // Add user context
         if (this.context.user) {
           (existing as any).updated_by = this.context.user.id;
         }
-        
-        await existing.save();
-        
-        return existing;
 
-      case 'delete':
+        await existing.save();
+
+        return existing;
+      }
+
+      case 'delete': {
         if (!args.id) {
           throw new Error('ID is required for delete');
         }
-        
+
         const toDelete = await collection.get(args.id);
         if (!toDelete) {
           throw new Error('Object not found');
         }
-        
+
         await toDelete.delete();
-        
+
         return { success: true, message: 'Object deleted successfully' };
+      }
 
       default:
         throw new Error(`Unknown action: ${action}`);
@@ -460,7 +490,7 @@ export class MCPGenerator {
     return {
       name: this.config.server!.name,
       version: this.config.server!.version,
-      description: this.config.description
+      description: this.config.description,
     };
   }
 }

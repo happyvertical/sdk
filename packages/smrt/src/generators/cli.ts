@@ -1,13 +1,13 @@
 /**
  * CLI command generator for smrt objects
- * 
+ *
  * Generates admin and development tools from object definitions
  */
 
 import { parseArgs } from 'util';
 import { createInterface } from 'readline';
 import { ObjectRegistry } from '../registry.js';
-import { BaseCollection } from '../collection.js';
+import type { BaseCollection } from '../collection.js';
 import type { BaseObject } from '../object.js';
 
 export interface CLIConfig {
@@ -31,12 +31,15 @@ export interface CLICommand {
   name: string;
   description: string;
   aliases?: string[];
-  options?: Record<string, {
-    type: 'string' | 'boolean';
-    description: string;
-    default?: any;
-    short?: string;
-  }>;
+  options?: Record<
+    string,
+    {
+      type: 'string' | 'boolean';
+      description: string;
+      default?: any;
+      short?: string;
+    }
+  >;
   args?: string[];
   handler: (args: any, options: any) => Promise<void>;
 }
@@ -62,7 +65,7 @@ export class CLIGenerator {
       description: 'Admin CLI for smrt objects',
       prompt: true,
       colors: true,
-      ...config
+      ...config,
     };
     this.context = context;
   }
@@ -71,10 +74,12 @@ export class CLIGenerator {
    * Check if running in test environment
    */
   private isTestMode(): boolean {
-    return process.env.NODE_ENV === 'test' ||
-           process.env.VITEST === 'true' ||
-           typeof (global as any).it === 'function' ||
-           typeof (global as any).describe === 'function';
+    return (
+      process.env.NODE_ENV === 'test' ||
+      process.env.VITEST === 'true' ||
+      typeof (global as any).it === 'function' ||
+      typeof (global as any).describe === 'function'
+    );
   }
 
   /**
@@ -94,7 +99,7 @@ export class CLIGenerator {
    */
   generateHandler(): (argv: string[]) => Promise<void> {
     const commands = this.generateCommands();
-    
+
     return async (argv: string[]) => {
       const parsed = this.parseArguments(argv, commands);
       await this.executeCommand(parsed, commands);
@@ -122,20 +127,26 @@ export class CLIGenerator {
   /**
    * Generate CRUD commands for a specific object
    */
-  private generateObjectCommands(objectName: string, classInfo: any): CLICommand[] {
+  private generateObjectCommands(
+    objectName: string,
+    classInfo: any,
+  ): CLICommand[] {
     const commands: CLICommand[] = [];
     const lowerName = objectName.toLowerCase();
     const config = ObjectRegistry.getConfig(objectName);
     const cliConfig = config.cli;
-    
+
     // Skip if CLI is disabled
     if (cliConfig === false) return commands;
-    
+
     // Check included/excluded commands
-    const excluded = (typeof cliConfig === 'object' ? cliConfig.exclude : []) || [];
-    const included = (typeof cliConfig === 'object' ? cliConfig.include : null);
-    
-    const shouldInclude = (command: 'list' | 'get' | 'create' | 'update' | 'delete') => {
+    const excluded =
+      (typeof cliConfig === 'object' ? cliConfig.exclude : []) || [];
+    const included = typeof cliConfig === 'object' ? cliConfig.include : null;
+
+    const shouldInclude = (
+      command: 'list' | 'get' | 'create' | 'update' | 'delete',
+    ) => {
       if (included && !included.includes(command)) return false;
       if (excluded.includes(command)) return false;
       return true;
@@ -148,15 +159,29 @@ export class CLIGenerator {
         description: `List ${objectName} objects`,
         aliases: [`${lowerName}:ls`],
         options: {
-          limit: { type: 'string', description: 'limit number of results', default: '50', short: 'l' },
-          offset: { type: 'string', description: 'offset for pagination', default: '0', short: 'o' },
+          limit: {
+            type: 'string',
+            description: 'limit number of results',
+            default: '50',
+            short: 'l',
+          },
+          offset: {
+            type: 'string',
+            description: 'offset for pagination',
+            default: '0',
+            short: 'o',
+          },
           'order-by': { type: 'string', description: 'field to order by' },
           where: { type: 'string', description: 'filter conditions as JSON' },
-          format: { type: 'string', description: 'output format (table|json)', default: 'table' }
+          format: {
+            type: 'string',
+            description: 'output format (table|json)',
+            default: 'table',
+          },
         },
         handler: async (args, options) => {
           await this.handleList(objectName, options);
-        }
+        },
       });
     }
 
@@ -168,26 +193,34 @@ export class CLIGenerator {
         aliases: [`${lowerName}:show`],
         args: ['id'],
         options: {
-          format: { type: 'string', description: 'output format (json|yaml)', default: 'json' }
+          format: {
+            type: 'string',
+            description: 'output format (json|yaml)',
+            default: 'json',
+          },
         },
         handler: async (args, options) => {
           await this.handleGet(objectName, args[0], options);
-        }
+        },
       });
     }
 
     // CREATE command
     if (shouldInclude('create')) {
       const options: Record<string, any> = {
-        interactive: { type: 'boolean', description: 'interactive mode with prompts' },
-        'from-file': { type: 'string', description: 'create from JSON file' }
+        interactive: {
+          type: 'boolean',
+          description: 'interactive mode with prompts',
+        },
+        'from-file': { type: 'string', description: 'create from JSON file' },
       };
 
       // Add field options
       const fields = ObjectRegistry.getFields(objectName);
       for (const [fieldName, field] of fields) {
         const optionName = fieldName.replace(/_/g, '-');
-        const description = field.options?.description || `${objectName} ${fieldName}`;
+        const description =
+          field.options?.description || `${objectName} ${fieldName}`;
         options[optionName] = { type: 'string', description };
       }
 
@@ -198,22 +231,26 @@ export class CLIGenerator {
         options,
         handler: async (args, options) => {
           await this.handleCreate(objectName, options);
-        }
+        },
       });
     }
 
     // UPDATE command
     if (shouldInclude('update')) {
       const options: Record<string, any> = {
-        interactive: { type: 'boolean', description: 'interactive mode with prompts' },
-        'from-file': { type: 'string', description: 'update from JSON file' }
+        interactive: {
+          type: 'boolean',
+          description: 'interactive mode with prompts',
+        },
+        'from-file': { type: 'string', description: 'update from JSON file' },
       };
 
       // Add field options
       const fields = ObjectRegistry.getFields(objectName);
       for (const [fieldName, field] of fields) {
         const optionName = fieldName.replace(/_/g, '-');
-        const description = field.options?.description || `${objectName} ${fieldName}`;
+        const description =
+          field.options?.description || `${objectName} ${fieldName}`;
         options[optionName] = { type: 'string', description };
       }
 
@@ -225,7 +262,7 @@ export class CLIGenerator {
         options,
         handler: async (args, options) => {
           await this.handleUpdate(objectName, args[0], options);
-        }
+        },
       });
     }
 
@@ -237,11 +274,11 @@ export class CLIGenerator {
         aliases: [`${lowerName}:rm`],
         args: ['id'],
         options: {
-          force: { type: 'boolean', description: 'skip confirmation prompt' }
+          force: { type: 'boolean', description: 'skip confirmation prompt' },
         },
         handler: async (args, options) => {
           await this.handleDelete(objectName, args[0], options);
-        }
+        },
       });
     }
 
@@ -253,7 +290,11 @@ export class CLIGenerator {
    */
   parseArguments(argv: string[], commands: CLICommand[]): ParsedArgs {
     // Remove node and script name if present
-    const args = argv.slice(0, 2).some(arg => arg.endsWith('node') || arg.endsWith('.js')) ? argv.slice(2) : argv;
+    const args = argv
+      .slice(0, 2)
+      .some((arg) => arg.endsWith('node') || arg.endsWith('.js'))
+      ? argv.slice(2)
+      : argv;
 
     if (args.length === 0) {
       return { args: [], options: {} };
@@ -269,8 +310,10 @@ export class CLIGenerator {
     }
 
     const commandName = args[0];
-    const command = commands.find(cmd =>
-      cmd.name === commandName || (cmd.aliases && cmd.aliases.includes(commandName))
+    const command = commands.find(
+      (cmd) =>
+        cmd.name === commandName ||
+        (cmd.aliases && cmd.aliases.includes(commandName)),
     );
 
     if (!command) {
@@ -281,14 +324,14 @@ export class CLIGenerator {
     const parseConfig: any = {
       args: args.slice(1),
       options: {},
-      strict: false // Allow unknown options
+      strict: false, // Allow unknown options
     };
 
     if (command.options) {
       for (const [name, option] of Object.entries(command.options)) {
         parseConfig.options[name] = {
           type: option.type === 'boolean' ? 'boolean' : 'string',
-          ...(option.default !== undefined && { default: option.default })
+          ...(option.default !== undefined && { default: option.default }),
         };
         if (option.short) {
           parseConfig.options[name].short = option.short;
@@ -301,15 +344,15 @@ export class CLIGenerator {
       return {
         command: commandName,
         args: parsed.positionals || [],
-        options: parsed.values || {}
+        options: parsed.values || {},
       };
     } catch (error) {
       // Fallback for parse errors
       console.warn('Argument parsing failed, using fallback:', error);
       return {
         command: commandName,
-        args: args.slice(1).filter(arg => !arg.startsWith('-')),
-        options: {}
+        args: args.slice(1).filter((arg) => !arg.startsWith('-')),
+        options: {},
       };
     }
   }
@@ -317,14 +360,19 @@ export class CLIGenerator {
   /**
    * Execute a parsed command
    */
-  async executeCommand(parsed: ParsedArgs, commands: CLICommand[]): Promise<void> {
+  async executeCommand(
+    parsed: ParsedArgs,
+    commands: CLICommand[],
+  ): Promise<void> {
     if (!parsed.command) {
       this.showHelp(commands);
       return;
     }
 
-    const command = commands.find(cmd => 
-      cmd.name === parsed.command || (parsed.command && cmd.aliases && cmd.aliases.includes(parsed.command))
+    const command = commands.find(
+      (cmd) =>
+        cmd.name === parsed.command ||
+        (parsed.command && cmd.aliases && cmd.aliases.includes(parsed.command)),
     );
 
     if (!command) {
@@ -334,14 +382,18 @@ export class CLIGenerator {
 
     // Validate required arguments
     if (command.args && parsed.args.length < command.args.length) {
-      this.exitWithError(`Missing required arguments: ${command.args.slice(parsed.args.length).join(', ')}`);
+      this.exitWithError(
+        `Missing required arguments: ${command.args.slice(parsed.args.length).join(', ')}`,
+      );
       return;
     }
 
     try {
       await command.handler(parsed.args, parsed.options);
     } catch (error) {
-      this.exitWithError(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.exitWithError(
+        `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -362,7 +414,7 @@ export class CLIGenerator {
         for (const [name] of registeredClasses) {
           console.log(`  • ${name}`);
         }
-      }
+      },
     });
 
     // Schema information
@@ -370,7 +422,7 @@ export class CLIGenerator {
       name: 'schema',
       description: 'Show schema for an object',
       args: ['object'],
-      handler: this.createSchemaHandler()
+      handler: this.createSchemaHandler(),
     });
 
     // Help command
@@ -380,7 +432,7 @@ export class CLIGenerator {
       aliases: ['h'],
       handler: async (args, options) => {
         this.showHelp(commands);
-      }
+      },
     });
 
     // Version command
@@ -390,7 +442,7 @@ export class CLIGenerator {
       aliases: ['v'],
       handler: async (args, options) => {
         console.log(`${this.config.name} v${this.config.version}`);
-      }
+      },
     });
 
     // Status command
@@ -400,10 +452,12 @@ export class CLIGenerator {
       handler: async (args, options) => {
         console.log('System Status:');
         console.log(`- CLI: ${this.config.name} v${this.config.version}`);
-        console.log(`- Database: ${this.context.db ? 'Connected' : 'Not connected'}`);
+        console.log(
+          `- Database: ${this.context.db ? 'Connected' : 'Not connected'}`,
+        );
         console.log(`- AI: ${this.context.ai ? 'Available' : 'Not available'}`);
         console.log(`- User: ${this.context.user?.id || 'Not authenticated'}`);
-      }
+      },
     });
 
     return commands;
@@ -423,7 +477,9 @@ export class CLIGenerator {
 
       console.log(`Schema for ${objectName}:`);
       for (const [fieldName, field] of fields) {
-        console.log(`  ${fieldName}: ${field.type}${field.options?.required ? ' (required)' : ''}`);
+        console.log(
+          `  ${fieldName}: ${field.type}${field.options?.required ? ' (required)' : ''}`,
+        );
         if (field.options?.description) {
           console.log(`    ${field.options.description}`);
         }
@@ -439,13 +495,15 @@ export class CLIGenerator {
     console.log(this.config.description);
     console.log();
     console.log('Commands:');
-    
+
     for (const command of commands) {
       const aliases = command.aliases ? ` (${command.aliases.join(', ')})` : '';
-      const args = command.args ? ` ${command.args.map(arg => `<${arg}>`).join(' ')}` : '';
+      const args = command.args
+        ? ` ${command.args.map((arg) => `<${arg}>`).join(' ')}`
+        : '';
       console.log(`  ${command.name}${args}${aliases}`);
       console.log(`    ${command.description}`);
-      
+
       if (command.options) {
         for (const [name, option] of Object.entries(command.options)) {
           const short = option.short ? `-${option.short}, ` : '';
@@ -459,7 +517,10 @@ export class CLIGenerator {
   /**
    * Create a simple spinner
    */
-  private createSpinner(text: string): { succeed: (text?: string) => void; fail: (text?: string) => void } {
+  private createSpinner(text: string): {
+    succeed: (text?: string) => void;
+    fail: (text?: string) => void;
+  } {
     if (this.config.colors) {
       process.stdout.write(`⠋ ${text}`);
       return {
@@ -472,13 +533,13 @@ export class CLIGenerator {
           process.stdout.clearLine(0);
           process.stdout.cursorTo(0);
           console.log(`❌ ${errorText || text}`);
-        }
+        },
       };
     } else {
       console.log(text);
       return {
         succeed: (successText?: string) => console.log(successText || 'Done'),
-        fail: (errorText?: string) => console.log(errorText || 'Failed')
+        fail: (errorText?: string) => console.log(errorText || 'Failed'),
       };
     }
   }
@@ -499,7 +560,7 @@ export class CLIGenerator {
   private async prompt(message: string): Promise<string> {
     const rl = createInterface({
       input: process.stdin,
-      output: process.stdout
+      output: process.stdout,
     });
 
     return new Promise((resolve) => {
@@ -523,13 +584,13 @@ export class CLIGenerator {
    */
   private async handleList(objectName: string, options: any): Promise<void> {
     const spinner = this.createSpinner(`Listing ${objectName} objects...`);
-    
+
     try {
       const collection = await this.getCollection(objectName);
-      
+
       const listOptions: any = {
         limit: parseInt(options.limit),
-        offset: parseInt(options.offset)
+        offset: parseInt(options.offset),
       };
 
       if (options.orderBy) {
@@ -541,7 +602,7 @@ export class CLIGenerator {
       }
 
       const results = await collection.list(listOptions);
-      
+
       spinner.succeed(`Found ${results.length} ${objectName} objects`);
 
       if (options.format === 'json') {
@@ -551,16 +612,23 @@ export class CLIGenerator {
       }
     } catch (error) {
       spinner.fail(`Failed to list ${objectName} objects`);
-      console.error('Error:', error instanceof Error ? error.message : 'Unknown error');
+      console.error(
+        'Error:',
+        error instanceof Error ? error.message : 'Unknown error',
+      );
     }
   }
 
   /**
    * Handle GET command
    */
-  private async handleGet(objectName: string, id: string, options: any): Promise<void> {
+  private async handleGet(
+    objectName: string,
+    id: string,
+    options: any,
+  ): Promise<void> {
     const spinner = this.createSpinner(`Getting ${objectName}...`);
-    
+
     try {
       const collection = await this.getCollection(objectName);
       const result = await collection.get(id);
@@ -581,7 +649,10 @@ export class CLIGenerator {
       }
     } catch (error) {
       spinner.fail(`Failed to get ${objectName}`);
-      console.error('Error:', error instanceof Error ? error.message : 'Unknown error');
+      console.error(
+        'Error:',
+        error instanceof Error ? error.message : 'Unknown error',
+      );
     }
   }
 
@@ -618,19 +689,25 @@ export class CLIGenerator {
       await result.save();
 
       spinner.succeed(`Created ${objectName} with ID: ${result.id}`);
-      
+
       if (!options.quiet) {
         console.log(JSON.stringify(result, null, 2));
       }
     } catch (error) {
-      this.exitWithError(error instanceof Error ? error.message : 'Unknown error');
+      this.exitWithError(
+        error instanceof Error ? error.message : 'Unknown error',
+      );
     }
   }
 
   /**
    * Handle UPDATE command
    */
-  private async handleUpdate(objectName: string, id: string, options: any): Promise<void> {
+  private async handleUpdate(
+    objectName: string,
+    id: string,
+    options: any,
+  ): Promise<void> {
     try {
       const collection = await this.getCollection(objectName);
       const existing = await collection.get(id);
@@ -667,19 +744,25 @@ export class CLIGenerator {
       await existing.save();
 
       spinner.succeed(`Updated ${objectName}`);
-      
+
       if (!options.quiet) {
         console.log(JSON.stringify(existing, null, 2));
       }
     } catch (error) {
-      this.exitWithError(error instanceof Error ? error.message : 'Unknown error');
+      this.exitWithError(
+        error instanceof Error ? error.message : 'Unknown error',
+      );
     }
   }
 
   /**
    * Handle DELETE command
    */
-  private async handleDelete(objectName: string, id: string, options: any): Promise<void> {
+  private async handleDelete(
+    objectName: string,
+    id: string,
+    options: any,
+  ): Promise<void> {
     try {
       const collection = await this.getCollection(objectName);
       const existing = await collection.get(id);
@@ -691,7 +774,9 @@ export class CLIGenerator {
 
       // Confirmation prompt
       if (!options.force && this.config.prompt) {
-        const confirmed = await this.confirm(`Are you sure you want to delete ${objectName} "${existing.name || existing.id}"?`);
+        const confirmed = await this.confirm(
+          `Are you sure you want to delete ${objectName} "${existing.name || existing.id}"?`,
+        );
         if (!confirmed) {
           console.log('Cancelled');
           return;
@@ -704,26 +789,31 @@ export class CLIGenerator {
 
       spinner.succeed(`Deleted ${objectName}`);
     } catch (error) {
-      this.exitWithError(error instanceof Error ? error.message : 'Unknown error');
+      this.exitWithError(
+        error instanceof Error ? error.message : 'Unknown error',
+      );
     }
   }
-
 
   /**
    * Get or create collection for an object
    */
-  private async getCollection(objectName: string): Promise<BaseCollection<any>> {
+  private async getCollection(
+    objectName: string,
+  ): Promise<BaseCollection<any>> {
     if (!this.collections.has(objectName)) {
       const classInfo = ObjectRegistry.getClass(objectName);
       if (!classInfo || !classInfo.collectionConstructor) {
-        throw new Error(`Object ${objectName} not found or has no collection constructor`);
+        throw new Error(
+          `Object ${objectName} not found or has no collection constructor`,
+        );
       }
 
       const collection = new classInfo.collectionConstructor({
         ai: this.context.ai,
-        db: this.context.db
+        db: this.context.db,
       });
-      
+
       await collection.initialize();
       this.collections.set(objectName, collection);
     }
@@ -733,7 +823,10 @@ export class CLIGenerator {
   /**
    * Interactive field prompts
    */
-  private async promptForFields(objectName: string, current: any): Promise<any> {
+  private async promptForFields(
+    objectName: string,
+    current: any,
+  ): Promise<any> {
     const fields = ObjectRegistry.getFields(objectName);
     const result: any = {};
 
@@ -787,14 +880,14 @@ export class CLIGenerator {
 
     // Simple table display
     const keys = ['id', 'name', 'slug', 'created_at'];
-    const rows = results.map(item => 
-      keys.map(key => String(item[key] || '').substring(0, 30))
+    const rows = results.map((item) =>
+      keys.map((key) => String(item[key] || '').substring(0, 30)),
     );
 
     console.log();
     console.log(keys.join('\t'));
     console.log('-'.repeat(80));
-    rows.forEach(row => console.log(row.join('\t')));
+    rows.forEach((row) => console.log(row.join('\t')));
     console.log();
   }
 
@@ -812,7 +905,7 @@ export class CLIGenerator {
         result += `${spaces}${key}:\n${this.toYamlString(value, indent + 1)}`;
       } else if (Array.isArray(value)) {
         result += `${spaces}${key}:\n`;
-        value.forEach(item => {
+        value.forEach((item) => {
           result += `${spaces}  - ${item}\n`;
         });
       } else {
@@ -831,7 +924,7 @@ async function main() {
     version: '1.0.0',
     description: 'Admin CLI for smrt objects',
     prompt: !process.env.CI, // Disable prompts in CI
-    colors: !process.env.NO_COLOR && process.stdout.isTTY
+    colors: !process.env.NO_COLOR && process.stdout.isTTY,
   };
 
   const context: CLIContext = {
@@ -840,21 +933,24 @@ async function main() {
 
   const cli = new CLIGenerator(config, context);
   const handler = cli.generateHandler();
-  
+
   // Remove 'node' and script name from argv
   const args = process.argv.slice(2);
-  
+
   try {
     await handler(args);
   } catch (error) {
-    console.error('CLI Error:', error instanceof Error ? error.message : 'Unknown error');
+    console.error(
+      'CLI Error:',
+      error instanceof Error ? error.message : 'Unknown error',
+    );
     process.exit(1);
   }
 }
 
 // Run if this file is executed directly
 if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch(error => {
+  main().catch((error) => {
     console.error('Fatal error:', error);
     process.exit(1);
   });

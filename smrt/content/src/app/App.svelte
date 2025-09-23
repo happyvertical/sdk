@@ -1,125 +1,77 @@
 <script>
-  import { onMount } from 'svelte';
-  import { createClient } from '../mock-smrt-client.ts';
+import { onMount } from 'svelte';
+import { createClient } from '../mock-smrt-client.ts';
 
-  const client = createClient('/api/v1');
+const client = createClient('/api/v1');
 
-  let contents = $state([]);
-  let loading = $state(true);
-  let error = $state(null);
-  let showAddForm = $state(false);
-  let editingContent = $state(null);
-  let searchTerm = $state('');
-  let selectedType = $state('All Types');
+let contents = $state([]);
+let loading = $state(true);
+let error = $state(null);
+let showAddForm = $state(false);
+let editingContent = $state(null);
+const searchTerm = $state('');
+const selectedType = $state('All Types');
 
-  let newContent = $state({
-    title: '',
-    description: '',
-    body: '',
-    author: '',
-    type: 'article',
-    status: 'draft',
-    state: 'active',
-    source: 'manual',
-    url: '',
-    fileKey: ''
-  });
+let newContent = $state({
+  title: '',
+  description: '',
+  body: '',
+  author: '',
+  type: 'article',
+  status: 'draft',
+  state: 'active',
+  source: 'manual',
+  url: '',
+  fileKey: '',
+});
 
-  let stats = $derived({
-    total: contents.length,
-    published: contents.filter(c => c.status === 'published').length,
-    highlighted: contents.filter(c => c.state === 'highlighted').length
-  });
+const stats = $derived({
+  total: contents.length,
+  published: contents.filter((c) => c.status === 'published').length,
+  highlighted: contents.filter((c) => c.state === 'highlighted').length,
+});
 
-  let filteredContents = $derived(
-    contents.filter(content => {
-      const matchesSearch = searchTerm === '' ||
-        content.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        content.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        content.author?.toLowerCase().includes(searchTerm.toLowerCase());
+const filteredContents = $derived(
+  contents.filter((content) => {
+    const matchesSearch =
+      searchTerm === '' ||
+      content.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      content.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      content.author?.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchesType = selectedType === 'All Types' ||
-        (selectedType === 'Articles' && content.type === 'article') ||
-        (selectedType === 'Documents' && content.type === 'document') ||
-        (selectedType === 'Mirrors' && content.type === 'mirror');
+    const matchesType =
+      selectedType === 'All Types' ||
+      (selectedType === 'Articles' && content.type === 'article') ||
+      (selectedType === 'Documents' && content.type === 'document') ||
+      (selectedType === 'Mirrors' && content.type === 'mirror');
 
-      return matchesSearch && matchesType;
-    })
-  );
+    return matchesSearch && matchesType;
+  }),
+);
 
-  onMount(async () => {
-    await loadContents();
-  });
+onMount(async () => {
+  await loadContents();
+});
 
-  async function loadContents() {
-    try {
-      loading = true;
-      const response = await client.contents.list();
-      contents = response.data;
-      error = null;
-    } catch (err) {
-      error = err.message;
-    } finally {
-      loading = false;
-    }
+async function loadContents() {
+  try {
+    loading = true;
+    const response = await client.contents.list();
+    contents = response.data;
+    error = null;
+  } catch (err) {
+    error = err.message;
+  } finally {
+    loading = false;
   }
+}
 
-  async function handleAddContent() {
-    try {
-      const response = await client.contents.create(newContent);
-      contents = [...contents, response.data];
+async function handleAddContent() {
+  try {
+    const response = await client.contents.create(newContent);
+    contents = [...contents, response.data];
 
-      // Reset form
-      newContent = {
-        title: '',
-        description: '',
-        body: '',
-        author: '',
-        type: 'article',
-        status: 'draft',
-        state: 'active',
-        source: 'manual',
-        url: '',
-        fileKey: ''
-      };
-      showAddForm = false;
-    } catch (err) {
-      error = err.message;
-    }
-  }
-
-  async function handleEditContent(content) {
-    editingContent = { ...content };
-  }
-
-  async function handleUpdateContent() {
-    try {
-      const response = await client.contents.update(editingContent.id, editingContent);
-      const index = contents.findIndex(c => c.id === editingContent.id);
-      contents[index] = response.data;
-      editingContent = null;
-    } catch (err) {
-      error = err.message;
-    }
-  }
-
-  async function handleDeleteContent(content) {
-    if (confirm(`Are you sure you want to delete "${content.title}"?`)) {
-      try {
-        await client.contents.delete(content.id);
-        contents = contents.filter(c => c.id !== content.id);
-      } catch (err) {
-        error = err.message;
-      }
-    }
-  }
-
-  function cancelEdit() {
-    editingContent = null;
-  }
-
-  function cancelAdd() {
-    showAddForm = false;
+    // Reset form
     newContent = {
       title: '',
       description: '',
@@ -130,36 +82,101 @@
       state: 'active',
       source: 'manual',
       url: '',
-      fileKey: ''
+      fileKey: '',
     };
+    showAddForm = false;
+  } catch (err) {
+    error = err.message;
   }
+}
 
-  function getTypeIcon(type) {
-    switch (type) {
-      case 'article': return '📄';
-      case 'mirror': return '🌐';
-      case 'document': return '📋';
-      default: return '📝';
+async function handleEditContent(content) {
+  editingContent = { ...content };
+}
+
+async function handleUpdateContent() {
+  try {
+    const response = await client.contents.update(
+      editingContent.id,
+      editingContent,
+    );
+    const index = contents.findIndex((c) => c.id === editingContent.id);
+    contents[index] = response.data;
+    editingContent = null;
+  } catch (err) {
+    error = err.message;
+  }
+}
+
+async function handleDeleteContent(content) {
+  if (confirm(`Are you sure you want to delete "${content.title}"?`)) {
+    try {
+      await client.contents.delete(content.id);
+      contents = contents.filter((c) => c.id !== content.id);
+    } catch (err) {
+      error = err.message;
     }
   }
+}
 
-  function getStatusBadge(status) {
-    switch (status) {
-      case 'published': return 'published';
-      case 'draft': return 'draft';
-      case 'archived': return 'archived';
-      default: return 'unknown';
-    }
-  }
+function cancelEdit() {
+  editingContent = null;
+}
 
-  function getStateBadge(state) {
-    switch (state) {
-      case 'highlighted': return 'highlighted';
-      case 'active': return 'active';
-      case 'deprecated': return 'deprecated';
-      default: return 'unknown';
-    }
+function cancelAdd() {
+  showAddForm = false;
+  newContent = {
+    title: '',
+    description: '',
+    body: '',
+    author: '',
+    type: 'article',
+    status: 'draft',
+    state: 'active',
+    source: 'manual',
+    url: '',
+    fileKey: '',
+  };
+}
+
+function getTypeIcon(type) {
+  switch (type) {
+    case 'article':
+      return '📄';
+    case 'mirror':
+      return '🌐';
+    case 'document':
+      return '📋';
+    default:
+      return '📝';
   }
+}
+
+function getStatusBadge(status) {
+  switch (status) {
+    case 'published':
+      return 'published';
+    case 'draft':
+      return 'draft';
+    case 'archived':
+      return 'archived';
+    default:
+      return 'unknown';
+  }
+}
+
+function getStateBadge(state) {
+  switch (state) {
+    case 'highlighted':
+      return 'highlighted';
+    case 'active':
+      return 'active';
+    case 'deprecated':
+      return 'deprecated';
+    default:
+      return 'unknown';
+  }
+}
 </script>
 
 <div class="app">

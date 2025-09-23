@@ -99,11 +99,11 @@ export class TesseractProvider implements OCRProvider {
     try {
       const TesseractModule = await import('tesseract.js');
       this.tesseract = TesseractModule.default || TesseractModule;
-      
+
       if (!this.tesseract || !this.tesseract.createWorker) {
         throw new Error('Tesseract.js module structure unexpected');
       }
-      
+
       return this.tesseract;
     } catch (error) {
       throw new OCRDependencyError(this.name, (error as Error).message);
@@ -133,7 +133,10 @@ export class TesseractProvider implements OCRProvider {
       this.workers.set(language, worker);
       return worker;
     } catch (error) {
-      throw new OCRDependencyError(this.name, `Failed to create worker for ${language}: ${(error as Error).message}`);
+      throw new OCRDependencyError(
+        this.name,
+        `Failed to create worker for ${language}: ${(error as Error).message}`,
+      );
     }
   }
 
@@ -165,7 +168,10 @@ export class TesseractProvider implements OCRProvider {
    * console.log('Average confidence:', result.confidence);
    * ```
    */
-  async performOCR(images: OCRImage[], options?: OCROptions): Promise<OCRResult> {
+  async performOCR(
+    images: OCRImage[],
+    options?: OCROptions,
+  ): Promise<OCRResult> {
     if (!images || images.length === 0) {
       return {
         text: '',
@@ -181,7 +187,10 @@ export class TesseractProvider implements OCRProvider {
     // Check dependencies first
     const dependencyCheck = await this.checkDependencies();
     if (!dependencyCheck.available) {
-      throw new OCRDependencyError(this.name, dependencyCheck.error || 'Dependencies not available');
+      throw new OCRDependencyError(
+        this.name,
+        dependencyCheck.error || 'Dependencies not available',
+      );
     }
 
     const startTime = Date.now();
@@ -198,13 +207,13 @@ export class TesseractProvider implements OCRProvider {
       for (const image of images) {
         try {
           // Handle different image data formats
-          let imageData = image.data;
-          
+          const imageData = image.data;
+
           // Skip if no valid image data
           if (!imageData) {
             continue;
           }
-          
+
           // Convert image data to Buffer/Uint8Array if needed
           let buffer: Buffer | Uint8Array;
           if (imageData instanceof Buffer || imageData instanceof Uint8Array) {
@@ -220,37 +229,44 @@ export class TesseractProvider implements OCRProvider {
           } else {
             continue;
           }
-          
+
           // Skip empty buffers or buffers that are too small to be valid images
-          if (buffer.length < 100) {  // Minimum size for a valid image header
+          if (buffer.length < 100) {
+            // Minimum size for a valid image header
             continue;
           }
-          
+
           // Check for valid image signatures (PNG, JPEG, etc.)
-          const isPNG = buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47;
-          const isJPEG = buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF;
-          const isBMP = buffer[0] === 0x42 && buffer[1] === 0x4D;
-          const isGIF = buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46;
-          
+          const isPNG =
+            buffer[0] === 0x89 &&
+            buffer[1] === 0x50 &&
+            buffer[2] === 0x4e &&
+            buffer[3] === 0x47;
+          const isJPEG =
+            buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+          const isBMP = buffer[0] === 0x42 && buffer[1] === 0x4d;
+          const isGIF =
+            buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46;
+
           if (!isPNG && !isJPEG && !isBMP && !isGIF) {
             // Not a recognized image format, skip
             continue;
           }
-          
+
           // Perform OCR using Tesseract.js
           const result = await worker.recognize(buffer);
-          
+
           // Process Tesseract results
           if (result && result.data) {
             const text = result.data.text?.trim() || '';
             if (text) {
               ocrText += text + ' ';
-              
+
               // Extract confidence
               const confidence = result.data.confidence || 0;
               totalConfidence += confidence;
               detectionCount++;
-              
+
               // Process word-level detections if available
               if (result.data.words) {
                 for (const word of result.data.words) {
@@ -258,12 +274,14 @@ export class TesseractProvider implements OCRProvider {
                     allDetections.push({
                       text: word.text,
                       confidence: word.confidence || 0,
-                      boundingBox: word.bbox ? {
-                        x: word.bbox.x0,
-                        y: word.bbox.y0,
-                        width: word.bbox.x1 - word.bbox.x0,
-                        height: word.bbox.y1 - word.bbox.y0,
-                      } : undefined,
+                      boundingBox: word.bbox
+                        ? {
+                            x: word.bbox.x0,
+                            y: word.bbox.y0,
+                            width: word.bbox.x1 - word.bbox.x0,
+                            height: word.bbox.y1 - word.bbox.y0,
+                          }
+                        : undefined,
                     });
                   }
                 }
@@ -278,24 +296,27 @@ export class TesseractProvider implements OCRProvider {
             }
           }
         } catch (imageError: any) {
-          console.warn('Tesseract.js failed to process image:', imageError.message || imageError);
-          continue;
+          console.warn(
+            'Tesseract.js failed to process image:',
+            imageError.message || imageError,
+          );
         }
       }
     } catch (error: any) {
       const processingTime = Date.now() - startTime;
       console.error('Tesseract.js processing failed:', error.message || error);
-      
+
       throw new OCRProcessingError(
         this.name,
         `Processing failed: ${error.message || error}`,
-        { ...error, processingTime }
+        { ...error, processingTime },
       );
     }
-    
+
     const processingTime = Date.now() - startTime;
-    const averageConfidence = detectionCount > 0 ? totalConfidence / detectionCount : 0;
-    
+    const averageConfidence =
+      detectionCount > 0 ? totalConfidence / detectionCount : 0;
+
     return {
       text: ocrText.trim(),
       confidence: averageConfidence,
@@ -327,23 +348,23 @@ export class TesseractProvider implements OCRProvider {
    */
   private mapLanguageCode(code: string): string {
     const langMap: { [key: string]: string } = {
-      'en': 'eng',
-      'zh': 'chi_sim',
+      en: 'eng',
+      zh: 'chi_sim',
       'zh-cn': 'chi_sim',
       'zh-tw': 'chi_tra',
-      'ja': 'jpn',
-      'ko': 'kor',
-      'ar': 'ara',
-      'hi': 'hin',
-      'ru': 'rus',
-      'es': 'spa',
-      'fr': 'fra',
-      'de': 'deu',
-      'it': 'ita',
-      'pt': 'por',
-      'pl': 'pol',
-      'nl': 'nld',
-      'tr': 'tur',
+      ja: 'jpn',
+      ko: 'kor',
+      ar: 'ara',
+      hi: 'hin',
+      ru: 'rus',
+      es: 'spa',
+      fr: 'fra',
+      de: 'deu',
+      it: 'ita',
+      pt: 'por',
+      pl: 'pol',
+      nl: 'nld',
+      tr: 'tur',
     };
 
     return langMap[code.toLowerCase()] || code;
@@ -368,15 +389,85 @@ export class TesseractProvider implements OCRProvider {
   getSupportedLanguages(): string[] {
     // Tesseract supports 100+ languages - listing the most common ones
     return [
-      'eng', 'chi_sim', 'chi_tra', 'jpn', 'kor', 'ara', 'hin', 'rus',
-      'spa', 'fra', 'deu', 'ita', 'por', 'pol', 'nld', 'tur', 'vie',
-      'tha', 'mya', 'ben', 'tam', 'tel', 'kan', 'mal', 'guj', 'ori',
-      'pan', 'asm', 'nep', 'sin', 'bod', 'khm', 'lao', 'heb', 'yid',
-      'urd', 'fas', 'pus', 'snd', 'aze', 'bel', 'bul', 'cat', 'ces',
-      'dan', 'ell', 'est', 'eus', 'fin', 'gle', 'glg', 'hun', 'isl',
-      'lav', 'lit', 'mkd', 'mlt', 'nor', 'ron', 'slk', 'slv', 'sqi',
-      'srp', 'swe', 'ukr', 'afr', 'aze_cyrl', 'bos', 'ceb', 'cym',
-      'hrv', 'ind', 'jav', 'lat', 'ltz', 'msa', 'mlt', 'swa', 'tgl'
+      'eng',
+      'chi_sim',
+      'chi_tra',
+      'jpn',
+      'kor',
+      'ara',
+      'hin',
+      'rus',
+      'spa',
+      'fra',
+      'deu',
+      'ita',
+      'por',
+      'pol',
+      'nld',
+      'tur',
+      'vie',
+      'tha',
+      'mya',
+      'ben',
+      'tam',
+      'tel',
+      'kan',
+      'mal',
+      'guj',
+      'ori',
+      'pan',
+      'asm',
+      'nep',
+      'sin',
+      'bod',
+      'khm',
+      'lao',
+      'heb',
+      'yid',
+      'urd',
+      'fas',
+      'pus',
+      'snd',
+      'aze',
+      'bel',
+      'bul',
+      'cat',
+      'ces',
+      'dan',
+      'ell',
+      'est',
+      'eus',
+      'fin',
+      'gle',
+      'glg',
+      'hun',
+      'isl',
+      'lav',
+      'lit',
+      'mkd',
+      'mlt',
+      'nor',
+      'ron',
+      'slk',
+      'slv',
+      'sqi',
+      'srp',
+      'swe',
+      'ukr',
+      'afr',
+      'aze_cyrl',
+      'bos',
+      'ceb',
+      'cym',
+      'hrv',
+      'ind',
+      'jav',
+      'lat',
+      'ltz',
+      'msa',
+      'mlt',
+      'swa',
+      'tgl',
     ];
   }
 
@@ -398,12 +489,21 @@ export class TesseractProvider implements OCRProvider {
    */
   async checkCapabilities(): Promise<OCRCapabilities> {
     const deps = await this.checkDependencies();
-    
+
     return {
       canPerformOCR: deps.available,
       supportedLanguages: this.getSupportedLanguages(),
       maxImageSize: undefined, // Tesseract.js can handle reasonably large images
-      supportedFormats: ['png', 'jpg', 'jpeg', 'bmp', 'tiff', 'pbm', 'pgm', 'ppm'],
+      supportedFormats: [
+        'png',
+        'jpg',
+        'jpeg',
+        'bmp',
+        'tiff',
+        'pbm',
+        'pgm',
+        'ppm',
+      ],
       hasConfidenceScores: true,
       hasBoundingBoxes: true,
       providerSpecific: {
@@ -445,7 +545,7 @@ export class TesseractProvider implements OCRProvider {
     try {
       // Only test if tesseract.js module can be imported (lightweight check)
       const tesseract = await this.loadTesseract();
-      
+
       // Verify essential functions exist without creating workers
       if (tesseract && typeof tesseract.createWorker === 'function') {
         result.details.tesseractJs = true;
@@ -457,15 +557,18 @@ export class TesseractProvider implements OCRProvider {
       }
     } catch (error: any) {
       const errorMessage = error.message || error.toString();
-      
+
       // Categorize the error
-      if (errorMessage.includes('tesseract.js') || errorMessage.includes('Cannot find module')) {
+      if (
+        errorMessage.includes('tesseract.js') ||
+        errorMessage.includes('Cannot find module')
+      ) {
         result.error = `tesseract.js module not found: ${errorMessage}`;
         result.details.tesseractJs = false;
       } else {
         result.error = `Tesseract dependency check failed: ${errorMessage}`;
       }
-      
+
       return result;
     }
   }
@@ -489,21 +592,24 @@ export class TesseractProvider implements OCRProvider {
    */
   async cleanup(): Promise<void> {
     const cleanupPromises: Promise<any>[] = [];
-    
+
     for (const [language, worker] of this.workers) {
       if (worker && typeof worker.terminate === 'function') {
         cleanupPromises.push(
           worker.terminate().catch((error: any) => {
-            console.warn(`Failed to terminate Tesseract worker for ${language}:`, error);
-          })
+            console.warn(
+              `Failed to terminate Tesseract worker for ${language}:`,
+              error,
+            );
+          }),
         );
       }
     }
-    
+
     if (cleanupPromises.length > 0) {
       await Promise.allSettled(cleanupPromises);
     }
-    
+
     this.workers.clear();
   }
 }

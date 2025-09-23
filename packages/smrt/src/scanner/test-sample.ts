@@ -6,20 +6,18 @@ import { BaseObject } from '../object.js';
 
 // Mock decorator function for testing
 function smrt(config?: any) {
-  return function (target: any) {
-    return target;
-  };
+  return (target: any) => target;
 }
 
 // Simple Product class
 @smrt({
   api: {
-    exclude: ['delete']
+    exclude: ['delete'],
   },
   mcp: {
-    include: ['list', 'get', 'create']
+    include: ['list', 'get', 'create'],
   },
-  cli: true
+  cli: true,
 })
 class Product extends BaseObject {
   name: string = '';

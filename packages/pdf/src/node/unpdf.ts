@@ -17,7 +17,7 @@ import { PDFDependencyError } from '../shared/types.js';
 
 /**
  * PDF reader implementation using unpdf library for Node.js
- * 
+ *
  * This provider handles:
  * - Text extraction from PDF files
  * - Image extraction from PDF files
@@ -63,7 +63,9 @@ export class UnpdfProvider extends BasePDFReader {
     } else if (source instanceof Uint8Array) {
       return Buffer.from(source);
     } else {
-      throw new Error('Invalid PDF source: must be file path, Buffer, or Uint8Array');
+      throw new Error(
+        'Invalid PDF source: must be file path, Buffer, or Uint8Array',
+      );
     }
   }
 
@@ -72,7 +74,7 @@ export class UnpdfProvider extends BasePDFReader {
    */
   async extractText(
     source: PDFSource,
-    options?: ExtractTextOptions
+    options?: ExtractTextOptions,
   ): Promise<string | null> {
     try {
       const unpdf = await this.loadUnpdf();
@@ -87,35 +89,38 @@ export class UnpdfProvider extends BasePDFReader {
 
       // Normalize pages to extract
       const pagesToExtract = this.normalizePages(options?.pages, totalPages);
-      
+
       if (pagesToExtract.length === 0) {
         return null;
       }
 
       // Extract text from specified pages
       const pageTexts: string[] = [];
-      
+
       for (const pageNum of pagesToExtract) {
         try {
           const page = await pdf.getPage(pageNum);
           const textContent = await page.getTextContent();
-          
+
           // Combine text items into a single string
           const pageText = textContent.items
             .map((item: any) => item.str || '')
             .join(' ')
             .trim();
-            
+
           pageTexts.push(pageText);
         } catch (pageError) {
-          console.warn(`Failed to extract text from page ${pageNum}:`, pageError);
+          console.warn(
+            `Failed to extract text from page ${pageNum}:`,
+            pageError,
+          );
           pageTexts.push(''); // Add empty string to maintain page order
         }
       }
 
       // Merge page texts according to options
       const mergedText = this.mergePageTexts(pageTexts, options?.mergePages);
-      
+
       return mergedText || null;
     } catch (error) {
       console.error('unpdf text extraction failed:', error);
@@ -137,15 +142,19 @@ export class UnpdfProvider extends BasePDFReader {
 
       const pdf = await unpdf.getDocumentProxy(new Uint8Array(buffer));
       const metadata = await pdf.getMetadata();
-      
+
       return {
         pageCount: pdf.numPages,
         title: metadata?.info?.Title || undefined,
         author: metadata?.info?.Author || undefined,
         subject: metadata?.info?.Subject || undefined,
         keywords: metadata?.info?.Keywords || undefined,
-        creationDate: metadata?.info?.CreationDate ? new Date(metadata.info.CreationDate) : undefined,
-        modificationDate: metadata?.info?.ModDate ? new Date(metadata.info.ModDate) : undefined,
+        creationDate: metadata?.info?.CreationDate
+          ? new Date(metadata.info.CreationDate)
+          : undefined,
+        modificationDate: metadata?.info?.ModDate
+          ? new Date(metadata.info.ModDate)
+          : undefined,
         version: metadata?.info?.PDFFormatVersion || undefined,
         creator: metadata?.info?.Creator || undefined,
         producer: metadata?.info?.Producer || undefined,
@@ -169,7 +178,11 @@ export class UnpdfProvider extends BasePDFReader {
    * No conversion needed! Direct RGB data is now supported by the new ONNX provider.
    * This is the optimal path for OCR processing from unpdf.
    */
-  private processRawRGBData(rgbData: Buffer, width: number, height: number): Buffer {
+  private processRawRGBData(
+    rgbData: Buffer,
+    width: number,
+    height: number,
+  ): Buffer {
     // Return raw RGB data directly - no conversion overhead!
     return rgbData;
   }
@@ -193,24 +206,31 @@ export class UnpdfProvider extends BasePDFReader {
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         try {
           const images = await unpdf.extractImages(pdf, pageNum);
-          
+
           // Convert unpdf image format to our PDFImage format with BMP conversion
           for (const image of images) {
-            const rawData = image.data instanceof Buffer ? image.data : Buffer.from(image.data);
-            
+            const rawData =
+              image.data instanceof Buffer
+                ? image.data
+                : Buffer.from(image.data);
+
             // Direct RGB data processing - optimal path for OCR
             let processedData = rawData;
             let format = image.format || 'unknown';
-            
+
             // If we have raw RGB data (3 channels), keep it as raw RGB
             if (image.channels === 3 && image.width && image.height) {
               const expectedSize = image.width * image.height * 3;
               if (rawData.length === expectedSize) {
-                processedData = this.processRawRGBData(rawData, image.width, image.height);
+                processedData = this.processRawRGBData(
+                  rawData,
+                  image.width,
+                  image.height,
+                );
                 format = 'rgb'; // Mark as raw RGB for OCR to recognize optimal path
               }
             }
-            
+
             allImages.push({
               data: processedData,
               width: image.width,
@@ -221,8 +241,10 @@ export class UnpdfProvider extends BasePDFReader {
             });
           }
         } catch (pageError) {
-          console.warn(`Failed to extract images from page ${pageNum}:`, pageError);
-          continue;
+          console.warn(
+            `Failed to extract images from page ${pageNum}:`,
+            pageError,
+          );
         }
       }
 
@@ -238,7 +260,7 @@ export class UnpdfProvider extends BasePDFReader {
    */
   async checkCapabilities(): Promise<PDFCapabilities> {
     const deps = await this.checkDependencies();
-    
+
     return {
       canExtractText: deps.available,
       canExtractMetadata: deps.available,
@@ -300,19 +322,26 @@ export class UnpdfProvider extends BasePDFReader {
         try {
           const page = await pdf.getPage(i);
           const content = await page.getTextContent();
-          
+
           if (content.items && content.items.length > 0) {
             hasEmbeddedText = true;
             // Estimate text length based on sample
-            const pageTextLength = content.items.reduce((len: number, item: any) => {
-              return len + (item.str ? item.str.length : 0);
-            }, 0);
+            const pageTextLength = content.items.reduce(
+              (len: number, item: any) => {
+                return len + (item.str ? item.str.length : 0);
+              },
+              0,
+            );
             estimatedTextLength += pageTextLength;
           }
 
           // Check for images (simplified check for rendering operations)
           const ops = await page.getOperatorList();
-          if (ops.fnArray && ops.fnArray.some((op: number) => op === 82 || op === 85)) { // paintImageXObject operations
+          if (
+            ops.fnArray &&
+            ops.fnArray.some((op: number) => op === 82 || op === 85)
+          ) {
+            // paintImageXObject operations
             hasImages = true;
           }
         } catch (pageError) {
@@ -323,7 +352,9 @@ export class UnpdfProvider extends BasePDFReader {
 
       // Scale estimated text length to full document
       if (estimatedTextLength > 0 && pageCount > pagesToSample) {
-        estimatedTextLength = Math.round((estimatedTextLength / pagesToSample) * pageCount);
+        estimatedTextLength = Math.round(
+          (estimatedTextLength / pagesToSample) * pageCount,
+        );
       }
 
       // Determine processing strategy
@@ -348,12 +379,19 @@ export class UnpdfProvider extends BasePDFReader {
 
       // Estimate processing times
       const estimatedProcessingTime = {
-        textExtraction: hasEmbeddedText 
-          ? (estimatedTextLength > 50000 ? 'medium' : 'fast') as 'fast' | 'medium' | 'slow'
-          : 'fast' as 'fast' | 'medium' | 'slow',
-        ocrProcessing: hasImages || ocrRequired 
-          ? (pageCount > 10 ? 'slow' : pageCount > 3 ? 'medium' : 'fast') as 'fast' | 'medium' | 'slow'
-          : undefined,
+        textExtraction: hasEmbeddedText
+          ? ((estimatedTextLength > 50000 ? 'medium' : 'fast') as
+              | 'fast'
+              | 'medium'
+              | 'slow')
+          : ('fast' as 'fast' | 'medium' | 'slow'),
+        ocrProcessing:
+          hasImages || ocrRequired
+            ? ((pageCount > 10 ? 'slow' : pageCount > 3 ? 'medium' : 'fast') as
+                | 'fast'
+                | 'medium'
+                | 'slow')
+            : undefined,
       };
 
       return {
@@ -363,19 +401,22 @@ export class UnpdfProvider extends BasePDFReader {
         encrypted: metadata?.info?.Encrypted === 'Yes',
         hasEmbeddedText,
         hasImages,
-        estimatedTextLength: estimatedTextLength > 0 ? estimatedTextLength : undefined,
+        estimatedTextLength:
+          estimatedTextLength > 0 ? estimatedTextLength : undefined,
         recommendedStrategy,
         ocrRequired,
         estimatedProcessingTime,
         title: metadata?.info?.Title || undefined,
         author: metadata?.info?.Author || undefined,
-        creationDate: metadata?.info?.CreationDate ? new Date(metadata.info.CreationDate) : undefined,
+        creationDate: metadata?.info?.CreationDate
+          ? new Date(metadata.info.CreationDate)
+          : undefined,
         creator: metadata?.info?.Creator || undefined,
         producer: metadata?.info?.Producer || undefined,
       };
     } catch (error) {
       console.error('unpdf getInfo failed:', error);
-      
+
       // Return minimal info with error handling
       return {
         pageCount: 0,

@@ -1,7 +1,7 @@
 import os from 'os';
 import path from 'path';
 import { URL } from 'url';
-import { FilesystemAdapter } from '@have/files';
+import type { FilesystemAdapter } from '@have/files';
 import { downloadFileWithCache } from '@have/files';
 import { getPDFReader } from '@have/pdf';
 import { getCached, setCached, getMimeType } from '@have/files';
@@ -15,22 +15,22 @@ export interface DocumentOptions {
    * Filesystem adapter for file operations
    */
   fs?: FilesystemAdapter;
-  
+
   /**
    * Directory to use for caching files
    */
   cacheDir?: string;
-  
+
   /**
    * URL or path to the document
    */
   url: string;
-  
+
   /**
    * Local file path override
    */
   localPath?: string;
-  
+
   /**
    * Document MIME type
    */
@@ -39,7 +39,7 @@ export interface DocumentOptions {
 
 /**
  * Handler for document files with text extraction capabilities
- * 
+ *
  * Document provides functionality for working with document files (like PDFs)
  * including downloading, caching, and extracting text content.
  */
@@ -48,35 +48,35 @@ export class Document {
    * Flag indicating if document is from a remote source
    */
   protected isRemote: boolean;
-  
+
   /**
    * Configuration options
    */
   protected options: DocumentOptions;
-  
+
   /**
    * Local file path where document is stored
    */
   protected localPath: string;
-  
+
   /**
    * Directory used for caching files
    */
   protected cacheDir: string;
-  
+
   /**
    * Document URL
    */
   public url: URL;
-  
+
   /**
    * Document MIME type
    */
   public type: string | undefined | null;
-  
+
   /**
    * Creates a new Document instance
-   * 
+   *
    * @param options - Document configuration options
    */
   constructor(options: DocumentOptions) {
@@ -102,7 +102,7 @@ export class Document {
 
   /**
    * Creates and initializes a Document instance
-   * 
+   *
    * @param options - Document configuration options
    * @returns Promise resolving to the initialized Document
    */
@@ -114,7 +114,7 @@ export class Document {
 
   /**
    * Initializes the document, downloading it if it's remote
-   * 
+   *
    * @returns Promise that resolves when initialization is complete
    */
   async initialize() {
@@ -131,14 +131,25 @@ export class Document {
   private isTextFile(): boolean {
     if (!this.type) return false;
 
-    return this.type.startsWith('text/') ||
-           this.type === 'application/json' ||
-           this.type === 'application/xml' ||
-           this.type === 'application/javascript' ||
-           this.type === 'application/typescript' ||
-           ['.txt', '.md', '.json', '.xml', '.html', '.css', '.js', '.ts', '.yaml', '.yml'].some(ext =>
-             this.localPath.toLowerCase().endsWith(ext)
-           );
+    return (
+      this.type.startsWith('text/') ||
+      this.type === 'application/json' ||
+      this.type === 'application/xml' ||
+      this.type === 'application/javascript' ||
+      this.type === 'application/typescript' ||
+      [
+        '.txt',
+        '.md',
+        '.json',
+        '.xml',
+        '.html',
+        '.css',
+        '.js',
+        '.ts',
+        '.yaml',
+        '.yml',
+      ].some((ext) => this.localPath.toLowerCase().endsWith(ext))
+    );
   }
 
   /**
@@ -158,10 +169,11 @@ export class Document {
 
     let extracted: string | null = '';
     switch (this.type) {
-      case 'application/pdf':
+      case 'application/pdf': {
         const reader = await getPDFReader();
         extracted = await reader.extractText(this.localPath);
         break;
+      }
       case 'text':
       case 'json':
       default:
@@ -171,10 +183,14 @@ export class Document {
             const fs = await import('fs/promises');
             extracted = await fs.readFile(this.localPath, 'utf-8');
           } catch (error) {
-            throw new Error(`Failed to read text file ${this.localPath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(
+              `Failed to read text file ${this.localPath}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            );
           }
         } else {
-          throw new Error(`Getting text from ${this.type} types not yet implemented.`);
+          throw new Error(
+            `Getting text from ${this.type} types not yet implemented.`,
+          );
         }
     }
     if (extracted) {

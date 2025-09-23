@@ -11,7 +11,7 @@ import {
   downloadFileWithCache,
   listFiles,
 } from './index';
-import { createServer, Server } from 'node:http';
+import { createServer, type Server } from 'node:http';
 import { getTempDirectory } from '@have/utils';
 
 // Mock fs modulesq

@@ -1,12 +1,12 @@
-import { 
-  FilesystemInterface, 
-  GetFilesystemOptions, 
+import {
+  type FilesystemInterface,
+  type GetFilesystemOptions,
   LocalOptions,
-  S3Options,
-  GoogleDriveOptions,
-  WebDAVOptions,
+  type S3Options,
+  type GoogleDriveOptions,
+  type WebDAVOptions,
   BrowserStorageOptions,
-  FilesystemError
+  FilesystemError,
 } from './types.js';
 
 /**
@@ -34,7 +34,7 @@ const providers = new Map<string, () => Promise<any>>();
  */
 export function registerProvider(
   type: string,
-  factory: () => Promise<any>
+  factory: () => Promise<any>,
 ): void {
   providers.set(type, factory);
 }
@@ -71,88 +71,76 @@ export function getAvailableProviders(): string[] {
  */
 function validateOptions(options: GetFilesystemOptions): void {
   if (!options) {
-    throw new FilesystemError(
-      'Provider options are required',
-      'EINVAL'
-    );
+    throw new FilesystemError('Provider options are required', 'EINVAL');
   }
 
   const type = options.type || 'local';
-  
+
   switch (type) {
     case 'local':
       // Local provider has no required options
       break;
-      
-    case 's3':
+
+    case 's3': {
       const s3Opts = options as S3Options;
       if (!s3Opts.region) {
-        throw new FilesystemError(
-          'S3 provider requires region',
-          'EINVAL'
-        );
+        throw new FilesystemError('S3 provider requires region', 'EINVAL');
       }
       if (!s3Opts.bucket) {
-        throw new FilesystemError(
-          'S3 provider requires bucket',
-          'EINVAL'
-        );
+        throw new FilesystemError('S3 provider requires bucket', 'EINVAL');
       }
       break;
-      
-    case 'gdrive':
+    }
+
+    case 'gdrive': {
       const gdriveOpts = options as GoogleDriveOptions;
       if (!gdriveOpts.clientId) {
         throw new FilesystemError(
           'Google Drive provider requires clientId',
-          'EINVAL'
+          'EINVAL',
         );
       }
       if (!gdriveOpts.clientSecret) {
         throw new FilesystemError(
           'Google Drive provider requires clientSecret',
-          'EINVAL'
+          'EINVAL',
         );
       }
       if (!gdriveOpts.refreshToken) {
         throw new FilesystemError(
           'Google Drive provider requires refreshToken',
-          'EINVAL'
+          'EINVAL',
         );
       }
       break;
-      
-    case 'webdav':
+    }
+
+    case 'webdav': {
       const webdavOpts = options as WebDAVOptions;
       if (!webdavOpts.baseUrl) {
-        throw new FilesystemError(
-          'WebDAV provider requires baseUrl',
-          'EINVAL'
-        );
+        throw new FilesystemError('WebDAV provider requires baseUrl', 'EINVAL');
       }
       if (!webdavOpts.username) {
         throw new FilesystemError(
           'WebDAV provider requires username',
-          'EINVAL'
+          'EINVAL',
         );
       }
       if (!webdavOpts.password) {
         throw new FilesystemError(
           'WebDAV provider requires password',
-          'EINVAL'
+          'EINVAL',
         );
       }
       break;
-      
+    }
+
     case 'browser-storage':
       // Browser storage provider has no required options
       break;
-      
+
     default:
-      throw new FilesystemError(
-        `Unknown provider type: ${type}`,
-        'EINVAL'
-      );
+      throw new FilesystemError(`Unknown provider type: ${type}`, 'EINVAL');
   }
 }
 
@@ -186,15 +174,15 @@ function detectProviderType(options: GetFilesystemOptions): string {
   if ('region' in options && 'bucket' in options) {
     return 's3';
   }
-  
+
   if ('clientId' in options && 'clientSecret' in options) {
     return 'gdrive';
   }
-  
+
   if ('baseUrl' in options && 'username' in options) {
     return 'webdav';
   }
-  
+
   if ('databaseName' in options || 'storageQuota' in options) {
     return 'browser-storage';
   }
@@ -202,13 +190,19 @@ function detectProviderType(options: GetFilesystemOptions): string {
   // Default depends on environment
   if (typeof globalThis !== 'undefined') {
     // Check for browser environment indicators
-    if (typeof (globalThis as any).window !== 'undefined' && typeof (globalThis as any).indexedDB !== 'undefined') {
+    if (
+      typeof (globalThis as any).window !== 'undefined' &&
+      typeof (globalThis as any).indexedDB !== 'undefined'
+    ) {
       return 'browser-storage';
-    } else if (typeof (globalThis as any).process !== 'undefined' && (globalThis as any).process.versions?.node) {
+    } else if (
+      typeof (globalThis as any).process !== 'undefined' &&
+      (globalThis as any).process.versions?.node
+    ) {
       return 'local';
     }
   }
-  
+
   // Fallback detection
   return 'local';
 }
@@ -252,20 +246,20 @@ function detectProviderType(options: GetFilesystemOptions): string {
  * ```
  */
 export async function getFilesystem(
-  options: GetFilesystemOptions = {}
+  options: GetFilesystemOptions = {},
 ): Promise<FilesystemInterface> {
   // Validate options
   validateOptions(options);
-  
+
   // Detect provider type
   const type = detectProviderType(options);
-  
+
   // Get provider factory
   const providerFactory = providers.get(type);
   if (!providerFactory) {
     throw new FilesystemError(
       `Provider '${type}' is not registered. Available providers: ${getAvailableProviders().join(', ')}`,
-      'ENOTFOUND'
+      'ENOTFOUND',
     );
   }
 
@@ -278,7 +272,7 @@ export async function getFilesystem(
       `Failed to create '${type}' provider: ${error instanceof Error ? error.message : String(error)}`,
       'ENOENT',
       undefined,
-      type
+      type,
     );
   }
 }
@@ -308,7 +302,7 @@ export async function initializeProviders(): Promise<void> {
     const { LocalFilesystemProvider } = await import('../node/local.js');
     return LocalFilesystemProvider;
   });
-  
+
   // In browser context, the browser entry point will register the browser-storage provider
   // For tests running in Node.js, we only register the local provider
 }
@@ -373,8 +367,10 @@ export function getProviderInfo(type: string): {
     local: 'Local filesystem provider using Node.js fs module',
     s3: 'S3-compatible provider supporting AWS S3, MinIO, and other S3-compatible services',
     gdrive: 'Google Drive provider using Google Drive API v3',
-    webdav: 'WebDAV provider supporting Nextcloud, ownCloud, Apache mod_dav, and other WebDAV servers',
-    'browser-storage': 'Browser storage provider using IndexedDB for app file management'
+    webdav:
+      'WebDAV provider supporting Nextcloud, ownCloud, Apache mod_dav, and other WebDAV servers',
+    'browser-storage':
+      'Browser storage provider using IndexedDB for app file management',
   };
 
   const requiredOptions = {
@@ -382,12 +378,14 @@ export function getProviderInfo(type: string): {
     s3: ['region', 'bucket'],
     gdrive: ['clientId', 'clientSecret', 'refreshToken'],
     webdav: ['baseUrl', 'username', 'password'],
-    'browser-storage': []
+    'browser-storage': [],
   };
 
   return {
     available: isProviderAvailable(type),
-    description: descriptions[type as keyof typeof descriptions] || 'Unknown provider',
-    requiredOptions: requiredOptions[type as keyof typeof requiredOptions] || []
+    description:
+      descriptions[type as keyof typeof descriptions] || 'Unknown provider',
+    requiredOptions:
+      requiredOptions[type as keyof typeof requiredOptions] || [],
   };
 }
