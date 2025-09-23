@@ -135,7 +135,7 @@ function generateBulkUpdateMethod(): string {
 
 function generateCustomMethod(
   method: CustomMethod,
-  objectClassName: string,
+  _objectClassName: string,
 ): string {
   const { name, description, parameters = [] } = method;
 
@@ -173,7 +173,7 @@ ${methodBody}
   }`;
 }
 
-function generateAISearchMethod(objectClassName: string): string {
+function generateAISearchMethod(_objectClassName: string): string {
   return `  // AI-enhanced semantic search
   async searchSemantic(query: string, threshold: number = 7) {
     const allItems = await this.list({});

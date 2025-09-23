@@ -379,5 +379,5 @@ function generateCurlExample(endpoint: EndpointInfo): string {
   // Replace path parameters with example values
   curl = curl.replace(/{id}/g, 'example-id');
 
-  return curl + '\n';
+  return `${curl}\n`;
 }
