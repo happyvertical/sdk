@@ -40,18 +40,9 @@
     "lint": "biome lint .",
     "lint:fix": "biome lint --apply .",
     "clean": "rm -rf packages/*/dist packages/*/docs smrt/*/dist packages/*/tsconfig.*.tsbuildinfo .tsbuildinfo",
-    "build": "tsc --build packages/utils packages/files packages/spider packages/sql packages/ocr packages/pdf packages/ai packages/smrt mcp && bun repomix",
-    "build:clean": "bun clean && tsc --build packages/utils packages/files packages/spider packages/sql packages/ocr packages/pdf packages/ai packages/smrt mcp && bun repomix",
-    "build:watch": "tsc --build packages/utils packages/files packages/spider packages/sql packages/ocr packages/pdf packages/ai packages/smrt mcp --watch",
-    "mcp:build": "cd mcp && bun run build",
-    "mcp:start": "./scripts/mcp-servers/smrt-dev-server.sh",
-    "mcp:stop": "./scripts/mcp-servers/smrt-dev-server.sh stop",
-    "mcp:status": "./scripts/mcp-servers/smrt-dev-server.sh status",
-    "mcp:logs": "./scripts/mcp-servers/smrt-dev-server.sh logs",
-    "mcp:inspect": "cd mcp && npx @modelcontextprotocol/inspector dist/index.js",
-    "test:mcp": "cd mcp && bun test",
-    "mcp:setup-project": "cp scripts/mcp-smrt.sh ./scripts/ && chmod +x ./scripts/mcp-smrt.sh",
-    "mcp:verify-project": "./scripts/mcp-smrt.sh verify",
+    "build": "tsc --build packages/utils packages/files packages/spider packages/sql packages/ocr packages/pdf packages/ai packages/smrt && bun repomix",
+    "build:clean": "bun clean && tsc --build packages/utils packages/files packages/spider packages/sql packages/ocr packages/pdf packages/ai packages/smrt && bun repomix",
+    "build:watch": "tsc --build packages/utils packages/files packages/spider packages/sql packages/ocr packages/pdf packages/ai packages/smrt --watch",
     "docs:site": "bun run --cwd docs start",
     "docs:site:build": "bun run --cwd docs build",
     "docs:site:dev": "bun run --cwd docs dev",
@@ -86,7 +77,6 @@
   },
   "workspaces": [
     "packages/*",
-    "smrt/*",
-    "mcp"
+    "smrt/*"
   ]
 }
