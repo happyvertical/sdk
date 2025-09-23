@@ -1,15 +1,15 @@
 <script lang="ts">
-  import type { CategoryData } from '../types.js';
-  
-  interface Props {
-    readonly?: boolean;
-  }
-  
-  const { readonly = false }: Props = $props();
-  
-  // Placeholder for category management
-  const categories = $state<CategoryData[]>([]);
-  const loading = $state(false);
+import type { CategoryData } from '../types.js';
+
+interface Props {
+  readonly?: boolean;
+}
+
+const { readonly = false }: Props = $props();
+
+// Placeholder for category management
+const categories = $state<CategoryData[]>([]);
+const loading = $state(false);
 </script>
 
 <div class="category-manager">

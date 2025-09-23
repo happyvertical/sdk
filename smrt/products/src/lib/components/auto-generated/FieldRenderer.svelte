@@ -1,76 +1,83 @@
 <script lang="ts">
-  /**
-   * Automatic field renderer that maps TypeScript types to UI components
-   * This demonstrates the "Define Once, Consume Everywhere" vision
-   */
+/**
+ * Automatic field renderer that maps TypeScript types to UI components
+ * This demonstrates the "Define Once, Consume Everywhere" vision
+ */
 
-  interface Props {
-    fieldName: string;
-    fieldType: 'string' | 'number' | 'boolean' | 'array' | 'object';
-    value: any;
-    label?: string;
-    placeholder?: string;
-    required?: boolean;
-    readonly?: boolean;
-    onUpdate?: (value: any) => void;
+interface Props {
+  fieldName: string;
+  fieldType: 'string' | 'number' | 'boolean' | 'array' | 'object';
+  value: any;
+  label?: string;
+  placeholder?: string;
+  required?: boolean;
+  readonly?: boolean;
+  onUpdate?: (value: any) => void;
+}
+
+const {
+  fieldName,
+  fieldType,
+  value = '',
+  label,
+  placeholder,
+  required = false,
+  readonly = false,
+  onUpdate,
+}: Props = $props();
+
+// Auto-generate label from field name if not provided
+const displayLabel =
+  label ||
+  fieldName
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, (str) => str.toUpperCase());
+const fieldId = `field-${fieldName}`;
+
+function handleUpdate(newValue: any) {
+  if (onUpdate && !readonly) {
+    onUpdate(newValue);
   }
+}
 
-  const {
-    fieldName,
-    fieldType,
-    value = '',
-    label,
-    placeholder,
-    required = false,
-    readonly = false,
-    onUpdate
-  }: Props = $props();
+function handleStringInput(event: Event) {
+  const target = event.target as HTMLInputElement;
+  handleUpdate(target.value);
+}
 
-  // Auto-generate label from field name if not provided
-  const displayLabel = label || fieldName.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
-  const fieldId = `field-${fieldName}`;
+function handleNumberInput(event: Event) {
+  const target = event.target as HTMLInputElement;
+  handleUpdate(parseFloat(target.value) || 0);
+}
 
-  function handleUpdate(newValue: any) {
-    if (onUpdate && !readonly) {
-      onUpdate(newValue);
-    }
+function handleBooleanInput(event: Event) {
+  const target = event.target as HTMLInputElement;
+  handleUpdate(target.checked);
+}
+
+function handleArrayInput(event: Event) {
+  const target = event.target as HTMLTextAreaElement;
+  try {
+    // Simple array handling - comma separated values
+    const arrayValue = target.value
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s);
+    handleUpdate(arrayValue);
+  } catch {
+    // Keep current value on parse error
   }
+}
 
-  function handleStringInput(event: Event) {
-    const target = event.target as HTMLInputElement;
-    handleUpdate(target.value);
+function handleObjectInput(event: Event) {
+  const target = event.target as HTMLTextAreaElement;
+  try {
+    const objectValue = JSON.parse(target.value);
+    handleUpdate(objectValue);
+  } catch {
+    // Keep current value on parse error
   }
-
-  function handleNumberInput(event: Event) {
-    const target = event.target as HTMLInputElement;
-    handleUpdate(parseFloat(target.value) || 0);
-  }
-
-  function handleBooleanInput(event: Event) {
-    const target = event.target as HTMLInputElement;
-    handleUpdate(target.checked);
-  }
-
-  function handleArrayInput(event: Event) {
-    const target = event.target as HTMLTextAreaElement;
-    try {
-      // Simple array handling - comma separated values
-      const arrayValue = target.value.split(',').map(s => s.trim()).filter(s => s);
-      handleUpdate(arrayValue);
-    } catch {
-      // Keep current value on parse error
-    }
-  }
-
-  function handleObjectInput(event: Event) {
-    const target = event.target as HTMLTextAreaElement;
-    try {
-      const objectValue = JSON.parse(target.value);
-      handleUpdate(objectValue);
-    } catch {
-      // Keep current value on parse error
-    }
-  }
+}
 </script>
 
 <div class="field-renderer">

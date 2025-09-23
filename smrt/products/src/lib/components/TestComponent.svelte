@@ -1,9 +1,9 @@
 <script lang="ts">
-  interface Props {
-    message?: string;
-  }
-  
-  const { message = 'Hello Federation!' }: Props = $props();
+interface Props {
+  message?: string;
+}
+
+const { message = 'Hello Federation!' }: Props = $props();
 </script>
 
 <div class="test-component">
