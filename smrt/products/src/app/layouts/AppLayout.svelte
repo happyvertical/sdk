@@ -3,7 +3,7 @@
     children: any;
   }
   
-  let { children }: Props = $props();
+  const { children }: Props = $props();
 </script>
 
 <div class="app-layout">

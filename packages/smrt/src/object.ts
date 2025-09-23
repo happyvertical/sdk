@@ -13,7 +13,7 @@ import {
   DatabaseError,
   ValidationError,
   RuntimeError,
-  ErrorUtils
+  ErrorUtils,
 } from './errors.js';
 
 import { BaseClass } from './class.js';
@@ -26,27 +26,27 @@ export interface BaseObjectOptions extends BaseClassOptions {
    * Unique identifier for the object
    */
   id?: string;
-  
+
   /**
    * Human-readable name for the object
    */
   name?: string;
-  
+
   /**
    * URL-friendly identifier
    */
   slug?: string;
-  
+
   /**
    * Optional context to scope the slug (could be a path, domain, etc.)
    */
   context?: string;
-  
+
   /**
    * Creation timestamp
    */
   created_at?: Date;
-  
+
   /**
    * Last update timestamp
    */
@@ -55,7 +55,7 @@ export interface BaseObjectOptions extends BaseClassOptions {
 
 /**
  * Base persistent object with unique identifiers and database storage
- * 
+ *
  * BaseObject provides functionality for creating, loading, and saving objects
  * to a database. It supports identification via unique IDs and URL-friendly
  * slugs, with optional context scoping.
@@ -67,17 +67,17 @@ export class BaseObject<
    * Database table name for this object
    */
   public _tableName!: string;
-  
+
   /**
    * Unique identifier for the object
    */
   protected _id: string | null | undefined;
-  
+
   /**
    * URL-friendly identifier
    */
   protected _slug: string | null | undefined;
-  
+
   /**
    * Optional context to scope the slug
    */
@@ -87,12 +87,12 @@ export class BaseObject<
    * Human-readable name, primarily for display purposes
    */
   public name: string | null | undefined;
-  
+
   /**
    * Creation timestamp
    */
   public created_at: Date | null | undefined;
-  
+
   /**
    * Last update timestamp
    */
@@ -100,7 +100,7 @@ export class BaseObject<
 
   /**
    * Creates a new BaseObject instance
-   * 
+   *
    * @param options - Configuration options including identifiers and metadata
    * @throws Error if options is null
    */
@@ -115,22 +115,24 @@ export class BaseObject<
     this.name = options.name || null;
     this.created_at = options.created_at || null;
     this.updated_at = options.updated_at || null;
-    
+
     // Initialize field values from options
     this.initializeFields(options);
   }
-  
+
   /**
    * Initialize field values from constructor options
    */
   private initializeFields(options: any): void {
     const proto = Object.getPrototypeOf(this);
-    const descriptors = Object.getOwnPropertyDescriptors(proto.constructor.prototype);
-    
+    const descriptors = Object.getOwnPropertyDescriptors(
+      proto.constructor.prototype,
+    );
+
     for (const [key, descriptor] of Object.entries(descriptors)) {
       if (descriptor.value instanceof Field) {
         const field = descriptor.value as Field;
-        
+
         // Set value from options or use field default
         if (options[key] !== undefined) {
           this[key as keyof this] = options[key];
@@ -152,7 +154,7 @@ export class BaseObject<
 
   /**
    * Sets the unique identifier for this object
-   * 
+   *
    * @param value - The ID to set
    * @throws Error if the value is invalid
    */
@@ -172,7 +174,7 @@ export class BaseObject<
 
   /**
    * Sets the URL-friendly slug for this object
-   * 
+   *
    * @param value - The slug to set
    * @throws Error if the value is invalid
    */
@@ -193,7 +195,7 @@ export class BaseObject<
 
   /**
    * Sets the context that scopes this object's slug
-   * 
+   *
    * @param value - The context to set
    * @throws Error if the value is invalid
    */
@@ -206,7 +208,7 @@ export class BaseObject<
 
   /**
    * Initializes this object, setting up database tables and loading data if identifiers are provided
-   * 
+   *
    * @returns Promise that resolves when initialization is complete
    */
   protected async initialize(): Promise<void> {
@@ -228,13 +230,13 @@ export class BaseObject<
 
   /**
    * Loads data from a database row into this object's properties
-   * 
+   *
    * @param data - Database row data
    */
   loadDataFromDb(data: any) {
     const fields = this.getFields();
     for (const field in fields) {
-      if (fields.hasOwnProperty(field)) {
+      if (Object.hasOwn(fields, field)) {
         this[field as keyof this] = data[field];
       }
     }
@@ -242,7 +244,7 @@ export class BaseObject<
 
   /**
    * Gets all property descriptors from this object's prototype
-   * 
+   *
    * @returns Object containing all property descriptors
    */
   allDescriptors() {
@@ -263,13 +265,15 @@ export class BaseObject<
 
   /**
    * Gets field definitions and current values for this object
-   * 
+   *
    * @returns Object containing field definitions with current values
    */
   getFields() {
     // Get the static fields definition from the class
     const fields = fieldsFromClass(
-      this.constructor as new (...args: any[]) => any,
+      this.constructor as new (
+        ...args: any[]
+      ) => any,
     );
 
     // Add current instance values to the fields
@@ -282,7 +286,7 @@ export class BaseObject<
 
   /**
    * Generates an SQL UPSERT statement for saving this object to the database
-   * 
+   *
    * @returns SQL statement for inserting or updating this object
    */
   generateUpsertStatement() {
@@ -322,7 +326,7 @@ export class BaseObject<
 
   /**
    * Gets or generates a unique ID for this object
-   * 
+   *
    * @returns Promise resolving to the object's ID
    */
   async getId() {
@@ -341,7 +345,7 @@ export class BaseObject<
 
   /**
    * Gets or generates a slug for this object based on its name
-   * 
+   *
    * @returns Promise resolving to the object's slug
    */
   async getSlug() {
@@ -359,7 +363,7 @@ export class BaseObject<
 
   /**
    * Gets the ID of this object if it's already saved in the database
-   * 
+   *
    * @returns Promise resolving to the saved ID or null if not saved
    */
   async getSavedId() {
@@ -371,7 +375,7 @@ export class BaseObject<
 
   /**
    * Checks if this object is already saved in the database
-   * 
+   *
    * @returns Promise resolving to true if saved, false otherwise
    */
   async isSaved() {
@@ -381,7 +385,7 @@ export class BaseObject<
 
   /**
    * Saves this object to the database
-   * 
+   *
    * @returns Promise resolving to this object
    */
   async save() {
@@ -411,35 +415,44 @@ export class BaseObject<
         throw DatabaseError.schemaError(
           this._tableName || this.constructor.name,
           'table setup',
-          error instanceof Error ? error : new Error(String(error))
+          error instanceof Error ? error : new Error(String(error)),
         );
       }
 
       // Execute save operation with retry logic for transient failures
       const sql = this.generateUpsertStatement();
 
-      await ErrorUtils.withRetry(async () => {
-        try {
-          await this.db.query(sql);
-        } catch (error) {
-          // Detect specific database error types
-          if (error instanceof Error) {
-            if (error.message.includes('UNIQUE constraint failed')) {
-              const field = this.extractConstraintField(error.message);
-              throw ValidationError.uniqueConstraint(field, this.getFieldValue(field));
+      await ErrorUtils.withRetry(
+        async () => {
+          try {
+            await this.db.query(sql);
+          } catch (error) {
+            // Detect specific database error types
+            if (error instanceof Error) {
+              if (error.message.includes('UNIQUE constraint failed')) {
+                const field = this.extractConstraintField(error.message);
+                throw ValidationError.uniqueConstraint(
+                  field,
+                  this.getFieldValue(field),
+                );
+              }
+              if (error.message.includes('NOT NULL constraint failed')) {
+                const field = this.extractConstraintField(error.message);
+                throw ValidationError.requiredField(
+                  field,
+                  this.constructor.name,
+                );
+              }
+              throw DatabaseError.queryFailed(sql, error);
             }
-            if (error.message.includes('NOT NULL constraint failed')) {
-              const field = this.extractConstraintField(error.message);
-              throw ValidationError.requiredField(field, this.constructor.name);
-            }
-            throw DatabaseError.queryFailed(sql, error);
+            throw error;
           }
-          throw error;
-        }
-      }, 3, 500);
+        },
+        3,
+        500,
+      );
 
       return this;
-
     } catch (error) {
       // Re-throw SMRT errors as-is, wrap others
       if (error instanceof ValidationError || error instanceof DatabaseError) {
@@ -449,7 +462,7 @@ export class BaseObject<
       throw RuntimeError.operationFailed(
         'save',
         `${this.constructor.name}#${this.id}`,
-        error instanceof Error ? error : new Error(String(error))
+        error instanceof Error ? error : new Error(String(error)),
       );
     }
   }
@@ -487,7 +500,7 @@ export class BaseObject<
     const patterns = [
       /UNIQUE constraint failed: \w+\.(\w+)/,
       /NOT NULL constraint failed: \w+\.(\w+)/,
-      /constraint failed: (\w+)/i
+      /constraint failed: (\w+)/i,
     ];
 
     for (const pattern of patterns) {
@@ -513,17 +526,25 @@ export class BaseObject<
 
       const sql = `SELECT * FROM ${this.tableName} WHERE id = ?`;
 
-      await ErrorUtils.withRetry(async () => {
-        try {
-          const { rows: [existing] } = await this.db.query(sql, [this.options.id]);
-          if (existing) {
-            this.loadDataFromDb(existing);
+      await ErrorUtils.withRetry(
+        async () => {
+          try {
+            const {
+              rows: [existing],
+            } = await this.db.query(sql, [this.options.id]);
+            if (existing) {
+              this.loadDataFromDb(existing);
+            }
+          } catch (error) {
+            throw DatabaseError.queryFailed(
+              sql,
+              error instanceof Error ? error : new Error(String(error)),
+            );
           }
-        } catch (error) {
-          throw DatabaseError.queryFailed(sql, error instanceof Error ? error : new Error(String(error)));
-        }
-      }, 3, 250);
-
+        },
+        3,
+        250,
+      );
     } catch (error) {
       if (error instanceof ValidationError || error instanceof DatabaseError) {
         throw error;
@@ -532,14 +553,14 @@ export class BaseObject<
       throw RuntimeError.operationFailed(
         'loadFromId',
         `${this.constructor.name}#${this.options.id}`,
-        error instanceof Error ? error : new Error(String(error))
+        error instanceof Error ? error : new Error(String(error)),
       );
     }
   }
 
   /**
    * Loads this object's data from the database using its slug and context
-   * 
+   *
    * @returns Promise that resolves when loading is complete
    */
   public async loadFromSlug() {
@@ -556,7 +577,7 @@ export class BaseObject<
 
   /**
    * Evaluates whether this object meets given criteria using AI
-   * 
+   *
    * @param criteria - Criteria to evaluate against
    * @param options - AI message options
    * @returns Promise resolving to true if criteria are met, false otherwise
@@ -580,7 +601,7 @@ export class BaseObject<
 
   /**
    * Performs actions on this object based on instructions using AI
-   * 
+   *
    * @param instructions - Instructions for the AI to follow
    * @param options - AI message options
    * @returns Promise resolving to the AI response
@@ -593,14 +614,14 @@ export class BaseObject<
 
   /**
    * Runs a lifecycle hook if it's defined in the object's configuration
-   * 
+   *
    * @param hookName - Name of the hook to run (e.g., 'beforeDelete', 'afterDelete')
    * @returns Promise that resolves when the hook completes
    */
   protected async runHook(hookName: string): Promise<void> {
     const config = ObjectRegistry.getConfig(this.constructor.name);
     const hook = config.hooks?.[hookName as keyof typeof config.hooks];
-    
+
     if (!hook) {
       return; // No hook defined, nothing to do
     }
@@ -611,29 +632,28 @@ export class BaseObject<
       if (typeof method === 'function') {
         await method.call(this);
       } else {
-        console.warn(`Hook method '${hook}' not found on ${this.constructor.name}`);
+        console.warn(
+          `Hook method '${hook}' not found on ${this.constructor.name}`,
+        );
       }
     } else if (typeof hook === 'function') {
       // Hook is a function to call with this instance as parameter
       await hook(this);
     }
   }
-  
 
   /**
    * Delete this object from the database
-   * 
+   *
    * @returns Promise that resolves when deletion is complete
    */
   public async delete(): Promise<void> {
     await this.runHook('beforeDelete');
-    
-    await this.db.query(
-      `DELETE FROM ${this.tableName} WHERE id = ?`,
-      [this.id]
-    );
-    
+
+    await this.db.query(`DELETE FROM ${this.tableName} WHERE id = ?`, [
+      this.id,
+    ]);
+
     await this.runHook('afterDelete');
   }
 }
-

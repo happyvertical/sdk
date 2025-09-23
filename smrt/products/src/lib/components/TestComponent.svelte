@@ -3,7 +3,7 @@
     message?: string;
   }
   
-  let { message = 'Hello Federation!' }: Props = $props();
+  const { message = 'Hello Federation!' }: Props = $props();
 </script>
 
 <div class="test-component">

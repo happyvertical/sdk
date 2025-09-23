@@ -10,15 +10,15 @@
     showCreateForm?: boolean;
   }
   
-  let { readonly = false, showCreateForm = false }: Props = $props();
+  const { readonly = false, showCreateForm = false }: Props = $props();
   
-  let searchQuery = $state('');
-  let selectedCategory = $state('');
+  const searchQuery = $state('');
+  const selectedCategory = $state('');
   let showForm = $state(false);
   let editingProduct = $state<ProductData | null>(null);
   
   // Reactive filtered products
-  let filteredProducts = $derived.by(() => {
+  const filteredProducts = $derived.by(() => {
     let products = productStore.items;
 
     if (searchQuery) {

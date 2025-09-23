@@ -15,7 +15,7 @@
     onUpdate?: (value: any) => void;
   }
 
-  let {
+  const {
     fieldName,
     fieldType,
     value = '',

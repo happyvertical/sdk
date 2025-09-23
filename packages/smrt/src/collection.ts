@@ -17,7 +17,7 @@ export interface BaseCollectionOptions extends BaseClassOptions {}
 
 /**
  * Collection interface for managing sets of BaseObjects
- * 
+ *
  * BaseCollection provides methods for querying, creating, and managing
  * collections of persistent objects. It handles database setup, schema
  * generation, and provides a fluent interface for querying objects.
@@ -30,15 +30,19 @@ export class BaseCollection<
    * Promise tracking the database setup operation
    */
   protected _db_setup_promise: Promise<void> | null = null;
-  
+
   /**
    * Gets the class constructor for items in this collection
    */
-  protected get _itemClass(): (new (options: any) => ModelType) & {
+  protected get _itemClass(): (new (
+    options: any,
+  ) => ModelType) & {
     create(options: any): ModelType | Promise<ModelType>;
   } {
     const constructor = this.constructor as {
-      readonly _itemClass?: (new (options: any) => ModelType) & {
+      readonly _itemClass?: (new (
+        options: any,
+      ) => ModelType) & {
         create(options: any): ModelType | Promise<ModelType>;
       };
     };
@@ -52,7 +56,7 @@ export class BaseCollection<
         `    static readonly _itemClass = YourItemClass;`,
         `  }`,
         ``,
-        `Make sure your item class is imported and defined before the collection class.`
+        `Make sure your item class is imported and defined before the collection class.`,
       ].join('\n');
 
       throw new Error(errorMessage);
@@ -70,8 +74,8 @@ export class BaseCollection<
    * Call this during development to catch configuration issues early
    */
   static validate(): void {
-    if (!this._itemClass) {
-      const className = this.name;
+    if (!BaseCollection._itemClass) {
+      const className = BaseCollection.name;
       const errorMessage = [
         `Collection "${className}" is missing required static _itemClass property.`,
         ``,
@@ -84,22 +88,24 @@ export class BaseCollection<
     }
 
     // Validate that _itemClass has required methods
-    if (typeof this._itemClass !== 'function') {
-      throw new Error(`Collection "${this.name}"._itemClass must be a constructor function`);
+    if (typeof BaseCollection._itemClass !== 'function') {
+      throw new Error(
+        `Collection "${BaseCollection.name}"._itemClass must be a constructor function`,
+      );
     }
 
     // Check if it has a create method (static or prototype)
     const hasCreateMethod =
-      typeof this._itemClass.create === 'function' ||
-      typeof this._itemClass.prototype?.create === 'function';
+      typeof BaseCollection._itemClass.create === 'function' ||
+      typeof BaseCollection._itemClass.prototype?.create === 'function';
 
     if (!hasCreateMethod) {
       console.warn(
-        `Collection "${this.name}"._itemClass should have a create() method for optimal functionality`
+        `Collection "${BaseCollection.name}"._itemClass should have a create() method for optimal functionality`,
       );
     }
   }
-  
+
   /**
    * Database table name for this collection
    */
@@ -124,7 +130,7 @@ export class BaseCollection<
 
   /**
    * Creates a new BaseCollection instance
-   * 
+   *
    * @param options - Configuration options
    */
   constructor(options: T) {
@@ -133,7 +139,7 @@ export class BaseCollection<
 
   /**
    * Initializes the collection, setting up database tables
-   * 
+   *
    * @returns Promise that resolves when initialization is complete
    */
   public async initialize() {
@@ -141,11 +147,11 @@ export class BaseCollection<
     if (this.options.db) {
       await this.setupDb();
     }
-  } 
+  }
 
   /**
    * Retrieves a single object from the collection by ID, slug, or custom filter
-   * 
+   *
    * @param filter - String ID/slug or object with filter conditions
    * @returns Promise resolving to the object or null if not found
    */
@@ -272,7 +278,7 @@ export class BaseCollection<
 
   /**
    * Creates a new instance of the collection's item class
-   * 
+   *
    * @param options - Options for creating the item
    * @returns New item instance
    */
@@ -287,7 +293,7 @@ export class BaseCollection<
 
   /**
    * Gets an existing item or creates a new one if it doesn't exist
-   * 
+   *
    * @param data - Object data to find or create
    * @param defaults - Default values to use if creating a new object
    * @returns Promise resolving to the existing or new object
@@ -320,7 +326,7 @@ export class BaseCollection<
 
   /**
    * Gets differences between an existing object and new data
-   * 
+   *
    * @param existing - Existing object
    * @param data - New data
    * @returns Object containing only the changed fields
@@ -343,7 +349,7 @@ export class BaseCollection<
 
   /**
    * Sets up the database schema for this collection
-   * 
+   *
    * @returns Promise that resolves when setup is complete
    */
   async setupDb() {
@@ -367,7 +373,7 @@ export class BaseCollection<
 
   /**
    * Gets field definitions for the collection's item class
-   * 
+   *
    * @returns Object containing field definitions
    */
   getFields() {
@@ -376,7 +382,7 @@ export class BaseCollection<
 
   /**
    * Generates database schema for the collection's item class
-   * 
+   *
    * @returns Schema object for database setup
    */
   generateSchema() {
@@ -386,7 +392,7 @@ export class BaseCollection<
 
   /**
    * Sets up database triggers for automatically updating timestamps
-   * 
+   *
    * @returns Promise that resolves when triggers are set up
    */
   async setupTriggers() {
@@ -438,7 +444,7 @@ export class BaseCollection<
 
   /**
    * Generates a table name from the collection class name
-   * 
+   *
    * @returns Generated table name
    */
   generateTableName() {
@@ -458,9 +464,9 @@ export class BaseCollection<
 
   /**
    * Counts records in the collection matching the given filters
-   * 
+   *
    * Accepts the same where conditions as list() but ignores limit/offset/orderBy.
-   * 
+   *
    * @param options - Query options object
    * @param options.where - Record of conditions to filter results
    * @returns Promise resolving to the total count of matching records
@@ -471,9 +477,9 @@ export class BaseCollection<
 
     const result = await this.db.query(
       `SELECT COUNT(*) as count FROM ${this.tableName} ${whereSql}`,
-      whereValues
+      whereValues,
     );
-    
+
     return parseInt(result.rows[0].count, 10);
   }
 }

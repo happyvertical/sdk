@@ -5,11 +5,11 @@
     readonly?: boolean;
   }
   
-  let { readonly = false }: Props = $props();
+  const { readonly = false }: Props = $props();
   
   // Placeholder for category management
-  let categories = $state<CategoryData[]>([]);
-  let loading = $state(false);
+  const categories = $state<CategoryData[]>([]);
+  const loading = $state(false);
 </script>
 
 <div class="category-manager">

@@ -1,4 +1,7 @@
-import { FilesystemAdapter, FilesystemAdapterOptions } from './filesystem.js';
+import {
+  FilesystemAdapter,
+  type FilesystemAdapterOptions,
+} from './filesystem.js';
 import { getMimeType } from './index.js';
 
 /**
@@ -9,20 +12,20 @@ export class LocalFilesystemAdapter extends FilesystemAdapter {
    * Cache directory path
    */
   protected cacheDir: string;
-  
+
   /**
    * Type identifier for this adapter
    */
   public type: string;
-  
+
   /**
    * Configuration options
    */
   protected options: FilesystemAdapterOptions;
-  
+
   /**
    * Creates a new LocalFilesystemAdapter instance
-   * 
+   *
    * @param options - Configuration options
    */
   constructor(options: FilesystemAdapterOptions) {
@@ -34,7 +37,7 @@ export class LocalFilesystemAdapter extends FilesystemAdapter {
 
   /**
    * Creates a LocalFilesystemAdapter from a URL
-   * 
+   *
    * @param url - URL to create adapter from
    * @returns Promise resolving to a LocalFilesystemAdapter
    */
@@ -42,7 +45,7 @@ export class LocalFilesystemAdapter extends FilesystemAdapter {
 
   /**
    * Factory method to create a LocalFilesystemAdapter
-   * 
+   *
    * @param options - Configuration options
    * @returns Promise resolving to an initialized LocalFilesystemAdapter
    */
@@ -53,7 +56,7 @@ export class LocalFilesystemAdapter extends FilesystemAdapter {
 
   /**
    * Checks if a file or directory exists in the local filesystem
-   * 
+   *
    * @param path - Path to check
    * @returns Promise resolving to boolean indicating existence
    */
@@ -63,7 +66,7 @@ export class LocalFilesystemAdapter extends FilesystemAdapter {
 
   /**
    * Reads a file's contents from the local filesystem
-   * 
+   *
    * @param path - Path to the file
    * @returns Promise resolving to the file contents as a string
    */
@@ -73,7 +76,7 @@ export class LocalFilesystemAdapter extends FilesystemAdapter {
 
   /**
    * Writes content to a file in the local filesystem
-   * 
+   *
    * @param path - Path to the file
    * @param content - Content to write
    * @returns Promise that resolves when the write is complete
@@ -84,7 +87,7 @@ export class LocalFilesystemAdapter extends FilesystemAdapter {
 
   /**
    * Deletes a file or directory from the local filesystem
-   * 
+   *
    * @param path - Path to delete
    * @returns Promise that resolves when the deletion is complete
    */
@@ -94,7 +97,7 @@ export class LocalFilesystemAdapter extends FilesystemAdapter {
 
   /**
    * Lists files in a directory in the local filesystem
-   * 
+   *
    * @param path - Directory path to list
    * @returns Promise resolving to an array of file names
    */
@@ -104,7 +107,7 @@ export class LocalFilesystemAdapter extends FilesystemAdapter {
 
   /**
    * Gets the MIME type for a file based on its extension
-   * 
+   *
    * @param path - Path to the file
    * @returns Promise resolving to the MIME type string
    */

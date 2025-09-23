@@ -1,5 +1,5 @@
 import yaml from 'yaml';
-import { Content } from './content.js';
+import type { Content } from './content.js';
 
 /**
  * Converts a Content object to a string with YAML frontmatter

@@ -27,7 +27,7 @@ export interface ApiResponse<T> {
 }
 
 // Mock data store
-let mockProducts: ProductData[] = [
+const mockProducts: ProductData[] = [
   {
     id: '1',
     name: 'Demo Product',
@@ -40,7 +40,7 @@ let mockProducts: ProductData[] = [
     specifications: { weight: '1.2kg', color: 'Black' },
     tags: ['demo', 'sample'],
     createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
   },
   {
     id: '2',
@@ -54,8 +54,8 @@ let mockProducts: ProductData[] = [
     specifications: { size: 'small' },
     tags: ['budget', 'affordable'],
     createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  }
+    updatedAt: new Date().toISOString(),
+  },
 ];
 
 class MockApiClient {
@@ -64,19 +64,19 @@ class MockApiClient {
   products = {
     async list(): Promise<ApiResponse<ProductData[]>> {
       // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       return {
         data: [...mockProducts],
         success: true,
-        message: 'Products retrieved successfully'
+        message: 'Products retrieved successfully',
       };
     },
 
     async get(id: string): Promise<ApiResponse<ProductData>> {
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
-      const product = mockProducts.find(p => p.id === id);
+      const product = mockProducts.find((p) => p.id === id);
       if (!product) {
         throw new Error(`Product with id ${id} not found`);
       }
@@ -84,12 +84,14 @@ class MockApiClient {
       return {
         data: product,
         success: true,
-        message: 'Product retrieved successfully'
+        message: 'Product retrieved successfully',
       };
     },
 
-    async create(productData: Partial<ProductData>): Promise<ApiResponse<ProductData>> {
-      await new Promise(resolve => setTimeout(resolve, 300));
+    async create(
+      productData: Partial<ProductData>,
+    ): Promise<ApiResponse<ProductData>> {
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
       const newProduct: ProductData = {
         id: (mockProducts.length + 1).toString(),
@@ -103,7 +105,7 @@ class MockApiClient {
         specifications: productData.specifications || {},
         tags: productData.tags || [],
         createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       };
 
       mockProducts.push(newProduct);
@@ -111,14 +113,17 @@ class MockApiClient {
       return {
         data: newProduct,
         success: true,
-        message: 'Product created successfully'
+        message: 'Product created successfully',
       };
     },
 
-    async update(id: string, updates: Partial<ProductData>): Promise<ApiResponse<ProductData>> {
-      await new Promise(resolve => setTimeout(resolve, 300));
+    async update(
+      id: string,
+      updates: Partial<ProductData>,
+    ): Promise<ApiResponse<ProductData>> {
+      await new Promise((resolve) => setTimeout(resolve, 300));
 
-      const index = mockProducts.findIndex(p => p.id === id);
+      const index = mockProducts.findIndex((p) => p.id === id);
       if (index === -1) {
         throw new Error(`Product with id ${id} not found`);
       }
@@ -126,7 +131,7 @@ class MockApiClient {
       const updatedProduct = {
         ...mockProducts[index],
         ...updates,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       };
 
       mockProducts[index] = updatedProduct;
@@ -134,14 +139,14 @@ class MockApiClient {
       return {
         data: updatedProduct,
         success: true,
-        message: 'Product updated successfully'
+        message: 'Product updated successfully',
       };
     },
 
     async delete(id: string): Promise<ApiResponse<void>> {
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
-      const index = mockProducts.findIndex(p => p.id === id);
+      const index = mockProducts.findIndex((p) => p.id === id);
       if (index === -1) {
         throw new Error(`Product with id ${id} not found`);
       }
@@ -151,23 +156,25 @@ class MockApiClient {
       return {
         data: undefined as any,
         success: true,
-        message: 'Product deleted successfully'
+        message: 'Product deleted successfully',
       };
-    }
+    },
   };
 
   categories = {
     async list(): Promise<ApiResponse<string[]>> {
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
-      const categories = Array.from(new Set(mockProducts.map(p => p.category).filter(Boolean)));
+      const categories = Array.from(
+        new Set(mockProducts.map((p) => p.category).filter(Boolean)),
+      );
 
       return {
         data: categories,
         success: true,
-        message: 'Categories retrieved successfully'
+        message: 'Categories retrieved successfully',
       };
-    }
+    },
   };
 }
 

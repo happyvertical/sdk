@@ -7,7 +7,7 @@
     onDelete?: (id: string) => void;
   }
   
-  let { product, onEdit, onDelete }: Props = $props();
+  const { product, onEdit, onDelete }: Props = $props();
 </script>
 
 <div class="product-card">
