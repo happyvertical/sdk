@@ -1,61 +1,64 @@
 <script lang="ts">
-  import type { ProductData } from '../types.js';
-  
-  interface Props {
-    product?: Partial<ProductData>;
-    onSubmit: (product: Partial<ProductData>) => void;
-    onCancel?: () => void;
-    loading?: boolean;
+import type { ProductData } from '../types.js';
+
+interface Props {
+  product?: Partial<ProductData>;
+  onSubmit: (product: Partial<ProductData>) => void;
+  onCancel?: () => void;
+  loading?: boolean;
+}
+
+const { product = {}, onSubmit, onCancel, loading = false }: Props = $props();
+
+const formData = $state({
+  name: product.name || '',
+  description: product.description || '',
+  price: product.price || 0,
+  inStock: product.inStock ?? true,
+  category: product.category || '',
+  tags: product.tags?.join(', ') || '',
+});
+
+let errors = $state<Record<string, string>>({});
+
+function validateForm() {
+  errors = {};
+
+  if (!formData.name.trim()) {
+    errors.name = 'Product name is required';
   }
-  
-  const { product = {}, onSubmit, onCancel, loading = false }: Props = $props();
-  
-  const formData = $state({
-    name: product.name || '',
-    description: product.description || '',
-    price: product.price || 0,
-    inStock: product.inStock ?? true,
-    category: product.category || '',
-    tags: product.tags?.join(', ') || ''
-  });
-  
-  let errors = $state<Record<string, string>>({});
-  
-  function validateForm() {
-    errors = {};
-    
-    if (!formData.name.trim()) {
-      errors.name = 'Product name is required';
-    }
-    
-    if (formData.price < 0) {
-      errors.price = 'Price must be non-negative';
-    }
-    
-    return Object.keys(errors).length === 0;
+
+  if (formData.price < 0) {
+    errors.price = 'Price must be non-negative';
   }
-  
-  function handleSubmit(event: Event) {
-    event.preventDefault();
-    
-    if (!validateForm()) {
-      return;
-    }
-    
-    const productData: Partial<ProductData> = {
-      ...product,
-      name: formData.name.trim(),
-      description: formData.description.trim() || undefined,
-      price: formData.price,
-      inStock: formData.inStock,
-      category: formData.category.trim(),
-      tags: formData.tags 
-        ? formData.tags.split(',').map(tag => tag.trim()).filter(Boolean)
-        : []
-    };
-    
-    onSubmit(productData);
+
+  return Object.keys(errors).length === 0;
+}
+
+function handleSubmit(event: Event) {
+  event.preventDefault();
+
+  if (!validateForm()) {
+    return;
   }
+
+  const productData: Partial<ProductData> = {
+    ...product,
+    name: formData.name.trim(),
+    description: formData.description.trim() || undefined,
+    price: formData.price,
+    inStock: formData.inStock,
+    category: formData.category.trim(),
+    tags: formData.tags
+      ? formData.tags
+          .split(',')
+          .map((tag) => tag.trim())
+          .filter(Boolean)
+      : [],
+  };
+
+  onSubmit(productData);
+}
 </script>
 
 <form onsubmit={handleSubmit} class="product-form">

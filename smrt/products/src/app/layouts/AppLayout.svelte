@@ -1,9 +1,9 @@
 <script lang="ts">
-  interface Props {
-    children: any;
-  }
-  
-  const { children }: Props = $props();
+interface Props {
+  children: any;
+}
+
+const { children }: Props = $props();
 </script>
 
 <div class="app-layout">

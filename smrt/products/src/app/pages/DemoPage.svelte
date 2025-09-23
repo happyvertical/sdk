@@ -1,43 +1,43 @@
 <script lang="ts">
-  /**
-   * Demo page showing SMRT "Define Once, Consume Everywhere" vision
-   * Progressive customization: Auto-generated → Custom components
-   */
+/**
+ * Demo page showing SMRT "Define Once, Consume Everywhere" vision
+ * Progressive customization: Auto-generated → Custom components
+ */
 
-  import AutoForm from '../../lib/components/auto-generated/AutoForm.svelte';
-  import ProductForm from '../../lib/components/ProductForm.svelte'; // Custom component
-  import ProductCard from '../../lib/components/ProductCard.svelte'; // Custom component
-  import type { ProductData } from '../../lib/types.js';
+import AutoForm from '../../lib/components/auto-generated/AutoForm.svelte';
+import ProductForm from '../../lib/components/ProductForm.svelte'; // Custom component
+import ProductCard from '../../lib/components/ProductCard.svelte'; // Custom component
+import type { ProductData } from '../../lib/types.js';
 
-  const currentTab = $state<'auto' | 'custom' | 'comparison'>('auto');
+const currentTab = $state<'auto' | 'custom' | 'comparison'>('auto');
 
-  // Sample data for demonstration
-  const sampleProduct: ProductData = $state({
-    name: 'Sample Widget',
-    description: 'A demonstration product for the SMRT framework',
-    category: 'Electronics',
-    manufacturer: 'SMRT Industries',
-    model: 'SW-2024',
-    specifications: {
-      weight: '2.5kg',
-      dimensions: '10x8x3cm',
-      warranty: '2 years'
-    },
-    tags: ['demo', 'widget', 'smrt']
-  });
+// Sample data for demonstration
+const sampleProduct: ProductData = $state({
+  name: 'Sample Widget',
+  description: 'A demonstration product for the SMRT framework',
+  category: 'Electronics',
+  manufacturer: 'SMRT Industries',
+  model: 'SW-2024',
+  specifications: {
+    weight: '2.5kg',
+    dimensions: '10x8x3cm',
+    warranty: '2 years',
+  },
+  tags: ['demo', 'widget', 'smrt'],
+});
 
-  let autoFormData = $state({ ...sampleProduct });
-  let customFormData = $state({ ...sampleProduct });
+let autoFormData = $state({ ...sampleProduct });
+let customFormData = $state({ ...sampleProduct });
 
-  function handleAutoSubmit(data: ProductData) {
-    console.log('Auto form submitted:', data);
-    autoFormData = { ...data };
-  }
+function handleAutoSubmit(data: ProductData) {
+  console.log('Auto form submitted:', data);
+  autoFormData = { ...data };
+}
 
-  function handleCustomSubmit(data: ProductData) {
-    console.log('Custom form submitted:', data);
-    customFormData = { ...data };
-  }
+function handleCustomSubmit(data: ProductData) {
+  console.log('Custom form submitted:', data);
+  customFormData = { ...data };
+}
 </script>
 
 <div class="demo-page">
