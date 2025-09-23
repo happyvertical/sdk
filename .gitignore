@@ -24,7 +24,6 @@ docs/manual/
 # Auto-generated documentation
 packages/*/docs/
 smrt/*/docs/
-mcp/dist/
 repomix-output.xml
 
 # Prevent built files in src directories (they should only be in dist)
@@ -116,9 +115,4 @@ ci-debug-*.log
 *.tgz
 
 **/.claude/settings.local.json
-**/.claude/mcp-config.json
-**/scripts/mcp-smrt.sh
 repomix-output.xml
-
-# MCP Server logs
-/tmp/smrt-mcp-*.log

@@ -80,69 +80,6 @@ That's it. Your `Product` class now automatically provides:
 | **[@have/ocr](./packages/ocr/)** | Optical Character Recognition |
 | **[@have/utils](./packages/utils/)** | Shared utilities and helpers |
 
-## MCP Server for Claude Desktop
-
-The SDK includes an MCP (Model Context Protocol) server that provides AI-powered development tools for building SMRT applications.
-
-### Quick Setup for Projects Using the SDK
-
-1. **Install the SDK** in your project:
-   ```bash
-   npm install @have/sdk
-   ```
-
-2. **Copy the bridge script**:
-   ```bash
-   cp node_modules/@have/sdk/scripts/mcp-smrt.sh ./scripts/
-   chmod +x ./scripts/mcp-smrt.sh
-   ```
-
-3. **Configure Claude Desktop** with `.claude/mcp-config.json`:
-   ```json
-   {
-     "mcpServers": {
-       "smrt-dev-server": {
-         "command": "./scripts/mcp-smrt.sh",
-         "args": [],
-         "env": {
-           "NODE_ENV": "development",
-           "PROJECT_ROOT": "/absolute/path/to/your/project"
-         }
-       }
-     }
-   }
-   ```
-
-4. **Test and start**:
-   ```bash
-   ./scripts/mcp-smrt.sh verify
-   # Restart Claude Desktop
-   ```
-
-### Available Tools
-
-Once configured, Claude will have access to:
-
-- **generate-smrt-class**: Create complete SMRT objects with decorators
-- **add-ai-methods**: Add AI-powered methods (do, is, describe)
-- **validate-smrt-object**: Check code structure and best practices
-- **preview-api-endpoints**: See generated REST API structure
-- **configure-decorators**: Set up @smrt decorator options
-- And many more development tools...
-
-### Usage Examples
-
-**Create a new SMRT object:**
-> "Create a Product object for e-commerce with name, price, description, and inventory tracking."
-
-**Add AI capabilities:**
-> "Add AI methods to analyze product quality and generate descriptions."
-
-**Get documentation:**
-> "How do I use foreign key relationships in SMRT?"
-
-For detailed setup instructions and troubleshooting, see [claude-desktop-setup.md](./claude-desktop-setup.md).
-
 ## Documentation
 
 Full documentation available at [https://happyvertical.github.io/sdk/](https://happyvertical.github.io/sdk/)
