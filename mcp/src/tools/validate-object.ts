@@ -31,7 +31,7 @@ export async function validateSmrtObject(
 function validateCode(code: string): ValidationResult {
   const issues: ValidationIssue[] = [];
   const suggestions: string[] = [];
-  const lines = code.split('\n');
+  const _lines = code.split('\n');
 
   // Check for required imports
   validateImports(code, issues);
@@ -142,7 +142,7 @@ function validateDecorator(
     try {
       const decoratorSection = extractDecoratorConfig(code);
       validateDecoratorConfig(decoratorSection, issues);
-    } catch (error) {
+    } catch (_error) {
       issues.push({
         type: 'error',
         message: 'Invalid @smrt decorator configuration',
@@ -198,9 +198,10 @@ function validateFieldDefinitions(
   const fieldPattern =
     /(\w+)\s*=\s*(text|integer|decimal|boolean|datetime|json|foreignKey|oneToMany|manyToMany)\s*\(/g;
   const fields: string[] = [];
-  let match;
+  let match: RegExpExecArray | null;
 
-  while ((match = fieldPattern.exec(code)) !== null) {
+  match = fieldPattern.exec(code);
+  while (match !== null) {
     const fieldName = match[1];
     const fieldType = match[2];
     fields.push(fieldName);
@@ -228,6 +229,8 @@ function validateFieldDefinitions(
         `Consider encrypting the '${fieldName}' field with { encrypted: true }`,
       );
     }
+
+    match = fieldPattern.exec(code);
   }
 
   if (fields.length === 0) {
@@ -337,9 +340,10 @@ function validateAIMethods(
   const aiMethodPattern =
     /async\s+(\w+)\s*\([^)]*\)\s*:\s*Promise<[^>]+>\s*{[^}]*\.(do|is|describe)\s*\(/g;
   let aiMethodCount = 0;
-  let match;
+  let match: RegExpExecArray | null;
 
-  while ((match = aiMethodPattern.exec(code)) !== null) {
+  match = aiMethodPattern.exec(code);
+  while (match !== null) {
     aiMethodCount++;
     const methodName = match[1];
     const aiType = match[2];
@@ -355,6 +359,8 @@ function validateAIMethods(
         `Method '${methodName}' uses this.is() but name doesn't indicate boolean return (consider is${methodName[0].toUpperCase() + methodName.slice(1)})`,
       );
     }
+
+    match = aiMethodPattern.exec(code);
   }
 
   if (aiMethodCount === 0) {

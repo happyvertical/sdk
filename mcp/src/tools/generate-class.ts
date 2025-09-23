@@ -49,7 +49,7 @@ export async function generateSmrtClass(
   const imports = generateImports(fields, includeAIMethods);
   const decorator = generateDecorator(decoratorConfig);
   const fieldDefinitions = generateFieldDefinitions(fields);
-  const constructor = generateConstructor();
+  const constructorCode = generateConstructor();
   const lifecycleHooks = generateLifecycleHooks(decoratorConfig);
   const aiMethods = includeAIMethods ? generateBasicAIMethods(fields) : '';
 
@@ -59,7 +59,7 @@ ${decorator}
 export class ${className} extends BaseObject {
 ${fieldDefinitions}
 
-${constructor}
+${constructorCode}
 ${lifecycleHooks}${aiMethods}
 }`;
 
@@ -68,7 +68,7 @@ ${lifecycleHooks}${aiMethods}
 
 function generateImports(
   fields: FieldDefinition[],
-  includeAIMethods: boolean,
+  _includeAIMethods: boolean,
 ): string {
   const baseImports = ['BaseObject', 'smrt'];
   const fieldTypes = new Set<string>();
@@ -211,7 +211,7 @@ function generateLifecycleHooks(config: DecoratorConfig): string {
   }`);
   }
 
-  return hooks.length > 0 ? '\n' + hooks.join('\n\n') : '';
+  return hooks.length > 0 ? `\n${hooks.join('\n\n')}` : '';
 }
 
 function generateBasicAIMethods(fields: FieldDefinition[]): string {

@@ -85,7 +85,7 @@ ${name} = ${type}(${optionsStr});`;
 }
 
 function generateFieldComment(field: FieldDefinition): string {
-  const { name, type, options = {} } = field;
+  const { type, options = {} } = field;
 
   const constraints: string[] = [];
 
