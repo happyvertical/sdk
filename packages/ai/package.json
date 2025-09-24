@@ -25,7 +25,7 @@
     "dev": "npm run build:watch & npm run test:watch"
   },
   "dependencies": {
-    "@have/utils": "workspace:*",
+    "@have/utils": "0.0.50",
     "openai": "^4.78.1",
     "@google/genai": "^0.3.0",
     "@anthropic-ai/sdk": "^0.30.1",

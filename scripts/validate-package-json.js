@@ -90,11 +90,12 @@ function validatePackageJson(filePath) {
     }
 
     // Validate workspace dependencies format
+    // Note: Temporarily allowing explicit versions for CI/CD compatibility with npm
     if (pkg.dependencies) {
       for (const [dep, version] of Object.entries(pkg.dependencies)) {
-        if (dep.startsWith('@have/') && version !== 'workspace:*') {
+        if (dep.startsWith('@have/') && version !== 'workspace:*' && version !== '0.0.50') {
           errors.push(
-            `Internal dependency ${dep} should use "workspace:*" (got: ${version})`,
+            `Internal dependency ${dep} should use "workspace:*" or explicit version "0.0.50" for CI/CD (got: ${version})`,
           );
         }
       }

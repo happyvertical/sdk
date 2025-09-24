@@ -22,8 +22,8 @@
   },
   "description": "Web scraping and content extraction using happy-dom and undici for lightweight, fast operations",
   "dependencies": {
-    "@have/files": "workspace:*",
-    "@have/utils": "workspace:*",
+    "@have/files": "0.0.50",
+    "@have/utils": "0.0.50",
     "@mozilla/readability": "^0.5.0",
     "cheerio": "^1.0.0",
     "happy-dom": "^18.0.1",
