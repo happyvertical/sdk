@@ -1,7 +1,7 @@
-import path from 'path';
-import { mkdir } from 'fs/promises';
-import { getCached, setCached } from './index.js';
 import { getTempDirectory } from '@have/utils';
+import { mkdir } from 'fs/promises';
+import path from 'path';
+import { getCached, setCached } from './index.js';
 
 /**
  * Interface defining the required methods for a filesystem adapter
@@ -9,48 +9,48 @@ import { getTempDirectory } from '@have/utils';
 export interface FilesystemAdapterInterface {
   /**
    * Checks if a file or directory exists
-   * 
+   *
    * @param path - Path to check
    * @returns Promise resolving to boolean indicating existence
    */
   exists(path: string): Promise<boolean>;
-  
+
   /**
    * Reads a file's contents
-   * 
+   *
    * @param path - Path to the file
    * @returns Promise resolving to the file contents as a string
    */
   read(path: string): Promise<string>;
-  
+
   /**
    * Writes content to a file
-   * 
+   *
    * @param path - Path to the file
    * @param content - Content to write
    * @returns Promise that resolves when the write is complete
    */
   write(path: string, content: string): Promise<void>;
-  
+
   /**
    * Deletes a file or directory
-   * 
+   *
    * @param path - Path to delete
    * @returns Promise that resolves when the deletion is complete
    */
   delete(path: string): Promise<void>;
-  
+
   /**
    * Lists files in a directory
-   * 
+   *
    * @param path - Directory path to list
    * @returns Promise resolving to an array of file names
    */
   list(path: string): Promise<string[]>;
-  
+
   /**
    * Gets the MIME type for a file
-   * 
+   *
    * @param path - Path to the file
    * @returns Promise resolving to the MIME type string
    */
@@ -65,7 +65,7 @@ export interface FilesystemAdapterOptions {
    * Type of filesystem adapter
    */
   type?: string;
-  
+
   /**
    * Directory to use for caching
    */
@@ -80,7 +80,7 @@ export class FilesystemAdapter {
    * Configuration options
    */
   protected options: FilesystemAdapterOptions;
-  
+
   /**
    * Cache directory path
    */
@@ -88,18 +88,17 @@ export class FilesystemAdapter {
 
   /**
    * Creates a new FilesystemAdapter instance
-   * 
+   *
    * @param options - Configuration options
    */
   constructor(options: FilesystemAdapterOptions) {
     this.options = options;
-    this.cacheDir =
-      options.cacheDir || getTempDirectory('cache');
+    this.cacheDir = options.cacheDir || getTempDirectory('cache');
   }
 
   /**
    * Factory method to create and initialize a FilesystemAdapter
-   * 
+   *
    * @param options - Configuration options
    * @returns Promise resolving to an initialized FilesystemAdapter
    */
@@ -120,7 +119,7 @@ export class FilesystemAdapter {
 
   /**
    * Downloads a file from a URL
-   * 
+   *
    * @param url - URL to download from
    * @param options - Download options
    * @param options.force - Whether to force download even if cached
@@ -139,7 +138,7 @@ export class FilesystemAdapter {
 
   /**
    * Checks if a file or directory exists
-   * 
+   *
    * @param path - Path to check
    * @returns Promise resolving to boolean indicating existence
    */
@@ -150,7 +149,7 @@ export class FilesystemAdapter {
 
   /**
    * Reads a file's contents
-   * 
+   *
    * @param path - Path to the file
    * @returns Promise resolving to the file contents as a string
    */
@@ -161,7 +160,7 @@ export class FilesystemAdapter {
 
   /**
    * Writes content to a file
-   * 
+   *
    * @param path - Path to the file
    * @param content - Content to write
    * @returns Promise that resolves when the write is complete
@@ -172,7 +171,7 @@ export class FilesystemAdapter {
 
   /**
    * Deletes a file or directory
-   * 
+   *
    * @param path - Path to delete
    * @returns Promise that resolves when the deletion is complete
    */
@@ -182,7 +181,7 @@ export class FilesystemAdapter {
 
   /**
    * Lists files in a directory
-   * 
+   *
    * @param path - Directory path to list
    * @returns Promise resolving to an array of file names
    */
@@ -193,7 +192,7 @@ export class FilesystemAdapter {
 
   /**
    * Gets data from cache if available and not expired
-   * 
+   *
    * @param file - Cache file identifier
    * @param expiry - Cache expiry time in milliseconds
    * @returns Promise resolving to the cached data or undefined if not found/expired
@@ -204,7 +203,7 @@ export class FilesystemAdapter {
 
   /**
    * Sets data in cache
-   * 
+   *
    * @param file - Cache file identifier
    * @param data - Data to cache
    * @returns Promise that resolves when the data is cached

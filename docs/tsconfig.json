@@ -16,15 +16,6 @@
     "isolatedModules": true,
     "noEmit": true
   },
-  "include": [
-    "src/**/*",
-    "*.config.ts",
-    "sidebars.ts"
-  ],
-  "exclude": [
-    "node_modules",
-    ".docusaurus",
-    "build",
-    "dist"
-  ]
+  "include": ["src/**/*", "*.config.ts", "sidebars.ts"],
+  "exclude": ["node_modules", ".docusaurus", "build", "dist"]
 }

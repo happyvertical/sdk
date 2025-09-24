@@ -26,24 +26,24 @@ The `@have/smrt` package is the core framework for building vertical AI agents i
 
 ## Key Concepts
 
-### BaseClass
+### SmrtClass
 
 The foundation for all classes in the framework, providing:
 - Initialization logic
 - Access to AI client and database interfaces
 - Shared utilities
 
-### BaseObject
+### SmrtObject
 
-Extends BaseClass to represent individual entities that:
+Extends SmrtClass to represent individual entities that:
 - Can be saved to a database
 - Have unique identifiers (id, slug, etc.)
 - Support property-based schema generation
 - Include timestamps (created_at, updated_at)
 
-### BaseCollection
+### SmrtCollection
 
-Extends BaseClass to represent collections of objects that:
+Extends SmrtClass to represent collections of objects that:
 - Automatically set up database tables based on object schemas
 - Provide CRUD operations for managing objects
 - Support flexible querying with multiple operators
@@ -54,10 +54,10 @@ Extends BaseClass to represent collections of objects that:
 ### Defining Custom SMRT Objects
 
 ```typescript
-import { BaseObject } from '@have/smrt';
+import { SmrtObject } from '@have/smrt';
 import { Field } from '@have/smrt/fields';
 
-class Document extends BaseObject<any> {
+class Document extends SmrtObject<any> {
   // Schema properties with Field definitions
   title: string = '';
   content: string = '';
@@ -104,10 +104,10 @@ class Document extends BaseObject<any> {
 ### Advanced Collection Management
 
 ```typescript
-import { BaseCollection } from '@have/smrt';
+import { SmrtCollection } from '@have/smrt';
 import { Document } from './document';
 
-class DocumentCollection extends BaseCollection<Document> {
+class DocumentCollection extends SmrtCollection<Document> {
   static readonly _itemClass = Document;
   
   // Advanced querying with AI assistance
@@ -209,7 +209,7 @@ export default {
       exclude: ['**/*.test.ts'],
       generateTypes: true,
       hmr: true,
-      baseClasses: ['BaseObject', 'SmartObject']
+      baseClasses: ['SmrtObject', 'SmartObject']
     })
   ]
 };
@@ -239,7 +239,7 @@ const results = await collection.list({
 });
 
 // Relationship management
-class Author extends BaseObject<any> {
+class Author extends SmrtObject<any> {
   name: string = '';
   email: string = '';
   

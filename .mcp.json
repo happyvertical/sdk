@@ -3,20 +3,13 @@
     "mcp-svelte-docs": {
       "type": "stdio",
       "command": "npx",
-      "args": [
-        "-y",
-        "mcp-svelte-docs"
-      ],
+      "args": ["-y", "mcp-svelte-docs"],
       "env": {}
     },
     "shadcn-ui": {
       "type": "stdio",
       "command": "bunx",
-      "args": [
-        "shadcn-mcp",
-        "--framework",
-        "svelte"
-      ],
+      "args": ["shadcn-mcp", "--framework", "svelte"],
       "env": {
         "FRAMEWORK": "svelte"
       }
@@ -24,9 +17,7 @@
     "playwright": {
       "type": "stdio",
       "command": "bunx",
-      "args": [
-        "@playwright/mcp"
-      ],
+      "args": ["@playwright/mcp"],
       "env": {
         "PLAYWRIGHT_MCP_ISOLATED": "true"
       }

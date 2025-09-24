@@ -7,18 +7,18 @@
  */
 
 import type {
-  OCRProvider,
+  DependencyCheckResult,
+  OCRCapabilities,
+  OCREnvironment,
   OCRFactoryOptions,
   OCRImage,
   OCROptions,
-  OCRResult,
+  OCRProvider,
   OCRProviderInfo,
-  OCREnvironment,
-  DependencyCheckResult,
-  OCRCapabilities,
+  OCRResult,
 } from './types.js';
 
-import { OCRError, OCRDependencyError } from './types.js';
+import { OCRDependencyError, OCRError } from './types.js';
 
 /**
  * Detect the current runtime environment (Node.js, browser, or unknown).
@@ -39,11 +39,17 @@ import { OCRError, OCRDependencyError } from './types.js';
 function detectEnvironment(): OCREnvironment {
   // Use globalThis to avoid TypeScript issues with global objects
   const globalObj = globalThis as any;
-  
-  if (typeof globalObj.window !== 'undefined' && typeof globalObj.document !== 'undefined') {
+
+  if (
+    typeof globalObj.window !== 'undefined' &&
+    typeof globalObj.document !== 'undefined'
+  ) {
     return 'browser';
   }
-  if (typeof globalObj.process !== 'undefined' && globalObj.process?.versions?.node) {
+  if (
+    typeof globalObj.process !== 'undefined' &&
+    globalObj.process?.versions?.node
+  ) {
     return 'node';
   }
   return 'unknown';
@@ -159,7 +165,9 @@ export class OCRFactory {
       if (this.environment === 'node') {
         // ONNX provider (Node.js only for now) - using @gutenye/ocr-node
         try {
-          const { ONNXGutenyeProvider } = await import('../node/onnx-gutenye.js');
+          const { ONNXGutenyeProvider } = await import(
+            '../node/onnx-gutenye.js'
+          );
           this.providers.set('onnx', new ONNXGutenyeProvider());
         } catch {
           // Ignore if ONNX provider fails to load
@@ -213,27 +221,32 @@ export class OCRFactory {
         if (deps.available) {
           return provider;
         }
-        console.warn(`Primary OCR provider '${this.primaryProvider}' not available:`, deps.error);
+        console.warn(
+          `Primary OCR provider '${this.primaryProvider}' not available:`,
+          deps.error,
+        );
       }
     }
 
     // Auto-select or fall back to the best available provider
-    const providerPriority = this.primaryProvider === 'auto' 
-      ? this.getDefaultProviderPriority()
-      : [this.primaryProvider, ...this.fallbackProviders];
+    const providerPriority =
+      this.primaryProvider === 'auto'
+        ? this.getDefaultProviderPriority()
+        : [this.primaryProvider, ...this.fallbackProviders];
 
     // Check all providers in parallel for faster detection
     const providerChecks = providerPriority.map(async (providerName) => {
       const provider = this.providers.get(providerName);
-      if (!provider) return { name: providerName, available: false, provider: null };
-      
+      if (!provider)
+        return { name: providerName, available: false, provider: null };
+
       try {
         const deps = await provider.checkDependencies();
-        return { 
-          name: providerName, 
-          available: deps.available, 
+        return {
+          name: providerName,
+          available: deps.available,
           provider: deps.available ? provider : null,
-          error: deps.error 
+          error: deps.error,
         };
       } catch (error) {
         console.debug(`OCR provider '${providerName}' check failed:`, error);
@@ -242,19 +255,24 @@ export class OCRFactory {
     });
 
     const results = await Promise.all(providerChecks);
-    
+
     // Return first available provider in priority order
     for (const providerName of providerPriority) {
-      const result = results.find(r => r.name === providerName);
+      const result = results.find((r) => r.name === providerName);
       if (result?.available && result.provider) {
         return result.provider;
       }
       if (result && !result.available && result.error) {
-        console.debug(`OCR provider '${providerName}' not available:`, result.error);
+        console.debug(
+          `OCR provider '${providerName}' not available:`,
+          result.error,
+        );
       }
     }
 
-    console.warn('No OCR providers are available. OCR functionality will be disabled.');
+    console.warn(
+      'No OCR providers are available. OCR functionality will be disabled.',
+    );
     return null;
   }
 
@@ -333,7 +351,10 @@ export class OCRFactory {
    * }
    * ```
    */
-  async performOCR(images: OCRImage[], options?: OCROptions): Promise<OCRResult> {
+  async performOCR(
+    images: OCRImage[],
+    options?: OCROptions,
+  ): Promise<OCRResult> {
     if (!images || images.length === 0) {
       return {
         text: '',
@@ -359,7 +380,7 @@ export class OCRFactory {
       const startTime = Date.now();
       const result = await provider.performOCR(images, mergedOptions);
       const processingTime = Date.now() - startTime;
-      
+
       // Enhance result with metadata
       result.metadata = {
         ...result.metadata,
@@ -367,20 +388,31 @@ export class OCRFactory {
         provider: provider.name,
         language: mergedOptions.language,
       };
-      
+
       // If result is empty and we have fallback providers, try them
-      if ((!result.text || result.text.trim().length === 0) && this.fallbackProviders.length > 0) {
+      if (
+        (!result.text || result.text.trim().length === 0) &&
+        this.fallbackProviders.length > 0
+      ) {
         for (const fallbackName of this.fallbackProviders) {
           if (fallbackName === provider.name) continue; // Skip if it's the same provider
-          
+
           const fallbackProvider = this.providers.get(fallbackName);
           if (fallbackProvider) {
             try {
               const deps = await fallbackProvider.checkDependencies();
               if (deps.available) {
-                const fallbackResult = await fallbackProvider.performOCR(images, mergedOptions);
-                if (fallbackResult.text && fallbackResult.text.trim().length > 0) {
-                  console.info(`OCR fallback to '${fallbackName}' provider succeeded`);
+                const fallbackResult = await fallbackProvider.performOCR(
+                  images,
+                  mergedOptions,
+                );
+                if (
+                  fallbackResult.text &&
+                  fallbackResult.text.trim().length > 0
+                ) {
+                  console.info(
+                    `OCR fallback to '${fallbackName}' provider succeeded`,
+                  );
                   fallbackResult.metadata = {
                     ...fallbackResult.metadata,
                     provider: fallbackProvider.name,
@@ -390,7 +422,10 @@ export class OCRFactory {
                 }
               }
             } catch (fallbackError) {
-              console.warn(`OCR fallback provider '${fallbackName}' failed:`, fallbackError);
+              console.warn(
+                `OCR fallback provider '${fallbackName}' failed:`,
+                fallbackError,
+              );
             }
           }
         }
@@ -399,7 +434,11 @@ export class OCRFactory {
       return result;
     } catch (error) {
       console.error(`OCR provider '${provider.name}' failed:`, error);
-      throw new OCRError(`OCR processing failed: ${(error as Error).message}`, provider.name, error);
+      throw new OCRError(
+        `OCR processing failed: ${(error as Error).message}`,
+        provider.name,
+        error,
+      );
     }
   }
 
@@ -428,7 +467,7 @@ export class OCRFactory {
    */
   async getProvidersInfo(): Promise<OCRProviderInfo[]> {
     await this.initializeProviders();
-    
+
     const info: OCRProviderInfo[] = [];
 
     for (const [name, provider] of this.providers) {
@@ -695,7 +734,7 @@ export function getOCR(options?: OCRFactoryOptions): OCRFactory {
   if (options && Object.keys(options).length > 0) {
     return new OCRFactory(options);
   }
-  
+
   // Otherwise, use the global singleton
   if (!globalOCRFactory) {
     globalOCRFactory = new OCRFactory();
@@ -782,10 +821,12 @@ export async function getAvailableProviders(): Promise<string[]> {
  * const factory = getOCR({ provider });
  * ```
  */
-export async function isProviderAvailable(providerName: string): Promise<boolean> {
+export async function isProviderAvailable(
+  providerName: string,
+): Promise<boolean> {
   const factory = getOCR();
   const providersInfo = await factory.getProvidersInfo();
-  const providerInfo = providersInfo.find(p => p.name === providerName);
+  const providerInfo = providersInfo.find((p) => p.name === providerName);
   return providerInfo?.available ?? false;
 }
 
@@ -826,8 +867,10 @@ export async function isProviderAvailable(providerName: string): Promise<boolean
  * }
  * ```
  */
-export async function getProviderInfo(providerName: string): Promise<OCRProviderInfo | null> {
+export async function getProviderInfo(
+  providerName: string,
+): Promise<OCRProviderInfo | null> {
   const factory = getOCR();
   const providersInfo = await factory.getProvidersInfo();
-  return providersInfo.find(p => p.name === providerName) ?? null;
+  return providersInfo.find((p) => p.name === providerName) ?? null;
 }

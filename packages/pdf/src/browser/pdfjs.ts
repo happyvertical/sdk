@@ -4,12 +4,12 @@
 
 import { BasePDFReader } from '../shared/base.js';
 import type {
-  PDFSource,
-  ExtractTextOptions,
-  PDFMetadata,
-  PDFImage,
-  PDFCapabilities,
   DependencyCheckResult,
+  ExtractTextOptions,
+  PDFCapabilities,
+  PDFImage,
+  PDFMetadata,
+  PDFSource,
 } from '../shared/types.js';
 import { PDFDependencyError, PDFUnsupportedError } from '../shared/types.js';
 

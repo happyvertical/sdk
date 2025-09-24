@@ -1,31 +1,31 @@
 /**
- * Tests for BaseObject functionality
+ * Tests for SmrtObject functionality
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { BaseObject } from './object.js';
-import { text, boolean, integer } from './fields/index.js';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { boolean, integer, text } from './fields/index.js';
+import { SmrtObject } from './object.js';
 
-// Simple test class extending BaseObject
-class TestObject extends BaseObject {
+// Simple test class extending SmrtObject
+class TestObject extends SmrtObject {
   static tableName = 'test_objects';
 
-  // Don't initialize these - let BaseObject handle them
+  // Don't initialize these - let SmrtObject handle them
   declare name: string;
   declare description?: string;
   declare active: boolean;
   declare count: number;
 }
 
-describe('BaseObject', () => {
+describe('SmrtObject', () => {
   describe('Basic Instantiation', () => {
     it('should create a new instance with provided values', () => {
       const obj = new TestObject({
         id: 'test-id',
-        name: 'Test Object'
+        name: 'Test Object',
       });
 
-      expect(obj).toBeInstanceOf(BaseObject);
+      expect(obj).toBeInstanceOf(SmrtObject);
       expect(obj).toBeInstanceOf(TestObject);
       expect(obj.name).toBe('Test Object');
       expect(obj.id).toBe('test-id');
@@ -58,7 +58,7 @@ describe('BaseObject', () => {
     beforeEach(() => {
       testObj = new TestObject({
         id: 'test-instance-id',
-        name: 'Test Instance'
+        name: 'Test Instance',
       });
     });
 
@@ -77,7 +77,7 @@ describe('BaseObject', () => {
     it('should allow property updates', () => {
       const obj = new TestObject({
         id: 'test-id',
-        name: 'Initial'
+        name: 'Initial',
       });
 
       obj.name = 'Updated';

@@ -57,15 +57,18 @@ import type { PDFReader, PDFReaderOptions } from './types.js';
  * }
  * ```
  */
-export async function getPDFReader(options: PDFReaderOptions = {}): Promise<PDFReader> {
+export async function getPDFReader(
+  options: PDFReaderOptions = {},
+): Promise<PDFReader> {
   const { provider = 'auto', ...readerOptions } = options;
 
   // Environment detection for automatic provider selection
-  const isNode = typeof process !== 'undefined' &&
-                 process?.versions?.node !== undefined;
-  const isBrowser = typeof globalThis !== 'undefined' &&
-                    typeof (globalThis as any).window !== 'undefined' &&
-                    typeof (globalThis as any).document !== 'undefined';
+  const isNode =
+    typeof process !== 'undefined' && process?.versions?.node !== undefined;
+  const isBrowser =
+    typeof globalThis !== 'undefined' &&
+    typeof (globalThis as any).window !== 'undefined' &&
+    typeof (globalThis as any).document !== 'undefined';
 
   // Select provider based on environment and preference
   let selectedProvider = provider;
@@ -75,7 +78,9 @@ export async function getPDFReader(options: PDFReaderOptions = {}): Promise<PDFR
     } else if (isBrowser) {
       selectedProvider = 'pdfjs'; // Use PDF.js for browser
     } else {
-      throw new Error('Unable to detect environment for automatic provider selection');
+      throw new Error(
+        'Unable to detect environment for automatic provider selection',
+      );
     }
   }
 
@@ -83,24 +88,30 @@ export async function getPDFReader(options: PDFReaderOptions = {}): Promise<PDFR
   switch (selectedProvider) {
     case 'unpdf': {
       if (!isNode) {
-        throw new Error('unpdf provider is only available in Node.js environments');
+        throw new Error(
+          'unpdf provider is only available in Node.js environments',
+        );
       }
-      
+
       // Dynamic import to avoid bundling Node.js code in browser
       const { CombinedNodeProvider } = await import('../node/combined.js');
       return new CombinedNodeProvider();
     }
-    
+
     case 'pdfjs': {
       if (!isBrowser) {
-        throw new Error('pdfjs provider is only available in browser environments');
+        throw new Error(
+          'pdfjs provider is only available in browser environments',
+        );
       }
-      
+
       // This code path should never be reached in Node.js builds
       // The browser entry point will handle this provider
-      throw new Error('pdfjs provider should be handled by browser entry point');
+      throw new Error(
+        'pdfjs provider should be handled by browser entry point',
+      );
     }
-    
+
     default:
       throw new Error(`Unknown PDF provider: ${selectedProvider}`);
   }
@@ -132,21 +143,22 @@ export async function getPDFReader(options: PDFReaderOptions = {}): Promise<PDFR
  */
 export function getAvailableProviders(): string[] {
   const providers: string[] = [];
-  
-  const isNode = typeof process !== 'undefined' && 
-                 process?.versions?.node !== undefined;
-  const isBrowser = typeof globalThis !== 'undefined' && 
-                    typeof (globalThis as any).window !== 'undefined' && 
-                    typeof (globalThis as any).document !== 'undefined';
+
+  const isNode =
+    typeof process !== 'undefined' && process?.versions?.node !== undefined;
+  const isBrowser =
+    typeof globalThis !== 'undefined' &&
+    typeof (globalThis as any).window !== 'undefined' &&
+    typeof (globalThis as any).document !== 'undefined';
 
   if (isNode) {
     providers.push('unpdf');
   }
-  
+
   if (isBrowser) {
     providers.push('pdfjs');
   }
-  
+
   return providers;
 }
 
@@ -223,7 +235,7 @@ export async function getProviderInfo(provider: string) {
       reader.checkCapabilities(),
       reader.checkDependencies(),
     ]);
-    
+
     return {
       provider,
       available: isProviderAvailable(provider),
@@ -268,12 +280,15 @@ export async function getProviderInfo(provider: string) {
 export async function initializeProviders(): Promise<void> {
   try {
     const availableProviders = getAvailableProviders();
-    
+
     for (const provider of availableProviders) {
       try {
         const info = await getProviderInfo(provider);
         if (!info.dependencies?.available) {
-          console.warn(`PDF provider '${provider}' is available but dependencies are missing:`, info.dependencies?.error);
+          console.warn(
+            `PDF provider '${provider}' is available but dependencies are missing:`,
+            info.dependencies?.error,
+          );
         }
       } catch (error) {
         console.warn(`Failed to initialize PDF provider '${provider}':`, error);

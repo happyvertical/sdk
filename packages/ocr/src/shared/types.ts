@@ -156,27 +156,27 @@ export interface OCRCapabilities {
 export interface OCRProvider {
   /** Provider name identifier */
   readonly name: string;
-  
+
   /**
    * Perform OCR on image data
    */
   performOCR(images: OCRImage[], options?: OCROptions): Promise<OCRResult>;
-  
+
   /**
    * Check if provider dependencies are available
    */
   checkDependencies(): Promise<DependencyCheckResult>;
-  
+
   /**
    * Get provider capabilities
    */
   checkCapabilities(): Promise<OCRCapabilities>;
-  
+
   /**
    * Get supported languages
    */
   getSupportedLanguages(): string[];
-  
+
   /**
    * Clean up provider resources (optional)
    */
@@ -201,7 +201,11 @@ export interface OCRFactoryOptions {
  * Error classes for OCR operations
  */
 export class OCRError extends Error {
-  constructor(message: string, public readonly provider?: string, public readonly context?: any) {
+  constructor(
+    message: string,
+    public readonly provider?: string,
+    public readonly context?: any,
+  ) {
     super(message);
     this.name = 'OCRError';
   }
@@ -209,21 +213,33 @@ export class OCRError extends Error {
 
 export class OCRDependencyError extends OCRError {
   constructor(provider: string, message: string, context?: any) {
-    super(`OCR dependency error for ${provider}: ${message}`, provider, context);
+    super(
+      `OCR dependency error for ${provider}: ${message}`,
+      provider,
+      context,
+    );
     this.name = 'OCRDependencyError';
   }
 }
 
 export class OCRUnsupportedError extends OCRError {
   constructor(provider: string, operation: string, context?: any) {
-    super(`OCR operation '${operation}' not supported by ${provider}`, provider, context);
+    super(
+      `OCR operation '${operation}' not supported by ${provider}`,
+      provider,
+      context,
+    );
     this.name = 'OCRUnsupportedError';
   }
 }
 
 export class OCRProcessingError extends OCRError {
   constructor(provider: string, message: string, context?: any) {
-    super(`OCR processing error for ${provider}: ${message}`, provider, context);
+    super(
+      `OCR processing error for ${provider}: ${message}`,
+      provider,
+      context,
+    );
     this.name = 'OCRProcessingError';
   }
 }

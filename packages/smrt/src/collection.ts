@@ -1,31 +1,29 @@
-import type { BaseClassOptions } from './class.js';
-import { BaseClass } from './class.js';
+import { buildWhere, syncSchema } from '@have/sql';
+import type { SmrtClassOptions } from './class.js';
+import { SmrtClass } from './class.js';
+import type { SmrtObject } from './object.js';
+import { ObjectRegistry } from './registry.js';
 import {
   fieldsFromClass,
-  tableNameFromClass,
-  generateSchema,
   formatDataJs,
   formatDataSql,
+  generateSchema,
+  tableNameFromClass,
 } from './utils.js';
-import { syncSchema, buildWhere } from '@have/sql';
-import type { BaseObject } from './object.js';
 
 /**
- * Configuration options for BaseCollection
+ * Configuration options for SmrtCollection
  */
-export interface BaseCollectionOptions extends BaseClassOptions {}
+export interface SmrtCollectionOptions extends SmrtClassOptions {}
 
 /**
- * Collection interface for managing sets of BaseObjects
+ * Collection interface for managing sets of SmrtObjects
  *
- * BaseCollection provides methods for querying, creating, and managing
+ * SmrtCollection provides methods for querying, creating, and managing
  * collections of persistent objects. It handles database setup, schema
  * generation, and provides a fluent interface for querying objects.
  */
-export class BaseCollection<
-  ModelType extends BaseObject<any>,
-  T extends BaseCollectionOptions = BaseCollectionOptions,
-> extends BaseClass<T> {
+export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
   /**
    * Promise tracking the database setup operation
    */
@@ -52,7 +50,7 @@ export class BaseCollection<
         `Collection "${className}" must define a static _itemClass property.`,
         ``,
         `Example:`,
-        `  class ${className} extends BaseCollection<YourItemClass> {`,
+        `  class ${className} extends SmrtCollection<YourItemClass> {`,
         `    static readonly _itemClass = YourItemClass;`,
         `  }`,
         ``,
@@ -74,13 +72,13 @@ export class BaseCollection<
    * Call this during development to catch configuration issues early
    */
   static validate(): void {
-    if (!BaseCollection._itemClass) {
-      const className = BaseCollection.name;
+    if (!SmrtCollection._itemClass) {
+      const className = SmrtCollection.name;
       const errorMessage = [
         `Collection "${className}" is missing required static _itemClass property.`,
         ``,
         `Fix by adding:`,
-        `  class ${className} extends BaseCollection<YourItemClass> {`,
+        `  class ${className} extends SmrtCollection<YourItemClass> {`,
         `    static readonly _itemClass = YourItemClass;`,
         `  }`,
       ].join('\n');
@@ -88,20 +86,20 @@ export class BaseCollection<
     }
 
     // Validate that _itemClass has required methods
-    if (typeof BaseCollection._itemClass !== 'function') {
+    if (typeof SmrtCollection._itemClass !== 'function') {
       throw new Error(
-        `Collection "${BaseCollection.name}"._itemClass must be a constructor function`,
+        `Collection "${SmrtCollection.name}"._itemClass must be a constructor function`,
       );
     }
 
     // Check if it has a create method (static or prototype)
     const hasCreateMethod =
-      typeof BaseCollection._itemClass.create === 'function' ||
-      typeof BaseCollection._itemClass.prototype?.create === 'function';
+      typeof SmrtCollection._itemClass.create === 'function' ||
+      typeof SmrtCollection._itemClass.prototype?.create === 'function';
 
     if (!hasCreateMethod) {
       console.warn(
-        `Collection "${BaseCollection.name}"._itemClass should have a create() method for optimal functionality`,
+        `Collection "${SmrtCollection.name}"._itemClass should have a create() method for optimal functionality`,
       );
     }
   }
@@ -129,12 +127,24 @@ export class BaseCollection<
   } as const;
 
   /**
-   * Creates a new BaseCollection instance
+   * Creates a new SmrtCollection instance
    *
    * @param options - Configuration options
    */
-  constructor(options: T) {
+  constructor(options: SmrtCollectionOptions = {}) {
     super(options);
+
+    // Auto-register the collection if it's not the base SmrtCollection and has an _itemClass
+    if (
+      this.constructor !== SmrtCollection &&
+      (this.constructor as any)._itemClass
+    ) {
+      const itemClassName = (this.constructor as any)._itemClass.name;
+      ObjectRegistry.registerCollection(
+        itemClassName,
+        this.constructor as typeof SmrtCollection,
+      );
+    }
   }
 
   /**

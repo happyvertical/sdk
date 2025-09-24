@@ -6,11 +6,13 @@ import type { PDFReader, PDFReaderOptions } from '../shared/types.js';
 
 /**
  * Get a PDF reader instance for browser environments
- * 
+ *
  * @param options - Configuration options for the PDF reader
  * @returns Promise resolving to a PDFReader instance
  */
-export async function getPDFReader(options: PDFReaderOptions = {}): Promise<PDFReader> {
+export async function getPDFReader(
+  options: PDFReaderOptions = {},
+): Promise<PDFReader> {
   const { provider = 'auto', ...readerOptions } = options;
 
   // In browser, we only support PDF.js-based providers
@@ -25,15 +27,17 @@ export async function getPDFReader(options: PDFReaderOptions = {}): Promise<PDFR
       const { CombinedBrowserProvider } = await import('./combined.js');
       return new CombinedBrowserProvider();
     }
-    
+
     default:
-      throw new Error(`PDF provider '${selectedProvider}' is not available in browser environments. Available providers: pdfjs`);
+      throw new Error(
+        `PDF provider '${selectedProvider}' is not available in browser environments. Available providers: pdfjs`,
+      );
   }
 }
 
 /**
  * Get available PDF providers in the browser environment
- * 
+ *
  * @returns Array of available provider names
  */
 export function getAvailableProviders(): string[] {
@@ -42,7 +46,7 @@ export function getAvailableProviders(): string[] {
 
 /**
  * Check if a specific provider is available in the browser environment
- * 
+ *
  * @param provider - Provider name to check
  * @returns Boolean indicating if the provider is available
  */
@@ -52,7 +56,7 @@ export function isProviderAvailable(provider: string): boolean {
 
 /**
  * Get information about a specific provider
- * 
+ *
  * @param provider - Provider name
  * @returns Promise resolving to provider capabilities and dependency status
  */
@@ -63,7 +67,7 @@ export async function getProviderInfo(provider: string) {
       reader.checkCapabilities(),
       reader.checkDependencies(),
     ]);
-    
+
     return {
       provider,
       available: isProviderAvailable(provider),
@@ -88,12 +92,15 @@ export async function getProviderInfo(provider: string) {
 export async function initializeProviders(): Promise<void> {
   try {
     const availableProviders = getAvailableProviders();
-    
+
     for (const provider of availableProviders) {
       try {
         const info = await getProviderInfo(provider);
         if (!info.dependencies?.available) {
-          console.warn(`PDF provider '${provider}' is available but dependencies are missing:`, info.dependencies?.error);
+          console.warn(
+            `PDF provider '${provider}' is available but dependencies are missing:`,
+            info.dependencies?.error,
+          );
         }
       } catch (error) {
         console.warn(`Failed to initialize PDF provider '${provider}':`, error);

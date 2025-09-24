@@ -1,22 +1,22 @@
-import { BaseObject } from './object.js';
-import type { BaseObjectOptions } from './object.js';
+import type { SmrtObjectOptions } from './object.js';
+import { SmrtObject } from './object.js';
 
 /**
  * Configuration options for Pleb objects
  *
  * @interface PlebOptions
- * @extends BaseObjectOptions
+ * @extends SmrtObjectOptions
  */
-export interface PlebOptions extends BaseObjectOptions {}
+export interface PlebOptions extends SmrtObjectOptions {}
 
 /**
- * Basic implementation class extending BaseObject
+ * Basic implementation class extending SmrtObject
  *
- * Pleb provides a simple BaseObject implementation for quick prototyping
+ * Pleb provides a simple SmrtObject implementation for quick prototyping
  * and testing without requiring custom field definitions.
  *
  * @class Pleb
- * @extends BaseObject
+ * @extends SmrtObject
  * @example
  * ```typescript
  * const pleb = await Pleb.create({
@@ -25,15 +25,14 @@ export interface PlebOptions extends BaseObjectOptions {}
  * });
  * ```
  */
-export class Pleb<T extends PlebOptions = PlebOptions> extends BaseObject<T> {
+export class Pleb extends SmrtObject {
   /**
    * Creates a new Pleb instance
    *
    * @param options - Configuration options for the Pleb object
    */
-  constructor(options: T) {
+  constructor(options: PlebOptions = {}) {
     super(options);
-    this._className = this.constructor.name;
   }
 
   /**

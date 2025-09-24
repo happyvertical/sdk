@@ -4,11 +4,11 @@
  * Generates admin and development tools from object definitions
  */
 
-import { parseArgs } from 'util';
 import { createInterface } from 'readline';
+import { parseArgs } from 'util';
+import type { SmrtCollection } from '../collection.js';
+import type { SmrtObject } from '../object.js';
 import { ObjectRegistry } from '../registry.js';
-import type { BaseCollection } from '../collection.js';
-import type { BaseObject } from '../object.js';
 
 export interface CLIConfig {
   name?: string;
@@ -56,7 +56,7 @@ export interface ParsedArgs {
 export class CLIGenerator {
   private config: CLIConfig;
   private context: CLIContext;
-  private collections = new Map<string, BaseCollection<any>>();
+  private collections = new Map<string, SmrtCollection<any>>();
 
   constructor(config: CLIConfig = {}, context: CLIContext = {}) {
     this.config = {
@@ -800,7 +800,7 @@ export class CLIGenerator {
    */
   private async getCollection(
     objectName: string,
-  ): Promise<BaseCollection<any>> {
+  ): Promise<SmrtCollection<any>> {
     if (!this.collections.has(objectName)) {
       const classInfo = ObjectRegistry.getClass(objectName);
       if (!classInfo || !classInfo.collectionConstructor) {

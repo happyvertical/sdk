@@ -11,25 +11,25 @@ import 'openai/shims/node';
 import OpenAI from 'openai';
 
 import type {
+  AICapabilities,
   AIInterface,
-  OpenAIOptions,
   AIMessage,
+  AIModel,
+  AIResponse,
   ChatOptions,
   CompletionOptions,
   EmbeddingOptions,
-  AIResponse,
   EmbeddingResponse,
-  AIModel,
-  AICapabilities,
+  OpenAIOptions,
   TokenUsage,
 } from '../types.js';
 import {
   AIError,
   AuthenticationError,
-  RateLimitError,
-  ModelNotFoundError,
-  ContextLengthError,
   ContentFilterError,
+  ContextLengthError,
+  ModelNotFoundError,
+  RateLimitError,
 } from '../types.js';
 
 /**

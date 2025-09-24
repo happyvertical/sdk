@@ -1,11 +1,11 @@
-import { createClient } from "@libsql/client";
-import type {
-  QueryResult,
-  DatabaseInterface,
-  TableInterface,
-} from "./shared/types.js";
-import { buildWhere } from "./shared/utils.js";
 import { DatabaseError, getLogger } from '@have/utils';
+import { createClient } from '@libsql/client';
+import type {
+  DatabaseInterface,
+  QueryResult,
+  TableInterface,
+} from './shared/types.js';
+import { buildWhere } from './shared/utils.js';
 
 /**
  * Configuration options for SQLite database connections
@@ -15,7 +15,7 @@ export interface SqliteOptions {
    * Connection URL for SQLite (e.g., "file::memory:", "file:mydb.sqlite")
    */
   url?: string;
-  
+
   /**
    * Authentication token for Turso/LibSQL remote connections
    */
@@ -24,17 +24,17 @@ export interface SqliteOptions {
 
 /**
  * Creates a SQLite database adapter
- * 
+ *
  * @param options - SQLite connection options
  * @returns Database interface for SQLite
  */
 export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
-  const { url = "file::memory:", authToken } = options;
+  const { url = 'file::memory:', authToken } = options;
   const client = createClient({ url, authToken });
 
   /**
    * Inserts one or more records into a table
-   * 
+   *
    * @param table - Table name
    * @param data - Single record or array of records to insert
    * @returns Promise resolving to operation result
@@ -50,22 +50,22 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
     if (Array.isArray(data)) {
       const keys = Object.keys(data[0]);
       const placeholders = data
-        .map(() => `(${keys.map(() => "?").join(", ")})`)
-        .join(", ");
-      sql = `INSERT INTO ${table} (${keys.join(", ")}) VALUES ${placeholders}`;
+        .map(() => `(${keys.map(() => '?').join(', ')})`)
+        .join(', ');
+      sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES ${placeholders}`;
       values = data.reduce(
         (acc, row) => acc.concat(Object.values(row)),
         [] as any[],
       );
     } else {
       const keys = Object.keys(data);
-      const placeholders = keys.map(() => "?").join(", ");
-      sql = `INSERT INTO ${table} (${keys.join(", ")}) VALUES (${placeholders})`;
+      const placeholders = keys.map(() => '?').join(', ');
+      sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
       values = Object.values(data);
     }
     try {
       const result = await client.execute({ sql: sql, args: values });
-      return { operation: "insert", affected: result.rowsAffected };
+      return { operation: 'insert', affected: result.rowsAffected };
     } catch (e) {
       throw new DatabaseError('Failed to insert records into table', {
         table,
@@ -78,7 +78,7 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
 
   /**
    * Retrieves a single record matching the where criteria
-   * 
+   *
    * @param table - Table name
    * @param where - Criteria to match records
    * @returns Promise resolving to matching record or null if not found
@@ -90,7 +90,7 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
   ): Promise<Record<string, any> | null> => {
     const keys = Object.keys(where);
     const values = Object.values(where);
-    const whereClause = keys.map((key) => `${key} = ?`).join(" AND ");
+    const whereClause = keys.map((key) => `${key} = ?`).join(' AND ');
     const sql = `SELECT * FROM ${table} WHERE ${whereClause}`;
     try {
       const result = await client.execute({ sql: sql, args: values });
@@ -107,7 +107,7 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
 
   /**
    * Retrieves multiple records matching the where criteria
-   * 
+   *
    * @param table - Table name
    * @param where - Criteria to match records
    * @returns Promise resolving to array of matching records
@@ -134,7 +134,7 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
 
   /**
    * Updates records matching the where criteria
-   * 
+   *
    * @param table - Table name
    * @param where - Criteria to match records to update
    * @param data - New data to set
@@ -148,10 +148,10 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
   ): Promise<QueryResult> => {
     const keys = Object.keys(data);
     const values = Object.values(data);
-    const setClause = keys.map((key) => `${key} = ?`).join(", ");
+    const setClause = keys.map((key) => `${key} = ?`).join(', ');
     const whereKeys = Object.keys(where);
     const whereValues = Object.values(where);
-    const whereClause = whereKeys.map((key) => `${key} = ?`).join(" AND ");
+    const whereClause = whereKeys.map((key) => `${key} = ?`).join(' AND ');
 
     const sql = `UPDATE ${table} SET ${setClause} WHERE ${whereClause}`;
     try {
@@ -159,7 +159,7 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
         sql,
         args: [...values, ...whereValues],
       });
-      return { operation: "update", affected: result.rowsAffected };
+      return { operation: 'update', affected: result.rowsAffected };
     } catch (e) {
       throw new DatabaseError('Failed to update records in table', {
         table,
@@ -172,7 +172,7 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
 
   /**
    * Gets a record matching the where criteria or inserts it if not found
-   * 
+   *
    * @param table - Table name
    * @param where - Criteria to match existing record
    * @param data - Data to insert if no record found
@@ -221,8 +221,8 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
   const syncSchema = async (schema: string): Promise<void> => {
     const commands = schema
       .trim()
-      .split(";")
-      .filter((command) => command.trim() !== "");
+      .split(';')
+      .filter((command) => command.trim() !== '');
 
     for (const command of commands) {
       const createTableRegex =
@@ -231,7 +231,7 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
 
       if (match) {
         const tableName = match[2];
-        const columns = match[3].trim().split(",\n");
+        const columns = match[3].trim().split(',\n');
 
         // Check if table exists
         const exists = await tableExists(tableName);
@@ -249,11 +249,13 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
               const columnName = columnMatch[1];
 
               // Skip constraint definitions
-              if (columnName.toUpperCase() === 'PRIMARY' ||
-                  columnName.toUpperCase() === 'FOREIGN' ||
-                  columnName.toUpperCase() === 'UNIQUE' ||
-                  columnName.toUpperCase() === 'CHECK' ||
-                  columnName.toUpperCase() === 'CONSTRAINT') {
+              if (
+                columnName.toUpperCase() === 'PRIMARY' ||
+                columnName.toUpperCase() === 'FOREIGN' ||
+                columnName.toUpperCase() === 'UNIQUE' ||
+                columnName.toUpperCase() === 'CHECK' ||
+                columnName.toUpperCase() === 'CONSTRAINT'
+              ) {
                 continue;
               }
 
@@ -277,7 +279,10 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
                   await client.execute(alterCommand);
                 } catch (alterError) {
                   // Column might already exist, continue
-                  console.error(`Error adding column ${columnName} to ${tableName}:`, alterError);
+                  console.error(
+                    `Error adding column ${columnName} to ${tableName}:`,
+                    alterError,
+                  );
                 }
               }
             }
@@ -295,7 +300,7 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
    * @returns Promise resolving to callback result
    */
   const transaction = async <T>(
-    callback: (tx: DatabaseInterface) => Promise<T>
+    callback: (tx: DatabaseInterface) => Promise<T>,
   ): Promise<T> => {
     try {
       await client.execute('BEGIN TRANSACTION');
@@ -335,7 +340,7 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
 
   /**
    * Creates a table-specific interface for simplified table operations
-   * 
+   *
    * @param tableName - Table name
    * @returns TableInterface for the specified table
    */
@@ -347,7 +352,7 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
 
   /**
    * Parses a tagged template literal into a SQL query and values
-   * 
+   *
    * @param strings - Template strings
    * @param vars - Variables to interpolate into the query
    * @returns Object with SQL query and values array
@@ -357,14 +362,14 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
     const values = [];
     for (let i = 0; i < vars.length; i++) {
       values.push(vars[i]);
-      sql += "?" + strings[i + 1];
+      sql += '?' + strings[i + 1];
     }
     return { sql, values };
   };
 
   /**
    * Executes a SQL query using template literals and returns a single value
-   * 
+   *
    * @param strings - Template strings
    * @param vars - Variables to interpolate into the query
    * @returns Promise resolving to a single value (first column of first row)
@@ -389,7 +394,7 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
 
   /**
    * Executes a SQL query using template literals and returns a single row
-   * 
+   *
    * @param strings - Template strings
    * @param vars - Variables to interpolate into the query
    * @returns Promise resolving to a single result record or null
@@ -414,7 +419,7 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
 
   /**
    * Executes a SQL query using template literals and returns multiple rows
-   * 
+   *
    * @param strings - Template strings
    * @param vars - Variables to interpolate into the query
    * @returns Promise resolving to array of result records
@@ -439,7 +444,7 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
 
   /**
    * Executes a SQL query using template literals without returning results
-   * 
+   *
    * @param strings - Template strings
    * @param vars - Variables to interpolate into the query
    * @returns Promise that resolves when the query completes
@@ -463,7 +468,7 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
 
   /**
    * Executes a raw SQL query with parameterized values
-   * 
+   *
    * @param str - SQL query string
    * @param values - Variables to use as parameters
    * @returns Promise resolving to query result with rows and metadata
@@ -475,7 +480,7 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
     try {
       const result = await client.execute({ sql, args });
       return {
-        command: sql.split(" ")[0].toUpperCase(),
+        command: sql.split(' ')[0].toUpperCase(),
         rowCount: result.rowsAffected ?? result.rows.length,
         oid: null,
         fields: Object.keys(result.rows[0] || {}).map((name) => ({
@@ -485,7 +490,7 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
           dataTypeID: 0,
           dataTypeSize: -1,
           dataTypeModifier: -1,
-          format: "text",
+          format: 'text',
         })),
         rows: result.rows,
       };
@@ -499,9 +504,9 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
   };
 
   // Shorthand aliases for query methods
-  const oo = many;   // (o)bjective-(o)bjects: returns multiple rows
+  const oo = many; // (o)bjective-(o)bjects: returns multiple rows
   const oO = single; // (o)bjective-(O)bject: returns a single row
-  const ox = pluck;  // (o)bjective-(x): returns a single value
+  const ox = pluck; // (o)bjective-(x): returns a single value
   const xx = execute; // (x)ecute-(x)ecute: executes without returning
 
   return {

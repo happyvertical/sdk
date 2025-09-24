@@ -41,6 +41,9 @@
     { "path": "./packages/ocr" },
     { "path": "./packages/pdf" },
     { "path": "./packages/ai" },
-    { "path": "./packages/smrt" }
+    { "path": "./packages/smrt" },
+    { "path": "./packages/content" },
+    { "path": "./packages/products" },
+    { "path": "./packages/mcp" }
   ]
 }

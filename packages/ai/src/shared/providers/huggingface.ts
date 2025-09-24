@@ -3,24 +3,24 @@
  */
 
 import type {
+  AICapabilities,
   AIInterface,
-  HuggingFaceOptions,
   AIMessage,
+  AIModel,
+  AIResponse,
   ChatOptions,
   CompletionOptions,
   EmbeddingOptions,
-  AIResponse,
   EmbeddingResponse,
-  AIModel,
-  AICapabilities,
+  HuggingFaceOptions,
 } from '../types.js';
 import {
   AIError,
   AuthenticationError,
-  RateLimitError,
-  ModelNotFoundError,
-  ContextLengthError,
   ContentFilterError,
+  ContextLengthError,
+  ModelNotFoundError,
+  RateLimitError,
 } from '../types.js';
 
 export class HuggingFaceProvider implements AIInterface {
@@ -35,14 +35,18 @@ export class HuggingFaceProvider implements AIInterface {
       ...options,
     };
 
-    this.baseUrl = this.options.endpoint || 'https://api-inference.huggingface.co';
+    this.baseUrl =
+      this.options.endpoint || 'https://api-inference.huggingface.co';
   }
 
-  async chat(messages: AIMessage[], options: ChatOptions = {}): Promise<AIResponse> {
+  async chat(
+    messages: AIMessage[],
+    options: ChatOptions = {},
+  ): Promise<AIResponse> {
     try {
       // Convert messages to a single prompt for text generation models
       const prompt = this.messagesToPrompt(messages);
-      
+
       const response = await this.makeRequest(
         `/models/${options.model || this.options.model || this.options.defaultModel}`,
         {
@@ -51,35 +55,48 @@ export class HuggingFaceProvider implements AIInterface {
             max_new_tokens: options.maxTokens || 512,
             temperature: options.temperature || 1.0,
             top_p: options.topP || 1.0,
-            do_sample: (options.temperature && options.temperature > 0) || false,
-            stop_sequences: Array.isArray(options.stop) ? options.stop : options.stop ? [options.stop] : undefined,
+            do_sample:
+              (options.temperature && options.temperature > 0) || false,
+            stop_sequences: Array.isArray(options.stop)
+              ? options.stop
+              : options.stop
+                ? [options.stop]
+                : undefined,
           },
           options: {
             use_cache: this.options.useCache,
             wait_for_model: this.options.waitForModel,
           },
-        }
+        },
       );
 
       if (Array.isArray(response) && response[0]?.generated_text) {
         const generatedText = response[0].generated_text;
         // Remove the input prompt from the response
         const content = generatedText.replace(prompt, '').trim();
-        
+
         return {
           content,
-          model: options.model || this.options.model || this.options.defaultModel,
+          model:
+            options.model || this.options.model || this.options.defaultModel,
           finishReason: 'stop',
         };
       }
 
-      throw new AIError('Invalid response format from Hugging Face', 'INVALID_RESPONSE', 'huggingface');
+      throw new AIError(
+        'Invalid response format from Hugging Face',
+        'INVALID_RESPONSE',
+        'huggingface',
+      );
     } catch (error) {
       throw this.mapError(error);
     }
   }
 
-  async complete(prompt: string, options: CompletionOptions = {}): Promise<AIResponse> {
+  async complete(
+    prompt: string,
+    options: CompletionOptions = {},
+  ): Promise<AIResponse> {
     return this.chat([{ role: 'user', content: prompt }], {
       model: options.model,
       maxTokens: options.maxTokens,
@@ -92,11 +109,14 @@ export class HuggingFaceProvider implements AIInterface {
     });
   }
 
-  async embed(text: string | string[], options: EmbeddingOptions = {}): Promise<EmbeddingResponse> {
+  async embed(
+    text: string | string[],
+    options: EmbeddingOptions = {},
+  ): Promise<EmbeddingResponse> {
     try {
       const input = Array.isArray(text) ? text : [text];
       const model = options.model || 'sentence-transformers/all-MiniLM-L6-v2';
-      
+
       const response = await this.makeRequest(`/models/${model}`, {
         inputs: input,
         options: {
@@ -110,11 +130,19 @@ export class HuggingFaceProvider implements AIInterface {
       if (Array.isArray(response) && Array.isArray(response[0])) {
         // Direct array of embeddings
         embeddings = Array.isArray(text) ? response : [response[0]];
-      } else if (response && typeof response === 'object' && response.embeddings) {
+      } else if (
+        response &&
+        typeof response === 'object' &&
+        response.embeddings
+      ) {
         // Response with embeddings property
         embeddings = response.embeddings;
       } else {
-        throw new AIError('Invalid embedding response format', 'INVALID_RESPONSE', 'huggingface');
+        throw new AIError(
+          'Invalid embedding response format',
+          'INVALID_RESPONSE',
+          'huggingface',
+        );
       }
 
       return {
@@ -126,24 +154,27 @@ export class HuggingFaceProvider implements AIInterface {
     }
   }
 
-  async *stream(messages: AIMessage[], options: ChatOptions = {}): AsyncIterable<string> {
+  async *stream(
+    messages: AIMessage[],
+    options: ChatOptions = {},
+  ): AsyncIterable<string> {
     // Hugging Face Inference API doesn't support streaming for most models
     // Fall back to regular completion and yield the result
     const response = await this.chat(messages, options);
-    
+
     // Simulate streaming by yielding chunks
     const content = response.content;
     const chunkSize = 10;
-    
+
     for (let i = 0; i < content.length; i += chunkSize) {
       const chunk = content.slice(i, i + chunkSize);
       if (options.onProgress) {
         options.onProgress(chunk);
       }
       yield chunk;
-      
+
       // Add small delay to simulate streaming
-      await new Promise(resolve => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 50));
     }
   }
 
@@ -219,29 +250,31 @@ export class HuggingFaceProvider implements AIInterface {
 
   private messagesToPrompt(messages: AIMessage[]): string {
     // Convert chat messages to a single prompt format
-    return messages
-      .map(message => {
-        switch (message.role) {
-          case 'system':
-            return `System: ${message.content}`;
-          case 'user':
-            return `Human: ${message.content}`;
-          case 'assistant':
-            return `Assistant: ${message.content}`;
-          default:
-            return message.content;
-        }
-      })
-      .join('\n') + '\nAssistant:';
+    return (
+      messages
+        .map((message) => {
+          switch (message.role) {
+            case 'system':
+              return `System: ${message.content}`;
+            case 'user':
+              return `Human: ${message.content}`;
+            case 'assistant':
+              return `Assistant: ${message.content}`;
+            default:
+              return message.content;
+          }
+        })
+        .join('\n') + '\nAssistant:'
+    );
   }
 
   private async makeRequest(endpoint: string, data: any): Promise<any> {
     const url = `${this.baseUrl}${endpoint}`;
-    
+
     const response = await fetch(url, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${this.options.apiToken}`,
+        Authorization: `Bearer ${this.options.apiToken}`,
         'Content-Type': 'application/json',
         ...this.options.headers,
       },
@@ -260,26 +293,26 @@ export class HuggingFaceProvider implements AIInterface {
     if (error instanceof AIError) {
       return error;
     }
-    
+
     const message = error instanceof Error ? error.message : 'Unknown error';
-    
+
     // Map common HTTP status codes
     if (message.includes('401') || message.includes('Unauthorized')) {
       return new AuthenticationError('huggingface');
     }
-    
+
     if (message.includes('429') || message.includes('rate limit')) {
       return new RateLimitError('huggingface');
     }
-    
+
     if (message.includes('404') || message.includes('not found')) {
       return new ModelNotFoundError(message, 'huggingface');
     }
-    
+
     if (message.includes('413') || message.includes('too large')) {
       return new ContextLengthError('huggingface');
     }
-    
+
     return new AIError(message, 'UNKNOWN_ERROR', 'huggingface');
   }
 }

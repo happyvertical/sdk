@@ -3,7 +3,7 @@
  */
 
 import { createId as cuid2CreateId, isCuid } from '@paralleldrive/cuid2';
-import { format, parse, parseISO, isValid, add } from 'date-fns';
+import { add, format, isValid, parse, parseISO } from 'date-fns';
 import pluralize from 'pluralize';
 import { ParsingError, TimeoutError } from './types.js';
 
@@ -33,8 +33,8 @@ export const makeId = (type: 'cuid2' | 'uuid' = 'cuid2'): string => {
 
   // Manual UUID fallback for older environments
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
 };
@@ -133,7 +133,10 @@ export const urlFilename = (url: string): string => {
  */
 export const urlPath = (url: string): string => {
   const parsedUrl = new URL(url);
-  const pathSegments = [parsedUrl.hostname, ...parsedUrl.pathname.split('/').filter(Boolean)];
+  const pathSegments = [
+    parsedUrl.hostname,
+    ...parsedUrl.pathname.split('/').filter(Boolean),
+  ];
   return pathSegments.join('/');
 };
 
@@ -155,7 +158,6 @@ export const sleep = (duration: number): Promise<void> => {
     setTimeout(resolve, duration);
   });
 };
-
 
 /**
  * Repeatedly calls a function until it returns a defined value or times out
@@ -191,14 +193,14 @@ export function waitFor(
 ): Promise<any> {
   return new Promise((resolve, reject) => {
     const beginTime = Date.now();
-    
+
     (async function waitATick() {
       try {
         const result = await it();
         if (typeof result !== 'undefined') {
           return resolve(result);
         }
-        
+
         if (timeout > 0) {
           if (Date.now() > beginTime + timeout) {
             return reject(
@@ -210,7 +212,7 @@ export function waitFor(
             );
           }
         }
-        
+
         setTimeout(waitATick, delay);
       } catch (error) {
         reject(error);
@@ -345,9 +347,7 @@ export const snakeCase = (str: string): string => {
 export const keysToCamel = (obj: unknown): unknown => {
   if (isPlainObject(obj)) {
     const n: Record<string, unknown> = {};
-    Object.keys(obj).forEach(
-      (k) => (n[camelCase(k)] = keysToCamel(obj[k])),
-    );
+    Object.keys(obj).forEach((k) => (n[camelCase(k)] = keysToCamel(obj[k])));
     return n;
   } else if (isArray(obj)) {
     return obj.map((i) => keysToCamel(i));
@@ -374,9 +374,7 @@ export const keysToCamel = (obj: unknown): unknown => {
 export const keysToSnake = (obj: unknown): unknown => {
   if (isPlainObject(obj)) {
     const n: Record<string, unknown> = {};
-    Object.keys(obj).forEach(
-      (k) => (n[snakeCase(k)] = keysToSnake(obj[k])),
-    );
+    Object.keys(obj).forEach((k) => (n[snakeCase(k)] = keysToSnake(obj[k])));
     return n;
   } else if (isArray(obj)) {
     return obj.map((i) => keysToSnake(i));
@@ -458,7 +456,7 @@ export const parseAmazonDateString = (dateStr: string): Date => {
       expectedFormat: 'YYYYMMDDTHHMMSSZ',
     });
   }
-  
+
   const [matched, year, month, day, hour, minutes, seconds, timezone] = match;
   if (matched !== dateStr) {
     throw new ParsingError('Invalid Amazon date string format', {
@@ -498,10 +496,29 @@ export const dateInString = (str: string): Date | null => {
   const year = parseInt(yearMatch[0], 10);
 
   const monthPatterns = {
-    january: 1, jan: 1, february: 2, feb: 2, march: 3, mar: 3,
-    april: 4, apr: 4, may: 5, june: 6, jun: 6, july: 7, jul: 7,
-    august: 8, aug: 8, september: 9, sep: 9, october: 10, oct: 10,
-    november: 11, nov: 11, december: 12, dec: 12,
+    january: 1,
+    jan: 1,
+    february: 2,
+    feb: 2,
+    march: 3,
+    mar: 3,
+    april: 4,
+    apr: 4,
+    may: 5,
+    june: 6,
+    jun: 6,
+    july: 7,
+    jul: 7,
+    august: 8,
+    aug: 8,
+    september: 9,
+    sep: 9,
+    october: 10,
+    oct: 10,
+    november: 11,
+    nov: 11,
+    december: 12,
+    dec: 12,
   };
 
   let foundMonth: number | null = null;
@@ -559,7 +576,7 @@ export const prettyDate = (dateString: string): string => {
   return new Intl.DateTimeFormat(undefined, {
     year: 'numeric',
     month: 'long',
-    day: 'numeric'
+    day: 'numeric',
   }).format(date);
 };
 
@@ -601,7 +618,10 @@ export const isSingular = pluralize.isSingular;
  * addInterval(new Date(), { days: 7 }); // Date 7 days from now
  * ```
  */
-export const formatDate = (date: Date | string, formatStr: string = 'yyyy-MM-dd'): string => {
+export const formatDate = (
+  date: Date | string,
+  formatStr: string = 'yyyy-MM-dd',
+): string => {
   const dateObj = typeof date === 'string' ? new Date(date) : date;
   return format(dateObj, formatStr);
 };
@@ -632,9 +652,10 @@ export const addInterval = add;
  */
 export const getTempDirectory = (subfolder?: string): string => {
   // Use Node.js os.tmpdir() or fallback
-  const tmpBase = typeof process !== 'undefined' && process.env
-    ? (process.env.TMPDIR || process.env.TMP || process.env.TEMP || '/tmp')
-    : '/tmp';
+  const tmpBase =
+    typeof process !== 'undefined' && process.env
+      ? process.env.TMPDIR || process.env.TMP || process.env.TEMP || '/tmp'
+      : '/tmp';
 
   const basePath = `${tmpBase}/.have-sdk`;
   return subfolder ? `${basePath}/${subfolder}` : basePath;

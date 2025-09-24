@@ -3,7 +3,7 @@ this should work, but I want to get an initial commit in before refactoring
 
 
 
-class Person extends BaseObject {
+class Person extends SmrtObject {
   name = new BaseText();
   age = new BaseReal();
   created_at = new BaseDate();
@@ -21,7 +21,7 @@ console.log(`Hello ${person.name}`);  // "Hello John"
 
 /**
  * Base field class for object property typing
- * 
+ *
  * Provides a proxy-based approach to represent strongly-typed fields
  * in database objects.
  */
@@ -33,7 +33,7 @@ export class Field<T> {
 
   /**
    * Creates a new Field instance
-   * 
+   *
    * @param value - Initial field value
    * @returns Proxy-wrapped field instance
    */
@@ -60,7 +60,7 @@ export class Field<T> {
 
   /**
    * Converts the field value to a string
-   * 
+   *
    * @returns String representation of the field value
    */
   toString() {

@@ -1,12 +1,12 @@
 import {
-  type FilesystemInterface,
-  type GetFilesystemOptions,
-  LocalOptions,
-  type S3Options,
-  type GoogleDriveOptions,
-  type WebDAVOptions,
   BrowserStorageOptions,
   FilesystemError,
+  type FilesystemInterface,
+  type GetFilesystemOptions,
+  type GoogleDriveOptions,
+  LocalOptions,
+  type S3Options,
+  type WebDAVOptions,
 } from './types.js';
 
 /**

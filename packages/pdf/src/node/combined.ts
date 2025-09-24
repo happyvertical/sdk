@@ -2,20 +2,20 @@
  * @have/pdf - Combined Node.js PDF reader with unpdf + OCR capabilities
  */
 
-import { BasePDFReader } from '../shared/base.js';
-import { UnpdfProvider } from './unpdf.js';
 import { getOCR } from '@have/ocr';
+import { BasePDFReader } from '../shared/base.js';
 import type {
-  PDFSource,
+  DependencyCheckResult,
   ExtractTextOptions,
   OCROptions,
-  PDFMetadata,
-  PDFImage,
   OCRResult,
   PDFCapabilities,
-  DependencyCheckResult,
+  PDFImage,
   PDFInfo,
+  PDFMetadata,
+  PDFSource,
 } from '../shared/types.js';
+import { UnpdfProvider } from './unpdf.js';
 
 /**
  * Combined PDF reader for Node.js that integrates unpdf and OCR capabilities

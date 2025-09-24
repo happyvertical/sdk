@@ -2,7 +2,7 @@
  * Runtime server implementation for SMRT auto-generated services
  */
 
-import type { SmrtServerOptions, SmrtRequest, SmrtResponse } from './types.js';
+import type { SmrtRequest, SmrtResponse, SmrtServerOptions } from './types.js';
 
 export class SmrtServer {
   private options: Required<SmrtServerOptions>;
@@ -29,6 +29,104 @@ export class SmrtServer {
   ) {
     const key = `${method.toUpperCase()} ${path}`;
     this.routes.set(key, handler);
+  }
+
+  /**
+   * Add GET route handler (RouteApp compatibility)
+   */
+  get(path: string, handler: (req: any, res: any) => void): void {
+    this.addExpressStyleRoute('GET', path, handler);
+  }
+
+  /**
+   * Add POST route handler (RouteApp compatibility)
+   */
+  post(path: string, handler: (req: any, res: any) => void): void {
+    this.addExpressStyleRoute('POST', path, handler);
+  }
+
+  /**
+   * Add PUT route handler (RouteApp compatibility)
+   */
+  put(path: string, handler: (req: any, res: any) => void): void {
+    this.addExpressStyleRoute('PUT', path, handler);
+  }
+
+  /**
+   * Add DELETE route handler (RouteApp compatibility)
+   */
+  delete(path: string, handler: (req: any, res: any) => void): void {
+    this.addExpressStyleRoute('DELETE', path, handler);
+  }
+
+  /**
+   * Convert Express-style handler to SMRT handler
+   */
+  private addExpressStyleRoute(
+    method: string,
+    path: string,
+    handler: (req: any, res: any) => void,
+  ) {
+    const smrtHandler = async (req: SmrtRequest): Promise<Response> => {
+      return new Promise((resolve, reject) => {
+        // Create Express-style response object
+        const res = {
+          status: (code: number) => {
+            res.statusCode = code;
+            return res;
+          },
+          json: (data: any) => {
+            resolve(
+              new Response(JSON.stringify(data), {
+                status: res.statusCode || 200,
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...res.headers,
+                },
+              }),
+            );
+          },
+          send: (data: any) => {
+            const body = typeof data === 'string' ? data : JSON.stringify(data);
+            resolve(
+              new Response(body, {
+                status: res.statusCode || 200,
+                headers: {
+                  'Content-Type':
+                    typeof data === 'string'
+                      ? 'text/plain'
+                      : 'application/json',
+                  ...res.headers,
+                },
+              }),
+            );
+          },
+          end: (data?: any) => {
+            resolve(
+              new Response(data || '', {
+                status: res.statusCode || 200,
+                headers: res.headers,
+              }),
+            );
+          },
+          setHeader: (key: string, value: string) => {
+            if (!res.headers) res.headers = {};
+            res.headers[key] = value;
+            return res;
+          },
+          statusCode: 200,
+          headers: {} as Record<string, string>,
+        };
+
+        try {
+          handler(req, res);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    };
+
+    this.addRoute(method, path, smrtHandler);
   }
 
   /**

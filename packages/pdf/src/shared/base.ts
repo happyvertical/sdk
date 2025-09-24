@@ -3,16 +3,16 @@
  */
 
 import type {
-  PDFReader,
-  PDFSource,
+  DependencyCheckResult,
   ExtractTextOptions,
   OCROptions,
-  PDFMetadata,
-  PDFImage,
   OCRResult,
   PDFCapabilities,
-  DependencyCheckResult,
+  PDFImage,
   PDFInfo,
+  PDFMetadata,
+  PDFReader,
+  PDFSource,
 } from './types.js';
 import { PDFUnsupportedError } from './types.js';
 
@@ -59,7 +59,7 @@ export abstract class BasePDFReader implements PDFReader {
    */
   async extractText(
     source: PDFSource,
-    options?: ExtractTextOptions
+    options?: ExtractTextOptions,
   ): Promise<string | null> {
     throw new PDFUnsupportedError(`extractText (provider: ${this.name})`);
   }
@@ -103,7 +103,10 @@ export abstract class BasePDFReader implements PDFReader {
    * @returns Promise resolving to OCR result with extracted text
    * @throws {PDFUnsupportedError} When provider doesn't support OCR operations
    */
-  async performOCR(images: PDFImage[], options?: OCROptions): Promise<OCRResult> {
+  async performOCR(
+    images: PDFImage[],
+    options?: OCROptions,
+  ): Promise<OCRResult> {
     throw new PDFUnsupportedError(`performOCR (provider: ${this.name})`);
   }
 
@@ -178,7 +181,9 @@ export abstract class BasePDFReader implements PDFReader {
     } else if (source instanceof Uint8Array) {
       return source;
     } else {
-      throw new Error('Invalid PDF source: must be file path, ArrayBuffer, or Uint8Array');
+      throw new Error(
+        'Invalid PDF source: must be file path, ArrayBuffer, or Uint8Array',
+      );
     }
   }
 
@@ -196,7 +201,7 @@ export abstract class BasePDFReader implements PDFReader {
     if (data.length < 5) {
       return false;
     }
-    
+
     const header = new TextDecoder().decode(data.subarray(0, 5));
     return header === '%PDF-';
   }
@@ -212,7 +217,11 @@ export abstract class BasePDFReader implements PDFReader {
    * @returns True if page number is valid, false otherwise
    */
   protected isValidPageNumber(pageNumber: number, totalPages: number): boolean {
-    return pageNumber >= 1 && pageNumber <= totalPages && Number.isInteger(pageNumber);
+    return (
+      pageNumber >= 1 &&
+      pageNumber <= totalPages &&
+      Number.isInteger(pageNumber)
+    );
   }
 
   /**
@@ -225,14 +234,17 @@ export abstract class BasePDFReader implements PDFReader {
    * @param totalPages - Total number of pages available in the document
    * @returns Array of valid page numbers (1-based) ready for processing
    */
-  protected normalizePages(pages: number[] | undefined, totalPages: number): number[] {
+  protected normalizePages(
+    pages: number[] | undefined,
+    totalPages: number,
+  ): number[] {
     if (!pages) {
       // Return all pages
       return Array.from({ length: totalPages }, (_, i) => i + 1);
     }
-    
+
     // Filter and validate page numbers
-    return pages.filter(page => this.isValidPageNumber(page, totalPages));
+    return pages.filter((page) => this.isValidPageNumber(page, totalPages));
   }
 
   /**

@@ -10,17 +10,17 @@ export interface AIMessage {
    * Role of the message sender
    */
   role: 'system' | 'user' | 'assistant' | 'function' | 'tool';
-  
+
   /**
    * Content of the message
    */
   content: string;
-  
+
   /**
    * Optional name for the message sender
    */
   name?: string;
-  
+
   /**
    * Optional function call information
    */
@@ -28,7 +28,7 @@ export interface AIMessage {
     name: string;
     arguments: string;
   };
-  
+
   /**
    * Optional tool calls
    */
@@ -50,72 +50,75 @@ export interface ChatOptions {
    * Model to use for completion
    */
   model?: string;
-  
+
   /**
    * Maximum number of tokens to generate
    */
   maxTokens?: number;
-  
+
   /**
    * Sampling temperature (0-2)
    */
   temperature?: number;
-  
+
   /**
    * Top-p sampling parameter
    */
   topP?: number;
-  
+
   /**
    * Number of completions to generate
    */
   n?: number;
-  
+
   /**
    * Sequences that stop generation
    */
   stop?: string | string[];
-  
+
   /**
    * Whether to stream the response
    */
   stream?: boolean;
-  
+
   /**
    * Penalty for frequency of tokens
    */
   frequencyPenalty?: number;
-  
+
   /**
    * Penalty for presence of tokens
    */
   presencePenalty?: number;
-  
+
   /**
    * User identifier for monitoring
    */
   user?: string;
-  
+
   /**
    * Available tools/functions
    */
   tools?: AITool[];
-  
+
   /**
    * Tool choice behavior
    */
-  toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } };
-  
+  toolChoice?:
+    | 'auto'
+    | 'none'
+    | { type: 'function'; function: { name: string } };
+
   /**
    * Response format specification
    */
   responseFormat?: { type: 'text' | 'json_object' };
-  
+
   /**
    * Random seed for deterministic results
    */
   seed?: number;
-  
+
   /**
    * Callback for streaming responses
    */
@@ -130,37 +133,37 @@ export interface CompletionOptions {
    * Model to use for completion
    */
   model?: string;
-  
+
   /**
    * Maximum number of tokens to generate
    */
   maxTokens?: number;
-  
+
   /**
    * Sampling temperature
    */
   temperature?: number;
-  
+
   /**
    * Top-p sampling parameter
    */
   topP?: number;
-  
+
   /**
    * Number of completions to generate
    */
   n?: number;
-  
+
   /**
    * Sequences that stop generation
    */
   stop?: string | string[];
-  
+
   /**
    * Whether to stream the response
    */
   stream?: boolean;
-  
+
   /**
    * Callback for streaming responses
    */
@@ -175,17 +178,17 @@ export interface EmbeddingOptions {
    * Model to use for embeddings
    */
   model?: string;
-  
+
   /**
    * User identifier for monitoring
    */
   user?: string;
-  
+
   /**
    * Encoding format for embeddings
    */
   encodingFormat?: 'float' | 'base64';
-  
+
   /**
    * Number of dimensions for the embedding
    */
@@ -200,7 +203,7 @@ export interface AITool {
    * Type of tool
    */
   type: 'function';
-  
+
   /**
    * Function definition
    */
@@ -209,12 +212,12 @@ export interface AITool {
      * Function name
      */
     name: string;
-    
+
     /**
      * Function description
      */
     description?: string;
-    
+
     /**
      * JSON schema for function parameters
      */
@@ -230,42 +233,42 @@ export interface AIModel {
    * Model identifier
    */
   id: string;
-  
+
   /**
    * Human-readable model name
    */
   name: string;
-  
+
   /**
    * Model description
    */
   description?: string;
-  
+
   /**
    * Maximum context length in tokens
    */
   contextLength: number;
-  
+
   /**
    * Supported capabilities
    */
   capabilities: string[];
-  
+
   /**
    * Whether the model supports function calling
    */
   supportsFunctions: boolean;
-  
+
   /**
    * Whether the model supports vision/multimodal input
    */
   supportsVision: boolean;
-  
+
   /**
    * Cost per input token (if available)
    */
   inputCostPer1k?: number;
-  
+
   /**
    * Cost per output token (if available)
    */
@@ -280,42 +283,42 @@ export interface AICapabilities {
    * Whether the provider supports chat completions
    */
   chat: boolean;
-  
+
   /**
    * Whether the provider supports text completions
    */
   completion: boolean;
-  
+
   /**
    * Whether the provider supports embeddings
    */
   embeddings: boolean;
-  
+
   /**
    * Whether the provider supports streaming
    */
   streaming: boolean;
-  
+
   /**
    * Whether the provider supports function calling
    */
   functions: boolean;
-  
+
   /**
    * Whether the provider supports vision/multimodal
    */
   vision: boolean;
-  
+
   /**
    * Whether the provider supports fine-tuning
    */
   fineTuning: boolean;
-  
+
   /**
    * Maximum context length supported
    */
   maxContextLength: number;
-  
+
   /**
    * Supported operations
    */
@@ -330,12 +333,12 @@ export interface TokenUsage {
    * Number of prompt tokens
    */
   promptTokens: number;
-  
+
   /**
    * Number of completion tokens
    */
   completionTokens: number;
-  
+
   /**
    * Total tokens used
    */
@@ -350,22 +353,27 @@ export interface AIResponse {
    * Generated content
    */
   content: string;
-  
+
   /**
    * Token usage information
    */
   usage?: TokenUsage;
-  
+
   /**
    * Model used for generation
    */
   model?: string;
-  
+
   /**
    * Finish reason
    */
-  finishReason?: 'stop' | 'length' | 'function_call' | 'tool_calls' | 'content_filter';
-  
+  finishReason?:
+    | 'stop'
+    | 'length'
+    | 'function_call'
+    | 'tool_calls'
+    | 'content_filter';
+
   /**
    * Function calls made by the model
    */
@@ -373,7 +381,7 @@ export interface AIResponse {
     name: string;
     arguments: string;
   }>;
-  
+
   /**
    * Tool calls made by the model
    */
@@ -395,12 +403,12 @@ export interface EmbeddingResponse {
    * Generated embeddings
    */
   embeddings: number[][];
-  
+
   /**
    * Token usage information
    */
   usage?: TokenUsage;
-  
+
   /**
    * Model used for embeddings
    */
@@ -415,32 +423,35 @@ export interface AIInterface {
    * Generate chat completion
    */
   chat(messages: AIMessage[], options?: ChatOptions): Promise<AIResponse>;
-  
+
   /**
    * Generate text completion (for non-chat models)
    */
   complete(prompt: string, options?: CompletionOptions): Promise<AIResponse>;
-  
+
   /**
    * Generate embeddings for text
    */
-  embed(text: string | string[], options?: EmbeddingOptions): Promise<EmbeddingResponse>;
-  
+  embed(
+    text: string | string[],
+    options?: EmbeddingOptions,
+  ): Promise<EmbeddingResponse>;
+
   /**
    * Stream chat completion
    */
   stream(messages: AIMessage[], options?: ChatOptions): AsyncIterable<string>;
-  
+
   /**
    * Count tokens in text
    */
   countTokens(text: string): Promise<number>;
-  
+
   /**
    * Get available models
    */
   getModels(): Promise<AIModel[]>;
-  
+
   /**
    * Get provider capabilities
    */
@@ -455,17 +466,17 @@ export interface BaseAIOptions {
    * API timeout in milliseconds
    */
   timeout?: number;
-  
+
   /**
    * Maximum number of retries
    */
   maxRetries?: number;
-  
+
   /**
    * Custom headers
    */
   headers?: Record<string, string>;
-  
+
   /**
    * Default model to use
    */
@@ -532,7 +543,7 @@ export interface BedrockOptions extends BaseAIOptions {
 /**
  * Union type for all provider options
  */
-export type GetAIOptions = 
+export type GetAIOptions =
   | OpenAIOptions
   | GeminiOptions
   | AnthropicOptions
@@ -547,7 +558,7 @@ export class AIError extends Error {
     message: string,
     public code: string,
     public provider?: string,
-    public model?: string
+    public model?: string,
   ) {
     super(message);
     this.name = 'AIError';
@@ -563,7 +574,11 @@ export class AuthenticationError extends AIError {
 
 export class RateLimitError extends AIError {
   constructor(provider?: string, retryAfter?: number) {
-    super(`Rate limit exceeded${retryAfter ? `, retry after ${retryAfter}s` : ''}`, 'RATE_LIMIT', provider);
+    super(
+      `Rate limit exceeded${retryAfter ? `, retry after ${retryAfter}s` : ''}`,
+      'RATE_LIMIT',
+      provider,
+    );
     this.name = 'RateLimitError';
   }
 }
@@ -577,14 +592,24 @@ export class ModelNotFoundError extends AIError {
 
 export class ContextLengthError extends AIError {
   constructor(provider?: string, model?: string) {
-    super('Input exceeds maximum context length', 'CONTEXT_LENGTH_EXCEEDED', provider, model);
+    super(
+      'Input exceeds maximum context length',
+      'CONTEXT_LENGTH_EXCEEDED',
+      provider,
+      model,
+    );
     this.name = 'ContextLengthError';
   }
 }
 
 export class ContentFilterError extends AIError {
   constructor(provider?: string, model?: string) {
-    super('Content filtered by safety systems', 'CONTENT_FILTERED', provider, model);
+    super(
+      'Content filtered by safety systems',
+      'CONTENT_FILTERED',
+      provider,
+      model,
+    );
     this.name = 'ContentFilterError';
   }
 }

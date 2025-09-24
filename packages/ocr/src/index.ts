@@ -69,12 +69,12 @@
 
 // Export main factory function and utilities
 export {
-  OCRFactory,
-  getOCR,
-  resetOCRFactory,
   getAvailableProviders,
+  getOCR,
+  getProviderInfo,
   isProviderAvailable,
-  getProviderInfo
+  OCRFactory,
+  resetOCRFactory,
 } from './shared/factory.js';
 
 // Export all types

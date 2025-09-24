@@ -1,10 +1,17 @@
-import path from 'path';
-import { Window } from 'happy-dom';
-import { request } from 'undici';
-import { urlFilename, urlPath, getLogger, ValidationError, NetworkError, ParsingError, isUrl } from '@have/utils';
-import * as cheerio from 'cheerio';
-
 import { fetchText, getCached, setCached } from '@have/files';
+import {
+  getLogger,
+  isUrl,
+  NetworkError,
+  ParsingError,
+  urlFilename,
+  urlPath,
+  ValidationError,
+} from '@have/utils';
+import * as cheerio from 'cheerio';
+import { Window } from 'happy-dom';
+import path from 'path';
+import { request } from 'undici';
 
 /**
  * Configuration options for fetching a web page's source code
@@ -162,7 +169,7 @@ export async function fetchPageSource(
     cache = true,
     cacheExpiry = 300000,
     headers = {},
-    timeout = 30000
+    timeout = 30000,
   } = options;
 
   // Validate URL
@@ -180,7 +187,10 @@ export async function fetchPageSource(
     if (cache) {
       const cached = await getCached(cachedFile, cacheExpiry);
       if (cached) {
-        getLogger().info('Using cached page source', { url, cacheFile: cachedFile });
+        getLogger().info('Using cached page source', {
+          url,
+          cacheFile: cachedFile,
+        });
         return cached;
       }
     }
@@ -199,7 +209,10 @@ export async function fetchPageSource(
   if (cache) {
     const cached = await getCached(cachedFile, cacheExpiry);
     if (cached) {
-      getLogger().info('Using cached page source', { url, cacheFile: cachedFile });
+      getLogger().info('Using cached page source', {
+        url,
+        cacheFile: cachedFile,
+      });
       return cached;
     }
   }
@@ -207,31 +220,31 @@ export async function fetchPageSource(
   try {
     const defaultHeaders = {
       'User-Agent': 'Mozilla/5.0 (compatible; HAppyVertical Spider/1.0)',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+      Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Accept-Language': 'en-US,en;q=0.5',
       'Accept-Encoding': 'gzip, deflate',
-      'DNT': '1',
-      'Connection': 'keep-alive',
+      DNT: '1',
+      Connection: 'keep-alive',
       'Upgrade-Insecure-Requests': '1',
-      ...headers
+      ...headers,
     };
 
     const response = await request(url, {
       method: 'GET',
       headers: defaultHeaders,
       headersTimeout: timeout,
-      bodyTimeout: timeout
+      bodyTimeout: timeout,
     });
 
     if (response.statusCode >= 400) {
       throw new NetworkError(
         `HTTP ${response.statusCode}: ${response.headers['status'] || 'Request failed'}`,
-        { url, statusCode: response.statusCode, headers: response.headers }
+        { url, statusCode: response.statusCode, headers: response.headers },
       );
     }
 
     const content = await response.body.text();
-    
+
     // Try to process the HTML with happy-dom to ensure it's well-formed
     // Some HTML with event handlers may cause issues in happy-dom
     let processedContent = content;
@@ -242,9 +255,9 @@ export async function fetchPageSource(
       processedContent = document.documentElement.outerHTML;
     } catch (domError) {
       // If happy-dom fails (e.g., with event attribute parsing), use raw HTML
-      getLogger().warn('happy-dom failed to parse HTML, using raw content', { 
-        url, 
-        error: domError instanceof Error ? domError.message : String(domError) 
+      getLogger().warn('happy-dom failed to parse HTML, using raw content', {
+        url,
+        error: domError instanceof Error ? domError.message : String(domError),
       });
     }
 
@@ -255,10 +268,11 @@ export async function fetchPageSource(
     return processedContent;
   } catch (error) {
     if (error instanceof Error) {
-      throw new NetworkError(
-        `Failed to fetch page source: ${error.message}`,
-        { url, error: error.message, stack: error.stack }
-      );
+      throw new NetworkError(`Failed to fetch page source: ${error.message}`, {
+        url,
+        error: error.message,
+        stack: error.stack,
+      });
     }
     throw error;
   }
@@ -308,7 +322,9 @@ export async function fetchPageSource(
  */
 export async function parseIndexSource(indexSource: string): Promise<string[]> {
   if (!indexSource || typeof indexSource !== 'string') {
-    throw new ValidationError('HTML source is required and must be a string', { indexSource });
+    throw new ValidationError('HTML source is required and must be a string', {
+      indexSource,
+    });
   }
 
   try {
@@ -327,10 +343,10 @@ export async function parseIndexSource(indexSource: string): Promise<string[]> {
     return items;
   } catch (error) {
     if (error instanceof Error) {
-      throw new ParsingError(
-        `Failed to parse HTML source: ${error.message}`,
-        { error: error.message, stack: error.stack }
-      );
+      throw new ParsingError(`Failed to parse HTML source: ${error.message}`, {
+        error: error.message,
+        stack: error.stack,
+      });
     }
     throw error;
   }
@@ -442,14 +458,14 @@ export async function processHtml(html: string): Promise<string> {
     const window = new Window();
     const document = window.document;
     document.documentElement.innerHTML = html;
-    
+
     return document.documentElement.outerHTML;
   } catch (error) {
     if (error instanceof Error) {
-      throw new ParsingError(
-        `Failed to process HTML: ${error.message}`,
-        { error: error.message, stack: error.stack }
-      );
+      throw new ParsingError(`Failed to process HTML: ${error.message}`, {
+        error: error.message,
+        stack: error.stack,
+      });
     }
     throw error;
   }
