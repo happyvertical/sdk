@@ -4,7 +4,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "dependencies": {
-    "@have/utils": "workspace:*",
+    "@have/utils": "0.0.50",
     "@gutenye/ocr-node": "^1.4.8",
     "jpeg-js": "0.4.4",
     "pngjs": "7.0.0",

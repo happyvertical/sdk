@@ -20,9 +20,9 @@
     "test:watch": "npx vitest"
   },
   "dependencies": {
-    "@have/smrt": "workspace:*",
-    "@have/pdf": "workspace:*",
-    "@have/spider": "workspace:*"
+    "@have/smrt": "0.0.50",
+    "@have/pdf": "0.0.50",
+    "@have/spider": "0.0.50"
   },
   "devDependencies": {
     "@faker-js/faker": "^9.3.0",

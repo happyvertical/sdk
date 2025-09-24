@@ -30,7 +30,7 @@
   "author": "willgriffin@gmail.com",
   "license": "ISC",
   "dependencies": {
-    "@have/utils": "workspace:*",
+    "@have/utils": "0.0.50",
     "@libsql/client": "^0.14.0",
     "sqlite-vss": "^0.1.2",
     "pg": "^8.13.1"
