@@ -4,9 +4,9 @@
  * Designed for minimal bundle size and maximum performance
  */
 
+import type { SmrtCollection } from '../collection.js';
+import type { SmrtObject } from '../object.js';
 import { ObjectRegistry } from '../registry.js';
-import type { BaseCollection } from '../collection.js';
-import type { BaseObject } from '../object.js';
 
 export interface APIConfig {
   basePath?: string;
@@ -35,7 +35,7 @@ export interface APIContext {
  */
 export class APIGenerator {
   private config: APIConfig;
-  private collections = new Map<string, BaseCollection<any>>();
+  private collections = new Map<string, SmrtCollection<any>>();
   private context: APIContext;
 
   constructor(config: APIConfig = {}, context: APIContext = {}) {
@@ -198,7 +198,7 @@ export class APIGenerator {
    * Handle GET /objects/:id
    */
   private async handleGet(
-    collection: BaseCollection<any>,
+    collection: SmrtCollection<any>,
     id: string,
   ): Promise<Response> {
     const object = await collection.get(id);
@@ -212,7 +212,7 @@ export class APIGenerator {
    * Handle GET /objects (list with query params)
    */
   private async handleList(
-    collection: BaseCollection<any>,
+    collection: SmrtCollection<any>,
     params: URLSearchParams,
   ): Promise<Response> {
     const limit = parseInt(params.get('limit') || '50');
@@ -241,7 +241,7 @@ export class APIGenerator {
    * Handle POST /objects
    */
   private async handleCreate(
-    collection: BaseCollection<any>,
+    collection: SmrtCollection<any>,
     req: Request,
   ): Promise<Response> {
     const data = await req.json();
@@ -254,7 +254,7 @@ export class APIGenerator {
    * Handle PUT/PATCH /objects/:id
    */
   private async handleUpdate(
-    collection: BaseCollection<any>,
+    collection: SmrtCollection<any>,
     id: string,
     req: Request,
   ): Promise<Response> {
@@ -276,7 +276,7 @@ export class APIGenerator {
    * Handle DELETE /objects/:id
    */
   private async handleDelete(
-    collection: BaseCollection<any>,
+    collection: SmrtCollection<any>,
     id: string,
   ): Promise<Response> {
     const object = await collection.get(id);
@@ -292,7 +292,7 @@ export class APIGenerator {
   /**
    * Get or create collection instance
    */
-  private getCollection(classInfo: any): BaseCollection<any> {
+  private getCollection(classInfo: any): SmrtCollection<any> {
     if (!this.collections.has(classInfo.name)) {
       const collection = new classInfo.collectionConstructor({
         ai: this.context.ai,
@@ -391,7 +391,7 @@ export interface RestServerConfig extends APIConfig {
  * Create REST server with health checks using Bun
  */
 export function createRestServer(
-  objects: (typeof BaseObject)[],
+  objects: (typeof SmrtObject)[],
   context: APIContext = {},
   config: RestServerConfig = {},
 ): { server: any; url: string } {
@@ -414,7 +414,7 @@ export function createRestServer(
  * Start server with graceful shutdown
  */
 export function startRestServer(
-  objects: (typeof BaseObject)[],
+  objects: (typeof SmrtObject)[],
   context: APIContext = {},
   config: RestServerConfig = {},
 ): Promise<() => Promise<void>> {

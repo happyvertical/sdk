@@ -2,24 +2,24 @@
  * @have/pdf - Combined browser PDF reader with PDF.js + Web OCR capabilities
  */
 
-import { BasePDFReader } from '../shared/base.js';
-import { PDFJSProvider } from './pdfjs.js';
 import { getOCR } from '@have/ocr';
+import { BasePDFReader } from '../shared/base.js';
 import type {
-  PDFSource,
+  DependencyCheckResult,
   ExtractTextOptions,
   OCROptions,
-  PDFMetadata,
-  PDFImage,
   OCRResult,
   PDFCapabilities,
-  DependencyCheckResult,
+  PDFImage,
   PDFInfo,
+  PDFMetadata,
+  PDFSource,
 } from '../shared/types.js';
+import { PDFJSProvider } from './pdfjs.js';
 
 /**
  * Combined PDF reader for browser environments that integrates PDF.js and Web OCR
- * 
+ *
  * This provider:
  * - Uses PDF.js for text and metadata extraction
  * - Falls back to web OCR when direct text extraction yields no results
@@ -40,16 +40,16 @@ export class CombinedBrowserProvider extends BasePDFReader {
    */
   async extractText(
     source: PDFSource,
-    options?: ExtractTextOptions
+    options?: ExtractTextOptions,
   ): Promise<string | null> {
     try {
       // First try direct text extraction using PDF.js
       const text = await this.pdfjsProvider.extractText(source, options);
-      
+
       // If no text was found, try OCR as a fallback
       if (!text?.trim()) {
         console.log('No direct text found, attempting web OCR fallback...');
-        
+
         try {
           const images = await this.pdfjsProvider.extractImages(source);
           if (images && images.length > 0) {
@@ -60,7 +60,7 @@ export class CombinedBrowserProvider extends BasePDFReader {
           console.warn('Web OCR fallback failed:', ocrError);
         }
       }
-      
+
       return text;
     } catch (error) {
       console.error(`Combined browser text extraction failed:`, error);
@@ -85,7 +85,10 @@ export class CombinedBrowserProvider extends BasePDFReader {
   /**
    * Perform OCR on image data using web OCR
    */
-  async performOCR(images: PDFImage[], options?: OCROptions): Promise<OCRResult> {
+  async performOCR(
+    images: PDFImage[],
+    options?: OCROptions,
+  ): Promise<OCRResult> {
     return this.ocrFactory.performOCR(images, options);
   }
 

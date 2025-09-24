@@ -5,13 +5,13 @@
 import { promises as fs } from 'fs';
 import { BasePDFReader } from '../shared/base.js';
 import type {
-  PDFSource,
-  ExtractTextOptions,
-  PDFMetadata,
-  PDFImage,
-  PDFCapabilities,
   DependencyCheckResult,
+  ExtractTextOptions,
+  PDFCapabilities,
+  PDFImage,
   PDFInfo,
+  PDFMetadata,
+  PDFSource,
 } from '../shared/types.js';
 import { PDFDependencyError } from '../shared/types.js';
 
@@ -76,6 +76,18 @@ export class UnpdfProvider extends BasePDFReader {
     source: PDFSource,
     options?: ExtractTextOptions,
   ): Promise<string | null> {
+    // Handle invalid inputs gracefully
+    if (
+      !source ||
+      (typeof source === 'string' && source.trim() === '') ||
+      (typeof source === 'object' &&
+        Object.keys(source).length === 0 &&
+        !(source instanceof Buffer) &&
+        !(source instanceof Uint8Array))
+    ) {
+      return null;
+    }
+
     try {
       const unpdf = await this.loadUnpdf();
       const buffer = await this.normalizeSource(source);
@@ -191,6 +203,18 @@ export class UnpdfProvider extends BasePDFReader {
    * Extract images from a PDF using unpdf
    */
   async extractImages(source: PDFSource): Promise<PDFImage[]> {
+    // Handle invalid inputs gracefully
+    if (
+      !source ||
+      (typeof source === 'string' && source.trim() === '') ||
+      (typeof source === 'object' &&
+        Object.keys(source).length === 0 &&
+        !(source instanceof Buffer) &&
+        !(source instanceof Uint8Array))
+    ) {
+      return [];
+    }
+
     try {
       const unpdf = await this.loadUnpdf();
       const buffer = await this.normalizeSource(source);

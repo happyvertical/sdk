@@ -24,7 +24,7 @@ export class SmrtMCPServer {
       version: '1.0.0',
       tools: [],
       handlers: {},
-      ...options
+      ...options,
     };
   }
 
@@ -55,7 +55,9 @@ export class SmrtMCPServer {
     try {
       return await handler(params);
     } catch (error) {
-      throw new Error(`Tool execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `Tool execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
@@ -66,7 +68,7 @@ export class SmrtMCPServer {
     return {
       name: this.options.name,
       version: this.options.version,
-      toolCount: this.options.tools.length
+      toolCount: this.options.tools.length,
     };
   }
 
@@ -74,8 +76,12 @@ export class SmrtMCPServer {
    * Start the MCP server (basic implementation)
    */
   async start(): Promise<void> {
-    console.log(`[smrt-mcp] Server '${this.options.name}' started with ${this.options.tools.length} tools`);
-    console.log(`[smrt-mcp] Available tools: ${this.options.tools.map(t => t.name).join(', ')}`);
+    console.log(
+      `[smrt-mcp] Server '${this.options.name}' started with ${this.options.tools.length} tools`,
+    );
+    console.log(
+      `[smrt-mcp] Available tools: ${this.options.tools.map((t) => t.name).join(', ')}`,
+    );
   }
 }
 

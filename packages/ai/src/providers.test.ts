@@ -3,12 +3,12 @@
  * Tests actual functionality without complex mocks
  */
 
-import { describe, it, expect } from 'vitest';
-import { OpenAIProvider } from './shared/providers/openai.js';
-import { HuggingFaceProvider } from './shared/providers/huggingface.js';
-import { GeminiProvider } from './shared/providers/gemini.js';
+import { describe, expect, it } from 'vitest';
 import { AnthropicProvider } from './shared/providers/anthropic.js';
 import { BedrockProvider } from './shared/providers/bedrock.js';
+import { GeminiProvider } from './shared/providers/gemini.js';
+import { HuggingFaceProvider } from './shared/providers/huggingface.js';
+import { OpenAIProvider } from './shared/providers/openai.js';
 import { AIError } from './shared/types.js';
 
 describe('OpenAI Provider', () => {
@@ -48,7 +48,14 @@ describe('OpenAI Provider', () => {
       vision: true,
       fineTuning: true,
       maxContextLength: 128000,
-      supportedOperations: ['chat', 'completion', 'embedding', 'streaming', 'functions', 'vision'],
+      supportedOperations: [
+        'chat',
+        'completion',
+        'embedding',
+        'streaming',
+        'functions',
+        'vision',
+      ],
     });
   });
 });
@@ -80,12 +87,14 @@ describe('HuggingFace Provider', () => {
     ];
 
     const prompt = (provider as any).messagesToPrompt(messages);
-    expect(prompt).toBe('System: You are helpful\nHuman: Hello\nAssistant: Hi!\nHuman: How are you?\nAssistant:');
+    expect(prompt).toBe(
+      'System: You are helpful\nHuman: Hello\nAssistant: Hi!\nHuman: How are you?\nAssistant:',
+    );
   });
 
   it('should return static models list', async () => {
     const provider = new HuggingFaceProvider({
-      type: 'huggingface', 
+      type: 'huggingface',
       apiToken: 'test-token',
     });
 
@@ -135,10 +144,22 @@ describe('Provider Implementations', () => {
   it('should create all providers successfully', () => {
     // All providers should work now!
     expect(() => new OpenAIProvider({ apiKey: 'test-key' })).not.toThrow();
-    expect(() => new HuggingFaceProvider({ type: 'huggingface', apiToken: 'test-token' })).not.toThrow();
-    expect(() => new GeminiProvider({ type: 'gemini', apiKey: 'test-key' })).not.toThrow();
-    expect(() => new AnthropicProvider({ type: 'anthropic', apiKey: 'test-key' })).not.toThrow();
-    expect(() => new BedrockProvider({ type: 'bedrock', region: 'us-east-1' })).not.toThrow();
+    expect(
+      () =>
+        new HuggingFaceProvider({
+          type: 'huggingface',
+          apiToken: 'test-token',
+        }),
+    ).not.toThrow();
+    expect(
+      () => new GeminiProvider({ type: 'gemini', apiKey: 'test-key' }),
+    ).not.toThrow();
+    expect(
+      () => new AnthropicProvider({ type: 'anthropic', apiKey: 'test-key' }),
+    ).not.toThrow();
+    expect(
+      () => new BedrockProvider({ type: 'bedrock', region: 'us-east-1' }),
+    ).not.toThrow();
   });
 });
 
@@ -151,7 +172,7 @@ describe('Token Counting', () => {
     });
 
     const text = 'Hello, this is a test message with several words.';
-    
+
     const openaiTokens = await openaiProvider.countTokens(text);
     const hfTokens = await hfProvider.countTokens(text);
 
@@ -159,7 +180,7 @@ describe('Token Counting', () => {
     expect(typeof hfTokens).toBe('number');
     expect(openaiTokens).toBeGreaterThan(0);
     expect(hfTokens).toBeGreaterThan(0);
-    
+
     // Should be reasonable estimates (not wildly off)
     expect(openaiTokens).toBeLessThan(100);
     expect(hfTokens).toBeLessThan(100);

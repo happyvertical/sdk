@@ -2,13 +2,13 @@
  * AST scanning and manifest generation for SMRT objects
  */
 
-export { ASTScanner, scanFiles, scanFile } from './ast-scanner.js';
-export { ManifestGenerator, generateManifest } from './manifest-generator.js';
-export type { 
+export { ASTScanner, scanFile, scanFiles } from './ast-scanner.js';
+export { generateManifest, ManifestGenerator } from './manifest-generator.js';
+export type {
   FieldDefinition,
-  MethodDefinition, 
+  MethodDefinition,
+  ScanOptions,
+  ScanResult,
   SmartObjectDefinition,
   SmartObjectManifest,
-  ScanResult,
-  ScanOptions
 } from './types.js';

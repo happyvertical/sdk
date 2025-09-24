@@ -1,5 +1,6 @@
-import { it, expect } from 'vitest';
+import { expect, it } from 'vitest';
 import { fieldsFromClass } from './utils.js';
+
 // import { contentToString, stringToContent } from '@have/content';
 // import { faker } from '@faker-js/faker';
 // import { Content } from '@have/content';
@@ -77,7 +78,6 @@ it.skip('should be able to parse a content string', () => {
   //   publish_date: faker.date.recent(),
   //   body: faker.lorem.paragraph(),
   // };
-
   // const toString = contentToString(data as Content);
   // const toObject = stringToContent(toString);
   // expect(toObject).toEqual(data);

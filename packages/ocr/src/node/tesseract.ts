@@ -7,12 +7,12 @@
  */
 
 import type {
-  OCRProvider,
-  OCRImage,
-  OCROptions,
-  OCRResult,
   DependencyCheckResult,
   OCRCapabilities,
+  OCRImage,
+  OCROptions,
+  OCRProvider,
+  OCRResult,
 } from '../shared/types.js';
 import { OCRDependencyError, OCRProcessingError } from '../shared/types.js';
 

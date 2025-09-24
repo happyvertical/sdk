@@ -2,7 +2,7 @@
  * Sample SMRT classes for testing the AST scanner
  */
 
-import { BaseObject } from '../object.js';
+import { SmrtObject } from '../object.js';
 
 // Mock decorator function for testing
 function smrt(config?: any) {
@@ -19,7 +19,7 @@ function smrt(config?: any) {
   },
   cli: true,
 })
-class Product extends BaseObject {
+class Product extends SmrtObject {
   name: string = '';
   description?: string;
   price: number = 0;
@@ -43,7 +43,7 @@ class Product extends BaseObject {
 
 // Simple Category class
 @smrt()
-class Category extends BaseObject {
+class Category extends SmrtObject {
   name: string = '';
   description?: string;
   active: boolean = true;

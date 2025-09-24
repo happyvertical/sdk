@@ -3,11 +3,11 @@
  */
 
 // Import OCR types from the dedicated OCR package
-import type { 
-  OCROptions, 
-  OCRResult, 
+import type {
   OCRImage as BaseOCRImage,
-  DependencyCheckResult
+  DependencyCheckResult,
+  OCROptions,
+  OCRResult,
 } from '@have/ocr';
 
 /**
@@ -163,11 +163,12 @@ export interface PDFReaderOptions {
 }
 
 // Re-export DependencyCheckResult for backward compatibility within PDF package
-export type { DependencyCheckResult } from '@have/ocr';
-
 // Re-export OCR provider interfaces from the OCR package for backward compatibility
-export type { OCRProvider } from '@have/ocr';
-export type { OCRFactoryOptions } from '@have/ocr';
+export type {
+  DependencyCheckResult,
+  OCRFactoryOptions,
+  OCRProvider,
+} from '@have/ocr';
 
 /**
  * Main PDF reader interface providing comprehensive PDF processing capabilities
@@ -238,7 +239,7 @@ export interface PDFReader {
    */
   extractText(
     source: string | ArrayBuffer | Uint8Array,
-    options?: ExtractTextOptions
+    options?: ExtractTextOptions,
   ): Promise<string | null>;
 
   /**
@@ -265,7 +266,9 @@ export interface PDFReader {
    * console.log(`Encrypted: ${metadata.encrypted ? 'Yes' : 'No'}`);
    * ```
    */
-  extractMetadata(source: string | ArrayBuffer | Uint8Array): Promise<PDFMetadata>;
+  extractMetadata(
+    source: string | ArrayBuffer | Uint8Array,
+  ): Promise<PDFMetadata>;
 
   /**
    * Extract all images from a PDF document for further processing or OCR
@@ -443,7 +446,10 @@ export type PDFSource = string | ArrayBuffer | Uint8Array;
  * Error types specific to PDF processing
  */
 export class PDFError extends Error {
-  constructor(message: string, public code?: string) {
+  constructor(
+    message: string,
+    public code?: string,
+  ) {
     super(message);
     this.name = 'PDFError';
   }
@@ -459,7 +465,9 @@ export class PDFUnsupportedError extends PDFError {
 
 export class PDFDependencyError extends PDFError {
   constructor(dependency: string, details?: string) {
-    super(`PDF dependency '${dependency}' is not available${details ? ': ' + details : ''}`);
+    super(
+      `PDF dependency '${dependency}' is not available${details ? ': ' + details : ''}`,
+    );
     this.code = 'EDEP';
     this.name = 'PDFDependencyError';
   }
@@ -499,19 +507,19 @@ export interface PDFInfo {
   version?: string;
   /** Whether the document is encrypted/password protected */
   encrypted: boolean;
-  
+
   /** Whether the PDF contains extractable text content (can use fast text extraction) */
   hasEmbeddedText: boolean;
   /** Whether the PDF contains images (may benefit from OCR processing) */
   hasImages: boolean;
   /** Rough estimate of text content length (without full extraction) */
   estimatedTextLength?: number;
-  
+
   /** Recommended processing strategy: 'text' for direct extraction, 'ocr' for image-based, 'hybrid' for mixed content */
   recommendedStrategy: 'text' | 'ocr' | 'hybrid';
   /** True if OCR processing will definitely be required to extract meaningful text content */
   ocrRequired: boolean;
-  
+
   /** Performance estimates to help plan processing workflows and user experience */
   estimatedProcessingTime?: {
     /** Expected time category for direct text extraction (fast: <1s, medium: 1-5s, slow: >5s) */
@@ -519,7 +527,7 @@ export interface PDFInfo {
     /** Expected time category for OCR processing if needed (fast: <10s, medium: 10-60s, slow: >60s) */
     ocrProcessing?: 'fast' | 'medium' | 'slow';
   };
-  
+
   /** Basic metadata (lightweight extraction) */
   title?: string;
   /** Document author */

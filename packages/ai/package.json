@@ -1,6 +1,6 @@
 {
   "name": "@have/ai",
-  "version": "0.0.50", 
+  "version": "0.0.50",
   "description": "Context-aware AI client library with support for multiple providers",
   "type": "module",
   "main": "./dist/index.js",

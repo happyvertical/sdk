@@ -1,6 +1,12 @@
-import { fetchPageSource, createWindow, processHtml, parseIndexSource, type FetchPageSourceOptions } from './index.js';
-import { it, expect, describe } from 'vitest';
-import { ValidationError, NetworkError, ParsingError } from '@have/utils';
+import { NetworkError, ParsingError, ValidationError } from '@have/utils';
+import { describe, expect, it } from 'vitest';
+import {
+  createWindow,
+  type FetchPageSourceOptions,
+  fetchPageSource,
+  parseIndexSource,
+  processHtml,
+} from './index.js';
 
 describe('fetchPageSource', () => {
   it('should fetch page source cheaply with caching', async () => {
@@ -41,9 +47,9 @@ describe('fetchPageSource', () => {
       url: 'https://www.google.com',
       cheap: true,
       headers: {
-        'X-Test-Header': 'test-value'
+        'X-Test-Header': 'test-value',
       },
-      timeout: 15000
+      timeout: 15000,
     };
 
     const source = await fetchPageSource(options);
@@ -55,7 +61,7 @@ describe('fetchPageSource', () => {
     const options: FetchPageSourceOptions = {
       url: 'https://www.google.com',
       cheap: true,
-      cache: false
+      cache: false,
     };
 
     // When cache is disabled, function should still work
@@ -65,23 +71,29 @@ describe('fetchPageSource', () => {
   });
 
   it('should throw ValidationError for invalid URL', async () => {
-    await expect(fetchPageSource({
-      url: '',
-      cheap: true
-    })).rejects.toThrow(ValidationError);
+    await expect(
+      fetchPageSource({
+        url: '',
+        cheap: true,
+      }),
+    ).rejects.toThrow(ValidationError);
 
-    await expect(fetchPageSource({
-      url: 'not-a-url',
-      cheap: true
-    })).rejects.toThrow(ValidationError);
+    await expect(
+      fetchPageSource({
+        url: 'not-a-url',
+        cheap: true,
+      }),
+    ).rejects.toThrow(ValidationError);
   });
 
   it('should throw NetworkError for non-existent domain', async () => {
-    await expect(fetchPageSource({
-      url: 'https://this-domain-should-not-exist-12345.com',
-      cheap: true,
-      timeout: 5000
-    })).rejects.toThrow(); // Accept any error type since underlying error handling varies
+    await expect(
+      fetchPageSource({
+        url: 'https://this-domain-should-not-exist-12345.com',
+        cheap: true,
+        timeout: 5000,
+      }),
+    ).rejects.toThrow(); // Accept any error type since underlying error handling varies
   });
 });
 
@@ -98,7 +110,11 @@ describe('parseIndexSource', () => {
     `;
 
     const links = await parseIndexSource(html);
-    expect(links).toEqual(['/page1.html', '/page2.html', 'https://external.com']);
+    expect(links).toEqual([
+      '/page1.html',
+      '/page2.html',
+      'https://external.com',
+    ]);
   });
 
   it('should return empty array for HTML with no links', async () => {
@@ -108,15 +124,20 @@ describe('parseIndexSource', () => {
   });
 
   it('should handle HTML with single link', async () => {
-    const html = '<html><body><a href="/single.html">Single Link</a></body></html>';
+    const html =
+      '<html><body><a href="/single.html">Single Link</a></body></html>';
     const links = await parseIndexSource(html);
     expect(links).toEqual(['/single.html']);
   });
 
   it('should throw ValidationError for invalid input', async () => {
     await expect(parseIndexSource('')).rejects.toThrow(ValidationError);
-    await expect(parseIndexSource(null as any)).rejects.toThrow(ValidationError);
-    await expect(parseIndexSource(undefined as any)).rejects.toThrow(ValidationError);
+    await expect(parseIndexSource(null as any)).rejects.toThrow(
+      ValidationError,
+    );
+    await expect(parseIndexSource(undefined as any)).rejects.toThrow(
+      ValidationError,
+    );
   });
 });
 

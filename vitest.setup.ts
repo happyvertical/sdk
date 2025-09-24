@@ -1,6 +1,6 @@
-import { promises as fs } from 'fs';
-import path from 'path';
-import { tmpdir } from 'os';
+import { promises as fs } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 
 export const TMP_DIR = path.resolve(`${tmpdir()}/.have-sdk/tests`);
 

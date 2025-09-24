@@ -1,27 +1,26 @@
 // import type { AIMessageOptions } from '@have/ai';
-import type { BaseClassOptions } from './class.js';
 
-import {
-  fieldsFromClass,
-  tableNameFromClass,
-  setupTableFromClass,
-} from './utils.js';
 import { escapeSqlValue } from '@have/sql';
+import type { SmrtClassOptions } from './class.js';
+import { SmrtClass } from './class.js';
+import {
+  DatabaseError,
+  ErrorUtils,
+  RuntimeError,
+  ValidationError,
+} from './errors.js';
 import { Field } from './fields/index.js';
 import { ObjectRegistry } from './registry.js';
 import {
-  DatabaseError,
-  ValidationError,
-  RuntimeError,
-  ErrorUtils,
-} from './errors.js';
-
-import { BaseClass } from './class.js';
+  fieldsFromClass,
+  setupTableFromClass,
+  tableNameFromClass,
+} from './utils.js';
 
 /**
- * Options for BaseObject initialization
+ * Options for SmrtObject initialization
  */
-export interface BaseObjectOptions extends BaseClassOptions {
+export interface SmrtObjectOptions extends SmrtClassOptions {
   /**
    * Unique identifier for the object
    */
@@ -54,15 +53,13 @@ export interface BaseObjectOptions extends BaseClassOptions {
 }
 
 /**
- * Base persistent object with unique identifiers and database storage
+ * Core persistent object with unique identifiers and database storage
  *
- * BaseObject provides functionality for creating, loading, and saving objects
+ * SmrtObject provides functionality for creating, loading, and saving objects
  * to a database. It supports identification via unique IDs and URL-friendly
  * slugs, with optional context scoping.
  */
-export class BaseObject<
-  T extends BaseObjectOptions = BaseObjectOptions,
-> extends BaseClass<T> {
+export class SmrtObject extends SmrtClass {
   /**
    * Database table name for this object
    */
@@ -99,12 +96,12 @@ export class BaseObject<
   public updated_at: Date | null | undefined;
 
   /**
-   * Creates a new BaseObject instance
+   * Creates a new SmrtObject instance
    *
    * @param options - Configuration options including identifiers and metadata
    * @throws Error if options is null
    */
-  constructor(options: T) {
+  constructor(options: SmrtObjectOptions = {}) {
     super(options);
     if (options === null) {
       throw new Error('options cant be null');
@@ -115,6 +112,17 @@ export class BaseObject<
     this.name = options.name || null;
     this.created_at = options.created_at || null;
     this.updated_at = options.updated_at || null;
+
+    // Auto-register the class if it's not already registered
+    // and it's not the base SmrtObject class itself
+    // Skip registration during field extraction to avoid infinite recursion
+    if (
+      this.constructor !== SmrtObject &&
+      !ObjectRegistry.hasClass(this.constructor.name) &&
+      !(options as any)?._skipRegistration
+    ) {
+      ObjectRegistry.register(this.constructor as typeof SmrtObject, {});
+    }
 
     // Initialize field values from options
     this.initializeFields(options);
@@ -221,9 +229,9 @@ export class BaseObject<
       `);
     }
 
-    if (this.options.id) {
+    if (this._id) {
       await this.loadFromId();
-    } else if (this.options.slug) {
+    } else if (this._slug) {
       await this.loadFromSlug();
     }
   }
@@ -520,7 +528,7 @@ export class BaseObject<
    */
   public async loadFromId() {
     try {
-      if (!this.options.id) {
+      if (!this._id) {
         throw ValidationError.requiredField('id', this.constructor.name);
       }
 
@@ -531,7 +539,7 @@ export class BaseObject<
           try {
             const {
               rows: [existing],
-            } = await this.db.query(sql, [this.options.id]);
+            } = await this.db.query(sql, [this._id]);
             if (existing) {
               this.loadDataFromDb(existing);
             }
@@ -552,7 +560,7 @@ export class BaseObject<
 
       throw RuntimeError.operationFailed(
         'loadFromId',
-        `${this.constructor.name}#${this.options.id}`,
+        `${this.constructor.name}#${this._id}`,
         error instanceof Error ? error : new Error(String(error)),
       );
     }
@@ -568,7 +576,7 @@ export class BaseObject<
       rows: [existing],
     } = await this.db.query(
       `SELECT * FROM ${this.tableName} WHERE slug = ? AND context = ?`,
-      [this.options.slug, this.options.context || ''],
+      [this._slug, this._context || ''],
     );
     if (existing) {
       this.loadDataFromDb(existing);

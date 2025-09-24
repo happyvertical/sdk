@@ -2,17 +2,17 @@
  * Tests for comprehensive error handling system
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-  SmrtError,
-  DatabaseError,
-  ValidationError,
   AIError,
-  NetworkError,
   ConfigurationError,
+  DatabaseError,
+  ErrorUtils,
   FilesystemError,
+  NetworkError,
   RuntimeError,
-  ErrorUtils
+  SmrtError,
+  ValidationError,
 } from './errors.js';
 
 describe('SMRT Error System', () => {
@@ -39,7 +39,10 @@ describe('SMRT Error System', () => {
     });
 
     it('should create constraint violation error', () => {
-      const error = DatabaseError.constraintViolation('unique_email', 'test@example.com');
+      const error = DatabaseError.constraintViolation(
+        'unique_email',
+        'test@example.com',
+      );
 
       expect(error.code).toBe('DB_CONSTRAINT_VIOLATION');
       expect(error.details?.constraint).toBe('unique_email');
@@ -108,7 +111,9 @@ describe('SMRT Error System', () => {
         throw new Error('Persistent failure');
       };
 
-      await expect(ErrorUtils.withRetry(operation, 2, 10)).rejects.toThrow('Persistent failure');
+      await expect(ErrorUtils.withRetry(operation, 2, 10)).rejects.toThrow(
+        'Persistent failure',
+      );
     });
 
     it('should not retry validation errors', async () => {
@@ -118,19 +123,25 @@ describe('SMRT Error System', () => {
         throw ValidationError.requiredField('name', 'User');
       };
 
-      await expect(ErrorUtils.withRetry(operation, 3, 10)).rejects.toThrow(ValidationError);
+      await expect(ErrorUtils.withRetry(operation, 3, 10)).rejects.toThrow(
+        ValidationError,
+      );
       expect(attempts).toBe(1); // Should not retry
     });
 
     it('should identify retryable errors', () => {
       expect(ErrorUtils.isRetryable(new Error('ECONNRESET'))).toBe(true);
-      expect(ErrorUtils.isRetryable(new Error('rate limit exceeded'))).toBe(true);
+      expect(ErrorUtils.isRetryable(new Error('rate limit exceeded'))).toBe(
+        true,
+      );
       expect(ErrorUtils.isRetryable(new Error('timeout'))).toBe(true);
       expect(ErrorUtils.isRetryable(new Error('Invalid input'))).toBe(false);
     });
 
     it('should sanitize errors', () => {
-      const error = DatabaseError.connectionFailed('postgres://user:password123@host/db');
+      const error = DatabaseError.connectionFailed(
+        'postgres://user:password123@host/db',
+      );
       error.details!.apiKey = 'secret-key-123';
 
       const sanitized = ErrorUtils.sanitizeError(error);

@@ -5,13 +5,13 @@
  * while internally using the new standardized interface.
  */
 
-import { statSync, createWriteStream, type Dirent, existsSync } from 'node:fs';
+import { createWriteStream, type Dirent, existsSync, statSync } from 'node:fs';
 import {
   copyFile,
   mkdir,
   readdir,
-  writeFile,
   readFile,
+  writeFile,
 } from 'node:fs/promises';
 import * as path from 'node:path';
 import { dirname } from 'node:path';

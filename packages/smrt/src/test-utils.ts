@@ -6,8 +6,8 @@
  */
 
 import { vi } from 'vitest';
-import type { BaseObject } from './object.js';
-import type { BaseCollection } from './collection.js';
+import type { SmrtCollection } from './collection.js';
+import type { SmrtObject } from './object.js';
 
 /**
  * Mock object instance with all required lifecycle methods

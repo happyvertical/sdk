@@ -30,7 +30,7 @@ class RateLimiter {
    * Applied to domains that don't have specific limits configured
    */
   private defaultLimit = 6;
-  
+
   /**
    * Default interval in milliseconds (500ms)
    * Time window for the request limit enforcement
@@ -103,7 +103,7 @@ class RateLimiter {
 
   /**
    * Sets rate limit for a specific domain
-   * 
+   *
    * @param domain - Domain to set limits for
    * @param limit - Maximum number of requests per interval
    * @param interval - Interval in milliseconds
@@ -119,7 +119,7 @@ class RateLimiter {
 
   /**
    * Gets rate limit configuration for a domain
-   * 
+   *
    * @param domain - Domain to get limits for
    * @returns Rate limit configuration
    */
@@ -153,7 +153,7 @@ const rateLimiter = new RateLimiter();
 export async function addRateLimit(
   domain: string,
   limit: number,
-  interval: number
+  interval: number,
 ) {
   rateLimiter.setDomainLimit(domain, limit, interval);
 }
@@ -174,7 +174,7 @@ export async function addRateLimit(
  * ```
  */
 export async function getRateLimit(
-  domain: string
+  domain: string,
 ): Promise<{ limit: number; interval: number }> {
   const config = rateLimiter.getDomainLimit(domain);
   return {
@@ -198,7 +198,7 @@ export async function getRateLimit(
  */
 async function rateLimitedFetch(
   url: string,
-  options?: RequestInit
+  options?: RequestInit,
 ): Promise<Response> {
   await rateLimiter.waitForNext(url);
   return fetch(url, options);
@@ -297,7 +297,7 @@ export async function fetchBuffer(url: string): Promise<Buffer> {
  */
 export async function fetchToFile(
   url: string,
-  filepath: string
+  filepath: string,
 ): Promise<void> {
   const response = await rateLimitedFetch(url);
   const buffer = await response.arrayBuffer();
