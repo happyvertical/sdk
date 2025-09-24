@@ -33,7 +33,7 @@
     // Let Node.js module resolution handle workspace packages through package.json exports
     "baseUrl": "."
   },
-  "exclude": ["docs/**/*", "**/node_modules/**", "packages/products/**/*"],
+  "exclude": ["docs/**/*", "**/node_modules/**"],
   "references": [
     { "path": "./packages/utils" },
     { "path": "./packages/files" },
@@ -43,6 +43,7 @@
     { "path": "./packages/pdf" },
     { "path": "./packages/ai" },
     { "path": "./packages/smrt" },
-    { "path": "./packages/content" }
+    { "path": "./packages/content" },
+    { "path": "./packages/products" }
   ]
 }

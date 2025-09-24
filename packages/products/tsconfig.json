@@ -1,22 +1,16 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    // Incubator-specific overrides
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "composite": true,
     "outDir": "./dist",
     "rootDir": "./src",
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
-    "composite": true,
-    "noEmit": false,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "jsx": "preserve",
     "types": ["vite/client", "node", "bun"],
     "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-
-    // Additional overrides for incubator packages
-    "noUnusedLocals": false,
-    "noUnusedParameters": false
+    "esModuleInterop": true
   },
   "include": ["src/**/*"],
-  "exclude": ["dist", "node_modules", "src/**/*.{test,spec}.{ts,js}"]
+  "exclude": ["**/*.test.ts", "**/*.spec.ts"]
 }
