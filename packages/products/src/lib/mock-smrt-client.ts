@@ -177,7 +177,7 @@ class MockApiClient {
 }
 
 export function createClient(baseUrl = '/api/v1'): MockApiClient {
-  return new MockApiClient(baseUrl);
+  return new MockApiClient();
 }
 
 export default createClient;

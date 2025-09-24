@@ -193,18 +193,23 @@ const server = Bun.serve({
           {
             error: 'Not Found',
             available_endpoints: Object.entries(manifest.objects).map(
-              ([_name, obj]) => ({
-                collection: obj.collection,
-                endpoints: [
-                  `GET /api/${obj.collection}`,
-                  `POST /api/${obj.collection}`,
-                  `GET /api/${obj.collection}/:id`,
-                  `PUT /api/${obj.collection}/:id`,
-                  ...(excludedMethods.includes('delete')
-                    ? []
-                    : [`DELETE /api/${obj.collection}/:id`]),
-                ],
-              }),
+              ([_name, obj]) => {
+                const apiConfig = obj.decoratorConfig.api;
+                const objExcludedMethods =
+                  (typeof apiConfig === 'object' && apiConfig?.exclude) || [];
+                return {
+                  collection: obj.collection,
+                  endpoints: [
+                    `GET /api/${obj.collection}`,
+                    `POST /api/${obj.collection}`,
+                    `GET /api/${obj.collection}/:id`,
+                    `PUT /api/${obj.collection}/:id`,
+                    ...(objExcludedMethods.includes('delete')
+                      ? []
+                      : [`DELETE /api/${obj.collection}/:id`]),
+                  ],
+                };
+              },
             ),
           },
           null,

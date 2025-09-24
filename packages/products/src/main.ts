@@ -82,7 +82,7 @@ async function testAPI(collection: 'products' | 'categories') {
 
     output.innerHTML = `<div class="status success">✅ ${collection} API test successful!</div><p><strong>List:</strong></p><pre>${JSON.stringify(items, null, 2)}</pre><p><strong>Created:</strong></p><pre>${JSON.stringify(created, null, 2)}</pre>`;
   } catch (error) {
-    output.innerHTML = `<div class="status error">❌ API test failed: ${error.message}</div>`;
+    output.innerHTML = `<div class="status error">❌ API test failed: ${error instanceof Error ? error.message : String(error)}</div>`;
   }
 }
 

@@ -65,8 +65,10 @@ async function startMCPServer() {
   });
 
   // Log discovered tools
-  const toolCount = generatedServer.tools.length;
-  const toolNames = generatedServer.tools.map((t: any) => t.name).join(', ');
+  const toolCount = _generatedServerInfo.tools.length;
+  const toolNames = _generatedServerInfo.tools
+    .map((t: any) => t.name)
+    .join(', ');
   console.log(`🔧 Discovered ${toolCount} MCP tools: ${toolNames}`);
 
   // Start the MCP server
