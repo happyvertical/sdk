@@ -5,13 +5,13 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
-import type { OCRImage } from './index.js';
+import type { OCRImage } from './index';
 import {
-  OCRFactory,
   getAvailableProviders,
   getOCR,
   isProviderAvailable,
-} from './index.js';
+  OCRFactory,
+} from './index';
 
 describe('@have/ocr', () => {
   test('should export main functions', () => {

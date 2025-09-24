@@ -3,7 +3,7 @@
  */
 
 import { promises as fs } from 'node:fs';
-import { BasePDFReader } from '../shared/base.js';
+import { BasePDFReader } from '../shared/base';
 import type {
   DependencyCheckResult,
   ExtractTextOptions,
@@ -12,8 +12,8 @@ import type {
   PDFInfo,
   PDFMetadata,
   PDFSource,
-} from '../shared/types.js';
-import { PDFDependencyError } from '../shared/types.js';
+} from '../shared/types';
+import { PDFDependencyError } from '../shared/types';
 
 /**
  * PDF reader implementation using unpdf library for Node.js

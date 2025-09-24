@@ -4,8 +4,8 @@ import type {
   DatabaseInterface,
   QueryResult,
   TableInterface,
-} from './shared/types.js';
-import { buildWhere } from './shared/utils.js';
+} from './shared/types';
+import { buildWhere } from './shared/utils';
 
 /**
  * Configuration options for SQLite database connections

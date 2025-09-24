@@ -6,7 +6,7 @@
  */
 
 import { createRestServer, startRestServer } from '@have/smrt';
-import { Content } from './content.js';
+import { Content } from './content';
 
 async function startServer() {
   console.log('🚀 Starting SMRT Content Server...');

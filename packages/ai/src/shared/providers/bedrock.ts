@@ -13,14 +13,14 @@ import type {
   CompletionOptions,
   EmbeddingOptions,
   EmbeddingResponse,
-} from '../types.js';
+} from '../types';
 import {
   AIError,
   AuthenticationError,
   ContextLengthError,
   ModelNotFoundError,
   RateLimitError,
-} from '../types.js';
+} from '../types';
 
 // Note: This implementation will require @aws-sdk/client-bedrock-runtime package
 // For now, this is a placeholder that defines the interface
@@ -146,18 +146,14 @@ export class BedrockProvider implements AIInterface {
     _messages: AIMessage[],
     _options: ChatOptions = {},
   ): AsyncIterable<string> {
-    try {
-      // TODO: Implement Bedrock streaming
-      // const { InvokeModelWithResponseStreamCommand } = await import('@aws-sdk/client-bedrock-runtime');
-
-      throw new AIError(
-        'Bedrock streaming not implemented',
-        'NOT_IMPLEMENTED',
-        'bedrock',
-      );
-    } catch (error) {
-      throw this.mapError(error);
-    }
+    // TODO: Implement Bedrock streaming
+    // For now, yield an empty stream and then throw
+    yield* [];
+    throw new AIError(
+      'Bedrock streaming not implemented',
+      'NOT_IMPLEMENTED',
+      'bedrock',
+    );
   }
 
   async countTokens(text: string): Promise<number> {

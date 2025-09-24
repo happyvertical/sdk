@@ -15,15 +15,15 @@
     }
   },
   "scripts": {
-    "test": "bun test --timeout 60000",
-    "test:watch": "bun test --watch --timeout 60000",
+    "test": "npx vitest run --testTimeout 60000",
+    "test:watch": "npx vitest --testTimeout 60000",
     "build": "tsc --build",
     "build:watch": "tsc --build --watch",
     "docs": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules",
     "docs:watch": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules --watch",
     "clean": "rm -rf dist docs",
     "clean:all": "rm -rf dist docs *.tsbuildinfo node_modules",
-    "dev": "bun run build:watch & bun run test:watch"
+    "dev": "npm run build:watch & npm run test:watch"
   },
   "dependencies": {
     "@have/ocr": "workspace:*",

@@ -1,3 +1,3 @@
-export * from './logger.js';
-export * from './types.js';
-export * from './universal.js';
+export * from './logger';
+export * from './types';
+export * from './universal';

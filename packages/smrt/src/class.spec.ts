@@ -3,7 +3,7 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { SmrtClass } from './class.js';
+import { SmrtClass } from './class';
 
 describe('SmrtClass', () => {
   describe('Construction', () => {

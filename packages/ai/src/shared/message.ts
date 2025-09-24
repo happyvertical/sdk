@@ -1,4 +1,4 @@
-import type { AIThread } from './thread.js';
+import type { AIThread } from './thread';
 
 /**
  * Options for creating AI messages

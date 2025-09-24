@@ -2,7 +2,7 @@
  * @have/pdf - PDF.js provider for browser PDF processing
  */
 
-import { BasePDFReader } from '../shared/base.js';
+import { BasePDFReader } from '../shared/base';
 import type {
   DependencyCheckResult,
   ExtractTextOptions,
@@ -10,8 +10,8 @@ import type {
   PDFImage,
   PDFMetadata,
   PDFSource,
-} from '../shared/types.js';
-import { PDFDependencyError, PDFUnsupportedError } from '../shared/types.js';
+} from '../shared/types';
+import { PDFDependencyError, PDFUnsupportedError } from '../shared/types';
 
 /**
  * PDF reader implementation using PDF.js for browser environments

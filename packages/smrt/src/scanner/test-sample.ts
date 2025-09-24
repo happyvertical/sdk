@@ -2,7 +2,7 @@
  * Sample SMRT classes for testing the AST scanner
  */
 
-import { SmrtObject } from '../object.js';
+import { SmrtObject } from '../object';
 
 // Mock decorator function for testing
 function smrt(_config?: any) {

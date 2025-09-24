@@ -1,12 +1,12 @@
 import { ParsingError, ValidationError } from '@have/utils';
 import { describe, expect, it } from 'vitest';
 import {
-  type FetchPageSourceOptions,
   createWindow,
+  type FetchPageSourceOptions,
   fetchPageSource,
   parseIndexSource,
   processHtml,
-} from './index.js';
+} from './index';
 
 describe('fetchPageSource', () => {
   it('should fetch page source cheaply with caching', async () => {

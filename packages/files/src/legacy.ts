@@ -5,8 +5,8 @@
  * while internally using the new standardized interface.
  */
 
-import { type Dirent, createWriteStream, existsSync, statSync } from 'node:fs';
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
+import { createWriteStream, type Dirent, existsSync, statSync } from 'node:fs';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { dirname } from 'node:path';
 import { URL } from 'node:url';

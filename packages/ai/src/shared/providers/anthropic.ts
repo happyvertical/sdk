@@ -17,14 +17,14 @@ import type {
   CompletionOptions,
   EmbeddingOptions,
   EmbeddingResponse,
-} from '../types.js';
+} from '../types';
 import {
   AIError,
   AuthenticationError,
   ContextLengthError,
   ModelNotFoundError,
   RateLimitError,
-} from '../types.js';
+} from '../types';
 
 // Note: This implementation will require @anthropic-ai/sdk package
 // For now, this is a placeholder that defines the interface

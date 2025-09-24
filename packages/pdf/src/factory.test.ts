@@ -4,7 +4,7 @@ import {
   getPDFReader,
   getProviderInfo,
   isProviderAvailable,
-} from './index.js';
+} from './index';
 
 describe('PDF Factory Tests', () => {
   it('should create a PDF reader with auto provider selection', async () => {

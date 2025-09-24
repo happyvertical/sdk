@@ -16,8 +16,8 @@
     "build:watch": "vite build --mode library --watch",
     "clean": "rm -rf dist",
     "dev": "vite dev",
-    "test": "bunx vitest run",
-    "test:watch": "bunx vitest"
+    "test": "npx vitest run",
+    "test:watch": "npx vitest"
   },
   "dependencies": {
     "@have/smrt": "workspace:*",

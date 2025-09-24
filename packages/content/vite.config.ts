@@ -5,23 +5,23 @@
  * from @smrt() decorated classes.
  */
 
-import { smrtPlugin } from '@have/smrt/vite-plugin';
+// import { smrtPlugin } from '@have/smrt/vite-plugin';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { type UserConfig, defineConfig } from 'vite';
+import { defineConfig, type UserConfig } from 'vite';
 
 export default defineConfig(({ command, mode }): UserConfig => {
   const baseConfig: UserConfig = {
     plugins: [
-      smrtPlugin({
-        include: ['src/**/*.ts'],
-        exclude: ['**/*.test.ts', '**/*.spec.ts'],
-        baseClasses: ['SmrtObject', 'SmrtCollection'],
-        generateTypes: true,
-        watch: command === 'serve',
-        hmr: command === 'serve',
-        mode: 'server', // Enable file scanning for auto-generation
-        typeDeclarationsPath: 'src/types',
-      }),
+      // smrtPlugin({
+      //   include: ['src/**/*.ts'],
+      //   exclude: ['**/*.test.ts', '**/*.spec.ts'],
+      //   baseClasses: ['SmrtObject', 'SmrtCollection'],
+      //   generateTypes: true,
+      //   watch: command === 'serve',
+      //   hmr: command === 'serve',
+      //   mode: 'server', // Enable file scanning for auto-generation
+      //   typeDeclarationsPath: 'src/types',
+      // }),
     ],
     resolve: {
       alias: {

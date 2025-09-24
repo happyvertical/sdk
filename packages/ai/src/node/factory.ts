@@ -4,19 +4,19 @@
  */
 
 import { ValidationError } from '@have/utils';
-import { getAI as getAIUniversal } from '../shared/factory.js';
+import { getAI as getAIUniversal } from '../shared/factory';
 
 import type {
   AIInterface,
   BedrockOptions,
   HuggingFaceOptions,
   OpenAIOptions,
-} from '../shared/types.js';
+} from '../shared/types';
 
 /**
  * Re-export the universal getAI function
  */
-export { getAI } from '../shared/factory.js';
+export { getAI } from '../shared/factory';
 
 /**
  * Node.js-enhanced auto-detection of AI provider based on available credentials

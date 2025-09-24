@@ -3,8 +3,8 @@ import {
   access,
   copyFile,
   mkdir,
-  readFile,
   readdir,
+  readFile,
   rename,
   rmdir,
   stat,
@@ -14,7 +14,7 @@ import {
 import { dirname, extname, join, resolve } from 'node:path';
 import { URL } from 'node:url';
 import { getTempDirectory } from '@have/utils';
-import { BaseFilesystemProvider } from '../shared/base.js';
+import { BaseFilesystemProvider } from '../shared/base';
 import {
   type CreateDirOptions,
   DirectoryNotEmptyError,
@@ -28,7 +28,7 @@ import {
   PermissionError,
   type ReadOptions,
   type WriteOptions,
-} from '../shared/types.js';
+} from '../shared/types';
 
 /**
  * Local filesystem provider using Node.js fs module with full feature support

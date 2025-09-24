@@ -6,8 +6,8 @@
 
 import { createInterface } from 'node:readline';
 import { parseArgs } from 'node:util';
-import type { SmrtCollection } from '../collection.js';
-import { ObjectRegistry } from '../registry.js';
+import type { SmrtCollection } from '../collection';
+import { ObjectRegistry } from '../registry';
 
 export interface CLIConfig {
   name?: string;
@@ -872,7 +872,9 @@ export class CLIGenerator {
     console.log();
     console.log(keys.join('\t'));
     console.log('-'.repeat(80));
-    rows.forEach((row) => console.log(row.join('\t')));
+    rows.forEach((row) => {
+      console.log(row.join('\t'));
+    });
     console.log();
   }
 

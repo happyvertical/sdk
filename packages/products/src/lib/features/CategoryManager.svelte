@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { CategoryData } from '../types.js';
+import type { CategoryData } from '../types';
 
 interface Props {
   readonly?: boolean;

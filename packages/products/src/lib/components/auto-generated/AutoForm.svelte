@@ -4,7 +4,7 @@
  * Demonstrates "Define Once, Consume Everywhere" - form is generated from Product class definition
  */
 
-import type { ProductData } from '../../types.js';
+import type { ProductData } from '../../types';
 import FieldRenderer from './FieldRenderer.svelte';
 
 interface Props {

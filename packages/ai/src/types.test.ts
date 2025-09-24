@@ -10,7 +10,7 @@ import {
   ContextLengthError,
   ModelNotFoundError,
   RateLimitError,
-} from './shared/types.js';
+} from './shared/types';
 
 describe('AI Error Classes', () => {
   describe('AIError', () => {

@@ -4,7 +4,7 @@
  * Lightweight implementation with optional Swagger UI
  */
 
-import { ObjectRegistry } from '../registry.js';
+import { ObjectRegistry } from '../registry';
 
 export interface OpenAPIConfig {
   title?: string;

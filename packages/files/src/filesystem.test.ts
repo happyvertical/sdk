@@ -2,8 +2,8 @@ import { mkdir, rmdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getTempDirectory } from '@have/utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { LocalFilesystemProvider, getFilesystem } from './index.js';
-import { FileNotFoundError, FilesystemError } from './shared/types.js';
+import { getFilesystem, LocalFilesystemProvider } from './index';
+import { FileNotFoundError, FilesystemError } from './shared/types';
 
 describe('Filesystem Interface', () => {
   let testDir: string;

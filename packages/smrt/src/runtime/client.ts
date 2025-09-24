@@ -2,7 +2,7 @@
  * Runtime client implementation for SMRT auto-generated services
  */
 
-import type { SmrtClientOptions } from './types.js';
+import type { SmrtClientOptions } from './types';
 
 export class SmrtClient {
   private options: Required<SmrtClientOptions>;

@@ -11,8 +11,8 @@
  */
 
 // Legacy exports for backward compatibility
-export * from './shared/client.js';
-export * from './shared/factory.js';
-export { AIMessage as AIMessageClass } from './shared/message.js';
-export * from './shared/thread.js';
-export * from './shared/types.js';
+export * from './shared/client';
+export * from './shared/factory';
+export { AIMessage as AIMessageClass } from './shared/message';
+export * from './shared/thread';
+export * from './shared/types';

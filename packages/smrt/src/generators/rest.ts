@@ -1,12 +1,13 @@
 /**
- * High-performance REST API generator for smrt objects using native Bun
+ * High-performance REST API generator for smrt objects using Node.js HTTP server
  *
  * Designed for minimal bundle size and maximum performance
  */
 
-import type { SmrtCollection } from '../collection.js';
-import type { SmrtObject } from '../object.js';
-import { ObjectRegistry } from '../registry.js';
+import http from 'node:http';
+import type { SmrtCollection } from '../collection';
+import type { SmrtObject } from '../object';
+import { ObjectRegistry } from '../registry';
 
 export interface APIConfig {
   basePath?: string;
@@ -50,19 +51,74 @@ export class APIGenerator {
   }
 
   /**
-   * Create Bun server with all routes
+   * Create Node.js HTTP server with all routes
    */
   createServer(): { server: any; url: string } {
-    const server = Bun.serve({
-      port: this.config.port,
-      hostname: this.config.hostname,
-      fetch: (req) => this.handleRequest(req),
+    const server = http.createServer(async (req, res) => {
+      try {
+        const request = this.nodeRequestToWebRequest(req);
+        const response = await this.handleRequest(request);
+        this.webResponseToNodeResponse(response, res);
+      } catch (error) {
+        res.statusCode = 500;
+        res.end('Internal Server Error');
+      }
     });
+
+    server.listen(this.config.port, this.config.hostname);
 
     return {
       server,
       url: `http://${this.config.hostname}:${this.config.port}`,
     };
+  }
+
+  /**
+   * Convert Node.js IncomingMessage to Web Request
+   */
+  private nodeRequestToWebRequest(req: http.IncomingMessage): Request {
+    const url = `http://${this.config.hostname}:${this.config.port}${req.url}`;
+    const method = req.method || 'GET';
+    const headers = new Headers();
+
+    for (const [key, value] of Object.entries(req.headers)) {
+      if (value) {
+        headers.set(key, Array.isArray(value) ? value[0] : value);
+      }
+    }
+
+    return new Request(url, {
+      method,
+      headers,
+      body: method !== 'GET' && method !== 'HEAD' ? req : undefined,
+    });
+  }
+
+  /**
+   * Convert Web Response to Node.js ServerResponse
+   */
+  private async webResponseToNodeResponse(
+    webResponse: Response,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    res.statusCode = webResponse.status;
+
+    // Set headers
+    for (const [key, value] of webResponse.headers.entries()) {
+      res.setHeader(key, value);
+    }
+
+    // Send body
+    if (webResponse.body) {
+      const reader = webResponse.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(value);
+      }
+    }
+
+    res.end();
   }
 
   /**

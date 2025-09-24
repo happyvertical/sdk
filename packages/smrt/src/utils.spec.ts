@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { fieldsFromClass } from './utils.js';
+import { fieldsFromClass } from './utils';
 
 // import { contentToString, stringToContent } from '@have/content';
 // import { faker } from '@faker-js/faker';

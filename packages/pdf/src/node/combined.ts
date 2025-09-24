@@ -3,7 +3,7 @@
  */
 
 import { getOCR } from '@have/ocr';
-import { BasePDFReader } from '../shared/base.js';
+import { BasePDFReader } from '../shared/base';
 import type {
   DependencyCheckResult,
   ExtractTextOptions,
@@ -14,8 +14,8 @@ import type {
   PDFInfo,
   PDFMetadata,
   PDFSource,
-} from '../shared/types.js';
-import { UnpdfProvider } from './unpdf.js';
+} from '../shared/types';
+import { UnpdfProvider } from './unpdf';
 
 /**
  * Combined PDF reader for Node.js that integrates unpdf and OCR capabilities

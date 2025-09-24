@@ -2,7 +2,7 @@
  * @have/pdf - Browser-specific factory for creating PDF readers
  */
 
-import type { PDFReader, PDFReaderOptions } from '../shared/types.js';
+import type { PDFReader, PDFReaderOptions } from '../shared/types';
 
 /**
  * Get a PDF reader instance for browser environments

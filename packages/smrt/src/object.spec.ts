@@ -3,7 +3,7 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { SmrtObject } from './object.js';
+import { SmrtObject } from './object';
 
 // Simple test class extending SmrtObject
 class TestObject extends SmrtObject {

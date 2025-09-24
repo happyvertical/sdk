@@ -13,13 +13,13 @@ import type {
   EmbeddingOptions,
   EmbeddingResponse,
   GeminiOptions,
-} from '../types.js';
+} from '../types';
 import {
   AIError,
   AuthenticationError,
   ModelNotFoundError,
   RateLimitError,
-} from '../types.js';
+} from '../types';
 
 // Note: This implementation uses the new @google/genai package
 // @google/generative-ai is deprecated - migrated to @google/genai
@@ -147,25 +147,14 @@ export class GeminiProvider implements AIInterface {
     _messages: AIMessage[],
     _options: ChatOptions = {},
   ): AsyncIterable<string> {
-    try {
-      // TODO: Implement Gemini streaming
-      // const model = this.client.getGenerativeModel({
-      //   model: options.model || this.options.defaultModel
-      // });
-
-      // const result = await model.generateContentStream(prompt);
-      // for await (const chunk of result.stream) {
-      //   yield chunk.text();
-      // }
-
-      throw new AIError(
-        'Gemini streaming not implemented',
-        'NOT_IMPLEMENTED',
-        'gemini',
-      );
-    } catch (error) {
-      throw this.mapError(error);
-    }
+    // TODO: Implement Gemini streaming
+    // For now, yield an empty stream and then throw
+    yield* [];
+    throw new AIError(
+      'Gemini streaming not implemented',
+      'NOT_IMPLEMENTED',
+      'gemini',
+    );
   }
 
   async countTokens(text: string): Promise<number> {

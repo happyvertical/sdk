@@ -1,15 +1,15 @@
 import { buildWhere, syncSchema } from '@have/sql';
-import type { SmrtClassOptions } from './class.js';
-import { SmrtClass } from './class.js';
-import type { SmrtObject } from './object.js';
-import { ObjectRegistry } from './registry.js';
+import type { SmrtClassOptions } from './class';
+import { SmrtClass } from './class';
+import type { SmrtObject } from './object';
+import { ObjectRegistry } from './registry';
 import {
   fieldsFromClass,
   formatDataJs,
   formatDataSql,
   generateSchema,
   tableNameFromClass,
-} from './utils.js';
+} from './utils';
 
 /**
  * Configuration options for SmrtCollection
@@ -37,14 +37,14 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
   ) => ModelType) & {
     create(options: any): ModelType | Promise<ModelType>;
   } {
-    const constructor = this.constructor as {
+    const ctor = this.constructor as {
       readonly _itemClass?: (new (
         options: any,
       ) => ModelType) & {
         create(options: any): ModelType | Promise<ModelType>;
       };
     };
-    if (!constructor._itemClass) {
+    if (!ctor._itemClass) {
       const className = this.constructor.name;
       const errorMessage = [
         `Collection "${className}" must define a static _itemClass property.`,
@@ -59,7 +59,7 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
 
       throw new Error(errorMessage);
     }
-    return constructor._itemClass;
+    return ctor._itemClass;
   }
 
   /**

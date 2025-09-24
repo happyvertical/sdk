@@ -5,7 +5,7 @@
  * Uses Svelte 5 runes for reactive state management.
  */
 
-import { type ProductData, createClient } from '../mock-smrt-client';
+import { createClient, type ProductData } from '../mock-smrt-client';
 
 interface ProductStore {
   items: ProductData[];

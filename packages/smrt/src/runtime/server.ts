@@ -2,7 +2,8 @@
  * Runtime server implementation for SMRT auto-generated services
  */
 
-import type { SmrtRequest, SmrtServerOptions } from './types.js';
+import http from 'node:http';
+import type { SmrtRequest, SmrtServerOptions } from './types';
 
 export class SmrtServer {
   private options: Required<SmrtServerOptions>;
@@ -133,16 +134,71 @@ export class SmrtServer {
    * Start the server
    */
   async start(): Promise<{ server: any; url: string }> {
-    const server = Bun.serve({
-      port: this.options.port,
-      hostname: this.options.hostname,
-      fetch: (req) => this.handleRequest(req),
+    const server = http.createServer(async (req, res) => {
+      try {
+        const request = this.nodeRequestToWebRequest(req);
+        const response = await this.handleRequest(request);
+        await this.webResponseToNodeResponse(response, res);
+      } catch (error) {
+        res.statusCode = 500;
+        res.end('Internal Server Error');
+      }
     });
+
+    server.listen(this.options.port, this.options.hostname);
 
     const url = `http://${this.options.hostname}:${this.options.port}`;
     console.log(`[smrt] Server started at ${url}`);
 
     return { server, url };
+  }
+
+  /**
+   * Convert Node.js IncomingMessage to Web Request
+   */
+  private nodeRequestToWebRequest(req: http.IncomingMessage): Request {
+    const url = `http://${this.options.hostname}:${this.options.port}${req.url}`;
+    const method = req.method || 'GET';
+    const headers = new Headers();
+
+    for (const [key, value] of Object.entries(req.headers)) {
+      if (value) {
+        headers.set(key, Array.isArray(value) ? value[0] : value);
+      }
+    }
+
+    return new Request(url, {
+      method,
+      headers,
+      body: method !== 'GET' && method !== 'HEAD' ? req : undefined,
+    });
+  }
+
+  /**
+   * Convert Web Response to Node.js ServerResponse
+   */
+  private async webResponseToNodeResponse(
+    webResponse: Response,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    res.statusCode = webResponse.status;
+
+    // Set headers
+    for (const [key, value] of webResponse.headers.entries()) {
+      res.setHeader(key, value);
+    }
+
+    // Send body
+    if (webResponse.body) {
+      const reader = webResponse.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(value);
+      }
+    }
+
+    res.end();
   }
 
   /**
