@@ -12,6 +12,8 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/devcontainers/features/base:1
 
     services:
       postgres:
@@ -33,26 +35,50 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'npm'
+      - name: Setup devcontainer environment
+        run: |
+          # Install system dependencies for ONNX Runtime and OCR
+          apt-get update && apt-get install -y \
+            libstdc++6 \
+            libc6-dev \
+            build-essential \
+            gcc \
+            g++ \
+            cmake \
+            libgomp1 \
+            libprotobuf-dev \
+            git-lfs \
+            ca-certificates \
+            curl \
+            gnupg \
+            lsb-release
 
+      - name: Install Bun
+        run: |
+          curl -fsSL https://bun.sh/install | bash
+          echo "$HOME/.bun/bin" >> $GITHUB_PATH
 
       - name: Install dependencies
-        run: npm install
+        run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun install
 
       - name: Type check
-        run: npm run typecheck
+        run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun run typecheck
 
       - name: Build packages
-        run: npm run build
+        run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun run build
 
       - name: Run tests
-        run: npm test
+        run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun test
         env:
-          SQLOO_HOST: localhost
+          SQLOO_HOST: postgres
           SQLOO_USER: postgres
           SQLOO_PASSWORD: postgres
           SQLOO_DATABASE: testdb
