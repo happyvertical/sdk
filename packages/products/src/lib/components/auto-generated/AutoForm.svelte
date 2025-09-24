@@ -5,6 +5,7 @@
  */
 
 import type { ProductData } from '../../types.js';
+import FieldRenderer from './FieldRenderer.svelte';
 
 interface Props {
   data?: ProductData;

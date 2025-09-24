@@ -27,12 +27,12 @@ const {
 }: Props = $props();
 
 // Auto-generate label from field name if not provided
-const _displayLabel =
+const displayLabel =
   label ||
   fieldName
     .replace(/([A-Z])/g, ' $1')
     .replace(/^./, (str) => str.toUpperCase());
-const _fieldId = `field-${fieldName}`;
+const fieldId = `field-${fieldName}`;
 
 function handleUpdate(newValue: any) {
   if (onUpdate && !readonly) {
