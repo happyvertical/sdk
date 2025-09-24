@@ -6,8 +6,8 @@
  */
 
 import { createRestServer, startRestServer } from '@have/smrt';
-import { Category } from './lib/models/Category.js';
-import { Product } from './lib/models/Product.js';
+import { Category } from './lib/models/Category';
+import { Product } from './lib/models/Product';
 
 async function startServer() {
   console.log('🚀 Starting SMRT Template Server...');

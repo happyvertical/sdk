@@ -2,7 +2,7 @@ import 'openai/shims/node';
 import { ApiError, ValidationError } from '@have/utils';
 import OpenAI from 'openai';
 
-import type { AIMessageOptions } from './message.js';
+import type { AIMessageOptions } from './message';
 
 /**
  * Common options for AI client configuration
@@ -486,7 +486,7 @@ export class OpenAIClient extends AIClient {
       model = 'gpt-4o',
       role = 'user',
       history = [],
-      name,
+      name: _name,
       frequencyPenalty: frequency_penalty = 0,
       logitBias: logit_bias,
       logprobs = false,
@@ -497,7 +497,7 @@ export class OpenAIClient extends AIClient {
       responseFormat: response_format,
       seed,
       stop,
-      stream = false,
+      stream: _stream = false,
       temperature = 1,
       topProbability: top_p = 1,
       tools,

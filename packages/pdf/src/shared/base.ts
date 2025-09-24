@@ -13,8 +13,8 @@ import type {
   PDFMetadata,
   PDFReader,
   PDFSource,
-} from './types.js';
-import { PDFUnsupportedError } from './types.js';
+} from './types';
+import { PDFUnsupportedError } from './types';
 
 /**
  * Abstract base class providing default implementations for PDF processing operations

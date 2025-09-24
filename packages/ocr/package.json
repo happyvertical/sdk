@@ -44,14 +44,14 @@
     "dist"
   ],
   "scripts": {
-    "test": "bun test --timeout 120000",
-    "test:watch": "bun test --watch --timeout 120000",
+    "test": "npx vitest run --testTimeout 120000",
+    "test:watch": "npx vitest --testTimeout 120000",
     "build": "tsc --build",
     "build:watch": "tsc --build --watch",
     "docs": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules",
     "docs:watch": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules --watch",
     "clean": "rm -rf dist docs tsconfig.*.tsbuildinfo",
-    "dev": "bun run build:watch & bun run test:watch"
+    "dev": "npm run build:watch & npm run test:watch"
   },
   "type": "module"
 }

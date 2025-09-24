@@ -10,8 +10,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { faker } from '@faker-js/faker';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { SmrtCollection } from './collection.js';
-import { SmrtObject } from './object.js';
+import { SmrtCollection } from './collection';
+import { SmrtObject } from './object';
 
 // Performance test objects
 class PerfTestUser extends SmrtObject {

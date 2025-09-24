@@ -1,8 +1,8 @@
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { getPDFReader } from './index.js';
-import type { PDFReader } from './shared/types.js';
+import { getPDFReader } from './index';
+import type { PDFReader } from './shared/types';
 
 describe('PDF Metadata Extraction', () => {
   let reader: PDFReader;

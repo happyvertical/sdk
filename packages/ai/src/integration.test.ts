@@ -5,9 +5,9 @@
 
 import { ValidationError } from '@have/utils';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { getAI, getAIAuto } from './shared/factory.js';
-import { HuggingFaceProvider } from './shared/providers/huggingface.js';
-import { AIError } from './shared/types.js';
+import { getAI, getAIAuto } from './shared/factory';
+import { HuggingFaceProvider } from './shared/providers/huggingface';
+import { AIError } from './shared/types';
 
 describe('AI Factory Integration', () => {
   it('should create HuggingFace provider', async () => {

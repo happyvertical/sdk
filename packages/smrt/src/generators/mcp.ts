@@ -4,8 +4,8 @@
  * Exposes smrt objects as AI tools for Claude, GPT, and other AI models
  */
 
-import type { SmrtCollection } from '../collection.js';
-import { ObjectRegistry } from '../registry.js';
+import type { SmrtCollection } from '../collection';
+import { ObjectRegistry } from '../registry';
 
 export interface MCPConfig {
   name?: string;

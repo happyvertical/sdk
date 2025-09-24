@@ -1,5 +1,5 @@
-import type { SmrtObjectOptions } from './object.js';
-import { SmrtObject } from './object.js';
+import type { SmrtObjectOptions } from './object';
+import { SmrtObject } from './object';
 
 /**
  * Configuration options for Pleb objects

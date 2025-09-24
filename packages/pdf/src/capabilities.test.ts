@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { getPDFReader } from './index.js';
-import type { PDFReader } from './shared/types.js';
+import { getPDFReader } from './index';
+import type { PDFReader } from './shared/types';
 
 describe('PDF Reader Capabilities and Dependencies', () => {
   let reader: PDFReader;

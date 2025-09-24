@@ -4,8 +4,8 @@ import type {
   QueryResult as BaseQueryResult,
   DatabaseInterface,
   TableInterface,
-} from './shared/types.js';
-import { buildWhere } from './shared/utils.js';
+} from './shared/types';
+import { buildWhere } from './shared/utils';
 
 /**
  * Configuration options for PostgreSQL database connections

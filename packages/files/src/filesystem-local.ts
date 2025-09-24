@@ -1,8 +1,5 @@
-import {
-  FilesystemAdapter,
-  type FilesystemAdapterOptions,
-} from './filesystem.js';
-import { getMimeType } from './index.js';
+import { FilesystemAdapter, type FilesystemAdapterOptions } from './filesystem';
+import { getMimeType } from './index';
 
 /**
  * Adapter for interacting with the local filesystem

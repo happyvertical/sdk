@@ -22,7 +22,7 @@ import type {
   EmbeddingResponse,
   OpenAIOptions,
   TokenUsage,
-} from '../types.js';
+} from '../types';
 import {
   AIError,
   AuthenticationError,
@@ -30,7 +30,7 @@ import {
   ContextLengthError,
   ModelNotFoundError,
   RateLimitError,
-} from '../types.js';
+} from '../types';
 
 /**
  * OpenAI provider implementation that handles all interactions with OpenAI's API.

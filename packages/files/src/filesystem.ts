@@ -1,6 +1,6 @@
 import { mkdir } from 'node:fs/promises';
 import { getTempDirectory } from '@have/utils';
-import { getCached, setCached } from './index.js';
+import { getCached, setCached } from './index';
 
 /**
  * Interface defining the required methods for a filesystem adapter

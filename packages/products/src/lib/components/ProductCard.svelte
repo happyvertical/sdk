@@ -1,5 +1,5 @@
 <script lang="ts">
-import type { ProductData } from '../types.js';
+import type { ProductData } from '../types';
 
 interface Props {
   product: ProductData;

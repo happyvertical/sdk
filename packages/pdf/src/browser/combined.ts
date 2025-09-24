@@ -3,7 +3,7 @@
  */
 
 import { getOCR } from '@have/ocr';
-import { BasePDFReader } from '../shared/base.js';
+import { BasePDFReader } from '../shared/base';
 import type {
   DependencyCheckResult,
   ExtractTextOptions,
@@ -14,8 +14,8 @@ import type {
   PDFInfo,
   PDFMetadata,
   PDFSource,
-} from '../shared/types.js';
-import { PDFJSProvider } from './pdfjs.js';
+} from '../shared/types';
+import { PDFJSProvider } from './pdfjs';
 
 /**
  * Combined PDF reader for browser environments that integrates PDF.js and Web OCR

@@ -6,7 +6,7 @@ import type {
   ScanResult,
   SmartObjectDefinition,
   SmartObjectManifest,
-} from './types.js';
+} from './types';
 
 export class ManifestGenerator {
   /**

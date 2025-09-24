@@ -5,7 +5,7 @@ import {
   type GoogleDriveOptions,
   type S3Options,
   type WebDAVOptions,
-} from './types.js';
+} from './types';
 
 /**
  * Registry of available filesystem providers

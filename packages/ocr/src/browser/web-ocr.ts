@@ -13,8 +13,8 @@ import type {
   OCROptions,
   OCRProvider,
   OCRResult,
-} from '../shared/types.js';
-import { OCRDependencyError, OCRProcessingError } from '../shared/types.js';
+} from '../shared/types';
+import { OCRDependencyError, OCRProcessingError } from '../shared/types';
 
 /**
  * Web OCR provider implementation optimized for browser environments.

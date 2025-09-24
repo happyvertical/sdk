@@ -9,7 +9,7 @@ import {
   ErrorUtils,
   SmrtError,
   ValidationError,
-} from './errors.js';
+} from './errors';
 
 describe('SMRT Error System', () => {
   describe('DatabaseError', () => {

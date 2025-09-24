@@ -5,7 +5,7 @@
 import { createId as cuid2CreateId, isCuid } from '@paralleldrive/cuid2';
 import { add, format, isValid, parse, parseISO } from 'date-fns';
 import pluralize from 'pluralize';
-import { ParsingError, TimeoutError } from './types.js';
+import { ParsingError, TimeoutError } from './types';
 
 /**
  * Generates a unique identifier using CUID2 (preferred) or UUID fallback
@@ -347,7 +347,9 @@ export const snakeCase = (str: string): string => {
 export const keysToCamel = (obj: unknown): unknown => {
   if (isPlainObject(obj)) {
     const n: Record<string, unknown> = {};
-    Object.keys(obj).forEach((k) => (n[camelCase(k)] = keysToCamel(obj[k])));
+    Object.keys(obj).forEach((k) => {
+      n[camelCase(k)] = keysToCamel(obj[k]);
+    });
     return n;
   }
   if (isArray(obj)) {
@@ -375,7 +377,9 @@ export const keysToCamel = (obj: unknown): unknown => {
 export const keysToSnake = (obj: unknown): unknown => {
   if (isPlainObject(obj)) {
     const n: Record<string, unknown> = {};
-    Object.keys(obj).forEach((k) => (n[snakeCase(k)] = keysToSnake(obj[k])));
+    Object.keys(obj).forEach((k) => {
+      n[snakeCase(k)] = keysToSnake(obj[k]);
+    });
     return n;
   }
   if (isArray(obj)) {

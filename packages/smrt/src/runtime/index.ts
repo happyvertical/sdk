@@ -3,7 +3,7 @@
  * Provides helper functions and base classes for generated code
  */
 
-export { createSmrtClient } from './client.js';
-export { createMCPServer } from './mcp.js';
-export { createSmrtServer } from './server.js';
-export type { SmrtClientOptions, SmrtServerOptions } from './types.js';
+export { createSmrtClient } from './client';
+export { createMCPServer } from './mcp';
+export { createSmrtServer } from './server';
+export type { SmrtClientOptions, SmrtServerOptions } from './types';

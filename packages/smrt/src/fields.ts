@@ -39,6 +39,7 @@ export class Field<T> {
    */
   constructor(value: T | null = null) {
     this._value = value;
+    // biome-ignore lint/correctness/noConstructorReturn: Intentional Proxy pattern
     return new Proxy(this, {
       set(target: any, prop: string, value: any) {
         if (prop === '_value') {

@@ -1,8 +1,8 @@
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { checkOCRDependencies, getPDFReader } from './index.js';
-import type { PDFReader } from './shared/types.js';
+import { checkOCRDependencies, getPDFReader } from './index';
+import type { PDFReader } from './shared/types';
 
 describe('OCR Integration with Real PDF', () => {
   let reader: PDFReader;

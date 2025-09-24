@@ -1,7 +1,7 @@
 <script lang="ts">
-import { productStore } from '$lib/stores/product-store.svelte.js';
 import { onMount } from 'svelte';
-import type { ProductData } from '../types.js';
+import { productStore } from '$lib/stores/product-store.svelte';
+import type { ProductData } from '../types';
 
 interface Props {
   readonly?: boolean;

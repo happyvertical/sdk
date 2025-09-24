@@ -1,4 +1,5 @@
 import { themes as prismThemes } from 'prism-react-renderer';
+
 const config = {
   title: 'Happy Vertical SDK',
   tagline: 'Build powerful, vertical AI agents in TypeScript',

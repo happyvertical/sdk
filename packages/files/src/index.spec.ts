@@ -1,7 +1,7 @@
 // index.test.ts
 
 import * as fs from 'node:fs';
-import { type Server, createServer } from 'node:http';
+import { createServer, type Server } from 'node:http';
 import * as path from 'node:path';
 import { getTempDirectory } from '@have/utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';

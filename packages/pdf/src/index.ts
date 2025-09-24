@@ -6,7 +6,7 @@
  */
 
 // Re-export base provider for custom implementations
-export { BasePDFReader } from './shared/base.js';
+export { BasePDFReader } from './shared/base';
 // Export main factory function and types
 export {
   getAvailableProviders,
@@ -14,11 +14,11 @@ export {
   getProviderInfo,
   initializeProviders,
   isProviderAvailable,
-} from './shared/factory.js';
-export * from './shared/types.js';
+} from './shared/factory';
+export * from './shared/types';
 
 // Legacy compatibility exports for backward compatibility with existing code
-import { getPDFReader } from './shared/factory.js';
+import { getPDFReader } from './shared/factory';
 
 /**
  * Extract text from a PDF file (legacy compatibility)
@@ -70,5 +70,5 @@ import('./shared/factory.js').then(({ initializeProviders }) => {
 });
 
 // Default export for convenience
-import * as factory from './shared/factory.js';
+import * as factory from './shared/factory';
 export default factory;

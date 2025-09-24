@@ -42,7 +42,7 @@
  */
 
 // Export provider classes for direct instantiation if needed
-export { LocalFilesystemProvider } from './node/local.js';
+export { LocalFilesystemProvider } from './node/local';
 // Export main factory function and types
 export {
   getAvailableProviders,
@@ -51,8 +51,8 @@ export {
   initializeProviders,
   isProviderAvailable,
   registerProvider,
-} from './shared/factory.js';
-export * from './shared/types.js';
+} from './shared/factory';
+export * from './shared/types';
 
 // Note: S3, GoogleDrive, WebDAV providers will be available when external dependencies are added
 
@@ -64,9 +64,9 @@ export {
   fetchText,
   fetchToFile,
   getRateLimit,
-} from './fetch.js';
+} from './fetch';
 // Re-export existing filesystem adapter classes for compatibility
-export * from './filesystem.js';
+export * from './filesystem';
 // Re-export legacy functions for backward compatibility
 export {
   download,
@@ -79,7 +79,7 @@ export {
   listFiles,
   setCached,
   upload,
-} from './legacy.js';
+} from './legacy';
 
 // Initialize providers on module load
 // This ensures providers are available immediately after import
@@ -91,7 +91,7 @@ import('./shared/factory.js').then(({ initializeProviders }) => {
 });
 
 // Default export provides the factory functions for convenience
-import * as factory from './shared/factory.js';
+import * as factory from './shared/factory';
 
 /**
  * Default export containing all factory functions

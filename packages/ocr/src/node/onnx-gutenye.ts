@@ -16,8 +16,8 @@ import type {
   OCROptions,
   OCRProvider,
   OCRResult,
-} from '../shared/types.js';
-import { OCRDependencyError } from '../shared/types.js';
+} from '../shared/types';
+import { OCRDependencyError } from '../shared/types';
 
 /**
  * ONNX OCR provider implementation using PaddleOCR models for high-accuracy text extraction.

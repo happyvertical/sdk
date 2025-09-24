@@ -75,14 +75,14 @@ export {
   isProviderAvailable,
   OCRFactory,
   resetOCRFactory,
-} from './shared/factory.js';
+} from './shared/factory';
 
 // Export all types
-export * from './shared/types.js';
+export * from './shared/types';
 
 // Re-export provider classes for direct instantiation if needed
 // Note: Only export providers available in current environment
 // The factory will handle environment-specific provider selection
 
 // Default export for convenience
-export { getOCR as default } from './shared/factory.js';
+export { getOCR as default } from './shared/factory';

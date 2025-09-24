@@ -1,7 +1,7 @@
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { expect, it } from 'vitest';
-import { buildWhere, getDatabase, syncSchema } from './index.js';
+import { buildWhere, getDatabase, syncSchema } from './index';
 
 const _TMP_DIR = path.resolve(`${tmpdir()}/kissd`);
 

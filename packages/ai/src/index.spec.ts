@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
-import { AIClient, OpenAIClient } from './shared/client.js';
-import { AIThread } from './shared/thread.js';
+import { AIClient, OpenAIClient } from './shared/client';
+import { AIThread } from './shared/thread';
 
 it.skip('should create an AIClient and send it a message', async () => {
   console.log(process.env.OPENAI_API_KEY);

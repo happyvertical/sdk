@@ -13,7 +13,7 @@ import {
   type ReadOptions,
   type UploadOptions,
   type WriteOptions,
-} from './types.js';
+} from './types';
 
 /**
  * Base class for all filesystem providers

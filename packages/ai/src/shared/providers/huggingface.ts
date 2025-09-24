@@ -13,14 +13,14 @@ import type {
   EmbeddingOptions,
   EmbeddingResponse,
   HuggingFaceOptions,
-} from '../types.js';
+} from '../types';
 import {
   AIError,
   AuthenticationError,
   ContextLengthError,
   ModelNotFoundError,
   RateLimitError,
-} from '../types.js';
+} from '../types';
 
 export class HuggingFaceProvider implements AIInterface {
   private options: HuggingFaceOptions;

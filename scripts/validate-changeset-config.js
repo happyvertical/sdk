@@ -5,7 +5,7 @@
  * Validates changeset configuration for proper monorepo publishing setup
  */
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**

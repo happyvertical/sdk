@@ -4,7 +4,7 @@
 
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { ASTScanner, ManifestGenerator } from './index.js';
+import { ASTScanner, ManifestGenerator } from './index';
 
 describe('AST Scanner', () => {
   const testFilePath = resolve(__dirname, 'test-sample.ts');

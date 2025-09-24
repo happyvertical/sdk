@@ -14,9 +14,9 @@ import type {
   OCRProvider,
   OCRProviderInfo,
   OCRResult,
-} from './types.js';
+} from './types';
 
-import { OCRDependencyError, OCRError } from './types.js';
+import { OCRDependencyError, OCRError } from './types';
 
 /**
  * Detect the current runtime environment (Node.js, browser, or unknown).

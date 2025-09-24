@@ -13,7 +13,7 @@ import type {
   GetAIOptions,
   HuggingFaceOptions,
   OpenAIOptions,
-} from './types.js';
+} from './types';
 
 /**
  * Type guards for provider options

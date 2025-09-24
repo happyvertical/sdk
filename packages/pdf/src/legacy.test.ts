@@ -6,7 +6,7 @@ import {
   extractImagesFromPDF,
   extractTextFromPDF,
   performOCROnImages,
-} from './index.js';
+} from './index';
 
 describe('Legacy Compatibility Functions', () => {
   it('should extract text using legacy function', async () => {

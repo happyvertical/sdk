@@ -10,7 +10,7 @@ import type {
   ScanOptions,
   ScanResult,
   SmartObjectDefinition,
-} from './types.js';
+} from './types';
 
 export class ASTScanner {
   private program: ts.Program;
@@ -214,6 +214,7 @@ export class ASTScanner {
       // Convert AST object literal to JSON
       const configText = configArg.getFullText();
       // Simple extraction - could be more robust
+      // biome-ignore lint/security/noGlobalEval: Safe eval for AST configuration parsing
       return eval(`(${configText})`);
     } catch {
       return defaultConfig;

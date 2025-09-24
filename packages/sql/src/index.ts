@@ -1,6 +1,6 @@
-import type { PostgresOptions } from './postgres.js';
-import type { DatabaseInterface } from './shared/types.js';
-import type { SqliteOptions } from './sqlite.js';
+import type { PostgresOptions } from './postgres';
+import type { DatabaseInterface } from './shared/types';
+import type { SqliteOptions } from './sqlite';
 
 /**
  * Union type of options for creating different database types
@@ -125,9 +125,9 @@ export function validateColumnName(column: string): string {
 }
 
 // Import buildWhere from shared utils
-import { buildWhere } from './shared/utils.js';
+import { buildWhere } from './shared/utils';
 export { buildWhere };
 
-export * from './shared/types.js';
+export * from './shared/types';
 
 export default { getDatabase, syncSchema, tableExists, buildWhere };

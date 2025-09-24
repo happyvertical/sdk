@@ -5,7 +5,7 @@ import {
   checkOCRDependencies,
   extractTextFromPDF,
   getPDFReader,
-} from './index.js';
+} from './index';
 
 describe('PDF Package Integration', () => {
   let reader: any = null;

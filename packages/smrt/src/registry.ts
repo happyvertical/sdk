@@ -27,8 +27,8 @@
  * ```
  */
 
-import type { SmrtCollection } from './collection.js';
-import type { SmrtObject } from './object.js';
+import type { SmrtCollection } from './collection';
+import type { SmrtObject } from './object';
 
 /**
  * Configuration options for SMRT objects registered in the system
@@ -159,10 +159,10 @@ export class ObjectRegistry {
    * ```
    */
   static register(
-    constructor: typeof SmrtObject,
+    ctor: typeof SmrtObject,
     config: SmartObjectConfig = {},
   ): void {
-    const name = config.name || constructor.name;
+    const name = config.name || ctor.name;
 
     // Prevent duplicate registrations
     if (ObjectRegistry.classes.has(name)) {
@@ -170,11 +170,11 @@ export class ObjectRegistry {
     }
 
     // Extract field definitions from the class
-    const fields = ObjectRegistry.extractFields(constructor);
+    const fields = ObjectRegistry.extractFields(ctor);
 
     ObjectRegistry.classes.set(name, {
       name,
-      constructor,
+      constructor: ctor,
       config,
       fields,
     });
@@ -262,14 +262,12 @@ export class ObjectRegistry {
   /**
    * Extract field definitions from a class constructor
    */
-  private static extractFields(
-    constructor: typeof SmrtObject,
-  ): Map<string, any> {
+  private static extractFields(ctor: typeof SmrtObject): Map<string, any> {
     const fields = new Map();
 
     try {
       // Create a temporary instance to inspect field definitions
-      const tempInstance = new (constructor as any)({
+      const tempInstance = new (ctor as any)({
         db: null,
         ai: null,
         fs: null,
@@ -353,8 +351,8 @@ export class ObjectRegistry {
  * ```
  */
 export function smrt(config: SmartObjectConfig = {}) {
-  return <T extends typeof SmrtObject>(constructor: T): T => {
-    ObjectRegistry.register(constructor, config);
-    return constructor;
+  return <T extends typeof SmrtObject>(ctor: T): T => {
+    ObjectRegistry.register(ctor, config);
+    return ctor;
   };
 }

@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { defineConfig } from 'vitest/config';
 
 /**
@@ -72,10 +73,19 @@ export default defineConfig({
     maxWorkers: 1,
   },
 
-  // Let Node.js module resolution handle workspace packages through package.json exports
+  // Resolve workspace packages for testing
   resolve: {
     alias: {
-      // Only non-package aliases
+      '@have/utils': resolve(__dirname, 'packages/utils/src'),
+      '@have/files': resolve(__dirname, 'packages/files/src'),
+      '@have/sql': resolve(__dirname, 'packages/sql/src'),
+      '@have/ocr': resolve(__dirname, 'packages/ocr/src'),
+      '@have/pdf': resolve(__dirname, 'packages/pdf/src'),
+      '@have/ai': resolve(__dirname, 'packages/ai/src'),
+      '@have/spider': resolve(__dirname, 'packages/spider/src'),
+      '@have/smrt': resolve(__dirname, 'packages/smrt/src'),
+      '@have/content': resolve(__dirname, 'packages/content/src'),
+      '@have/products': resolve(__dirname, 'packages/products/src'),
       $lib: '/src/lib',
     },
   },

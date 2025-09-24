@@ -4,7 +4,7 @@
  */
 
 import type { Plugin, ViteDevServer } from 'vite';
-import type { SmartObjectManifest } from '../scanner/types.js';
+import type { SmartObjectManifest } from '../scanner/types';
 
 export interface SmrtPluginOptions {
   /** Glob patterns for SMRT source files */

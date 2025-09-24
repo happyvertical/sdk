@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { getDatabase } from './index.js';
+import { getDatabase } from './index';
 
 // import type { Database } from "./types";
 

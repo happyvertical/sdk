@@ -8,12 +8,12 @@
     "format": "biome format --write .",
     "format-check": "biome format --check .",
     "prepare": "git rev-parse --git-dir > /dev/null 2>&1 && lefthook install || echo 'Skipping lefthook install (not in git repository)'",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:core": "vitest run packages/",
-    "test:core:watch": "vitest packages/",
-    "test:coverage": "vitest run --coverage",
-    "test:ui": "vitest --ui",
+    "test": "npx vitest run",
+    "test:watch": "npx vitest",
+    "test:core": "npx vitest run packages/",
+    "test:core:watch": "npx vitest packages/",
+    "test:coverage": "npx vitest run --coverage",
+    "test:ui": "npx vitest --ui",
     "test:e2e": "npx playwright test",
     "test:e2e:headed": "PLAYWRIGHT_HEADLESS=false npx playwright test",
     "test:e2e:debug": "PLAYWRIGHT_HEADLESS=false npx playwright test --debug",
@@ -33,18 +33,19 @@
     "lint": "biome lint .",
     "lint:fix": "biome lint --apply .",
     "clean": "rm -rf packages/*/dist packages/*/docs packages/*/tsconfig.*.tsbuildinfo .tsbuildinfo",
-    "build": "tsc --build && bun repomix",
-    "build:clean": "bun clean && tsc --build && bun repomix",
-    "build:watch": "tsc --build --watch",
+    "build": "vite build",
+    "build:clean": "npm run clean && vite build",
+    "build:watch": "vite build --watch",
+    "typecheck": "tsc --noEmit --skipLibCheck",
     "mcp:setup-project": "cp scripts/mcp-smrt.sh ./scripts/ && chmod +x ./scripts/mcp-smrt.sh",
     "mcp:verify-project": "./scripts/mcp-smrt.sh verify",
-    "docs:site": "bun run --cwd docs start",
-    "docs:site:build": "bun run --cwd docs build",
-    "docs:site:dev": "bun run --cwd docs dev",
+    "docs:site": "npm run --prefix docs start",
+    "docs:site:build": "npm run --prefix docs build",
+    "docs:site:dev": "npm run --prefix docs dev",
     "validate-build": "node scripts/validate-build.js",
-    "dev": "bun run build:watch",
+    "dev": "npm run build:watch",
     "dev:shell": "docker compose -f .devcontainer/docker-compose.yml up -d && docker compose -f .devcontainer/docker-compose.yml exec app bash -c '/workspaces/sdk/.devcontainer/scripts/setup-claude-container.sh && exec bash'",
-    "release": "bun build && changeset version && changeset publish"
+    "release": "npm run build && changeset version && changeset publish"
   },
   "devDependencies": {
     "@biomejs/biome": "2.2.4",
@@ -58,17 +59,19 @@
     "lefthook": "^1.11.13",
     "livereload": "^0.9.3",
     "playwright-core": "^1.54.2",
-    "repomix": "^0.3.6",
     "typedoc": "^0.28.4",
     "typedoc-plugin-markdown": "^4.6.3",
     "typescript": "^5.7.3",
+    "vite": "7.1.7",
+    "vite-plugin-dts": "4.5.4",
     "vitest": "3.2.4"
   },
   "resolutions": {
     "@types/node": "24.0.0"
   },
   "engines": {
-    "bun": ">=1.0.0"
+    "node": ">=24.0.0",
+    "npm": ">=10.0.0"
   },
   "workspaces": [
     "packages/*",

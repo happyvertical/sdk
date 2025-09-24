@@ -1,21 +1,21 @@
 // import type { AIMessageOptions } from '@have/ai';
 
 import { escapeSqlValue } from '@have/sql';
-import type { SmrtClassOptions } from './class.js';
-import { SmrtClass } from './class.js';
+import type { SmrtClassOptions } from './class';
+import { SmrtClass } from './class';
 import {
   DatabaseError,
   ErrorUtils,
   RuntimeError,
   ValidationError,
-} from './errors.js';
-import { Field } from './fields/index.js';
-import { ObjectRegistry } from './registry.js';
+} from './errors';
+import { Field } from './fields/index';
+import { ObjectRegistry } from './registry';
 import {
   fieldsFromClass,
   setupTableFromClass,
   tableNameFromClass,
-} from './utils.js';
+} from './utils';
 
 /**
  * Options for SmrtObject initialization

@@ -2,7 +2,7 @@
  * @have/pdf - Factory for creating PDF readers with automatic provider selection
  */
 
-import type { PDFReader, PDFReaderOptions } from './types.js';
+import type { PDFReader, PDFReaderOptions } from './types';
 
 /**
  * Create a PDF reader instance with intelligent provider selection and configuration
