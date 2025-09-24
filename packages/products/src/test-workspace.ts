@@ -2,8 +2,8 @@
  * Test workspace dependency resolution
  */
 
+import { resolve } from 'node:path';
 import { ASTScanner, smrtPlugin } from '@have/smrt';
-import { resolve } from 'path';
 
 console.log('✅ Workspace dependency resolution works!');
 console.log('ASTScanner:', typeof ASTScanner);

@@ -93,7 +93,7 @@ it.skipIf(!process.env.OPENAI_API_KEY)(
       context: 'contextA',
     });
 
-    const contextB = await contents.get({
+    const _contextB = await contents.get({
       slug,
       context: 'contextB',
     });

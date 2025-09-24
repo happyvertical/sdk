@@ -1,6 +1,5 @@
+import { mkdir } from 'node:fs/promises';
 import { getTempDirectory } from '@have/utils';
-import { mkdir } from 'fs/promises';
-import path from 'path';
 import { getCached, setCached } from './index.js';
 
 /**
@@ -126,8 +125,8 @@ export class FilesystemAdapter {
    * @returns Promise resolving to the path of the downloaded file
    */
   async download(
-    url: string,
-    options: {
+    _url: string,
+    _options: {
       force: boolean;
     } = {
       force: false,
@@ -142,7 +141,7 @@ export class FilesystemAdapter {
    * @param path - Path to check
    * @returns Promise resolving to boolean indicating existence
    */
-  async exists(path: string): Promise<boolean> {
+  async exists(_path: string): Promise<boolean> {
     // Dummy implementation
     return false;
   }
@@ -153,7 +152,7 @@ export class FilesystemAdapter {
    * @param path - Path to the file
    * @returns Promise resolving to the file contents as a string
    */
-  async read(path: string): Promise<string> {
+  async read(_path: string): Promise<string> {
     // Dummy implementation
     return '';
   }
@@ -165,7 +164,7 @@ export class FilesystemAdapter {
    * @param content - Content to write
    * @returns Promise that resolves when the write is complete
    */
-  async write(path: string, content: string): Promise<void> {
+  async write(_path: string, _content: string): Promise<void> {
     // Dummy implementation
   }
 
@@ -175,7 +174,7 @@ export class FilesystemAdapter {
    * @param path - Path to delete
    * @returns Promise that resolves when the deletion is complete
    */
-  async delete(path: string): Promise<void> {
+  async delete(_path: string): Promise<void> {
     // Dummy implementation
   }
 
@@ -185,7 +184,7 @@ export class FilesystemAdapter {
    * @param path - Directory path to list
    * @returns Promise resolving to an array of file names
    */
-  async list(path: string): Promise<string[]> {
+  async list(_path: string): Promise<string[]> {
     // Dummy implementation
     return [];
   }
@@ -197,7 +196,7 @@ export class FilesystemAdapter {
    * @param expiry - Cache expiry time in milliseconds
    * @returns Promise resolving to the cached data or undefined if not found/expired
    */
-  async getCached(file: string, expiry: number = 300000) {
+  async getCached(file: string, expiry = 300000) {
     return getCached(file, expiry);
   }
 

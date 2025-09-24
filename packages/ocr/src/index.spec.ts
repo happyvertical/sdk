@@ -7,10 +7,10 @@ import { join } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import type { OCRImage } from './index.js';
 import {
+  OCRFactory,
   getAvailableProviders,
   getOCR,
   isProviderAvailable,
-  OCRFactory,
 } from './index.js';
 
 describe('@have/ocr', () => {

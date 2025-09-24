@@ -215,8 +215,8 @@ export class AIClient {
    * @returns Promise resolving to a placeholder response
    */
   public async message(
-    text: string,
-    options: AITextCompletionOptions = { role: 'user' },
+    _text: string,
+    _options: AITextCompletionOptions = { role: 'user' },
   ) {
     return 'not a real ai message, this is the base class!';
   }
@@ -544,44 +544,40 @@ export class OpenAIClient extends AIClient {
       }
 
       return fullContent;
-    } else {
-      const response = await this.openai.chat.completions.create({
-        model,
-        messages,
-        frequency_penalty,
-        logit_bias,
-        logprobs,
-        top_logprobs,
-        max_tokens,
-        n,
-        presence_penalty,
-        response_format,
-        seed,
-        stop,
-        stream: false,
-        temperature,
-        top_p,
-        tools,
-        tool_choice,
-        user,
-      });
-
-      const choice = response.choices[0];
-      if (!choice || !choice.message || !choice.message.content) {
-        throw new ApiError(
-          'Invalid response from OpenAI API: Missing content',
-          {
-            model,
-            responseId: response.id,
-            choices: response.choices?.length || 0,
-            hasChoice: !!choice,
-            hasMessage: !!choice?.message,
-            hasContent: !!choice?.message?.content,
-          },
-        );
-      }
-      return choice.message.content;
     }
+    const response = await this.openai.chat.completions.create({
+      model,
+      messages,
+      frequency_penalty,
+      logit_bias,
+      logprobs,
+      top_logprobs,
+      max_tokens,
+      n,
+      presence_penalty,
+      response_format,
+      seed,
+      stop,
+      stream: false,
+      temperature,
+      top_p,
+      tools,
+      tool_choice,
+      user,
+    });
+
+    const choice = response.choices[0];
+    if (!choice || !choice.message || !choice.message.content) {
+      throw new ApiError('Invalid response from OpenAI API: Missing content', {
+        model,
+        responseId: response.id,
+        choices: response.choices?.length || 0,
+        hasChoice: !!choice,
+        hasMessage: !!choice?.message,
+        hasContent: !!choice?.message?.content,
+      });
+    }
+    return choice.message.content;
   }
 }
 
@@ -602,10 +598,9 @@ export async function getAIClient(
 ): Promise<AIClient> {
   if (options.type === 'openai') {
     return OpenAIClient.create(options);
-  } else {
-    throw new ValidationError('Invalid client type specified', {
-      supportedTypes: ['openai'],
-      providedType: options.type,
-    });
   }
+  throw new ValidationError('Invalid client type specified', {
+    supportedTypes: ['openai'],
+    providedType: options.type,
+  });
 }

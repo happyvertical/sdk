@@ -35,7 +35,7 @@ function validateForm() {
   return Object.keys(errors).length === 0;
 }
 
-function handleSubmit(event: Event) {
+function _handleSubmit(event: Event) {
   event.preventDefault();
 
   if (!validateForm()) {

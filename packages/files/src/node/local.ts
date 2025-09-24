@@ -3,8 +3,8 @@ import {
   access,
   copyFile,
   mkdir,
-  readdir,
   readFile,
+  readdir,
   rename,
   rmdir,
   stat,
@@ -23,7 +23,6 @@ import {
   type FileStats,
   type FilesystemCapabilities,
   FilesystemError,
-  ListFilesOptions,
   type ListOptions,
   type LocalOptions,
   PermissionError,
@@ -146,10 +145,9 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
       if (options.raw) {
         // Return raw buffer
         return await readFile(resolvedPath);
-      } else {
-        // Return string with specified encoding (default utf8)
-        return await readFile(resolvedPath, options.encoding || 'utf8');
       }
+      // Return string with specified encoding (default utf8)
+      return await readFile(resolvedPath, options.encoding || 'utf8');
     } catch (error: any) {
       if (error.code === 'ENOENT') {
         throw new FileNotFoundError(path, 'local');
@@ -721,10 +719,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
   /**
    * Get data from cache if available and not expired (legacy)
    */
-  async getCached(
-    file: string,
-    expiry: number = 300000,
-  ): Promise<string | undefined> {
+  async getCached(file: string, expiry = 300000): Promise<string | undefined> {
     const cacheFile = resolve(getTempDirectory('cache'), file);
     const cached = existsSync(cacheFile);
     if (cached) {

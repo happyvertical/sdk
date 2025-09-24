@@ -1,3 +1,6 @@
+import os from 'node:os';
+import path from 'node:path';
+import { URL } from 'node:url';
 import type { FilesystemAdapter } from '@have/files';
 import {
   downloadFileWithCache,
@@ -7,9 +10,6 @@ import {
 } from '@have/files';
 import { getPDFReader } from '@have/pdf';
 import { makeSlug } from '@have/utils';
-import os from 'os';
-import path from 'path';
-import { URL } from 'url';
 
 /**
  * Configuration options for Document
@@ -28,7 +28,7 @@ export interface DocumentOptions {
   /**
    * URL or path to the document
    */
-  url: string;
+  url?: string;
 
   /**
    * Local file path override
@@ -51,7 +51,7 @@ export class Document {
   /**
    * Flag indicating if document is from a remote source
    */
-  protected isRemote: boolean;
+  protected isRemote = false;
 
   /**
    * Configuration options
@@ -61,17 +61,17 @@ export class Document {
   /**
    * Local file path where document is stored
    */
-  protected localPath: string;
+  private _localPath = '';
 
   /**
    * Directory used for caching files
    */
-  protected cacheDir: string;
+  private _cacheDir = '';
 
   /**
    * Document URL
    */
-  public url: URL;
+  public url?: URL;
 
   /**
    * Document MIME type
@@ -79,24 +79,40 @@ export class Document {
   public type: string | undefined | null;
 
   /**
+   * Get the local file path where document is stored
+   */
+  public get localPath(): string {
+    return this._localPath;
+  }
+
+  /**
+   * Get the directory used for caching files
+   */
+  public get cacheDir(): string {
+    return this._cacheDir;
+  }
+
+  /**
    * Creates a new Document instance
    *
    * @param options - Document configuration options
    */
-  constructor(options: DocumentOptions) {
+  constructor(options: DocumentOptions = {}) {
     this.options = options;
-    this.url = new URL(options.url);
 
-    this.type = options.type || getMimeType(this.url.toString());
-    this.cacheDir =
+    if (options.url) {
+      this.url = new URL(options.url);
+      this.type = options.type || getMimeType(this.url.toString());
+    }
+    this._cacheDir =
       options.cacheDir || path.resolve(os.tmpdir(), '.cache', 'have-sdk');
 
-    if (this.url.protocol.startsWith('file')) {
-      this.localPath = this.url.pathname;
+    if (this.url?.protocol.startsWith('file')) {
+      this._localPath = this.url.pathname;
       this.isRemote = false;
-    } else {
-      this.localPath = path.join(
-        this.cacheDir,
+    } else if (this.url) {
+      this._localPath = path.join(
+        this._cacheDir,
         makeSlug(this.url.hostname),
         this.url.pathname,
       );
@@ -123,7 +139,10 @@ export class Document {
    */
   async initialize() {
     if (this.isRemote) {
-      await downloadFileWithCache(this.url.toString(), this.localPath);
+      if (!this.url) {
+        throw new Error('Cannot initialize remote document: URL is required');
+      }
+      await downloadFileWithCache(this.url.toString(), this._localPath);
     }
   }
 
@@ -132,7 +151,7 @@ export class Document {
    *
    * @returns Boolean indicating if the file is text-based
    */
-  private isTextFile(): boolean {
+  public isTextFile(): boolean {
     if (!this.type) return false;
 
     return (
@@ -166,7 +185,7 @@ export class Document {
    * @throws Error if the document type is not supported
    */
   async getText() {
-    const cached = await getCached(this.localPath + '.extracted_text');
+    const cached = await getCached(`${this.localPath}.extracted_text`);
     if (cached) {
       return cached;
     }
@@ -178,13 +197,11 @@ export class Document {
         extracted = await reader.extractText(this.localPath);
         break;
       }
-      case 'text':
-      case 'json':
       default:
         // Handle text-based files by reading them directly
         if (this.isTextFile()) {
           try {
-            const fs = await import('fs/promises');
+            const fs = await import('node:fs/promises');
             extracted = await fs.readFile(this.localPath, 'utf-8');
           } catch (error) {
             throw new Error(
@@ -198,7 +215,7 @@ export class Document {
         }
     }
     if (extracted) {
-      await setCached(this.localPath + '.extracted_text', extracted);
+      await setCached(`${this.localPath}.extracted_text`, extracted);
     }
     return extracted;
   }

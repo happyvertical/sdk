@@ -10,7 +10,7 @@
 import { smrtPlugin } from '@have/smrt/vite-plugin';
 import federation from '@originjs/vite-plugin-federation';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { defineConfig, type UserConfig } from 'vite';
+import { type UserConfig, defineConfig } from 'vite';
 import federationConfig from './federation.config';
 
 export default defineConfig(({ command, mode }): UserConfig => {

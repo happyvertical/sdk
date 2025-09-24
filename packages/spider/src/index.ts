@@ -1,16 +1,16 @@
+import path from 'node:path';
 import { fetchText, getCached, setCached } from '@have/files';
 import {
-  getLogger,
-  isUrl,
   NetworkError,
   ParsingError,
+  ValidationError,
+  getLogger,
+  isUrl,
   urlFilename,
   urlPath,
-  ValidationError,
 } from '@have/utils';
 import * as cheerio from 'cheerio';
 import { Window } from 'happy-dom';
-import path from 'path';
 import { request } from 'undici';
 
 /**
@@ -238,7 +238,7 @@ export async function fetchPageSource(
 
     if (response.statusCode >= 400) {
       throw new NetworkError(
-        `HTTP ${response.statusCode}: ${response.headers['status'] || 'Request failed'}`,
+        `HTTP ${response.statusCode}: ${response.headers.status || 'Request failed'}`,
         { url, statusCode: response.statusCode, headers: response.headers },
       );
     }

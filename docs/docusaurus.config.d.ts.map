@@ -1,1 +1,1 @@
-{"version":3,"file":"docusaurus.config.d.ts","sourceRoot":"","sources":["docusaurus.config.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,MAAM,EAAE,MAAM,mBAAmB,CAAC;AAIhD,QAAA,MAAM,MAAM,EAAE,MAgNb,CAAC;AAEF,eAAe,MAAM,CAAC"}
+{"version":3,"file":"docusaurus.config.d.ts","sourceRoot":"","sources":["docusaurus.config.ts"],"names":[],"mappings":"AACA,OAAO,KAAK,EAAE,MAAM,EAAE,MAAM,mBAAmB,CAAC;AAGhD,QAAA,MAAM,MAAM,EAAE,MAgNb,CAAC;AAEF,eAAe,MAAM,CAAC"}

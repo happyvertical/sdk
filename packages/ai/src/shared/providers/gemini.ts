@@ -17,8 +17,6 @@ import type {
 import {
   AIError,
   AuthenticationError,
-  ContentFilterError,
-  ContextLengthError,
   ModelNotFoundError,
   RateLimitError,
 } from '../types.js';
@@ -50,7 +48,7 @@ export class GeminiProvider implements AIInterface {
         .catch(() => {
           // Client will be null and we'll handle it in methods
         });
-    } catch (error) {
+    } catch (_error) {
       // Client will be null and we'll handle it in methods
     }
   }
@@ -60,7 +58,7 @@ export class GeminiProvider implements AIInterface {
       try {
         const { GoogleGenAI } = await import('@google/genai');
         this.client = new GoogleGenAI({ apiKey: this.options.apiKey });
-      } catch (error) {
+      } catch (_error) {
         throw new AIError(
           'Failed to initialize Gemini client. Make sure @google/genai is installed.',
           'INITIALIZATION_ERROR',
@@ -129,8 +127,8 @@ export class GeminiProvider implements AIInterface {
   }
 
   async embed(
-    text: string | string[],
-    options: EmbeddingOptions = {},
+    _text: string | string[],
+    _options: EmbeddingOptions = {},
   ): Promise<EmbeddingResponse> {
     try {
       // TODO: Implement Gemini embeddings
@@ -146,8 +144,8 @@ export class GeminiProvider implements AIInterface {
   }
 
   async *stream(
-    messages: AIMessage[],
-    options: ChatOptions = {},
+    _messages: AIMessage[],
+    _options: ChatOptions = {},
   ): AsyncIterable<string> {
     try {
       // TODO: Implement Gemini streaming
@@ -239,22 +237,20 @@ export class GeminiProvider implements AIInterface {
 
   private messagesToGeminiFormat(messages: AIMessage[]): string {
     // Gemini expects a simple text prompt, so convert chat messages to text
-    return (
-      messages
-        .map((message) => {
-          switch (message.role) {
-            case 'system':
-              return `Instructions: ${message.content}`;
-            case 'user':
-              return `Human: ${message.content}`;
-            case 'assistant':
-              return `Assistant: ${message.content}`;
-            default:
-              return message.content;
-          }
-        })
-        .join('\n\n') + '\n\nAssistant:'
-    );
+    return `${messages
+      .map((message) => {
+        switch (message.role) {
+          case 'system':
+            return `Instructions: ${message.content}`;
+          case 'user':
+            return `Human: ${message.content}`;
+          case 'assistant':
+            return `Assistant: ${message.content}`;
+          default:
+            return message.content;
+        }
+      })
+      .join('\n\n')}\n\nAssistant:`;
   }
 
   private mapError(error: unknown): AIError {

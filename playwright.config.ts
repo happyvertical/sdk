@@ -1,6 +1,6 @@
+import { execSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
-import { execSync } from 'child_process';
-import { existsSync } from 'fs';
 
 // Environment detection
 const isDevContainer = () => {
@@ -29,7 +29,7 @@ const getBrowserConfig = () => {
   const headless =
     inContainer || inCI || process.env.PLAYWRIGHT_HEADLESS === 'true';
 
-  console.log(`🎭 Playwright environment detected:`);
+  console.log('🎭 Playwright environment detected:');
   console.log(`   Container: ${inContainer}`);
   console.log(`   CI: ${inCI}`);
   console.log(`   Headless: ${headless}`);

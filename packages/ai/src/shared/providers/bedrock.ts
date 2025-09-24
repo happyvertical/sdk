@@ -17,7 +17,6 @@ import type {
 import {
   AIError,
   AuthenticationError,
-  ContentFilterError,
   ContextLengthError,
   ModelNotFoundError,
   RateLimitError,
@@ -54,7 +53,7 @@ export class BedrockProvider implements AIInterface {
         .catch(() => {
           // Client will be null and we'll handle it in methods
         });
-    } catch (error) {
+    } catch (_error) {
       // Client will be null and we'll handle it in methods
     }
   }
@@ -70,7 +69,7 @@ export class BedrockProvider implements AIInterface {
           credentials: this.options.credentials,
           endpoint: this.options.endpoint,
         });
-      } catch (error) {
+      } catch (_error) {
         throw new AIError(
           'Failed to initialize Bedrock client. Make sure @aws-sdk/client-bedrock-runtime is installed.',
           'INITIALIZATION_ERROR',
@@ -91,11 +90,14 @@ export class BedrockProvider implements AIInterface {
 
       if (modelId?.includes('anthropic.claude')) {
         return this.chatWithClaude(messages, options);
-      } else if (modelId?.includes('amazon.titan')) {
+      }
+      if (modelId?.includes('amazon.titan')) {
         return this.chatWithTitan(messages, options);
-      } else if (modelId?.includes('cohere.command')) {
+      }
+      if (modelId?.includes('cohere.command')) {
         return this.chatWithCohere(messages, options);
-      } else if (modelId?.includes('meta.llama')) {
+      }
+      if (modelId?.includes('meta.llama')) {
         return this.chatWithLlama(messages, options);
       }
 
@@ -123,8 +125,8 @@ export class BedrockProvider implements AIInterface {
   }
 
   async embed(
-    text: string | string[],
-    options: EmbeddingOptions = {},
+    _text: string | string[],
+    _options: EmbeddingOptions = {},
   ): Promise<EmbeddingResponse> {
     try {
       // TODO: Implement Bedrock embeddings with Titan Embeddings
@@ -141,8 +143,8 @@ export class BedrockProvider implements AIInterface {
   }
 
   async *stream(
-    messages: AIMessage[],
-    options: ChatOptions = {},
+    _messages: AIMessage[],
+    _options: ChatOptions = {},
   ): AsyncIterable<string> {
     try {
       // TODO: Implement Bedrock streaming
@@ -299,8 +301,8 @@ export class BedrockProvider implements AIInterface {
   }
 
   private async chatWithTitan(
-    messages: AIMessage[],
-    options: ChatOptions,
+    _messages: AIMessage[],
+    _options: ChatOptions,
   ): Promise<AIResponse> {
     // TODO: Implement Titan-specific format for Bedrock
     throw new AIError(
@@ -311,8 +313,8 @@ export class BedrockProvider implements AIInterface {
   }
 
   private async chatWithCohere(
-    messages: AIMessage[],
-    options: ChatOptions,
+    _messages: AIMessage[],
+    _options: ChatOptions,
   ): Promise<AIResponse> {
     // TODO: Implement Cohere-specific format for Bedrock
     throw new AIError(
@@ -323,8 +325,8 @@ export class BedrockProvider implements AIInterface {
   }
 
   private async chatWithLlama(
-    messages: AIMessage[],
-    options: ChatOptions,
+    _messages: AIMessage[],
+    _options: ChatOptions,
   ): Promise<AIResponse> {
     // TODO: Implement Llama-specific format for Bedrock
     throw new AIError(

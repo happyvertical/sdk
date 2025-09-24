@@ -3,7 +3,6 @@ import {
   type FilesystemInterface,
   type GetFilesystemOptions,
   type GoogleDriveOptions,
-  LocalOptions,
   type S3Options,
   type WebDAVOptions,
 } from './shared/types.js';

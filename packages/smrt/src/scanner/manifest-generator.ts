@@ -34,7 +34,7 @@ export class ManifestGenerator {
   generateTypeDefinitions(manifest: SmartObjectManifest): string {
     const interfaces: string[] = [];
 
-    for (const [name, obj] of Object.entries(manifest.objects)) {
+    for (const [_name, obj] of Object.entries(manifest.objects)) {
       interfaces.push(this.generateInterface(obj));
     }
 
@@ -88,7 +88,7 @@ ${fields}
   generateRestEndpoints(manifest: SmartObjectManifest): string {
     const endpoints: string[] = [];
 
-    for (const [name, obj] of Object.entries(manifest.objects)) {
+    for (const [_name, obj] of Object.entries(manifest.objects)) {
       const apiConfig = obj.decoratorConfig.api;
       if (apiConfig !== false) {
         endpoints.push(...this.getSimpleEndpoints(obj));
@@ -104,7 +104,7 @@ ${fields}
   generateRestEndpointCode(manifest: SmartObjectManifest): string {
     const endpoints: string[] = [];
 
-    for (const [name, obj] of Object.entries(manifest.objects)) {
+    for (const [_name, obj] of Object.entries(manifest.objects)) {
       const apiConfig = obj.decoratorConfig.api;
       if (apiConfig !== false) {
         endpoints.push(this.generateRestEndpoint(obj));
@@ -177,9 +177,9 @@ ${fields}
       operations.push(
         `    const collection = await get${className}Collection();`,
       );
-      operations.push(`    const items = await collection.list(req.query);`);
-      operations.push(`    return Response.json(items);`);
-      operations.push(`  });`);
+      operations.push('    const items = await collection.list(req.query);');
+      operations.push('    return Response.json(items);');
+      operations.push('  });');
     }
 
     if (shouldInclude('get')) {
@@ -190,12 +190,12 @@ ${fields}
       operations.push(
         `    const collection = await get${className}Collection();`,
       );
-      operations.push(`    const item = await collection.get(req.params.id);`);
+      operations.push('    const item = await collection.get(req.params.id);');
       operations.push(
         `    if (!item) return new Response('Not found', { status: 404 });`,
       );
-      operations.push(`    return Response.json(item);`);
-      operations.push(`  });`);
+      operations.push('    return Response.json(item);');
+      operations.push('  });');
     }
 
     if (shouldInclude('create')) {
@@ -204,10 +204,10 @@ ${fields}
       operations.push(
         `    const collection = await get${className}Collection();`,
       );
-      operations.push(`    const data = await req.json();`);
-      operations.push(`    const item = await collection.create(data);`);
-      operations.push(`    return Response.json(item, { status: 201 });`);
-      operations.push(`  });`);
+      operations.push('    const data = await req.json();');
+      operations.push('    const item = await collection.create(data);');
+      operations.push('    return Response.json(item, { status: 201 });');
+      operations.push('  });');
     }
 
     if (shouldInclude('update')) {
@@ -218,15 +218,15 @@ ${fields}
       operations.push(
         `    const collection = await get${className}Collection();`,
       );
-      operations.push(`    const data = await req.json();`);
+      operations.push('    const data = await req.json();');
       operations.push(
-        `    const item = await collection.update(req.params.id, data);`,
+        '    const item = await collection.update(req.params.id, data);',
       );
       operations.push(
         `    if (!item) return new Response('Not found', { status: 404 });`,
       );
-      operations.push(`    return Response.json(item);`);
-      operations.push(`  });`);
+      operations.push('    return Response.json(item);');
+      operations.push('  });');
     }
 
     if (shouldInclude('delete')) {
@@ -238,13 +238,13 @@ ${fields}
         `    const collection = await get${className}Collection();`,
       );
       operations.push(
-        `    const success = await collection.delete(req.params.id);`,
+        '    const success = await collection.delete(req.params.id);',
       );
       operations.push(
         `    if (!success) return new Response('Not found', { status: 404 });`,
       );
       operations.push(`    return new Response('', { status: 204 });`);
-      operations.push(`  });`);
+      operations.push('  });');
     }
 
     return `// ${className} endpoints\n${operations.join('\n')}`;
@@ -256,7 +256,7 @@ ${fields}
   generateMCPTools(manifest: SmartObjectManifest): string {
     const tools: string[] = [];
 
-    for (const [name, obj] of Object.entries(manifest.objects)) {
+    for (const [_name, obj] of Object.entries(manifest.objects)) {
       const mcpConfig = obj.decoratorConfig.mcp;
       if (mcpConfig !== false) {
         tools.push(...this.getSimpleMCPToolNames(obj));
@@ -272,7 +272,7 @@ ${fields}
   generateMCPToolsCode(manifest: SmartObjectManifest): string {
     const tools: string[] = [];
 
-    for (const [name, obj] of Object.entries(manifest.objects)) {
+    for (const [_name, obj] of Object.entries(manifest.objects)) {
       const mcpConfig = obj.decoratorConfig.mcp;
       if (mcpConfig !== false) {
         tools.push(this.generateMCPTool(obj));
@@ -438,7 +438,7 @@ ${fields}
    * Save manifest to file
    */
   saveManifest(manifest: SmartObjectManifest, filePath: string): void {
-    const fs = require('fs');
+    const fs = require('node:fs');
     fs.writeFileSync(filePath, JSON.stringify(manifest, null, 2));
   }
 
@@ -446,7 +446,7 @@ ${fields}
    * Load manifest from file
    */
   loadManifest(filePath: string): SmartObjectManifest {
-    const fs = require('fs');
+    const fs = require('node:fs');
     const content = fs.readFileSync(filePath, 'utf-8');
     return JSON.parse(content);
   }

@@ -1,6 +1,5 @@
 <script lang="ts">
-import ProductCatalog from '$lib/features/ProductCatalog.svelte';
-import AppLayout from '../layouts/AppLayout.svelte';
+
 </script>
 
 <AppLayout>

@@ -21,7 +21,6 @@ import type {
 import {
   AIError,
   AuthenticationError,
-  ContentFilterError,
   ContextLengthError,
   ModelNotFoundError,
   RateLimitError,
@@ -73,7 +72,7 @@ export class AnthropicProvider implements AIInterface {
         .catch(() => {
           // Client will be null and we'll handle it in methods
         });
-    } catch (error) {
+    } catch (_error) {
       // Client will be null and we'll handle it in methods
     }
   }
@@ -97,7 +96,7 @@ export class AnthropicProvider implements AIInterface {
             ...this.options.headers,
           },
         });
-      } catch (error) {
+      } catch (_error) {
         throw new AIError(
           'Failed to initialize Anthropic client. Make sure @anthropic-ai/sdk is installed.',
           'INITIALIZATION_ERROR',
@@ -183,8 +182,8 @@ export class AnthropicProvider implements AIInterface {
   }
 
   async embed(
-    text: string | string[],
-    options: EmbeddingOptions = {},
+    _text: string | string[],
+    _options: EmbeddingOptions = {},
   ): Promise<EmbeddingResponse> {
     // Anthropic Claude doesn't provide embeddings API
     throw new AIError(

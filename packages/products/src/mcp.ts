@@ -19,7 +19,7 @@ async function startMCPServer() {
   });
 
   // Get auto-generated tools from virtual module
-  const generatedServerInfo = createGeneratedMCPServer();
+  const _generatedServerInfo = createGeneratedMCPServer();
 
   // Add all generated tools to our MCP server
   tools.forEach((tool: any) => {

@@ -1,8 +1,6 @@
 <script lang="ts">
-import { onMount } from 'svelte';
-import ProductCard from '$lib/components/ProductCard.svelte';
-import ProductForm from '$lib/components/ProductForm.svelte';
 import { productStore } from '$lib/stores/product-store.svelte.js';
+import { onMount } from 'svelte';
 import type { ProductData } from '../types.js';
 
 interface Props {
@@ -14,11 +12,11 @@ const { readonly = false, showCreateForm = false }: Props = $props();
 
 const searchQuery = $state('');
 const selectedCategory = $state('');
-let showForm = $state(false);
+let _showForm = $state(false);
 let editingProduct = $state<ProductData | null>(null);
 
 // Reactive filtered products
-const filteredProducts = $derived.by(() => {
+const _filteredProducts = $derived.by(() => {
   let products = productStore.items;
 
   if (searchQuery) {
@@ -36,17 +34,17 @@ onMount(() => {
   productStore.loadProducts();
 });
 
-function handleCreateProduct() {
+function _handleCreateProduct() {
   editingProduct = null;
-  showForm = true;
+  _showForm = true;
 }
 
-function handleEditProduct(product: ProductData) {
+function _handleEditProduct(product: ProductData) {
   editingProduct = product;
-  showForm = true;
+  _showForm = true;
 }
 
-async function handleDeleteProduct(id: string) {
+async function _handleDeleteProduct(id: string) {
   if (confirm('Are you sure you want to delete this product?')) {
     try {
       await productStore.deleteProduct(id);
@@ -56,22 +54,22 @@ async function handleDeleteProduct(id: string) {
   }
 }
 
-async function handleSubmitProduct(productData: Partial<ProductData>) {
+async function _handleSubmitProduct(productData: Partial<ProductData>) {
   try {
     if (editingProduct) {
       await productStore.updateProduct(editingProduct.id!, productData);
     } else {
       await productStore.createProduct(productData);
     }
-    showForm = false;
+    _showForm = false;
     editingProduct = null;
   } catch (error) {
     console.error('Failed to save product:', error);
   }
 }
 
-function handleCancelForm() {
-  showForm = false;
+function _handleCancelForm() {
+  _showForm = false;
   editingProduct = null;
 }
 </script>

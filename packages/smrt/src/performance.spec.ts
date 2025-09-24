@@ -11,7 +11,6 @@ import path from 'node:path';
 import { faker } from '@faker-js/faker';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SmrtCollection } from './collection.js';
-import { boolean, datetime, integer, text } from './fields/index.js';
 import { SmrtObject } from './object.js';
 
 // Performance test objects
@@ -73,7 +72,7 @@ function getTestDbUrl(): string {
 function generateLargeText(size: number): string {
   let text = '';
   while (text.length < size) {
-    text += faker.lorem.paragraphs(10) + '\n';
+    text += `${faker.lorem.paragraphs(10)}\n`;
   }
   return text.substring(0, size);
 }
@@ -109,7 +108,7 @@ describe.skip('Performance Benchmarks', () => {
 
   afterEach(async () => {
     // Clean up resources - database connections are managed automatically
-    if (collection && collection.db) {
+    if (collection?.db) {
       // Note: DatabaseInterface doesn't have a close() method
       // Connections are managed by the underlying client
     }
@@ -238,7 +237,7 @@ describe.skip('Performance Benchmarks', () => {
 
       expect(duration).toBeLessThan(50);
       expect(result).toBeDefined();
-      expect(result!.id).toBe(firstUser.id);
+      expect(result?.id).toBe(firstUser.id);
     });
 
     it('should handle complex queries with joins efficiently', async () => {

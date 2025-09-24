@@ -17,7 +17,6 @@ import type {
 import {
   AIError,
   AuthenticationError,
-  ContentFilterError,
   ContextLengthError,
   ModelNotFoundError,
   RateLimitError,
@@ -250,22 +249,20 @@ export class HuggingFaceProvider implements AIInterface {
 
   private messagesToPrompt(messages: AIMessage[]): string {
     // Convert chat messages to a single prompt format
-    return (
-      messages
-        .map((message) => {
-          switch (message.role) {
-            case 'system':
-              return `System: ${message.content}`;
-            case 'user':
-              return `Human: ${message.content}`;
-            case 'assistant':
-              return `Assistant: ${message.content}`;
-            default:
-              return message.content;
-          }
-        })
-        .join('\n') + '\nAssistant:'
-    );
+    return `${messages
+      .map((message) => {
+        switch (message.role) {
+          case 'system':
+            return `System: ${message.content}`;
+          case 'user':
+            return `Human: ${message.content}`;
+          case 'assistant':
+            return `Assistant: ${message.content}`;
+          default:
+            return message.content;
+        }
+      })
+      .join('\n')}\nAssistant:`;
   }
 
   private async makeRequest(endpoint: string, data: any): Promise<any> {

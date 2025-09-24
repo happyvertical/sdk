@@ -1,5 +1,4 @@
 import { syncSchema } from '@have/sql';
-import yaml from 'yaml';
 
 /**
  * Checks if a field name indicates a date field based on naming conventions

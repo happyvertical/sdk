@@ -31,12 +31,12 @@ export interface CategoryOptions extends SmrtObjectOptions {
   cli: true, // Enable CLI commands for admin
 })
 export class Category extends SmrtObject {
-  name: string = '';
-  description: string = '';
+  name = '';
+  description = '';
   parentId?: string; // For hierarchical categories
-  level: number = 0; // Category depth in hierarchy
-  productCount: number = 0; // Number of products in this category
-  active: boolean = true;
+  level = 0; // Category depth in hierarchy
+  productCount = 0; // Number of products in this category
+  active = true;
 
   constructor(options: CategoryOptions = {}) {
     super(options);

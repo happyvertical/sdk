@@ -25,10 +25,6 @@ export class PDFJSProvider extends BasePDFReader {
   protected name = 'pdfjs';
   private pdfjs: any = null;
 
-  constructor() {
-    super();
-  }
-
   // The browser base class already provides normalizeSource, so we don't need to override it
 
   /**
@@ -185,7 +181,7 @@ export class PDFJSProvider extends BasePDFReader {
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         try {
           const page = await pdf.getPage(pageNum);
-          const operators = await page.getOperatorList();
+          const _operators = await page.getOperatorList();
 
           // This is a simplified implementation - PDF.js doesn't have
           // a direct equivalent to unpdf's extractImages function

@@ -2,7 +2,7 @@
  * Runtime server implementation for SMRT auto-generated services
  */
 
-import type { SmrtRequest, SmrtResponse, SmrtServerOptions } from './types.js';
+import type { SmrtRequest, SmrtServerOptions } from './types.js';
 
 export class SmrtServer {
   private options: Required<SmrtServerOptions>;

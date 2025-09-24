@@ -1,9 +1,9 @@
-import { tmpdir } from 'os';
-import path from 'path';
-import { describe, expect, it } from 'vitest';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { expect, it } from 'vitest';
 import { buildWhere, getDatabase, syncSchema } from './index.js';
 
-const TMP_DIR = path.resolve(`${tmpdir()}/kissd`);
+const _TMP_DIR = path.resolve(`${tmpdir()}/kissd`);
 
 it.skip('should be able to get the adapter for a postgres database', async () => {
   const db = await getDatabase({

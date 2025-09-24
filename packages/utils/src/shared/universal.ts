@@ -27,7 +27,7 @@ export const makeId = (type: 'cuid2' | 'uuid' = 'cuid2'): string => {
   }
 
   // UUID fallback
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+  if (crypto?.randomUUID) {
     return crypto.randomUUID();
   }
 
@@ -349,7 +349,8 @@ export const keysToCamel = (obj: unknown): unknown => {
     const n: Record<string, unknown> = {};
     Object.keys(obj).forEach((k) => (n[camelCase(k)] = keysToCamel(obj[k])));
     return n;
-  } else if (isArray(obj)) {
+  }
+  if (isArray(obj)) {
     return obj.map((i) => keysToCamel(i));
   }
   return obj;
@@ -376,7 +377,8 @@ export const keysToSnake = (obj: unknown): unknown => {
     const n: Record<string, unknown> = {};
     Object.keys(obj).forEach((k) => (n[snakeCase(k)] = keysToSnake(obj[k])));
     return n;
-  } else if (isArray(obj)) {
+  }
+  if (isArray(obj)) {
     return obj.map((i) => keysToSnake(i));
   }
   return obj;
@@ -426,9 +428,8 @@ export const logTicker = (
   if (tick) {
     const index = chars.indexOf(tick);
     return index + 1 >= chars.length ? chars[0] : chars[index + 1];
-  } else {
-    return chars[0];
   }
+  return chars[0];
 };
 
 /**
@@ -493,7 +494,7 @@ export const dateInString = (str: string): Date | null => {
 
   const yearMatch = cleanFilename.match(/20\d{2}/);
   if (!yearMatch) return null;
-  const year = parseInt(yearMatch[0], 10);
+  const year = Number.parseInt(yearMatch[0], 10);
 
   const monthPatterns = {
     january: 1,
@@ -551,11 +552,11 @@ export const dateInString = (str: string): Date | null => {
     afterMonth.match(/^\s*(\d{1,2})/) ||
     afterMonth.match(/(\d{1,2})/);
 
-  const day = dayMatch ? parseInt(dayMatch[1], 10) : null;
+  const day = dayMatch ? Number.parseInt(dayMatch[1], 10) : null;
   if (!day) return null;
 
   const date = new Date(year, foundMonth - 1, day);
-  return !isNaN(date.getTime()) ? date : null;
+  return !Number.isNaN(date.getTime()) ? date : null;
 };
 
 /**
@@ -620,7 +621,7 @@ export const isSingular = pluralize.isSingular;
  */
 export const formatDate = (
   date: Date | string,
-  formatStr: string = 'yyyy-MM-dd',
+  formatStr = 'yyyy-MM-dd',
 ): string => {
   const dateObj = typeof date === 'string' ? new Date(date) : date;
   return format(dateObj, formatStr);
@@ -652,10 +653,9 @@ export const addInterval = add;
  */
 export const getTempDirectory = (subfolder?: string): string => {
   // Use Node.js os.tmpdir() or fallback
-  const tmpBase =
-    typeof process !== 'undefined' && process.env
-      ? process.env.TMPDIR || process.env.TMP || process.env.TEMP || '/tmp'
-      : '/tmp';
+  const tmpBase = process?.env
+    ? process.env.TMPDIR || process.env.TMP || process.env.TEMP || '/tmp'
+    : '/tmp';
 
   const basePath = `${tmpBase}/.have-sdk`;
   return subfolder ? `${basePath}/${subfolder}` : basePath;

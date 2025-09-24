@@ -5,7 +5,6 @@
  */
 
 import type { SmrtCollection } from '../collection.js';
-import type { SmrtObject } from '../object.js';
 import { ObjectRegistry } from '../registry.js';
 
 export interface MCPConfig {
@@ -81,7 +80,7 @@ export class MCPGenerator {
     const tools: MCPTool[] = [];
     const registeredClasses = ObjectRegistry.getAllClasses();
 
-    for (const [name, classInfo] of registeredClasses) {
+    for (const [name, _classInfo] of registeredClasses) {
       const config = ObjectRegistry.getConfig(name);
       const mcpConfig = config.mcp || {};
 
@@ -488,8 +487,8 @@ export class MCPGenerator {
    */
   getServerInfo() {
     return {
-      name: this.config.server!.name,
-      version: this.config.server!.version,
+      name: this.config.server?.name,
+      version: this.config.server?.version,
       description: this.config.description,
     };
   }

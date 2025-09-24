@@ -4,10 +4,9 @@
  * Generates admin and development tools from object definitions
  */
 
-import { createInterface } from 'readline';
-import { parseArgs } from 'util';
+import { createInterface } from 'node:readline';
+import { parseArgs } from 'node:util';
 import type { SmrtCollection } from '../collection.js';
-import type { SmrtObject } from '../object.js';
 import { ObjectRegistry } from '../registry.js';
 
 export interface CLIConfig {
@@ -85,13 +84,12 @@ export class CLIGenerator {
   /**
    * Handle exits safely in test mode
    */
-  private exitWithError(message: string, code: number = 1): void {
+  private exitWithError(message: string, code = 1): void {
     if (this.isTestMode()) {
       throw new Error(message);
-    } else {
-      console.error(message);
-      process.exit(code);
     }
+    console.error(message);
+    process.exit(code);
   }
 
   /**
@@ -129,7 +127,7 @@ export class CLIGenerator {
    */
   private generateObjectCommands(
     objectName: string,
-    classInfo: any,
+    _classInfo: any,
   ): CLICommand[] {
     const commands: CLICommand[] = [];
     const lowerName = objectName.toLowerCase();
@@ -179,7 +177,7 @@ export class CLIGenerator {
             default: 'table',
           },
         },
-        handler: async (args, options) => {
+        handler: async (_args, options) => {
           await this.handleList(objectName, options);
         },
       });
@@ -229,7 +227,7 @@ export class CLIGenerator {
         description: `Create new ${objectName}`,
         aliases: [`${lowerName}:new`],
         options,
-        handler: async (args, options) => {
+        handler: async (_args, options) => {
           await this.handleCreate(objectName, options);
         },
       });
@@ -311,9 +309,7 @@ export class CLIGenerator {
 
     const commandName = args[0];
     const command = commands.find(
-      (cmd) =>
-        cmd.name === commandName ||
-        (cmd.aliases && cmd.aliases.includes(commandName)),
+      (cmd) => cmd.name === commandName || cmd.aliases?.includes(commandName),
     );
 
     if (!command) {
@@ -408,7 +404,7 @@ export class CLIGenerator {
       name: 'objects',
       description: 'List all registered smrt objects',
       aliases: ['ls'],
-      handler: async (args, options) => {
+      handler: async (_args, _options) => {
         const registeredClasses = ObjectRegistry.getAllClasses();
         console.log('Registered smrt objects:');
         for (const [name] of registeredClasses) {
@@ -430,7 +426,7 @@ export class CLIGenerator {
       name: 'help',
       description: 'Show help information',
       aliases: ['h'],
-      handler: async (args, options) => {
+      handler: async (_args, _options) => {
         this.showHelp(commands);
       },
     });
@@ -440,7 +436,7 @@ export class CLIGenerator {
       name: 'version',
       description: 'Show version information',
       aliases: ['v'],
-      handler: async (args, options) => {
+      handler: async (_args, _options) => {
         console.log(`${this.config.name} v${this.config.version}`);
       },
     });
@@ -449,7 +445,7 @@ export class CLIGenerator {
     commands.push({
       name: 'status',
       description: 'Show system status',
-      handler: async (args, options) => {
+      handler: async (_args, _options) => {
         console.log('System Status:');
         console.log(`- CLI: ${this.config.name} v${this.config.version}`);
         console.log(
@@ -467,7 +463,7 @@ export class CLIGenerator {
    * Create schema command handler
    */
   private createSchemaHandler(): (args: any, options: any) => Promise<void> {
-    return async (args: any, options: any) => {
+    return async (args: any, _options: any) => {
       const objectName = args[0];
       const fields = ObjectRegistry.getFields(objectName);
       if (fields.size === 0) {
@@ -535,23 +531,12 @@ export class CLIGenerator {
           console.log(`❌ ${errorText || text}`);
         },
       };
-    } else {
-      console.log(text);
-      return {
-        succeed: (successText?: string) => console.log(successText || 'Done'),
-        fail: (errorText?: string) => console.log(errorText || 'Failed'),
-      };
     }
-  }
-
-  /**
-   * Stop a spinner
-   */
-  private stopSpinner(): void {
-    if (this.config.colors) {
-      process.stdout.clearLine(0);
-      process.stdout.cursorTo(0);
-    }
+    console.log(text);
+    return {
+      succeed: (successText?: string) => console.log(successText || 'Done'),
+      fail: (errorText?: string) => console.log(errorText || 'Failed'),
+    };
   }
 
   /**
@@ -564,7 +549,7 @@ export class CLIGenerator {
     });
 
     return new Promise((resolve) => {
-      rl.question(message + ' ', (answer) => {
+      rl.question(`${message} `, (answer) => {
         rl.close();
         resolve(answer);
       });
@@ -575,7 +560,7 @@ export class CLIGenerator {
    * Confirm prompt
    */
   private async confirm(message: string): Promise<boolean> {
-    const answer = await this.prompt(message + ' (y/n)');
+    const answer = await this.prompt(`${message} (y/n)`);
     return answer.toLowerCase().startsWith('y');
   }
 
@@ -589,8 +574,8 @@ export class CLIGenerator {
       const collection = await this.getCollection(objectName);
 
       const listOptions: any = {
-        limit: parseInt(options.limit),
-        offset: parseInt(options.offset),
+        limit: Number.parseInt(options.limit, 10),
+        offset: Number.parseInt(options.offset, 10),
       };
 
       if (options.orderBy) {
@@ -665,7 +650,7 @@ export class CLIGenerator {
 
       if (options.fromFile) {
         // Load from file
-        const fs = await import('fs/promises');
+        const fs = await import('node:fs/promises');
         const content = await fs.readFile(options.fromFile, 'utf-8');
         data = JSON.parse(content);
       } else if (options.interactive && this.config.prompt) {
@@ -721,7 +706,7 @@ export class CLIGenerator {
 
       if (options.fromFile) {
         // Load from file
-        const fs = await import('fs/promises');
+        const fs = await import('node:fs/promises');
         const content = await fs.readFile(options.fromFile, 'utf-8');
         data = JSON.parse(content);
       } else if (options.interactive && this.config.prompt) {

@@ -1,4 +1,4 @@
-import { DatabaseError, getLogger } from '@have/utils';
+import { DatabaseError } from '@have/utils';
 import { createClient } from '@libsql/client';
 import type {
   DatabaseInterface,
@@ -272,7 +272,7 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
                   const alterCommand = `ALTER TABLE ${tableName} ADD COLUMN ${columnDef}`;
                   await client.execute(alterCommand);
                 }
-              } catch (error) {
+              } catch (_error) {
                 // If there's an error checking/adding the column, try alternate method
                 try {
                   const alterCommand = `ALTER TABLE ${tableName} ADD COLUMN ${columnDef}`;
@@ -362,7 +362,7 @@ export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
     const values = [];
     for (let i = 0; i < vars.length; i++) {
       values.push(vars[i]);
-      sql += '?' + strings[i + 1];
+      sql += `?${strings[i + 1]}`;
     }
     return { sql, values };
   };

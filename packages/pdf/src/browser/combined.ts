@@ -63,7 +63,7 @@ export class CombinedBrowserProvider extends BasePDFReader {
 
       return text;
     } catch (error) {
-      console.error(`Combined browser text extraction failed:`, error);
+      console.error('Combined browser text extraction failed:', error);
       return null;
     }
   }

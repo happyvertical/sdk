@@ -5,8 +5,8 @@
  * Validates package.json files for required fields, version consistency, and Bun compatibility
  */
 
-import { readFileSync } from 'fs';
-import { basename, dirname, resolve } from 'path';
+import { readFileSync } from 'node:fs';
+import { basename, dirname, resolve } from 'node:path';
 
 const REQUIRED_FIELDS = [
   'name',
@@ -133,7 +133,7 @@ function checkVersionConsistency(packagePaths) {
         const packageName = basename(dirname(filePath));
         versions.set(packageName, pkg.version);
       }
-    } catch (error) {
+    } catch (_error) {
       // Skip files with JSON errors (handled by individual validation)
     }
   }

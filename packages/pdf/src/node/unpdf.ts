@@ -2,7 +2,7 @@
  * @have/pdf - unpdf provider for Node.js PDF processing
  */
 
-import { promises as fs } from 'fs';
+import { promises as fs } from 'node:fs';
 import { BasePDFReader } from '../shared/base.js';
 import type {
   DependencyCheckResult,
@@ -26,10 +26,6 @@ import { PDFDependencyError } from '../shared/types.js';
 export class UnpdfProvider extends BasePDFReader {
   protected name = 'unpdf';
   private unpdf: any = null;
-
-  constructor() {
-    super();
-  }
 
   /**
    * Lazy load unpdf dependencies
@@ -192,8 +188,8 @@ export class UnpdfProvider extends BasePDFReader {
    */
   private processRawRGBData(
     rgbData: Buffer,
-    width: number,
-    height: number,
+    _width: number,
+    _height: number,
   ): Buffer {
     // Return raw RGB data directly - no conversion overhead!
     return rgbData;
@@ -361,10 +357,7 @@ export class UnpdfProvider extends BasePDFReader {
 
           // Check for images (simplified check for rendering operations)
           const ops = await page.getOperatorList();
-          if (
-            ops.fnArray &&
-            ops.fnArray.some((op: number) => op === 82 || op === 85)
-          ) {
+          if (ops.fnArray?.some((op: number) => op === 82 || op === 85)) {
             // paintImageXObject operations
             hasImages = true;
           }

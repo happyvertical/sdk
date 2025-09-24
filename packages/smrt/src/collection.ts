@@ -48,13 +48,13 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
       const className = this.constructor.name;
       const errorMessage = [
         `Collection "${className}" must define a static _itemClass property.`,
-        ``,
-        `Example:`,
+        '',
+        'Example:',
         `  class ${className} extends SmrtCollection<YourItemClass> {`,
-        `    static readonly _itemClass = YourItemClass;`,
-        `  }`,
-        ``,
-        `Make sure your item class is imported and defined before the collection class.`,
+        '    static readonly _itemClass = YourItemClass;',
+        '  }',
+        '',
+        'Make sure your item class is imported and defined before the collection class.',
       ].join('\n');
 
       throw new Error(errorMessage);
@@ -76,11 +76,11 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
       const className = SmrtCollection.name;
       const errorMessage = [
         `Collection "${className}" is missing required static _itemClass property.`,
-        ``,
-        `Fix by adding:`,
+        '',
+        'Fix by adding:',
         `  class ${className} extends SmrtCollection<YourItemClass> {`,
-        `    static readonly _itemClass = YourItemClass;`,
-        `  }`,
+        '    static readonly _itemClass = YourItemClass;',
+        '  }',
       ].join('\n');
       throw new Error(errorMessage);
     }
@@ -108,23 +108,6 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
    * Database table name for this collection
    */
   public _tableName!: string;
-
-  /**
-   * Valid SQL operators that can be used in where conditions.
-   * Keys are the operators as they appear in the query object,
-   * values are their SQL equivalents.
-   */
-  private readonly VALID_OPERATORS = {
-    '=': '=',
-    '>': '>',
-    '>=': '>=',
-    '<': '<',
-    '<=': '<=',
-    '!=': '!=',
-    like: 'LIKE',
-    in: 'IN',
-    // Add more operators as needed
-  } as const;
 
   /**
    * Creates a new SmrtCollection instance
@@ -490,6 +473,6 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
       whereValues,
     );
 
-    return parseInt(result.rows[0].count, 10);
+    return Number.parseInt(result.rows[0].count, 10);
   }
 }

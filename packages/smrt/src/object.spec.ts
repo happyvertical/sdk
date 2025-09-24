@@ -3,7 +3,6 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { boolean, integer, text } from './fields/index.js';
 import { SmrtObject } from './object.js';
 
 // Simple test class extending SmrtObject

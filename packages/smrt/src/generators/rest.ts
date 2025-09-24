@@ -215,8 +215,8 @@ export class APIGenerator {
     collection: SmrtCollection<any>,
     params: URLSearchParams,
   ): Promise<Response> {
-    const limit = parseInt(params.get('limit') || '50');
-    const offset = parseInt(params.get('offset') || '0');
+    const limit = Number.parseInt(params.get('limit') || '50', 10);
+    const offset = Number.parseInt(params.get('offset') || '0', 10);
     const orderBy = params.get('orderBy') || 'created_at DESC';
 
     // Build where clause from query params
@@ -368,12 +368,12 @@ export class APIGenerator {
    */
   private pluralize(word: string): string {
     if (word.endsWith('y')) {
-      return word.slice(0, -1) + 'ies';
+      return `${word.slice(0, -1)}ies`;
     }
     if (word.endsWith('s') || word.endsWith('sh') || word.endsWith('ch')) {
-      return word + 'es';
+      return `${word}es`;
     }
-    return word + 's';
+    return `${word}s`;
   }
 }
 

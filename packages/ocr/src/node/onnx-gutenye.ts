@@ -17,7 +17,7 @@ import type {
   OCRProvider,
   OCRResult,
 } from '../shared/types.js';
-import { OCRDependencyError, OCRProcessingError } from '../shared/types.js';
+import { OCRDependencyError } from '../shared/types.js';
 
 /**
  * ONNX OCR provider implementation using PaddleOCR models for high-accuracy text extraction.
@@ -76,16 +76,6 @@ export class ONNXGutenyeProvider implements OCRProvider {
   readonly name = 'onnx';
   private ocrInstance: any = null;
   private initialized = false;
-
-  /**
-   * Create a new ONNX OCR provider instance.
-   *
-   * The constructor is lightweight and synchronous. The ONNX Runtime
-   * and PaddleOCR models are loaded lazily when first needed.
-   */
-  constructor() {
-    // Constructor is synchronous - OCR instance created lazily
-  }
 
   /**
    * Initialize the @gutenye/ocr-node instance with PaddleOCR models.
@@ -328,7 +318,7 @@ export class ONNXGutenyeProvider implements OCRProvider {
             const formatInfo =
               image.data.length > 8
                 ? `First 8 bytes: ${Array.from(image.data.subarray(0, 8))
-                    .map((b) => '0x' + b.toString(16).padStart(2, '0'))
+                    .map((b) => `0x${b.toString(16).padStart(2, '0')}`)
                     .join(' ')}`
                 : `Buffer too small (${image.data.length} bytes)`;
             console.warn(
@@ -368,7 +358,7 @@ export class ONNXGutenyeProvider implements OCRProvider {
         if (detections && Array.isArray(detections)) {
           for (const detection of detections) {
             if (detection.text) {
-              combinedText += detection.text + ' ';
+              combinedText += `${detection.text} `;
 
               // Convert to our format, handling both API formats
               const confidence = (detection.score || detection.mean || 0) * 100;
@@ -398,7 +388,7 @@ export class ONNXGutenyeProvider implements OCRProvider {
         }
       } catch (imageError: any) {
         console.warn(
-          `@gutenye/ocr-node failed for image:`,
+          '@gutenye/ocr-node failed for image:',
           imageError.message || imageError,
         );
       }
@@ -464,15 +454,14 @@ export class ONNXGutenyeProvider implements OCRProvider {
             'gutenye-ocr-node': true,
           },
         };
-      } else {
-        return {
-          available: false,
-          error: '@gutenye/ocr-node module missing required functions',
-          details: {
-            'gutenye-ocr-node': false,
-          },
-        };
       }
+      return {
+        available: false,
+        error: '@gutenye/ocr-node module missing required functions',
+        details: {
+          'gutenye-ocr-node': false,
+        },
+      };
     } catch (error) {
       return {
         available: false,

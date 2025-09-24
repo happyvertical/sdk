@@ -1,4 +1,3 @@
-import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { defineConfig } from 'vitest/config';
 
 /**
@@ -17,8 +16,8 @@ import { defineConfig } from 'vitest/config';
  */
 export default defineConfig({
   plugins: [
-    // Svelte plugin for SMRT modules that need it
-    svelte(),
+    // Core packages don't need Svelte plugin for testing
+    // Individual packages can add their own plugins if needed
   ],
 
   test: {
@@ -48,7 +47,7 @@ export default defineConfig({
     hookTimeout: 10000,
 
     // Reporter configuration
-    reporter: process.env.CI ? 'github' : 'default',
+    reporters: process.env.CI ? ['github'] : ['default'],
 
     // Coverage configuration
     coverage: {
