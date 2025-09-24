@@ -1,14 +1,16 @@
 <script lang="ts">
 import { onMount } from 'svelte';
+import DemoPage from './pages/DemoPage.svelte';
+import ProductsPage from './pages/ProductsPage.svelte';
 
 // Simple client-side routing (can be replaced with proper router)
-let _currentPage = $state('demo');
+let currentPage = $state('demo');
 
 onMount(() => {
   // Simple hash-based routing
   function handleHashChange() {
     const hash = window.location.hash.slice(1);
-    _currentPage = hash || 'products';
+    currentPage = hash || 'products';
   }
 
   window.addEventListener('hashchange', handleHashChange);

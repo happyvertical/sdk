@@ -5,8 +5,11 @@
  */
 
 import type { ProductData } from '../../lib/types.js';
+import AutoForm from '../../lib/components/auto-generated/AutoForm.svelte';
+import ProductForm from '../../lib/components/ProductForm.svelte';
+import ProductCard from '../../lib/components/ProductCard.svelte';
 
-const _currentTab = $state<'auto' | 'custom' | 'comparison'>('auto');
+let currentTab = $state<'auto' | 'custom' | 'comparison'>('auto');
 
 // Sample data for demonstration
 const sampleProduct: ProductData = $state({
@@ -23,17 +26,17 @@ const sampleProduct: ProductData = $state({
   tags: ['demo', 'widget', 'smrt'],
 });
 
-let _autoFormData = $state({ ...sampleProduct });
-let _customFormData = $state({ ...sampleProduct });
+let autoFormData = $state({ ...sampleProduct });
+let customFormData = $state({ ...sampleProduct });
 
-function _handleAutoSubmit(data: ProductData) {
+function handleAutoSubmit(data: ProductData) {
   console.log('Auto form submitted:', data);
-  _autoFormData = { ...data };
+  autoFormData = { ...data };
 }
 
-function _handleCustomSubmit(data: ProductData) {
+function handleCustomSubmit(data: ProductData) {
   console.log('Custom form submitted:', data);
-  _customFormData = { ...data };
+  customFormData = { ...data };
 }
 </script>
 
