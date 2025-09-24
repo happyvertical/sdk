@@ -1,10 +1,10 @@
 import { writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import type { AIClientOptions } from '@have/ai';
 import { ensureDirectoryExists } from '@have/files';
 import type { SmrtCollectionOptions } from '@have/smrt';
 import { SmrtCollection } from '@have/smrt';
 import { makeSlug } from '@have/utils';
-import path from 'node:path';
 import YAML from 'yaml';
 import { Content } from './content';
 import { Document } from './document';
@@ -43,19 +43,14 @@ export class Contents extends SmrtCollection<Content> {
   public options: ContentsOptions = {} as ContentsOptions;
 
   /**
-   * Sample content for reference
-   */
-  private exampleContent!: Content;
-
-  /**
-   * Map of loaded content objects
-   */
-  private loaded: Map<string, Content>;
-
-  /**
    * Directory to store content files
    */
   public contentDir?: string;
+
+  /**
+   * Cache of loaded content by key
+   */
+  private loaded: Map<string, any>;
 
   /**
    * Creates and initializes a Contents collection

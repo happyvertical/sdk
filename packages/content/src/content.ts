@@ -121,7 +121,7 @@ export class Content extends SmrtObject {
   /**
    * Content title
    */
-  public title: string = '';
+  public title = '';
 
   /**
    * Short description or summary
@@ -131,7 +131,7 @@ export class Content extends SmrtObject {
   /**
    * Main content body text
    */
-  public body: string = '';
+  public body = '';
 
   /**
    * Date when content was published
@@ -206,7 +206,7 @@ export class Content extends SmrtObject {
    */
   async initialize() {
     await super.initialize();
-    // Set name to title for BaseObject compatibility
+    // Set name to title for SmrtObject compatibility
     if (this.title && !this.name) {
       this.name = this.title;
     }

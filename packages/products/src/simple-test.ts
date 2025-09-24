@@ -3,8 +3,8 @@
  * Tests the AST scanner directly
  */
 
+import { resolve } from 'node:path';
 import { ASTScanner, ManifestGenerator } from '@have/smrt/scanner';
-import { resolve } from 'path';
 
 async function testAST() {
   console.log('🔍 Testing AST Scanner...');
@@ -25,7 +25,7 @@ async function testAST() {
       result.objects.forEach((obj) => {
         console.log(`    - ${obj.className} (${obj.collection})`);
         console.log(`      Fields: ${Object.keys(obj.fields).join(', ')}`);
-        console.log(`      Config:`, obj.decoratorConfig);
+        console.log('      Config:', obj.decoratorConfig);
       });
     });
 

@@ -22,13 +22,13 @@ const storage: Record<string, any[]> = {
 };
 
 // Middleware for logging
-app.use('/api/v1', (req, res, next) => {
+app.use('/api/v1', (req, _res, next) => {
   console.log(`${req.method} ${req.path}`, req.body || '');
   next();
 });
 
 // Product endpoints
-app.get('/api/v1/product', (req, res) => {
+app.get('/api/v1/product', (_req, res) => {
   res.json(storage.product);
 });
 
@@ -63,7 +63,7 @@ app.put('/api/v1/product/:id', (req, res) => {
 });
 
 // Category endpoints
-app.get('/api/v1/category', (req, res) => {
+app.get('/api/v1/category', (_req, res) => {
   res.json(storage.category);
 });
 

@@ -2,10 +2,7 @@
  * Tests for Document functionality
  */
 
-import fs from 'fs/promises';
-import os from 'os';
-import path from 'path';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { Document } from './document';
 
 describe('Document', () => {
@@ -18,8 +15,9 @@ describe('Document', () => {
       });
 
       expect(doc).toBeInstanceOf(Document);
-      expect(doc.url.protocol).toBe('file:');
-      expect(doc['localPath']).toBe(filePath);
+      expect(doc.url).toBeDefined();
+      expect(doc.url?.protocol).toBe('file:');
+      expect(doc.localPath).toBe(filePath);
       expect(doc.type).toBe('text/plain');
     });
 
@@ -30,16 +28,17 @@ describe('Document', () => {
       });
 
       expect(doc).toBeInstanceOf(Document);
-      expect(doc.url.protocol).toBe('https:');
-      expect(doc.url.hostname).toBe('example.com');
+      expect(doc.url).toBeDefined();
+      expect(doc.url?.protocol).toBe('https:');
+      expect(doc.url?.hostname).toBe('example.com');
       expect(doc.type).toBe('application/pdf');
     });
 
     it('should set up caching directory', () => {
       const doc = new Document({ url: 'https://example.com/test.pdf' });
 
-      expect(doc['cacheDir']).toBeTruthy();
-      expect(doc['cacheDir']).toContain('.cache');
+      expect(doc.cacheDir).toBeTruthy();
+      expect(doc.cacheDir).toContain('.cache');
     });
 
     it('should use custom cache directory if provided', () => {
@@ -49,7 +48,7 @@ describe('Document', () => {
         cacheDir: customCacheDir,
       });
 
-      expect(doc['cacheDir']).toBe(customCacheDir);
+      expect(doc.cacheDir).toBe(customCacheDir);
     });
   });
 
@@ -71,7 +70,7 @@ describe('Document', () => {
         type: 'text/plain',
       });
 
-      expect(textDoc['isTextFile']()).toBe(true);
+      expect(textDoc.isTextFile()).toBe(true);
     });
 
     it('should detect JSON files', () => {
@@ -80,7 +79,7 @@ describe('Document', () => {
         type: 'application/json',
       });
 
-      expect(jsonDoc['isTextFile']()).toBe(true);
+      expect(jsonDoc.isTextFile()).toBe(true);
     });
 
     it('should detect text files by extension', () => {
@@ -88,7 +87,7 @@ describe('Document', () => {
         url: 'file:///tmp/README.md',
       });
 
-      expect(mdDoc['isTextFile']()).toBe(true);
+      expect(mdDoc.isTextFile()).toBe(true);
     });
 
     it('should not detect binary files as text', () => {
@@ -97,7 +96,7 @@ describe('Document', () => {
         type: 'application/pdf',
       });
 
-      expect(pdfDoc['isTextFile']()).toBe(false);
+      expect(pdfDoc.isTextFile()).toBe(false);
     });
 
     it('should handle unknown file types', () => {
@@ -106,7 +105,7 @@ describe('Document', () => {
         type: 'application/unknown',
       });
 
-      expect(unknownDoc['isTextFile']()).toBe(false);
+      expect(unknownDoc.isTextFile()).toBe(false);
     });
   });
 
@@ -127,9 +126,12 @@ describe('Document', () => {
       const httpsDoc = new Document({ url: 'https://example.com/file.txt' });
       const fileDoc = new Document({ url: 'file:///tmp/file.txt' });
 
-      expect(httpDoc.url.protocol).toBe('http:');
-      expect(httpsDoc.url.protocol).toBe('https:');
-      expect(fileDoc.url.protocol).toBe('file:');
+      expect(httpDoc.url).toBeDefined();
+      expect(httpsDoc.url).toBeDefined();
+      expect(fileDoc.url).toBeDefined();
+      expect(httpDoc.url?.protocol).toBe('http:');
+      expect(httpsDoc.url?.protocol).toBe('https:');
+      expect(fileDoc.url?.protocol).toBe('file:');
     });
 
     it('should handle URLs with query parameters', () => {
@@ -137,8 +139,9 @@ describe('Document', () => {
         url: 'https://example.com/file.pdf?version=1&download=true',
       });
 
-      expect(doc.url.searchParams.get('version')).toBe('1');
-      expect(doc.url.searchParams.get('download')).toBe('true');
+      expect(doc.url).toBeDefined();
+      expect(doc.url?.searchParams.get('version')).toBe('1');
+      expect(doc.url?.searchParams.get('download')).toBe('true');
     });
   });
 });

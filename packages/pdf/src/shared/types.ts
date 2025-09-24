@@ -466,7 +466,7 @@ export class PDFUnsupportedError extends PDFError {
 export class PDFDependencyError extends PDFError {
   constructor(dependency: string, details?: string) {
     super(
-      `PDF dependency '${dependency}' is not available${details ? ': ' + details : ''}`,
+      `PDF dependency '${dependency}' is not available${details ? `: ${details}` : ''}`,
     );
     this.code = 'EDEP';
     this.name = 'PDFDependencyError';

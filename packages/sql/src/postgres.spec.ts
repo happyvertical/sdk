@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getDatabase } from './index.js';
 
@@ -17,7 +17,7 @@ async function checkPostgreSQLConnection(): Promise<boolean> {
     await testDb.execute`SELECT 1`;
     await testDb.client.end();
     return true;
-  } catch (error) {
+  } catch (_error) {
     return false;
   }
 }
@@ -154,7 +154,7 @@ describe('postgres tests', () => {
   });
 
   it('should support transactions with commit', async () => {
-    if (!postgresAvailable) return;
+    if (!postgresAvailable || !db || !db.transaction) return;
 
     const id = randomUUID();
 
@@ -178,7 +178,7 @@ describe('postgres tests', () => {
   });
 
   it('should support transactions with rollback on error', async () => {
-    if (!postgresAvailable) return;
+    if (!postgresAvailable || !db || !db.transaction) return;
 
     const id = randomUUID();
 

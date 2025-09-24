@@ -5,12 +5,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   AIError,
-  ConfigurationError,
   DatabaseError,
   ErrorUtils,
-  FilesystemError,
-  NetworkError,
-  RuntimeError,
   SmrtError,
   ValidationError,
 } from './errors.js';

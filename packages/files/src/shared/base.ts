@@ -44,7 +44,7 @@ export abstract class BaseFilesystemProvider implements FilesystemInterface {
       return getTempDirectory('files-cache');
     } catch {
       // Fallback if utils not available
-      if (typeof process !== 'undefined' && process.versions?.node) {
+      if (process?.versions?.node) {
         try {
           const { tmpdir } = require('node:os');
           const { join } = require('node:path');
@@ -147,17 +147,17 @@ export abstract class BaseFilesystemProvider implements FilesystemInterface {
    * Provider methods with default implementations (may be overridden)
    */
   async upload(
-    localPath: string,
-    remotePath: string,
-    options: UploadOptions = {},
+    _localPath: string,
+    _remotePath: string,
+    _options: UploadOptions = {},
   ): Promise<void> {
     this.throwUnsupported('upload');
   }
 
   async download(
-    remotePath: string,
-    localPath?: string,
-    options: DownloadOptions = {},
+    _remotePath: string,
+    _localPath?: string,
+    _options: DownloadOptions = {},
   ): Promise<string> {
     this.throwUnsupported('download');
   }
@@ -187,17 +187,20 @@ export abstract class BaseFilesystemProvider implements FilesystemInterface {
    * Cache implementation - providers can override for their specific storage
    */
   cache = {
-    get: async (key: string, expiry?: number): Promise<string | undefined> => {
+    get: async (
+      _key: string,
+      _expiry?: number,
+    ): Promise<string | undefined> => {
       // Default implementation - providers should override this
       this.throwUnsupported('cache.get');
     },
 
-    set: async (key: string, data: string): Promise<void> => {
+    set: async (_key: string, _data: string): Promise<void> => {
       // Default implementation - providers should override this
       this.throwUnsupported('cache.set');
     },
 
-    clear: async (key?: string): Promise<void> => {
+    clear: async (_key?: string): Promise<void> => {
       // Default implementation - providers should override this
       this.throwUnsupported('cache.clear');
     },
@@ -241,14 +244,14 @@ export abstract class BaseFilesystemProvider implements FilesystemInterface {
   /**
    * Upload data to a URL using PUT method (legacy)
    */
-  async uploadToUrl(url: string, data: string | Buffer): Promise<Response> {
+  async uploadToUrl(_url: string, _data: string | Buffer): Promise<Response> {
     this.throwUnsupported('uploadToUrl');
   }
 
   /**
    * Download a file from a URL and save it to a local file (legacy)
    */
-  async downloadFromUrl(url: string, filepath: string): Promise<void> {
+  async downloadFromUrl(_url: string, _filepath: string): Promise<void> {
     this.throwUnsupported('downloadFromUrl');
   }
 
@@ -256,8 +259,8 @@ export abstract class BaseFilesystemProvider implements FilesystemInterface {
    * Download a file with caching support (legacy)
    */
   async downloadFileWithCache(
-    url: string,
-    targetPath?: string | null,
+    _url: string,
+    _targetPath?: string | null,
   ): Promise<string> {
     this.throwUnsupported('downloadFileWithCache');
   }
@@ -282,10 +285,7 @@ export abstract class BaseFilesystemProvider implements FilesystemInterface {
   /**
    * Get data from cache if available and not expired (legacy)
    */
-  async getCached(
-    file: string,
-    expiry: number = 300000,
-  ): Promise<string | undefined> {
+  async getCached(file: string, expiry = 300000): Promise<string | undefined> {
     return await this.cache.get(file, expiry);
   }
 

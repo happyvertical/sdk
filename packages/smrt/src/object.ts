@@ -513,7 +513,7 @@ export class SmrtObject extends SmrtClass {
 
     for (const pattern of patterns) {
       const match = errorMessage.match(pattern);
-      if (match && match[1]) {
+      if (match?.[1]) {
         return match[1];
       }
     }
@@ -602,7 +602,7 @@ export class SmrtObject extends SmrtClass {
       if (result === true || result === false) {
         return result;
       }
-    } catch (e) {
+    } catch (_e) {
       throw new Error(`Unexpected answer: ${message}`);
     }
   }

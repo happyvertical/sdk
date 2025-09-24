@@ -30,12 +30,12 @@ export async function getDatabase(
   if (options.type === 'postgres') {
     const postgres = await import('./postgres.js');
     return postgres.getDatabase(options as PostgresOptions);
-  } else if (options.type === 'sqlite') {
+  }
+  if (options.type === 'sqlite') {
     const sqlite = await import('./sqlite.js');
     return sqlite.getDatabase(options as SqliteOptions);
-  } else {
-    throw new Error('Invalid database type');
   }
+  throw new Error('Invalid database type');
 }
 
 /**
@@ -44,7 +44,7 @@ export async function getDatabase(
  * @param name - Table name to validate
  * @returns Boolean indicating if the name is valid
  */
-function isValidTableName(name: string): boolean {
+function _isValidTableName(name: string): boolean {
   // Simple regex to allow only alphanumeric characters and underscores
   return /^[a-zA-Z0-9_]+$/.test(name);
 }

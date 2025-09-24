@@ -58,8 +58,8 @@ export abstract class BasePDFReader implements PDFReader {
    * @throws {PDFUnsupportedError} When provider doesn't support text extraction
    */
   async extractText(
-    source: PDFSource,
-    options?: ExtractTextOptions,
+    _source: PDFSource,
+    _options?: ExtractTextOptions,
   ): Promise<string | null> {
     throw new PDFUnsupportedError(`extractText (provider: ${this.name})`);
   }
@@ -74,7 +74,7 @@ export abstract class BasePDFReader implements PDFReader {
    * @returns Promise resolving to PDF metadata object
    * @throws {PDFUnsupportedError} When provider doesn't support metadata extraction
    */
-  async extractMetadata(source: PDFSource): Promise<PDFMetadata> {
+  async extractMetadata(_source: PDFSource): Promise<PDFMetadata> {
     throw new PDFUnsupportedError(`extractMetadata (provider: ${this.name})`);
   }
 
@@ -88,7 +88,7 @@ export abstract class BasePDFReader implements PDFReader {
    * @returns Promise resolving to array of extracted image objects
    * @throws {PDFUnsupportedError} When provider doesn't support image extraction
    */
-  async extractImages(source: PDFSource): Promise<PDFImage[]> {
+  async extractImages(_source: PDFSource): Promise<PDFImage[]> {
     throw new PDFUnsupportedError(`extractImages (provider: ${this.name})`);
   }
 
@@ -104,8 +104,8 @@ export abstract class BasePDFReader implements PDFReader {
    * @throws {PDFUnsupportedError} When provider doesn't support OCR operations
    */
   async performOCR(
-    images: PDFImage[],
-    options?: OCROptions,
+    _images: PDFImage[],
+    _options?: OCROptions,
   ): Promise<OCRResult> {
     throw new PDFUnsupportedError(`performOCR (provider: ${this.name})`);
   }
@@ -156,7 +156,7 @@ export abstract class BasePDFReader implements PDFReader {
    * @returns Promise resolving to document analysis and strategy recommendations
    * @throws {PDFUnsupportedError} When provider doesn't support document analysis
    */
-  async getInfo(source: PDFSource): Promise<PDFInfo> {
+  async getInfo(_source: PDFSource): Promise<PDFInfo> {
     throw new PDFUnsupportedError(`getInfo (provider: ${this.name})`);
   }
 
@@ -176,15 +176,16 @@ export abstract class BasePDFReader implements PDFReader {
       // File path - attempt to read file
       // This will be overridden in Node.js providers to use fs
       throw new PDFUnsupportedError(`file reading (provider: ${this.name})`);
-    } else if (source instanceof ArrayBuffer) {
-      return new Uint8Array(source);
-    } else if (source instanceof Uint8Array) {
-      return source;
-    } else {
-      throw new Error(
-        'Invalid PDF source: must be file path, ArrayBuffer, or Uint8Array',
-      );
     }
+    if (source instanceof ArrayBuffer) {
+      return new Uint8Array(source);
+    }
+    if (source instanceof Uint8Array) {
+      return source;
+    }
+    throw new Error(
+      'Invalid PDF source: must be file path, ArrayBuffer, or Uint8Array',
+    );
   }
 
   /**
@@ -260,9 +261,8 @@ export abstract class BasePDFReader implements PDFReader {
   protected mergePageTexts(pageTexts: string[], mergePages?: boolean): string {
     if (mergePages) {
       return pageTexts.join(' ');
-    } else {
-      return pageTexts.join('\n\n');
     }
+    return pageTexts.join('\n\n');
   }
 
   /**
@@ -274,7 +274,7 @@ export abstract class BasePDFReader implements PDFReader {
    * @param pageCount - Number of pages in the document (if known)
    * @returns Basic PDFMetadata object with default values
    */
-  protected createDefaultMetadata(pageCount: number = 0): PDFMetadata {
+  protected createDefaultMetadata(pageCount = 0): PDFMetadata {
     return {
       pageCount,
       title: undefined,

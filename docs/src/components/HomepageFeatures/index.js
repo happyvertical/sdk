@@ -1,7 +1,6 @@
 import Heading from '@theme/Heading';
 import clsx from 'clsx';
 import styles from './styles.module.css';
-
 const FeatureList = [
   {
     title: 'Structure with SmartObjects',

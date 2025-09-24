@@ -7,8 +7,6 @@
  */
 
 import type {
-  DependencyCheckResult,
-  OCRCapabilities,
   OCREnvironment,
   OCRFactoryOptions,
   OCRImage,
@@ -46,10 +44,7 @@ function detectEnvironment(): OCREnvironment {
   ) {
     return 'browser';
   }
-  if (
-    typeof globalObj.process !== 'undefined' &&
-    globalObj.process?.versions?.node
-  ) {
+  if (globalObj.process?.versions?.node) {
     return 'node';
   }
   return 'unknown';
@@ -105,7 +100,7 @@ function detectEnvironment(): OCREnvironment {
  */
 export class OCRFactory {
   private providers = new Map<string, OCRProvider>();
-  private primaryProvider: string = 'auto';
+  private primaryProvider = 'auto';
   private fallbackProviders: string[] = [];
   private defaultOptions?: OCROptions;
   private environment: OCREnvironment;
@@ -149,7 +144,7 @@ export class OCRFactory {
    *
    * @private
    */
-  private async initializeProviders(): Promise<void> {
+  public async initializeProviders(): Promise<void> {
     if (this.initialized) return;
 
     try {
@@ -289,7 +284,8 @@ export class OCRFactory {
   private getDefaultProviderPriority(): string[] {
     if (this.environment === 'node') {
       return ['onnx', 'tesseract'];
-    } else if (this.environment === 'browser') {
+    }
+    if (this.environment === 'browser') {
       return ['tesseract', 'web-ocr'];
     }
     return ['tesseract'];
@@ -637,7 +633,7 @@ export class OCRFactory {
    */
   async removeProvider(name: string): Promise<void> {
     const provider = this.providers.get(name);
-    if (provider && provider.cleanup) {
+    if (provider?.cleanup) {
       await provider.cleanup();
     }
     this.providers.delete(name);
@@ -795,7 +791,7 @@ export function resetOCRFactory(): void {
  */
 export async function getAvailableProviders(): Promise<string[]> {
   const factory = getOCR();
-  await factory['initializeProviders'](); // Access private method for initialization
+  await factory.initializeProviders(); // Access private method for initialization
   return factory.getAvailableProviderNames();
 }
 

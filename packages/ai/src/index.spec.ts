@@ -20,7 +20,7 @@ it.skip('should create an AIThread and ask it a question', async () => {
     prompt: 'What is the capital of France?',
   };
 
-  const ai = await AIClient.create(options.ai);
+  const _ai = await AIClient.create(options.ai);
 
   // lets talk about it
   const thread = await AIThread.create({

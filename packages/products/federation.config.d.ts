@@ -7,9 +7,14 @@
 export declare const federationConfig: {
   name: string;
   filename: string;
-  exposes: any;
-  remotes: any;
-  shared: any;
+  exposes: {
+    [x: string]: string;
+  };
+  remotes: Record<string, string>;
+  shared: Record<
+    string,
+    import('./src/federation/shared.config').SharedDependency
+  >;
 };
 export default federationConfig;
 //# sourceMappingURL=federation.config.d.ts.map

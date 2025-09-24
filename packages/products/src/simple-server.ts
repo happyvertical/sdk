@@ -3,8 +3,8 @@
  * This bypasses workspace dependency issues by importing directly
  */
 
+import { resolve } from 'node:path';
 import { ASTScanner, ManifestGenerator } from '@have/smrt/scanner';
-import { resolve } from 'path';
 
 // Simple HTTP server using Bun
 const server = Bun.serve({
@@ -38,7 +38,7 @@ const server = Bun.serve({
       // Root - show discovered objects
       if (path === '/') {
         const objectsList = Object.entries(manifest.objects).map(
-          ([name, obj]) => ({
+          ([_name, obj]) => ({
             name: obj.className,
             collection: obj.collection,
             fields: Object.keys(obj.fields),
@@ -118,7 +118,7 @@ const server = Bun.serve({
                 {
                   message: `Created ${name}`,
                   data: {
-                    id: 'new-' + Date.now(),
+                    id: `new-${Date.now()}`,
                     ...body,
                     created: new Date().toISOString(),
                   },
@@ -193,7 +193,7 @@ const server = Bun.serve({
           {
             error: 'Not Found',
             available_endpoints: Object.entries(manifest.objects).map(
-              ([name, obj]) => ({
+              ([_name, obj]) => ({
                 collection: obj.collection,
                 endpoints: [
                   `GET /api/${obj.collection}`,

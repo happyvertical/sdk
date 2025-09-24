@@ -124,7 +124,7 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
     resolveId(id) {
       // Resolve virtual module imports
       if (id in VIRTUAL_MODULES) {
-        return '\0' + VIRTUAL_MODULES[id as keyof typeof VIRTUAL_MODULES];
+        return `\0${VIRTUAL_MODULES[id as keyof typeof VIRTUAL_MODULES]}`;
       }
       return null;
     },
@@ -164,12 +164,12 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
     },
   };
 
-  async function loadStaticManifest(): Promise<SmartObjectManifest | null> {
+  async function _loadStaticManifest(): Promise<SmartObjectManifest | null> {
     if (!manifestPath) return null;
 
     try {
       // Conditionally import fs for Node.js environments
-      const { readFileSync } = await import('fs');
+      const { readFileSync } = await import('node:fs');
       const manifestContent = readFileSync(manifestPath, 'utf-8');
       return JSON.parse(manifestContent);
     } catch (error) {
@@ -524,7 +524,7 @@ async function generateTypeDeclarationFile(
   try {
     // Conditionally import path and fs modules
     const [{ join }, { existsSync, mkdirSync, writeFileSync }] =
-      await Promise.all([import('path'), import('fs')]);
+      await Promise.all([import('node:path'), import('node:fs')]);
 
     const declarationsDir = join(projectRoot, typeDeclarationsPath);
     const declarationsFile = join(declarationsDir, 'virtual-modules.d.ts');
@@ -536,7 +536,7 @@ async function generateTypeDeclarationFile(
 
     // Generate interface definitions for each discovered SMRT object
     const objectInterfaces = Object.entries(manifest.objects)
-      .map(([name, obj]) => {
+      .map(([_name, obj]) => {
         const interfaceName = `${obj.className}Data`;
         const fields = Object.entries(obj.fields)
           .map(([fieldName, field]) => {
@@ -570,7 +570,7 @@ ${fields}
       .join('\n');
 
     // Generate MCP tool interfaces based on discovered methods
-    const mcpTools = Object.entries(manifest.objects).flatMap(([name, obj]) =>
+    const _mcpTools = Object.entries(manifest.objects).flatMap(([_name, obj]) =>
       Object.entries(obj.methods).map(([methodName, method]) => ({
         name: `${methodName}_${obj.collection}`,
         description: `${method.name} operation on ${obj.collection}`,

@@ -1,5 +1,5 @@
-import { DatabaseError, getLogger } from '@have/utils';
-import { Pool, PoolClient, QueryResult } from 'pg';
+import { DatabaseError } from '@have/utils';
+import { Pool } from 'pg';
 import type {
   QueryResult as BaseQueryResult,
   DatabaseInterface,
@@ -117,17 +117,16 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
       );
       const result = await client.query(query, values);
       return { operation: 'insert', affected: result.rowCount ?? 0 };
-    } else {
-      // If data is an object, we handle a single row
-      const keys = Object.keys(data);
-      const values = Object.values(data);
-      const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-      const query = `INSERT INTO ${table} (${keys.join(
-        ', ',
-      )}) VALUES (${placeholders})`;
-      const result = await client.query(query, values);
-      return { operation: 'insert', affected: result.rowCount ?? 0 };
     }
+    // If data is an object, we handle a single row
+    const keys = Object.keys(data);
+    const values = Object.values(data);
+    const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+    const query = `INSERT INTO ${table} (${keys.join(
+      ', ',
+    )}) VALUES (${placeholders})`;
+    const result = await client.query(query, values);
+    return { operation: 'insert', affected: result.rowCount ?? 0 };
   };
 
   /**
@@ -293,7 +292,7 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
     const values = [];
     for (let i = 0; i < vars.length; i++) {
       values.push(vars[i]);
-      sql += '$' + (i + 1) + strings[i + 1];
+      sql += `$${i + 1}${strings[i + 1]}`;
     }
     return { sql, values };
   };
@@ -551,14 +550,13 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
             );
             const result = await txClient.query(query, values);
             return { operation: 'insert', affected: result.rowCount ?? 0 };
-          } else {
-            const keys = Object.keys(data);
-            const values = Object.values(data);
-            const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-            const query = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
-            const result = await txClient.query(query, values);
-            return { operation: 'insert', affected: result.rowCount ?? 0 };
           }
+          const keys = Object.keys(data);
+          const values = Object.values(data);
+          const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+          const query = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
+          const result = await txClient.query(query, values);
+          return { operation: 'insert', affected: result.rowCount ?? 0 };
         },
         get: async (table, where) => {
           const keys = Object.keys(where);

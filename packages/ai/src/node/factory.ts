@@ -9,7 +9,6 @@ import { getAI as getAIUniversal } from '../shared/factory.js';
 import type {
   AIInterface,
   BedrockOptions,
-  GetAIOptions,
   HuggingFaceOptions,
   OpenAIOptions,
 } from '../shared/types.js';

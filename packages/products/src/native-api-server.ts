@@ -4,8 +4,8 @@
  * Uses only built-in Node.js modules - no external dependencies
  */
 
-import { createServer } from 'http';
-import { URL } from 'url';
+import { createServer } from 'node:http';
+import { URL } from 'node:url';
 
 const port = 37428; // Obscure port number
 
@@ -134,7 +134,7 @@ async function handleProductRoutes(
       res.writeHead(405);
       res.end(JSON.stringify({ error: 'Method not allowed' }));
     }
-  } catch (error) {
+  } catch (_error) {
     res.writeHead(500);
     res.end(JSON.stringify({ error: 'Internal server error' }));
   }
@@ -208,7 +208,7 @@ async function handleCategoryRoutes(
       res.writeHead(405);
       res.end(JSON.stringify({ error: 'Method not allowed' }));
     }
-  } catch (error) {
+  } catch (_error) {
     res.writeHead(500);
     res.end(JSON.stringify({ error: 'Internal server error' }));
   }

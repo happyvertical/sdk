@@ -5,7 +5,6 @@
  */
 
 import type { ProductData } from '../../types.js';
-import FieldRenderer from './FieldRenderer.svelte';
 
 interface Props {
   data?: ProductData;
@@ -76,7 +75,7 @@ $effect(() => {
   formData = { ...data };
 });
 
-function updateField(fieldName: string, value: any) {
+function _updateField(fieldName: string, value: any) {
   formData[fieldName as keyof ProductData] = value;
 
   // Trigger change callback
@@ -85,14 +84,14 @@ function updateField(fieldName: string, value: any) {
   }
 }
 
-function handleSubmit(event: Event) {
+function _handleSubmit(event: Event) {
   event.preventDefault();
   if (onSubmit && !readonly) {
     onSubmit({ ...formData });
   }
 }
 
-function getFieldType(
+function _getFieldType(
   name: string,
 ): 'string' | 'number' | 'boolean' | 'array' | 'object' {
   const field = fieldSchema.find((f) => f.name === name);

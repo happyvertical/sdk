@@ -59,8 +59,6 @@ const mockProducts: ProductData[] = [
 ];
 
 class MockApiClient {
-  constructor(private baseUrl: string) {}
-
   products = {
     async list(): Promise<ApiResponse<ProductData[]>> {
       // Simulate API delay
@@ -178,7 +176,7 @@ class MockApiClient {
   };
 }
 
-export function createClient(baseUrl: string = '/api/v1'): MockApiClient {
+export function createClient(baseUrl = '/api/v1'): MockApiClient {
   return new MockApiClient(baseUrl);
 }
 

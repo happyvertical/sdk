@@ -1,8 +1,8 @@
-import { NetworkError, ParsingError, ValidationError } from '@have/utils';
+import { ParsingError, ValidationError } from '@have/utils';
 import { describe, expect, it } from 'vitest';
 import {
-  createWindow,
   type FetchPageSourceOptions,
+  createWindow,
   fetchPageSource,
   parseIndexSource,
   processHtml,

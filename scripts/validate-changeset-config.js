@@ -5,8 +5,8 @@
  * Validates changeset configuration for proper monorepo publishing setup
  */
 
-import { existsSync, readdirSync, readFileSync } from 'fs';
-import { join, resolve } from 'path';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
 
 /**
  * Validate changeset configuration file
@@ -87,7 +87,7 @@ function validateWorkspacePackages() {
 
   try {
     // Read workspace configuration
-    const workspaceContent = readFileSync('pnpm-workspace.yaml', 'utf8');
+    const _workspaceContent = readFileSync('pnpm-workspace.yaml', 'utf8');
 
     // Get package paths using fs instead of glob
     const packagePaths = [];
@@ -186,7 +186,7 @@ function validateChangesetCLI() {
       release: '@changesets/cli publish',
     };
 
-    for (const [scriptName, expectedCommand] of Object.entries(
+    for (const [scriptName, _expectedCommand] of Object.entries(
       requiredScripts,
     )) {
       if (!pkg.scripts[scriptName]) {

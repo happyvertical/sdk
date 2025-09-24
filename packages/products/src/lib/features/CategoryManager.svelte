@@ -8,8 +8,8 @@ interface Props {
 const { readonly = false }: Props = $props();
 
 // Placeholder for category management
-const categories = $state<CategoryData[]>([]);
-const loading = $state(false);
+const _categories = $state<CategoryData[]>([]);
+const _loading = $state(false);
 </script>
 
 <div class="category-manager">

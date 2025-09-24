@@ -6,10 +6,9 @@ import { fieldsFromClass } from './utils.js';
 // import { Content } from '@have/content';
 // Test class with various field types
 class TestClass {
-  test_string: string = 'test';
-  test_number: number = 123;
+  test_string = 'test';
+  test_number = 123;
   test_date: Date = new Date();
-  private _privateField: string = 'private';
   methodField() {
     return true;
   }

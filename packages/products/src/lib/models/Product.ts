@@ -34,13 +34,13 @@ export interface ProductOptions extends SmrtObjectOptions {
   cli: true, // Enable CLI commands for admin
 })
 export class Product extends SmrtObject {
-  name: string = '';
-  description: string = '';
-  category: string = ''; // Reference to category
-  manufacturer: string = '';
-  model: string = '';
-  price: number = 0;
-  inStock: boolean = true;
+  name = '';
+  description = '';
+  category = ''; // Reference to category
+  manufacturer = '';
+  model = '';
+  price = 0;
+  inStock = true;
   specifications: Record<string, any> = {};
   tags: string[] = [];
 
@@ -65,12 +65,12 @@ export class Product extends SmrtObject {
     this.specifications[key] = value;
   }
 
-  static async searchByText(query: string): Promise<Product[]> {
+  static async searchByText(_query: string): Promise<Product[]> {
     // Search implementation will be auto-generated
     return [];
   }
 
-  static async findByManufacturer(manufacturer: string): Promise<Product[]> {
+  static async findByManufacturer(_manufacturer: string): Promise<Product[]> {
     // Manufacturer search will be auto-generated
     return [];
   }

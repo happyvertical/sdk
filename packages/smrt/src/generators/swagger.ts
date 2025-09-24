@@ -343,18 +343,18 @@ export function setupSwaggerUI(app: any, spec: any, path = '/docs') {
       }),
     );
 
-    app.get(`${path}/openapi.json`, (req: any, res: any) => {
+    app.get(`${path}/openapi.json`, (_req: any, res: any) => {
       res.json(spec);
     });
 
     console.log(`📚 Swagger UI available at ${path}`);
-  } catch (error) {
+  } catch (_error) {
     console.warn('Swagger UI not available (install swagger-ui-express)');
   }
 }
 
 function pluralize(word: string): string {
-  if (word.endsWith('y')) return word.slice(0, -1) + 'ies';
+  if (word.endsWith('y')) return `${word.slice(0, -1)}ies`;
   if (
     word.endsWith('s') ||
     word.endsWith('x') ||
@@ -362,6 +362,6 @@ function pluralize(word: string): string {
     word.endsWith('ch') ||
     word.endsWith('sh')
   )
-    return word + 'es';
-  return word + 's';
+    return `${word}es`;
+  return `${word}s`;
 }

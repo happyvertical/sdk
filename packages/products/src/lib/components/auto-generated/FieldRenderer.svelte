@@ -27,12 +27,12 @@ const {
 }: Props = $props();
 
 // Auto-generate label from field name if not provided
-const displayLabel =
+const _displayLabel =
   label ||
   fieldName
     .replace(/([A-Z])/g, ' $1')
     .replace(/^./, (str) => str.toUpperCase());
-const fieldId = `field-${fieldName}`;
+const _fieldId = `field-${fieldName}`;
 
 function handleUpdate(newValue: any) {
   if (onUpdate && !readonly) {
@@ -40,22 +40,22 @@ function handleUpdate(newValue: any) {
   }
 }
 
-function handleStringInput(event: Event) {
+function _handleStringInput(event: Event) {
   const target = event.target as HTMLInputElement;
   handleUpdate(target.value);
 }
 
-function handleNumberInput(event: Event) {
+function _handleNumberInput(event: Event) {
   const target = event.target as HTMLInputElement;
-  handleUpdate(parseFloat(target.value) || 0);
+  handleUpdate(Number.parseFloat(target.value) || 0);
 }
 
-function handleBooleanInput(event: Event) {
+function _handleBooleanInput(event: Event) {
   const target = event.target as HTMLInputElement;
   handleUpdate(target.checked);
 }
 
-function handleArrayInput(event: Event) {
+function _handleArrayInput(event: Event) {
   const target = event.target as HTMLTextAreaElement;
   try {
     // Simple array handling - comma separated values
@@ -69,7 +69,7 @@ function handleArrayInput(event: Event) {
   }
 }
 
-function handleObjectInput(event: Event) {
+function _handleObjectInput(event: Event) {
   const target = event.target as HTMLTextAreaElement;
   try {
     const objectValue = JSON.parse(target.value);

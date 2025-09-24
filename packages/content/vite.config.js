@@ -4,7 +4,6 @@
  * Enables auto-generation of REST APIs, MCP tools, and TypeScript clients
  * from @smrt() decorated classes.
  */
-
 import { smrtPlugin } from '@have/smrt/vite-plugin';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { defineConfig } from 'vite';

@@ -2,7 +2,7 @@
  * CLI Generator Tests - Simplified approach to avoid import issues
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 // Simplified test approach using dynamic imports to avoid module resolution issues
 
@@ -50,7 +50,7 @@ describe('CLI Generator - Simplified Tests', () => {
       await handler(['--version']);
     } finally {
       consoleSpy.mockRestore();
-      delete process.env.NODE_ENV;
+      process.env.NODE_ENV = undefined;
     }
   });
 

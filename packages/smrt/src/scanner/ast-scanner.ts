@@ -3,7 +3,6 @@
  * Uses TypeScript Compiler API to extract metadata
  */
 
-import { readFileSync } from 'fs';
 import * as ts from 'typescript';
 import type {
   FieldDefinition,
@@ -23,7 +22,7 @@ export class ASTScanner {
       includePrivateMethods: false,
       includeStaticMethods: true,
       followImports: false,
-      baseClasses: ['SmrtObject', 'BaseObject', 'SmartObject'],
+      baseClasses: ['SmrtObject', 'SmrtClass', 'SmrtCollection'],
       ...options,
     };
 
@@ -373,12 +372,12 @@ export class ASTScanner {
    */
   private pluralize(word: string): string {
     if (word.endsWith('y')) {
-      return word.slice(0, -1) + 'ies';
+      return `${word.slice(0, -1)}ies`;
     }
     if (word.endsWith('s') || word.endsWith('sh') || word.endsWith('ch')) {
-      return word + 'es';
+      return `${word}es`;
     }
-    return word + 's';
+    return `${word}s`;
   }
 }
 

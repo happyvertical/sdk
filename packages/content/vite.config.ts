@@ -7,7 +7,7 @@
 
 import { smrtPlugin } from '@have/smrt/vite-plugin';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { defineConfig, type UserConfig } from 'vite';
+import { type UserConfig, defineConfig } from 'vite';
 
 export default defineConfig(({ command, mode }): UserConfig => {
   const baseConfig: UserConfig = {

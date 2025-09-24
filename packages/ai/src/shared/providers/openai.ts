@@ -507,7 +507,7 @@ export class OpenAIProvider implements AIInterface {
           // Try to extract retry-after from headers
           const retryAfter = error.headers?.['retry-after'];
           const retryAfterSeconds = retryAfter
-            ? parseInt(retryAfter, 10)
+            ? Number.parseInt(retryAfter, 10)
             : undefined;
           return new RateLimitError('openai', retryAfterSeconds);
         }
