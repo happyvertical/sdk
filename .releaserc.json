@@ -4,6 +4,7 @@
   ],
   "tagFormat": "v${version}",
   "debug": false,
+  "dryRun": false,
   "plugins": [
     [
       "@semantic-release/commit-analyzer",
@@ -26,13 +27,6 @@
       "@semantic-release/changelog",
       {
         "changelogFile": "CHANGELOG.md"
-      }
-    ],
-    [
-      "@anolilab/semantic-release-pnpm",
-      {
-        "npmPublish": false,
-        "tarballDir": "dist"
       }
     ],
     [
