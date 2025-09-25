@@ -1,3 +1,10 @@
+## [0.2.4](https://github.com/happyvertical/sdk/compare/v0.2.3...v0.2.4) (2025-09-25)
+
+
+### Bug Fixes
+
+* comprehensive workflow refactoring for pnpm and proper execution order ([633448d](https://github.com/happyvertical/sdk/commit/633448d610dc846d20b5f24c783c1e064e8b6d3e))
+
 ## [0.2.3](https://github.com/happyvertical/sdk/compare/v0.2.2...v0.2.3) (2025-09-25)
 
 
