@@ -64,6 +64,7 @@
     "@semantic-release/github": "^11.0.6",
     "chokidar": "^4.0.1",
     "concurrently": "9.2.1",
+    "conventional-changelog-conventionalcommits": "^9.1.0",
     "express": "^4.21.2",
     "lefthook": "^1.11.13",
     "livereload": "^0.9.3",
