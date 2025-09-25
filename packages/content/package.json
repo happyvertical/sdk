@@ -22,7 +22,8 @@
   "dependencies": {
     "@have/smrt": "workspace:*",
     "@have/pdf": "workspace:*",
-    "@have/spider": "workspace:*"
+    "@have/spider": "workspace:*",
+    "yaml": "^2.8.1"
   },
   "devDependencies": {
     "@faker-js/faker": "^9.3.0",
