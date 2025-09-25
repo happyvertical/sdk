@@ -108,10 +108,10 @@ jobs:
         run: |
           if [ "${{ github.event.inputs.dry-run }}" = "true" ]; then
             echo "Running in dry-run mode..."
-            pnpm -r --workspace-concurrency=1 exec -- npx semantic-release --dry-run
+            npx semantic-release --dry-run
           else
             echo "Running semantic-release..."
-            pnpm -r --workspace-concurrency=1 exec -- npx semantic-release
+            npx semantic-release
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
