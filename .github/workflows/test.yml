@@ -12,8 +12,6 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/devcontainers/features/base:1
 
     services:
       postgres:
@@ -35,10 +33,33 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup devcontainer environment
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          run_install: false
+
+      - name: Get pnpm store directory
+        shell: bash
         run: |
-          # Install system dependencies for ONNX Runtime and OCR
-          apt-get update && apt-get install -y \
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install system dependencies for ONNX Runtime
+        run: |
+          sudo apt-get update && sudo apt-get install -y \
             libstdc++6 \
             libc6-dev \
             build-essential \
@@ -46,39 +67,21 @@ jobs:
             g++ \
             cmake \
             libgomp1 \
-            libprotobuf-dev \
-            git-lfs \
-            ca-certificates \
-            curl \
-            gnupg \
-            lsb-release
-
-      - name: Install Bun
-        run: |
-          curl -fsSL https://bun.sh/install | bash
-          echo "$HOME/.bun/bin" >> $GITHUB_PATH
+            libprotobuf-dev
 
       - name: Install dependencies
-        run: |
-          export PATH="$HOME/.bun/bin:$PATH"
-          bun install
+        run: pnpm install --frozen-lockfile
 
       - name: Type check
-        run: |
-          export PATH="$HOME/.bun/bin:$PATH"
-          bun run typecheck
+        run: pnpm run typecheck
 
       - name: Build packages
-        run: |
-          export PATH="$HOME/.bun/bin:$PATH"
-          bun run build
+        run: pnpm run build
 
       - name: Run tests
-        run: |
-          export PATH="$HOME/.bun/bin:$PATH"
-          bun test
+        run: pnpm test
         env:
-          SQLOO_HOST: postgres
+          SQLOO_HOST: localhost
           SQLOO_USER: postgres
           SQLOO_PASSWORD: postgres
           SQLOO_DATABASE: testdb

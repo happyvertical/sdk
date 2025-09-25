@@ -22,7 +22,7 @@
     "dev": "npm run build:watch & npm run test:watch"
   },
   "dependencies": {
-    "@have/utils": "0.0.50"
+    "@have/utils": "workspace:*"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "6.8.0",

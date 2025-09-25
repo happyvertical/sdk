@@ -26,7 +26,7 @@
     "dev": "npm run build:watch & npm run test:watch"
   },
   "dependencies": {
-    "@have/ocr": "0.0.50",
+    "@have/ocr": "workspace:*",
     "unpdf": "^1.0.6"
   },
   "devDependencies": {

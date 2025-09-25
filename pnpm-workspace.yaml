@@ -1,0 +1,6 @@
+packages:
+  - 'packages/*'
+  - 'docs'
+
+# pnpm workspace configuration for HAVE SDK monorepo
+# This file defines which directories contain packages in the workspace
