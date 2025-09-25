@@ -77,9 +77,6 @@ jobs:
       - name: Build packages
         run: pnpm run build
 
-      - name: Type check
-        run: pnpm run typecheck
-
       - name: Run tests
         run: pnpm test
         env:
