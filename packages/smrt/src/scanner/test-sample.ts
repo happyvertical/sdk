@@ -2,10 +2,10 @@
  * Sample SMRT classes for testing the AST scanner
  */
 
-import { BaseObject } from '../object.js';
+import { SmrtObject } from '../object';
 
 // Mock decorator function for testing
-function smrt(config?: any) {
+function smrt(_config?: any) {
   return (target: any) => target;
 }
 
@@ -19,19 +19,19 @@ function smrt(config?: any) {
   },
   cli: true,
 })
-class Product extends BaseObject {
-  name: string = '';
+class Product extends SmrtObject {
+  name = '';
   description?: string;
-  price: number = 0;
-  inStock: boolean = true;
-  category: string = 'general';
+  price = 0;
+  inStock = true;
+  category = 'general';
   tags: string[] = [];
 
   async calculateDiscount(percentage: number): Promise<number> {
     return this.price * (percentage / 100);
   }
 
-  static findByCategory(category: string) {
+  static findByCategory(_category: string) {
     // Static method example
     return [];
   }
@@ -43,10 +43,10 @@ class Product extends BaseObject {
 
 // Simple Category class
 @smrt()
-class Category extends BaseObject {
-  name: string = '';
+class Category extends SmrtObject {
+  name = '';
   description?: string;
-  active: boolean = true;
+  active = true;
 
   constructor(options: any) {
     super(options);

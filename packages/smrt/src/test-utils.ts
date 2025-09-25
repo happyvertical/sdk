@@ -6,8 +6,6 @@
  */
 
 import { vi } from 'vitest';
-import type { BaseObject } from './object.js';
-import type { BaseCollection } from './collection.js';
 
 /**
  * Mock object instance with all required lifecycle methods
@@ -89,7 +87,7 @@ export class TestDataFactory {
     count: number,
     overrides: Partial<T> = {},
   ): T[] {
-    return Array.from({ length: count }, (_, i) =>
+    return Array.from({ length: count }, (_, _i) =>
       generator({
         ...overrides,
         id: TestDataFactory.generateId(),

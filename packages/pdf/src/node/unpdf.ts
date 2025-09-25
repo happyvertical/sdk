@@ -2,18 +2,18 @@
  * @have/pdf - unpdf provider for Node.js PDF processing
  */
 
-import { promises as fs } from 'fs';
-import { BasePDFReader } from '../shared/base.js';
+import { promises as fs } from 'node:fs';
+import { BasePDFReader } from '../shared/base';
 import type {
-  PDFSource,
-  ExtractTextOptions,
-  PDFMetadata,
-  PDFImage,
-  PDFCapabilities,
   DependencyCheckResult,
+  ExtractTextOptions,
+  PDFCapabilities,
+  PDFImage,
   PDFInfo,
-} from '../shared/types.js';
-import { PDFDependencyError } from '../shared/types.js';
+  PDFMetadata,
+  PDFSource,
+} from '../shared/types';
+import { PDFDependencyError } from '../shared/types';
 
 /**
  * PDF reader implementation using unpdf library for Node.js
@@ -26,10 +26,6 @@ import { PDFDependencyError } from '../shared/types.js';
 export class UnpdfProvider extends BasePDFReader {
   protected name = 'unpdf';
   private unpdf: any = null;
-
-  constructor() {
-    super();
-  }
 
   /**
    * Lazy load unpdf dependencies
@@ -76,6 +72,18 @@ export class UnpdfProvider extends BasePDFReader {
     source: PDFSource,
     options?: ExtractTextOptions,
   ): Promise<string | null> {
+    // Handle invalid inputs gracefully
+    if (
+      !source ||
+      (typeof source === 'string' && source.trim() === '') ||
+      (typeof source === 'object' &&
+        Object.keys(source).length === 0 &&
+        !(source instanceof Buffer) &&
+        !(source instanceof Uint8Array))
+    ) {
+      return null;
+    }
+
     try {
       const unpdf = await this.loadUnpdf();
       const buffer = await this.normalizeSource(source);
@@ -180,8 +188,8 @@ export class UnpdfProvider extends BasePDFReader {
    */
   private processRawRGBData(
     rgbData: Buffer,
-    width: number,
-    height: number,
+    _width: number,
+    _height: number,
   ): Buffer {
     // Return raw RGB data directly - no conversion overhead!
     return rgbData;
@@ -191,6 +199,18 @@ export class UnpdfProvider extends BasePDFReader {
    * Extract images from a PDF using unpdf
    */
   async extractImages(source: PDFSource): Promise<PDFImage[]> {
+    // Handle invalid inputs gracefully
+    if (
+      !source ||
+      (typeof source === 'string' && source.trim() === '') ||
+      (typeof source === 'object' &&
+        Object.keys(source).length === 0 &&
+        !(source instanceof Buffer) &&
+        !(source instanceof Uint8Array))
+    ) {
+      return [];
+    }
+
     try {
       const unpdf = await this.loadUnpdf();
       const buffer = await this.normalizeSource(source);
@@ -337,10 +357,7 @@ export class UnpdfProvider extends BasePDFReader {
 
           // Check for images (simplified check for rendering operations)
           const ops = await page.getOperatorList();
-          if (
-            ops.fnArray &&
-            ops.fnArray.some((op: number) => op === 82 || op === 85)
-          ) {
+          if (ops.fnArray?.some((op: number) => op === 82 || op === 85)) {
             // paintImageXObject operations
             hasImages = true;
           }

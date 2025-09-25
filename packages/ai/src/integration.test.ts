@@ -3,11 +3,11 @@
  * These test real functionality without mocks
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
 import { ValidationError } from '@have/utils';
-import { getAI, getAIAuto } from './shared/factory.js';
-import { AIError } from './shared/types.js';
-import { HuggingFaceProvider } from './shared/providers/huggingface.js';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { getAI, getAIAuto } from './shared/factory';
+import { HuggingFaceProvider } from './shared/providers/huggingface';
+import { AIError } from './shared/types';
 
 describe('AI Factory Integration', () => {
   it('should create HuggingFace provider', async () => {
@@ -35,16 +35,20 @@ describe('AI Factory Integration', () => {
   });
 
   it('should throw ValidationError for unsupported provider', async () => {
-    await expect(getAI({
-      type: 'unsupported-provider',
-      apiKey: 'fake-key',
-    } as any)).rejects.toThrow(ValidationError);
+    await expect(
+      getAI({
+        type: 'unsupported-provider',
+        apiKey: 'fake-key',
+      } as any),
+    ).rejects.toThrow(ValidationError);
   });
 
   it('should throw ValidationError when auto-detection fails', async () => {
-    await expect(getAIAuto({
-      randomField: 'value',
-    })).rejects.toThrow(ValidationError);
+    await expect(
+      getAIAuto({
+        randomField: 'value',
+      }),
+    ).rejects.toThrow(ValidationError);
   });
 });
 
@@ -60,7 +64,7 @@ describe('HuggingFace Provider Integration', () => {
 
   it('should have correct capabilities', async () => {
     const capabilities = await provider.getCapabilities();
-    
+
     expect(capabilities).toEqual({
       chat: true,
       completion: true,
@@ -76,10 +80,10 @@ describe('HuggingFace Provider Integration', () => {
 
   it('should return models list', async () => {
     const models = await provider.getModels();
-    
+
     expect(Array.isArray(models)).toBe(true);
     expect(models.length).toBeGreaterThan(0);
-    
+
     const firstModel = models[0];
     expect(firstModel).toHaveProperty('id');
     expect(firstModel).toHaveProperty('name');
@@ -90,8 +94,10 @@ describe('HuggingFace Provider Integration', () => {
   });
 
   it('should approximate token count', async () => {
-    const count = await provider.countTokens('Hello world, this is a test message.');
-    
+    const count = await provider.countTokens(
+      'Hello world, this is a test message.',
+    );
+
     expect(typeof count).toBe('number');
     expect(count).toBeGreaterThan(0);
     expect(count).toBeLessThan(100); // Should be reasonable
@@ -107,25 +113,26 @@ describe('HuggingFace Provider Integration', () => {
 
     // Access private method for testing
     const prompt = (provider as any).messagesToPrompt(messages);
-    
+
     expect(prompt).toBe(
-      'System: You are helpful\nHuman: Hello\nAssistant: Hi there!\nHuman: How are you?\nAssistant:'
+      'System: You are helpful\nHuman: Hello\nAssistant: Hi there!\nHuman: How are you?\nAssistant:',
     );
   });
 
   it('should handle HTTP errors gracefully', async () => {
     // Override fetch to simulate error
     const originalFetch = global.fetch;
-    global.fetch = (() => Promise.resolve({
-      ok: false,
-      status: 401,
-      text: () => Promise.resolve('Unauthorized'),
-    })) as any;
+    global.fetch = (() =>
+      Promise.resolve({
+        ok: false,
+        status: 401,
+        text: () => Promise.resolve('Unauthorized'),
+      })) as any;
 
     try {
-      await expect(provider.chat([
-        { role: 'user', content: 'Hello' }
-      ])).rejects.toThrow();
+      await expect(
+        provider.chat([{ role: 'user', content: 'Hello' }]),
+      ).rejects.toThrow();
     } finally {
       global.fetch = originalFetch;
     }
@@ -135,10 +142,14 @@ describe('HuggingFace Provider Integration', () => {
 describe('Error Classes Integration', () => {
   it('should create and throw AIError properly', () => {
     const error = new AIError('Test error', 'TEST_CODE', 'test-provider');
-    
-    expect(() => { throw error; }).toThrow(AIError);
-    expect(() => { throw error; }).toThrow('Test error');
-    
+
+    expect(() => {
+      throw error;
+    }).toThrow(AIError);
+    expect(() => {
+      throw error;
+    }).toThrow('Test error');
+
     try {
       throw error;
     } catch (e: unknown) {
@@ -152,7 +163,7 @@ describe('Error Classes Integration', () => {
 
   it('should inherit Error properties correctly', () => {
     const error = new AIError('Test message', 'TEST_CODE');
-    
+
     expect(error.name).toBe('AIError');
     expect(error.message).toBe('Test message');
     expect(error.stack).toBeDefined();
@@ -175,7 +186,7 @@ describe('Real API Integration', () => {
 
     // Test basic chat
     const response = await provider.chat([
-      { role: 'user', content: 'Say "Hello from Gemini" and nothing else' }
+      { role: 'user', content: 'Say "Hello from Gemini" and nothing else' },
     ]);
 
     expect(response.content).toBeTruthy();
@@ -186,7 +197,9 @@ describe('Real API Integration', () => {
   it('should work with Anthropic API if token is provided', async () => {
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
-      console.log('Skipping Anthropic API test - no ANTHROPIC_API_KEY provided');
+      console.log(
+        'Skipping Anthropic API test - no ANTHROPIC_API_KEY provided',
+      );
       return;
     }
 
@@ -197,7 +210,7 @@ describe('Real API Integration', () => {
 
     // Test basic chat
     const response = await provider.chat([
-      { role: 'user', content: 'Say "Hello from Claude" and nothing else' }
+      { role: 'user', content: 'Say "Hello from Claude" and nothing else' },
     ]);
 
     expect(response.content).toBeTruthy();
@@ -216,12 +229,12 @@ describe('Provider Interface Compliance', () => {
     // Check that all AIInterface methods exist
     const requiredMethods = [
       'chat',
-      'complete', 
+      'complete',
       'embed',
       'stream',
       'countTokens',
       'getModels',
-      'getCapabilities'
+      'getCapabilities',
     ];
 
     for (const method of requiredMethods) {
@@ -242,7 +255,7 @@ describe('Provider Interface Compliance', () => {
     });
 
     const anthropicProvider = await getAI({
-      type: 'anthropic', 
+      type: 'anthropic',
       apiKey: 'fake-key',
     });
 

@@ -4,14 +4,13 @@
  */
 
 import * as ts from 'typescript';
-import { readFileSync } from 'fs';
-import type { 
-  SmartObjectDefinition, 
-  FieldDefinition, 
-  MethodDefinition, 
-  ScanResult, 
-  ScanOptions 
-} from './types.js';
+import type {
+  FieldDefinition,
+  MethodDefinition,
+  ScanOptions,
+  ScanResult,
+  SmartObjectDefinition,
+} from './types';
 
 export class ASTScanner {
   private program: ts.Program;
@@ -23,8 +22,8 @@ export class ASTScanner {
       includePrivateMethods: false,
       includeStaticMethods: true,
       followImports: false,
-      baseClasses: ['BaseObject', 'SmartObject'],
-      ...options
+      baseClasses: ['SmrtObject', 'SmrtClass', 'SmrtCollection'],
+      ...options,
     };
 
     // Create TypeScript program
@@ -35,7 +34,7 @@ export class ASTScanner {
       declaration: true,
       esModuleInterop: true,
       skipLibCheck: true,
-      strict: true
+      strict: true,
     });
 
     this.checker = this.program.getTypeChecker();
@@ -49,7 +48,7 @@ export class ASTScanner {
 
     for (const sourceFile of this.program.getSourceFiles()) {
       if (sourceFile.isDeclarationFile) continue;
-      
+
       const result = this.scanFile(sourceFile);
       if (result.objects.length > 0 || result.errors.length > 0) {
         results.push(result);
@@ -66,7 +65,7 @@ export class ASTScanner {
     const result: ScanResult = {
       filePath: sourceFile.fileName,
       objects: [],
-      errors: []
+      errors: [],
     };
 
     try {
@@ -80,9 +79,10 @@ export class ASTScanner {
       });
     } catch (error) {
       result.errors.push({
-        message: error instanceof Error ? error.message : 'Unknown parsing error',
+        message:
+          error instanceof Error ? error.message : 'Unknown parsing error',
         line: 0,
-        column: 0
+        column: 0,
       });
     }
 
@@ -93,10 +93,9 @@ export class ASTScanner {
    * Parse a class declaration for SMRT metadata
    */
   private parseClassDeclaration(
-    node: ts.ClassDeclaration, 
-    sourceFile: ts.SourceFile
+    node: ts.ClassDeclaration,
+    sourceFile: ts.SourceFile,
   ): SmartObjectDefinition | null {
-    
     // Check if class has @smrt() decorator
     const smrtDecorator = this.findSmrtDecorator(node);
     if (!smrtDecorator) return null;
@@ -120,7 +119,7 @@ export class ASTScanner {
       filePath: sourceFile.fileName,
       fields: {},
       methods: {},
-      decoratorConfig
+      decoratorConfig,
     };
 
     // Parse class members
@@ -153,20 +152,21 @@ export class ASTScanner {
     for (const modifier of node.modifiers) {
       if (ts.isDecorator(modifier)) {
         const expression = modifier.expression;
-        
+
         // Handle @smrt() or @smrt
         if (ts.isCallExpression(expression)) {
-          if (ts.isIdentifier(expression.expression) && 
-              expression.expression.text === 'smrt') {
+          if (
+            ts.isIdentifier(expression.expression) &&
+            expression.expression.text === 'smrt'
+          ) {
             return modifier;
           }
-        } else if (ts.isIdentifier(expression) && 
-                   expression.text === 'smrt') {
+        } else if (ts.isIdentifier(expression) && expression.text === 'smrt') {
           return modifier;
         }
       }
     }
-    
+
     return null;
   }
 
@@ -214,6 +214,7 @@ export class ASTScanner {
       // Convert AST object literal to JSON
       const configText = configArg.getFullText();
       // Simple extraction - could be more robust
+      // biome-ignore lint/security/noGlobalEval: Safe eval for AST configuration parsing
       return eval(`(${configText})`);
     } catch {
       return defaultConfig;
@@ -223,9 +224,11 @@ export class ASTScanner {
   /**
    * Parse property declaration to field definition
    */
-  private parsePropertyDeclaration(node: ts.PropertyDeclaration): FieldDefinition | null {
+  private parsePropertyDeclaration(
+    node: ts.PropertyDeclaration,
+  ): FieldDefinition | null {
     // Skip static properties for now
-    if (node.modifiers?.some(m => m.kind === ts.SyntaxKind.StaticKeyword)) {
+    if (node.modifiers?.some((m) => m.kind === ts.SyntaxKind.StaticKeyword)) {
       return null;
     }
 
@@ -236,7 +239,7 @@ export class ASTScanner {
 
     const field: FieldDefinition = {
       type: fieldType,
-      required: isRequired
+      required: isRequired,
     };
 
     // Extract default value from initializer
@@ -250,13 +253,19 @@ export class ASTScanner {
   /**
    * Parse method declaration to method definition
    */
-  private parseMethodDeclaration(node: ts.MethodDeclaration): MethodDefinition | null {
+  private parseMethodDeclaration(
+    node: ts.MethodDeclaration,
+  ): MethodDefinition | null {
     const methodName = this.getPropertyName(node);
     if (!methodName) return null;
 
     // Check visibility modifiers
-    const isStatic = node.modifiers?.some(m => m.kind === ts.SyntaxKind.StaticKeyword) ?? false;
-    const isPrivate = node.modifiers?.some(m => m.kind === ts.SyntaxKind.PrivateKeyword) ?? false;
+    const isStatic =
+      node.modifiers?.some((m) => m.kind === ts.SyntaxKind.StaticKeyword) ??
+      false;
+    const isPrivate =
+      node.modifiers?.some((m) => m.kind === ts.SyntaxKind.PrivateKeyword) ??
+      false;
     const isPublic = !isPrivate;
 
     // Skip based on options
@@ -264,20 +273,24 @@ export class ASTScanner {
     if (!this.options.includePrivateMethods && isPrivate) return null;
 
     // Parse parameters
-    const parameters = node.parameters.map(param => ({
+    const parameters = node.parameters.map((param) => ({
       name: param.name.getText(),
       type: param.type?.getText() ?? 'any',
       optional: !!param.questionToken,
-      default: param.initializer ? this.extractDefaultValue(param.initializer) : undefined
+      default: param.initializer
+        ? this.extractDefaultValue(param.initializer)
+        : undefined,
     }));
 
     const method: MethodDefinition = {
       name: methodName,
-      async: node.modifiers?.some(m => m.kind === ts.SyntaxKind.AsyncKeyword) ?? false,
+      async:
+        node.modifiers?.some((m) => m.kind === ts.SyntaxKind.AsyncKeyword) ??
+        false,
       parameters,
       returnType: node.type?.getText() ?? 'void',
       isStatic,
-      isPublic
+      isPublic,
     };
 
     return method;
@@ -286,7 +299,9 @@ export class ASTScanner {
   /**
    * Get property/method name as string
    */
-  private getPropertyName(node: ts.PropertyDeclaration | ts.MethodDeclaration): string | null {
+  private getPropertyName(
+    node: ts.PropertyDeclaration | ts.MethodDeclaration,
+  ): string | null {
     if (ts.isIdentifier(node.name)) {
       return node.name.text;
     }
@@ -299,7 +314,9 @@ export class ASTScanner {
   /**
    * Infer field type from TypeScript AST
    */
-  private inferFieldType(node: ts.PropertyDeclaration): FieldDefinition['type'] {
+  private inferFieldType(
+    node: ts.PropertyDeclaration,
+  ): FieldDefinition['type'] {
     // Check type annotation first
     if (node.type) {
       const typeText = node.type.getText().toLowerCase();
@@ -314,8 +331,11 @@ export class ASTScanner {
     if (node.initializer) {
       if (ts.isStringLiteral(node.initializer)) return 'text';
       if (ts.isNumericLiteral(node.initializer)) return 'decimal';
-      if (node.initializer.kind === ts.SyntaxKind.TrueKeyword || 
-          node.initializer.kind === ts.SyntaxKind.FalseKeyword) return 'boolean';
+      if (
+        node.initializer.kind === ts.SyntaxKind.TrueKeyword ||
+        node.initializer.kind === ts.SyntaxKind.FalseKeyword
+      )
+        return 'boolean';
       if (ts.isArrayLiteralExpression(node.initializer)) return 'json';
       if (ts.isObjectLiteralExpression(node.initializer)) return 'json';
     }
@@ -334,7 +354,7 @@ export class ASTScanner {
     if (node.kind === ts.SyntaxKind.NullKeyword) return null;
     if (ts.isArrayLiteralExpression(node)) return [];
     if (ts.isObjectLiteralExpression(node)) return {};
-    
+
     return undefined;
   }
 
@@ -343,7 +363,7 @@ export class ASTScanner {
    */
   private hasOptionalType(node: ts.PropertyDeclaration): boolean {
     if (!node.type) return false;
-    
+
     const typeText = node.type.getText().toLowerCase();
     return typeText.includes('undefined') || typeText.includes('?');
   }
@@ -353,19 +373,22 @@ export class ASTScanner {
    */
   private pluralize(word: string): string {
     if (word.endsWith('y')) {
-      return word.slice(0, -1) + 'ies';
+      return `${word.slice(0, -1)}ies`;
     }
     if (word.endsWith('s') || word.endsWith('sh') || word.endsWith('ch')) {
-      return word + 'es';
+      return `${word}es`;
     }
-    return word + 's';
+    return `${word}s`;
   }
 }
 
 /**
  * Convenience function to scan files
  */
-export function scanFiles(filePaths: string[], options?: ScanOptions): ScanResult[] {
+export function scanFiles(
+  filePaths: string[],
+  options?: ScanOptions,
+): ScanResult[] {
   const scanner = new ASTScanner(filePaths, options);
   return scanner.scanFiles();
 }

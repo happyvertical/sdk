@@ -1,11 +1,11 @@
-import { Pool, PoolClient, QueryResult } from "pg";
+import { DatabaseError } from '@have/utils';
+import { Pool } from 'pg';
 import type {
   QueryResult as BaseQueryResult,
   DatabaseInterface,
   TableInterface,
-} from "./shared/types.js";
-import { buildWhere } from "./shared/utils.js";
-import { DatabaseError, getLogger } from '@have/utils';
+} from './shared/types';
+import { buildWhere } from './shared/utils';
 
 /**
  * Configuration options for PostgreSQL database connections
@@ -15,37 +15,36 @@ export interface PostgresOptions {
    * Connection URL for PostgreSQL
    */
   url?: string;
-  
+
   /**
    * Database name
    */
   database?: string;
-  
+
   /**
    * Database server hostname
    */
   host?: string;
-  
+
   /**
    * Username for authentication
    */
   user?: string;
-  
+
   /**
    * Password for authentication
    */
   password?: string;
-  
+
   /**
    * Port number for the PostgreSQL server
    */
   port?: number;
 }
 
-
 /**
  * Creates a PostgreSQL database adapter
- * 
+ *
  * @param options - PostgreSQL connection options
  * @returns Database interface for PostgreSQL
  */
@@ -53,7 +52,7 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
   const {
     url = process.env.SQLOO_URL,
     database = process.env.SQLOO_DATABASE,
-    host = process.env.SQLOO_HOST || "localhost",
+    host = process.env.SQLOO_HOST || 'localhost',
     user = process.env.SQLOO_USER,
     password = process.env.SQLOO_PASSWORD,
     port = Number(process.env.SQLOO_PORT) || 5432,
@@ -106,34 +105,33 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
       const placeholders = data
         .map(
           (_, i) =>
-            `(${keys.map((_, j) => `$${i * keys.length + j + 1}`).join(", ")})`,
+            `(${keys.map((_, j) => `$${i * keys.length + j + 1}`).join(', ')})`,
         )
-        .join(", ");
+        .join(', ');
       const query = `INSERT INTO ${table} (${keys.join(
-        ", ",
+        ', ',
       )}) VALUES ${placeholders}`;
       const values = data.reduce(
         (acc, row) => acc.concat(Object.values(row)),
         [],
       );
       const result = await client.query(query, values);
-      return { operation: "insert", affected: result.rowCount ?? 0 };
-    } else {
-      // If data is an object, we handle a single row
-      const keys = Object.keys(data);
-      const values = Object.values(data);
-      const placeholders = keys.map((_, i) => `$${i + 1}`).join(", ");
-      const query = `INSERT INTO ${table} (${keys.join(
-        ", ",
-      )}) VALUES (${placeholders})`;
-      const result = await client.query(query, values);
-      return { operation: "insert", affected: result.rowCount ?? 0 };
+      return { operation: 'insert', affected: result.rowCount ?? 0 };
     }
+    // If data is an object, we handle a single row
+    const keys = Object.keys(data);
+    const values = Object.values(data);
+    const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+    const query = `INSERT INTO ${table} (${keys.join(
+      ', ',
+    )}) VALUES (${placeholders})`;
+    const result = await client.query(query, values);
+    return { operation: 'insert', affected: result.rowCount ?? 0 };
   };
 
   /**
    * Retrieves a single record matching the where criteria
-   * 
+   *
    * @param table - Table name
    * @param where - Criteria to match records
    * @returns Promise resolving to query result
@@ -146,7 +144,7 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
     const values = Object.values(where);
     const whereClause = keys
       .map((key, i) => `${key} = $${i + 1}`)
-      .join(" AND ");
+      .join(' AND ');
     const query = `SELECT * FROM ${table} WHERE ${whereClause}`;
     try {
       const result = await client.query(query, values);
@@ -163,7 +161,7 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
 
   /**
    * Retrieves multiple records matching the where criteria
-   * 
+   *
    * @param table - Table name
    * @param where - Criteria to match records
    * @returns Promise resolving to array of records
@@ -189,7 +187,7 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
 
   /**
    * Updates records matching the where criteria
-   * 
+   *
    * @param table - Table name
    * @param where - Criteria to match records to update
    * @param data - New data to set
@@ -202,17 +200,17 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
   ): Promise<BaseQueryResult> => {
     const keys = Object.keys(data);
     const values = Object.values(data);
-    const setClause = keys.map((key, i) => `${key} = $${i + 1}`).join(", ");
+    const setClause = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
     const whereKeys = Object.keys(where);
     const whereValues = Object.values(where);
     const whereClause = whereKeys
       .map((key, i) => `${key} = $${i + 1 + values.length}`)
-      .join(" AND ");
+      .join(' AND ');
 
     const sql = `UPDATE ${table} SET ${setClause} WHERE ${whereClause}`;
     try {
       const result = await client.query(sql, [...values, ...whereValues]);
-      return { operation: "update", affected: result.rowCount ?? 0 };
+      return { operation: 'update', affected: result.rowCount ?? 0 };
     } catch (e) {
       throw new DatabaseError('Failed to update records in table', {
         table,
@@ -225,7 +223,7 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
 
   /**
    * Gets a record matching the where criteria or inserts it if not found
-   * 
+   *
    * @param table - Table name
    * @param where - Criteria to match existing record
    * @returns Promise resolving to the query result or insert result
@@ -252,7 +250,7 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
 
   /**
    * Creates a table-specific interface for simplified table operations
-   * 
+   *
    * @param tableName - Table name
    * @returns TableMethods interface for the specified table
    */
@@ -272,7 +270,7 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
      * SQL query with parameter placeholders
      */
     sql: string;
-    
+
     /**
      * Values to use as parameters
      */
@@ -281,7 +279,7 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
 
   /**
    * Parses a tagged template literal into a SQL query and values
-   * 
+   *
    * @param strings - Template strings
    * @param vars - Variables to interpolate into the query
    * @returns Object with SQL query and values array
@@ -294,14 +292,14 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
     const values = [];
     for (let i = 0; i < vars.length; i++) {
       values.push(vars[i]);
-      sql += "$" + (i + 1) + strings[i + 1];
+      sql += `$${i + 1}${strings[i + 1]}`;
     }
     return { sql, values };
   };
 
   /**
    * Executes a SQL query using template literals and returns a single value
-   * 
+   *
    * @param strings - Template strings
    * @param vars - Variables to interpolate into the query
    * @returns Promise resolving to a single value (first column of first row)
@@ -328,7 +326,7 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
 
   /**
    * Executes a SQL query using template literals and returns a single row
-   * 
+   *
    * @param strings - Template strings
    * @param vars - Variables to interpolate into the query
    * @returns Promise resolving to a single result record or null
@@ -352,7 +350,7 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
 
   /**
    * Executes a SQL query using template literals and returns multiple rows
-   * 
+   *
    * @param strings - Template strings
    * @param vars - Variables to interpolate into the query
    * @returns Promise resolving to array of result records
@@ -376,7 +374,7 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
 
   /**
    * Executes a SQL query using template literals without returning results
-   * 
+   *
    * @param strings - Template strings
    * @param vars - Variables to interpolate into the query
    * @returns Promise that resolves when the query completes
@@ -399,7 +397,7 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
 
   /**
    * Executes a raw SQL query with parameterized values
-   * 
+   *
    * @param sql - SQL query string
    * @param values - Variables to use as parameters
    * @returns Promise resolving to query result with rows and count
@@ -447,8 +445,8 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
   const syncSchema = async (schema: string): Promise<void> => {
     const commands = schema
       .trim()
-      .split(";")
-      .filter((command) => command.trim() !== "");
+      .split(';')
+      .filter((command) => command.trim() !== '');
 
     for (const command of commands) {
       const createTableRegex =
@@ -457,7 +455,7 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
 
       if (match) {
         const tableName = match[2];
-        const columns = match[3].trim().split(",\n");
+        const columns = match[3].trim().split(',\n');
 
         // Check if table exists
         const exists = await tableExists(tableName);
@@ -475,11 +473,13 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
               const columnName = columnMatch[1];
 
               // Skip constraint definitions
-              if (columnName.toUpperCase() === 'PRIMARY' ||
-                  columnName.toUpperCase() === 'FOREIGN' ||
-                  columnName.toUpperCase() === 'UNIQUE' ||
-                  columnName.toUpperCase() === 'CHECK' ||
-                  columnName.toUpperCase() === 'CONSTRAINT') {
+              if (
+                columnName.toUpperCase() === 'PRIMARY' ||
+                columnName.toUpperCase() === 'FOREIGN' ||
+                columnName.toUpperCase() === 'UNIQUE' ||
+                columnName.toUpperCase() === 'CHECK' ||
+                columnName.toUpperCase() === 'CONSTRAINT'
+              ) {
                 continue;
               }
 
@@ -492,7 +492,7 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
                     AND column_name = $2
                     AND table_schema = 'public'
                   )`,
-                  [tableName, columnName]
+                  [tableName, columnName],
                 );
 
                 if (!columnExists.rows[0].exists) {
@@ -502,7 +502,10 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
                 }
               } catch (error) {
                 // If there's an error checking/adding the column, log it but continue
-                console.error(`Error adding column ${columnName} to ${tableName}:`, error);
+                console.error(
+                  `Error adding column ${columnName} to ${tableName}:`,
+                  error,
+                );
               }
             }
           }
@@ -519,7 +522,7 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
    * @returns Promise resolving to callback result
    */
   const transaction = async <T>(
-    callback: (tx: DatabaseInterface) => Promise<T>
+    callback: (tx: DatabaseInterface) => Promise<T>,
   ): Promise<T> => {
     // Get a client from the pool for the transaction
     const txClient = await client.connect();
@@ -535,27 +538,32 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
           if (Array.isArray(data)) {
             const keys = Object.keys(data[0]);
             const placeholders = data
-              .map((_, i) =>
-                `(${keys.map((_, j) => `$${i * keys.length + j + 1}`).join(", ")})`
+              .map(
+                (_, i) =>
+                  `(${keys.map((_, j) => `$${i * keys.length + j + 1}`).join(', ')})`,
               )
-              .join(", ");
-            const query = `INSERT INTO ${table} (${keys.join(", ")}) VALUES ${placeholders}`;
-            const values = data.reduce((acc, row) => acc.concat(Object.values(row)), [] as any[]);
+              .join(', ');
+            const query = `INSERT INTO ${table} (${keys.join(', ')}) VALUES ${placeholders}`;
+            const values = data.reduce(
+              (acc, row) => acc.concat(Object.values(row)),
+              [] as any[],
+            );
             const result = await txClient.query(query, values);
-            return { operation: "insert", affected: result.rowCount ?? 0 };
-          } else {
-            const keys = Object.keys(data);
-            const values = Object.values(data);
-            const placeholders = keys.map((_, i) => `$${i + 1}`).join(", ");
-            const query = `INSERT INTO ${table} (${keys.join(", ")}) VALUES (${placeholders})`;
-            const result = await txClient.query(query, values);
-            return { operation: "insert", affected: result.rowCount ?? 0 };
+            return { operation: 'insert', affected: result.rowCount ?? 0 };
           }
+          const keys = Object.keys(data);
+          const values = Object.values(data);
+          const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+          const query = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
+          const result = await txClient.query(query, values);
+          return { operation: 'insert', affected: result.rowCount ?? 0 };
         },
         get: async (table, where) => {
           const keys = Object.keys(where);
           const values = Object.values(where);
-          const whereClause = keys.map((key, i) => `${key} = $${i + 1}`).join(" AND ");
+          const whereClause = keys
+            .map((key, i) => `${key} = $${i + 1}`)
+            .join(' AND ');
           const query = `SELECT * FROM ${table} WHERE ${whereClause}`;
           const result = await txClient.query(query, values);
           return result.rows[0] || null;
@@ -569,15 +577,17 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
         update: async (table, where, data) => {
           const keys = Object.keys(data);
           const values = Object.values(data);
-          const setClause = keys.map((key, i) => `${key} = $${i + 1}`).join(", ");
+          const setClause = keys
+            .map((key, i) => `${key} = $${i + 1}`)
+            .join(', ');
           const whereKeys = Object.keys(where);
           const whereValues = Object.values(where);
           const whereClause = whereKeys
             .map((key, i) => `${key} = $${i + 1 + values.length}`)
-            .join(" AND ");
+            .join(' AND ');
           const sql = `UPDATE ${table} SET ${setClause} WHERE ${whereClause}`;
           const result = await txClient.query(sql, [...values, ...whereValues]);
-          return { operation: "update", affected: result.rowCount ?? 0 };
+          return { operation: 'update', affected: result.rowCount ?? 0 };
         },
         getOrInsert: async (table, where, data) => {
           const result = await txDb.get(table, where);
@@ -664,9 +674,9 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
   };
 
   // Shorthand aliases for query methods
-  const oo = many;   // (o)bjective-(o)bjects: returns multiple rows
+  const oo = many; // (o)bjective-(o)bjects: returns multiple rows
   const oO = single; // (o)bjective-(O)bject: returns a single row
-  const ox = pluck;  // (o)bjective-(x): returns a single value
+  const ox = pluck; // (o)bjective-(x): returns a single value
   const xx = execute; // (x)ecute-(x)ecute: executes without returning
 
   return {

@@ -41,47 +41,45 @@
  * @packageDocumentation
  */
 
+// Export provider classes for direct instantiation if needed
+export { LocalFilesystemProvider } from './node/local';
 // Export main factory function and types
 export {
-  getFilesystem,
-  initializeProviders,
   getAvailableProviders,
+  getFilesystem,
   getProviderInfo,
+  initializeProviders,
   isProviderAvailable,
-  registerProvider
-} from './shared/factory.js';
-export * from './shared/types.js';
+  registerProvider,
+} from './shared/factory';
+export * from './shared/types';
 
-// Export provider classes for direct instantiation if needed
-export { LocalFilesystemProvider } from './node/local.js';
 // Note: S3, GoogleDrive, WebDAV providers will be available when external dependencies are added
-
-// Re-export legacy functions for backward compatibility
-export {
-  isFile,
-  isDirectory,
-  ensureDirectoryExists,
-  upload,
-  download,
-  downloadFileWithCache,
-  listFiles,
-  getCached,
-  setCached,
-  getMimeType
-} from './legacy.js';
 
 // Re-export fetch utilities with rate limiting
 export {
   addRateLimit,
-  getRateLimit,
-  fetchText,
-  fetchJSON,
   fetchBuffer,
-  fetchToFile
-} from './fetch.js';
-
+  fetchJSON,
+  fetchText,
+  fetchToFile,
+  getRateLimit,
+} from './fetch';
 // Re-export existing filesystem adapter classes for compatibility
-export * from './filesystem.js';
+export * from './filesystem';
+// Re-export legacy functions for backward compatibility
+export {
+  download,
+  downloadFileWithCache,
+  ensureDirectoryExists,
+  getCached,
+  getMimeType,
+  isDirectory,
+  isFile,
+  listFiles,
+  setCached,
+  upload,
+} from './legacy';
 
 // Initialize providers on module load
 // This ensures providers are available immediately after import
@@ -93,7 +91,7 @@ import('./shared/factory.js').then(({ initializeProviders }) => {
 });
 
 // Default export provides the factory functions for convenience
-import * as factory from './shared/factory.js';
+import * as factory from './shared/factory';
 
 /**
  * Default export containing all factory functions

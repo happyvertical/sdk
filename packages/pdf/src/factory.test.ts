@@ -1,8 +1,13 @@
-import { it, expect, describe } from "vitest";
-import { getPDFReader, getAvailableProviders, isProviderAvailable, getProviderInfo } from "./index.js";
+import { describe, expect, it } from 'vitest';
+import {
+  getAvailableProviders,
+  getPDFReader,
+  getProviderInfo,
+  isProviderAvailable,
+} from './index';
 
-describe("PDF Factory Tests", () => {
-  it("should create a PDF reader with auto provider selection", async () => {
+describe('PDF Factory Tests', () => {
+  it('should create a PDF reader with auto provider selection', async () => {
     const reader = await getPDFReader();
     expect(reader).toBeDefined();
     expect(typeof reader.extractText).toBe('function');
@@ -13,31 +18,32 @@ describe("PDF Factory Tests", () => {
     expect(typeof reader.checkDependencies).toBe('function');
   });
 
-  it("should create a PDF reader with explicit unpdf provider", async () => {
+  it('should create a PDF reader with explicit unpdf provider', async () => {
     const reader = await getPDFReader({ provider: 'unpdf' });
     expect(reader).toBeDefined();
     expect(reader.constructor.name).toBe('CombinedNodeProvider');
   });
 
-  it("should reject invalid provider for Node.js environment", async () => {
-    await expect(getPDFReader({ provider: 'pdfjs' as any }))
-      .rejects.toThrow('pdfjs provider is only available in browser environments');
+  it('should reject invalid provider for Node.js environment', async () => {
+    await expect(getPDFReader({ provider: 'pdfjs' as any })).rejects.toThrow(
+      'pdfjs provider is only available in browser environments',
+    );
   });
 
-  it("should return available providers for Node.js environment", () => {
+  it('should return available providers for Node.js environment', () => {
     const providers = getAvailableProviders();
     expect(Array.isArray(providers)).toBe(true);
     expect(providers).toContain('unpdf');
     expect(providers).not.toContain('pdfjs'); // Not available in Node.js
   });
 
-  it("should correctly report provider availability", () => {
+  it('should correctly report provider availability', () => {
     expect(isProviderAvailable('unpdf')).toBe(true);
     expect(isProviderAvailable('pdfjs')).toBe(false);
     expect(isProviderAvailable('nonexistent')).toBe(false);
   });
 
-  it("should get provider information", async () => {
+  it('should get provider information', async () => {
     const info = await getProviderInfo('unpdf');
     expect(info).toHaveProperty('provider', 'unpdf');
     expect(info).toHaveProperty('available', true);
@@ -47,7 +53,7 @@ describe("PDF Factory Tests", () => {
     expect(info.dependencies).toHaveProperty('available');
   }, 60000); // 60 second timeout for OCR initialization
 
-  it("should handle unknown provider gracefully", async () => {
+  it('should handle unknown provider gracefully', async () => {
     const info = await getProviderInfo('unknown');
     expect(info).toHaveProperty('provider', 'unknown');
     expect(info).toHaveProperty('available', false);
@@ -56,12 +62,12 @@ describe("PDF Factory Tests", () => {
     expect(info.dependencies).toBeNull();
   });
 
-  it("should create reader with options", async () => {
+  it('should create reader with options', async () => {
     const reader = await getPDFReader({
       provider: 'auto',
       enableOCR: true,
       timeout: 120000,
-      maxFileSize: 50 * 1024 * 1024 // 50MB
+      maxFileSize: 50 * 1024 * 1024, // 50MB
     });
     expect(reader).toBeDefined();
   });

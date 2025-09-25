@@ -5,17 +5,16 @@
  * ensures it meets production-ready performance standards.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { BaseObject } from './object.js';
-import { BaseCollection } from './collection.js';
-import { text, integer, boolean, datetime } from './fields/index.js';
-import { faker } from '@faker-js/faker';
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import fs from 'node:fs';
+import { faker } from '@faker-js/faker';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { SmrtCollection } from './collection';
+import { SmrtObject } from './object';
 
 // Performance test objects
-class PerfTestUser extends BaseObject {
+class PerfTestUser extends SmrtObject {
   static tableName = 'perf_test_users';
 
   declare username?: string;
@@ -30,9 +29,9 @@ class PerfTestUser extends BaseObject {
     super({
       ai: { type: 'openai', apiKey: 'test-key' },
       db: { url: getTestDbUrl() },
-      ...options
+      ...options,
     });
-    // Remove Object.assign - let BaseObject handle property assignment
+    // Remove Object.assign - let SmrtObject handle property assignment
   }
 
   static async create(options: any): Promise<PerfTestUser> {
@@ -42,14 +41,14 @@ class PerfTestUser extends BaseObject {
   }
 }
 
-class PerfTestUsers extends BaseCollection<PerfTestUser> {
+class PerfTestUsers extends SmrtCollection<PerfTestUser> {
   static readonly _itemClass = PerfTestUser;
 
   constructor(options: any = {}) {
     super({
       ai: { type: 'openai', apiKey: 'test-key' },
       db: { url: getTestDbUrl() },
-      ...options
+      ...options,
     });
   }
 
@@ -73,12 +72,14 @@ function getTestDbUrl(): string {
 function generateLargeText(size: number): string {
   let text = '';
   while (text.length < size) {
-    text += faker.lorem.paragraphs(10) + '\n';
+    text += `${faker.lorem.paragraphs(10)}\n`;
   }
   return text.substring(0, size);
 }
 
-async function measureTime<T>(operation: () => Promise<T>): Promise<{ result: T; duration: number }> {
+async function measureTime<T>(
+  operation: () => Promise<T>,
+): Promise<{ result: T; duration: number }> {
   const start = performance.now();
   const result = await operation();
   const duration = performance.now() - start;
@@ -94,7 +95,7 @@ function generateTestUser(overrides: any = {}): any {
     createdAt: faker.date.past(),
     lastLogin: faker.date.recent(),
     profileData: generateLargeText(1000), // 1KB of profile data
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -107,7 +108,7 @@ describe.skip('Performance Benchmarks', () => {
 
   afterEach(async () => {
     // Clean up resources - database connections are managed automatically
-    if (collection && collection.db) {
+    if (collection?.db) {
       // Note: DatabaseInterface doesn't have a close() method
       // Connections are managed by the underlying client
     }
@@ -134,7 +135,9 @@ describe.skip('Performance Benchmarks', () => {
       });
 
       expect(duration).toBeLessThan(5000);
-      console.log(`Created 100 objects in ${duration.toFixed(2)}ms (${(duration / 100).toFixed(2)}ms per object)`);
+      console.log(
+        `Created 100 objects in ${duration.toFixed(2)}ms (${(duration / 100).toFixed(2)}ms per object)`,
+      );
     });
 
     it('should handle bulk creation efficiently', async () => {
@@ -145,7 +148,9 @@ describe.skip('Performance Benchmarks', () => {
         const batches = [];
         for (let i = 0; i < users.length; i += 10) {
           const batch = users.slice(i, i + 10);
-          batches.push(Promise.all(batch.map(userData => collection.create(userData))));
+          batches.push(
+            Promise.all(batch.map((userData) => collection.create(userData))),
+          );
         }
         await Promise.all(batches);
       });
@@ -158,10 +163,12 @@ describe.skip('Performance Benchmarks', () => {
   describe('Query Performance', () => {
     beforeEach(async () => {
       // Pre-populate with test data
-      const users = Array.from({ length: 200 }, (_, i) => generateTestUser({
-        email: `user${i}@example.com`,
-        age: 20 + (i % 60) // Ages from 20-79
-      }));
+      const users = Array.from({ length: 200 }, (_, i) =>
+        generateTestUser({
+          email: `user${i}@example.com`,
+          age: 20 + (i % 60), // Ages from 20-79
+        }),
+      );
 
       for (const userData of users) {
         await collection.create(userData);
@@ -182,13 +189,15 @@ describe.skip('Performance Benchmarks', () => {
       const { result, duration } = await measureTime(async () => {
         return await collection.list({
           where: { 'age >=': 30, 'age <=': 50, active: true },
-          limit: 50
+          limit: 50,
         });
       });
 
       expect(duration).toBeLessThan(200);
       expect(result.length).toBeGreaterThan(0);
-      console.log(`Filtered query returned ${result.length} objects in ${duration.toFixed(2)}ms`);
+      console.log(
+        `Filtered query returned ${result.length} objects in ${duration.toFixed(2)}ms`,
+      );
     });
 
     it('should handle pagination efficiently', async () => {
@@ -201,7 +210,7 @@ describe.skip('Performance Benchmarks', () => {
           return await collection.list({
             limit: pageSize,
             offset: page * pageSize,
-            orderBy: 'created_at DESC'
+            orderBy: 'created_at DESC',
           });
         });
 
@@ -212,7 +221,9 @@ describe.skip('Performance Benchmarks', () => {
       }
 
       expect(totalItems).toBe(100); // 5 pages * 20 items
-      console.log(`Paginated through 100 objects in ${totalDuration.toFixed(2)}ms total`);
+      console.log(
+        `Paginated through 100 objects in ${totalDuration.toFixed(2)}ms total`,
+      );
     });
 
     it('should find objects by ID quickly', async () => {
@@ -226,7 +237,7 @@ describe.skip('Performance Benchmarks', () => {
 
       expect(duration).toBeLessThan(50);
       expect(result).toBeDefined();
-      expect(result!.id).toBe(firstUser.id);
+      expect(result?.id).toBe(firstUser.id);
     });
 
     it('should handle complex queries with joins efficiently', async () => {
@@ -235,15 +246,17 @@ describe.skip('Performance Benchmarks', () => {
           where: {
             'age >': 25,
             active: true,
-            'name like': '%John%'
+            'name like': '%John%',
           },
           orderBy: ['age DESC', 'created_at ASC'],
-          limit: 10
+          limit: 10,
         });
       });
 
       expect(duration).toBeLessThan(150);
-      console.log(`Complex query returned ${result.length} objects in ${duration.toFixed(2)}ms`);
+      console.log(
+        `Complex query returned ${result.length} objects in ${duration.toFixed(2)}ms`,
+      );
     });
   });
 
@@ -275,10 +288,12 @@ describe.skip('Performance Benchmarks', () => {
     it('should handle batch updates efficiently', async () => {
       const { duration } = await measureTime(async () => {
         // Update all users concurrently
-        await Promise.all(testUsers.map(async (user, index) => {
-          user.username = `Updated User ${index}`;
-          await user.save();
-        }));
+        await Promise.all(
+          testUsers.map(async (user, index) => {
+            user.username = `Updated User ${index}`;
+            await user.save();
+          }),
+        );
       });
 
       expect(duration).toBeLessThan(2000);
@@ -324,7 +339,9 @@ describe.skip('Performance Benchmarks', () => {
 
       // Memory increase should be reasonable (less than 50MB)
       expect(memoryIncreaseMB).toBeLessThan(50);
-      console.log(`Memory increased by ${memoryIncreaseMB.toFixed(2)}MB during test`);
+      console.log(
+        `Memory increased by ${memoryIncreaseMB.toFixed(2)}MB during test`,
+      );
     });
 
     it('should handle large result sets without excessive memory usage', async () => {
@@ -341,18 +358,21 @@ describe.skip('Performance Benchmarks', () => {
       const results = await collection.list({});
 
       const afterQuery = process.memoryUsage();
-      const queryMemoryIncrease = (afterQuery.heapUsed - beforeQuery.heapUsed) / 1024 / 1024;
+      const queryMemoryIncrease =
+        (afterQuery.heapUsed - beforeQuery.heapUsed) / 1024 / 1024;
 
       expect(results.length).toBe(500);
       expect(queryMemoryIncrease).toBeLessThan(20); // Less than 20MB for 500 objects
-      console.log(`Queried 500 objects using ${queryMemoryIncrease.toFixed(2)}MB additional memory`);
+      console.log(
+        `Queried 500 objects using ${queryMemoryIncrease.toFixed(2)}MB additional memory`,
+      );
     });
   });
 
   describe('Database Schema Performance', () => {
     it('should create tables efficiently', async () => {
       // Test creating multiple object types
-      class TestProduct extends BaseObject {
+      class TestProduct extends SmrtObject {
         static tableName = 'test_products';
         productName?: string;
         price?: number;
@@ -361,7 +381,7 @@ describe.skip('Performance Benchmarks', () => {
           super({
             ai: { type: 'openai', apiKey: 'test-key' },
             db: { url: getTestDbUrl() },
-            ...options
+            ...options,
           });
         }
 
@@ -372,7 +392,7 @@ describe.skip('Performance Benchmarks', () => {
         }
       }
 
-      class TestOrder extends BaseObject {
+      class TestOrder extends SmrtObject {
         static tableName = 'test_orders';
         total?: number;
         status?: string;
@@ -381,7 +401,7 @@ describe.skip('Performance Benchmarks', () => {
           super({
             ai: { type: 'openai', apiKey: 'test-key' },
             db: { url: getTestDbUrl() },
-            ...options
+            ...options,
           });
         }
 
@@ -394,7 +414,10 @@ describe.skip('Performance Benchmarks', () => {
 
       const { duration } = await measureTime(async () => {
         // Creating instances should trigger table creation via static create methods
-        const product = await TestProduct.create({ productName: 'Test Product', price: 100 });
+        const product = await TestProduct.create({
+          productName: 'Test Product',
+          price: 100,
+        });
         await product.save();
 
         const order = await TestOrder.create({ total: 150, status: 'pending' });
@@ -418,7 +441,7 @@ describe.skip('Performance Benchmarks', () => {
 
       // Perform concurrent reads
       const { duration } = await measureTime(async () => {
-        const promises = createdUsers.map(user => collection.get(user.id!));
+        const promises = createdUsers.map((user) => collection.get(user.id!));
         await Promise.all(promises);
       });
 
@@ -431,7 +454,7 @@ describe.skip('Performance Benchmarks', () => {
 
       const { duration } = await measureTime(async () => {
         // Create users concurrently
-        await Promise.all(users.map(userData => collection.create(userData)));
+        await Promise.all(users.map((userData) => collection.create(userData)));
       });
 
       expect(duration).toBeLessThan(2000);
@@ -446,7 +469,10 @@ describe.skip('Performance Benchmarks', () => {
       // Test with increasing data sizes
       for (const size of [10, 50, 100, 200]) {
         // Add more data
-        const additionalUsers = Array.from({ length: size - queryTimes.length * 10 }, () => generateTestUser());
+        const additionalUsers = Array.from(
+          { length: size - queryTimes.length * 10 },
+          () => generateTestUser(),
+        );
         for (const userData of additionalUsers) {
           await collection.create(userData);
         }
@@ -465,7 +491,9 @@ describe.skip('Performance Benchmarks', () => {
 
       // Last query should not be more than 3x slower than first
       expect(lastTime).toBeLessThan(firstTime * 3);
-      console.log(`Query times: ${queryTimes.map(t => t.toFixed(2)).join('ms, ')}ms`);
+      console.log(
+        `Query times: ${queryTimes.map((t) => t.toFixed(2)).join('ms, ')}ms`,
+      );
     });
   });
 });

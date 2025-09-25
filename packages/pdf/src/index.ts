@@ -1,34 +1,43 @@
 /**
  * @have/pdf - Shared entry point with automatic environment detection
- * 
+ *
  * This entry point automatically detects the runtime environment and provides
  * the appropriate PDF processing capabilities for both Node.js and browser environments.
  */
 
-// Export main factory function and types
-export { getPDFReader, getAvailableProviders, isProviderAvailable, getProviderInfo, initializeProviders } from './shared/factory.js';
-export * from './shared/types.js';
-
 // Re-export base provider for custom implementations
-export { BasePDFReader } from './shared/base.js';
+export { BasePDFReader } from './shared/base';
+// Export main factory function and types
+export {
+  getAvailableProviders,
+  getPDFReader,
+  getProviderInfo,
+  initializeProviders,
+  isProviderAvailable,
+} from './shared/factory';
+export * from './shared/types';
 
 // Legacy compatibility exports for backward compatibility with existing code
-import { getPDFReader } from './shared/factory.js';
+import { getPDFReader } from './shared/factory';
 
 /**
  * Extract text from a PDF file (legacy compatibility)
  * @deprecated Use getPDFReader().extractText() instead
  */
-export async function extractTextFromPDF(pdfPath: string): Promise<string | null> {
+export async function extractTextFromPDF(
+  pdfPath: string,
+): Promise<string | null> {
   const reader = await getPDFReader();
   return reader.extractText(pdfPath);
 }
 
 /**
- * Extract images from all pages of a PDF file (legacy compatibility)  
+ * Extract images from all pages of a PDF file (legacy compatibility)
  * @deprecated Use getPDFReader().extractImages() instead
  */
-export async function extractImagesFromPDF(pdfPath: string): Promise<any[] | null> {
+export async function extractImagesFromPDF(
+  pdfPath: string,
+): Promise<any[] | null> {
   const reader = await getPDFReader();
   const images = await reader.extractImages(pdfPath);
   return images.length > 0 ? images : null;
@@ -61,5 +70,5 @@ import('./shared/factory.js').then(({ initializeProviders }) => {
 });
 
 // Default export for convenience
-import * as factory from './shared/factory.js';
+import * as factory from './shared/factory';
 export default factory;

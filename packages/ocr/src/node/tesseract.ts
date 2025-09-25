@@ -7,14 +7,14 @@
  */
 
 import type {
-  OCRProvider,
-  OCRImage,
-  OCROptions,
-  OCRResult,
   DependencyCheckResult,
   OCRCapabilities,
-} from '../shared/types.js';
-import { OCRDependencyError, OCRProcessingError } from '../shared/types.js';
+  OCRImage,
+  OCROptions,
+  OCRProvider,
+  OCRResult,
+} from '../shared/types';
+import { OCRDependencyError, OCRProcessingError } from '../shared/types';
 
 /**
  * Tesseract.js OCR provider implementation for cross-platform text extraction.
@@ -72,16 +72,6 @@ export class TesseractProvider implements OCRProvider {
   private workers: Map<string, any> = new Map();
 
   /**
-   * Create a new Tesseract.js provider instance.
-   *
-   * The constructor is lightweight and synchronous. Tesseract.js modules
-   * and workers are loaded lazily when first needed.
-   */
-  constructor() {
-    // Constructor is synchronous - dependencies loaded lazily
-  }
-
-  /**
    * Lazy load Tesseract.js module and verify its structure.
    *
    * This method imports the Tesseract.js module and validates that it
@@ -122,7 +112,7 @@ export class TesseractProvider implements OCRProvider {
    * @throws {OCRDependencyError} If worker creation fails
    * @private
    */
-  private async getWorker(language: string = 'eng') {
+  private async getWorker(language = 'eng') {
     if (this.workers.has(language)) {
       return this.workers.get(language);
     }
@@ -257,10 +247,10 @@ export class TesseractProvider implements OCRProvider {
           const result = await worker.recognize(buffer);
 
           // Process Tesseract results
-          if (result && result.data) {
+          if (result?.data) {
             const text = result.data.text?.trim() || '';
             if (text) {
-              ocrText += text + ' ';
+              ocrText += `${text} `;
 
               // Extract confidence
               const confidence = result.data.confidence || 0;
@@ -270,7 +260,7 @@ export class TesseractProvider implements OCRProvider {
               // Process word-level detections if available
               if (result.data.words) {
                 for (const word of result.data.words) {
-                  if (word.text && word.text.trim()) {
+                  if (word.text?.trim()) {
                     allDetections.push({
                       text: word.text,
                       confidence: word.confidence || 0,
@@ -551,10 +541,9 @@ export class TesseractProvider implements OCRProvider {
         result.details.tesseractJs = true;
         result.available = true;
         return result;
-      } else {
-        result.error = 'tesseract.js module missing required functions';
-        return result;
       }
+      result.error = 'tesseract.js module missing required functions';
+      return result;
     } catch (error: any) {
       const errorMessage = error.message || error.toString();
 

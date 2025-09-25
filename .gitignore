@@ -56,6 +56,24 @@ vitest.setup.d.ts.map
 vitest.setup.js
 vitest.setup.js.map
 
+# Configuration file artifacts (should not be tracked)
+packages/*/vite.config.js
+packages/*/vite.config.js.map
+packages/*/vite.config.d.ts
+packages/*/vite.config.d.ts.map
+packages/*/vitest.config.js
+packages/*/vitest.config.js.map
+packages/*/vitest.config.d.ts
+packages/*/vitest.config.d.ts.map
+packages/*/federation.config.js
+packages/*/federation.config.js.map
+packages/*/federation.config.d.ts
+packages/*/federation.config.d.ts.map
+packages/*/docusaurus.config.js
+packages/*/docusaurus.config.js.map
+packages/*/docusaurus.config.d.ts
+packages/*/docusaurus.config.d.ts.map
+
 # E2E test compilation artifacts
 e2e-tests/**/*.js
 e2e-tests/**/*.js.map

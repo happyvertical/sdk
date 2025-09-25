@@ -417,9 +417,9 @@ export class ErrorUtils {
    */
   static async withRetry<T>(
     operation: () => Promise<T>,
-    maxRetries: number = 3,
-    delay: number = 1000,
-    backoffMultiplier: number = 2,
+    maxRetries = 3,
+    delay = 1000,
+    backoffMultiplier = 2,
   ): Promise<T> {
     let lastError: Error;
 

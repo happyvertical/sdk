@@ -11,26 +11,26 @@ import 'openai/shims/node';
 import OpenAI from 'openai';
 
 import type {
+  AICapabilities,
   AIInterface,
-  OpenAIOptions,
   AIMessage,
+  AIModel,
+  AIResponse,
   ChatOptions,
   CompletionOptions,
   EmbeddingOptions,
-  AIResponse,
   EmbeddingResponse,
-  AIModel,
-  AICapabilities,
+  OpenAIOptions,
   TokenUsage,
-} from '../types.js';
+} from '../types';
 import {
   AIError,
   AuthenticationError,
-  RateLimitError,
-  ModelNotFoundError,
-  ContextLengthError,
   ContentFilterError,
-} from '../types.js';
+  ContextLengthError,
+  ModelNotFoundError,
+  RateLimitError,
+} from '../types';
 
 /**
  * OpenAI provider implementation that handles all interactions with OpenAI's API.
@@ -507,7 +507,7 @@ export class OpenAIProvider implements AIInterface {
           // Try to extract retry-after from headers
           const retryAfter = error.headers?.['retry-after'];
           const retryAfterSeconds = retryAfter
-            ? parseInt(retryAfter, 10)
+            ? Number.parseInt(retryAfter, 10)
             : undefined;
           return new RateLimitError('openai', retryAfterSeconds);
         }

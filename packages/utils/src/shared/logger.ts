@@ -5,7 +5,7 @@
  * The global logger can be swapped out for custom implementations as needed.
  */
 
-import type { Logger } from './types.js';
+import type { Logger } from './types';
 
 /**
  * Console-based logger implementation

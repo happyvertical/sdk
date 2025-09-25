@@ -33,27 +33,52 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          bun-version: "1.2.22"
+          node-version: '24'
 
-      - name: Cache Bun dependencies
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
         uses: actions/cache@v4
         with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('**/bun.lock') }}
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-bun-
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install system dependencies for ONNX Runtime
+        run: |
+          sudo apt-get update && sudo apt-get install -y \
+            libstdc++6 \
+            libc6-dev \
+            build-essential \
+            gcc \
+            g++ \
+            cmake \
+            libgomp1 \
+            libprotobuf-dev
 
       - name: Install dependencies
-        run: bun install
+        run: pnpm install --frozen-lockfile
+        env:
+          # Force ONNX Runtime to skip CUDA installation
+          ONNXRUNTIME_NODE_INSTALL_CUDA: 'skip'
 
       - name: Build packages
-        run: bun run build
+        run: pnpm run build
 
       - name: Run tests
-        run: bun test --run
+        run: pnpm test
         env:
           SQLOO_HOST: localhost
           SQLOO_USER: postgres

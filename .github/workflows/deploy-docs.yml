@@ -38,10 +38,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          bun-version: latest
+          node-version: '24'
+          cache: 'npm'
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -52,20 +53,20 @@ jobs:
           path: |
             docs/.docusaurus
             docs/node_modules
-            ~/.bun/install/cache
-          key: ${{ runner.os }}-docs-build-${{ hashFiles('**/bun.lock') }}
+            ~/.npm
+          key: ${{ runner.os }}-docs-build-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-docs-build-
 
       - name: Install root dependencies
-        run: bun install
+        run: npm install
 
       - name: Install docs dependencies
-        run: bun install
+        run: npm install
         working-directory: docs
 
       - name: Build documentation site
-        run: bun run docs:site:build
+        run: npm run docs:site:build
         env:
           NODE_OPTIONS: --max_old_space_size=8192
 
@@ -96,10 +97,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          bun-version: latest
+          node-version: '24'
+          cache: 'npm'
 
       - name: Restore cache
         uses: actions/cache@v4
@@ -107,19 +109,19 @@ jobs:
           path: |
             docs/.docusaurus
             docs/node_modules
-            ~/.bun/install/cache
-          key: ${{ runner.os }}-docs-test-${{ hashFiles('**/bun.lock') }}
+            ~/.npm
+          key: ${{ runner.os }}-docs-test-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-docs-test-
 
       - name: Install root dependencies
-        run: bun install
+        run: npm install
 
       - name: Install docs dependencies
-        run: bun install
+        run: npm install
         working-directory: docs
 
       - name: Test build
-        run: bun run docs:site:build
+        run: npm run docs:site:build
         env:
           NODE_OPTIONS: --max_old_space_size=8192

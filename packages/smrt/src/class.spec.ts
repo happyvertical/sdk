@@ -1,34 +1,34 @@
 /**
- * Tests for BaseClass functionality
+ * Tests for SmrtClass functionality
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { BaseClass } from './class.js';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { SmrtClass } from './class';
 
-describe('BaseClass', () => {
+describe('SmrtClass', () => {
   describe('Construction', () => {
-    it('should create a BaseClass instance with default options', () => {
-      const base = new BaseClass({});
+    it('should create a SmrtClass instance with default options', () => {
+      const base = new SmrtClass({});
 
-      expect(base).toBeInstanceOf(BaseClass);
+      expect(base).toBeInstanceOf(SmrtClass);
     });
 
-    it('should create a BaseClass instance with custom options', () => {
+    it('should create a SmrtClass instance with custom options', () => {
       const options = {
-        db: { url: 'sqlite://custom.db' }
+        db: { url: 'sqlite://custom.db' },
       };
 
-      const base = new BaseClass(options);
+      const base = new SmrtClass(options);
 
-      expect(base).toBeInstanceOf(BaseClass);
+      expect(base).toBeInstanceOf(SmrtClass);
     });
   });
 
   describe('Service Access', () => {
-    let baseClass: BaseClass;
+    let baseClass: SmrtClass;
 
     beforeEach(() => {
-      baseClass = new BaseClass({});
+      baseClass = new SmrtClass({});
     });
 
     it('should have service getter properties', () => {
@@ -40,7 +40,7 @@ describe('BaseClass', () => {
 
   describe('Service Initialization', () => {
     it('should initialize services lazily', () => {
-      const base = new BaseClass({});
+      const base = new SmrtClass({});
 
       // Services should be getter properties, not yet initialized
       expect(base).toHaveProperty('db');
@@ -51,17 +51,17 @@ describe('BaseClass', () => {
 
   describe('Configuration Options', () => {
     it('should handle empty options object', () => {
-      const base = new BaseClass({});
-      expect(base).toBeInstanceOf(BaseClass);
+      const base = new SmrtClass({});
+      expect(base).toBeInstanceOf(SmrtClass);
     });
 
     it('should handle partial configuration', () => {
-      const base = new BaseClass({
-        db: { url: 'sqlite://test.db' }
+      const base = new SmrtClass({
+        db: { url: 'sqlite://test.db' },
         // Other options omitted
       });
 
-      expect(base).toBeInstanceOf(BaseClass);
+      expect(base).toBeInstanceOf(SmrtClass);
     });
   });
 });

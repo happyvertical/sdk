@@ -1,6 +1,6 @@
-module.exports = (context, options) => ({
+module.exports = (_context, _options) => ({
   name: 'esm-resolver',
-  configureWebpack(config, isServer) {
+  configureWebpack(_config, _isServer) {
     return {
       resolve: {
         fullySpecified: false,

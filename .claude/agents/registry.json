@@ -7,7 +7,7 @@
       "file": "utils.md",
       "foundationalLibraries": [
         "@paralleldrive/cuid2",
-        "date-fns", 
+        "date-fns",
         "pluralize",
         "uuid"
       ],
@@ -19,43 +19,52 @@
         "Async utilities"
       ],
       "triggers": [
-        "makeId", "makeSlug", "keysToCamel", "keysToSnake",
-        "dateInString", "prettyDate", "waitFor", "sleep",
-        "isArray", "isPlainObject", "isUrl", "tmpdir"
+        "makeId",
+        "makeSlug",
+        "keysToCamel",
+        "keysToSnake",
+        "dateInString",
+        "prettyDate",
+        "waitFor",
+        "sleep",
+        "isArray",
+        "isPlainObject",
+        "isUrl",
+        "tmpdir"
       ]
     },
     "files": {
-      "name": "Files Expert", 
+      "name": "Files Expert",
       "package": "@have/files",
       "description": "Expert in file system operations, path handling, and temporary file management",
       "file": "files.md",
-      "foundationalLibraries": [
-        "fs/promises",
-        "path"
-      ],
+      "foundationalLibraries": ["fs/promises", "path"],
       "expertise": [
         "File system operations",
-        "Path utilities and normalization", 
+        "Path utilities and normalization",
         "Temporary file management",
         "Cross-platform compatibility",
         "Stream processing"
       ],
       "triggers": [
-        "readFile", "writeFile", "fileExists", "createDirectory",
-        "ensureDirectory", "listDirectory", "createTempFile", 
-        "resolvePath", "getExtension", "getFilename"
+        "readFile",
+        "writeFile",
+        "fileExists",
+        "createDirectory",
+        "ensureDirectory",
+        "listDirectory",
+        "createTempFile",
+        "resolvePath",
+        "getExtension",
+        "getFilename"
       ]
     },
     "sql": {
       "name": "SQL Expert",
-      "package": "@have/sql", 
+      "package": "@have/sql",
       "description": "Expert in database operations, query building, and vector search",
       "file": "sql.md",
-      "foundationalLibraries": [
-        "@libsql/client",
-        "sqlite-vss",
-        "pg"
-      ],
+      "foundationalLibraries": ["@libsql/client", "sqlite-vss", "pg"],
       "expertise": [
         "SQLite and PostgreSQL operations",
         "Query building and parameterization",
@@ -64,19 +73,25 @@
         "Transaction management"
       ],
       "triggers": [
-        "getSqliteClient", "getPostgresClient", "query", "buildWhere",
-        "syncSchema", "transaction", "vss_search", "embeddings"
+        "getSqliteClient",
+        "getPostgresClient",
+        "query",
+        "buildWhere",
+        "syncSchema",
+        "transaction",
+        "vss_search",
+        "embeddings"
       ]
     },
     "ai": {
       "name": "AI Expert",
       "package": "@have/ai",
       "description": "Expert in AI model integrations across multiple providers",
-      "file": "ai.md", 
+      "file": "ai.md",
       "foundationalLibraries": [
         "openai",
         "@google/genai",
-        "@anthropic-ai/sdk", 
+        "@anthropic-ai/sdk",
         "@aws-sdk/client-bedrock-runtime"
       ],
       "expertise": [
@@ -88,10 +103,24 @@
         "Streaming responses and error handling"
       ],
       "triggers": [
-        "getAI", "chat", "complete", "embed", "stream",
-        "textCompletion", "openai", "gemini", "claude", "bedrock",
-        "ai package", "@have/ai", "AI package", "AIMessage",
-        "ai provider", "ai integration", "fix ai", "packages/ai"
+        "getAI",
+        "chat",
+        "complete",
+        "embed",
+        "stream",
+        "textCompletion",
+        "openai",
+        "gemini",
+        "claude",
+        "bedrock",
+        "ai package",
+        "@have/ai",
+        "AI package",
+        "AIMessage",
+        "ai provider",
+        "ai integration",
+        "fix ai",
+        "packages/ai"
       ]
     },
     "spider": {
@@ -102,7 +131,7 @@
       "foundationalLibraries": [
         "@mozilla/readability",
         "cheerio",
-        "happy-dom", 
+        "happy-dom",
         "undici"
       ],
       "expertise": [
@@ -113,8 +142,15 @@
         "Rate limiting and ethical scraping"
       ],
       "triggers": [
-        "scrapeUrl", "parseHtml", "makeReadable", "crawlSite",
-        "Browser", "cheerio", "selector", "extract", "scrape"
+        "scrapeUrl",
+        "parseHtml",
+        "makeReadable",
+        "crawlSite",
+        "Browser",
+        "cheerio",
+        "selector",
+        "extract",
+        "scrape"
       ]
     },
     "pdf": {
@@ -122,10 +158,7 @@
       "package": "@have/pdf",
       "description": "Expert in PDF processing, text extraction, and OCR operations",
       "file": "pdf.md",
-      "foundationalLibraries": [
-        "unpdf",
-        "@gutenye/ocr-node"
-      ],
+      "foundationalLibraries": ["unpdf", "@gutenye/ocr-node"],
       "expertise": [
         "PDF text extraction",
         "OCR processing for image-based PDFs",
@@ -134,8 +167,14 @@
         "Performance optimization for large documents"
       ],
       "triggers": [
-        "extractText", "performOcr", "analyzePdf", "pdfToJson",
-        "extractMetadata", "checkOCRDependencies", "pdf", "ocr"
+        "extractText",
+        "performOcr",
+        "analyzePdf",
+        "pdfToJson",
+        "extractMetadata",
+        "checkOCRDependencies",
+        "pdf",
+        "ocr"
       ]
     },
     "smrt": {
@@ -143,11 +182,7 @@
       "package": "@have/smrt",
       "description": "Expert in the AI agent framework, object-relational mapping, and cross-package integration",
       "file": "smrt.md",
-      "foundationalLibraries": [
-        "@langchain/community",
-        "cheerio",
-        "yaml"
-      ],
+      "foundationalLibraries": ["@langchain/community", "cheerio", "yaml"],
       "expertise": [
         "BaseObject and BaseCollection patterns",
         "Schema generation and database integration",
@@ -156,19 +191,24 @@
         "Agent framework architecture"
       ],
       "triggers": [
-        "BaseObject", "BaseCollection", "BaseClass", "initialize",
-        "save", "list", "get", "create", "schema", "collection"
+        "BaseObject",
+        "BaseCollection",
+        "BaseClass",
+        "initialize",
+        "save",
+        "list",
+        "get",
+        "create",
+        "schema",
+        "collection"
       ]
     },
     "api": {
-      "name": "API Expert", 
+      "name": "API Expert",
       "package": "@have/smrt-api",
       "description": "Expert in REST API generation, Express.js, and OpenAPI documentation",
       "file": "api.md",
-      "foundationalLibraries": [
-        "express",
-        "swagger-ui-express"
-      ],
+      "foundationalLibraries": ["express", "swagger-ui-express"],
       "expertise": [
         "Auto-generated REST APIs",
         "Express.js middleware and routing",
@@ -177,41 +217,47 @@
         "API security and validation"
       ],
       "triggers": [
-        "SmrtApi", "express", "router", "endpoint", "openapi",
-        "swagger", "middleware", "serverless", "handler"
+        "SmrtApi",
+        "express",
+        "router",
+        "endpoint",
+        "openapi",
+        "swagger",
+        "middleware",
+        "serverless",
+        "handler"
       ]
     },
     "mcp": {
       "name": "MCP Expert",
-      "package": "@have/smrt-mcp", 
+      "package": "@have/smrt-mcp",
       "description": "Expert in Model Context Protocol server generation and AI tool integration",
       "file": "mcp.md",
-      "foundationalLibraries": [
-        "Model Context Protocol"
-      ],
+      "foundationalLibraries": ["Model Context Protocol"],
       "expertise": [
         "MCP server architecture",
-        "Tool registration and schema generation", 
+        "Tool registration and schema generation",
         "Resource management",
         "AI model integration",
         "Protocol implementation"
       ],
       "triggers": [
-        "SmrtMcpServer", "addTool", "addResource", "mcp",
-        "protocol", "tool", "resource", "schema"
+        "SmrtMcpServer",
+        "addTool",
+        "addResource",
+        "mcp",
+        "protocol",
+        "tool",
+        "resource",
+        "schema"
       ]
     },
     "cli": {
       "name": "CLI Expert",
       "package": "@have/smrt-cli",
       "description": "Expert in command-line interface development and interactive prompts",
-      "file": "cli.md", 
-      "foundationalLibraries": [
-        "commander",
-        "chalk", 
-        "ora",
-        "inquirer"
-      ],
+      "file": "cli.md",
+      "foundationalLibraries": ["commander", "chalk", "ora", "inquirer"],
       "expertise": [
         "CLI architecture and command design",
         "Interactive prompts and wizards",
@@ -220,8 +266,16 @@
         "Terminal user experience"
       ],
       "triggers": [
-        "SmrtCli", "commander", "chalk", "ora", "inquirer",
-        "prompt", "spinner", "command", "cli", "terminal"
+        "SmrtCli",
+        "commander",
+        "chalk",
+        "ora",
+        "inquirer",
+        "prompt",
+        "spinner",
+        "command",
+        "cli",
+        "terminal"
       ]
     },
     "template": {
@@ -229,10 +283,7 @@
       "package": "@have/smrt-template",
       "description": "Expert in code generation, project scaffolding, and template systems",
       "file": "template.md",
-      "foundationalLibraries": [
-        "Handlebars",
-        "Template engines"
-      ],
+      "foundationalLibraries": ["Handlebars", "Template engines"],
       "expertise": [
         "Project scaffolding",
         "Code generation patterns",
@@ -241,8 +292,13 @@
         "Dynamic schema generation"
       ],
       "triggers": [
-        "SmrtTemplate", "createProject", "generateCollection", 
-        "template", "scaffold", "generate", "handlebars"
+        "SmrtTemplate",
+        "createProject",
+        "generateCollection",
+        "template",
+        "scaffold",
+        "generate",
+        "handlebars"
       ]
     },
     "agent-architect": {
@@ -250,19 +306,22 @@
       "package": "meta",
       "description": "Creates new Claude Code sub-agent configuration files from user descriptions. Use proactively when creating new sub-agents.",
       "file": "agent-architect.md",
-      "foundationalLibraries": [
-        "Claude Code Documentation"
-      ],
+      "foundationalLibraries": ["Claude Code Documentation"],
       "expertise": [
         "Agent architecture design",
-        "Tool selection and configuration", 
+        "Tool selection and configuration",
         "Agent prompt engineering",
         "Sub-agent creation",
         "Configuration file generation"
       ],
       "triggers": [
-        "create agent", "new sub-agent", "build agent", "agent configuration",
-        "sub-agent", "generate agent", "agent design"
+        "create agent",
+        "new sub-agent",
+        "build agent",
+        "agent configuration",
+        "sub-agent",
+        "generate agent",
+        "agent design"
       ]
     },
     "agent-reviewer": {
@@ -270,9 +329,7 @@
       "package": "meta",
       "description": "Validates agent structure and ensures best practices compliance. Use proactively to audit and improve existing agent configurations.",
       "file": "agent-reviewer.md",
-      "foundationalLibraries": [
-        "Claude Code Standards"
-      ],
+      "foundationalLibraries": ["Claude Code Standards"],
       "expertise": [
         "Agent structure validation",
         "Best practices compliance",
@@ -281,8 +338,13 @@
         "Agent optimization"
       ],
       "triggers": [
-        "review agents", "validate structure", "check best practices", "audit agent compliance",
-        "agent quality", "compliance check", "structure validation"
+        "review agents",
+        "validate structure",
+        "check best practices",
+        "audit agent compliance",
+        "agent quality",
+        "compliance check",
+        "structure validation"
       ]
     },
     "agent-trainer": {
@@ -302,8 +364,13 @@
         "Agent maintenance"
       ],
       "triggers": [
-        "update agents", "refresh documentation", "sync with codebase", "train agents",
-        "update agent knowledge", "refresh agents", "maintain agents"
+        "update agents",
+        "refresh documentation",
+        "sync with codebase",
+        "train agents",
+        "update agent knowledge",
+        "refresh agents",
+        "maintain agents"
       ]
     },
     "mcp-server-manager": {
@@ -311,10 +378,7 @@
       "package": "meta",
       "description": "Use proactively for managing MCP servers including bridge scripts, service discovery, Claude Desktop integration, and comprehensive documentation maintenance",
       "file": "mcp-server-manager.md",
-      "foundationalLibraries": [
-        "Model Context Protocol",
-        "Bridge Scripts"
-      ],
+      "foundationalLibraries": ["Model Context Protocol", "Bridge Scripts"],
       "expertise": [
         "MCP server management",
         "Bridge script development",
@@ -323,8 +387,12 @@
         "Security and access control"
       ],
       "triggers": [
-        "manage MCP servers", "create bridge script", "setup MCP integration",
-        "configure Claude Desktop", "MCP server management", "bridge development"
+        "manage MCP servers",
+        "create bridge script",
+        "setup MCP integration",
+        "configure Claude Desktop",
+        "MCP server management",
+        "bridge development"
       ]
     },
     "svelte": {
@@ -346,8 +414,16 @@
         "Component generation and templating"
       ],
       "triggers": [
-        "$state", "$derived", "$effect", "$props", "svelte", "sveltekit",
-        "shadcn-svelte", "component generation", "reactive", "runes"
+        "$state",
+        "$derived",
+        "$effect",
+        "$props",
+        "svelte",
+        "sveltekit",
+        "shadcn-svelte",
+        "component generation",
+        "reactive",
+        "runes"
       ]
     },
     "component-testing": {
@@ -370,10 +446,20 @@
         "Accessibility and performance testing"
       ],
       "triggers": [
-        "test", "testing", "tests", "vitest", "spec",
-        "unit test", "component test", "test coverage",
-        "Do we have tests", "add tests", "write tests",
-        "@testing-library", "storybook test", "test suite"
+        "test",
+        "testing",
+        "tests",
+        "vitest",
+        "spec",
+        "unit test",
+        "component test",
+        "test coverage",
+        "Do we have tests",
+        "add tests",
+        "write tests",
+        "@testing-library",
+        "storybook test",
+        "test suite"
       ]
     },
     "repo": {
@@ -390,7 +476,7 @@
       ],
       "expertise": [
         "Monorepo architecture and workspace management",
-        "TypeScript project references and composite builds", 
+        "TypeScript project references and composite builds",
         "Sequential build orchestration and dependency chains",
         "Workspace dependency resolution troubleshooting",
         "Package.json standardization and validation",
@@ -399,15 +485,41 @@
         "Bun workspace configuration and resolution"
       ],
       "triggers": [
-        "monorepo", "workspace", "build order", "package dependencies",
-        "tsconfig", "project references", "bun workspace", "@have/sdk",
-        "build fails", "workspace dependency", "Cannot find module",
-        "typescript config", "library modules", "dist folder", "tsc -b",
-        "publish packages", "changeset", "version", "lefthook", "biome",
-        "lint", "format", "docs generation", "sequential build",
-        "composite build", "module resolution", "workspace:*",
-        "package.json", "exports", "files field", "build validation",
-        "dependency chain", "build script", "repomix", "typedoc"
+        "monorepo",
+        "workspace",
+        "build order",
+        "package dependencies",
+        "tsconfig",
+        "project references",
+        "bun workspace",
+        "@have/sdk",
+        "build fails",
+        "workspace dependency",
+        "Cannot find module",
+        "typescript config",
+        "library modules",
+        "dist folder",
+        "tsc -b",
+        "publish packages",
+        "changeset",
+        "version",
+        "lefthook",
+        "biome",
+        "lint",
+        "format",
+        "docs generation",
+        "sequential build",
+        "composite build",
+        "module resolution",
+        "workspace:*",
+        "package.json",
+        "exports",
+        "files field",
+        "build validation",
+        "dependency chain",
+        "build script",
+        "repomix",
+        "typedoc"
       ]
     }
   },
@@ -419,7 +531,14 @@
     "categories": {
       "core": ["utils", "files", "sql", "ai", "spider", "pdf", "smrt"],
       "application": ["api", "mcp", "cli", "template", "svelte"],
-      "meta": ["agent-architect", "agent-reviewer", "agent-trainer", "mcp-server-manager", "component-testing", "repo"]
+      "meta": [
+        "agent-architect",
+        "agent-reviewer",
+        "agent-trainer",
+        "mcp-server-manager",
+        "component-testing",
+        "repo"
+      ]
     }
   }
 }

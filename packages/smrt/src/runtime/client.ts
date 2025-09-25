@@ -2,7 +2,7 @@
  * Runtime client implementation for SMRT auto-generated services
  */
 
-import type { SmrtClientOptions } from './types.js';
+import type { SmrtClientOptions } from './types';
 
 export class SmrtClient {
   private options: Required<SmrtClientOptions>;
@@ -12,7 +12,7 @@ export class SmrtClient {
       baseUrl: 'http://localhost:3000',
       basePath: '/api/v1',
       fetch: globalThis.fetch,
-      ...options
+      ...options,
     } as Required<SmrtClientOptions>;
   }
 
@@ -21,9 +21,9 @@ export class SmrtClient {
    */
   async request(method: string, path: string, data?: any): Promise<any> {
     const url = `${this.options.baseUrl}${this.options.basePath}${path}`;
-    
+
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
     };
 
     // Add authentication headers
@@ -36,7 +36,9 @@ export class SmrtClient {
           break;
         case 'basic':
           if (this.options.auth.username && this.options.auth.password) {
-            const credentials = btoa(`${this.options.auth.username}:${this.options.auth.password}`);
+            const credentials = btoa(
+              `${this.options.auth.username}:${this.options.auth.password}`,
+            );
             headers.Authorization = `Basic ${credentials}`;
           }
           break;
@@ -45,7 +47,7 @@ export class SmrtClient {
 
     const requestOptions: RequestInit = {
       method,
-      headers
+      headers,
     };
 
     if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
@@ -59,7 +61,10 @@ export class SmrtClient {
     }
 
     // Handle empty responses
-    if (response.status === 204 || response.headers.get('content-length') === '0') {
+    if (
+      response.status === 204 ||
+      response.headers.get('content-length') === '0'
+    ) {
       return null;
     }
 
@@ -85,7 +90,7 @@ export class SmrtClient {
       });
       url += `?${searchParams.toString()}`;
     }
-    
+
     return this.request('GET', url);
   }
 

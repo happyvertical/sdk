@@ -4,7 +4,7 @@
  */
 
 import type { Plugin, ViteDevServer } from 'vite';
-import type { SmartObjectManifest } from '../scanner/types.js';
+import type { SmartObjectManifest } from '../scanner/types';
 
 export interface SmrtPluginOptions {
   /** Glob patterns for SMRT source files */
@@ -33,10 +33,10 @@ export interface SmrtPluginOptions {
 
 const VIRTUAL_MODULES = {
   '@smrt/routes': 'smrt:routes',
-  '@smrt/client': 'smrt:client', 
+  '@smrt/client': 'smrt:client',
   '@smrt/mcp': 'smrt:mcp',
   '@smrt/types': 'smrt:types',
-  '@smrt/manifest': 'smrt:manifest'
+  '@smrt/manifest': 'smrt:manifest',
 };
 
 export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
@@ -47,11 +47,11 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
     hmr = true,
     watch = true,
     generateTypes = true,
-    baseClasses = ['BaseObject', 'SmartObject'],
+    baseClasses = ['SmrtObject', 'SmartObject'],
     typeDeclarationsPath = 'src/types',
     mode = 'auto',
     staticManifest,
-    manifestPath
+    manifestPath,
   } = options;
 
   let server: ViteDevServer | undefined;
@@ -61,14 +61,18 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
 
   return {
     name: 'smrt-auto-service',
-    
+
     async configResolved(config) {
       // Detect plugin mode based on build configuration
       if (mode === 'auto') {
         const isSSRBuild = config.build?.ssr;
-        const isFederationBuild = config.plugins.some(p => p.name?.includes('federation'));
-        const isClientBuild = isFederationBuild || (!isSSRBuild && config.build?.target === 'esnext');
-        
+        const isFederationBuild = config.plugins.some((p) =>
+          p.name?.includes('federation'),
+        );
+        const isClientBuild =
+          isFederationBuild ||
+          (!isSSRBuild && config.build?.target === 'esnext');
+
         pluginMode = isClientBuild ? 'client' : 'server';
       } else {
         pluginMode = mode;
@@ -87,19 +91,19 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
 
     configureServer(devServer) {
       server = devServer;
-      
+
       // Set up file watching in all modes when enabled
       if (watch && hmr) {
         // Watch for file changes
         const watcher = devServer.watcher;
-        
+
         watcher.on('change', async (file) => {
           if (await shouldRescan(file)) {
             console.log(`[smrt] Rescanning due to change in ${file}`);
             manifest = await scanAndGenerateManifest();
-            
+
             // Invalidate virtual modules
-            Object.values(VIRTUAL_MODULES).forEach(id => {
+            Object.values(VIRTUAL_MODULES).forEach((id) => {
               const module = server?.moduleGraph.getModuleById(id);
               if (module) {
                 server?.reloadModule(module);
@@ -120,7 +124,7 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
     resolveId(id) {
       // Resolve virtual module imports
       if (id in VIRTUAL_MODULES) {
-        return '\0' + VIRTUAL_MODULES[id as keyof typeof VIRTUAL_MODULES];
+        return `\0${VIRTUAL_MODULES[id as keyof typeof VIRTUAL_MODULES]}`;
       }
       return null;
     },
@@ -128,7 +132,7 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
     async load(id) {
       // Load virtual modules (strip the \0 prefix)
       const cleanId = id.startsWith('\0') ? id.slice(1) : id;
-      
+
       if (!manifest) {
         manifest = await scanAndGenerateManifest();
       }
@@ -137,39 +141,42 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
         case 'smrt:routes':
           // Routes module available in all modes
           return await generateRoutesModule(manifest);
-          
+
         case 'smrt:client':
           // Client module available in both modes
           return generateClientModule(manifest);
-          
+
         case 'smrt:mcp':
           // MCP module available in all modes
           return await generateMCPModule(manifest);
-          
+
         case 'smrt:types':
           // Types module available in both modes
           return await generateTypesModule(manifest, pluginMode);
-          
+
         case 'smrt:manifest':
           // Manifest module available in both modes
           return generateManifestModule(manifest);
-          
+
         default:
           return null;
       }
-    }
+    },
   };
 
-  async function loadStaticManifest(): Promise<SmartObjectManifest | null> {
+  async function _loadStaticManifest(): Promise<SmartObjectManifest | null> {
     if (!manifestPath) return null;
-    
+
     try {
       // Conditionally import fs for Node.js environments
-      const { readFileSync } = await import('fs');
+      const { readFileSync } = await import('node:fs');
       const manifestContent = readFileSync(manifestPath, 'utf-8');
       return JSON.parse(manifestContent);
     } catch (error) {
-      console.warn(`[smrt] Could not load static manifest from ${manifestPath}:`, error);
+      console.warn(
+        `[smrt] Could not load static manifest from ${manifestPath}:`,
+        error,
+      );
       return null;
     }
   }
@@ -178,7 +185,7 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
     return {
       version: '1.0.0',
       timestamp: Date.now(),
-      objects: {}
+      objects: {},
     };
   }
 
@@ -187,10 +194,8 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
 
     try {
       // Conditionally import Node.js dependencies
-      const [{ default: fg }, { ASTScanner, ManifestGenerator }] = await Promise.all([
-        import('fast-glob'),
-        import('../scanner/index.js')
-      ]);
+      const [{ default: fg }, { ASTScanner, ManifestGenerator }] =
+        await Promise.all([import('fast-glob'), import('../scanner/index.js')]);
 
       // Create manifest generator if not already created
       if (!manifestGenerator) {
@@ -198,9 +203,9 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
       }
 
       // Find all TypeScript files matching patterns
-      const sourceFiles = fg.sync(include, { 
+      const sourceFiles = fg.sync(include, {
         ignore: exclude,
-        absolute: true 
+        absolute: true,
       });
 
       if (sourceFiles.length === 0) {
@@ -213,7 +218,7 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
         baseClasses,
         includePrivateMethods: false,
         includeStaticMethods: true,
-        followImports: false
+        followImports: false,
       });
 
       const scanResults = scanner.scanFiles();
@@ -230,7 +235,11 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
 
       // Generate TypeScript declarations if enabled
       if (generateTypes && server) {
-        await generateTypeDeclarationFile(newManifest, server.config.root, typeDeclarationsPath);
+        await generateTypeDeclarationFile(
+          newManifest,
+          server.config.root,
+          typeDeclarationsPath,
+        );
       }
 
       return newManifest;
@@ -249,9 +258,9 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
     try {
       // Conditionally import minimatch
       const { minimatch } = await import('minimatch');
-      
-      const isIncluded = include.some(pattern => minimatch(file, pattern));
-      const isExcluded = exclude.some(pattern => minimatch(file, pattern));
+
+      const isIncluded = include.some((pattern) => minimatch(file, pattern));
+      const isExcluded = exclude.some((pattern) => minimatch(file, pattern));
 
       return isIncluded && !isExcluded;
     } catch (error) {
@@ -264,12 +273,14 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
 /**
  * Generate virtual routes module
  */
-async function generateRoutesModule(manifest: SmartObjectManifest): Promise<string> {
+async function generateRoutesModule(
+  manifest: SmartObjectManifest,
+): Promise<string> {
   try {
     const { ManifestGenerator } = await import('../scanner/index.js');
     const generator = new ManifestGenerator();
     const routes = generator.generateRestEndpoints(manifest);
-    
+
     return `
 // Auto-generated REST routes from SMRT objects
 // This file is generated automatically - do not edit
@@ -287,14 +298,15 @@ export { setupRoutes as default };
 }
 
 /**
- * Generate virtual client module  
+ * Generate virtual client module
  */
 function generateClientModule(manifest: SmartObjectManifest): string {
   const objects = Object.entries(manifest.objects);
-  
-  const clientMethods = objects.map(([name, obj]) => {
-    const { collection } = obj;
-    return `
+
+  const clientMethods = objects
+    .map(([name, obj]) => {
+      const { collection } = obj;
+      return `
   ${name}: {
     list: (params) => fetch(basePath + '/${collection}', { 
       method: 'GET',
@@ -323,7 +335,8 @@ function generateClientModule(manifest: SmartObjectManifest): string {
       headers: { 'Content-Type': 'application/json' }
     }).then(r => r.ok)
   }`;
-  }).join(',');
+    })
+    .join(',');
 
   return `
 // Auto-generated API client from SMRT objects
@@ -341,12 +354,14 @@ export { createClient as default };
 /**
  * Generate virtual MCP module
  */
-async function generateMCPModule(manifest: SmartObjectManifest): Promise<string> {
+async function generateMCPModule(
+  manifest: SmartObjectManifest,
+): Promise<string> {
   try {
     const { ManifestGenerator } = await import('../scanner/index.js');
     const generator = new ManifestGenerator();
     const tools = generator.generateMCPTools(manifest);
-    
+
     return `
 // Auto-generated MCP tools from SMRT objects  
 // This file is generated automatically - do not edit
@@ -374,15 +389,15 @@ export { createMCPServer as default };
  */
 function generateClientModeTypes(manifest: SmartObjectManifest): string {
   const typeDefinitions: string[] = [];
-  
+
   // Generate interfaces for each object in the manifest
   for (const [objectName, objectMeta] of Object.entries(manifest.objects)) {
     const fields = objectMeta.fields || {};
     const propertyLines: string[] = [];
-    
+
     for (const [fieldName, fieldDef] of Object.entries(fields)) {
       let type = 'any';
-      
+
       // Map SMRT field types to TypeScript types
       switch (fieldDef.type) {
         case 'text':
@@ -407,31 +422,34 @@ function generateClientModeTypes(manifest: SmartObjectManifest): string {
         default:
           type = 'any';
       }
-      
+
       const optional = !fieldDef.required ? '?' : '';
       propertyLines.push(`  ${fieldName}${optional}: ${type};`);
     }
-    
-    // Add common BaseObject properties
+
+    // Add common SmrtObject properties
     propertyLines.unshift(
       '  id?: string;',
       '  created_at?: string;',
-      '  updated_at?: string;'
+      '  updated_at?: string;',
     );
-    
+
     const interfaceDef = `export interface ${objectName}Data {\n${propertyLines.join('\n')}\n}`;
     typeDefinitions.push(interfaceDef);
   }
-  
+
   return typeDefinitions.join('\n\n');
 }
 
 /**
  * Generate virtual types module
  */
-async function generateTypesModule(manifest: SmartObjectManifest, mode: 'server' | 'client' = 'server'): Promise<string> {
+async function generateTypesModule(
+  manifest: SmartObjectManifest,
+  mode: 'server' | 'client' = 'server',
+): Promise<string> {
   let interfaces = '';
-  
+
   try {
     // Only use scanner in server mode to avoid Node.js dependencies in browser builds
     if (mode !== 'client') {
@@ -442,7 +460,7 @@ async function generateTypesModule(manifest: SmartObjectManifest, mode: 'server'
       // In client mode, generate basic interfaces directly from manifest
       interfaces = generateClientModeTypes(manifest);
     }
-    
+
     return `
 // Auto-generated TypeScript types from SMRT objects
 // This file is generated automatically - do not edit
@@ -498,13 +516,15 @@ export { manifest as default };
  * Generate TypeScript declaration file for virtual modules
  * This eliminates the need for manual type maintenance
  */
-async function generateTypeDeclarationFile(manifest: SmartObjectManifest, projectRoot: string, typeDeclarationsPath: string): Promise<void> {
+async function generateTypeDeclarationFile(
+  manifest: SmartObjectManifest,
+  projectRoot: string,
+  typeDeclarationsPath: string,
+): Promise<void> {
   try {
     // Conditionally import path and fs modules
-    const [{ join }, { existsSync, mkdirSync, writeFileSync }] = await Promise.all([
-      import('path'),
-      import('fs')
-    ]);
+    const [{ join }, { existsSync, mkdirSync, writeFileSync }] =
+      await Promise.all([import('node:path'), import('node:fs')]);
 
     const declarationsDir = join(projectRoot, typeDeclarationsPath);
     const declarationsFile = join(declarationsDir, 'virtual-modules.d.ts');
@@ -515,43 +535,58 @@ async function generateTypeDeclarationFile(manifest: SmartObjectManifest, projec
     }
 
     // Generate interface definitions for each discovered SMRT object
-    const objectInterfaces = Object.entries(manifest.objects).map(([name, obj]) => {
-      const interfaceName = `${obj.className}Data`;
-      const fields = Object.entries(obj.fields).map(([fieldName, field]) => {
-        const optional = field.required === false ? '?' : '';
-        const type = mapTypeScriptType(field.type);
-        return `    ${fieldName}${optional}: ${type};`;
-      }).join('\n');
-      
-      return `  export interface ${interfaceName} {
+    const objectInterfaces = Object.entries(manifest.objects)
+      .map(([_name, obj]) => {
+        const interfaceName = `${obj.className}Data`;
+        const fields = Object.entries(obj.fields)
+          .map(([fieldName, field]) => {
+            const optional = field.required === false ? '?' : '';
+            const type = mapTypeScriptType(field.type);
+            return `    ${fieldName}${optional}: ${type};`;
+          })
+          .join('\n');
+
+        return `  export interface ${interfaceName} {
     id?: string;
 ${fields}
     createdAt?: string;
     updatedAt?: string;
   }`;
-    }).join('\n\n');
+      })
+      .join('\n\n');
 
     // Generate CRUD operations interface for each collection
-    const collectionNames = [...new Set(Object.values(manifest.objects).map(obj => obj.collection))];
-    const apiClientInterface = collectionNames.map(collection => {
-      const dataType = Object.entries(manifest.objects).find(([, obj]) => obj.collection === collection)?.[1].className;
-      const interfaceName = dataType ? `${dataType}Data` : 'any';
-      return `    ${collection}: CrudOperations<${interfaceName}>;`;
-    }).join('\n');
+    const collectionNames = [
+      ...new Set(Object.values(manifest.objects).map((obj) => obj.collection)),
+    ];
+    const apiClientInterface = collectionNames
+      .map((collection) => {
+        const dataType = Object.entries(manifest.objects).find(
+          ([, obj]) => obj.collection === collection,
+        )?.[1].className;
+        const interfaceName = dataType ? `${dataType}Data` : 'any';
+        return `    ${collection}: CrudOperations<${interfaceName}>;`;
+      })
+      .join('\n');
 
     // Generate MCP tool interfaces based on discovered methods
-    const mcpTools = Object.entries(manifest.objects).flatMap(([name, obj]) => 
+    const _mcpTools = Object.entries(manifest.objects).flatMap(([_name, obj]) =>
       Object.entries(obj.methods).map(([methodName, method]) => ({
         name: `${methodName}_${obj.collection}`,
         description: `${method.name} operation on ${obj.collection}`,
         inputSchema: {
           type: 'object',
           properties: Object.fromEntries(
-            method.parameters.map(param => [param.name, { type: mapJsonSchemaType(param.type) }])
+            method.parameters.map((param) => [
+              param.name,
+              { type: mapJsonSchemaType(param.type) },
+            ]),
           ),
-          required: method.parameters.filter(p => p.optional !== true).map(p => p.name)
-        }
-      }))
+          required: method.parameters
+            .filter((p) => p.optional !== true)
+            .map((p) => p.name),
+        },
+      })),
     );
 
     const typeDeclarations = `/**
@@ -665,8 +700,9 @@ ${objectInterfaces}
 
     // Write the declarations file
     writeFileSync(declarationsFile, typeDeclarations);
-    console.log(`[smrt] Generated TypeScript declarations: ${declarationsFile}`);
-
+    console.log(
+      `[smrt] Generated TypeScript declarations: ${declarationsFile}`,
+    );
   } catch (error) {
     console.error('[smrt] Error generating TypeScript declarations:', error);
   }
@@ -677,13 +713,13 @@ ${objectInterfaces}
  */
 function mapTypeScriptType(smrtType: string): string {
   const typeMap: Record<string, string> = {
-    'string': 'string',
-    'number': 'number', 
-    'boolean': 'boolean',
-    'array': 'any[]',
-    'object': 'Record<string, any>',
-    'date': 'string',
-    'Date': 'string'
+    string: 'string',
+    number: 'number',
+    boolean: 'boolean',
+    array: 'any[]',
+    object: 'Record<string, any>',
+    date: 'string',
+    Date: 'string',
   };
   return typeMap[smrtType] || 'any';
 }
@@ -693,12 +729,12 @@ function mapTypeScriptType(smrtType: string): string {
  */
 function mapJsonSchemaType(tsType: string): string {
   const typeMap: Record<string, string> = {
-    'string': 'string',
-    'number': 'number',
-    'boolean': 'boolean', 
-    'array': 'array',
-    'object': 'object',
-    'any': 'string'
+    string: 'string',
+    number: 'number',
+    boolean: 'boolean',
+    array: 'array',
+    object: 'object',
+    any: 'string',
   };
   return typeMap[tsType] || 'string';
 }

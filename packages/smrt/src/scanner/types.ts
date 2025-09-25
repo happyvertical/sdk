@@ -3,7 +3,14 @@
  */
 
 export interface FieldDefinition {
-  type: 'text' | 'decimal' | 'boolean' | 'integer' | 'datetime' | 'json' | 'foreignKey';
+  type:
+    | 'text'
+    | 'decimal'
+    | 'boolean'
+    | 'integer'
+    | 'datetime'
+    | 'json'
+    | 'foreignKey';
   required?: boolean;
   default?: any;
   min?: number;
@@ -38,18 +45,24 @@ export interface SmartObjectDefinition {
   fields: Record<string, FieldDefinition>;
   methods: Record<string, MethodDefinition>;
   decoratorConfig: {
-    api?: {
-      include?: string[];
-      exclude?: string[];
-    } | boolean;
-    mcp?: {
-      include?: string[];
-      exclude?: string[];
-    } | boolean;
-    cli?: boolean | {
-      include?: string[];
-      exclude?: string[];
-    };
+    api?:
+      | {
+          include?: string[];
+          exclude?: string[];
+        }
+      | boolean;
+    mcp?:
+      | {
+          include?: string[];
+          exclude?: string[];
+        }
+      | boolean;
+    cli?:
+      | boolean
+      | {
+          include?: string[];
+          exclude?: string[];
+        };
   };
   extends?: string; // Base class name
 }

@@ -1,14 +1,15 @@
-import { it, expect, describe, beforeEach, afterEach } from "vitest";
-import { randomUUID } from "node:crypto";
-import { getDatabase } from "./index.js";
+import { randomUUID } from 'node:crypto';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { getDatabase } from './index';
+
 // import type { Database } from "./types";
 
-describe("sqlite tests", () => {
+describe('sqlite tests', () => {
   let db: any;
 
   beforeEach(async () => {
     db = await getDatabase({
-      type: "sqlite",
+      type: 'sqlite',
     });
     await db.execute`
       create table contents (
@@ -25,30 +26,30 @@ describe("sqlite tests", () => {
     `;
   });
 
-  it("should be able to perform a statement", async () => {
+  it('should be able to perform a statement', async () => {
     const result = await db.many`
       select * from contents
     `;
     expect(result).toEqual([]);
   });
 
-  it("should be able to insert data", async () => {
+  it('should be able to insert data', async () => {
     const data = {
       id: randomUUID(),
-      title: "hello",
-      body: "world",
+      title: 'hello',
+      body: 'world',
     } as const;
-    const inserted = await db.insert("contents", data);
+    const inserted = await db.insert('contents', data);
     expect(inserted).toBeDefined();
   });
 
-  it("should be able to query data with a condition", async () => {
+  it('should be able to query data with a condition', async () => {
     const data = {
       id: randomUUID(),
-      title: "hello",
-      body: "world",
+      title: 'hello',
+      body: 'world',
     } as const;
-    await db.insert("contents", data);
+    await db.insert('contents', data);
     const result = await db.single`
       select * from contents where id = ${data.id}
     `;
@@ -59,21 +60,21 @@ describe("sqlite tests", () => {
     });
   });
 
-  it("should be able to update a row", async () => {
+  it('should be able to update a row', async () => {
     const data = {
       id: randomUUID(),
-      title: "hello",
-      body: "world",
+      title: 'hello',
+      body: 'world',
     } as const;
-    await db.insert("contents", data);
+    await db.insert('contents', data);
     await db.update(
-      "contents",
+      'contents',
       { id: data.id },
-      { title: "hi", body: "universe" },
+      { title: 'hi', body: 'universe' },
     );
     const result = await db.single`
       select * from contents where id = ${data.id}
     `;
-    expect(result).toEqual({ id: data.id, title: "hi", body: "universe" });
+    expect(result).toEqual({ id: data.id, title: 'hi', body: 'universe' });
   });
 });

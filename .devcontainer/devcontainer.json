@@ -6,7 +6,6 @@
   "containerEnv": {
     "NODE_ENV": "development",
     "FORCE_COLOR": "1",
-    "PATH": "/home/vscode/.bun/bin:/root/.bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/vscode/.local/bin",
     "SQLOO_HOST": "db",
     "SQLOO_USER": "postgres",
     "SQLOO_PASSWORD": "postgres",
@@ -23,19 +22,19 @@
   "initializeCommand": [
     "bash",
     "-c",
-    "echo 'Initializing HAVE SDK development environment with ONNX Runtime support...'"
+    "echo 'Initializing HAVE SDK development environment with pnpm and ONNX Runtime support...'"
   ],
 
   "onCreateCommand": [
     "bash",
     "-c",
-    "export PATH=\"$HOME/.bun/bin:$PATH\" && git lfs install"
+    "git lfs install"
   ],
 
   "postCreateCommand": [
     "bash",
     "-c",
-    "export PATH=\"$HOME/.bun/bin:$PATH\" && bun install && bun run build && npx playwright install --with-deps chromium"
+    "pnpm install && pnpm run build && npx playwright install --with-deps chromium"
   ],
 
   "customizations": {

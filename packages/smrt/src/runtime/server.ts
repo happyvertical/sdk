@@ -2,7 +2,8 @@
  * Runtime server implementation for SMRT auto-generated services
  */
 
-import type { SmrtServerOptions, SmrtRequest, SmrtResponse } from './types.js';
+import http from 'node:http';
+import type { SmrtRequest, SmrtServerOptions } from './types';
 
 export class SmrtServer {
   private options: Required<SmrtServerOptions>;
@@ -32,19 +33,172 @@ export class SmrtServer {
   }
 
   /**
+   * Add GET route handler (RouteApp compatibility)
+   */
+  get(path: string, handler: (req: any, res: any) => void): void {
+    this.addExpressStyleRoute('GET', path, handler);
+  }
+
+  /**
+   * Add POST route handler (RouteApp compatibility)
+   */
+  post(path: string, handler: (req: any, res: any) => void): void {
+    this.addExpressStyleRoute('POST', path, handler);
+  }
+
+  /**
+   * Add PUT route handler (RouteApp compatibility)
+   */
+  put(path: string, handler: (req: any, res: any) => void): void {
+    this.addExpressStyleRoute('PUT', path, handler);
+  }
+
+  /**
+   * Add DELETE route handler (RouteApp compatibility)
+   */
+  delete(path: string, handler: (req: any, res: any) => void): void {
+    this.addExpressStyleRoute('DELETE', path, handler);
+  }
+
+  /**
+   * Convert Express-style handler to SMRT handler
+   */
+  private addExpressStyleRoute(
+    method: string,
+    path: string,
+    handler: (req: any, res: any) => void,
+  ) {
+    const smrtHandler = async (req: SmrtRequest): Promise<Response> => {
+      return new Promise((resolve, reject) => {
+        // Create Express-style response object
+        const res = {
+          status: (code: number) => {
+            res.statusCode = code;
+            return res;
+          },
+          json: (data: any) => {
+            resolve(
+              new Response(JSON.stringify(data), {
+                status: res.statusCode || 200,
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...res.headers,
+                },
+              }),
+            );
+          },
+          send: (data: any) => {
+            const body = typeof data === 'string' ? data : JSON.stringify(data);
+            resolve(
+              new Response(body, {
+                status: res.statusCode || 200,
+                headers: {
+                  'Content-Type':
+                    typeof data === 'string'
+                      ? 'text/plain'
+                      : 'application/json',
+                  ...res.headers,
+                },
+              }),
+            );
+          },
+          end: (data?: any) => {
+            resolve(
+              new Response(data || '', {
+                status: res.statusCode || 200,
+                headers: res.headers,
+              }),
+            );
+          },
+          setHeader: (key: string, value: string) => {
+            if (!res.headers) res.headers = {};
+            res.headers[key] = value;
+            return res;
+          },
+          statusCode: 200,
+          headers: {} as Record<string, string>,
+        };
+
+        try {
+          handler(req, res);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    };
+
+    this.addRoute(method, path, smrtHandler);
+  }
+
+  /**
    * Start the server
    */
   async start(): Promise<{ server: any; url: string }> {
-    const server = Bun.serve({
-      port: this.options.port,
-      hostname: this.options.hostname,
-      fetch: (req) => this.handleRequest(req),
+    const server = http.createServer(async (req, res) => {
+      try {
+        const request = this.nodeRequestToWebRequest(req);
+        const response = await this.handleRequest(request);
+        await this.webResponseToNodeResponse(response, res);
+      } catch (error) {
+        res.statusCode = 500;
+        res.end('Internal Server Error');
+      }
     });
+
+    server.listen(this.options.port, this.options.hostname);
 
     const url = `http://${this.options.hostname}:${this.options.port}`;
     console.log(`[smrt] Server started at ${url}`);
 
     return { server, url };
+  }
+
+  /**
+   * Convert Node.js IncomingMessage to Web Request
+   */
+  private nodeRequestToWebRequest(req: http.IncomingMessage): Request {
+    const url = `http://${this.options.hostname}:${this.options.port}${req.url}`;
+    const method = req.method || 'GET';
+    const headers = new Headers();
+
+    for (const [key, value] of Object.entries(req.headers)) {
+      if (value) {
+        headers.set(key, Array.isArray(value) ? value[0] : value);
+      }
+    }
+
+    return new Request(url, {
+      method,
+      headers,
+      body: method !== 'GET' && method !== 'HEAD' ? req : undefined,
+    });
+  }
+
+  /**
+   * Convert Web Response to Node.js ServerResponse
+   */
+  private async webResponseToNodeResponse(
+    webResponse: Response,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    res.statusCode = webResponse.status;
+
+    // Set headers
+    for (const [key, value] of webResponse.headers.entries()) {
+      res.setHeader(key, value);
+    }
+
+    // Send body
+    if (webResponse.body) {
+      const reader = webResponse.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(value);
+      }
+    }
+
+    res.end();
   }
 
   /**

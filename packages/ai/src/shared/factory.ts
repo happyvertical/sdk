@@ -7,13 +7,13 @@ import { ValidationError } from '@have/utils';
 
 import type {
   AIInterface,
-  GetAIOptions,
-  OpenAIOptions,
-  GeminiOptions,
   AnthropicOptions,
-  HuggingFaceOptions,
   BedrockOptions,
-} from './types.js';
+  GeminiOptions,
+  GetAIOptions,
+  HuggingFaceOptions,
+  OpenAIOptions,
+} from './types';
 
 /**
  * Type guards for provider options
@@ -42,7 +42,9 @@ function isGeminiOptions(options: GetAIOptions): options is GeminiOptions {
  * @param options - The AI provider options to check
  * @returns True if options are for Anthropic provider
  */
-function isAnthropicOptions(options: GetAIOptions): options is AnthropicOptions {
+function isAnthropicOptions(
+  options: GetAIOptions,
+): options is AnthropicOptions {
   return options.type === 'anthropic';
 }
 
@@ -51,7 +53,9 @@ function isAnthropicOptions(options: GetAIOptions): options is AnthropicOptions 
  * @param options - The AI provider options to check
  * @returns True if options are for Hugging Face provider
  */
-function isHuggingFaceOptions(options: GetAIOptions): options is HuggingFaceOptions {
+function isHuggingFaceOptions(
+  options: GetAIOptions,
+): options is HuggingFaceOptions {
   return options.type === 'huggingface';
 }
 
@@ -153,7 +157,9 @@ export async function getAI(options: GetAIOptions): Promise<AIInterface> {
  * });
  * ```
  */
-export async function getAIAuto(options: Record<string, any>): Promise<AIInterface> {
+export async function getAIAuto(
+  options: Record<string, any>,
+): Promise<AIInterface> {
   // Auto-detect provider based on available credentials
   if (options.apiKey && !options.type) {
     // Default to OpenAI if apiKey is provided without explicit type

@@ -21,14 +21,14 @@
  * import { smrt } from '@have/smrt';
  *
  * @smrt({ api: { exclude: ['delete'] } })
- * class Product extends BaseObject {
+ * class Product extends SmrtObject {
  *   name = text({ required: true });
  * }
  * ```
  */
 
-import type { BaseObject } from './object.js';
-import type { BaseCollection } from './collection.js';
+import type { SmrtCollection } from './collection';
+import type { SmrtObject } from './object';
 
 /**
  * Configuration options for SMRT objects registered in the system
@@ -130,8 +130,8 @@ export interface SmartObjectConfig {
  */
 interface RegisteredClass {
   name: string;
-  constructor: typeof BaseObject;
-  collectionConstructor?: typeof BaseCollection;
+  constructor: typeof SmrtObject;
+  collectionConstructor?: typeof SmrtCollection;
   config: SmartObjectConfig;
   fields: Map<string, any>;
 }
@@ -141,12 +141,12 @@ interface RegisteredClass {
  */
 export class ObjectRegistry {
   private static classes = new Map<string, RegisteredClass>();
-  private static collections = new Map<string, typeof BaseCollection>();
+  private static collections = new Map<string, typeof SmrtCollection>();
 
   /**
    * Register a new SMRT object class with the global registry
    *
-   * @param constructor - The class constructor extending BaseObject
+   * @param constructor - The class constructor extending SmrtObject
    * @param config - Configuration options for API/CLI/MCP generation
    * @throws {Error} If the class cannot be introspected for field definitions
    * @example
@@ -159,17 +159,22 @@ export class ObjectRegistry {
    * ```
    */
   static register(
-    constructor: typeof BaseObject,
+    ctor: typeof SmrtObject,
     config: SmartObjectConfig = {},
   ): void {
-    const name = config.name || constructor.name;
+    const name = config.name || ctor.name;
+
+    // Prevent duplicate registrations
+    if (ObjectRegistry.classes.has(name)) {
+      return; // Already registered, skip silently
+    }
 
     // Extract field definitions from the class
-    const fields = ObjectRegistry.extractFields(constructor);
+    const fields = ObjectRegistry.extractFields(ctor);
 
     ObjectRegistry.classes.set(name, {
       name,
-      constructor,
+      constructor: ctor,
       config,
       fields,
     });
@@ -189,7 +194,7 @@ export class ObjectRegistry {
    */
   static registerCollection(
     objectName: string,
-    collectionConstructor: typeof BaseCollection,
+    collectionConstructor: typeof SmrtCollection,
   ): void {
     const registered = ObjectRegistry.classes.get(objectName);
     if (registered) {
@@ -257,17 +262,16 @@ export class ObjectRegistry {
   /**
    * Extract field definitions from a class constructor
    */
-  private static extractFields(
-    constructor: typeof BaseObject,
-  ): Map<string, any> {
+  private static extractFields(ctor: typeof SmrtObject): Map<string, any> {
     const fields = new Map();
 
     try {
       // Create a temporary instance to inspect field definitions
-      const tempInstance = new (constructor as any)({
+      const tempInstance = new (ctor as any)({
         db: null,
         ai: null,
         fs: null,
+        _skipRegistration: true, // Prevent infinite recursion
       });
 
       // Look for Field instances on the instance
@@ -335,20 +339,20 @@ export class ObjectRegistry {
  * @example
  * ```typescript
  * @smrt()
- * class Product extends BaseObject {
+ * class Product extends SmrtObject {
  *   name = text({ required: true });
  *   price = decimal({ min: 0 });
  * }
  *
  * @smrt({ api: { exclude: ['delete'] } })
- * class SensitiveData extends BaseObject {
+ * class SensitiveData extends SmrtObject {
  *   secret = text({ encrypted: true });
  * }
  * ```
  */
 export function smrt(config: SmartObjectConfig = {}) {
-  return <T extends typeof BaseObject>(constructor: T): T => {
-    ObjectRegistry.register(constructor, config);
-    return constructor;
+  return <T extends typeof SmrtObject>(ctor: T): T => {
+    ObjectRegistry.register(ctor, config);
+    return ctor;
   };
 }

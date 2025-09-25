@@ -1,5 +1,5 @@
-import clsx from 'clsx';
 import Heading from '@theme/Heading';
+import clsx from 'clsx';
 import styles from './styles.module.css';
 
 type FeatureItem = {
@@ -15,7 +15,8 @@ const FeatureList: FeatureItem[] = [
     description: (
       <>
         Define your agent's world with SmartObjects. Automatic database schemas,
-        AI-powered methods, and type-safe operations make modeling your domain effortless.
+        AI-powered methods, and type-safe operations make modeling your domain
+        effortless.
       </>
     ),
   },
@@ -24,8 +25,9 @@ const FeatureList: FeatureItem[] = [
     icon: '🧠',
     description: (
       <>
-        Give your agents persistent memory. Collections provide intelligent querying,
-        batch operations, and semantic search across your agent's knowledge base.
+        Give your agents persistent memory. Collections provide intelligent
+        querying, batch operations, and semantic search across your agent's
+        knowledge base.
       </>
     ),
   },
@@ -34,18 +36,23 @@ const FeatureList: FeatureItem[] = [
     icon: '👁️',
     description: (
       <>
-        Connect agents to the world with Tools. File system access, web scraping,
-        PDF processing, and custom integrations through a unified interface.
+        Connect agents to the world with Tools. File system access, web
+        scraping, PDF processing, and custom integrations through a unified
+        interface.
       </>
     ),
   },
 ];
 
-function Feature({title, icon, description}: FeatureItem) {
+function Feature({ title, icon, description }: FeatureItem) {
   return (
     <div className={clsx('col col--4')}>
       <div className="text--center">
-        <div className={styles.featureSvg} role="img" style={{fontSize: '4rem'}}>
+        <div
+          className={styles.featureSvg}
+          role="img"
+          style={{ fontSize: '4rem' }}
+        >
           {icon}
         </div>
       </div>
