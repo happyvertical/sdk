@@ -1,7 +1,14 @@
 name: Deploy Documentation to GitHub Pages
 
 on:
-  # Runs on pushes targeting the main branch
+  # Runs after successful build and release workflow
+  workflow_run:
+    workflows: ["Merged to Main"]
+    types:
+      - completed
+    branches: [main]
+
+  # Only run if docs-related files changed
   push:
     branches: [main]
     paths:
@@ -32,6 +39,8 @@ jobs:
   # Build job
   build:
     runs-on: ubuntu-latest
+    # Only run if the triggering workflow succeeded (or if manually triggered/docs changed)
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -42,7 +51,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: 'pnpm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -50,13 +68,10 @@ jobs:
       - name: Restore cache
         uses: actions/cache@v4
         with:
-          path: |
-            docs/.docusaurus
-            docs/node_modules
-            ~/.pnpm
-          key: ${{ runner.os }}-docs-build-${{ hashFiles('**/pnpm-lock.yaml') }}
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-docs-build-
+            ${{ runner.os }}-pnpm-store-
 
       - name: Install root dependencies
         run: pnpm install
@@ -101,18 +116,24 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: 'pnpm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
 
       - name: Restore cache
         uses: actions/cache@v4
         with:
-          path: |
-            docs/.docusaurus
-            docs/node_modules
-            ~/.pnpm
-          key: ${{ runner.os }}-docs-test-${{ hashFiles('**/pnpm-lock.yaml') }}
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-docs-test-
+            ${{ runner.os }}-pnpm-store-
 
       - name: Install root dependencies
         run: pnpm install
