@@ -1,5 +1,7 @@
 {
-  "branches": ["main"],
+  "branches": [
+    {"name": "main", "prerelease": false}
+  ],
   "tagFormat": "v${version}",
   "debug": false,
   "plugins": [
@@ -40,12 +42,7 @@
         "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
       }
     ],
-    [
-      "@semantic-release/github",
-      {
-        "assets": "dist/*.tgz"
-      }
-    ]
+    "@semantic-release/github"
   ],
   "preset": "conventionalcommits",
   "presetConfig": {
