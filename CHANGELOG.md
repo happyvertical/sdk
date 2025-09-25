@@ -1,3 +1,22 @@
+# [0.2.0](https://github.com/happyvertical/sdk/compare/v0.1.0...v0.2.0) (2025-09-25)
+
+
+### Bug Fixes
+
+* complete v0.x.x semantic-release configuration ([d1f106a](https://github.com/happyvertical/sdk/commit/d1f106ac2b794b52efa86d4fad2fd5aca87e6b3c))
+* prevent v1.0.0 releases until ready ([153e71e](https://github.com/happyvertical/sdk/commit/153e71ef6636dad49aaf6ce7a8ae00e16c9db169))
+* re-enable automatic release workflow on push to main ([ade8d7f](https://github.com/happyvertical/sdk/commit/ade8d7f66297e1c8bf38452f5d9cf939c3eb8a40))
+* remove conventionalcommits preset causing npm plugin loading ([40eca63](https://github.com/happyvertical/sdk/commit/40eca634fc221fc9d5f37faaba17d5faa58b6af6))
+* remove pnpm plugin to eliminate npm token validation ([d960c0e](https://github.com/happyvertical/sdk/commit/d960c0ebc44fdd715fdf4cf1c9f440d44ff2a2ae))
+* resolve semantic-release workflow failures ([87dbc06](https://github.com/happyvertical/sdk/commit/87dbc067d44fa742b173bf41094673416e326d3c))
+* run semantic-release from root only, not all packages ([30c696a](https://github.com/happyvertical/sdk/commit/30c696a5cfd50e875c6f55963514ebbab98f7d9e))
+* temporarily disable automatic release workflow ([854802c](https://github.com/happyvertical/sdk/commit/854802cdfa026622efba527145dd68cd763b2da0))
+
+
+### Features
+
+* implement automated versioning with semantic-release ([891b44c](https://github.com/happyvertical/sdk/commit/891b44c8a8544d68e60c07ac7be0ac8f8025b0dc)), closes [#86](https://github.com/happyvertical/sdk/issues/86)
+
 # Changelog
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
