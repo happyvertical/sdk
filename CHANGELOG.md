@@ -1,3 +1,10 @@
+## [0.2.3](https://github.com/happyvertical/sdk/compare/v0.2.2...v0.2.3) (2025-09-25)
+
+
+### Bug Fixes
+
+* update documentation deployment workflow to use pnpm ([db0dc07](https://github.com/happyvertical/sdk/commit/db0dc07011dfb9e2fba2aa400e72be992c4090da))
+
 ## [0.2.2](https://github.com/happyvertical/sdk/compare/v0.2.1...v0.2.2) (2025-09-25)
 
 ## [0.2.1](https://github.com/happyvertical/sdk/compare/v0.2.0...v0.2.1) (2025-09-25)
