@@ -2,92 +2,202 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-PDF processing utilities for the HAVE SDK.
+Modern PDF processing utilities with text extraction and OCR support using unpdf and @have/ocr.
 
 ## Overview
 
-The `@have/pdf` package provides tools for parsing, processing, and extracting data from PDF documents. It offers a simple and consistent API for working with PDF files in both browser and Node.js environments.
+The `@have/pdf` package provides comprehensive PDF processing capabilities for Node.js environments. It intelligently combines direct text extraction with OCR fallback for handling both text-based and image-based PDFs.
 
-## Features
+## Key Features
 
-- PDF text extraction with layout preservation
-- Metadata extraction (title, author, creation date, etc.)
-- Page splitting and merging
-- Image extraction
-- Form field handling
-- Structured data extraction
-- Table detection and parsing
-- Conversion to other formats (HTML, Markdown, etc.)
+- **Text Extraction**: Direct text extraction from PDF documents using unpdf
+- **OCR Integration**: Automatic OCR fallback for image-based PDFs using @have/ocr
+- **Metadata Extraction**: Comprehensive PDF metadata (title, author, dates, etc.)
+- **Image Extraction**: Extract images from PDFs for OCR or display
+- **Smart Analysis**: Document analysis with processing strategy recommendations
+- **Error Resilience**: Graceful handling of corrupted or malformed PDFs
+- **Performance Optimization**: Intelligent provider selection and processing strategies
 
 ## Installation
 
 ```bash
-# Install with npm
+# Install with bun (recommended)
+bun add @have/pdf
+
+# Or with npm
 npm install @have/pdf
 
 # Or with yarn
 yarn add @have/pdf
-
-# Or with bun
-bun add @have/pdf
 ```
 
-## Usage
+## Quick Start
 
-### Basic Text Extraction
+### Basic PDF Text Extraction
 
 ```typescript
-import { PDFDocument } from '@have/pdf';
+import { getPDFReader } from '@have/pdf';
 
-// Load a PDF from a file path (Node.js)
-const doc = await PDFDocument.fromFile('/path/to/document.pdf');
+// Create a PDF reader instance
+const reader = await getPDFReader();
 
-// Or from a URL
-const doc2 = await PDFDocument.fromURL('https://example.com/document.pdf');
-
-// Extract text from the entire document
-const text = await doc.extractText();
+// Extract text from a PDF file
+const text = await reader.extractText('/path/to/document.pdf');
 console.log(text);
-
-// Extract text from specific pages
-const page1Text = await doc.extractText({ pageNumbers: [0] }); // 0-indexed
-console.log(page1Text);
 ```
 
-### Metadata Extraction
+### Smart PDF Processing with Analysis
 
 ```typescript
-import { PDFDocument } from '@have/pdf';
+import { getPDFReader } from '@have/pdf';
 
-const doc = await PDFDocument.fromFile('/path/to/document.pdf');
+const reader = await getPDFReader();
 
-// Get document metadata
-const metadata = await doc.getMetadata();
+// Analyze the PDF first to determine optimal processing strategy
+const info = await reader.getInfo('/path/to/document.pdf');
+console.log(`Strategy: ${info.recommendedStrategy}`);
+console.log(`Pages: ${info.pageCount}`);
+console.log(`Has text: ${info.hasEmbeddedText}`);
+console.log(`Has images: ${info.hasImages}`);
+
+// Extract text with strategy-aware processing
+const text = await reader.extractText('/path/to/document.pdf');
+if (text) {
+  console.log(`Extracted ${text.length} characters`);
+} else {
+  console.log('No text could be extracted');
+}
+```
+
+### Extract Metadata and Images
+
+```typescript
+import { getPDFReader } from '@have/pdf';
+
+const reader = await getPDFReader();
+
+// Get comprehensive metadata
+const metadata = await reader.extractMetadata('/path/to/document.pdf');
 console.log(`Title: ${metadata.title}`);
 console.log(`Author: ${metadata.author}`);
-console.log(`Creation Date: ${metadata.creationDate}`);
-console.log(`Page Count: ${metadata.pageCount}`);
+console.log(`Pages: ${metadata.pageCount}`);
+console.log(`Created: ${metadata.creationDate}`);
+
+// Extract images for OCR or display
+const images = await reader.extractImages('/path/to/document.pdf');
+console.log(`Found ${images.length} images`);
 ```
 
-### Converting PDF to Markdown
+### OCR Processing
 
 ```typescript
-import { PDFDocument } from '@have/pdf';
+import { getPDFReader } from '@have/pdf';
 
-const doc = await PDFDocument.fromFile('/path/to/document.pdf');
+const reader = await getPDFReader();
 
-// Convert to markdown
-const markdown = await doc.toMarkdown();
-console.log(markdown);
+// Extract images from PDF
+const images = await reader.extractImages('/path/to/scanned.pdf');
 
-// Save to a file
-import { writeFile } from 'fs/promises';
-await writeFile('output.md', markdown);
+if (images.length > 0) {
+  // Perform OCR on extracted images
+  const ocrResult = await reader.performOCR(images, {
+    language: 'eng',
+    confidenceThreshold: 70
+  });
+
+  console.log('OCR Text:', ocrResult.text);
+  console.log('Confidence:', ocrResult.confidence);
+}
 ```
 
-## API Reference
+### Advanced Configuration
 
-See the [API documentation](https://happyvertical.github.io/sdk/modules/_have_pdf.html) for detailed information on all available methods and options.
+```typescript
+import { getPDFReader } from '@have/pdf';
+
+// Configure reader with specific options
+const reader = await getPDFReader({
+  provider: 'auto',           // Auto-select best provider
+  enableOCR: true,            // Enable OCR fallback
+  timeout: 30000,             // 30 second timeout
+  maxFileSize: 50 * 1024 * 1024, // 50MB limit
+  defaultOCROptions: {
+    language: 'eng',
+    confidenceThreshold: 70
+  }
+});
+```
+
+## Environment Support
+
+Currently supports **Node.js only**:
+- **Node.js**: Full PDF processing with unpdf + OCR capabilities
+- **Browser**: Planned for future releases
+
+## Dependencies
+
+- **unpdf**: Modern PDF processing library for text, metadata, and image extraction
+- **@have/ocr**: OCR capabilities with multiple provider support (tesseract.js, EasyOCR)
+
+## System Requirements
+
+### Basic PDF Processing
+- Node.js 18+ (Node.js 24+ recommended)
+- unpdf library (automatically installed)
+
+### OCR Capabilities
+- All basic PDF processing requirements
+- Additional memory for image processing (2GB+ recommended)
+- Optional: Enhanced OCR dependencies for better accuracy
+
+## Error Handling
+
+The package includes comprehensive error handling:
+
+```typescript
+import { getPDFReader } from '@have/pdf';
+
+try {
+  const reader = await getPDFReader();
+  const text = await reader.extractText('/path/to/document.pdf');
+
+  if (!text) {
+    console.log('No text found - may be image-based PDF');
+  }
+} catch (error) {
+  if (error.name === 'PDFDependencyError') {
+    console.error('Missing dependencies:', error.message);
+  } else if (error.name === 'PDFUnsupportedError') {
+    console.error('Unsupported operation:', error.message);
+  } else {
+    console.error('PDF processing failed:', error);
+  }
+}
+```
+
+## Legacy Compatibility
+
+The package maintains backward compatibility with legacy function exports:
+
+```typescript
+// Legacy functions (deprecated, use getPDFReader() instead)
+import {
+  extractTextFromPDF,
+  extractImagesFromPDF,
+  performOCROnImages,
+  checkOCRDependencies
+} from '@have/pdf';
+```
+
+## API Documentation
+
+For complete API documentation including all methods, options, and examples, run:
+
+```bash
+npm run docs
+```
+
+Or view the generated documentation at `packages/pdf/docs/`.
 
 ## License
 

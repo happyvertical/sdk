@@ -2,22 +2,25 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-Database interaction library with support for SQLite and PostgreSQL in the HAVE SDK.
+Database interaction library with support for SQLite (including LibSQL/Turso) and PostgreSQL in the HAVE SDK.
 
 ## Overview
 
-The `@have/sql` package provides a simple and consistent interface for interacting with SQL databases. It supports both SQLite and PostgreSQL with the same API, making it easy to develop locally with SQLite and deploy to production with PostgreSQL.
+The `@have/sql` package provides a simple and consistent interface for interacting with SQL databases. It supports both SQLite/LibSQL and PostgreSQL with the same API, making it easy to develop locally with SQLite and deploy to production with PostgreSQL or Turso.
 
 ## Features
 
-- Unified API for SQLite and PostgreSQL
-- Template literal query interface with automatic parameterization
-- Type-safe query results
-- Simple CRUD operations with minimal boilerplate
-- Connection pooling and efficient resource management
-- Transaction support
-- Migration utilities
-- No ORM overhead, just raw SQL with safety features
+- **Unified API** for SQLite, LibSQL, and PostgreSQL
+- **Template literal query interface** with automatic parameterization and shorthand aliases
+- **Vector search capabilities** with SQLite-VSS integration
+- **LibSQL/Turso support** with remote connections and encryption
+- **Type-safe query results** with comprehensive TypeScript support
+- **Simple CRUD operations** with minimal boilerplate
+- **Connection pooling** and efficient resource management
+- **Transaction support** with automatic commit/rollback
+- **Schema synchronization** utilities for automatic table creation and migrations
+- **Query building utilities** for complex WHERE conditions
+- **No ORM overhead** - just raw SQL with safety features
 
 ## Installation
 
@@ -39,96 +42,130 @@ bun add @have/sql
 ```typescript
 import { getDatabase } from '@have/sql';
 
-// Connect to SQLite
+// Connect to SQLite (in-memory)
 const sqliteDb = await getDatabase({
-  file: ':memory:', // In-memory database
-  // Or use a file path:
-  // file: './my-database.sqlite',
+  type: 'sqlite',
+  url: ':memory:', // In-memory database
+});
+
+// Connect to SQLite (file)
+const fileDb = await getDatabase({
+  type: 'sqlite',
+  url: 'file:./my-database.sqlite',
+});
+
+// Connect to LibSQL/Turso (remote)
+const tursoDb = await getDatabase({
+  type: 'sqlite',
+  url: 'libsql://your-database.turso.io',
+  authToken: process.env.TURSO_AUTH_TOKEN,
 });
 
 // Connect to PostgreSQL
 const pgDb = await getDatabase({
+  type: 'postgres',
   host: 'localhost',
   port: 5432,
   database: 'my_database',
   user: 'username',
   password: 'password',
 });
+
+// Connect to PostgreSQL via URL
+const pgUrlDb = await getDatabase({
+  type: 'postgres',
+  url: 'postgresql://user:pass@localhost:5432/dbname',
+});
 ```
 
 ### Executing Queries
 
-The package provides several template literal functions for different query types:
+The package provides template literal functions with both descriptive names and shorthand aliases:
 
-- `oo` - Returns all rows from a query
-- `oO` - Returns a single row
-- `ox` - Returns a single value (first column of first row)
-- `xx` - Executes a statement (no return value)
+- `many`/`oo` - Returns all rows from a query
+- `single`/`oO` - Returns a single row
+- `pluck`/`ox` - Returns a single value (first column of first row)
+- `execute`/`xx` - Executes a statement (no return value)
 
 ```typescript
-// Fetch all posts
-const { oo } = db;
-const posts = await oo`
+// Fetch all posts (using descriptive names)
+const posts = await db.many`
   SELECT * FROM posts
-  WHERE published = true
+  WHERE published = ${true}
   ORDER BY created_at DESC
 `;
-console.log(posts);
 
-// Fetch a single post
-const { oO } = db;
-const post = await oO`
+// Fetch a single post (using shorthand alias)
+const post = await db.oO`
   SELECT * FROM posts
   WHERE id = ${postId}
 `;
-console.log(post);
 
-// Get a count
-const { ox } = db;
-const count = await ox`
+// Get a count (using descriptive name)
+const count = await db.pluck`
   SELECT COUNT(*) FROM posts
   WHERE author = ${authorName}
 `;
 console.log(`Found ${count} posts by ${authorName}`);
 
-// Execute a statement
-const { xx } = db;
-await xx`
+// Execute a statement (using shorthand alias)
+await db.xx`
   DELETE FROM posts
   WHERE id = ${postId}
 `;
+
+// Raw query with parameters
+const { rows, rowCount } = await db.query(
+  'SELECT * FROM posts WHERE status = ? AND created_at > ?',
+  ['published', '2024-01-01']
+);
 ```
 
 ### Using CRUD Helper Functions
 
 ```typescript
-// Insert data
-const newPost = await db.insert('posts', {
+// Insert single record
+const result = await db.insert('posts', {
+  id: 'post-123',
   title: 'Hello World',
   content: 'This is my first post',
   author: 'Jane Doe',
-  created_at: new Date()
+  created_at: new Date().toISOString()
 });
 
-// Get a record by criteria
-const post = await db.get('posts', { id: 123 });
+// Insert multiple records (batch)
+await db.insert('posts', [
+  { id: 'post-1', title: 'First Post', author: 'Alice' },
+  { id: 'post-2', title: 'Second Post', author: 'Bob' }
+]);
 
-// List records with filters
+// Get a record by criteria
+const post = await db.get('posts', { id: 'post-123' });
+
+// List records with complex filters
 const recentPosts = await db.list('posts', {
   author: 'Jane Doe',
-  published: true
+  published: true,
+  'created_at >': '2024-01-01'
 });
 
 // Update records
-await db.update('posts', 
-  { id: 123 }, // where
-  { title: 'Updated Title' } // set
+await db.update('posts',
+  { id: 'post-123' }, // where criteria
+  { title: 'Updated Title', updated_at: new Date().toISOString() } // data to set
+);
+
+// Get or insert (upsert pattern)
+const user = await db.getOrInsert('users',
+  { email: 'new@example.com' }, // search criteria
+  { id: 'user-new', name: 'New User', email: 'new@example.com' } // data to insert if not found
 );
 
 // Create a table-specific helper
 const postsTable = db.table('posts');
-const post = await postsTable.get({ id: 123 });
+const post = await postsTable.get({ id: 'post-123' });
 const newPost = await postsTable.insert({
+  id: 'post-456',
   title: 'Another Post',
   content: 'More content here',
   author: 'John Smith'
@@ -138,36 +175,134 @@ const newPost = await postsTable.insert({
 ### Using Transactions
 
 ```typescript
-// Start a transaction
+// Execute multiple operations in a transaction
 await db.transaction(async (tx) => {
-  // Use transaction object like the db object
-  await tx.xx`
-    INSERT INTO categories (name) 
+  // Use transaction object with the same API as db
+  await tx.execute`
+    INSERT INTO categories (name)
     VALUES (${categoryName})
   `;
-  
-  const categoryId = await tx.ox`
-    SELECT id FROM categories 
+
+  const categoryId = await tx.pluck`
+    SELECT id FROM categories
     WHERE name = ${categoryName}
   `;
-  
-  await tx.xx`
-    INSERT INTO posts (title, category_id)
-    VALUES (${title}, ${categoryId})
+
+  await tx.execute`
+    INSERT INTO posts (title, category_id, created_at)
+    VALUES (${title}, ${categoryId}, ${new Date().toISOString()})
   `;
-  
+
   // Transaction automatically commits if no errors
   // Or rolls back if any error is thrown
 });
+
+// Use CRUD operations within transactions
+await db.transaction(async (tx) => {
+  const user = await tx.insert('users', {
+    id: 'user-123',
+    email: 'user@example.com',
+    name: 'John Doe'
+  });
+
+  await tx.insert('user_profiles', {
+    user_id: 'user-123',
+    bio: 'Software developer'
+  });
+});
+```
+
+### Advanced Query Building
+
+```typescript
+import { buildWhere } from '@have/sql';
+
+// Build complex WHERE clauses with flexible operators
+const { sql, values } = buildWhere({
+  status: 'active',                    // equals (default)
+  'price >': 100,                     // greater than
+  'stock <=': 5,                      // less than or equal
+  'category in': ['electronics', 'books'], // IN clause
+  'name like': '%shirt%',             // LIKE pattern matching
+  'deleted_at': null,                 // IS NULL
+  'updated_at !=': null               // IS NOT NULL
+});
+
+// Use in template literal queries
+const products = await db.many`SELECT * FROM products ${sql}`;
+```
+
+### Schema Synchronization
+
+```typescript
+import { syncSchema } from '@have/sql';
+
+// Define schema as SQL DDL
+const schema = `
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT UNIQUE,
+    created_at TEXT,
+    updated_at TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS posts (
+    id TEXT PRIMARY KEY,
+    user_id TEXT REFERENCES users(id),
+    title TEXT NOT NULL,
+    content TEXT,
+    published BOOLEAN DEFAULT false,
+    created_at TEXT
+  );
+`;
+
+// Synchronize schema (creates tables and adds missing columns)
+await syncSchema({ db, schema });
+
+// Check if table exists
+const exists = await db.tableExists('users');
+```
+
+### Vector Search with SQLite-VSS
+
+```typescript
+// Note: Vector search is only available with SQLite databases
+// Create vector search table
+await db.execute`
+  CREATE VIRTUAL TABLE IF NOT EXISTS document_embeddings USING vss0(
+    id TEXT PRIMARY KEY,
+    embedding(1536),
+    content TEXT
+  )
+`;
+
+// Insert embeddings
+const embedding = new Float32Array(1536); // Your embedding vector
+await db.execute`
+  INSERT INTO document_embeddings (id, embedding, content)
+  VALUES (${docId}, ${embedding}, ${content})
+`;
+
+// Perform similarity search
+const similarDocs = await db.many`
+  SELECT id, content, distance
+  FROM document_embeddings
+  WHERE vss_search(embedding, ${queryEmbedding})
+  ORDER BY distance
+  LIMIT ${limit}
+`;
 ```
 
 ## Important Notes
 
-- Always use parameterized queries with the template literal functions
-- Don't use variables for table or column names - only for values
-- Don't accept unsanitized user input for table or column names
-- Keep raw SQL as ANSI-compatible as possible for database portability
-- Move complex operations to per-database-adapter functions
+- **Always use parameterized queries** with template literals or the query method
+- **Never use variables for table or column names** - only for values
+- **Validate user input** before using in table/column names
+- **Use transactions** for related operations that should be atomic
+- **Keep SQL ANSI-compatible** when possible for database portability
+- **Use appropriate indexes** for frequently queried columns
+- **Handle connection errors** gracefully with proper error handling
 
 ## API Reference
 

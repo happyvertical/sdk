@@ -1,7 +1,7 @@
 {
   "name": "@have/smrt",
   "version": "0.0.50",
-  "description": "Core AI agent framework with standardized collections, content processing, and code generators",
+  "description": "Core AI agent framework with standardized collections, object-relational mapping, and code generators",
   "author": "Will Griffin <willgriffin@gmail.com>",
   "type": "module",
   "main": "dist/index.js",

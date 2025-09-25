@@ -1,7 +1,7 @@
 {
   "name": "@have/utils",
   "version": "0.0.50",
-  "description": "Context-aware utility functions and type definitions",
+  "description": "Foundation utilities for ID generation, date parsing, URL handling, string conversion, error handling, and logging",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

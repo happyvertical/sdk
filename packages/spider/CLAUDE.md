@@ -81,10 +81,11 @@ The package has the following dependencies:
 
 - `@have/files`: For file system operations and caching functionality
 - `@have/utils`: For utility functions, logging, error handling, and URL validation
-- `@mozilla/readability`: For extracting readable content from web pages
 - `cheerio`: For server-side HTML parsing and jQuery-like DOM manipulation
 - `happy-dom`: For lightweight DOM implementation and HTML processing
 - `undici`: For high-performance HTTP requests (Node.js official HTTP client)
+
+**Note**: @mozilla/readability is listed as a dependency in package.json but is not currently used in the implementation. It may be intended for future content extraction features.
 
 ## Development Guidelines
 
@@ -203,22 +204,25 @@ Always reference the latest documentation when planning web scraping solutions, 
 
 - **@mozilla/readability**: [GitHub Repository](https://github.com/mozilla/readability)
   - Firefox's readability engine for extracting clean article content
-  - Current version: 0.5.0 - Check for new extraction features and content parsing improvements
-  - Use for converting complex web pages into clean, readable text
+  - Current version: 0.5.0 - Not currently used in implementation but available for future enhancements
+  - Could be used for converting complex web pages into clean, readable text
   
 - **cheerio**: [Official Documentation](https://cheerio.js.org/) | [GitHub](https://github.com/cheeriojs/cheerio)
   - Server-side implementation of jQuery for HTML manipulation
-  - Current version: 1.0.0 - Review for new selectors, traversal methods, and parsing optimizations
-  - Best for extracting specific content using CSS selectors
-  
+  - Current version: ~1.1.2 (package.json shows ^1.0.0) - Review for new selectors, traversal methods, and parsing optimizations
+  - Best for extracting specific content using CSS selectors with jQuery-like syntax
+  - Proven performance with over 1.7M projects using it
+
 - **happy-dom**: [GitHub Repository](https://github.com/capricorn86/happy-dom) | [Documentation](https://github.com/capricorn86/happy-dom/wiki/)
   - Lightweight DOM implementation optimized for server-side use
-  - Current version: 18.0.1 - Monitor for new DOM API support and performance enhancements
+  - Current version: ^18.0.1 - Monitor for new DOM API support and performance enhancements
+  - Supports Custom Elements, Shadow DOM, Mutation Observer, and Fetch API
   - Faster alternative to headless browsers for DOM manipulation
-  
+
 - **undici**: [Official Documentation](https://undici.nodejs.org) | [API Reference](https://github.com/nodejs/undici/blob/HEAD/docs/)
   - Official Node.js HTTP client with superior performance
-  - Current version: 7.11.0 - Check for new request methods, connection pooling features, and performance updates
+  - Current version: ^7.11.0 - Check for new request methods, connection pooling features, and performance updates
+  - Built-in fetch implementation, connection pooling, and HTTP/1.1 pipelining
   - Replaces node-fetch and axios for better performance
 
 ### Expert Agent Instructions

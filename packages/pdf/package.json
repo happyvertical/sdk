@@ -1,7 +1,7 @@
 {
   "name": "@have/pdf",
   "version": "0.0.50",
-  "description": "Modern PDF processing utilities with text extraction and OCR support using unpdf and @gutenye/ocr-node",
+  "description": "Modern PDF processing utilities with text extraction and OCR support using unpdf and @have/ocr",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

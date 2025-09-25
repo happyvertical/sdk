@@ -20,7 +20,7 @@
     "clean": "rm -rf dist docs",
     "dev": "npm run build:watch & npm run test:watch"
   },
-  "description": "Web scraping and content extraction using happy-dom and undici for lightweight, fast operations",
+  "description": "Lightweight web scraping and HTML content extraction using cheerio, happy-dom, and undici for high-performance server-side operations",
   "dependencies": {
     "@have/files": "workspace:*",
     "@have/utils": "workspace:*",

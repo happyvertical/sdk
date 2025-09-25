@@ -35,6 +35,13 @@ const tursoDb = await getDatabase({
   authToken: process.env.TURSO_AUTH_TOKEN
 });
 
+// Create an encrypted SQLite database (LibSQL feature)
+const encryptedDb = await getDatabase({
+  type: 'sqlite',
+  url: 'file:encrypted.db',
+  encryptionKey: process.env.ENCRYPTION_KEY
+});
+
 // Create a PostgreSQL client
 const pgDb = await getDatabase({
   type: 'postgres',
@@ -243,6 +250,8 @@ const filteredResults = await db.many`
 
 ### Error Handling
 
+The package provides structured error handling with context information:
+
 ```typescript
 import { DatabaseError } from '@have/utils';
 
@@ -250,11 +259,35 @@ try {
   await db.insert('users', invalidData);
 } catch (error) {
   if (error instanceof DatabaseError) {
-    console.log('Database operation failed:', error.message);
-    console.log('Context:', error.context);
-    console.log('SQL:', error.context.sql);
-    console.log('Values:', error.context.values);
+    console.error('Database operation failed:', error.message);
+    console.error('Context:', error.context);
+
+    // Access specific error details
+    if (error.context.sql) {
+      console.error('SQL:', error.context.sql);
+      console.error('Values:', error.context.values);
+    }
+
+    if (error.context.table) {
+      console.error('Table:', error.context.table);
+    }
+
+    // Original database error
+    console.error('Original error:', error.context.originalError);
   }
+}
+
+// Example with transaction error handling
+try {
+  await db.transaction(async (tx) => {
+    await tx.insert('users', userData);
+    await tx.insert('profiles', profileData);
+    // If any operation fails, transaction rolls back automatically
+  });
+} catch (error) {
+  // Transaction was rolled back
+  console.error('Transaction failed:', error.message);
+  // Handle the error appropriately
 }
 ```
 
@@ -492,8 +525,10 @@ await db.execute`CREATE VIRTUAL TABLE embeddings USING vss0(...)`;
 #### SQLite/LibSQL
 - **Single-writer limitation** - Design for read-heavy workloads
 - **WAL mode benefits** - Better concurrency for read operations
-- **Extension support** - Vector search, full-text search, JSON functions
-- **Encryption at rest** - Available with Turso and enterprise LibSQL
+- **Extension support** - Vector search (sqlite-vss), full-text search, JSON functions
+- **Encryption at rest** - Available with LibSQL using encryptionKey parameter
+- **Remote databases** - Turso provides hosted LibSQL with global replication
+- **Embedded replicas** - Sync remote databases locally for better performance
 
 #### PostgreSQL
 - **Connection pooling** - Essential for production applications

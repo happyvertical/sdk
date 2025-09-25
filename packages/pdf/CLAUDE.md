@@ -160,16 +160,16 @@ console.log('Detailed detections:', ocrResult.detections);
 ### Environment-Specific Provider Selection
 
 ```typescript
-import { 
-  getPDFReader, 
-  getAvailableProviders, 
+import {
+  getPDFReader,
+  getAvailableProviders,
   isProviderAvailable,
-  getProviderInfo 
+  getProviderInfo
 } from '@have/pdf';
 
 // Check available providers in current environment
 const providers = getAvailableProviders();
-console.log('Available providers:', providers); // ['unpdf'] in Node.js, ['pdfjs'] in browser
+console.log('Available providers:', providers); // ['unpdf'] in Node.js, [] in other environments
 
 // Check specific provider availability
 const isUnpdfAvailable = isProviderAvailable('unpdf');
@@ -179,9 +179,15 @@ const providerInfo = await getProviderInfo('unpdf');
 console.log('Provider capabilities:', providerInfo.capabilities);
 console.log('Dependencies status:', providerInfo.dependencies);
 
-// Force specific provider
-const unpdfReader = await getPDFReader({ provider: 'unpdf' }); // Node.js only
-const pdfjsReader = await getPDFReader({ provider: 'pdfjs' }); // Browser only
+// Create reader (auto-selects unpdf in Node.js)
+const reader = await getPDFReader({ provider: 'auto' }); // Recommended approach
+
+// Force specific provider (Node.js only currently)
+try {
+  const unpdfReader = await getPDFReader({ provider: 'unpdf' });
+} catch (error) {
+  console.error('Provider not available:', error.message);
+}
 ```
 
 ### Multi-Language OCR Support
@@ -191,22 +197,25 @@ import { getPDFReader } from '@have/pdf';
 
 const reader = await getPDFReader();
 
-// Process multilingual documents
-const chineseText = await reader.performOCR(images, {
-  language: 'chi_sim',     // Simplified Chinese
-  confidenceThreshold: 70
-});
+// Extract images first
+const images = await reader.extractImages('/path/to/multilingual.pdf');
 
-const germanText = await reader.performOCR(images, {
-  language: 'deu',         // German
-  outputFormat: 'json'     // Get structured output
-});
+if (images.length > 0) {
+  // Process multilingual documents (language support depends on OCR provider)
+  const result = await reader.performOCR(images, {
+    language: 'eng',         // English - most widely supported
+    confidenceThreshold: 70
+  });
 
-// Combined language processing
-const multiLangText = await reader.performOCR(images, {
-  language: 'eng+chi_sim+deu', // Multiple languages
-  confidenceThreshold: 50
-});
+  console.log('OCR Text:', result.text);
+  console.log('Confidence:', result.confidence);
+
+  // Check available languages through capabilities
+  const capabilities = await reader.checkCapabilities();
+  if (capabilities.ocrLanguages) {
+    console.log('Available OCR languages:', capabilities.ocrLanguages);
+  }
+}
 ```
 
 ### Dependency Validation and Error Handling
@@ -245,14 +254,16 @@ try {
 
 ```typescript
 // These functions are deprecated but maintained for backward compatibility
-import { 
+import {
   extractTextFromPDF,     // Use reader.extractText() instead
   extractImagesFromPDF,   // Use reader.extractImages() instead
   performOCROnImages,     // Use reader.performOCR() instead
   checkOCRDependencies    // Use reader.checkDependencies() instead
 } from '@have/pdf';
 
-// Migrate to new factory-based approach for better features and performance
+// IMPORTANT: Migrate to new factory-based approach for better features and performance
+const reader = await getPDFReader();
+const text = await reader.extractText('/path/to/document.pdf');
 ```
 
 ## Dependencies
@@ -261,57 +272,39 @@ The package uses different providers based on the runtime environment:
 
 ### Node.js Environment
 - **unpdf**: Modern serverless-optimized PDF processing library for text, metadata, and image extraction
-- **tesseract.js**: Zero-dependency OCR engine for fallback text extraction
+- **@have/ocr**: Internal OCR package providing multiple OCR provider support (tesseract.js, EasyOCR)
 
-### Browser Environment  
-- **PDF.js** (planned): Browser-native PDF processing
-- **tesseract.js**: Web-based OCR for browser environments
+### Browser Environment
+- **Not currently implemented**: Browser support is planned for future releases
 
 ### Internal Workspace Dependencies
-- No internal workspace dependencies - the PDF package is self-contained
+- **@have/ocr**: Internal workspace dependency for OCR capabilities
 
 ### System Requirements
 
 OCR functionality has different requirements based on the environment:
 
 #### Node.js OCR Requirements
-- **Node.js v24+**: Required for all operations
-- **Memory**: Sufficient RAM for processing large images (2GB+ recommended)
-- **Optional: EasyOCR Dependencies**: For enhanced OCR accuracy (falls back to Tesseract.js)
-
-#### Browser OCR Requirements
-- **Modern Browser**: With Canvas API support
-- **WebAssembly**: For Tesseract.js processing
-- **Memory**: Browser memory limits apply
+- **Node.js v18+**: Required for all operations (Node.js 24+ recommended)
+- **Memory**: Sufficient RAM for processing large images (2GB+ recommended for OCR)
+- **@have/ocr Dependencies**: Automatically managed through internal workspace dependency
 
 ### Platform-Specific Installation
 
-**NixOS:**
+Since @have/pdf is part of the HAVE SDK monorepo, all dependencies are managed through the workspace:
+
+**All Platforms:**
 ```bash
-nix-shell -p nodejs_24
-# For enhanced OCR (optional):
-nix-shell -p python3 python3Packages.easyocr
+# Install workspace dependencies (from SDK root)
+bun install
+
+# Build the PDF package
+bun run build
 ```
 
-**Ubuntu/Debian:**
-```bash
-# Basic Node.js setup (required)
-sudo apt-get install nodejs npm
-
-# Enhanced OCR dependencies (optional)
-sudo apt-get install python3 python3-pip
-pip3 install easyocr
-```
-
-**macOS:**
-```bash
-# Basic setup
-brew install node
-
-# Enhanced OCR dependencies (optional)  
-brew install python3
-pip3 install easyocr
-```
+**Additional OCR Dependencies** (handled by @have/ocr):
+- System-specific OCR libraries are automatically managed
+- See @have/ocr documentation for enhanced OCR setup options
 
 ### Dependency Validation
 
@@ -516,24 +509,18 @@ Always reference the latest documentation when implementing PDF processing solut
   - Check for new extraction features and performance improvements
   - Monitor for additional format support and edge case handling
 
-- **tesseract.js**: [npm Package](https://www.npmjs.com/package/tesseract.js) | [GitHub Repository](https://github.com/naptha/tesseract.js)
-  - Browser and Node.js OCR capabilities
-  - Review for new language support and accuracy improvements
-  - Check for WebAssembly optimizations and memory leak fixes
+### Internal Dependencies
 
-### Enhanced OCR Libraries (Optional)
+- **@have/ocr**: Internal workspace package providing OCR capabilities
+  - Managed through workspace dependencies
+  - Supports multiple OCR providers (tesseract.js, EasyOCR)
+  - See @have/ocr package documentation for detailed OCR capabilities
 
-- **EasyOCR**: [GitHub Repository](https://github.com/JaidedAI/EasyOCR) | [Documentation](https://github.com/JaidedAI/EasyOCR/blob/master/README.md)
-  - High-accuracy OCR with 80+ language support
-  - Monitor for new model releases and language additions
-  - Check system requirements and compatibility updates
-
-### PDF.js (Browser Provider - Planned)
+### Future Browser Support (Planned)
 
 - **PDF.js**: [Official Documentation](https://mozilla.github.io/pdf.js/) | [GitHub Repository](https://github.com/mozilla/pdf.js)
-  - Mozilla's PDF rendering engine
-  - Review for new extraction APIs and browser compatibility
-  - Monitor for performance improvements and new features
+  - Mozilla's PDF rendering engine (planned for future browser support)
+  - Will provide browser-native PDF processing capabilities
 
 ### Expert Agent Instructions
 

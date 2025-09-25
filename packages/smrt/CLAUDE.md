@@ -22,7 +22,12 @@ The `@have/smrt` package is the core framework for building vertical AI agents i
 - **Virtual Module System**: Dynamic code generation through Vite plugins
 - **Type Safety**: Automatic TypeScript declaration generation
 
-**Expert Agent Expertise**: When working with this package, always proactively check the latest documentation for foundational libraries (@langchain/community, cheerio, yaml) as they frequently add new features that can enhance agent capabilities. The SMRT framework is designed to leverage the latest capabilities from its dependencies for optimal agent performance.
+**Expert Agent Expertise**: When working with this package, always proactively check the latest documentation using WebFetch for foundational libraries (@langchain/community, cheerio, yaml) as they frequently add new features that can enhance agent capabilities. Recent updates include:
+- **@langchain/community**: Advanced retrieval strategies, multimodal tool calling, streaming events, and LangGraph for stateful multi-actor applications
+- **cheerio**: Blazingly fast HTML parsing with jQuery-like syntax for server-side content processing
+- **yaml**: Full YAML 1.1/1.2 support with AST manipulation and custom tag resolution for flexible configuration management
+
+The SMRT framework is designed to leverage the latest capabilities from its dependencies for optimal agent performance.
 
 ## Key Concepts
 
@@ -547,12 +552,33 @@ When working with @have/smrt:
 5. **Look for new AI integration patterns** and cross-package capabilities
 6. **Monitor performance improvements** in database operations and AI processing
 
-Example workflow for staying current:
+### Documentation Lookup Protocol
+
+Before implementing solutions, use WebFetch to verify current capabilities:
+
+**Core Libraries to Check**:
+- **@langchain/community**: https://js.langchain.com/docs/introduction/
+  - Monitor for new tools, chains, retrieval strategies
+  - Check for LangGraph updates (stateful multi-actor applications)
+  - Look for streaming and multimodal capabilities
+- **cheerio**: https://cheerio.js.org/
+  - Review for new selectors and traversal methods
+  - Check parsing performance improvements
+  - Monitor jQuery compatibility updates
+- **yaml**: https://eemeli.org/yaml/
+  - Check for schema enhancements
+  - Review AST manipulation features
+  - Monitor custom tag resolution improvements
+
+**Verification Workflow**:
 ```typescript
 // Before implementing agent solutions, verify current best practices
-await WebFetch.get('https://js.langchain.com/docs/introduction/');
-await WebFetch.get('https://cheerio.js.org/');
-// Then implement with latest patterns and capabilities
+await WebFetch.get('https://js.langchain.com/docs/introduction/',
+  'What new LangChain.js features would enhance AI agent development?');
+await WebFetch.get('https://cheerio.js.org/',
+  'What are the latest Cheerio features for HTML content processing?');
+await WebFetch.get('https://eemeli.org/yaml/',
+  'What new YAML parsing features support agent configuration?');
 ```
 
 ### Agent Framework Resources
