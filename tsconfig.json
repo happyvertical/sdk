@@ -28,11 +28,21 @@
     "skipLibCheck": true,
 
     // Types
-    "types": ["node", "bun"],
+    "types": ["node"],
 
     // Let Node.js module resolution handle workspace packages through package.json exports
     "baseUrl": "."
   },
+  "include": ["packages/*/src/**/*", "vitest.config.ts"],
+  "exclude": [
+    "docs/**/*",
+    "**/node_modules/**",
+    "dist/**/*",
+    "packages/*/dist/**/*",
+    "packages/*/.svelte-kit/**/*",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ],
   "references": [
     { "path": "./packages/utils" },
     { "path": "./packages/files" },
@@ -41,6 +51,8 @@
     { "path": "./packages/ocr" },
     { "path": "./packages/pdf" },
     { "path": "./packages/ai" },
-    { "path": "./packages/smrt" }
+    { "path": "./packages/smrt" },
+    { "path": "./packages/content" },
+    { "path": "./packages/products" }
   ]
 }

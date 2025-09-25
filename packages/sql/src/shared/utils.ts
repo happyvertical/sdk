@@ -6,14 +6,14 @@
  * Map of valid SQL operators for use in WHERE clauses
  */
 const VALID_OPERATORS = {
-  "=": "=",
-  ">": ">",
-  ">=": ">=",
-  "<": "<",
-  "<=": "<=",
-  "!=": "!=",
-  like: "LIKE",
-  in: "IN",
+  '=': '=',
+  '>': '>',
+  '>=': '>=',
+  '<': '<',
+  '<=': '<=',
+  '!=': '!=',
+  like: 'LIKE',
+  in: 'IN',
 } as const;
 
 /**
@@ -81,25 +81,25 @@ const VALID_OPERATORS = {
  * - Multiple conditions combined with AND
  */
 export const buildWhere = (where: Record<string, any>, startIndex = 1) => {
-  let sql = "";
+  let sql = '';
   const values: any[] = [];
   let currIndex = startIndex;
 
   if (where && Object.keys(where).length > 0) {
-    sql = "WHERE ";
+    sql = 'WHERE ';
     for (const [fullKey, value] of Object.entries(where)) {
-      const [field, operator = "="] = fullKey.split(" ");
+      const [field, operator = '='] = fullKey.split(' ');
       const sqlOperator =
-        VALID_OPERATORS[operator as keyof typeof VALID_OPERATORS] || "=";
+        VALID_OPERATORS[operator as keyof typeof VALID_OPERATORS] || '=';
 
-      if (sql !== "WHERE ") {
-        sql += " AND ";
+      if (sql !== 'WHERE ') {
+        sql += ' AND ';
       }
 
       if (value === null) {
-        sql += `${field} IS ${sqlOperator === "=" ? "NULL" : "NOT NULL"}`;
-      } else if (sqlOperator === "IN" && Array.isArray(value)) {
-        const placeholders = value.map(() => `$${currIndex++}`).join(", ");
+        sql += `${field} IS ${sqlOperator === '=' ? 'NULL' : 'NOT NULL'}`;
+      } else if (sqlOperator === 'IN' && Array.isArray(value)) {
+        const placeholders = value.map(() => `$${currIndex++}`).join(', ');
         sql += `${field} IN (${placeholders})`;
         values.push(...value);
       } else {

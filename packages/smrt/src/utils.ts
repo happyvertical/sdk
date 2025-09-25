@@ -1,5 +1,4 @@
 import { syncSchema } from '@have/sql';
-import yaml from 'yaml';
 
 /**
  * Checks if a field name indicates a date field based on naming conventions
@@ -22,7 +21,7 @@ export function isDateField(key: string) {
 
 /**
  * Converts a date string to a Date object
- * 
+ *
  * @param date - Date as string or Date object
  * @returns Date object
  */
@@ -35,7 +34,7 @@ export function dateAsString(date: Date | string) {
 
 /**
  * Converts a Date object to an ISO string
- * 
+ *
  * @param date - Date as Date object or string
  * @returns ISO date string or the original string
  */
@@ -203,7 +202,7 @@ export function generateSchema(ClassType: new (...args: any[]) => any) {
 
 /**
  * Generates a table name from a class constructor
- * 
+ *
  * @param ClassType - Class constructor or function
  * @returns Pluralized snake_case table name
  */
@@ -224,10 +223,9 @@ export function tableNameFromClass(
   );
 }
 
-
 /**
  * Converts a class name to a table name with pluralization
- * 
+ *
  * @param className - Name of the class
  * @returns Pluralized snake_case table name
  */
@@ -291,7 +289,7 @@ export async function setupTableFromClass(db: any, ClassType: any) {
 
 /**
  * Sets up database triggers for automatic timestamp updates
- * 
+ *
  * @param db - Database connection
  * @param tableName - Name of the table to set up triggers for
  * @returns Promise that resolves when triggers are set up
@@ -333,10 +331,9 @@ export async function setupTriggers(db: any, tableName: string) {
   }
 }
 
-
 /**
  * Formats data for JavaScript by converting date strings to Date objects
- * 
+ *
  * @param data - Object with data to format
  * @returns Object with properly typed values for JavaScript
  */
@@ -356,7 +353,7 @@ export function formatDataJs(data: Record<string, any>) {
 
 /**
  * Formats data for SQL by converting Date objects to ISO strings
- * 
+ *
  * @param data - Object with data to format
  * @returns Object with properly formatted values for SQL
  */

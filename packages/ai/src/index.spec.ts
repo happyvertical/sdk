@@ -1,6 +1,7 @@
-import { it, expect } from 'vitest';
-import { AIClient, OpenAIClient } from './shared/client.js';
-import { AIThread } from './shared/thread.js';
+import { expect, it } from 'vitest';
+import { AIClient, OpenAIClient } from './shared/client';
+import { AIThread } from './shared/thread';
+
 it.skip('should create an AIClient and send it a message', async () => {
   console.log(process.env.OPENAI_API_KEY);
   const client = await OpenAIClient.create({
@@ -19,7 +20,7 @@ it.skip('should create an AIThread and ask it a question', async () => {
     prompt: 'What is the capital of France?',
   };
 
-  const ai = await AIClient.create(options.ai);
+  const _ai = await AIClient.create(options.ai);
 
   // lets talk about it
   const thread = await AIThread.create({

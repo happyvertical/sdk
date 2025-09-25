@@ -7,25 +7,24 @@
  */
 
 import type {
+  AICapabilities,
   AIInterface,
-  AnthropicOptions,
   AIMessage,
+  AIModel,
+  AIResponse,
+  AnthropicOptions,
   ChatOptions,
   CompletionOptions,
   EmbeddingOptions,
-  AIResponse,
   EmbeddingResponse,
-  AIModel,
-  AICapabilities,
-} from '../types.js';
+} from '../types';
 import {
   AIError,
   AuthenticationError,
-  RateLimitError,
-  ModelNotFoundError,
   ContextLengthError,
-  ContentFilterError,
-} from '../types.js';
+  ModelNotFoundError,
+  RateLimitError,
+} from '../types';
 
 // Note: This implementation will require @anthropic-ai/sdk package
 // For now, this is a placeholder that defines the interface
@@ -57,21 +56,23 @@ export class AnthropicProvider implements AIInterface {
   private initializeClientSync() {
     try {
       // Dynamic import in constructor - this will work if the package is installed
-      import('@anthropic-ai/sdk').then(({ Anthropic }) => {
-        this.client = new Anthropic({
-          apiKey: this.options.apiKey,
-          baseURL: this.options.baseUrl,
-          timeout: this.options.timeout,
-          maxRetries: this.options.maxRetries,
-          defaultHeaders: {
-            'anthropic-version': this.options.anthropicVersion,
-            ...this.options.headers,
-          },
+      import('@anthropic-ai/sdk')
+        .then(({ Anthropic }) => {
+          this.client = new Anthropic({
+            apiKey: this.options.apiKey,
+            baseURL: this.options.baseUrl,
+            timeout: this.options.timeout,
+            maxRetries: this.options.maxRetries,
+            defaultHeaders: {
+              'anthropic-version': this.options.anthropicVersion,
+              ...this.options.headers,
+            },
+          });
+        })
+        .catch(() => {
+          // Client will be null and we'll handle it in methods
         });
-      }).catch(() => {
-        // Client will be null and we'll handle it in methods
-      });
-    } catch (error) {
+    } catch (_error) {
       // Client will be null and we'll handle it in methods
     }
   }
@@ -95,11 +96,11 @@ export class AnthropicProvider implements AIInterface {
             ...this.options.headers,
           },
         });
-      } catch (error) {
+      } catch (_error) {
         throw new AIError(
           'Failed to initialize Anthropic client. Make sure @anthropic-ai/sdk is installed.',
           'INITIALIZATION_ERROR',
-          'anthropic'
+          'anthropic',
         );
       }
     }
@@ -123,19 +124,27 @@ export class AnthropicProvider implements AIInterface {
    * });
    * ```
    */
-  async chat(messages: AIMessage[], options: ChatOptions = {}): Promise<AIResponse> {
+  async chat(
+    messages: AIMessage[],
+    options: ChatOptions = {},
+  ): Promise<AIResponse> {
     try {
       await this.ensureClient();
 
-      const { system, anthropicMessages } = this.mapMessagesToAnthropic(messages);
-      
+      const { system, anthropicMessages } =
+        this.mapMessagesToAnthropic(messages);
+
       const response = await this.client.messages.create({
         model: options.model || this.options.defaultModel,
         messages: anthropicMessages,
         max_tokens: options.maxTokens || 4096,
         temperature: options.temperature,
         top_p: options.topP,
-        stop_sequences: Array.isArray(options.stop) ? options.stop : options.stop ? [options.stop] : undefined,
+        stop_sequences: Array.isArray(options.stop)
+          ? options.stop
+          : options.stop
+            ? [options.stop]
+            : undefined,
         system: system || undefined,
         stream: false,
       });
@@ -147,7 +156,8 @@ export class AnthropicProvider implements AIInterface {
         usage: {
           promptTokens: response.usage.input_tokens,
           completionTokens: response.usage.output_tokens,
-          totalTokens: response.usage.input_tokens + response.usage.output_tokens,
+          totalTokens:
+            response.usage.input_tokens + response.usage.output_tokens,
         },
       };
     } catch (error) {
@@ -155,7 +165,10 @@ export class AnthropicProvider implements AIInterface {
     }
   }
 
-  async complete(prompt: string, options: CompletionOptions = {}): Promise<AIResponse> {
+  async complete(
+    prompt: string,
+    options: CompletionOptions = {},
+  ): Promise<AIResponse> {
     return this.chat([{ role: 'user', content: prompt }], {
       model: options.model,
       maxTokens: options.maxTokens,
@@ -168,34 +181,48 @@ export class AnthropicProvider implements AIInterface {
     });
   }
 
-  async embed(text: string | string[], options: EmbeddingOptions = {}): Promise<EmbeddingResponse> {
+  async embed(
+    _text: string | string[],
+    _options: EmbeddingOptions = {},
+  ): Promise<EmbeddingResponse> {
     // Anthropic Claude doesn't provide embeddings API
     throw new AIError(
       'Anthropic Claude does not support embeddings. Use OpenAI or another provider for embeddings.',
       'NOT_SUPPORTED',
-      'anthropic'
+      'anthropic',
     );
   }
 
-  async *stream(messages: AIMessage[], options: ChatOptions = {}): AsyncIterable<string> {
+  async *stream(
+    messages: AIMessage[],
+    options: ChatOptions = {},
+  ): AsyncIterable<string> {
     try {
       await this.ensureClient();
 
-      const { system, anthropicMessages } = this.mapMessagesToAnthropic(messages);
-      
+      const { system, anthropicMessages } =
+        this.mapMessagesToAnthropic(messages);
+
       const stream = await this.client.messages.create({
         model: options.model || this.options.defaultModel,
         messages: anthropicMessages,
         max_tokens: options.maxTokens || 4096,
         temperature: options.temperature,
         top_p: options.topP,
-        stop_sequences: Array.isArray(options.stop) ? options.stop : options.stop ? [options.stop] : undefined,
+        stop_sequences: Array.isArray(options.stop)
+          ? options.stop
+          : options.stop
+            ? [options.stop]
+            : undefined,
         system: system || undefined,
         stream: true,
       });
-      
+
       for await (const chunk of stream) {
-        if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
+        if (
+          chunk.type === 'content_block_delta' &&
+          chunk.delta.type === 'text_delta'
+        ) {
           if (options.onProgress) {
             options.onProgress(chunk.delta.text);
           }
@@ -274,14 +301,26 @@ export class AnthropicProvider implements AIInterface {
       vision: true,
       fineTuning: false,
       maxContextLength: 200000,
-      supportedOperations: ['chat', 'completion', 'streaming', 'functions', 'vision'],
+      supportedOperations: [
+        'chat',
+        'completion',
+        'streaming',
+        'functions',
+        'vision',
+      ],
     };
   }
 
-  private mapMessagesToAnthropic(messages: AIMessage[]): { system?: string; anthropicMessages: Array<{ role: 'user' | 'assistant'; content: string }> } {
+  private mapMessagesToAnthropic(messages: AIMessage[]): {
+    system?: string;
+    anthropicMessages: Array<{ role: 'user' | 'assistant'; content: string }>;
+  } {
     // Anthropic handles system messages separately
     let system: string | undefined;
-    const anthropicMessages: Array<{ role: 'user' | 'assistant'; content: string }> = [];
+    const anthropicMessages: Array<{
+      role: 'user' | 'assistant';
+      content: string;
+    }> = [];
 
     for (const message of messages) {
       if (message.role === 'system') {
@@ -300,11 +339,16 @@ export class AnthropicProvider implements AIInterface {
 
   private mapFinishReason(reason: string | null): AIResponse['finishReason'] {
     switch (reason) {
-      case 'end_turn': return 'stop';
-      case 'max_tokens': return 'length';
-      case 'stop_sequence': return 'stop';
-      case 'tool_use': return 'function_call';
-      default: return 'stop';
+      case 'end_turn':
+        return 'stop';
+      case 'max_tokens':
+        return 'length';
+      case 'stop_sequence':
+        return 'stop';
+      case 'tool_use':
+        return 'function_call';
+      default:
+        return 'stop';
     }
   }
 
@@ -312,7 +356,7 @@ export class AnthropicProvider implements AIInterface {
     if (error instanceof AIError) {
       return error;
     }
-    
+
     // Map common HTTP status codes from Anthropic API
     if (typeof error === 'object' && error !== null && 'status' in error) {
       const apiError = error as { status: number; message?: string };
@@ -322,13 +366,19 @@ export class AnthropicProvider implements AIInterface {
         case 429:
           return new RateLimitError('anthropic');
         case 404:
-          return new ModelNotFoundError(apiError.message || 'Model not found', 'anthropic');
+          return new ModelNotFoundError(
+            apiError.message || 'Model not found',
+            'anthropic',
+          );
         case 413:
           return new ContextLengthError('anthropic');
       }
     }
-    
-    const errorMessage = error instanceof Error ? error.message : 'Unknown Anthropic error occurred';
+
+    const errorMessage =
+      error instanceof Error
+        ? error.message
+        : 'Unknown Anthropic error occurred';
     return new AIError(errorMessage, 'UNKNOWN_ERROR', 'anthropic');
   }
 }

@@ -2,16 +2,16 @@
  * @have/pdf - PDF.js provider for browser PDF processing
  */
 
-import { BasePDFReader } from '../shared/base.js';
+import { BasePDFReader } from '../shared/base';
 import type {
-  PDFSource,
-  ExtractTextOptions,
-  PDFMetadata,
-  PDFImage,
-  PDFCapabilities,
   DependencyCheckResult,
-} from '../shared/types.js';
-import { PDFDependencyError, PDFUnsupportedError } from '../shared/types.js';
+  ExtractTextOptions,
+  PDFCapabilities,
+  PDFImage,
+  PDFMetadata,
+  PDFSource,
+} from '../shared/types';
+import { PDFDependencyError, PDFUnsupportedError } from '../shared/types';
 
 /**
  * PDF reader implementation using PDF.js for browser environments
@@ -24,10 +24,6 @@ import { PDFDependencyError, PDFUnsupportedError } from '../shared/types.js';
 export class PDFJSProvider extends BasePDFReader {
   protected name = 'pdfjs';
   private pdfjs: any = null;
-
-  constructor() {
-    super();
-  }
 
   // The browser base class already provides normalizeSource, so we don't need to override it
 
@@ -185,7 +181,7 @@ export class PDFJSProvider extends BasePDFReader {
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         try {
           const page = await pdf.getPage(pageNum);
-          const operators = await page.getOperatorList();
+          const _operators = await page.getOperatorList();
 
           // This is a simplified implementation - PDF.js doesn't have
           // a direct equivalent to unpdf's extractImages function

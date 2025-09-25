@@ -1,12 +1,11 @@
 import {
+  FilesystemError,
   type FilesystemInterface,
   type GetFilesystemOptions,
-  LocalOptions,
-  type S3Options,
   type GoogleDriveOptions,
+  type S3Options,
   type WebDAVOptions,
-  FilesystemError,
-} from './shared/types.js';
+} from './shared/types';
 
 /**
  * Registry of available filesystem providers

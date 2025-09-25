@@ -1,35 +1,34 @@
+import { constants, createWriteStream, existsSync, statSync } from 'node:fs';
 import {
-  stat,
-  readFile,
-  writeFile,
-  unlink,
+  access,
+  copyFile,
   mkdir,
   readdir,
-  copyFile,
+  readFile,
   rename,
   rmdir,
-  access,
+  stat,
+  unlink,
+  writeFile,
 } from 'node:fs/promises';
-import { statSync, existsSync, constants, createWriteStream } from 'node:fs';
 import { dirname, extname, join, resolve } from 'node:path';
 import { URL } from 'node:url';
 import { getTempDirectory } from '@have/utils';
+import { BaseFilesystemProvider } from '../shared/base';
 import {
+  type CreateDirOptions,
+  DirectoryNotEmptyError,
+  type FileInfo,
+  FileNotFoundError,
+  type FileStats,
   type FilesystemCapabilities,
+  FilesystemError,
+  type ListOptions,
   type LocalOptions,
+  PermissionError,
   type ReadOptions,
   type WriteOptions,
-  type CreateDirOptions,
-  type ListOptions,
-  type FileInfo,
-  type FileStats,
-  FileNotFoundError,
-  PermissionError,
-  DirectoryNotEmptyError,
-  FilesystemError,
-  ListFilesOptions,
-} from '../shared/types.js';
-import { BaseFilesystemProvider } from '../shared/base.js';
+} from '../shared/types';
 
 /**
  * Local filesystem provider using Node.js fs module with full feature support
@@ -146,10 +145,9 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
       if (options.raw) {
         // Return raw buffer
         return await readFile(resolvedPath);
-      } else {
-        // Return string with specified encoding (default utf8)
-        return await readFile(resolvedPath, options.encoding || 'utf8');
       }
+      // Return string with specified encoding (default utf8)
+      return await readFile(resolvedPath, options.encoding || 'utf8');
     } catch (error: any) {
       if (error.code === 'ENOENT') {
         throw new FileNotFoundError(path, 'local');
@@ -721,10 +719,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
   /**
    * Get data from cache if available and not expired (legacy)
    */
-  async getCached(
-    file: string,
-    expiry: number = 300000,
-  ): Promise<string | undefined> {
+  async getCached(file: string, expiry = 300000): Promise<string | undefined> {
     const cacheFile = resolve(getTempDirectory('cache'), file);
     const cached = existsSync(cacheFile);
     if (cached) {

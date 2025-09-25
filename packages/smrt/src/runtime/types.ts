@@ -6,11 +6,13 @@ export interface SmrtServerOptions {
   port?: number;
   hostname?: string;
   basePath?: string;
-  cors?: boolean | {
-    origin?: string | string[];
-    methods?: string[];
-    headers?: string[];
-  };
+  cors?:
+    | boolean
+    | {
+        origin?: string | string[];
+        methods?: string[];
+        headers?: string[];
+      };
   auth?: {
     type: 'bearer' | 'basic' | 'custom';
     verify?: (token: string) => Promise<boolean | any>;
@@ -52,14 +54,14 @@ export interface CollectionInterface {
     limit?: number;
     offset?: number;
   }): Promise<any[]>;
-  
+
   get(id: string): Promise<any | null>;
-  
+
   create(data: any): Promise<any>;
-  
+
   update(id: string, data: any): Promise<any | null>;
-  
+
   delete(id: string): Promise<boolean>;
-  
+
   count(options?: { where?: Record<string, any> }): Promise<number>;
 }

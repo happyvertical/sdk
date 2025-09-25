@@ -1,12 +1,13 @@
 /**
- * High-performance REST API generator for smrt objects using native Bun
+ * High-performance REST API generator for smrt objects using Node.js HTTP server
  *
  * Designed for minimal bundle size and maximum performance
  */
 
-import { ObjectRegistry } from '../registry.js';
-import type { BaseCollection } from '../collection.js';
-import type { BaseObject } from '../object.js';
+import http from 'node:http';
+import type { SmrtCollection } from '../collection';
+import type { SmrtObject } from '../object';
+import { ObjectRegistry } from '../registry';
 
 export interface APIConfig {
   basePath?: string;
@@ -35,7 +36,7 @@ export interface APIContext {
  */
 export class APIGenerator {
   private config: APIConfig;
-  private collections = new Map<string, BaseCollection<any>>();
+  private collections = new Map<string, SmrtCollection<any>>();
   private context: APIContext;
 
   constructor(config: APIConfig = {}, context: APIContext = {}) {
@@ -50,19 +51,74 @@ export class APIGenerator {
   }
 
   /**
-   * Create Bun server with all routes
+   * Create Node.js HTTP server with all routes
    */
   createServer(): { server: any; url: string } {
-    const server = Bun.serve({
-      port: this.config.port,
-      hostname: this.config.hostname,
-      fetch: (req) => this.handleRequest(req),
+    const server = http.createServer(async (req, res) => {
+      try {
+        const request = this.nodeRequestToWebRequest(req);
+        const response = await this.handleRequest(request);
+        this.webResponseToNodeResponse(response, res);
+      } catch (error) {
+        res.statusCode = 500;
+        res.end('Internal Server Error');
+      }
     });
+
+    server.listen(this.config.port, this.config.hostname);
 
     return {
       server,
       url: `http://${this.config.hostname}:${this.config.port}`,
     };
+  }
+
+  /**
+   * Convert Node.js IncomingMessage to Web Request
+   */
+  private nodeRequestToWebRequest(req: http.IncomingMessage): Request {
+    const url = `http://${this.config.hostname}:${this.config.port}${req.url}`;
+    const method = req.method || 'GET';
+    const headers = new Headers();
+
+    for (const [key, value] of Object.entries(req.headers)) {
+      if (value) {
+        headers.set(key, Array.isArray(value) ? value[0] : value);
+      }
+    }
+
+    return new Request(url, {
+      method,
+      headers,
+      body: method !== 'GET' && method !== 'HEAD' ? req : undefined,
+    });
+  }
+
+  /**
+   * Convert Web Response to Node.js ServerResponse
+   */
+  private async webResponseToNodeResponse(
+    webResponse: Response,
+    res: http.ServerResponse,
+  ): Promise<void> {
+    res.statusCode = webResponse.status;
+
+    // Set headers
+    for (const [key, value] of webResponse.headers.entries()) {
+      res.setHeader(key, value);
+    }
+
+    // Send body
+    if (webResponse.body) {
+      const reader = webResponse.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(value);
+      }
+    }
+
+    res.end();
   }
 
   /**
@@ -198,7 +254,7 @@ export class APIGenerator {
    * Handle GET /objects/:id
    */
   private async handleGet(
-    collection: BaseCollection<any>,
+    collection: SmrtCollection<any>,
     id: string,
   ): Promise<Response> {
     const object = await collection.get(id);
@@ -212,11 +268,11 @@ export class APIGenerator {
    * Handle GET /objects (list with query params)
    */
   private async handleList(
-    collection: BaseCollection<any>,
+    collection: SmrtCollection<any>,
     params: URLSearchParams,
   ): Promise<Response> {
-    const limit = parseInt(params.get('limit') || '50');
-    const offset = parseInt(params.get('offset') || '0');
+    const limit = Number.parseInt(params.get('limit') || '50', 10);
+    const offset = Number.parseInt(params.get('offset') || '0', 10);
     const orderBy = params.get('orderBy') || 'created_at DESC';
 
     // Build where clause from query params
@@ -241,7 +297,7 @@ export class APIGenerator {
    * Handle POST /objects
    */
   private async handleCreate(
-    collection: BaseCollection<any>,
+    collection: SmrtCollection<any>,
     req: Request,
   ): Promise<Response> {
     const data = await req.json();
@@ -254,7 +310,7 @@ export class APIGenerator {
    * Handle PUT/PATCH /objects/:id
    */
   private async handleUpdate(
-    collection: BaseCollection<any>,
+    collection: SmrtCollection<any>,
     id: string,
     req: Request,
   ): Promise<Response> {
@@ -276,7 +332,7 @@ export class APIGenerator {
    * Handle DELETE /objects/:id
    */
   private async handleDelete(
-    collection: BaseCollection<any>,
+    collection: SmrtCollection<any>,
     id: string,
   ): Promise<Response> {
     const object = await collection.get(id);
@@ -292,7 +348,7 @@ export class APIGenerator {
   /**
    * Get or create collection instance
    */
-  private getCollection(classInfo: any): BaseCollection<any> {
+  private getCollection(classInfo: any): SmrtCollection<any> {
     if (!this.collections.has(classInfo.name)) {
       const collection = new classInfo.collectionConstructor({
         ai: this.context.ai,
@@ -368,12 +424,12 @@ export class APIGenerator {
    */
   private pluralize(word: string): string {
     if (word.endsWith('y')) {
-      return word.slice(0, -1) + 'ies';
+      return `${word.slice(0, -1)}ies`;
     }
     if (word.endsWith('s') || word.endsWith('sh') || word.endsWith('ch')) {
-      return word + 'es';
+      return `${word}es`;
     }
-    return word + 's';
+    return `${word}s`;
   }
 }
 
@@ -391,7 +447,7 @@ export interface RestServerConfig extends APIConfig {
  * Create REST server with health checks using Bun
  */
 export function createRestServer(
-  objects: (typeof BaseObject)[],
+  objects: (typeof SmrtObject)[],
   context: APIContext = {},
   config: RestServerConfig = {},
 ): { server: any; url: string } {
@@ -414,7 +470,7 @@ export function createRestServer(
  * Start server with graceful shutdown
  */
 export function startRestServer(
-  objects: (typeof BaseObject)[],
+  objects: (typeof SmrtObject)[],
   context: APIContext = {},
   config: RestServerConfig = {},
 ): Promise<() => Promise<void>> {

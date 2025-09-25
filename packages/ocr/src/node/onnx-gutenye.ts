@@ -7,17 +7,17 @@
  */
 
 import Ocr from '@gutenye/ocr-node';
-import { PNG } from 'pngjs';
 import jpeg from 'jpeg-js';
+import { PNG } from 'pngjs';
 import type {
-  OCRProvider,
-  OCRImage,
-  OCROptions,
-  OCRResult,
   DependencyCheckResult,
   OCRCapabilities,
-} from '../shared/types.js';
-import { OCRDependencyError, OCRProcessingError } from '../shared/types.js';
+  OCRImage,
+  OCROptions,
+  OCRProvider,
+  OCRResult,
+} from '../shared/types';
+import { OCRDependencyError } from '../shared/types';
 
 /**
  * ONNX OCR provider implementation using PaddleOCR models for high-accuracy text extraction.
@@ -78,16 +78,6 @@ export class ONNXGutenyeProvider implements OCRProvider {
   private initialized = false;
 
   /**
-   * Create a new ONNX OCR provider instance.
-   *
-   * The constructor is lightweight and synchronous. The ONNX Runtime
-   * and PaddleOCR models are loaded lazily when first needed.
-   */
-  constructor() {
-    // Constructor is synchronous - OCR instance created lazily
-  }
-
-  /**
    * Initialize the @gutenye/ocr-node instance with PaddleOCR models.
    *
    * This method loads the ONNX Runtime and PaddleOCR models required
@@ -107,7 +97,10 @@ export class ONNXGutenyeProvider implements OCRProvider {
       console.log('@gutenye/ocr-node initialized successfully');
     } catch (error) {
       console.error('Failed to initialize @gutenye/ocr-node:', error);
-      throw new OCRDependencyError('onnx', `Failed to initialize @gutenye/ocr-node: ${(error as Error).message}`);
+      throw new OCRDependencyError(
+        'onnx',
+        `Failed to initialize @gutenye/ocr-node: ${(error as Error).message}`,
+      );
     }
   }
 
@@ -130,24 +123,31 @@ export class ONNXGutenyeProvider implements OCRProvider {
    * const jpegBuffer = this.rgbToJpegBuffer(rgbPixels, 1920, 1080);
    * ```
    */
-  private rgbToJpegBuffer(rgbData: Buffer, width: number, height: number): Buffer {
+  private rgbToJpegBuffer(
+    rgbData: Buffer,
+    width: number,
+    height: number,
+  ): Buffer {
     // Convert RGB to RGBA format that jpeg-js expects
     const rgbaData = Buffer.alloc(width * height * 4);
 
     for (let i = 0; i < rgbData.length; i += 3) {
       const rgbaIndex = (i / 3) * 4;
-      rgbaData[rgbaIndex] = rgbData[i];     // R
+      rgbaData[rgbaIndex] = rgbData[i]; // R
       rgbaData[rgbaIndex + 1] = rgbData[i + 1]; // G
       rgbaData[rgbaIndex + 2] = rgbData[i + 2]; // B
-      rgbaData[rgbaIndex + 3] = 255;        // A (fully opaque)
+      rgbaData[rgbaIndex + 3] = 255; // A (fully opaque)
     }
 
     // Encode as JPEG with high quality
-    const jpegData = jpeg.encode({
-      data: rgbaData,
-      width: width,
-      height: height
-    }, 90); // 90% quality for good OCR results
+    const jpegData = jpeg.encode(
+      {
+        data: rgbaData,
+        width: width,
+        height: height,
+      },
+      90,
+    ); // 90% quality for good OCR results
 
     return Buffer.from(jpegData.data);
   }
@@ -171,10 +171,16 @@ export class ONNXGutenyeProvider implements OCRProvider {
    * }
    * ```
    */
-  private decodeImageToRGB(imageBuffer: Buffer): { rgbData: Buffer; width: number; height: number } | null {
+  private decodeImageToRGB(
+    imageBuffer: Buffer,
+  ): { rgbData: Buffer; width: number; height: number } | null {
     try {
       // Try PNG first
-      if (imageBuffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))) {
+      if (
+        imageBuffer
+          .subarray(0, 8)
+          .equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+      ) {
         console.log('Detected PNG format, decoding...');
         const png = PNG.sync.read(imageBuffer);
 
@@ -182,7 +188,7 @@ export class ONNXGutenyeProvider implements OCRProvider {
         const rgbData = Buffer.alloc(png.width * png.height * 3);
         for (let i = 0; i < png.data.length; i += 4) {
           const rgbIndex = (i / 4) * 3;
-          rgbData[rgbIndex] = png.data[i];     // R
+          rgbData[rgbIndex] = png.data[i]; // R
           rgbData[rgbIndex + 1] = png.data[i + 1]; // G
           rgbData[rgbIndex + 2] = png.data[i + 2]; // B
           // Skip alpha channel
@@ -191,12 +197,12 @@ export class ONNXGutenyeProvider implements OCRProvider {
         return {
           rgbData,
           width: png.width,
-          height: png.height
+          height: png.height,
         };
       }
 
       // Try JPEG
-      if (imageBuffer.subarray(0, 2).equals(Buffer.from([0xFF, 0xD8]))) {
+      if (imageBuffer.subarray(0, 2).equals(Buffer.from([0xff, 0xd8]))) {
         console.log('Detected JPEG format, decoding...');
         const jpegData = jpeg.decode(imageBuffer);
 
@@ -207,7 +213,7 @@ export class ONNXGutenyeProvider implements OCRProvider {
           rgbData = Buffer.alloc(jpegData.width * jpegData.height * 3);
           for (let i = 0; i < jpegData.data.length; i += 4) {
             const rgbIndex = (i / 4) * 3;
-            rgbData[rgbIndex] = jpegData.data[i];     // R
+            rgbData[rgbIndex] = jpegData.data[i]; // R
             rgbData[rgbIndex + 1] = jpegData.data[i + 1]; // G
             rgbData[rgbIndex + 2] = jpegData.data[i + 2]; // B
           }
@@ -219,7 +225,7 @@ export class ONNXGutenyeProvider implements OCRProvider {
         return {
           rgbData,
           width: jpegData.width,
-          height: jpegData.height
+          height: jpegData.height,
         };
       }
 
@@ -230,7 +236,6 @@ export class ONNXGutenyeProvider implements OCRProvider {
       return null;
     }
   }
-
 
   /**
    * Perform OCR processing using ONNX Runtime with PaddleOCR models.
@@ -270,7 +275,10 @@ export class ONNXGutenyeProvider implements OCRProvider {
    * });
    * ```
    */
-  async performOCR(images: OCRImage[], options?: OCROptions): Promise<OCRResult> {
+  async performOCR(
+    images: OCRImage[],
+    options?: OCROptions,
+  ): Promise<OCRResult> {
     if (!images || images.length === 0) {
       return {
         text: '',
@@ -307,11 +315,18 @@ export class ONNXGutenyeProvider implements OCRProvider {
           console.log('Attempting to decode image file...');
           const decoded = this.decodeImageToRGB(image.data);
           if (!decoded) {
-            const formatInfo = image.data.length > 8
-              ? `First 8 bytes: ${Array.from(image.data.subarray(0, 8)).map(b => '0x' + b.toString(16).padStart(2, '0')).join(' ')}`
-              : `Buffer too small (${image.data.length} bytes)`;
-            console.warn(`Failed to decode image - unsupported format. ${formatInfo}`);
-            console.warn('Supported formats: PNG (starts with 89 50 4E 47), JPEG (starts with FF D8)');
+            const formatInfo =
+              image.data.length > 8
+                ? `First 8 bytes: ${Array.from(image.data.subarray(0, 8))
+                    .map((b) => `0x${b.toString(16).padStart(2, '0')}`)
+                    .join(' ')}`
+                : `Buffer too small (${image.data.length} bytes)`;
+            console.warn(
+              `Failed to decode image - unsupported format. ${formatInfo}`,
+            );
+            console.warn(
+              'Supported formats: PNG (starts with 89 50 4E 47), JPEG (starts with FF D8)',
+            );
             continue;
           }
           rgbData = decoded.rgbData;
@@ -321,7 +336,9 @@ export class ONNXGutenyeProvider implements OCRProvider {
         } else {
           const dataType = typeof image.data;
           const isArray = Array.isArray(image.data);
-          console.warn(`Unsupported image data type: ${dataType}${isArray ? ' (array)' : ''} - expected Buffer with image file data or RGB data with width/height`);
+          console.warn(
+            `Unsupported image data type: ${dataType}${isArray ? ' (array)' : ''} - expected Buffer with image file data or RGB data with width/height`,
+          );
           continue;
         }
 
@@ -341,21 +358,25 @@ export class ONNXGutenyeProvider implements OCRProvider {
         if (detections && Array.isArray(detections)) {
           for (const detection of detections) {
             if (detection.text) {
-              combinedText += detection.text + ' ';
+              combinedText += `${detection.text} `;
 
               // Convert to our format, handling both API formats
               const confidence = (detection.score || detection.mean || 0) * 100;
-              const boundingBox = detection.frame ? {
-                x: detection.frame.left,
-                y: detection.frame.top,
-                width: detection.frame.width,
-                height: detection.frame.height,
-              } : detection.box ? {
-                x: detection.box[0][0],
-                y: detection.box[0][1],
-                width: detection.box[1][0] - detection.box[0][0],
-                height: detection.box[2][1] - detection.box[0][1],
-              } : undefined;
+              const boundingBox = detection.frame
+                ? {
+                    x: detection.frame.left,
+                    y: detection.frame.top,
+                    width: detection.frame.width,
+                    height: detection.frame.height,
+                  }
+                : detection.box
+                  ? {
+                      x: detection.box[0][0],
+                      y: detection.box[0][1],
+                      width: detection.box[1][0] - detection.box[0][0],
+                      height: detection.box[2][1] - detection.box[0][1],
+                    }
+                  : undefined;
 
               allDetections.push({
                 text: detection.text,
@@ -365,23 +386,29 @@ export class ONNXGutenyeProvider implements OCRProvider {
             }
           }
         }
-
       } catch (imageError: any) {
-        console.warn(`@gutenye/ocr-node failed for image:`, imageError.message || imageError);
+        console.warn(
+          '@gutenye/ocr-node failed for image:',
+          imageError.message || imageError,
+        );
       }
     }
 
     const processingTime = Date.now() - startTime;
-    
+
     // Calculate average confidence
-    const validDetections = allDetections.filter(d => d.confidence > 0);
-    const averageConfidence = validDetections.length > 0 
-      ? validDetections.reduce((sum, d) => sum + d.confidence, 0) / validDetections.length 
-      : 0;
+    const validDetections = allDetections.filter((d) => d.confidence > 0);
+    const averageConfidence =
+      validDetections.length > 0
+        ? validDetections.reduce((sum, d) => sum + d.confidence, 0) /
+          validDetections.length
+        : 0;
 
     // Apply confidence threshold filtering
-    const filteredDetections = options?.confidenceThreshold 
-      ? allDetections.filter(d => d.confidence >= options.confidenceThreshold!)
+    const filteredDetections = options?.confidenceThreshold
+      ? allDetections.filter(
+          (d) => d.confidence >= options.confidenceThreshold!,
+        )
       : allDetections;
 
     return {
@@ -427,15 +454,14 @@ export class ONNXGutenyeProvider implements OCRProvider {
             'gutenye-ocr-node': true,
           },
         };
-      } else {
-        return {
-          available: false,
-          error: '@gutenye/ocr-node module missing required functions',
-          details: {
-            'gutenye-ocr-node': false,
-          },
-        };
       }
+      return {
+        available: false,
+        error: '@gutenye/ocr-node module missing required functions',
+        details: {
+          'gutenye-ocr-node': false,
+        },
+      };
     } catch (error) {
       return {
         available: false,
@@ -466,7 +492,15 @@ export class ONNXGutenyeProvider implements OCRProvider {
   async checkCapabilities(): Promise<OCRCapabilities> {
     return {
       canPerformOCR: true,
-      supportedLanguages: ['eng', 'chi_sim', 'chi_tra', 'fra', 'deu', 'jpn', 'kor'], // Common languages
+      supportedLanguages: [
+        'eng',
+        'chi_sim',
+        'chi_tra',
+        'fra',
+        'deu',
+        'jpn',
+        'kor',
+      ], // Common languages
       maxImageSize: 4096 * 4096, // Reasonable limit
       hasBoundingBoxes: true,
     };

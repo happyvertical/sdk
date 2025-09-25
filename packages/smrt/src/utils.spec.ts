@@ -1,14 +1,14 @@
-import { it, expect } from 'vitest';
-import { fieldsFromClass } from './utils.js';
+import { expect, it } from 'vitest';
+import { fieldsFromClass } from './utils';
+
 // import { contentToString, stringToContent } from '@have/content';
 // import { faker } from '@faker-js/faker';
 // import { Content } from '@have/content';
 // Test class with various field types
 class TestClass {
-  test_string: string = 'test';
-  test_number: number = 123;
+  test_string = 'test';
+  test_number = 123;
   test_date: Date = new Date();
-  private _privateField: string = 'private';
   methodField() {
     return true;
   }
@@ -77,7 +77,6 @@ it.skip('should be able to parse a content string', () => {
   //   publish_date: faker.date.recent(),
   //   body: faker.lorem.paragraph(),
   // };
-
   // const toString = contentToString(data as Content);
   // const toObject = stringToContent(toString);
   // expect(toObject).toEqual(data);

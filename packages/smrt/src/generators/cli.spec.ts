@@ -2,7 +2,7 @@
  * CLI Generator Tests - Simplified approach to avoid import issues
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 // Simplified test approach using dynamic imports to avoid module resolution issues
 
@@ -15,7 +15,7 @@ describe('CLI Generator - Simplified Tests', () => {
       name: 'test-cli',
       version: '1.0.0',
       description: 'Test CLI application',
-      colors: false
+      colors: false,
     });
 
     expect(generator).toBeDefined();
@@ -34,7 +34,7 @@ describe('CLI Generator - Simplified Tests', () => {
       name: 'test-cli',
       version: '1.0.0',
       description: 'Test CLI application',
-      colors: false
+      colors: false,
     });
 
     const handler = generator.generateHandler();
@@ -50,13 +50,15 @@ describe('CLI Generator - Simplified Tests', () => {
       await handler(['--version']);
     } finally {
       consoleSpy.mockRestore();
-      delete process.env.NODE_ENV;
+      process.env.NODE_ENV = undefined;
     }
   });
 
   it('should validate unified mocking strategy works', async () => {
     // Test that the mocking utilities can be imported and used
-    const { TestDataFactory, MockContextFactory } = await import('../test-utils.js');
+    const { TestDataFactory, MockContextFactory } = await import(
+      '../test-utils.js'
+    );
 
     expect(TestDataFactory).toBeDefined();
     expect(MockContextFactory).toBeDefined();

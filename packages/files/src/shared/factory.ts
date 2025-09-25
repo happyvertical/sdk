@@ -1,13 +1,11 @@
 import {
+  FilesystemError,
   type FilesystemInterface,
   type GetFilesystemOptions,
-  LocalOptions,
-  type S3Options,
   type GoogleDriveOptions,
+  type S3Options,
   type WebDAVOptions,
-  BrowserStorageOptions,
-  FilesystemError,
-} from './types.js';
+} from './types';
 
 /**
  * Registry of available filesystem providers
@@ -195,10 +193,8 @@ function detectProviderType(options: GetFilesystemOptions): string {
       typeof (globalThis as any).indexedDB !== 'undefined'
     ) {
       return 'browser-storage';
-    } else if (
-      typeof (globalThis as any).process !== 'undefined' &&
-      (globalThis as any).process.versions?.node
-    ) {
+    }
+    if ((globalThis as any).process?.versions?.node) {
       return 'local';
     }
   }

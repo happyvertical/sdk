@@ -1,8 +1,5 @@
-import {
-  FilesystemAdapter,
-  type FilesystemAdapterOptions,
-} from './filesystem.js';
-import { getMimeType } from './index.js';
+import { FilesystemAdapter, type FilesystemAdapterOptions } from './filesystem';
+import { getMimeType } from './index';
 
 /**
  * Adapter for interacting with the local filesystem
@@ -41,7 +38,7 @@ export class LocalFilesystemAdapter extends FilesystemAdapter {
    * @param url - URL to create adapter from
    * @returns Promise resolving to a LocalFilesystemAdapter
    */
-  static async createFromUrl(url: string) {}
+  static async createFromUrl(_url: string) {}
 
   /**
    * Factory method to create a LocalFilesystemAdapter
@@ -60,7 +57,7 @@ export class LocalFilesystemAdapter extends FilesystemAdapter {
    * @param path - Path to check
    * @returns Promise resolving to boolean indicating existence
    */
-  async exists(path: string) {
+  async exists(_path: string) {
     return false;
   }
 
@@ -70,7 +67,7 @@ export class LocalFilesystemAdapter extends FilesystemAdapter {
    * @param path - Path to the file
    * @returns Promise resolving to the file contents as a string
    */
-  async read(path: string) {
+  async read(_path: string) {
     return '';
   }
 
@@ -81,7 +78,7 @@ export class LocalFilesystemAdapter extends FilesystemAdapter {
    * @param content - Content to write
    * @returns Promise that resolves when the write is complete
    */
-  async write(path: string, content: string) {
+  async write(_path: string, _content: string) {
     return;
   }
 
@@ -91,7 +88,7 @@ export class LocalFilesystemAdapter extends FilesystemAdapter {
    * @param path - Path to delete
    * @returns Promise that resolves when the deletion is complete
    */
-  async delete(path: string) {
+  async delete(_path: string) {
     return;
   }
 
@@ -101,7 +98,7 @@ export class LocalFilesystemAdapter extends FilesystemAdapter {
    * @param path - Directory path to list
    * @returns Promise resolving to an array of file names
    */
-  async list(path: string) {
+  async list(_path: string) {
     return [];
   }
 

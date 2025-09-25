@@ -2,11 +2,11 @@
  * Manifest generator for creating service manifests from AST scan results
  */
 
-import type { 
-  SmartObjectManifest, 
-  SmartObjectDefinition, 
-  ScanResult 
-} from './types.js';
+import type {
+  ScanResult,
+  SmartObjectDefinition,
+  SmartObjectManifest,
+} from './types';
 
 export class ManifestGenerator {
   /**
@@ -16,7 +16,7 @@ export class ManifestGenerator {
     const manifest: SmartObjectManifest = {
       version: '1.0.0',
       timestamp: Date.now(),
-      objects: {}
+      objects: {},
     };
 
     for (const result of scanResults) {
@@ -34,7 +34,7 @@ export class ManifestGenerator {
   generateTypeDefinitions(manifest: SmartObjectManifest): string {
     const interfaces: string[] = [];
 
-    for (const [name, obj] of Object.entries(manifest.objects)) {
+    for (const [_name, obj] of Object.entries(manifest.objects)) {
       interfaces.push(this.generateInterface(obj));
     }
 
@@ -45,11 +45,13 @@ export class ManifestGenerator {
    * Generate a single interface definition
    */
   private generateInterface(obj: SmartObjectDefinition): string {
-    const fields = Object.entries(obj.fields).map(([name, field]) => {
-      const optional = !field.required ? '?' : '';
-      const type = this.mapFieldTypeToTS(field.type);
-      return `  ${name}${optional}: ${type};`;
-    }).join('\n');
+    const fields = Object.entries(obj.fields)
+      .map(([name, field]) => {
+        const optional = !field.required ? '?' : '';
+        const type = this.mapFieldTypeToTS(field.type);
+        return `  ${name}${optional}: ${type};`;
+      })
+      .join('\n');
 
     return `export interface ${obj.className}Data {
 ${fields}
@@ -61,24 +63,48 @@ ${fields}
    */
   private mapFieldTypeToTS(fieldType: string): string {
     switch (fieldType) {
-      case 'text': return 'string';
-      case 'decimal': return 'number';
-      case 'integer': return 'number';
-      case 'boolean': return 'boolean';
-      case 'datetime': return 'Date | string';
-      case 'json': return 'any';
-      case 'foreignKey': return 'string';
-      default: return 'any';
+      case 'text':
+        return 'string';
+      case 'decimal':
+        return 'number';
+      case 'integer':
+        return 'number';
+      case 'boolean':
+        return 'boolean';
+      case 'datetime':
+        return 'Date | string';
+      case 'json':
+        return 'any';
+      case 'foreignKey':
+        return 'string';
+      default:
+        return 'any';
     }
   }
 
   /**
-   * Generate REST endpoint definitions
+   * Generate simple endpoint list for testing/documentation
    */
   generateRestEndpoints(manifest: SmartObjectManifest): string {
     const endpoints: string[] = [];
 
-    for (const [name, obj] of Object.entries(manifest.objects)) {
+    for (const [_name, obj] of Object.entries(manifest.objects)) {
+      const apiConfig = obj.decoratorConfig.api;
+      if (apiConfig !== false) {
+        endpoints.push(...this.getSimpleEndpoints(obj));
+      }
+    }
+
+    return endpoints.join('\n');
+  }
+
+  /**
+   * Generate REST endpoint code implementations
+   */
+  generateRestEndpointCode(manifest: SmartObjectManifest): string {
+    const endpoints: string[] = [];
+
+    for (const [_name, obj] of Object.entries(manifest.objects)) {
       const apiConfig = obj.decoratorConfig.api;
       if (apiConfig !== false) {
         endpoints.push(this.generateRestEndpoint(obj));
@@ -89,13 +115,52 @@ ${fields}
   }
 
   /**
+   * Get simple endpoint strings for an object
+   */
+  private getSimpleEndpoints(obj: SmartObjectDefinition): string[] {
+    const { collection } = obj;
+    const config = obj.decoratorConfig.api;
+    const exclude = (typeof config === 'object' && config?.exclude) || [];
+    const include =
+      (typeof config === 'object' && config?.include) || undefined;
+
+    const endpoints: string[] = [];
+
+    // Determine which operations to include
+    const shouldInclude = (op: string) => {
+      if (include && !include.includes(op)) return false;
+      if (exclude.includes(op)) return false;
+      return true;
+    };
+
+    if (shouldInclude('list')) {
+      endpoints.push(`GET /${collection}`);
+    }
+    if (shouldInclude('create')) {
+      endpoints.push(`POST /${collection}`);
+    }
+    if (shouldInclude('get')) {
+      endpoints.push(`GET /${collection}/:id`);
+    }
+    if (shouldInclude('update')) {
+      endpoints.push(`PUT /${collection}/:id`);
+    }
+    if (shouldInclude('delete')) {
+      endpoints.push(`DELETE /${collection}/:id`);
+    }
+
+    return endpoints;
+  }
+
+  /**
    * Generate a single REST endpoint
    */
   private generateRestEndpoint(obj: SmartObjectDefinition): string {
     const { collection, className } = obj;
     const config = obj.decoratorConfig.api;
     const exclude = (typeof config === 'object' && config?.exclude) || [];
-    const include = (typeof config === 'object' && config?.include) || undefined;
+    const include =
+      (typeof config === 'object' && config?.include) || undefined;
 
     const operations = [];
 
@@ -109,63 +174,105 @@ ${fields}
     if (shouldInclude('list')) {
       operations.push(`  // GET /${collection} - List ${collection}`);
       operations.push(`  app.get('/${collection}', async (req: Request) => {`);
-      operations.push(`    const collection = await get${className}Collection();`);
-      operations.push(`    const items = await collection.list(req.query);`);
-      operations.push(`    return Response.json(items);`);
-      operations.push(`  });`);
+      operations.push(
+        `    const collection = await get${className}Collection();`,
+      );
+      operations.push('    const items = await collection.list(req.query);');
+      operations.push('    return Response.json(items);');
+      operations.push('  });');
     }
 
     if (shouldInclude('get')) {
       operations.push(`  // GET /${collection}/:id - Get ${className}`);
-      operations.push(`  app.get('/${collection}/:id', async (req: Request) => {`);
-      operations.push(`    const collection = await get${className}Collection();`);
-      operations.push(`    const item = await collection.get(req.params.id);`);
-      operations.push(`    if (!item) return new Response('Not found', { status: 404 });`);
-      operations.push(`    return Response.json(item);`);
-      operations.push(`  });`);
+      operations.push(
+        `  app.get('/${collection}/:id', async (req: Request) => {`,
+      );
+      operations.push(
+        `    const collection = await get${className}Collection();`,
+      );
+      operations.push('    const item = await collection.get(req.params.id);');
+      operations.push(
+        `    if (!item) return new Response('Not found', { status: 404 });`,
+      );
+      operations.push('    return Response.json(item);');
+      operations.push('  });');
     }
 
     if (shouldInclude('create')) {
       operations.push(`  // POST /${collection} - Create ${className}`);
       operations.push(`  app.post('/${collection}', async (req: Request) => {`);
-      operations.push(`    const collection = await get${className}Collection();`);
-      operations.push(`    const data = await req.json();`);
-      operations.push(`    const item = await collection.create(data);`);
-      operations.push(`    return Response.json(item, { status: 201 });`);
-      operations.push(`  });`);
+      operations.push(
+        `    const collection = await get${className}Collection();`,
+      );
+      operations.push('    const data = await req.json();');
+      operations.push('    const item = await collection.create(data);');
+      operations.push('    return Response.json(item, { status: 201 });');
+      operations.push('  });');
     }
 
     if (shouldInclude('update')) {
       operations.push(`  // PUT /${collection}/:id - Update ${className}`);
-      operations.push(`  app.put('/${collection}/:id', async (req: Request) => {`);
-      operations.push(`    const collection = await get${className}Collection();`);
-      operations.push(`    const data = await req.json();`);
-      operations.push(`    const item = await collection.update(req.params.id, data);`);
-      operations.push(`    if (!item) return new Response('Not found', { status: 404 });`);
-      operations.push(`    return Response.json(item);`);
-      operations.push(`  });`);
+      operations.push(
+        `  app.put('/${collection}/:id', async (req: Request) => {`,
+      );
+      operations.push(
+        `    const collection = await get${className}Collection();`,
+      );
+      operations.push('    const data = await req.json();');
+      operations.push(
+        '    const item = await collection.update(req.params.id, data);',
+      );
+      operations.push(
+        `    if (!item) return new Response('Not found', { status: 404 });`,
+      );
+      operations.push('    return Response.json(item);');
+      operations.push('  });');
     }
 
     if (shouldInclude('delete')) {
       operations.push(`  // DELETE /${collection}/:id - Delete ${className}`);
-      operations.push(`  app.delete('/${collection}/:id', async (req: Request) => {`);
-      operations.push(`    const collection = await get${className}Collection();`);
-      operations.push(`    const success = await collection.delete(req.params.id);`);
-      operations.push(`    if (!success) return new Response('Not found', { status: 404 });`);
+      operations.push(
+        `  app.delete('/${collection}/:id', async (req: Request) => {`,
+      );
+      operations.push(
+        `    const collection = await get${className}Collection();`,
+      );
+      operations.push(
+        '    const success = await collection.delete(req.params.id);',
+      );
+      operations.push(
+        `    if (!success) return new Response('Not found', { status: 404 });`,
+      );
       operations.push(`    return new Response('', { status: 204 });`);
-      operations.push(`  });`);
+      operations.push('  });');
     }
 
     return `// ${className} endpoints\n${operations.join('\n')}`;
   }
 
   /**
-   * Generate MCP tool definitions
+   * Generate simple MCP tool names for testing/documentation
    */
   generateMCPTools(manifest: SmartObjectManifest): string {
     const tools: string[] = [];
 
-    for (const [name, obj] of Object.entries(manifest.objects)) {
+    for (const [_name, obj] of Object.entries(manifest.objects)) {
+      const mcpConfig = obj.decoratorConfig.mcp;
+      if (mcpConfig !== false) {
+        tools.push(...this.getSimpleMCPToolNames(obj));
+      }
+    }
+
+    return tools.join('\n');
+  }
+
+  /**
+   * Generate MCP tool JSON definitions
+   */
+  generateMCPToolsCode(manifest: SmartObjectManifest): string {
+    const tools: string[] = [];
+
+    for (const [_name, obj] of Object.entries(manifest.objects)) {
       const mcpConfig = obj.decoratorConfig.mcp;
       if (mcpConfig !== false) {
         tools.push(this.generateMCPTool(obj));
@@ -176,13 +283,51 @@ ${fields}
   }
 
   /**
+   * Get simple MCP tool names for an object
+   */
+  private getSimpleMCPToolNames(obj: SmartObjectDefinition): string[] {
+    const { collection } = obj;
+    const config = obj.decoratorConfig.mcp;
+    const exclude = (typeof config === 'object' && config?.exclude) || [];
+    const include =
+      (typeof config === 'object' && config?.include) || undefined;
+
+    const tools: string[] = [];
+
+    const shouldInclude = (op: string) => {
+      if (include && !include.includes(op)) return false;
+      if (exclude.includes(op)) return false;
+      return true;
+    };
+
+    if (shouldInclude('list')) {
+      tools.push(`list_${collection}`);
+    }
+    if (shouldInclude('get')) {
+      tools.push(`get_${collection}`);
+    }
+    if (shouldInclude('create')) {
+      tools.push(`create_${collection}`);
+    }
+    if (shouldInclude('update')) {
+      tools.push(`update_${collection}`);
+    }
+    if (shouldInclude('delete')) {
+      tools.push(`delete_${collection}`);
+    }
+
+    return tools;
+  }
+
+  /**
    * Generate a single MCP tool
    */
   private generateMCPTool(obj: SmartObjectDefinition): string {
     const { collection, className, name } = obj;
     const config = obj.decoratorConfig.mcp;
     const exclude = (typeof config === 'object' && config?.exclude) || [];
-    const include = (typeof config === 'object' && config?.include) || undefined;
+    const include =
+      (typeof config === 'object' && config?.include) || undefined;
 
     const tools = [];
 
@@ -243,19 +388,23 @@ ${fields}
   /**
    * Generate JSON schema properties for fields
    */
-  private generateSchemaProperties(fields: Record<string, any>): Record<string, any> {
+  private generateSchemaProperties(
+    fields: Record<string, any>,
+  ): Record<string, any> {
     const properties: Record<string, any> = {};
 
     for (const [name, field] of Object.entries(fields)) {
       properties[name] = {
         type: this.mapFieldTypeToJSON(field.type),
-        description: field.description || `The ${name} field`
+        description: field.description || `The ${name} field`,
       };
 
       if (field.min !== undefined) properties[name].minimum = field.min;
       if (field.max !== undefined) properties[name].maximum = field.max;
-      if (field.minLength !== undefined) properties[name].minLength = field.minLength;
-      if (field.maxLength !== undefined) properties[name].maxLength = field.maxLength;
+      if (field.minLength !== undefined)
+        properties[name].minLength = field.minLength;
+      if (field.maxLength !== undefined)
+        properties[name].maxLength = field.maxLength;
     }
 
     return properties;
@@ -266,14 +415,22 @@ ${fields}
    */
   private mapFieldTypeToJSON(fieldType: string): string {
     switch (fieldType) {
-      case 'text': return 'string';
-      case 'decimal': return 'number';
-      case 'integer': return 'integer';
-      case 'boolean': return 'boolean';
-      case 'datetime': return 'string';
-      case 'json': return 'object';
-      case 'foreignKey': return 'string';
-      default: return 'string';
+      case 'text':
+        return 'string';
+      case 'decimal':
+        return 'number';
+      case 'integer':
+        return 'integer';
+      case 'boolean':
+        return 'boolean';
+      case 'datetime':
+        return 'string';
+      case 'json':
+        return 'object';
+      case 'foreignKey':
+        return 'string';
+      default:
+        return 'string';
     }
   }
 
@@ -281,7 +438,7 @@ ${fields}
    * Save manifest to file
    */
   saveManifest(manifest: SmartObjectManifest, filePath: string): void {
-    const fs = require('fs');
+    const fs = require('node:fs');
     fs.writeFileSync(filePath, JSON.stringify(manifest, null, 2));
   }
 
@@ -289,7 +446,7 @@ ${fields}
    * Load manifest from file
    */
   loadManifest(filePath: string): SmartObjectManifest {
-    const fs = require('fs');
+    const fs = require('node:fs');
     const content = fs.readFileSync(filePath, 'utf-8');
     return JSON.parse(content);
   }
@@ -298,7 +455,9 @@ ${fields}
 /**
  * Convenience function to generate manifest
  */
-export function generateManifest(scanResults: ScanResult[]): SmartObjectManifest {
+export function generateManifest(
+  scanResults: ScanResult[],
+): SmartObjectManifest {
   const generator = new ManifestGenerator();
   return generator.generateManifest(scanResults);
 }

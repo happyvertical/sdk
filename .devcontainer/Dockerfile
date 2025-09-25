@@ -46,12 +46,12 @@ RUN curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | bas
     && mv bin/act /usr/local/bin/act \
     && chmod +x /usr/local/bin/act
 
-# Install Bun
-RUN curl -fsSL https://bun.sh/install | bash
+# Install Node.js (latest LTS)
+RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
+    && apt-get install -y nodejs
 
-# Add Bun to PATH for all users
-ENV PATH="/root/.bun/bin:$PATH"
-RUN echo 'export PATH="/root/.bun/bin:$PATH"' >> /etc/bash.bashrc
+# Install pnpm globally
+RUN npm install -g pnpm@latest
 
 # Set working directory
 WORKDIR /workspaces
@@ -65,34 +65,22 @@ RUN groupadd -f docker \
     && usermod -aG docker vscode \
     && usermod -aG docker devuser
 
-# Install Bun for devuser as well
-USER devuser
-RUN curl -fsSL https://bun.sh/install | bash
-RUN echo 'export PATH="$HOME/.bun/bin:$PATH"' >> ~/.bashrc
-
-# Install Bun for vscode user (the default user)
+# Switch back to vscode user for development
 USER vscode
-RUN curl -fsSL https://bun.sh/install | bash
-RUN echo 'export PATH="$HOME/.bun/bin:$PATH"' >> ~/.bashrc
-
-# Add bun to global PATH for all users including git hooks
-USER root
-RUN echo 'PATH="/home/vscode/.bun/bin:/root/.bun/bin:$PATH"' >> /etc/environment
 
 # Switch back to root for container initialization
 
 # Copy package files for dependency installation
-COPY package.json bun.lock* ./
+COPY package.json pnpm-lock.yaml* ./
 
 # Install dependencies if package files exist (skip prepare scripts during build)
+USER root
 RUN if [ -f "package.json" ]; then \
-    export PATH="/root/.bun/bin:$PATH" && \
-    bun install --ignore-scripts; \
+    pnpm install --ignore-scripts; \
     fi
 
-# Install Claude Code globally using Bun
-USER root
-RUN export PATH="/root/.bun/bin:$PATH" && bun add -g @anthropic-ai/claude-code
+# Install Claude Code globally using npm
+RUN npm install -g @anthropic-ai/claude-code
 
 # Create certificates directory for DinD TLS
 RUN mkdir -p /certs/client && chmod 755 /certs/client

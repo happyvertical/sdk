@@ -2,9 +2,9 @@
  * Tests for AST scanner functionality
  */
 
-import { describe, it, expect } from 'vitest';
-import { resolve } from 'path';
-import { ASTScanner, ManifestGenerator } from './index.js';
+import { resolve } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { ASTScanner, ManifestGenerator } from './index';
 
 describe('AST Scanner', () => {
   const testFilePath = resolve(__dirname, 'test-sample.ts');
@@ -15,9 +15,13 @@ describe('AST Scanner', () => {
 
     expect(results).toHaveLength(1);
     expect(results[0].objects).toHaveLength(2);
-    
-    const productObj = results[0].objects.find(obj => obj.className === 'Product');
-    const categoryObj = results[0].objects.find(obj => obj.className === 'Category');
+
+    const productObj = results[0].objects.find(
+      (obj) => obj.className === 'Product',
+    );
+    const categoryObj = results[0].objects.find(
+      (obj) => obj.className === 'Category',
+    );
 
     expect(productObj).toBeDefined();
     expect(categoryObj).toBeDefined();
@@ -26,7 +30,9 @@ describe('AST Scanner', () => {
   it('should parse Product class correctly', () => {
     const scanner = new ASTScanner([testFilePath]);
     const results = scanner.scanFiles();
-    const productObj = results[0].objects.find(obj => obj.className === 'Product');
+    const productObj = results[0].objects.find(
+      (obj) => obj.className === 'Product',
+    );
 
     expect(productObj).toMatchObject({
       name: 'product',
@@ -35,42 +41,44 @@ describe('AST Scanner', () => {
       decoratorConfig: {
         api: { exclude: ['delete'] },
         mcp: { include: ['list', 'get', 'create'] },
-        cli: true
-      }
+        cli: true,
+      },
     });
 
     // Check fields
     expect(productObj?.fields.name).toMatchObject({
       type: 'text',
       required: true,
-      default: ''
+      default: '',
     });
 
     expect(productObj?.fields.price).toMatchObject({
       type: 'decimal',
       required: true,
-      default: 0
+      default: 0,
     });
 
     expect(productObj?.fields.inStock).toMatchObject({
       type: 'boolean',
       required: true,
-      default: true
+      default: true,
     });
 
     expect(productObj?.fields.description).toMatchObject({
       type: 'text',
-      required: false
+      required: false,
     });
   });
 
   it('should parse methods correctly', () => {
     const scanner = new ASTScanner([testFilePath], {
       includePrivateMethods: true,
-      includeStaticMethods: true
+      includeStaticMethods: true,
     });
     const results = scanner.scanFiles();
-    const productObj = results[0].objects.find(obj => obj.className === 'Product');
+    const productObj = results[0].objects.find(
+      (obj) => obj.className === 'Product',
+    );
 
     expect(productObj?.methods.calculateDiscount).toMatchObject({
       name: 'calculateDiscount',
@@ -78,21 +86,19 @@ describe('AST Scanner', () => {
       isStatic: false,
       isPublic: true,
       returnType: 'Promise<number>',
-      parameters: [
-        { name: 'percentage', type: 'number', optional: false }
-      ]
+      parameters: [{ name: 'percentage', type: 'number', optional: false }],
     });
 
     expect(productObj?.methods.findByCategory).toMatchObject({
       name: 'findByCategory',
       isStatic: true,
-      isPublic: true
+      isPublic: true,
     });
 
     expect(productObj?.methods.validatePrice).toMatchObject({
       name: 'validatePrice',
       isStatic: false,
-      isPublic: false
+      isPublic: false,
     });
   });
 

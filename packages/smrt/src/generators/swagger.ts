@@ -1,10 +1,10 @@
 /**
  * OpenAPI documentation generation for smrt APIs
- * 
+ *
  * Lightweight implementation with optional Swagger UI
  */
 
-import { ObjectRegistry } from '../registry.js';
+import { ObjectRegistry } from '../registry';
 
 export interface OpenAPIConfig {
   title?: string;
@@ -23,7 +23,7 @@ export function generateOpenAPISpec(config: OpenAPIConfig = {}): any {
     version = '1.0.0',
     description = 'Auto-generated API from smrt objects',
     basePath = '/api/v1',
-    serverUrl = 'http://localhost:3000'
+    serverUrl = 'http://localhost:3000',
   } = config;
 
   const spec = {
@@ -36,8 +36,8 @@ export function generateOpenAPISpec(config: OpenAPIConfig = {}): any {
         bearerAuth: {
           type: 'http',
           scheme: 'bearer',
-          bearerFormat: 'JWT'
-        }
+          bearerFormat: 'JWT',
+        },
       },
       schemas: generateSchemas(),
       responses: {
@@ -49,11 +49,11 @@ export function generateOpenAPISpec(config: OpenAPIConfig = {}): any {
                 type: 'object',
                 properties: {
                   error: { type: 'string' },
-                  details: { type: 'string' }
-                }
-              }
-            }
-          }
+                  details: { type: 'string' },
+                },
+              },
+            },
+          },
         },
         NotFound: {
           description: 'Resource not found',
@@ -61,14 +61,14 @@ export function generateOpenAPISpec(config: OpenAPIConfig = {}): any {
             'application/json': {
               schema: {
                 type: 'object',
-                properties: { error: { type: 'string' } }
-              }
-            }
-          }
-        }
-      }
+                properties: { error: { type: 'string' } },
+              },
+            },
+          },
+        },
+      },
     },
-    paths: generatePaths(basePath)
+    paths: generatePaths(basePath),
   };
 
   return spec;
@@ -88,7 +88,7 @@ function generateSchemas(): Record<string, any> {
       properties: {
         data: {
           type: 'array',
-          items: { $ref: `#/components/schemas/${name}` }
+          items: { $ref: `#/components/schemas/${name}` },
         },
         meta: {
           type: 'object',
@@ -96,10 +96,10 @@ function generateSchemas(): Record<string, any> {
             total: { type: 'integer' },
             limit: { type: 'integer' },
             offset: { type: 'integer' },
-            count: { type: 'integer' }
-          }
-        }
-      }
+            count: { type: 'integer' },
+          },
+        },
+      },
     };
   }
 
@@ -115,7 +115,7 @@ function generateObjectSchema(objectName: string): any {
     id: { type: 'string', format: 'uuid' },
     slug: { type: 'string' },
     created_at: { type: 'string', format: 'date-time' },
-    updated_at: { type: 'string', format: 'date-time' }
+    updated_at: { type: 'string', format: 'date-time' },
   };
 
   const required = ['id'];
@@ -135,7 +135,7 @@ function generateObjectSchema(objectName: string): any {
  */
 function fieldToOpenAPISchema(field: any): any {
   const schema: any = {
-    description: field.options?.description || ''
+    description: field.options?.description || '',
   };
 
   switch (field.type) {
@@ -191,13 +191,15 @@ function generatePaths(basePath: string): Record<string, any> {
   for (const [name] of registeredClasses) {
     const pluralName = pluralize(name.toLowerCase());
     const objectPath = `${basePath}/${pluralName}`;
-    
+
     const config = ObjectRegistry.getConfig(name);
     const apiConfig = config.api || {};
     const excluded = apiConfig.exclude || [];
     const included = apiConfig.include;
-    
-    const shouldInclude = (endpoint: 'list' | 'get' | 'create' | 'update' | 'delete') => {
+
+    const shouldInclude = (
+      endpoint: 'list' | 'get' | 'create' | 'update' | 'delete',
+    ) => {
       if (included && !included.includes(endpoint)) return false;
       if (excluded.includes(endpoint)) return false;
       return true;
@@ -205,28 +207,36 @@ function generatePaths(basePath: string): Record<string, any> {
 
     // Collection endpoints
     paths[objectPath] = {};
-    
+
     if (shouldInclude('list')) {
       paths[objectPath].get = {
         summary: `List ${name} objects`,
         tags: [name],
         parameters: [
-          { name: 'limit', in: 'query', schema: { type: 'integer', default: 50 } },
-          { name: 'offset', in: 'query', schema: { type: 'integer', default: 0 } }
+          {
+            name: 'limit',
+            in: 'query',
+            schema: { type: 'integer', default: 50 },
+          },
+          {
+            name: 'offset',
+            in: 'query',
+            schema: { type: 'integer', default: 0 },
+          },
         ],
         responses: {
           '200': {
             description: 'Success',
             content: {
               'application/json': {
-                schema: { $ref: `#/components/schemas/${name}List` }
-              }
-            }
-          }
-        }
+                schema: { $ref: `#/components/schemas/${name}List` },
+              },
+            },
+          },
+        },
       };
     }
-    
+
     if (shouldInclude('create')) {
       paths[objectPath].post = {
         summary: `Create ${name}`,
@@ -235,67 +245,82 @@ function generatePaths(basePath: string): Record<string, any> {
           required: true,
           content: {
             'application/json': {
-              schema: { $ref: `#/components/schemas/${name}` }
-            }
-          }
+              schema: { $ref: `#/components/schemas/${name}` },
+            },
+          },
         },
         responses: {
           '201': { description: 'Created' },
-          '400': { $ref: '#/components/responses/ValidationError' }
-        }
+          '400': { $ref: '#/components/responses/ValidationError' },
+        },
       };
     }
 
     // Item endpoints
     paths[`${objectPath}/{id}`] = {};
-    
+
     if (shouldInclude('get')) {
       paths[`${objectPath}/{id}`].get = {
         summary: `Get ${name} by ID`,
         tags: [name],
         parameters: [
-          { name: 'id', in: 'path', required: true, schema: { type: 'string' } }
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string' },
+          },
         ],
         responses: {
           '200': { description: 'Success' },
-          '404': { $ref: '#/components/responses/NotFound' }
-        }
+          '404': { $ref: '#/components/responses/NotFound' },
+        },
       };
     }
-    
+
     if (shouldInclude('update')) {
       paths[`${objectPath}/{id}`].put = {
         summary: `Update ${name}`,
         tags: [name],
         parameters: [
-          { name: 'id', in: 'path', required: true, schema: { type: 'string' } }
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string' },
+          },
         ],
         requestBody: {
           required: true,
           content: {
             'application/json': {
-              schema: { $ref: `#/components/schemas/${name}` }
-            }
-          }
+              schema: { $ref: `#/components/schemas/${name}` },
+            },
+          },
         },
         responses: {
           '200': { description: 'Updated' },
-          '404': { $ref: '#/components/responses/NotFound' }
-        }
+          '404': { $ref: '#/components/responses/NotFound' },
+        },
       };
     }
-    
+
     if (shouldInclude('delete')) {
       paths[`${objectPath}/{id}`].delete = {
         summary: `Delete ${name}`,
         tags: [name],
         parameters: [
-          { name: 'id', in: 'path', required: true, schema: { type: 'string' } }
+          {
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string' },
+          },
         ],
         responses: {
           '204': { description: 'Deleted' },
-          '404': { $ref: '#/components/responses/NotFound' }
-        }
+          '404': { $ref: '#/components/responses/NotFound' },
+        },
       };
     }
   }
@@ -309,25 +334,34 @@ function generatePaths(basePath: string): Record<string, any> {
 export function setupSwaggerUI(app: any, spec: any, path = '/docs') {
   try {
     const swaggerUi = require('swagger-ui-express');
-    
+
     app.use(path, swaggerUi.serve);
-    app.get(path, swaggerUi.setup(spec, {
-      customCss: '.swagger-ui .topbar { display: none }'
-    }));
-    
-    app.get(`${path}/openapi.json`, (req: any, res: any) => {
+    app.get(
+      path,
+      swaggerUi.setup(spec, {
+        customCss: '.swagger-ui .topbar { display: none }',
+      }),
+    );
+
+    app.get(`${path}/openapi.json`, (_req: any, res: any) => {
       res.json(spec);
     });
-    
+
     console.log(`📚 Swagger UI available at ${path}`);
-  } catch (error) {
+  } catch (_error) {
     console.warn('Swagger UI not available (install swagger-ui-express)');
   }
 }
 
 function pluralize(word: string): string {
-  if (word.endsWith('y')) return word.slice(0, -1) + 'ies';
-  if (word.endsWith('s') || word.endsWith('x') || word.endsWith('z') || 
-      word.endsWith('ch') || word.endsWith('sh')) return word + 'es';
-  return word + 's';
+  if (word.endsWith('y')) return `${word.slice(0, -1)}ies`;
+  if (
+    word.endsWith('s') ||
+    word.endsWith('x') ||
+    word.endsWith('z') ||
+    word.endsWith('ch') ||
+    word.endsWith('sh')
+  )
+    return `${word}es`;
+  return `${word}s`;
 }

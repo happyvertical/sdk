@@ -1,6 +1,6 @@
-import { AIClient, type AIClientOptions } from './client.js';
-import { AIMessage } from './message.js';
 import type OpenAI from 'openai';
+import { AIClient, type AIClientOptions } from './client';
+import { AIMessage } from './message';
 
 /**
  * Options for creating an AI conversation thread

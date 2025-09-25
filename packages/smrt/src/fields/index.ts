@@ -8,7 +8,7 @@
  * ```typescript
  * import { text, decimal, boolean, foreignKey } from '@have/smrt/fields';
  *
- * class Product extends BaseObject {
+ * class Product extends SmrtObject {
  *   name = text({ required: true, maxLength: 100 });
  *   price = decimal({ min: 0, max: 999999.99 });
  *   active = boolean({ default: true });
@@ -18,7 +18,7 @@
  *
  * @example Advanced field configuration
  * ```typescript
- * class User extends BaseObject {
+ * class User extends SmrtObject {
  *   email = text({
  *     required: true,
  *     unique: true,
@@ -124,14 +124,22 @@ export class Field {
    */
   getSqlType(): string {
     switch (this.type) {
-      case 'text': return 'TEXT';
-      case 'integer': return 'INTEGER';
-      case 'decimal': return 'REAL';
-      case 'boolean': return 'INTEGER';
-      case 'datetime': return 'DATETIME';
-      case 'json': return 'TEXT';
-      case 'foreignKey': return 'TEXT';
-      default: return 'TEXT';
+      case 'text':
+        return 'TEXT';
+      case 'integer':
+        return 'INTEGER';
+      case 'decimal':
+        return 'REAL';
+      case 'boolean':
+        return 'INTEGER';
+      case 'datetime':
+        return 'DATETIME';
+      case 'json':
+        return 'TEXT';
+      case 'foreignKey':
+        return 'TEXT';
+      default:
+        return 'TEXT';
     }
   }
 
@@ -147,19 +155,19 @@ export class Field {
    */
   getSqlConstraints(): string[] {
     const constraints: string[] = [];
-    
+
     if (this.options.required) {
       constraints.push('NOT NULL');
     }
-    
+
     if (this.options.unique) {
       constraints.push('UNIQUE');
     }
-    
+
     if (this.options.default !== undefined) {
       constraints.push(`DEFAULT ${this.escapeSqlValue(this.options.default)}`);
     }
-    
+
     return constraints;
   }
 
@@ -185,7 +193,7 @@ export class Field {
  * @returns Field instance configured for text storage
  * @example
  * ```typescript
- * class User extends BaseObject {
+ * class User extends SmrtObject {
  *   name = text({ required: true, maxLength: 100 });
  *   email = text({ unique: true, pattern: '^[^@]+@[^@]+\.[^@]+$' });
  *   bio = text({ maxLength: 500 });
@@ -203,7 +211,7 @@ export function text(options: TextFieldOptions = {}): Field {
  * @returns Field instance configured for integer storage
  * @example
  * ```typescript
- * class Product extends BaseObject {
+ * class Product extends SmrtObject {
  *   quantity = integer({ min: 0, required: true });
  *   rating = integer({ min: 1, max: 5 });
  *   views = integer({ default: 0 });
@@ -221,7 +229,7 @@ export function integer(options: NumericFieldOptions = {}): Field {
  * @returns Field instance configured for decimal storage
  * @example
  * ```typescript
- * class Product extends BaseObject {
+ * class Product extends SmrtObject {
  *   price = decimal({ min: 0, required: true });
  *   weight = decimal({ min: 0.01, max: 999.99 });
  *   discountRate = decimal({ min: 0, max: 1, default: 0 });
@@ -239,7 +247,7 @@ export function decimal(options: NumericFieldOptions = {}): Field {
  * @returns Field instance configured for boolean storage
  * @example
  * ```typescript
- * class User extends BaseObject {
+ * class User extends SmrtObject {
  *   isActive = boolean({ default: true });
  *   hasVerifiedEmail = boolean({ default: false });
  *   isAdmin = boolean({ required: true });
@@ -257,7 +265,7 @@ export function boolean(options: FieldOptions = {}): Field {
  * @returns Field instance configured for datetime storage
  * @example
  * ```typescript
- * class Event extends BaseObject {
+ * class Event extends SmrtObject {
  *   startDate = datetime({ required: true });
  *   endDate = datetime();
  *   createdAt = datetime({ default: new Date() });
@@ -275,7 +283,7 @@ export function datetime(options: FieldOptions = {}): Field {
  * @returns Field instance configured for JSON storage
  * @example
  * ```typescript
- * class User extends BaseObject {
+ * class User extends SmrtObject {
  *   preferences = json({ default: {} });
  *   metadata = json();
  *   config = json({ required: true });
@@ -294,21 +302,24 @@ export function json(options: FieldOptions = {}): Field {
  * @returns Field instance configured for foreign key relationships
  * @example
  * ```typescript
- * class Order extends BaseObject {
+ * class Order extends SmrtObject {
  *   customerId = foreignKey(Customer, { required: true, onDelete: 'restrict' });
  *   productId = foreignKey(Product, { onDelete: 'cascade' });
  * }
  * ```
  */
-export function foreignKey(relatedClass: any, options: Omit<RelationshipFieldOptions, 'related'> = {}): Field {
+export function foreignKey(
+  relatedClass: any,
+  options: Omit<RelationshipFieldOptions, 'related'> = {},
+): Field {
   const field = new Field('foreignKey', {
     ...options,
-    related: relatedClass.name
+    related: relatedClass.name,
   } as FieldOptions);
-  
+
   // Store reference to related class
   (field as any).relatedClass = relatedClass;
-  
+
   return field;
 }
 
@@ -320,24 +331,27 @@ export function foreignKey(relatedClass: any, options: Omit<RelationshipFieldOpt
  * @returns Field instance configured for one-to-many relationships
  * @example
  * ```typescript
- * class Category extends BaseObject {
+ * class Category extends SmrtObject {
  *   products = oneToMany(Product);
  * }
  *
- * class Customer extends BaseObject {
+ * class Customer extends SmrtObject {
  *   orders = oneToMany(Order, { onDelete: 'cascade' });
  * }
  * ```
  */
-export function oneToMany(relatedClass: any, options: Omit<RelationshipFieldOptions, 'related'> = {}): Field {
+export function oneToMany(
+  relatedClass: any,
+  options: Omit<RelationshipFieldOptions, 'related'> = {},
+): Field {
   const field = new Field('oneToMany', {
     ...options,
-    related: relatedClass.name
+    related: relatedClass.name,
   } as FieldOptions);
-  
+
   // Store reference to related class
   (field as any).relatedClass = relatedClass;
-  
+
   return field;
 }
 
@@ -349,24 +363,27 @@ export function oneToMany(relatedClass: any, options: Omit<RelationshipFieldOpti
  * @returns Field instance configured for many-to-many relationships
  * @example
  * ```typescript
- * class Product extends BaseObject {
+ * class Product extends SmrtObject {
  *   categories = manyToMany(Category);
  *   tags = manyToMany(Tag);
  * }
  *
- * class User extends BaseObject {
+ * class User extends SmrtObject {
  *   roles = manyToMany(Role);
  * }
  * ```
  */
-export function manyToMany(relatedClass: any, options: Omit<RelationshipFieldOptions, 'related'> = {}): Field {
+export function manyToMany(
+  relatedClass: any,
+  options: Omit<RelationshipFieldOptions, 'related'> = {},
+): Field {
   const field = new Field('manyToMany', {
     ...options,
-    related: relatedClass.name
+    related: relatedClass.name,
   } as FieldOptions);
-  
+
   // Store reference to related class
   (field as any).relatedClass = relatedClass;
-  
+
   return field;
 }

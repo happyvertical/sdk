@@ -5,14 +5,8 @@
  * while internally using the new standardized interface.
  */
 
-import { statSync, createWriteStream, type Dirent, existsSync } from 'node:fs';
-import {
-  copyFile,
-  mkdir,
-  readdir,
-  writeFile,
-  readFile,
-} from 'node:fs/promises';
+import { createWriteStream, type Dirent, existsSync, statSync } from 'node:fs';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { dirname } from 'node:path';
 import { URL } from 'node:url';
@@ -328,7 +322,7 @@ export const listFiles = async (
  * @param expiry - Cache expiry time in milliseconds
  * @returns Promise that resolves with the cached data or undefined if not found/expired
  */
-export async function getCached(file: string, expiry: number = 300000) {
+export async function getCached(file: string, expiry = 300000) {
   const cacheFile = path.resolve(TMP_DIR, file);
   const cached = existsSync(cacheFile);
   if (cached) {

@@ -1,17 +1,23 @@
+import { execSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { defineConfig, devices } from '@playwright/test';
-import { execSync } from 'child_process';
-import { existsSync } from 'fs';
 
 // Environment detection
 const isDevContainer = () => {
-  return !!(process.env.DEVCONTAINER ||
-           process.env.CODESPACES ||
-           process.env.REMOTE_CONTAINERS ||
-           existsSync('/.dockerenv'));
+  return !!(
+    process.env.DEVCONTAINER ||
+    process.env.CODESPACES ||
+    process.env.REMOTE_CONTAINERS ||
+    existsSync('/.dockerenv')
+  );
 };
 
 const isCI = () => {
-  return !!(process.env.CI || process.env.GITHUB_ACTIONS || process.env.GITLAB_CI);
+  return !!(
+    process.env.CI ||
+    process.env.GITHUB_ACTIONS ||
+    process.env.GITLAB_CI
+  );
 };
 
 // Smart browser detection
@@ -20,9 +26,10 @@ const getBrowserConfig = () => {
   const inCI = isCI();
 
   // Force headless mode in containers or CI
-  const headless = inContainer || inCI || process.env.PLAYWRIGHT_HEADLESS === 'true';
+  const headless =
+    inContainer || inCI || process.env.PLAYWRIGHT_HEADLESS === 'true';
 
-  console.log(`🎭 Playwright environment detected:`);
+  console.log('🎭 Playwright environment detected:');
   console.log(`   Container: ${inContainer}`);
   console.log(`   CI: ${inCI}`);
   console.log(`   Headless: ${headless}`);
@@ -32,12 +39,18 @@ const getBrowserConfig = () => {
     if (inContainer) return undefined; // Don't look for system browsers in containers
 
     const commands = {
-      chromium: ['which chromium', 'which chromium-browser', 'which google-chrome', 'which chrome'],
+      chromium: [
+        'which chromium',
+        'which chromium-browser',
+        'which google-chrome',
+        'which chrome',
+      ],
       firefox: ['which firefox'],
-      safari: ['which safari']
+      safari: ['which safari'],
     };
 
-    const browserCommands = commands[browserName as keyof typeof commands] || [];
+    const browserCommands =
+      commands[browserName as keyof typeof commands] || [];
 
     for (const cmd of browserCommands) {
       try {
@@ -51,14 +64,16 @@ const getBrowserConfig = () => {
       }
     }
 
-    console.log(`   No system ${browserName} found, using Playwright's installed browser`);
+    console.log(
+      `   No system ${browserName} found, using Playwright's installed browser`,
+    );
     return undefined;
   };
 
   return {
     headless,
     systemChromium: findSystemBrowser('chromium'),
-    systemFirefox: findSystemBrowser('firefox')
+    systemFirefox: findSystemBrowser('firefox'),
   };
 };
 
@@ -98,12 +113,14 @@ export default defineConfig({
       use: {
         ...devices['Desktop Chrome'],
         channel: browserConfig.systemChromium ? undefined : 'chromium',
-        launchOptions: browserConfig.systemChromium ? {
-          executablePath: browserConfig.systemChromium,
-          headless: browserConfig.headless,
-        } : {
-          headless: browserConfig.headless,
-        }
+        launchOptions: browserConfig.systemChromium
+          ? {
+              executablePath: browserConfig.systemChromium,
+              headless: browserConfig.headless,
+            }
+          : {
+              headless: browserConfig.headless,
+            },
       },
     },
 

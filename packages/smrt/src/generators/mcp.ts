@@ -4,9 +4,8 @@
  * Exposes smrt objects as AI tools for Claude, GPT, and other AI models
  */
 
-import { ObjectRegistry } from '../registry.js';
-import type { BaseCollection } from '../collection.js';
-import type { BaseObject } from '../object.js';
+import type { SmrtCollection } from '../collection';
+import { ObjectRegistry } from '../registry';
 
 export interface MCPConfig {
   name?: string;
@@ -58,7 +57,7 @@ export interface MCPResponse {
 export class MCPGenerator {
   private config: MCPConfig;
   private context: MCPContext;
-  private collections = new Map<string, BaseCollection<any>>();
+  private collections = new Map<string, SmrtCollection<any>>();
 
   constructor(config: MCPConfig = {}, context: MCPContext = {}) {
     this.config = {
@@ -81,7 +80,7 @@ export class MCPGenerator {
     const tools: MCPTool[] = [];
     const registeredClasses = ObjectRegistry.getAllClasses();
 
-    for (const [name, classInfo] of registeredClasses) {
+    for (const [name, _classInfo] of registeredClasses) {
       const config = ObjectRegistry.getConfig(name);
       const mcpConfig = config.mcp || {};
 
@@ -362,7 +361,7 @@ export class MCPGenerator {
   private getCollection(
     objectName: string,
     classInfo: any,
-  ): BaseCollection<any> {
+  ): SmrtCollection<any> {
     if (!this.collections.has(objectName)) {
       const collection = new classInfo.collectionConstructor({
         ai: this.context.ai,
@@ -377,7 +376,7 @@ export class MCPGenerator {
    * Execute action on collection
    */
   private async executeAction(
-    collection: BaseCollection<any>,
+    collection: SmrtCollection<any>,
     action: string,
     args: any,
   ): Promise<any> {
@@ -488,8 +487,8 @@ export class MCPGenerator {
    */
   getServerInfo() {
     return {
-      name: this.config.server!.name,
-      version: this.config.server!.version,
+      name: this.config.server?.name,
+      version: this.config.server?.version,
       description: this.config.description,
     };
   }

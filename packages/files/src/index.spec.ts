@@ -1,18 +1,19 @@
 // index.test.ts
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
 import * as fs from 'node:fs';
+import { createServer, type Server } from 'node:http';
 import * as path from 'node:path';
+import { getTempDirectory } from '@have/utils';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
-  isFile,
-  isDirectory,
-  ensureDirectoryExists,
-  upload,
   download,
   downloadFileWithCache,
+  ensureDirectoryExists,
+  isDirectory,
+  isFile,
   listFiles,
+  upload,
 } from './index';
-import { createServer, type Server } from 'node:http';
-import { getTempDirectory } from '@have/utils';
 
 // Mock fs modulesq
 // vi.mock('node:fs');
@@ -31,9 +32,9 @@ describe('File utilities', () => {
     // Create and start test server
     server = createServer((req, res) => {
       if (req.method === 'PUT' && req.url === '/upload') {
-        let data = '';
+        let _data = '';
         req.on('data', (chunk) => {
-          data += chunk;
+          _data += chunk;
         });
         req.on('end', () => {
           res.writeHead(200, { 'Content-Type': 'text/plain' });
@@ -172,7 +173,7 @@ describe('File utilities', () => {
   describe('download', () => {
     it('should download file successfully', async () => {
       const localPath = path.join(tmpDir, 'test.txt');
-      const downloaded = await download(`${serverUrl}/test.txt`, localPath);
+      const _downloaded = await download(`${serverUrl}/test.txt`, localPath);
       expect(fs.existsSync(localPath)).toBe(true);
     });
 
