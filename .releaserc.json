@@ -1,8 +1,25 @@
 {
   "extends": "semantic-release-monorepo",
   "branches": ["main"],
+  "tagFormat": "v${version}",
+  "debug": false,
   "plugins": [
-    "@semantic-release/commit-analyzer",
+    [
+      "@semantic-release/commit-analyzer",
+      {
+        "releaseRules": [
+          { "type": "feat", "release": "minor" },
+          { "type": "fix", "release": "patch" },
+          { "type": "perf", "release": "patch" },
+          { "type": "revert", "release": "patch" },
+          { "type": "docs", "release": "patch" },
+          { "type": "refactor", "release": "minor" },
+          { "type": "build", "release": "patch" },
+          { "scope": "no-release", "release": false },
+          { "breaking": true, "release": "minor" }
+        ]
+      }
+    ],
     "@semantic-release/release-notes-generator",
     [
       "@semantic-release/changelog",
@@ -46,15 +63,5 @@
       { "type": "build", "section": "Build System", "hidden": false },
       { "type": "ci", "section": "Continuous Integration", "hidden": true }
     ]
-  },
-  "releaseRules": [
-    { "type": "feat", "release": "minor" },
-    { "type": "fix", "release": "patch" },
-    { "type": "perf", "release": "patch" },
-    { "type": "revert", "release": "patch" },
-    { "type": "docs", "release": "patch" },
-    { "type": "refactor", "release": "minor" },
-    { "type": "build", "release": "patch" },
-    { "scope": "no-release", "release": false }
-  ]
+  }
 }
