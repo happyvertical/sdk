@@ -70,6 +70,7 @@ export default defineConfig({
         'pdf2pic',
         'tesseract.js',
         'openai',
+        /^openai\//,
         'anthropic',
         '@anthropic-ai/sdk',
         '@google/generative-ai',
