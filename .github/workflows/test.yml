@@ -69,11 +69,7 @@ jobs:
             libprotobuf-dev
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-        env:
-          # Force ONNX Runtime to use CPU-only build
-          ORT_BUILD_CUDA: '0'
-          ORT_FORCE_CPU: '1'
+        run: pnpm install --frozen-lockfile --onnxruntime-node-install-cuda=skip
 
       - name: Type check
         run: pnpm run typecheck
