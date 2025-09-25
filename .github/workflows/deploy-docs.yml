@@ -42,7 +42,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -53,20 +53,20 @@ jobs:
           path: |
             docs/.docusaurus
             docs/node_modules
-            ~/.npm
-          key: ${{ runner.os }}-docs-build-${{ hashFiles('**/package-lock.json') }}
+            ~/.pnpm
+          key: ${{ runner.os }}-docs-build-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-docs-build-
 
       - name: Install root dependencies
-        run: npm install
+        run: pnpm install
 
       - name: Install docs dependencies
-        run: npm install
+        run: pnpm install
         working-directory: docs
 
       - name: Build documentation site
-        run: npm run docs:site:build
+        run: pnpm run docs:site:build
         env:
           NODE_OPTIONS: --max_old_space_size=8192
 
@@ -101,7 +101,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: 'npm'
+          cache: 'pnpm'
 
       - name: Restore cache
         uses: actions/cache@v4
@@ -109,19 +109,19 @@ jobs:
           path: |
             docs/.docusaurus
             docs/node_modules
-            ~/.npm
-          key: ${{ runner.os }}-docs-test-${{ hashFiles('**/package-lock.json') }}
+            ~/.pnpm
+          key: ${{ runner.os }}-docs-test-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-docs-test-
 
       - name: Install root dependencies
-        run: npm install
+        run: pnpm install
 
       - name: Install docs dependencies
-        run: npm install
+        run: pnpm install
         working-directory: docs
 
       - name: Test build
-        run: npm run docs:site:build
+        run: pnpm run docs:site:build
         env:
           NODE_OPTIONS: --max_old_space_size=8192
