@@ -38,39 +38,10 @@ jobs:
           echo "✅ Security requirements validated"
           echo "::notice::Processing dependabot PR with enhanced security checks"
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-        
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
         with:
           node-version: '24'
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          run_install: false
-
-      - name: Get pnpm store directory
-        shell: bash
-        run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
-
-      - name: Setup pnpm cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-store-
-          
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-        env:
-          # Force ONNX Runtime to skip CUDA installation
-          ONNXRUNTIME_NODE_INSTALL_CUDA: 'skip'
         
       - name: Build packages
         run: pnpm run build
@@ -95,16 +66,6 @@ jobs:
           echo "::notice::Checking for security vulnerabilities in dependencies"
           echo "Dependency update type: ${{ steps.metadata.outputs.update-type }}"
           echo "Package ecosystem: ${{ steps.metadata.outputs.package-ecosystem }}"
-          # Install system dependencies for ONNX Runtime
-          sudo apt-get update && sudo apt-get install -y \
-            libstdc++6 \
-            libc6-dev \
-            build-essential \
-            gcc \
-            g++ \
-            cmake \
-            libgomp1 \
-            libprotobuf-dev
           echo "Package name: ${{ steps.metadata.outputs.dependency-names }}"
           pnpm audit || {
             echo "::error::Security vulnerabilities found in dependencies"
