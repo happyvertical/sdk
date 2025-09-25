@@ -1,3 +1,10 @@
+## [0.2.1](https://github.com/happyvertical/sdk/compare/v0.2.0...v0.2.1) (2025-09-25)
+
+
+### Bug Fixes
+
+* add npm plugin back to update package versions without publishing ([f332a9b](https://github.com/happyvertical/sdk/commit/f332a9bc779b4ab8df22c4bf9687bfd1bf229e75))
+
 # [0.2.0](https://github.com/happyvertical/sdk/compare/v0.1.0...v0.2.0) (2025-09-25)
 
 
