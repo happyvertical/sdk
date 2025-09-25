@@ -75,27 +75,26 @@ function validatePackageJson(filePath) {
       errors.push(`Invalid version format: ${pkg.version} (should be semver)`);
     }
 
-    // Check for Bun version consistency (Node.js engines removed)
-    if (pkg.engines?.node) {
+    // Check for Node.js version consistency
+    if (pkg.engines?.bun) {
       errors.push(
-        `Package should not specify Node.js engine (found: ${pkg.engines.node}). Use Bun only.`,
+        `Package should not specify Bun engine (found: ${pkg.engines.bun}). Use Node.js + pnpm.`,
       );
     }
 
-    // Check for required Bun version in root package
-    if (isRootPackage && (!pkg.engines?.bun || pkg.engines.bun !== '>=1.0.0')) {
+    // Check for required Node.js version in root package
+    if (isRootPackage && (!pkg.engines?.node || !pkg.engines.node.startsWith('>=24'))) {
       errors.push(
-        `Root package should specify Bun version >=1.0.0 (got: ${pkg.engines?.bun || 'none'})`,
+        `Root package should specify Node.js version >=24.0.0 (got: ${pkg.engines?.node || 'none'})`,
       );
     }
 
     // Validate workspace dependencies format
-    // Note: Temporarily allowing explicit versions for CI/CD compatibility with npm
     if (pkg.dependencies) {
       for (const [dep, version] of Object.entries(pkg.dependencies)) {
-        if (dep.startsWith('@have/') && version !== 'workspace:*' && version !== '0.0.50') {
+        if (dep.startsWith('@have/') && version !== 'workspace:*') {
           errors.push(
-            `Internal dependency ${dep} should use "workspace:*" or explicit version "0.0.50" for CI/CD (got: ${version})`,
+            `Internal dependency ${dep} should use "workspace:*" (got: ${version})`,
           );
         }
       }

@@ -25,10 +25,10 @@
     "./runtime": "./dist/runtime/index.js"
   },
   "dependencies": {
-    "@have/ai": "0.0.50",
-    "@have/files": "0.0.50",
-    "@have/sql": "0.0.50",
-    "@have/utils": "0.0.50",
+    "@have/ai": "workspace:*",
+    "@have/files": "workspace:*",
+    "@have/sql": "workspace:*",
+    "@have/utils": "workspace:*",
     "@langchain/community": "^0.3.24",
     "cheerio": "^1.0.0",
     "fast-glob": "3.3.3",
