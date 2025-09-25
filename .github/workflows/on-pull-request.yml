@@ -1,0 +1,16 @@
+name: Pull Request Validation
+
+on:
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Validate Changes
+    uses: ./.github/workflows/test-suite.yml
+    with:
+      runner: 'ubuntu-latest'
+      node-version: '24'

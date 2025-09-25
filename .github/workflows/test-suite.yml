@@ -1,31 +1,34 @@
-name: Merged to Main
+name: Test Suite
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+  workflow_call:
     inputs:
-      dry-run:
-        description: 'Run in dry-run mode (no actual release)'
+      runner:
+        description: 'Runner to use for tests'
+        type: string
         required: false
-        default: 'false'
-        type: boolean
+        default: 'ubuntu-latest'
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+      node-version:
+        description: 'Node.js version to use'
+        type: string
+        required: false
+        default: '24'
+
+    outputs:
+      success:
+        description: 'Whether tests passed'
+        value: ${{ jobs.test.outputs.success }}
 
 permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-  packages: write
-  id-token: write
+  contents: read
 
 jobs:
-  # First job: Build and validate
-  build-and-publish:
-    name: Build and Publish
-    runs-on: ubuntu-latest
+  test:
+    name: Run Tests
+    runs-on: ${{ inputs.runner }}
 
+    # PostgreSQL service for database tests
     services:
       postgres:
         image: postgres:16-alpine
@@ -43,22 +46,16 @@ jobs:
           --health-retries 5
 
     outputs:
-      version: ${{ steps.semantic-release.outputs.version }}
-      published: ${{ steps.semantic-release.outputs.published }}
+      success: ${{ steps.test-result.outputs.success }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          # Need full history for semantic-release to analyze commits
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: ${{ inputs.node-version }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -66,19 +63,21 @@ jobs:
           run_install: false
 
       - name: Get pnpm store directory
+        id: pnpm-store
         shell: bash
         run: |
-          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+          echo "path=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
       - name: Setup pnpm cache
         uses: actions/cache@v4
         with:
-          path: ${{ env.STORE_PATH }}
+          path: ${{ steps.pnpm-store.outputs.path }}
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
       - name: Install system dependencies for ONNX Runtime
+        shell: bash
         run: |
           sudo apt-get update && sudo apt-get install -y \
             libstdc++6 \
@@ -90,7 +89,8 @@ jobs:
             libgomp1 \
             libprotobuf-dev
 
-      - name: Install dependencies
+      - name: Install project dependencies
+        shell: bash
         run: pnpm install --frozen-lockfile
         env:
           # Force ONNX Runtime to skip CUDA installation
@@ -100,6 +100,7 @@ jobs:
         run: pnpm run build
 
       - name: Run tests
+        id: test-execution
         run: pnpm test
         env:
           SQLOO_HOST: localhost
@@ -108,16 +109,14 @@ jobs:
           SQLOO_DATABASE: testdb
           SQLOO_PORT: 5432
 
-      - name: Release packages
-        id: semantic-release
+      - name: Set test result
+        id: test-result
+        if: always()
+        shell: bash
         run: |
-          if [ "${{ github.event.inputs.dry-run }}" = "true" ]; then
-            echo "Running in dry-run mode..."
-            pnpm dlx semantic-release --dry-run
+          if [ "${{ steps.test-execution.outcome }}" = "success" ]; then
+            echo "success=true" >> $GITHUB_OUTPUT
           else
-            echo "Running semantic-release..."
-            pnpm dlx semantic-release
+            echo "success=false" >> $GITHUB_OUTPUT
+            exit 1
           fi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # NPM_TOKEN not needed since npmPublish is disabled
