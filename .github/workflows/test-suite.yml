@@ -1,0 +1,78 @@
+name: Test Suite
+
+on:
+  workflow_call:
+    inputs:
+      runner:
+        description: 'Runner to use for tests'
+        type: string
+        required: false
+        default: 'ubuntu-latest'
+
+      node-version:
+        description: 'Node.js version to use'
+        type: string
+        required: false
+        default: '24'
+
+    outputs:
+      success:
+        description: 'Whether tests passed'
+        value: ${{ jobs.test.outputs.success }}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ${{ inputs.runner }}
+
+    # PostgreSQL service for database tests
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: testdb
+          PGUSER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    outputs:
+      success: ${{ steps.test-result.outputs.success }}
+
+    steps:
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Build packages
+        run: pnpm run build
+
+      - name: Run tests
+        id: test-execution
+        run: pnpm test
+        env:
+          SQLOO_HOST: localhost
+          SQLOO_USER: postgres
+          SQLOO_PASSWORD: postgres
+          SQLOO_DATABASE: testdb
+          SQLOO_PORT: 5432
+
+      - name: Set test result
+        id: test-result
+        if: always()
+        run: |
+          if [ "${{ steps.test-execution.outcome }}" = "success" ]; then
+            echo "success=true" >> $GITHUB_OUTPUT
+          else
+            echo "success=false" >> $GITHUB_OUTPUT
+          fi
