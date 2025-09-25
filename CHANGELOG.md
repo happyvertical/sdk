@@ -1,3 +1,15 @@
+# [0.3.0](https://github.com/happyvertical/sdk/compare/v0.2.4...v0.3.0) (2025-09-25)
+
+
+### Bug Fixes
+
+* resolve fundamental GitHub Actions architecture issues ([8e6eb06](https://github.com/happyvertical/sdk/commit/8e6eb06431ec11782bded20f544a74f7d37b90d0))
+
+
+### Features
+
+* implement clean workflow architecture with environment abstraction ([1dc20f2](https://github.com/happyvertical/sdk/commit/1dc20f2c605ff6fb01ae3ccd7c14272ec2bf8ae4))
+
 ## [0.2.4](https://github.com/happyvertical/sdk/compare/v0.2.3...v0.2.4) (2025-09-25)
 
 
