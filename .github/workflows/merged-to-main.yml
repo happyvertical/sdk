@@ -1,4 +1,4 @@
-name: Release
+name: Merged to Main
 
 on:
   push:
@@ -21,8 +21,9 @@ permissions:
   id-token: write
 
 jobs:
-  release:
-    name: Release
+  # First job: Build and validate
+  build-and-publish:
+    name: Build and Publish
     runs-on: ubuntu-latest
 
     services:
@@ -40,6 +41,10 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+
+    outputs:
+      version: ${{ steps.semantic-release.outputs.version }}
+      published: ${{ steps.semantic-release.outputs.published }}
 
     steps:
       - name: Checkout repository
@@ -104,13 +109,14 @@ jobs:
           SQLOO_PORT: 5432
 
       - name: Release packages
+        id: semantic-release
         run: |
           if [ "${{ github.event.inputs.dry-run }}" = "true" ]; then
             echo "Running in dry-run mode..."
-            npx semantic-release --dry-run
+            pnpm dlx semantic-release --dry-run
           else
             echo "Running semantic-release..."
-            npx semantic-release
+            pnpm dlx semantic-release
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -47,16 +47,36 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '24'
-          cache: 'npm'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
           
       - name: Install dependencies
-        run: npm install
+        run: pnpm install --frozen-lockfile
+        env:
+          # Force ONNX Runtime to skip CUDA installation
+          ONNXRUNTIME_NODE_INSTALL_CUDA: 'skip'
         
       - name: Build packages
-        run: npm run build
+        run: pnpm run build
         
       - name: Run tests
-        run: npm test
+        run: pnpm test
         env:
           SQLOO_HOST: localhost
           SQLOO_USER: postgres
@@ -75,8 +95,18 @@ jobs:
           echo "::notice::Checking for security vulnerabilities in dependencies"
           echo "Dependency update type: ${{ steps.metadata.outputs.update-type }}"
           echo "Package ecosystem: ${{ steps.metadata.outputs.package-ecosystem }}"
+          # Install system dependencies for ONNX Runtime
+          sudo apt-get update && sudo apt-get install -y \
+            libstdc++6 \
+            libc6-dev \
+            build-essential \
+            gcc \
+            g++ \
+            cmake \
+            libgomp1 \
+            libprotobuf-dev
           echo "Package name: ${{ steps.metadata.outputs.dependency-names }}"
-          npm audit || {
+          pnpm audit || {
             echo "::error::Security vulnerabilities found in dependencies"
             exit 1
           }
