@@ -20,6 +20,11 @@ export interface SqliteOptions {
    * Authentication token for Turso/LibSQL remote connections
    */
   authToken?: string;
+
+  /**
+   * Encryption key for encrypted SQLite databases (LibSQL feature)
+   */
+  encryptionKey?: string;
 }
 
 /**
@@ -29,8 +34,8 @@ export interface SqliteOptions {
  * @returns Database interface for SQLite
  */
 export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
-  const { url = 'file::memory:', authToken } = options;
-  const client = createClient({ url, authToken });
+  const { url = 'file::memory:', authToken, encryptionKey } = options;
+  const client = createClient({ url, authToken, encryptionKey });
 
   /**
    * Inserts one or more records into a table

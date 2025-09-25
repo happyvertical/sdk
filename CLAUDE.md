@@ -15,7 +15,7 @@ The HAppy VErtical (HAVE) SDK is a TypeScript monorepo designed for building ver
 The SDK is organized as a bun workspace with several packages that provide specific functionality:
 
 - **ai**: A standardized interface for AI model interactions across multiple providers (OpenAI, Anthropic, Google Gemini, AWS Bedrock)
-- **content**: Content processing module for documents, web content, and media (separated from SMRT for modularity)
+- **content**: Content processing module for documents, web content, and media (SMRT-specific module, excluded from main build)
 - **files**: Tools for interacting with file systems (local and remote, Node.js-focused)
 - **ocr**: Optical Character Recognition with multiple provider support
 - **pdf**: Utilities for parsing and processing PDF documents with OCR fallback

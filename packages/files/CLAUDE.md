@@ -4,13 +4,14 @@
 
 The `@have/files` package provides a standardized interface for file system operations with multi-provider support. It serves as the file system abstraction layer for the HAVE SDK and handles:
 
-- **Local and Remote File Systems**: Unified API for local filesystem, S3-compatible services, Google Drive, WebDAV (Nextcloud/ownCloud), and browser storage
-- **Cross-Platform Operations**: Consistent file operations across different platforms and storage backends
-- **Stream Processing**: Efficient handling of large files through Node.js streams and Web Streams
+- **Local and Remote File Systems**: Unified API for local filesystem with planned support for S3-compatible services, Google Drive, and WebDAV (Nextcloud/ownCloud)
+- **Cross-Platform Operations**: Consistent file operations across different Node.js platforms
+- **Stream Processing**: Efficient handling of large files through Node.js streams and Web Streams integration
 - **Temporary File Management**: Secure temporary file creation with automatic cleanup
-- **Caching and Performance**: Built-in caching for remote files and optimized data transfer
+- **Caching and Performance**: Built-in caching for files and optimized data transfer
 - **Legacy Compatibility**: Backward compatibility with existing @have/files APIs
 - **Path Normalization**: Cross-platform path handling and URL-to-filesystem conversion
+- **Modern Node.js Features**: Utilizes latest fs/promises, async resource management, and Web Streams APIs
 
 This package abstracts away the complexities of different file systems, allowing other packages to work with files consistently regardless of the underlying storage provider.
 
@@ -135,32 +136,46 @@ await file.close();
 ### Temporary File Management
 
 ```typescript
-import { createTempFile, createTempDirectory } from '@have/files';
+import { getTempDirectory } from '@have/utils';
+import { getFilesystem } from '@have/files';
+import { join } from 'path';
+import { mkdir, rmdir } from 'fs/promises';
 
-// Create temporary file with auto-cleanup
-const { path: tempFile, cleanup: cleanupFile } = await createTempFile({
-  prefix: 'data-',
-  extension: '.json',
-  content: JSON.stringify({ key: 'value' })
-});
+const fs = await getFilesystem({ type: 'local' });
+
+// Create temporary files using getTempDirectory from @have/utils
+const tempDir = getTempDirectory('processing');
+const tempFile = join(tempDir, 'data.json');
 
 try {
+  // Write temporary file
+  await fs.write(tempFile, JSON.stringify({ key: 'value' }));
+
   // Use temporary file
   const data = await fs.read(tempFile);
   console.log(JSON.parse(data));
 } finally {
-  // Always clean up
-  await cleanupFile();
+  // Clean up temporary file
+  if (await fs.exists(tempFile)) {
+    await fs.delete(tempFile);
+  }
 }
 
-// Create temporary directory
-const { path: tempDir, cleanup: cleanupDir } = await createTempDirectory('processing');
+// Create custom temporary directory for batch operations
+const customTempDir = join(getTempDirectory('batch-operations'), 'session-' + Date.now());
+await mkdir(customTempDir, { recursive: true });
+
 try {
   // Use temporary directory for batch operations
-  await fs.write(`${tempDir}/file1.txt`, 'data1');
-  await fs.write(`${tempDir}/file2.txt`, 'data2');
+  await fs.write(join(customTempDir, 'file1.txt'), 'data1');
+  await fs.write(join(customTempDir, 'file2.txt'), 'data2');
+
+  // Process files...
+  const files = await fs.list(customTempDir);
+  console.log('Temp files created:', files.map(f => f.name));
 } finally {
-  await cleanupDir();
+  // Clean up entire directory
+  await rmdir(customTempDir, { recursive: true });
 }
 ```
 
@@ -284,13 +299,12 @@ The package has carefully chosen dependencies for optimal performance:
 - **Node.js path**: Cross-platform path manipulation and normalization
 - **Node.js stream**: Efficient large file processing through streams
 
-### Provider-Specific Dependencies (Optional)
-- **AWS SDK v3**: For S3-compatible storage providers
-- **Google APIs**: For Google Drive integration
-- **WebDAV clients**: For Nextcloud/ownCloud/Apache WebDAV servers
-- **Browser APIs**: IndexedDB for browser-based storage
+### Provider-Specific Dependencies (Planned)
+- **AWS SDK v3**: For S3-compatible storage providers (planned implementation)
+- **Google APIs**: For Google Drive integration (planned implementation)
+- **WebDAV clients**: For Nextcloud/ownCloud/Apache WebDAV servers (planned implementation)
 
-The core package uses only Node.js built-ins for local filesystem operations, with optional external dependencies loaded dynamically when specific providers are used.
+The core package currently uses only Node.js built-ins for local filesystem operations. Remote providers will have optional external dependencies loaded dynamically when implemented and used.
 
 ## Development Guidelines
 
@@ -342,11 +356,12 @@ try {
 
 ### Stream Processing Best Practices
 
-Use streams for large files to manage memory efficiently:
+Use streams for large files to manage memory efficiently, leveraging the latest Node.js LTS features:
 
 ```typescript
 import { pipeline } from 'stream/promises';
 import { createGzip } from 'zlib';
+import { open } from 'fs/promises';
 
 // Compress large file without loading into memory
 const input = createReadStream('/path/to/large/file.txt');
@@ -358,11 +373,40 @@ await pipeline(input, gzip, output);
 // Process files in chunks
 async function processLargeFile(filePath: string) {
   const stream = createReadStream(filePath, { highWaterMark: 64 * 1024 });
-  
+
   for await (const chunk of stream) {
     // Process chunk without loading entire file
     await processChunk(chunk);
   }
+}
+
+// Modern Web Streams integration (Node.js 24+)
+async function processWithWebStreams(filePath: string) {
+  const fileHandle = await open(filePath, 'r');
+
+  try {
+    // Use readableWebStream for modern stream processing
+    const webStream = fileHandle.readableWebStream({ autoClose: false });
+
+    for await (const chunk of webStream) {
+      // Process using Web Streams API
+      console.log('Processing chunk:', chunk.length, 'bytes');
+    }
+  } finally {
+    // Async disposal pattern (Node.js 24+)
+    await fileHandle[Symbol.asyncDispose]?.() || fileHandle.close();
+  }
+}
+
+// Async resource management with auto-cleanup (Node.js 24+)
+async function processFileWithAsyncDisposal(filePath: string) {
+  await using fileHandle = await open(filePath, 'r'); // Auto-cleanup
+
+  const stream = fileHandle.readableWebStream({ autoClose: true });
+  for await (const chunk of stream) {
+    await processChunk(chunk);
+  }
+  // File automatically closed when leaving scope
 }
 ```
 
@@ -477,13 +521,11 @@ async function getFileInfo(filePath: string) {
 # Development workflow
 bun test                    # Run tests once
 bun test:watch             # Run tests in watch mode
-bun run build              # Build both browser and node versions
+bun run build              # Build the Node.js package
 bun run build:watch        # Build in watch mode
 bun run dev                # Build and test in watch mode
-
-# Build targets
-bun run build:browser      # Browser-compatible build
-bun run build:node         # Node.js-specific build
+bun run docs               # Generate API documentation
+bun run docs:watch         # Generate docs in watch mode
 bun run clean              # Clean build artifacts
 ```
 
@@ -570,22 +612,38 @@ When working with @have/files:
 4. **Check for new path manipulation methods** that can simplify cross-platform operations
 5. **Look for security improvements** in file handling and permission management
 6. **Monitor Web Streams integration** for modern async patterns
+7. **Utilize async resource management** with Symbol.asyncDispose and `await using` syntax
+8. **Leverage filehandle.readableWebStream()** for modern byte-oriented streaming
 
 Example workflow:
 ```typescript
 // Before implementing a file solution, check latest docs
 await WebFetch('https://nodejs.org/api/fs.html', 'What are the latest fs/promises methods in Node.js LTS?');
-// Then implement with current best practices using async/await
-const content = await fs.promises.readFile(filePath, { encoding: 'utf-8' });
+
+// Then implement with current best practices using latest Node.js features
+const fileHandle = await open(filePath, 'r');
+try {
+  // Use modern Web Streams when available (Node.js 24+)
+  const stream = fileHandle.readableWebStream({ autoClose: false });
+  for await (const chunk of stream) {
+    await processChunk(chunk);
+  }
+} finally {
+  // Proper cleanup with async disposal
+  await fileHandle[Symbol.asyncDispose]?.() || fileHandle.close();
+}
+
+// Or use the simplified async using pattern
+await using fh = await open(filePath, 'r');
+const content = await fh.readFile({ encoding: 'utf-8' });
 ```
 
 ### Provider-Specific Documentation
 
 When implementing or debugging specific providers:
 
-- **AWS S3 SDK**: Latest S3 client documentation and best practices
-- **Google Drive API**: Current API reference and authentication methods
-- **WebDAV Protocol**: RFC 4918 and server-specific implementation guides
-- **Browser Storage APIs**: IndexedDB and File System Access API documentation
+- **AWS S3 SDK**: Latest S3 client documentation and best practices (when implementing S3 provider)
+- **Google Drive API**: Current API reference and authentication methods (when implementing Google Drive provider)
+- **WebDAV Protocol**: RFC 4918 and server-specific implementation guides (when implementing WebDAV provider)
 
-This package provides the essential file system abstraction needed by AI agents and applications to work with data consistently across different storage environments while maintaining security, performance, and cross-platform compatibility.
+This package provides the essential file system abstraction needed by AI agents and applications to work with data consistently across different storage environments while maintaining security, performance, and cross-platform compatibility in Node.js environments.

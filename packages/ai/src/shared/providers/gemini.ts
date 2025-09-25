@@ -26,7 +26,7 @@ import {
 
 export class GeminiProvider implements AIInterface {
   private options: GeminiOptions;
-  private client: any; // GoogleGenerativeAI instance
+  private client: any; // GoogleGenAI instance from @google/genai
 
   constructor(options: GeminiOptions) {
     this.options = {

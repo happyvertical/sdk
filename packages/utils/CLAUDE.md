@@ -25,12 +25,15 @@ This package is intentionally lightweight with minimal external dependencies and
 ```typescript
 import { makeId } from '@have/utils';
 
-// Generate a UUID v4 (recommended for most cases)
-const id = makeId(); // "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+// Generate a CUID2 (default, more secure than UUID)
+const id = makeId(); // "ckx5f8h3z0000qzrmn831i7rn"
 
-// The implementation falls back gracefully across environments:
-// - Uses crypto.randomUUID() when available (modern browsers/Node.js)
-// - Falls back to custom implementation for older environments
+// Generate UUID when needed for RFC4122 compliance
+const uuid = makeId('uuid'); // "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+
+// The implementation provides:
+// - CUID2 by default (more secure and collision-resistant)
+// - UUID fallback with crypto.randomUUID() or custom implementation
 ```
 
 ### Slug Generation

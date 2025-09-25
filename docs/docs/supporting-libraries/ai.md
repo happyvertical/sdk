@@ -22,17 +22,20 @@ The `@have/ai` package provides a standardized interface for AI interactions tha
 ## Quick Start
 
 ```typescript
-import { getAIClient } from '@have/ai';
+import { getAI } from '@have/ai';
 
 // Initialize with your preferred provider
-const ai = await getAIClient({
-  provider: 'openai',
-  apiKey: process.env.OPENAI_API_KEY
+const ai = await getAI({
+  type: 'openai',
+  apiKey: process.env.OPENAI_API_KEY!,
+  defaultModel: 'gpt-4o'
 });
 
 // Use consistent interface across all providers
-const response = await ai.message('Explain quantum computing');
-console.log(response);
+const response = await ai.chat([
+  { role: 'user', content: 'Explain quantum computing' }
+]);
+console.log(response.content);
 ```
 
 ## Supported Providers

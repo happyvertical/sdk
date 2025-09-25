@@ -40,14 +40,14 @@ const geminiClient = await getAI({
   apiKey: process.env.GEMINI_API_KEY!,
   projectId: 'your-project-id', // optional
   location: 'us-central1', // optional
-  defaultModel: 'gemini-pro'
+  defaultModel: 'gemini-1.5-pro'
 });
 
 // Create an Anthropic client
 const anthropicClient = await getAI({
   type: 'anthropic',
   apiKey: process.env.ANTHROPIC_API_KEY!,
-  defaultModel: 'claude-3-sonnet-20240229',
+  defaultModel: 'claude-3-5-sonnet-20241022',
   timeout: 60000 // Longer timeout for complex requests
 });
 
@@ -376,7 +376,7 @@ The package has the following dependencies:
 
 ### External Dependencies
 - `openai`: Official OpenAI JavaScript/TypeScript SDK for GPT models
-- `@google/generative-ai`: Google's Generative AI SDK for Gemini models
+- `@google/genai`: Google's official unified SDK for Gemini and Vertex AI (replaces deprecated @google/generative-ai)
 - `@anthropic-ai/sdk`: Anthropic's official SDK for Claude models
 - `@aws-sdk/client-bedrock-runtime`: AWS SDK client for Bedrock runtime operations
 
