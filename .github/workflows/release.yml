@@ -1,9 +1,8 @@
 name: Release
 
 on:
-  # Temporarily disabled automatic release on push
-  # push:
-  #   branches: [main]
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       dry-run:
