@@ -74,11 +74,11 @@ jobs:
           # Force ONNX Runtime to skip CUDA installation
           ONNXRUNTIME_NODE_INSTALL_CUDA: 'skip'
 
-      - name: Type check
-        run: pnpm run typecheck
-
       - name: Build packages
         run: pnpm run build
+
+      - name: Type check
+        run: pnpm run typecheck
 
       - name: Run tests
         run: pnpm test
