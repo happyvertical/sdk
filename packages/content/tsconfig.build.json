@@ -4,12 +4,22 @@
     "declaration": true,
     "declarationMap": true,
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "types": ["node"],
+    "lib": ["ES2022"],
+    "moduleResolution": "bundler",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "isolatedModules": false
   },
   "include": ["src/**/*"],
   "exclude": [
     "**/*.test.ts",
     "**/*.spec.ts",
+    "**/*.config.ts",
+    "**/*.config.js",
     "node_modules",
     "dist",
     // Exclude root config files that could interfere with build
@@ -18,6 +28,8 @@
     "../../vite.config.ts",
     "../../vite.config.js",
     "../../vitest.config.ts",
-    "../../vitest.config.js"
+    "../../vitest.config.js",
+    "../../*.config.ts",
+    "../../*.config.js"
   ]
 }
