@@ -2,7 +2,7 @@
  * Tests for MCP generator with custom action support
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { MCPGenerator } from './mcp';
 import { ObjectRegistry } from '../registry';
 import { SmrtObject } from '../object';
@@ -27,7 +27,9 @@ class TestAgent extends SmrtObject {
 
   constructor(options: any) {
     super(options);
-    Object.assign(this, options);
+    // Avoid overwriting getter-only properties
+    const { db, ai, fs, ...safeOptions } = options;
+    Object.assign(this, safeOptions);
   }
 
   // Custom action methods
@@ -72,7 +74,9 @@ class InvalidActionAgent extends SmrtObject {
 
   constructor(options: any) {
     super(options);
-    Object.assign(this, options);
+    // Avoid overwriting getter-only properties
+    const { db, ai, fs, ...safeOptions } = options;
+    Object.assign(this, safeOptions);
   }
 }
 
@@ -88,7 +92,9 @@ class ExcludedActionAgent extends SmrtObject {
 
   constructor(options: any) {
     super(options);
-    Object.assign(this, options);
+    // Avoid overwriting getter-only properties
+    const { db, ai, fs, ...safeOptions } = options;
+    Object.assign(this, safeOptions);
   }
 
   async research(): Promise<any> {
@@ -108,7 +114,8 @@ describe('MCPGenerator with Custom Actions', () => {
   });
 
   afterEach(() => {
-    ObjectRegistry.clear();
+    // Note: Don't clear registry as classes are only registered once during import
+    // ObjectRegistry.clear();
   });
 
   describe('Tool Generation', () => {

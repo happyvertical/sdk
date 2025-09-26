@@ -21,6 +21,9 @@
   },
   "dependencies": {
     "@have/smrt": "workspace:*",
+    "@have/ai": "workspace:*",
+    "@have/files": "workspace:*",
+    "@have/utils": "workspace:*",
     "@have/pdf": "workspace:*",
     "@have/spider": "workspace:*",
     "yaml": "^2.8.1"

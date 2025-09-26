@@ -257,9 +257,15 @@ export class MCPGenerator {
           }
 
           // Validate that the method exists on the class
-          if (this.validateCustomMethod(classInfo.constructor, action)) {
+          const isValid = this.validateCustomMethod(
+            classInfo.constructor,
+            action,
+          );
+
+          if (isValid) {
+            const toolName = `${lowerName}_${action}`;
             tools.push({
-              name: `${lowerName}_${action}`,
+              name: toolName,
               description: `Execute ${action} action on ${objectName}`,
               inputSchema: {
                 type: 'object',
@@ -603,9 +609,10 @@ export class MCPGenerator {
         // Check if the method exists on the object instance
         if (typeof object[action] === 'function') {
           // Call the method with the provided options
-          const result = await object[action](
-            options.length ? options : directArgs,
-          );
+          // If options is provided, use it; otherwise use directArgs
+          const methodArgs =
+            Object.keys(options).length > 0 ? options : directArgs;
+          const result = await object[action](methodArgs);
           return result;
         } else {
           throw new Error(`Method '${action}' not found on object instance`);
@@ -613,9 +620,9 @@ export class MCPGenerator {
       } else {
         // No ID provided, try to call the method on the collection
         if (typeof (collection as any)[action] === 'function') {
-          const result = await (collection as any)[action](
-            options.length ? options : directArgs,
-          );
+          const methodArgs =
+            Object.keys(options).length > 0 ? options : directArgs;
+          const result = await (collection as any)[action](methodArgs);
           return result;
         } else {
           throw new Error(
