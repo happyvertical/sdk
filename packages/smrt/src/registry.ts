@@ -49,14 +49,14 @@ export interface SmartObjectConfig {
    */
   api?: {
     /**
-     * Exclude specific endpoints
+     * Exclude specific endpoints (supports both standard CRUD actions and custom methods)
      */
-    exclude?: ('list' | 'get' | 'create' | 'update' | 'delete')[];
+    exclude?: string[];
 
     /**
-     * Include only specific endpoints
+     * Include only specific endpoints (supports both standard CRUD actions and custom methods)
      */
-    include?: ('list' | 'get' | 'create' | 'update' | 'delete')[];
+    include?: string[];
 
     /**
      * Custom middleware for this object's endpoints
@@ -64,15 +64,9 @@ export interface SmartObjectConfig {
     middleware?: any[];
 
     /**
-     * Custom endpoint handlers
+     * Custom endpoint handlers (supports both standard CRUD actions and custom methods)
      */
-    customize?: {
-      list?: (req: any, collection: any) => Promise<any>;
-      get?: (req: any, collection: any) => Promise<any>;
-      create?: (req: any, collection: any) => Promise<any>;
-      update?: (req: any, collection: any) => Promise<any>;
-      delete?: (req: any, collection: any) => Promise<any>;
-    };
+    customize?: Record<string, (req: any, collection: any) => Promise<any>>;
   };
 
   /**
@@ -80,14 +74,14 @@ export interface SmartObjectConfig {
    */
   mcp?: {
     /**
-     * Include specific tools
+     * Include specific tools (supports both standard CRUD actions and custom methods)
      */
-    include?: ('list' | 'get' | 'create' | 'update' | 'delete')[];
+    include?: string[];
 
     /**
-     * Exclude specific tools
+     * Exclude specific tools (supports both standard CRUD actions and custom methods)
      */
-    exclude?: ('list' | 'get' | 'create' | 'update' | 'delete')[];
+    exclude?: string[];
   };
 
   /**
@@ -97,14 +91,14 @@ export interface SmartObjectConfig {
     | boolean
     | {
         /**
-         * Include specific commands
+         * Include specific commands (supports both standard CRUD actions and custom methods)
          */
-        include?: ('list' | 'get' | 'create' | 'update' | 'delete')[];
+        include?: string[];
 
         /**
-         * Exclude specific commands
+         * Exclude specific commands (supports both standard CRUD actions and custom methods)
          */
-        exclude?: ('list' | 'get' | 'create' | 'update' | 'delete')[];
+        exclude?: string[];
       };
 
   /**
@@ -131,7 +125,7 @@ export interface SmartObjectConfig {
 interface RegisteredClass {
   name: string;
   constructor: typeof SmrtObject;
-  collectionConstructor?: typeof SmrtCollection;
+  collectionConstructor?: new (options: any) => SmrtCollection<any>;
   config: SmartObjectConfig;
   fields: Map<string, any>;
 }
@@ -194,14 +188,14 @@ export class ObjectRegistry {
    */
   static registerCollection(
     objectName: string,
-    collectionConstructor: typeof SmrtCollection,
+    collectionConstructor: new (options: any) => SmrtCollection<any>,
   ): void {
     const registered = ObjectRegistry.classes.get(objectName);
     if (registered) {
       registered.collectionConstructor = collectionConstructor;
     }
 
-    ObjectRegistry.collections.set(objectName, collectionConstructor);
+    ObjectRegistry.collections.set(objectName, collectionConstructor as any);
   }
 
   /**
@@ -299,16 +293,14 @@ export class ObjectRegistry {
       }
 
       // Check static field definitions if they exist
-      if ((constructor as any).fields) {
-        for (const [key, field] of Object.entries(
-          (constructor as any).fields,
-        )) {
+      if ((ctor as any).fields) {
+        for (const [key, field] of Object.entries((ctor as any).fields)) {
           fields.set(key, field);
         }
       }
     } catch (error) {
       console.warn(
-        `Warning: Could not extract fields from ${constructor.name}:`,
+        `Warning: Could not extract fields from ${ctor.name}:`,
         error,
       );
     }
