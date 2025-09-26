@@ -56,12 +56,23 @@ Extends SmrtClass to represent collections of objects that:
 
 ## Key APIs
 
-### Defining Custom SMRT Objects
+### Defining Custom SMRT Objects with Custom Actions
 
 ```typescript
 import { SmrtObject } from '@have/smrt';
 import { Field } from '@have/smrt/fields';
 
+@smrt({
+  api: {
+    include: ['list', 'get', 'create', 'update'],
+    exclude: ['delete'] // Don't expose delete via REST API
+  },
+  mcp: {
+    include: ['list', 'get', 'create', 'analyze', 'summarize', 'transform'],
+    exclude: ['update', 'delete'] // AI can't modify or delete content
+  },
+  cli: true
+})
 class Document extends SmrtObject<any> {
   // Schema properties with Field definitions
   title: string = '';
@@ -70,32 +81,64 @@ class Document extends SmrtObject<any> {
   tags: string[] = [];
   isPriority: boolean = false;
   wordCount: number = 0;
-  
+
   constructor(options: any) {
     super(options);
     Object.assign(this, options);
   }
-  
-  // AI-powered content analysis
-  async summarize() {
+
+  // Custom Action: AI-powered content analysis
+  async analyze(options: any = {}) {
     if (this.ai && this.content) {
-      return await this.ai.message(
-        `Summarize this document in 2-3 sentences: ${this.content.substring(0, 2000)}`
-      );
+      const analysisType = options.type || 'general';
+      const prompt = `Analyze this document for ${analysisType} insights: ${this.content.substring(0, 2000)}`;
+      return {
+        action: 'analyze',
+        type: analysisType,
+        results: await this.ai.message(prompt),
+        wordCount: this.wordCount,
+        timestamp: new Date()
+      };
+    }
+    return { error: 'AI service not available' };
+  }
+
+  // Custom Action: Document summarization
+  async summarize(options: any = {}) {
+    if (this.ai && this.content) {
+      const length = options.length || 'medium';
+      const sentences = length === 'short' ? '1-2' : length === 'long' ? '4-5' : '2-3';
+      return {
+        action: 'summarize',
+        summary: await this.ai.message(
+          `Summarize this document in ${sentences} sentences: ${this.content.substring(0, 2000)}`
+        ),
+        length,
+        timestamp: new Date()
+      };
     }
     return null;
   }
-  
+
+  // Custom Action: Content transformation
+  async transform(options: any = {}) {
+    if (this.ai && options.instructions) {
+      return {
+        action: 'transform',
+        original: this.content.substring(0, 500),
+        transformed: await this.do(options.instructions),
+        instructions: options.instructions,
+        timestamp: new Date()
+      };
+    }
+    throw new Error('Instructions required for content transformation');
+  }
+
   // Smart content validation using AI
   async isValid(criteria: string) {
     return await this.is(criteria);
   }
-  
-  // AI-driven content transformation
-  async transform(instructions: string) {
-    return await this.do(instructions);
-  }
-  
+
   // Lifecycle hooks
   async beforeSave() {
     this.wordCount = this.content.split(/\s+/).length;
@@ -105,6 +148,11 @@ class Document extends SmrtObject<any> {
   }
 }
 ```
+
+This automatically generates:
+- **REST API endpoints**: `GET/POST /documents` (list, get, create, update)
+- **MCP tools for AI**: `document_list`, `document_get`, `document_create`, `document_analyze`, `document_summarize`, `document_transform`
+- **CLI commands**: `documents list`, `documents create`, `documents analyze`, etc.
 
 ### Advanced Collection Management
 
@@ -326,6 +374,128 @@ The SMRT framework integrates with multiple packages to provide comprehensive ag
   - Full YAML 1.1 and 1.2 standard support
   - AST manipulation capabilities
   - Schema flexibility with custom tags
+
+## Custom Action Configuration
+
+The SMRT framework supports custom actions beyond standard CRUD operations (list, get, create, update, delete). Custom actions allow you to expose domain-specific methods as REST API endpoints, MCP tools for AI integration, and CLI commands.
+
+### Configuration Options
+
+```typescript
+@smrt({
+  api: {
+    include: ['list', 'get', 'create', 'update', 'analyze', 'transform'],
+    exclude: ['delete'] // Hide dangerous operations
+  },
+  mcp: {
+    include: ['list', 'get', 'analyze', 'summarize', 'research'],
+    exclude: ['create', 'update', 'delete'] // AI read-only access
+  },
+  cli: true // Enable all actions via CLI
+})
+class MyAgent extends SmrtObject {
+  // Custom action methods
+  async analyze(options: any = {}) {
+    return {
+      action: 'analyze',
+      results: await this.performAnalysis(options),
+      timestamp: new Date()
+    };
+  }
+
+  async research(options: any = {}) {
+    return {
+      action: 'research',
+      findings: await this.conductResearch(options.query),
+      confidence: 0.85
+    };
+  }
+}
+```
+
+### Generated Endpoints
+
+For the configuration above, SMRT automatically generates:
+
+**REST API Endpoints:**
+- `GET /myagents` → list action
+- `GET /myagents/:id` → get action
+- `POST /myagents` → create action
+- `PUT /myagents/:id` → update action
+- `POST /myagents/:id/analyze` → **custom analyze action**
+- `POST /myagents/:id/transform` → **custom transform action**
+
+**MCP Tools for AI:**
+- `myagent_list` → AI can list agents
+- `myagent_get` → AI can get specific agents
+- `myagent_analyze` → **AI can analyze agents**
+- `myagent_summarize` → **AI can summarize agents**
+- `myagent_research` → **AI can research topics**
+
+**CLI Commands:**
+- `myagents list` → list all agents
+- `myagents get <id>` → get specific agent
+- `myagents analyze <id>` → **run analysis**
+- `myagents research --query="topic"` → **conduct research**
+
+### Method Validation
+
+SMRT automatically validates that custom action methods exist on your class:
+
+```typescript
+// ✅ Valid - method exists
+@smrt({ mcp: { include: ['research'] } })
+class Agent extends SmrtObject {
+  async research(options: any) { /* implementation */ }
+}
+
+// ❌ Invalid - warns and skips
+@smrt({ mcp: { include: ['nonexistent'] } })
+class Agent extends SmrtObject {
+  // Warning: Custom action 'nonexistent' specified but method not found
+}
+```
+
+### Custom Action Arguments
+
+Custom actions receive arguments from API calls, MCP tool calls, or CLI parameters:
+
+```typescript
+async analyze(options: any = {}) {
+  // From REST API: POST /agents/123/analyze { "type": "detailed" }
+  // From MCP: myagent_analyze with arguments { id: "123", options: { type: "detailed" } }
+  // From CLI: agents analyze 123 --type detailed
+
+  const analysisType = options.type || 'general';
+  const criteria = options.criteria || [];
+
+  return {
+    action: 'analyze',
+    type: analysisType,
+    results: await this.performAnalysis(analysisType, criteria),
+    timestamp: new Date()
+  };
+}
+```
+
+### Best Practices
+
+**Method Design:**
+- Always provide default values for options: `async method(options: any = {})`
+- Return structured objects with action metadata
+- Include timestamps for audit trails
+- Handle errors gracefully with try/catch
+
+**Security Considerations:**
+- Use `exclude` to hide sensitive operations from AI access
+- Validate input parameters within custom methods
+- Implement proper authentication in generated APIs
+- Consider rate limiting for expensive operations
+
+**Documentation:**
+- Add JSDoc comments to custom methods for auto-generated API docs
+- Describe expected options and return formats
+- Include usage examples in method comments
 
 ## Development Guidelines
 
