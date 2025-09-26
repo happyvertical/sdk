@@ -1,3 +1,11 @@
+# [0.4.0](https://github.com/happyvertical/sdk/compare/v0.3.3...v0.4.0) (2025-09-26)
+
+
+### Features
+
+* **smrt:** add custom action support to [@smrt](https://github.com/smrt) decorator configuration ([ce84e77](https://github.com/happyvertical/sdk/commit/ce84e77d5f42c650815649a498bb5cfe9eff5ab2)), closes [#96](https://github.com/happyvertical/sdk/issues/96)
+* **smrt:** implement custom action support and resolve build issues ([5536c16](https://github.com/happyvertical/sdk/commit/5536c1664efe37ee49e3491c402157e43b01b65a)), closes [#96](https://github.com/happyvertical/sdk/issues/96) [#96](https://github.com/happyvertical/sdk/issues/96)
+
 ## [0.3.3](https://github.com/happyvertical/sdk/compare/v0.3.2...v0.3.3) (2025-09-26)
 
 
