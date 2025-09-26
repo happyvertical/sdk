@@ -103,7 +103,7 @@ export default defineConfig(({ command, mode }) => {
     const targetPackage = process.env.VITE_BUILD_PACKAGE;
 
     if (targetPackage) {
-      const pkg = packages.find(p => p.name === targetPackage);
+      const pkg = packages.find((p) => p.name === targetPackage);
       if (!pkg) {
         throw new Error(`Package ${targetPackage} not found`);
       }
@@ -123,7 +123,10 @@ export default defineConfig(({ command, mode }) => {
             insertTypesEntry: false, // We handle this in package.json
             rollupTypes: true,
             // Use package-specific tsconfig to avoid root config interference
-            tsconfigPath: resolve(__dirname, `packages/${pkg.name}/tsconfig.build.json`),
+            tsconfigPath: resolve(
+              __dirname,
+              `packages/${pkg.name}/tsconfig.build.json`,
+            ),
           }),
         ],
         resolve: {
@@ -144,7 +147,9 @@ export default defineConfig(({ command, mode }) => {
     }
 
     // Default: build all packages (we'll need a script to handle this)
-    throw new Error('Use package-specific build scripts. Set VITE_BUILD_PACKAGE environment variable.');
+    throw new Error(
+      'Use package-specific build scripts. Set VITE_BUILD_PACKAGE environment variable.',
+    );
   }
 
   // Development configuration
@@ -164,7 +169,13 @@ export default defineConfig(({ command, mode }) => {
       },
     },
     optimizeDeps: {
-      include: ['@paralleldrive/cuid2', 'date-fns', 'pluralize', 'uuid', 'yaml'],
+      include: [
+        '@paralleldrive/cuid2',
+        'date-fns',
+        'pluralize',
+        'uuid',
+        'yaml',
+      ],
     },
   };
 });
