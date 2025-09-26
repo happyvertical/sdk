@@ -4,7 +4,8 @@
  * Exposes smrt objects as AI tools for Claude, GPT, and other AI models
  */
 
-import type { SmrtCollection } from '../collection';
+import { SmrtCollection } from '../collection';
+import type { SmrtObject } from '../object';
 import { ObjectRegistry } from '../registry';
 
 export interface MCPConfig {
@@ -88,19 +89,13 @@ export class MCPGenerator {
       const excluded = mcpConfig.exclude || [];
       const included = mcpConfig.include;
 
-      const shouldInclude = (
-        endpoint: 'list' | 'get' | 'create' | 'update' | 'delete',
-      ) => {
+      const shouldInclude = (endpoint: string) => {
         if (included && !included.includes(endpoint)) return false;
         if (excluded.includes(endpoint)) return false;
         return true;
       };
 
-      const objectTools = this.generateObjectTools(name, (endpoint: string) =>
-        shouldInclude(
-          endpoint as 'list' | 'get' | 'create' | 'update' | 'delete',
-        ),
-      );
+      const objectTools = this.generateObjectTools(name, shouldInclude);
       tools.push(...objectTools);
     }
 
@@ -117,6 +112,7 @@ export class MCPGenerator {
     const tools: MCPTool[] = [];
     const fields = ObjectRegistry.getFields(objectName);
     const lowerName = objectName.toLowerCase();
+    const classInfo = ObjectRegistry.getClass(objectName);
 
     // LIST tool
     if (shouldInclude('list')) {
@@ -240,6 +236,62 @@ export class MCPGenerator {
       });
     }
 
+    // CUSTOM ACTIONS
+    if (classInfo) {
+      const config = ObjectRegistry.getConfig(objectName);
+      const mcpConfig = config.mcp || {};
+      const included = mcpConfig.include;
+      const excluded = mcpConfig.exclude || [];
+
+      // If specific actions are included, check for custom actions
+      if (included) {
+        for (const action of included) {
+          // Skip standard CRUD actions (already handled above)
+          if (['list', 'get', 'create', 'update', 'delete'].includes(action)) {
+            continue;
+          }
+
+          // Skip if excluded
+          if (excluded.includes(action)) {
+            continue;
+          }
+
+          // Validate that the method exists on the class
+          const isValid = this.validateCustomMethod(
+            classInfo.constructor,
+            action,
+          );
+
+          if (isValid) {
+            const toolName = `${lowerName}_${action}`;
+            tools.push({
+              name: toolName,
+              description: `Execute ${action} action on ${objectName}`,
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  id: {
+                    type: 'string',
+                    description: 'ID of the object (optional for some actions)',
+                  },
+                  options: {
+                    type: 'object',
+                    description: 'Additional options for the custom action',
+                    additionalProperties: true,
+                  },
+                },
+                required: [],
+              },
+            });
+          } else {
+            console.warn(
+              `Warning: Custom action '${action}' specified in MCP config for ${objectName}, but method ${action}() not found on class`,
+            );
+          }
+        }
+      }
+    }
+
     return tools;
   }
 
@@ -296,6 +348,37 @@ export class MCPGenerator {
     }
 
     return schema;
+  }
+
+  /**
+   * Validate that a custom method exists on a class
+   */
+  private validateCustomMethod(
+    classConstructor: typeof SmrtObject,
+    methodName: string,
+  ): boolean {
+    try {
+      // Check if method exists on the prototype
+      const prototype = classConstructor.prototype;
+
+      // Check if the method exists and is a function
+      if (typeof (prototype as any)[methodName] === 'function') {
+        return true;
+      }
+
+      // Also check static methods
+      if (typeof (classConstructor as any)[methodName] === 'function') {
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.warn(
+        `Error validating method ${methodName} on class ${classConstructor.name}:`,
+        error,
+      );
+      return false;
+    }
   }
 
   /**
@@ -363,13 +446,35 @@ export class MCPGenerator {
     classInfo: any,
   ): SmrtCollection<any> {
     if (!this.collections.has(objectName)) {
+      // Ensure we have a valid collection constructor
+      if (
+        !classInfo.collectionConstructor ||
+        typeof classInfo.collectionConstructor !== 'function'
+      ) {
+        throw new Error(
+          `No valid collection constructor found for ${objectName}`,
+        );
+      }
+
       const collection = new classInfo.collectionConstructor({
         ai: this.context.ai,
         db: this.context.db,
       });
+
+      // Verify the collection is actually a SmrtCollection instance
+      if (!(collection instanceof SmrtCollection)) {
+        throw new Error(
+          `Collection for ${objectName} must extend SmrtCollection`,
+        );
+      }
+
       this.collections.set(objectName, collection);
     }
-    return this.collections.get(objectName)!;
+    const collection = this.collections.get(objectName);
+    if (!collection) {
+      throw new Error(`Collection for ${objectName} not found`);
+    }
+    return collection;
   }
 
   /**
@@ -478,7 +583,57 @@ export class MCPGenerator {
       }
 
       default:
-        throw new Error(`Unknown action: ${action}`);
+        // Handle custom actions
+        return this.executeCustomAction(collection, action, args);
+    }
+  }
+
+  /**
+   * Execute a custom action on a collection/object
+   */
+  private async executeCustomAction(
+    collection: SmrtCollection<any>,
+    action: string,
+    args: any,
+  ): Promise<any> {
+    const { id, options = {}, ...directArgs } = args;
+
+    try {
+      // If an ID is provided, get the specific object and call the method on it
+      if (id) {
+        const object = await collection.get(id);
+        if (!object) {
+          throw new Error('Object not found');
+        }
+
+        // Check if the method exists on the object instance
+        if (typeof object[action] === 'function') {
+          // Call the method with the provided options
+          // If options is provided, use it; otherwise use directArgs
+          const methodArgs =
+            Object.keys(options).length > 0 ? options : directArgs;
+          const result = await object[action](methodArgs);
+          return result;
+        } else {
+          throw new Error(`Method '${action}' not found on object instance`);
+        }
+      } else {
+        // No ID provided, try to call the method on the collection
+        if (typeof (collection as any)[action] === 'function') {
+          const methodArgs =
+            Object.keys(options).length > 0 ? options : directArgs;
+          const result = await (collection as any)[action](methodArgs);
+          return result;
+        } else {
+          throw new Error(
+            `Method '${action}' not found on collection. For object-specific actions, provide an 'id' parameter.`,
+          );
+        }
+      }
+    } catch (error) {
+      throw new Error(
+        `Failed to execute custom action '${action}': ${error instanceof Error ? error.message : 'Unknown error'}`,
+      );
     }
   }
 
