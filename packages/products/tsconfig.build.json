@@ -22,9 +22,11 @@
     "**/*.config.js",
     "node_modules",
     "dist",
-    // Exclude virtual modules that cause api-extractor issues
-    "src/**/*types*",
-    "src/**/generated/**",
+    // Exclude Svelte files and complex runtime files that don't need declarations
+    "**/*.svelte",
+    "src/**/*demo*",
+    "src/**/*simple*",
+    "src/**/*federation*",
     // Exclude root config files that could interfere with build
     "../../playwright.config.ts",
     "../../playwright.config.js",

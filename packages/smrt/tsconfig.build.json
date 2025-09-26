@@ -22,8 +22,7 @@
     "**/*.config.js",
     "node_modules",
     "dist",
-    // Exclude complex cross-package dependencies that cause api-extractor issues
-    "src/**/generators/**",
+    // Exclude vite-plugin which contains virtual module declarations and causes api-extractor issues
     "src/**/vite-plugin/**",
     // Exclude root config files that could interfere with build
     "../../playwright.config.ts",

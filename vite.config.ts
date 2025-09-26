@@ -162,51 +162,7 @@ export default defineConfig(({ command, mode }) => {
               `packages/${pkg.name}/src/**/*.d.ts`,
             ],
             insertTypesEntry: false, // We handle this in package.json
-            rollupTypes: true,
-            // Configure api-extractor to properly handle Node.js built-ins
-            bundledPackages: [],
-            // Enhanced configuration for Node.js built-ins
-            compilerOptions: {
-              skipLibCheck: true,
-              skipDefaultLibCheck: true,
-              types: ['node'],
-              lib: ['ES2022'],
-              moduleResolution: 'bundler',
-            },
-            // API Extractor configuration for Node.js compatibility
-            apiExtractorConfig: {
-              compiler: {
-                tsconfigFilePath: resolve(__dirname, `packages/${pkg.name}/tsconfig.build.json`),
-                skipLibCheck: true,
-              },
-              bundledPackages: [],
-              mainEntryPointFilePath: `packages/${pkg.name}/dist/index.d.ts`,
-              dtsRollup: {
-                enabled: true,
-                untrimmedFilePath: `packages/${pkg.name}/dist/index.d.ts`,
-                // Externalize @have/* packages to avoid cross-package resolution issues
-                omitTrimmingComments: true,
-              },
-              // Mark internal packages as external to prevent bundling issues
-              externalDependencies: [
-                '@have/utils',
-                '@have/files',
-                '@have/sql',
-                '@have/ocr',
-                '@have/pdf',
-                '@have/ai',
-                '@have/spider',
-                '@have/smrt',
-                '@have/content',
-                '@have/products',
-                // Virtual modules
-                '@smrt/types',
-                '@smrt/routes',
-                '@smrt/client',
-                '@smrt/mcp',
-                '@smrt/manifest'
-              ],
-            },
+            rollupTypes: false, // Disable API Extractor to handle virtual modules
             // Use package-specific tsconfig to avoid root config interference
             tsconfigPath: resolve(
               __dirname,
