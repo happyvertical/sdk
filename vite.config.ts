@@ -1,36 +1,20 @@
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
+import dts from 'vite-plugin-dts';
 
-export default defineConfig({
-  build: {
+// Function to create per-package build configuration
+function createPackageBuild(packageName: string, entryPath: string) {
+  return {
     lib: {
-      entry: {
-        // Core packages in dependency order
-        utils: resolve(__dirname, 'packages/utils/src/index.ts'),
-        files: resolve(__dirname, 'packages/files/src/index.ts'),
-        sql: resolve(__dirname, 'packages/sql/src/index.ts'),
-        ocr: resolve(__dirname, 'packages/ocr/src/index.ts'),
-        pdf: resolve(__dirname, 'packages/pdf/src/index.ts'),
-        ai: resolve(__dirname, 'packages/ai/src/index.ts'),
-        spider: resolve(__dirname, 'packages/spider/src/index.ts'),
-        smrt: resolve(__dirname, 'packages/smrt/src/index.ts'),
-        // SMRT-dependent packages - adjust entry points based on what exists
-        content: resolve(__dirname, 'packages/content/src/content.ts'),
-        products: resolve(
-          __dirname,
-          'packages/products/src/lib/models/index.ts',
-        ),
-      },
-      formats: ['es'],
-      fileName: (format, entryName) => `${entryName}/index.js`,
+      entry: resolve(__dirname, entryPath),
+      formats: ['es'] as const,
+      fileName: () => 'index.js',
     },
     rollupOptions: {
       output: {
-        dir: 'dist',
-        format: 'es',
-        chunkFileNames: 'shared/[name]-[hash].js',
+        dir: `packages/${packageName}/dist`,
+        format: 'es' as const,
         preserveModules: false,
-        assetFileNames: 'assets/[name]-[hash][extname]',
       },
       external: [
         // Node.js built-ins
@@ -45,9 +29,6 @@ export default defineConfig({
         'util',
         'events',
         'child_process',
-
-        // NOTE: Removed /^@have\// to allow cross-package imports within the monorepo
-        // This enables packages like @have/pdf to import @have/ocr successfully
 
         // External dependencies - don't bundle these
         'svelte',
@@ -94,59 +75,95 @@ export default defineConfig({
         'dotenv',
       ],
     },
-    outDir: 'dist',
-    emptyOutDir: true,
     minify: false, // Keep code readable for library usage
     sourcemap: true,
     target: 'es2022',
     reportCompressedSize: false, // Speed up build
-  },
-  plugins: [
-    // TODO: DTS plugin temporarily disabled due to ajv dependency issue
-    // Re-enable once ajv issue is resolved
-    // Generate TypeScript declaration files
-    // dts({
-    //   insertTypesEntry: true,
-    //   rollupTypes: true,
-    //   outDir: 'dist',
-    //   include: [
-    //     'packages/*/src/**/*.ts',
-    //     '!packages/*/src/**/*.test.ts',
-    //     '!packages/*/src/**/*.spec.ts',
-    //     '!packages/*/src/**/*.test.*.ts'
-    //   ],
-    //   exclude: [
-    //     'packages/*/dist/**/*',
-    //     'packages/*/node_modules/**/*',
-    //     // Exclude files that use SMRT virtual modules
-    //     'packages/content/src/client.ts',
-    //     'packages/content/src/main.ts',
-    //     'packages/content/src/mcp.ts',
-    //     'packages/products/src/client.ts',
-    //     'packages/products/src/main.ts',
-    //     'packages/products/src/mcp.ts',
-    //     'packages/products/src/simple-server.ts',
-    //     'packages/content/src/lib/index.ts',
-    //     'packages/products/src/lib/index.ts',
-    //   ],
-    // })
-  ],
-  resolve: {
-    alias: {
-      '@have/utils': resolve(__dirname, 'packages/utils/src'),
-      '@have/files': resolve(__dirname, 'packages/files/src'),
-      '@have/sql': resolve(__dirname, 'packages/sql/src'),
-      '@have/ocr': resolve(__dirname, 'packages/ocr/src'),
-      '@have/pdf': resolve(__dirname, 'packages/pdf/src'),
-      '@have/ai': resolve(__dirname, 'packages/ai/src'),
-      '@have/spider': resolve(__dirname, 'packages/spider/src'),
-      '@have/smrt': resolve(__dirname, 'packages/smrt/src'),
-      '@have/content': resolve(__dirname, 'packages/content/src'),
-      '@have/products': resolve(__dirname, 'packages/products/src'),
+  };
+}
+
+// Package configurations with entry points
+const packages = [
+  { name: 'utils', entry: 'packages/utils/src/index.ts' },
+  { name: 'files', entry: 'packages/files/src/index.ts' },
+  { name: 'sql', entry: 'packages/sql/src/index.ts' },
+  { name: 'ocr', entry: 'packages/ocr/src/index.ts' },
+  { name: 'pdf', entry: 'packages/pdf/src/index.ts' },
+  { name: 'ai', entry: 'packages/ai/src/index.ts' },
+  { name: 'spider', entry: 'packages/spider/src/index.ts' },
+  { name: 'smrt', entry: 'packages/smrt/src/index.ts' },
+  { name: 'content', entry: 'packages/content/src/content.ts' },
+  { name: 'products', entry: 'packages/products/src/lib/models/index.ts' },
+];
+
+export default defineConfig(({ command, mode }) => {
+  // For build command, build all packages
+  if (command === 'build') {
+    // Build first package by default, use env variable to specify which package
+    const targetPackage = process.env.VITE_BUILD_PACKAGE;
+
+    if (targetPackage) {
+      const pkg = packages.find(p => p.name === targetPackage);
+      if (!pkg) {
+        throw new Error(`Package ${targetPackage} not found`);
+      }
+
+      return {
+        build: createPackageBuild(pkg.name, pkg.entry),
+        plugins: [
+          // TODO: Temporarily disabled DTS plugin due to playwright.config.ts path issue
+          // Will re-enable after fixing the api-extractor path resolution
+          // dts({
+          //   outDir: `packages/${pkg.name}/dist`,
+          //   include: [`packages/${pkg.name}/src/**/*.ts`],
+          //   exclude: [
+          //     `packages/${pkg.name}/src/**/*.test.ts`,
+          //     `packages/${pkg.name}/src/**/*.spec.ts`,
+          //     `packages/${pkg.name}/src/**/*.test.*.ts`,
+          //   ],
+          //   insertTypesEntry: false, // We handle this in package.json
+          //   rollupTypes: true,
+          // }),
+        ],
+        resolve: {
+          alias: {
+            '@have/utils': resolve(__dirname, 'packages/utils/src'),
+            '@have/files': resolve(__dirname, 'packages/files/src'),
+            '@have/sql': resolve(__dirname, 'packages/sql/src'),
+            '@have/ocr': resolve(__dirname, 'packages/ocr/src'),
+            '@have/pdf': resolve(__dirname, 'packages/pdf/src'),
+            '@have/ai': resolve(__dirname, 'packages/ai/src'),
+            '@have/spider': resolve(__dirname, 'packages/spider/src'),
+            '@have/smrt': resolve(__dirname, 'packages/smrt/src'),
+            '@have/content': resolve(__dirname, 'packages/content/src'),
+            '@have/products': resolve(__dirname, 'packages/products/src'),
+          },
+        },
+      };
+    }
+
+    // Default: build all packages (we'll need a script to handle this)
+    throw new Error('Use package-specific build scripts. Set VITE_BUILD_PACKAGE environment variable.');
+  }
+
+  // Development configuration
+  return {
+    resolve: {
+      alias: {
+        '@have/utils': resolve(__dirname, 'packages/utils/src'),
+        '@have/files': resolve(__dirname, 'packages/files/src'),
+        '@have/sql': resolve(__dirname, 'packages/sql/src'),
+        '@have/ocr': resolve(__dirname, 'packages/ocr/src'),
+        '@have/pdf': resolve(__dirname, 'packages/pdf/src'),
+        '@have/ai': resolve(__dirname, 'packages/ai/src'),
+        '@have/spider': resolve(__dirname, 'packages/spider/src'),
+        '@have/smrt': resolve(__dirname, 'packages/smrt/src'),
+        '@have/content': resolve(__dirname, 'packages/content/src'),
+        '@have/products': resolve(__dirname, 'packages/products/src'),
+      },
     },
-  },
-  // Optimize dependencies during build
-  optimizeDeps: {
-    include: ['@paralleldrive/cuid2', 'date-fns', 'pluralize', 'uuid', 'yaml'],
-  },
+    optimizeDeps: {
+      include: ['@paralleldrive/cuid2', 'date-fns', 'pluralize', 'uuid', 'yaml'],
+    },
+  };
 });
