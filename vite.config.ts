@@ -111,19 +111,20 @@ export default defineConfig(({ command, mode }) => {
       return {
         build: createPackageBuild(pkg.name, pkg.entry),
         plugins: [
-          // TODO: Temporarily disabled DTS plugin due to playwright.config.ts path issue
-          // Will re-enable after fixing the api-extractor path resolution
-          // dts({
-          //   outDir: `packages/${pkg.name}/dist`,
-          //   include: [`packages/${pkg.name}/src/**/*.ts`],
-          //   exclude: [
-          //     `packages/${pkg.name}/src/**/*.test.ts`,
-          //     `packages/${pkg.name}/src/**/*.spec.ts`,
-          //     `packages/${pkg.name}/src/**/*.test.*.ts`,
-          //   ],
-          //   insertTypesEntry: false, // We handle this in package.json
-          //   rollupTypes: true,
-          // }),
+          dts({
+            outDir: `packages/${pkg.name}/dist`,
+            include: [`packages/${pkg.name}/src/**/*.ts`],
+            exclude: [
+              // Test files
+              `packages/${pkg.name}/src/**/*.test.ts`,
+              `packages/${pkg.name}/src/**/*.spec.ts`,
+              `packages/${pkg.name}/src/**/*.test.*.ts`,
+            ],
+            insertTypesEntry: false, // We handle this in package.json
+            rollupTypes: true,
+            // Use package-specific tsconfig to avoid root config interference
+            tsconfigPath: resolve(__dirname, `packages/${pkg.name}/tsconfig.build.json`),
+          }),
         ],
         resolve: {
           alias: {
