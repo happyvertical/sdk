@@ -17,7 +17,7 @@ function createPackageBuild(packageName: string, entryPath: string) {
         preserveModules: false,
       },
       external: [
-        // Node.js built-ins
+        // Node.js built-ins - externalize completely to avoid api-extractor issues
         /^node:/,
         /^bun:/,
         'fs',
@@ -29,6 +29,23 @@ function createPackageBuild(packageName: string, entryPath: string) {
         'util',
         'events',
         'child_process',
+        'buffer',
+        'Buffer',
+        'zlib',
+        'assert',
+        'http',
+        'https',
+        'net',
+        'tls',
+        'dns',
+        'cluster',
+        'worker_threads',
+        'perf_hooks',
+        'readline',
+        'repl',
+        'vm',
+        'v8',
+        'inspector',
 
         // External dependencies - don't bundle these
         'svelte',
@@ -73,6 +90,25 @@ function createPackageBuild(packageName: string, entryPath: string) {
         'express',
         'cors',
         'dotenv',
+
+        // Internal @have/* packages - externalize to avoid cross-package bundling issues
+        '@have/utils',
+        '@have/files',
+        '@have/sql',
+        '@have/ocr',
+        '@have/pdf',
+        '@have/ai',
+        '@have/spider',
+        '@have/smrt',
+        '@have/content',
+        '@have/products',
+
+        // Virtual modules from SMRT framework
+        '@smrt/types',
+        '@smrt/routes',
+        '@smrt/client',
+        '@smrt/mcp',
+        '@smrt/manifest',
       ],
     },
     minify: false, // Keep code readable for library usage
@@ -103,7 +139,7 @@ export default defineConfig(({ command, mode }) => {
     const targetPackage = process.env.VITE_BUILD_PACKAGE;
 
     if (targetPackage) {
-      const pkg = packages.find(p => p.name === targetPackage);
+      const pkg = packages.find((p) => p.name === targetPackage);
       if (!pkg) {
         throw new Error(`Package ${targetPackage} not found`);
       }
@@ -111,19 +147,28 @@ export default defineConfig(({ command, mode }) => {
       return {
         build: createPackageBuild(pkg.name, pkg.entry),
         plugins: [
-          // TODO: Temporarily disabled DTS plugin due to playwright.config.ts path issue
-          // Will re-enable after fixing the api-extractor path resolution
-          // dts({
-          //   outDir: `packages/${pkg.name}/dist`,
-          //   include: [`packages/${pkg.name}/src/**/*.ts`],
-          //   exclude: [
-          //     `packages/${pkg.name}/src/**/*.test.ts`,
-          //     `packages/${pkg.name}/src/**/*.spec.ts`,
-          //     `packages/${pkg.name}/src/**/*.test.*.ts`,
-          //   ],
-          //   insertTypesEntry: false, // We handle this in package.json
-          //   rollupTypes: true,
-          // }),
+          dts({
+            outDir: `packages/${pkg.name}/dist`,
+            include: [`packages/${pkg.name}/src/**/*.ts`],
+            exclude: [
+              // Test files
+              `packages/${pkg.name}/src/**/*.test.ts`,
+              `packages/${pkg.name}/src/**/*.spec.ts`,
+              `packages/${pkg.name}/src/**/*.test.*.ts`,
+              // Exclude config files
+              '**/*.config.ts',
+              '**/*.config.js',
+              // Don't process existing declaration files
+              `packages/${pkg.name}/src/**/*.d.ts`,
+            ],
+            insertTypesEntry: false, // We handle this in package.json
+            rollupTypes: false, // Disable API Extractor to handle virtual modules
+            // Use package-specific tsconfig to avoid root config interference
+            tsconfigPath: resolve(
+              __dirname,
+              `packages/${pkg.name}/tsconfig.build.json`,
+            ),
+          }),
         ],
         resolve: {
           alias: {
@@ -143,7 +188,9 @@ export default defineConfig(({ command, mode }) => {
     }
 
     // Default: build all packages (we'll need a script to handle this)
-    throw new Error('Use package-specific build scripts. Set VITE_BUILD_PACKAGE environment variable.');
+    throw new Error(
+      'Use package-specific build scripts. Set VITE_BUILD_PACKAGE environment variable.',
+    );
   }
 
   // Development configuration
@@ -163,7 +210,13 @@ export default defineConfig(({ command, mode }) => {
       },
     },
     optimizeDeps: {
-      include: ['@paralleldrive/cuid2', 'date-fns', 'pluralize', 'uuid', 'yaml'],
+      include: [
+        '@paralleldrive/cuid2',
+        'date-fns',
+        'pluralize',
+        'uuid',
+        'yaml',
+      ],
     },
   };
 });
