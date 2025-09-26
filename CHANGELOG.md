@@ -1,3 +1,10 @@
+## [0.3.1](https://github.com/happyvertical/sdk/compare/v0.3.0...v0.3.1) (2025-09-26)
+
+
+### Bug Fixes
+
+* remove duplicate on-merged-main.yaml workflow ([d7a56ec](https://github.com/happyvertical/sdk/commit/d7a56ecadb5b6a51e9bee1a9da45e4884b25bb41))
+
 # [0.3.0](https://github.com/happyvertical/sdk/compare/v0.2.4...v0.3.0) (2025-09-25)
 
 
