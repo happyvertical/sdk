@@ -1,3 +1,10 @@
+## [0.3.2](https://github.com/happyvertical/sdk/compare/v0.3.1...v0.3.2) (2025-09-26)
+
+
+### Bug Fixes
+
+* resolve package resolution issues by fixing build structure ([e0656b6](https://github.com/happyvertical/sdk/commit/e0656b6a6dcae2348fcdf26c9d8fe09283bea513))
+
 ## [0.3.1](https://github.com/happyvertical/sdk/compare/v0.3.0...v0.3.1) (2025-09-26)
 
 
