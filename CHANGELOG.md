@@ -1,3 +1,12 @@
+## [0.3.3](https://github.com/happyvertical/sdk/compare/v0.3.2...v0.3.3) (2025-09-26)
+
+
+### Bug Fixes
+
+* disable API Extractor rollup to support virtual modules ([1ba604f](https://github.com/happyvertical/sdk/commit/1ba604f4b9e2f712e352973d561ec32066c14633))
+* improve TypeScript declaration generation for CI compatibility ([f97e3aa](https://github.com/happyvertical/sdk/commit/f97e3aa1dc3c4fca4cd6c217fd1247550754e6ac))
+* re-enable TypeScript declaration generation for all packages ([bfaa9ff](https://github.com/happyvertical/sdk/commit/bfaa9ff9e9011facb96a1735002244f27ff16b31))
+
 ## [0.3.2](https://github.com/happyvertical/sdk/compare/v0.3.1...v0.3.2) (2025-09-26)
 
 
