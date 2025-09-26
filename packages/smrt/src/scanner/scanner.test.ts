@@ -14,30 +14,34 @@ describe('AST Scanner', () => {
     const results = scanner.scanFiles();
 
     expect(results).toHaveLength(1);
-    expect(results[0].objects).toHaveLength(2);
+    expect(results[0].objects).toHaveLength(3);
 
-    const productObj = results[0].objects.find(
-      (obj) => obj.className === 'Product',
+    const contentObj = results[0].objects.find(
+      (obj) => obj.className === 'Content',
     );
     const categoryObj = results[0].objects.find(
       (obj) => obj.className === 'Category',
     );
-
-    expect(productObj).toBeDefined();
-    expect(categoryObj).toBeDefined();
-  });
-
-  it('should parse Product class correctly', () => {
-    const scanner = new ASTScanner([testFilePath]);
-    const results = scanner.scanFiles();
-    const productObj = results[0].objects.find(
-      (obj) => obj.className === 'Product',
+    const testAgentObj = results[0].objects.find(
+      (obj) => obj.className === 'TestAgent',
     );
 
-    expect(productObj).toMatchObject({
-      name: 'product',
-      className: 'Product',
-      collection: 'products',
+    expect(contentObj).toBeDefined();
+    expect(categoryObj).toBeDefined();
+    expect(testAgentObj).toBeDefined();
+  });
+
+  it('should parse Content class correctly', () => {
+    const scanner = new ASTScanner([testFilePath]);
+    const results = scanner.scanFiles();
+    const contentObj = results[0].objects.find(
+      (obj) => obj.className === 'Content',
+    );
+
+    expect(contentObj).toMatchObject({
+      name: 'content',
+      className: 'Content',
+      collection: 'contents',
       decoratorConfig: {
         api: { exclude: ['delete'] },
         mcp: { include: ['list', 'get', 'create'] },
@@ -46,25 +50,25 @@ describe('AST Scanner', () => {
     });
 
     // Check fields
-    expect(productObj?.fields.name).toMatchObject({
+    expect(contentObj?.fields.title).toMatchObject({
       type: 'text',
       required: true,
       default: '',
     });
 
-    expect(productObj?.fields.price).toMatchObject({
-      type: 'decimal',
+    expect(contentObj?.fields.status).toMatchObject({
+      type: 'text',
       required: true,
-      default: 0,
+      default: 'draft',
     });
 
-    expect(productObj?.fields.inStock).toMatchObject({
+    expect(contentObj?.fields.published).toMatchObject({
       type: 'boolean',
       required: true,
-      default: true,
+      default: false,
     });
 
-    expect(productObj?.fields.description).toMatchObject({
+    expect(contentObj?.fields.body).toMatchObject({
       type: 'text',
       required: false,
     });
@@ -76,27 +80,27 @@ describe('AST Scanner', () => {
       includeStaticMethods: true,
     });
     const results = scanner.scanFiles();
-    const productObj = results[0].objects.find(
-      (obj) => obj.className === 'Product',
+    const contentObj = results[0].objects.find(
+      (obj) => obj.className === 'Content',
     );
 
-    expect(productObj?.methods.calculateDiscount).toMatchObject({
-      name: 'calculateDiscount',
+    expect(contentObj?.methods.generateSummary).toMatchObject({
+      name: 'generateSummary',
       async: true,
       isStatic: false,
       isPublic: true,
-      returnType: 'Promise<number>',
-      parameters: [{ name: 'percentage', type: 'number', optional: false }],
+      returnType: 'Promise<string>',
+      parameters: [{ name: 'maxLength', type: 'number', optional: false }],
     });
 
-    expect(productObj?.methods.findByCategory).toMatchObject({
+    expect(contentObj?.methods.findByCategory).toMatchObject({
       name: 'findByCategory',
       isStatic: true,
       isPublic: true,
     });
 
-    expect(productObj?.methods.validatePrice).toMatchObject({
-      name: 'validatePrice',
+    expect(contentObj?.methods.validateContent).toMatchObject({
+      name: 'validateContent',
       isStatic: false,
       isPublic: false,
     });
@@ -110,7 +114,11 @@ describe('AST Scanner', () => {
 
     expect(manifest.version).toBe('1.0.0');
     expect(manifest.timestamp).toBeGreaterThan(0);
-    expect(Object.keys(manifest.objects)).toEqual(['product', 'category']);
+    expect(Object.keys(manifest.objects)).toEqual([
+      'content',
+      'category',
+      'testagent',
+    ]);
   });
 
   it('should generate TypeScript interfaces', () => {
@@ -120,11 +128,11 @@ describe('AST Scanner', () => {
     const manifest = generator.generateManifest(results);
     const interfaces = generator.generateTypeDefinitions(manifest);
 
-    expect(interfaces).toContain('export interface ProductData');
-    expect(interfaces).toContain('name: string;');
-    expect(interfaces).toContain('description?: string;');
-    expect(interfaces).toContain('price: number;');
-    expect(interfaces).toContain('inStock: boolean;');
+    expect(interfaces).toContain('export interface ContentData');
+    expect(interfaces).toContain('title: string;');
+    expect(interfaces).toContain('body?: string;');
+    expect(interfaces).toContain('status: string;');
+    expect(interfaces).toContain('published: boolean;');
   });
 
   it('should generate REST endpoints', () => {
@@ -134,10 +142,10 @@ describe('AST Scanner', () => {
     const manifest = generator.generateManifest(results);
     const endpoints = generator.generateRestEndpoints(manifest);
 
-    expect(endpoints).toContain('GET /products');
-    expect(endpoints).toContain('POST /products');
-    expect(endpoints).toContain('GET /products/:id');
-    expect(endpoints).not.toContain('DELETE /products'); // Excluded in config
+    expect(endpoints).toContain('GET /contents');
+    expect(endpoints).toContain('POST /contents');
+    expect(endpoints).toContain('GET /contents/:id');
+    expect(endpoints).not.toContain('DELETE /contents'); // Excluded in config
   });
 
   it('should generate MCP tools', () => {
@@ -147,9 +155,9 @@ describe('AST Scanner', () => {
     const manifest = generator.generateManifest(results);
     const tools = generator.generateMCPTools(manifest);
 
-    expect(tools).toContain('list_products');
-    expect(tools).toContain('get_product');
-    expect(tools).toContain('create_product');
-    expect(tools).not.toContain('delete_product'); // Not in include list
+    expect(tools).toContain('list_contents');
+    expect(tools).toContain('get_content');
+    expect(tools).toContain('create_content');
+    expect(tools).not.toContain('delete_content'); // Not in include list
   });
 });
