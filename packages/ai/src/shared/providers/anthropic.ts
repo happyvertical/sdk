@@ -346,7 +346,7 @@ export class AnthropicProvider implements AIInterface {
       case 'stop_sequence':
         return 'stop';
       case 'tool_use':
-        return 'function_call';
+        return 'tool_calls';
       default:
         return 'stop';
     }
