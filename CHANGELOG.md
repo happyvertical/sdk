@@ -1,3 +1,10 @@
+# [0.7.0](https://github.com/happyvertical/sdk/compare/v0.6.1...v0.7.0) (2025-09-27)
+
+
+### Features
+
+* **smrt:** enhance TypeScript introspection with pre-build declarations ([c37c51e](https://github.com/happyvertical/sdk/commit/c37c51e3ebf341100ad58d6572a5236027a1149f))
+
 ## [0.6.1](https://github.com/happyvertical/sdk/compare/v0.6.0...v0.6.1) (2025-09-27)
 
 
