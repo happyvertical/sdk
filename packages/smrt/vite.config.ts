@@ -14,7 +14,7 @@ export default defineConfig({
         'generators/rest': resolve(__dirname, 'src/generators/rest.ts'),
         'generators/mcp': resolve(__dirname, 'src/generators/mcp.ts'),
         'generators/swagger': resolve(__dirname, 'src/generators/swagger.ts'),
-        'scanner/index': resolve(__dirname, 'src/scanner/index.ts'),
+        'manifest/index': resolve(__dirname, 'src/manifest/index.ts'),
         'vite-plugin/index': resolve(__dirname, 'src/vite-plugin/index.ts'),
         'runtime/index': resolve(__dirname, 'src/runtime/index.ts'),
       },
@@ -66,6 +66,9 @@ export default defineConfig({
         'minimatch',
         '@langchain/community',
 
+        // TypeScript compiler (build-time only, not bundled)
+        'typescript',
+
         // Internal @have/* packages
         '@have/utils',
         '@have/files',
@@ -99,6 +102,8 @@ export default defineConfig({
         '**/*.config.js',
         // Don't process existing declaration files
         'src/**/*.d.ts',
+        // Exclude compiled .js files in source directory
+        'src/**/*.js',
       ],
       insertTypesEntry: false, // We handle this in package.json
       rollupTypes: false, // Disable API Extractor to handle virtual modules
