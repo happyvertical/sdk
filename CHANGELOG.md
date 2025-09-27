@@ -1,3 +1,10 @@
+## [0.4.1](https://github.com/happyvertical/sdk/compare/v0.4.0...v0.4.1) (2025-09-27)
+
+
+### Bug Fixes
+
+* resolve TypeScript compilation errors in @have/sdk packages ([f9511c9](https://github.com/happyvertical/sdk/commit/f9511c9a533823134db4f4209cf2007e0f0bb602)), closes [#98](https://github.com/happyvertical/sdk/issues/98)
+
 # [0.4.0](https://github.com/happyvertical/sdk/compare/v0.3.3...v0.4.0) (2025-09-26)
 
 
