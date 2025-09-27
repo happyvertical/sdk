@@ -1,3 +1,10 @@
+## [0.6.1](https://github.com/happyvertical/sdk/compare/v0.6.0...v0.6.1) (2025-09-27)
+
+
+### Bug Fixes
+
+* synchronize all package versions to 0.4.1 ([af05559](https://github.com/happyvertical/sdk/commit/af0555941e706238f059c4dd4709f7f6d9922579))
+
 # [0.6.0](https://github.com/happyvertical/sdk/compare/v0.5.0...v0.6.0) (2025-09-27)
 
 

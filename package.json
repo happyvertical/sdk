@@ -3,7 +3,7 @@
   "description": "HAppy VErtical SDK - A TypeScript monorepo for building vertical AI agents",
   "author": "Will Griffin <willgriffin@gmail.com>",
   "type": "module",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "scripts": {
     "format": "biome format --write .",
     "format-check": "biome format --check .",
