@@ -1,3 +1,10 @@
+# [0.6.0](https://github.com/happyvertical/sdk/compare/v0.5.0...v0.6.0) (2025-09-27)
+
+
+### Features
+
+* standardize build strategy across all packages ([bd45cf6](https://github.com/happyvertical/sdk/commit/bd45cf69d18dad7a3739d11910c4982f92ac1fba))
+
 # [0.5.0](https://github.com/happyvertical/sdk/compare/v0.4.1...v0.5.0) (2025-09-27)
 
 
