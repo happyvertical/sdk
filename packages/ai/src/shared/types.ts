@@ -22,14 +22,6 @@ export interface AIMessage {
   name?: string;
 
   /**
-   * Optional function call information
-   */
-  function_call?: {
-    name: string;
-    arguments: string;
-  };
-
-  /**
    * Optional tool calls
    */
   tool_calls?: Array<{
@@ -367,20 +359,7 @@ export interface AIResponse {
   /**
    * Finish reason
    */
-  finishReason?:
-    | 'stop'
-    | 'length'
-    | 'function_call'
-    | 'tool_calls'
-    | 'content_filter';
-
-  /**
-   * Function calls made by the model
-   */
-  functionCalls?: Array<{
-    name: string;
-    arguments: string;
-  }>;
+  finishReason?: 'stop' | 'length' | 'tool_calls' | 'content_filter';
 
   /**
    * Tool calls made by the model
