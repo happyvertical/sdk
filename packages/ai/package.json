@@ -1,6 +1,6 @@
 {
   "name": "@have/ai",
-  "version": "0.0.50",
+  "version": "0.4.1",
   "description": "Standardized AI interface supporting OpenAI, Anthropic, Google Gemini, AWS Bedrock, and Hugging Face with unified API",
   "type": "module",
   "main": "./dist/index.js",
