@@ -57,8 +57,9 @@
     "dev:standalone": "vite dev --mode standalone --port 3001",
     "dev:federation": "vite dev --mode federation --port 3002",
     "dev:library": "vite build --mode library --watch",
+    "prebuild": "node scripts/generate-smrt-types.js",
     "build": "npm run build:all",
-    "build:all": "npm run clean && npm run build:lib && npm run build:app && npm run build:federation",
+    "build:all": "npm run clean && npm run prebuild && npm run build:lib && npm run build:app && npm run build:federation",
     "build:lib": "vite build --mode library",
     "build:app": "vite build --mode standalone",
     "build:federation": "vite build --mode federation",
@@ -68,7 +69,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist src/lib/types/smrt-generated",
     "prepare": "test -f ../smrt/dist/vite-plugin/index.js && npm run build:lib || echo 'Skipping products build:lib (smrt vite-plugin not available yet)'"
   },
   "keywords": [

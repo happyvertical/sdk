@@ -7,7 +7,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "smrt": "dist/generators/cli.js"
+    "smrt": "dist/generators/cli.js",
+    "smrt-prebuild": "dist/prebuild/cli.js"
   },
   "files": [
     "dist"
@@ -22,7 +23,9 @@
     "./generators/swagger": "./dist/generators/swagger.js",
     "./manifest": "./dist/manifest/index.js",
     "./vite-plugin": "./dist/vite-plugin/index.js",
-    "./runtime": "./dist/runtime/index.js"
+    "./runtime": "./dist/runtime/index.js",
+    "./prebuild": "./dist/prebuild/index.js",
+    "./consumer-plugin": "./dist/consumer-plugin/index.js"
   },
   "dependencies": {
     "@have/ai": "workspace:*",

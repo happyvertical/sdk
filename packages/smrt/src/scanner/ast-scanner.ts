@@ -194,6 +194,7 @@ export class ASTScanner {
 
   /**
    * Parse decorator configuration from @smrt(config)
+   * Uses safe AST parsing instead of eval()
    */
   private parseDecoratorConfig(decorator: ts.Decorator): any {
     const defaultConfig = { api: {}, mcp: {}, cli: false };
@@ -211,14 +212,88 @@ export class ASTScanner {
     }
 
     try {
-      // Convert AST object literal to JSON
-      const configText = configArg.getFullText();
-      // Simple extraction - could be more robust
-      // biome-ignore lint/security/noGlobalEval: Safe eval for AST configuration parsing
-      return eval(`(${configText})`);
-    } catch {
+      // Safe AST-based parsing
+      return this.parseObjectLiteralExpression(configArg);
+    } catch (error) {
+      console.warn('[ast-scanner] Error parsing decorator config:', error);
       return defaultConfig;
     }
+  }
+
+  /**
+   * Safely parse an object literal expression from AST
+   * Replaces eval() with proper AST traversal
+   */
+  private parseObjectLiteralExpression(node: ts.ObjectLiteralExpression): any {
+    const result: any = {};
+
+    for (const property of node.properties) {
+      if (ts.isPropertyAssignment(property)) {
+        const key = this.getPropertyKey(property.name);
+        if (key) {
+          result[key] = this.parseExpressionValue(property.initializer);
+        }
+      } else if (ts.isShorthandPropertyAssignment(property)) {
+        const key = property.name.text;
+        result[key] = true; // Shorthand properties default to true
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Get property key from property name
+   */
+  private getPropertyKey(name: ts.PropertyName): string | null {
+    if (ts.isIdentifier(name)) {
+      return name.text;
+    }
+    if (ts.isStringLiteral(name) || ts.isNumericLiteral(name)) {
+      return name.text;
+    }
+    return null;
+  }
+
+  /**
+   * Parse expression value safely
+   */
+  private parseExpressionValue(expr: ts.Expression): any {
+    // Handle literals
+    if (ts.isStringLiteral(expr)) {
+      return expr.text;
+    }
+    if (ts.isNumericLiteral(expr)) {
+      return Number(expr.text);
+    }
+    if (expr.kind === ts.SyntaxKind.TrueKeyword) {
+      return true;
+    }
+    if (expr.kind === ts.SyntaxKind.FalseKeyword) {
+      return false;
+    }
+    if (expr.kind === ts.SyntaxKind.NullKeyword) {
+      return null;
+    }
+
+    // Handle arrays
+    if (ts.isArrayLiteralExpression(expr)) {
+      return expr.elements
+        .map((element) =>
+          ts.isExpression(element)
+            ? this.parseExpressionValue(element)
+            : undefined,
+        )
+        .filter((val) => val !== undefined);
+    }
+
+    // Handle nested objects
+    if (ts.isObjectLiteralExpression(expr)) {
+      return this.parseObjectLiteralExpression(expr);
+    }
+
+    // For complex expressions, return a safe fallback
+    return expr.getText().trim();
   }
 
   /**
@@ -312,32 +387,122 @@ export class ASTScanner {
   }
 
   /**
-   * Infer field type from TypeScript AST
+   * Infer field type from TypeScript AST with enhanced type preservation
    */
   private inferFieldType(
     node: ts.PropertyDeclaration,
   ): FieldDefinition['type'] {
-    // Check type annotation first
+    // Check type annotation first with enhanced detection
     if (node.type) {
-      const typeText = node.type.getText().toLowerCase();
-      if (typeText.includes('string')) return 'text';
-      if (typeText.includes('number')) return 'decimal';
-      if (typeText.includes('boolean')) return 'boolean';
-      if (typeText.includes('date')) return 'datetime';
-      if (typeText.includes('[]') || typeText.includes('array')) return 'json';
+      return this.analyzeTypeNode(node.type);
     }
 
-    // Infer from initializer
+    // Infer from initializer with enhanced detection
     if (node.initializer) {
-      if (ts.isStringLiteral(node.initializer)) return 'text';
-      if (ts.isNumericLiteral(node.initializer)) return 'decimal';
-      if (
-        node.initializer.kind === ts.SyntaxKind.TrueKeyword ||
-        node.initializer.kind === ts.SyntaxKind.FalseKeyword
-      )
-        return 'boolean';
-      if (ts.isArrayLiteralExpression(node.initializer)) return 'json';
-      if (ts.isObjectLiteralExpression(node.initializer)) return 'json';
+      return this.inferTypeFromInitializer(node.initializer);
+    }
+
+    return 'text'; // Default fallback
+  }
+
+  /**
+   * Analyze TypeScript type node for enhanced type inference
+   */
+  private analyzeTypeNode(typeNode: ts.TypeNode): FieldDefinition['type'] {
+    const typeText = typeNode.getText().toLowerCase();
+
+    // Handle primitive types
+    if (typeText === 'string') return 'text';
+    if (typeText === 'number') return 'decimal';
+    if (typeText === 'boolean') return 'boolean';
+    if (typeText === 'date') return 'datetime';
+
+    // Handle union types with null/undefined
+    if (ts.isUnionTypeNode(typeNode)) {
+      // Find the main type (non-null/undefined)
+      const mainType = typeNode.types.find(
+        (t) =>
+          t.kind !== ts.SyntaxKind.UndefinedKeyword &&
+          t.kind !== ts.SyntaxKind.NullKeyword,
+      );
+      if (mainType) {
+        return this.analyzeTypeNode(mainType);
+      }
+    }
+
+    // Handle array types
+    if (ts.isArrayTypeNode(typeNode)) {
+      return 'json'; // Arrays stored as JSON
+    }
+
+    // Handle Record/object types
+    if (ts.isTypeLiteralNode(typeNode) || typeText.startsWith('record<')) {
+      return 'json';
+    }
+
+    // Handle specific type references
+    if (ts.isTypeReferenceNode(typeNode)) {
+      const typeName = typeNode.typeName.getText().toLowerCase();
+
+      // Built-in types
+      if (typeName === 'date') return 'datetime';
+      if (typeName === 'array') return 'json';
+      if (typeName === 'record') return 'json';
+      if (typeName === 'object') return 'json';
+
+      // String literal types become text
+      if (typeName.includes('string')) return 'text';
+      if (typeName.includes('number')) return 'decimal';
+      if (typeName.includes('boolean')) return 'boolean';
+    }
+
+    // Handle string literal types and template literals
+    if (ts.isLiteralTypeNode(typeNode)) {
+      if (ts.isStringLiteral(typeNode.literal)) {
+        return 'text';
+      }
+      if (ts.isNumericLiteral(typeNode.literal)) {
+        return 'decimal';
+      }
+    }
+
+    // Complex type patterns
+    if (typeText.includes('[]') || typeText.includes('array')) return 'json';
+    if (typeText.includes('record<') || typeText.includes('object'))
+      return 'json';
+    if (typeText.includes('string')) return 'text';
+    if (typeText.includes('number') || typeText.includes('decimal'))
+      return 'decimal';
+    if (typeText.includes('boolean')) return 'boolean';
+    if (typeText.includes('date')) return 'datetime';
+
+    // Default for complex types
+    return 'json';
+  }
+
+  /**
+   * Infer type from initializer expression
+   */
+  private inferTypeFromInitializer(
+    initializer: ts.Expression,
+  ): FieldDefinition['type'] {
+    if (ts.isStringLiteral(initializer)) return 'text';
+    if (ts.isNumericLiteral(initializer)) return 'decimal';
+    if (
+      initializer.kind === ts.SyntaxKind.TrueKeyword ||
+      initializer.kind === ts.SyntaxKind.FalseKeyword
+    ) {
+      return 'boolean';
+    }
+    if (ts.isArrayLiteralExpression(initializer)) return 'json';
+    if (ts.isObjectLiteralExpression(initializer)) return 'json';
+    if (ts.isNewExpression(initializer)) {
+      const expression = initializer.expression;
+      if (ts.isIdentifier(expression)) {
+        const typeName = expression.text.toLowerCase();
+        if (typeName === 'date') return 'datetime';
+        if (typeName === 'array') return 'json';
+      }
     }
 
     return 'text'; // Default fallback
