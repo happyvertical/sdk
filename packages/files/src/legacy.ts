@@ -139,7 +139,7 @@ export const upload = async (
   try {
     const response = await fetch(url, {
       method: 'PUT',
-      body: data,
+      body: Buffer.isBuffer(data) ? new Uint8Array(data) : data,
       headers: { 'Content-Type': 'application/octet-stream' },
     });
 
