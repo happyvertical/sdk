@@ -8,6 +8,7 @@
  */
 
 import { smrtPlugin } from '@have/smrt/vite-plugin';
+import { smrtConsumer } from '@have/smrt/consumer-plugin';
 import federation from '@originjs/vite-plugin-federation';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { defineConfig, type UserConfig } from 'vite';
@@ -18,6 +19,7 @@ export default defineConfig(({ command, mode }): UserConfig => {
   const baseConfig: UserConfig = {
     plugins: [
       svelte(),
+      // SMRT plugin for generating virtual modules from local models
       smrtPlugin({
         include: ['src/lib/models/**/*.ts'],
         exclude: ['**/*.test.ts', '**/*.spec.ts'],
@@ -27,6 +29,11 @@ export default defineConfig(({ command, mode }): UserConfig => {
         hmr: command === 'serve',
         mode: 'server', // Force server mode to enable file scanning
         typeDeclarationsPath: 'src/lib/types',
+      }),
+      // Consumer plugin for resolving virtual modules
+      smrtConsumer({
+        generateTypes: true,
+        typesDir: 'src/lib/types/smrt-generated',
       }),
     ],
     resolve: {
@@ -79,8 +86,13 @@ export default defineConfig(({ command, mode }): UserConfig => {
       return {
         plugins: [
           svelte(),
-          // SMRT plugin disabled for federation builds to avoid Node.js dependencies
-          // UI components now use standalone types from src/lib/types.ts
+          // Use consumer plugin for federation builds (static types only)
+          smrtConsumer({
+            generateTypes: true,
+            typesDir: 'src/lib/types/smrt-generated',
+            staticTypes: true,
+            disableScanning: true,
+          }),
           federation(federationConfig),
         ],
         resolve: {
