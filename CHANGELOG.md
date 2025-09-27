@@ -1,3 +1,16 @@
+# [0.5.0](https://github.com/happyvertical/sdk/compare/v0.4.1...v0.5.0) (2025-09-27)
+
+
+### Bug Fixes
+
+* **smrt:** implement multi-entry build for subpath exports tree-shaking ([6447420](https://github.com/happyvertical/sdk/commit/6447420811d870c670b624d40c7f30ec4423ac3e)), closes [#100](https://github.com/happyvertical/sdk/issues/100)
+* update pnpm-lock.yaml for tsx dependency ([fb34bf1](https://github.com/happyvertical/sdk/commit/fb34bf144fb9cad6c382a69225f05d86a16cd8cf))
+
+
+### Features
+
+* **smrt:** eliminate bundled TypeScript compiler from runtime ([faef180](https://github.com/happyvertical/sdk/commit/faef18006286689b5c33b3efb59c77033e0d2851))
+
 ## [0.4.1](https://github.com/happyvertical/sdk/compare/v0.4.0...v0.4.1) (2025-09-27)
 
 
