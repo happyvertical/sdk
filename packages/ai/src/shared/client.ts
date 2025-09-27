@@ -1,4 +1,3 @@
-import 'openai/shims/node';
 import { ApiError, ValidationError } from '@have/utils';
 import OpenAI from 'openai';
 
