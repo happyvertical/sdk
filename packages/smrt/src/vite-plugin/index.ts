@@ -190,8 +190,24 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
   }
 
   async function scanAndGenerateManifest(): Promise<SmartObjectManifest> {
-    // Generate manifest in all modes
+    // In production build, try to use static manifest first
+    if (process.env.NODE_ENV === 'production') {
+      try {
+        const { staticManifest } = await import(
+          '../manifest/static-manifest.js'
+        );
+        if (staticManifest && Object.keys(staticManifest.objects).length > 0) {
+          console.log('[smrt] Using pre-generated static manifest');
+          return staticManifest;
+        }
+      } catch (error) {
+        console.warn(
+          '[smrt] Static manifest not found, falling back to dynamic scanning',
+        );
+      }
+    }
 
+    // Development mode or fallback: use dynamic scanning
     try {
       // Conditionally import Node.js dependencies
       const [{ default: fg }, { ASTScanner, ManifestGenerator }] =

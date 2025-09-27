@@ -2,9 +2,13 @@
  * Tests for AST scanner functionality
  */
 
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { ASTScanner, ManifestGenerator } from './index';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 describe('AST Scanner', () => {
   const testFilePath = resolve(__dirname, 'test-sample.ts');

@@ -29,7 +29,7 @@ export * from './registry';
 export { smrt } from './registry';
 // Runtime utilities
 export * from './runtime/index';
-// AST scanning and manifest generation
-export * from './scanner/index';
+// Static manifest (generated at build time)
+export * from './manifest/index';
 // Vite plugin for auto-service generation
 export { smrtPlugin } from './vite-plugin/index';
