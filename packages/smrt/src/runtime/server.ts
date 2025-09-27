@@ -136,7 +136,7 @@ export class SmrtServer {
   async start(): Promise<{ server: any; url: string }> {
     const server = http.createServer(async (req, res) => {
       try {
-        const request = this.nodeRequestToWebRequest(req);
+        const request = await this.nodeRequestToWebRequest(req);
         const response = await this.handleRequest(request);
         await this.webResponseToNodeResponse(response, res);
       } catch (error) {
@@ -154,9 +154,22 @@ export class SmrtServer {
   }
 
   /**
+   * Convert stream to string
+   */
+  private async streamToString(stream: http.IncomingMessage): Promise<string> {
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks).toString('utf-8');
+  }
+
+  /**
    * Convert Node.js IncomingMessage to Web Request
    */
-  private nodeRequestToWebRequest(req: http.IncomingMessage): Request {
+  private async nodeRequestToWebRequest(
+    req: http.IncomingMessage,
+  ): Promise<Request> {
     const url = `http://${this.options.hostname}:${this.options.port}${req.url}`;
     const method = req.method || 'GET';
     const headers = new Headers();
@@ -167,10 +180,15 @@ export class SmrtServer {
       }
     }
 
+    let body: string | undefined;
+    if (method !== 'GET' && method !== 'HEAD') {
+      body = await this.streamToString(req);
+    }
+
     return new Request(url, {
       method,
       headers,
-      body: method !== 'GET' && method !== 'HEAD' ? req : undefined,
+      body,
     });
   }
 
