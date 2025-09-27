@@ -7,7 +7,6 @@
  * and custom fine-tuned models.
  */
 
-import 'openai/shims/node';
 import OpenAI from 'openai';
 
 import type {
@@ -124,22 +123,16 @@ export class OpenAIProvider implements AIInterface {
         usage: this.mapUsage(response.usage),
         model: response.model,
         finishReason: this.mapFinishReason(choice.finish_reason),
-        functionCalls: choice.message.function_call
-          ? [
-              {
-                name: choice.message.function_call.name,
-                arguments: choice.message.function_call.arguments,
-              },
-            ]
-          : undefined,
-        toolCalls: choice.message.tool_calls?.map((call) => ({
-          id: call.id,
-          type: call.type,
-          function: {
-            name: call.function.name,
-            arguments: call.function.arguments,
-          },
-        })),
+        toolCalls: choice.message.tool_calls
+          ?.filter((call) => call.type === 'function')
+          .map((call) => ({
+            id: call.id,
+            type: 'function' as const,
+            function: {
+              name: call.function.name,
+              arguments: call.function.arguments,
+            },
+          })),
       };
     } catch (error) {
       throw this.mapError(error);
@@ -383,10 +376,6 @@ export class OpenAIProvider implements AIInterface {
         (baseMessage as any).name = message.name;
       }
 
-      if (message.function_call && message.role === 'assistant') {
-        (baseMessage as any).function_call = message.function_call;
-      }
-
       if (message.tool_calls && message.role === 'assistant') {
         (baseMessage as any).tool_calls = message.tool_calls;
       }
@@ -447,8 +436,6 @@ export class OpenAIProvider implements AIInterface {
         return 'stop';
       case 'length':
         return 'length';
-      case 'function_call':
-        return 'function_call';
       case 'tool_calls':
         return 'tool_calls';
       case 'content_filter':
