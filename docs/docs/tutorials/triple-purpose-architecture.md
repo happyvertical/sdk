@@ -255,6 +255,7 @@ The core of triple-purpose architecture is the Vite configuration:
 import { defineConfig, type UserConfig } from 'vite';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { smrtPlugin } from '@have/smrt/vite-plugin';
+import { smrtConsumer } from '@have/smrt/consumer-plugin';
 import federation from '@originjs/vite-plugin-federation';
 import federationConfig from './federation.config.js';
 
@@ -263,6 +264,7 @@ export default defineConfig(({ command, mode }): UserConfig => {
   const baseConfig: UserConfig = {
     plugins: [
       svelte(),
+      // SMRT plugin for generating virtual modules from local models
       smrtPlugin({
         include: ['src/lib/models/**/*.ts'],
         exclude: ['**/*.test.ts', '**/*.spec.ts'],
@@ -270,7 +272,13 @@ export default defineConfig(({ command, mode }): UserConfig => {
         generateTypes: true,
         watch: command === 'serve',
         hmr: command === 'serve',
-        mode: 'server'
+        mode: 'server',
+        typeDeclarationsPath: 'src/lib/types'
+      }),
+      // Consumer plugin for resolving virtual modules from external packages
+      smrtConsumer({
+        generateTypes: true,
+        typesDir: 'src/lib/types/smrt-generated'
       })
     ],
     resolve: {
@@ -312,9 +320,15 @@ export default defineConfig(({ command, mode }): UserConfig => {
 
     case 'federation':
       return {
-        ...baseConfig,
         plugins: [
-          ...baseConfig.plugins!,
+          svelte(),
+          // Use consumer plugin for federation builds (static types only)
+          smrtConsumer({
+            generateTypes: true,
+            typesDir: 'src/lib/types/smrt-generated',
+            staticTypes: true,      // Use static manifest only
+            disableScanning: true   // Skip dynamic scanning for performance
+          }),
           federation(federationConfig)
         ],
         build: {
@@ -322,7 +336,7 @@ export default defineConfig(({ command, mode }): UserConfig => {
           minify: false,
           cssCodeSplit: false,
           rollupOptions: {
-            external: ['svelte']
+            external: ['svelte', '@have/smrt', '@smrt/client', '@smrt/routes']
           }
         },
         server: {
@@ -350,6 +364,52 @@ export default defineConfig(({ command, mode }): UserConfig => {
       };
   }
 });
+```
+
+### Dual Plugin Architecture Benefits
+
+The products service demonstrates advanced usage of both SMRT plugins working together:
+
+#### Plugin Responsibilities
+
+**`smrtPlugin` (Object Creator)**:
+- Scans local TypeScript files for `@smrt()` decorated classes
+- Generates virtual modules from local SMRT objects
+- Provides hot module replacement for local development
+- Creates API endpoints, MCP tools, and CLI commands
+
+**`smrtConsumer` (Package Consumer)**:
+- Discovers SMRT packages in `node_modules`
+- Resolves virtual modules from external packages
+- Generates TypeScript declarations for consumed packages
+- Enables federation and library consumption patterns
+
+#### Mode-Specific Optimizations
+
+**Library Mode** - Full dual plugin functionality:
+```typescript
+plugins: [
+  smrtPlugin({ /* local object generation */ }),
+  smrtConsumer({ /* external package consumption */ })
+]
+```
+
+**Federation Mode** - Consumer plugin with optimizations:
+```typescript
+plugins: [
+  smrtConsumer({
+    staticTypes: true,      // Use static manifest only
+    disableScanning: true   // Skip dynamic scanning
+  }),
+  federation(federationConfig)
+]
+```
+
+**Standalone Mode** - SMRT plugin for self-contained apps:
+```typescript
+plugins: [
+  smrtPlugin({ /* local objects only */ })
+]
 ```
 
 ## Step 4: Module Federation Configuration

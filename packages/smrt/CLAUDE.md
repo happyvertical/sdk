@@ -251,8 +251,14 @@ await mcpGenerator.generate();
 
 ### Vite Plugin Integration
 
+The SMRT framework provides two Vite plugins for different use cases:
+
+#### SMRT Plugin (for SMRT Object Creators)
+
+Use `smrtPlugin` when creating SMRT objects in your project:
+
 ```typescript
-// vite.config.js
+// vite.config.js - For projects defining SMRT objects
 import { smrtPlugin } from '@have/smrt/vite-plugin';
 
 export default {
@@ -272,6 +278,67 @@ import { setupRoutes } from '@smrt/routes';        // REST routes
 import { createClient } from '@smrt/client';       // API client
 import { tools } from '@smrt/mcp';                 // MCP tools
 import { manifest } from '@smrt/manifest';         // Object manifest
+```
+
+#### Consumer Plugin (for SMRT Package Users)
+
+Use `smrtConsumer` when consuming packages that contain SMRT objects:
+
+```typescript
+// vite.config.js - For projects consuming SMRT packages
+import { smrtConsumer } from '@have/smrt/consumer-plugin';
+
+export default {
+  plugins: [
+    smrtConsumer({
+      packages: ['@my-org/products', '@my-org/content'], // SMRT packages to scan
+      generateTypes: true,
+      typesDir: 'src/types/smrt-generated',
+      projectRoot: process.cwd(),
+      disableScanning: false
+    })
+  ]
+};
+
+// Resolves virtual modules from consumed SMRT packages:
+import { createClient } from '@smrt/client';       // Generated from consumed packages
+import { setupRoutes } from '@smrt/routes';        // Combined routes from all packages
+import type { ProductData } from '@smrt/types';    // Generated TypeScript types
+```
+
+#### Dual Plugin Usage
+
+For projects that both define and consume SMRT objects:
+
+```typescript
+// vite.config.js - Using both plugins together
+import { smrtPlugin } from '@have/smrt/vite-plugin';
+import { smrtConsumer } from '@have/smrt/consumer-plugin';
+
+export default {
+  plugins: [
+    // Generate from local SMRT objects
+    smrtPlugin({
+      include: ['src/lib/models/**/*.ts'],
+      exclude: ['**/*.test.ts'],
+      baseClasses: ['SmrtObject', 'SmrtCollection'],
+      generateTypes: true,
+      watch: true,
+      hmr: true,
+    }),
+    // Consume external SMRT packages
+    smrtConsumer({
+      packages: ['@my-org/shared-models'],
+      generateTypes: true,
+      typesDir: 'src/types/smrt-generated',
+    }),
+  ]
+};
+
+// Access both local and external virtual modules:
+import { setupRoutes as localRoutes } from '@smrt/routes';    // From local objects
+import { createClient } from '@smrt/client';                   // Combined client
+import type { LocalModel, ExternalModel } from '@smrt/types'; // All types
 ```
 
 ### Advanced Querying and Relationships
@@ -339,6 +406,157 @@ const qualityCheck = await documents.bulkAnalyze(`
   - Clear argument structure
   - Adequate supporting evidence
 `);
+```
+
+## Consumer Plugin for Downstream Projects
+
+The `smrtConsumer` plugin enables projects to consume SMRT packages without defining their own SMRT objects. It automatically discovers and resolves virtual modules from installed SMRT packages.
+
+### Consumer Plugin Options
+
+```typescript
+import { smrtConsumer, type SmrtConsumerOptions } from '@have/smrt/consumer-plugin';
+
+interface SmrtConsumerOptions {
+  /** SMRT packages to scan (e.g., ['@my-org/products', '@my-org/content']) */
+  packages?: string[];
+  /** Generate TypeScript declarations (default: true) */
+  generateTypes?: boolean;
+  /** Output directory for generated types (default: 'src/types/smrt-generated') */
+  typesDir?: string;
+  /** Project root path (default: process.cwd()) */
+  projectRoot?: string;
+  /** SvelteKit integration mode (default: false) */
+  svelteKit?: boolean;
+  /** Use static types only for federation builds (default: false) */
+  staticTypes?: boolean;
+  /** Disable file scanning (default: false) */
+  disableScanning?: boolean;
+}
+```
+
+### Automatic Package Discovery
+
+The consumer plugin automatically scans `node_modules` for packages containing SMRT manifests:
+
+```typescript
+// Automatically finds and processes all installed SMRT packages
+smrtConsumer({
+  generateTypes: true,
+  typesDir: 'src/types/smrt-generated'
+})
+
+// Or explicitly specify which packages to process
+smrtConsumer({
+  packages: ['@my-org/products', '@my-org/analytics'],
+  generateTypes: true
+})
+```
+
+### Generated Type Declarations
+
+The plugin generates comprehensive TypeScript declarations for consumed SMRT packages:
+
+```typescript
+// Generated in src/types/smrt-generated/
+├── smrt-client.d.ts      // API client interfaces
+├── smrt-manifest.d.ts    // Manifest metadata
+├── smrt-mcp.d.ts        // MCP tool definitions
+├── smrt-routes.d.ts     // Route handler types
+├── smrt-types.d.ts      // Object type definitions
+└── smrt-objects.d.ts    // Individual object interfaces
+
+// Auto-imported virtual modules:
+import { createClient } from '@smrt/client';
+import { setupRoutes } from '@smrt/routes';
+import { tools } from '@smrt/mcp';
+import type { ProductData, CategoryData } from '@smrt/types';
+```
+
+### Pre-build Type Generation
+
+For projects requiring standalone TypeScript compilation (without Vite), use the pre-build system:
+
+```bash
+# Generate types before TypeScript compilation
+npx smrt-prebuild generate-types ./manifest.json src/types
+
+# Alternative using the main CLI
+npx smrt generate-types ./manifest.json src/types
+
+# Or via package.json script
+{
+  "scripts": {
+    "prebuild": "smrt-prebuild generate-types ./static-manifest.js src/types/generated",
+    "build": "npm run prebuild && tsc"
+  }
+}
+```
+
+### Federation and Library Builds
+
+For module federation or library builds that require static types:
+
+```typescript
+smrtConsumer({
+  packages: ['@my-org/shared-models'],
+  staticTypes: true,        // Use static manifest only
+  disableScanning: true,    // Skip dynamic scanning
+  typesDir: 'src/types/smrt-static'
+})
+```
+
+### Integration Patterns
+
+#### SvelteKit Projects
+```typescript
+// vite.config.js for SvelteKit
+import { sveltekit } from '@sveltejs/kit/vite';
+import { smrtConsumer } from '@have/smrt/consumer-plugin';
+
+export default {
+  plugins: [
+    sveltekit(),
+    smrtConsumer({
+      svelteKit: true,
+      typesDir: 'src/lib/types/smrt-generated'
+    })
+  ]
+};
+```
+
+#### Micro-frontend Architecture
+```typescript
+// Host application consuming multiple SMRT microservices
+smrtConsumer({
+  packages: [
+    '@company/products-service',
+    '@company/users-service',
+    '@company/analytics-service'
+  ],
+  generateTypes: true,
+  typesDir: 'src/types/microservices'
+})
+
+// Access combined APIs from all services
+import { createClient } from '@smrt/client';
+const client = createClient('/api/v1');
+
+// Type-safe access to all service APIs
+const products = await client.products.list();
+const users = await client.users.list();
+const analytics = await client.analytics.query({});
+```
+
+#### Library Development
+```typescript
+// Creating a library that extends SMRT functionality
+smrtConsumer({
+  packages: ['@have/smrt-core-models'],
+  staticTypes: true,
+  typesDir: 'src/types/core',
+  disableScanning: true  // Faster builds for libraries
+})
 ```
 
 ## Internal Architecture
