@@ -1,3 +1,10 @@
+## [0.7.2](https://github.com/happyvertical/sdk/compare/v0.7.1...v0.7.2) (2025-09-28)
+
+
+### Bug Fixes
+
+* **smrt:** resolve consumer plugin distribution issue ([07bb93b](https://github.com/happyvertical/sdk/commit/07bb93b561e0f04b2d76db771389b3a994b35b81))
+
 ## [0.7.1](https://github.com/happyvertical/sdk/compare/v0.7.0...v0.7.1) (2025-09-28)
 
 # [0.7.0](https://github.com/happyvertical/sdk/compare/v0.6.1...v0.7.0) (2025-09-27)
