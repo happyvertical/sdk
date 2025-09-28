@@ -384,10 +384,10 @@ await db.insert('embeddings', embeddings);
 The package includes comprehensive tests for verifying database operations:
 
 ```bash
-bun test              # Run all tests once
-bun test:watch        # Run tests in watch mode
-bun test sqlite       # Run only SQLite tests
-bun test postgres     # Run only PostgreSQL tests
+npm test              # Run all tests once
+npm run test:watch    # Run tests in watch mode
+npm run test:sqlite   # Run only SQLite tests
+npm run test:postgres # Run only PostgreSQL tests
 ```
 
 Tests use in-memory databases and mocked connections to avoid external dependencies.
@@ -397,11 +397,9 @@ Tests use in-memory databases and mocked connections to avoid external dependenc
 Build the package with target-specific configurations:
 
 ```bash
-bun run build        # Build both browser and Node.js versions
-bun run build:node   # Build Node.js version only
-bun run build:browser # Build browser version only
-bun run build:watch  # Build in watch mode
-bun run clean        # Clean build artifacts
+npm run build        # Build for Node.js
+npm run build:watch  # Build in watch mode
+npm run clean        # Clean build artifacts
 ```
 
 ### Best Practices

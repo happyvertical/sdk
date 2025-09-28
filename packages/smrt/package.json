@@ -47,7 +47,11 @@
     "docs": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules",
     "docs:watch": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules --watch",
     "clean": "rm -rf dist docs",
-    "dev": "npm run build:watch & npm run test:watch"
+    "dev": "npm run build:watch & npm run test:watch",
+    "verify:consumer-plugin": "node -e \"try { const { smrtConsumer } = require('./dist/consumer-plugin/index.js'); const plugin = smrtConsumer(); console.log('✅ Consumer plugin working:', plugin.name); } catch(e) { console.error('❌ Consumer plugin failed:', e.message); process.exit(1); }\"",
+    "verify:exports": "node -e \"const pkg = require('./package.json'); const fs = require('fs'); Object.entries(pkg.exports).forEach(([key, path]) => { if (fs.existsSync(path)) { console.log('✅', key, '→', path); } else { console.error('❌', key, '→', path, '(missing)'); process.exit(1); } });\"",
+    "build:fresh": "npm run clean && npm run build && npm run verify:exports && npm run verify:consumer-plugin",
+    "prepack": "npm run build:fresh"
   },
   "devDependencies": {
     "@faker-js/faker": "^9.4.0",

@@ -274,10 +274,10 @@ Now run your service:
 
 ```bash
 # Terminal 1: Start the server
-bun run start:server
+npm run start:server
 
 # Terminal 2: Test the client
-bun run test:client
+npm run test:client
 ```
 
 You should see output like:
@@ -341,19 +341,19 @@ Your Product class also auto-generated CLI commands. Try these:
 
 ```bash
 # List products
-bun run cli product list
+npm run cli product list
 
 # Create a product
-bun run cli product create \
+npm run cli product create \
   --name "iPhone 15 Pro" \
   --category "smartphones" \
   --manufacturer "Apple"
 
 # Search products
-bun run cli product search --query "Apple"
+npm run cli product search --query "Apple"
 
 # Get product details
-bun run cli product get --id abc123
+npm run cli product get --id abc123
 ```
 
 ## Next Steps

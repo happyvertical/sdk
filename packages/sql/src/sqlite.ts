@@ -1,11 +1,39 @@
 import { DatabaseError } from '@have/utils';
-import { createClient } from '@libsql/client';
+import type { Client } from '@libsql/client';
 import type {
   DatabaseInterface,
   QueryResult,
   TableInterface,
 } from './shared/types';
 import { buildWhere } from './shared/utils';
+
+/**
+ * Creates a LibSQL client with intelligent environment detection
+ * Forces Node.js client for file URLs and test environments to avoid URL_SCHEME_NOT_SUPPORTED errors
+ *
+ * @param options - SQLite connection options
+ * @returns Promise resolving to a LibSQL client instance
+ */
+async function createLibSQLClient(options: SqliteOptions): Promise<Client> {
+  const { url = 'file::memory:', authToken, encryptionKey } = options;
+
+  // Force Node.js client for file URLs or test/Node.js environments
+  const shouldUseNodeClient =
+    url.startsWith('file:') ||
+    process.env.NODE_ENV === 'test' ||
+    process.env.VITEST === 'true' ||
+    typeof (globalThis as any).window === 'undefined';
+
+  if (shouldUseNodeClient) {
+    // Import Node.js client specifically to support file: URLs
+    const { createClient } = await import('@libsql/client/node');
+    return createClient({ url, authToken, encryptionKey });
+  } else {
+    // Use default client for other environments (uses conditional exports)
+    const { createClient } = await import('@libsql/client');
+    return createClient({ url, authToken, encryptionKey });
+  }
+}
 
 /**
  * Configuration options for SQLite database connections
@@ -33,9 +61,10 @@ export interface SqliteOptions {
  * @param options - SQLite connection options
  * @returns Database interface for SQLite
  */
-export function getDatabase(options: SqliteOptions = {}): DatabaseInterface {
-  const { url = 'file::memory:', authToken, encryptionKey } = options;
-  const client = createClient({ url, authToken, encryptionKey });
+export async function getDatabase(
+  options: SqliteOptions = {},
+): Promise<DatabaseInterface> {
+  const client = await createLibSQLClient(options);
 
   /**
    * Inserts one or more records into a table
