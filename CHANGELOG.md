@@ -1,3 +1,10 @@
+## [0.7.3](https://github.com/happyvertical/sdk/compare/v0.7.2...v0.7.3) (2025-09-28)
+
+
+### Bug Fixes
+
+* **sql:** resolve LibSQL dynamic require issue completely ([e9cebca](https://github.com/happyvertical/sdk/commit/e9cebca64f1c93abb3d0fbcf29c5c4c6c137ebf8)), closes [#106](https://github.com/happyvertical/sdk/issues/106)
+
 ## [0.7.2](https://github.com/happyvertical/sdk/compare/v0.7.1...v0.7.2) (2025-09-28)
 
 
