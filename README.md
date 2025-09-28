@@ -67,6 +67,41 @@ That's it. Your `Product` class now automatically provides:
 - **Database persistence** with automatic schema generation
 - **Type-safe operations** across all interfaces
 
+## Using SMRT Packages
+
+If you're consuming existing SMRT packages (rather than creating your own objects), use the consumer plugin:
+
+```bash
+bun add @my-org/products  # A package containing SMRT objects
+```
+
+```typescript
+// vite.config.js
+import { smrtConsumer } from '@have/smrt/consumer-plugin';
+
+export default {
+  plugins: [
+    smrtConsumer({
+      packages: ['@my-org/products'],  // Auto-discovers SMRT packages
+      generateTypes: true,
+      typesDir: 'src/types/smrt-generated'
+    })
+  ]
+};
+
+// Use auto-generated client and types
+import { createClient } from '@smrt/client';
+import type { ProductData } from '@smrt/types';
+
+const client = createClient('/api/v1');
+const products: ProductData[] = await client.products.list();
+```
+
+This automatically provides:
+- **Type-safe API client** for all SMRT objects in consumed packages
+- **TypeScript declarations** for virtual `@smrt/*` modules
+- **Unified interface** across multiple SMRT packages
+
 ## Core Packages
 
 | Package | Purpose |

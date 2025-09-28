@@ -55,15 +55,30 @@ DELETE /api/products/:id    // Delete product
 
 ## Generated Client
 
-```typescript
-import { ProductClient } from '@smrt/client';
+### For SMRT Object Creators
 
-const client = new ProductClient();
+```typescript
+import { createClient } from '@smrt/client'; // Auto-generated from local objects
+
+const client = createClient('/api/v1');
 
 // Type-safe API calls
-const products = await client.list();
-const product = await client.get('123');
-await client.create({ name: 'Widget', price: 29.99 });
+const products = await client.products.list();
+const product = await client.products.get('123');
+await client.products.create({ name: 'Widget', price: 29.99 });
+```
+
+### For SMRT Package Consumers
+
+```typescript
+import { createClient } from '@smrt/client'; // Generated from consumed packages
+import type { ProductData } from '@smrt/types';
+
+const client = createClient('/api/v1');
+
+// Type-safe API calls across all consumed SMRT packages
+const products: ProductData[] = await client.products.list();
+const categories = await client.categories.list();
 ```
 
 ## Generated MCP Integration
@@ -84,4 +99,91 @@ tools: [
 ]
 ```
 
-*Full documentation coming soon...*
+## Consumer Plugin for Package Users
+
+The `smrtConsumer` plugin enables projects to consume SMRT packages without defining their own SMRT objects.
+
+### Setup
+
+```typescript
+// vite.config.js
+import { smrtConsumer } from '@have/smrt/consumer-plugin';
+
+export default {
+  plugins: [
+    smrtConsumer({
+      packages: ['@my-org/products', '@my-org/content'], // Packages to consume
+      generateTypes: true,
+      typesDir: 'src/types/smrt-generated'
+    })
+  ]
+};
+```
+
+### Automatic Package Discovery
+
+The consumer plugin automatically scans `node_modules` for SMRT packages:
+
+```typescript
+// Automatically finds all installed SMRT packages
+smrtConsumer({
+  generateTypes: true,
+  typesDir: 'src/types/smrt-generated'
+})
+
+// Or explicitly specify packages
+smrtConsumer({
+  packages: ['@my-org/products', '@my-org/analytics'],
+  generateTypes: true
+})
+```
+
+### Generated Virtual Modules
+
+The plugin generates virtual modules for consumed packages:
+
+```typescript
+// Virtual modules available after plugin setup:
+import { createClient } from '@smrt/client';       // Unified API client
+import { setupRoutes } from '@smrt/routes';        // Combined routes
+import { tools } from '@smrt/mcp';                 // MCP tools
+import type { ProductData } from '@smrt/types';    // Type definitions
+import { manifest } from '@smrt/manifest';         // Package metadata
+```
+
+### Integration Patterns
+
+#### SvelteKit Projects
+```typescript
+import { sveltekit } from '@sveltejs/kit/vite';
+import { smrtConsumer } from '@have/smrt/consumer-plugin';
+
+export default {
+  plugins: [
+    sveltekit(),
+    smrtConsumer({
+      typesDir: 'src/lib/types/smrt-generated'
+    })
+  ]
+};
+```
+
+#### Micro-frontend Architecture
+```typescript
+// Host application consuming multiple SMRT microservices
+smrtConsumer({
+  packages: [
+    '@company/products-service',
+    '@company/users-service',
+    '@company/analytics-service'
+  ],
+  generateTypes: true
+})
+
+// Access unified APIs from all services
+const client = createClient('/api/v1');
+const products = await client.products.list();
+const users = await client.users.list();
+```
+
+*Learn more in our [Consuming SMRT Packages](/docs/getting-started/consuming-packages) guide.*
