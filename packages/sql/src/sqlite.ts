@@ -8,56 +8,34 @@ import type {
 import { buildWhere } from './shared/utils';
 
 /**
- * Creates a LibSQL client with intelligent environment detection
- * Automatically selects the appropriate client based on URL and environment
+ * Creates a LibSQL client using the default client implementation
+ * Supports in-memory databases and remote LibSQL URLs
  *
  * @param options - SQLite connection options
  * @returns Promise resolving to a LibSQL client instance
  */
 async function createLibSQLClient(options: SqliteOptions): Promise<Client> {
-  const { url = 'file::memory:', authToken, encryptionKey } = options;
+  const { url = ':memory:', authToken, encryptionKey } = options;
 
-  // Always try the default client first (supports most URLs now)
   try {
     const { createClient } = await import('@libsql/client');
     return createClient({ url, authToken, encryptionKey });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
 
-    // If default client fails with URL_SCHEME_NOT_SUPPORTED for file URLs,
-    // try Node.js client only in test environments
-    if (
-      errorMessage?.includes('URL_SCHEME_NOT_SUPPORTED') &&
-      url.startsWith('file:')
-    ) {
-      const isTestEnvironment =
-        process.env.NODE_ENV === 'test' ||
-        process.env.VITEST === 'true' ||
-        process.env.JEST_WORKER_ID !== undefined;
-
-      if (isTestEnvironment) {
-        try {
-          // Try Node.js client for test environments with file URLs
-          const { createClient } = await import('@libsql/client/node');
-          return createClient({ url, authToken, encryptionKey });
-        } catch (nodeError) {
-          // Node.js client failed, provide helpful error message
-          throw new DatabaseError(
-            `File URLs are not fully supported. For testing, use in-memory database (:memory:) or a remote LibSQL URL (libsql://). Original error: ${errorMessage}`,
-            { url, environment: 'test', originalError: errorMessage },
-          );
-        }
-      } else {
-        // Production environment with unsupported file URL
-        throw new DatabaseError(
-          `File URLs are not supported in this environment. Use a remote LibSQL URL (libsql://) instead. Original error: ${errorMessage}`,
-          { url, environment: 'production', originalError: errorMessage },
-        );
-      }
+    // Provide helpful error messages for common issues
+    if (errorMessage?.includes('URL_SCHEME_NOT_SUPPORTED')) {
+      throw new DatabaseError(
+        `Unsupported URL scheme. Use ':memory:' for in-memory databases or 'libsql://' for remote LibSQL databases. Received: ${url}`,
+        { url, originalError: errorMessage },
+      );
     }
 
-    // Re-throw other errors as-is
-    throw error;
+    // Re-throw other errors with context
+    throw new DatabaseError(`Failed to create LibSQL client: ${errorMessage}`, {
+      url,
+      originalError: errorMessage,
+    });
   }
 }
 
@@ -66,7 +44,10 @@ async function createLibSQLClient(options: SqliteOptions): Promise<Client> {
  */
 export interface SqliteOptions {
   /**
-   * Connection URL for SQLite (e.g., "file::memory:", "file:mydb.sqlite")
+   * Connection URL for SQLite database
+   * Supported schemes:
+   * - ':memory:' or 'file::memory:' for in-memory databases
+   * - 'libsql://...' for remote LibSQL/Turso databases
    */
   url?: string;
 
