@@ -12,7 +12,7 @@ The HAppy VErtical (HAVE) SDK is a TypeScript monorepo designed for building ver
 
 ## Monorepo Structure
 
-The SDK is organized as a bun workspace with several packages that provide specific functionality:
+The SDK is organized as a pnpm workspace with several packages that provide specific functionality:
 
 - **ai**: A standardized interface for AI model interactions across multiple providers (OpenAI, Anthropic, Google Gemini, AWS Bedrock)
 - **content**: Content processing module for documents, web content, and media (SMRT-specific module, excluded from main build)
@@ -66,35 +66,35 @@ The following packages are SMRT-specific modules located in the `smrt/` director
 - Use camelCase for variables and functions, PascalCase for classes
 - Use conventional commits
 - Dont include claude branding in commit messages
-- Use bun for all package management and builds
+- Use pnpm for package management and npm scripts for builds
 - Ensure all scripts and tools are nix-friendly (use /usr/bin/env in shebangs)
 
 ### Testing
 
 - Tests are written using Vitest
 - Each package has its own test suite
-- Run tests with `bun test` or `bun test --watch`
+- Run tests with `npm test` or `npm run test:watch`
 
 ### Common Development Commands
 
 ```bash
 # Install dependencies
-bun install
+pnpm install
 
 # Run tests
-bun test
+npm test
 
 # Build all packages in correct order
-bun run build
+npm run build
 
 # Watch mode development
-bun run dev
+npm run dev
 
 # Lint code
-bun run lint
+npm run lint
 
 # Format code
-bun run format
+npm run format
 ```
 
 ## Cross-Package Dependencies
@@ -113,7 +113,7 @@ When adding new features, maintain this dependency hierarchy to avoid circular d
 
 ## Contribution Guidelines
 
-1. Ensure code passes Biome linting (`bun lint`)
+1. Ensure code passes Biome linting (`npm run lint`)
 2. Write tests for new functionality
 3. Update package documentation when adding new features
 4. Follow existing code patterns in each package
@@ -169,13 +169,13 @@ The SDK includes automatic API documentation generation using TypeDoc. The docum
 Documentation is generated as part of the build process, but can also be generated separately:
 
 ```bash
-bun run docs
+npm run docs
 ```
 
 The build pipeline integrates documentation generation after all packages are built and before repomix is run:
 
 ```bash
-bun run build  # Includes documentation generation
+npm run build  # Includes documentation generation
 ```
 
 This repository is designed to support building AI agents with minimal overhead and maximum flexibility.
@@ -239,7 +239,7 @@ Direct implementation is preferred when:
 When adding MCP servers to the project:
 - **Use the mcp-server-manager agent** - Always delegate MCP server setup to this specialized agent
 - **Prefer bridge scripts** - Create nix-friendly bridge scripts in `scripts/mcp-servers/`
-- **Use bun** - All package management should use bun, not npm or yarn
+- **Use pnpm** - All package management should use pnpm, not npm or yarn
 - **Nix compatibility** - Ensure all scripts use `/usr/bin/env` in shebangs
 - **Local installation** - Install servers locally within the project when possible
 - **Avoid global dependencies** - Keep dependencies project-scoped for reproducibility
@@ -251,12 +251,12 @@ MCP servers should be wrapped in bridge scripts that:
 2. Use localhost-only binding for security
 3. Implement proper error handling and cleanup
 4. Are nix-friendly with proper shebangs
-5. Use bun for any package operations
+5. Use pnpm for any package operations
 
 Example structure:
 ```bash
 #!/usr/bin/env bash
 # Bridge script for MCP server
-# Uses bun for package management
+# Uses pnpm for package management
 # Implements health checks and error handling
 ``` 

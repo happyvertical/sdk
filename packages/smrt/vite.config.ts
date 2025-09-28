@@ -22,15 +22,38 @@ export default defineConfig({
         'consumer-plugin/index': resolve(__dirname, 'src/consumer-plugin/index.ts'),
       },
       formats: ['es'],
-      fileName: (format, entryName) => `${entryName}.js`,
     },
     rollupOptions: {
       output: {
         format: 'es',
-        preserveModules: true,
-        // Ensure proper directory structure for subpath exports
-        entryFileNames: '[name].js',
-        // Preserve the exact module structure for clean subpath exports
+        // Use entryFileNames to create proper subpath structure for multi-entry builds
+        entryFileNames: (chunkInfo) => {
+          // Map entry names to their proper subpath locations
+          const entryName = chunkInfo.name;
+          if (entryName === 'consumer-plugin/index') return 'consumer-plugin/index.js';
+          if (entryName === 'vite-plugin/index') return 'vite-plugin/index.js';
+          if (entryName === 'prebuild/index') return 'prebuild/index.js';
+          if (entryName === 'prebuild/cli') return 'prebuild/cli.js';
+          if (entryName === 'manifest/index') return 'manifest/index.js';
+          if (entryName === 'runtime/index') return 'runtime/index.js';
+          if (entryName.startsWith('generators/')) return `${entryName}.js`;
+          return `${entryName}.js`;
+        },
+        // Preserve modules for better tree-shaking, but not for explicit entry points
+        preserveModules: (id) => {
+          // Don't preserve modules for our explicit entry points - let them be bundled
+          if (id.includes('consumer-plugin/index.ts')) return false;
+          if (id.includes('vite-plugin/index.ts')) return false;
+          if (id.includes('prebuild/index.ts')) return false;
+          if (id.includes('prebuild/cli.ts')) return false;
+          if (id.includes('manifest/index.ts')) return false;
+          if (id.includes('runtime/index.ts')) return false;
+          if (id.includes('generators/')) return false;
+          if (id.includes('src/index.ts')) return false;
+          if (id.includes('src/utils.ts')) return false;
+          // Preserve other modules for tree-shaking
+          return true;
+        },
         preserveModulesRoot: 'src',
       },
       external: [

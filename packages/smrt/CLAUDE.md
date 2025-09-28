@@ -559,6 +559,106 @@ smrtConsumer({
 })
 ```
 
+## Package Distribution and Local Development
+
+### Built Artifact Distribution
+
+The SMRT package follows industry standards (like AWS SDK) for distributing built artifacts. This ensures consuming applications don't need to build the entire SDK:
+
+**Published Package Structure:**
+```
+@have/smrt/
+├── dist/                           # Built artifacts (gitignored in development)
+│   ├── consumer-plugin/index.js    # Vite plugin for consumers
+│   ├── vite-plugin/index.js        # Vite plugin for SMRT creators
+│   ├── generators/                 # Code generation tools
+│   └── ...                         # Other built modules
+├── package.json                    # Exports point to dist/ files
+└── src/                            # Source code for reference
+```
+
+**Package.json Exports:**
+```json
+{
+  "exports": {
+    "./consumer-plugin": "./dist/consumer-plugin/index.js",
+    "./vite-plugin": "./dist/vite-plugin/index.js",
+    "./generators": "./dist/generators/index.js"
+  }
+}
+```
+
+### Local vs Published Usage
+
+**Published Package Usage** (Standard):
+```typescript
+// Consuming from published npm package
+import { smrtConsumer } from '@have/smrt/consumer-plugin';
+
+export default defineConfig({
+  plugins: [smrtConsumer({ packages: ['@my-org/products'] })]
+});
+```
+
+**Local Development** (SDK Contributors):
+```bash
+# 1. Build the package to generate dist/ artifacts
+npm run build
+
+# 2. Then use in consuming applications
+npm link @have/smrt  # or workspace linking
+```
+
+**Key Points:**
+- **Users never build the SDK** - they consume pre-built artifacts
+- **Gitignore excludes dist/** in development, includes in published packages
+- **CI/CD builds and publishes** the complete package with dist/ artifacts
+- **Local development requires build step** before testing consumer applications
+
+### Development Workflow
+
+**For SMRT Package Development:**
+```bash
+# Clean build to ensure fresh artifacts
+npm run clean
+npm run build
+
+# Test consumer plugin import
+node -e "console.log(require('./dist/consumer-plugin/index.js'))"
+
+# Link for local testing
+npm link
+```
+
+**For Consumer Application Development:**
+```bash
+# Link to local SMRT package (if developing SDK)
+npm link @have/smrt
+
+# Or install published version (standard usage)
+npm install @have/smrt
+
+# Use consumer plugin in vite.config.js
+import { smrtConsumer } from '@have/smrt/consumer-plugin';
+```
+
+### Tree-Shaking and Subpath Exports
+
+The package supports efficient tree-shaking through granular exports:
+
+```typescript
+// Import only what you need
+import { smrtConsumer } from '@have/smrt/consumer-plugin';        // ~8KB
+import { CLIGenerator } from '@have/smrt/generators/cli';         // ~22KB
+import { SmrtObject } from '@have/smrt';                          // Core framework
+```
+
+**Vite Configuration for Tree-Shaking:**
+- Uses `preserveModules: (id) => boolean` for selective bundling
+- Entry points are bundled for distribution
+- Internal modules preserved for optimal tree-shaking
+- Source maps included for debugging
+
 ## Internal Architecture
 
 The package uses:
@@ -796,10 +896,10 @@ await generator.generate();
 ### Testing Strategies
 
 ```bash
-bun test                    # Run all tests
-bun test --watch           # Watch mode for development
-bun test:integration       # Integration tests with dependencies
-bun test:generators        # Test code generation functionality
+npm test                    # Run all tests
+npm run test:watch         # Watch mode for development
+npm run test:integration   # Integration tests with dependencies
+npm run test:generators    # Test code generation functionality
 ```
 
 **Testing Patterns**
@@ -811,11 +911,11 @@ bun test:generators        # Test code generation functionality
 ### Building and Development
 
 ```bash
-bun run build             # Production build
-bun run build:watch       # Development watch mode
-bun run dev               # Combined build and test watch
-bun run clean             # Clean build artifacts
-bun run docs              # Generate API documentation
+npm run build             # Production build
+npm run build:watch       # Development watch mode
+npm run dev               # Combined build and test watch
+npm run clean             # Clean build artifacts
+npm run docs              # Generate API documentation
 ```
 
 ### Agent Framework Best Practices

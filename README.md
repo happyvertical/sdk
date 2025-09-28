@@ -186,16 +186,16 @@ Full documentation available at [https://happyvertical.github.io/sdk/](https://h
 
 ```bash
 # Install dependencies
-bun install
+pnpm install
 
 # Run tests
-bun test
+npm test
 
 # Build packages
-bun build
+npm run build
 
 # Development mode
-bun dev
+npm run dev
 ```
 
 ## License

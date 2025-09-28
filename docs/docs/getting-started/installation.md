@@ -26,7 +26,7 @@ SMRT supports two main usage patterns:
 If you're building new SMRT objects and agents:
 
 ```bash
-bun add @have/smrt @have/ai
+pnpm add @have/smrt @have/ai
 ```
 
 ### Consuming SMRT Packages (Package Integration)
@@ -35,10 +35,10 @@ If you're using existing SMRT packages in your project:
 
 ```bash
 # Install SMRT consumer tools
-bun add @have/smrt
+pnpm add @have/smrt
 
 # Install SMRT packages you want to use
-bun add @my-org/products @my-org/content
+pnpm add @my-org/products @my-org/content
 ```
 
 :::info
@@ -178,7 +178,7 @@ testInstallation().catch(console.error);
 Run the test:
 
 ```bash
-bun run test-smrt.ts
+npm run test-smrt.ts
 # or
 ts-node test-smrt.ts
 ```
@@ -209,22 +209,22 @@ As your agents need more capabilities, install additional HAVE SDK packages:
 
 ### File System Operations
 ```bash
-bun add @have/files
+pnpm add @have/files
 ```
 
 ### PDF Processing
 ```bash
-bun add @have/pdf
+pnpm add @have/pdf
 ```
 
 ### Web Scraping
 ```bash
-bun add @have/spider
+pnpm add @have/spider
 ```
 
 ### Advanced Database Features
 ```bash
-bun add @have/sql
+pnpm add @have/sql
 ```
 
 <div className="callout success">
@@ -234,25 +234,29 @@ bun add @have/sql
 ## Platform-Specific Notes
 
 ### macOS
-- Install Bun: `curl -fsSL https://bun.sh/install | bash`
-- Native SQLite support included with Bun
+- Install Node.js: Use [official installer](https://nodejs.org/) or `brew install node`
+- Install pnpm: `npm install -g pnpm`
+- Native SQLite support included with Node.js
 
 ### Windows
-- Use WSL2 for best compatibility with Bun
-- Install Bun in WSL2: `curl -fsSL https://bun.sh/install | bash`
+- Use WSL2 for best compatibility with Node.js development
+- Install Node.js in WSL2: Use [NodeSource](https://github.com/nodesource/distributions) or nvm
+- Install pnpm: `npm install -g pnpm`
 
 ### Linux
-- Install Bun: `curl -fsSL https://bun.sh/install | bash`
+- Install Node.js: Use package manager or [NodeSource](https://github.com/nodesource/distributions)
+- Install pnpm: `npm install -g pnpm`
 - Install build-essential for native module compilation:
   ```bash
   sudo apt-get install build-essential
   ```
 
 ### Docker
-- Use Bun in your Docker images for optimal performance:
+- Use Node.js in your Docker images:
   ```dockerfile
-  FROM oven/bun:latest
-  RUN bun add -g @have/smrt
+  FROM node:18-alpine
+  RUN npm install -g pnpm
+  RUN pnpm add -g @have/smrt
   ```
 
 ## Troubleshooting
