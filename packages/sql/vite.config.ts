@@ -54,6 +54,13 @@ export default defineConfig({
 
         // External dependencies for sql package
         '@libsql/client',
+        '@libsql/client/node',
+        '@libsql/client/web',
+        // LibSQL platform-specific native modules
+        '@libsql/darwin-arm64',
+        '@libsql/darwin-x64',
+        '@libsql/linux-x64',
+        '@libsql/win32-x64',
         'sqlite-vss',
         'pg',
 
