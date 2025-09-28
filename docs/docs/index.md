@@ -98,14 +98,49 @@ The `@smrt()` decorator automatically generates everything you need:
 - **Monitoring**: Built-in logging and observability
 - **Scalability**: Horizontal scaling with micro-frontends
 
+## Two Paths to SMRT Development
+
+### Creating SMRT Objects (Framework Development)
+
+Build new SMRT objects and agents with the full framework:
+
+```typescript
+@smrt()
+export class Product extends BaseObject {
+  name: string = '';
+  price: number = 0;
+  // Auto-generates APIs, tools, and more!
+}
+```
+
+### Consuming SMRT Packages (Package Integration)
+
+Use existing SMRT packages in your applications with the consumer plugin:
+
+```typescript
+// Auto-discovered from installed packages
+import { createClient } from '@smrt/client';
+import type { ProductData } from '@smrt/types';
+
+const client = createClient('/api/v1');
+const products: ProductData[] = await client.products.list();
+```
+
 ## Quick Links
 
 <div className="row">
   <div className="col col--4">
     <div className="feature-card">
-      <h3>🎯 Getting Started</h3>
-      <p>Install SMRT and build your first agent in under 5 minutes.</p>
+      <h3>🎯 Build New Agents</h3>
+      <p>Install SMRT and create your first agent in under 5 minutes.</p>
       <a href="/docs/getting-started/installation" className="nav-pill">Start Building →</a>
+    </div>
+  </div>
+  <div className="col col--4">
+    <div className="feature-card">
+      <h3>📦 Use SMRT Packages</h3>
+      <p>Integrate existing SMRT packages with automatic type generation.</p>
+      <a href="/docs/getting-started/consuming-packages" className="nav-pill">Consume Packages →</a>
     </div>
   </div>
   <div className="col col--4">
@@ -115,11 +150,21 @@ The `@smrt()` decorator automatically generates everything you need:
       <a href="/docs/smrt-framework/overview" className="nav-pill">Learn More →</a>
     </div>
   </div>
-  <div className="col col--4">
+</div>
+
+<div className="row">
+  <div className="col col--6">
     <div className="feature-card">
       <h3>🛠️ Tutorials</h3>
       <p>Build real-world agents with step-by-step project guides.</p>
       <a href="/docs/tutorials/build-research-agent" className="nav-pill">View Tutorials →</a>
+    </div>
+  </div>
+  <div className="col col--6">
+    <div className="feature-card">
+      <h3>🔗 Triple-Purpose Architecture</h3>
+      <p>Learn to build services that work as apps, libraries, and micro-frontends.</p>
+      <a href="/docs/tutorials/triple-purpose-architecture" className="nav-pill">Learn Architecture →</a>
     </div>
   </div>
 </div>

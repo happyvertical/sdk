@@ -17,14 +17,28 @@ Before installing SMRT, ensure you have:
 - **TypeScript 5.0+** for type safety
 - An **API key** from at least one AI provider (OpenAI, Anthropic, etc.)
 
-## Quick Install
+## Installation Paths
 
-SMRT is designed to be installed with a single command:
+SMRT supports two main usage patterns:
 
-### Using Bun (Recommended)
+### Creating SMRT Objects (Framework Development)
+
+If you're building new SMRT objects and agents:
 
 ```bash
+bun add @have/smrt @have/ai
+```
+
+### Consuming SMRT Packages (Package Integration)
+
+If you're using existing SMRT packages in your project:
+
+```bash
+# Install SMRT consumer tools
 bun add @have/smrt
+
+# Install SMRT packages you want to use
+bun add @my-org/products @my-org/content
 ```
 
 :::info
@@ -39,6 +53,7 @@ When you install `@have/smrt`, you automatically get:
 - **Database Integration**: SQLite for development, PostgreSQL support for production
 - **AI Client**: Unified interface for multiple AI providers
 - **Code Generators**: CLI, REST API, and MCP server generators
+- **Consumer Plugin**: Vite plugin for consuming SMRT packages
 - **Type Definitions**: Full TypeScript support out of the box
 
 ## Environment Setup
@@ -90,6 +105,39 @@ SMRT works best with these TypeScript settings. Add to your `tsconfig.json`:
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
 }
+```
+
+## Consumer Plugin Configuration
+
+If you're consuming SMRT packages, configure the consumer plugin in your Vite config:
+
+```typescript
+// vite.config.js
+import { smrtConsumer } from '@have/smrt/consumer-plugin';
+
+export default {
+  plugins: [
+    smrtConsumer({
+      packages: ['@my-org/products'], // SMRT packages to consume
+      generateTypes: true,
+      typesDir: 'src/types/smrt-generated'
+    })
+  ]
+};
+```
+
+This automatically provides:
+- **Type-safe API client** for consumed SMRT packages
+- **TypeScript declarations** for virtual `@smrt/*` modules
+- **Unified interface** across multiple SMRT packages
+
+```typescript
+// Use generated client and types
+import { createClient } from '@smrt/client';
+import type { ProductData } from '@smrt/types';
+
+const client = createClient('/api/v1');
+const products: ProductData[] = await client.products.list();
 ```
 
 ## Verify Installation

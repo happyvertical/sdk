@@ -201,6 +201,121 @@ export const exposeConfig = {
 };
 ```
 
+### Dual SMRT Plugin Configuration
+
+The products package demonstrates advanced usage of both SMRT plugins working together:
+
+#### Plugin Architecture
+
+```typescript
+// vite.config.ts - Real configuration from this package
+import { smrtPlugin } from '@have/smrt/vite-plugin';
+import { smrtConsumer } from '@have/smrt/consumer-plugin';
+
+export default defineConfig(({ command, mode }) => {
+  const baseConfig = {
+    plugins: [
+      svelte(),
+      // SMRT plugin for generating virtual modules from local models
+      smrtPlugin({
+        include: ['src/lib/models/**/*.ts'],
+        exclude: ['**/*.test.ts', '**/*.spec.ts'],
+        baseClasses: ['SmrtObject', 'SmrtCollection'],
+        generateTypes: true,
+        watch: command === 'serve',
+        hmr: command === 'serve',
+        mode: 'server', // Force server mode to enable file scanning
+        typeDeclarationsPath: 'src/lib/types',
+      }),
+      // Consumer plugin for resolving virtual modules
+      smrtConsumer({
+        generateTypes: true,
+        typesDir: 'src/lib/types/smrt-generated',
+      }),
+    ],
+  };
+
+  // Mode-specific configurations...
+});
+```
+
+#### Mode-Specific Plugin Usage
+
+**Library Mode** - Full dual plugin functionality:
+```typescript
+// Uses both plugins for complete SMRT capability
+plugins: [
+  smrtPlugin({ /* local object generation */ }),
+  smrtConsumer({ /* external package consumption */ })
+]
+```
+
+**Federation Mode** - Consumer plugin with static types:
+```typescript
+// Federation builds use consumer plugin with optimizations
+plugins: [
+  smrtConsumer({
+    generateTypes: true,
+    typesDir: 'src/lib/types/smrt-generated',
+    staticTypes: true,      // Use static manifest only
+    disableScanning: true,  // Skip dynamic scanning for performance
+  }),
+  federation(federationConfig)
+]
+```
+
+**Standalone Mode** - SMRT plugin only:
+```typescript
+// Standalone apps use only SMRT plugin for local objects
+plugins: [
+  smrtPlugin({
+    include: ['src/lib/models/**/*.ts'],
+    generateTypes: true,
+    mode: 'server'
+  })
+]
+```
+
+#### Generated Type System
+
+The dual plugin setup creates a comprehensive type system:
+
+```typescript
+// Generated type structure:
+src/lib/types/
+├── smrt-generated/           // From smrtConsumer
+│   ├── smrt-client.d.ts      // External package APIs
+│   ├── smrt-types.d.ts       // External object types
+│   └── smrt-manifest.d.ts    // External manifests
+└── index.d.ts               // From smrtPlugin (local objects)
+
+// Usage in application code:
+import { createClient } from '@smrt/client';           // Combined client
+import type { ProductData } from '@smrt/types';       // Local types
+import type { ExternalData } from '@smrt/types';      // External types
+
+// Type-safe API access
+const client = createClient('/api/v1');
+const products: ProductData[] = await client.products.list();
+```
+
+#### Benefits of Dual Plugin Architecture
+
+**Development Experience:**
+- Hot module replacement for both local and external SMRT objects
+- Unified virtual module resolution across all SMRT packages
+- Type-safe development with full IntelliSense support
+
+**Build Optimization:**
+- Mode-specific plugin configurations for optimal performance
+- Static type generation for federation builds
+- Dynamic scanning disabled when not needed
+
+**Production Flexibility:**
+- Library builds support both creation and consumption patterns
+- Federation builds optimize for runtime module sharing
+- Standalone builds focus on self-contained applications
+
 ### Multi-Mode Development
 
 ```bash
