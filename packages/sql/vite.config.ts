@@ -12,6 +12,8 @@ export default defineConfig({
       formats: ['es'],
       fileName: (format, entryName) => `${entryName}.js`,
     },
+    // Target Node.js environment explicitly
+    ssr: true,
     rollupOptions: {
       output: {
         format: 'es',
@@ -21,52 +23,23 @@ export default defineConfig({
         // Preserve the exact module structure for clean subpath exports
         preserveModulesRoot: 'src',
       },
-      external: [
-        // Node.js built-ins
-        /^node:/,
-        /^bun:/,
-        'fs',
-        'path',
-        'url',
-        'os',
-        'crypto',
-        'stream',
-        'util',
-        'events',
-        'child_process',
-        'buffer',
-        'Buffer',
-        'zlib',
-        'assert',
-        'http',
-        'https',
-        'net',
-        'tls',
-        'dns',
-        'cluster',
-        'worker_threads',
-        'perf_hooks',
-        'readline',
-        'repl',
-        'vm',
-        'v8',
-        'inspector',
+      // Ensure Node.js export resolution for external modules
+      external: (id) => {
+        // Keep @libsql/client external to use runtime resolution
+        if (id.startsWith('@libsql/')) return true;
 
-        // External dependencies for sql package
-        '@libsql/client',
-        '@libsql/client/node',
-        '@libsql/client/web',
-        // LibSQL platform-specific native modules
-        '@libsql/darwin-arm64',
-        '@libsql/darwin-x64',
-        '@libsql/linux-x64',
-        '@libsql/win32-x64',
-        'sqlite-vss',
-        'pg',
+        // Node.js built-ins
+        if (/^node:|^bun:/.test(id)) return true;
+        if (['fs', 'path', 'url', 'os', 'crypto', 'stream', 'util', 'events', 'child_process', 'buffer', 'Buffer', 'zlib', 'assert', 'http', 'https', 'net', 'tls', 'dns', 'cluster', 'worker_threads', 'perf_hooks', 'readline', 'repl', 'vm', 'v8', 'inspector'].includes(id)) return true;
+
+        // Other external dependencies
+        if (['sqlite-vss', 'pg'].includes(id)) return true;
 
         // Internal @have/* packages
-        '@have/utils',
-      ],
+        if (id.startsWith('@have/')) return true;
+
+        return false;
+      },
     },
     minify: false, // Keep code readable for library usage
     sourcemap: true,
@@ -99,5 +72,7 @@ export default defineConfig({
     alias: {
       '@have/utils': resolve(__dirname, '../utils/src'),
     },
+    // Ensure Node.js conditions are used for module resolution
+    conditions: ['node', 'import'],
   },
 });

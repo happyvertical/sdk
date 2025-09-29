@@ -219,7 +219,7 @@ export class SmrtObject extends SmrtClass {
    *
    * @returns Promise that resolves when initialization is complete
    */
-  protected async initialize(): Promise<void> {
+  public async initialize(): Promise<void> {
     await super.initialize();
     if (this.options.db) {
       await setupTableFromClass(this.db, this.constructor);

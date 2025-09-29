@@ -275,13 +275,17 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
    * @param options - Options for creating the item
    * @returns New item instance
    */
-  public create(options: any) {
+  public async create(options: any) {
     const params = {
       ai: this.options.ai,
       db: this.options.db,
       ...options,
     };
-    return this._itemClass.create(params);
+
+    // Direct instantiation - all SmrtObject classes support this pattern
+    const instance = new this._itemClass(params);
+    await instance.initialize();
+    return instance;
   }
 
   /**
@@ -394,32 +398,50 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
       `${this.tableName}_set_updated_at`,
     ];
 
+    // Check if table exists before creating triggers
+    const tableExists = await this.db.tableExists(this.tableName);
+    if (!tableExists) {
+      console.warn(
+        `[smrt] Skipping trigger creation - table ${this.tableName} does not exist`,
+      );
+      return;
+    }
+
     for (const trigger of triggers) {
       const exists = await this.db
         .pluck`SELECT name FROM sqlite_master WHERE type='trigger' AND name=${trigger}`;
       if (!exists) {
-        if (trigger === `${this.tableName}_set_created_at`) {
-          const createTriggerSQL = `
-            CREATE TRIGGER ${trigger}
-            AFTER INSERT ON ${this.tableName}
-            BEGIN
-              UPDATE ${this.tableName} 
-              SET created_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
-              WHERE id = NEW.id;
-            END;
-          `;
-          await this.db.query(createTriggerSQL);
-        } else if (trigger === `${this.tableName}_set_updated_at`) {
-          const createTriggerSQL = `
-            CREATE TRIGGER ${trigger}
-            AFTER UPDATE ON ${this.tableName}
-            BEGIN
-              UPDATE ${this.tableName} 
-              SET updated_at = CURRENT_TIMESTAMP 
-              WHERE id = NEW.id;
-            END;
-          `;
-          await this.db.query(createTriggerSQL);
+        try {
+          if (trigger === `${this.tableName}_set_created_at`) {
+            const createTriggerSQL = `
+              CREATE TRIGGER ${trigger}
+              AFTER INSERT ON ${this.tableName}
+              FOR EACH ROW
+              WHEN NEW.created_at IS NULL
+              BEGIN
+                UPDATE ${this.tableName}
+                SET created_at = datetime('now'), updated_at = datetime('now')
+                WHERE id = NEW.id;
+              END;
+            `;
+            await this.db.query(createTriggerSQL);
+          } else if (trigger === `${this.tableName}_set_updated_at`) {
+            const createTriggerSQL = `
+              CREATE TRIGGER ${trigger}
+              AFTER UPDATE ON ${this.tableName}
+              FOR EACH ROW
+              WHEN NEW.updated_at = OLD.updated_at
+              BEGIN
+                UPDATE ${this.tableName}
+                SET updated_at = datetime('now')
+                WHERE id = NEW.id;
+              END;
+            `;
+            await this.db.query(createTriggerSQL);
+          }
+        } catch (error) {
+          console.warn(`[smrt] Failed to create trigger ${trigger}:`, error);
+          // Continue with other triggers instead of failing completely
         }
       }
     }

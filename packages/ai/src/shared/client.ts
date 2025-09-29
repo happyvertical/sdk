@@ -65,7 +65,17 @@ export interface AIClientInterface {
 function isOpenAIClientOptions(
   options: AIClientOptions,
 ): options is OpenAIClientOptions {
-  return options.type === 'openai' && 'apiKey' in options;
+  return options.type === 'openai' && 'apiKey' in options && !!options.apiKey;
+}
+
+/**
+ * Type guard to check if value is an AI client instance
+ *
+ * @param value - Value to check
+ * @returns True if value is an AI client instance
+ */
+function isAIClientInstance(value: any): value is AIClient {
+  return value instanceof AIClient;
 }
 
 /**
@@ -227,15 +237,37 @@ export class AIClient {
    * @returns Promise resolving to an initialized AI client
    * @throws Error if client type is invalid
    */
-  public static async create<T extends AIClientOptions>(
-    options: T,
+  public static async create(
+    options: AIClientOptions | AIClient,
   ): Promise<AIClient | OpenAIClient> {
-    if (isOpenAIClientOptions(options)) {
-      return OpenAIClient.create(options);
+    // If an AI client instance is passed, return it directly
+    if (isAIClientInstance(options)) {
+      return options;
     }
+
+    // Cast to options since we know it's not an instance
+    const clientOptions = options as AIClientOptions;
+
+    if (isOpenAIClientOptions(clientOptions)) {
+      return OpenAIClient.create(clientOptions);
+    }
+
+    // Provide specific error messages for common issues
+    const providedType = (clientOptions as any).type;
+    if (providedType === 'openai') {
+      throw new ValidationError(
+        'OpenAI API key is required but missing or empty',
+        {
+          supportedTypes: ['openai'],
+          providedType,
+          hint: 'Set OPENAI_API_KEY environment variable or pass apiKey in options',
+        },
+      );
+    }
+
     throw new ValidationError('Invalid client type specified', {
       supportedTypes: ['openai'],
-      providedType: (options as any).type,
+      providedType,
     });
   }
 

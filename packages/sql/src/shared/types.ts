@@ -29,6 +29,102 @@ export interface QueryResult {
 }
 
 /**
+ * Schema manifest structure for JSON-based schema management
+ */
+export interface SchemaManifest {
+  version: string;
+  timestamp: number;
+  packageName: string;
+  schemas: Record<string, SchemaDefinition>;
+  dependencies: string[];
+}
+
+/**
+ * Schema definition for individual tables
+ */
+export interface SchemaDefinition {
+  tableName: string;
+  columns: Record<string, ColumnDefinition>;
+  indexes: IndexDefinition[];
+  triggers: TriggerDefinition[];
+  foreignKeys: ForeignKeyDefinition[];
+  dependencies: string[];
+  version: string;
+  packageName: string;
+  baseClass?: string;
+}
+
+/**
+ * Column definition structure
+ */
+export interface ColumnDefinition {
+  type: string;
+  primaryKey?: boolean;
+  unique?: boolean;
+  notNull?: boolean;
+  defaultValue?: any;
+  check?: string;
+  foreignKey?: {
+    table: string;
+    column: string;
+    onDelete?: string;
+    onUpdate?: string;
+  };
+  description?: string;
+}
+
+/**
+ * Index definition structure
+ */
+export interface IndexDefinition {
+  name: string;
+  columns: string[];
+  unique?: boolean;
+  where?: string;
+  description?: string;
+}
+
+/**
+ * Trigger definition structure
+ */
+export interface TriggerDefinition {
+  name: string;
+  when: string;
+  event: string;
+  table: string;
+  condition?: string;
+  body: string;
+  description?: string;
+}
+
+/**
+ * Foreign key constraint definition
+ */
+export interface ForeignKeyDefinition {
+  column: string;
+  referencesTable: string;
+  referencesColumn: string;
+  onDelete?: string;
+  onUpdate?: string;
+}
+
+/**
+ * Options for schema initialization and management
+ */
+export interface SchemaInitializationOptions {
+  /** Schema manifest containing table definitions */
+  manifest?: SchemaManifest;
+  /** Raw SQL DDL schema string (legacy support) */
+  schema?: string;
+  /** Schema overrides for extending base schemas */
+  overrides?: Record<string, SchemaDefinition>;
+  /** Force recreation of tables */
+  force?: boolean;
+  /** Enable debug logging */
+  debug?: boolean;
+}
+
+/**
  * Common interface for database adapters
  * Provides a unified API for different database backends
  */
@@ -206,6 +302,15 @@ export interface DatabaseInterface {
    * @returns Promise that resolves when schema is synchronized
    */
   syncSchema?: (schema: string) => Promise<void>;
+
+  /**
+   * Initialize database schemas from JSON manifest
+   * Supports dependency resolution and schema overrides
+   *
+   * @param options - Schema initialization options
+   * @returns Promise that resolves when schemas are initialized
+   */
+  initializeSchemas?: (options: SchemaInitializationOptions) => Promise<void>;
 
   /**
    * Executes a callback within a database transaction
