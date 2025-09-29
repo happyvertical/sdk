@@ -1,3 +1,11 @@
+## [0.7.4](https://github.com/happyvertical/sdk/compare/v0.7.3...v0.7.4) (2025-09-29)
+
+
+### Bug Fixes
+
+* **sql:** eliminate environment-specific behavior and dynamic require issues ([b794e0c](https://github.com/happyvertical/sdk/commit/b794e0c8a5c7f5ea8dc84097f278bbaf04151e76))
+* **sql:** eliminate environment-specific behavior that breaks testing ([25ca375](https://github.com/happyvertical/sdk/commit/25ca375fd79a645f92fc8f6d3d87d9947682284a)), closes [#106](https://github.com/happyvertical/sdk/issues/106)
+
 ## [0.7.3](https://github.com/happyvertical/sdk/compare/v0.7.2...v0.7.3) (2025-09-28)
 
 
