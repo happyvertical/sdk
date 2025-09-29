@@ -39,6 +39,7 @@ export default defineConfig(({ command, mode }): UserConfig => {
         lib: {
           entry: './src/index.ts',
           formats: ['es'],
+          fileName: () => 'content.js',
         },
         rollupOptions: {
           external: [
@@ -58,6 +59,9 @@ export default defineConfig(({ command, mode }): UserConfig => {
             'node:url',
             'node:fs/promises',
             'fs/promises',
+            'node:path',
+            'node:os',
+            'node:url',
             '@smrt/client',
             '@smrt/routes',
             '@smrt/types',
