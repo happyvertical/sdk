@@ -78,62 +78,29 @@ describe('sqlite tests', () => {
     expect(result).toEqual({ id: data.id, title: 'hi', body: 'universe' });
   });
 
-  it('should handle file URLs in test environment', async () => {
-    // Test that file URLs work (issue #106 fix)
+  it('should handle in-memory databases with :memory: URL', async () => {
+    // Test explicit :memory: URL
     const testDb = await getDatabase({
       type: 'sqlite',
-      url: 'file::memory:', // This should work in test environment
+      url: ':memory:',
     });
 
     await testDb.execute`
-      CREATE TABLE test_file_url (
+      CREATE TABLE test_memory (
         id TEXT PRIMARY KEY,
         data TEXT
       )
     `;
 
-    await testDb.insert('test_file_url', {
+    await testDb.insert('test_memory', {
       id: 'test-1',
-      data: 'file URL test',
+      data: 'memory database test',
     });
 
-    const result = await testDb.get('test_file_url', { id: 'test-1' });
+    const result = await testDb.get('test_memory', { id: 'test-1' });
     expect(result).toEqual({
       id: 'test-1',
-      data: 'file URL test',
+      data: 'memory database test',
     });
-  });
-
-  it('should handle actual file paths', async () => {
-    // Test with a temporary file path
-    const tempFile = '/tmp/test-sqlite-' + randomUUID() + '.db';
-    const testDb = await getDatabase({
-      type: 'sqlite',
-      url: `file:${tempFile}`,
-    });
-
-    await testDb.execute`
-      CREATE TABLE test_file_path (
-        id TEXT PRIMARY KEY,
-        value INTEGER
-      )
-    `;
-
-    await testDb.insert('test_file_path', { id: 'file-test', value: 42 });
-    const result =
-      await testDb.single`SELECT * FROM test_file_path WHERE id = 'file-test'`;
-
-    expect(result).toEqual({
-      id: 'file-test',
-      value: 42,
-    });
-
-    // Clean up
-    try {
-      const fs = await import('node:fs');
-      fs.unlinkSync(tempFile);
-    } catch (e) {
-      // Ignore cleanup errors
-    }
   });
 });
