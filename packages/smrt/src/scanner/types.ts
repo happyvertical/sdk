@@ -70,6 +70,7 @@ export interface SmartObjectDefinition {
 export interface SmartObjectManifest {
   version: string;
   timestamp: number;
+  packageName?: string;
   objects: Record<string, SmartObjectDefinition>;
 }
 
