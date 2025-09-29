@@ -37,14 +37,8 @@ export default defineConfig(({ command, mode }): UserConfig => {
       build: {
         target: 'node18',
         lib: {
-          entry: {
-            index: './src/index.ts',
-            content: './src/content.ts',
-            contents: './src/contents.ts',
-            document: './src/document.ts',
-            utils: './src/utils.ts',
-          },
-          formats: ['es', 'cjs'],
+          entry: './src/index.ts',
+          formats: ['es'],
         },
         rollupOptions: {
           external: [
@@ -59,6 +53,9 @@ export default defineConfig(({ command, mode }): UserConfig => {
             'path',
             'os',
             'url',
+            'node:path',
+            'node:os',
+            'node:url',
             'node:fs/promises',
             'fs/promises',
             '@smrt/client',
