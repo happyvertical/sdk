@@ -10,15 +10,36 @@ type GetDatabaseOptions =
   | (SqliteOptions & { type?: 'sqlite' });
 
 /**
- * Creates a database connection based on the provided options
+ * Checks if the provided value is a database instance rather than configuration options
  *
- * @param options - Configuration options for the database connection
+ * @param value - Value to check
+ * @returns True if the value appears to be a DatabaseInterface instance
+ */
+function isDatabaseInstance(value: any): value is DatabaseInterface {
+  return (
+    value &&
+    typeof value === 'object' &&
+    typeof value.client !== 'undefined' &&
+    typeof value.insert === 'function' &&
+    typeof value.get === 'function' &&
+    typeof value.query === 'function'
+  );
+}
+
+/**
+ * Creates a database connection based on the provided options, or returns an existing database instance
+ *
+ * @param options - Configuration options for the database connection or an existing database instance
  * @returns Promise resolving to a DatabaseInterface implementation
  * @throws Error if the database type is invalid
  */
 export async function getDatabase(
-  options: GetDatabaseOptions = {},
+  options: GetDatabaseOptions | DatabaseInterface = {},
 ): Promise<DatabaseInterface> {
+  // If a database instance is passed, return it directly
+  if (isDatabaseInstance(options)) {
+    return options;
+  }
   // if no type but url starts with file:, set to sqlite
   if (
     !options.type &&
