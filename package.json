@@ -32,7 +32,7 @@
     "rebuild-devcontainer": "./.devcontainer/scripts/rebuild-devcontainer.sh",
     "lint": "biome lint .",
     "lint:fix": "biome lint --apply .",
-    "clean": "rm -rf packages/*/dist packages/*/docs packages/*/tsconfig.*.tsbuildinfo .tsbuildinfo dist",
+    "clean": "rm -rf packages/*/dist packages/*/docs packages/*/tsconfig.*.tsbuildinfo .tsbuildinfo dist /*.js /*.d.ts /*.js.map /*.d.ts.map",
     "build": "node scripts/build-all-packages.js",
     "build:clean": "pnpm run clean && pnpm run build",
     "build:watch": "pnpm run build && concurrently \"pnpm run build:utils --watch\" \"pnpm run build:files --watch\" \"pnpm run build:ai --watch\" \"pnpm run build:smrt --watch\"",
