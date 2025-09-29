@@ -37,6 +37,7 @@ const VIRTUAL_MODULES = {
   '@smrt/mcp': 'smrt:mcp',
   '@smrt/types': 'smrt:types',
   '@smrt/manifest': 'smrt:manifest',
+  '@smrt/schema': 'smrt:schema',
 };
 
 export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
@@ -157,6 +158,10 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
         case 'smrt:manifest':
           // Manifest module available in both modes
           return generateManifestModule(manifest);
+
+        case 'smrt:schema':
+          // Schema module available in both modes
+          return await generateSchemaModule(manifest);
 
         default:
           return null;
@@ -753,4 +758,68 @@ function mapJsonSchemaType(tsType: string): string {
     any: 'string',
   };
   return typeMap[tsType] || 'string';
+}
+
+/**
+ * Generate virtual schema module with JSON manifests
+ */
+async function generateSchemaModule(
+  manifest: SmartObjectManifest,
+): Promise<string> {
+  try {
+    const { SchemaGenerator } = await import('../schema/index.js');
+
+    const schemaGenerator = new SchemaGenerator();
+    const schemas: Record<string, any> = {};
+
+    // Generate schemas for all SMRT objects
+    for (const [className, objectDef] of Object.entries(manifest.objects)) {
+      const schema = schemaGenerator.generateSchema(objectDef);
+      schemas[className] = schema;
+    }
+
+    // Create JSON manifest for schemas
+    const schemaManifest = {
+      version: '1.0.0',
+      timestamp: Date.now(),
+      packageName: manifest.packageName || 'unknown',
+      schemas: schemas,
+      dependencies: Array.from(
+        new Set(
+          Object.values(schemas).flatMap((s: any) => s.dependencies || []),
+        ),
+      ),
+    };
+
+    return `// Auto-generated schema manifest from SMRT objects
+// This file is generated automatically - do not edit
+
+// Schema manifest as JSON for SQL adapters
+export const schemaManifest = ${JSON.stringify(schemaManifest, null, 2)};
+
+// Schema registry for runtime access
+export const schemas = schemaManifest.schemas;
+
+// Schema lookup function
+export function getSchema(className: string) {
+  return schemas[className];
+}
+
+// All schemas as array for dependency resolution
+export const allSchemas = Object.values(schemas);
+
+// Package information
+export const packageName = schemaManifest.packageName;
+export const dependencies = schemaManifest.dependencies;
+
+export default schemaManifest;`;
+  } catch (error) {
+    console.error('[smrt] Error generating schema module:', error);
+    return `// Error generating schema module
+export const schemaManifest = { schemas: {}, dependencies: [] };
+export const schemas = {};
+export function getSchema() { return null; }
+export const allSchemas = [];
+export default {};`;
+  }
 }

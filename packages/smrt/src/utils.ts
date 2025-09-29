@@ -201,6 +201,37 @@ export function generateSchema(ClassType: new (...args: any[]) => any) {
 }
 
 /**
+ * Generates trigger definitions for automatic timestamp management
+ *
+ * @param tableName - Name of the table to create triggers for
+ * @returns Array of trigger definitions compatible with RuntimeSchemaManager
+ */
+export function generateTriggerDefinitions(tableName: string) {
+  return [
+    {
+      name: `${tableName}_set_created_at`,
+      when: 'AFTER' as const,
+      event: 'INSERT' as const,
+      tableName,
+      condition: 'NEW.created_at IS NULL',
+      body: `UPDATE ${tableName} SET created_at = datetime('now'), updated_at = datetime('now') WHERE id = NEW.id;`,
+      description:
+        'Automatically set created_at and updated_at on insert when created_at is null',
+    },
+    {
+      name: `${tableName}_set_updated_at`,
+      when: 'AFTER' as const,
+      event: 'UPDATE' as const,
+      tableName,
+      condition: 'NEW.updated_at = OLD.updated_at',
+      body: `UPDATE ${tableName} SET updated_at = datetime('now') WHERE id = NEW.id;`,
+      description:
+        'Automatically update updated_at on row updates when unchanged',
+    },
+  ];
+}
+
+/**
  * Generates a table name from a class constructor
  *
  * @param ClassType - Class constructor or function
@@ -300,32 +331,50 @@ export async function setupTriggers(db: any, tableName: string) {
     `${tableName}_set_updated_at`,
   ];
 
+  // Check if table exists before creating triggers
+  const tableExists = await db.tableExists(tableName);
+  if (!tableExists) {
+    console.warn(
+      `[smrt] Skipping trigger creation - table ${tableName} does not exist`,
+    );
+    return;
+  }
+
   for (const trigger of triggers) {
     const exists =
       await db.pluck`SELECT name FROM sqlite_master WHERE type='trigger' AND name=${trigger}`;
     if (!exists) {
-      if (trigger === `${tableName}_set_created_at`) {
-        const createTriggerSQL = `
-          CREATE TRIGGER ${trigger}
-          AFTER INSERT ON ${tableName}
-          BEGIN
-            UPDATE ${tableName} 
-            SET created_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP 
-            WHERE id = NEW.id;
-          END;
-        `;
-        await db.query(createTriggerSQL);
-      } else if (trigger === `${tableName}_set_updated_at`) {
-        const createTriggerSQL = `
-          CREATE TRIGGER ${trigger}
-          AFTER UPDATE ON ${tableName}
-          BEGIN
-            UPDATE ${tableName} 
-            SET updated_at = CURRENT_TIMESTAMP 
-            WHERE id = NEW.id;
-          END;
-        `;
-        await db.query(createTriggerSQL);
+      try {
+        if (trigger === `${tableName}_set_created_at`) {
+          const createTriggerSQL = `
+            CREATE TRIGGER ${trigger}
+            AFTER INSERT ON ${tableName}
+            FOR EACH ROW
+            WHEN NEW.created_at IS NULL
+            BEGIN
+              UPDATE ${tableName}
+              SET created_at = datetime('now'), updated_at = datetime('now')
+              WHERE id = NEW.id;
+            END;
+          `;
+          await db.query(createTriggerSQL);
+        } else if (trigger === `${tableName}_set_updated_at`) {
+          const createTriggerSQL = `
+            CREATE TRIGGER ${trigger}
+            AFTER UPDATE ON ${tableName}
+            FOR EACH ROW
+            WHEN NEW.updated_at = OLD.updated_at
+            BEGIN
+              UPDATE ${tableName}
+              SET updated_at = datetime('now')
+              WHERE id = NEW.id;
+            END;
+          `;
+          await db.query(createTriggerSQL);
+        }
+      } catch (error) {
+        console.warn(`[smrt] Failed to create trigger ${trigger}:`, error);
+        // Continue with other triggers instead of failing completely
       }
     }
   }

@@ -4,8 +4,10 @@ import type {
   QueryResult as BaseQueryResult,
   DatabaseInterface,
   TableInterface,
+  SchemaInitializationOptions,
 } from './shared/types';
 import { buildWhere } from './shared/utils';
+import { DatabaseSchemaManager } from './schema-manager';
 
 /**
  * Configuration options for PostgreSQL database connections
@@ -679,6 +681,42 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
   const ox = pluck; // (o)bjective-(x): returns a single value
   const xx = execute; // (x)ecute-(x)ecute: executes without returning
 
+  /**
+   * Initialize database schemas from JSON manifest
+   * Supports dependency resolution and schema overrides
+   *
+   * @param options - Schema initialization options
+   * @returns Promise that resolves when schemas are initialized
+   */
+  const initializeSchemas = async (
+    options: SchemaInitializationOptions,
+  ): Promise<void> => {
+    const schemaManager = new DatabaseSchemaManager();
+    const currentDb: DatabaseInterface = {
+      client,
+      insert,
+      update,
+      get,
+      getOrInsert,
+      list,
+      table,
+      many,
+      single,
+      pluck,
+      execute,
+      query,
+      oo,
+      oO,
+      ox,
+      xx,
+      tableExists,
+      syncSchema,
+      transaction,
+    };
+
+    await schemaManager.initializeSchemas(currentDb, options);
+  };
+
   return {
     client,
     insert,
@@ -698,6 +736,7 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
     xx,
     tableExists,
     syncSchema,
+    initializeSchemas,
     transaction,
   };
 }

@@ -39,7 +39,7 @@ export default defineConfig(({ command, mode }): UserConfig => {
         lib: {
           entry: './src/index.ts',
           formats: ['es'],
-          fileName: () => 'content.js',
+          fileName: () => 'index.js',
         },
         rollupOptions: {
           external: [
