@@ -1,3 +1,46 @@
+# [0.8.0](https://github.com/happyvertical/sdk/compare/v0.7.5...v0.8.0) (2025-09-29)
+
+
+### Bug Fixes
+
+* **content:** correct build output filename to match package.json exports ([f53d6cd](https://github.com/happyvertical/sdk/commit/f53d6cd7ca7ed70a5081e5f5295a80b465d00fa7))
+* **sql:** ensure LibSQL Node.js runtime resolution for in-memory databases ([77332c6](https://github.com/happyvertical/sdk/commit/77332c6075c0a33744258a5109f584688a53bf6b))
+
+
+### Code Refactoring
+
+* **smrt:** eliminate static create() pattern using direct instantiation ([410634c](https://github.com/happyvertical/sdk/commit/410634c3238d7f4a0e8cfb85287b83e3de89b470))
+
+
+### Features
+
+* **sql:** add schema manager with JSON manifest support ([bdbbfe8](https://github.com/happyvertical/sdk/commit/bdbbfe880f1f68f6f7a068b19947918e433550c6))
+
+
+### BREAKING CHANGES
+
+* **smrt:** SmrtCollection.create() now uses direct instantiation
+
+Changes:
+- Modified SmrtCollection.create() to directly instantiate objects
+- Changed SmrtObject.initialize() from protected to public
+- Eliminates need for static create() methods on SMRT objects
+- Fixes Content collection test failures (236 tests passing)
+
+Technical Details:
+- Old pattern required every SMRT object to implement static create()
+- New pattern: `new this._itemClass(params); await instance.initialize()`
+- Leverages modern @smrt() decorator and registry system
+- Simplified, more maintainable instantiation pattern
+
+Benefits:
+- No more boilerplate static create() methods required
+- Consistent instantiation across all SMRT objects
+- Works with all @smrt decorated classes automatically
+- Cleaner codebase in closed ecosystem
+
+Related to packages/content test failures - now all passing
+
 ## [0.7.5](https://github.com/happyvertical/sdk/compare/v0.7.4...v0.7.5) (2025-09-29)
 
 
