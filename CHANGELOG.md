@@ -1,3 +1,10 @@
+## [0.7.5](https://github.com/happyvertical/sdk/compare/v0.7.4...v0.7.5) (2025-09-29)
+
+
+### Bug Fixes
+
+* **sql:** implement smart database instance detection in getDatabase ([cfa9346](https://github.com/happyvertical/sdk/commit/cfa93463d29c00bb8bfce0820f8b9b13cc777e79)), closes [#112](https://github.com/happyvertical/sdk/issues/112)
+
 ## [0.7.4](https://github.com/happyvertical/sdk/compare/v0.7.3...v0.7.4) (2025-09-29)
 
 
