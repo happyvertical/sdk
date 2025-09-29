@@ -149,6 +149,10 @@ export function validateColumnName(column: string): string {
 import { buildWhere } from './shared/utils';
 export { buildWhere };
 
+// Export schema management
+export { DatabaseSchemaManager } from './schema-manager';
+export type { SchemaInitializationResult } from './schema-manager';
+
 export * from './shared/types';
 
 export default { getDatabase, syncSchema, tableExists, buildWhere };

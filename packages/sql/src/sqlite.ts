@@ -4,8 +4,10 @@ import type {
   DatabaseInterface,
   QueryResult,
   TableInterface,
+  SchemaInitializationOptions,
 } from './shared/types';
 import { buildWhere } from './shared/utils';
+import { DatabaseSchemaManager } from './schema-manager';
 
 /**
  * Creates a LibSQL client using the default client implementation
@@ -16,24 +18,28 @@ import { buildWhere } from './shared/utils';
  */
 async function createLibSQLClient(options: SqliteOptions): Promise<Client> {
   const { url = ':memory:', authToken, encryptionKey } = options;
+  // LibSQL uses :memory: directly for in-memory databases
+  const libsqlUrl = url;
 
   try {
-    const { createClient } = await import('@libsql/client');
-    return createClient({ url, authToken, encryptionKey });
+    // Use explicit external import to avoid bundling
+    const libsqlClient = '@libsql/client';
+    const { createClient } = await import(/* @vite-ignore */ libsqlClient);
+    return createClient({ url: libsqlUrl, authToken, encryptionKey });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
 
     // Provide helpful error messages for common issues
     if (errorMessage?.includes('URL_SCHEME_NOT_SUPPORTED')) {
       throw new DatabaseError(
-        `Unsupported URL scheme. Use ':memory:' for in-memory databases or 'libsql://' for remote LibSQL databases. Received: ${url}`,
-        { url, originalError: errorMessage },
+        `Unsupported URL scheme. Use ':memory:' for in-memory databases or 'libsql://' for remote LibSQL databases. Original: ${url}, Converted: ${libsqlUrl}`,
+        { url: libsqlUrl, originalError: errorMessage },
       );
     }
 
     // Re-throw other errors with context
     throw new DatabaseError(`Failed to create LibSQL client: ${errorMessage}`, {
-      url,
+      url: libsqlUrl,
       originalError: errorMessage,
     });
   }
@@ -46,7 +52,8 @@ export interface SqliteOptions {
   /**
    * Connection URL for SQLite database
    * Supported schemes:
-   * - ':memory:' or 'file::memory:' for in-memory databases
+   * - ':memory:' for in-memory databases
+   * - 'file:path/to/database.db' for local file databases
    * - 'libsql://...' for remote LibSQL/Turso databases
    */
   url?: string;
@@ -550,6 +557,42 @@ export async function getDatabase(
   const ox = pluck; // (o)bjective-(x): returns a single value
   const xx = execute; // (x)ecute-(x)ecute: executes without returning
 
+  /**
+   * Initialize database schemas from JSON manifest
+   * Supports dependency resolution and schema overrides
+   *
+   * @param options - Schema initialization options
+   * @returns Promise that resolves when schemas are initialized
+   */
+  const initializeSchemas = async (
+    options: SchemaInitializationOptions,
+  ): Promise<void> => {
+    const schemaManager = new DatabaseSchemaManager();
+    const currentDb: DatabaseInterface = {
+      client,
+      query,
+      insert,
+      update,
+      get,
+      list,
+      getOrInsert,
+      table,
+      tableExists,
+      many,
+      single,
+      pluck,
+      execute,
+      oo,
+      oO,
+      ox,
+      xx,
+      syncSchema,
+      transaction,
+    };
+
+    await schemaManager.initializeSchemas(currentDb, options);
+  };
+
   return {
     client,
     query,
@@ -569,6 +612,7 @@ export async function getDatabase(
     ox,
     xx,
     syncSchema,
+    initializeSchemas,
     transaction,
   };
 }

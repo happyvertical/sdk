@@ -30,9 +30,9 @@ export interface SmrtClassOptions {
   fs?: FilesystemAdapterOptions;
 
   /**
-   * AI client configuration options
+   * AI client configuration options or instance
    */
-  ai?: AIClientOptions;
+  ai?: AIClientOptions | AIClient;
 }
 
 /**
