@@ -13,6 +13,65 @@ The `@have/ocr` package provides a unified interface for Optical Character Recog
 
 This package abstracts away the complexities of different OCR engines, allowing other packages to perform text extraction consistently regardless of the underlying OCR provider.
 
+## Package Architecture
+
+### Core Components
+
+1. **Factory Pattern (`shared/factory.ts`)**
+   - `OCRFactory` class: Main factory for managing providers with singleton support
+   - `getOCR()` function: Convenience function returning global factory or creating new instances
+   - Provider initialization with lazy loading and parallel dependency checks
+   - Automatic environment detection (Node.js, browser, unknown)
+   - Global factory instance with `resetOCRFactory()` for testing
+
+2. **Type System (`shared/types.ts`)**
+   - `OCRProvider` interface: Contract that all providers must implement
+   - `OCROptions`, `OCRImage`, `OCRResult`: Core data structures
+   - `OCRCapabilities`, `DependencyCheckResult`: Provider metadata
+   - Error classes: `OCRError`, `OCRDependencyError`, `OCRProcessingError`, `OCRUnsupportedError`
+
+3. **Provider Implementations**
+   - `TesseractProvider` (Node.js): Cross-platform OCR using Tesseract.js with worker pooling
+   - `ONNXGutenyeProvider` (Node.js only): High-accuracy OCR using PaddleOCR PP-OCRv4 models
+   - `WebOCRProvider` (Browser only): Browser-optimized Tesseract.js with WebAssembly
+
+### Provider Architecture Patterns
+
+**Provider Loading Strategy:**
+- Providers loaded dynamically based on environment detection
+- Import failures handled gracefully (no errors thrown, just skipped)
+- Parallel dependency checks for fast provider discovery
+- Workers/instances cached per language to avoid reinitialization costs
+
+**Priority Order (Auto-selection):**
+- Node.js: `['onnx', 'tesseract']` - ONNX preferred for accuracy
+- Browser: `['tesseract', 'web-ocr']` - Both use Tesseract.js
+- Unknown: `['tesseract']` - Fallback to most compatible
+
+**Factory Singleton Pattern:**
+```typescript
+// Global singleton (shared state)
+const factory1 = getOCR();
+const factory2 = getOCR(); // Returns same instance
+
+// New instance with custom config
+const custom = getOCR({ provider: 'onnx' }); // Creates new instance
+```
+
+### Image Format Handling
+
+**ONNX Provider Format Pipeline:**
+1. Input format detection using file signatures (magic numbers)
+2. PNG/JPEG decoding to raw RGB using `pngjs`/`jpeg-js`
+3. RGB to RGBA conversion for JPEG encoding
+4. High-quality JPEG encoding (90%) for PaddleOCR processing
+
+**Tesseract Provider Format Support:**
+- Direct Buffer/Uint8Array processing
+- Base64 string handling with automatic decoding
+- Image signature validation (PNG: `0x89504E47`, JPEG: `0xFFD8FF`, BMP: `0x424D`, GIF: `0x474946`)
+- Skips invalid or too-small buffers (<100 bytes)
+
 ## Key APIs
 
 ### Factory-Based OCR Interface
@@ -406,19 +465,157 @@ The package manages dependencies intelligently based on the runtime environment:
 
 ## Development Guidelines
 
-### Provider Architecture
+### Provider Implementation Checklist
 
 When adding new OCR providers:
 
 1. **Implement OCRProvider interface**: All providers must implement the standardized interface
-2. **Handle dependencies gracefully**: Check dependencies without throwing errors using checkDependencies()
+   ```typescript
+   interface OCRProvider {
+     readonly name: string;
+     performOCR(images: OCRImage[], options?: OCROptions): Promise<OCRResult>;
+     checkDependencies(): Promise<DependencyCheckResult>;
+     checkCapabilities(): Promise<OCRCapabilities>;
+     getSupportedLanguages(): string[];
+     cleanup?(): Promise<void>;
+   }
+   ```
+
+2. **Handle dependencies gracefully**: Check dependencies without throwing errors
+   - Use `checkDependencies()` to verify availability
+   - Return `{ available: false, error: string, details: {...} }` on failures
+   - Never throw during dependency checks (factory handles unavailable providers)
+
 3. **Support multiple image formats**: Handle Buffer, Uint8Array, string (base64), and raw RGB data
-4. **Provide meaningful error messages**: Use typed error classes (OCRError, OCRDependencyError, OCRProcessingError)
-5. **Implement cleanup methods**: Properly dispose of resources, workers, and ONNX Runtime instances
-6. **Image format validation**: Check file signatures before processing to avoid errors
-7. **Confidence scoring**: Provide meaningful confidence scores (0-100) for quality assessment
+   - Validate image signatures using magic numbers
+   - Skip invalid or too-small buffers gracefully
+   - Document supported formats in `checkCapabilities()`
+
+4. **Provide meaningful error messages**: Use typed error classes
+   - `OCRDependencyError`: Dependencies missing or initialization failed
+   - `OCRProcessingError`: OCR operation failed during processing
+   - `OCRUnsupportedError`: Feature not supported by provider
+   - `OCRError`: Base class for generic OCR errors
+
+5. **Implement cleanup methods**: Properly dispose of resources
+   - Terminate workers (Tesseract: `worker.terminate()`)
+   - Clean up ONNX instances (if available)
+   - Clear cached workers/instances from Maps
+   - Handle cleanup failures gracefully (log warnings, don't throw)
+
+6. **Image format validation**: Check file signatures before processing
+   - PNG: `[0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]`
+   - JPEG: `[0xFF, 0xD8, 0xFF]`
+   - BMP: `[0x42, 0x4D]`
+   - GIF: `[0x47, 0x49, 0x46]`
+
+7. **Confidence scoring**: Provide meaningful confidence scores (0-100)
+   - Calculate average confidence across all detections
+   - Filter detections below `confidenceThreshold` if specified
+   - Return detection-level and overall confidence
+
 8. **Bounding box support**: Return precise text positioning when available
+   - Format: `{ x: number, y: number, width: number, height: number }`
+   - Include in detections array with per-word or per-line granularity
+
 9. **Language mapping**: Map common language codes to provider-specific codes
+   - Example: `'en' → 'eng'`, `'zh-cn' → 'chi_sim'`, `'zh-tw' → 'chi_tra'`
+   - Support multi-language format: `'eng+chi_sim+jpn'`
+
+### Code Patterns and Conventions
+
+**Worker/Instance Caching:**
+```typescript
+private workers: Map<string, any> = new Map();
+
+private async getWorker(language = 'eng') {
+  if (this.workers.has(language)) {
+    return this.workers.get(language);
+  }
+  const worker = await createWorker(language);
+  this.workers.set(language, worker);
+  return worker;
+}
+```
+
+**Lazy Module Loading:**
+```typescript
+private tesseract: any = null;
+
+private async loadTesseract() {
+  if (this.tesseract) {
+    return this.tesseract;
+  }
+  const TesseractModule = await import('tesseract.js');
+  this.tesseract = TesseractModule.default || TesseractModule;
+  return this.tesseract;
+}
+```
+
+**Image Signature Detection:**
+```typescript
+const isPNG = buffer[0] === 0x89 && buffer[1] === 0x50 &&
+              buffer[2] === 0x4E && buffer[3] === 0x47;
+const isJPEG = buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF;
+```
+
+**Confidence Calculation:**
+```typescript
+const validDetections = allDetections.filter(d => d.confidence > 0);
+const averageConfidence = validDetections.length > 0
+  ? validDetections.reduce((sum, d) => sum + d.confidence, 0) / validDetections.length
+  : 0;
+```
+
+**Graceful Error Handling:**
+```typescript
+try {
+  // Process image
+} catch (imageError: any) {
+  console.warn('Provider failed for image:', imageError.message || imageError);
+  continue; // Skip to next image, don't fail entire batch
+}
+```
+
+### Common Implementation Gotchas
+
+1. **ONNX Format Requirements**: PaddleOCR expects JPEG format after RGB conversion
+   - Must convert PNG/JPEG → RGB → RGBA → JPEG (90% quality)
+   - Direct RGB data requires width/height/channels metadata
+
+2. **Tesseract Worker Lifecycle**: Workers are expensive to create
+   - Cache per language, not per operation
+   - Terminate during cleanup to free memory
+   - Handle initialization failures gracefully
+
+3. **Browser vs Node.js**: Different capabilities per environment
+   - Use `globalThis` for environment detection, not `window` or `process`
+   - Browser: Limited to WebAssembly-compatible formats
+   - Node.js: Can use native image processing libraries
+
+4. **Empty Result Handling**: Don't fail on empty text extraction
+   - Return `{ text: '', confidence: 0, detections: [] }` for empty results
+   - Factory handles fallback to alternative providers if configured
+
+5. **Timeout Handling**: Different environments need different timeouts
+   - Node.js: 30s default (ONNX initialization can take time)
+   - Browser: 15s default (user experience considerations)
+   - Make configurable via options
+
+### File Structure Conventions
+
+```
+src/
+├── index.ts                 # Package exports
+├── shared/
+│   ├── factory.ts          # OCRFactory and utility functions
+│   └── types.ts            # Interfaces, types, error classes
+├── node/
+│   ├── tesseract.ts        # Tesseract.js provider (Node.js)
+│   └── onnx-gutenye.ts     # ONNX provider using @gutenye/ocr-node
+└── browser/
+    └── web-ocr.ts          # Browser-optimized Tesseract.js
+```
 
 ### Testing OCR Providers
 
@@ -581,40 +778,295 @@ Documentation is automatically generated during the build process and can be vie
 
 The documentation includes complete API coverage, usage examples, and cross-references to related HAVE SDK packages.
 
+## Debugging and Troubleshooting
+
+### Common Issues and Solutions
+
+**Issue: "No OCR providers available"**
+```typescript
+// Diagnosis
+const factory = getOCR();
+const providersInfo = await factory.getProvidersInfo();
+providersInfo.forEach(p => {
+  console.log(`${p.name}: ${p.available ? 'Available' : 'Unavailable'}`);
+  if (!p.available) {
+    console.log(`  Error: ${p.dependencies.error}`);
+    console.log(`  Details:`, p.dependencies.details);
+  }
+});
+
+// Solution: Check if tesseract.js is installed
+// npm install tesseract.js
+// For ONNX: Ensure @gutenye/ocr-node is installed (should be in package.json)
+```
+
+**Issue: Empty OCR results despite valid images**
+```typescript
+// Check image format
+const buffer = fs.readFileSync('image.png');
+console.log('Image signature:', buffer.slice(0, 8).toString('hex'));
+// PNG should be: 89504e470d0a1a0a
+// JPEG should start with: ffd8ff
+
+// Try with explicit format
+const result = await factory.performOCR([
+  { data: buffer, format: 'png' }
+], {
+  language: 'eng',
+  confidenceThreshold: 0, // Remove filtering
+  outputFormat: 'json'    // Get detailed detections
+});
+
+console.log('Detections:', result.detections);
+```
+
+**Issue: ONNX provider not working**
+```typescript
+// Check ONNX specifically
+const onnxFactory = getOCR({ provider: 'onnx' });
+const available = await onnxFactory.isOCRAvailable();
+
+if (!available) {
+  const info = await getProviderInfo('onnx');
+  console.log('ONNX error:', info?.dependencies.error);
+  // Common causes:
+  // - @gutenye/ocr-node not installed
+  // - ONNX Runtime dependencies missing
+  // - Initialization timeout
+}
+
+// Test with simple image
+const testResult = await onnxFactory.performOCR([testImage], {
+  language: 'eng',
+  timeout: 60000 // Increase timeout for initialization
+});
+```
+
+**Issue: Worker/memory leaks**
+```typescript
+// Always cleanup in production
+const factory = getOCR();
+try {
+  const result = await factory.performOCR(images);
+  // Process result
+} finally {
+  await factory.cleanup(); // Terminates workers, frees memory
+}
+
+// For testing, reset global factory
+import { resetOCRFactory } from '@have/ocr';
+afterEach(() => {
+  resetOCRFactory();
+});
+```
+
+**Issue: Browser compatibility errors**
+```typescript
+// Check browser environment
+const factory = getOCR();
+const env = factory.getEnvironment();
+
+if (env === 'browser') {
+  // Verify WebAssembly support
+  if (typeof WebAssembly === 'undefined') {
+    console.error('Browser does not support WebAssembly');
+  }
+
+  // Check for Web Worker support
+  if (typeof Worker === 'undefined') {
+    console.error('Browser does not support Web Workers');
+  }
+
+  // Use web-ocr provider explicitly
+  const webFactory = getOCR({ provider: 'web-ocr' });
+}
+```
+
+### Performance Optimization Tips
+
+1. **Reuse Factory Instances**: Global singleton is cached
+   ```typescript
+   // Good: Single factory instance
+   const factory = getOCR();
+   for (const batch of imageBatches) {
+     await factory.performOCR(batch);
+   }
+
+   // Bad: New factory per call (wastes memory)
+   for (const batch of imageBatches) {
+     const factory = getOCR(); // Don't do this
+     await factory.performOCR(batch);
+   }
+   ```
+
+2. **Batch Processing**: Process multiple images in one call
+   ```typescript
+   // Efficient: Single OCR operation
+   const result = await factory.performOCR([img1, img2, img3]);
+
+   // Less efficient: Multiple separate calls
+   const r1 = await factory.performOCR([img1]);
+   const r2 = await factory.performOCR([img2]);
+   const r3 = await factory.performOCR([img3]);
+   ```
+
+3. **Choose Right Provider**: Match provider to use case
+   ```typescript
+   // High accuracy needed (Node.js)
+   const onnxFactory = getOCR({ provider: 'onnx' });
+
+   // Maximum compatibility needed
+   const tesseractFactory = getOCR({ provider: 'tesseract' });
+
+   // Let factory decide (recommended)
+   const autoFactory = getOCR(); // Auto-selects best available
+   ```
+
+4. **Optimize Image Sizes**: Resize large images before OCR
+   ```typescript
+   // Pre-process images if they're very large (>4000px)
+   // OCR accuracy doesn't always improve with massive resolution
+   const maxDimension = 2048;
+   if (image.width > maxDimension || image.height > maxDimension) {
+     // Resize using image processing library before passing to OCR
+   }
+   ```
+
+### Logging and Diagnostics
+
+**Enable verbose logging:**
+```typescript
+// Provider-level logging (console.log/warn/error used throughout)
+// Set environment variable for more details
+process.env.DEBUG = 'ocr:*';
+
+// Check initialization
+const factory = getOCR();
+await factory.initializeProviders(); // Explicit initialization
+const providers = factory.getAvailableProviderNames();
+console.log('Loaded providers:', providers);
+
+// Detailed provider info
+const providersInfo = await factory.getProvidersInfo();
+providersInfo.forEach(p => {
+  console.log(`\n${p.name}:`);
+  console.log('  Available:', p.available);
+  console.log('  Dependencies:', p.dependencies);
+  console.log('  Capabilities:', p.capabilities);
+});
+```
+
+**Monitor OCR operations:**
+```typescript
+const startTime = Date.now();
+const result = await factory.performOCR(images, { language: 'eng' });
+console.log({
+  processingTime: Date.now() - startTime,
+  provider: result.metadata?.provider,
+  confidence: result.confidence,
+  textLength: result.text.length,
+  detectionCount: result.detections?.length || 0,
+  fallback: result.metadata?.fallbackFrom
+});
+```
+
 ## Expert Agent Instructions
 
 When working with @have/ocr:
 
-1. **Always check provider availability** before implementing OCR solutions
-2. **Choose appropriate providers** based on accuracy requirements and environment constraints
-3. **Handle multiple languages** by using provider-specific language codes
-4. **Implement proper error handling** with typed error classes
-5. **Consider performance implications** of different providers and image sizes
-6. **Test across environments** to ensure compatibility
+### Decision Framework
 
-Example workflow:
+1. **Provider Selection Strategy**
+   - **Use auto-selection** for most cases (intelligent defaults)
+   - **Force ONNX** when accuracy is critical and Node.js environment confirmed
+   - **Use Tesseract** when multi-language support (>7 languages) is needed
+   - **Use web-ocr** explicitly only for browser-specific features
+
+2. **Error Handling Strategy**
+   - **Always wrap in try-catch**: OCR operations can fail for many reasons
+   - **Check availability first**: Prevent runtime errors in production
+   - **Use fallback providers**: Configure alternative providers for resilience
+   - **Log detailed errors**: Use provider info to diagnose issues
+
+3. **Performance Strategy**
+   - **Cache factory instances**: Reuse global factory when possible
+   - **Batch images**: Process multiple images in single call
+   - **Cleanup resources**: Call cleanup() when done, especially in long-running apps
+   - **Monitor processing time**: Log metadata for performance tracking
+
+4. **Testing Strategy**
+   - **Reset factory between tests**: Use `resetOCRFactory()` in test teardown
+   - **Mock providers carefully**: Check dependencies return false for unavailable
+   - **Test timeout handling**: Configure appropriate timeouts for each environment
+   - **Verify cleanup**: Ensure workers are terminated after tests
+
+### Implementation Checklist
+
+Before committing OCR code:
+- [ ] Provider availability checked before use
+- [ ] Error handling with typed error classes
+- [ ] Cleanup called in finally blocks or on exit
+- [ ] Appropriate timeouts configured for environment
+- [ ] Confidence thresholds adjusted for provider
+- [ ] Logging includes provider and metadata
+- [ ] Fallback providers configured if critical path
+- [ ] Image formats validated before processing
+- [ ] Tests reset global factory in teardown
+- [ ] Documentation updated with examples
+
+### Quick Reference
+
 ```typescript
-// Check environment and available providers
-const factory = getOCR();
-const env = factory.getEnvironment();
-const available = await factory.isOCRAvailable();
+// Standard pattern for production use
+import { getOCR, OCRDependencyError, OCRError } from '@have/ocr';
 
-if (!available) {
-  console.log('No OCR providers available');
-  return;
-}
-
-// Get best provider info
-const providers = await factory.getProvidersInfo();
-const bestProvider = providers.find(p => p.available);
-console.log(`Using OCR provider: ${bestProvider?.name}`);
-
-// Process with appropriate configuration
-const result = await factory.performOCR(images, {
-  language: env === 'browser' ? 'eng' : 'eng+chi_sim', // More languages in Node.js
-  confidenceThreshold: env === 'browser' ? 60 : 80,   // Lower threshold in browser
-  timeout: env === 'browser' ? 15000 : 30000          // Shorter timeout in browser
+const factory = getOCR({
+  provider: 'auto',
+  fallbackProviders: ['tesseract'],
+  defaultOptions: {
+    language: 'eng',
+    confidenceThreshold: 70,
+    timeout: 30000
+  }
 });
+
+try {
+  // Check availability
+  if (!(await factory.isOCRAvailable())) {
+    throw new Error('OCR not available');
+  }
+
+  // Process images
+  const result = await factory.performOCR(images, {
+    outputFormat: 'json' // Get detections with bounding boxes
+  });
+
+  // Log diagnostics
+  console.log('OCR completed:', {
+    provider: result.metadata?.provider,
+    confidence: result.confidence,
+    processingTime: result.metadata?.processingTime,
+    detections: result.detections?.length
+  });
+
+  return result;
+
+} catch (error) {
+  if (error instanceof OCRDependencyError) {
+    // Handle missing dependencies
+    console.error('OCR dependencies missing:', error.message);
+  } else if (error instanceof OCRError) {
+    // Handle OCR processing errors
+    console.error('OCR processing failed:', error.message);
+  } else {
+    // Handle unexpected errors
+    console.error('Unexpected error:', error);
+  }
+  throw error;
+} finally {
+  // Cleanup (important for long-running processes)
+  await factory.cleanup();
+}
 ```
 
 This package provides enterprise-grade OCR capabilities designed for scalable AI agent workflows across multiple environments with intelligent provider selection and fallback strategies.
@@ -821,3 +1273,120 @@ const images = [
 - Efficient processing of large images without memory overflow
 - Automatic cleanup of intermediate processing buffers
 - Stream-based processing for very large documents
+
+## Key Takeaways for Efficient Coding
+
+### Architecture at a Glance
+
+**Three-Layer Design:**
+1. **Factory Layer** (`shared/factory.ts`): Provider management, auto-selection, fallback
+2. **Type Layer** (`shared/types.ts`): Interfaces, errors, data structures
+3. **Provider Layer** (`node/`, `browser/`): Platform-specific OCR implementations
+
+**Key Design Decisions:**
+- **Lazy loading**: Providers loaded only when first used
+- **Singleton factory**: Global instance for efficiency, custom instances for flexibility
+- **Graceful degradation**: Import failures don't crash, just skip that provider
+- **Parallel checks**: All providers checked simultaneously for fast initialization
+- **Worker caching**: Workers/instances cached per language to avoid reinitialization
+
+### Critical Implementation Details
+
+**Magic Numbers for Format Detection:**
+```typescript
+PNG:  [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+JPEG: [0xFF, 0xD8, 0xFF]
+BMP:  [0x42, 0x4D]
+GIF:  [0x47, 0x49, 0x46]
+```
+
+**ONNX Processing Pipeline:**
+```
+Image Buffer → Decode (PNG/JPEG) → RGB → RGBA → JPEG (90%) → PaddleOCR
+```
+
+**Confidence Score Patterns:**
+```typescript
+// ONNX: detection.score or detection.mean (0-1 range, converted to 0-100)
+// Tesseract: result.data.confidence (already 0-100)
+// Average: sum of all valid confidences / count
+```
+
+**Error Classification:**
+- `OCRDependencyError`: Can't initialize (missing dependencies)
+- `OCRProcessingError`: Processing failed (timeout, invalid image, etc.)
+- `OCRUnsupportedError`: Feature not supported (rare)
+- `OCRError`: Generic base class
+
+### Common Patterns Quick Reference
+
+**Basic Usage (90% of cases):**
+```typescript
+import { getOCR } from '@have/ocr';
+const factory = getOCR();
+const result = await factory.performOCR(images);
+```
+
+**Production Pattern (with error handling):**
+```typescript
+try {
+  const factory = getOCR({ provider: 'auto', fallbackProviders: ['tesseract'] });
+  if (await factory.isOCRAvailable()) {
+    const result = await factory.performOCR(images, { language: 'eng' });
+    return result;
+  }
+} catch (error) {
+  // Handle typed errors
+} finally {
+  await factory.cleanup();
+}
+```
+
+**Debugging Pattern:**
+```typescript
+const providersInfo = await factory.getProvidersInfo();
+providersInfo.forEach(p => {
+  console.log(`${p.name}: ${p.available ? '✓' : '✗'} ${p.dependencies.error || ''}`);
+});
+```
+
+### Provider Comparison Matrix
+
+| Feature | ONNX | Tesseract | Web OCR |
+|---------|------|-----------|---------|
+| **Environment** | Node.js only | Node.js + Browser | Browser only |
+| **Accuracy** | Highest (90%+) | Good (70-85%) | Good (70-85%) |
+| **Speed** | Fast (after init) | Moderate | Moderate |
+| **Languages** | 7 core | 100+ | 100+ |
+| **Setup** | Auto (included) | Auto (npm) | Auto (browser) |
+| **Bounding Boxes** | Yes (precise) | Yes (word-level) | Yes (word-level) |
+| **Memory** | Higher | Moderate | Lower (browser constraints) |
+| **Best For** | High-accuracy production | Multi-language, compatibility | Client-side, privacy |
+
+### When to Use Which Provider
+
+**Use ONNX when:**
+- Accuracy is critical (>85% required)
+- Processing scanned documents or handwritten text
+- Running in Node.js environment
+- Language is one of: eng, chi_sim, chi_tra, jpn, kor, fra, deu
+
+**Use Tesseract when:**
+- Need 100+ language support
+- Cross-platform compatibility required
+- Browser support needed
+- ONNX dependencies unavailable
+
+**Use Auto-selection when:**
+- Not sure which provider is best
+- Want intelligent fallback behavior
+- Building for unknown deployment environment
+- Following best practices (recommended default)
+
+### Testing Gotchas
+
+1. **Global Factory Reset**: Always call `resetOCRFactory()` in test teardown
+2. **Async Cleanup**: Use `await factory.cleanup()` in finally blocks
+3. **Timeout Configuration**: Set longer timeouts for ONNX tests (60-120s)
+4. **Provider Mocking**: Mock at provider level, not factory level
+5. **Image Fixtures**: Use small test images (<1MB) for fast tests
