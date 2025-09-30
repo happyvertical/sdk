@@ -2,25 +2,26 @@
 
 ## Purpose and Responsibilities
 
-The `@have/smrt` package is the core framework for building vertical AI agents in the HAVE SDK. It provides a comprehensive foundation for creating intelligent agents with persistent storage, cross-package integration, and automatic code generation capabilities:
+The `@have/smrt` package is the core framework for building vertical AI agents in the HAVE SDK. It provides a comprehensive foundation for creating intelligent agents with persistent storage, cross-package integration, and automatic code generation capabilities.
 
 ### Core Framework Architecture
-- **Object-Relational Mapping**: Automatic schema generation from TypeScript class properties
-- **AI-First Design**: Native integration with multiple AI providers via `@have/ai`
-- **Collection Management**: Standardized CRUD operations with advanced querying
-- **Cross-Package Integration**: Unified access to all HAVE SDK capabilities
+- **Object-Relational Mapping**: Automatic schema generation from TypeScript class properties with database triggers
+- **AI-First Design**: Built-in `is()` and `do()` methods for AI-powered validation and operations
+- **Collection Management**: Standardized CRUD operations with flexible querying (operators: =, >, <, >=, <=, !=, in, like)
+- **Error Handling System**: Comprehensive error types (DatabaseError, ValidationError, AIError, etc.) with retry logic
+- **Registry System**: Global object registry for runtime introspection and code generation
 
 ### Advanced Code Generation
 - **CLI Generators**: Create administrative command-line tools from SMRT objects
 - **REST API Generators**: Auto-generate complete REST APIs with OpenAPI documentation
 - **MCP Server Generators**: Generate Model Context Protocol servers for AI integration
-- **Vite Plugin Integration**: Automatic service generation during development
+- **Vite Plugin Integration**: Automatic service generation with virtual modules (@smrt/routes, @smrt/client, @smrt/mcp)
 
 ### Runtime Environment Support
-- **Universal Deployment**: Node.js server environments and browser/edge runtimes
-- **AST Scanning**: Automatic discovery of SMRT objects in codebases
-- **Virtual Module System**: Dynamic code generation through Vite plugins
-- **Type Safety**: Automatic TypeScript declaration generation
+- **Node.js Only**: Package now focused on Node.js for simplified deployment and better performance
+- **AST Scanning**: Automatic discovery of SMRT objects via TypeScript AST parsing
+- **Virtual Module System**: Dynamic code generation through Vite plugins during development
+- **Type Safety**: Automatic TypeScript declaration generation for virtual modules
 
 **Expert Agent Expertise**: When working with this package, always proactively check the latest documentation using WebFetch for foundational libraries (@langchain/community, cheerio, yaml) as they frequently add new features that can enhance agent capabilities. Recent updates include:
 - **@langchain/community**: Advanced retrieval strategies, multimodal tool calling, streaming events, and LangGraph for stateful multi-actor applications
@@ -29,30 +30,249 @@ The `@have/smrt` package is the core framework for building vertical AI agents i
 
 The SMRT framework is designed to leverage the latest capabilities from its dependencies for optimal agent performance.
 
+## Critical Implementation Patterns
+
+### Direct Instantiation Pattern (IMPORTANT)
+
+The framework has **eliminated the static `create()` pattern** in favor of direct instantiation:
+
+```typescript
+// ✅ CORRECT - Direct instantiation (current pattern)
+const product = new Product({ name: 'Widget', price: 99.99 });
+await product.initialize(); // Must call to set up services
+
+// ❌ WRONG - Old static create pattern (removed)
+const product = await Product.create({ name: 'Widget' }); // This no longer exists
+```
+
+**Why this matters**: All SMRT objects use the constructor pattern. Collections automatically call `initialize()` when creating objects via `collection.create()`.
+
+### Field System (packages/smrt/src/fields/index.ts)
+
+The framework provides a typed field definition system for schema generation:
+
+```typescript
+import { text, integer, decimal, boolean, datetime, json, foreignKey } from '@have/smrt/fields';
+
+class Product extends SmrtObject {
+  name = text({ required: true, maxLength: 100 });
+  price = decimal({ min: 0, required: true });
+  active = boolean({ default: true });
+  categoryId = foreignKey(Category, { onDelete: 'restrict' });
+}
+```
+
+**Field Types**:
+- `text(options)` - TEXT column with optional maxLength, minLength, pattern validation
+- `integer(options)` - INTEGER column with optional min/max constraints
+- `decimal(options)` - REAL column for floating point numbers
+- `boolean(options)` - INTEGER column (0/1) for boolean values
+- `datetime(options)` - DATETIME column for timestamps
+- `json(options)` - TEXT column with JSON serialization
+- `foreignKey(relatedClass, options)` - TEXT column for foreign key relationships with onDelete behavior
+- `oneToMany(relatedClass, options)` - One-to-many relationship (doesn't create column)
+- `manyToMany(relatedClass, options)` - Many-to-many relationship (doesn't create column)
+
+**Field Options** (all types):
+- `required: boolean` - NOT NULL constraint
+- `default: any` - Default value
+- `unique: boolean` - UNIQUE constraint
+- `index: boolean` - Create database index
+- `description: string` - Documentation
+
+### Object Registry System (packages/smrt/src/registry.ts)
+
+**Global registry for runtime introspection and code generation**
+
+The `@smrt()` decorator automatically registers classes:
+
+```typescript
+import { smrt } from '@have/smrt';
+
+@smrt({
+  api: { exclude: ['delete'] },
+  mcp: { include: ['list', 'get', 'analyze'] },
+  cli: true
+})
+class Document extends SmrtObject {
+  title = text({ required: true });
+  content = text();
+
+  // Custom action methods are automatically discovered
+  async analyze(options: any) {
+    return { results: await this.ai.message(`Analyze: ${this.content}`) };
+  }
+}
+```
+
+**Registry API**:
+- `ObjectRegistry.register(constructor, config)` - Manually register a class
+- `ObjectRegistry.registerCollection(objectName, collectionConstructor)` - Register collection for object
+- `ObjectRegistry.getClass(name)` - Get registered class metadata
+- `ObjectRegistry.getAllClasses()` - Get all registered classes
+- `ObjectRegistry.getFields(name)` - Get field definitions for class
+- `ObjectRegistry.getConfig(name)` - Get configuration for class
+
+**Auto-registration**: Objects automatically register when instantiated (unless `_skipRegistration: true` in options)
+
+### Error Handling System (packages/smrt/src/errors.ts)
+
+**Comprehensive error types with retry logic**
+
+Error Classes:
+- `DatabaseError` - Database operations (connection, queries, schema, constraints)
+- `ValidationError` - Data validation (required fields, types, uniqueness, ranges)
+- `AIError` - AI provider operations (rate limits, authentication, invalid responses)
+- `FilesystemError` - File operations (not found, permissions, disk space)
+- `NetworkError` - Network requests (timeouts, service unavailable)
+- `ConfigurationError` - Setup and configuration (missing config, invalid values)
+- `RuntimeError` - Runtime execution (operation failures, invalid state)
+
+**Static Factory Methods**:
+```typescript
+// Database errors
+DatabaseError.connectionFailed(dbUrl, cause?)
+DatabaseError.queryFailed(query, cause?)
+DatabaseError.schemaError(tableName, operation, cause?)
+DatabaseError.constraintViolation(constraint, value, cause?)
+
+// Validation errors
+ValidationError.requiredField(fieldName, objectType)
+ValidationError.invalidValue(fieldName, value, expectedType)
+ValidationError.uniqueConstraint(fieldName, value)
+ValidationError.rangeError(fieldName, value, min?, max?)
+
+// AI errors
+AIError.providerError(provider, operation, cause?)
+AIError.rateLimitExceeded(provider, retryAfter?)
+AIError.invalidResponse(provider, response)
+AIError.authenticationFailed(provider)
+```
+
+**Error Utilities**:
+```typescript
+// Automatic retry with exponential backoff
+await ErrorUtils.withRetry(
+  async () => await riskyOperation(),
+  maxRetries = 3,
+  delay = 1000,
+  backoffMultiplier = 2
+);
+
+// Check if error is retryable (network, AI errors)
+ErrorUtils.isRetryable(error)
+
+// Sanitize error for logging (removes sensitive fields)
+ErrorUtils.sanitizeError(error)
+```
+
+**All SmrtError instances include**:
+- `code: string` - Machine-readable error code
+- `category: string` - Error category (database, ai, validation, etc.)
+- `details: Record<string, any>` - Additional context
+- `cause: Error` - Original error that caused this
+- `toJSON()` - Serialization for logging
+
 ## Key Concepts
 
-### SmrtClass
+### SmrtClass (packages/smrt/src/class.ts)
 
-The foundation for all classes in the framework, providing:
-- Initialization logic
-- Access to AI client and database interfaces
-- Shared utilities
+**Foundation class providing core functionality for the SMRT framework**
 
-### SmrtObject
+Properties:
+- `_ai: AIClient` - AI client instance for model interactions
+- `_fs: FilesystemAdapter` - Filesystem adapter for file operations
+- `_db: DatabaseInterface` - Database interface for data persistence
+- `_className: string` - Class name for identification
+- `options: SmrtClassOptions` - Configuration options
 
-Extends SmrtClass to represent individual entities that:
-- Can be saved to a database
-- Have unique identifiers (id, slug, etc.)
-- Support property-based schema generation
-- Include timestamps (created_at, updated_at)
+Key Methods:
+- `initialize()` - Sets up database, filesystem, and AI client connections (must be called before using services)
+- Getters: `ai`, `db`, `fs` - Access to initialized services
 
-### SmrtCollection
+**Important**: Always call `initialize()` after creating an instance to set up service connections.
 
-Extends SmrtClass to represent collections of objects that:
-- Automatically set up database tables based on object schemas
-- Provide CRUD operations for managing objects
-- Support flexible querying with multiple operators
-- Handle relationships between objects
+### SmrtObject (packages/smrt/src/object.ts)
+
+**Persistent object with unique identifiers and database storage**
+
+Core Properties:
+- `id: string` - Unique UUID identifier (auto-generated if not provided)
+- `slug: string` - URL-friendly identifier (auto-generated from name if not set)
+- `context: string` - Optional context to scope the slug (enables multiple objects with same slug in different contexts)
+- `name: string` - Human-readable name, primarily for display
+- `created_at: Date` - Creation timestamp (auto-managed by database trigger)
+- `updated_at: Date` - Last update timestamp (auto-managed by database trigger)
+
+Key Methods:
+- `save()` - Saves object to database with UPSERT on (slug, context) constraint
+- `delete()` - Deletes object from database with lifecycle hooks
+- `loadFromId()` - Loads data by ID
+- `loadFromSlug()` - Loads data by slug and context
+- `getSlug()` - Gets or generates slug from name (converts to lowercase, replaces non-alphanumeric with hyphens)
+- `is(criteria: string, options?)` - AI-powered validation against criteria (returns boolean)
+- `do(instructions: string, options?)` - AI-powered operation based on instructions (returns string result)
+
+**Schema Generation**: All non-function, non-private properties are automatically converted to database schema:
+- `string` → TEXT
+- `number` → INTEGER
+- `Date` → DATETIME
+- Properties ending with `_at` or `_date` → DATETIME
+
+**Lifecycle Hooks** (via ObjectRegistry):
+- `beforeSave`, `afterSave`, `beforeDelete`, `afterDelete`
+
+**Error Handling**:
+- Automatic retry logic for transient database failures (3 retries, 500ms initial delay with backoff)
+- Comprehensive error types: `ValidationError`, `DatabaseError`, `RuntimeError`
+- Constraint violation detection (UNIQUE, NOT NULL) with user-friendly messages
+
+### SmrtCollection (packages/smrt/src/collection.ts)
+
+**Collection interface for managing sets of SmrtObjects**
+
+Required Configuration:
+```typescript
+class MyCollection extends SmrtCollection<MyObject> {
+  static readonly _itemClass = MyObject; // REQUIRED
+}
+```
+
+Key Methods:
+- `get(filter)` - Retrieves single object by ID (UUID), slug (string), or custom filter object
+- `list(options)` - Lists objects with flexible filtering, pagination, and sorting
+- `create(options)` - Creates new object instance (automatically calls initialize())
+- `getOrUpsert(data, defaults)` - Gets existing or creates new object
+- `count(options)` - Counts records matching filters
+- `setupDb()` - Sets up database schema, triggers, and indexes (called automatically during initialize)
+
+**Advanced Querying** (list method):
+Supports operators in field names:
+- `'price >'`: 100 - Greater than
+- `'price <='`: 200 - Less than or equal
+- `'status in'`: ['active', 'pending'] - IN operator
+- `'name like'`: '%search%' - LIKE pattern matching
+- `'deleted_at !='`: null - Not equal
+
+Example:
+```typescript
+await collection.list({
+  where: {
+    'price >': 100,
+    'category in': ['A', 'B'],
+    'name like': '%product%'
+  },
+  orderBy: ['price DESC', 'created_at ASC'],
+  limit: 20,
+  offset: 0
+});
+```
+
+**Schema Management**:
+- Automatic table creation with proper indexes
+- Composite unique constraint on (slug, context)
+- Automatic timestamp triggers (created_at, updated_at)
+- Deferred setup with promise caching to avoid race conditions
 
 ## Key APIs
 
@@ -1079,3 +1299,328 @@ The SMRT package serves as the central orchestrator for building intelligent age
 - **Runtime flexibility** across server and browser environments
 
 This framework enables rapid development of vertical AI agents while maintaining production-ready scalability and performance.
+
+## Common Gotchas and Important Considerations
+
+### 1. Static _itemClass Requirement
+
+**Collections MUST define static _itemClass**:
+```typescript
+// ✅ CORRECT
+class ProductCollection extends SmrtCollection<Product> {
+  static readonly _itemClass = Product;
+}
+
+// ❌ WRONG - Will throw error at runtime
+class ProductCollection extends SmrtCollection<Product> {
+  // Missing static _itemClass
+}
+```
+
+**Error message if missing**: "Collection 'ProductCollection' must define a static _itemClass property"
+
+### 2. Initialize Pattern
+
+**Always call initialize() on direct instantiation**:
+```typescript
+// ✅ CORRECT - Initialize after construction
+const product = new Product({ name: 'Widget' });
+await product.initialize(); // Required to set up DB/AI/FS
+
+// ✅ ALSO CORRECT - Collection.create() calls initialize automatically
+const product = await collection.create({ name: 'Widget' });
+
+// ❌ WRONG - Will fail when accessing db/ai/fs
+const product = new Product({ name: 'Widget' });
+await product.save(); // Error: db is undefined
+```
+
+### 3. Slug and Context Uniqueness
+
+**UNIQUE constraint is on (slug, context) pair**:
+```typescript
+// These are DIFFERENT objects (different contexts)
+const blog1 = new Post({ slug: 'hello-world', context: '/blog' });
+const doc1 = new Post({ slug: 'hello-world', context: '/docs' });
+
+// This will FAIL (same slug + context)
+const blog2 = new Post({ slug: 'hello-world', context: '/blog' }); // UNIQUE constraint violation
+```
+
+**Slug auto-generation from name**:
+- Converts to lowercase
+- Replaces non-alphanumeric with hyphens
+- Removes leading/trailing hyphens
+- Example: "My Product Name!" → "my-product-name"
+
+### 4. Field Detection and Schema Generation
+
+**Schema is generated from instance properties**:
+```typescript
+class Product extends SmrtObject {
+  // ✅ CORRECT - Property initialized with default value
+  name: string = '';
+  price: number = 0;
+  active: boolean = true;
+
+  // ❌ WRONG - Uninitialized properties won't be in schema
+  name: string;
+  price: number;
+}
+```
+
+**Private properties are excluded**:
+- Properties starting with `_` or `#` are NOT in schema
+- Methods are NOT in schema
+- Getters/setters are NOT in schema
+
+### 5. Date Field Conventions
+
+**Properties ending with _at or _date are automatically DATETIME**:
+```typescript
+class Event extends SmrtObject {
+  start_date = new Date(); // → DATETIME column
+  end_date = new Date();   // → DATETIME column
+  created_at = new Date(); // → DATETIME column (also auto-managed by trigger)
+}
+```
+
+### 6. Collection Query Operators
+
+**Operators MUST be in field name, not value**:
+```typescript
+// ✅ CORRECT
+await collection.list({
+  where: {
+    'price >': 100,        // Operator in field name
+    'status in': ['A', 'B']
+  }
+});
+
+// ❌ WRONG
+await collection.list({
+  where: {
+    price: '> 100',        // Won't work - operator should be in field name
+    status: ['A', 'B']     // Won't work - need 'in' operator in field name
+  }
+});
+```
+
+**Supported operators**: `=` (default), `>`, `<`, `>=`, `<=`, `!=`, `in`, `like`
+
+### 7. Lifecycle Hooks Configuration
+
+**Hooks are configured via @smrt decorator or ObjectRegistry**:
+```typescript
+// ✅ CORRECT - Via decorator
+@smrt({
+  hooks: {
+    beforeSave: 'validateData',  // Method name
+    afterDelete: async (instance) => {
+      // Function implementation
+      await cleanup(instance);
+    }
+  }
+})
+class Product extends SmrtObject {
+  async validateData() {
+    // Hook implementation
+  }
+}
+
+// ❌ WRONG - Direct method override doesn't work
+class Product extends SmrtObject {
+  async beforeSave() {
+    // This won't be called automatically
+  }
+}
+```
+
+### 8. Custom Actions in Code Generation
+
+**Custom methods must exist on the class**:
+```typescript
+@smrt({
+  mcp: { include: ['analyze', 'summarize'] }  // These methods must exist
+})
+class Document extends SmrtObject {
+  // ✅ CORRECT - Method exists
+  async analyze(options: any) { }
+
+  // ❌ WARNING - 'summarize' specified but not defined
+  // Will log warning and skip MCP tool generation
+}
+```
+
+### 9. Virtual Module Resolution
+
+**Virtual modules only work with Vite plugin**:
+```typescript
+// ✅ WORKS - With smrtPlugin() in vite.config.js
+import { setupRoutes } from '@smrt/routes';
+import { createClient } from '@smrt/client';
+
+// ❌ DOESN'T WORK - Without Vite plugin configured
+// Will get "Cannot find module '@smrt/routes'" error
+```
+
+**Consumer projects need smrtConsumer()**:
+```typescript
+// vite.config.js in consuming project
+import { smrtConsumer } from '@have/smrt/consumer-plugin';
+
+export default {
+  plugins: [
+    smrtConsumer({
+      packages: ['@my-org/products'] // Packages with SMRT objects
+    })
+  ]
+};
+```
+
+### 10. Promise Caching in Setup
+
+**Database setup is deferred and cached**:
+```typescript
+const collection = new MyCollection(options);
+
+// First call sets up schema
+await collection.initialize(); // Creates table, triggers, indexes
+
+// Subsequent calls use cached promise
+await collection.initialize(); // Returns same promise, no duplicate work
+
+// This prevents race conditions when multiple code paths initialize the same collection
+```
+
+### 11. UPSERT Behavior
+
+**save() uses UPSERT on (slug, context)**:
+```typescript
+const product = new Product({ slug: 'widget', context: '', name: 'Widget' });
+await product.save(); // INSERT
+
+product.name = 'Updated Widget';
+await product.save(); // UPDATE (matches existing slug + context)
+
+// New object with same slug but different context
+const product2 = new Product({ slug: 'widget', context: '/store' });
+await product2.save(); // INSERT (different context)
+```
+
+### 12. AI Method Validation
+
+**is() method expects JSON boolean response**:
+```typescript
+// ✅ CORRECT - AI returns { "result": true }
+const valid = await doc.is('Document has more than 100 words');
+
+// ❌ AI MUST return proper JSON
+// If AI returns plain "true" or "yes", will throw error
+```
+
+**do() method expects string response**:
+```typescript
+// ✅ CORRECT - AI returns string
+const summary = await doc.do('Summarize in 2 sentences');
+// Returns: "string with summary"
+
+// Note: do() doesn't enforce JSON format
+```
+
+### 13. Error Retry Logic
+
+**Only certain errors are retried**:
+- **Retried**: `NetworkError`, `AIError`, database transient failures
+- **NOT retried**: `ValidationError`, `ConfigurationError` (these are permanent failures)
+- Default: 3 retries with exponential backoff (500ms → 1s → 2s)
+
+```typescript
+// Validation errors fail immediately
+await product.save(); // ValidationError: required field 'name' - NO RETRY
+
+// Network errors are retried
+await ai.message('prompt'); // NetworkError: timeout - RETRIES 3 times
+```
+
+### 14. Table Name Generation
+
+**Class names are converted to snake_case and pluralized**:
+```typescript
+class Product extends SmrtObject { }        // → products table
+class UserAccount extends SmrtObject { }    // → user_accounts table
+class Category extends SmrtObject { }       // → categories table (y→ies)
+class Person extends SmrtObject { }         // → persons table (basic pluralization)
+```
+
+**Pluralization is basic**:
+- Adds 's' to most words
+- Converts trailing 'y' to 'ies'
+- Already plural words (ending in 's') stay the same
+
+### 15. Field Initialization with Options
+
+**Field values can be set from constructor options**:
+```typescript
+class Product extends SmrtObject {
+  name = text({ default: 'Untitled' });
+  price = decimal({ default: 0 });
+}
+
+// Options override defaults
+const p1 = new Product({ name: 'Widget', price: 99.99 });
+// p1.name = 'Widget', p1.price = 99.99
+
+// Missing fields use defaults
+const p2 = new Product({});
+// p2.name = 'Untitled', p2.price = 0
+```
+
+## Performance Considerations
+
+### 1. Schema Setup Caching
+
+Collections cache their database setup promise to avoid redundant table creation. This is safe for concurrent initialization but means schema changes require process restart.
+
+### 2. Bulk Operations
+
+For inserting many objects, use transactions and bulk operations:
+```typescript
+// ❌ SLOW - Individual saves
+for (const data of items) {
+  const obj = await collection.create(data);
+  await obj.save();
+}
+
+// ✅ FAST - Batch with transaction (if supported)
+await db.transaction(async () => {
+  for (const data of items) {
+    const obj = await collection.create(data);
+    await obj.save();
+  }
+});
+```
+
+### 3. Query Optimization
+
+- Use indexes on frequently queried fields: `active = boolean({ index: true })`
+- Use pagination for large result sets: `limit` and `offset` in list()
+- Use `count()` instead of `list()` when you only need the count
+- Add WHERE clauses to reduce result sets
+
+### 4. AI Response Caching
+
+Cache AI responses for expensive operations:
+```typescript
+class Document extends SmrtObject {
+  summary: string = '';
+
+  async getSummary() {
+    if (!this.summary) {
+      this.summary = await this.do('Summarize this document');
+      await this.save(); // Cache result
+    }
+    return this.summary;
+  }
+}
+```
