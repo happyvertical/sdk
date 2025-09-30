@@ -17,6 +17,64 @@ This package serves as the AI interaction layer for building intelligent agents 
 
 **Expert Agent Expertise**: When working with this package, always proactively check the latest documentation for AI provider SDKs (OpenAI, Anthropic, Google GenAI, AWS Bedrock) as they frequently add new models, features, and API changes that can enhance AI integrations and unlock new capabilities.
 
+## Architecture Overview
+
+The package is structured with clear separation of concerns:
+
+### Core Components
+
+1. **Factory Functions** (`shared/factory.ts`)
+   - `getAI()` - Primary factory for creating provider instances with explicit type
+   - `getAIAuto()` - Auto-detects provider from credentials (browser-compatible)
+   - Type guards for provider options validation
+
+2. **Provider Implementations** (`shared/providers/`)
+   - Each provider implements the `AIInterface` interface
+   - Located in: `openai.ts`, `anthropic.ts`, `gemini.ts`, `huggingface.ts`, `bedrock.ts`
+   - All providers handle error mapping to standardized error types
+   - Streaming support via async generators
+
+3. **Type Definitions** (`shared/types.ts`)
+   - `AIInterface` - Core interface all providers must implement
+   - `AIMessage` - Message structure for chat interactions
+   - `AIResponse` - Standardized response format
+   - `ChatOptions`, `CompletionOptions`, `EmbeddingOptions` - Request configuration
+   - Error classes: `AIError`, `AuthenticationError`, `RateLimitError`, etc.
+
+4. **Legacy Client** (`shared/client.ts`)
+   - Older `AIClient` and `OpenAIClient` classes (maintained for backward compatibility)
+   - `AIThread` for conversation management with references
+   - `AIMessage` class for message objects
+   - **Note**: New code should use the factory pattern (`getAI()`) instead
+
+### Key Design Patterns
+
+**Provider Pattern**: Each AI service has its own provider class implementing `AIInterface`
+```typescript
+export class OpenAIProvider implements AIInterface {
+  async chat(messages: AIMessage[], options?: ChatOptions): Promise<AIResponse>
+  async complete(prompt: string, options?: CompletionOptions): Promise<AIResponse>
+  async embed(text: string | string[], options?: EmbeddingOptions): Promise<EmbeddingResponse>
+  async *stream(messages: AIMessage[], options?: ChatOptions): AsyncIterable<string>
+  async countTokens(text: string): Promise<number>
+  async getModels(): Promise<AIModel[]>
+  async getCapabilities(): Promise<AICapabilities>
+}
+```
+
+**Factory Pattern**: Dynamic provider loading using dynamic imports
+```typescript
+// Lazy loads only the provider you need
+const provider = await getAI({ type: 'openai', apiKey: '...' });
+```
+
+**Error Mapping**: Each provider maps native API errors to standardized types
+```typescript
+private mapError(error: unknown): AIError {
+  // Maps provider-specific errors to AIError, RateLimitError, etc.
+}
+```
+
 ## Key APIs
 
 ### Creating an AI Client
@@ -367,6 +425,151 @@ async function smartProviderSelection(messages: AIMessage[]) {
 }
 ```
 
+## Important Implementation Details
+
+### Provider-Specific Message Formatting
+
+Each provider has its own message format requirements:
+
+- **OpenAI**: Uses `ChatCompletionMessageParam` with strict role types
+- **Anthropic**: Requires alternating user/assistant messages (no consecutive user messages)
+- **Gemini**: Different content structure for multi-modal inputs
+- **Hugging Face**: Converts chat messages to prompt strings using `messagesToPrompt()`
+- **Bedrock**: Varies by underlying model (Claude, Llama, etc.)
+
+The `mapMessagesToOpenAI()` and similar methods handle these conversions internally.
+
+### Token Counting
+
+Token counting varies by provider:
+- **OpenAI**: Approximation using character count (~4 chars per token) - no direct API
+- **Anthropic**: Uses SDK's token counting when available
+- **Gemini**: Uses model-specific tokenizers
+- **Others**: May use approximations
+
+For precise counting, use a dedicated tokenizer library like `tiktoken` for OpenAI.
+
+### Streaming Implementation
+
+All providers implement streaming via async generators:
+```typescript
+async *stream(messages: AIMessage[], options?: ChatOptions): AsyncIterable<string> {
+  // Yields content chunks as they arrive
+  for await (const chunk of providerStream) {
+    yield chunk.content;
+  }
+}
+```
+
+Consumers use `for await...of`:
+```typescript
+for await (const chunk of provider.stream(messages)) {
+  process.stdout.write(chunk);
+}
+```
+
+### Error Handling Strategy
+
+Each provider maps native errors to standardized types:
+- HTTP 401 → `AuthenticationError`
+- HTTP 429 → `RateLimitError` (includes retry-after when available)
+- HTTP 404 → `ModelNotFoundError`
+- HTTP 413 → `ContextLengthError`
+- Content filter triggers → `ContentFilterError`
+- Everything else → `AIError` with provider and code
+
+This allows consistent error handling across providers:
+```typescript
+try {
+  await provider.chat(messages);
+} catch (error) {
+  if (error instanceof RateLimitError) {
+    // Handle rate limiting consistently across all providers
+  }
+}
+```
+
+### Model Information and Capabilities
+
+Providers return different levels of detail for `getModels()`:
+- **OpenAI**: Fetches live model list via API
+- **Anthropic/Gemini/Bedrock**: Returns static model definitions (API doesn't provide list)
+- **Hugging Face**: Returns generic model structure
+
+Context lengths are hardcoded based on known model limits (update when new models are released).
+
+### Function Calling / Tool Usage
+
+Function calling support varies:
+- **OpenAI**: Full support with `tools` and `tool_choice` parameters
+- **Anthropic**: Supports tool use with different format
+- **Gemini**: Supports function calling with Google-specific format
+- **Bedrock**: Depends on underlying model
+- **Hugging Face**: Generally not supported (model-dependent)
+
+Each provider maps the standardized `AITool` interface to its native format.
+
+### Legacy Client Components
+
+The package includes legacy components for backward compatibility:
+
+**`AIClient` and `OpenAIClient`** (`shared/client.ts`):
+- Older static factory pattern: `await AIClient.create(options)`
+- Direct OpenAI-only implementation
+- **Deprecated**: Use `getAI()` factory for new code
+
+**`AIThread`** (`shared/thread.ts`):
+- Manages conversation state with history and references
+- Useful for building conversational agents
+- Assembles messages with proper ordering (system → references → conversation)
+- Still actively used in `@have/smrt` package
+
+**`AIMessage` class** (`shared/message.ts`):
+- Message object wrapper (different from `AIMessage` interface)
+- Used with `AIThread` for conversation management
+- Not needed when using factory pattern directly
+
+### Gotchas and Common Issues
+
+1. **Default Models**: Each provider has different defaults
+   - OpenAI: `gpt-4o`
+   - Anthropic: Must specify model explicitly
+   - Gemini: Must specify model explicitly
+   - Always set `defaultModel` in options for predictability
+
+2. **Streaming with Options**: When using `onProgress` callback, the streaming happens internally
+   ```typescript
+   // This WAITS for completion while calling onProgress
+   const response = await client.chat(messages, {
+     onProgress: (chunk) => console.log(chunk)
+   });
+
+   // This streams chunks as they arrive
+   for await (const chunk of client.stream(messages)) {
+     console.log(chunk);
+   }
+   ```
+
+3. **Message Role Requirements**:
+   - Some providers require system messages first
+   - Anthropic requires alternating user/assistant messages
+   - Tool/function messages must follow assistant tool_calls
+
+4. **Context Length Limits**:
+   - Exceeding limits throws `ContextLengthError`
+   - Check `getModels()` for model-specific limits
+   - Consider truncation or summarization strategies
+
+5. **Embeddings**:
+   - Only OpenAI provider fully supports embeddings
+   - Default model: `text-embedding-3-small`
+   - Anthropic/Claude do not support embeddings
+
+6. **Rate Limiting**:
+   - `RateLimitError` includes retry-after when available
+   - Implement exponential backoff with jitter
+   - Provider SDKs may have built-in retry logic (check `maxRetries` option)
+
 ## Dependencies
 
 The package has the following dependencies:
@@ -427,6 +630,147 @@ function selectOptimalModel(taskComplexity: 'simple' | 'medium' | 'complex') {
   return modelConfig[taskComplexity];
 }
 ```
+
+## Common Patterns and Conventions
+
+### Exports and Module Structure
+
+The package exports everything from a single entry point (`index.ts`):
+```typescript
+// Public API - use these
+export * from './shared/client';      // Legacy AIClient, OpenAIClient
+export * from './shared/factory';     // getAI(), getAIAuto()
+export { AIMessage as AIMessageClass } from './shared/message';
+export * from './shared/thread';      // AIThread
+export * from './shared/types';       // Interfaces and types
+```
+
+Provider implementations are in `shared/providers/` but not directly exported (use factory functions).
+
+### Type-Safe Provider Options
+
+Use discriminated unions for type-safe provider selection:
+```typescript
+// TypeScript knows available options based on 'type' field
+const client = await getAI({
+  type: 'anthropic',  // TypeScript narrows to AnthropicOptions
+  apiKey: '...',
+  anthropicVersion: '2023-06-01'  // Type-checked as valid for Anthropic
+});
+```
+
+### Response Format Standardization
+
+All providers return consistent `AIResponse` structure:
+```typescript
+interface AIResponse {
+  content: string;              // Generated text
+  usage?: TokenUsage;           // Token consumption
+  model?: string;               // Model that generated response
+  finishReason?: 'stop' | 'length' | 'tool_calls' | 'content_filter';
+  toolCalls?: Array<{...}>;     // Function calls made by model
+}
+```
+
+This ensures code written for one provider works with another.
+
+### Async Generator Pattern for Streaming
+
+Providers use async generators for streaming to provide clean iteration:
+```typescript
+// Provider implementation
+async *stream(messages: AIMessage[], options?: ChatOptions): AsyncIterable<string> {
+  const stream = await this.client.chat.completions.create({...});
+  for await (const chunk of stream) {
+    if (chunk.content) yield chunk.content;
+  }
+}
+
+// Consumer usage
+for await (const chunk of provider.stream(messages)) {
+  // Process each chunk as it arrives
+}
+```
+
+### Error Propagation
+
+Errors bubble up with context:
+1. Native provider error occurs
+2. Provider's `mapError()` converts to standardized error
+3. Consumer catches typed error with provider context
+```typescript
+throw new RateLimitError('openai', 60); // Provider, retry-after seconds
+```
+
+### Options Merging
+
+Provider options merge with method options:
+```typescript
+const client = await getAI({
+  type: 'openai',
+  apiKey: '...',
+  defaultModel: 'gpt-4o',      // Default for all requests
+  temperature: 0.7             // Default temperature
+});
+
+// Method options override defaults
+await client.chat(messages, {
+  model: 'gpt-3.5-turbo',      // Overrides defaultModel
+  temperature: 0.9             // Overrides default temperature
+});
+```
+
+### Dynamic Provider Loading
+
+The factory uses dynamic imports to load only needed providers:
+```typescript
+if (isOpenAIOptions(options)) {
+  const { OpenAIProvider } = await import('./providers/openai.js');
+  return new OpenAIProvider(options);
+}
+```
+
+This keeps bundle size small when not all providers are used.
+
+### Testing Patterns
+
+Tests follow these conventions:
+
+**Unit Tests**: Test provider initialization and interface compliance
+```typescript
+it('should initialize with valid options', () => {
+  const provider = new OpenAIProvider({ apiKey: 'test-key' });
+  expect(provider).toBeInstanceOf(OpenAIProvider);
+});
+```
+
+**Integration Tests**: Test real API calls (requires API keys)
+```typescript
+it('should complete chat request', async () => {
+  const provider = new OpenAIProvider({
+    apiKey: process.env.OPENAI_API_KEY!
+  });
+  const response = await provider.chat([...]);
+  expect(response.content).toBeTruthy();
+}, 30000); // Longer timeout for real API calls
+```
+
+**Provider-Specific Tests**: Test unique provider features
+```typescript
+it('should convert messages to prompt correctly', () => {
+  // HuggingFace-specific test
+  const prompt = (provider as any).messagesToPrompt(messages);
+  expect(prompt).toBe('Human: Hello\nAssistant:');
+});
+```
+
+### Naming Conventions
+
+- **Interfaces**: PascalCase with `AI` prefix (`AIInterface`, `AIMessage`, `AIResponse`)
+- **Options**: PascalCase with `Options` suffix (`ChatOptions`, `OpenAIOptions`)
+- **Providers**: PascalCase with `Provider` suffix (`OpenAIProvider`, `GeminiProvider`)
+- **Factory functions**: camelCase (`getAI`, `getAIAuto`)
+- **Private methods**: camelCase with descriptive names (`mapMessagesToOpenAI`, `mapError`)
 
 ### Adding New AI Providers
 
@@ -667,3 +1011,172 @@ const client = await getAI({
 ```
 
 This package provides the AI interaction foundation needed by intelligent agents to work effectively across multiple AI providers while maintaining consistency, performance, and cost efficiency.
+
+## Quick Reference
+
+### File Locations
+
+```
+packages/ai/src/
+├── index.ts                    # Main entry point - exports everything
+├── shared/
+│   ├── factory.ts             # getAI(), getAIAuto() factory functions
+│   ├── types.ts               # Core interfaces and types
+│   ├── client.ts              # Legacy AIClient, OpenAIClient (backward compat)
+│   ├── message.ts             # AIMessage class for AIThread
+│   ├── thread.ts              # AIThread for conversation management
+│   └── providers/
+│       ├── openai.ts          # OpenAI provider implementation
+│       ├── anthropic.ts       # Anthropic Claude provider
+│       ├── gemini.ts          # Google Gemini provider
+│       ├── huggingface.ts     # Hugging Face provider
+│       └── bedrock.ts         # AWS Bedrock provider
+├── integration.test.ts        # Integration tests (requires API keys)
+├── providers.test.ts          # Unit tests for all providers
+└── types.test.ts              # Type definition tests
+```
+
+### Key Types and Interfaces
+
+```typescript
+// Core provider interface
+interface AIInterface {
+  chat(messages: AIMessage[], options?: ChatOptions): Promise<AIResponse>
+  complete(prompt: string, options?: CompletionOptions): Promise<AIResponse>
+  embed(text: string | string[], options?: EmbeddingOptions): Promise<EmbeddingResponse>
+  stream(messages: AIMessage[], options?: ChatOptions): AsyncIterable<string>
+  countTokens(text: string): Promise<number>
+  getModels(): Promise<AIModel[]>
+  getCapabilities(): Promise<AICapabilities>
+}
+
+// Message structure
+interface AIMessage {
+  role: 'system' | 'user' | 'assistant' | 'function' | 'tool'
+  content: string
+  name?: string
+  tool_calls?: Array<{...}>
+}
+
+// Standardized response
+interface AIResponse {
+  content: string
+  usage?: TokenUsage
+  model?: string
+  finishReason?: 'stop' | 'length' | 'tool_calls' | 'content_filter'
+  toolCalls?: Array<{...}>
+}
+
+// Provider options (discriminated union)
+type GetAIOptions =
+  | OpenAIOptions
+  | GeminiOptions
+  | AnthropicOptions
+  | HuggingFaceOptions
+  | BedrockOptions
+```
+
+### Common Commands
+
+```bash
+# Run all tests
+bun test
+
+# Run tests in watch mode
+bun test:watch
+
+# Run integration tests (requires API keys)
+OPENAI_API_KEY=xxx bun test integration
+
+# Build package
+bun run build
+
+# Build in watch mode
+bun run build:watch
+
+# Generate documentation
+npm run docs
+
+# Clean build artifacts
+npm run clean
+```
+
+### Quick Usage Examples
+
+```typescript
+// Basic usage
+import { getAI } from '@have/ai';
+const client = await getAI({ type: 'openai', apiKey: '...' });
+const response = await client.chat([{ role: 'user', content: 'Hello' }]);
+
+// Streaming
+for await (const chunk of client.stream([{ role: 'user', content: 'Tell a story' }])) {
+  process.stdout.write(chunk);
+}
+
+// Error handling
+import { RateLimitError, AuthenticationError } from '@have/ai';
+try {
+  await client.chat(messages);
+} catch (error) {
+  if (error instanceof RateLimitError) {
+    // Handle rate limiting
+  } else if (error instanceof AuthenticationError) {
+    // Handle authentication error
+  }
+}
+
+// Function calling
+const response = await client.chat(messages, {
+  tools: [{ type: 'function', function: { name: 'get_weather', ... } }],
+  toolChoice: 'auto'
+});
+
+// Legacy AIThread for conversations
+import { AIThread } from '@have/ai';
+const thread = await AIThread.create({ ai: { type: 'openai', apiKey: '...' } });
+await thread.addSystem('You are a helpful assistant');
+await thread.add({ role: 'user', content: 'Hello' });
+const response = await thread.do('What is TypeScript?');
+```
+
+### Important Notes for Development
+
+1. **Use Factory Pattern**: Prefer `getAI()` over direct instantiation or legacy `AIClient.create()`
+2. **Provider Loading**: Factory uses dynamic imports - only loads providers you use
+3. **Error Mapping**: All providers map to standardized error types for consistent handling
+4. **Streaming**: Use async generators (`for await...of`) for real-time streaming
+5. **Token Counting**: Approximations only - use dedicated tokenizers for precision
+6. **Testing**: Unit tests use mock/fake data, integration tests require real API keys
+7. **Type Safety**: Use discriminated unions - TypeScript narrows options based on `type` field
+8. **Backward Compatibility**: Legacy `AIClient`, `AIThread`, `AIMessage` class still supported
+9. **Dependencies**: Only depends on `@have/utils` internally + provider SDKs externally
+10. **Documentation**: Auto-generated API docs in `docs/` using TypeDoc
+
+### When to Use What
+
+**Use `getAI()` + provider methods** when:
+- Building new AI integrations
+- Need multi-provider support
+- Want modern async/await patterns
+- Need streaming capabilities
+
+**Use `AIThread`** when:
+- Building conversational agents
+- Need conversation state management
+- Want to include reference materials
+- Working with existing SMRT codebase
+
+**Use legacy `AIClient`** when:
+- Maintaining existing code
+- Backward compatibility required
+- Direct OpenAI-only usage
+
+### Performance Considerations
+
+- **Lazy Loading**: Providers loaded on-demand via dynamic imports
+- **Streaming**: Reduces time-to-first-token for long responses
+- **Token Counting**: Approximations avoid extra API calls
+- **Error Handling**: Built-in retry logic (configure via `maxRetries` option)
+- **Connection Pooling**: Provider SDKs handle connection reuse
+- **Rate Limiting**: Respect provider limits, implement exponential backoff

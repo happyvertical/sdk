@@ -2,7 +2,7 @@
 
 ## Purpose and Responsibilities
 
-The `@have/sql` package provides a standardized interface for SQL database operations, with specific support for SQLite and PostgreSQL. It is designed to:
+The `@have/sql` package provides a standardized interface for SQL database operations, with specific support for SQLite (via LibSQL) and PostgreSQL. It is designed to:
 
 - Abstract away database-specific implementation details while maintaining direct SQL access
 - Provide a consistent API for common database operations across multiple database engines
@@ -10,11 +10,37 @@ The `@have/sql` package provides a standardized interface for SQL database opera
 - Handle query building and parameter binding securely to prevent SQL injection
 - Enable vector search capabilities with SQLite-VSS for AI workloads
 - Offer both high-level object-relational methods and low-level SQL execution
-- Support both browser and Node.js environments with optimized builds
+- Support Node.js environments with optimized builds (browser builds removed in favor of focused Node.js development)
+- Provide JSON manifest-based schema management with dependency resolution
 
 Unlike full-featured ORMs, this package is intentionally lightweight, focusing on providing just enough abstraction while maintaining direct SQL access when needed for performance-critical operations.
 
 **Expert Agent Expertise**: When working with this package, always proactively check the latest documentation for foundational libraries (@libsql/client, sqlite-vss, pg) as they frequently add new features, performance improvements, and vector search capabilities that can enhance database solutions.
+
+## Architecture Overview
+
+### Core Components
+
+1. **index.ts**: Entry point with unified `getDatabase()` function and shared utilities
+2. **sqlite.ts**: LibSQL adapter with support for in-memory, file-based, and remote (Turso) databases
+3. **postgres.ts**: PostgreSQL adapter with connection pooling
+4. **schema-manager.ts**: JSON manifest-based schema management with dependency resolution
+5. **shared/types.ts**: TypeScript interfaces and type definitions
+6. **shared/utils.ts**: Shared utilities including `buildWhere()` function
+
+### Database Auto-Detection
+
+The package automatically detects database type from connection URLs:
+- URLs starting with `file:` or `:memory:` → SQLite
+- Otherwise requires explicit `type: 'postgres'` or `type: 'sqlite'`
+
+### Parameter Placeholder Differences
+
+**Critical Implementation Detail**: The package handles parameter placeholders differently:
+- **SQLite**: Uses `?` placeholders (positional)
+- **PostgreSQL**: Uses `$1, $2, $3...` placeholders (numbered)
+
+All template literal methods (`many`, `single`, `pluck`, `execute`) automatically handle this difference.
 
 ## Key APIs
 
@@ -61,16 +87,18 @@ const dbFromUrl = await getDatabase({
 
 ### Template Literal Queries (Recommended)
 
+Template literal queries provide safe parameter binding with an intuitive syntax. The package automatically handles database-specific placeholder formats.
+
 ```typescript
-// Get a single value with type safety
+// Get a single value (first column of first row)
 const userCount = await db.pluck`SELECT COUNT(*) FROM users WHERE active = ${true}`;
 const userCount2 = await db.ox`SELECT COUNT(*) FROM users WHERE active = ${true}`; // alias
 
-// Get a single record
+// Get a single record (first row as object)
 const user = await db.single`SELECT * FROM users WHERE id = ${userId}`;
 const user2 = await db.oO`SELECT * FROM users WHERE id = ${userId}`; // alias
 
-// Get multiple records
+// Get multiple records (array of objects)
 const activeUsers = await db.many`SELECT * FROM users WHERE status = ${'active'}`;
 const activeUsers2 = await db.oo`SELECT * FROM users WHERE status = ${'active'}`; // alias
 
@@ -78,6 +106,12 @@ const activeUsers2 = await db.oo`SELECT * FROM users WHERE status = ${'active'}`
 await db.execute`UPDATE users SET last_login = ${new Date()} WHERE id = ${userId}`;
 await db.xx`UPDATE users SET last_login = ${new Date()} WHERE id = ${userId}`; // alias
 ```
+
+**Query Method Naming Convention**:
+- `many` / `oo` → (o)bjective-(o)bjects: returns multiple rows
+- `single` / `oO` → (o)bjective-(O)bject: returns a single row
+- `pluck` / `ox` → (o)bjective-(x): returns a single value
+- `execute` / `xx` → e(x)ecute-e(x)ecute: executes without returning results
 
 ### Raw Query Operations
 
@@ -168,6 +202,8 @@ const activeUsers = await usersTable.list({ status: 'active' });
 
 ### Schema Synchronization
 
+#### Legacy SQL DDL Schema (String-based)
+
 ```typescript
 import { syncSchema } from '@have/sql';
 
@@ -181,7 +217,7 @@ const schemaSQL = `
     created_at TEXT,
     updated_at TEXT
   );
-  
+
   CREATE TABLE IF NOT EXISTS posts (
     id TEXT PRIMARY KEY,
     user_id TEXT REFERENCES users(id),
@@ -198,6 +234,90 @@ await syncSchema({ db, schema: schemaSQL });
 // Check if table exists
 const exists = await db.tableExists('users');
 ```
+
+#### Modern JSON Manifest Schema (Recommended)
+
+The package now supports JSON manifest-based schema management with automatic dependency resolution:
+
+```typescript
+import { DatabaseSchemaManager } from '@have/sql';
+
+// Define schema manifest
+const manifest = {
+  version: '1.0.0',
+  timestamp: Date.now(),
+  packageName: '@myapp/database',
+  schemas: {
+    users: {
+      tableName: 'users',
+      version: '1.0.0',
+      packageName: '@myapp/database',
+      dependencies: [],
+      columns: {
+        id: { type: 'TEXT', primaryKey: true },
+        name: { type: 'TEXT', notNull: true },
+        email: { type: 'TEXT', unique: true },
+        status: { type: 'TEXT', defaultValue: "'active'" },
+        created_at: { type: 'TEXT' }
+      },
+      indexes: [
+        { name: 'idx_users_email', columns: ['email'], unique: true }
+      ],
+      triggers: [],
+      foreignKeys: []
+    },
+    posts: {
+      tableName: 'posts',
+      version: '1.0.0',
+      packageName: '@myapp/database',
+      dependencies: ['users'], // Will be initialized after users
+      columns: {
+        id: { type: 'TEXT', primaryKey: true },
+        user_id: { type: 'TEXT', notNull: true },
+        title: { type: 'TEXT', notNull: true },
+        content: { type: 'TEXT' },
+        published: { type: 'BOOLEAN', defaultValue: 'false' }
+      },
+      indexes: [
+        { name: 'idx_posts_user_id', columns: ['user_id'] }
+      ],
+      triggers: [],
+      foreignKeys: [
+        {
+          column: 'user_id',
+          referencesTable: 'users',
+          referencesColumn: 'id',
+          onDelete: 'CASCADE'
+        }
+      ]
+    }
+  },
+  dependencies: []
+};
+
+// Initialize schemas with dependency resolution
+await db.initializeSchemas({
+  manifest,
+  force: false,  // Set to true to recreate tables
+  debug: true    // Enable debug logging
+});
+
+// Or use schema overrides to extend base schemas
+await db.initializeSchemas({
+  manifest: baseManifest,
+  overrides: {
+    users: customUserSchema  // Override specific schemas
+  }
+});
+```
+
+**Schema Management Features**:
+- Automatic dependency resolution via topological sort
+- Circular dependency detection
+- Schema versioning and up-to-date checks
+- Concurrent initialization locking
+- Force recreation option
+- Column, index, trigger, and foreign key support
 
 ### Vector Search with SQLite-VSS
 
@@ -248,9 +368,38 @@ const filteredResults = await db.many`
 `;
 ```
 
+### Transaction Support
+
+Both SQLite and PostgreSQL adapters support transactions with automatic rollback on errors:
+
+```typescript
+// Transaction automatically commits on success, rolls back on error
+await db.transaction(async (tx) => {
+  // All operations use the transaction context
+  await tx.insert('users', userData);
+  await tx.insert('profiles', profileData);
+  await tx.update('accounts', { user_id: userId }, { balance: newBalance });
+
+  // Template literal queries work too
+  const user = await tx.single`SELECT * FROM users WHERE id = ${userId}`;
+
+  // Any error will trigger automatic rollback
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  // Commits automatically when callback completes successfully
+});
+```
+
+**Transaction Implementation Notes**:
+- **SQLite**: Reuses the same client with BEGIN/COMMIT/ROLLBACK
+- **PostgreSQL**: Gets a dedicated client from the pool for the transaction
+- Both implementations provide the full `DatabaseInterface` within the transaction context
+
 ### Error Handling
 
-The package provides structured error handling with context information:
+The package provides structured error handling with context information via `DatabaseError` from `@have/utils`:
 
 ```typescript
 import { DatabaseError } from '@have/utils';
@@ -277,36 +426,140 @@ try {
   }
 }
 
-// Example with transaction error handling
+// Transaction errors are caught and transaction is rolled back
 try {
   await db.transaction(async (tx) => {
     await tx.insert('users', userData);
     await tx.insert('profiles', profileData);
-    // If any operation fails, transaction rolls back automatically
   });
 } catch (error) {
-  // Transaction was rolled back
+  // Transaction was automatically rolled back
   console.error('Transaction failed:', error.message);
-  // Handle the error appropriately
 }
 ```
+
+**Error Context Fields**:
+- `sql`: The SQL query that failed
+- `values` or `args`: Parameter values used in the query
+- `table`: Table name (for table-specific operations)
+- `originalError`: The original error from the database driver
+
+## Important Implementation Details and Gotchas
+
+### Database Instance Detection
+
+The `getDatabase()` function can accept either configuration options OR an existing database instance:
+
+```typescript
+// Pass configuration - creates new instance
+const db1 = await getDatabase({ type: 'sqlite', url: ':memory:' });
+
+// Pass existing instance - returns it unchanged
+const db2 = await getDatabase(db1); // Returns db1
+
+// This allows flexible function signatures that work with both
+async function doWork(dbOrConfig: DatabaseInterface | GetDatabaseOptions) {
+  const db = await getDatabase(dbOrConfig); // Works with both!
+  // ...
+}
+```
+
+### LibSQL Client Import Strategy
+
+The SQLite adapter uses a special import strategy to avoid bundling issues:
+
+```typescript
+// Uses @vite-ignore to prevent Vite from bundling the client
+const libsqlClient = '@libsql/client';
+const { createClient } = await import(/* @vite-ignore */ libsqlClient);
+```
+
+This ensures proper Node.js runtime resolution for in-memory databases.
+
+### buildWhere() Placeholder Offset
+
+The `buildWhere()` utility accepts a `startIndex` parameter for PostgreSQL:
+
+```typescript
+// SQLite - no offset needed (uses ?)
+const { sql, values } = buildWhere({ status: 'active' });
+// sql: "WHERE status = $1"
+
+// PostgreSQL - specify starting index
+const { sql, values } = buildWhere({ status: 'active' }, 5);
+// sql: "WHERE status = $5"
+// Useful when building queries with existing parameters
+```
+
+### Schema Sync Parsing Limitations
+
+The legacy `syncSchema()` function has specific parsing requirements:
+
+- CREATE TABLE statements must match the regex pattern: `/CREATE TABLE (IF NOT EXISTS )?(\w+) \(([\s\S]+)\)/i`
+- Columns must be comma-newline separated (`,\n`)
+- Column definitions must match: `/(\w+)\s+(\w+[^,]*)/`
+- Constraint keywords (PRIMARY, FOREIGN, UNIQUE, CHECK, CONSTRAINT) are skipped during column detection
+
+**Recommendation**: Use JSON manifest-based schema management for complex schemas.
+
+### Transaction Client Handling
+
+**PostgreSQL** transactions acquire a dedicated client from the pool:
+- Client is acquired at transaction start
+- Released in `finally` block after commit/rollback
+- Proper cleanup even if errors occur
+
+**SQLite** transactions reuse the same client:
+- Uses BEGIN/COMMIT/ROLLBACK on the existing connection
+- No separate transaction client needed
+
+### Environment Variables for PostgreSQL
+
+The PostgreSQL adapter checks these environment variables as defaults:
+
+```typescript
+SQLOO_URL       // Connection string (takes precedence)
+SQLOO_DATABASE  // Database name
+SQLOO_HOST      // Host (default: 'localhost')
+SQLOO_USER      // Username
+SQLOO_PASSWORD  // Password
+SQLOO_PORT      // Port (default: 5432)
+```
+
+Options passed to `getDatabase()` override environment variables.
+
+### Type Coercion Differences
+
+**SQLite** (via LibSQL):
+- Returns numbers as numbers
+- Returns booleans as 0/1
+- Returns NULL as null
+- All column names preserved as-is
+
+**PostgreSQL** (via node-postgres):
+- Has built-in type parsers for common PostgreSQL types
+- Automatically parses dates, arrays, JSON
+- Can be configured with custom type parsers
 
 ## Dependencies
 
 The package has the following dependencies:
 
 ### Internal Dependencies
-- `@have/utils`: For shared utilities and error handling
+- `@have/utils`: For shared utilities and `DatabaseError` error handling
 
 ### External Dependencies
-- `@libsql/client`: LibSQL client for SQLite compatibility with extensions
-- `sqlite-vss`: Vector similarity search for SQLite databases
-- `pg`: PostgreSQL client for Node.js with connection pooling
+- `@libsql/client` (^0.14.0): LibSQL client for SQLite compatibility with extensions and remote databases
+- `sqlite-vss` (^0.1.2): Vector similarity search for SQLite databases
+- `pg` (^8.13.1): PostgreSQL client for Node.js with connection pooling
 
 ### Development Dependencies
-- `@types/node`: TypeScript definitions for Node.js
-- `@types/pg`: TypeScript definitions for PostgreSQL client
-- `vitest`: Testing framework for unit and integration tests
+- `@types/node` (^24.0.0): TypeScript definitions for Node.js
+- `@types/pg` (^8.11.10): TypeScript definitions for PostgreSQL client
+- `typescript` (^5.7.3): TypeScript compiler
+- `vite` (7.1.3): Build tool
+- `vite-plugin-dts` (4.3.0): TypeScript declaration file generation
+- `vitest` (^3.2.4): Testing framework for unit and integration tests
 
 ## Development Guidelines
 
@@ -536,3 +789,195 @@ await db.execute`CREATE VIRTUAL TABLE embeddings USING vss0(...)`;
 - **Vector extensions** - pgvector for vector similarity search
 
 This package provides a robust foundation for data persistence in the HAVE SDK, designed to be lightweight yet powerful enough for AI-driven applications requiring both traditional relational operations and modern vector search capabilities.
+
+## Quick Reference
+
+### Complete DatabaseInterface Methods
+
+```typescript
+interface DatabaseInterface {
+  // Raw database client (LibSQL Client or pg.Pool)
+  client: any;
+
+  // Object-relational methods
+  insert(table: string, data: Record<string, any> | Record<string, any>[]): Promise<QueryResult>;
+  get(table: string, where: Record<string, any>): Promise<Record<string, any> | null>;
+  list(table: string, where: Record<string, any>): Promise<Record<string, any>[]>;
+  update(table: string, where: Record<string, any>, data: Record<string, any>): Promise<QueryResult>;
+  getOrInsert(table: string, where: Record<string, any>, data: Record<string, any>): Promise<Record<string, any>>;
+
+  // Table interface factory
+  table(name: string): TableInterface;
+
+  // Template literal queries
+  many(strings: TemplateStringsArray, ...vars: any[]): Promise<Record<string, any>[]>;
+  single(strings: TemplateStringsArray, ...vars: any[]): Promise<Record<string, any> | null>;
+  pluck(strings: TemplateStringsArray, ...vars: any[]): Promise<any>;
+  execute(strings: TemplateStringsArray, ...vars: any[]): Promise<void>;
+
+  // Template literal query aliases
+  oo(strings: TemplateStringsArray, ...vars: any[]): Promise<Record<string, any>[]>;
+  oO(strings: TemplateStringsArray, ...vars: any[]): Promise<Record<string, any> | null>;
+  ox(strings: TemplateStringsArray, ...vars: any[]): Promise<any>;
+  xx(strings: TemplateStringsArray, ...vars: any[]): Promise<void>;
+
+  // Raw query execution
+  query(sql: string, ...vars: any[]): Promise<{ rows: Record<string, any>[]; rowCount: number }>;
+
+  // Schema management
+  tableExists(table: string): Promise<boolean>;
+  syncSchema?(schema: string): Promise<void>;
+  initializeSchemas?(options: SchemaInitializationOptions): Promise<void>;
+
+  // Transaction support
+  transaction?<T>(callback: (tx: DatabaseInterface) => Promise<T>): Promise<T>;
+}
+```
+
+### Exported Functions and Classes
+
+```typescript
+// Main exports from @have/sql
+export {
+  getDatabase,           // Factory function for database instances
+  syncSchema,            // Legacy SQL DDL schema sync
+  tableExists,           // Check if table exists
+  buildWhere,            // Build WHERE clause from object
+  escapeSqlValue,        // Escape values for SQL
+  validateColumnName,    // Validate column names
+  DatabaseSchemaManager  // JSON manifest schema manager
+};
+
+// Type exports
+export type {
+  DatabaseInterface,
+  TableInterface,
+  QueryResult,
+  SchemaManifest,
+  SchemaDefinition,
+  ColumnDefinition,
+  IndexDefinition,
+  TriggerDefinition,
+  ForeignKeyDefinition,
+  SchemaInitializationOptions,
+  SchemaInitializationResult
+};
+```
+
+### Common Usage Patterns
+
+```typescript
+// Pattern: Safe dynamic queries with buildWhere
+import { buildWhere } from '@have/sql';
+
+const filters = {
+  'status': 'active',
+  'price >=': minPrice,
+  'price <': maxPrice,
+  'category in': ['electronics', 'books'],
+  'deleted_at': null
+};
+
+const { sql: whereClause, values } = buildWhere(filters);
+const products = await db.many`SELECT * FROM products ${whereClause}`;
+
+// Pattern: Batch inserts for performance
+const records = Array.from({ length: 1000 }, (_, i) => ({
+  id: `item-${i}`,
+  name: `Item ${i}`,
+  value: Math.random() * 100
+}));
+await db.insert('items', records);
+
+// Pattern: Upsert (get or insert)
+const user = await db.getOrInsert(
+  'users',
+  { email: 'user@example.com' },
+  { id: generateId(), email: 'user@example.com', name: 'New User' }
+);
+
+// Pattern: Table-scoped operations
+const usersTable = db.table('users');
+await usersTable.insert({ id: '1', name: 'Alice' });
+const alice = await usersTable.get({ id: '1' });
+const allUsers = await usersTable.list({});
+
+// Pattern: Complex transaction with error handling
+try {
+  const result = await db.transaction(async (tx) => {
+    const order = await tx.single`
+      INSERT INTO orders (id, user_id, total)
+      VALUES (${orderId}, ${userId}, ${total})
+      RETURNING *
+    `;
+
+    for (const item of items) {
+      await tx.insert('order_items', {
+        order_id: orderId,
+        product_id: item.productId,
+        quantity: item.quantity
+      });
+    }
+
+    await tx.execute`
+      UPDATE users
+      SET order_count = order_count + 1
+      WHERE id = ${userId}
+    `;
+
+    return order;
+  });
+  console.log('Order created:', result);
+} catch (error) {
+  console.error('Transaction failed, all changes rolled back:', error);
+}
+
+// Pattern: Vector search with metadata filtering
+const results = await db.many`
+  SELECT d.*, v.distance
+  FROM document_embeddings d
+  JOIN (
+    SELECT rowid, distance
+    FROM document_embeddings
+    WHERE vss_search(embedding, ${queryEmbedding})
+    LIMIT 100
+  ) v ON d.rowid = v.rowid
+  WHERE JSON_EXTRACT(d.metadata, '$.category') = ${category}
+    AND JSON_EXTRACT(d.metadata, '$.language') = ${language}
+  ORDER BY v.distance
+  LIMIT ${limit}
+`;
+```
+
+### Testing Utilities
+
+```typescript
+// In-memory database for tests
+import { getDatabase } from '@have/sql';
+
+const testDb = await getDatabase({ type: 'sqlite', url: ':memory:' });
+
+// Create test schema
+await testDb.execute`
+  CREATE TABLE test_table (
+    id TEXT PRIMARY KEY,
+    data TEXT
+  )
+`;
+
+// Run tests...
+
+// Cleanup (drop tables if needed)
+await testDb.execute`DROP TABLE IF EXISTS test_table`;
+```
+
+### Performance Tips
+
+1. **Use batch inserts** for multiple records: `db.insert('table', arrayOfRecords)`
+2. **Create indexes** on frequently queried columns: `CREATE INDEX idx_name ON table(column)`
+3. **Use transactions** for multiple related operations to ensure atomicity
+4. **Prefer template literals** (`db.many`) over object methods for complex queries
+5. **Use buildWhere()** for dynamic filtering instead of string concatenation
+6. **Enable WAL mode** for SQLite to improve concurrency: `PRAGMA journal_mode=WAL`
+7. **Use connection pooling** for PostgreSQL (automatically handled by pg.Pool)
+8. **Consider prepared statements** for frequently executed queries (via raw `query()` method)
