@@ -2,18 +2,24 @@
 
 ## Purpose and Responsibilities
 
-The `@have/pdf` package provides comprehensive tools for working with PDF documents, designed with environment-aware provider selection and intelligent fallback strategies. It focuses on:
+The `@have/pdf` package provides comprehensive tools for working with PDF documents in Node.js environments, combining direct text extraction with intelligent OCR fallback. It focuses on:
 
-- Multi-provider PDF text extraction with automatic fallback
-- OCR capabilities for image-based and scanned PDFs  
-- Metadata extraction and document analysis
-- Cross-platform support (Node.js and browser environments)
-- Intelligent provider selection based on runtime environment
-- Performance optimization for large document processing
+- **Text Extraction**: Direct extraction from text-based PDFs using unpdf
+- **OCR Integration**: Automatic fallback to OCR for image-based/scanned PDFs via @have/ocr
+- **Smart Analysis**: Document analysis with processing strategy recommendations (text/ocr/hybrid)
+- **Metadata Extraction**: Comprehensive PDF metadata (title, author, dates, encryption status)
+- **Image Extraction**: Extract images for OCR processing or display
+- **Error Resilience**: Graceful handling of corrupted, malformed, or encrypted PDFs
 
-This package is particularly useful for AI agents that need to analyze document content, extract information from PDFs, process document collections, and handle diverse PDF formats including both text-based and image-based documents.
+This package is particularly useful for AI agents that need to analyze document content, extract information from diverse PDF formats, and intelligently handle both text-based and image-based documents.
 
-**Expert Agent Expertise**: When working with this package, always proactively check the latest documentation for foundational libraries (unpdf, tesseract.js, and related OCR libraries) as they frequently add new features, performance improvements, and language support that can enhance PDF processing solutions.
+**Expert Agent Expertise**: When working with this package, always proactively check the latest documentation for foundational libraries (unpdf and @have/ocr) as they frequently add new features, performance improvements, and language support that can enhance PDF processing solutions.
+
+## Current Implementation Status
+
+- **Node.js**: ✅ Fully implemented with unpdf + OCR integration
+- **Browser**: ⚠️ Planned for future releases (PDF.js provider stubbed but not implemented)
+- **Environment Detection**: ✅ Automatic provider selection based on runtime
 
 ## Key APIs
 
@@ -266,49 +272,86 @@ const reader = await getPDFReader();
 const text = await reader.extractText('/path/to/document.pdf');
 ```
 
+## Architecture and Code Organization
+
+### Provider Architecture
+
+The package uses a **provider pattern** with environment-aware selection:
+
+```
+src/
+├── index.ts                 # Main entry point with legacy compatibility
+├── shared/
+│   ├── types.ts            # Comprehensive TypeScript interfaces and error classes
+│   ├── base.ts             # BasePDFReader abstract class (ENOTSUP pattern)
+│   └── factory.ts          # getPDFReader() factory with auto-detection
+├── node/
+│   ├── unpdf.ts            # UnpdfProvider - direct PDF processing
+│   └── combined.ts         # CombinedNodeProvider - unpdf + OCR integration
+└── browser/
+    ├── pdfjs.ts            # PDF.js provider (planned, not implemented)
+    ├── combined.ts         # Browser combined provider (planned)
+    └── factory.ts          # Browser factory (planned)
+```
+
+### Key Classes and Their Roles
+
+1. **BasePDFReader** (`src/shared/base.ts`)
+   - Abstract base class for all providers
+   - Default implementations throw `PDFUnsupportedError`
+   - Provides helper methods: `normalizeSource()`, `validatePDFData()`, `normalizePages()`, etc.
+   - Pattern: Only override methods the provider supports
+
+2. **UnpdfProvider** (`src/node/unpdf.ts`)
+   - Direct PDF processing using unpdf library
+   - Handles: text extraction, metadata, image extraction
+   - Does NOT support OCR (throws PDFUnsupportedError)
+   - Lazy-loads unpdf to minimize bundle size
+
+3. **CombinedNodeProvider** (`src/node/combined.ts`)
+   - **Primary Node.js provider** - delegates to UnpdfProvider + @have/ocr
+   - Intelligent fallback: tries text extraction first, then OCR if needed
+   - `extractText()` with automatic OCR fallback (unless `skipOCRFallback: true`)
+   - Combines capabilities from both unpdf and OCR providers
+
+4. **Factory Functions** (`src/shared/factory.ts`)
+   - `getPDFReader()` - Main entry point, auto-detects environment
+   - `getAvailableProviders()` - Returns available providers for current environment
+   - `isProviderAvailable()` - Check specific provider availability
+   - `getProviderInfo()` - Get detailed provider capabilities and status
+   - `initializeProviders()` - Warm up providers (called on module load)
+
+### Type System
+
+All types are defined in `src/shared/types.ts`:
+
+- **Interfaces**: `PDFReader`, `PDFMetadata`, `PDFImage`, `PDFInfo`, `PDFCapabilities`, `ExtractTextOptions`
+- **Error Classes**: `PDFError`, `PDFUnsupportedError`, `PDFDependencyError`
+- **Re-exports from @have/ocr**: `OCROptions`, `OCRResult`, `DependencyCheckResult`
+
 ## Dependencies
 
-The package uses different providers based on the runtime environment:
+### Runtime Dependencies
 
-### Node.js Environment
-- **unpdf**: Modern serverless-optimized PDF processing library for text, metadata, and image extraction
-- **@have/ocr**: Internal OCR package providing multiple OCR provider support (tesseract.js, EasyOCR)
+1. **unpdf** (external, npm)
+   - Version: ^1.0.6
+   - Purpose: PDF parsing, text extraction, metadata, image extraction
+   - Node.js only, lazy-loaded for performance
+   - Used by: `UnpdfProvider`
 
-### Browser Environment
-- **Not currently implemented**: Browser support is planned for future releases
-
-### Internal Workspace Dependencies
-- **@have/ocr**: Internal workspace dependency for OCR capabilities
+2. **@have/ocr** (internal workspace)
+   - Version: workspace:*
+   - Purpose: OCR processing with multiple provider support
+   - Provides: OCR factory, language support, image preprocessing
+   - Used by: `CombinedNodeProvider`
 
 ### System Requirements
 
-OCR functionality has different requirements based on the environment:
+- **Node.js 18+** (Node.js 24+ recommended)
+- **Memory**: 2GB+ recommended for OCR processing
+- **OCR Dependencies**: Managed by @have/ocr (see @have/ocr documentation)
 
-#### Node.js OCR Requirements
-- **Node.js v18+**: Required for all operations (Node.js 24+ recommended)
-- **Memory**: Sufficient RAM for processing large images (2GB+ recommended for OCR)
-- **@have/ocr Dependencies**: Automatically managed through internal workspace dependency
-
-### Platform-Specific Installation
-
-Since @have/pdf is part of the HAVE SDK monorepo, all dependencies are managed through the workspace:
-
-**All Platforms:**
-```bash
-# Install workspace dependencies (from SDK root)
-bun install
-
-# Build the PDF package
-bun run build
-```
-
-**Additional OCR Dependencies** (handled by @have/ocr):
-- System-specific OCR libraries are automatically managed
-- See @have/ocr documentation for enhanced OCR setup options
-
-### Dependency Validation
-
-The package includes comprehensive dependency checking:
+### Dependency Validation Pattern
 
 ```typescript
 import { getPDFReader } from '@have/pdf';
@@ -317,16 +360,16 @@ const reader = await getPDFReader();
 
 // Check all dependencies
 const deps = await reader.checkDependencies();
-console.log('PDF processing available:', deps.available);
-console.log('Dependency details:', deps.details);
+console.log('Available:', deps.available);
+console.log('Details:', deps.details); // { unpdf: true, ocr: true, ocrProviders: 1 }
 
 // Check specific capabilities
 const capabilities = await reader.checkCapabilities();
 console.log('Can extract text:', capabilities.canExtractText);
 console.log('Can perform OCR:', capabilities.canPerformOCR);
-console.log('Supported OCR languages:', capabilities.ocrLanguages);
+console.log('OCR languages:', capabilities.ocrLanguages);
 
-// Graceful degradation example
+// Graceful degradation
 if (!capabilities.canPerformOCR) {
   console.warn('OCR not available - text-based PDFs only');
 }
@@ -334,90 +377,45 @@ if (!capabilities.canPerformOCR) {
 
 ## Development Guidelines
 
-### Environment-Aware Development
+### Core Patterns and Conventions
 
-- Design providers for both Node.js and browser environments
-- Use environment detection to select appropriate providers automatically
-- Implement graceful degradation when dependencies are unavailable
-- Test across different runtime environments (Node.js, browsers, edge)
+1. **Factory Pattern for Provider Selection**
+   - Always use `getPDFReader()` - never instantiate providers directly
+   - Factory handles environment detection and provider initialization
+   - Supports explicit provider selection for testing: `{ provider: 'unpdf' }`
 
-### PDF Processing Strategy
+2. **ENOTSUP Error Pattern** (borrowed from @have/files)
+   - Base class methods throw `PDFUnsupportedError` by default
+   - Providers only override methods they support
+   - Consistent error handling across all unsupported operations
 
-- Implement intelligent fallback: text extraction → OCR → error handling
-- Stream large PDFs to manage memory usage effectively
-- Handle different PDF versions and features gracefully
-- Implement proper timeout mechanisms for long-running operations
-- Cache results when appropriate to avoid repeated processing
+3. **Lazy Loading for Performance**
+   - unpdf is lazy-loaded via dynamic import in `loadUnpdf()`
+   - OCR factory is created but not initialized until first use
+   - Minimizes startup time and bundle size
 
-### OCR Provider Architecture
+4. **Intelligent Fallback Strategy**
+   - `CombinedNodeProvider.extractText()` tries direct extraction first
+   - Falls back to OCR only if no text found and `skipOCRFallback !== true`
+   - Logs fallback attempts for debugging: "No direct text found, attempting OCR fallback..."
 
-- Design OCR providers with standardized interfaces
-- Implement multi-provider fallback (EasyOCR → Tesseract.js)
-- Pre-process images for optimal OCR accuracy
-- Consider language-specific models for better results
-- Handle confidence thresholds intelligently
+5. **Source Normalization**
+   - `normalizeSource()` converts file paths, ArrayBuffer, Uint8Array to Buffer (Node.js)
+   - File reading handled in provider overrides (not base class)
+   - Validates PDF magic bytes: `%PDF-`
 
-### Error Handling and Resilience
-
-- Use typed error classes (`PDFError`, `PDFUnsupportedError`, `PDFDependencyError`)
-- Implement comprehensive dependency checking before operations
-- Handle malformed, encrypted, or corrupted PDFs gracefully
-- Provide meaningful error messages for different failure modes
-- Log processing steps for debugging complex issues
-
-### Performance Optimization
-
-- Lazy-load heavy dependencies (OCR engines, large libraries)
-- Process pages in parallel when possible
-- Implement intelligent image preprocessing
-- Use appropriate memory management for large documents
-- Monitor and optimize OCR processing times
-
-### Testing
-
-The package includes comprehensive test coverage:
-
-```bash
-bun test                    # Run all tests
-bun test:watch             # Watch mode for development
-bun test --grep "factory"  # Test specific functionality
-bun test --timeout 60000   # Extended timeout for OCR tests
-```
-
-Test categories:
-- **Unit tests**: Individual provider functionality
-- **Integration tests**: End-to-end PDF processing
-- **Error handling tests**: Edge cases and failures
-- **Performance tests**: Large file processing
-- **Cross-environment tests**: Node.js and browser compatibility
-
-### Building
-
-Multi-target build process for different environments:
-
-```bash
-bun run build              # Build all targets
-bun run build:node         # Node.js-specific build
-bun run build:browser      # Browser-specific build  
-bun run build:watch        # Watch mode for development
-bun run clean              # Clean build artifacts
-```
-
-### Code Organization Best Practices
+### Error Handling Best Practices
 
 ```typescript
-// Preferred: Use factory pattern for provider selection
-const reader = await getPDFReader({ provider: 'auto' });
+// Always use typed error classes
+import { PDFError, PDFUnsupportedError, PDFDependencyError } from '@have/pdf';
 
-// Avoid: Direct provider instantiation
-// const provider = new UnpdfProvider(); // Don't do this
+// Throwing errors
+throw new PDFDependencyError('unpdf', 'Failed to load library');
+throw new PDFUnsupportedError('extractImages');
+throw new PDFError('Invalid PDF data', 'EINVAL');
 
-// Preferred: Environment-aware imports
-import { getPDFReader } from '@have/pdf';           // Auto-selects
-import { getPDFReader } from '@have/pdf/node';      // Node.js specific
-import { getPDFReader } from '@have/pdf/browser';   // Browser specific
-
-// Error handling patterns
+// Catching errors
 try {
   const text = await reader.extractText(source);
 } catch (error) {
@@ -425,37 +423,480 @@ try {
     // Handle missing dependencies
   } else if (error instanceof PDFUnsupportedError) {
     // Handle unsupported operations
+  } else if (error instanceof PDFError) {
+    // Handle general PDF errors
+  }
+}
+
+// Graceful degradation - return null/empty instead of throwing
+return null; // extractText() when no text found
+return [];   // extractImages() when no images found
+```
+
+### Page Number Conventions
+
+- **1-based indexing** (following PDF conventions)
+- `normalizePages(pages, totalPages)` handles validation and filtering
+- `isValidPageNumber(pageNumber, totalPages)` checks validity
+- If `pages` option is undefined, extract all pages
+
+### Text Merging Strategies
+
+```typescript
+// Controlled by mergePages option in ExtractTextOptions
+mergePageTexts(pageTexts, mergePages?: boolean): string
+
+// mergePages: true  → pages.join(' ')     # Continuous reading
+// mergePages: false → pages.join('\n\n')  # Preserve page boundaries (default)
+```
+
+### Adding New Providers
+
+When adding a new provider (e.g., PDF.js for browsers):
+
+1. Extend `BasePDFReader` in appropriate directory (`src/browser/`)
+2. Set `protected name = 'provider-name'` for error messages
+3. Override only supported methods (let others throw PDFUnsupportedError)
+4. Implement `normalizeSource()` if environment has specific file handling
+5. Implement `checkCapabilities()` and `checkDependencies()`
+6. Update factory logic in `src/shared/factory.ts`
+7. Add environment detection logic
+8. Update exports in `src/index.ts`
+
+### Performance Optimization Patterns
+
+1. **Lazy Loading**
+   ```typescript
+   private unpdf: any = null;
+   private async loadUnpdf() {
+     if (this.unpdf) return this.unpdf;
+     this.unpdf = await import('unpdf');
+     return this.unpdf;
+   }
+   ```
+
+2. **Page Sampling for Analysis**
+   ```typescript
+   // getInfo() samples first 3 pages to determine strategy
+   const pagesToSample = Math.min(3, pageCount);
+   // Scales estimates to full document
+   ```
+
+3. **Parallel Processing**
+   ```typescript
+   // Process pages sequentially for predictable memory usage
+   for (const pageNum of pagesToExtract) {
+     const text = await extractPageText(pageNum);
+     pageTexts.push(text);
+   }
+   ```
+
+4. **Direct RGB Data Path**
+   ```typescript
+   // UnpdfProvider passes raw RGB data to OCR (no conversion overhead)
+   if (image.channels === 3 && image.width && image.height) {
+     format = 'rgb'; // OCR recognizes optimal path
+   }
+   ```
+
+## Common Use Cases and Patterns
+
+### 1. Basic Text Extraction (Text-Based PDFs)
+
+```typescript
+import { getPDFReader } from '@have/pdf';
+
+const reader = await getPDFReader();
+const text = await reader.extractText('/path/to/document.pdf');
+
+if (text) {
+  console.log(`Extracted ${text.length} characters`);
+} else {
+  console.log('No text found - may be image-based PDF');
+}
+```
+
+### 2. Smart Processing with Analysis First
+
+```typescript
+import { getPDFReader } from '@have/pdf';
+
+const reader = await getPDFReader();
+
+// Analyze first to determine optimal strategy
+const info = await reader.getInfo('/path/to/document.pdf');
+
+console.log(`Strategy: ${info.recommendedStrategy}`); // 'text', 'ocr', or 'hybrid'
+console.log(`Pages: ${info.pageCount}`);
+console.log(`Has embedded text: ${info.hasEmbeddedText}`);
+console.log(`OCR required: ${info.ocrRequired}`);
+
+// Process based on recommendation
+if (info.recommendedStrategy === 'text') {
+  // Fast path - no OCR needed
+  const text = await reader.extractText(source, { skipOCRFallback: true });
+} else if (info.recommendedStrategy === 'ocr') {
+  // OCR required path
+  console.log(`Expected time: ${info.estimatedProcessingTime.ocrProcessing}`);
+  const text = await reader.extractText(source); // Will use OCR
+} else {
+  // Hybrid approach
+  const text = await reader.extractText(source);
+}
+```
+
+### 3. OCR Processing for Scanned PDFs
+
+```typescript
+import { getPDFReader } from '@have/pdf';
+
+const reader = await getPDFReader();
+
+// Extract images first
+const images = await reader.extractImages('/path/to/scanned.pdf');
+console.log(`Found ${images.length} images`);
+
+if (images.length > 0) {
+  // Perform OCR
+  const ocrResult = await reader.performOCR(images, {
+    language: 'eng',
+    confidenceThreshold: 70,
+    improveResolution: true
+  });
+
+  console.log('OCR Text:', ocrResult.text);
+  console.log('Confidence:', ocrResult.confidence);
+
+  if (ocrResult.confidence < 60) {
+    console.warn('Low confidence OCR result - review manually');
   }
 }
 ```
 
-### OCR Optimization Guidelines
+### 4. Batch Processing with Error Handling
 
 ```typescript
-// Optimize image preprocessing for better OCR results
-const ocrResult = await reader.performOCR(images, {
-  language: 'eng',
-  improveResolution: true,      // Enable preprocessing
-  confidenceThreshold: 70,      // Filter low-confidence results
-  outputFormat: 'text'          // Choose appropriate format
-});
+import { getPDFReader } from '@have/pdf';
 
-// Multi-language processing strategy
-const multilingualResult = await reader.performOCR(images, {
-  language: 'eng+chi_sim+deu',  // Combine languages
-  confidenceThreshold: 60,      // Lower threshold for multi-lang
-});
+const reader = await getPDFReader();
+const pdfFiles = ['doc1.pdf', 'doc2.pdf', 'doc3.pdf'];
 
-// Batch processing for multiple documents
-for (const document of documents) {
+for (const pdfFile of pdfFiles) {
   try {
-    const result = await reader.extractText(document, { timeout: 30000 });
-    // Process result
+    // Analyze first for routing
+    const info = await reader.getInfo(pdfFile);
+    console.log(`${pdfFile}: ${info.recommendedStrategy} (${info.pageCount} pages)`);
+
+    // Process with appropriate strategy
+    if (info.recommendedStrategy === 'text') {
+      const text = await reader.extractText(pdfFile, { skipOCRFallback: true });
+      console.log(`✅ ${pdfFile}: ${text?.length || 0} chars (fast path)`);
+    } else {
+      const text = await reader.extractText(pdfFile);
+      console.log(`✅ ${pdfFile}: ${text?.length || 0} chars (OCR path)`);
+    }
   } catch (error) {
-    console.warn(`Failed to process ${document}:`, error.message);
-    continue; // Continue with next document
+    console.error(`❌ ${pdfFile}:`, error.message);
+    continue; // Skip to next document
   }
 }
+```
+
+### 5. Metadata Extraction
+
+```typescript
+import { getPDFReader } from '@have/pdf';
+
+const reader = await getPDFReader();
+const metadata = await reader.extractMetadata('/path/to/document.pdf');
+
+console.log('Document Information:');
+console.log(`  Title: ${metadata.title || 'Unknown'}`);
+console.log(`  Author: ${metadata.author || 'Unknown'}`);
+console.log(`  Pages: ${metadata.pageCount}`);
+console.log(`  Created: ${metadata.creationDate?.toLocaleDateString()}`);
+console.log(`  Modified: ${metadata.modificationDate?.toLocaleDateString()}`);
+console.log(`  Encrypted: ${metadata.encrypted ? 'Yes' : 'No'}`);
+console.log(`  Producer: ${metadata.producer || 'Unknown'}`);
+```
+
+### 6. Multi-Language OCR
+
+```typescript
+import { getPDFReader } from '@have/pdf';
+
+const reader = await getPDFReader();
+
+// Check available OCR languages first
+const capabilities = await reader.checkCapabilities();
+console.log('Available OCR languages:', capabilities.ocrLanguages);
+
+// Process with multiple languages
+const images = await reader.extractImages('/path/to/multilingual.pdf');
+const result = await reader.performOCR(images, {
+  language: 'eng+chi_sim+deu', // English + Chinese Simplified + German
+  confidenceThreshold: 60       // Lower threshold for multi-language
+});
+
+console.log('Multilingual text:', result.text);
+```
+
+### 7. Dependency Checking and Graceful Degradation
+
+```typescript
+import { getPDFReader } from '@have/pdf';
+
+const reader = await getPDFReader();
+
+// Check dependencies before processing
+const deps = await reader.checkDependencies();
+const caps = await reader.checkCapabilities();
+
+if (!deps.available) {
+  console.error('PDF processing not available:', deps.error);
+  process.exit(1);
+}
+
+console.log('Available features:');
+console.log(`  Text extraction: ${caps.canExtractText ? '✅' : '❌'}`);
+console.log(`  Metadata: ${caps.canExtractMetadata ? '✅' : '❌'}`);
+console.log(`  Images: ${caps.canExtractImages ? '✅' : '❌'}`);
+console.log(`  OCR: ${caps.canPerformOCR ? '✅' : '❌'}`);
+
+if (caps.canPerformOCR) {
+  console.log(`  OCR languages: ${caps.ocrLanguages?.join(', ')}`);
+} else {
+  console.warn('⚠️  OCR not available - text-based PDFs only');
+}
+```
+
+## Testing
+
+### Test Structure
+
+```bash
+src/
+├── factory.test.ts          # Factory function tests
+├── extraction.test.ts       # Text/image extraction tests
+├── metadata.test.ts         # Metadata extraction tests
+├── ocr-integration.test.ts  # OCR integration tests
+├── capabilities.test.ts     # Capability checking tests
+├── error-handling.test.ts   # Error scenario tests
+└── legacy.test.ts          # Backward compatibility tests
+```
+
+### Running Tests
+
+```bash
+npm test                    # Run all tests
+npm run test:watch         # Watch mode for development
+
+# Specific test suites
+npx vitest run --grep "factory"      # Factory tests
+npx vitest run --grep "extraction"   # Extraction tests
+npx vitest run --grep "ocr"          # OCR tests
+
+# Extended timeout for OCR tests
+npx vitest run --testTimeout 60000
+```
+
+### Build Commands
+
+```bash
+npm run build              # Build Node.js bundle
+npm run build:watch        # Watch mode for development
+npm run clean              # Clean dist/ and docs/
+npm run clean:all          # Clean everything including node_modules
+npm run dev                # Run build:watch + test:watch in parallel
+```
+
+### Documentation Generation
+
+```bash
+npm run docs               # Generate markdown docs to docs/
+npm run docs:watch         # Watch mode for docs generation
+```
+
+## Important Gotchas and Considerations
+
+### 1. Environment Detection Limitations
+
+**Issue**: Factory auto-detection relies on `process.versions.node` and `window/document` globals.
+
+```typescript
+// May fail in edge environments (Cloudflare Workers, Deno, etc.)
+const reader = await getPDFReader({ provider: 'auto' });
+
+// Better: Explicitly specify provider when environment is known
+const reader = await getPDFReader({ provider: 'unpdf' }); // Node.js
+```
+
+### 2. OCR Fallback Behavior
+
+**Default Behavior**: `extractText()` automatically falls back to OCR if no text found.
+
+```typescript
+// This may trigger expensive OCR unexpectedly
+const text = await reader.extractText(imagePDF); // Could take 30+ seconds
+
+// Better: Check with getInfo() first for predictable performance
+const info = await reader.getInfo(imagePDF);
+if (info.recommendedStrategy === 'ocr') {
+  console.log('Warning: OCR required, may take time');
+}
+
+// Or: Disable OCR fallback explicitly
+const text = await reader.extractText(imagePDF, { skipOCRFallback: true });
+```
+
+### 3. Page Indexing (1-based, not 0-based)
+
+**PDF Convention**: Pages use 1-based indexing.
+
+```typescript
+// WRONG - page 0 doesn't exist
+const text = await reader.extractText(pdf, { pages: [0, 1, 2] }); // Page 0 ignored
+
+// CORRECT - pages 1, 2, 3
+const text = await reader.extractText(pdf, { pages: [1, 2, 3] });
+```
+
+### 4. Null vs Empty Array Returns
+
+**Pattern**: Methods return `null` or `[]` for "nothing found" (not errors).
+
+```typescript
+// extractText() returns null when no text found
+const text = await reader.extractText(imagePDF);
+if (text === null) {
+  console.log('No text extracted - not an error');
+}
+
+// extractImages() returns empty array when no images
+const images = await reader.extractImages(textPDF);
+if (images.length === 0) {
+  console.log('No images found - not an error');
+}
+```
+
+### 5. Memory Usage with Large PDFs
+
+**Issue**: Large PDFs are loaded entirely into memory (no streaming yet).
+
+```typescript
+// Risk: 200MB PDF will use 200MB+ RAM
+const text = await reader.extractText('huge-document.pdf');
+
+// Better: Check file size first
+const info = await reader.getInfo('huge-document.pdf');
+if (info.fileSize && info.fileSize > 100 * 1024 * 1024) {
+  console.warn('Large PDF - may cause memory issues');
+}
+
+// Consider: Process page-by-page for very large documents
+const text = await reader.extractText(pdf, { pages: [1, 2, 3] });
+```
+
+### 6. unpdf Library Type Definitions
+
+**Issue**: unpdf has loose type definitions (`any` in many places).
+
+```typescript
+// Type safety is limited with unpdf internals
+private unpdf: any = null; // Can't strongly type unpdf objects
+
+// Workaround: Trust but verify with runtime checks
+const pdf = await unpdf.getDocumentProxy(buffer);
+if (!pdf || typeof pdf.numPages !== 'number') {
+  throw new Error('Invalid PDF object from unpdf');
+}
+```
+
+### 7. OCR Language Support Varies by Provider
+
+**Issue**: OCR language availability depends on @have/ocr provider selection.
+
+```typescript
+// Check languages before processing
+const capabilities = await reader.checkCapabilities();
+console.log('Available:', capabilities.ocrLanguages); // May be ['eng'] or ['eng', 'chi_sim', ...]
+
+// Don't assume language is available
+const hasGerman = capabilities.ocrLanguages?.includes('deu');
+if (!hasGerman) {
+  console.warn('German OCR not available');
+}
+```
+
+### 8. Encrypted/Password-Protected PDFs
+
+**Current Limitation**: Password-protected PDFs are not supported.
+
+```typescript
+// Will fail with invalid PDF data
+const text = await reader.extractText('encrypted.pdf');
+
+// Better: Check metadata first
+const info = await reader.getInfo('document.pdf');
+if (info.encrypted) {
+  console.error('PDF is encrypted - cannot process');
+}
+```
+
+### 9. Error Handling - Silent Failures in Some Cases
+
+**Behavior**: Page-level errors are logged but don't stop processing.
+
+```typescript
+// If page 2 fails, pages 1 and 3 still processed
+const text = await reader.extractText(pdf, { pages: [1, 2, 3] });
+// Check console for warnings like: "Failed to extract text from page 2"
+
+// The extracted text will have empty string for page 2
+// This maintains page order but may be unexpected
+```
+
+### 10. Browser Support Status
+
+**Current Status**: Browser providers are stubbed but not implemented.
+
+```typescript
+// This will throw in browser environments
+const reader = await getPDFReader(); // Error: Unable to detect environment
+
+// Workaround: Use only in Node.js environments
+if (typeof process !== 'undefined' && process.versions?.node) {
+  const reader = await getPDFReader();
+}
+```
+
+### 11. Legacy Function Deprecation
+
+**Deprecated but Not Removed**: Legacy functions still work but should be avoided.
+
+```typescript
+// OLD - Deprecated (still works but don't use in new code)
+import { extractTextFromPDF } from '@have/pdf';
+const text = await extractTextFromPDF('/path/to/pdf');
+
+// NEW - Preferred pattern
+import { getPDFReader } from '@have/pdf';
+const reader = await getPDFReader();
+const text = await reader.extractText('/path/to/pdf');
+```
+
+### 12. getInfo() Sampling Behavior
+
+**Behavior**: `getInfo()` only samples first 3 pages for performance.
+
+```typescript
+// getInfo() samples pages 1-3, estimates for full document
+const info = await reader.getInfo('1000-page-document.pdf');
+console.log(info.estimatedTextLength); // Estimated, not exact
+
+// For 100% accurate text length:
+const text = await reader.extractText('document.pdf');
+console.log(text.length); // Exact
 ```
 
 ## API Documentation
@@ -549,3 +990,177 @@ const result = await reader.performOCR(images, {
 ```
 
 This package provides enterprise-grade PDF processing capabilities designed for scalable AI agent workflows across multiple environments.
+
+## Quick Reference
+
+### Essential Imports
+
+```typescript
+// Primary factory function
+import { getPDFReader } from '@have/pdf';
+
+// Type definitions
+import type {
+  PDFReader,
+  PDFMetadata,
+  PDFImage,
+  PDFInfo,
+  PDFCapabilities,
+  ExtractTextOptions,
+  OCROptions,
+  OCRResult
+} from '@have/pdf';
+
+// Error classes
+import {
+  PDFError,
+  PDFUnsupportedError,
+  PDFDependencyError
+} from '@have/pdf';
+
+// Utility functions
+import {
+  getAvailableProviders,
+  isProviderAvailable,
+  getProviderInfo
+} from '@have/pdf';
+```
+
+### Core Methods Cheat Sheet
+
+```typescript
+const reader = await getPDFReader();
+
+// Document analysis (lightweight, fast)
+const info = await reader.getInfo(source);
+// Returns: PDFInfo with recommendedStrategy, pageCount, hasEmbeddedText, etc.
+
+// Text extraction (with automatic OCR fallback)
+const text = await reader.extractText(source, options?);
+// Returns: string | null
+
+// Metadata extraction
+const metadata = await reader.extractMetadata(source);
+// Returns: PDFMetadata (always returns object, never null)
+
+// Image extraction
+const images = await reader.extractImages(source);
+// Returns: PDFImage[] (empty array if no images)
+
+// OCR processing
+const ocrResult = await reader.performOCR(images, options?);
+// Returns: OCRResult with text, confidence, detections
+
+// Capability checking
+const capabilities = await reader.checkCapabilities();
+// Returns: PDFCapabilities
+
+// Dependency validation
+const deps = await reader.checkDependencies();
+// Returns: DependencyCheckResult
+```
+
+### Common Options
+
+```typescript
+// ExtractTextOptions
+{
+  pages?: number[];              // [1, 2, 3] - 1-based indexing
+  mergePages?: boolean;          // true = ' ', false = '\n\n' (default)
+  preserveFormatting?: boolean;  // Preserve original formatting
+  includeMetadata?: boolean;     // Include metadata in extraction
+  skipOCRFallback?: boolean;     // Disable automatic OCR fallback
+}
+
+// OCROptions
+{
+  language?: string;             // 'eng', 'eng+chi_sim', etc.
+  confidenceThreshold?: number;  // 0-100, filter low confidence
+  outputFormat?: string;         // 'text', 'json', 'hocr'
+  improveResolution?: boolean;   // Enable image preprocessing
+}
+
+// PDFReaderOptions
+{
+  provider?: 'unpdf' | 'pdfjs' | 'auto';  // Default: 'auto'
+  enableOCR?: boolean;                     // Default: true
+  defaultOCROptions?: OCROptions;
+  maxFileSize?: number;                    // In bytes
+  timeout?: number;                        // In milliseconds
+}
+```
+
+### Decision Tree for PDF Processing
+
+```
+1. Start → Call getInfo()
+   ↓
+2. Check info.recommendedStrategy
+   ↓
+   ├─ 'text' → Use extractText({ skipOCRFallback: true }) for fast path
+   │
+   ├─ 'ocr' → Warn about processing time, use extractText() (will use OCR)
+   │
+   └─ 'hybrid' → Use extractText() (tries text first, OCR if needed)
+
+3. Handle null/empty results gracefully
+   ↓
+4. Check confidence for OCR results (< 60 = low confidence)
+```
+
+### Key Files Map
+
+```
+packages/pdf/
+├── src/
+│   ├── index.ts                    # Main entry + legacy exports
+│   ├── shared/
+│   │   ├── types.ts               # All interfaces & error classes
+│   │   ├── base.ts                # BasePDFReader abstract class
+│   │   └── factory.ts             # getPDFReader() + utilities
+│   └── node/
+│       ├── unpdf.ts               # Direct PDF processing
+│       └── combined.ts            # unpdf + OCR (primary)
+├── package.json                    # Dependencies & scripts
+├── vite.config.ts                 # Build configuration
+├── tsconfig.json                  # TypeScript configuration
+├── CLAUDE.md                      # This file
+└── README.md                      # Public documentation
+```
+
+### Performance Characteristics
+
+| Operation | Speed | Memory | Notes |
+|-----------|-------|--------|-------|
+| `getInfo()` | Fast (< 1s) | Low | Samples first 3 pages |
+| `extractText()` text-based | Fast (< 5s) | Medium | Direct unpdf extraction |
+| `extractText()` image-based | Slow (10-60s+) | High | OCR fallback triggered |
+| `extractMetadata()` | Fast (< 1s) | Low | Lightweight metadata only |
+| `extractImages()` | Medium (1-10s) | Medium | Depends on image count |
+| `performOCR()` | Slow (5-30s+) | High | Depends on image count/size |
+
+### Troubleshooting Quick Checks
+
+```typescript
+// 1. Check provider availability
+console.log('Providers:', getAvailableProviders()); // Should include 'unpdf' in Node.js
+
+// 2. Verify dependencies
+const reader = await getPDFReader();
+const deps = await reader.checkDependencies();
+console.log('Available:', deps.available, deps.details);
+
+// 3. Check capabilities
+const caps = await reader.checkCapabilities();
+console.log('OCR:', caps.canPerformOCR, caps.ocrLanguages);
+
+// 4. Validate PDF file
+const info = await reader.getInfo('/path/to/pdf');
+console.log('Valid:', info.pageCount > 0);
+console.log('Encrypted:', info.encrypted);
+
+// 5. Monitor memory usage
+console.log('Memory:', process.memoryUsage());
+const text = await reader.extractText(largePDF);
+console.log('After extraction:', process.memoryUsage());
+```
