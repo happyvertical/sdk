@@ -94,6 +94,36 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
     configureServer(devServer) {
       server = devServer;
 
+      // Serve default HTML when no index.html exists
+      devServer.middlewares.use(async (req, res, next) => {
+        if (req.url === '/' || req.url === '/index.html') {
+          try {
+            const { existsSync } = await import('node:fs');
+            const { join } = await import('node:path');
+
+            const projectRoot = devServer.config.root;
+            const indexPath = join(projectRoot, 'index.html');
+
+            // If index.html exists, let Vite handle it
+            if (existsSync(indexPath)) {
+              return next();
+            }
+
+            // Otherwise, serve default SMRT UI
+            console.log('[smrt] Serving default UI (no index.html found)');
+            const html = getDefaultHTML();
+
+            res.setHeader('Content-Type', 'text/html');
+            res.end(html);
+            return;
+          } catch (error) {
+            console.error('[smrt] Error serving default HTML:', error);
+            return next();
+          }
+        }
+        next();
+      });
+
       // Set up file watching in all modes when enabled
       if (watch && hmr) {
         // Watch for file changes
@@ -803,9 +833,11 @@ function mapJsonSchemaType(tsType: string): string {
 }
 
 /**
- * Get default HTML template (inlined for distribution)
+ * Get default HTML template with inlined JavaScript (inlined for distribution)
  */
 function getDefaultHTML(): string {
+  const uiScript = getDefaultUIModule();
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -912,16 +944,20 @@ function getDefaultHTML(): string {
   <div id="app">
     <div class="loading">Loading SMRT UI...</div>
   </div>
-  <script type="module" src="/@smrt/ui"></script>
+  <script type="module">
+${uiScript}
+  </script>
 </body>
 </html>`;
 }
 
 /**
  * Get default UI module (inlined for distribution)
+ * Using String.raw to preserve backticks in the generated code
  */
 function getDefaultUIModule(): string {
-  return `// SMRT Development UI - Auto-generated
+  // Use String.raw to avoid template literal conflicts
+  return String.raw`// SMRT Development UI - Auto-generated
 async function createUI() {
   const app = document.getElementById('app');
   if (!app) return;
