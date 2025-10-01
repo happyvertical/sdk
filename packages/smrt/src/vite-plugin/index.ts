@@ -38,6 +38,7 @@ const VIRTUAL_MODULES = {
   '@smrt/types': 'smrt:types',
   '@smrt/manifest': 'smrt:manifest',
   '@smrt/schema': 'smrt:schema',
+  '@smrt/ui': 'smrt:ui',
 };
 
 export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
@@ -127,6 +128,12 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
       if (id in VIRTUAL_MODULES) {
         return `\0${VIRTUAL_MODULES[id as keyof typeof VIRTUAL_MODULES]}`;
       }
+
+      // Resolve virtual index.html for dev UI (only in dev mode)
+      if (id === '/index.html' && server) {
+        return `\0smrt:index-html`;
+      }
+
       return null;
     },
 
@@ -163,9 +170,44 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
           // Schema module available in both modes
           return await generateSchemaModule(manifest);
 
+        case 'smrt:ui':
+          // UI module for default development interface
+          return await loadDefaultUI();
+
+        case 'smrt:index-html':
+          // Virtual index.html for projects without one
+          return await loadDefaultHTML();
+
         default:
           return null;
       }
+    },
+
+    transformIndexHtml: {
+      order: 'pre',
+      handler: async (html, ctx) => {
+        // Only provide default HTML if no index.html exists in project
+        if (!server) return html;
+
+        try {
+          const { existsSync } = await import('node:fs');
+          const { join } = await import('node:path');
+
+          const projectRoot = server.config.root;
+          const indexPath = join(projectRoot, 'index.html');
+
+          // If index.html exists, use it as-is
+          if (existsSync(indexPath)) {
+            return html;
+          }
+
+          // Otherwise, provide default SMRT UI
+          return await loadDefaultHTML();
+        } catch (error) {
+          console.error('[smrt] Error checking for index.html:', error);
+          return html;
+        }
+      },
     },
   };
 
@@ -758,6 +800,325 @@ function mapJsonSchemaType(tsType: string): string {
     any: 'string',
   };
   return typeMap[tsType] || 'string';
+}
+
+/**
+ * Get default HTML template (inlined for distribution)
+ */
+function getDefaultHTML(): string {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SMRT Development UI</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #f5f5f5;
+      color: #333;
+    }
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 30px 0;
+      margin-bottom: 30px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 { font-size: 2em; font-weight: 600; margin-bottom: 10px; }
+    .subtitle { opacity: 0.9; font-size: 1.1em; }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .stat-card {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .stat-value { font-size: 2.5em; font-weight: 700; color: #667eea; margin-bottom: 5px; }
+    .stat-label { color: #666; font-size: 0.9em; text-transform: uppercase; letter-spacing: 0.5px; }
+    .collections { display: grid; gap: 20px; }
+    .collection-card {
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    .collection-header {
+      background: #667eea;
+      color: white;
+      padding: 15px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .collection-title { font-size: 1.3em; font-weight: 600; }
+    .collection-count {
+      background: rgba(255,255,255,0.2);
+      padding: 5px 15px;
+      border-radius: 20px;
+      font-size: 0.9em;
+    }
+    .collection-body { padding: 20px; }
+    .field-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    .field {
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 4px;
+      border-left: 3px solid #667eea;
+    }
+    .field-name { font-weight: 600; color: #333; margin-bottom: 3px; }
+    .field-type { font-size: 0.85em; color: #666; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      font-size: 0.9em;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-decoration: none;
+      display: inline-block;
+    }
+    .btn-primary { background: #667eea; color: white; }
+    .btn-primary:hover { background: #5568d3; transform: translateY(-1px); }
+    .btn-secondary { background: #e0e0e0; color: #333; }
+    .btn-secondary:hover { background: #d0d0d0; }
+    .loading { text-align: center; padding: 40px; color: #666; }
+    .error {
+      background: #fee;
+      border: 1px solid #fcc;
+      color: #c33;
+      padding: 15px;
+      border-radius: 4px;
+      margin-bottom: 20px;
+    }
+    .empty-state { text-align: center; padding: 60px 20px; color: #999; }
+    .empty-state svg { width: 100px; height: 100px; margin-bottom: 20px; opacity: 0.3; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="loading">Loading SMRT UI...</div>
+  </div>
+  <script type="module" src="/@smrt/ui"></script>
+</body>
+</html>`;
+}
+
+/**
+ * Get default UI module (inlined for distribution)
+ */
+function getDefaultUIModule(): string {
+  return `// SMRT Development UI - Auto-generated
+async function createUI() {
+  const app = document.getElementById('app');
+  if (!app) return;
+
+  try {
+    const { manifest } = await import('@smrt/manifest');
+    const { createClient } = await import('@smrt/client');
+    const client = createClient('/api/v1');
+
+    app.innerHTML = renderDashboard(manifest, client);
+    attachEventListeners(manifest, client);
+  } catch (error) {
+    console.error('Error loading SMRT UI:', error);
+    app.innerHTML = \`
+      <div class="container">
+        <div class="error">
+          <strong>Error loading SMRT UI</strong>
+          <p>\${error instanceof Error ? error.message : String(error)}</p>
+        </div>
+      </div>
+    \`;
+  }
+}
+
+function renderDashboard(manifest, client) {
+  const objects = Object.entries(manifest.objects);
+  const totalObjects = objects.length;
+  const totalMethods = objects.reduce((sum, [, obj]) => sum + Object.keys(obj.methods).length, 0);
+  const totalFields = objects.reduce((sum, [, obj]) => sum + Object.keys(obj.fields).length, 0);
+
+  return \`
+    <header>
+      <div class="container">
+        <h1>🎯 SMRT Development UI</h1>
+        <div class="subtitle">Auto-generated dashboard for your SMRT objects</div>
+      </div>
+    </header>
+    <div class="container">
+      <div class="stats">
+        <div class="stat-card"><div class="stat-value">\${totalObjects}</div><div class="stat-label">Objects</div></div>
+        <div class="stat-card"><div class="stat-value">\${totalFields}</div><div class="stat-label">Fields</div></div>
+        <div class="stat-card"><div class="stat-value">\${totalMethods}</div><div class="stat-label">Methods</div></div>
+      </div>
+      \${totalObjects === 0 ? renderEmptyState() : \`<div class="collections">\${objects.map(([name, obj]) => renderCollection(name, obj, client)).join('')}</div>\`}
+    </div>
+  \`;
+}
+
+function renderEmptyState() {
+  return \`<div class="empty-state">
+    <svg viewBox="0 0 100 100" fill="currentColor">
+      <circle cx="50" cy="50" r="40" stroke="currentColor" stroke-width="2" fill="none"/>
+      <text x="50" y="60" text-anchor="middle" font-size="50">?</text>
+    </svg>
+    <h2>No SMRT Objects Found</h2>
+    <p>Create a class that extends SmrtObject and decorate it with @smrt()</p>
+  </div>\`;
+}
+
+function renderCollection(name, obj, _client) {
+  const fields = Object.entries(obj.fields);
+  const methods = Object.entries(obj.methods);
+  const customMethods = methods.filter(([methodName]) =>
+    !['list', 'get', 'create', 'update', 'delete'].includes(methodName)
+  );
+
+  return \`<div class="collection-card" data-collection="\${obj.collection}">
+    <div class="collection-header">
+      <div class="collection-title">\${obj.className}</div>
+      <div class="collection-count" data-count="\${obj.collection}">Loading...</div>
+    </div>
+    <div class="collection-body">
+      \${fields.length > 0 ? \`
+        <h3 style="margin-bottom: 15px; color: #555;">Fields</h3>
+        <div class="field-list">
+          \${fields.map(([fieldName, field]) => \`
+            <div class="field">
+              <div class="field-name">\${fieldName}</div>
+              <div class="field-type">\${field.type}\${field.required ? ' (required)' : ''}</div>
+            </div>
+          \`).join('')}
+        </div>
+      \` : ''}
+      \${customMethods.length > 0 ? \`
+        <h3 style="margin-bottom: 15px; color: #555;">Custom Actions</h3>
+        <div class="actions" style="margin-bottom: 20px;">
+          \${customMethods.map(([methodName, method]) => \`
+            <button class="btn btn-secondary" data-action="\${methodName}" data-collection="\${obj.collection}" title="\${method.name}">
+              \${methodName}
+            </button>
+          \`).join('')}
+        </div>
+      \` : ''}
+      <div class="actions">
+        <button class="btn btn-primary" data-action="list" data-collection="\${obj.collection}">📋 List All</button>
+        <button class="btn btn-primary" data-action="create" data-collection="\${obj.collection}">➕ Create New</button>
+        <a href="/api/v1/\${obj.collection}" target="_blank" class="btn btn-secondary">🔗 API Endpoint</a>
+      </div>
+    </div>
+  </div>\`;
+}
+
+function attachEventListeners(manifest, client) {
+  Object.values(manifest.objects).forEach(async (obj) => {
+    try {
+      const response = await client[obj.collection].list();
+      const count = Array.isArray(response) ? response.length : 0;
+      const countEl = document.querySelector(\`[data-count="\${obj.collection}"]\`);
+      if (countEl) countEl.textContent = \`\${count} items\`;
+    } catch (error) {
+      console.error(\`Error loading count for \${obj.collection}:\`, error);
+    }
+  });
+
+  document.addEventListener('click', async (e) => {
+    const target = e.target;
+    if (!target.matches('[data-action]')) return;
+
+    const action = target.getAttribute('data-action');
+    const collection = target.getAttribute('data-collection');
+    if (!action || !collection) return;
+
+    try {
+      if (action === 'list') await handleList(collection, client);
+      else if (action === 'create') await handleCreate(collection, manifest, client);
+      else await handleCustomAction(collection, action, client);
+    } catch (error) {
+      console.error(\`Error executing \${action} on \${collection}:\`, error);
+      alert(\`Error: \${error instanceof Error ? error.message : String(error)}\`);
+    }
+  });
+}
+
+async function handleList(collection, client) {
+  const items = await client[collection].list();
+  const data = JSON.stringify(items, null, 2);
+  const w = window.open('', \`\${collection} List\`, \`width=\${Math.min(800, window.innerWidth - 40)},height=\${Math.min(600, window.innerHeight - 40)}\`);
+  if (w) {
+    w.document.write(\`<!DOCTYPE html><html><head><title>\${collection}</title><style>body{font-family:monospace;padding:20px;background:#1e1e1e;color:#d4d4d4;}pre{white-space:pre-wrap;background:#2d2d2d;padding:15px;border-radius:4px;}</style></head><body><h1>\${collection}</h1><pre>\${data}</pre></body></html>\`);
+  }
+}
+
+async function handleCreate(collection, manifest, client) {
+  const obj = Object.values(manifest.objects).find(o => o.collection === collection);
+  if (!obj) return;
+
+  const fields = Object.entries(obj.fields).filter(([name]) => !['id', 'created_at', 'updated_at'].includes(name));
+  const formFields = fields.map(([name, field]) => \`
+    <div style="margin-bottom:15px;">
+      <label style="display:block;margin-bottom:5px;font-weight:600;">\${name}\${field.required ? ' *' : ''}</label>
+      <input type="\${getInputType(field.type)}" name="\${name}" \${field.required ? 'required' : ''} style="width:100%;padding:8px;border:1px solid #ddd;border-radius:4px;"/>
+    </div>
+  \`).join('');
+
+  const w = window.open('', \`Create \${collection}\`, \`width=\${Math.min(500, window.innerWidth - 40)},height=\${Math.min(600, window.innerHeight - 40)}\`);
+  if (!w) return;
+
+  w.document.write(\`<!DOCTYPE html><html><head><title>Create \${obj.className}</title><style>body{font-family:sans-serif;padding:20px;background:#f5f5f5;}form{background:white;padding:20px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}button{padding:10px 20px;background:#667eea;color:white;border:none;border-radius:4px;cursor:pointer;font-size:1em;}button:hover{background:#5568d3;}</style></head><body><h1>Create \${obj.className}</h1><form id="createForm">\${formFields}<button type="submit">Create</button></form><script>document.getElementById('createForm').addEventListener('submit',async(e)=>{e.preventDefault();const formData=new FormData(e.target);const data=Object.fromEntries(formData);try{const response=await fetch('/api/v1/\${collection}',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});if(response.ok){alert('Created successfully!');window.close();window.opener.location.reload();}else{const error=await response.json();alert('Error: '+(error.message||'Failed to create'));}}catch(error){alert('Error: '+error.message);}});</script></body></html>\`);
+}
+
+async function handleCustomAction(collection, action, client) {
+  if (!confirm(\`Execute '\${action}' on first item in \${collection}?\`)) return;
+  const items = await client[collection].list();
+  if (items.length === 0) return alert('No items found');
+  console.log(\`Executing \${action} on:\`, items[0]);
+  alert(\`Action '\${action}' would execute here. Check console.\`);
+}
+
+function getInputType(fieldType) {
+  switch (fieldType) {
+    case 'integer':
+    case 'decimal':
+      return 'number';
+    case 'boolean':
+      return 'checkbox';
+    case 'datetime':
+      return 'datetime-local';
+    default:
+      return 'text';
+  }
+}
+
+createUI();`;
+}
+
+/**
+ * Load default HTML template for projects without index.html
+ */
+async function loadDefaultHTML(): Promise<string> {
+  return getDefaultHTML();
+}
+
+/**
+ * Load default UI module for development interface
+ */
+async function loadDefaultUI(): Promise<string> {
+  return getDefaultUIModule();
 }
 
 /**
