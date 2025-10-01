@@ -90,17 +90,17 @@ export class SmrtObject extends SmrtClass {
   /**
    * Human-readable name, primarily for display purposes
    */
-  public name: string | null | undefined;
+  public name: string | null | undefined = null;
 
   /**
    * Creation timestamp
    */
-  public created_at: Date | null | undefined;
+  public created_at: Date | null | undefined = null;
 
   /**
    * Last update timestamp
    */
-  public updated_at: Date | null | undefined;
+  public updated_at: Date | null | undefined = null;
 
   /**
    * Creates a new SmrtObject instance
@@ -116,9 +116,12 @@ export class SmrtObject extends SmrtClass {
     this._id = options.id || null;
     this._slug = options.slug || null;
     this._context = options.context || '';
-    this.name = options.name || null;
-    this.created_at = options.created_at || null;
-    this.updated_at = options.updated_at || null;
+
+    // Set properties immediately for backwards compatibility
+    // (Will be overridden by field initializers, but initialize() will set them again)
+    if (options.name !== undefined) this.name = options.name;
+    if (options.created_at !== undefined) this.created_at = options.created_at;
+    if (options.updated_at !== undefined) this.updated_at = options.updated_at;
 
     // Auto-register the class if it's not already registered
     // and it's not the base SmrtObject class itself
@@ -130,31 +133,36 @@ export class SmrtObject extends SmrtClass {
     ) {
       ObjectRegistry.register(this.constructor as typeof SmrtObject, {});
     }
-
-    // Initialize field values from options
-    this.initializeFields(options);
   }
 
   /**
-   * Initialize field values from constructor options
+   * Initialize properties from options after field initializers have run
+   * This ensures option values take precedence over default field initializer values
    */
-  private initializeFields(options: any): void {
-    const proto = Object.getPrototypeOf(this);
-    const descriptors = Object.getOwnPropertyDescriptors(
-      proto.constructor.prototype,
+  private initializePropertiesFromOptions(): void {
+    const options = this.options;
+
+    // Set base properties that exist on SmrtObject
+    if (options.name !== undefined) this.name = options.name;
+    if (options.created_at !== undefined) this.created_at = options.created_at;
+    if (options.updated_at !== undefined) this.updated_at = options.updated_at;
+
+    // Get all fields (both Field instances and plain properties)
+    const fields = fieldsFromClass(
+      this.constructor as new (
+        ...args: any[]
+      ) => any,
     );
 
-    for (const [key, descriptor] of Object.entries(descriptors)) {
-      if (descriptor.value instanceof Field) {
-        const field = descriptor.value as Field;
+    // Apply option values to all fields
+    for (const [key, field] of Object.entries(fields)) {
+      if (options[key] !== undefined) {
+        // Set the property value
+        this[key as keyof this] = options[key];
 
-        // Set value from options or use field default
-        if (options[key] !== undefined) {
-          this[key as keyof this] = options[key];
+        // If it's a Field instance, also update field.value
+        if (field instanceof Field) {
           field.value = options[key];
-        } else if (field.options.default !== undefined) {
-          this[key as keyof this] = field.options.default;
-          field.value = field.options.default;
         }
       }
     }
@@ -229,8 +237,16 @@ export class SmrtObject extends SmrtClass {
   public async initialize(): Promise<void> {
     await super.initialize();
 
-    // Create persistence adapter based on configuration
-    if (this.options.persistence) {
+    // Initialize properties from options AFTER all field initializers have run
+    // This prevents TypeScript field initializers from overwriting option values
+    if (!this.options._extractingFields) {
+      this.initializePropertiesFromOptions();
+    }
+
+    // Use provided adapter if available (from collection)
+    if ((this.options as any)._persistenceAdapter) {
+      this._persistenceAdapter = (this.options as any)._persistenceAdapter;
+    } else if (this.options.persistence) {
       // New persistence config
       this._persistenceAdapter = await createPersistenceAdapter(
         this.options.persistence,
@@ -240,10 +256,12 @@ export class SmrtObject extends SmrtClass {
       );
     } else if (this.options.db) {
       // Legacy db config - create SQL adapter automatically
+      const { type: dbType, ...dbConfig } = this.options.db;
       this._persistenceAdapter = await createPersistenceAdapter(
         {
           type: 'sql',
-          ...this.options.db,
+          dbType: dbType as 'sqlite' | 'postgres',
+          ...dbConfig,
         },
         this.constructor as new (
           ...args: any[]
@@ -260,9 +278,9 @@ export class SmrtObject extends SmrtClass {
       `);
     }
 
-    if (this._id) {
+    if (this._id && !(this.options as any)._skipLoad) {
       await this.loadFromId();
-    } else if (this._slug) {
+    } else if (this._slug && !(this.options as any)._skipLoad) {
       await this.loadFromSlug();
     }
   }
@@ -321,6 +339,29 @@ export class SmrtObject extends SmrtClass {
     }
 
     return fields;
+  }
+
+  /**
+   * Custom JSON serialization
+   * Returns a plain object with all field values for proper JSON.stringify() behavior
+   */
+  toJSON() {
+    const fields = this.getFields();
+    const data: any = {
+      id: this.id,
+      slug: this.slug,
+      context: this.context,
+      name: this.name,
+      created_at: this.created_at,
+      updated_at: this.updated_at,
+    };
+
+    // Add all field values
+    for (const [key, field] of Object.entries(fields)) {
+      data[key] = field.value;
+    }
+
+    return data;
   }
 
   /**

@@ -154,10 +154,12 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
       );
     } else if (this.options.db) {
       // Legacy db config - create SQL adapter automatically
+      const { type: dbType, ...dbConfig } = this.options.db;
       this._persistenceAdapter = await createPersistenceAdapter(
         {
           type: 'sql',
-          ...this.options.db,
+          dbType: dbType as 'sqlite' | 'postgres',
+          ...dbConfig,
         },
         this._itemClass,
       );
@@ -318,6 +320,9 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
     const params = {
       ai: this.options.ai,
       db: this.options.db,
+      persistence: this.options.persistence,
+      _persistenceAdapter: this._persistenceAdapter, // Share the adapter instance
+      _skipLoad: true, // Don't try to load from DB - this is a new object
       ...options,
     };
 

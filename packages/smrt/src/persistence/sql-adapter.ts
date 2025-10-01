@@ -5,7 +5,7 @@
  * via the @have/sql package.
  */
 
-import { escapeSqlValue } from '@have/sql';
+import { escapeSqlValue, syncSchema } from '@have/sql';
 import type { DatabaseInterface } from '@have/sql';
 import { getDatabase } from '@have/sql';
 import {
@@ -20,6 +20,7 @@ import { ObjectRegistry } from '../registry';
 import {
   fieldsFromClass,
   formatDataJs,
+  generateSchema,
   setupTableFromClass,
   tableNameFromClass,
 } from '../utils';
@@ -68,11 +69,19 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
       return;
     }
 
-    // Create database connection
-    this.db = await getDatabase(this.config);
+    // Transform config for getDatabase (expects type: 'sqlite' | 'postgres')
+    const { type: _persistenceType, dbType, ...dbConfig } = this.config;
+    const databaseConfig = {
+      type: dbType,
+      ...dbConfig,
+    };
 
-    // Setup table schema
-    await setupTableFromClass(this.db, this.objectClass);
+    // Create database connection
+    this.db = await getDatabase(databaseConfig);
+
+    // Setup table schema - bypass cache since we have our own initialization tracking
+    const schema = generateSchema(this.objectClass);
+    await syncSchema({ db: this.db, schema });
 
     // Create unique index on (slug, context)
     await this.db.query(`
@@ -206,7 +215,11 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
 
       // Create instance with loaded data
       const data = formatDataJs(rows[0]);
-      const instance = new objectClass(data);
+      const instance = new objectClass({
+        ...data,
+        _skipLoad: true,
+        _persistenceAdapter: this,
+      });
       await instance.initialize();
 
       return instance;
@@ -321,7 +334,11 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
       const results: T[] = [];
       for (const row of rows) {
         const data = formatDataJs(row);
-        const instance = new objectClass(data);
+        const instance = new objectClass({
+          ...data,
+          _skipLoad: true,
+          _persistenceAdapter: this,
+        });
         await instance.initialize();
         results.push(instance);
       }
@@ -490,8 +507,12 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
     for (const [key, field] of Object.entries(fields)) {
       if (key === 'slug' || key === 'context') continue;
       columns.push(key);
+
+      // Read the actual value from the object instance, not from field.value
+      // (field.value is from the dummy introspection instance and has only defaults)
+      const actualValue = (object as any)[key];
       const value =
-        typeof field.value === 'boolean' ? (field.value ? 1 : 0) : field.value;
+        typeof actualValue === 'boolean' ? (actualValue ? 1 : 0) : actualValue;
 
       const escapedValue = escapeSqlValue(value);
 

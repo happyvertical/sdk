@@ -76,6 +76,8 @@ export function fieldsFromClass(
     db: {
       url: 'file:/tmp/dummy.db',
     },
+    _extractingFields: true, // Prevent infinite recursion in initializeFields
+    _skipRegistration: true, // Don't register during field extraction
   });
 
   // Get descriptors from the instance and all ancestors
