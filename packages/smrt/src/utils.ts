@@ -1,4 +1,5 @@
 import { syncSchema } from '@have/sql';
+import { ObjectRegistry } from './registry';
 
 /**
  * Checks if a field name indicates a date field based on naming conventions
@@ -66,8 +67,27 @@ export function fieldsFromClass(
   ClassType: new (...args: any[]) => any,
   values?: Record<string, any>,
 ) {
+  // First, try to get cached fields from ObjectRegistry
+  const className = ClassType.name;
+  const cachedFields = ObjectRegistry.getFields(className);
+
+  if (cachedFields.size > 0) {
+    // Use cached field definitions - much more efficient
+    const fields: Record<string, any> = {};
+
+    for (const [key, field] of cachedFields.entries()) {
+      fields[key] = {
+        name: key,
+        type: field.type || 'TEXT',
+        ...(values && key in values ? { value: values[key] } : {}),
+      };
+    }
+
+    return fields;
+  }
+
+  // Fallback: Create temporary instance for introspection (for unregistered classes)
   const fields: Record<string, any> = {};
-  // just for introspection, dont need real creds
   const instance = new ClassType({
     ai: {
       type: 'openai',
@@ -76,6 +96,8 @@ export function fieldsFromClass(
     db: {
       url: 'file:/tmp/dummy.db',
     },
+    _extractingFields: true, // Prevent infinite recursion in initializeFields
+    _skipRegistration: true, // Don't register during field extraction
   });
 
   // Get descriptors from the instance and all ancestors
@@ -286,6 +308,7 @@ const _setup_table_from_class_promises: Record<string, Promise<void> | null> =
  *
  * Creates the database table, indexes, and triggers for a SMRT class.
  * Uses promise caching to ensure each table is only set up once.
+ * Now leverages ObjectRegistry's cached schema for instant retrieval.
  *
  * @param db - Database connection interface
  * @param ClassType - Class constructor to create tables for
@@ -306,7 +329,10 @@ export async function setupTableFromClass(db: any, ClassType: any) {
 
   _setup_table_from_class_promises[tableName] = (async () => {
     try {
-      const schema = generateSchema(ClassType);
+      // Try to get cached schema from ObjectRegistry first
+      const cachedSchema = ObjectRegistry.getSchemaDDL(ClassType.name);
+      const schema = cachedSchema || generateSchema(ClassType);
+
       await syncSchema({ db, schema });
       await setupTriggers(db, tableName);
     } catch (error) {

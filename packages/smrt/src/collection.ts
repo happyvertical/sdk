@@ -2,6 +2,8 @@ import { buildWhere, syncSchema } from '@have/sql';
 import type { SmrtClassOptions } from './class';
 import { SmrtClass } from './class';
 import type { SmrtObject } from './object';
+import type { PersistenceAdapter } from './persistence/adapter';
+import { createPersistenceAdapter } from './persistence';
 import { ObjectRegistry } from './registry';
 import {
   fieldsFromClass,
@@ -28,6 +30,11 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
    * Promise tracking the database setup operation
    */
   protected _db_setup_promise: Promise<void> | null = null;
+
+  /**
+   * Persistence adapter for storage operations
+   */
+  protected _persistenceAdapter?: PersistenceAdapter;
 
   /**
    * Gets the class constructor for items in this collection
@@ -137,7 +144,29 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
    */
   public async initialize() {
     await super.initialize();
-    if (this.options.db) {
+
+    // Create persistence adapter based on configuration
+    if (this.options.persistence) {
+      // New persistence config
+      this._persistenceAdapter = await createPersistenceAdapter(
+        this.options.persistence,
+        this._itemClass,
+      );
+    } else if (this.options.db) {
+      // Legacy db config - create SQL adapter automatically
+      const { type: dbType, ...dbConfig } = this.options.db;
+      this._persistenceAdapter = await createPersistenceAdapter(
+        {
+          type: 'sql',
+          dbType: dbType as 'sqlite' | 'postgres',
+          ...dbConfig,
+        },
+        this._itemClass,
+      );
+    }
+
+    // Legacy: setup database if using db directly (no adapter)
+    if (this.options.db && !this._persistenceAdapter) {
       await this.setupDb();
     }
   }
@@ -149,6 +178,12 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
    * @returns Promise resolving to the object or null if not found
    */
   public async get(filter: string | Record<string, any>) {
+    // Use persistence adapter if available
+    if (this._persistenceAdapter) {
+      return await this._persistenceAdapter.load(filter, this._itemClass);
+    }
+
+    // Legacy implementation
     const where =
       typeof filter === 'string'
         ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
@@ -216,7 +251,43 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
     offset?: number;
     limit?: number;
     orderBy?: string | string[];
+    /**
+     * Relationships to eagerly load (avoids N+1 query problem)
+     * @example
+     * ```typescript
+     * // Load orders with their customers pre-loaded
+     * const orders = await orderCollection.list({
+     *   include: ['customerId']
+     * });
+     * // Access customer without additional query
+     * orders[0].getRelated('customerId');
+     * ```
+     */
+    include?: string[];
   }) {
+    // Use persistence adapter if available
+    if (this._persistenceAdapter) {
+      // SQL adapters will use JOIN-based eager loading automatically
+      // REST adapters will fall back to batch queries (handled separately below)
+      const results = await this._persistenceAdapter.list(
+        options,
+        this._itemClass,
+      );
+
+      // For non-SQL adapters (REST), eager load using batch approach
+      // SQL adapters handle this internally via JOINs
+      if (
+        this._persistenceAdapter.metadata.type !== 'sql' &&
+        options.include &&
+        options.include.length > 0
+      ) {
+        await this.eagerLoadRelationships(results, options.include);
+      }
+
+      return results;
+    }
+
+    // Legacy implementation
     const { where, offset, limit, orderBy } = options;
     const { sql: whereSql, values: whereValues } = buildWhere(where || {});
 
@@ -264,9 +335,199 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
       `SELECT * FROM ${this.tableName} ${whereSql} ${orderBySql} ${limitOffsetSql}`,
       [...whereValues, ...limitOffsetValues],
     );
-    return Promise.all(
+    const instances = await Promise.all(
       result.rows.map((item: object) => this.create(formatDataJs(item))),
     );
+
+    // Eager load specified relationships
+    if (options.include && options.include.length > 0) {
+      await this.eagerLoadRelationships(instances, options.include);
+    }
+
+    return instances;
+  }
+
+  /**
+   * Eagerly load relationships for a collection of instances
+   *
+   * Optimizes loading by batching queries for foreignKey relationships to avoid N+1 queries.
+   *
+   * @param instances - Array of object instances to load relationships for
+   * @param relationships - Array of relationship field names to load
+   * @private
+   */
+  private async eagerLoadRelationships(
+    instances: ModelType[],
+    relationships: string[],
+  ): Promise<void> {
+    if (instances.length === 0) return;
+
+    for (const fieldName of relationships) {
+      // Get relationship metadata
+      const relationshipMeta = ObjectRegistry.getRelationships(
+        this._itemClass.name,
+      );
+      const relationship = relationshipMeta.find(
+        (r) => r.fieldName === fieldName,
+      );
+
+      if (!relationship) {
+        console.warn(
+          `Relationship ${fieldName} not found on ${this._itemClass.name}, skipping eager load`,
+        );
+        continue;
+      }
+
+      if (relationship.type === 'foreignKey') {
+        // Batch load foreignKey relationships
+        await this.batchLoadForeignKeys(instances, fieldName, relationship);
+      } else if (relationship.type === 'oneToMany') {
+        // Load oneToMany relationships (less optimizable)
+        await this.batchLoadOneToMany(instances, fieldName, relationship);
+      } else if (relationship.type === 'manyToMany') {
+        console.warn(
+          `manyToMany eager loading not yet implemented for ${fieldName}`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Batch load foreignKey relationships to avoid N+1 queries
+   *
+   * @param instances - Instances to load relationships for
+   * @param fieldName - Name of the foreignKey field
+   * @param relationship - Relationship metadata
+   * @private
+   */
+  private async batchLoadForeignKeys(
+    instances: ModelType[],
+    fieldName: string,
+    relationship: import('./registry').RelationshipMetadata,
+  ): Promise<void> {
+    // Collect all unique foreign key values
+    const foreignKeyValues = new Set<string>();
+    for (const instance of instances) {
+      const value = instance[fieldName as keyof ModelType];
+      if (value && typeof value === 'string') {
+        foreignKeyValues.add(value);
+      }
+    }
+
+    if (foreignKeyValues.size === 0) return;
+
+    // Get or create cached collection instance
+    let targetCollection: SmrtCollection<any> | undefined;
+    try {
+      targetCollection = await ObjectRegistry.getCollection(
+        relationship.targetClass,
+        this.options,
+      );
+    } catch (error) {
+      console.warn(
+        `Could not get collection for ${relationship.targetClass}:`,
+        error,
+      );
+      return;
+    }
+
+    // Load all related objects in a single query
+    const relatedObjects = await targetCollection.list({
+      where: { 'id in': Array.from(foreignKeyValues) },
+    });
+
+    // Build a map of ID to object for quick lookup
+    const relatedMap = new Map();
+    for (const obj of relatedObjects) {
+      relatedMap.set(obj.id, obj);
+    }
+
+    // Assign loaded objects to instances
+    for (const instance of instances) {
+      const foreignKeyValue = instance[fieldName as keyof ModelType];
+      if (foreignKeyValue && typeof foreignKeyValue === 'string') {
+        const relatedObject = relatedMap.get(foreignKeyValue);
+        if (relatedObject) {
+          // Set in the relationship cache
+          (instance as any)._loadedRelationships.set(fieldName, relatedObject);
+        }
+      }
+    }
+  }
+
+  /**
+   * Batch load oneToMany relationships
+   *
+   * @param instances - Instances to load relationships for
+   * @param fieldName - Name of the oneToMany field
+   * @param relationship - Relationship metadata
+   * @private
+   */
+  private async batchLoadOneToMany(
+    instances: ModelType[],
+    fieldName: string,
+    relationship: import('./registry').RelationshipMetadata,
+  ): Promise<void> {
+    // Find the inverse foreignKey field
+    const inverseRelationships = ObjectRegistry.getInverseRelationships(
+      this._itemClass.name,
+    );
+    const inverseForeignKey = inverseRelationships.find(
+      (r) =>
+        r.sourceClass === relationship.targetClass &&
+        r.type === 'foreignKey' &&
+        r.targetClass === this._itemClass.name,
+    );
+
+    if (!inverseForeignKey) {
+      console.warn(
+        `Could not find inverse foreignKey for oneToMany ${fieldName}`,
+      );
+      return;
+    }
+
+    // Collect all instance IDs
+    const instanceIds = instances
+      .map((i) => i.id)
+      .filter((id): id is string => !!id);
+
+    if (instanceIds.length === 0) return;
+
+    // Get or create cached collection instance
+    let targetCollection: SmrtCollection<any> | undefined;
+    try {
+      targetCollection = await ObjectRegistry.getCollection(
+        relationship.targetClass,
+        this.options,
+      );
+    } catch (error) {
+      console.warn(
+        `Could not get collection for ${relationship.targetClass}:`,
+        error,
+      );
+      return;
+    }
+
+    // Load all related objects in a single query
+    const relatedObjects = await targetCollection.list({
+      where: { [`${inverseForeignKey.fieldName} in`]: instanceIds },
+    });
+
+    // Group related objects by the foreign key value
+    const relatedMap = new Map<string, any[]>();
+    for (const obj of relatedObjects) {
+      const foreignKeyValue = obj[inverseForeignKey.fieldName as any];
+      if (!relatedMap.has(foreignKeyValue)) {
+        relatedMap.set(foreignKeyValue, []);
+      }
+      relatedMap.get(foreignKeyValue)?.push(obj);
+    }
+
+    // Assign loaded objects to instances
+    for (const instance of instances) {
+      const relatedArray = relatedMap.get(instance.id as string) || [];
+      (instance as any)._loadedRelationships.set(fieldName, relatedArray);
+    }
   }
 
   /**
@@ -279,6 +540,9 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
     const params = {
       ai: this.options.ai,
       db: this.options.db,
+      persistence: this.options.persistence,
+      _persistenceAdapter: this._persistenceAdapter, // Share the adapter instance
+      _skipLoad: true, // Don't try to load from DB - this is a new object
       ...options,
     };
 
@@ -380,11 +644,14 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
   /**
    * Generates database schema for the collection's item class
    *
+   * Leverages ObjectRegistry's cached schema for instant retrieval.
+   *
    * @returns Schema object for database setup
    */
   generateSchema() {
-    // Use the imported generateSchema function with the item class
-    return generateSchema(this._itemClass);
+    // Try to get cached schema from ObjectRegistry first
+    const cachedSchema = ObjectRegistry.getSchemaDDL(this._itemClass.name);
+    return cachedSchema || generateSchema(this._itemClass);
   }
 
   /**
@@ -487,6 +754,12 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
    * @returns Promise resolving to the total count of matching records
    */
   public async count(options: { where?: Record<string, any> } = {}) {
+    // Use persistence adapter if available
+    if (this._persistenceAdapter) {
+      return await this._persistenceAdapter.count(options);
+    }
+
+    // Legacy implementation
     const { where } = options;
     const { sql: whereSql, values: whereValues } = buildWhere(where || {});
 

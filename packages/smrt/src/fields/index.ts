@@ -47,6 +47,25 @@ export interface FieldOptions {
   index?: boolean;
   /** Human-readable description of the field's purpose */
   description?: string;
+  /**
+   * Custom validation function (synchronous or asynchronous)
+   * Should return true if valid, false if invalid
+   * @param value - The field value to validate
+   * @returns Boolean indicating validity
+   * @example
+   * ```typescript
+   * email = text({
+   *   validate: (v) => /^[^@]+@[^@]+\.[^@]+$/.test(v),
+   *   customMessage: 'Invalid email format'
+   * });
+   * ```
+   */
+  validate?: (value: any) => boolean | Promise<boolean>;
+  /**
+   * Custom error message to display when validation fails
+   * Works with both built-in validators and custom validate functions
+   */
+  customMessage?: string;
 }
 
 /**

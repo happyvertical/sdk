@@ -10,6 +10,8 @@ import {
   ValidationError,
 } from './errors';
 import { Field } from './fields/index';
+import type { PersistenceAdapter } from './persistence/adapter';
+import { createPersistenceAdapter } from './persistence';
 import { ObjectRegistry } from './registry';
 import {
   fieldsFromClass,
@@ -66,6 +68,17 @@ export class SmrtObject extends SmrtClass {
   public _tableName!: string;
 
   /**
+   * Persistence adapter for storage operations
+   */
+  protected _persistenceAdapter?: PersistenceAdapter;
+
+  /**
+   * Cache for loaded relationships to avoid repeated database queries
+   * Maps fieldName to loaded object(s)
+   */
+  private _loadedRelationships: Map<string, any> = new Map();
+
+  /**
    * Unique identifier for the object
    */
   protected _id: string | null | undefined;
@@ -83,17 +96,17 @@ export class SmrtObject extends SmrtClass {
   /**
    * Human-readable name, primarily for display purposes
    */
-  public name: string | null | undefined;
+  public name: string | null | undefined = null;
 
   /**
    * Creation timestamp
    */
-  public created_at: Date | null | undefined;
+  public created_at: Date | null | undefined = null;
 
   /**
    * Last update timestamp
    */
-  public updated_at: Date | null | undefined;
+  public updated_at: Date | null | undefined = null;
 
   /**
    * Creates a new SmrtObject instance
@@ -109,9 +122,6 @@ export class SmrtObject extends SmrtClass {
     this._id = options.id || null;
     this._slug = options.slug || null;
     this._context = options.context || '';
-    this.name = options.name || null;
-    this.created_at = options.created_at || null;
-    this.updated_at = options.updated_at || null;
 
     // Auto-register the class if it's not already registered
     // and it's not the base SmrtObject class itself
@@ -123,31 +133,36 @@ export class SmrtObject extends SmrtClass {
     ) {
       ObjectRegistry.register(this.constructor as typeof SmrtObject, {});
     }
-
-    // Initialize field values from options
-    this.initializeFields(options);
   }
 
   /**
-   * Initialize field values from constructor options
+   * Initialize properties from options after field initializers have run
+   * This ensures option values take precedence over default field initializer values
    */
-  private initializeFields(options: any): void {
-    const proto = Object.getPrototypeOf(this);
-    const descriptors = Object.getOwnPropertyDescriptors(
-      proto.constructor.prototype,
+  private initializePropertiesFromOptions(): void {
+    const options = this.options;
+
+    // Set base properties that exist on SmrtObject
+    if (options.name !== undefined) this.name = options.name;
+    if (options.created_at !== undefined) this.created_at = options.created_at;
+    if (options.updated_at !== undefined) this.updated_at = options.updated_at;
+
+    // Get all fields (both Field instances and plain properties)
+    const fields = fieldsFromClass(
+      this.constructor as new (
+        ...args: any[]
+      ) => any,
     );
 
-    for (const [key, descriptor] of Object.entries(descriptors)) {
-      if (descriptor.value instanceof Field) {
-        const field = descriptor.value as Field;
+    // Apply option values to all fields
+    for (const [key, field] of Object.entries(fields)) {
+      if (options[key] !== undefined) {
+        // Set the property value
+        this[key as keyof this] = options[key];
 
-        // Set value from options or use field default
-        if (options[key] !== undefined) {
-          this[key as keyof this] = options[key];
+        // If it's a Field instance, also update field.value
+        if (field instanceof Field) {
           field.value = options[key];
-        } else if (field.options.default !== undefined) {
-          this[key as keyof this] = field.options.default;
-          field.value = field.options.default;
         }
       }
     }
@@ -221,17 +236,51 @@ export class SmrtObject extends SmrtClass {
    */
   public async initialize(): Promise<void> {
     await super.initialize();
-    if (this.options.db) {
+
+    // Initialize properties from options AFTER all field initializers have run
+    // This prevents TypeScript field initializers from overwriting option values
+    if (!this.options._extractingFields) {
+      this.initializePropertiesFromOptions();
+    }
+
+    // Use provided adapter if available (from collection)
+    if ((this.options as any)._persistenceAdapter) {
+      this._persistenceAdapter = (this.options as any)._persistenceAdapter;
+    } else if (this.options.persistence) {
+      // New persistence config
+      this._persistenceAdapter = await createPersistenceAdapter(
+        this.options.persistence,
+        this.constructor as new (
+          ...args: any[]
+        ) => SmrtObject,
+      );
+    } else if (this.options.db) {
+      // Legacy db config - create SQL adapter automatically
+      const { type: dbType, ...dbConfig } = this.options.db;
+      this._persistenceAdapter = await createPersistenceAdapter(
+        {
+          type: 'sql',
+          dbType: dbType as 'sqlite' | 'postgres',
+          ...dbConfig,
+        },
+        this.constructor as new (
+          ...args: any[]
+        ) => SmrtObject,
+      );
+    }
+
+    // Legacy: setup database tables if using db directly (no adapter)
+    if (this.options.db && !this._persistenceAdapter) {
       await setupTableFromClass(this.db, this.constructor);
       await this.db.query(`
-        CREATE UNIQUE INDEX IF NOT EXISTS idx_${this.tableName}_slug_context 
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_${this.tableName}_slug_context
         ON ${this.tableName}(slug, context);
       `);
     }
 
-    if (this._id) {
+    if (this._id && !(this.options as any)._skipLoad) {
       await this.loadFromId();
-    } else if (this._slug) {
+    } else if (this._slug && !(this.options as any)._skipLoad) {
       await this.loadFromSlug();
     }
   }
@@ -277,7 +326,8 @@ export class SmrtObject extends SmrtClass {
    * @returns Object containing field definitions with current values
    */
   getFields() {
-    // Get the static fields definition from the class
+    // Use cached field definitions from ObjectRegistry (via fieldsFromClass)
+    // This is much more efficient than creating temporary instances
     const fields = fieldsFromClass(
       this.constructor as new (
         ...args: any[]
@@ -290,6 +340,29 @@ export class SmrtObject extends SmrtClass {
     }
 
     return fields;
+  }
+
+  /**
+   * Custom JSON serialization
+   * Returns a plain object with all field values for proper JSON.stringify() behavior
+   */
+  toJSON() {
+    const fields = this.getFields();
+    const data: any = {
+      id: this.id,
+      slug: this.slug,
+      context: this.context,
+      name: this.name,
+      created_at: this.created_at,
+      updated_at: this.updated_at,
+    };
+
+    // Add all field values
+    for (const [key, field] of Object.entries(fields)) {
+      data[key] = field.value;
+    }
+
+    return data;
   }
 
   /**
@@ -398,6 +471,13 @@ export class SmrtObject extends SmrtClass {
    */
   async save() {
     try {
+      // Use persistence adapter if available
+      if (this._persistenceAdapter) {
+        await this._persistenceAdapter.save(this);
+        return this;
+      }
+
+      // Legacy implementation for backward compatibility
       // Validate object state before saving
       await this.validateBeforeSave();
 
@@ -480,14 +560,39 @@ export class SmrtObject extends SmrtClass {
    * Override in subclasses to add custom validation logic
    */
   protected async validateBeforeSave(): Promise<void> {
-    // Basic validation - ensure required fields are present
-    const fields = fieldsFromClass(this.constructor as any);
+    // Use cached validators from ObjectRegistry for efficient validation
+    const validators = ObjectRegistry.getValidators(this.constructor.name);
 
-    for (const [fieldName, field] of Object.entries(fields)) {
-      if (field instanceof Field && field.options.required) {
-        const value = this.getFieldValue(fieldName);
-        if (value === null || value === undefined || value === '') {
-          throw ValidationError.requiredField(fieldName, this.constructor.name);
+    if (validators && validators.length > 0) {
+      // Execute all cached validators
+      const errors: ValidationError[] = [];
+
+      for (const validator of validators) {
+        const error = await validator(this);
+        if (error) {
+          errors.push(error);
+        }
+      }
+
+      // If there are validation errors, throw the first one
+      // (In the future, we could throw all errors as a ValidationReport)
+      if (errors.length > 0) {
+        throw errors[0];
+      }
+    } else {
+      // Fallback to old validation logic if no cached validators
+      // (for classes not registered with ObjectRegistry)
+      const fields = fieldsFromClass(this.constructor as any);
+
+      for (const [fieldName, field] of Object.entries(fields)) {
+        if (field instanceof Field && field.options.required) {
+          const value = this.getFieldValue(fieldName);
+          if (value === null || value === undefined || value === '') {
+            throw ValidationError.requiredField(
+              fieldName,
+              this.constructor.name,
+            );
+          }
         }
       }
     }
@@ -658,10 +763,224 @@ export class SmrtObject extends SmrtClass {
   public async delete(): Promise<void> {
     await this.runHook('beforeDelete');
 
-    await this.db.query(`DELETE FROM ${this.tableName} WHERE id = ?`, [
-      this.id,
-    ]);
+    // Use persistence adapter if available
+    if (this._persistenceAdapter && this.id) {
+      await this._persistenceAdapter.delete(this.id);
+    } else {
+      // Legacy implementation
+      await this.db.query(`DELETE FROM ${this.tableName} WHERE id = ?`, [
+        this.id,
+      ]);
+    }
 
     await this.runHook('afterDelete');
+  }
+
+  /**
+   * Check if a relationship has been loaded
+   *
+   * @param fieldName - Name of the relationship field
+   * @returns True if the relationship is loaded, false otherwise
+   * @example
+   * ```typescript
+   * if (order.isRelatedLoaded('customer')) {
+   *   console.log('Customer already loaded');
+   * }
+   * ```
+   */
+  public isRelatedLoaded(fieldName: string): boolean {
+    return this._loadedRelationships.has(fieldName);
+  }
+
+  /**
+   * Load a related object for a foreignKey field (lazy loading)
+   *
+   * Automatically loads the related object from the database using the
+   * foreign key value. The loaded object is cached to avoid repeated queries.
+   *
+   * @param fieldName - Name of the foreignKey field
+   * @returns Promise resolving to the related object or null if not found
+   * @throws {RuntimeError} If the field is not a foreignKey or target class not found
+   * @example
+   * ```typescript
+   * // Given: class Order with customerId = foreignKey(Customer)
+   * const customer = await order.loadRelated('customerId');
+   * console.log(customer.name); // Access customer properties
+   * ```
+   */
+  public async loadRelated(fieldName: string): Promise<any> {
+    // Check if already loaded
+    if (this._loadedRelationships.has(fieldName)) {
+      return this._loadedRelationships.get(fieldName);
+    }
+
+    // Get relationship metadata from ObjectRegistry
+    const relationships = ObjectRegistry.getRelationships(
+      this.constructor.name,
+    );
+    const relationship = relationships.find(
+      (r) => r.fieldName === fieldName && r.type === 'foreignKey',
+    );
+
+    if (!relationship) {
+      throw RuntimeError.invalidState(
+        `Field ${fieldName} is not a foreignKey relationship on ${this.constructor.name}`,
+        { fieldName, className: this.constructor.name },
+      );
+    }
+
+    // Get the foreign key value
+    const foreignKeyValue = this[fieldName as keyof this];
+    if (!foreignKeyValue) {
+      // No related object (foreign key is null)
+      this._loadedRelationships.set(fieldName, null);
+      return null;
+    }
+
+    // Get the target class constructor
+    const targetClassInfo = ObjectRegistry.getClass(relationship.targetClass);
+    if (!targetClassInfo) {
+      throw RuntimeError.invalidState(
+        `Target class ${relationship.targetClass} not found in ObjectRegistry`,
+        { targetClass: relationship.targetClass, fieldName },
+      );
+    }
+
+    // Create an instance and load by ID
+    const relatedInstance = new targetClassInfo.constructor(this.options);
+    await relatedInstance.initialize();
+    relatedInstance.id = foreignKeyValue;
+    await relatedInstance.loadFromId();
+
+    // Cache the loaded object
+    this._loadedRelationships.set(fieldName, relatedInstance);
+    return relatedInstance;
+  }
+
+  /**
+   * Load related objects for oneToMany or manyToMany fields (lazy loading)
+   *
+   * Loads all related objects from the database. For oneToMany, queries by
+   * the inverse foreign key. For manyToMany, queries through the join table.
+   *
+   * @param fieldName - Name of the oneToMany or manyToMany field
+   * @returns Promise resolving to array of related objects
+   * @throws {RuntimeError} If the field is not a relationship or not implemented
+   * @example
+   * ```typescript
+   * // Given: class Customer with orders = oneToMany(Order)
+   * const orders = await customer.loadRelatedMany('orders');
+   * console.log(`${orders.length} orders found`);
+   * ```
+   */
+  public async loadRelatedMany(fieldName: string): Promise<any[]> {
+    // Check if already loaded
+    if (this._loadedRelationships.has(fieldName)) {
+      return this._loadedRelationships.get(fieldName);
+    }
+
+    // Get relationship metadata from ObjectRegistry
+    const relationships = ObjectRegistry.getRelationships(
+      this.constructor.name,
+    );
+    const relationship = relationships.find((r) => r.fieldName === fieldName);
+
+    if (!relationship) {
+      throw RuntimeError.invalidState(
+        `Field ${fieldName} is not a relationship on ${this.constructor.name}`,
+        { fieldName, className: this.constructor.name },
+      );
+    }
+
+    if (relationship.type === 'oneToMany') {
+      // Find the inverse foreignKey field on the target class
+      const inverseRelationships = ObjectRegistry.getInverseRelationships(
+        this.constructor.name,
+      );
+      const inverseForeignKey = inverseRelationships.find(
+        (r) =>
+          r.sourceClass === relationship.targetClass &&
+          r.type === 'foreignKey' &&
+          r.targetClass === this.constructor.name,
+      );
+
+      if (!inverseForeignKey) {
+        throw RuntimeError.invalidState(
+          `Could not find inverse foreignKey on ${relationship.targetClass} for oneToMany relationship ${fieldName}`,
+          { fieldName, targetClass: relationship.targetClass },
+        );
+      }
+
+      // Get or create cached collection instance
+      const collection = await ObjectRegistry.getCollection(
+        relationship.targetClass,
+        this.options,
+      );
+
+      // Query using the inverse foreign key
+      const relatedObjects = await collection.list({
+        where: { [inverseForeignKey.fieldName]: this.id },
+      });
+
+      // Cache the loaded objects
+      this._loadedRelationships.set(fieldName, relatedObjects);
+      return relatedObjects;
+    }
+
+    if (relationship.type === 'manyToMany') {
+      // manyToMany requires a join table - not implemented yet
+      throw RuntimeError.invalidState(
+        `manyToMany relationship loading not yet implemented for ${fieldName}`,
+        { fieldName, type: 'manyToMany' },
+      );
+    }
+
+    throw RuntimeError.invalidState(
+      `Field ${fieldName} is not a oneToMany or manyToMany relationship`,
+      { fieldName, type: relationship.type },
+    );
+  }
+
+  /**
+   * Get a related object, loading it if not already loaded
+   *
+   * Convenience method that checks if the relationship is loaded and
+   * loads it if necessary. Automatically detects foreignKey vs oneToMany/manyToMany.
+   *
+   * @param fieldName - Name of the relationship field
+   * @returns Promise resolving to the related object(s)
+   * @example
+   * ```typescript
+   * // Loads customer if not already loaded
+   * const customer = await order.getRelated('customerId');
+   *
+   * // Loads orders if not already loaded
+   * const orders = await customer.getRelated('orders');
+   * ```
+   */
+  public async getRelated(fieldName: string): Promise<any> {
+    if (this._loadedRelationships.has(fieldName)) {
+      return this._loadedRelationships.get(fieldName);
+    }
+
+    // Determine relationship type
+    const relationships = ObjectRegistry.getRelationships(
+      this.constructor.name,
+    );
+    const relationship = relationships.find((r) => r.fieldName === fieldName);
+
+    if (!relationship) {
+      throw RuntimeError.invalidState(
+        `Field ${fieldName} is not a relationship on ${this.constructor.name}`,
+        { fieldName, className: this.constructor.name },
+      );
+    }
+
+    // Load based on relationship type
+    if (relationship.type === 'foreignKey') {
+      return this.loadRelated(fieldName);
+    }
+
+    return this.loadRelatedMany(fieldName);
   }
 }
