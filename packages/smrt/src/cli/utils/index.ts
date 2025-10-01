@@ -2,4 +2,4 @@
  * CLI Utilities - Export all utility functions
  */
 
-export { generate, type GeneratorOptions } from './generator.js';
+export { type GeneratorOptions, generate } from './generator.js';

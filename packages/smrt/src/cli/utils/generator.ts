@@ -8,8 +8,8 @@
  */
 
 import { spawn } from 'node:child_process';
-import { mkdir, cp, readFile, writeFile } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
+import { cp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import glob from 'fast-glob';
 import type { TemplateConfig, TemplateSource } from '../loaders/index.js';
 

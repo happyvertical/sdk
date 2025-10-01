@@ -11,14 +11,14 @@
  * - git@github.com:user/repo.git
  */
 
-import { join } from 'node:path';
-import { mkdir, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { pathToFileURL } from 'node:url';
 import { createWriteStream } from 'node:fs';
-import { pipeline } from 'node:stream/promises';
-import { extract } from 'tar';
+import { mkdir, rm } from 'node:fs/promises';
 import https from 'node:https';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pipeline } from 'node:stream/promises';
+import { pathToFileURL } from 'node:url';
+import { extract } from 'tar';
 import type { TemplateConfig } from './template-loader.js';
 
 interface GitRepo {

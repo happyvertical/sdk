@@ -113,11 +113,11 @@ export async function loadTemplate(
   }
 }
 
+import { loadGitTemplate } from './git-loader.js';
+import { loadLocalTemplate, resolveLocalPath } from './local-loader.js';
 // Import loaders (will be implemented in separate files)
 import {
-  resolveNpmPackage,
-  loadNpmTemplate,
   findTemplateInPackages,
+  loadNpmTemplate,
+  resolveNpmPackage,
 } from './npm-loader.js';
-import { loadGitTemplate } from './git-loader.js';
-import { resolveLocalPath, loadLocalTemplate } from './local-loader.js';

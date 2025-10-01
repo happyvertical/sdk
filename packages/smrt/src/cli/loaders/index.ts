@@ -3,26 +3,23 @@
  */
 
 export {
+  cleanupGitTemplate,
+  getGitTemplateDir,
+  loadGitTemplate,
+} from './git-loader.js';
+export {
+  loadLocalTemplate,
+  resolveLocalPath,
+} from './local-loader.js';
+export {
+  discoverInstalledTemplates,
+  findTemplateInPackages,
+  loadNpmTemplate,
+  resolveNpmPackage,
+} from './npm-loader.js';
+export {
+  loadTemplate,
+  resolveTemplate,
   type TemplateConfig,
   type TemplateSource,
-  resolveTemplate,
-  loadTemplate,
 } from './template-loader.js';
-
-export {
-  resolveNpmPackage,
-  loadNpmTemplate,
-  findTemplateInPackages,
-  discoverInstalledTemplates,
-} from './npm-loader.js';
-
-export {
-  resolveLocalPath,
-  loadLocalTemplate,
-} from './local-loader.js';
-
-export {
-  loadGitTemplate,
-  getGitTemplateDir,
-  cleanupGitTemplate,
-} from './git-loader.js';

@@ -6,10 +6,10 @@
 
 import type { CLICommand } from '../../generators/cli.js';
 import {
-  resolveTemplate,
-  loadTemplate,
-  discoverInstalledTemplates,
   cleanupGitTemplate,
+  discoverInstalledTemplates,
+  loadTemplate,
+  resolveTemplate,
 } from '../loaders/index.js';
 import { generate } from '../utils/generator.js';
 
