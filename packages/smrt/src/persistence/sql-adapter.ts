@@ -798,7 +798,7 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
     const values = [id, slug, context];
     const updates = [`slug = ${slug}`, `context = ${context}`];
 
-    for (const [key, field] of Object.entries(fields)) {
+    for (const [key, _field] of Object.entries(fields)) {
       if (key === 'slug' || key === 'context') continue;
       columns.push(key);
 
