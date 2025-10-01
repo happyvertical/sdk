@@ -1,4 +1,5 @@
 import { syncSchema } from '@have/sql';
+import { ObjectRegistry } from './registry';
 
 /**
  * Checks if a field name indicates a date field based on naming conventions
@@ -66,8 +67,27 @@ export function fieldsFromClass(
   ClassType: new (...args: any[]) => any,
   values?: Record<string, any>,
 ) {
+  // First, try to get cached fields from ObjectRegistry
+  const className = ClassType.name;
+  const cachedFields = ObjectRegistry.getFields(className);
+
+  if (cachedFields.size > 0) {
+    // Use cached field definitions - much more efficient
+    const fields: Record<string, any> = {};
+
+    for (const [key, field] of cachedFields.entries()) {
+      fields[key] = {
+        name: key,
+        type: field.type || 'TEXT',
+        ...(values && key in values ? { value: values[key] } : {}),
+      };
+    }
+
+    return fields;
+  }
+
+  // Fallback: Create temporary instance for introspection (for unregistered classes)
   const fields: Record<string, any> = {};
-  // just for introspection, dont need real creds
   const instance = new ClassType({
     ai: {
       type: 'openai',

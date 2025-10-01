@@ -181,11 +181,18 @@ export interface RestPersistenceConfig {
   };
 
   /**
+   * Use PATCH instead of PUT for updates
+   * PATCH is more appropriate for partial updates
+   * @default false
+   */
+  usePatchForUpdates?: boolean;
+
+  /**
    * Custom endpoint paths (overrides defaults)
    */
   endpoints?: {
     create?: string; // Default: POST /
-    update?: string; // Default: PUT /:id
+    update?: string; // Default: PUT /:id (or PATCH /:id if usePatchForUpdates is true)
     get?: string; // Default: GET /:id
     list?: string; // Default: GET /
     delete?: string; // Default: DELETE /:id

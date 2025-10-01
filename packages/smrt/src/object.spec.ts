@@ -18,11 +18,13 @@ class TestObject extends SmrtObject {
 
 describe('SmrtObject', () => {
   describe('Basic Instantiation', () => {
-    it('should create a new instance with provided values', () => {
+    it('should create a new instance with provided values', async () => {
       const obj = new TestObject({
         id: 'test-id',
         name: 'Test Object',
+        _skipLoad: true,
       });
+      await obj.initialize();
 
       expect(obj).toBeInstanceOf(SmrtObject);
       expect(obj).toBeInstanceOf(TestObject);
@@ -30,16 +32,22 @@ describe('SmrtObject', () => {
       expect(obj.id).toBe('test-id');
     });
 
-    it('should handle missing ID (returns null)', () => {
-      const obj = new TestObject({ name: 'No ID Object' });
+    it('should handle missing ID (returns null)', async () => {
+      const obj = new TestObject({ name: 'No ID Object', _skipLoad: true });
+      await obj.initialize();
 
       expect(obj.name).toBe('No ID Object');
       expect(obj.id).toBeNull();
     });
 
-    it('should accept ID in options', () => {
+    it('should accept ID in options', async () => {
       const customId = 'custom-test-id';
-      const obj = new TestObject({ id: customId, name: 'Test' });
+      const obj = new TestObject({
+        id: customId,
+        name: 'Test',
+        _skipLoad: true,
+      });
+      await obj.initialize();
 
       expect(obj.id).toBe(customId);
     });
@@ -54,11 +62,13 @@ describe('SmrtObject', () => {
   describe('Instance Properties', () => {
     let testObj: TestObject;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       testObj = new TestObject({
         id: 'test-instance-id',
         name: 'Test Instance',
+        _skipLoad: true,
       });
+      await testObj.initialize();
     });
 
     it('should have proper property access', () => {
@@ -73,11 +83,13 @@ describe('SmrtObject', () => {
   });
 
   describe('Property Assignment', () => {
-    it('should allow property updates', () => {
+    it('should allow property updates', async () => {
       const obj = new TestObject({
         id: 'test-id',
         name: 'Initial',
+        _skipLoad: true,
       });
+      await obj.initialize();
 
       obj.name = 'Updated';
       obj.description = 'Added description';

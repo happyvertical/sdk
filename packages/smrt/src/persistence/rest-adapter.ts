@@ -123,8 +123,9 @@ export class RestPersistenceAdapter implements PersistenceAdapter {
       if (isUpdate) {
         // Update existing object
         const endpoint = this.config.endpoints?.update || `/${object.id}`;
+        const method = this.config.usePatchForUpdates ? 'PATCH' : 'PUT';
         response = await this.request(
-          'PUT',
+          method,
           endpoint,
           this.serializeObject(object),
         );
