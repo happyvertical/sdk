@@ -511,3 +511,298 @@ export class ErrorUtils {
     return sanitized;
   }
 }
+
+/**
+ * Validation report that collects multiple validation errors
+ *
+ * Useful for validating an entire object and reporting all errors
+ * at once rather than stopping at the first error.
+ *
+ * @example
+ * ```typescript
+ * const report = new ValidationReport('Product');
+ * report.addError(ValidationError.requiredField('name', 'Product'));
+ * report.addError(ValidationError.rangeError('price', -10, 0));
+ *
+ * if (report.hasErrors()) {
+ *   console.error(report.toString());
+ *   // Output:
+ *   // Validation failed for Product with 2 errors:
+ *   // - name: Required field 'name' is missing for Product
+ *   // - price: Value -10 for field 'price' is outside allowed range [0, undefined]
+ * }
+ * ```
+ */
+export class ValidationReport {
+  private errors: ValidationError[] = [];
+  private objectType: string;
+
+  constructor(objectType: string) {
+    this.objectType = objectType;
+  }
+
+  /**
+   * Add a validation error to the report
+   */
+  addError(error: ValidationError): void {
+    this.errors.push(error);
+  }
+
+  /**
+   * Check if there are any validation errors
+   */
+  hasErrors(): boolean {
+    return this.errors.length > 0;
+  }
+
+  /**
+   * Get all validation errors
+   */
+  getErrors(): ValidationError[] {
+    return [...this.errors];
+  }
+
+  /**
+   * Get the number of validation errors
+   */
+  getErrorCount(): number {
+    return this.errors.length;
+  }
+
+  /**
+   * Convert to a human-readable string
+   */
+  toString(): string {
+    if (this.errors.length === 0) {
+      return `Validation passed for ${this.objectType}`;
+    }
+
+    const errorList = this.errors
+      .map((err, idx) => `  ${idx + 1}. ${err.message}`)
+      .join('\n');
+
+    return `Validation failed for ${this.objectType} with ${this.errors.length} error(s):\n${errorList}`;
+  }
+
+  /**
+   * Convert to JSON format
+   */
+  toJSON(): object {
+    return {
+      objectType: this.objectType,
+      errorCount: this.errors.length,
+      errors: this.errors.map((err) => err.toJSON()),
+    };
+  }
+
+  /**
+   * Throw the first error if there are any errors
+   */
+  throwIfErrors(): void {
+    if (this.errors.length > 0) {
+      throw this.errors[0];
+    }
+  }
+
+  /**
+   * Clear all errors
+   */
+  clear(): void {
+    this.errors = [];
+  }
+}
+
+/**
+ * Validation utility functions
+ */
+export class ValidationUtils {
+  /**
+   * Validate a single field value
+   *
+   * @param fieldName - Name of the field
+   * @param value - Value to validate
+   * @param options - Validation options (required, min, max, etc.)
+   * @returns ValidationError if validation fails, null otherwise
+   */
+  static async validateField(
+    fieldName: string,
+    value: any,
+    options: {
+      required?: boolean;
+      min?: number;
+      max?: number;
+      minLength?: number;
+      maxLength?: number;
+      pattern?: string | RegExp;
+      type?: string;
+      customValidator?: (value: any) => boolean | Promise<boolean>;
+      customMessage?: string;
+    },
+    objectType: string = 'Object',
+  ): Promise<ValidationError | null> {
+    // Required check
+    if (
+      options.required &&
+      (value === null || value === undefined || value === '')
+    ) {
+      return ValidationError.requiredField(fieldName, objectType);
+    }
+
+    // Skip further validation if value is null/undefined and not required
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    // Numeric range validation
+    if (typeof value === 'number') {
+      if (options.min !== undefined && value < options.min) {
+        return ValidationError.rangeError(
+          fieldName,
+          value,
+          options.min,
+          options.max,
+        );
+      }
+      if (options.max !== undefined && value > options.max) {
+        return ValidationError.rangeError(
+          fieldName,
+          value,
+          options.min,
+          options.max,
+        );
+      }
+    }
+
+    // String length validation
+    if (typeof value === 'string') {
+      if (options.minLength !== undefined && value.length < options.minLength) {
+        return ValidationError.invalidValue(
+          fieldName,
+          value,
+          `string with minimum length ${options.minLength}`,
+        );
+      }
+      if (options.maxLength !== undefined && value.length > options.maxLength) {
+        return ValidationError.invalidValue(
+          fieldName,
+          value,
+          `string with maximum length ${options.maxLength}`,
+        );
+      }
+
+      // Pattern validation
+      if (options.pattern) {
+        const regex =
+          typeof options.pattern === 'string'
+            ? new RegExp(options.pattern)
+            : options.pattern;
+        if (!regex.test(value)) {
+          return ValidationError.invalidValue(
+            fieldName,
+            value,
+            `string matching pattern ${options.pattern}`,
+          );
+        }
+      }
+    }
+
+    // Custom validator
+    if (options.customValidator) {
+      try {
+        const isValid = await options.customValidator(value);
+        if (!isValid) {
+          return ValidationError.invalidValue(
+            fieldName,
+            value,
+            options.customMessage || 'custom validation failed',
+          );
+        }
+      } catch (error) {
+        return ValidationError.invalidValue(
+          fieldName,
+          value,
+          `custom validation error: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Validate required field
+   */
+  static validateRequired(
+    fieldName: string,
+    value: any,
+    objectType: string = 'Object',
+  ): ValidationError | null {
+    if (value === null || value === undefined || value === '') {
+      return ValidationError.requiredField(fieldName, objectType);
+    }
+    return null;
+  }
+
+  /**
+   * Validate numeric range
+   */
+  static validateRange(
+    fieldName: string,
+    value: number,
+    min?: number,
+    max?: number,
+  ): ValidationError | null {
+    if (min !== undefined && value < min) {
+      return ValidationError.rangeError(fieldName, value, min, max);
+    }
+    if (max !== undefined && value > max) {
+      return ValidationError.rangeError(fieldName, value, min, max);
+    }
+    return null;
+  }
+
+  /**
+   * Validate string length
+   */
+  static validateLength(
+    fieldName: string,
+    value: string,
+    minLength?: number,
+    maxLength?: number,
+  ): ValidationError | null {
+    if (minLength !== undefined && value.length < minLength) {
+      return ValidationError.invalidValue(
+        fieldName,
+        value,
+        `string with minimum length ${minLength}`,
+      );
+    }
+    if (maxLength !== undefined && value.length > maxLength) {
+      return ValidationError.invalidValue(
+        fieldName,
+        value,
+        `string with maximum length ${maxLength}`,
+      );
+    }
+    return null;
+  }
+
+  /**
+   * Validate string pattern
+   */
+  static validatePattern(
+    fieldName: string,
+    value: string,
+    pattern: string | RegExp,
+  ): ValidationError | null {
+    const regex = typeof pattern === 'string' ? new RegExp(pattern) : pattern;
+    if (!regex.test(value)) {
+      return ValidationError.invalidValue(
+        fieldName,
+        value,
+        `string matching pattern ${pattern}`,
+      );
+    }
+    return null;
+  }
+}

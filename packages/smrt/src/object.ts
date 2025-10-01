@@ -554,14 +554,39 @@ export class SmrtObject extends SmrtClass {
    * Override in subclasses to add custom validation logic
    */
   protected async validateBeforeSave(): Promise<void> {
-    // Basic validation - ensure required fields are present
-    const fields = fieldsFromClass(this.constructor as any);
+    // Use cached validators from ObjectRegistry for efficient validation
+    const validators = ObjectRegistry.getValidators(this.constructor.name);
 
-    for (const [fieldName, field] of Object.entries(fields)) {
-      if (field instanceof Field && field.options.required) {
-        const value = this.getFieldValue(fieldName);
-        if (value === null || value === undefined || value === '') {
-          throw ValidationError.requiredField(fieldName, this.constructor.name);
+    if (validators && validators.length > 0) {
+      // Execute all cached validators
+      const errors: ValidationError[] = [];
+
+      for (const validator of validators) {
+        const error = await validator(this);
+        if (error) {
+          errors.push(error);
+        }
+      }
+
+      // If there are validation errors, throw the first one
+      // (In the future, we could throw all errors as a ValidationReport)
+      if (errors.length > 0) {
+        throw errors[0];
+      }
+    } else {
+      // Fallback to old validation logic if no cached validators
+      // (for classes not registered with ObjectRegistry)
+      const fields = fieldsFromClass(this.constructor as any);
+
+      for (const [fieldName, field] of Object.entries(fields)) {
+        if (field instanceof Field && field.options.required) {
+          const value = this.getFieldValue(fieldName);
+          if (value === null || value === undefined || value === '') {
+            throw ValidationError.requiredField(
+              fieldName,
+              this.constructor.name,
+            );
+          }
         }
       }
     }
