@@ -16,6 +16,7 @@
   "exports": {
     ".": "./dist/index.js",
     "./utils": "./dist/utils.js",
+    "./cli": "./dist/cli/index.js",
     "./generators": "./dist/generators/index.js",
     "./generators/cli": "./dist/generators/cli.js",
     "./generators/rest": "./dist/generators/rest.js",
@@ -36,6 +37,7 @@
     "cheerio": "^1.0.0",
     "fast-glob": "3.3.3",
     "minimatch": "10.0.3",
+    "tar": "^7.5.1",
     "yaml": "^2.7.0"
   },
   "scripts": {
