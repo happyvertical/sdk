@@ -3,25 +3,38 @@
  */
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { promises as fs } from 'node:fs';
-import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 
-// Mock modules
-vi.mock('node:fs');
-vi.mock('node:os');
+// Use vi.hoisted to create mocks before hoisting
+const { mockAccess, mockHomedir } = vi.hoisted(() => ({
+  mockAccess: vi.fn(),
+  mockHomedir: vi.fn(),
+}));
+
+// Mock filesystem and os modules with factory functions for ESM
+vi.mock('node:fs/promises', () => ({
+  access: mockAccess,
+}));
+
+vi.mock('node:os', () => ({
+  homedir: mockHomedir,
+}));
+
+// Import after mocks are set up
+import { resolveLocalPath, loadLocalTemplate } from './local-loader.js';
 
 describe('Local Loader', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset mock implementations
+    mockAccess.mockResolvedValue(undefined);
+    mockHomedir.mockReturnValue('/home/user');
   });
 
   describe('resolveLocalPath', () => {
     it('should resolve home directory path with ~/', async () => {
-      vi.mocked(homedir).mockReturnValue('/home/user');
-      vi.mocked(fs.access).mockResolvedValue(undefined);
-
-      const { resolveLocalPath } = await import('./local-loader.js');
+      mockHomedir.mockReturnValue('/home/user');
+      mockAccess.mockResolvedValue(undefined);
 
       const result = await resolveLocalPath('~/templates/mytemplate');
 
@@ -29,10 +42,8 @@ describe('Local Loader', () => {
     });
 
     it('should resolve home directory path with ~', async () => {
-      vi.mocked(homedir).mockReturnValue('/home/user');
-      vi.mocked(fs.access).mockResolvedValue(undefined);
-
-      const { resolveLocalPath } = await import('./local-loader.js');
+      mockHomedir.mockReturnValue('/home/user');
+      mockAccess.mockResolvedValue(undefined);
 
       const result = await resolveLocalPath('~templates/mytemplate');
 
@@ -40,9 +51,7 @@ describe('Local Loader', () => {
     });
 
     it('should keep absolute path as-is', async () => {
-      vi.mocked(fs.access).mockResolvedValue(undefined);
-
-      const { resolveLocalPath } = await import('./local-loader.js');
+      mockAccess.mockResolvedValue(undefined);
 
       const result = await resolveLocalPath('/absolute/path/to/template');
 
@@ -50,9 +59,7 @@ describe('Local Loader', () => {
     });
 
     it('should resolve relative path from cwd', async () => {
-      vi.mocked(fs.access).mockResolvedValue(undefined);
-
-      const { resolveLocalPath } = await import('./local-loader.js');
+      mockAccess.mockResolvedValue(undefined);
 
       const cwd = process.cwd();
       const result = await resolveLocalPath('./relative/path');
@@ -61,9 +68,7 @@ describe('Local Loader', () => {
     });
 
     it('should resolve parent relative path from cwd', async () => {
-      vi.mocked(fs.access).mockResolvedValue(undefined);
-
-      const { resolveLocalPath } = await import('./local-loader.js');
+      mockAccess.mockResolvedValue(undefined);
 
       const cwd = process.cwd();
       const result = await resolveLocalPath('../parent/path');
@@ -72,9 +77,7 @@ describe('Local Loader', () => {
     });
 
     it('should throw error if path does not exist', async () => {
-      vi.mocked(fs.access).mockRejectedValue(new Error('ENOENT'));
-
-      const { resolveLocalPath } = await import('./local-loader.js');
+      mockAccess.mockRejectedValue(new Error('ENOENT'));
 
       await expect(resolveLocalPath('/nonexistent/path')).rejects.toThrow(
         /does not exist/,
@@ -82,19 +85,15 @@ describe('Local Loader', () => {
     });
 
     it('should verify directory exists using fs.access', async () => {
-      const accessSpy = vi.mocked(fs.access).mockResolvedValue(undefined);
-
-      const { resolveLocalPath } = await import('./local-loader.js');
+      mockAccess.mockResolvedValue(undefined);
 
       await resolveLocalPath('/test/path');
 
-      expect(accessSpy).toHaveBeenCalledWith('/test/path');
+      expect(mockAccess).toHaveBeenCalledWith('/test/path');
     });
 
     it('should handle paths with trailing slashes', async () => {
-      vi.mocked(fs.access).mockResolvedValue(undefined);
-
-      const { resolveLocalPath } = await import('./local-loader.js');
+      mockAccess.mockResolvedValue(undefined);
 
       const result = await resolveLocalPath('/path/to/template/');
 
@@ -102,9 +101,7 @@ describe('Local Loader', () => {
     });
 
     it('should handle complex relative paths', async () => {
-      vi.mocked(fs.access).mockResolvedValue(undefined);
-
-      const { resolveLocalPath } = await import('./local-loader.js');
+      mockAccess.mockResolvedValue(undefined);
 
       const cwd = process.cwd();
       const result = await resolveLocalPath('./foo/../bar/./baz');
@@ -113,10 +110,8 @@ describe('Local Loader', () => {
     });
 
     it('should expand ~ in middle of path', async () => {
-      vi.mocked(homedir).mockReturnValue('/home/user');
-      vi.mocked(fs.access).mockResolvedValue(undefined);
-
-      const { resolveLocalPath } = await import('./local-loader.js');
+      mockHomedir.mockReturnValue('/home/user');
+      mockAccess.mockResolvedValue(undefined);
 
       // Only expands ~ at the start
       const result = await resolveLocalPath('~/foo/bar');
@@ -127,45 +122,38 @@ describe('Local Loader', () => {
 
   describe('loadLocalTemplate', () => {
     it('should load template.config.js if exists', async () => {
-      const accessSpy = vi.mocked(fs.access).mockResolvedValueOnce(undefined); // First call for .js succeeds
-
-      const { loadLocalTemplate } = await import('./local-loader.js');
+      mockAccess.mockResolvedValueOnce(undefined); // First call for .js succeeds
 
       // Will fail at dynamic import without proper mocking
       try {
         await loadLocalTemplate('/test/path');
       } catch (error) {
         // Expected in test environment
-        expect(accessSpy).toHaveBeenCalledWith(
+        expect(mockAccess).toHaveBeenCalledWith(
           expect.stringContaining('template.config.js'),
         );
       }
     });
 
     it('should try template.config.ts if .js not found', async () => {
-      const accessSpy = vi
-        .mocked(fs.access)
+      mockAccess
         .mockRejectedValueOnce(new Error('ENOENT')) // .js not found
         .mockResolvedValueOnce(undefined); // .ts found
-
-      const { loadLocalTemplate } = await import('./local-loader.js');
 
       try {
         await loadLocalTemplate('/test/path');
       } catch (error) {
         // Expected in test environment
-        expect(accessSpy).toHaveBeenCalledWith(
+        expect(mockAccess).toHaveBeenCalledWith(
           expect.stringContaining('template.config.ts'),
         );
       }
     });
 
     it('should throw error if no config file found', async () => {
-      vi.mocked(fs.access)
+      mockAccess
         .mockRejectedValueOnce(new Error('ENOENT')) // .js not found
         .mockRejectedValueOnce(new Error('ENOENT')); // .ts not found
-
-      const { loadLocalTemplate } = await import('./local-loader.js');
 
       await expect(loadLocalTemplate('/test/path')).rejects.toThrow(
         /No template.config/,
@@ -173,9 +161,7 @@ describe('Local Loader', () => {
     });
 
     it('should validate loaded config', async () => {
-      vi.mocked(fs.access).mockResolvedValue(undefined);
-
-      const { loadLocalTemplate } = await import('./local-loader.js');
+      mockAccess.mockResolvedValue(undefined);
 
       // Without proper mocking of dynamic imports, we can't test full validation
       // But we can verify the function attempts to load
@@ -187,32 +173,26 @@ describe('Local Loader', () => {
     });
 
     it('should prefer .js over .ts when both exist', async () => {
-      const accessSpy = vi.mocked(fs.access).mockResolvedValue(undefined); // Both exist
-
-      const { loadLocalTemplate } = await import('./local-loader.js');
+      mockAccess.mockResolvedValue(undefined); // Both exist
 
       try {
         await loadLocalTemplate('/test/path');
       } catch (error) {
         // Should try .js first
-        const calls = accessSpy.mock.calls;
+        const calls = mockAccess.mock.calls;
         expect(calls[0][0]).toContain('.js');
       }
     });
 
     it('should throw error if config loading fails', async () => {
-      vi.mocked(fs.access).mockResolvedValue(undefined);
-
-      const { loadLocalTemplate } = await import('./local-loader.js');
+      mockAccess.mockResolvedValue(undefined);
 
       // Dynamic import will fail in test environment
       await expect(loadLocalTemplate('/test/path')).rejects.toThrow();
     });
 
     it('should convert file path to file URL for import', async () => {
-      vi.mocked(fs.access).mockResolvedValue(undefined);
-
-      const { loadLocalTemplate } = await import('./local-loader.js');
+      mockAccess.mockResolvedValue(undefined);
 
       // Test that pathToFileURL is used
       // Would need to mock dynamic imports to fully test
@@ -254,9 +234,7 @@ describe('Local Loader', () => {
 
   describe('Edge Cases', () => {
     it('should handle Windows-style paths', async () => {
-      vi.mocked(fs.access).mockResolvedValue(undefined);
-
-      const { resolveLocalPath } = await import('./local-loader.js');
+      mockAccess.mockResolvedValue(undefined);
 
       // Note: On Unix systems, backslashes are valid path characters
       const result = await resolveLocalPath('C:\\Users\\test\\templates');
@@ -265,9 +243,7 @@ describe('Local Loader', () => {
     });
 
     it('should handle paths with spaces', async () => {
-      vi.mocked(fs.access).mockResolvedValue(undefined);
-
-      const { resolveLocalPath } = await import('./local-loader.js');
+      mockAccess.mockResolvedValue(undefined);
 
       const result = await resolveLocalPath('/path/with spaces/template');
 
@@ -275,9 +251,7 @@ describe('Local Loader', () => {
     });
 
     it('should handle paths with special characters', async () => {
-      vi.mocked(fs.access).mockResolvedValue(undefined);
-
-      const { resolveLocalPath } = await import('./local-loader.js');
+      mockAccess.mockResolvedValue(undefined);
 
       const result = await resolveLocalPath(
         '/path/with-special_chars.dir/template',
@@ -287,9 +261,7 @@ describe('Local Loader', () => {
     });
 
     it('should handle symlinks', async () => {
-      vi.mocked(fs.access).mockResolvedValue(undefined);
-
-      const { resolveLocalPath } = await import('./local-loader.js');
+      mockAccess.mockResolvedValue(undefined);
 
       // fs.access should work with symlinks
       const result = await resolveLocalPath('/path/to/symlink');

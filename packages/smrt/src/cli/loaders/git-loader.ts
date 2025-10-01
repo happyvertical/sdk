@@ -17,12 +17,10 @@
  * - Full URL: https://github.com/user/repo.git#branch:path/to/subdir
  */
 
-import { createWriteStream } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
 import https from 'node:https';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { pipeline } from 'node:stream/promises';
 import { pathToFileURL } from 'node:url';
 import { extract } from 'tar';
 import type { TemplateConfig } from './template-loader.js';
