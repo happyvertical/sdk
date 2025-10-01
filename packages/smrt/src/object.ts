@@ -911,20 +911,13 @@ export class SmrtObject extends SmrtClass {
         );
       }
 
-      // Get the target collection
-      const targetClassInfo = ObjectRegistry.getClass(relationship.targetClass);
-      if (!targetClassInfo || !targetClassInfo.collectionConstructor) {
-        throw RuntimeError.invalidState(
-          `Collection not found for ${relationship.targetClass}`,
-          { targetClass: relationship.targetClass },
-        );
-      }
-
-      // Query using the inverse foreign key
-      const collection = new targetClassInfo.collectionConstructor(
+      // Get or create cached collection instance
+      const collection = await ObjectRegistry.getCollection(
+        relationship.targetClass,
         this.options,
       );
-      await collection.initialize();
+
+      // Query using the inverse foreign key
       const relatedObjects = await collection.list({
         where: { [inverseForeignKey.fieldName]: this.id },
       });

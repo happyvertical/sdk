@@ -21,7 +21,6 @@ import {
   fieldsFromClass,
   formatDataJs,
   generateSchema,
-  setupTableFromClass,
   tableNameFromClass,
 } from '../utils';
 import type { PersistenceAdapter } from './adapter';
@@ -236,14 +235,309 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
     }
   }
 
+  /**
+   * Build SELECT clause with aliases for eager-loaded relationships
+   *
+   * @param include - Array of relationship field names to include
+   * @param objectClass - Main object class constructor
+   * @returns SQL SELECT clause with aliased columns
+   * @private
+   */
+  private buildSelectClause(
+    include: string[],
+    objectClass: new (...args: any[]) => SmrtObject,
+  ): string {
+    const fields = fieldsFromClass(objectClass);
+    const mainColumns = Object.keys(fields)
+      .map((field) => `t0.${field} as t0_${field}`)
+      .join(', ');
+
+    if (include.length === 0) {
+      return `t0.*`;
+    }
+
+    // Get relationships metadata
+    const relationships = ObjectRegistry.getRelationships(objectClass.name);
+    const relationshipClauses: string[] = [mainColumns];
+
+    // Add columns for each included relationship
+    for (let i = 0; i < include.length; i++) {
+      const fieldName = include[i];
+      const relationship = relationships.find((r) => r.fieldName === fieldName);
+
+      if (!relationship || relationship.type !== 'foreignKey') {
+        // Skip non-foreignKey relationships or invalid fields
+        continue;
+      }
+
+      // Get fields from the related class
+      const targetClassInfo = ObjectRegistry.getClass(relationship.targetClass);
+      if (!targetClassInfo) continue;
+
+      const targetFields = targetClassInfo.fields;
+      const targetColumns = Array.from(targetFields.keys())
+        .map((field) => `t${i + 1}.${field} as t${i + 1}_${field}`)
+        .join(', ');
+
+      relationshipClauses.push(targetColumns);
+    }
+
+    return relationshipClauses.join(', ');
+  }
+
+  /**
+   * Build JOIN clauses for eager-loaded relationships
+   *
+   * @param include - Array of relationship field names to include
+   * @param objectClass - Main object class constructor
+   * @returns SQL JOIN clauses
+   * @private
+   */
+  private buildJoinClause(
+    include: string[],
+    objectClass: new (...args: any[]) => SmrtObject,
+  ): string {
+    if (include.length === 0) return '';
+
+    const relationships = ObjectRegistry.getRelationships(objectClass.name);
+    const joinClauses: string[] = [];
+
+    for (let i = 0; i < include.length; i++) {
+      const fieldName = include[i];
+      const relationship = relationships.find((r) => r.fieldName === fieldName);
+
+      if (!relationship || relationship.type !== 'foreignKey') {
+        // Skip non-foreignKey relationships (oneToMany, manyToMany need different handling)
+        continue;
+      }
+
+      const targetClassInfo = ObjectRegistry.getClass(relationship.targetClass);
+      if (!targetClassInfo) continue;
+
+      const targetTableName = targetClassInfo.schema?.tableName;
+      if (!targetTableName) continue;
+
+      // Build LEFT JOIN for foreignKey relationship
+      // ON t0.fieldName = t1.id
+      joinClauses.push(
+        `LEFT JOIN ${targetTableName} t${i + 1} ON t0.${fieldName} = t${i + 1}.id`,
+      );
+    }
+
+    return joinClauses.join(' ');
+  }
+
+  /**
+   * Hydrate flat SQL result rows into nested object structures
+   *
+   * @param rows - Flat SQL result rows with aliased columns
+   * @param include - Array of included relationship field names
+   * @param objectClass - Main object class constructor
+   * @returns Array of hydrated object instances with relationships pre-loaded
+   * @private
+   */
+  private async hydrateResultSet<T extends SmrtObject>(
+    rows: any[],
+    include: string[],
+    objectClass: new (options: any) => T,
+  ): Promise<T[]> {
+    const instances: T[] = [];
+    const relationships = ObjectRegistry.getRelationships(objectClass.name);
+
+    for (const row of rows) {
+      // Extract main object data (columns prefixed with t0_)
+      const mainData: any = {};
+      const relationshipData: Map<string, any> = new Map();
+
+      // Parse row into main object and relationship objects
+      for (const [key, value] of Object.entries(row)) {
+        const columnName = key as string;
+
+        if (columnName.startsWith('t0_')) {
+          // Main object column
+          const fieldName = columnName.substring(3);
+          mainData[fieldName] = value;
+        } else {
+          // Relationship column (e.g., t1_id, t1_name)
+          const match = columnName.match(/^t(\d+)_(.+)$/);
+          if (match) {
+            const tableIndex = Number.parseInt(match[1], 10);
+            const fieldName = match[2];
+
+            if (tableIndex > 0 && tableIndex <= include.length) {
+              const relationshipFieldName = include[tableIndex - 1];
+
+              if (!relationshipData.has(relationshipFieldName)) {
+                relationshipData.set(relationshipFieldName, {});
+              }
+
+              relationshipData.get(relationshipFieldName)[fieldName] = value;
+            }
+          }
+        }
+      }
+
+      // Create main object instance
+      const instance = new objectClass({
+        ...formatDataJs(mainData),
+        _skipLoad: true,
+        _persistenceAdapter: this,
+      });
+      await instance.initialize();
+
+      // Pre-populate relationship cache with loaded data
+      for (const [relationshipFieldName, relatedData] of relationshipData) {
+        const relationship = relationships.find(
+          (r) => r.fieldName === relationshipFieldName,
+        );
+
+        if (!relationship || relationship.type !== 'foreignKey') continue;
+
+        // Check if related object exists (not null JOIN result)
+        if (relatedData.id) {
+          const targetClassInfo = ObjectRegistry.getClass(
+            relationship.targetClass,
+          );
+          if (!targetClassInfo) continue;
+
+          // Create related object instance
+          const relatedInstance = new targetClassInfo.constructor({
+            ...formatDataJs(relatedData),
+            _skipLoad: true,
+            _persistenceAdapter: this,
+          });
+          await relatedInstance.initialize();
+
+          // Store in relationship cache
+          (instance as any)._loadedRelationships.set(
+            relationshipFieldName,
+            relatedInstance,
+          );
+        } else {
+          // NULL relationship (LEFT JOIN with no match)
+          (instance as any)._loadedRelationships.set(
+            relationshipFieldName,
+            null,
+          );
+        }
+      }
+
+      instances.push(instance);
+    }
+
+    return instances;
+  }
+
   async list<T extends SmrtObject>(
     options: ListOptions,
     objectClass: new (options: any) => T,
   ): Promise<T[]> {
     try {
       const tableName = tableNameFromClass(objectClass);
-      const { where, offset, limit, orderBy } = options;
+      const { where, offset, limit, orderBy, include } = options;
 
+      // Check if we should use JOIN-based eager loading
+      if (include && include.length > 0) {
+        // JOIN-based eager loading path (single query for relationships)
+        const selectClause = this.buildSelectClause(
+          tableName,
+          include,
+          objectClass,
+        );
+        const joinClause = this.buildJoinClause(
+          tableName,
+          include,
+          objectClass,
+        );
+
+        // Build WHERE clause (prefix fields with t0.)
+        let whereClause = '';
+        const whereValues: any[] = [];
+
+        if (where && Object.keys(where).length > 0) {
+          const conditions = [];
+
+          for (const [key, value] of Object.entries(where)) {
+            const parts = key.trim().split(/\s+/);
+            const field = parts[0];
+            const operator = parts[1] || '=';
+
+            if (operator === 'in' && Array.isArray(value)) {
+              const placeholders = value.map(() => '?').join(', ');
+              conditions.push(`t0.${field} IN (${placeholders})`);
+              whereValues.push(...value);
+            } else if (operator === 'like') {
+              conditions.push(`t0.${field} LIKE ?`);
+              whereValues.push(value);
+            } else if (value === null) {
+              if (operator === '!=' || operator === '<>') {
+                conditions.push(`t0.${field} IS NOT NULL`);
+              } else {
+                conditions.push(`t0.${field} IS NULL`);
+              }
+            } else {
+              conditions.push(`t0.${field} ${operator} ?`);
+              whereValues.push(value);
+            }
+          }
+
+          whereClause = `WHERE ${conditions.join(' AND ')}`;
+        }
+
+        // Build ORDER BY clause (prefix fields with t0.)
+        let orderByClause = '';
+        if (orderBy) {
+          orderByClause = ' ORDER BY ';
+          const orderByItems = Array.isArray(orderBy) ? orderBy : [orderBy];
+
+          orderByClause += orderByItems
+            .map((item) => {
+              const [field, direction = 'ASC'] = item.split(' ');
+
+              if (!/^[a-zA-Z0-9_]+$/.test(field)) {
+                throw new Error(`Invalid field name for ordering: ${field}`);
+              }
+
+              const normalizedDirection = direction.toUpperCase();
+              if (
+                normalizedDirection !== 'ASC' &&
+                normalizedDirection !== 'DESC'
+              ) {
+                throw new Error(
+                  `Invalid sort direction: ${direction}. Must be ASC or DESC.`,
+                );
+              }
+
+              return `t0.${field} ${normalizedDirection}`;
+            })
+            .join(', ');
+        }
+
+        // Build LIMIT/OFFSET clause
+        let limitOffsetClause = '';
+        const limitOffsetValues = [];
+
+        if (limit !== undefined) {
+          limitOffsetClause += ' LIMIT ?';
+          limitOffsetValues.push(limit);
+        }
+
+        if (offset !== undefined) {
+          limitOffsetClause += ' OFFSET ?';
+          limitOffsetValues.push(offset);
+        }
+
+        const sql = `SELECT ${selectClause} FROM ${tableName} t0 ${joinClause} ${whereClause}${orderByClause}${limitOffsetClause}`;
+        const { rows } = await this.db.query(sql, [
+          ...whereValues,
+          ...limitOffsetValues,
+        ]);
+
+        // Hydrate results with pre-loaded relationships
+        return await this.hydrateResultSet(rows, include, objectClass);
+      }
+
+      // Standard path (no eager loading) - original implementation
       // Build WHERE clause
       let whereClause = '';
       const whereValues: any[] = [];
