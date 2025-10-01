@@ -39,16 +39,7 @@ export interface TemplateSource {
  * @returns Template source information
  */
 export async function resolveTemplate(name: string): Promise<TemplateSource> {
-  // Check for npm package (contains @ or /)
-  if (name.includes('@') || name.includes('/')) {
-    return {
-      type: 'npm',
-      location: name,
-      resolved: await resolveNpmPackage(name),
-    };
-  }
-
-  // Check for git repository
+  // Check for git repository first (most specific)
   if (
     name.startsWith('github:') ||
     name.startsWith('gitlab:') ||
@@ -64,12 +55,21 @@ export async function resolveTemplate(name: string): Promise<TemplateSource> {
     };
   }
 
-  // Check for local filesystem path
+  // Check for local filesystem path (before npm to avoid matching ./ and ~/)
   if (name.startsWith('/') || name.startsWith('.') || name.startsWith('~')) {
     return {
       type: 'local',
       location: name,
       resolved: await resolveLocalPath(name),
+    };
+  }
+
+  // Check for npm package (contains @ or /)
+  if (name.includes('@') || name.includes('/')) {
+    return {
+      type: 'npm',
+      location: name,
+      resolved: await resolveNpmPackage(name),
     };
   }
 
