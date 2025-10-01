@@ -5,11 +5,11 @@
  * Supports package exports for template discovery.
  */
 
-import { resolve, dirname, join } from 'node:path';
-import { readFile, access } from 'node:fs/promises';
+import { access, readFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import type { TemplateConfig } from './template-loader.js';
 import glob from 'fast-glob';
+import type { TemplateConfig } from './template-loader.js';
 
 /**
  * Resolve npm package path to template configuration

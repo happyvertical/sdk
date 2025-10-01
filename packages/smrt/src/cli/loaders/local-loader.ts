@@ -5,9 +5,9 @@
  * Useful for development and testing.
  */
 
-import { resolve, join } from 'node:path';
 import { access } from 'node:fs/promises';
 import { homedir } from 'node:os';
+import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { TemplateConfig } from './template-loader.js';
 
