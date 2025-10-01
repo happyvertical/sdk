@@ -1,3 +1,19 @@
+# [0.11.0](https://github.com/happyvertical/sdk/compare/v0.10.0...v0.11.0) (2025-10-01)
+
+
+### Bug Fixes
+
+* **smrt:** complete REST persistence adapter with property initialization ([61aa39b](https://github.com/happyvertical/sdk/commit/61aa39b390ee376cec39239cf3bf550b6027d00e))
+* **smrt:** resolve linter warning for unused variable in sql-adapter ([4614cfa](https://github.com/happyvertical/sdk/commit/4614cfa0bc391adede8b2b923afc1adfbc8fc291))
+
+
+### Features
+
+* **smrt:** add persistence abstraction layer for REST backends ([5214021](https://github.com/happyvertical/sdk/commit/5214021b4deeb4e03467cbc03c4bc7024be121cc))
+* **smrt:** implement advanced ObjectRegistry optimizations ([e87cbfb](https://github.com/happyvertical/sdk/commit/e87cbfb334a5b8a9b8b1c55fcabe7b772e9646d6))
+* **smrt:** implement automated runtime relationship support ([2c322cc](https://github.com/happyvertical/sdk/commit/2c322ccf2a28d247914bd35e9598b3b360cb8c18))
+* **smrt:** implement Phase 4 & 5 performance optimizations ([bc2220f](https://github.com/happyvertical/sdk/commit/bc2220fe9c40b888bee2b1e85ab6bbca655ac0ed)), closes [#119](https://github.com/happyvertical/sdk/issues/119)
+
 # [0.10.0](https://github.com/happyvertical/sdk/compare/v0.9.0...v0.10.0) (2025-10-01)
 
 
