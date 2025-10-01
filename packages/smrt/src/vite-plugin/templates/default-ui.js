@@ -92,18 +92,20 @@ function renderCollection(name, obj, _client) {
 }
 
 function attachEventListeners(manifest, client) {
-  Object.values(manifest.objects).forEach(async (obj) => {
-    try {
-      const response = await client[obj.collection].list();
-      const count = Array.isArray(response) ? response.length : 0;
-      const countEl = document.querySelector('[data-count="' + obj.collection + '"]');
-      if (countEl) countEl.textContent = count + ' items';
-    } catch (error) {
-      console.error('Error loading count for ' + obj.collection + ':', error);
-      const countEl = document.querySelector('[data-count="' + obj.collection + '"]');
-      if (countEl) countEl.textContent = 'Error';
-    }
-  });
+  void Promise.all(
+    Object.values(manifest.objects).map(async (obj) => {
+      try {
+        const response = await client[obj.collection].list();
+        const count = Array.isArray(response) ? response.length : 0;
+        const countEl = document.querySelector('[data-count="' + obj.collection + '"]');
+        if (countEl) countEl.textContent = count + ' items';
+      } catch (error) {
+        console.error('Error loading count for ' + obj.collection + ':', error);
+        const countEl = document.querySelector('[data-count="' + obj.collection + '"]');
+        if (countEl) countEl.textContent = 'Error';
+      }
+    })
+  );
 
   document.addEventListener('click', async (e) => {
     const target = e.target;

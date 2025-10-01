@@ -853,7 +853,7 @@ function getDefaultHTML(): string {
     '  <style>\n' +
     '    * { margin: 0; padding: 0; box-sizing: border-box; }\n' +
     '    body {\n' +
-    "      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;\n" +
+    '      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;\n' +
     '      background: #f5f5f5;\n' +
     '      color: #333;\n' +
     '    }\n' +
@@ -968,19 +968,8 @@ function getDefaultUIModule(): string {
     // Get current file directory
     const __dirname = dirname(fileURLToPath(import.meta.url));
 
-    // Load template file from source (development) or dist (production)
-    let templatePath: string;
-    try {
-      // Try source location first (development)
-      templatePath = join(
-        __dirname,
-        '../src/vite-plugin/templates/default-ui.js',
-      );
-      readFileSync(templatePath, 'utf-8');
-    } catch {
-      // Fall back to dist location (production/after build)
-      templatePath = join(__dirname, 'templates/default-ui.js');
-    }
+    // Load template file (works in both src and dist)
+    const templatePath = join(__dirname, 'templates/default-ui.js');
 
     return readFileSync(templatePath, 'utf-8').trim();
   } catch (error) {
