@@ -59,6 +59,23 @@ export interface ListOptions {
    * ```
    */
   orderBy?: string | string[];
+
+  /**
+   * Relationships to eagerly load (avoids N+1 query problem)
+   * SQL adapters will use JOIN queries for optimal performance
+   * REST adapters will use batched queries
+   *
+   * @example
+   * ```typescript
+   * // Load orders with their customers and products pre-loaded
+   * const orders = await orderCollection.list({
+   *   include: ['customerId', 'productId']
+   * });
+   * // Access customer without additional query
+   * console.log(orders[0].getRelated('customerId'));
+   * ```
+   */
+  include?: string[];
 }
 
 /**

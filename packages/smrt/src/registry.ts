@@ -196,6 +196,7 @@ interface RegisteredClass {
 export class ObjectRegistry {
   private static classes = new Map<string, RegisteredClass>();
   private static collections = new Map<string, typeof SmrtCollection>();
+  private static collectionCache = new Map<string, SmrtCollection<any>>();
 
   /**
    * Register a new SMRT object class with the global registry
@@ -342,6 +343,72 @@ export class ObjectRegistry {
   static clear(): void {
     ObjectRegistry.classes.clear();
     ObjectRegistry.collections.clear();
+    ObjectRegistry.collectionCache.clear();
+  }
+
+  /**
+   * Get or create a cached collection instance (Singleton pattern)
+   *
+   * Returns a cached collection if one exists for the given class and options,
+   * otherwise creates, initializes, and caches a new instance. This significantly
+   * improves performance by avoiding repeated collection initialization.
+   *
+   * @param className - Name of the object class
+   * @param options - Configuration options for the collection
+   * @returns Cached or newly created collection instance
+   * @throws {Error} If the class is not registered or has no collection
+   * @example
+   * ```typescript
+   * // First call creates and caches the collection
+   * const orders1 = await ObjectRegistry.getCollection('Order', { db });
+   *
+   * // Subsequent calls return the cached instance (much faster)
+   * const orders2 = await ObjectRegistry.getCollection('Order', { db });
+   * // orders1 === orders2 (same instance)
+   * ```
+   */
+  static async getCollection<T extends SmrtObject>(
+    className: string,
+    options: any = {},
+  ): Promise<SmrtCollection<T>> {
+    // Create a cache key from className and relevant options
+    // We use a simplified key that includes only persistence config
+    // to avoid cache misses from transient options
+    const cacheKey = `${className}:${JSON.stringify({
+      persistence: options.persistence,
+      db: options.db ? 'present' : undefined,
+      ai: options.ai ? 'present' : undefined,
+    })}`;
+
+    // Return cached instance if available
+    if (ObjectRegistry.collectionCache.has(cacheKey)) {
+      return ObjectRegistry.collectionCache.get(cacheKey) as SmrtCollection<T>;
+    }
+
+    // Get registered class info
+    const registered = ObjectRegistry.classes.get(className);
+    if (!registered) {
+      throw new Error(
+        `Class ${className} not found in ObjectRegistry. Make sure to register it with @smrt() decorator or ObjectRegistry.register()`,
+      );
+    }
+
+    if (!registered.collectionConstructor) {
+      throw new Error(
+        `Class ${className} does not have a registered collection. Collection must be registered with ObjectRegistry.registerCollection()`,
+      );
+    }
+
+    // Create and initialize new collection instance
+    const collection = new registered.collectionConstructor(
+      options,
+    ) as SmrtCollection<T>;
+    await collection.initialize();
+
+    // Cache the initialized instance
+    ObjectRegistry.collectionCache.set(cacheKey, collection);
+
+    return collection;
   }
 
   /**

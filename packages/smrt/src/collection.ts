@@ -267,7 +267,24 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
   }) {
     // Use persistence adapter if available
     if (this._persistenceAdapter) {
-      return await this._persistenceAdapter.list(options, this._itemClass);
+      // SQL adapters will use JOIN-based eager loading automatically
+      // REST adapters will fall back to batch queries (handled separately below)
+      const results = await this._persistenceAdapter.list(
+        options,
+        this._itemClass,
+      );
+
+      // For non-SQL adapters (REST), eager load using batch approach
+      // SQL adapters handle this internally via JOINs
+      if (
+        this._persistenceAdapter.metadata.type !== 'sql' &&
+        options.include &&
+        options.include.length > 0
+      ) {
+        await this.eagerLoadRelationships(results, options.include);
+      }
+
+      return results;
     }
 
     // Legacy implementation
@@ -399,20 +416,22 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
 
     if (foreignKeyValues.size === 0) return;
 
-    // Get target class and collection
-    const targetClassInfo = ObjectRegistry.getClass(relationship.targetClass);
-    if (!targetClassInfo || !targetClassInfo.collectionConstructor) {
+    // Get or create cached collection instance
+    let targetCollection: SmrtCollection<any> | undefined;
+    try {
+      targetCollection = await ObjectRegistry.getCollection(
+        relationship.targetClass,
+        this.options,
+      );
+    } catch (error) {
       console.warn(
-        `Target class ${relationship.targetClass} not found or has no collection`,
+        `Could not get collection for ${relationship.targetClass}:`,
+        error,
       );
       return;
     }
 
     // Load all related objects in a single query
-    const targetCollection = new targetClassInfo.collectionConstructor(
-      this.options,
-    );
-    await targetCollection.initialize();
     const relatedObjects = await targetCollection.list({
       where: { 'id in': Array.from(foreignKeyValues) },
     });
@@ -474,20 +493,22 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
 
     if (instanceIds.length === 0) return;
 
-    // Get target collection
-    const targetClassInfo = ObjectRegistry.getClass(relationship.targetClass);
-    if (!targetClassInfo || !targetClassInfo.collectionConstructor) {
+    // Get or create cached collection instance
+    let targetCollection: SmrtCollection<any> | undefined;
+    try {
+      targetCollection = await ObjectRegistry.getCollection(
+        relationship.targetClass,
+        this.options,
+      );
+    } catch (error) {
       console.warn(
-        `Target class ${relationship.targetClass} not found or has no collection`,
+        `Could not get collection for ${relationship.targetClass}:`,
+        error,
       );
       return;
     }
 
     // Load all related objects in a single query
-    const targetCollection = new targetClassInfo.collectionConstructor(
-      this.options,
-    );
-    await targetCollection.initialize();
     const relatedObjects = await targetCollection.list({
       where: { [`${inverseForeignKey.fieldName} in`]: instanceIds },
     });
