@@ -3,6 +3,9 @@
  * Provides virtual modules for REST, MCP, and other services
  */
 
+import { readFileSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { Plugin, ViteDevServer } from 'vite';
 import type { SmartObjectManifest } from '../scanner/types';
 
@@ -38,20 +41,19 @@ const VIRTUAL_MODULES = {
   '@smrt/types': 'smrt:types',
   '@smrt/manifest': 'smrt:manifest',
   '@smrt/schema': 'smrt:schema',
+  '@smrt/ui': 'smrt:ui',
 };
 
 export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
   const {
     include = ['src/**/*.ts', 'src/**/*.js'],
     exclude = ['**/*.test.ts', '**/*.spec.ts', '**/node_modules/**'],
-    outDir = 'dist/generated',
     hmr = true,
     watch = true,
     generateTypes = true,
     baseClasses = ['SmrtObject', 'SmartObject'],
     typeDeclarationsPath = 'src/types',
     mode = 'auto',
-    staticManifest,
     manifestPath,
   } = options;
 
@@ -93,6 +95,39 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
     configureServer(devServer) {
       server = devServer;
 
+      // Serve default HTML when no index.html exists
+      devServer.middlewares.use(async (req, res, next) => {
+        if (req.url === '/' || req.url === '/index.html') {
+          try {
+            const { existsSync } = await import('node:fs');
+            const { join } = await import('node:path');
+
+            const projectRoot = devServer.config.root;
+            const indexPath = join(projectRoot, 'index.html');
+
+            // If index.html exists, let Vite handle it
+            if (existsSync(indexPath)) {
+              return next();
+            }
+
+            // Otherwise, serve default SMRT UI
+            console.log('[smrt] Serving default UI (no index.html found)');
+            let html = getDefaultHTML();
+
+            // Apply Vite's HTML transformation to process module imports
+            html = await devServer.transformIndexHtml('/', html);
+
+            res.setHeader('Content-Type', 'text/html');
+            res.end(html);
+            return;
+          } catch (error) {
+            console.error('[smrt] Error serving default HTML:', error);
+            return next();
+          }
+        }
+        next();
+      });
+
       // Set up file watching in all modes when enabled
       if (watch && hmr) {
         // Watch for file changes
@@ -127,6 +162,12 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
       if (id in VIRTUAL_MODULES) {
         return `\0${VIRTUAL_MODULES[id as keyof typeof VIRTUAL_MODULES]}`;
       }
+
+      // Resolve virtual index.html for dev UI (only in dev mode)
+      if (id === '/index.html' && server) {
+        return `\0smrt:index-html`;
+      }
+
       return null;
     },
 
@@ -163,9 +204,44 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
           // Schema module available in both modes
           return await generateSchemaModule(manifest);
 
+        case 'smrt:ui':
+          // UI module for default development interface
+          return await loadDefaultUI();
+
+        case 'smrt:index-html':
+          // Virtual index.html for projects without one
+          return await loadDefaultHTML();
+
         default:
           return null;
       }
+    },
+
+    transformIndexHtml: {
+      order: 'pre',
+      handler: async (html, ctx) => {
+        // Only provide default HTML if no index.html exists in project
+        if (!server) return html;
+
+        try {
+          const { existsSync } = await import('node:fs');
+          const { join } = await import('node:path');
+
+          const projectRoot = server.config.root;
+          const indexPath = join(projectRoot, 'index.html');
+
+          // If index.html exists, use it as-is
+          if (existsSync(indexPath)) {
+            return html;
+          }
+
+          // Otherwise, provide default SMRT UI
+          return await loadDefaultHTML();
+        } catch (error) {
+          console.error('[smrt] Error checking for index.html:', error);
+          return html;
+        }
+      },
     },
   };
 
@@ -758,6 +834,170 @@ function mapJsonSchemaType(tsType: string): string {
     any: 'string',
   };
   return typeMap[tsType] || 'string';
+}
+
+/**
+ * Get default HTML template with inlined JavaScript (inlined for distribution)
+ */
+function getDefaultHTML(): string {
+  const uiScript = getDefaultUIModule();
+
+  // Build HTML without template literals to avoid escaping issues
+  return (
+    '<!DOCTYPE html>\n' +
+    '<html lang="en">\n' +
+    '<head>\n' +
+    '  <meta charset="UTF-8">\n' +
+    '  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n' +
+    '  <title>SMRT Development UI</title>\n' +
+    '  <style>\n' +
+    '    * { margin: 0; padding: 0; box-sizing: border-box; }\n' +
+    '    body {\n' +
+    '      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;\n' +
+    '      background: #f5f5f5;\n' +
+    '      color: #333;\n' +
+    '    }\n' +
+    '    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }\n' +
+    '    header {\n' +
+    '      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n' +
+    '      color: white;\n' +
+    '      padding: 40px 0;\n' +
+    '      margin-bottom: 40px;\n' +
+    '      box-shadow: 0 4px 6px rgba(0,0,0,0.1);\n' +
+    '    }\n' +
+    '    header h1 { font-size: 2.5em; font-weight: 700; margin-bottom: 10px; }\n' +
+    '    .subtitle { font-size: 1.1em; opacity: 0.9; }\n' +
+    '    .stats {\n' +
+    '      display: grid;\n' +
+    '      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));\n' +
+    '      gap: 20px;\n' +
+    '      margin-bottom: 40px;\n' +
+    '    }\n' +
+    '    .stat-card {\n' +
+    '      background: white;\n' +
+    '      padding: 20px;\n' +
+    '      border-radius: 8px;\n' +
+    '      box-shadow: 0 2px 4px rgba(0,0,0,0.1);\n' +
+    '      text-align: center;\n' +
+    '    }\n' +
+    '    .stat-value { font-size: 2.5em; font-weight: 700; color: #667eea; margin-bottom: 5px; }\n' +
+    '    .stat-label { font-size: 0.9em; color: #666; text-transform: uppercase; letter-spacing: 1px; }\n' +
+    '    .collections { display: grid; gap: 30px; }\n' +
+    '    .collection-card {\n' +
+    '      background: white;\n' +
+    '      border-radius: 8px;\n' +
+    '      box-shadow: 0 2px 4px rgba(0,0,0,0.1);\n' +
+    '      overflow: hidden;\n' +
+    '    }\n' +
+    '    .collection-header {\n' +
+    '      background: #667eea;\n' +
+    '      color: white;\n' +
+    '      padding: 15px 20px;\n' +
+    '      display: flex;\n' +
+    '      justify-content: space-between;\n' +
+    '      align-items: center;\n' +
+    '    }\n' +
+    '    .collection-title { font-size: 1.3em; font-weight: 600; }\n' +
+    '    .collection-count {\n' +
+    '      background: rgba(255,255,255,0.2);\n' +
+    '      padding: 5px 15px;\n' +
+    '      border-radius: 20px;\n' +
+    '      font-size: 0.9em;\n' +
+    '    }\n' +
+    '    .collection-body { padding: 20px; }\n' +
+    '    .field-list {\n' +
+    '      display: grid;\n' +
+    '      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));\n' +
+    '      gap: 15px;\n' +
+    '      margin-bottom: 20px;\n' +
+    '    }\n' +
+    '    .field {\n' +
+    '      padding: 10px;\n' +
+    '      background: #f8f9fa;\n' +
+    '      border-radius: 4px;\n' +
+    '      border-left: 3px solid #667eea;\n' +
+    '    }\n' +
+    '    .field-name { font-weight: 600; color: #333; margin-bottom: 3px; }\n' +
+    '    .field-type { font-size: 0.85em; color: #666; }\n' +
+    '    .actions { display: flex; gap: 10px; flex-wrap: wrap; }\n' +
+    '    .btn {\n' +
+    '      padding: 10px 20px;\n' +
+    '      border: none;\n' +
+    '      border-radius: 4px;\n' +
+    '      font-size: 0.9em;\n' +
+    '      cursor: pointer;\n' +
+    '      transition: all 0.2s;\n' +
+    '      text-decoration: none;\n' +
+    '      display: inline-block;\n' +
+    '    }\n' +
+    '    .btn-primary { background: #667eea; color: white; }\n' +
+    '    .btn-primary:hover { background: #5568d3; transform: translateY(-1px); }\n' +
+    '    .btn-secondary { background: #e0e0e0; color: #333; }\n' +
+    '    .btn-secondary:hover { background: #d0d0d0; }\n' +
+    '    .loading { text-align: center; padding: 40px; color: #666; }\n' +
+    '    .error {\n' +
+    '      background: #fee;\n' +
+    '      border: 1px solid #fcc;\n' +
+    '      color: #c33;\n' +
+    '      padding: 15px;\n' +
+    '      border-radius: 4px;\n' +
+    '      margin-bottom: 20px;\n' +
+    '    }\n' +
+    '    .empty-state { text-align: center; padding: 60px 20px; color: #999; }\n' +
+    '    .empty-state svg { width: 100px; height: 100px; margin-bottom: 20px; opacity: 0.3; }\n' +
+    '  </style>\n' +
+    '</head>\n' +
+    '<body>\n' +
+    '  <div id="app">\n' +
+    '    <div class="loading">Loading SMRT UI...</div>\n' +
+    '  </div>\n' +
+    '  <script type="module">\n' +
+    uiScript +
+    '\n  </script>\n' +
+    '</body>\n' +
+    '</html>'
+  );
+}
+
+/**
+ * Get default UI module from template file
+ * Loads the JavaScript template
+ */
+function getDefaultUIModule(): string {
+  try {
+    // Get current file directory
+    const __dirname = dirname(fileURLToPath(import.meta.url));
+
+    // Load template file (works in both src and dist)
+    const templatePath = join(__dirname, 'templates/default-ui.js');
+
+    return readFileSync(templatePath, 'utf-8').trim();
+  } catch (error) {
+    console.error('[smrt] Error loading UI template:', error);
+    // Fallback to minimal UI
+    return `
+async function createUI() {
+  const app = document.getElementById('app');
+  if (!app) return;
+  app.innerHTML = '<div class="container" style="padding:40px;text-align:center;"><h1>🎯 SMRT Development UI</h1><p>Template file not found. UI code could not be loaded.</p></div>';
+}
+createUI();
+`;
+  }
+}
+
+/**
+ * Load default HTML template for projects without index.html
+ */
+async function loadDefaultHTML(): Promise<string> {
+  return getDefaultHTML();
+}
+
+/**
+ * Load default UI module
+ */
+async function loadDefaultUI(): Promise<string> {
+  return getDefaultUIModule();
 }
 
 /**
