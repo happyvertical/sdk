@@ -251,6 +251,19 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
     offset?: number;
     limit?: number;
     orderBy?: string | string[];
+    /**
+     * Relationships to eagerly load (avoids N+1 query problem)
+     * @example
+     * ```typescript
+     * // Load orders with their customers pre-loaded
+     * const orders = await orderCollection.list({
+     *   include: ['customerId']
+     * });
+     * // Access customer without additional query
+     * orders[0].getRelated('customerId');
+     * ```
+     */
+    include?: string[];
   }) {
     // Use persistence adapter if available
     if (this._persistenceAdapter) {
@@ -305,9 +318,195 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
       `SELECT * FROM ${this.tableName} ${whereSql} ${orderBySql} ${limitOffsetSql}`,
       [...whereValues, ...limitOffsetValues],
     );
-    return Promise.all(
+    const instances = await Promise.all(
       result.rows.map((item: object) => this.create(formatDataJs(item))),
     );
+
+    // Eager load specified relationships
+    if (options.include && options.include.length > 0) {
+      await this.eagerLoadRelationships(instances, options.include);
+    }
+
+    return instances;
+  }
+
+  /**
+   * Eagerly load relationships for a collection of instances
+   *
+   * Optimizes loading by batching queries for foreignKey relationships to avoid N+1 queries.
+   *
+   * @param instances - Array of object instances to load relationships for
+   * @param relationships - Array of relationship field names to load
+   * @private
+   */
+  private async eagerLoadRelationships(
+    instances: ModelType[],
+    relationships: string[],
+  ): Promise<void> {
+    if (instances.length === 0) return;
+
+    for (const fieldName of relationships) {
+      // Get relationship metadata
+      const relationshipMeta = ObjectRegistry.getRelationships(
+        this._itemClass.name,
+      );
+      const relationship = relationshipMeta.find(
+        (r) => r.fieldName === fieldName,
+      );
+
+      if (!relationship) {
+        console.warn(
+          `Relationship ${fieldName} not found on ${this._itemClass.name}, skipping eager load`,
+        );
+        continue;
+      }
+
+      if (relationship.type === 'foreignKey') {
+        // Batch load foreignKey relationships
+        await this.batchLoadForeignKeys(instances, fieldName, relationship);
+      } else if (relationship.type === 'oneToMany') {
+        // Load oneToMany relationships (less optimizable)
+        await this.batchLoadOneToMany(instances, fieldName, relationship);
+      } else if (relationship.type === 'manyToMany') {
+        console.warn(
+          `manyToMany eager loading not yet implemented for ${fieldName}`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Batch load foreignKey relationships to avoid N+1 queries
+   *
+   * @param instances - Instances to load relationships for
+   * @param fieldName - Name of the foreignKey field
+   * @param relationship - Relationship metadata
+   * @private
+   */
+  private async batchLoadForeignKeys(
+    instances: ModelType[],
+    fieldName: string,
+    relationship: import('./registry').RelationshipMetadata,
+  ): Promise<void> {
+    // Collect all unique foreign key values
+    const foreignKeyValues = new Set<string>();
+    for (const instance of instances) {
+      const value = instance[fieldName as keyof ModelType];
+      if (value && typeof value === 'string') {
+        foreignKeyValues.add(value);
+      }
+    }
+
+    if (foreignKeyValues.size === 0) return;
+
+    // Get target class and collection
+    const targetClassInfo = ObjectRegistry.getClass(relationship.targetClass);
+    if (!targetClassInfo || !targetClassInfo.collectionConstructor) {
+      console.warn(
+        `Target class ${relationship.targetClass} not found or has no collection`,
+      );
+      return;
+    }
+
+    // Load all related objects in a single query
+    const targetCollection = new targetClassInfo.collectionConstructor(
+      this.options,
+    );
+    await targetCollection.initialize();
+    const relatedObjects = await targetCollection.list({
+      where: { 'id in': Array.from(foreignKeyValues) },
+    });
+
+    // Build a map of ID to object for quick lookup
+    const relatedMap = new Map();
+    for (const obj of relatedObjects) {
+      relatedMap.set(obj.id, obj);
+    }
+
+    // Assign loaded objects to instances
+    for (const instance of instances) {
+      const foreignKeyValue = instance[fieldName as keyof ModelType];
+      if (foreignKeyValue && typeof foreignKeyValue === 'string') {
+        const relatedObject = relatedMap.get(foreignKeyValue);
+        if (relatedObject) {
+          // Set in the relationship cache
+          (instance as any)._loadedRelationships.set(fieldName, relatedObject);
+        }
+      }
+    }
+  }
+
+  /**
+   * Batch load oneToMany relationships
+   *
+   * @param instances - Instances to load relationships for
+   * @param fieldName - Name of the oneToMany field
+   * @param relationship - Relationship metadata
+   * @private
+   */
+  private async batchLoadOneToMany(
+    instances: ModelType[],
+    fieldName: string,
+    relationship: import('./registry').RelationshipMetadata,
+  ): Promise<void> {
+    // Find the inverse foreignKey field
+    const inverseRelationships = ObjectRegistry.getInverseRelationships(
+      this._itemClass.name,
+    );
+    const inverseForeignKey = inverseRelationships.find(
+      (r) =>
+        r.sourceClass === relationship.targetClass &&
+        r.type === 'foreignKey' &&
+        r.targetClass === this._itemClass.name,
+    );
+
+    if (!inverseForeignKey) {
+      console.warn(
+        `Could not find inverse foreignKey for oneToMany ${fieldName}`,
+      );
+      return;
+    }
+
+    // Collect all instance IDs
+    const instanceIds = instances
+      .map((i) => i.id)
+      .filter((id): id is string => !!id);
+
+    if (instanceIds.length === 0) return;
+
+    // Get target collection
+    const targetClassInfo = ObjectRegistry.getClass(relationship.targetClass);
+    if (!targetClassInfo || !targetClassInfo.collectionConstructor) {
+      console.warn(
+        `Target class ${relationship.targetClass} not found or has no collection`,
+      );
+      return;
+    }
+
+    // Load all related objects in a single query
+    const targetCollection = new targetClassInfo.collectionConstructor(
+      this.options,
+    );
+    await targetCollection.initialize();
+    const relatedObjects = await targetCollection.list({
+      where: { [`${inverseForeignKey.fieldName} in`]: instanceIds },
+    });
+
+    // Group related objects by the foreign key value
+    const relatedMap = new Map<string, any[]>();
+    for (const obj of relatedObjects) {
+      const foreignKeyValue = obj[inverseForeignKey.fieldName as any];
+      if (!relatedMap.has(foreignKeyValue)) {
+        relatedMap.set(foreignKeyValue, []);
+      }
+      relatedMap.get(foreignKeyValue)?.push(obj);
+    }
+
+    // Assign loaded objects to instances
+    for (const instance of instances) {
+      const relatedArray = relatedMap.get(instance.id as string) || [];
+      (instance as any)._loadedRelationships.set(fieldName, relatedArray);
+    }
   }
 
   /**

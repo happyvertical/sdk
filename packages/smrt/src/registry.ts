@@ -152,6 +152,27 @@ type ValidatorFunction = (
 ) => Promise<import('./errors').ValidationError | null>;
 
 /**
+ * Relationship type for the relationship map
+ */
+export type RelationshipType = 'foreignKey' | 'oneToMany' | 'manyToMany';
+
+/**
+ * Metadata about a relationship between classes
+ */
+export interface RelationshipMetadata {
+  /** Source class name */
+  sourceClass: string;
+  /** Field name on the source class */
+  fieldName: string;
+  /** Target/related class name */
+  targetClass: string;
+  /** Type of relationship */
+  type: RelationshipType;
+  /** Options for the relationship (onDelete, etc.) */
+  options: any;
+}
+
+/**
  * Internal representation of a registered SMRT class
  *
  * @interface RegisteredClass
@@ -733,6 +754,123 @@ export class ObjectRegistry {
     }
 
     return order;
+  }
+
+  /**
+   * Build comprehensive relationship map from all field types
+   *
+   * Returns a map containing all relationships (foreignKey, oneToMany, manyToMany)
+   * discovered in registered classes. This enables runtime relationship traversal
+   * and eager/lazy loading of related objects.
+   *
+   * @returns Map of class name to array of relationship metadata
+   * @example
+   * ```typescript
+   * const relationships = ObjectRegistry.getRelationshipMap();
+   * // {
+   * //   'Order': [
+   * //     { sourceClass: 'Order', fieldName: 'customerId', targetClass: 'Customer',
+   * //       type: 'foreignKey', options: { onDelete: 'restrict' } }
+   * //   ],
+   * //   'Customer': [
+   * //     { sourceClass: 'Customer', fieldName: 'orders', targetClass: 'Order',
+   * //       type: 'oneToMany', options: {} }
+   * //   ]
+   * // }
+   * ```
+   */
+  static getRelationshipMap(): Map<string, RelationshipMetadata[]> {
+    const relationshipMap = new Map<string, RelationshipMetadata[]>();
+
+    // Initialize map with all registered classes
+    for (const [className] of ObjectRegistry.classes) {
+      relationshipMap.set(className, []);
+    }
+
+    // Scan all fields for relationship types
+    for (const [className, registered] of ObjectRegistry.classes) {
+      const relationships: RelationshipMetadata[] = [];
+
+      for (const [fieldName, field] of registered.fields) {
+        // Check for foreignKey relationships
+        if (field.type === 'foreignKey' && field.options?.related) {
+          relationships.push({
+            sourceClass: className,
+            fieldName,
+            targetClass: field.options.related,
+            type: 'foreignKey',
+            options: field.options,
+          });
+        }
+
+        // Check for oneToMany relationships
+        if (field.type === 'oneToMany' && field.options?.related) {
+          relationships.push({
+            sourceClass: className,
+            fieldName,
+            targetClass: field.options.related,
+            type: 'oneToMany',
+            options: field.options,
+          });
+        }
+
+        // Check for manyToMany relationships
+        if (field.type === 'manyToMany' && field.options?.related) {
+          relationships.push({
+            sourceClass: className,
+            fieldName,
+            targetClass: field.options.related,
+            type: 'manyToMany',
+            options: field.options,
+          });
+        }
+      }
+
+      relationshipMap.set(className, relationships);
+    }
+
+    return relationshipMap;
+  }
+
+  /**
+   * Get relationships for a specific class
+   *
+   * @param className - Name of the class to get relationships for
+   * @returns Array of relationship metadata for the class
+   * @example
+   * ```typescript
+   * const orderRelationships = ObjectRegistry.getRelationships('Order');
+   * // [{ sourceClass: 'Order', fieldName: 'customerId', ... }]
+   * ```
+   */
+  static getRelationships(className: string): RelationshipMetadata[] {
+    return ObjectRegistry.getRelationshipMap().get(className) || [];
+  }
+
+  /**
+   * Get inverse relationships (relationships where this class is the target)
+   *
+   * @param className - Name of the class to find inverse relationships for
+   * @returns Array of relationship metadata where this class is the target
+   * @example
+   * ```typescript
+   * const customerInverseRels = ObjectRegistry.getInverseRelationships('Customer');
+   * // [{ sourceClass: 'Order', fieldName: 'customerId', targetClass: 'Customer', ... }]
+   * ```
+   */
+  static getInverseRelationships(className: string): RelationshipMetadata[] {
+    const allRelationships = ObjectRegistry.getRelationshipMap();
+    const inverseRelationships: RelationshipMetadata[] = [];
+
+    for (const [_sourceClass, relationships] of allRelationships) {
+      for (const rel of relationships) {
+        if (rel.targetClass === className) {
+          inverseRelationships.push(rel);
+        }
+      }
+    }
+
+    return inverseRelationships;
   }
 }
 
