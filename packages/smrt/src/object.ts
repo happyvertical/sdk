@@ -117,12 +117,6 @@ export class SmrtObject extends SmrtClass {
     this._slug = options.slug || null;
     this._context = options.context || '';
 
-    // Set properties immediately for backwards compatibility
-    // (Will be overridden by field initializers, but initialize() will set them again)
-    if (options.name !== undefined) this.name = options.name;
-    if (options.created_at !== undefined) this.created_at = options.created_at;
-    if (options.updated_at !== undefined) this.updated_at = options.updated_at;
-
     // Auto-register the class if it's not already registered
     // and it's not the base SmrtObject class itself
     // Skip registration during field extraction to avoid infinite recursion
@@ -326,7 +320,8 @@ export class SmrtObject extends SmrtClass {
    * @returns Object containing field definitions with current values
    */
   getFields() {
-    // Get the static fields definition from the class
+    // Use cached field definitions from ObjectRegistry (via fieldsFromClass)
+    // This is much more efficient than creating temporary instances
     const fields = fieldsFromClass(
       this.constructor as new (
         ...args: any[]
