@@ -6,9 +6,15 @@
  *
  * Supports:
  * - github:user/repo
+ * - github:user/repo/subdir#ref
  * - gitlab:user/repo
  * - https://github.com/user/repo.git
- * - git@github.com:user/repo.git
+ * - https://github.com/user/repo.git#ref:subdir
+ * - git@github.com:user/repo.git#ref:subdir
+ *
+ * Subdirectory syntax:
+ * - Shorthand: github:user/repo/path/to/subdir
+ * - Full URL: https://github.com/user/repo.git#branch:path/to/subdir
  */
 
 import { createWriteStream } from 'node:fs';
@@ -31,6 +37,11 @@ interface GitRepo {
 
 /**
  * Parse git URL to repository information
+ *
+ * Supports subdirectories via:
+ * - github:user/repo/subdir#ref
+ * - https://github.com/user/repo.git#ref:subdir
+ * - git@github.com:user/repo.git#ref:subdir
  */
 function parseGitUrl(url: string): GitRepo {
   let host: 'github' | 'gitlab' | 'bitbucket';
@@ -39,25 +50,45 @@ function parseGitUrl(url: string): GitRepo {
   let ref = 'HEAD'; // default to latest
   let subdir: string | undefined;
 
-  // Handle shorthand: github:user/repo, gitlab:user/repo
+  // Handle shorthand: github:user/repo/subdir#ref
   if (url.startsWith('github:')) {
     host = 'github';
     const parts = url.slice(7).split('/');
     user = parts[0];
-    repo = parts[1]?.split('#')[0] || '';
-    ref = parts[1]?.split('#')[1] || ref;
+
+    // Check for ref in second part
+    const repoAndRef = parts[1]?.split('#') || ['', ''];
+    repo = repoAndRef[0];
+    if (repoAndRef[1]) ref = repoAndRef[1];
+
+    // Remaining parts are subdirectory
+    if (parts.length > 2) {
+      subdir = parts.slice(2).join('/');
+    }
   } else if (url.startsWith('gitlab:')) {
     host = 'gitlab';
     const parts = url.slice(7).split('/');
     user = parts[0];
-    repo = parts[1]?.split('#')[0] || '';
-    ref = parts[1]?.split('#')[1] || ref;
+
+    const repoAndRef = parts[1]?.split('#') || ['', ''];
+    repo = repoAndRef[0];
+    if (repoAndRef[1]) ref = repoAndRef[1];
+
+    if (parts.length > 2) {
+      subdir = parts.slice(2).join('/');
+    }
   } else if (url.startsWith('bitbucket:')) {
     host = 'bitbucket';
     const parts = url.slice(10).split('/');
     user = parts[0];
-    repo = parts[1]?.split('#')[0] || '';
-    ref = parts[1]?.split('#')[1] || ref;
+
+    const repoAndRef = parts[1]?.split('#') || ['', ''];
+    repo = repoAndRef[0];
+    if (repoAndRef[1]) ref = repoAndRef[1];
+
+    if (parts.length > 2) {
+      subdir = parts.slice(2).join('/');
+    }
   }
   // Handle HTTPS URLs
   else if (url.includes('github.com')) {
@@ -66,25 +97,40 @@ function parseGitUrl(url: string): GitRepo {
     if (!match) throw new Error(`Invalid GitHub URL: ${url}`);
     user = match[1];
     repo = match[2].replace(/\.git$/, '');
-    // Extract ref if present
+
+    // Extract ref and subdir from hash: #ref:subdir or #ref
     const refMatch = url.match(/#(.+)$/);
-    if (refMatch) ref = refMatch[1];
+    if (refMatch) {
+      const refParts = refMatch[1].split(':');
+      ref = refParts[0];
+      if (refParts[1]) subdir = refParts[1];
+    }
   } else if (url.includes('gitlab.com')) {
     host = 'gitlab';
     const match = url.match(/gitlab\.com[:/]([^/]+)\/([^/.]+)/);
     if (!match) throw new Error(`Invalid GitLab URL: ${url}`);
     user = match[1];
     repo = match[2].replace(/\.git$/, '');
+
     const refMatch = url.match(/#(.+)$/);
-    if (refMatch) ref = refMatch[1];
+    if (refMatch) {
+      const refParts = refMatch[1].split(':');
+      ref = refParts[0];
+      if (refParts[1]) subdir = refParts[1];
+    }
   } else if (url.includes('bitbucket.org')) {
     host = 'bitbucket';
     const match = url.match(/bitbucket\.org[:/]([^/]+)\/([^/.]+)/);
     if (!match) throw new Error(`Invalid Bitbucket URL: ${url}`);
     user = match[1];
     repo = match[2].replace(/\.git$/, '');
+
     const refMatch = url.match(/#(.+)$/);
-    if (refMatch) ref = refMatch[1];
+    if (refMatch) {
+      const refParts = refMatch[1].split(':');
+      ref = refParts[0];
+      if (refParts[1]) subdir = refParts[1];
+    }
   } else {
     throw new Error(`Unsupported git URL: ${url}`);
   }
