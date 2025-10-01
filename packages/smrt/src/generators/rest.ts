@@ -51,6 +51,16 @@ export class APIGenerator {
   }
 
   /**
+   * Register a pre-configured collection instance for API exposure
+   *
+   * @param name - URL path segment for the collection (e.g., 'products' for /api/products)
+   * @param collection - Pre-initialized SmrtCollection instance
+   */
+  registerCollection(name: string, collection: SmrtCollection<any>): void {
+    this.collections.set(name, collection);
+  }
+
+  /**
    * Create Node.js HTTP server with all routes
    */
   createServer(): { server: any; url: string } {
@@ -193,7 +203,29 @@ export class APIGenerator {
     const objectType = pathParts[0];
     const objectId = pathParts[1];
 
-    // Find registered object class
+    // Check for explicitly registered collection first
+    if (this.collections.has(objectType)) {
+      const collection = this.collections.get(objectType)!;
+
+      // Apply auth middleware if configured
+      if (this.config.authMiddleware) {
+        const authCheck = this.config.authMiddleware(
+          objectType,
+          req.method.toLowerCase(),
+        );
+        const authResult = await authCheck(req);
+        if (authResult instanceof Response) {
+          return authResult; // Auth failed
+        }
+        // Auth passed, use the potentially modified request
+        req = authResult;
+      }
+
+      // Use registered collection directly
+      return await this.executeCrudOperation(req, collection, objectId, url);
+    }
+
+    // Fall back to auto-discovery via ObjectRegistry
     const registeredClasses = ObjectRegistry.getAllClasses();
     const pluralName = this.pluralize(objectType);
 
@@ -229,7 +261,24 @@ export class APIGenerator {
     // Get or create collection
     const collection = this.getCollection(classInfo);
 
+    return await this.executeCrudOperation(req, collection, objectId, url);
+  }
+
+  /**
+   * Execute CRUD operation on a collection
+   */
+  private async executeCrudOperation(
+    req: Request,
+    collection: SmrtCollection<any>,
+    objectId: string | undefined,
+    url: URL,
+  ): Promise<Response> {
     try {
+      // Handle special /count endpoint
+      if (objectId === 'count' && req.method === 'GET') {
+        return await this.handleCount(collection, url.searchParams);
+      }
+
       // Route to appropriate CRUD operation
       switch (req.method) {
         case 'GET':
@@ -294,10 +343,32 @@ export class APIGenerator {
     const orderBy = params.get('orderBy') || 'created_at DESC';
 
     // Build where clause from query params
+    // Convert REST-style operators (price[gt]) to SQL-style (price >)
     const where: any = {};
     for (const [key, value] of params.entries()) {
       if (!['limit', 'offset', 'orderBy'].includes(key)) {
-        where[key] = value;
+        // Parse REST operator format: field[operator]
+        const match = key.match(/^(.+)\[(.+)\]$/);
+        if (match) {
+          const field = match[1];
+          const operator = match[2];
+          // Map REST operators to SQL operators
+          const operatorMap: Record<string, string> = {
+            gt: '>',
+            gte: '>=',
+            lt: '<',
+            lte: '<=',
+            ne: '!=',
+            in: 'in',
+            like: 'like',
+          };
+          const sqlOperator = operatorMap[operator] || operator;
+          const sqlKey = `${field} ${sqlOperator}`;
+          // Handle 'in' operator - convert comma-separated string to array
+          where[sqlKey] = operator === 'in' ? value.split(',') : value;
+        } else {
+          where[key] = value;
+        }
       }
     }
 
@@ -312,6 +383,47 @@ export class APIGenerator {
   }
 
   /**
+   * Handle GET /objects/count
+   */
+  private async handleCount(
+    collection: SmrtCollection<any>,
+    params: URLSearchParams,
+  ): Promise<Response> {
+    // Build where clause from query params (same logic as handleList)
+    const where: any = {};
+    for (const [key, value] of params.entries()) {
+      // Parse REST operator format: field[operator]
+      const match = key.match(/^(.+)\[(.+)\]$/);
+      if (match) {
+        const field = match[1];
+        const operator = match[2];
+        // Map REST operators to SQL operators
+        const operatorMap: Record<string, string> = {
+          gt: '>',
+          gte: '>=',
+          lt: '<',
+          lte: '<=',
+          ne: '!=',
+          in: 'in',
+          like: 'like',
+        };
+        const sqlOperator = operatorMap[operator] || operator;
+        const sqlKey = `${field} ${sqlOperator}`;
+        // Handle 'in' operator - convert comma-separated string to array
+        where[sqlKey] = operator === 'in' ? value.split(',') : value;
+      } else {
+        where[key] = value;
+      }
+    }
+
+    const count = await collection.count({
+      where: Object.keys(where).length > 0 ? where : undefined,
+    });
+
+    return this.createJsonResponse({ count });
+  }
+
+  /**
    * Handle POST /objects
    */
   private async handleCreate(
@@ -319,7 +431,7 @@ export class APIGenerator {
     req: Request,
   ): Promise<Response> {
     const data = await req.json();
-    const object = await collection.create(data);
+    const object = await collection.create({ ...data, _skipLoad: true });
     await object.save();
     return this.createJsonResponse(object, 201);
   }

@@ -99,9 +99,20 @@ export class RestPersistenceAdapter implements PersistenceAdapter {
 
   async save(object: SmrtObject): Promise<SaveResult> {
     try {
-      // Validate object has required fields
+      // Ensure ID and slug are set
+      if (!object.id) {
+        (object as any)._id = crypto.randomUUID();
+      }
+
       if (!object.slug) {
-        throw ValidationError.requiredField('slug', object.constructor.name);
+        // Generate slug from name
+        if (!object.name) {
+          throw ValidationError.requiredField('name', object.constructor.name);
+        }
+        (object as any)._slug = object.name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)/g, '');
       }
 
       // Determine if this is create or update
@@ -208,7 +219,11 @@ export class RestPersistenceAdapter implements PersistenceAdapter {
       }
 
       // Create instance with loaded data
-      const instance = new objectClass(objectData);
+      const instance = new objectClass({
+        ...objectData,
+        _skipLoad: true,
+        _persistenceAdapter: this,
+      });
       await instance.initialize();
 
       return instance;
@@ -289,7 +304,11 @@ export class RestPersistenceAdapter implements PersistenceAdapter {
       // Create instances from response data
       const results: T[] = [];
       for (const item of items) {
-        const instance = new objectClass(item);
+        const instance = new objectClass({
+          ...item,
+          _skipLoad: true,
+          _persistenceAdapter: this,
+        });
         await instance.initialize();
         results.push(instance);
       }
