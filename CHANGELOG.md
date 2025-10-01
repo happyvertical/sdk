@@ -1,3 +1,17 @@
+# [0.10.0](https://github.com/happyvertical/sdk/compare/v0.9.0...v0.10.0) (2025-10-01)
+
+
+### Bug Fixes
+
+* **smrt:** add middleware to serve default HTML when no index.html exists ([33e0e04](https://github.com/happyvertical/sdk/commit/33e0e04efdd3ea26dee59aa9b3f0362800abd2e9))
+* **smrt:** correct TypeScript visibility and Svelte 5 reactivity ([7ea2fc1](https://github.com/happyvertical/sdk/commit/7ea2fc1aea7df28349509fb368a9076c71f81ec0))
+
+
+### Features
+
+* **smrt:** add default dev UI for library development ([382b645](https://github.com/happyvertical/sdk/commit/382b645703c499cfe5a0fc452af9b29e8a951799)), closes [#116](https://github.com/happyvertical/sdk/issues/116)
+* **smrt:** implement default development UI with template-literal-free code ([58d4c08](https://github.com/happyvertical/sdk/commit/58d4c08cbe29fc70ae0b4d546d8b9d9063fe9519)), closes [#116](https://github.com/happyvertical/sdk/issues/116)
+
 # [0.9.0](https://github.com/happyvertical/sdk/compare/v0.8.1...v0.9.0) (2025-09-30)
 
 
