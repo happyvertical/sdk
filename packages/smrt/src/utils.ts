@@ -308,6 +308,7 @@ const _setup_table_from_class_promises: Record<string, Promise<void> | null> =
  *
  * Creates the database table, indexes, and triggers for a SMRT class.
  * Uses promise caching to ensure each table is only set up once.
+ * Now leverages ObjectRegistry's cached schema for instant retrieval.
  *
  * @param db - Database connection interface
  * @param ClassType - Class constructor to create tables for
@@ -328,7 +329,10 @@ export async function setupTableFromClass(db: any, ClassType: any) {
 
   _setup_table_from_class_promises[tableName] = (async () => {
     try {
-      const schema = generateSchema(ClassType);
+      // Try to get cached schema from ObjectRegistry first
+      const cachedSchema = ObjectRegistry.getSchemaDDL(ClassType.name);
+      const schema = cachedSchema || generateSchema(ClassType);
+
       await syncSchema({ db, schema });
       await setupTriggers(db, tableName);
     } catch (error) {

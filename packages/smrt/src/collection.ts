@@ -424,11 +424,14 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
   /**
    * Generates database schema for the collection's item class
    *
+   * Leverages ObjectRegistry's cached schema for instant retrieval.
+   *
    * @returns Schema object for database setup
    */
   generateSchema() {
-    // Use the imported generateSchema function with the item class
-    return generateSchema(this._itemClass);
+    // Try to get cached schema from ObjectRegistry first
+    const cachedSchema = ObjectRegistry.getSchemaDDL(this._itemClass.name);
+    return cachedSchema || generateSchema(this._itemClass);
   }
 
   /**
