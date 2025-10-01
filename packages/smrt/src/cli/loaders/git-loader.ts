@@ -230,7 +230,7 @@ export async function loadGitTemplate(gitUrl: string): Promise<TemplateConfig> {
       (config as any).__tempDir = tempDir;
 
       return config;
-    } catch (error) {
+    } catch (_error) {
       // Try .ts extension
       try {
         const tsConfigPath = join(templateDir, 'template.config.ts');
