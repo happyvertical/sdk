@@ -73,6 +73,12 @@ export class SmrtObject extends SmrtClass {
   protected _persistenceAdapter?: PersistenceAdapter;
 
   /**
+   * Cache for loaded relationships to avoid repeated database queries
+   * Maps fieldName to loaded object(s)
+   */
+  private _loadedRelationships: Map<string, any> = new Map();
+
+  /**
    * Unique identifier for the object
    */
   protected _id: string | null | undefined;
@@ -768,5 +774,220 @@ export class SmrtObject extends SmrtClass {
     }
 
     await this.runHook('afterDelete');
+  }
+
+  /**
+   * Check if a relationship has been loaded
+   *
+   * @param fieldName - Name of the relationship field
+   * @returns True if the relationship is loaded, false otherwise
+   * @example
+   * ```typescript
+   * if (order.isRelatedLoaded('customer')) {
+   *   console.log('Customer already loaded');
+   * }
+   * ```
+   */
+  public isRelatedLoaded(fieldName: string): boolean {
+    return this._loadedRelationships.has(fieldName);
+  }
+
+  /**
+   * Load a related object for a foreignKey field (lazy loading)
+   *
+   * Automatically loads the related object from the database using the
+   * foreign key value. The loaded object is cached to avoid repeated queries.
+   *
+   * @param fieldName - Name of the foreignKey field
+   * @returns Promise resolving to the related object or null if not found
+   * @throws {RuntimeError} If the field is not a foreignKey or target class not found
+   * @example
+   * ```typescript
+   * // Given: class Order with customerId = foreignKey(Customer)
+   * const customer = await order.loadRelated('customerId');
+   * console.log(customer.name); // Access customer properties
+   * ```
+   */
+  public async loadRelated(fieldName: string): Promise<any> {
+    // Check if already loaded
+    if (this._loadedRelationships.has(fieldName)) {
+      return this._loadedRelationships.get(fieldName);
+    }
+
+    // Get relationship metadata from ObjectRegistry
+    const relationships = ObjectRegistry.getRelationships(
+      this.constructor.name,
+    );
+    const relationship = relationships.find(
+      (r) => r.fieldName === fieldName && r.type === 'foreignKey',
+    );
+
+    if (!relationship) {
+      throw RuntimeError.invalidState(
+        `Field ${fieldName} is not a foreignKey relationship on ${this.constructor.name}`,
+        { fieldName, className: this.constructor.name },
+      );
+    }
+
+    // Get the foreign key value
+    const foreignKeyValue = this[fieldName as keyof this];
+    if (!foreignKeyValue) {
+      // No related object (foreign key is null)
+      this._loadedRelationships.set(fieldName, null);
+      return null;
+    }
+
+    // Get the target class constructor
+    const targetClassInfo = ObjectRegistry.getClass(relationship.targetClass);
+    if (!targetClassInfo) {
+      throw RuntimeError.invalidState(
+        `Target class ${relationship.targetClass} not found in ObjectRegistry`,
+        { targetClass: relationship.targetClass, fieldName },
+      );
+    }
+
+    // Create an instance and load by ID
+    const relatedInstance = new targetClassInfo.constructor(this.options);
+    await relatedInstance.initialize();
+    relatedInstance.id = foreignKeyValue;
+    await relatedInstance.loadFromId();
+
+    // Cache the loaded object
+    this._loadedRelationships.set(fieldName, relatedInstance);
+    return relatedInstance;
+  }
+
+  /**
+   * Load related objects for oneToMany or manyToMany fields (lazy loading)
+   *
+   * Loads all related objects from the database. For oneToMany, queries by
+   * the inverse foreign key. For manyToMany, queries through the join table.
+   *
+   * @param fieldName - Name of the oneToMany or manyToMany field
+   * @returns Promise resolving to array of related objects
+   * @throws {RuntimeError} If the field is not a relationship or not implemented
+   * @example
+   * ```typescript
+   * // Given: class Customer with orders = oneToMany(Order)
+   * const orders = await customer.loadRelatedMany('orders');
+   * console.log(`${orders.length} orders found`);
+   * ```
+   */
+  public async loadRelatedMany(fieldName: string): Promise<any[]> {
+    // Check if already loaded
+    if (this._loadedRelationships.has(fieldName)) {
+      return this._loadedRelationships.get(fieldName);
+    }
+
+    // Get relationship metadata from ObjectRegistry
+    const relationships = ObjectRegistry.getRelationships(
+      this.constructor.name,
+    );
+    const relationship = relationships.find((r) => r.fieldName === fieldName);
+
+    if (!relationship) {
+      throw RuntimeError.invalidState(
+        `Field ${fieldName} is not a relationship on ${this.constructor.name}`,
+        { fieldName, className: this.constructor.name },
+      );
+    }
+
+    if (relationship.type === 'oneToMany') {
+      // Find the inverse foreignKey field on the target class
+      const inverseRelationships = ObjectRegistry.getInverseRelationships(
+        this.constructor.name,
+      );
+      const inverseForeignKey = inverseRelationships.find(
+        (r) =>
+          r.sourceClass === relationship.targetClass &&
+          r.type === 'foreignKey' &&
+          r.targetClass === this.constructor.name,
+      );
+
+      if (!inverseForeignKey) {
+        throw RuntimeError.invalidState(
+          `Could not find inverse foreignKey on ${relationship.targetClass} for oneToMany relationship ${fieldName}`,
+          { fieldName, targetClass: relationship.targetClass },
+        );
+      }
+
+      // Get the target collection
+      const targetClassInfo = ObjectRegistry.getClass(relationship.targetClass);
+      if (!targetClassInfo || !targetClassInfo.collectionConstructor) {
+        throw RuntimeError.invalidState(
+          `Collection not found for ${relationship.targetClass}`,
+          { targetClass: relationship.targetClass },
+        );
+      }
+
+      // Query using the inverse foreign key
+      const collection = new targetClassInfo.collectionConstructor(
+        this.options,
+      );
+      await collection.initialize();
+      const relatedObjects = await collection.list({
+        where: { [inverseForeignKey.fieldName]: this.id },
+      });
+
+      // Cache the loaded objects
+      this._loadedRelationships.set(fieldName, relatedObjects);
+      return relatedObjects;
+    }
+
+    if (relationship.type === 'manyToMany') {
+      // manyToMany requires a join table - not implemented yet
+      throw RuntimeError.invalidState(
+        `manyToMany relationship loading not yet implemented for ${fieldName}`,
+        { fieldName, type: 'manyToMany' },
+      );
+    }
+
+    throw RuntimeError.invalidState(
+      `Field ${fieldName} is not a oneToMany or manyToMany relationship`,
+      { fieldName, type: relationship.type },
+    );
+  }
+
+  /**
+   * Get a related object, loading it if not already loaded
+   *
+   * Convenience method that checks if the relationship is loaded and
+   * loads it if necessary. Automatically detects foreignKey vs oneToMany/manyToMany.
+   *
+   * @param fieldName - Name of the relationship field
+   * @returns Promise resolving to the related object(s)
+   * @example
+   * ```typescript
+   * // Loads customer if not already loaded
+   * const customer = await order.getRelated('customerId');
+   *
+   * // Loads orders if not already loaded
+   * const orders = await customer.getRelated('orders');
+   * ```
+   */
+  public async getRelated(fieldName: string): Promise<any> {
+    if (this._loadedRelationships.has(fieldName)) {
+      return this._loadedRelationships.get(fieldName);
+    }
+
+    // Determine relationship type
+    const relationships = ObjectRegistry.getRelationships(
+      this.constructor.name,
+    );
+    const relationship = relationships.find((r) => r.fieldName === fieldName);
+
+    if (!relationship) {
+      throw RuntimeError.invalidState(
+        `Field ${fieldName} is not a relationship on ${this.constructor.name}`,
+        { fieldName, className: this.constructor.name },
+      );
+    }
+
+    // Load based on relationship type
+    if (relationship.type === 'foreignKey') {
+      return this.loadRelated(fieldName);
+    }
+
+    return this.loadRelatedMany(fieldName);
   }
 }
