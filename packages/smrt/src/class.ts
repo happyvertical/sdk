@@ -4,6 +4,7 @@ import type { FilesystemAdapterOptions } from '@have/files';
 import { FilesystemAdapter } from '@have/files';
 import type { DatabaseInterface } from '@have/sql';
 import { getDatabase } from '@have/sql';
+import type { PersistenceConfig } from './persistence/types';
 
 /**
  * Configuration options for the SmrtClass
@@ -15,7 +16,14 @@ export interface SmrtClassOptions {
   _className?: string;
 
   /**
-   * Database configuration options
+   * Persistence configuration (new unified approach)
+   * Use this to configure SQL, REST, or other persistence backends
+   */
+  persistence?: PersistenceConfig;
+
+  /**
+   * Database configuration options (legacy, for backward compatibility)
+   * @deprecated Use `persistence: { type: 'sql', ... }` instead
    */
   db?: {
     url?: string;

@@ -2,6 +2,8 @@ import { buildWhere, syncSchema } from '@have/sql';
 import type { SmrtClassOptions } from './class';
 import { SmrtClass } from './class';
 import type { SmrtObject } from './object';
+import type { PersistenceAdapter } from './persistence/adapter';
+import { createPersistenceAdapter } from './persistence';
 import { ObjectRegistry } from './registry';
 import {
   fieldsFromClass,
@@ -28,6 +30,11 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
    * Promise tracking the database setup operation
    */
   protected _db_setup_promise: Promise<void> | null = null;
+
+  /**
+   * Persistence adapter for storage operations
+   */
+  protected _persistenceAdapter?: PersistenceAdapter;
 
   /**
    * Gets the class constructor for items in this collection
@@ -137,7 +144,27 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
    */
   public async initialize() {
     await super.initialize();
-    if (this.options.db) {
+
+    // Create persistence adapter based on configuration
+    if (this.options.persistence) {
+      // New persistence config
+      this._persistenceAdapter = await createPersistenceAdapter(
+        this.options.persistence,
+        this._itemClass,
+      );
+    } else if (this.options.db) {
+      // Legacy db config - create SQL adapter automatically
+      this._persistenceAdapter = await createPersistenceAdapter(
+        {
+          type: 'sql',
+          ...this.options.db,
+        },
+        this._itemClass,
+      );
+    }
+
+    // Legacy: setup database if using db directly (no adapter)
+    if (this.options.db && !this._persistenceAdapter) {
       await this.setupDb();
     }
   }
@@ -149,6 +176,12 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
    * @returns Promise resolving to the object or null if not found
    */
   public async get(filter: string | Record<string, any>) {
+    // Use persistence adapter if available
+    if (this._persistenceAdapter) {
+      return await this._persistenceAdapter.load(filter, this._itemClass);
+    }
+
+    // Legacy implementation
     const where =
       typeof filter === 'string'
         ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
@@ -217,6 +250,12 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
     limit?: number;
     orderBy?: string | string[];
   }) {
+    // Use persistence adapter if available
+    if (this._persistenceAdapter) {
+      return await this._persistenceAdapter.list(options, this._itemClass);
+    }
+
+    // Legacy implementation
     const { where, offset, limit, orderBy } = options;
     const { sql: whereSql, values: whereValues } = buildWhere(where || {});
 
@@ -487,6 +526,12 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
    * @returns Promise resolving to the total count of matching records
    */
   public async count(options: { where?: Record<string, any> } = {}) {
+    // Use persistence adapter if available
+    if (this._persistenceAdapter) {
+      return await this._persistenceAdapter.count(options);
+    }
+
+    // Legacy implementation
     const { where } = options;
     const { sql: whereSql, values: whereValues } = buildWhere(where || {});
 
