@@ -18,27 +18,9 @@ const sidebars: SidebarsConfig = {
       ],
     },
     {
-      type: 'category',
-      label: 'The SMRT Framework',
-      collapsed: false,
-      items: [
-        'smrt-framework/overview',
-        'smrt-framework/smart-objects',
-        'smrt-framework/persistence-collections',
-        'smrt-framework/tools-capabilities',
-        'smrt-framework/the-agent',
-        'smrt-framework/code-generators',
-        {
-          type: 'link',
-          label: 'CLI Reference',
-          href: '/smrt/cli',
-        },
-        {
-          type: 'link',
-          label: 'SvelteKit Plugin',
-          href: '/smrt/sveltekit-plugin',
-        },
-      ],
+      type: 'link',
+      label: 's-m-r-t Framework',
+      href: '/smrt/overview',
     },
     {
       type: 'category',
