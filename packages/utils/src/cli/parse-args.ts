@@ -5,6 +5,7 @@
  * Supports Node.js util.parseArgs for option parsing with fallback.
  */
 
+import { basename } from 'node:path';
 import { parseArgs as nodeParseArgs } from 'node:util';
 
 /**
@@ -70,11 +71,11 @@ export function parseCliArgs(
 ): ParsedArgs {
   // Remove node and script name if present
   // Be precise: only remove if it's actually the node executable or a .js file
-  // Don't match commands like "gnode" which end with "node"
+  // Use basename to avoid matching commands like "gnode" which end with "node"
   let args = argv;
 
-  // Check if first arg is node executable
-  if (args.length > 0 && (args[0] === 'node' || args[0].endsWith('/node'))) {
+  // Check if first arg is node executable (check basename to avoid false matches)
+  if (args.length > 0 && basename(args[0]) === 'node') {
     args = args.slice(1);
   }
 

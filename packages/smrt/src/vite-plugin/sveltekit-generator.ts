@@ -295,33 +295,17 @@ function shouldIncludeInApi(actionName: string, apiConfig: any): boolean {
  */
 function writeRoute(dir: string, filename: string, content: string): void {
   try {
-    console.log(`[smrt] [DEBUG] Attempting to write route:`);
-    console.log(`[smrt] [DEBUG]   Directory: ${dir}`);
-    console.log(`[smrt] [DEBUG]   Filename: ${filename}`);
-    console.log(`[smrt] [DEBUG]   Content length: ${content.length} bytes`);
-
     // Create directory if needed
     if (!existsSync(dir)) {
-      console.log(`[smrt] [DEBUG]   Directory does not exist, creating...`);
       mkdirSync(dir, { recursive: true });
-      console.log(`[smrt] [DEBUG]   Directory created successfully`);
-    } else {
-      console.log(`[smrt] [DEBUG]   Directory already exists`);
     }
 
     // Write the file
     const filePath = join(dir, filename);
-    console.log(`[smrt] [DEBUG]   Full path: ${filePath}`);
-
     writeFileSync(filePath, content, 'utf-8');
-    console.log(`[smrt] [DEBUG]   File written successfully`);
 
-    // Immediately verify file exists
+    // Verify file exists and log success
     if (existsSync(filePath)) {
-      const stats = statSync(filePath);
-      console.log(
-        `[smrt] [DEBUG]   ✅ File verified on disk (${stats.size} bytes)`,
-      );
       console.log(`[smrt] Generated: ${filePath}`);
     } else {
       console.error(
