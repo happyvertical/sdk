@@ -30,6 +30,8 @@
     "../../vitest.config.ts",
     "../../vitest.config.js",
     "../../*.config.ts",
-    "../../*.config.js"
+    "../../*.config.js",
+    // Exclude browser template - loaded as string, not compiled
+    "src/vite-plugin/templates/default-ui.ts"
   ]
 }
