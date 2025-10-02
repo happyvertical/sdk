@@ -15,6 +15,7 @@
   ],
   "exports": {
     ".": "./dist/index.js",
+    "./fields": "./dist/fields/index.js",
     "./utils": "./dist/utils.js",
     "./cli": "./dist/cli/index.js",
     "./generators": "./dist/generators/index.js",
@@ -38,6 +39,7 @@
     "fast-glob": "3.3.3",
     "minimatch": "10.0.3",
     "tar": "^7.5.1",
+    "typescript": "^5.7.3",
     "yaml": "^2.7.0"
   },
   "scripts": {
@@ -59,7 +61,6 @@
     "@faker-js/faker": "^9.4.0",
     "@types/node": "^24.0.0",
     "tsx": "^4.7.0",
-    "typescript": "^5.7.3",
     "vite": "7.1.3",
     "vite-plugin-dts": "4.3.0",
     "vitest": "^3.2.4"

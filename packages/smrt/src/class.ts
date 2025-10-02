@@ -92,9 +92,9 @@ export class SmrtClass {
    * This method sets up all required services based on the provided options.
    * It should be called before using any of the service interfaces.
    *
-   * @returns Promise that resolves when initialization is complete
+   * @returns Promise that resolves to this instance for chaining
    */
-  protected async initialize(): Promise<void> {
+  protected async initialize(): Promise<this> {
     if (this.options.db) {
       this._db = await getDatabase(this.options.db);
     }
@@ -104,6 +104,7 @@ export class SmrtClass {
     if (this.options.ai) {
       this._ai = await AIClient.create(this.options.ai);
     }
+    return this;
   }
 
   /**

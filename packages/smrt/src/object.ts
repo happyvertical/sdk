@@ -52,6 +52,21 @@ export interface SmrtObjectOptions extends SmrtClassOptions {
    * Last update timestamp
    */
   updated_at?: Date;
+
+  /**
+   * Flag to skip automatic field extraction (internal use)
+   */
+  _extractingFields?: boolean;
+
+  /**
+   * Flag to skip database loading (internal use)
+   */
+  _skipLoad?: boolean;
+
+  /**
+   * Allow arbitrary field values to be passed
+   */
+  [key: string]: any;
 }
 
 /**
@@ -77,6 +92,11 @@ export class SmrtObject extends SmrtClass {
    * Maps fieldName to loaded object(s)
    */
   private _loadedRelationships: Map<string, any> = new Map();
+
+  /**
+   * Override options with SmrtObjectOptions type
+   */
+  protected override options: SmrtObjectOptions;
 
   /**
    * Unique identifier for the object
@@ -232,9 +252,9 @@ export class SmrtObject extends SmrtClass {
   /**
    * Initializes this object, setting up database tables and loading data if identifiers are provided
    *
-   * @returns Promise that resolves when initialization is complete
+   * @returns Promise that resolves to this instance for chaining
    */
-  public async initialize(): Promise<void> {
+  public async initialize(): Promise<this> {
     await super.initialize();
 
     // Initialize properties from options AFTER all field initializers have run
@@ -283,6 +303,8 @@ export class SmrtObject extends SmrtClass {
     } else if (this._slug && !(this.options as any)._skipLoad) {
       await this.loadFromSlug();
     }
+
+    return this;
   }
 
   /**

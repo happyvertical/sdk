@@ -14,7 +14,8 @@ function createPackageBuild(packageName: string, entryPath: string) {
       output: {
         dir: `packages/${packageName}/dist`,
         format: 'es' as const,
-        preserveModules: false,
+        preserveModules: true,
+        preserveModulesRoot: `packages/${packageName}/src`,
       },
       external: [
         // Node.js built-ins - externalize completely to avoid api-extractor issues
@@ -90,6 +91,7 @@ function createPackageBuild(packageName: string, entryPath: string) {
         'express',
         'cors',
         'dotenv',
+        'typescript',
 
         // Internal @have/* packages - externalize to avoid cross-package bundling issues
         '@have/utils',

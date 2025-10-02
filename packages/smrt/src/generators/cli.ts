@@ -5,10 +5,10 @@
  */
 
 import { createInterface } from 'node:readline';
-import { parseArgs } from 'node:util';
 import type { SmrtCollection } from '../collection';
 import { ObjectRegistry } from '../registry';
 import { gnodeCommands, generateCommands } from '../cli/commands/index.js';
+import { parseCliArgs, type Command, type ParsedArgs } from '@have/utils';
 
 export interface CLIConfig {
   name?: string;
@@ -27,28 +27,8 @@ export interface CLIContext {
   };
 }
 
-export interface CLICommand {
-  name: string;
-  description: string;
-  aliases?: string[];
-  options?: Record<
-    string,
-    {
-      type: 'string' | 'boolean';
-      description: string;
-      default?: any;
-      short?: string;
-    }
-  >;
-  args?: string[];
-  handler: (args: any, options: any) => Promise<void>;
-}
-
-export interface ParsedArgs {
-  command?: string;
-  args: string[];
-  options: Record<string, any>;
-}
+// Re-export Command as CLICommand for backward compatibility
+export type CLICommand = Command;
 
 /**
  * Generate CLI commands for smrt objects
@@ -98,9 +78,13 @@ export class CLIGenerator {
    */
   generateHandler(): (argv: string[]) => Promise<void> {
     const commands = this.generateCommands();
+    const builtInCommands = {
+      ...gnodeCommands,
+      ...generateCommands,
+    };
 
     return async (argv: string[]) => {
-      const parsed = this.parseArguments(argv, commands);
+      const parsed = parseCliArgs(argv, commands, builtInCommands);
       await this.executeCommand(parsed, commands);
     };
   }
@@ -282,76 +266,6 @@ export class CLIGenerator {
     }
 
     return commands;
-  }
-
-  /**
-   * Parse command line arguments
-   */
-  parseArguments(argv: string[], commands: CLICommand[]): ParsedArgs {
-    // Remove node and script name if present
-    const args = argv
-      .slice(0, 2)
-      .some((arg) => arg.endsWith('node') || arg.endsWith('.js'))
-      ? argv.slice(2)
-      : argv;
-
-    if (args.length === 0) {
-      return { args: [], options: {} };
-    }
-
-    // Handle global flags first
-    if (args.includes('--help') || args.includes('-h')) {
-      return { command: 'help', args: [], options: {} };
-    }
-
-    if (args.includes('--version') || args.includes('-v')) {
-      return { command: 'version', args: [], options: {} };
-    }
-
-    const commandName = args[0];
-    const command = commands.find(
-      (cmd) => cmd.name === commandName || cmd.aliases?.includes(commandName),
-    );
-
-    if (!command) {
-      return { command: commandName, args: args.slice(1), options: {} };
-    }
-
-    // Build parseArgs config from command definition
-    const parseConfig: any = {
-      args: args.slice(1),
-      options: {},
-      strict: false, // Allow unknown options
-    };
-
-    if (command.options) {
-      for (const [name, option] of Object.entries(command.options)) {
-        parseConfig.options[name] = {
-          type: option.type === 'boolean' ? 'boolean' : 'string',
-          ...(option.default !== undefined && { default: option.default }),
-        };
-        if (option.short) {
-          parseConfig.options[name].short = option.short;
-        }
-      }
-    }
-
-    try {
-      const parsed = parseArgs(parseConfig);
-      return {
-        command: commandName,
-        args: parsed.positionals || [],
-        options: parsed.values || {},
-      };
-    } catch (error) {
-      // Fallback for parse errors
-      console.warn('Argument parsing failed, using fallback:', error);
-      return {
-        command: commandName,
-        args: args.slice(1).filter((arg) => !arg.startsWith('-')),
-        options: {},
-      };
-    }
   }
 
   /**
@@ -979,7 +893,7 @@ export class CLIGenerator {
 }
 
 // CLI Binary Entry Point
-async function main() {
+export async function main() {
   const config: CLIConfig = {
     name: 'smrt',
     version: '1.0.0',

@@ -8,6 +8,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Plugin, ViteDevServer } from 'vite';
 import type { SmartObjectManifest } from '../scanner/types';
+import { generateSvelteKitRoutes } from './sveltekit-generator.js';
 
 export interface SmrtPluginOptions {
   /** Glob patterns for SMRT source files */
@@ -32,6 +33,19 @@ export interface SmrtPluginOptions {
   staticManifest?: SmartObjectManifest;
   /** Path to static manifest file for client mode */
   manifestPath?: string;
+  /** SvelteKit route auto-generation options */
+  svelteKit?: {
+    /** Enable SvelteKit route generation (default: false) */
+    enabled: boolean;
+    /** Output directory for generated routes (default: 'src/routes/api') */
+    routesDir?: string;
+    /** Directory containing SMRT objects (default: 'src/lib/objects') */
+    objectsDir?: string;
+    /** Directory for configuration file (default: 'src/lib/server') */
+    configPath?: string;
+    /** Configuration file name (default: 'smrt.ts') */
+    configFileName?: string;
+  };
 }
 
 const VIRTUAL_MODULES = {
@@ -55,6 +69,13 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
     typeDeclarationsPath = 'src/types',
     mode = 'auto',
     manifestPath,
+    svelteKit = {
+      enabled: false,
+      routesDir: 'src/routes/api',
+      objectsDir: 'src/lib/objects',
+      configPath: 'src/lib/server',
+      configFileName: 'smrt.ts',
+    },
   } = options;
 
   let server: ViteDevServer | undefined;
@@ -85,6 +106,17 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
 
       // Scan files and generate initial manifest in all modes
       manifest = await scanAndGenerateManifest();
+
+      // Generate SvelteKit routes if enabled
+      if (svelteKit.enabled && manifest) {
+        await generateSvelteKitRoutes(config.root, manifest, {
+          enabled: svelteKit.enabled,
+          routesDir: svelteKit.routesDir || 'src/routes/api',
+          objectsDir: svelteKit.objectsDir || 'src/lib/objects',
+          configPath: svelteKit.configPath || 'src/lib/server',
+          configFileName: svelteKit.configFileName || 'smrt.ts',
+        });
+      }
     },
 
     async buildStart() {
@@ -137,6 +169,17 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
           if (await shouldRescan(file)) {
             console.log(`[smrt] Rescanning due to change in ${file}`);
             manifest = await scanAndGenerateManifest();
+
+            // Generate SvelteKit routes if enabled
+            if (svelteKit.enabled && manifest && server) {
+              await generateSvelteKitRoutes(server.config.root, manifest, {
+                enabled: svelteKit.enabled,
+                routesDir: svelteKit.routesDir || 'src/routes/api',
+                objectsDir: svelteKit.objectsDir || 'src/lib/objects',
+                configPath: svelteKit.configPath || 'src/lib/server',
+                configFileName: svelteKit.configFileName || 'smrt.ts',
+              });
+            }
 
             // Invalidate virtual modules
             Object.values(VIRTUAL_MODULES).forEach((id) => {

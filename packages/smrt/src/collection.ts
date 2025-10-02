@@ -140,9 +140,9 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
   /**
    * Initializes the collection, setting up database tables
    *
-   * @returns Promise that resolves when initialization is complete
+   * @returns Promise that resolves to this instance for chaining
    */
-  public async initialize() {
+  public async initialize(): Promise<this> {
     await super.initialize();
 
     // Create persistence adapter based on configuration
@@ -169,6 +169,8 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
     if (this.options.db && !this._persistenceAdapter) {
       await this.setupDb();
     }
+
+    return this;
   }
 
   /**
