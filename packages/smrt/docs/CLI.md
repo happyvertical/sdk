@@ -504,7 +504,7 @@ Error: AI service not configured
 
 ## Further Reading
 
-- [SvelteKit Plugin Documentation](./SVELTEKIT_PLUGIN.md)
-- [SMRT Object Guide](./SMRT_OBJECTS.md)
-- [Code Generation](./CODE_GENERATION.md)
-- [API Reference](../manual/index.html)
+- [SvelteKit Plugin Documentation](./sveltekit-plugin) - Auto-generate REST APIs from SMRT objects
+- [SMRT Framework Overview](/docs/smrt-framework/overview) - Core concepts and architecture
+- [Code Generation Guide](/docs/smrt-framework/code-generators) - Generators for APIs, MCP servers, and more
+- [Smart Objects](/docs/smrt-framework/smart-objects) - Define your domain models
