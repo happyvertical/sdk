@@ -149,12 +149,12 @@ const config: Config = {
           title: 'Framework',
           items: [
             {
-              label: 'SMRT Core',
-              to: '/docs/smrt-framework/overview',
+              label: 's-m-r-t Core',
+              to: '/smrt/overview',
             },
             {
               label: 'Code Generators',
-              to: '/docs/smrt-framework/code-generators',
+              to: '/smrt/code-generators',
             },
           ],
         },

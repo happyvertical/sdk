@@ -379,7 +379,7 @@ Now that you've built your first auto-generating service, explore these advanced
     <div className="feature-card">
       <h3>🔧 Advanced Patterns</h3>
       <p>Master relationships, validation, and custom integrations</p>
-      <a href="/docs/smrt-framework/advanced-patterns" className="nav-pill">Advanced Guide →</a>
+      <a href="/smrt/advanced-patterns" className="nav-pill">Advanced Guide →</a>
     </div>
   </div>
 </div>

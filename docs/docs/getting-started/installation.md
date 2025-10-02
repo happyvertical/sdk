@@ -286,7 +286,7 @@ Now that SMRT is installed, you're ready to build your first agent!
     </a>
   </div>
   <div className="col col--6">
-    <a href="/docs/smrt-framework/overview" className="button button--secondary button--block">
+    <a href="/smrt/overview" className="button button--secondary button--block">
       Explore the Framework →
     </a>
   </div>

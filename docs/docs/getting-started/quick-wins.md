@@ -487,9 +487,9 @@ class RateLimitedAgent extends Agent {
 
 Now that you've seen what's possible, dive deeper:
 
-- [Explore the Framework →](/docs/smrt-framework/overview)
+- [Explore the Framework →](/smrt/overview)
 - [Build Complete Projects →](/docs/tutorials/build-research-agent)
-- [Add More Capabilities →](/docs/smrt-framework/tools-capabilities)
+- [Add More Capabilities →](/smrt/tools-capabilities)
 
 ---
 
