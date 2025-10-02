@@ -147,7 +147,7 @@ const products: ProductData[] = await client.products.list();
     <div className="feature-card">
       <h3>📚 Core Concepts</h3>
       <p>Deep dive into the SMRT framework architecture and patterns.</p>
-      <a href="/docs/smrt-framework/overview" className="nav-pill">Learn More →</a>
+      <a href="/smrt/overview" className="nav-pill">Learn More →</a>
     </div>
   </div>
 </div>

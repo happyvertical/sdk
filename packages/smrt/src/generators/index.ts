@@ -4,7 +4,7 @@
 
 export type { CLICommand, CLIConfig, CLIContext, ParsedArgs } from './cli';
 // CLI Generator (includes both library and executable)
-export { CLIGenerator } from './cli';
+export { CLIGenerator, main } from './cli';
 export type {
   MCPConfig,
   MCPContext,

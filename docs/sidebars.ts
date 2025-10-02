@@ -18,13 +18,9 @@ const sidebars: SidebarsConfig = {
       ],
     },
     {
-      type: 'category',
-      label: 'The SMRT Framework',
-      collapsed: false,
-      items: [
-        'smrt-framework/overview',
-        // Additional framework docs to be added
-      ],
+      type: 'link',
+      label: 's-m-r-t Framework',
+      href: '/smrt/overview',
     },
     {
       type: 'category',

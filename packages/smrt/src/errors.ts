@@ -289,12 +289,14 @@ export class NetworkError extends SmrtError {
   static requestFailed(
     url: string,
     status?: number,
-    cause?: Error,
+    responseBody?: string | Error,
   ): NetworkError {
+    const cause = responseBody instanceof Error ? responseBody : undefined;
+    const body = typeof responseBody === 'string' ? responseBody : undefined;
     return new NetworkError(
-      `Network request failed: ${url}${status ? ` (Status: ${status})` : ''}`,
+      `Network request failed: ${url}${status ? ` (Status: ${status})` : ''}${body ? ` - ${body.substring(0, 200)}` : ''}`,
       'NETWORK_REQUEST_FAILED',
-      { url, status },
+      { url, status, responseBody: body },
       cause,
     );
   }
@@ -307,11 +309,13 @@ export class NetworkError extends SmrtError {
     );
   }
 
-  static serviceUnavailable(service: string): NetworkError {
+  static serviceUnavailable(service: string, reason?: string): NetworkError {
     return new NetworkError(
-      `External service unavailable: ${service}`,
+      reason
+        ? `External service unavailable: ${service} - ${reason}`
+        : `External service unavailable: ${service}`,
       'NETWORK_SERVICE_UNAVAILABLE',
-      { service },
+      { service, reason },
     );
   }
 }
