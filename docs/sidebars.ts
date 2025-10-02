@@ -28,8 +28,16 @@ const sidebars: SidebarsConfig = {
         'smrt-framework/tools-capabilities',
         'smrt-framework/the-agent',
         'smrt-framework/code-generators',
-        'smrt-framework/cli',
-        'smrt-framework/sveltekit-plugin',
+        {
+          type: 'link',
+          label: 'CLI Reference',
+          href: '/smrt/cli',
+        },
+        {
+          type: 'link',
+          label: 'SvelteKit Plugin',
+          href: '/smrt/sveltekit-plugin',
+        },
       ],
     },
     {

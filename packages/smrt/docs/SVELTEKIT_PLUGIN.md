@@ -1,4 +1,11 @@
-# SvelteKit Plugin Documentation
+---
+id: sveltekit-plugin
+title: SvelteKit Plugin
+sidebar_label: SvelteKit Plugin
+sidebar_position: 2
+---
+
+# SvelteKit Plugin
 
 The SMRT SvelteKit plugin automatically generates API routes from your SMRT objects, providing a complete REST API with zero configuration.
 
