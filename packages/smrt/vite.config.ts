@@ -8,6 +8,7 @@ export default defineConfig({
       // Multiple entry points for tree-shaking support
       entry: {
         index: resolve(__dirname, 'src/index.ts'),
+        'fields/index': resolve(__dirname, 'src/fields/index.ts'),
         utils: resolve(__dirname, 'src/utils.ts'),
         'generators/index': resolve(__dirname, 'src/generators/index.ts'),
         'generators/cli': resolve(__dirname, 'src/generators/cli.ts'),
@@ -36,19 +37,20 @@ export default defineConfig({
           if (entryName === 'prebuild/cli') return 'prebuild/cli.js';
           if (entryName === 'manifest/index') return 'manifest/index.js';
           if (entryName === 'runtime/index') return 'runtime/index.js';
+          if (entryName === 'fields/index') return 'fields/index.js';
           if (entryName.startsWith('generators/')) return `${entryName}.js`;
           return `${entryName}.js`;
         },
         // Preserve modules for better tree-shaking, but not for explicit entry points
         preserveModules: (id) => {
-          // Don't preserve modules for our explicit entry points - let them be bundled
-          if (id.includes('consumer-plugin/index.ts')) return false;
-          if (id.includes('vite-plugin/index.ts')) return false;
-          if (id.includes('prebuild/index.ts')) return false;
-          if (id.includes('prebuild/cli.ts')) return false;
-          if (id.includes('manifest/index.ts')) return false;
-          if (id.includes('runtime/index.ts')) return false;
-          if (id.includes('generators/')) return false;
+          // Bundle entire directories for these entry points (not just the index file)
+          if (id.includes('/consumer-plugin/')) return false;
+          if (id.includes('/vite-plugin/')) return false;
+          if (id.includes('/prebuild/')) return false;
+          if (id.includes('/manifest/')) return false;
+          if (id.includes('/runtime/')) return false;
+          if (id.includes('/fields/')) return false;
+          if (id.includes('/generators/')) return false;
           if (id.includes('src/index.ts')) return false;
           if (id.includes('src/utils.ts')) return false;
           // Preserve other modules for tree-shaking
