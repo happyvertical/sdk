@@ -12,6 +12,20 @@ import { pathToFileURL } from 'node:url';
 import type { TemplateConfig } from './template-loader.js';
 
 /**
+ * Expand home directory (~) in paths
+ * Handles both ~/ and ~ patterns
+ */
+function expandHomeDirectory(path: string): string {
+  if (path.startsWith('~/')) {
+    return join(homedir(), path.slice(2));
+  }
+  if (path.startsWith('~')) {
+    return join(homedir(), path.slice(1));
+  }
+  return path;
+}
+
+/**
  * Validate resolved path to prevent path traversal attacks
  * Focuses on blocking access to sensitive system directories
  * while allowing legitimate parent directory navigation (e.g., ../sibling-dir)
@@ -90,11 +104,9 @@ function validateResolvedPath(
 export async function resolveLocalPath(localPath: string): Promise<string> {
   let absolutePath: string;
 
-  // Expand home directory
-  if (localPath.startsWith('~/')) {
-    absolutePath = join(homedir(), localPath.slice(2));
-  } else if (localPath.startsWith('~')) {
-    absolutePath = join(homedir(), localPath.slice(1));
+  // Expand home directory (~) if present
+  if (localPath.startsWith('~')) {
+    absolutePath = expandHomeDirectory(localPath);
   } else if (localPath.startsWith('/')) {
     // Already absolute
     absolutePath = localPath;

@@ -7,6 +7,14 @@
  * - Local filesystem paths (../path/to/template, /absolute/path)
  */
 
+import { loadGitTemplate } from './git-loader.js';
+import { loadLocalTemplate, resolveLocalPath } from './local-loader.js';
+import {
+  findTemplateInPackages,
+  loadNpmTemplate,
+  resolveNpmPackage,
+} from './npm-loader.js';
+
 export interface TemplateConfig {
   name: string;
   description: string;
@@ -112,12 +120,3 @@ export async function loadTemplate(
       throw new Error(`Unknown template type: ${source.type}`);
   }
 }
-
-import { loadGitTemplate } from './git-loader.js';
-import { loadLocalTemplate, resolveLocalPath } from './local-loader.js';
-// Import loaders (will be implemented in separate files)
-import {
-  findTemplateInPackages,
-  loadNpmTemplate,
-  resolveNpmPackage,
-} from './npm-loader.js';

@@ -64,6 +64,7 @@ export const gnodeCommands: Record<string, CLICommand> = {
       } catch (error) {
         throw new Error(
           `Failed to create gnode: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          { cause: error },
         );
       }
     },

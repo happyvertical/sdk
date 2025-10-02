@@ -25,6 +25,58 @@ import { pathToFileURL } from 'node:url';
 import { extract } from 'tar';
 import type { TemplateConfig } from './template-loader.js';
 
+// Track temp directories for cleanup on process exit
+const tempDirectories = new Set<string>();
+let cleanupHandlersRegistered = false;
+
+/**
+ * Register cleanup handlers for temporary directories
+ * Ensures temp directories are removed on process termination
+ */
+function registerCleanupHandlers() {
+  if (cleanupHandlersRegistered) return;
+  cleanupHandlersRegistered = true;
+
+  const cleanup = async () => {
+    if (tempDirectories.size === 0) return;
+
+    const dirs = Array.from(tempDirectories);
+    await Promise.all(
+      dirs.map(async (dir) => {
+        try {
+          await rm(dir, { recursive: true, force: true });
+          tempDirectories.delete(dir);
+        } catch (_error) {
+          // Ignore cleanup errors - directory may already be removed
+        }
+      }),
+    );
+  };
+
+  // Clean up on normal exit
+  process.on('exit', () => {
+    // Synchronous cleanup not ideal, but exit is synchronous
+    // Most cleanup happens via other handlers
+  });
+
+  // Clean up on termination signals
+  process.on('SIGINT', async () => {
+    await cleanup();
+    process.exit(130); // Standard exit code for SIGINT
+  });
+
+  process.on('SIGTERM', async () => {
+    await cleanup();
+    process.exit(143); // Standard exit code for SIGTERM
+  });
+
+  // Clean up on uncaught exceptions
+  process.on('uncaughtException', async (error) => {
+    await cleanup();
+    throw error;
+  });
+}
+
 interface GitRepo {
   host: 'github' | 'gitlab' | 'bitbucket';
   user: string;
@@ -206,46 +258,72 @@ function validateRedirectUrl(redirectUrl: string): void {
  * Download and extract git repository tarball
  */
 async function downloadTarball(url: string, dest: string): Promise<string> {
+  const REQUEST_TIMEOUT = 30000; // 30 seconds
+  const MAX_TARBALL_SIZE = 100 * 1024 * 1024; // 100 MB
+
   return new Promise((resolve, reject) => {
-    https
-      .get(url, (response) => {
-        // Handle redirects
-        if (response.statusCode === 301 || response.statusCode === 302) {
-          const redirectUrl = response.headers.location;
-          if (!redirectUrl) {
-            return reject(new Error('Redirect without location header'));
-          }
+    let timedOut = false;
+    let receivedBytes = 0;
 
-          // Validate redirect URL before following
-          try {
-            validateRedirectUrl(redirectUrl);
-          } catch (error) {
-            return reject(error);
-          }
-
-          return downloadTarball(redirectUrl, dest).then(resolve, reject);
+    const req = https.get(url, (response) => {
+      // Handle redirects
+      if (response.statusCode === 301 || response.statusCode === 302) {
+        const redirectUrl = response.headers.location;
+        if (!redirectUrl) {
+          return reject(new Error('Redirect without location header'));
         }
 
-        if (response.statusCode !== 200) {
-          return reject(
-            new Error(
-              `Failed to download tarball: HTTP ${response.statusCode}`,
-            ),
-          );
+        // Validate redirect URL before following
+        try {
+          validateRedirectUrl(redirectUrl);
+        } catch (error) {
+          return reject(error);
         }
 
-        // Extract tarball to destination
-        const extractStream = extract({
-          cwd: dest,
-          strip: 1, // Remove top-level directory from tarball
-        });
+        return downloadTarball(redirectUrl, dest).then(resolve, reject);
+      }
 
-        response.pipe(extractStream);
+      if (response.statusCode !== 200) {
+        return reject(
+          new Error(`Failed to download tarball: HTTP ${response.statusCode}`),
+        );
+      }
 
-        extractStream.on('finish', () => resolve(dest));
-        extractStream.on('error', reject);
-      })
-      .on('error', reject);
+      // Monitor response size
+      response.on('data', (chunk) => {
+        receivedBytes += chunk.length;
+        if (receivedBytes > MAX_TARBALL_SIZE) {
+          response.destroy(new Error('Tarball size exceeds limit'));
+        }
+      });
+
+      // Extract tarball to destination
+      const extractStream = extract({
+        cwd: dest,
+        strip: 1, // Remove top-level directory from tarball
+      });
+
+      response.pipe(extractStream);
+
+      extractStream.on('finish', () => resolve(dest));
+      extractStream.on('error', (err) => {
+        response.destroy();
+        reject(err);
+      });
+    });
+
+    req.setTimeout(REQUEST_TIMEOUT, () => {
+      timedOut = true;
+      req.destroy(new Error('Request timed out'));
+    });
+
+    req.on('error', (err) => {
+      if (timedOut) {
+        reject(new Error('Request timed out'));
+      } else {
+        reject(err);
+      }
+    });
   });
 }
 
@@ -253,6 +331,9 @@ async function downloadTarball(url: string, dest: string): Promise<string> {
  * Load template from git repository
  */
 export async function loadGitTemplate(gitUrl: string): Promise<TemplateConfig> {
+  // Register cleanup handlers (only once)
+  registerCleanupHandlers();
+
   // Parse git URL
   const repo = parseGitUrl(gitUrl);
 
@@ -262,6 +343,9 @@ export async function loadGitTemplate(gitUrl: string): Promise<TemplateConfig> {
     `smrt-template-${repo.user}-${repo.repo}-${Date.now()}`,
   );
   await mkdir(tempDir, { recursive: true });
+
+  // Track temp directory for cleanup
+  tempDirectories.add(tempDir);
 
   try {
     // Download and extract tarball
