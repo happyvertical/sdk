@@ -23,7 +23,13 @@ const sidebars: SidebarsConfig = {
       collapsed: false,
       items: [
         'smrt-framework/overview',
-        // Additional framework docs to be added
+        'smrt-framework/smart-objects',
+        'smrt-framework/persistence-collections',
+        'smrt-framework/tools-capabilities',
+        'smrt-framework/the-agent',
+        'smrt-framework/code-generators',
+        'smrt-framework/cli',
+        'smrt-framework/sveltekit-plugin',
       ],
     },
     {
