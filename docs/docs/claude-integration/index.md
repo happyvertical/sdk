@@ -275,7 +275,7 @@ If you get "SDK not found" errors:
 
 ## Next Steps
 
-- [Getting Started with SMRT](../getting-started/)
-- [SMRT Framework Guide](../smrt-framework/)
-- [API Generation](../smrt-framework/generators/)
-- [AI Integration Patterns](../tutorials/ai-methods/)
+- [Getting Started with SMRT](../getting-started/installation)
+- [SMRT Framework Guide](../smrt-framework/overview)
+- [API Generation](../smrt-framework/code-generators)
+- [Build a Research Agent](../tutorials/build-research-agent)

@@ -850,7 +850,7 @@ class SensitiveData extends SmrtObject { }
 
 ## Further Reading
 
-- [CLI Documentation](./CLI.md)
-- [SMRT Objects Guide](./SMRT_OBJECTS.md)
-- [API Reference](../manual/index.html)
-- [Code Generation](./CODE_GENERATION.md)
+- [CLI Documentation](./cli) - Command-line tools for SMRT development
+- [SMRT Framework Overview](/docs/smrt-framework/overview) - Core concepts and architecture
+- [Smart Objects](/docs/smrt-framework/smart-objects) - Define your domain models
+- [Code Generation Guide](/docs/smrt-framework/code-generators) - Generators for APIs, MCP servers, and more
