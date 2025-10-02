@@ -83,6 +83,18 @@ const config: Config = {
         plugin: ['typedoc-plugin-markdown'],
       },
     ],
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'smrt',
+        path: '../packages/smrt/docs',
+        routeBasePath: 'smrt',
+        sidebarPath: './sidebars.smrt.js',
+        editUrl: 'https://github.com/happyvertical/sdk/tree/main/packages/smrt/docs/',
+        showLastUpdateTime: true,
+        showLastUpdateAuthor: true,
+      },
+    ],
   ],
 
   themes: ['@docusaurus/theme-mermaid'],
