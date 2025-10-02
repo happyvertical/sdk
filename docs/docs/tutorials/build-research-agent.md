@@ -339,7 +339,7 @@ async function analyzeContent() {
     <div className="feature-card">
       <h3>🔧 Advanced Patterns</h3>
       <p>Master complex SMRT patterns and integrations</p>
-      <a href="/docs/smrt-framework/advanced-patterns" className="nav-pill">Advanced Guide →</a>
+      <a href="/smrt/advanced-patterns" className="nav-pill">Advanced Guide →</a>
     </div>
   </div>
 </div>

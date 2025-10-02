@@ -416,16 +416,28 @@ export class ObjectRegistry {
       );
     }
 
-    if (!registered.collectionConstructor) {
-      throw new Error(
-        `Class ${className} does not have a registered collection. Collection must be registered with ObjectRegistry.registerCollection()`,
+    // Auto-create default collection if not registered
+    let collectionConstructor = registered.collectionConstructor;
+
+    if (!collectionConstructor) {
+      // Lazy-load SmrtCollection to avoid circular dependency
+      const { SmrtCollection: SmrtCollectionClass } = await import(
+        './collection'
       );
+
+      // Create a default collection class dynamically
+      class DefaultCollection extends SmrtCollectionClass<T> {
+        static readonly _itemClass = registered!.constructor as any;
+      }
+
+      // Register it for future use
+      collectionConstructor = DefaultCollection as any;
+      registered.collectionConstructor = DefaultCollection as any;
+      ObjectRegistry.collections.set(className, DefaultCollection as any);
     }
 
     // Create and initialize new collection instance
-    const collection = new registered.collectionConstructor(
-      options,
-    ) as SmrtCollection<T>;
+    const collection = new collectionConstructor(options) as SmrtCollection<T>;
     await collection.initialize();
 
     // Cache the initialized instance

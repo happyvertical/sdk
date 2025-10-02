@@ -5,9 +5,10 @@
  */
 
 import { createInterface } from 'node:readline';
-import { parseArgs } from 'node:util';
 import type { SmrtCollection } from '../collection';
 import { ObjectRegistry } from '../registry';
+import { gnodeCommands, generateCommands } from '../cli/commands/index.js';
+import { parseCliArgs, type Command, type ParsedArgs } from '@have/utils';
 
 export interface CLIConfig {
   name?: string;
@@ -26,28 +27,8 @@ export interface CLIContext {
   };
 }
 
-export interface CLICommand {
-  name: string;
-  description: string;
-  aliases?: string[];
-  options?: Record<
-    string,
-    {
-      type: 'string' | 'boolean';
-      description: string;
-      default?: any;
-      short?: string;
-    }
-  >;
-  args?: string[];
-  handler: (args: any, options: any) => Promise<void>;
-}
-
-export interface ParsedArgs {
-  command?: string;
-  args: string[];
-  options: Record<string, any>;
-}
+// Re-export Command as CLICommand for backward compatibility
+export type CLICommand = Command;
 
 /**
  * Generate CLI commands for smrt objects
@@ -97,9 +78,13 @@ export class CLIGenerator {
    */
   generateHandler(): (argv: string[]) => Promise<void> {
     const commands = this.generateCommands();
+    const builtInCommands = {
+      ...gnodeCommands,
+      ...generateCommands,
+    };
 
     return async (argv: string[]) => {
-      const parsed = this.parseArguments(argv, commands);
+      const parsed = parseCliArgs(argv, commands, builtInCommands);
       await this.executeCommand(parsed, commands);
     };
   }
@@ -284,76 +269,6 @@ export class CLIGenerator {
   }
 
   /**
-   * Parse command line arguments
-   */
-  parseArguments(argv: string[], commands: CLICommand[]): ParsedArgs {
-    // Remove node and script name if present
-    const args = argv
-      .slice(0, 2)
-      .some((arg) => arg.endsWith('node') || arg.endsWith('.js'))
-      ? argv.slice(2)
-      : argv;
-
-    if (args.length === 0) {
-      return { args: [], options: {} };
-    }
-
-    // Handle global flags first
-    if (args.includes('--help') || args.includes('-h')) {
-      return { command: 'help', args: [], options: {} };
-    }
-
-    if (args.includes('--version') || args.includes('-v')) {
-      return { command: 'version', args: [], options: {} };
-    }
-
-    const commandName = args[0];
-    const command = commands.find(
-      (cmd) => cmd.name === commandName || cmd.aliases?.includes(commandName),
-    );
-
-    if (!command) {
-      return { command: commandName, args: args.slice(1), options: {} };
-    }
-
-    // Build parseArgs config from command definition
-    const parseConfig: any = {
-      args: args.slice(1),
-      options: {},
-      strict: false, // Allow unknown options
-    };
-
-    if (command.options) {
-      for (const [name, option] of Object.entries(command.options)) {
-        parseConfig.options[name] = {
-          type: option.type === 'boolean' ? 'boolean' : 'string',
-          ...(option.default !== undefined && { default: option.default }),
-        };
-        if (option.short) {
-          parseConfig.options[name].short = option.short;
-        }
-      }
-    }
-
-    try {
-      const parsed = parseArgs(parseConfig);
-      return {
-        command: commandName,
-        args: parsed.positionals || [],
-        options: parsed.values || {},
-      };
-    } catch (error) {
-      // Fallback for parse errors
-      console.warn('Argument parsing failed, using fallback:', error);
-      return {
-        command: commandName,
-        args: args.slice(1).filter((arg) => !arg.startsWith('-')),
-        options: {},
-      };
-    }
-  }
-
-  /**
    * Execute a parsed command
    */
   async executeCommand(
@@ -365,6 +280,37 @@ export class CLIGenerator {
       return;
     }
 
+    // Check for built-in subcommands first (gnode, generate-*)
+    const builtInCommands = {
+      ...gnodeCommands,
+      ...generateCommands,
+    };
+
+    const builtInCommand = builtInCommands[parsed.command];
+    if (builtInCommand) {
+      // Validate required arguments
+      if (
+        builtInCommand.args &&
+        parsed.args.length < builtInCommand.args.length
+      ) {
+        this.exitWithError(
+          `Missing required arguments: ${builtInCommand.args.slice(parsed.args.length).join(', ')}`,
+        );
+        return;
+      }
+
+      try {
+        await builtInCommand.handler(parsed.args, parsed.options);
+        return;
+      } catch (error) {
+        this.exitWithError(
+          `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        );
+        return;
+      }
+    }
+
+    // Fall back to auto-generated object commands
     const command = commands.find(
       (cmd) =>
         cmd.name === parsed.command ||
@@ -490,24 +436,66 @@ export class CLIGenerator {
     console.log(`${this.config.name} v${this.config.version}`);
     console.log(this.config.description);
     console.log();
-    console.log('Commands:');
 
-    for (const command of commands) {
-      const aliases = command.aliases ? ` (${command.aliases.join(', ')})` : '';
-      const args = command.args
-        ? ` ${command.args.map((arg) => `<${arg}>`).join(' ')}`
-        : '';
-      console.log(`  ${command.name}${args}${aliases}`);
-      console.log(`    ${command.description}`);
-
-      if (command.options) {
-        for (const [name, option] of Object.entries(command.options)) {
-          const short = option.short ? `-${option.short}, ` : '';
-          console.log(`    ${short}--${name}: ${option.description}`);
-        }
-      }
-      console.log();
+    // Show built-in subcommands first
+    console.log('Gnode Commands:');
+    for (const command of Object.values(gnodeCommands)) {
+      this.showCommandHelp(command);
     }
+
+    console.log('Code Generation:');
+    for (const command of Object.values(generateCommands)) {
+      this.showCommandHelp(command);
+    }
+
+    // Show utility commands
+    const utilityCommands = commands.filter(
+      (cmd) =>
+        cmd.name === 'objects' ||
+        cmd.name === 'schema' ||
+        cmd.name === 'help' ||
+        cmd.name === 'version' ||
+        cmd.name === 'status',
+    );
+
+    if (utilityCommands.length > 0) {
+      console.log('Utility Commands:');
+      for (const command of utilityCommands) {
+        this.showCommandHelp(command);
+      }
+    }
+
+    // Show auto-generated object commands
+    const objectCommands = commands.filter(
+      (cmd) => !utilityCommands.includes(cmd),
+    );
+
+    if (objectCommands.length > 0) {
+      console.log('Object Commands (auto-generated):');
+      for (const command of objectCommands) {
+        this.showCommandHelp(command);
+      }
+    }
+  }
+
+  /**
+   * Show help for a single command
+   */
+  private showCommandHelp(command: CLICommand): void {
+    const aliases = command.aliases ? ` (${command.aliases.join(', ')})` : '';
+    const args = command.args
+      ? ` ${command.args.map((arg) => `<${arg}>`).join(' ')}`
+      : '';
+    console.log(`  ${command.name}${args}${aliases}`);
+    console.log(`    ${command.description}`);
+
+    if (command.options) {
+      for (const [name, option] of Object.entries(command.options)) {
+        const short = option.short ? `-${option.short}, ` : '';
+        console.log(`    ${short}--${name}: ${option.description}`);
+      }
+    }
+    console.log();
   }
 
   /**
@@ -905,7 +893,7 @@ export class CLIGenerator {
 }
 
 // CLI Binary Entry Point
-async function main() {
+export async function main() {
   const config: CLIConfig = {
     name: 'smrt',
     version: '1.0.0',

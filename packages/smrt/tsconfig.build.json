@@ -22,8 +22,6 @@
     "**/*.config.js",
     "node_modules",
     "dist",
-    // Exclude vite-plugin which contains virtual module declarations and causes api-extractor issues
-    "src/**/vite-plugin/**",
     // Exclude root config files that could interfere with build
     "../../playwright.config.ts",
     "../../playwright.config.js",
@@ -32,6 +30,8 @@
     "../../vitest.config.ts",
     "../../vitest.config.js",
     "../../*.config.ts",
-    "../../*.config.js"
+    "../../*.config.js",
+    // Exclude browser template - loaded as string, not compiled
+    "src/vite-plugin/templates/default-ui.ts"
   ]
 }

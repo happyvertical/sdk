@@ -10,6 +10,8 @@ dist
 .docusaurus
 .cache-loader
 api
+*.d.ts
+*.d.ts.map
 
 # Misc
 .DS_Store

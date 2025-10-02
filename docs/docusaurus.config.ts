@@ -83,6 +83,18 @@ const config: Config = {
         plugin: ['typedoc-plugin-markdown'],
       },
     ],
+    [
+      '@docusaurus/plugin-content-docs',
+      {
+        id: 'smrt',
+        path: '../packages/smrt/docs',
+        routeBasePath: 'smrt',
+        sidebarPath: './sidebars.smrt.js',
+        editUrl: 'https://github.com/happyvertical/sdk/tree/main/packages/smrt/docs/',
+        showLastUpdateTime: true,
+        showLastUpdateAuthor: true,
+      },
+    ],
   ],
 
   themes: ['@docusaurus/theme-mermaid'],
@@ -137,12 +149,12 @@ const config: Config = {
           title: 'Framework',
           items: [
             {
-              label: 'SMRT Core',
-              to: '/docs/smrt-framework/overview',
+              label: 's-m-r-t Core',
+              to: '/smrt/overview',
             },
             {
               label: 'Code Generators',
-              to: '/docs/smrt-framework/code-generators',
+              to: '/smrt/code-generators',
             },
           ],
         },
