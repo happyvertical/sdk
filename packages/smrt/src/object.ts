@@ -94,9 +94,10 @@ export class SmrtObject extends SmrtClass {
   private _loadedRelationships: Map<string, any> = new Map();
 
   /**
-   * Override options with SmrtObjectOptions type
+   * Override options with SmrtObjectOptions type for proper type narrowing.
+   * Initialized by parent constructor via super() call.
    */
-  protected override options: SmrtObjectOptions;
+  protected override options!: SmrtObjectOptions;
 
   /**
    * Unique identifier for the object
@@ -136,6 +137,9 @@ export class SmrtObject extends SmrtClass {
    */
   constructor(options: SmrtObjectOptions = {}) {
     super(options);
+    // Explicitly set child's options property after parent initialization
+    // This is required because the override declaration creates a new property slot
+    this.options = options;
     if (options === null) {
       throw new Error('options cant be null');
     }
