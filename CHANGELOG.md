@@ -1,3 +1,21 @@
+# [0.12.0](https://github.com/happyvertical/sdk/compare/v0.11.0...v0.12.0) (2025-10-02)
+
+
+### Bug Fixes
+
+* **smrt:** address Copilot review comments for robustness and code quality ([85ba432](https://github.com/happyvertical/sdk/commit/85ba432cb24afc853b90f33aebd1a274457d6c79)), closes [#121](https://github.com/happyvertical/sdk/issues/121)
+* **smrt:** fix ESM module mocking patterns in CLI tests ([5e859be](https://github.com/happyvertical/sdk/commit/5e859beff997912377c868565a0cfc74d64229ce))
+* **smrt:** fix test failures in scanner and sveltekit-generator ([473e1d6](https://github.com/happyvertical/sdk/commit/473e1d683e9225d43ad75880b4f6bf55973fac94))
+* **smrt:** fix unused variable linter warning in git-loader ([d2023ee](https://github.com/happyvertical/sdk/commit/d2023eed47495f3586934dc346bec7d6d8e5c3d8))
+* **smrt:** resolve property inheritance bug and TypeScript compilation errors ([472705b](https://github.com/happyvertical/sdk/commit/472705b31eb733171d8024ecbc7775185083bf30))
+
+
+### Features
+
+* **smrt:** add security hardening and comprehensive documentation ([a3e571f](https://github.com/happyvertical/sdk/commit/a3e571ffa7e84a0cb1322b69ed78b80bf0de001d))
+* **smrt:** add unified CLI with template discovery system ([82f11fc](https://github.com/happyvertical/sdk/commit/82f11fc3e29b45ed7e02f478f6dcfbcc5f28bbe2)), closes [#120](https://github.com/happyvertical/sdk/issues/120)
+* **utils:** extract CLI argument parsing to reusable utility ([e8251de](https://github.com/happyvertical/sdk/commit/e8251ded860bda2f47168f6cb2bcfd18588b71fb))
+
 # [0.11.0](https://github.com/happyvertical/sdk/compare/v0.10.0...v0.11.0) (2025-10-01)
 
 
