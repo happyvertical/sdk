@@ -21,7 +21,7 @@ export class ManifestGenerator {
 
     for (const result of scanResults) {
       for (const objectDef of result.objects) {
-        manifest.objects[objectDef.className] = objectDef;
+        manifest.objects[objectDef.name] = objectDef;
       }
     }
 
