@@ -55,18 +55,71 @@ export async function generate(
 }
 
 /**
+ * Validate base generator configuration to prevent command injection
+ */
+function validateBaseGenerator(
+  baseGen: NonNullable<TemplateConfig['baseGenerator']>,
+  outputDir: string,
+): void {
+  // Whitelist of allowed base generator commands
+  const allowedCommands = ['npm', 'npx', 'pnpm', 'yarn', 'bun', 'bunx'];
+
+  if (!allowedCommands.includes(baseGen.command)) {
+    throw new Error(
+      `Base generator command "${baseGen.command}" not allowed. ` +
+        `Allowed commands: ${allowedCommands.join(', ')}`,
+    );
+  }
+
+  // Validate outputDir doesn't contain shell metacharacters
+  const dangerousChars = /[;&|`$(){}[\]<>'"\\]/;
+  if (dangerousChars.test(outputDir)) {
+    throw new Error(
+      `Output directory contains dangerous characters: ${outputDir}. ` +
+        `Only alphanumeric, dash, underscore, dot, and forward slash are allowed.`,
+    );
+  }
+
+  // Validate all arguments
+  for (const arg of baseGen.args) {
+    // Check for command injection patterns in arguments
+    if (dangerousChars.test(arg)) {
+      throw new Error(
+        `Base generator argument contains dangerous characters: ${arg}`,
+      );
+    }
+
+    // Ensure {DIR} replacement doesn't create injection opportunities
+    const replacedArg = arg.replace('{DIR}', outputDir);
+    if (dangerousChars.test(replacedArg)) {
+      throw new Error(
+        `Argument after {DIR} replacement contains dangerous characters: ${replacedArg}`,
+      );
+    }
+  }
+}
+
+/**
  * Run base project generator (e.g., create-svelte, create-next-app)
+ *
+ * Security: Command and arguments are validated to prevent injection attacks.
+ * shell: true is NOT used to avoid command injection vulnerabilities.
  */
 async function runBaseGenerator(
   baseGen: NonNullable<TemplateConfig['baseGenerator']>,
   outputDir: string,
 ): Promise<void> {
+  // Validate configuration before executing
+  validateBaseGenerator(baseGen, outputDir);
+
+  // Replace {DIR} placeholder in arguments
   const args = baseGen.args.map((arg) => arg.replace('{DIR}', outputDir));
 
   return new Promise((resolve, reject) => {
+    // Do NOT use shell: true to prevent command injection
     const proc = spawn(baseGen.command, args, {
       stdio: 'inherit',
-      shell: true,
+      shell: false,
     });
 
     proc.on('close', (code) => {

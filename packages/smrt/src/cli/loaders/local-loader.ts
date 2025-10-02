@@ -12,12 +12,80 @@ import { pathToFileURL } from 'node:url';
 import type { TemplateConfig } from './template-loader.js';
 
 /**
+ * Validate resolved path to prevent path traversal attacks
+ * Focuses on blocking access to sensitive system directories
+ * while allowing legitimate parent directory navigation (e.g., ../sibling-dir)
+ */
+function validateResolvedPath(
+  absolutePath: string,
+  originalPath: string,
+): void {
+  const home = homedir();
+
+  // Check if path contains null bytes (common path traversal technique)
+  if (absolutePath.includes('\0') || originalPath.includes('\0')) {
+    throw new Error(
+      'Path contains null bytes (potential path traversal attempt)',
+    );
+  }
+
+  // For home directory paths, ensure they stay within home directory
+  // This is stricter because ~ explicitly means "home directory"
+  if (originalPath.startsWith('~')) {
+    const normalizedPath = resolve(absolutePath);
+    const normalizedHome = resolve(home);
+
+    if (!normalizedPath.startsWith(normalizedHome)) {
+      throw new Error(
+        `Path traversal detected: resolved path "${normalizedPath}" escapes home directory "${normalizedHome}"`,
+      );
+    }
+  }
+
+  // Reject paths that resolve to sensitive system directories
+  // This is the primary defense against malicious path traversal
+  const sensitivePaths = [
+    '/etc',
+    '/proc',
+    '/sys',
+    '/dev',
+    '/boot',
+    '/root',
+    '/var/log',
+  ];
+  const normalizedPath = resolve(absolutePath);
+
+  for (const sensitivePath of sensitivePaths) {
+    if (
+      normalizedPath === sensitivePath ||
+      normalizedPath.startsWith(`${sensitivePath}/`)
+    ) {
+      throw new Error(
+        `Access to sensitive system directory not allowed: ${sensitivePath}`,
+      );
+    }
+  }
+
+  // Block paths that attempt to access system binaries
+  if (
+    normalizedPath.startsWith('/bin/') ||
+    normalizedPath.startsWith('/sbin/') ||
+    normalizedPath.startsWith('/usr/bin/') ||
+    normalizedPath.startsWith('/usr/sbin/')
+  ) {
+    throw new Error('Access to system binary directories not allowed');
+  }
+}
+
+/**
  * Resolve local path to absolute path
  *
  * Handles:
  * - Relative paths (./path, ../path)
  * - Absolute paths (/path)
  * - Home directory (~/)
+ *
+ * Includes path traversal protection to prevent malicious paths
  */
 export async function resolveLocalPath(localPath: string): Promise<string> {
   let absolutePath: string;
@@ -34,6 +102,9 @@ export async function resolveLocalPath(localPath: string): Promise<string> {
     // Relative to current working directory
     absolutePath = resolve(process.cwd(), localPath);
   }
+
+  // Validate path for traversal attacks
+  validateResolvedPath(absolutePath, localPath);
 
   // Verify directory exists
   try {

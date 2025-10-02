@@ -153,6 +153,56 @@ function getTarballUrl(repo: GitRepo): string {
 }
 
 /**
+ * Validate redirect URL to prevent SSRF attacks
+ * Only allow redirects to trusted git hosting services
+ */
+function validateRedirectUrl(redirectUrl: string): void {
+  try {
+    const url = new URL(redirectUrl);
+
+    // Only allow HTTPS protocol
+    if (url.protocol !== 'https:') {
+      throw new Error(
+        `Invalid redirect protocol: ${url.protocol} (only https: allowed)`,
+      );
+    }
+
+    // Only allow trusted git hosting services
+    const trustedHosts = [
+      'github.com',
+      'www.github.com',
+      'codeload.github.com',
+      'gitlab.com',
+      'www.gitlab.com',
+      'bitbucket.org',
+      'www.bitbucket.org',
+    ];
+
+    if (!trustedHosts.includes(url.hostname)) {
+      throw new Error(`Redirect to untrusted host: ${url.hostname}`);
+    }
+
+    // Reject redirects to localhost or internal IPs
+    if (
+      url.hostname === 'localhost' ||
+      url.hostname === '127.0.0.1' ||
+      url.hostname.startsWith('192.168.') ||
+      url.hostname.startsWith('10.') ||
+      url.hostname.startsWith('172.')
+    ) {
+      throw new Error(
+        `Redirect to internal/local address not allowed: ${url.hostname}`,
+      );
+    }
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(`Invalid redirect URL format: ${redirectUrl}`);
+    }
+    throw error;
+  }
+}
+
+/**
  * Download and extract git repository tarball
  */
 async function downloadTarball(url: string, dest: string): Promise<string> {
@@ -165,6 +215,14 @@ async function downloadTarball(url: string, dest: string): Promise<string> {
           if (!redirectUrl) {
             return reject(new Error('Redirect without location header'));
           }
+
+          // Validate redirect URL before following
+          try {
+            validateRedirectUrl(redirectUrl);
+          } catch (error) {
+            return reject(error);
+          }
+
           return downloadTarball(redirectUrl, dest).then(resolve, reject);
         }
 
