@@ -98,7 +98,7 @@ export class SmrtObject extends SmrtClass {
    * Override options with SmrtObjectOptions type for proper type narrowing.
    * Initialized by parent constructor via super() call.
    */
-  protected override options!: SmrtObjectOptions;
+  protected declare options: SmrtObjectOptions;
 
   /**
    * Unique identifier for the object
@@ -881,7 +881,7 @@ export class SmrtObject extends SmrtClass {
     // Create an instance and load by ID
     const relatedInstance = new targetClassInfo.constructor(this.options);
     await relatedInstance.initialize();
-    relatedInstance.id = foreignKeyValue;
+    relatedInstance.id = foreignKeyValue as string;
     await relatedInstance.loadFromId();
 
     // Cache the loaded object

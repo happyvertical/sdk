@@ -19,7 +19,15 @@ export class TagAlias extends SmrtObject {
   tagSlug = ''; // FK to Tag.slug
   alias = ''; // Alternative name or translation
   language = ''; // ISO 639-1 language code (nullable)
-  context = ''; // Optional context scoping (nullable)
+  private _context = ''; // Optional context scoping (nullable)
+
+  // Override SmrtObject accessor
+  override get context(): string {
+    return this._context;
+  }
+  override set context(value: string) {
+    this._context = value;
+  }
 
   // Timestamps
   createdAt = new Date();
@@ -29,7 +37,7 @@ export class TagAlias extends SmrtObject {
     if (options.tagSlug) this.tagSlug = options.tagSlug;
     if (options.alias) this.alias = options.alias;
     if (options.language !== undefined) this.language = options.language;
-    if (options.context !== undefined) this.context = options.context;
+    if (options.context !== undefined) this._context = options.context;
   }
 
   /**

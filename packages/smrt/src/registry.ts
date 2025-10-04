@@ -464,7 +464,8 @@ export class ObjectRegistry {
     }
 
     // Create and initialize new collection instance
-    const collection = new collectionConstructor(options) as SmrtCollection<T>;
+    // collectionConstructor is guaranteed to be defined here
+    const collection = new collectionConstructor!(options) as SmrtCollection<T>;
     await collection.initialize();
 
     // Cache the initialized instance

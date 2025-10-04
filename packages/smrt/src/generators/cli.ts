@@ -31,6 +31,9 @@ export interface CLIContext {
 // Re-export Command as CLICommand for backward compatibility
 export type CLICommand = Command;
 
+// Re-export ParsedArgs from utils
+export type { ParsedArgs } from '@have/utils';
+
 /**
  * Generate CLI commands for smrt objects
  */
@@ -336,6 +339,12 @@ export class CLIGenerator {
       this.exitWithError(
         `Missing required arguments: ${command.args.slice(parsed.args.length).join(', ')}`,
       );
+      return;
+    }
+
+    // Check if handler exists before invoking
+    if (!command.handler) {
+      this.exitWithError(`Command '${parsed.command}' has no handler defined`);
       return;
     }
 
