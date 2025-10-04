@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /**
  * CLI command generator for smrt objects
  *
