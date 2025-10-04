@@ -300,6 +300,14 @@ export class CLIGenerator {
         return;
       }
 
+      // Check if handler exists before invoking
+      if (!builtInCommand.handler) {
+        this.exitWithError(
+          `Command '${parsed.command}' has no handler defined`,
+        );
+        return;
+      }
+
       try {
         await builtInCommand.handler(parsed.args, parsed.options);
         return;
