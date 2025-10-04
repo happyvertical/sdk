@@ -9,10 +9,10 @@ import ProductCard from '../../lib/components/ProductCard.svelte';
 import ProductForm from '../../lib/components/ProductForm.svelte';
 import type { ProductData } from '../../lib/types';
 
-let currentTab = $state<'auto' | 'custom' | 'comparison'>('auto');
+const currentTab = $state<'auto' | 'custom' | 'comparison'>('auto');
 
 // Sample data for demonstration
-let sampleProduct: ProductData = $state({
+const sampleProduct: ProductData = $state({
   name: 'Sample Widget',
   description: 'A demonstration product for the SMRT framework',
   category: 'Electronics',

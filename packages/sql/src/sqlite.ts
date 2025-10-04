@@ -18,8 +18,22 @@ import { DatabaseSchemaManager } from './schema-manager';
  */
 async function createLibSQLClient(options: SqliteOptions): Promise<Client> {
   const { url = ':memory:', authToken, encryptionKey } = options;
-  // LibSQL uses :memory: directly for in-memory databases
-  const libsqlUrl = url;
+
+  // Normalize URLs: add file:// prefix for local paths
+  let libsqlUrl = url;
+  if (
+    url !== ':memory:' &&
+    !url.startsWith('http://') &&
+    !url.startsWith('https://') &&
+    !url.startsWith('libsql://') &&
+    !url.startsWith('file:')
+  ) {
+    // Local file path - resolve to absolute and add file:// prefix
+    const { resolve } = await import('node:path');
+    const absolutePath = resolve(url);
+    // Use file:// format (file URL scheme with authority component omitted)
+    libsqlUrl = `file://${absolutePath}`;
+  }
 
   try {
     // Use explicit external import to avoid bundling
