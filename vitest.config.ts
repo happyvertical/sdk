@@ -78,6 +78,7 @@ export default defineConfig({
     alias: {
       '@have/utils': resolve(__dirname, 'packages/utils/src'),
       '@have/files': resolve(__dirname, 'packages/files/src'),
+      '@have/cache': resolve(__dirname, 'packages/cache/src'),
       '@have/sql': resolve(__dirname, 'packages/sql/src'),
       '@have/ocr': resolve(__dirname, 'packages/ocr/src'),
       '@have/pdf': resolve(__dirname, 'packages/pdf/src'),
