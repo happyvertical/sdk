@@ -37,6 +37,8 @@
  * @interface FieldOptions
  */
 export interface FieldOptions {
+  /** Whether this field is the primary key (default: false, 'id' field is auto-generated) */
+  primaryKey?: boolean;
   /** Whether this field is required (NOT NULL constraint) */
   required?: boolean;
   /** Default value for this field when creating new objects */
@@ -165,15 +167,25 @@ export class Field {
   /**
    * Get field constraints for SQL DDL statements
    *
-   * @returns Array of SQL constraint strings (e.g., ['NOT NULL', 'UNIQUE'])
+   * @returns Array of SQL constraint strings (e.g., ['NOT NULL', 'UNIQUE', 'PRIMARY KEY'])
    * @example
    * ```typescript
    * const emailField = text({ required: true, unique: true });
    * console.log(emailField.getSqlConstraints()); // ['NOT NULL', 'UNIQUE']
+   *
+   * const slugField = text({ primaryKey: true });
+   * console.log(slugField.getSqlConstraints()); // ['PRIMARY KEY']
    * ```
    */
   getSqlConstraints(): string[] {
     const constraints: string[] = [];
+
+    // PRIMARY KEY implies NOT NULL and UNIQUE, so handle it first
+    if (this.options.primaryKey) {
+      constraints.push('PRIMARY KEY');
+      // Don't add NOT NULL or UNIQUE separately - PRIMARY KEY implies both
+      return constraints;
+    }
 
     if (this.options.required) {
       constraints.push('NOT NULL');

@@ -22,6 +22,8 @@ import {
   formatDataJs,
   generateSchema,
   tableNameFromClass,
+  toSnakeCase,
+  toCamelCase,
 } from '../utils';
 import type { PersistenceAdapter } from './adapter';
 import type {
@@ -80,6 +82,10 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
 
     // Setup table schema - bypass cache since we have our own initialization tracking
     const schema = generateSchema(this.objectClass);
+    console.log(
+      `[SQL Adapter] Generated schema for ${this.tableName}:`,
+      schema,
+    );
     await syncSchema({ db: this.db, schema });
 
     // Create unique index on (slug, context)
@@ -192,11 +198,13 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
         }
       } else {
         // Object filter: build WHERE clause
+        // Convert camelCase property names to snake_case column names
         const conditions = [];
         whereValues = [];
 
         for (const [key, value] of Object.entries(filter)) {
-          conditions.push(`${key} = ?`);
+          const columnName = toSnakeCase(key);
+          conditions.push(`${columnName} = ?`);
           whereValues.push(value);
         }
 
@@ -212,7 +220,7 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
         return null;
       }
 
-      // Create instance with loaded data
+      // Create instance with loaded data (formatDataJs converts snake_case back to camelCase)
       const data = formatDataJs(rows[0]);
       const instance = new objectClass({
         ...data,
@@ -237,6 +245,7 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
 
   /**
    * Build SELECT clause with aliases for eager-loaded relationships
+   * Uses snake_case column names from database
    *
    * @param include - Array of relationship field names to include
    * @param objectClass - Main object class constructor
@@ -248,8 +257,12 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
     objectClass: new (...args: any[]) => SmrtObject,
   ): string {
     const fields = fieldsFromClass(objectClass);
+    // Convert field names to snake_case for column names
     const mainColumns = Object.keys(fields)
-      .map((field) => `t0.${field} as t0_${field}`)
+      .map((field) => {
+        const columnName = toSnakeCase(field);
+        return `t0.${columnName} as t0_${columnName}`;
+      })
       .join(', ');
 
     if (include.length === 0) {
@@ -275,8 +288,12 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
       if (!targetClassInfo) continue;
 
       const targetFields = targetClassInfo.fields;
+      // Convert field names to snake_case for column names
       const targetColumns = Array.from(targetFields.keys())
-        .map((field) => `t${i + 1}.${field} as t${i + 1}_${field}`)
+        .map((field) => {
+          const columnName = toSnakeCase(field);
+          return `t${i + 1}.${columnName} as t${i + 1}_${columnName}`;
+        })
         .join(', ');
 
       relationshipClauses.push(targetColumns);
@@ -287,6 +304,7 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
 
   /**
    * Build JOIN clauses for eager-loaded relationships
+   * Converts camelCase property names to snake_case column names
    *
    * @param include - Array of relationship field names to include
    * @param objectClass - Main object class constructor
@@ -317,10 +335,13 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
       const targetTableName = targetClassInfo.schema?.tableName;
       if (!targetTableName) continue;
 
+      // Convert camelCase fieldName to snake_case column name
+      const columnName = toSnakeCase(fieldName);
+
       // Build LEFT JOIN for foreignKey relationship
-      // ON t0.fieldName = t1.id
+      // ON t0.field_name = t1.id
       joinClauses.push(
-        `LEFT JOIN ${targetTableName} t${i + 1} ON t0.${fieldName} = t${i + 1}.id`,
+        `LEFT JOIN ${targetTableName} t${i + 1} ON t0.${columnName} = t${i + 1}.id`,
       );
     }
 
@@ -329,6 +350,7 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
 
   /**
    * Hydrate flat SQL result rows into nested object structures
+   * Converts snake_case column aliases back to camelCase property names
    *
    * @param rows - Flat SQL result rows with aliased columns
    * @param include - Array of included relationship field names
@@ -350,19 +372,21 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
       const relationshipData: Map<string, any> = new Map();
 
       // Parse row into main object and relationship objects
+      // Column names are in snake_case with aliases (t0_field_name, t1_field_name)
       for (const [key, value] of Object.entries(row)) {
         const columnName = key as string;
 
         if (columnName.startsWith('t0_')) {
-          // Main object column
-          const fieldName = columnName.substring(3);
-          mainData[fieldName] = value;
+          // Main object column - remove t0_ prefix
+          // Column is in snake_case, will be converted to camelCase by formatDataJs
+          const snakeFieldName = columnName.substring(3);
+          mainData[snakeFieldName] = value;
         } else {
-          // Relationship column (e.g., t1_id, t1_name)
+          // Relationship column (e.g., t1_field_name)
           const match = columnName.match(/^t(\d+)_(.+)$/);
           if (match) {
             const tableIndex = Number.parseInt(match[1], 10);
-            const fieldName = match[2];
+            const snakeFieldName = match[2];
 
             if (tableIndex > 0 && tableIndex <= include.length) {
               const relationshipFieldName = include[tableIndex - 1];
@@ -371,13 +395,15 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
                 relationshipData.set(relationshipFieldName, {});
               }
 
-              relationshipData.get(relationshipFieldName)[fieldName] = value;
+              // Store snake_case field name, will be converted to camelCase by formatDataJs
+              relationshipData.get(relationshipFieldName)[snakeFieldName] =
+                value;
             }
           }
         }
       }
 
-      // Create main object instance
+      // Create main object instance (formatDataJs converts snake_case to camelCase)
       const instance = new objectClass({
         ...formatDataJs(mainData),
         _skipLoad: true,
@@ -400,7 +426,7 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
           );
           if (!targetClassInfo) continue;
 
-          // Create related object instance
+          // Create related object instance (formatDataJs converts snake_case to camelCase)
           const relatedInstance = new targetClassInfo.constructor({
             ...formatDataJs(relatedData),
             _skipLoad: true,
@@ -450,7 +476,7 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
           objectClass,
         );
 
-        // Build WHERE clause (prefix fields with t0.)
+        // Build WHERE clause (prefix fields with t0. and convert to snake_case)
         let whereClause = '';
         const whereValues: any[] = [];
 
@@ -462,21 +488,24 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
             const field = parts[0];
             const operator = parts[1] || '=';
 
+            // Convert camelCase property name to snake_case column name
+            const columnName = toSnakeCase(field);
+
             if (operator === 'in' && Array.isArray(value)) {
               const placeholders = value.map(() => '?').join(', ');
-              conditions.push(`t0.${field} IN (${placeholders})`);
+              conditions.push(`t0.${columnName} IN (${placeholders})`);
               whereValues.push(...value);
             } else if (operator === 'like') {
-              conditions.push(`t0.${field} LIKE ?`);
+              conditions.push(`t0.${columnName} LIKE ?`);
               whereValues.push(value);
             } else if (value === null) {
               if (operator === '!=' || operator === '<>') {
-                conditions.push(`t0.${field} IS NOT NULL`);
+                conditions.push(`t0.${columnName} IS NOT NULL`);
               } else {
-                conditions.push(`t0.${field} IS NULL`);
+                conditions.push(`t0.${columnName} IS NULL`);
               }
             } else {
-              conditions.push(`t0.${field} ${operator} ?`);
+              conditions.push(`t0.${columnName} ${operator} ?`);
               whereValues.push(value);
             }
           }
@@ -484,7 +513,7 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
           whereClause = `WHERE ${conditions.join(' AND ')}`;
         }
 
-        // Build ORDER BY clause (prefix fields with t0.)
+        // Build ORDER BY clause (prefix fields with t0. and convert to snake_case)
         let orderByClause = '';
         if (orderBy) {
           orderByClause = ' ORDER BY ';
@@ -508,7 +537,9 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
                 );
               }
 
-              return `t0.${field} ${normalizedDirection}`;
+              // Convert camelCase property name to snake_case column name
+              const columnName = toSnakeCase(field);
+              return `t0.${columnName} ${normalizedDirection}`;
             })
             .join(', ');
         }
@@ -538,7 +569,7 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
       }
 
       // Standard path (no eager loading) - original implementation
-      // Build WHERE clause
+      // Build WHERE clause (convert camelCase to snake_case)
       let whereClause = '';
       const whereValues: any[] = [];
 
@@ -551,21 +582,24 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
           const field = parts[0];
           const operator = parts[1] || '=';
 
+          // Convert camelCase property name to snake_case column name
+          const columnName = toSnakeCase(field);
+
           if (operator === 'in' && Array.isArray(value)) {
             const placeholders = value.map(() => '?').join(', ');
-            conditions.push(`${field} IN (${placeholders})`);
+            conditions.push(`${columnName} IN (${placeholders})`);
             whereValues.push(...value);
           } else if (operator === 'like') {
-            conditions.push(`${field} LIKE ?`);
+            conditions.push(`${columnName} LIKE ?`);
             whereValues.push(value);
           } else if (value === null) {
             if (operator === '!=' || operator === '<>') {
-              conditions.push(`${field} IS NOT NULL`);
+              conditions.push(`${columnName} IS NOT NULL`);
             } else {
-              conditions.push(`${field} IS NULL`);
+              conditions.push(`${columnName} IS NULL`);
             }
           } else {
-            conditions.push(`${field} ${operator} ?`);
+            conditions.push(`${columnName} ${operator} ?`);
             whereValues.push(value);
           }
         }
@@ -573,7 +607,7 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
         whereClause = `WHERE ${conditions.join(' AND ')}`;
       }
 
-      // Build ORDER BY clause
+      // Build ORDER BY clause (convert camelCase to snake_case)
       let orderByClause = '';
       if (orderBy) {
         orderByClause = ' ORDER BY ';
@@ -599,7 +633,9 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
               );
             }
 
-            return `${field} ${normalizedDirection}`;
+            // Convert camelCase property name to snake_case column name
+            const columnName = toSnakeCase(field);
+            return `${columnName} ${normalizedDirection}`;
           })
           .join(', ');
       }
@@ -662,7 +698,7 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
     try {
       const { where } = options;
 
-      // Build WHERE clause (same as list method)
+      // Build WHERE clause (same as list method, convert camelCase to snake_case)
       let whereClause = '';
       const whereValues: any[] = [];
 
@@ -674,21 +710,24 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
           const field = parts[0];
           const operator = parts[1] || '=';
 
+          // Convert camelCase property name to snake_case column name
+          const columnName = toSnakeCase(field);
+
           if (operator === 'in' && Array.isArray(value)) {
             const placeholders = value.map(() => '?').join(', ');
-            conditions.push(`${field} IN (${placeholders})`);
+            conditions.push(`${columnName} IN (${placeholders})`);
             whereValues.push(...value);
           } else if (operator === 'like') {
-            conditions.push(`${field} LIKE ?`);
+            conditions.push(`${columnName} LIKE ?`);
             whereValues.push(value);
           } else if (value === null) {
             if (operator === '!=' || operator === '<>') {
-              conditions.push(`${field} IS NOT NULL`);
+              conditions.push(`${columnName} IS NOT NULL`);
             } else {
-              conditions.push(`${field} IS NULL`);
+              conditions.push(`${columnName} IS NULL`);
             }
           } else {
-            conditions.push(`${field} ${operator} ?`);
+            conditions.push(`${columnName} ${operator} ?`);
             whereValues.push(value);
           }
         }
@@ -788,6 +827,7 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
 
   /**
    * Generates UPSERT SQL statement for object
+   * Converts camelCase property names to snake_case column names
    */
   private generateUpsertStatement(object: SmrtObject): string {
     const fields = fieldsFromClass(object.constructor as any);
@@ -800,7 +840,10 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
 
     for (const [key, _field] of Object.entries(fields)) {
       if (key === 'slug' || key === 'context') continue;
-      columns.push(key);
+
+      // Convert camelCase property name to snake_case column name
+      const columnName = toSnakeCase(key);
+      columns.push(columnName);
 
       // Read the actual value from the object instance, not from field.value
       // (field.value is from the dummy introspection instance and has only defaults)
@@ -811,7 +854,7 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
       const escapedValue = escapeSqlValue(value);
 
       values.push(escapedValue);
-      updates.push(`${key} = ${escapedValue}`);
+      updates.push(`${columnName} = ${escapedValue}`);
     }
 
     // Use UPSERT syntax with explicit ON CONFLICT handling

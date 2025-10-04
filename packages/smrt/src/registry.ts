@@ -291,20 +291,47 @@ export class ObjectRegistry {
   }
 
   /**
-   * Get a registered class by name
+   * Helper method for case-insensitive class lookup
+   * Tries exact match first, then falls back to case-insensitive search
+   *
+   * @param name - Name of the class to find
+   * @returns Registered class information or undefined if not found
+   * @private
+   */
+  private static findClass(name: string): RegisteredClass | undefined {
+    // Try exact match first (fast path)
+    const registered = ObjectRegistry.classes.get(name);
+    if (registered) {
+      return registered;
+    }
+
+    // Fall back to case-insensitive search
+    const lowerName = name.toLowerCase();
+    for (const [key, value] of ObjectRegistry.classes.entries()) {
+      if (key.toLowerCase() === lowerName) {
+        return value;
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Get a registered class by name (case-insensitive)
    *
    * @param name - Name of the registered class
    * @returns Registered class information or undefined if not found
    * @example
    * ```typescript
    * const productInfo = ObjectRegistry.getClass('Product');
+   * // Also works with: 'product', 'PRODUCT', etc.
    * if (productInfo) {
    *   console.log(productInfo.config.api?.exclude);
    * }
    * ```
    */
   static getClass(name: string): RegisteredClass | undefined {
-    return ObjectRegistry.classes.get(name);
+    return ObjectRegistry.findClass(name);
   }
 
   /**
@@ -331,10 +358,10 @@ export class ObjectRegistry {
   }
 
   /**
-   * Check if a class is registered
+   * Check if a class is registered (case-insensitive)
    */
   static hasClass(name: string): boolean {
-    return ObjectRegistry.classes.has(name);
+    return ObjectRegistry.findClass(name) !== undefined;
   }
 
   /**
@@ -408,8 +435,8 @@ export class ObjectRegistry {
       return ObjectRegistry.collectionCache.get(cacheKey) as SmrtCollection<T>;
     }
 
-    // Get registered class info
-    const registered = ObjectRegistry.classes.get(className);
+    // Get registered class info (case-insensitive)
+    const registered = ObjectRegistry.findClass(className);
     if (!registered) {
       throw new Error(
         `Class ${className} not found in ObjectRegistry. Make sure to register it with @smrt() decorator or ObjectRegistry.register()`,
