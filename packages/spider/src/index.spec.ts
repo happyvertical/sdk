@@ -1,188 +1,233 @@
-import { ParsingError, ValidationError } from '@have/utils';
+import { ValidationError } from '@have/utils';
 import { describe, expect, it } from 'vitest';
-import {
-  createWindow,
-  type FetchPageSourceOptions,
-  fetchPageSource,
-  parseIndexSource,
-  processHtml,
-} from './index';
+import { getSpider } from './index';
 
-describe('fetchPageSource', () => {
-  it('should fetch page source cheaply with caching', async () => {
-    const source = await fetchPageSource({
-      url: 'https://www.google.com',
-      cheap: true,
-    });
-
-    const cached = await fetchPageSource({
-      url: 'https://www.google.com',
-      cheap: true,
-    });
-
-    expect(source).toBeDefined();
-    expect(source).not.toBe('');
-    expect(cached).toBe(source);
+describe('getSpider factory', () => {
+  it('should create simple adapter', async () => {
+    const spider = await getSpider({ adapter: 'simple' });
+    expect(spider).toBeDefined();
+    expect(typeof spider.fetch).toBe('function');
   });
 
-  it('should fetch page source using DOM processing', async () => {
-    const source = await fetchPageSource({
-      url: 'https://www.google.com',
-      cheap: false,
-    });
-
-    const cached = await fetchPageSource({
-      url: 'https://www.google.com',
-      cheap: false,
-    });
-
-    expect(cached).toBeDefined();
-    expect(source).toBeDefined();
-    expect(source).not.toBe('');
-    expect(cached).toBe(source);
+  it('should create dom adapter', async () => {
+    const spider = await getSpider({ adapter: 'dom' });
+    expect(spider).toBeDefined();
+    expect(typeof spider.fetch).toBe('function');
   });
 
-  it('should handle custom headers and timeout', async () => {
-    const options: FetchPageSourceOptions = {
-      url: 'https://www.google.com',
-      cheap: true,
-      headers: {
-        'X-Test-Header': 'test-value',
-      },
-      timeout: 15000,
-    };
-
-    const source = await fetchPageSource(options);
-    expect(source).toBeDefined();
-    expect(source).not.toBe('');
+  it('should create crawlee adapter', async () => {
+    const spider = await getSpider({ adapter: 'crawlee' });
+    expect(spider).toBeDefined();
+    expect(typeof spider.fetch).toBe('function');
   });
 
-  it('should respect cache option when disabled', async () => {
-    const options: FetchPageSourceOptions = {
-      url: 'https://www.google.com',
-      cheap: true,
+  it('should throw error for unsupported adapter', async () => {
+    await expect(getSpider({ adapter: 'invalid' } as any)).rejects.toThrow(
+      'Unsupported adapter',
+    );
+  });
+});
+
+describe('SimpleAdapter', () => {
+  it('should fetch a page with links', async () => {
+    const spider = await getSpider({ adapter: 'simple' });
+    const page = await spider.fetch('https://example.com', { cache: false });
+
+    expect(page).toBeDefined();
+    expect(page.url).toBe('https://example.com');
+    expect(page.content).toBeDefined();
+    expect(typeof page.content).toBe('string');
+    expect(Array.isArray(page.links)).toBe(true);
+    expect(page.raw).toBeDefined();
+    expect(page.raw.statusCode).toBe(200);
+  });
+
+  it('should cache fetched pages', async () => {
+    const spider = await getSpider({
+      adapter: 'simple',
+      cacheDir: '.cache/spider-test',
+    });
+
+    // First fetch - not cached
+    const page1 = await spider.fetch('https://example.com', {
+      cache: true,
+      cacheExpiry: 60000,
+    });
+    expect(page1).toBeDefined();
+
+    // Second fetch - should be cached
+    const page2 = await spider.fetch('https://example.com', {
+      cache: true,
+      cacheExpiry: 60000,
+    });
+    expect(page2).toBeDefined();
+    expect(page2.content).toBe(page1.content);
+  });
+
+  it('should extract links correctly', async () => {
+    const spider = await getSpider({ adapter: 'simple' });
+    // Use a page that definitely has links
+    const page = await spider.fetch('https://httpbin.org/links/10/0', {
       cache: false,
-    };
+    });
 
-    // When cache is disabled, function should still work
-    const source = await fetchPageSource(options);
-    expect(source).toBeDefined();
-    expect(source).not.toBe('');
+    expect(Array.isArray(page.links)).toBe(true);
+    expect(page.links.length).toBeGreaterThan(0);
   });
 
   it('should throw ValidationError for invalid URL', async () => {
-    await expect(
-      fetchPageSource({
-        url: '',
-        cheap: true,
-      }),
-    ).rejects.toThrow(ValidationError);
+    const spider = await getSpider({ adapter: 'simple' });
 
-    await expect(
-      fetchPageSource({
-        url: 'not-a-url',
-        cheap: true,
-      }),
-    ).rejects.toThrow(ValidationError);
+    await expect(spider.fetch('')).rejects.toThrow(ValidationError);
+    await expect(spider.fetch('not-a-url')).rejects.toThrow(ValidationError);
   });
 
-  it('should throw NetworkError for non-existent domain', async () => {
-    await expect(
-      fetchPageSource({
-        url: 'https://this-domain-should-not-exist-12345.com',
-        cheap: true,
-        timeout: 5000,
-      }),
-    ).rejects.toThrow(); // Accept any error type since underlying error handling varies
-  });
-});
+  it('should handle custom headers and timeout', async () => {
+    const spider = await getSpider({ adapter: 'simple' });
+    const page = await spider.fetch('https://example.com', {
+      headers: { 'X-Custom-Header': 'test' },
+      timeout: 15000,
+      cache: false,
+    });
 
-describe('parseIndexSource', () => {
-  it('should extract links from HTML with multiple anchors', async () => {
-    const html = `
-      <html>
-        <body>
-          <a href="/page1.html">Page 1</a>
-          <a href="/page2.html">Page 2</a>
-          <a href="https://external.com">External</a>
-        </body>
-      </html>
-    `;
-
-    const links = await parseIndexSource(html);
-    expect(links).toEqual([
-      '/page1.html',
-      '/page2.html',
-      'https://external.com',
-    ]);
+    expect(page).toBeDefined();
+    expect(page.url).toBe('https://example.com');
   });
 
-  it('should return empty array for HTML with no links', async () => {
-    const html = '<html><body><p>No links here</p></body></html>';
-    const links = await parseIndexSource(html);
-    expect(links).toEqual([]);
-  });
+  it('should bypass cache when cache=false', async () => {
+    const spider = await getSpider({ adapter: 'simple' });
 
-  it('should handle HTML with single link', async () => {
-    const html =
-      '<html><body><a href="/single.html">Single Link</a></body></html>';
-    const links = await parseIndexSource(html);
-    expect(links).toEqual(['/single.html']);
-  });
+    const page1 = await spider.fetch('https://example.com', {
+      cache: false,
+    });
+    const page2 = await spider.fetch('https://example.com', {
+      cache: false,
+    });
 
-  it('should throw ValidationError for invalid input', async () => {
-    await expect(parseIndexSource('')).rejects.toThrow(ValidationError);
-    await expect(parseIndexSource(null as any)).rejects.toThrow(
-      ValidationError,
-    );
-    await expect(parseIndexSource(undefined as any)).rejects.toThrow(
-      ValidationError,
-    );
+    // Both should succeed but may differ in raw timestamps
+    expect(page1).toBeDefined();
+    expect(page2).toBeDefined();
   });
 });
 
-describe('createWindow', () => {
-  it('should create window instance with document', () => {
-    const window = createWindow();
-    expect(window).toBeDefined();
-    expect(window.document).toBeDefined();
-    expect(window.document.createElement).toBeDefined();
+describe('DomAdapter', () => {
+  it('should fetch and process a page', async () => {
+    const spider = await getSpider({ adapter: 'dom' });
+    const page = await spider.fetch('https://example.com', { cache: false });
+
+    expect(page).toBeDefined();
+    expect(page.url).toBe('https://example.com');
+    expect(page.content).toBeDefined();
+    expect(typeof page.content).toBe('string');
+    expect(Array.isArray(page.links)).toBe(true);
+    expect(page.raw).toBeDefined();
+    expect(page.raw.statusCode).toBe(200);
+    expect(page.raw.rawContent).toBeDefined(); // DOM adapter includes raw content
   });
 
-  it('should allow DOM manipulation', () => {
-    const window = createWindow();
-    const document = window.document;
+  it('should process HTML with happy-dom', async () => {
+    const spider = await getSpider({ adapter: 'dom' });
+    const page = await spider.fetch('https://example.com', { cache: false });
 
-    document.body.innerHTML = '<div id="test">Hello World</div>';
-    const element = document.getElementById('test');
+    // Processed content should be valid HTML
+    expect(page.content).toContain('<html');
+    expect(page.content).toContain('</html>');
+  });
 
-    expect(element).toBeDefined();
-    expect(element?.textContent).toBe('Hello World');
+  it('should cache processed pages', async () => {
+    const spider = await getSpider({
+      adapter: 'dom',
+      cacheDir: '.cache/spider-test-dom',
+    });
+
+    const page1 = await spider.fetch('https://example.com', {
+      cache: true,
+      cacheExpiry: 60000,
+    });
+    const page2 = await spider.fetch('https://example.com', {
+      cache: true,
+      cacheExpiry: 60000,
+    });
+
+    expect(page2.content).toBe(page1.content);
+  });
+
+  it('should extract links from processed HTML', async () => {
+    const spider = await getSpider({ adapter: 'dom' });
+    // Use a page that definitely has links
+    const page = await spider.fetch('https://httpbin.org/links/10/0', {
+      cache: false,
+    });
+
+    expect(Array.isArray(page.links)).toBe(true);
+    expect(page.links.length).toBeGreaterThan(0);
+  });
+
+  it('should throw ValidationError for invalid URL', async () => {
+    const spider = await getSpider({ adapter: 'dom' });
+
+    await expect(spider.fetch('')).rejects.toThrow(ValidationError);
+    await expect(spider.fetch('invalid-url')).rejects.toThrow(ValidationError);
   });
 });
 
-describe('processHtml', () => {
-  it('should process valid HTML correctly', async () => {
-    const html = '<html><body><h1>Test</h1></body></html>';
-    const processed = await processHtml(html);
-    expect(processed).toContain('<h1>Test</h1>');
-  });
+describe('CrawleeAdapter', () => {
+  it('should fetch a page with headless browser', async () => {
+    const spider = await getSpider({
+      adapter: 'crawlee',
+      headless: true,
+    });
 
-  it('should handle partial HTML', async () => {
-    const html = '<div><p>Partial HTML</p></div>';
-    const processed = await processHtml(html);
-    expect(processed).toContain('<p>Partial HTML</p>');
-  });
+    const page = await spider.fetch('https://example.com', { cache: false });
 
-  it('should throw ParsingError for severely malformed HTML', async () => {
-    // This specific pattern might cause happy-dom to fail
-    const malformedHtml = '<script>document.write("problematic");</script>';
+    expect(page).toBeDefined();
+    expect(page.url).toBe('https://example.com/'); // Crawlee may add trailing slash
+    expect(page.content).toBeDefined();
+    expect(typeof page.content).toBe('string');
+    expect(Array.isArray(page.links)).toBe(true);
+    expect(page.raw).toBeDefined();
+  }, 60000); // Longer timeout for browser operations
 
-    try {
-      await processHtml(malformedHtml);
-      // If it doesn't throw, that's also valid behavior
-    } catch (error) {
-      expect(error).toBeInstanceOf(ParsingError);
-    }
+  it('should extract links with browser', async () => {
+    const spider = await getSpider({ adapter: 'crawlee' });
+    const page = await spider.fetch('https://example.com', { cache: false });
+
+    expect(Array.isArray(page.links)).toBe(true);
+    expect(page.links.length).toBeGreaterThan(0);
+  }, 60000);
+
+  it('should cache browser-fetched pages', async () => {
+    const spider = await getSpider({
+      adapter: 'crawlee',
+      cacheDir: '.cache/spider-test-crawlee',
+    });
+
+    const page1 = await spider.fetch('https://example.com', {
+      cache: true,
+      cacheExpiry: 60000,
+    });
+    const page2 = await spider.fetch('https://example.com', {
+      cache: true,
+      cacheExpiry: 60000,
+    });
+
+    expect(page2.content).toBe(page1.content);
+  }, 60000);
+
+  it('should handle custom user agent', async () => {
+    const spider = await getSpider({
+      adapter: 'crawlee',
+      userAgent: 'TestBot/1.0',
+    });
+
+    const page = await spider.fetch('https://example.com', { cache: false });
+    expect(page).toBeDefined();
+  }, 60000);
+
+  it('should throw ValidationError for invalid URL', async () => {
+    const spider = await getSpider({ adapter: 'crawlee' });
+
+    await expect(spider.fetch('')).rejects.toThrow(ValidationError);
+    await expect(spider.fetch('not-valid')).rejects.toThrow(ValidationError);
   });
 });
