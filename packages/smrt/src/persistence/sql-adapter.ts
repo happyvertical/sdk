@@ -465,16 +465,8 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
       // Check if we should use JOIN-based eager loading
       if (include && include.length > 0) {
         // JOIN-based eager loading path (single query for relationships)
-        const selectClause = this.buildSelectClause(
-          tableName,
-          include,
-          objectClass,
-        );
-        const joinClause = this.buildJoinClause(
-          tableName,
-          include,
-          objectClass,
-        );
+        const selectClause = this.buildSelectClause(include, objectClass);
+        const joinClause = this.buildJoinClause(include, objectClass);
 
         // Build WHERE clause (prefix fields with t0. and convert to snake_case)
         let whereClause = '';
