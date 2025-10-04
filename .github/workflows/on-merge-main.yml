@@ -68,10 +68,10 @@ jobs:
         run: |
           if [ "${{ github.event.inputs.dry-run }}" = "true" ]; then
             echo "Running in dry-run mode..."
-            pnpm dlx semantic-release --dry-run
+            pnpm run release:dry-run
           else
-            echo "Running semantic-release..."
-            pnpm dlx semantic-release
+            echo "Running semantic-release for all packages..."
+            pnpm run release
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
