@@ -14,22 +14,23 @@
     "esModuleInterop": true,
     "isolatedModules": false
   },
-  "include": ["src/**/*"],
+  "include": [
+    "src/content.ts",
+    "src/contents.ts",
+    "src/document.ts",
+    "src/utils.ts",
+    "src/index.ts",
+    "src/types/**/*.ts"
+  ],
   "exclude": [
     "**/*.test.ts",
     "**/*.spec.ts",
     "**/*.config.ts",
     "**/*.config.js",
+    "src/app/**/*",
+    "src/server.ts",
+    "src/mock-smrt-client.ts",
     "node_modules",
-    "dist",
-    // Exclude root config files that could interfere with build
-    "../../playwright.config.ts",
-    "../../playwright.config.js",
-    "../../vite.config.ts",
-    "../../vite.config.js",
-    "../../vitest.config.ts",
-    "../../vitest.config.js",
-    "../../*.config.ts",
-    "../../*.config.js"
+    "dist"
   ]
 }
