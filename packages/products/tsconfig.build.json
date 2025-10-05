@@ -4,7 +4,7 @@
     "declaration": true,
     "declarationMap": true,
     "outDir": "./dist",
-    "rootDir": "./src",
+    "rootDir": "./src/lib",
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
     "types": ["node"],
@@ -14,27 +14,17 @@
     "esModuleInterop": true,
     "isolatedModules": false
   },
-  "include": ["src/**/*"],
+  "include": ["src/lib/models/**/*.ts", "src/lib/utils/**/*.ts", "src/lib/generated/**/*.ts"],
   "exclude": [
     "**/*.test.ts",
     "**/*.spec.ts",
-    "**/*.config.ts",
-    "**/*.config.js",
     "node_modules",
     "dist",
-    // Exclude Svelte files and complex runtime files that don't need declarations
-    "**/*.svelte",
-    "src/**/*demo*",
-    "src/**/*simple*",
-    "src/**/*federation*",
-    // Exclude root config files that could interfere with build
-    "../../playwright.config.ts",
-    "../../playwright.config.js",
-    "../../vite.config.ts",
-    "../../vite.config.js",
-    "../../vitest.config.ts",
-    "../../vitest.config.js",
-    "../../*.config.ts",
-    "../../*.config.js"
+    "src/lib/components/**/*",
+    "src/lib/stores/**/*",
+    "src/lib/features/**/*",
+    "src/lib/index.ts",
+    "src/lib/federation-entry.ts",
+    "src/lib/mock-smrt-client.ts"
   ]
 }
