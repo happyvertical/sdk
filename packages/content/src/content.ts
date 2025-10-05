@@ -202,14 +202,15 @@ export class Content extends SmrtObject {
   /**
    * Initializes this content object
    *
-   * @returns Promise that resolves when initialization is complete
+   * @returns Promise that resolves to this instance
    */
-  async initialize() {
+  async initialize(): Promise<this> {
     await super.initialize();
     // Set name to title for SmrtObject compatibility
     if (this.title && !this.name) {
       this.name = this.title;
     }
+    return this;
   }
 
   /**
