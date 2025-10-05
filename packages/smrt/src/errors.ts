@@ -395,12 +395,11 @@ export class RuntimeError extends SmrtError {
     );
   }
 
-  static invalidState(state: string, expected: string): RuntimeError {
-    return new RuntimeError(
-      `Invalid state: expected '${expected}', got '${state}'`,
-      'RUNTIME_INVALID_STATE',
-      { state, expected },
-    );
+  static invalidState(
+    message: string,
+    context?: Record<string, any>,
+  ): RuntimeError {
+    return new RuntimeError(message, 'RUNTIME_INVALID_STATE', context);
   }
 
   static resourceExhausted(resource: string, limit: number): RuntimeError {

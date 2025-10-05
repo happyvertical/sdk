@@ -80,20 +80,15 @@ function validateBaseGenerator(
     );
   }
 
-  // Validate all arguments
+  // Validate all arguments after {DIR} replacement
   for (const arg of baseGen.args) {
-    // Check for command injection patterns in arguments
-    if (dangerousChars.test(arg)) {
-      throw new Error(
-        `Base generator argument contains dangerous characters: ${arg}`,
-      );
-    }
-
-    // Ensure {DIR} replacement doesn't create injection opportunities
+    // Replace {DIR} placeholder first
     const replacedArg = arg.replace('{DIR}', outputDir);
+
+    // Then check for command injection patterns in the replaced argument
     if (dangerousChars.test(replacedArg)) {
       throw new Error(
-        `Argument after {DIR} replacement contains dangerous characters: ${replacedArg}`,
+        `Base generator argument contains dangerous characters after placeholder replacement: ${replacedArg}`,
       );
     }
   }

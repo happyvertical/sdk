@@ -2,6 +2,69 @@ import { syncSchema } from '@have/sql';
 import { ObjectRegistry } from './registry';
 
 /**
+ * Converts a camelCase string to snake_case
+ *
+ * @param str - String in camelCase format
+ * @returns String in snake_case format
+ * @example
+ * ```typescript
+ * toSnakeCase('meetingsUrl'); // 'meetings_url'
+ * toSnakeCase('createdAt'); // 'created_at'
+ * toSnakeCase('id'); // 'id'
+ * ```
+ */
+export function toSnakeCase(str: string): string {
+  return str
+    .replace(/([A-Z])/g, '_$1')
+    .toLowerCase()
+    .replace(/^_/, '');
+}
+
+/**
+ * Converts a snake_case string to camelCase
+ *
+ * @param str - String in snake_case format
+ * @returns String in camelCase format
+ * @example
+ * ```typescript
+ * toCamelCase('meetings_url'); // 'meetingsUrl'
+ * toCamelCase('created_at'); // 'createdAt'
+ * toCamelCase('id'); // 'id'
+ * ```
+ */
+export function toCamelCase(str: string): string {
+  return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
+/**
+ * Converts all keys in an object from camelCase to snake_case
+ *
+ * @param obj - Object with camelCase keys
+ * @returns Object with snake_case keys
+ */
+export function keysToSnakeCase(obj: Record<string, any>): Record<string, any> {
+  const result: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    result[toSnakeCase(key)] = value;
+  }
+  return result;
+}
+
+/**
+ * Converts all keys in an object from snake_case to camelCase
+ *
+ * @param obj - Object with snake_case keys
+ * @returns Object with camelCase keys
+ */
+export function keysToCamelCase(obj: Record<string, any>): Record<string, any> {
+  const result: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    result[toCamelCase(key)] = value;
+  }
+  return result;
+}
+
+/**
  * Checks if a field name indicates a date field based on naming conventions
  *
  * Recognizes common date field patterns like '_at', '_date', and 'date'.
@@ -175,6 +238,7 @@ export function fieldsFromClass(
  *
  * Creates CREATE TABLE statement with all fields, constraints, and indexes.
  * Automatically adds id, slug, and context fields for SMRT object support.
+ * Column names are generated in snake_case for database convention.
  *
  * @param ClassType - Class constructor to generate schema for
  * @returns SQL schema creation statement with CREATE TABLE and CREATE INDEX statements
@@ -196,29 +260,70 @@ export function fieldsFromClass(
 export function generateSchema(ClassType: new (...args: any[]) => any) {
   const tableName = tableNameFromClass(ClassType);
   const fields = fieldsFromClass(ClassType);
-  let schema = `CREATE TABLE IF NOT EXISTS ${tableName} (\n`;
 
-  // Add id field first (always required)
-  schema += '  id TEXT PRIMARY KEY,\n';
+  // Check if any field is marked as primaryKey
+  let customPKField: string | null = null;
+  let customPKColumnName: string | null = null;
 
-  // Add slug and context fields
-  schema += '  slug TEXT NOT NULL,\n';
-  schema += "  context TEXT NOT NULL DEFAULT '',\n";
+  // First, check cached fields from ObjectRegistry (more reliable)
+  const className = ClassType.name;
+  const cachedFields = ObjectRegistry.getFields(className);
 
-  // Add other fields
-  for (const [key, field] of Object.entries(fields)) {
-    if (key === 'id' || key === 'slug' || key === 'context') continue;
-    schema += `  ${key} ${field.type},\n`;
+  if (cachedFields.size > 0) {
+    for (const [key, field] of cachedFields.entries()) {
+      if (field.options?.primaryKey) {
+        customPKField = key;
+        customPKColumnName = toSnakeCase(key);
+        break;
+      }
+    }
   }
 
-  // Add composite unique constraint for slug and context
-  schema += '  UNIQUE(slug, context),\n';
+  let schema = `CREATE TABLE IF NOT EXISTS ${tableName} (\n`;
+
+  // If there's a custom primary key, use it; otherwise use default id field
+  const hasCustomPK = customPKField !== null;
+
+  if (!hasCustomPK) {
+    // Default behavior: Add id field first (always required)
+    schema += '  id TEXT PRIMARY KEY,\n';
+
+    // Add slug and context fields
+    schema += '  slug TEXT NOT NULL,\n';
+    schema += "  context TEXT NOT NULL DEFAULT '',\n";
+  }
+
+  // Add all fields - convert camelCase property names to snake_case column names
+  for (const [key, field] of Object.entries(fields)) {
+    // Skip id, slug, context only if we're using default PK behavior
+    if (!hasCustomPK && (key === 'id' || key === 'slug' || key === 'context')) {
+      continue;
+    }
+
+    const columnName = toSnakeCase(key);
+    const fieldDef = cachedFields.get(key);
+    const sqlType = fieldDef?.getSqlType() || field.type || 'TEXT';
+    const constraints = fieldDef?.getSqlConstraints() || [];
+
+    schema += `  ${columnName} ${sqlType}${constraints.length > 0 ? ' ' + constraints.join(' ') : ''},\n`;
+  }
+
+  // Add composite unique constraint for slug and context only if using default PK
+  if (!hasCustomPK) {
+    schema += '  UNIQUE(slug, context),\n';
+  }
 
   schema = schema.slice(0, -2); // Remove trailing comma and newline
   schema += '\n);';
 
-  schema += `\nCREATE INDEX IF NOT EXISTS ${tableName}_id_idx ON ${tableName} (id);`;
-  schema += `\nCREATE INDEX IF NOT EXISTS ${tableName}_slug_context_idx ON ${tableName} (slug, context);`;
+  // Add indexes
+  if (hasCustomPK) {
+    schema += `\nCREATE INDEX IF NOT EXISTS ${tableName}_${customPKColumnName}_idx ON ${tableName} (${customPKColumnName});`;
+  } else {
+    schema += `\nCREATE INDEX IF NOT EXISTS ${tableName}_id_idx ON ${tableName} (id);`;
+    schema += `\nCREATE INDEX IF NOT EXISTS ${tableName}_slug_context_idx ON ${tableName} (slug, context);`;
+  }
+
   return schema;
 }
 
@@ -226,9 +331,13 @@ export function generateSchema(ClassType: new (...args: any[]) => any) {
  * Generates trigger definitions for automatic timestamp management
  *
  * @param tableName - Name of the table to create triggers for
+ * @param primaryKeyColumn - Name of the primary key column (default: 'id')
  * @returns Array of trigger definitions compatible with RuntimeSchemaManager
  */
-export function generateTriggerDefinitions(tableName: string) {
+export function generateTriggerDefinitions(
+  tableName: string,
+  primaryKeyColumn: string = 'id',
+) {
   return [
     {
       name: `${tableName}_set_created_at`,
@@ -236,7 +345,7 @@ export function generateTriggerDefinitions(tableName: string) {
       event: 'INSERT' as const,
       tableName,
       condition: 'NEW.created_at IS NULL',
-      body: `UPDATE ${tableName} SET created_at = datetime('now'), updated_at = datetime('now') WHERE id = NEW.id;`,
+      body: `UPDATE ${tableName} SET created_at = datetime('now'), updated_at = datetime('now') WHERE ${primaryKeyColumn} = NEW.${primaryKeyColumn};`,
       description:
         'Automatically set created_at and updated_at on insert when created_at is null',
     },
@@ -246,7 +355,7 @@ export function generateTriggerDefinitions(tableName: string) {
       event: 'UPDATE' as const,
       tableName,
       condition: 'NEW.updated_at = OLD.updated_at',
-      body: `UPDATE ${tableName} SET updated_at = datetime('now') WHERE id = NEW.id;`,
+      body: `UPDATE ${tableName} SET updated_at = datetime('now') WHERE ${primaryKeyColumn} = NEW.${primaryKeyColumn};`,
       description:
         'Automatically update updated_at on row updates when unchanged',
     },
@@ -329,12 +438,25 @@ export async function setupTableFromClass(db: any, ClassType: any) {
 
   _setup_table_from_class_promises[tableName] = (async () => {
     try {
-      // Try to get cached schema from ObjectRegistry first
-      const cachedSchema = ObjectRegistry.getSchemaDDL(ClassType.name);
-      const schema = cachedSchema || generateSchema(ClassType);
+      // Always generate fresh schema to ensure latest field mapping is used
+      const schema = generateSchema(ClassType);
+
+      // Detect custom primary key field
+      const className = ClassType.name;
+      const cachedFields = ObjectRegistry.getFields(className);
+      let primaryKeyColumn = 'id'; // default
+
+      if (cachedFields.size > 0) {
+        for (const [key, field] of cachedFields.entries()) {
+          if (field.options?.primaryKey) {
+            primaryKeyColumn = toSnakeCase(key);
+            break;
+          }
+        }
+      }
 
       await syncSchema({ db, schema });
-      await setupTriggers(db, tableName);
+      await setupTriggers(db, tableName, primaryKeyColumn);
     } catch (error) {
       _setup_table_from_class_promises[tableName] = null; // Allow retry on failure
       throw error;
@@ -351,7 +473,11 @@ export async function setupTableFromClass(db: any, ClassType: any) {
  * @param tableName - Name of the table to set up triggers for
  * @returns Promise that resolves when triggers are set up
  */
-export async function setupTriggers(db: any, tableName: string) {
+export async function setupTriggers(
+  db: any,
+  tableName: string,
+  primaryKeyColumn: string = 'id',
+) {
   const triggers = [
     `${tableName}_set_created_at`,
     `${tableName}_set_updated_at`,
@@ -380,7 +506,7 @@ export async function setupTriggers(db: any, tableName: string) {
             BEGIN
               UPDATE ${tableName}
               SET created_at = datetime('now'), updated_at = datetime('now')
-              WHERE id = NEW.id;
+              WHERE ${primaryKeyColumn} = NEW.${primaryKeyColumn};
             END;
           `;
           await db.query(createTriggerSQL);
@@ -393,7 +519,7 @@ export async function setupTriggers(db: any, tableName: string) {
             BEGIN
               UPDATE ${tableName}
               SET updated_at = datetime('now')
-              WHERE id = NEW.id;
+              WHERE ${primaryKeyColumn} = NEW.${primaryKeyColumn};
             END;
           `;
           await db.query(createTriggerSQL);
@@ -408,19 +534,23 @@ export async function setupTriggers(db: any, tableName: string) {
 
 /**
  * Formats data for JavaScript by converting date strings to Date objects
+ * and snake_case column names to camelCase properties
  *
- * @param data - Object with data to format
- * @returns Object with properly typed values for JavaScript
+ * @param data - Object with data to format (snake_case column names from DB)
+ * @returns Object with properly typed values and camelCase property names for JavaScript
  */
 export function formatDataJs(data: Record<string, any>) {
   const normalizedData: Record<string, any> = {};
   for (const [key, value] of Object.entries(data)) {
+    // Convert snake_case to camelCase for JavaScript
+    const camelKey = toCamelCase(key);
+
     if (value instanceof Date) {
-      normalizedData[key] = value;
+      normalizedData[camelKey] = value;
     } else if (isDateField(key) && typeof value === 'string') {
-      normalizedData[key] = new Date(value);
+      normalizedData[camelKey] = new Date(value);
     } else {
-      normalizedData[key] = value;
+      normalizedData[camelKey] = value;
     }
   }
   return normalizedData;
@@ -428,17 +558,21 @@ export function formatDataJs(data: Record<string, any>) {
 
 /**
  * Formats data for SQL by converting Date objects to ISO strings
+ * and camelCase property names to snake_case column names
  *
- * @param data - Object with data to format
- * @returns Object with properly formatted values for SQL
+ * @param data - Object with data to format (camelCase property names from JavaScript)
+ * @returns Object with properly formatted values and snake_case column names for SQL
  */
 export function formatDataSql(data: Record<string, any>) {
   const normalizedData: Record<string, any> = {};
   for (const [key, value] of Object.entries(data)) {
+    // Convert camelCase to snake_case for SQL
+    const snakeKey = toSnakeCase(key);
+
     if (value instanceof Date) {
-      normalizedData[key] = value.toISOString(); // Postgres accepts ISO format with timezone
+      normalizedData[snakeKey] = value.toISOString(); // Postgres accepts ISO format with timezone
     } else {
-      normalizedData[key] = value;
+      normalizedData[snakeKey] = value;
     }
   }
   return normalizedData;

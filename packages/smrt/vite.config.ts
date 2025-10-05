@@ -27,35 +27,13 @@ export default defineConfig({
     rollupOptions: {
       output: {
         format: 'es',
-        // Use entryFileNames to create proper subpath structure for multi-entry builds
+        // Generate entry points as .js files in their subdirectories
         entryFileNames: (chunkInfo) => {
-          // Map entry names to their proper subpath locations
-          const entryName = chunkInfo.name;
-          if (entryName === 'consumer-plugin/index') return 'consumer-plugin/index.js';
-          if (entryName === 'vite-plugin/index') return 'vite-plugin/index.js';
-          if (entryName === 'prebuild/index') return 'prebuild/index.js';
-          if (entryName === 'prebuild/cli') return 'prebuild/cli.js';
-          if (entryName === 'manifest/index') return 'manifest/index.js';
-          if (entryName === 'runtime/index') return 'runtime/index.js';
-          if (entryName === 'fields/index') return 'fields/index.js';
-          if (entryName.startsWith('generators/')) return `${entryName}.js`;
-          return `${entryName}.js`;
+          // Entry points get their configured path
+          return `${chunkInfo.name}.js`;
         },
-        // Preserve modules for better tree-shaking, but not for explicit entry points
-        preserveModules: (id) => {
-          // Bundle entire directories for these entry points (not just the index file)
-          if (id.includes('/consumer-plugin/')) return false;
-          if (id.includes('/vite-plugin/')) return false;
-          if (id.includes('/prebuild/')) return false;
-          if (id.includes('/manifest/')) return false;
-          if (id.includes('/runtime/')) return false;
-          if (id.includes('/fields/')) return false;
-          if (id.includes('/generators/')) return false;
-          if (id.includes('src/index.ts')) return false;
-          if (id.includes('src/utils.ts')) return false;
-          // Preserve other modules for tree-shaking
-          return true;
-        },
+        // Preserve all modules in their directory structure for optimal tree-shaking
+        preserveModules: true,
         preserveModulesRoot: 'src',
       },
       external: [

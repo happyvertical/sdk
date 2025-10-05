@@ -17,6 +17,7 @@ import {
   fieldsFromClass,
   setupTableFromClass,
   tableNameFromClass,
+  toSnakeCase,
 } from './utils';
 
 /**
@@ -97,7 +98,7 @@ export class SmrtObject extends SmrtClass {
    * Override options with SmrtObjectOptions type for proper type narrowing.
    * Initialized by parent constructor via super() call.
    */
-  protected override options!: SmrtObjectOptions;
+  protected declare options: SmrtObjectOptions;
 
   /**
    * Unique identifier for the object
@@ -393,6 +394,7 @@ export class SmrtObject extends SmrtClass {
 
   /**
    * Generates an SQL UPSERT statement for saving this object to the database
+   * Converts camelCase property names to snake_case column names
    *
    * @returns SQL statement for inserting or updating this object
    */
@@ -407,21 +409,25 @@ export class SmrtObject extends SmrtClass {
 
     for (const [key, field] of Object.entries(fields)) {
       if (key === 'slug' || key === 'context') continue;
-      columns.push(key);
+
+      // Convert camelCase property name to snake_case column name
+      const columnName = toSnakeCase(key);
+      columns.push(columnName);
+
       const value =
         typeof field.value === 'boolean' ? (field.value ? 1 : 0) : field.value;
 
       const escapedValue = escapeSqlValue(value);
 
       values.push(escapedValue);
-      updates.push(`${key} = ${escapedValue}`);
+      updates.push(`${columnName} = ${escapedValue}`);
     }
 
     // Use UPSERT syntax with explicit ON CONFLICT handling
     const sql = `
       INSERT INTO ${this.tableName} (${columns.join(', ')})
       VALUES (${values.join(', ')})
-      ON CONFLICT(slug, context) 
+      ON CONFLICT(slug, context)
       WHERE slug = ${slug} AND context = ${context}
       DO UPDATE SET
         ${updates.join(',\n        ')}
@@ -875,7 +881,7 @@ export class SmrtObject extends SmrtClass {
     // Create an instance and load by ID
     const relatedInstance = new targetClassInfo.constructor(this.options);
     await relatedInstance.initialize();
-    relatedInstance.id = foreignKeyValue;
+    relatedInstance.id = foreignKeyValue as string;
     await relatedInstance.loadFromId();
 
     // Cache the loaded object

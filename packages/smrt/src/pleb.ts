@@ -57,9 +57,9 @@ export class Pleb extends SmrtObject {
   /**
    * Initializes the Pleb instance and sets up database connections
    *
-   * @returns Promise that resolves when initialization is complete
+   * @returns Promise that resolves to this instance for chaining
    */
-  public async initialize(): Promise<void> {
-    await super.initialize();
+  public async initialize(): Promise<this> {
+    return await super.initialize();
   }
 }

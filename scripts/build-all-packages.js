@@ -8,12 +8,20 @@ import { resolve } from 'path';
 const buildOrder = [
   'utils',      // Base utilities, no internal dependencies
   'files',      // Depends on utils
+  'cache',      // Depends on utils
+  'geo',        // Depends on utils, cache
+  'translator', // Depends on utils, cache
   'sql',        // No internal dependencies
   'ocr',        // No internal dependencies
   'pdf',        // Depends on ocr
   'ai',         // No internal dependencies
   'spider',     // Depends on utils, files
   'smrt',       // Depends on ai, files, sql, utils
+  'tags',       // Depends on smrt, utils
+  'places',     // Depends on smrt, utils, geo, cache
+  'profiles',   // Depends on smrt, utils (and optionally tags)
+  'events',     // Depends on smrt, utils, places, profiles
+  'assets',     // Depends on smrt, utils, tags
   'content',    // Depends on smrt, pdf, spider
   'products',   // Depends on smrt
 ];
@@ -38,7 +46,7 @@ for (const packageName of buildOrder) {
     // Set environment variable and run vite build
     const env = { ...process.env, VITE_BUILD_PACKAGE: packageName };
 
-    execSync(`vite build`, {
+    execSync(`pnpm vite build`, {
       stdio: 'inherit',
       env,
       cwd: process.cwd()

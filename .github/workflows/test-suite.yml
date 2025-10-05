@@ -96,6 +96,10 @@ jobs:
           # Force ONNX Runtime to skip CUDA installation
           ONNXRUNTIME_NODE_INSTALL_CUDA: 'skip'
 
+      - name: Install Playwright browsers
+        shell: bash
+        run: npx playwright install --with-deps chromium
+
       - name: Build packages
         run: pnpm run build
 
