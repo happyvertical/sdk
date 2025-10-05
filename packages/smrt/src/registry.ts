@@ -107,6 +107,29 @@ export interface SmartObjectConfig {
       };
 
   /**
+   * AI callable configuration
+   */
+  ai?: {
+    /**
+     * Methods that AI can call
+     * - Array of method names, e.g., ['analyze', 'validate']
+     * - 'public-async' to auto-include all public async methods
+     * - 'all' to include all methods (not recommended)
+     */
+    callable?: string[] | 'public-async' | 'all';
+
+    /**
+     * Methods to exclude from AI calling (higher priority than callable)
+     */
+    exclude?: string[];
+
+    /**
+     * Additional tool descriptions to override method JSDoc
+     */
+    descriptions?: Record<string, string>;
+  };
+
+  /**
    * Lifecycle hooks
    */
   hooks?: {
@@ -188,6 +211,15 @@ interface RegisteredClass {
   schema?: SchemaDefinition;
   /** Compiled validation functions for efficient runtime validation */
   validators?: ValidatorFunction[];
+  /** AI-callable tools generated from methods at build time */
+  tools?: Array<{
+    type: 'function';
+    function: {
+      name: string;
+      description?: string;
+      parameters?: Record<string, any>;
+    };
+  }>;
 }
 
 /**

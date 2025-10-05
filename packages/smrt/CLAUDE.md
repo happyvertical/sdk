@@ -656,6 +656,270 @@ class DocumentCollection extends SmrtCollection<Document> {
 }
 ```
 
+### AI Function Calling
+
+The SMRT framework supports automatic AI function calling, allowing LLMs to invoke methods on your objects during `is()` and `do()` operations. This enables AI to gather additional context, perform calculations, or execute domain-specific logic before providing responses.
+
+#### Configuration
+
+Configure which methods AI can call using the `ai` configuration in the `@smrt()` decorator:
+
+```typescript
+import { smrt, SmrtObject } from '@have/smrt';
+
+@smrt({
+  ai: {
+    // Specify which methods AI can call
+    callable: ['analyze', 'getMetrics', 'validateStructure'],
+    // Or use shortcuts:
+    // callable: 'public-async',  // All public async methods
+    // callable: 'all',            // All public methods (not recommended)
+
+    // Exclude specific methods (higher priority than callable)
+    exclude: ['delete', 'reset'],
+
+    // Custom tool descriptions (override JSDoc)
+    descriptions: {
+      analyze: 'Performs deep content analysis with configurable depth',
+      getMetrics: 'Calculates and returns document metrics and statistics'
+    }
+  }
+})
+class Document extends SmrtObject {
+  title: string = '';
+  content: string = '';
+
+  // This method can be called by AI
+  async analyze(options: { depth?: 'shallow' | 'deep' } = {}) {
+    const depth = options.depth || 'shallow';
+    // Perform analysis
+    return {
+      sentiment: 'positive',
+      topics: ['technology', 'innovation'],
+      complexity: depth === 'deep' ? 0.85 : 0.6
+    };
+  }
+
+  // This method can be called by AI
+  async getMetrics() {
+    return {
+      wordCount: this.content.split(/\s+/).length,
+      readingTime: Math.ceil(this.content.split(/\s+/).length / 200),
+      paragraphs: this.content.split('\n\n').length
+    };
+  }
+
+  // This method is excluded from AI calling
+  async delete() {
+    // Dangerous operation, not exposed to AI
+  }
+}
+```
+
+#### How It Works
+
+When you call `is()` or `do()` on a SMRT object, the framework automatically:
+1. Retrieves available tools from the object's manifest
+2. Passes tools to the AI along with your prompt
+3. If AI needs additional context, it calls the appropriate methods
+4. AI receives the results and uses them to formulate its response
+
+**Example with `is()` method:**
+```typescript
+const document = await documents.get('doc-123');
+
+// AI can call analyze() and getMetrics() to verify criteria
+const isHighQuality = await document.is(`
+  - Document has more than 1000 words
+  - Reading time is less than 10 minutes
+  - Content complexity is appropriate for general audience
+  - Sentiment is positive or neutral
+`);
+
+// Behind the scenes, AI might:
+// 1. Call getMetrics() to check word count and reading time
+// 2. Call analyze({ depth: 'deep' }) to check complexity and sentiment
+// 3. Use those results to evaluate the criteria
+```
+
+**Example with `do()` method:**
+```typescript
+const summary = await document.do(`
+  Create a 2-sentence summary that highlights:
+  - Main topics covered
+  - Overall sentiment
+  - Target reading level
+`);
+
+// AI can call analyze() and getMetrics() to gather the information
+// it needs before generating the summary
+```
+
+#### Build-Time Tool Generation
+
+Tools are generated at build time from your TypeScript method definitions:
+
+1. **AST Scanner** analyzes your class methods
+2. **Type Converter** converts TypeScript types to JSON Schema
+3. **Tool Generator** creates OpenAI-compatible function definitions
+4. **Manifest** stores tools for runtime access
+
+**Method to Tool Conversion:**
+```typescript
+// Your TypeScript method:
+async analyze(options: {
+  depth?: 'shallow' | 'deep',
+  includeTopics?: boolean
+} = {}) {
+  // implementation
+}
+
+// Generated AI tool:
+{
+  type: 'function',
+  function: {
+    name: 'analyze',
+    description: 'Performs deep content analysis with configurable depth',
+    parameters: {
+      type: 'object',
+      properties: {
+        depth: {
+          type: 'string',
+          enum: ['shallow', 'deep']
+        },
+        includeTopics: {
+          type: 'boolean'
+        }
+      }
+    }
+  }
+}
+```
+
+#### Runtime Tool Execution
+
+Execute tool calls manually using the `executeToolCall()` method:
+
+```typescript
+import type { ToolCall } from '@have/smrt';
+
+const document = await documents.get('doc-123');
+
+// Get available tools
+const tools = document.getAvailableTools();
+console.log(`${tools.length} AI-callable methods available`);
+
+// Execute a tool call manually
+const toolCall: ToolCall = {
+  id: 'call_123',
+  type: 'function',
+  function: {
+    name: 'analyze',
+    arguments: '{"depth": "deep", "includeTopics": true}'
+  }
+};
+
+const result = await document.executeToolCall(toolCall);
+
+if (result.success) {
+  console.log('Analysis:', result.result);
+  console.log('Execution time:', result.duration, 'ms');
+} else {
+  console.error('Error:', result.error);
+}
+```
+
+#### Security Considerations
+
+**Method Access Control:**
+- Only `public` methods can be made callable
+- `static` methods are never callable (tools operate on instances)
+- `private` methods are never callable
+- `exclude` list takes priority over `callable`
+
+**Best Practices:**
+```typescript
+@smrt({
+  ai: {
+    // ✅ GOOD: Explicit whitelist of safe methods
+    callable: ['analyze', 'summarize', 'getMetrics'],
+
+    // ❌ RISKY: 'all' exposes everything
+    // callable: 'all',
+
+    // ✅ GOOD: Exclude dangerous operations
+    exclude: ['delete', 'update', 'save', 'reset']
+  }
+})
+class Document extends SmrtObject {
+  // Safe: Read-only analysis
+  async analyze() { /* ... */ }
+
+  // Dangerous: Modifies data (should be excluded)
+  async delete() { /* ... */ }
+}
+```
+
+#### Type Conversion Reference
+
+The tool generator converts TypeScript types to JSON Schema:
+
+| TypeScript Type | JSON Schema |
+|----------------|-------------|
+| `string` | `{ type: 'string' }` |
+| `number` | `{ type: 'number' }` |
+| `boolean` | `{ type: 'boolean' }` |
+| `string[]` | `{ type: 'array', items: { type: 'string' } }` |
+| `Array<number>` | `{ type: 'array', items: { type: 'number' } }` |
+| `'a' \| 'b'` | `{ type: 'string', enum: ['a', 'b'] }` |
+| `{ foo: string }` | `{ type: 'object' }` |
+| `Record<string, any>` | `{ type: 'object' }` |
+| `any` | `{}` (no constraint) |
+
+#### Advanced Usage
+
+**Conditional Tool Availability:**
+```typescript
+// Tools are only available if AI config is defined
+const tools = document.getAvailableTools();
+if (tools.length > 0) {
+  console.log('AI can call:', tools.map(t => t.function.name).join(', '));
+}
+```
+
+**Tool Call Batching:**
+```typescript
+import { executeToolCalls } from '@have/smrt';
+
+const toolCalls = [
+  { id: '1', type: 'function', function: { name: 'analyze', arguments: '{}' } },
+  { id: '2', type: 'function', function: { name: 'getMetrics', arguments: '{}' } }
+];
+
+const results = await executeToolCalls(document, toolCalls, ['analyze', 'getMetrics']);
+console.log(`Executed ${results.length} tool calls`);
+```
+
+**Custom Tool Descriptions:**
+```typescript
+@smrt({
+  ai: {
+    callable: ['analyze'],
+    descriptions: {
+      // Override method JSDoc with custom description for AI
+      analyze: `
+        Analyzes document content with the following capabilities:
+        - Sentiment analysis (positive/negative/neutral)
+        - Topic extraction using NLP
+        - Complexity scoring (0-1 scale)
+        - Language detection
+        Use 'depth: deep' for comprehensive analysis.
+      `.trim()
+    }
+  }
+})
+```
+
 ### Code Generation and Automation
 
 ```typescript

@@ -63,8 +63,21 @@ export interface SmartObjectDefinition {
           include?: string[];
           exclude?: string[];
         };
+    ai?: {
+      callable?: string[] | 'public-async' | 'all';
+      exclude?: string[];
+      descriptions?: Record<string, string>;
+    };
   };
   extends?: string; // Base class name
+  tools?: Array<{
+    type: 'function';
+    function: {
+      name: string;
+      description?: string;
+      parameters?: Record<string, any>;
+    };
+  }>;
 }
 
 export interface SmartObjectManifest {
