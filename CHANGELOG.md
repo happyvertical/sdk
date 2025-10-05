@@ -1,3 +1,96 @@
+# [0.13.0](https://github.com/happyvertical/sdk/compare/v0.12.0...v0.13.0) (2025-10-05)
+
+
+### Bug Fixes
+
+* **ci:** install Playwright browsers for CrawleeAdapter tests ([933035f](https://github.com/happyvertical/sdk/commit/933035f8e90c2284a823b57ff300b0ca31c92ec9))
+* **content:** fix initialize() return types and exclude app code from build ([8e44621](https://github.com/happyvertical/sdk/commit/8e446215f2de4d26bd6da28c7993afa5cda66e81))
+* **products:** align build configuration with content/events standards ([549f89e](https://github.com/happyvertical/sdk/commit/549f89ea1b1838bc3350f918b0f7f698f7126c9a))
+* **profiles:** add tsconfig.build.json and fix smrt/fields imports ([5b6e279](https://github.com/happyvertical/sdk/commit/5b6e27913c6035194b71d95bcf175f65b267a4e4))
+* **smrt,tags:** resolve TypeScript compilation errors ([7de33af](https://github.com/happyvertical/sdk/commit/7de33afe956ac94560fea77cbc06583ca0cc19e3))
+* **smrt:** add null check for optional command handler ([1239a2b](https://github.com/happyvertical/sdk/commit/1239a2be974280f6c6bb45c5ffe408a442ce023e))
+* **tags:** change private backing fields to protected for base class compatibility ([f0093f0](https://github.com/happyvertical/sdk/commit/f0093f0b7ace5a4d478b812f8f6bd418c29b592e))
+* **translator:** skip LibreTranslate integration tests in CI environments ([a4be09d](https://github.com/happyvertical/sdk/commit/a4be09d17e954eed3d0af63b4d68309d9fe30d1d))
+
+
+### Features
+
+* **packages:** update products and sql packages ([674bdfd](https://github.com/happyvertical/sdk/commit/674bdfd2f20624e94a7362a3ac7095cda49ad3a0))
+* **sdk:** add 10 new packages for expanded functionality ([688f12a](https://github.com/happyvertical/sdk/commit/688f12a79acd467a590eb377382dd15b9a81a78d))
+* **smrt:** enhance framework core with improved collection management and schema handling ([dd1b6be](https://github.com/happyvertical/sdk/commit/dd1b6be74881b466c36f84dd9422231af579e1f9))
+* **spider:** refactor to provider pattern with three adapters ([ae0e0f7](https://github.com/happyvertical/sdk/commit/ae0e0f7279d78499e8495074792918c16dcbe7b0))
+
+
+### BREAKING CHANGES
+
+* **spider:** Complete API redesign to align with SDK provider pattern
+
+This commit introduces a major refactoring of the @have/spider package:
+
+## New Architecture
+
+- **Provider Pattern**: Factory function `getSpider()` returns adapter instances
+- **Three Adapters**:
+  - Simple: Fast HTTP with undici + cheerio (static content)
+  - DOM: happy-dom processing (complex HTML normalization)
+  - Crawlee: Playwright browser automation (dynamic/JS content)
+- **Standardized Interface**: All adapters implement `ISpiderAdapter`
+- **Unified Page Object**: Consistent return type across all adapters
+
+## Key Features
+
+- Built-in caching via @have/cache with configurable expiry
+- Navigation expansion: Crawlee auto-clicks accordions/dropdowns
+- Link extraction: All adapters return discovered links
+- Error handling: ValidationError and NetworkError types
+- TypeScript: Full type safety with discriminated unions
+
+## Performance
+
+Based on Bentley town council integration test:
+- Simple: ~200ms (static HTML)
+- DOM: ~500ms (normalized HTML)
+- Crawlee: ~8000ms (full browser, navigation expansion)
+- Cached: ~5ms (10-100x speedup)
+
+## Breaking Changes
+
+v1.x API removed:
+- `fetchPageSource()` → `getSpider().fetch()`
+- `parseIndexSource()` → `page.links` (automatic)
+- `createWindow()` → use happy-dom directly
+- `processHtml()` → use DOM adapter
+
+## Migration
+
+```typescript
+// Before (v1.x)
+const html = await fetchPageSource({ url, cheap: true });
+const links = await parseIndexSource(html);
+
+// After (v2.x)
+const spider = await getSpider({ adapter: 'simple' });
+const page = await spider.fetch(url);
+const links = page.links;
+```
+
+## Documentation
+
+- Comprehensive README with examples for all adapters
+- Real-world use case: Bentley town PDF extraction
+- Migration guide from v1.x
+- Best practices for ethical web scraping
+- Integration examples with @have/ai, @have/pdf, @have/content
+
+## Testing
+
+- Integration tests with real-world website (Bentley town)
+- Caching performance validation
+- Navigation expansion verification
+- Error handling coverage
+
+Closes #<issue-number-if-applicable>
+
 # [0.12.0](https://github.com/happyvertical/sdk/compare/v0.11.0...v0.12.0) (2025-10-02)
 
 
