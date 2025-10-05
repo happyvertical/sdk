@@ -8,61 +8,81 @@ import { getTranslator } from './index';
 
 describe('LibreTranslate Provider Integration', () => {
   describe('translate', () => {
-    it('should translate from English to Spanish', async () => {
-      const translator = await getTranslator({
-        provider: 'libretranslate',
-      });
+    // Skip in CI due to public LibreTranslate API reliability issues
+    it.skipIf(process.env.CI)(
+      'should translate from English to Spanish',
+      async () => {
+        const translator = await getTranslator({
+          provider: 'libretranslate',
+        });
 
-      const result = await translator.translate('Hello, world!', 'es', 'en');
+        const result = await translator.translate('Hello, world!', 'es', 'en');
 
-      expect(result.translatedText).toBeDefined();
-      expect(result.sourceLanguage).toBe('en');
-      expect(result.targetLanguage).toBe('es');
-      expect(result.sourceText).toBe('Hello, world!');
-    }, 30000);
+        expect(result.translatedText).toBeDefined();
+        expect(result.sourceLanguage).toBe('en');
+        expect(result.targetLanguage).toBe('es');
+        expect(result.sourceText).toBe('Hello, world!');
+      },
+      30000,
+    );
 
-    it('should auto-detect source language', async () => {
-      const translator = await getTranslator({
-        provider: 'libretranslate',
-      });
+    // Skip in CI due to public LibreTranslate API reliability issues
+    it.skipIf(process.env.CI)(
+      'should auto-detect source language',
+      async () => {
+        const translator = await getTranslator({
+          provider: 'libretranslate',
+        });
 
-      const result = await translator.translate('Hola', 'en');
+        const result = await translator.translate('Hola', 'en');
 
-      expect(result.translatedText).toBeDefined();
-      expect(result.detectedSourceLanguage).toBe(true);
-      expect(result.targetLanguage).toBe('en');
-    }, 30000);
+        expect(result.translatedText).toBeDefined();
+        expect(result.detectedSourceLanguage).toBe(true);
+        expect(result.targetLanguage).toBe('en');
+      },
+      30000,
+    );
   });
 
   describe('templateFunction', () => {
-    it('should create a reusable translation function', async () => {
-      const translator = await getTranslator({
-        provider: 'libretranslate',
-      });
+    // Skip in CI due to public LibreTranslate API reliability issues
+    it.skipIf(process.env.CI)(
+      'should create a reusable translation function',
+      async () => {
+        const translator = await getTranslator({
+          provider: 'libretranslate',
+        });
 
-      const translate = translator.templateFunction('en', 'es');
+        const translate = translator.templateFunction('en', 'es');
 
-      const greeting = await translate('Hello');
-      const farewell = await translate('Goodbye');
+        const greeting = await translate('Hello');
+        const farewell = await translate('Goodbye');
 
-      expect(greeting).toBeDefined();
-      expect(typeof greeting).toBe('string');
-      expect(farewell).toBeDefined();
-      expect(typeof farewell).toBe('string');
-    }, 60000);
+        expect(greeting).toBeDefined();
+        expect(typeof greeting).toBe('string');
+        expect(farewell).toBeDefined();
+        expect(typeof farewell).toBe('string');
+      },
+      60000,
+    );
 
-    it('should use default target language (en)', async () => {
-      const translator = await getTranslator({
-        provider: 'libretranslate',
-      });
+    // Skip in CI due to public LibreTranslate API reliability issues
+    it.skipIf(process.env.CI)(
+      'should use default target language (en)',
+      async () => {
+        const translator = await getTranslator({
+          provider: 'libretranslate',
+        });
 
-      const translate = translator.templateFunction('es');
+        const translate = translator.templateFunction('es');
 
-      const result = await translate('Hola');
+        const result = await translate('Hola');
 
-      expect(result).toBeDefined();
-      expect(typeof result).toBe('string');
-    }, 30000);
+        expect(result).toBeDefined();
+        expect(typeof result).toBe('string');
+      },
+      30000,
+    );
   });
 
   describe('getSupportedLanguages', () => {
