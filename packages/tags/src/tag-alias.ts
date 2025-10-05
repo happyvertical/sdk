@@ -19,7 +19,7 @@ export class TagAlias extends SmrtObject {
   tagSlug = ''; // FK to Tag.slug
   alias = ''; // Alternative name or translation
   language = ''; // ISO 639-1 language code (nullable)
-  private _context = ''; // Optional context scoping (nullable)
+  protected _context = ''; // Optional context scoping (nullable)
 
   // Override SmrtObject accessor
   override get context(): string {
