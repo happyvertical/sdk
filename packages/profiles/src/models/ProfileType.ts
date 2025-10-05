@@ -6,7 +6,7 @@
  */
 
 import { SmrtObject, type SmrtObjectOptions, smrt } from '@have/smrt';
-import { text } from '@have/smrt/fields';
+import { text } from '@have/smrt';
 
 export interface ProfileTypeOptions extends SmrtObjectOptions {
   slug?: string;

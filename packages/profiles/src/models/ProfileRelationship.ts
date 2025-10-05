@@ -6,7 +6,7 @@
  */
 
 import { SmrtObject, type SmrtObjectOptions, smrt } from '@have/smrt';
-import { foreignKey, oneToMany } from '@have/smrt/fields';
+import { foreignKey, oneToMany } from '@have/smrt';
 import { Profile } from './Profile';
 import { ProfileRelationshipType } from './ProfileRelationshipType';
 import { ProfileRelationshipTerm } from './ProfileRelationshipTerm';

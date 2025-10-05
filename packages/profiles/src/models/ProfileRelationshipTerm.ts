@@ -6,7 +6,7 @@
  */
 
 import { SmrtObject, type SmrtObjectOptions, smrt } from '@have/smrt';
-import { foreignKey, datetime } from '@have/smrt/fields';
+import { foreignKey, datetime } from '@have/smrt';
 import { ProfileRelationship } from './ProfileRelationship';
 
 export interface ProfileRelationshipTermOptions extends SmrtObjectOptions {

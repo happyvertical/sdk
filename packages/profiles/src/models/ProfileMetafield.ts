@@ -6,7 +6,7 @@
  */
 
 import { SmrtObject, type SmrtObjectOptions, smrt } from '@have/smrt';
-import { text, json } from '@have/smrt/fields';
+import { text, json } from '@have/smrt';
 import type { ValidationSchema, ValidatorFunction } from '../types';
 
 export interface ProfileMetafieldOptions extends SmrtObjectOptions {

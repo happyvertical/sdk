@@ -6,7 +6,7 @@
  */
 
 import { SmrtObject, type SmrtObjectOptions, smrt } from '@have/smrt';
-import { text, foreignKey } from '@have/smrt/fields';
+import { text, foreignKey } from '@have/smrt';
 import { Profile } from './Profile';
 import { ProfileMetafield } from './ProfileMetafield';
 

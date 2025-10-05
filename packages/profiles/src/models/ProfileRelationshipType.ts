@@ -6,7 +6,7 @@
  */
 
 import { SmrtObject, type SmrtObjectOptions, smrt } from '@have/smrt';
-import { text, boolean } from '@have/smrt/fields';
+import { text, boolean } from '@have/smrt';
 import type { ReciprocalHandler } from '../types';
 
 export interface ProfileRelationshipTypeOptions extends SmrtObjectOptions {
