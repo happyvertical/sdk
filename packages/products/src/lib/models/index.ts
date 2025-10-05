@@ -9,7 +9,5 @@
  * - UI components
  */
 
-// Re-export types for convenience
-export type { CategoryData, ProductData } from '@smrt/types';
 export { Category } from './Category';
 export { Product } from './Product';

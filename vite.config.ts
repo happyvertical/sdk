@@ -171,7 +171,12 @@ export default defineConfig(({ command, mode }) => {
         plugins: [
           dts({
             outDir: `packages/${pkg.name}/dist`,
-            include: [`packages/${pkg.name}/src/**/*.ts`],
+            include: [
+              // For products, only include library files; for others, include all src files
+              pkg.name === 'products'
+                ? `packages/${pkg.name}/src/lib/**/*.ts`
+                : `packages/${pkg.name}/src/**/*.ts`,
+            ],
             exclude: [
               // Test files
               `packages/${pkg.name}/src/**/*.test.ts`,
