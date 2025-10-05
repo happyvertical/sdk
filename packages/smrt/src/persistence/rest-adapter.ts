@@ -505,7 +505,7 @@ export class RestPersistenceAdapter implements PersistenceAdapter {
     };
 
     for (const [key, field] of Object.entries(fields)) {
-      data[key] = field.value;
+      data[key] = (field as any).value;
     }
 
     return data;

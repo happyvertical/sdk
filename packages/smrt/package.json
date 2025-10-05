@@ -1,6 +1,6 @@
 {
   "name": "@have/smrt",
-  "version": "0.4.1",
+  "version": "0.12.0",
   "description": "Core AI agent framework with standardized collections, object-relational mapping, and code generators",
   "author": "Will Griffin <willgriffin@gmail.com>",
   "type": "module",
@@ -55,7 +55,9 @@
     "verify:consumer-plugin": "node -e \"try { const { smrtConsumer } = require('./dist/consumer-plugin/index.js'); const plugin = smrtConsumer(); console.log('✅ Consumer plugin working:', plugin.name); } catch(e) { console.error('❌ Consumer plugin failed:', e.message); process.exit(1); }\"",
     "verify:exports": "node -e \"const pkg = require('./package.json'); const fs = require('fs'); Object.entries(pkg.exports).forEach(([key, path]) => { if (fs.existsSync(path)) { console.log('✅', key, '→', path); } else { console.error('❌', key, '→', path, '(missing)'); process.exit(1); } });\"",
     "build:fresh": "npm run clean && npm run build && npm run verify:exports && npm run verify:consumer-plugin",
-    "prepack": "npm run build:fresh"
+    "prepack": "npm run build:fresh",
+    "cli": "tsx src/generators/cli.ts",
+    "cli:gnode": "tsx src/generators/cli.ts gnode"
   },
   "devDependencies": {
     "@faker-js/faker": "^9.4.0",

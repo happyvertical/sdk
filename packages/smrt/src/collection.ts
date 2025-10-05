@@ -623,6 +623,10 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
     this._db_setup_promise = (async () => {
       try {
         const schema = this.generateSchema();
+        console.log(
+          `[Collection] Generated schema for ${this.tableName}:`,
+          schema,
+        );
         await syncSchema({ db: this.db, schema });
         await this.setupTriggers();
       } catch (error) {
@@ -651,9 +655,8 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
    * @returns Schema object for database setup
    */
   generateSchema() {
-    // Try to get cached schema from ObjectRegistry first
-    const cachedSchema = ObjectRegistry.getSchemaDDL(this._itemClass.name);
-    return cachedSchema || generateSchema(this._itemClass);
+    // Always generate fresh schema to ensure latest field mapping is used
+    return generateSchema(this._itemClass);
   }
 
   /**

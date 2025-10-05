@@ -87,10 +87,11 @@ export class Contents extends SmrtCollection<Content> {
   /**
    * Initializes the collection
    *
-   * @returns Promise that resolves when initialization is complete
+   * @returns Promise that resolves to this instance
    */
-  public async initialize(): Promise<void> {
+  public async initialize(): Promise<this> {
     await super.initialize();
+    return this;
   }
 
   /**
