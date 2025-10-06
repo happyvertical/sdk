@@ -6,4 +6,10 @@
  */
 
 export { SignalBus } from './bus.js';
-export type { Signal, SignalType, ISignalAdapter } from '@have/types';
+export { SignalSanitizer } from './sanitizer.js';
+export type {
+  Signal,
+  SignalType,
+  ISignalAdapter,
+} from '@have/types';
+export type { SanitizationConfig } from './sanitizer.js';
