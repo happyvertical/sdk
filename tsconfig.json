@@ -27,9 +27,6 @@
     // Performance
     // "skipLibCheck": true, // Disabled to catch all type errors in CI
 
-    // Types
-    "types": ["node"],
-
     // Let Node.js module resolution handle workspace packages through package.json exports
     "baseUrl": "."
   },
