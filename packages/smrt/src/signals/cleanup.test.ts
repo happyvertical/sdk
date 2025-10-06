@@ -5,7 +5,7 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { SignalBus } from './bus.js';
 import { SmrtClass } from '../class.js';
-import { smrt } from '../config.js';
+import { config } from '../config.js';
 import type { Signal, ISignalAdapter } from '@have/types';
 
 // Mock adapter for testing
@@ -23,11 +23,11 @@ class TestAdapter implements ISignalAdapter {
 
 describe('Cleanup and Memory Leak Prevention', () => {
   beforeEach(() => {
-    smrt.reset();
+    config.reset();
   });
 
   afterEach(() => {
-    smrt.reset();
+    config.reset();
   });
 
   describe('SignalBus Cleanup', () => {
@@ -116,7 +116,7 @@ describe('Cleanup and Memory Leak Prevention', () => {
     it('should clean up registered adapters on destroy', async () => {
       const adapter = new TestAdapter();
 
-      smrt.configure({
+      config({
         logging: false,
         signals: { adapters: [adapter] },
       });
@@ -168,7 +168,7 @@ describe('Cleanup and Memory Leak Prevention', () => {
     it('should allow multiple destroy() calls', async () => {
       const adapter = new TestAdapter();
 
-      smrt.configure({
+      config({
         logging: false,
         signals: { adapters: [adapter] },
       });
@@ -188,7 +188,7 @@ describe('Cleanup and Memory Leak Prevention', () => {
     it('should prevent adapter accumulation across instances', async () => {
       const globalAdapter = new TestAdapter();
 
-      smrt.configure({
+      config({
         logging: false,
         signals: { adapters: [globalAdapter] },
       });
@@ -246,7 +246,7 @@ describe('Cleanup and Memory Leak Prevention', () => {
       const globalAdapter = new TestAdapter();
       const instanceAdapter = new TestAdapter();
 
-      smrt.configure({
+      config({
         logging: false,
         signals: { adapters: [globalAdapter] },
       });
@@ -273,7 +273,7 @@ describe('Cleanup and Memory Leak Prevention', () => {
         .spyOn(console, 'debug')
         .mockImplementation(() => {});
 
-      smrt.configure({
+      config({
         logging: { level: 'debug' },
         metrics: { enabled: true },
       });
@@ -297,7 +297,7 @@ describe('Cleanup and Memory Leak Prevention', () => {
       const adapter1 = new TestAdapter();
       const adapter2 = new TestAdapter();
 
-      smrt.configure({ logging: false });
+      config({ logging: false });
 
       class TestClass extends SmrtClass {}
 

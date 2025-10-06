@@ -6,7 +6,7 @@
 
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
 import { SmrtClass } from '../class.js';
-import { smrt } from '../config.js';
+import { config } from '../config.js';
 import type { Signal, ISignalAdapter } from '@have/types';
 
 // Mock custom adapter for testing
@@ -25,11 +25,11 @@ class MockAdapter implements ISignalAdapter {
 describe('Universal Signaling System - Integration', () => {
   beforeEach(() => {
     // Reset global config before each test
-    smrt.reset();
+    config.reset();
   });
 
   afterEach(() => {
-    smrt.reset();
+    config.reset();
   });
 
   it('should initialize with default logging enabled', async () => {
@@ -47,7 +47,7 @@ describe('Universal Signaling System - Integration', () => {
   });
 
   it('should disable logging when configured', async () => {
-    smrt.configure({ logging: false });
+    config({ logging: false });
 
     class TestClass extends SmrtClass {}
     const instance = new TestClass({});
@@ -57,7 +57,7 @@ describe('Universal Signaling System - Integration', () => {
   });
 
   it('should enable metrics adapter when configured globally', async () => {
-    smrt.configure({
+    config({
       logging: false, // Disable logging to isolate metrics
       metrics: { enabled: true },
     });
@@ -71,7 +71,7 @@ describe('Universal Signaling System - Integration', () => {
   });
 
   it('should enable pubsub adapter when configured globally', async () => {
-    smrt.configure({
+    config({
       logging: false,
       pubsub: { enabled: true },
     });
@@ -87,7 +87,7 @@ describe('Universal Signaling System - Integration', () => {
   it('should support custom adapters via global config', async () => {
     const mockAdapter = new MockAdapter();
 
-    smrt.configure({
+    config({
       logging: false,
       signals: {
         adapters: [mockAdapter],
@@ -121,7 +121,7 @@ describe('Universal Signaling System - Integration', () => {
   });
 
   it('should override global config with instance config', async () => {
-    smrt.configure({
+    config({
       logging: true, // Global: enabled
       metrics: { enabled: false },
     });
@@ -144,7 +144,7 @@ describe('Universal Signaling System - Integration', () => {
     const globalAdapter = new MockAdapter();
     const instanceAdapter = new MockAdapter();
 
-    smrt.configure({
+    config({
       logging: false,
       signals: { adapters: [globalAdapter] },
     });
@@ -223,7 +223,7 @@ describe('Universal Signaling System - Integration', () => {
   it('should configure with debug log level', async () => {
     const consoleSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
 
-    smrt.configure({
+    config({
       logging: { level: 'debug' },
     });
 
@@ -238,7 +238,7 @@ describe('Universal Signaling System - Integration', () => {
   });
 
   it('should enable all adapters when configured', async () => {
-    smrt.configure({
+    config({
       logging: { level: 'error' }, // Minimal logging
       metrics: { enabled: true },
       pubsub: { enabled: true },
@@ -262,7 +262,7 @@ describe('Universal Signaling System - Integration', () => {
 
     const mockAdapter = new MockAdapter();
 
-    smrt.configure({
+    config({
       logging: false,
       signals: {
         adapters: [new ErrorAdapter(), mockAdapter],

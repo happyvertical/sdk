@@ -13,7 +13,7 @@ import type {
   MetricsConfig,
   PubSubConfig,
 } from './config.js';
-import { smrt } from './config.js';
+import { config } from './config.js';
 
 /**
  * Configuration options for the SmrtClass
@@ -164,7 +164,7 @@ export class SmrtClass {
    * Registers built-in and custom adapters based on configuration.
    */
   private async initializeSignals(): Promise<void> {
-    const globalConfig = smrt.getConfig();
+    const globalConfig = config.toJSON();
     const effectiveConfig = this.mergeSignalConfig(globalConfig);
 
     // If a shared bus is provided, always use it (don't create new adapters)
