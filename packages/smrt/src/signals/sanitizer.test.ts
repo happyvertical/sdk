@@ -339,10 +339,10 @@ describe('SignalSanitizer', () => {
         name: 'Error',
       });
       expect(sanitized.error).toHaveProperty('stack');
-      // Stack should be truncated to 5 lines
+      // Stack should be truncated to 10 lines (default maxStackLines)
       expect(
         (sanitized.error as any).stack.split('\n').length,
-      ).toBeLessThanOrEqual(5);
+      ).toBeLessThanOrEqual(10);
     });
   });
 

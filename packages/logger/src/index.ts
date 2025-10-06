@@ -27,6 +27,29 @@ import { ConsoleLogger } from './console.js';
 import type { Logger, LoggerConfig } from './logger.js';
 
 /**
+ * No-op logger that discards all log messages
+ *
+ * Used when logging is disabled (config: false)
+ */
+class NoopLogger implements Logger {
+  debug(_message: string, _context?: Record<string, unknown>): void {
+    // No-op
+  }
+
+  info(_message: string, _context?: Record<string, unknown>): void {
+    // No-op
+  }
+
+  warn(_message: string, _context?: Record<string, unknown>): void {
+    // No-op
+  }
+
+  error(_message: string, _context?: Record<string, unknown>): void {
+    // No-op
+  }
+}
+
+/**
  * Create a logger from configuration
  *
  * @param config - Logger configuration (boolean or object)
@@ -34,19 +57,23 @@ import type { Logger, LoggerConfig } from './logger.js';
  *
  * @example
  * ```typescript
- * // Default console logger with 'info' level
+ * // Console logger with 'info' level
  * const logger1 = createLogger(true);
  *
+ * // No-op logger (all log calls are discarded)
+ * const logger2 = createLogger(false);
+ *
  * // Console logger with 'debug' level
- * const logger2 = createLogger({ level: 'debug' });
+ * const logger3 = createLogger({ level: 'debug' });
  *
  * // Custom log level
- * const logger3 = createLogger({ level: 'warn' });
+ * const logger4 = createLogger({ level: 'warn' });
  * ```
  */
 export function createLogger(config: LoggerConfig): Logger {
   if (typeof config === 'boolean') {
-    return new ConsoleLogger(config ? 'info' : 'error');
+    // When false, return no-op logger that discards all messages
+    return config ? new ConsoleLogger('info') : new NoopLogger();
   }
 
   const level = config.level || 'info';
