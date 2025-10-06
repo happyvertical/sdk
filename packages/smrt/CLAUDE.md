@@ -32,20 +32,38 @@ The SMRT framework is designed to leverage the latest capabilities from its depe
 
 ## Critical Implementation Patterns
 
-### Direct Instantiation Pattern (IMPORTANT)
+### Static Factory Pattern for Collections (IMPORTANT)
 
-The framework has **eliminated the static `create()` pattern** in favor of direct instantiation:
+The framework uses **static factory methods** for creating collections, following industry best practices for async initialization:
 
 ```typescript
-// ✅ CORRECT - Direct instantiation (current pattern)
-const product = new Product({ name: 'Widget', price: 99.99 });
-await product.initialize(); // Must call to set up services
+// ✅ CORRECT - Static factory method (current pattern)
+const collection = await ProductCollection.create({
+  persistence: { type: 'sql', url: 'products.db' },
+  ai: { provider: 'openai', apiKey: process.env.OPENAI_API_KEY }
+});
 
-// ❌ WRONG - Old static create pattern (removed)
-const product = await Product.create({ name: 'Widget' }); // This no longer exists
+// ✅ ALSO CORRECT - Pass object options directly
+const product = new Product({ name: 'Widget' });
+await product.initialize();
+const collection = await ProductCollection.create(product.options);
+
+// ❌ WRONG - Direct constructor access (now protected)
+const collection = new ProductCollection(options); // Error: constructor is protected
+await collection.initialize();
 ```
 
-**Why this matters**: All SMRT objects use the constructor pattern. Collections automatically call `initialize()` when creating objects via `collection.create()`.
+**Why static factories**:
+- **Guaranteed initialization**: Returns fully initialized, ready-to-use instances
+- **Type flexibility**: Accepts broad `SmrtClassOptions` and extracts compatible options internally
+- **No partial state**: Eliminates "partially-initialized" object bugs
+- **Industry standard**: Follows TypeScript best practices for async initialization
+
+**Constructor vs Factory**:
+- **Collections**: Use `await Collection.create()` - constructor is protected
+- **Objects**: Use `new Object()` + `await object.initialize()` - constructor pattern remains
+
+**Symmetry**: `Collection.create()` (static factory) creates collections, `collection.create()` (instance method) creates objects.
 
 ### Field System (packages/smrt/src/fields/index.ts)
 
@@ -1073,7 +1091,7 @@ class Author extends SmrtObject<any> {
   email: string = '';
   
   async getDocuments() {
-    const docCollection = new DocumentCollection(this.options);
+    const docCollection = await DocumentCollection.create(this.options);
     return docCollection.list({
       where: { authorId: this.id }
     });
@@ -2056,19 +2074,20 @@ export default {
 };
 ```
 
-### 10. Promise Caching in Setup
+### 10. Static Factory Pattern Required
 
-**Database setup is deferred and cached**:
+**Collections must be created via static factory method**:
 ```typescript
-const collection = new MyCollection(options);
+// ✅ CORRECT - Static factory method
+const collection = await MyCollection.create(options);
+// Returns fully initialized, ready-to-use collection
 
-// First call sets up schema
-await collection.initialize(); // Creates table, triggers, indexes
+// ❌ WRONG - Constructor is protected
+const collection = new MyCollection(options); // Error: constructor is protected
+await collection.initialize();
 
-// Subsequent calls use cached promise
-await collection.initialize(); // Returns same promise, no duplicate work
-
-// This prevents race conditions when multiple code paths initialize the same collection
+// Static factory handles initialization internally
+// This prevents partially-initialized objects and ensures atomic creation
 ```
 
 ### 11. UPSERT Behavior

@@ -151,16 +151,7 @@ export class Event extends SmrtObject {
 
     try {
       const { PlaceCollection } = await import('@have/places');
-      // Extract only collection-compatible options (no id, name, slug, context)
-      const { persistence, db, ai, fs, _className } = this.options;
-      const collection = new PlaceCollection({
-        persistence,
-        db,
-        ai,
-        fs,
-        _className,
-      });
-      await collection.initialize();
+      const collection = await PlaceCollection.create(this.options);
 
       return await collection.get({ id: this.placeId });
     } catch {

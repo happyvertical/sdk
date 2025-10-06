@@ -495,10 +495,11 @@ export class ObjectRegistry {
       ObjectRegistry.collections.set(className, DefaultCollection as any);
     }
 
-    // Create and initialize new collection instance
+    // Create and initialize new collection instance using static factory method
     // collectionConstructor is guaranteed to be defined here
-    const collection = new collectionConstructor!(options) as SmrtCollection<T>;
-    await collection.initialize();
+    const collection = (await (collectionConstructor as any).create(
+      options,
+    )) as SmrtCollection<T>;
 
     // Cache the initialized instance
     ObjectRegistry.collectionCache.set(cacheKey, collection);
