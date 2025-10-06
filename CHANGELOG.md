@@ -1,3 +1,33 @@
+# [0.15.0](https://github.com/happyvertical/sdk/compare/v0.14.0...v0.15.0) (2025-10-06)
+
+
+### Bug Fixes
+
+* **assets:** replace any types with unknown for type safety ([5111086](https://github.com/happyvertical/sdk/commit/5111086030a3f858971249ea4a381142b8eb9d28))
+* **profiles:** remove skipLibCheck and fix Field/slug type incompatibilities ([77c7ec8](https://github.com/happyvertical/sdk/commit/77c7ec8c4183cbb275259b3bbd1011e13a25a540))
+* **smrt:** address Copilot review comments ([08ad268](https://github.com/happyvertical/sdk/commit/08ad26896dc8d7948de8d8ff9915946e1944f309))
+* **smrt:** explicitly convert Field to string for TypeScript type compatibility ([20e27f7](https://github.com/happyvertical/sdk/commit/20e27f7193b37b20285740e8220faa9171f6ab68))
+* **smrt:** fix TypeScript errors in tool-executor, bus, rest-adapter, and rest generator ([44ad707](https://github.com/happyvertical/sdk/commit/44ad707715e8a4d21c2be54a57e730f4c83e2b7c))
+* **smrt:** relax static factory type constraint for protected constructors ([ad6e926](https://github.com/happyvertical/sdk/commit/ad6e9262fcb4b1660823bd834addff425125d9b7))
+* **smrt:** remove unused type aliases to fix linter warnings ([4d7148b](https://github.com/happyvertical/sdk/commit/4d7148b1b0357ae954830c7680b3055b8ccac417))
+* **smrt:** resolve naming conflict between config and decorator ([5816c22](https://github.com/happyvertical/sdk/commit/5816c22606a505b3c082fdad0f74ab783165d999))
+* **smrt:** support both simple and Field-based property patterns ([a5f5e8f](https://github.com/happyvertical/sdk/commit/a5f5e8f35a4e4d25dbb361908c50e600441a0c1b))
+* **smrt:** use InstanceType<T> for proper collection type inference ([51b260e](https://github.com/happyvertical/sdk/commit/51b260eba506efa7de433500be89a3be69a82c21)), closes [#136](https://github.com/happyvertical/sdk/issues/136)
+* **tsconfig:** remove types config from root tsconfig ([870b6f7](https://github.com/happyvertical/sdk/commit/870b6f7617b93a56e361d049f9d978ca8905794b))
+* **tsconfig:** resolve composite project conflicts by removing source includes ([bc07723](https://github.com/happyvertical/sdk/commit/bc077237ef1fe49bcfb09d504ada24bba83c69a0))
+* **types:** resolve TypeScript project references and type compatibility ([25bdca6](https://github.com/happyvertical/sdk/commit/25bdca6912b71647d0c2540a1d3e4efe3273588e)), closes [#135](https://github.com/happyvertical/sdk/issues/135)
+
+
+### Features
+
+* **smrt:** add built-in signal adapters for metrics and pub/sub ([6dc11a1](https://github.com/happyvertical/sdk/commit/6dc11a1e7fc8e676a2ca6f89c780a463f4248130)), closes [#134](https://github.com/happyvertical/sdk/issues/134)
+* **smrt:** add data sanitization, cleanup methods, and enhanced error logging ([a97cfc3](https://github.com/happyvertical/sdk/commit/a97cfc381a405710384ba951816b5d4a8bf2e674))
+* **smrt:** complete static factory pattern migration across all packages ([44566de](https://github.com/happyvertical/sdk/commit/44566de71d3f5248a111037a883e9f3728775120))
+* **smrt:** implement static factory pattern for Collections ([9e36dbe](https://github.com/happyvertical/sdk/commit/9e36dbedd40675acd2d80cbe7f2bdca198c0de4d)), closes [#135](https://github.com/happyvertical/sdk/issues/135)
+* **smrt:** implement Universal Signaling System with @have/logger ([7d9a8ad](https://github.com/happyvertical/sdk/commit/7d9a8ad61da8fa191302a772ef696785c3c8692f)), closes [#134](https://github.com/happyvertical/sdk/issues/134)
+* **smrt:** integrate SignalBus into ToolExecutor for automatic method tracking ([9a9ac4c](https://github.com/happyvertical/sdk/commit/9a9ac4ce7c75d7f0f8ef98a621aee68a795427fb)), closes [#134](https://github.com/happyvertical/sdk/issues/134)
+* **types,smrt:** create @have/types package and add SignalBus to smrt ([7b4b755](https://github.com/happyvertical/sdk/commit/7b4b755c25a8ba8c5a0dec35bb36c3b7170ca780)), closes [#134](https://github.com/happyvertical/sdk/issues/134)
+
 # [0.14.0](https://github.com/happyvertical/sdk/compare/v0.13.0...v0.14.0) (2025-10-06)
 
 
