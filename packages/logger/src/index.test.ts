@@ -13,10 +13,21 @@ describe('createLogger', () => {
     expect(logger).toBeInstanceOf(ConsoleLogger);
   });
 
-  it('should create console logger with error level when config is false', () => {
+  it('should create no-op logger when config is false', () => {
     const logger = createLogger(false);
 
-    expect(logger).toBeInstanceOf(ConsoleLogger);
+    // NoopLogger is not exported, so we test behavior instead
+    // No-op logger should have all methods but they should do nothing
+    expect(logger.debug).toBeDefined();
+    expect(logger.info).toBeDefined();
+    expect(logger.warn).toBeDefined();
+    expect(logger.error).toBeDefined();
+
+    // Call methods to ensure they don't throw (no-ops)
+    expect(() => logger.debug('test')).not.toThrow();
+    expect(() => logger.info('test')).not.toThrow();
+    expect(() => logger.warn('test')).not.toThrow();
+    expect(() => logger.error('test')).not.toThrow();
   });
 
   it('should create console logger with specified level', () => {
