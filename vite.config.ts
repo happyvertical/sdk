@@ -3,7 +3,11 @@ import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
 
 // Function to create per-package build configuration
-function createPackageBuild(packageName: string, entryPath: string, directory: 'core' | 'modules') {
+function createPackageBuild(
+  packageName: string,
+  entryPath: string,
+  directory: 'core' | 'modules',
+) {
   return {
     lib: {
       entry: resolve(__dirname, entryPath),
@@ -137,27 +141,107 @@ function createPackageBuild(packageName: string, entryPath: string, directory: '
 // Package configurations with entry points
 const packages = [
   // Core packages
-  { name: 'types', entry: 'packages/core/types/src/index.ts', directory: 'core' as const },
-  { name: 'utils', entry: 'packages/core/utils/src/index.ts', directory: 'core' as const },
-  { name: 'logger', entry: 'packages/core/logger/src/index.ts', directory: 'core' as const },
-  { name: 'files', entry: 'packages/core/files/src/index.ts', directory: 'core' as const },
-  { name: 'cache', entry: 'packages/core/cache/src/index.ts', directory: 'core' as const },
-  { name: 'geo', entry: 'packages/core/geo/src/index.ts', directory: 'core' as const },
-  { name: 'translator', entry: 'packages/core/translator/src/index.ts', directory: 'core' as const },
-  { name: 'sql', entry: 'packages/core/sql/src/index.ts', directory: 'core' as const },
-  { name: 'ocr', entry: 'packages/core/ocr/src/index.ts', directory: 'core' as const },
-  { name: 'pdf', entry: 'packages/core/pdf/src/index.ts', directory: 'core' as const },
-  { name: 'ai', entry: 'packages/core/ai/src/index.ts', directory: 'core' as const },
-  { name: 'spider', entry: 'packages/core/spider/src/index.ts', directory: 'core' as const },
-  { name: 'smrt', entry: 'packages/core/smrt/src/index.ts', directory: 'core' as const },
+  {
+    name: 'types',
+    entry: 'packages/core/types/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'utils',
+    entry: 'packages/core/utils/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'logger',
+    entry: 'packages/core/logger/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'files',
+    entry: 'packages/core/files/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'cache',
+    entry: 'packages/core/cache/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'geo',
+    entry: 'packages/core/geo/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'translator',
+    entry: 'packages/core/translator/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'sql',
+    entry: 'packages/core/sql/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'ocr',
+    entry: 'packages/core/ocr/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'pdf',
+    entry: 'packages/core/pdf/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'ai',
+    entry: 'packages/core/ai/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'spider',
+    entry: 'packages/core/spider/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'smrt',
+    entry: 'packages/core/smrt/src/index.ts',
+    directory: 'core' as const,
+  },
   // SMRT modules
-  { name: 'tags', entry: 'packages/modules/tags/src/index.ts', directory: 'modules' as const },
-  { name: 'places', entry: 'packages/modules/places/src/index.ts', directory: 'modules' as const },
-  { name: 'profiles', entry: 'packages/modules/profiles/src/index.ts', directory: 'modules' as const },
-  { name: 'events', entry: 'packages/modules/events/src/index.ts', directory: 'modules' as const },
-  { name: 'assets', entry: 'packages/modules/assets/src/index.ts', directory: 'modules' as const },
-  { name: 'content', entry: 'packages/modules/content/src/content.ts', directory: 'modules' as const },
-  { name: 'products', entry: 'packages/modules/products/src/lib/models/index.ts', directory: 'modules' as const },
+  {
+    name: 'tags',
+    entry: 'packages/modules/tags/src/index.ts',
+    directory: 'modules' as const,
+  },
+  {
+    name: 'places',
+    entry: 'packages/modules/places/src/index.ts',
+    directory: 'modules' as const,
+  },
+  {
+    name: 'profiles',
+    entry: 'packages/modules/profiles/src/index.ts',
+    directory: 'modules' as const,
+  },
+  {
+    name: 'events',
+    entry: 'packages/modules/events/src/index.ts',
+    directory: 'modules' as const,
+  },
+  {
+    name: 'assets',
+    entry: 'packages/modules/assets/src/index.ts',
+    directory: 'modules' as const,
+  },
+  {
+    name: 'content',
+    entry: 'packages/modules/content/src/content.ts',
+    directory: 'modules' as const,
+  },
+  {
+    name: 'products',
+    entry: 'packages/modules/products/src/lib/models/index.ts',
+    directory: 'modules' as const,
+  },
 ];
 
 export default defineConfig(({ command, mode }) => {
@@ -210,7 +294,10 @@ export default defineConfig(({ command, mode }) => {
             '@have/files': resolve(__dirname, 'packages/core/files/src'),
             '@have/cache': resolve(__dirname, 'packages/core/cache/src'),
             '@have/geo': resolve(__dirname, 'packages/core/geo/src'),
-            '@have/translator': resolve(__dirname, 'packages/core/translator/src'),
+            '@have/translator': resolve(
+              __dirname,
+              'packages/core/translator/src',
+            ),
             '@have/sql': resolve(__dirname, 'packages/core/sql/src'),
             '@have/ocr': resolve(__dirname, 'packages/core/ocr/src'),
             '@have/pdf': resolve(__dirname, 'packages/core/pdf/src'),
@@ -219,11 +306,17 @@ export default defineConfig(({ command, mode }) => {
             '@have/smrt': resolve(__dirname, 'packages/core/smrt/src'),
             '@have/tags': resolve(__dirname, 'packages/modules/tags/src'),
             '@have/places': resolve(__dirname, 'packages/modules/places/src'),
-            '@have/profiles': resolve(__dirname, 'packages/modules/profiles/src'),
+            '@have/profiles': resolve(
+              __dirname,
+              'packages/modules/profiles/src',
+            ),
             '@have/events': resolve(__dirname, 'packages/modules/events/src'),
             '@have/assets': resolve(__dirname, 'packages/modules/assets/src'),
             '@have/content': resolve(__dirname, 'packages/modules/content/src'),
-            '@have/products': resolve(__dirname, 'packages/modules/products/src'),
+            '@have/products': resolve(
+              __dirname,
+              'packages/modules/products/src',
+            ),
           },
         },
       };
