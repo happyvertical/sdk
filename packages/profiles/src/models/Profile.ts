@@ -60,7 +60,7 @@ export class Profile extends SmrtObject {
   async setTypeBySlug(slug: string): Promise<void> {
     const type = await ProfileType.getBySlug(slug);
     if (!type) throw new Error(`Profile type '${slug}' not found`);
-    this.typeId = type.id;
+    this.typeId.value = type.id;
   }
 
   /**
@@ -314,10 +314,11 @@ export class Profile extends SmrtObject {
 
     for (const relationship of relationships) {
       // Get the other profile (not this one)
-      const otherId =
-        relationship.fromProfileId === this.id
-          ? relationship.toProfileId
-          : relationship.fromProfileId;
+      // Convert Field instances to strings for comparison
+      const fromId = String(relationship.fromProfileId);
+      const toId = String(relationship.toProfileId);
+      const thisId = String(this.id);
+      const otherId = fromId === thisId ? toId : fromId;
 
       if (!seenIds.has(otherId)) {
         seenIds.add(otherId);

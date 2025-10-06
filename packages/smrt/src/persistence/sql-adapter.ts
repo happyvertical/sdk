@@ -799,7 +799,9 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
       throw ValidationError.requiredField('name', object.constructor.name);
     }
 
-    return object.name
+    // Explicitly convert Field to string for TypeScript
+    const nameStr = String(object.name);
+    return nameStr
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
