@@ -31,5 +31,7 @@ export { smrt } from './registry';
 export * from './runtime/index';
 // Static manifest (generated at build time)
 export * from './manifest/index';
+// AI function calling tools
+export * from './tools/index';
 // Vite plugin for auto-service generation
 export { smrtPlugin } from './vite-plugin/index';

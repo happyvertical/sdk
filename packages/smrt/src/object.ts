@@ -1,5 +1,6 @@
 // import type { AIMessageOptions } from '@have/ai';
 
+import type { AITool } from '@have/ai';
 import { escapeSqlValue } from '@have/sql';
 import type { SmrtClassOptions } from './class';
 import { SmrtClass } from './class';
@@ -19,6 +20,11 @@ import {
   tableNameFromClass,
   toSnakeCase,
 } from './utils';
+import {
+  executeToolCall as executeToolCallInternal,
+  type ToolCall,
+  type ToolCallResult,
+} from './tools/tool-executor';
 
 /**
  * Options for SmrtObject initialization
@@ -730,10 +736,16 @@ export class SmrtObject extends SmrtClass {
    */
   public async is(criteria: string, options: any = {}) {
     const prompt = `--- Beginning of criteria ---\n${criteria}\n--- End of criteria ---\nDoes the content meet all the given criteria? Reply with a json object with a single boolean 'result' property`;
+
+    // Get available tools for AI function calling
+    const tools = this.getAvailableTools();
+
     const message = await this.ai.message(prompt, {
       ...(options as any),
       responseFormat: { type: 'json_object' },
+      tools: tools.length > 0 ? tools : undefined,
     });
+
     try {
       const { result } = JSON.parse(message);
       if (result === true || result === false) {
@@ -753,7 +765,15 @@ export class SmrtObject extends SmrtClass {
    */
   public async do(instructions: string, options: any = {}) {
     const prompt = `--- Beginning of instructions ---\n${instructions}\n--- End of instructions ---\nBased on the content body, please follow the instructions and provide a response. Never make use of codeblocks.`;
-    const result = await this.ai.message(prompt, options);
+
+    // Get available tools for AI function calling
+    const tools = this.getAvailableTools();
+
+    const result = await this.ai.message(prompt, {
+      ...options,
+      tools: tools.length > 0 ? tools : undefined,
+    });
+
     return result;
   }
 
@@ -1014,5 +1034,53 @@ export class SmrtObject extends SmrtClass {
     }
 
     return this.loadRelatedMany(fieldName);
+  }
+
+  /**
+   * Get available AI-callable tools for this object
+   *
+   * Returns the pre-generated tool definitions from the manifest.
+   * Tools are generated at build time based on the @smrt decorator's AI config.
+   *
+   * @returns Array of AITool definitions for LLM function calling
+   * @example
+   * ```typescript
+   * const tools = document.getAvailableTools();
+   * console.log(`${tools.length} AI-callable methods available`);
+   * ```
+   */
+  public getAvailableTools(): AITool[] {
+    const classInfo = ObjectRegistry.getClass(this.constructor.name);
+    return classInfo?.tools || [];
+  }
+
+  /**
+   * Execute a tool call from AI on this object instance
+   *
+   * Validates the tool call against allowed methods and executes it with
+   * proper error handling and timing.
+   *
+   * @param toolCall - Tool call from AI response
+   * @returns Promise resolving to the tool call result
+   * @example
+   * ```typescript
+   * const toolCall = {
+   *   id: 'call_123',
+   *   type: 'function',
+   *   function: {
+   *     name: 'analyze',
+   *     arguments: '{"type": "detailed"}'
+   *   }
+   * };
+   *
+   * const result = await document.executeToolCall(toolCall);
+   * console.log(result.success ? result.result : result.error);
+   * ```
+   */
+  public async executeToolCall(toolCall: ToolCall): Promise<ToolCallResult> {
+    const tools = this.getAvailableTools();
+    const allowedMethods = tools.map((tool) => tool.function.name);
+
+    return executeToolCallInternal(this, toolCall, allowedMethods);
   }
 }
