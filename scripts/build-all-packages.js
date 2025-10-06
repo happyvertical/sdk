@@ -5,27 +5,30 @@ import { existsSync } from 'fs';
 import { resolve } from 'path';
 
 // Package build order based on dependencies
+// Format: [packageName, directory] where directory is 'core' or 'modules'
 const buildOrder = [
-  'types',      // Shared type definitions, zero dependencies
-  'utils',      // Base utilities, no internal dependencies
-  'logger',     // Depends on types, utils
-  'files',      // Depends on utils
-  'cache',      // Depends on utils
-  'geo',        // Depends on utils, cache
-  'translator', // Depends on utils, cache
-  'sql',        // No internal dependencies
-  'ocr',        // No internal dependencies
-  'pdf',        // Depends on ocr
-  'ai',         // No internal dependencies
-  'spider',     // Depends on utils, files
-  'smrt',       // Depends on ai, files, sql, utils, types, logger
-  'tags',       // Depends on smrt, utils
-  'places',     // Depends on smrt, utils, geo, cache
-  'profiles',   // Depends on smrt, utils (and optionally tags)
-  'events',     // Depends on smrt, utils, places, profiles
-  'assets',     // Depends on smrt, utils, tags
-  'content',    // Depends on smrt, pdf, spider
-  'products',   // Depends on smrt
+  // Core infrastructure packages
+  ['types', 'core'],        // Shared type definitions, zero dependencies
+  ['utils', 'core'],        // Base utilities, no internal dependencies
+  ['logger', 'core'],       // Depends on types, utils
+  ['files', 'core'],        // Depends on utils
+  ['cache', 'core'],        // Depends on utils
+  ['geo', 'core'],          // Depends on utils, cache
+  ['translator', 'core'],   // Depends on utils, cache
+  ['sql', 'core'],          // No internal dependencies
+  ['ocr', 'core'],          // No internal dependencies
+  ['pdf', 'core'],          // Depends on ocr
+  ['ai', 'core'],           // No internal dependencies
+  ['spider', 'core'],       // Depends on utils, files
+  ['smrt', 'core'],         // Depends on ai, files, sql, utils, types, logger (framework)
+  // SMRT domain modules
+  ['tags', 'modules'],      // Depends on smrt, utils
+  ['places', 'modules'],    // Depends on smrt, utils, geo, cache
+  ['profiles', 'modules'],  // Depends on smrt, utils (and optionally tags)
+  ['events', 'modules'],    // Depends on smrt, utils, places, profiles
+  ['assets', 'modules'],    // Depends on smrt, utils, tags
+  ['content', 'modules'],   // Depends on smrt, pdf, spider
+  ['products', 'modules'],  // Depends on smrt
 ];
 
 console.log('Building all packages in dependency order...\n');
@@ -33,12 +36,12 @@ console.log('Building all packages in dependency order...\n');
 let successCount = 0;
 let failureCount = 0;
 
-for (const packageName of buildOrder) {
-  const packagePath = resolve(process.cwd(), 'packages', packageName);
+for (const [packageName, directory] of buildOrder) {
+  const packagePath = resolve(process.cwd(), 'packages', directory, packageName);
 
   // Check if package exists
   if (!existsSync(packagePath)) {
-    console.log(`⚠️  Package ${packageName} not found, skipping...`);
+    console.log(`⚠️  Package ${packageName} not found in packages/${directory}/, skipping...`);
     continue;
   }
 
