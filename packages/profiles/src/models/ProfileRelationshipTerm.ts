@@ -28,9 +28,8 @@ export class ProfileRelationshipTerm extends SmrtObject {
 
   constructor(options: ProfileRelationshipTermOptions = {}) {
     super(options);
-    if (options.relationshipId) this.relationshipId = options.relationshipId;
-    if (options.startedAt) this.startedAt = options.startedAt;
-    if (options.endedAt) this.endedAt = options.endedAt;
+    // Field values are automatically set by initializePropertiesFromOptions()
+    // No need to manually assign Field properties here
   }
 
   /**

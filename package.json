@@ -50,7 +50,7 @@
     "build:content": "VITE_BUILD_PACKAGE=content vite build",
     "build:products": "VITE_BUILD_PACKAGE=products vite build",
     "build:gnode": "VITE_BUILD_PACKAGE=gnode vite build",
-    "typecheck": "tsc --noEmit --skipLibCheck",
+    "typecheck": "tsc --noEmit",
     "mcp:setup-project": "cp scripts/mcp-smrt.sh ./scripts/ && chmod +x ./scripts/mcp-smrt.sh",
     "mcp:verify-project": "./scripts/mcp-smrt.sh verify",
     "docs:site": "npm run --prefix docs start",
