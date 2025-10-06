@@ -27,9 +27,8 @@ export class ProfileType extends SmrtObject {
 
   constructor(options: ProfileTypeOptions = {}) {
     super(options);
-    if (options.slug) this.slug = options.slug;
-    if (options.name) this.name = options.name;
-    if (options.description) this.description = options.description;
+    // Field values are automatically set by initializePropertiesFromOptions()
+    // No need to manually assign Field properties here
   }
 
   /**
