@@ -474,8 +474,9 @@ export class SmrtObject extends SmrtClass {
   async getSlug() {
     if (!this.slug && this.name) {
       // Generate slug from name if not set
-      // toString() is automatically called on Field instances
-      this.slug = this.name
+      // Explicitly convert Field to string for TypeScript
+      const nameStr = String(this.name);
+      this.slug = nameStr
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '');

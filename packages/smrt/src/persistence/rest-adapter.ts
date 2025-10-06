@@ -109,7 +109,9 @@ export class RestPersistenceAdapter implements PersistenceAdapter {
         if (!object.name) {
           throw ValidationError.requiredField('name', object.constructor.name);
         }
-        (object as any)._slug = object.name
+        // Explicitly convert Field to string for TypeScript
+        const nameStr = String(object.name);
+        (object as any)._slug = nameStr
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
           .replace(/(^-|-$)/g, '');
