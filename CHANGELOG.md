@@ -1,3 +1,10 @@
+# [0.14.0](https://github.com/happyvertical/sdk/compare/v0.13.0...v0.14.0) (2025-10-06)
+
+
+### Features
+
+* **smrt:** implement AI function calling for SMRT object methods ([789493c](https://github.com/happyvertical/sdk/commit/789493c3bd8541ec144e0d15353c79a6a82db527)), closes [#132](https://github.com/happyvertical/sdk/issues/132) [#132](https://github.com/happyvertical/sdk/issues/132)
+
 # [0.13.0](https://github.com/happyvertical/sdk/compare/v0.12.0...v0.13.0) (2025-10-05)
 
 
