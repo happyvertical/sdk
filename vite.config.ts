@@ -100,6 +100,7 @@ function createPackageBuild(packageName: string, entryPath: string) {
         // Internal @have/* packages - externalize to avoid cross-package bundling issues
         '@have/types',
         '@have/utils',
+        '@have/logger',
         '@have/files',
         '@have/cache',
         '@have/geo',
@@ -137,6 +138,7 @@ function createPackageBuild(packageName: string, entryPath: string) {
 const packages = [
   { name: 'types', entry: 'packages/types/src/index.ts' },
   { name: 'utils', entry: 'packages/utils/src/index.ts' },
+  { name: 'logger', entry: 'packages/logger/src/index.ts' },
   { name: 'files', entry: 'packages/files/src/index.ts' },
   { name: 'cache', entry: 'packages/cache/src/index.ts' },
   { name: 'geo', entry: 'packages/geo/src/index.ts' },

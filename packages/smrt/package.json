@@ -32,6 +32,7 @@
   "dependencies": {
     "@have/ai": "workspace:*",
     "@have/files": "workspace:*",
+    "@have/logger": "workspace:*",
     "@have/sql": "workspace:*",
     "@have/types": "workspace:*",
     "@have/utils": "workspace:*",

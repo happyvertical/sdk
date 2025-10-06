@@ -26,7 +26,14 @@ export * from './generators/index';
 export * from './object';
 export * from './pleb';
 export * from './registry';
-export { smrt } from './registry';
+export { smrt as smrtRegistry } from './registry';
+// Global configuration (lowercase "smrt" export)
+export { smrt } from './config';
+export type {
+  GlobalSignalConfig,
+  MetricsConfig,
+  PubSubConfig,
+} from './config';
 // Runtime utilities
 export * from './runtime/index';
 // Static manifest (generated at build time)

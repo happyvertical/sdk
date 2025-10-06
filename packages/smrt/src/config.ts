@@ -1,0 +1,152 @@
+/**
+ * Global SMRT configuration system
+ *
+ * Provides application-level defaults for signal adapters.
+ * Configuration follows a three-tier pattern:
+ * 1. Global defaults (via smrt.configure())
+ * 2. Per-instance overrides (via SmrtClassOptions)
+ * 3. Runtime behavior (from merged config)
+ */
+
+import type { SignalBus } from './signals/bus.js';
+import type { ISignalAdapter } from '@have/types';
+import type { LoggerConfig } from '@have/logger';
+
+/**
+ * Metrics adapter configuration
+ */
+export interface MetricsConfig {
+  /** Enable metrics tracking */
+  enabled: boolean;
+}
+
+/**
+ * Pub/Sub adapter configuration
+ */
+export interface PubSubConfig {
+  /** Enable pub/sub broadcasting */
+  enabled: boolean;
+}
+
+/**
+ * Global signal configuration
+ *
+ * Application-level defaults for signal adapters.
+ * These can be overridden per-instance via SmrtClassOptions.
+ */
+export interface GlobalSignalConfig {
+  /** Logging configuration (default: true with console, info level) */
+  logging?: LoggerConfig;
+
+  /** Metrics configuration (default: undefined/disabled) */
+  metrics?: MetricsConfig;
+
+  /** Pub/Sub configuration (default: undefined/disabled) */
+  pubsub?: PubSubConfig;
+
+  /** Custom signal configuration */
+  signals?: {
+    /** Shared signal bus instance */
+    bus?: SignalBus;
+    /** Additional custom adapters */
+    adapters?: ISignalAdapter[];
+  };
+}
+
+/**
+ * Singleton configuration manager
+ *
+ * Manages global SMRT configuration with sensible defaults.
+ */
+class SmrtConfig {
+  private static instance: SmrtConfig;
+  private config: GlobalSignalConfig = {
+    logging: true, // Default: console logging at info level
+  };
+
+  private constructor() {}
+
+  /**
+   * Get singleton instance
+   */
+  static getInstance(): SmrtConfig {
+    if (!SmrtConfig.instance) {
+      SmrtConfig.instance = new SmrtConfig();
+    }
+    return SmrtConfig.instance;
+  }
+
+  /**
+   * Configure global defaults
+   *
+   * @param config - Configuration to apply
+   */
+  configure(config: GlobalSignalConfig): void {
+    this.config = { ...this.config, ...config };
+  }
+
+  /**
+   * Get current configuration
+   *
+   * @returns Current global configuration
+   */
+  getConfig(): GlobalSignalConfig {
+    return { ...this.config };
+  }
+
+  /**
+   * Reset to default configuration
+   */
+  reset(): void {
+    this.config = { logging: true };
+  }
+}
+
+/**
+ * Global configuration API
+ *
+ * Use lowercase "smrt" for the export (not "SMRT").
+ *
+ * @example
+ * ```typescript
+ * import { smrt } from '@have/smrt';
+ *
+ * // Configure application-level defaults
+ * smrt.configure({
+ *   logging: { level: 'debug' },
+ *   metrics: { enabled: true },
+ *   pubsub: { enabled: false }
+ * });
+ *
+ * // All SmrtClass instances now use these defaults
+ * const product = new Product({ name: 'Widget' });
+ * await product.initialize();
+ * // product has logging at debug level and metrics enabled
+ * ```
+ */
+export const smrt = {
+  /**
+   * Configure global signal defaults
+   *
+   * @param config - Global configuration
+   */
+  configure(config: GlobalSignalConfig): void {
+    SmrtConfig.getInstance().configure(config);
+  },
+
+  /**
+   * Get current global configuration
+   *
+   * @returns Current configuration
+   */
+  getConfig(): GlobalSignalConfig {
+    return SmrtConfig.getInstance().getConfig();
+  },
+
+  /**
+   * Reset to default configuration
+   */
+  reset(): void {
+    SmrtConfig.getInstance().reset();
+  },
+};
