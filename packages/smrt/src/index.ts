@@ -35,5 +35,7 @@ export * from './manifest/index';
 export * from './tools/index';
 // Universal signaling system
 export * from './signals/index';
+// Built-in signal adapters
+export * from './adapters/index';
 // Vite plugin for auto-service generation
 export { smrtPlugin } from './vite-plugin/index';
