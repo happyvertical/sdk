@@ -355,19 +355,10 @@ function writeRoute(dir: string, filename: string, content: string): void {
       mkdirSync(dir, { recursive: true });
     }
 
-    // Write the file
+    // Write the file (writeFileSync is synchronous and will throw on failure)
     const filePath = join(dir, filename);
     writeFileSync(filePath, content, 'utf-8');
-
-    // Verify file exists and log success
-    if (existsSync(filePath)) {
-      console.log(`[smrt] Generated: ${filePath}`);
-    } else {
-      console.error(
-        `[smrt] [ERROR] ❌ File does NOT exist immediately after write!`,
-      );
-      console.error(`[smrt] [ERROR]   Path: ${filePath}`);
-    }
+    console.log(`[smrt] Generated: ${filePath}`);
   } catch (error) {
     console.error(`[smrt] [ERROR] Failed to write route file:`);
     console.error(`[smrt] [ERROR]   Directory: ${dir}`);
