@@ -131,10 +131,7 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
       (this.constructor as any)._itemClass
     ) {
       const itemClassName = (this.constructor as any)._itemClass.name;
-      ObjectRegistry.registerCollection(
-        itemClassName,
-        this.constructor as typeof SmrtCollection,
-      );
+      ObjectRegistry.registerCollection(itemClassName, this.constructor as any);
     }
   }
 
@@ -200,7 +197,7 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
     await instance.initialize();
 
     // Return fully initialized instance
-    return instance;
+    return instance as T;
   }
 
   /**
