@@ -27,8 +27,8 @@ export * from './object';
 export * from './pleb';
 export * from './registry';
 export { smrt as smrtRegistry } from './registry';
-// Global configuration (lowercase "smrt" export)
-export { smrt } from './config';
+// Global configuration (callable function)
+export { config } from './config';
 export type {
   GlobalSignalConfig,
   MetricsConfig,

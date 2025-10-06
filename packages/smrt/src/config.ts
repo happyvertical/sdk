@@ -112,18 +112,30 @@ class SmrtConfig {
 /**
  * Global configuration API
  *
- * Use lowercase "smrt" for the export (not "SMRT").
+ * Callable function with attached methods for managing SMRT configuration.
  *
  * @example
  * ```typescript
- * import { smrt } from '@have/smrt';
+ * import { config } from '@have/smrt';
  *
- * // Configure application-level defaults
- * smrt.configure({
+ * // Set application-level defaults
+ * config({
  *   logging: { level: 'debug' },
  *   metrics: { enabled: true },
  *   pubsub: { enabled: false }
  * });
+ *
+ * // Reset to defaults
+ * config.reset();
+ *
+ * // Get current configuration
+ * const current = config.toJSON();
+ *
+ * // Auto-convert to string
+ * console.log(`Config: ${config}`);
+ *
+ * // Auto-convert to JSON
+ * JSON.stringify(config);
  *
  * // All SmrtClass instances now use these defaults
  * const product = new Product({ name: 'Widget' });
@@ -131,29 +143,31 @@ class SmrtConfig {
  * // product has logging at debug level and metrics enabled
  * ```
  */
-export const smrt = {
-  /**
-   * Configure global signal defaults
-   *
-   * @param config - Global configuration
-   */
-  configure(config: GlobalSignalConfig): void {
-    SmrtConfig.getInstance().configure(config);
-  },
+function config(options: GlobalSignalConfig): void {
+  SmrtConfig.getInstance().configure(options);
+}
 
-  /**
-   * Get current global configuration
-   *
-   * @returns Current configuration
-   */
-  getConfig(): GlobalSignalConfig {
-    return SmrtConfig.getInstance().getConfig();
-  },
-
-  /**
-   * Reset to default configuration
-   */
-  reset(): void {
-    SmrtConfig.getInstance().reset();
-  },
+/**
+ * Reset configuration to defaults
+ */
+config.reset = (): void => {
+  SmrtConfig.getInstance().reset();
 };
+
+/**
+ * Get current configuration as object
+ * Called automatically by JSON.stringify()
+ *
+ * @returns Current global configuration
+ */
+config.toJSON = (): GlobalSignalConfig => SmrtConfig.getInstance().getConfig();
+
+/**
+ * Convert configuration to string
+ * Called automatically in string contexts
+ *
+ * @returns JSON string representation of configuration
+ */
+config.toString = (): string => JSON.stringify(SmrtConfig.getInstance().getConfig(), null, 2);
+
+export { config };
