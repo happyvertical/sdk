@@ -158,9 +158,7 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
    * ```
    */
   static async create<T extends SmrtCollection<any>>(
-    this: new (
-      options: SmrtCollectionOptions,
-    ) => T,
+    this: any,
     options: SmrtClassOptions = {},
   ): Promise<T> {
     // Extract only collection-compatible options from broader SmrtClassOptions
@@ -191,7 +189,8 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
     };
 
     // Create instance using protected constructor
-    const instance = new SmrtCollection(collectionOptions);
+    // biome-ignore lint: Must use 'new this()' to create subclass instances
+    const instance = new this(collectionOptions);
 
     // Perform async initialization
     await instance.initialize();
