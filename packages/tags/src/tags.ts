@@ -151,8 +151,7 @@ export class TagCollection extends SmrtCollection<Tag> {
 
     // Copy aliases from fromTag to toTag
     const { TagAliasCollection } = await import('./tag-aliases');
-    const aliasCollection = new TagAliasCollection(this.options);
-    await aliasCollection.initialize();
+    const aliasCollection = await TagAliasCollection.create(this.options);
 
     const aliases = await aliasCollection.list({
       where: { tagSlug: fromSlug },
@@ -180,8 +179,7 @@ export class TagCollection extends SmrtCollection<Tag> {
 
     const tags = await this.list({ where });
     const { TagAliasCollection } = await import('./tag-aliases');
-    const aliasCollection = new TagAliasCollection(this.options);
-    await aliasCollection.initialize();
+    const aliasCollection = await TagAliasCollection.create(this.options);
 
     let deletedCount = 0;
 

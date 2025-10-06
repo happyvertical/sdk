@@ -63,8 +63,9 @@ export class ProfileRelationship extends SmrtObject {
       '../collections/ProfileRelationshipTermCollection'
     );
 
-    const termCollection = new ProfileRelationshipTermCollection(this.options);
-    await termCollection.initialize();
+    const termCollection = await ProfileRelationshipTermCollection.create(
+      this.options,
+    );
 
     const term = await termCollection.create({
       relationshipId: this.id,
@@ -97,8 +98,9 @@ export class ProfileRelationship extends SmrtObject {
       '../collections/ProfileRelationshipTermCollection'
     );
 
-    const termCollection = new ProfileRelationshipTermCollection(this.options);
-    await termCollection.initialize();
+    const termCollection = await ProfileRelationshipTermCollection.create(
+      this.options,
+    );
 
     return await termCollection.getByRelationship(this.id);
   }
@@ -113,8 +115,9 @@ export class ProfileRelationship extends SmrtObject {
       '../collections/ProfileRelationshipTermCollection'
     );
 
-    const termCollection = new ProfileRelationshipTermCollection(this.options);
-    await termCollection.initialize();
+    const termCollection = await ProfileRelationshipTermCollection.create(
+      this.options,
+    );
 
     return await termCollection.getActiveTerm(this.id);
   }

@@ -80,8 +80,9 @@ export class Profile extends SmrtObject {
     );
 
     // Get or create metafield collection
-    const metafieldCollection = new ProfileMetafieldCollection(this.options);
-    await metafieldCollection.initialize();
+    const metafieldCollection = await ProfileMetafieldCollection.create(
+      this.options,
+    );
 
     // Find the metafield by slug
     const metafield = await metafieldCollection.getBySlug(metafieldSlug);
@@ -93,8 +94,9 @@ export class Profile extends SmrtObject {
     await metafield.validateValue(value);
 
     // Get or create metadata collection
-    const metadataCollection = new ProfileMetadataCollection(this.options);
-    await metadataCollection.initialize();
+    const metadataCollection = await ProfileMetadataCollection.create(
+      this.options,
+    );
 
     // Check if metadata already exists
     const existing = await metadataCollection.list({
@@ -128,8 +130,9 @@ export class Profile extends SmrtObject {
       '../collections/ProfileMetadataCollection'
     );
 
-    const metadataCollection = new ProfileMetadataCollection(this.options);
-    await metadataCollection.initialize();
+    const metadataCollection = await ProfileMetadataCollection.create(
+      this.options,
+    );
 
     return await metadataCollection.getMetadataObject(this.id);
   }
@@ -158,16 +161,18 @@ export class Profile extends SmrtObject {
       '../collections/ProfileMetadataCollection'
     );
 
-    const metafieldCollection = new ProfileMetafieldCollection(this.options);
-    await metafieldCollection.initialize();
+    const metafieldCollection = await ProfileMetafieldCollection.create(
+      this.options,
+    );
 
     const metafield = await metafieldCollection.getBySlug(metafieldSlug);
     if (!metafield) {
       throw new Error(`Metafield '${metafieldSlug}' not found`);
     }
 
-    const metadataCollection = new ProfileMetadataCollection(this.options);
-    await metadataCollection.initialize();
+    const metadataCollection = await ProfileMetadataCollection.create(
+      this.options,
+    );
 
     const existing = await metadataCollection.list({
       where: { profileId: this.id, metafieldId: metafield.id },
@@ -202,10 +207,8 @@ export class Profile extends SmrtObject {
     );
 
     // Get relationship type
-    const relationshipTypeCollection = new ProfileRelationshipTypeCollection(
-      this.options,
-    );
-    await relationshipTypeCollection.initialize();
+    const relationshipTypeCollection =
+      await ProfileRelationshipTypeCollection.create(this.options);
 
     const relationshipType =
       await relationshipTypeCollection.getBySlug(relationshipSlug);
@@ -214,10 +217,9 @@ export class Profile extends SmrtObject {
     }
 
     // Check if relationship already exists
-    const relationshipCollection = new ProfileRelationshipCollection(
+    const relationshipCollection = await ProfileRelationshipCollection.create(
       this.options,
     );
-    await relationshipCollection.initialize();
 
     const exists = await relationshipCollection.exists(
       this.id,
@@ -263,20 +265,17 @@ export class Profile extends SmrtObject {
       '../collections/ProfileRelationshipTypeCollection'
     );
 
-    const relationshipCollection = new ProfileRelationshipCollection(
+    const relationshipCollection = await ProfileRelationshipCollection.create(
       this.options,
     );
-    await relationshipCollection.initialize();
 
     const direction = options?.direction || 'all';
 
     // Get type ID if typeSlug is provided
     let typeId: string | undefined;
     if (options?.typeSlug) {
-      const relationshipTypeCollection = new ProfileRelationshipTypeCollection(
-        this.options,
-      );
-      await relationshipTypeCollection.initialize();
+      const relationshipTypeCollection =
+        await ProfileRelationshipTypeCollection.create(this.options);
 
       const relationshipType = await relationshipTypeCollection.getBySlug(
         options.typeSlug,
@@ -310,8 +309,7 @@ export class Profile extends SmrtObject {
       direction: 'all',
     });
 
-    const profileCollection = new ProfileCollection(this.options);
-    await profileCollection.initialize();
+    const profileCollection = await ProfileCollection.create(this.options);
 
     const relatedProfiles: Profile[] = [];
     const seenIds = new Set<string>();
@@ -353,10 +351,8 @@ export class Profile extends SmrtObject {
     );
 
     // Get relationship type
-    const relationshipTypeCollection = new ProfileRelationshipTypeCollection(
-      this.options,
-    );
-    await relationshipTypeCollection.initialize();
+    const relationshipTypeCollection =
+      await ProfileRelationshipTypeCollection.create(this.options);
 
     const relationshipType =
       await relationshipTypeCollection.getBySlug(relationshipSlug);
@@ -365,10 +361,9 @@ export class Profile extends SmrtObject {
     }
 
     // Find and delete the relationship
-    const relationshipCollection = new ProfileRelationshipCollection(
+    const relationshipCollection = await ProfileRelationshipCollection.create(
       this.options,
     );
-    await relationshipCollection.initialize();
 
     const relationships = await relationshipCollection.list({
       where: {
