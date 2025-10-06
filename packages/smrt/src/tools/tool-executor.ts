@@ -202,7 +202,10 @@ export async function executeToolCall(
         className: instance.constructor?.name ?? 'Unknown',
         method: methodName,
         type: 'error',
-        args: [{}],
+        // Preserve actual args if parsed, otherwise include raw arguments for debugging
+        args: [
+          typeof args !== 'undefined' ? args : toolCall.function.arguments,
+        ],
         error: error instanceof Error ? error : new Error(String(error)),
         duration: Date.now() - startTime,
         timestamp: Date.now(),

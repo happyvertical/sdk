@@ -28,6 +28,12 @@ export interface SanitizationConfig {
    * Default: '[REDACTED]'
    */
   redactedValue?: string;
+
+  /**
+   * Maximum number of stack trace lines to include in sanitized errors
+   * Default: 10
+   */
+  maxStackLines?: number;
 }
 
 /**
@@ -74,6 +80,7 @@ export class SignalSanitizer {
       redactKeys: config.redactKeys ?? DEFAULT_REDACT_KEYS,
       replacer: config.replacer ?? this.defaultReplacer.bind(this),
       redactedValue: config.redactedValue ?? '[REDACTED]',
+      maxStackLines: config.maxStackLines ?? 10,
     };
   }
 
@@ -130,7 +137,10 @@ export class SignalSanitizer {
         message: value.message,
         name: value.name,
         stack: value.stack
-          ? value.stack.split('\n').slice(0, 5).join('\n')
+          ? value.stack
+              .split('\n')
+              .slice(0, this.config.maxStackLines)
+              .join('\n')
           : undefined,
       };
     }
