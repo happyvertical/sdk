@@ -430,7 +430,7 @@ export class APIGenerator {
     collection: SmrtCollection<any>,
     req: Request,
   ): Promise<Response> {
-    const data = await req.json();
+    const data = (await req.json()) as Record<string, any>;
     const object = await collection.create({ ...data, _skipLoad: true });
     await object.save();
     return this.createJsonResponse(object, 201);

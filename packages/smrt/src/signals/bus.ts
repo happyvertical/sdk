@@ -26,7 +26,7 @@ export class SignalBus {
    * @param options - Configuration options
    */
   constructor(options?: { sanitization?: SanitizationConfig | false }) {
-    if (options?.sanitization && options.sanitization !== false) {
+    if (options && options.sanitization !== false && options.sanitization) {
       this.sanitizer = new SignalSanitizer(options.sanitization);
     }
   }
