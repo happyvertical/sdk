@@ -203,8 +203,7 @@ export class PlaceCollection extends SmrtCollection<Place> {
     parentId?: string,
   ): Promise<Place> {
     // Get or create place type
-    const typeCollection = new PlaceTypeCollection(this.options);
-    await typeCollection.initialize();
+    const typeCollection = await PlaceTypeCollection.create(this.options);
 
     const slug = typeSlug || location.type || 'address';
     const placeType = await typeCollection.getOrCreate(slug);
@@ -269,8 +268,7 @@ export class PlaceCollection extends SmrtCollection<Place> {
    */
   async getByType(typeSlug: string): Promise<Place[]> {
     // Get type ID
-    const typeCollection = new PlaceTypeCollection(this.options);
-    await typeCollection.initialize();
+    const typeCollection = await PlaceTypeCollection.create(this.options);
 
     const placeType = await typeCollection.getBySlug(typeSlug);
     if (!placeType) return [];

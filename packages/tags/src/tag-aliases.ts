@@ -60,8 +60,7 @@ export class TagAliasCollection extends SmrtCollection<TagAlias> {
     const tagSlugs = [...new Set(aliases.map((a) => a.tagSlug))];
 
     const { TagCollection } = await import('./tags');
-    const tagCollection = new TagCollection(this.options);
-    await tagCollection.initialize();
+    const tagCollection = await TagCollection.create(this.options);
 
     const tags: Tag[] = [];
     for (const slug of tagSlugs) {

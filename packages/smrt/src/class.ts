@@ -5,6 +5,15 @@ import { FilesystemAdapter } from '@have/files';
 import type { DatabaseInterface } from '@have/sql';
 import { getDatabase } from '@have/sql';
 import type { PersistenceConfig } from './persistence/types';
+import type { ISignalAdapter } from '@have/types';
+import type { LoggerConfig } from '@have/logger';
+import { SignalBus } from './signals/bus.js';
+import type {
+  GlobalSignalConfig,
+  MetricsConfig,
+  PubSubConfig,
+} from './config.js';
+import { config } from './config.js';
 
 /**
  * Configuration options for the SmrtClass
@@ -41,6 +50,36 @@ export interface SmrtClassOptions {
    * AI client configuration options or instance
    */
   ai?: AIClientOptions | AIClient;
+
+  /**
+   * Logging configuration (overrides global default)
+   */
+  logging?: LoggerConfig;
+
+  /**
+   * Metrics configuration (overrides global default)
+   */
+  metrics?: MetricsConfig;
+
+  /**
+   * Pub/Sub configuration (overrides global default)
+   */
+  pubsub?: PubSubConfig;
+
+  /**
+   * Sanitization configuration (overrides global default)
+   */
+  sanitization?: import('./config.js').GlobalSignalConfig['sanitization'];
+
+  /**
+   * Custom signal configuration (overrides global default)
+   */
+  signals?: {
+    /** Shared signal bus instance */
+    bus?: SignalBus;
+    /** Additional custom adapters */
+    adapters?: ISignalAdapter[];
+  };
 }
 
 /**
@@ -70,6 +109,16 @@ export class SmrtClass {
    * Class name used for identification
    */
   protected _className!: string;
+
+  /**
+   * Signal bus for method execution tracking
+   */
+  protected _signalBus?: SignalBus;
+
+  /**
+   * Adapters registered by this instance (for cleanup)
+   */
+  private _registeredAdapters: ISignalAdapter[] = [];
 
   /**
    * Configuration options provided to the class
@@ -104,7 +153,120 @@ export class SmrtClass {
     if (this.options.ai) {
       this._ai = await AIClient.create(this.options.ai);
     }
+    await this.initializeSignals();
     return this;
+  }
+
+  /**
+   * Initialize signal bus and adapters
+   *
+   * Merges global configuration with instance-specific overrides.
+   * Registers built-in and custom adapters based on configuration.
+   */
+  private async initializeSignals(): Promise<void> {
+    const globalConfig = config.toJSON();
+    const effectiveConfig = this.mergeSignalConfig(globalConfig);
+
+    // If a shared bus is provided, always use it (don't create new adapters)
+    if (this.options.signals?.bus) {
+      this._signalBus = this.options.signals.bus;
+      return;
+    }
+
+    // Otherwise, check if we should initialize signals based on config
+    if (!this.shouldInitializeSignals(effectiveConfig)) {
+      return;
+    }
+
+    this._signalBus = new SignalBus({
+      sanitization: effectiveConfig.sanitization,
+    });
+    await this.registerAdapters(effectiveConfig);
+  }
+
+  /**
+   * Merge global and instance signal configuration
+   *
+   * Instance configuration takes priority over global defaults.
+   *
+   * @param globalConfig - Global configuration from smrt.configure()
+   * @returns Merged configuration
+   */
+  private mergeSignalConfig(
+    globalConfig: GlobalSignalConfig,
+  ): GlobalSignalConfig {
+    return {
+      logging: this.options.logging ?? globalConfig.logging,
+      metrics: this.options.metrics ?? globalConfig.metrics,
+      pubsub: this.options.pubsub ?? globalConfig.pubsub,
+      sanitization: this.options.sanitization ?? globalConfig.sanitization,
+      signals: {
+        bus: this.options.signals?.bus ?? globalConfig.signals?.bus,
+        adapters: [
+          ...(globalConfig.signals?.adapters ?? []),
+          ...(this.options.signals?.adapters ?? []),
+        ],
+      },
+    };
+  }
+
+  /**
+   * Check if signals should be initialized
+   *
+   * Signals are initialized if any adapter is configured.
+   *
+   * @param config - Effective signal configuration
+   * @returns True if signals should be initialized
+   */
+  private shouldInitializeSignals(config: GlobalSignalConfig): boolean {
+    return !!(
+      config.logging !== false ||
+      config.metrics?.enabled ||
+      config.pubsub?.enabled ||
+      config.signals?.adapters?.length
+    );
+  }
+
+  /**
+   * Register signal adapters based on configuration
+   *
+   * @param config - Effective signal configuration
+   */
+  private async registerAdapters(config: GlobalSignalConfig): Promise<void> {
+    if (!this._signalBus) return;
+
+    // Logging adapter (default: enabled with console)
+    if (config.logging !== false) {
+      const { createLogger, LoggerAdapter } = await import('@have/logger');
+      const logger = createLogger(config.logging ?? true);
+      const adapter = new LoggerAdapter(logger);
+      this._signalBus.register(adapter);
+      this._registeredAdapters.push(adapter);
+    }
+
+    // Metrics adapter (default: disabled)
+    if (config.metrics?.enabled) {
+      const { MetricsAdapter } = await import('./adapters/metrics.js');
+      const adapter = new MetricsAdapter();
+      this._signalBus.register(adapter);
+      this._registeredAdapters.push(adapter);
+    }
+
+    // Pub/Sub adapter (default: disabled)
+    if (config.pubsub?.enabled) {
+      const { PubSubAdapter } = await import('./adapters/pubsub.js');
+      const adapter = new PubSubAdapter();
+      this._signalBus.register(adapter);
+      this._registeredAdapters.push(adapter);
+    }
+
+    // Custom adapters
+    if (config.signals?.adapters) {
+      for (const adapter of config.signals.adapters) {
+        this._signalBus.register(adapter);
+        this._registeredAdapters.push(adapter);
+      }
+    }
   }
 
   /**
@@ -126,5 +288,39 @@ export class SmrtClass {
    */
   get ai() {
     return this._ai;
+  }
+
+  /**
+   * Gets the signal bus instance
+   *
+   * @returns Signal bus if signals are enabled, undefined otherwise
+   */
+  get signalBus(): SignalBus | undefined {
+    return this._signalBus;
+  }
+
+  /**
+   * Cleanup method to prevent memory leaks
+   *
+   * Unregisters all adapters from the signal bus that were registered
+   * by this instance. Call this when the SmrtClass instance is no longer
+   * needed to prevent memory leaks.
+   *
+   * @example
+   * ```typescript
+   * const product = new Product({ name: 'Widget' });
+   * await product.initialize();
+   * // ... use product ...
+   * product.destroy(); // Clean up when done
+   * ```
+   */
+  destroy(): void {
+    // Only unregister adapters if we own the bus (not shared)
+    if (this._signalBus && !this.options.signals?.bus) {
+      for (const adapter of this._registeredAdapters) {
+        this._signalBus.unregister(adapter);
+      }
+      this._registeredAdapters = [];
+    }
   }
 }

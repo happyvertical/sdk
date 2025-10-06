@@ -26,12 +26,23 @@ export * from './generators/index';
 export * from './object';
 export * from './pleb';
 export * from './registry';
-export { smrt } from './registry';
+export { smrt as smrtRegistry } from './registry';
+// Global configuration (callable function)
+export { config } from './config';
+export type {
+  GlobalSignalConfig,
+  MetricsConfig,
+  PubSubConfig,
+} from './config';
 // Runtime utilities
 export * from './runtime/index';
 // Static manifest (generated at build time)
 export * from './manifest/index';
 // AI function calling tools
 export * from './tools/index';
+// Universal signaling system
+export * from './signals/index';
+// Built-in signal adapters
+export * from './adapters/index';
 // Vite plugin for auto-service generation
 export { smrtPlugin } from './vite-plugin/index';

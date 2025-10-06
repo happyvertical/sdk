@@ -103,6 +103,12 @@ jobs:
       - name: Build packages
         run: pnpm run build
 
+      - name: Type check
+        run: pnpm run typecheck
+
+      - name: Lint code
+        run: pnpm run lint
+
       - name: Run tests
         id: test-execution
         run: pnpm test

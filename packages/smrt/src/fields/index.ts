@@ -134,6 +134,45 @@ export class Field {
   }
 
   /**
+   * String coercion - allows Field instances to be used naturally in string contexts
+   * @returns String representation of the field's value
+   * @example
+   * ```typescript
+   * const name = text({ default: 'John' });
+   * console.log(name.toLowerCase()); // 'john' - toString() called automatically
+   * ```
+   */
+  toString(): string {
+    return this.value?.toString() || '';
+  }
+
+  /**
+   * Value coercion - returns the actual value for comparisons and operations
+   * @returns The field's value
+   * @example
+   * ```typescript
+   * const age = integer({ default: 25 });
+   * console.log(age + 5); // 30 - valueOf() called automatically
+   * ```
+   */
+  valueOf(): any {
+    return this.value;
+  }
+
+  /**
+   * JSON serialization - returns the value for JSON.stringify()
+   * @returns The field's value for JSON serialization
+   * @example
+   * ```typescript
+   * const data = { name: text({ default: 'John' }) };
+   * JSON.stringify(data); // {"name":"John"} - toJSON() called automatically
+   * ```
+   */
+  toJSON(): any {
+    return this.value;
+  }
+
+  /**
    * Get the SQL type for this field based on the field type
    *
    * @returns SQL type string (e.g., 'TEXT', 'INTEGER', 'REAL')
