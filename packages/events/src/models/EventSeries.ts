@@ -148,7 +148,15 @@ export class EventSeries extends SmrtObject {
     // Import Profile from @have/profiles
     try {
       const { ProfileCollection } = await import('@have/profiles');
-      const collection = new ProfileCollection(this.options as any);
+      // Extract only collection-compatible options (no id, name, slug, context)
+      const { persistence, db, ai, fs, _className } = this.options;
+      const collection = new ProfileCollection({
+        persistence,
+        db,
+        ai,
+        fs,
+        _className,
+      });
       await collection.initialize();
 
       return await collection.get({ id: this.organizerId });
