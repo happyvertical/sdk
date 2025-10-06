@@ -151,7 +151,7 @@ export class Event extends SmrtObject {
 
     try {
       const { PlaceCollection } = await import('@have/places');
-      const collection = new PlaceCollection(this.options);
+      const collection = new PlaceCollection(this.options as any);
       await collection.initialize();
 
       return await collection.get({ id: this.placeId });

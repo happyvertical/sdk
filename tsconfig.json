@@ -44,14 +44,25 @@
     "**/*.spec.ts"
   ],
   "references": [
+    { "path": "./packages/types" },
     { "path": "./packages/utils" },
+    { "path": "./packages/logger" },
     { "path": "./packages/files" },
-    { "path": "./packages/spider" },
+    { "path": "./packages/cache" },
+    { "path": "./packages/geo" },
+    { "path": "./packages/translator" },
     { "path": "./packages/sql" },
     { "path": "./packages/ocr" },
     { "path": "./packages/pdf" },
     { "path": "./packages/ai" },
+    { "path": "./packages/spider" },
     { "path": "./packages/smrt" },
+    { "path": "./packages/tags" },
+    { "path": "./packages/places" },
+    { "path": "./packages/profiles" },
+    { "path": "./packages/events" },
+    { "path": "./packages/assets" },
+    { "path": "./packages/gnode" },
     { "path": "./packages/content" },
     { "path": "./packages/products" }
   ]

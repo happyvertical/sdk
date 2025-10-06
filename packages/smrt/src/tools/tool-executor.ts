@@ -129,9 +129,11 @@ export async function executeToolCall(
   const methodName = toolCall.function.name;
   const executionId = signalBus?.generateExecutionId() ?? toolCall.id;
 
+  // Declare args outside try blocks so it's accessible in catch block
+  let args: Record<string, any> | undefined;
+
   try {
     // Parse arguments
-    let args: Record<string, any>;
     try {
       args = JSON.parse(toolCall.function.arguments);
     } catch (parseError) {
@@ -139,6 +141,15 @@ export async function executeToolCall(
         'arguments',
         toolCall.function.arguments,
         'Arguments must be valid JSON',
+      );
+    }
+
+    // Type guard - args is always defined after successful parsing
+    if (!args) {
+      throw ValidationError.invalidValue(
+        'arguments',
+        toolCall.function.arguments,
+        'Arguments must be a valid object',
       );
     }
 

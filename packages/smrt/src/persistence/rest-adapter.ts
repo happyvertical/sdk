@@ -299,7 +299,7 @@ export class RestPersistenceAdapter implements PersistenceAdapter {
         );
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as any;
       const items = Array.isArray(data) ? data : data.items || [];
 
       // Create instances from response data
@@ -390,7 +390,7 @@ export class RestPersistenceAdapter implements PersistenceAdapter {
         );
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as any;
 
       // Handle different response formats
       if (typeof data === 'number') {
