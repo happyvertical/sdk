@@ -105,8 +105,7 @@ export class Tag extends SmrtObject {
     if (!this.parentSlug) return null;
 
     const { TagCollection } = await import('./tags');
-    const collection = new TagCollection(this.options);
-    await collection.initialize();
+    const collection = await TagCollection.create(this.options);
 
     return await collection.get({ slug: this.parentSlug });
   }
@@ -118,8 +117,7 @@ export class Tag extends SmrtObject {
    */
   async getChildren(): Promise<Tag[]> {
     const { TagCollection } = await import('./tags');
-    const collection = new TagCollection(this.options);
-    await collection.initialize();
+    const collection = await TagCollection.create(this.options);
 
     return await collection.list({ where: { parentSlug: this.slug } });
   }

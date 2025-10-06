@@ -110,8 +110,7 @@ export class EventParticipant extends SmrtObject {
 
     try {
       const { ProfileCollection } = await import('@have/profiles');
-      const collection = new ProfileCollection(this.options);
-      await collection.initialize();
+      const collection = await ProfileCollection.create(this.options);
 
       return await collection.get({ id: this.profileId });
     } catch {

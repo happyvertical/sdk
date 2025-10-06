@@ -46,6 +46,74 @@ The build process follows a specific order to respect internal dependencies:
 7. `@have/spider` (web crawling with files integration)
 8. `@have/smrt` (core agent framework, depends on ai, files, sql, utils)
 
+### TypeScript Project References
+
+The SDK uses TypeScript project references for proper type resolution across packages. **This is critical for avoiding module resolution conflicts.**
+
+#### Configuration Requirements
+
+Each package must have:
+1. `composite: true` in its tsconfig.json
+2. `outDir`, `rootDir`, and `tsBuildInfoFile` properly configured
+3. Entry in root tsconfig.json `references` array
+
+**Example package tsconfig.json:**
+```json
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "tsBuildInfoFile": "./dist/.tsbuildinfo"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+}
+```
+
+**Root tsconfig.json references (must be complete):**
+```json
+{
+  "references": [
+    { "path": "./packages/types" },
+    { "path": "./packages/utils" },
+    // ... all 21 packages must be listed
+  ]
+}
+```
+
+#### Common TypeScript Issues and Fixes
+
+**Issue**: `Argument of type 'SmrtObjectOptions' is not assignable to parameter of type 'SmrtCollectionOptions'`
+
+**Cause**: When passing `this.options` from a SmrtObject to a collection constructor, TypeScript sees incompatible types because SmrtObjectOptions has additional properties (id, name, slug, context) that collections don't need.
+
+**Fix**: Extract only collection-compatible options when creating collections:
+```typescript
+// ❌ WRONG - Type error
+const collection = new ProfileCollection(this.options);
+
+// ✅ CORRECT - Extract only collection options
+const { persistence, db, ai, fs, _className } = this.options;
+const collection = new ProfileCollection({ persistence, db, ai, fs, _className });
+```
+
+**Never use `as any` to bypass type errors** - always find and fix the root cause.
+
+#### Verifying TypeScript Configuration
+
+```bash
+# Check that all packages have proper project references
+npx tsc --build --dry
+
+# Force rebuild all projects
+npx tsc --build --force
+
+# Use Vite for actual builds (not raw tsc)
+npm run build
+```
+
 ### SMRT Modules (smrt/ directory)
 
 The following packages are SMRT-specific modules located in the `smrt/` directory and excluded from the main build:

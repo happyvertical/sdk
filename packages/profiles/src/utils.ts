@@ -25,8 +25,7 @@ export async function getProfileMetadata(
     './collections/ProfileMetadataCollection'
   );
 
-  const metadataCollection = new ProfileMetadataCollection(options);
-  await metadataCollection.initialize();
+  const metadataCollection = await ProfileMetadataCollection.create(options);
 
   return await metadataCollection.getMetadataObject(profileId);
 }
@@ -47,8 +46,7 @@ export async function setProfileMetadata(
 ): Promise<void> {
   const { ProfileCollection } = await import('./collections/ProfileCollection');
 
-  const profileCollection = new ProfileCollection(options);
-  await profileCollection.initialize();
+  const profileCollection = await ProfileCollection.create(options);
 
   const profile = await profileCollection.get({ id: profileId });
   if (!profile) {
@@ -79,8 +77,7 @@ export async function findProfilesByMeta(
   );
 
   // Get metafield by slug
-  const metafieldCollection = new ProfileMetafieldCollection(options);
-  await metafieldCollection.initialize();
+  const metafieldCollection = await ProfileMetafieldCollection.create(options);
 
   const metafield = await metafieldCollection.getBySlug(metafieldSlug);
   if (!metafield) {
@@ -88,8 +85,7 @@ export async function findProfilesByMeta(
   }
 
   // Find all metadata with this metafield and value
-  const metadataCollection = new ProfileMetadataCollection(options);
-  await metadataCollection.initialize();
+  const metadataCollection = await ProfileMetadataCollection.create(options);
 
   return await metadataCollection.findProfilesByMetadata(metafield.id, value);
 }

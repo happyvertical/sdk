@@ -44,14 +44,12 @@ describe('REST Persistence Adapter Integration', () => {
 
   beforeAll(async () => {
     // Setup server with SQL-backed SMRT object
-    serverCollection = new ProductCollection({
+    serverCollection = await ProductCollection.create({
       db: {
         url: ':memory:',
         type: 'sqlite',
       },
     });
-
-    await serverCollection.initialize();
 
     // Create REST API server
     const apiGenerator = new APIGenerator(
@@ -78,15 +76,13 @@ describe('REST Persistence Adapter Integration', () => {
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     // Setup client with REST persistence
-    clientCollection = new ProductCollection({
+    clientCollection = await ProductCollection.create({
       persistence: {
         type: 'rest',
         baseUrl: `${serverUrl}/api/products`,
         timeout: 5000,
       },
     });
-
-    await clientCollection.initialize();
   });
 
   afterAll(async () => {

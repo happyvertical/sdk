@@ -7,6 +7,8 @@
 import { SmrtObject, smrt } from '@have/smrt';
 import type { Tag } from '@have/tags';
 import type { AssetOptions } from './types';
+import type { AssetType } from './asset-type';
+import type { AssetStatus } from './asset-status';
 
 @smrt({
   api: { include: ['list', 'get', 'create', 'update', 'delete'] },
@@ -132,7 +134,7 @@ export class Asset extends SmrtObject {
    *
    * @returns AssetType instance or null
    */
-  async getType(): Promise<any | null> {
+  async getType(): Promise<AssetType | null> {
     if (!this.typeSlug) return null;
 
     const { AssetType } = await import('./asset-type');
@@ -144,7 +146,7 @@ export class Asset extends SmrtObject {
    *
    * @returns AssetStatus instance or null
    */
-  async getStatus(): Promise<any | null> {
+  async getStatus(): Promise<AssetStatus | null> {
     if (!this.statusSlug) return null;
 
     const { AssetStatus } = await import('./asset-status');

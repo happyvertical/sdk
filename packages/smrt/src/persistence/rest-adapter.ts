@@ -109,7 +109,9 @@ export class RestPersistenceAdapter implements PersistenceAdapter {
         if (!object.name) {
           throw ValidationError.requiredField('name', object.constructor.name);
         }
-        (object as any)._slug = object.name
+        // Explicitly convert Field to string for TypeScript
+        const nameStr = String(object.name);
+        (object as any)._slug = nameStr
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '-')
           .replace(/(^-|-$)/g, '');
@@ -299,7 +301,7 @@ export class RestPersistenceAdapter implements PersistenceAdapter {
         );
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as any;
       const items = Array.isArray(data) ? data : data.items || [];
 
       // Create instances from response data
@@ -390,7 +392,7 @@ export class RestPersistenceAdapter implements PersistenceAdapter {
         );
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as any;
 
       // Handle different response formats
       if (typeof data === 'number') {

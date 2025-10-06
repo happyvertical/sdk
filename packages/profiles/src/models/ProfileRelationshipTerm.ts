@@ -28,9 +28,8 @@ export class ProfileRelationshipTerm extends SmrtObject {
 
   constructor(options: ProfileRelationshipTermOptions = {}) {
     super(options);
-    if (options.relationshipId) this.relationshipId = options.relationshipId;
-    if (options.startedAt) this.startedAt = options.startedAt;
-    if (options.endedAt) this.endedAt = options.endedAt;
+    // Field values are automatically set by initializePropertiesFromOptions()
+    // No need to manually assign Field properties here
   }
 
   /**
@@ -40,7 +39,12 @@ export class ProfileRelationshipTerm extends SmrtObject {
    */
   isActive(): boolean {
     if (!this.endedAt) return true;
-    return this.endedAt > new Date();
+    // Convert Field to Date for comparison
+    const endDate =
+      this.endedAt instanceof Date
+        ? this.endedAt
+        : new Date(String(this.endedAt));
+    return endDate > new Date();
   }
 
   /**
@@ -49,7 +53,8 @@ export class ProfileRelationshipTerm extends SmrtObject {
    * @param endedAt - End date for the term (defaults to now)
    */
   async end(endedAt: Date = new Date()): Promise<void> {
-    this.endedAt = endedAt;
+    // Assign to Field.value
+    (this.endedAt as any).value = endedAt;
     await this.save();
   }
 
@@ -59,9 +64,17 @@ export class ProfileRelationshipTerm extends SmrtObject {
    * @returns Duration in days
    */
   getDurationDays(): number {
-    const end = this.endedAt || new Date();
-    const start = this.startedAt;
-    const diffMs = end.getTime() - start.getTime();
+    // Convert Field instances to Date objects
+    const endValue = this.endedAt
+      ? this.endedAt instanceof Date
+        ? this.endedAt
+        : new Date(String(this.endedAt))
+      : new Date();
+    const startValue =
+      this.startedAt instanceof Date
+        ? this.startedAt
+        : new Date(String(this.startedAt));
+    const diffMs = endValue.getTime() - startValue.getTime();
     return Math.floor(diffMs / (1000 * 60 * 60 * 24));
   }
 }

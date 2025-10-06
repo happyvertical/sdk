@@ -123,8 +123,9 @@ export class SmrtObject extends SmrtClass {
 
   /**
    * Human-readable name, primarily for display purposes
+   * Can be a string value or a Field instance (for Field-based schema definition)
    */
-  public name: string | null | undefined = null;
+  public name?: string | Field | null = null;
 
   /**
    * Creation timestamp
@@ -368,8 +369,9 @@ export class SmrtObject extends SmrtClass {
     );
 
     // Add current instance values to the fields
+    // Use getPropertyValue to unwrap Field instances
     for (const key in fields) {
-      fields[key].value = this[key as keyof this];
+      fields[key].value = this.getPropertyValue(key);
     }
 
     return fields;
@@ -378,6 +380,7 @@ export class SmrtObject extends SmrtClass {
   /**
    * Custom JSON serialization
    * Returns a plain object with all field values for proper JSON.stringify() behavior
+   * Field instances automatically call their toJSON() method during serialization
    */
   toJSON() {
     const fields = this.getFields();
@@ -391,6 +394,7 @@ export class SmrtObject extends SmrtClass {
     };
 
     // Add all field values
+    // Field.toJSON() is called automatically for Field instances
     for (const [key, field] of Object.entries(fields)) {
       data[key] = field.value;
     }
@@ -470,7 +474,9 @@ export class SmrtObject extends SmrtClass {
   async getSlug() {
     if (!this.slug && this.name) {
       // Generate slug from name if not set
-      this.slug = this.name
+      // Explicitly convert Field to string for TypeScript
+      const nameStr = String(this.name);
+      this.slug = nameStr
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '');
@@ -641,6 +647,28 @@ export class SmrtObject extends SmrtClass {
    */
   protected getFieldValue(fieldName: string): any {
     return (this as any)[fieldName];
+  }
+
+  /**
+   * Gets the actual value from a property, whether it's a plain value or a Field instance
+   *
+   * Handles both simple and advanced field patterns:
+   * - Simple: `name: string = ''` - returns the string directly
+   * - Advanced: `name = text()` - extracts and returns field.value
+   *
+   * @param key - Property name to extract value from
+   * @returns The actual value (unwrapped from Field if necessary)
+   */
+  protected getPropertyValue(key: string): any {
+    const prop = (this as any)[key];
+
+    // If it's a Field instance, return its value
+    if (prop && typeof prop === 'object' && 'value' in prop && 'type' in prop) {
+      return prop.value;
+    }
+
+    // Otherwise return the property directly
+    return prop;
   }
 
   /**

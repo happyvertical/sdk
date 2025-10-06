@@ -29,9 +29,8 @@ export class ProfileMetadata extends SmrtObject {
 
   constructor(options: ProfileMetadataOptions = {}) {
     super(options);
-    if (options.profileId) this.profileId = options.profileId;
-    if (options.metafieldId) this.metafieldId = options.metafieldId;
-    if (options.value) this.value = options.value;
+    // Field values are automatically set by initializePropertiesFromOptions()
+    // No need to manually assign Field properties here
   }
 
   /**

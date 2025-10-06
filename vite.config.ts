@@ -98,7 +98,9 @@ function createPackageBuild(packageName: string, entryPath: string) {
         'redis',
 
         // Internal @have/* packages - externalize to avoid cross-package bundling issues
+        '@have/types',
         '@have/utils',
+        '@have/logger',
         '@have/files',
         '@have/cache',
         '@have/geo',
@@ -134,7 +136,9 @@ function createPackageBuild(packageName: string, entryPath: string) {
 
 // Package configurations with entry points
 const packages = [
+  { name: 'types', entry: 'packages/types/src/index.ts' },
   { name: 'utils', entry: 'packages/utils/src/index.ts' },
+  { name: 'logger', entry: 'packages/logger/src/index.ts' },
   { name: 'files', entry: 'packages/files/src/index.ts' },
   { name: 'cache', entry: 'packages/cache/src/index.ts' },
   { name: 'geo', entry: 'packages/geo/src/index.ts' },
@@ -199,6 +203,7 @@ export default defineConfig(({ command, mode }) => {
         ],
         resolve: {
           alias: {
+            '@have/types': resolve(__dirname, 'packages/types/src'),
             '@have/utils': resolve(__dirname, 'packages/utils/src'),
             '@have/files': resolve(__dirname, 'packages/files/src'),
             '@have/cache': resolve(__dirname, 'packages/cache/src'),
@@ -232,6 +237,7 @@ export default defineConfig(({ command, mode }) => {
   return {
     resolve: {
       alias: {
+        '@have/types': resolve(__dirname, 'packages/types/src'),
         '@have/utils': resolve(__dirname, 'packages/utils/src'),
         '@have/files': resolve(__dirname, 'packages/files/src'),
         '@have/cache': resolve(__dirname, 'packages/cache/src'),

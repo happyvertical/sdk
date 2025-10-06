@@ -439,6 +439,28 @@ importers:
         specifier: ^3.2.4
         version: 3.2.4(@types/debug@4.1.12)(@types/node@24.0.0)(happy-dom@18.0.1)(jiti@1.21.7)(jsdom@26.1.0)(terser@5.44.0)(tsx@4.20.5)(yaml@2.8.1)
 
+  packages/logger:
+    dependencies:
+      '@have/types':
+        specifier: workspace:*
+        version: link:../types
+      '@have/utils':
+        specifier: workspace:*
+        version: link:../utils
+    devDependencies:
+      '@types/node':
+        specifier: 24.0.0
+        version: 24.0.0
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.2
+      vite:
+        specifier: ^5.4.11
+        version: 5.4.20(@types/node@24.0.0)(terser@5.44.0)
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@24.0.0)(happy-dom@18.0.1)(jsdom@26.1.0)(terser@5.44.0)
+
   packages/ocr:
     dependencies:
       '@gutenye/ocr-node':
@@ -596,9 +618,15 @@ importers:
       '@have/files':
         specifier: workspace:*
         version: link:../files
+      '@have/logger':
+        specifier: workspace:*
+        version: link:../logger
       '@have/sql':
         specifier: workspace:*
         version: link:../sql
+      '@have/types':
+        specifier: workspace:*
+        version: link:../types
       '@have/utils':
         specifier: workspace:*
         version: link:../utils
@@ -759,6 +787,24 @@ importers:
       deepl-node:
         specifier: ^1.14.0
         version: 1.19.1
+    devDependencies:
+      '@types/node':
+        specifier: 24.0.0
+        version: 24.0.0
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.2
+      vite:
+        specifier: 7.1.3
+        version: 7.1.3(@types/node@24.0.0)(jiti@1.21.7)(terser@5.44.0)(tsx@4.20.5)(yaml@2.8.1)
+      vite-plugin-dts:
+        specifier: 4.3.0
+        version: 4.3.0(@types/node@24.0.0)(rollup@4.52.2)(typescript@5.9.2)(vite@7.1.3(@types/node@24.0.0)(jiti@1.21.7)(terser@5.44.0)(tsx@4.20.5)(yaml@2.8.1))
+      vitest:
+        specifier: ^3.2.4
+        version: 3.2.4(@types/debug@4.1.12)(@types/node@24.0.0)(happy-dom@18.0.1)(jiti@1.21.7)(jsdom@26.1.0)(terser@5.44.0)(tsx@4.20.5)(yaml@2.8.1)
+
+  packages/types:
     devDependencies:
       '@types/node':
         specifier: 24.0.0

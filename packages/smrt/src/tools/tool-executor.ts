@@ -4,7 +4,9 @@
  * This module handles runtime execution of AI tool calls on SMRT object instances.
  */
 
-import { RuntimeError, ValidationError } from '../errors';
+import { RuntimeError, ValidationError } from '../errors.js';
+import type { Signal } from '@have/types';
+import type { SignalBus } from '../signals/bus.js';
 
 /**
  * Tool call structure from AI response
@@ -114,19 +116,24 @@ export function validateToolCall(
  * @param instance - Object instance to call method on
  * @param toolCall - Tool call from AI
  * @param allowedMethods - List of methods AI is allowed to call
+ * @param signalBus - Optional signal bus for emitting execution events
  * @returns Result of the tool call execution
  */
 export async function executeToolCall(
   instance: any,
   toolCall: ToolCall,
   allowedMethods: string[],
+  signalBus?: SignalBus,
 ): Promise<ToolCallResult> {
   const startTime = Date.now();
   const methodName = toolCall.function.name;
+  const executionId = signalBus?.generateExecutionId() ?? toolCall.id;
+
+  // Declare args outside try blocks so it's accessible in catch block
+  let args: Record<string, any> | undefined;
 
   try {
     // Parse arguments
-    let args: Record<string, any>;
     try {
       args = JSON.parse(toolCall.function.arguments);
     } catch (parseError) {
@@ -134,6 +141,15 @@ export async function executeToolCall(
         'arguments',
         toolCall.function.arguments,
         'Arguments must be valid JSON',
+      );
+    }
+
+    // Type guard - args is always defined after successful parsing
+    if (!args) {
+      throw ValidationError.invalidValue(
+        'arguments',
+        toolCall.function.arguments,
+        'Arguments must be a valid object',
       );
     }
 
@@ -147,8 +163,38 @@ export async function executeToolCall(
       );
     }
 
+    // Emit start signal
+    if (signalBus) {
+      const startSignal: Signal = {
+        id: executionId,
+        objectId: instance.id ?? 'unknown',
+        className: instance.constructor?.name ?? 'Unknown',
+        method: methodName,
+        type: 'start',
+        args: [args], // Wrap in array for consistency
+        timestamp: Date.now(),
+      };
+      await signalBus.emit(startSignal);
+    }
+
     // Execute method
     const result = await instance[methodName](args);
+
+    // Emit end signal
+    if (signalBus) {
+      const endSignal: Signal = {
+        id: executionId,
+        objectId: instance.id ?? 'unknown',
+        className: instance.constructor?.name ?? 'Unknown',
+        method: methodName,
+        type: 'end',
+        args: [args],
+        result,
+        duration: Date.now() - startTime,
+        timestamp: Date.now(),
+      };
+      await signalBus.emit(endSignal);
+    }
 
     return {
       id: toolCall.id,
@@ -159,6 +205,25 @@ export async function executeToolCall(
       duration: Date.now() - startTime,
     };
   } catch (error) {
+    // Emit error signal
+    if (signalBus) {
+      const errorSignal: Signal = {
+        id: executionId,
+        objectId: instance.id ?? 'unknown',
+        className: instance.constructor?.name ?? 'Unknown',
+        method: methodName,
+        type: 'error',
+        // Preserve actual args if parsed, otherwise include raw arguments for debugging
+        args: [
+          typeof args !== 'undefined' ? args : toolCall.function.arguments,
+        ],
+        error: error instanceof Error ? error : new Error(String(error)),
+        duration: Date.now() - startTime,
+        timestamp: Date.now(),
+      };
+      await signalBus.emit(errorSignal);
+    }
+
     return {
       id: toolCall.id,
       methodName,
@@ -177,17 +242,24 @@ export async function executeToolCall(
  * @param instance - Object instance to call methods on
  * @param toolCalls - Array of tool calls from AI
  * @param allowedMethods - List of methods AI is allowed to call
+ * @param signalBus - Optional signal bus for emitting execution events
  * @returns Array of tool call results
  */
 export async function executeToolCalls(
   instance: any,
   toolCalls: ToolCall[],
   allowedMethods: string[],
+  signalBus?: SignalBus,
 ): Promise<ToolCallResult[]> {
   const results: ToolCallResult[] = [];
 
   for (const toolCall of toolCalls) {
-    const result = await executeToolCall(instance, toolCall, allowedMethods);
+    const result = await executeToolCall(
+      instance,
+      toolCall,
+      allowedMethods,
+      signalBus,
+    );
     results.push(result);
 
     // Stop on first error if needed
