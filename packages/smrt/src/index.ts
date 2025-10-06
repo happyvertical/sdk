@@ -33,5 +33,7 @@ export * from './runtime/index';
 export * from './manifest/index';
 // AI function calling tools
 export * from './tools/index';
+// Universal signaling system
+export * from './signals/index';
 // Vite plugin for auto-service generation
 export { smrtPlugin } from './vite-plugin/index';
