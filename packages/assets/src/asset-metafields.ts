@@ -21,7 +21,7 @@ export class AssetMetafieldCollection extends SmrtCollection<AssetMetafield> {
   async getOrCreate(
     slug: string,
     name?: string,
-    validation?: string | Record<string, any>,
+    validation?: string | Record<string, unknown>,
   ): Promise<AssetMetafield> {
     const existing = await this.list({ where: { slug }, limit: 1 });
     if (existing.length > 0) {

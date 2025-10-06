@@ -29,7 +29,7 @@ export class AssetMetafield extends SmrtObject {
    *
    * @returns Parsed validation object or empty object if no validation
    */
-  getValidation(): Record<string, any> {
+  getValidation(): Record<string, unknown> {
     if (!this.validation) return {};
     try {
       return JSON.parse(this.validation);
@@ -43,7 +43,7 @@ export class AssetMetafield extends SmrtObject {
    *
    * @param rules - Validation rules object
    */
-  setValidation(rules: Record<string, any>): void {
+  setValidation(rules: Record<string, unknown>): void {
     this.validation = JSON.stringify(rules);
   }
 
