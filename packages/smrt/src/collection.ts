@@ -119,9 +119,10 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
   /**
    * Creates a new SmrtCollection instance
    *
+   * @deprecated Use the static create() factory method instead
    * @param options - Configuration options
    */
-  constructor(options: SmrtCollectionOptions = {}) {
+  protected constructor(options: SmrtCollectionOptions = {}) {
     super(options);
 
     // Auto-register the collection if it's not the base SmrtCollection and has an _itemClass
@@ -135,6 +136,71 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
         this.constructor as typeof SmrtCollection,
       );
     }
+  }
+
+  /**
+   * Static factory method for creating fully initialized collection instances
+   *
+   * This is the recommended way to create collections. It accepts broad option types
+   * (SmrtClassOptions) and handles option extraction internally, then returns a
+   * fully initialized, ready-to-use collection instance.
+   *
+   * @param options - Configuration options (accepts both SmrtClassOptions and SmrtCollectionOptions)
+   * @returns Promise resolving to a fully initialized collection instance
+   *
+   * @example
+   * ```typescript
+   * // Create collection from object options
+   * const collection = await ProductCollection.create(smrtObject.options);
+   *
+   * // Create collection with specific config
+   * const collection = await ProductCollection.create({
+   *   persistence: { type: 'sql', url: 'products.db' },
+   *   ai: { provider: 'openai', apiKey: process.env.OPENAI_API_KEY }
+   * });
+   * ```
+   */
+  static async create<T extends SmrtCollection<any>>(
+    this: new (
+      options: SmrtCollectionOptions,
+    ) => T,
+    options: SmrtClassOptions = {},
+  ): Promise<T> {
+    // Extract only collection-compatible options from broader SmrtClassOptions
+    const {
+      _className,
+      persistence,
+      db,
+      ai,
+      fs,
+      logging,
+      metrics,
+      pubsub,
+      sanitization,
+      signals,
+    } = options;
+
+    const collectionOptions: SmrtCollectionOptions = {
+      _className,
+      persistence,
+      db,
+      ai,
+      fs,
+      logging,
+      metrics,
+      pubsub,
+      sanitization,
+      signals,
+    };
+
+    // Create instance using protected constructor
+    const instance = new SmrtCollection(collectionOptions);
+
+    // Perform async initialization
+    await instance.initialize();
+
+    // Return fully initialized instance
+    return instance;
   }
 
   /**
