@@ -8,6 +8,7 @@ import { resolve } from 'path';
 const buildOrder = [
   'types',      // Shared type definitions, zero dependencies
   'utils',      // Base utilities, no internal dependencies
+  'logger',     // Depends on types, utils
   'files',      // Depends on utils
   'cache',      // Depends on utils
   'geo',        // Depends on utils, cache
@@ -17,7 +18,7 @@ const buildOrder = [
   'pdf',        // Depends on ocr
   'ai',         // No internal dependencies
   'spider',     // Depends on utils, files
-  'smrt',       // Depends on ai, files, sql, utils, types
+  'smrt',       // Depends on ai, files, sql, utils, types, logger
   'tags',       // Depends on smrt, utils
   'places',     // Depends on smrt, utils, geo, cache
   'profiles',   // Depends on smrt, utils (and optionally tags)
