@@ -14,6 +14,24 @@ import {
 } from './utils';
 
 /**
+ * Type helper to extract instance type from constructor
+ * Enables TypeScript to preserve subclass types through static factory methods
+ */
+type InstanceOf<T> = T extends { prototype: infer R } ? R : never;
+
+/**
+ * Type helper for collection constructors
+ * Works around TypeScript's constructor compatibility limitations
+ *
+ * We avoid referencing the constructor to prevent protected/public conflicts
+ */
+type CollectionConstructor = {
+  create(options?: any): Promise<any>;
+  prototype: any;
+  _itemClass: any;
+};
+
+/**
  * Configuration options for SmrtCollection
  */
 export interface SmrtCollectionOptions extends SmrtClassOptions {}
@@ -142,6 +160,11 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
    * (SmrtClassOptions) and handles option extraction internally, then returns a
    * fully initialized, ready-to-use collection instance.
    *
+   * TypeScript Note: We use the InstanceOf helper type to extract the instance type
+   * from `this`, allowing proper type inference at call sites. The `this` parameter
+   * defaults to `any` to avoid protected constructor conflicts, but the return type
+   * is properly typed through the InstanceOf<this> pattern.
+   *
    * @param options - Configuration options (accepts both SmrtClassOptions and SmrtCollectionOptions)
    * @returns Promise resolving to a fully initialized collection instance
    *
@@ -157,10 +180,10 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
    * });
    * ```
    */
-  static async create<T extends SmrtCollection<any>>(
-    this: any,
+  static async create<T extends new (...args: any[]) => SmrtCollection<any>>(
+    this: T,
     options: SmrtClassOptions = {},
-  ): Promise<T> {
+  ): Promise<InstanceType<T>> {
     // Extract only collection-compatible options from broader SmrtClassOptions
     const {
       _className,
@@ -196,7 +219,7 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
     await instance.initialize();
 
     // Return fully initialized instance
-    return instance as T;
+    return instance as InstanceType<T>;
   }
 
   /**
