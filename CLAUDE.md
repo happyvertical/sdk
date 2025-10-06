@@ -12,17 +12,38 @@ The HAppy VErtical (HAVE) SDK is a TypeScript monorepo designed for building ver
 
 ## Monorepo Structure
 
-The SDK is organized as a pnpm workspace with several packages that provide specific functionality:
+The SDK is organized as a pnpm workspace with packages organized into two main categories:
 
-- **ai**: A standardized interface for AI model interactions across multiple providers (OpenAI, Anthropic, Google Gemini, AWS Bedrock)
-- **content**: Content processing module for documents, web content, and media (SMRT-specific module, excluded from main build)
-- **files**: Tools for interacting with file systems (local and remote, Node.js-focused)
-- **ocr**: Optical Character Recognition with multiple provider support
-- **pdf**: Utilities for parsing and processing PDF documents with OCR fallback
-- **smrt**: Core AI agent framework with standardized collections and code generators (simplified, no longer includes content processing)
-- **spider**: Web crawling and content parsing tools
-- **sql**: Database interaction with support for SQLite and Postgres
-- **utils**: Shared utility functions used across packages
+### Core Packages (`packages/core/`)
+Infrastructure and framework packages that provide foundational capabilities:
+
+- **types**: Shared type definitions
+- **utils**: Base utility functions used across all packages
+- **logger**: Logging infrastructure with @have/logger
+- **files**: File system operations (local and remote, Node.js-focused)
+- **cache**: Caching utilities and abstractions
+- **geo**: Geographic utilities and services
+- **translator**: Translation services integration
+- **sql**: Database interaction (SQLite and Postgres)
+- **ocr**: Optical Character Recognition with multiple providers
+- **pdf**: PDF parsing and processing with OCR fallback
+- **ai**: Standardized AI interface (OpenAI, Anthropic, Google Gemini, AWS Bedrock)
+- **spider**: Web crawling and content extraction
+- **smrt**: Core AI agent framework with auto-generation capabilities
+- **config**: Configuration management
+- **languages**: Language support
+
+### SMRT Modules (`packages/modules/`)
+Domain-specific modules built on the SMRT framework:
+
+- **tags**: Tagging system with hierarchies and contexts
+- **places**: Places and location management
+- **profiles**: User profile management
+- **events**: Event management and scheduling
+- **assets**: Asset management with versioning
+- **content**: Content processing for documents and media
+- **products**: Product catalog (reference implementation)
+- **gnode**: Federation module for distributed knowledge bases
 
 ## Development Patterns
 
@@ -60,7 +81,7 @@ Each package must have:
 **Example package tsconfig.json:**
 ```json
 {
-  "extends": "../../tsconfig.json",
+  "extends": "../../../tsconfig.json",  // Three levels up (packages/core/types -> root)
   "compilerOptions": {
     "composite": true,
     "outDir": "./dist",
@@ -76,9 +97,16 @@ Each package must have:
 ```json
 {
   "references": [
-    { "path": "./packages/types" },
-    { "path": "./packages/utils" },
-    // ... all 21 packages must be listed
+    // Core packages
+    { "path": "./packages/core/types" },
+    { "path": "./packages/core/utils" },
+    { "path": "./packages/core/smrt" },
+    // ... all 15 core packages
+
+    // SMRT modules
+    { "path": "./packages/modules/tags" },
+    { "path": "./packages/modules/places" },
+    // ... all 8 module packages
   ]
 }
 ```
