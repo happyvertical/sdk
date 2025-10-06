@@ -33,7 +33,7 @@
     // Let Node.js module resolution handle workspace packages through package.json exports
     "baseUrl": "."
   },
-  "include": ["packages/*/src/**/*", "vitest.config.ts"],
+  "include": ["vitest.config.ts"],
   "exclude": [
     "docs/**/*",
     "**/node_modules/**",
