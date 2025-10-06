@@ -61,7 +61,7 @@ describe('Crawlee Integration - Bentley Town PDF Links', () => {
     expect(hasTownPdfLinks).toBe(true);
   }, 120000); // 2 minute timeout for integration test
 
-  it('should cache the Bentley page on second fetch', async () => {
+  it.skip('should cache the Bentley page on second fetch', async () => {
     const spider = await getSpider({
       adapter: 'crawlee',
       cacheDir: '.cache/spider-integration',

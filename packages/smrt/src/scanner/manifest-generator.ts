@@ -7,6 +7,7 @@ import type {
   SmartObjectDefinition,
   SmartObjectManifest,
 } from './types';
+import { generateToolManifest } from '../tools/tool-generator';
 
 export class ManifestGenerator {
   /**
@@ -21,6 +22,20 @@ export class ManifestGenerator {
 
     for (const result of scanResults) {
       for (const objectDef of result.objects) {
+        // Generate AI tools from methods if AI config exists
+        if (objectDef.decoratorConfig.ai) {
+          const methods = Object.values(objectDef.methods);
+          const tools = generateToolManifest(
+            methods,
+            objectDef.decoratorConfig.ai,
+          );
+
+          // Store tools in object definition
+          if (tools.length > 0) {
+            objectDef.tools = tools;
+          }
+        }
+
         manifest.objects[objectDef.name] = objectDef;
       }
     }
