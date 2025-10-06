@@ -11,6 +11,7 @@
 import type { SignalBus } from './signals/bus.js';
 import type { ISignalAdapter } from '@have/types';
 import type { LoggerConfig } from '@have/logger';
+import type { SanitizationConfig } from './signals/sanitizer.js';
 
 /**
  * Metrics adapter configuration
@@ -43,6 +44,12 @@ export interface GlobalSignalConfig {
 
   /** Pub/Sub configuration (default: undefined/disabled) */
   pubsub?: PubSubConfig;
+
+  /**
+   * Signal sanitization configuration (default: enabled with standard redactions)
+   * Set to false to disable sanitization
+   */
+  sanitization?: SanitizationConfig | false;
 
   /** Custom signal configuration */
   signals?: {

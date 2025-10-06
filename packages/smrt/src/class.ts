@@ -67,6 +67,11 @@ export interface SmrtClassOptions {
   pubsub?: PubSubConfig;
 
   /**
+   * Sanitization configuration (overrides global default)
+   */
+  sanitization?: import('./config.js').GlobalSignalConfig['sanitization'];
+
+  /**
    * Custom signal configuration (overrides global default)
    */
   signals?: {
@@ -109,6 +114,11 @@ export class SmrtClass {
    * Signal bus for method execution tracking
    */
   protected _signalBus?: SignalBus;
+
+  /**
+   * Adapters registered by this instance (for cleanup)
+   */
+  private _registeredAdapters: ISignalAdapter[] = [];
 
   /**
    * Configuration options provided to the class
@@ -168,7 +178,9 @@ export class SmrtClass {
       return;
     }
 
-    this._signalBus = new SignalBus();
+    this._signalBus = new SignalBus({
+      sanitization: effectiveConfig.sanitization,
+    });
     await this.registerAdapters(effectiveConfig);
   }
 
@@ -187,6 +199,7 @@ export class SmrtClass {
       logging: this.options.logging ?? globalConfig.logging,
       metrics: this.options.metrics ?? globalConfig.metrics,
       pubsub: this.options.pubsub ?? globalConfig.pubsub,
+      sanitization: this.options.sanitization ?? globalConfig.sanitization,
       signals: {
         bus: this.options.signals?.bus ?? globalConfig.signals?.bus,
         adapters: [
@@ -226,25 +239,32 @@ export class SmrtClass {
     if (config.logging !== false) {
       const { createLogger, LoggerAdapter } = await import('@have/logger');
       const logger = createLogger(config.logging ?? true);
-      this._signalBus.register(new LoggerAdapter(logger));
+      const adapter = new LoggerAdapter(logger);
+      this._signalBus.register(adapter);
+      this._registeredAdapters.push(adapter);
     }
 
     // Metrics adapter (default: disabled)
     if (config.metrics?.enabled) {
       const { MetricsAdapter } = await import('./adapters/metrics.js');
-      this._signalBus.register(new MetricsAdapter());
+      const adapter = new MetricsAdapter();
+      this._signalBus.register(adapter);
+      this._registeredAdapters.push(adapter);
     }
 
     // Pub/Sub adapter (default: disabled)
     if (config.pubsub?.enabled) {
       const { PubSubAdapter } = await import('./adapters/pubsub.js');
-      this._signalBus.register(new PubSubAdapter());
+      const adapter = new PubSubAdapter();
+      this._signalBus.register(adapter);
+      this._registeredAdapters.push(adapter);
     }
 
     // Custom adapters
     if (config.signals?.adapters) {
       for (const adapter of config.signals.adapters) {
         this._signalBus.register(adapter);
+        this._registeredAdapters.push(adapter);
       }
     }
   }
@@ -277,5 +297,30 @@ export class SmrtClass {
    */
   get signalBus(): SignalBus | undefined {
     return this._signalBus;
+  }
+
+  /**
+   * Cleanup method to prevent memory leaks
+   *
+   * Unregisters all adapters from the signal bus that were registered
+   * by this instance. Call this when the SmrtClass instance is no longer
+   * needed to prevent memory leaks.
+   *
+   * @example
+   * ```typescript
+   * const product = new Product({ name: 'Widget' });
+   * await product.initialize();
+   * // ... use product ...
+   * product.destroy(); // Clean up when done
+   * ```
+   */
+  destroy(): void {
+    // Only unregister adapters if we own the bus (not shared)
+    if (this._signalBus && !this.options.signals?.bus) {
+      for (const adapter of this._registeredAdapters) {
+        this._signalBus.unregister(adapter);
+      }
+      this._registeredAdapters = [];
+    }
   }
 }

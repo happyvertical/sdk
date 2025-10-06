@@ -7,6 +7,8 @@
 
 import type { Signal, ISignalAdapter } from '@have/types';
 import { makeId } from '@have/utils';
+import { SignalSanitizer } from './sanitizer.js';
+import type { SanitizationConfig } from './sanitizer.js';
 
 /**
  * Central signal distribution bus
@@ -16,6 +18,18 @@ import { makeId } from '@have/utils';
  */
 export class SignalBus {
   private adapters: ISignalAdapter[] = [];
+  private sanitizer?: SignalSanitizer;
+
+  /**
+   * Create a new SignalBus
+   *
+   * @param options - Configuration options
+   */
+  constructor(options?: { sanitization?: SanitizationConfig | false }) {
+    if (options?.sanitization && options.sanitization !== false) {
+      this.sanitizer = new SignalSanitizer(options.sanitization);
+    }
+  }
 
   /**
    * Register a signal adapter
@@ -29,31 +43,70 @@ export class SignalBus {
   /**
    * Unregister a signal adapter
    *
+   * Removes the adapter from the bus to prevent memory leaks.
+   *
    * @param adapter - Adapter to unregister
+   * @returns True if adapter was found and removed
    */
-  unregister(adapter: ISignalAdapter): void {
-    this.adapters = this.adapters.filter((a) => a !== adapter);
+  unregister(adapter: ISignalAdapter): boolean {
+    const index = this.adapters.indexOf(adapter);
+    if (index !== -1) {
+      this.adapters.splice(index, 1);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Clear all registered adapters
+   *
+   * Removes all adapters from the bus. Useful for cleanup or testing.
+   */
+  clear(): void {
+    this.adapters = [];
   }
 
   /**
    * Emit a signal to all registered adapters
    *
+   * Signals are sanitized (if configured) before being passed to adapters.
    * Adapters are called in fire-and-forget mode - errors are logged
    * but don't interrupt the main execution flow.
    *
    * @param signal - Signal to emit
    */
   async emit(signal: Signal): Promise<void> {
+    // Sanitize signal if configured
+    const sanitizedSignal = this.sanitizer
+      ? this.sanitizer.sanitize(signal)
+      : signal;
+
     // Fire-and-forget - don't await adapter promises
-    const promises = this.adapters.map(async (adapter) => {
+    const promises = this.adapters.map(async (adapter, index) => {
       try {
-        await adapter.handle(signal);
+        await adapter.handle(sanitizedSignal);
       } catch (error) {
-        // Log adapter errors but don't throw
-        console.error(
-          `SignalBus: Adapter error for signal ${signal.id}:`,
-          error,
-        );
+        // Log adapter errors with detailed context
+        const adapterName =
+          adapter.constructor.name !== 'Object'
+            ? adapter.constructor.name
+            : `Adapter[${index}]`;
+
+        console.error(`SignalBus: ${adapterName} failed to handle signal`, {
+          signalId: signal.id,
+          signalType: signal.type,
+          className: signal.className,
+          method: signal.method,
+          adapterIndex: index,
+          error:
+            error instanceof Error
+              ? {
+                  message: error.message,
+                  name: error.name,
+                  stack: error.stack,
+                }
+              : error,
+        });
       }
     });
 
@@ -78,14 +131,5 @@ export class SignalBus {
    */
   get adapterCount(): number {
     return this.adapters.length;
-  }
-
-  /**
-   * Clear all registered adapters
-   *
-   * Useful for testing or resetting the bus
-   */
-  clearAdapters(): void {
-    this.adapters = [];
   }
 }

@@ -151,7 +151,7 @@ describe('SignalBus', () => {
     bus.register(adapter2);
     expect(bus.adapterCount).toBe(2);
 
-    bus.clearAdapters();
+    bus.clear();
     expect(bus.adapterCount).toBe(0);
   });
 
