@@ -25,7 +25,7 @@
     "sourceMap": true,
 
     // Performance
-    "skipLibCheck": true,
+    // "skipLibCheck": true, // Disabled to catch all type errors in CI
 
     // Types
     "types": ["node"],
