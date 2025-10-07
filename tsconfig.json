@@ -63,6 +63,7 @@
     { "path": "./packages/modules/profiles" },
     { "path": "./packages/modules/events" },
     { "path": "./packages/modules/assets" },
+    { "path": "./packages/modules/accounts" },
     { "path": "./packages/modules/gnode" },
     { "path": "./packages/modules/content" },
     { "path": "./packages/modules/products" }
