@@ -66,8 +66,8 @@ describe('SimpleAdapter', () => {
 
   it('should extract links correctly', async () => {
     const spider = await getSpider({ adapter: 'simple' });
-    // Use a reliable, fast page
-    const page = await spider.fetch('https://example.com', {
+    // Use a reliable, fast page with links (IANA - same org as example.com)
+    const page = await spider.fetch('https://www.iana.org', {
       cache: false,
     });
 
@@ -154,8 +154,8 @@ describe('DomAdapter', () => {
 
   it('should extract links from processed HTML', async () => {
     const spider = await getSpider({ adapter: 'dom' });
-    // Use a reliable, fast page
-    const page = await spider.fetch('https://example.com', {
+    // Use a reliable, fast page with links (IANA - same org as example.com)
+    const page = await spider.fetch('https://www.iana.org', {
       cache: false,
     });
 
