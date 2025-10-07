@@ -7,9 +7,13 @@
     "noEmit": true,
     "skipLibCheck": true
   },
-  "include": ["packages/*/src/**/*"],
+  "include": [
+    "packages/core/*/src/**/*",
+    "packages/modules/*/src/**/*"
+  ],
   "exclude": [
-    "packages/*/dist/**/*",
+    "packages/core/*/dist/**/*",
+    "packages/modules/*/dist/**/*",
     "packages/**/node_modules",
     "packages/**/*.spec.ts",
     "packages/**/*.test.ts"

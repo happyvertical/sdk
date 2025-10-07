@@ -63,7 +63,8 @@ export default defineConfig({
       exclude: [
         'packages/core/*/src/**/*.{test,spec}.{js,ts}',
         'packages/modules/*/src/**/*.{test,spec}.{js,ts}',
-        'packages/*/src/**/*.d.ts',
+        'packages/core/*/src/**/*.d.ts',
+        'packages/modules/*/src/**/*.d.ts',
       ],
     },
 
