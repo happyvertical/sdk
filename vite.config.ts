@@ -3,7 +3,11 @@ import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
 
 // Function to create per-package build configuration
-function createPackageBuild(packageName: string, entryPath: string) {
+function createPackageBuild(
+  packageName: string,
+  entryPath: string,
+  directory: 'core' | 'modules',
+) {
   return {
     lib: {
       entry: resolve(__dirname, entryPath),
@@ -12,10 +16,10 @@ function createPackageBuild(packageName: string, entryPath: string) {
     },
     rollupOptions: {
       output: {
-        dir: `packages/${packageName}/dist`,
+        dir: `packages/${directory}/${packageName}/dist`,
         format: 'es' as const,
         preserveModules: true,
-        preserveModulesRoot: `packages/${packageName}/src`,
+        preserveModulesRoot: `packages/${directory}/${packageName}/src`,
       },
       external: [
         // Node.js built-ins - externalize completely to avoid api-extractor issues
@@ -116,6 +120,7 @@ function createPackageBuild(packageName: string, entryPath: string) {
         '@have/profiles',
         '@have/events',
         '@have/assets',
+        '@have/gnode',
         '@have/content',
         '@have/products',
 
@@ -136,26 +141,113 @@ function createPackageBuild(packageName: string, entryPath: string) {
 
 // Package configurations with entry points
 const packages = [
-  { name: 'types', entry: 'packages/types/src/index.ts' },
-  { name: 'utils', entry: 'packages/utils/src/index.ts' },
-  { name: 'logger', entry: 'packages/logger/src/index.ts' },
-  { name: 'files', entry: 'packages/files/src/index.ts' },
-  { name: 'cache', entry: 'packages/cache/src/index.ts' },
-  { name: 'geo', entry: 'packages/geo/src/index.ts' },
-  { name: 'translator', entry: 'packages/translator/src/index.ts' },
-  { name: 'sql', entry: 'packages/sql/src/index.ts' },
-  { name: 'ocr', entry: 'packages/ocr/src/index.ts' },
-  { name: 'pdf', entry: 'packages/pdf/src/index.ts' },
-  { name: 'ai', entry: 'packages/ai/src/index.ts' },
-  { name: 'spider', entry: 'packages/spider/src/index.ts' },
-  { name: 'smrt', entry: 'packages/smrt/src/index.ts' },
-  { name: 'tags', entry: 'packages/tags/src/index.ts' },
-  { name: 'places', entry: 'packages/places/src/index.ts' },
-  { name: 'profiles', entry: 'packages/profiles/src/index.ts' },
-  { name: 'events', entry: 'packages/events/src/index.ts' },
-  { name: 'assets', entry: 'packages/assets/src/index.ts' },
-  { name: 'content', entry: 'packages/content/src/content.ts' },
-  { name: 'products', entry: 'packages/products/src/lib/models/index.ts' },
+  // Core packages
+  {
+    name: 'types',
+    entry: 'packages/core/types/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'utils',
+    entry: 'packages/core/utils/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'logger',
+    entry: 'packages/core/logger/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'files',
+    entry: 'packages/core/files/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'cache',
+    entry: 'packages/core/cache/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'geo',
+    entry: 'packages/core/geo/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'translator',
+    entry: 'packages/core/translator/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'sql',
+    entry: 'packages/core/sql/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'ocr',
+    entry: 'packages/core/ocr/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'pdf',
+    entry: 'packages/core/pdf/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'ai',
+    entry: 'packages/core/ai/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'spider',
+    entry: 'packages/core/spider/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'smrt',
+    entry: 'packages/core/smrt/src/index.ts',
+    directory: 'core' as const,
+  },
+  // SMRT modules
+  {
+    name: 'tags',
+    entry: 'packages/modules/tags/src/index.ts',
+    directory: 'modules' as const,
+  },
+  {
+    name: 'places',
+    entry: 'packages/modules/places/src/index.ts',
+    directory: 'modules' as const,
+  },
+  {
+    name: 'profiles',
+    entry: 'packages/modules/profiles/src/index.ts',
+    directory: 'modules' as const,
+  },
+  {
+    name: 'events',
+    entry: 'packages/modules/events/src/index.ts',
+    directory: 'modules' as const,
+  },
+  {
+    name: 'assets',
+    entry: 'packages/modules/assets/src/index.ts',
+    directory: 'modules' as const,
+  },
+  {
+    name: 'gnode',
+    entry: 'packages/modules/gnode/src/index.ts',
+    directory: 'modules' as const,
+  },
+  {
+    name: 'content',
+    entry: 'packages/modules/content/src/content.ts',
+    directory: 'modules' as const,
+  },
+  {
+    name: 'products',
+    entry: 'packages/modules/products/src/lib/models/index.ts',
+    directory: 'modules' as const,
+  },
 ];
 
 export default defineConfig(({ command, mode }) => {
@@ -171,57 +263,67 @@ export default defineConfig(({ command, mode }) => {
       }
 
       return {
-        build: createPackageBuild(pkg.name, pkg.entry),
+        build: createPackageBuild(pkg.name, pkg.entry, pkg.directory),
         plugins: [
           dts({
-            outDir: `packages/${pkg.name}/dist`,
+            outDir: `packages/${pkg.directory}/${pkg.name}/dist`,
             include: [
               // For products, only include library files; for others, include all src files
               pkg.name === 'products'
-                ? `packages/${pkg.name}/src/lib/**/*.ts`
-                : `packages/${pkg.name}/src/**/*.ts`,
+                ? `packages/${pkg.directory}/${pkg.name}/src/lib/**/*.ts`
+                : `packages/${pkg.directory}/${pkg.name}/src/**/*.ts`,
             ],
             exclude: [
               // Test files
-              `packages/${pkg.name}/src/**/*.test.ts`,
-              `packages/${pkg.name}/src/**/*.spec.ts`,
-              `packages/${pkg.name}/src/**/*.test.*.ts`,
+              `packages/${pkg.directory}/${pkg.name}/src/**/*.test.ts`,
+              `packages/${pkg.directory}/${pkg.name}/src/**/*.spec.ts`,
+              `packages/${pkg.directory}/${pkg.name}/src/**/*.test.*.ts`,
               // Exclude config files
               '**/*.config.ts',
               '**/*.config.js',
               // Don't process existing declaration files
-              `packages/${pkg.name}/src/**/*.d.ts`,
+              `packages/${pkg.directory}/${pkg.name}/src/**/*.d.ts`,
             ],
             insertTypesEntry: false, // We handle this in package.json
             rollupTypes: false, // Disable API Extractor to handle virtual modules
             // Use package-specific tsconfig to avoid root config interference
             tsconfigPath: resolve(
               __dirname,
-              `packages/${pkg.name}/tsconfig.build.json`,
+              `packages/${pkg.directory}/${pkg.name}/tsconfig.build.json`,
             ),
           }),
         ],
         resolve: {
           alias: {
-            '@have/types': resolve(__dirname, 'packages/types/src'),
-            '@have/utils': resolve(__dirname, 'packages/utils/src'),
-            '@have/files': resolve(__dirname, 'packages/files/src'),
-            '@have/cache': resolve(__dirname, 'packages/cache/src'),
-            '@have/geo': resolve(__dirname, 'packages/geo/src'),
-            '@have/translator': resolve(__dirname, 'packages/translator/src'),
-            '@have/sql': resolve(__dirname, 'packages/sql/src'),
-            '@have/ocr': resolve(__dirname, 'packages/ocr/src'),
-            '@have/pdf': resolve(__dirname, 'packages/pdf/src'),
-            '@have/ai': resolve(__dirname, 'packages/ai/src'),
-            '@have/spider': resolve(__dirname, 'packages/spider/src'),
-            '@have/smrt': resolve(__dirname, 'packages/smrt/src'),
-            '@have/tags': resolve(__dirname, 'packages/tags/src'),
-            '@have/places': resolve(__dirname, 'packages/places/src'),
-            '@have/profiles': resolve(__dirname, 'packages/profiles/src'),
-            '@have/events': resolve(__dirname, 'packages/events/src'),
-            '@have/assets': resolve(__dirname, 'packages/assets/src'),
-            '@have/content': resolve(__dirname, 'packages/content/src'),
-            '@have/products': resolve(__dirname, 'packages/products/src'),
+            '@have/types': resolve(__dirname, 'packages/core/types/src'),
+            '@have/utils': resolve(__dirname, 'packages/core/utils/src'),
+            '@have/files': resolve(__dirname, 'packages/core/files/src'),
+            '@have/cache': resolve(__dirname, 'packages/core/cache/src'),
+            '@have/geo': resolve(__dirname, 'packages/core/geo/src'),
+            '@have/translator': resolve(
+              __dirname,
+              'packages/core/translator/src',
+            ),
+            '@have/sql': resolve(__dirname, 'packages/core/sql/src'),
+            '@have/ocr': resolve(__dirname, 'packages/core/ocr/src'),
+            '@have/pdf': resolve(__dirname, 'packages/core/pdf/src'),
+            '@have/ai': resolve(__dirname, 'packages/core/ai/src'),
+            '@have/spider': resolve(__dirname, 'packages/core/spider/src'),
+            '@have/smrt': resolve(__dirname, 'packages/core/smrt/src'),
+            '@have/tags': resolve(__dirname, 'packages/modules/tags/src'),
+            '@have/places': resolve(__dirname, 'packages/modules/places/src'),
+            '@have/profiles': resolve(
+              __dirname,
+              'packages/modules/profiles/src',
+            ),
+            '@have/events': resolve(__dirname, 'packages/modules/events/src'),
+            '@have/assets': resolve(__dirname, 'packages/modules/assets/src'),
+            '@have/gnode': resolve(__dirname, 'packages/modules/gnode/src'),
+            '@have/content': resolve(__dirname, 'packages/modules/content/src'),
+            '@have/products': resolve(
+              __dirname,
+              'packages/modules/products/src',
+            ),
           },
         },
       };
@@ -237,25 +339,26 @@ export default defineConfig(({ command, mode }) => {
   return {
     resolve: {
       alias: {
-        '@have/types': resolve(__dirname, 'packages/types/src'),
-        '@have/utils': resolve(__dirname, 'packages/utils/src'),
-        '@have/files': resolve(__dirname, 'packages/files/src'),
-        '@have/cache': resolve(__dirname, 'packages/cache/src'),
-        '@have/geo': resolve(__dirname, 'packages/geo/src'),
-        '@have/translator': resolve(__dirname, 'packages/translator/src'),
-        '@have/sql': resolve(__dirname, 'packages/sql/src'),
-        '@have/ocr': resolve(__dirname, 'packages/ocr/src'),
-        '@have/pdf': resolve(__dirname, 'packages/pdf/src'),
-        '@have/ai': resolve(__dirname, 'packages/ai/src'),
-        '@have/spider': resolve(__dirname, 'packages/spider/src'),
-        '@have/smrt': resolve(__dirname, 'packages/smrt/src'),
-        '@have/tags': resolve(__dirname, 'packages/tags/src'),
-        '@have/places': resolve(__dirname, 'packages/places/src'),
-        '@have/profiles': resolve(__dirname, 'packages/profiles/src'),
-        '@have/events': resolve(__dirname, 'packages/events/src'),
-        '@have/assets': resolve(__dirname, 'packages/assets/src'),
-        '@have/content': resolve(__dirname, 'packages/content/src'),
-        '@have/products': resolve(__dirname, 'packages/products/src'),
+        '@have/types': resolve(__dirname, 'packages/core/types/src'),
+        '@have/utils': resolve(__dirname, 'packages/core/utils/src'),
+        '@have/files': resolve(__dirname, 'packages/core/files/src'),
+        '@have/cache': resolve(__dirname, 'packages/core/cache/src'),
+        '@have/geo': resolve(__dirname, 'packages/core/geo/src'),
+        '@have/translator': resolve(__dirname, 'packages/core/translator/src'),
+        '@have/sql': resolve(__dirname, 'packages/core/sql/src'),
+        '@have/ocr': resolve(__dirname, 'packages/core/ocr/src'),
+        '@have/pdf': resolve(__dirname, 'packages/core/pdf/src'),
+        '@have/ai': resolve(__dirname, 'packages/core/ai/src'),
+        '@have/spider': resolve(__dirname, 'packages/core/spider/src'),
+        '@have/smrt': resolve(__dirname, 'packages/core/smrt/src'),
+        '@have/tags': resolve(__dirname, 'packages/modules/tags/src'),
+        '@have/places': resolve(__dirname, 'packages/modules/places/src'),
+        '@have/profiles': resolve(__dirname, 'packages/modules/profiles/src'),
+        '@have/events': resolve(__dirname, 'packages/modules/events/src'),
+        '@have/assets': resolve(__dirname, 'packages/modules/assets/src'),
+        '@have/gnode': resolve(__dirname, 'packages/modules/gnode/src'),
+        '@have/content': resolve(__dirname, 'packages/modules/content/src'),
+        '@have/products': resolve(__dirname, 'packages/modules/products/src'),
       },
     },
     optimizeDeps: {
