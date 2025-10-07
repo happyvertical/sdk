@@ -120,6 +120,7 @@ function createPackageBuild(
         '@have/profiles',
         '@have/events',
         '@have/assets',
+        '@have/accounts',
         '@have/gnode',
         '@have/content',
         '@have/products',
@@ -234,6 +235,11 @@ const packages = [
     directory: 'modules' as const,
   },
   {
+    name: 'accounts',
+    entry: 'packages/modules/accounts/src/index.ts',
+    directory: 'modules' as const,
+  },
+  {
     name: 'gnode',
     entry: 'packages/modules/gnode/src/index.ts',
     directory: 'modules' as const,
@@ -318,6 +324,7 @@ export default defineConfig(({ command, mode }) => {
             ),
             '@have/events': resolve(__dirname, 'packages/modules/events/src'),
             '@have/assets': resolve(__dirname, 'packages/modules/assets/src'),
+            '@have/accounts': resolve(__dirname, 'packages/modules/accounts/src'),
             '@have/gnode': resolve(__dirname, 'packages/modules/gnode/src'),
             '@have/content': resolve(__dirname, 'packages/modules/content/src'),
             '@have/products': resolve(
@@ -356,6 +363,7 @@ export default defineConfig(({ command, mode }) => {
         '@have/profiles': resolve(__dirname, 'packages/modules/profiles/src'),
         '@have/events': resolve(__dirname, 'packages/modules/events/src'),
         '@have/assets': resolve(__dirname, 'packages/modules/assets/src'),
+        '@have/accounts': resolve(__dirname, 'packages/modules/accounts/src'),
         '@have/gnode': resolve(__dirname, 'packages/modules/gnode/src'),
         '@have/content': resolve(__dirname, 'packages/modules/content/src'),
         '@have/products': resolve(__dirname, 'packages/modules/products/src'),
