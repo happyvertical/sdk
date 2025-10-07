@@ -1,3 +1,16 @@
+# [0.17.0](https://github.com/happyvertical/sdk/compare/v0.16.0...v0.17.0) (2025-10-07)
+
+
+### Bug Fixes
+
+* **accounts:** correct tsconfig.json extends path for modules directory ([7f4871e](https://github.com/happyvertical/sdk/commit/7f4871edbb2044e6b3c1b675bbe852d6a129b338))
+* **accounts:** update build configuration for new directory structure ([7f15828](https://github.com/happyvertical/sdk/commit/7f15828a68787efdd726a4994345d4d23d2c1e59))
+
+
+### Features
+
+* **accounts:** add flexible accounting ledger module ([246997e](https://github.com/happyvertical/sdk/commit/246997e802b5c4164d4b3bb71827250700eb8c4c))
+
 # [0.16.0](https://github.com/happyvertical/sdk/compare/v0.15.0...v0.16.0) (2025-10-07)
 
 
