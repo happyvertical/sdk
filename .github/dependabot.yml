@@ -24,65 +24,170 @@ updates:
           - "@changesets/*"
           - "conventional-changelog-cli"
     
-  # Also check for updates in each package directory
+  # Core packages
   - package-ecosystem: "bun"
-    directory: "/packages/utils"
+    directory: "/packages/core/types"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
     versioning-strategy: increase
     package-manager: "npm"
-    
+
   - package-ecosystem: "bun"
-    directory: "/packages/files"
+    directory: "/packages/core/utils"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
     versioning-strategy: increase
     package-manager: "npm"
-    
+
   - package-ecosystem: "bun"
-    directory: "/packages/spider"
+    directory: "/packages/core/logger"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
     versioning-strategy: increase
     package-manager: "npm"
-    
+
   - package-ecosystem: "bun"
-    directory: "/packages/sql"
+    directory: "/packages/core/files"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
     versioning-strategy: increase
     package-manager: "npm"
-    
+
   - package-ecosystem: "bun"
-    directory: "/packages/pdf"
+    directory: "/packages/core/cache"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
     versioning-strategy: increase
     package-manager: "npm"
-    
+
   - package-ecosystem: "bun"
-    directory: "/packages/ai"
+    directory: "/packages/core/geo"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
     versioning-strategy: increase
     package-manager: "npm"
-    
+
   - package-ecosystem: "bun"
-    directory: "/packages/smrt"
+    directory: "/packages/core/translator"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
     versioning-strategy: increase
     package-manager: "npm"
-    
+
   - package-ecosystem: "bun"
-    directory: "/packages/ocr"
+    directory: "/packages/core/spider"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    package-manager: "npm"
+
+  - package-ecosystem: "bun"
+    directory: "/packages/core/sql"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    package-manager: "npm"
+
+  - package-ecosystem: "bun"
+    directory: "/packages/core/pdf"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    package-manager: "npm"
+
+  - package-ecosystem: "bun"
+    directory: "/packages/core/ai"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    package-manager: "npm"
+
+  - package-ecosystem: "bun"
+    directory: "/packages/core/smrt"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    package-manager: "npm"
+
+  - package-ecosystem: "bun"
+    directory: "/packages/core/ocr"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    package-manager: "npm"
+
+  # SMRT modules
+  - package-ecosystem: "bun"
+    directory: "/packages/modules/tags"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    package-manager: "npm"
+
+  - package-ecosystem: "bun"
+    directory: "/packages/modules/places"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    package-manager: "npm"
+
+  - package-ecosystem: "bun"
+    directory: "/packages/modules/profiles"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    package-manager: "npm"
+
+  - package-ecosystem: "bun"
+    directory: "/packages/modules/events"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    package-manager: "npm"
+
+  - package-ecosystem: "bun"
+    directory: "/packages/modules/assets"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    package-manager: "npm"
+
+  - package-ecosystem: "bun"
+    directory: "/packages/modules/gnode"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    package-manager: "npm"
+
+  - package-ecosystem: "bun"
+    directory: "/packages/modules/content"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    package-manager: "npm"
+
+  - package-ecosystem: "bun"
+    directory: "/packages/modules/products"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5

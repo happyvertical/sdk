@@ -35,8 +35,10 @@
     "docs/**/*",
     "**/node_modules/**",
     "dist/**/*",
-    "packages/*/dist/**/*",
-    "packages/*/.svelte-kit/**/*",
+    "packages/core/*/dist/**/*",
+    "packages/modules/*/dist/**/*",
+    "packages/core/*/.svelte-kit/**/*",
+    "packages/modules/*/.svelte-kit/**/*",
     "**/*.test.ts",
     "**/*.spec.ts"
   ],
