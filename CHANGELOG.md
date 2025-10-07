@@ -1,3 +1,16 @@
+# [0.16.0](https://github.com/happyvertical/sdk/compare/v0.15.0...v0.16.0) (2025-10-07)
+
+
+### Bug Fixes
+
+* **build:** add missing gnode package to build configuration ([38959bf](https://github.com/happyvertical/sdk/commit/38959bf1bd8256a0f60400654a06949b09959ded))
+* **gnode:** add missing tsconfig.build.json ([8d7c99b](https://github.com/happyvertical/sdk/commit/8d7c99be4b92c1e440722ba7362f32ac9d8e4b2d))
+* **refactor:** update all config files for core/modules structure ([15144f6](https://github.com/happyvertical/sdk/commit/15144f66fcdd8c5c3eb2e0804a701dfb947ac28b))
+* **spider:** handle gzip/deflate decompression correctly ([c2ef20f](https://github.com/happyvertical/sdk/commit/c2ef20f6e5715f339d7b1b8f12b61c122e8819df))
+* **spider:** increase timeout for network-dependent tests ([0b69f4b](https://github.com/happyvertical/sdk/commit/0b69f4bd15c378605e0740e3dd359daacbab306e))
+* **spider:** replace httpbin.org with example.com in tests ([5a0186f](https://github.com/happyvertical/sdk/commit/5a0186f5a4589c486804f46178eac6f81dc8cc11))
+* **workflow:** update release workflow for core/modules structure ([6295470](https://github.com/happyvertical/sdk/commit/6295470ecd55a4acb36025848d125251a0b77991))
+
 # [0.15.0](https://github.com/happyvertical/sdk/compare/v0.14.0...v0.15.0) (2025-10-06)
 
 
