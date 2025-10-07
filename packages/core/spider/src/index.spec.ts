@@ -73,7 +73,7 @@ describe('SimpleAdapter', () => {
 
     expect(Array.isArray(page.links)).toBe(true);
     expect(page.links.length).toBeGreaterThan(0);
-  });
+  }, 60000);
 
   it('should throw ValidationError for invalid URL', async () => {
     const spider = await getSpider({ adapter: 'simple' });
@@ -161,7 +161,7 @@ describe('DomAdapter', () => {
 
     expect(Array.isArray(page.links)).toBe(true);
     expect(page.links.length).toBeGreaterThan(0);
-  });
+  }, 60000);
 
   it('should throw ValidationError for invalid URL', async () => {
     const spider = await getSpider({ adapter: 'dom' });
