@@ -103,6 +103,7 @@ function createPackageBuild(
 
         // Internal @have/* packages - externalize to avoid cross-package bundling issues
         '@have/types',
+        '@have/config',
         '@have/utils',
         '@have/logger',
         '@have/files',
@@ -146,6 +147,11 @@ const packages = [
   {
     name: 'types',
     entry: 'packages/core/types/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'config',
+    entry: 'packages/core/config/src/index.ts',
     directory: 'core' as const,
   },
   {
@@ -302,6 +308,7 @@ export default defineConfig(({ command, mode }) => {
         resolve: {
           alias: {
             '@have/types': resolve(__dirname, 'packages/core/types/src'),
+            '@have/config': resolve(__dirname, 'packages/core/config/src'),
             '@have/utils': resolve(__dirname, 'packages/core/utils/src'),
             '@have/files': resolve(__dirname, 'packages/core/files/src'),
             '@have/cache': resolve(__dirname, 'packages/core/cache/src'),
@@ -347,6 +354,7 @@ export default defineConfig(({ command, mode }) => {
     resolve: {
       alias: {
         '@have/types': resolve(__dirname, 'packages/core/types/src'),
+        '@have/config': resolve(__dirname, 'packages/core/config/src'),
         '@have/utils': resolve(__dirname, 'packages/core/utils/src'),
         '@have/files': resolve(__dirname, 'packages/core/files/src'),
         '@have/cache': resolve(__dirname, 'packages/core/cache/src'),

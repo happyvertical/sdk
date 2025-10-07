@@ -45,6 +45,7 @@
   "references": [
     // Core packages - infrastructure and framework
     { "path": "./packages/core/types" },
+    { "path": "./packages/core/config" },
     { "path": "./packages/core/utils" },
     { "path": "./packages/core/logger" },
     { "path": "./packages/core/files" },
