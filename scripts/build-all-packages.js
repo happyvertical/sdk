@@ -27,6 +27,7 @@ const buildOrder = [
   ['profiles', 'modules'],  // Depends on smrt, utils (and optionally tags)
   ['events', 'modules'],    // Depends on smrt, utils, places, profiles
   ['assets', 'modules'],    // Depends on smrt, utils, tags
+  ['gnode', 'modules'],     // Depends on smrt
   ['content', 'modules'],   // Depends on smrt, pdf, spider
   ['products', 'modules'],  // Depends on smrt
 ];
