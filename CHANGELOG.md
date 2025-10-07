@@ -1,3 +1,15 @@
+# [0.18.0](https://github.com/happyvertical/sdk/compare/v0.17.0...v0.18.0) (2025-10-07)
+
+
+### Bug Fixes
+
+* **config:** add @types/node dependency for Node.js globals ([49279df](https://github.com/happyvertical/sdk/commit/49279df3ecfcb9462d43575deea7ab8a7217296f))
+
+
+### Features
+
+* **config:** add @have/config package for centralized configuration ([8ee2195](https://github.com/happyvertical/sdk/commit/8ee219576460c1cd314c4f6c2c107fdf72604e7b))
+
 # [0.17.0](https://github.com/happyvertical/sdk/compare/v0.16.0...v0.17.0) (2025-10-07)
 
 
