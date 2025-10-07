@@ -26,7 +26,10 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.ts'],
 
     // Only include TypeScript test files to avoid duplicates
-    include: ['packages/*/src/**/*.{test,spec}.{ts,mts}'],
+    include: [
+      'packages/core/*/src/**/*.{test,spec}.{ts,mts}',
+      'packages/modules/*/src/**/*.{test,spec}.{ts,mts}',
+    ],
 
     // Exclude only what Vitest shouldn't handle
     exclude: [
@@ -53,10 +56,15 @@ export default defineConfig({
     // Coverage configuration
     coverage: {
       provider: 'v8',
-      include: ['packages/*/src/**/*.{js,ts}'],
+      include: [
+        'packages/core/*/src/**/*.{js,ts}',
+        'packages/modules/*/src/**/*.{js,ts}',
+      ],
       exclude: [
-        'packages/*/src/**/*.{test,spec}.{js,ts}',
-        'packages/*/src/**/*.d.ts',
+        'packages/core/*/src/**/*.{test,spec}.{js,ts}',
+        'packages/modules/*/src/**/*.{test,spec}.{js,ts}',
+        'packages/core/*/src/**/*.d.ts',
+        'packages/modules/*/src/**/*.d.ts',
       ],
     },
 
@@ -76,17 +84,23 @@ export default defineConfig({
   // Resolve workspace packages for testing
   resolve: {
     alias: {
-      '@have/utils': resolve(__dirname, 'packages/utils/src'),
-      '@have/files': resolve(__dirname, 'packages/files/src'),
-      '@have/cache': resolve(__dirname, 'packages/cache/src'),
-      '@have/sql': resolve(__dirname, 'packages/sql/src'),
-      '@have/ocr': resolve(__dirname, 'packages/ocr/src'),
-      '@have/pdf': resolve(__dirname, 'packages/pdf/src'),
-      '@have/ai': resolve(__dirname, 'packages/ai/src'),
-      '@have/spider': resolve(__dirname, 'packages/spider/src'),
-      '@have/smrt': resolve(__dirname, 'packages/smrt/src'),
-      '@have/content': resolve(__dirname, 'packages/content/src'),
-      '@have/products': resolve(__dirname, 'packages/products/src'),
+      '@have/utils': resolve(__dirname, 'packages/core/utils/src'),
+      '@have/files': resolve(__dirname, 'packages/core/files/src'),
+      '@have/cache': resolve(__dirname, 'packages/core/cache/src'),
+      '@have/sql': resolve(__dirname, 'packages/core/sql/src'),
+      '@have/ocr': resolve(__dirname, 'packages/core/ocr/src'),
+      '@have/pdf': resolve(__dirname, 'packages/core/pdf/src'),
+      '@have/ai': resolve(__dirname, 'packages/core/ai/src'),
+      '@have/spider': resolve(__dirname, 'packages/core/spider/src'),
+      '@have/smrt': resolve(__dirname, 'packages/core/smrt/src'),
+      '@have/tags': resolve(__dirname, 'packages/modules/tags/src'),
+      '@have/places': resolve(__dirname, 'packages/modules/places/src'),
+      '@have/profiles': resolve(__dirname, 'packages/modules/profiles/src'),
+      '@have/events': resolve(__dirname, 'packages/modules/events/src'),
+      '@have/assets': resolve(__dirname, 'packages/modules/assets/src'),
+      '@have/gnode': resolve(__dirname, 'packages/modules/gnode/src'),
+      '@have/content': resolve(__dirname, 'packages/modules/content/src'),
+      '@have/products': resolve(__dirname, 'packages/modules/products/src'),
       $lib: '/src/lib',
     },
   },
