@@ -66,14 +66,14 @@ describe('SimpleAdapter', () => {
 
   it('should extract links correctly', async () => {
     const spider = await getSpider({ adapter: 'simple' });
-    // Use a page that definitely has links
-    const page = await spider.fetch('https://httpbin.org/links/10/0', {
+    // Use a reliable, fast page
+    const page = await spider.fetch('https://example.com', {
       cache: false,
     });
 
     expect(Array.isArray(page.links)).toBe(true);
     expect(page.links.length).toBeGreaterThan(0);
-  }, 60000);
+  });
 
   it('should throw ValidationError for invalid URL', async () => {
     const spider = await getSpider({ adapter: 'simple' });
@@ -154,14 +154,14 @@ describe('DomAdapter', () => {
 
   it('should extract links from processed HTML', async () => {
     const spider = await getSpider({ adapter: 'dom' });
-    // Use a page that definitely has links
-    const page = await spider.fetch('https://httpbin.org/links/10/0', {
+    // Use a reliable, fast page
+    const page = await spider.fetch('https://example.com', {
       cache: false,
     });
 
     expect(Array.isArray(page.links)).toBe(true);
     expect(page.links.length).toBeGreaterThan(0);
-  }, 60000);
+  });
 
   it('should throw ValidationError for invalid URL', async () => {
     const spider = await getSpider({ adapter: 'dom' });
