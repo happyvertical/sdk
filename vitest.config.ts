@@ -84,6 +84,7 @@ export default defineConfig({
   // Resolve workspace packages for testing
   resolve: {
     alias: {
+      '@have/config': resolve(__dirname, 'packages/core/config/src'),
       '@have/utils': resolve(__dirname, 'packages/core/utils/src'),
       '@have/files': resolve(__dirname, 'packages/core/files/src'),
       '@have/cache': resolve(__dirname, 'packages/core/cache/src'),
