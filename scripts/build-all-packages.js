@@ -9,6 +9,7 @@ import { resolve } from 'path';
 const buildOrder = [
   // Core infrastructure packages
   ['types', 'core'],        // Shared type definitions, zero dependencies
+  ['config', 'core'],       // Configuration management, no internal dependencies
   ['utils', 'core'],        // Base utilities, no internal dependencies
   ['logger', 'core'],       // Depends on types, utils
   ['files', 'core'],        // Depends on utils
