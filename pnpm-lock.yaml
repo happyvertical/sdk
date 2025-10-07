@@ -259,6 +259,9 @@ importers:
       '@have/types':
         specifier: workspace:*
         version: link:../types
+      '@types/node':
+        specifier: 24.0.0
+        version: 24.0.0
       typescript:
         specifier: ^5.7.3
         version: 5.9.2
