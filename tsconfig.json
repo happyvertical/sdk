@@ -59,6 +59,7 @@
     { "path": "./packages/core/spider" },
     { "path": "./packages/core/smrt" },
     // SMRT modules - domain models
+    { "path": "./packages/modules/agents" },
     { "path": "./packages/modules/tags" },
     { "path": "./packages/modules/places" },
     { "path": "./packages/modules/profiles" },
