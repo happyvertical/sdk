@@ -1,3 +1,10 @@
+## [0.19.2](https://github.com/happyvertical/sdk/compare/v0.19.1...v0.19.2) (2025-10-08)
+
+
+### Bug Fixes
+
+* **smrt:** prevent duplicate timestamp columns in schema generation ([270485f](https://github.com/happyvertical/sdk/commit/270485f67d749d82dd1e56822f902c2be3f57726)), closes [#144](https://github.com/happyvertical/sdk/issues/144)
+
 ## [0.19.1](https://github.com/happyvertical/sdk/compare/v0.19.0...v0.19.1) (2025-10-08)
 
 
