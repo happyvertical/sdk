@@ -116,6 +116,7 @@ function createPackageBuild(
         '@have/ai',
         '@have/spider',
         '@have/smrt',
+        '@have/agents',
         '@have/tags',
         '@have/places',
         '@have/profiles',
@@ -215,6 +216,11 @@ const packages = [
     directory: 'core' as const,
   },
   // SMRT modules
+  {
+    name: 'agents',
+    entry: 'packages/modules/agents/src/index.ts',
+    directory: 'modules' as const,
+  },
   {
     name: 'tags',
     entry: 'packages/modules/tags/src/index.ts',
@@ -323,6 +329,7 @@ export default defineConfig(({ command, mode }) => {
             '@have/ai': resolve(__dirname, 'packages/core/ai/src'),
             '@have/spider': resolve(__dirname, 'packages/core/spider/src'),
             '@have/smrt': resolve(__dirname, 'packages/core/smrt/src'),
+            '@have/agents': resolve(__dirname, 'packages/modules/agents/src'),
             '@have/tags': resolve(__dirname, 'packages/modules/tags/src'),
             '@have/places': resolve(__dirname, 'packages/modules/places/src'),
             '@have/profiles': resolve(
@@ -366,6 +373,7 @@ export default defineConfig(({ command, mode }) => {
         '@have/ai': resolve(__dirname, 'packages/core/ai/src'),
         '@have/spider': resolve(__dirname, 'packages/core/spider/src'),
         '@have/smrt': resolve(__dirname, 'packages/core/smrt/src'),
+        '@have/agents': resolve(__dirname, 'packages/modules/agents/src'),
         '@have/tags': resolve(__dirname, 'packages/modules/tags/src'),
         '@have/places': resolve(__dirname, 'packages/modules/places/src'),
         '@have/profiles': resolve(__dirname, 'packages/modules/profiles/src'),
