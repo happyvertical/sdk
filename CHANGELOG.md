@@ -1,3 +1,10 @@
+# [0.19.0](https://github.com/happyvertical/sdk/compare/v0.18.0...v0.19.0) (2025-10-08)
+
+
+### Features
+
+* **agents:** simplify Agent base class to minimal feature set ([2bf662f](https://github.com/happyvertical/sdk/commit/2bf662f66e9005421c6b07dd4303e3da5564fe3f))
+
 # [0.18.0](https://github.com/happyvertical/sdk/compare/v0.17.0...v0.18.0) (2025-10-07)
 
 
