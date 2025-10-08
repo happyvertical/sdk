@@ -23,6 +23,7 @@ const buildOrder = [
   ['spider', 'core'],       // Depends on utils, files
   ['smrt', 'core'],         // Depends on ai, files, sql, utils, types, logger (framework)
   // SMRT domain modules
+  ['agents', 'modules'],    // Depends on smrt, config, logger
   ['tags', 'modules'],      // Depends on smrt, utils
   ['places', 'modules'],    // Depends on smrt, utils, geo, cache
   ['profiles', 'modules'],  // Depends on smrt, utils (and optionally tags)
