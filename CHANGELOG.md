@@ -1,3 +1,10 @@
+## [0.19.1](https://github.com/happyvertical/sdk/compare/v0.19.0...v0.19.1) (2025-10-08)
+
+
+### Bug Fixes
+
+* **smrt:** resolve foreign key circular dependencies with lazy string references ([066a9ff](https://github.com/happyvertical/sdk/commit/066a9ff80543d5fdafc7e6b9481410f133c4d331)), closes [#142](https://github.com/happyvertical/sdk/issues/142)
+
 # [0.19.0](https://github.com/happyvertical/sdk/compare/v0.18.0...v0.19.0) (2025-10-08)
 
 
