@@ -293,11 +293,25 @@ export function generateSchema(ClassType: new (...args: any[]) => any) {
     schema += "  context TEXT NOT NULL DEFAULT '',\n";
   }
 
+  // Track which timestamp fields we've added to avoid duplicates
+  let hasCreatedAt = false;
+  let hasUpdatedAt = false;
+
   // Add all fields - convert camelCase property names to snake_case column names
   for (const [key, field] of Object.entries(fields)) {
     // Skip id, slug, context only if we're using default PK behavior
     if (!hasCustomPK && (key === 'id' || key === 'slug' || key === 'context')) {
       continue;
+    }
+
+    // Track timestamp fields and skip duplicates
+    if (key === 'created_at' || key === 'createdAt') {
+      if (hasCreatedAt) continue; // Skip duplicate
+      hasCreatedAt = true;
+    }
+    if (key === 'updated_at' || key === 'updatedAt') {
+      if (hasUpdatedAt) continue; // Skip duplicate
+      hasUpdatedAt = true;
     }
 
     const columnName = toSnakeCase(key);
@@ -306,6 +320,14 @@ export function generateSchema(ClassType: new (...args: any[]) => any) {
     const constraints = fieldDef?.getSqlConstraints() || [];
 
     schema += `  ${columnName} ${sqlType}${constraints.length > 0 ? ' ' + constraints.join(' ') : ''},\n`;
+  }
+
+  // Ensure timestamp columns exist for triggers (if not already added)
+  if (!hasCreatedAt) {
+    schema += '  created_at DATETIME,\n';
+  }
+  if (!hasUpdatedAt) {
+    schema += '  updated_at DATETIME,\n';
   }
 
   // Add composite unique constraint for slug and context only if using default PK
