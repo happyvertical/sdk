@@ -94,6 +94,7 @@ export default defineConfig({
       '@have/ai': resolve(__dirname, 'packages/core/ai/src'),
       '@have/spider': resolve(__dirname, 'packages/core/spider/src'),
       '@have/smrt': resolve(__dirname, 'packages/core/smrt/src'),
+      '@have/agents': resolve(__dirname, 'packages/modules/agents/src'),
       '@have/tags': resolve(__dirname, 'packages/modules/tags/src'),
       '@have/places': resolve(__dirname, 'packages/modules/places/src'),
       '@have/profiles': resolve(__dirname, 'packages/modules/profiles/src'),
