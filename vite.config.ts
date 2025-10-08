@@ -338,7 +338,10 @@ export default defineConfig(({ command, mode }) => {
             ),
             '@have/events': resolve(__dirname, 'packages/modules/events/src'),
             '@have/assets': resolve(__dirname, 'packages/modules/assets/src'),
-            '@have/accounts': resolve(__dirname, 'packages/modules/accounts/src'),
+            '@have/accounts': resolve(
+              __dirname,
+              'packages/modules/accounts/src',
+            ),
             '@have/gnode': resolve(__dirname, 'packages/modules/gnode/src'),
             '@have/content': resolve(__dirname, 'packages/modules/content/src'),
             '@have/products': resolve(
