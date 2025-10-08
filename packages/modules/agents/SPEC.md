@@ -18,17 +18,7 @@ Agents use the `@have/config` module for configuration management. Each agent's 
 
 The `Agent` class will be a `SmrtObject` with the following features:
 
-### 3.1. Persistence and Memory
-
-By extending `SmrtObject`, each agent has a persistent representation in the database, automatically managed by `@have/smrt`. The agent's database record includes:
-
-- **Standard fields**: `id`, `name`, `slug`, `createdAt`, `updatedAt`
-- **`memory`**: JSON field for agent-specific state (e.g., last crawl timestamps, cached data)
-- **`metadata`**: JSON field for agent metadata (e.g., configuration overrides)
-
-All fields are automatically persisted to the database via SMRT's persistence layer. The agent can read/write to `this.memory` and changes are saved automatically.
-
-### 3.2. Configuration Loading
+### 3.1. Configuration Loading
 
 Agents load their configuration using `getModuleConfig()` from `@have/config`:
 
@@ -58,7 +48,7 @@ export default {
 };
 ```
 
-### 3.3. Status Tracking
+### 3.2. Status Tracking
 
 The `Agent` class will track its execution status:
 
@@ -68,25 +58,11 @@ status: 'idle' | 'initializing' | 'running' | 'error' | 'shutdown'
 
 This allows monitoring and prevents duplicate runs.
 
-### 3.4. Run Metadata
-
-The `Agent` class will track execution history in `lastRun`:
-
-```typescript
-lastRun: {
-  startedAt: Date;
-  completedAt: Date | null;
-  duration: number | null; // milliseconds
-  error: string | null;
-  itemsProcessed: number;
-}
-```
-
-### 3.5. Logging
+### 3.3. Logging
 
 The `Agent` class will have a pre-configured logger from the `@have/logger` module. This will provide a standardized way to log messages and errors.
 
-### 3.6. Lifecycle Methods
+### 3.4. Lifecycle Methods
 
 The `Agent` class will have a set of lifecycle methods that can be overridden by the extending agent:
 
@@ -100,47 +76,33 @@ The `Agent` class will have a set of lifecycle methods that can be overridden by
 ```typescript
 import { SmrtObject, smrt } from '@have/smrt';
 import { getModuleConfig } from '@have/config';
-import { getLogger } from '@have/logger';
+import { createLogger } from '@have/logger';
 
-export interface AgentStatus {
-  status: 'idle' | 'initializing' | 'running' | 'error' | 'shutdown';
-  lastRun: {
-    startedAt: Date | null;
-    completedAt: Date | null;
-    duration: number | null;
-    error: string | null;
-    itemsProcessed: number;
-  };
-}
+export type AgentStatusType = 'idle' | 'initializing' | 'running' | 'error' | 'shutdown';
 
-@smrt()
 export abstract class Agent extends SmrtObject {
   // Status tracking
-  status: AgentStatus['status'] = 'idle';
-  lastRun: AgentStatus['lastRun'] = {
-    startedAt: null,
-    completedAt: null,
-    duration: null,
-    error: null,
-    itemsProcessed: 0,
-  };
-
-  // Memory (persisted via SmrtObject)
-  memory: Record<string, unknown> = {};
+  status: AgentStatusType = 'idle';
 
   // Logger
-  protected logger = getLogger(this.constructor.name);
+  protected logger = createLogger({ level: 'info' });
 
   // Configuration (loaded by extending class)
   protected abstract config: unknown;
 
   /**
    * Initialize the agent
-   * Override to perform setup after construction
+   * Override to perform setup after construction, but always call super.initialize()
    */
-  async initialize(): Promise<void> {
+  async initialize(): Promise<this> {
+    await super.initialize();
     this.status = 'initializing';
     this.logger.info('Agent initializing');
+
+    // Setup signal handlers for graceful shutdown
+    this.setupSignalHandlers();
+
+    return this;
   }
 
   /**
@@ -162,10 +124,12 @@ export abstract class Agent extends SmrtObject {
   /**
    * Cleanup and shutdown
    * Override to perform graceful shutdown
+   * Always call super.shutdown() to clean up signal handlers
    */
   async shutdown(): Promise<void> {
     this.status = 'shutdown';
     this.logger.info('Agent shutting down');
+    this.cleanupSignalHandlers();
   }
 
   /**
@@ -177,22 +141,29 @@ export abstract class Agent extends SmrtObject {
       await this.validate();
 
       this.status = 'running';
-      this.lastRun.startedAt = new Date();
-
       await this.run();
-
-      this.lastRun.completedAt = new Date();
-      this.lastRun.duration =
-        this.lastRun.completedAt.getTime() - this.lastRun.startedAt.getTime();
-      this.lastRun.error = null;
       this.status = 'idle';
 
+      this.logger.info('Agent execution completed');
     } catch (error) {
       this.status = 'error';
-      this.lastRun.error = error instanceof Error ? error.message : String(error);
-      this.logger.error('Agent execution failed', error);
+      this.logger.error('Agent execution failed', { error });
       throw error;
     }
+  }
+
+  /**
+   * Set up signal handlers for graceful shutdown
+   */
+  private setupSignalHandlers(): void {
+    // Implementation details...
+  }
+
+  /**
+   * Clean up signal handlers
+   */
+  private cleanupSignalHandlers(): void {
+    // Implementation details...
   }
 }
 ```
@@ -214,11 +185,6 @@ interface PraecoConfig {
   maxArticlesPerRun: number;
 }
 
-interface PraecoMemory {
-  lastCrawl: Record<string, Date>;
-  articlesSeen: string[];
-}
-
 @smrt()
 export class Praeco extends Agent {
   protected config = getModuleConfig<PraecoConfig>('praeco', {
@@ -227,8 +193,11 @@ export class Praeco extends Agent {
     maxArticlesPerRun: 50,
   });
 
-  // Type-safe memory access
-  declare memory: PraecoMemory;
+  // Agents can define their own state properties
+  // These will be automatically persisted by SmrtObject
+  lastCrawl: Record<string, Date> = {};
+  articlesSeen: string[] = [];
+  articlesProcessed: number = 0;
 
   async validate(): Promise<void> {
     if (!this.config.sources || this.config.sources.length === 0) {
@@ -247,23 +216,16 @@ export class Praeco extends Agent {
   async run(): Promise<void> {
     this.logger.info(`Starting Praeco crawl of ${this.config.sources.length} sources`);
 
-    // Initialize memory if first run
-    if (!this.memory.lastCrawl) {
-      this.memory.lastCrawl = {};
-      this.memory.articlesSeen = [];
-    }
-
-    let articlesProcessed = 0;
+    let processed = 0;
 
     for (const source of this.config.sources) {
       this.logger.info(`Crawling ${source}`);
 
-      // Crawl logic here...
       const articles = await this.crawlSource(source);
 
       // Filter out already-seen articles
       const newArticles = articles.filter(
-        article => !this.memory.articlesSeen.includes(article.url)
+        article => !this.articlesSeen.includes(article.url)
       );
 
       this.logger.info(`Found ${newArticles.length} new articles from ${source}`);
@@ -271,25 +233,28 @@ export class Praeco extends Agent {
       // Process articles...
       for (const article of newArticles) {
         await this.processArticle(article);
-        this.memory.articlesSeen.push(article.url);
-        articlesProcessed++;
+        this.articlesSeen.push(article.url);
+        processed++;
 
-        if (articlesProcessed >= this.config.maxArticlesPerRun) {
+        if (processed >= this.config.maxArticlesPerRun) {
           this.logger.info('Reached max articles limit');
           break;
         }
       }
 
       // Update last crawl time
-      this.memory.lastCrawl[source] = new Date();
+      this.lastCrawl[source] = new Date();
 
-      if (articlesProcessed >= this.config.maxArticlesPerRun) {
+      if (processed >= this.config.maxArticlesPerRun) {
         break;
       }
     }
 
-    this.lastRun.itemsProcessed = articlesProcessed;
-    this.logger.info(`Praeco completed: ${articlesProcessed} articles processed`);
+    this.articlesProcessed = processed;
+    this.logger.info(`Praeco completed: ${processed} articles processed`);
+
+    // Save state (extends SmrtObject, so properties are persisted)
+    await this.save();
   }
 
   private async crawlSource(source: string) {
