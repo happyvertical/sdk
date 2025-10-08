@@ -367,28 +367,63 @@ export function json(options: FieldOptions = {}): Field {
 /**
  * Creates a foreign key field that references another SMRT object
  *
- * @param relatedClass - The class constructor of the related object
+ * Supports lazy string-based references to avoid circular dependencies:
+ * - String: `foreignKey('Customer')` - Recommended, avoids circular deps
+ * - Function: `foreignKey(() => Customer)` - Lazy evaluation
+ * - Class: `foreignKey(Customer)` - Direct reference (legacy, can cause circular deps)
+ *
+ * @param relatedClass - String name, lazy function, or class constructor of the related object
  * @param options - Configuration options for the foreign key field
  * @returns Field instance configured for foreign key relationships
  * @example
  * ```typescript
  * class Order extends SmrtObject {
- *   customerId = foreignKey(Customer, { required: true, onDelete: 'restrict' });
- *   productId = foreignKey(Product, { onDelete: 'cascade' });
+ *   // Recommended: Lazy string reference (no circular dependency)
+ *   customerId = foreignKey('Customer', { required: true, onDelete: 'restrict' });
+ *   productId = foreignKey('Product', { onDelete: 'cascade' });
+ *
+ *   // Alternative: Lazy function reference
+ *   categoryId = foreignKey(() => Category, { required: true });
+ *
+ *   // Legacy: Direct class reference (can cause circular dependency issues)
+ *   // customerId = foreignKey(Customer, { required: true });
  * }
  * ```
  */
 export function foreignKey(
-  relatedClass: any,
+  relatedClass: string | Function | any,
   options: Omit<RelationshipFieldOptions, 'related'> = {},
 ): Field {
+  // Resolve the related class name
+  let relatedName: string;
+
+  if (typeof relatedClass === 'string') {
+    // Direct string reference (recommended)
+    relatedName = relatedClass;
+  } else if (typeof relatedClass === 'function' && relatedClass.prototype === undefined) {
+    // Arrow function returning a class - evaluate it
+    const resolvedClass = relatedClass();
+    relatedName = resolvedClass.name;
+    // Store the lazy function for later resolution
+    (relatedClass as any)._lazyClass = relatedClass;
+  } else {
+    // Direct class reference (legacy)
+    relatedName = relatedClass.name;
+    // Store reference to related class for backward compatibility
+    if (relatedClass) {
+      (relatedClass as any)._directClass = relatedClass;
+    }
+  }
+
   const field = new Field('foreignKey', {
     ...options,
-    related: relatedClass.name,
+    related: relatedName,
   } as FieldOptions);
 
-  // Store reference to related class
-  (field as any).relatedClass = relatedClass;
+  // Store reference metadata for debugging and backward compatibility
+  if (typeof relatedClass !== 'string') {
+    (field as any).relatedClass = relatedClass;
+  }
 
   return field;
 }
@@ -396,31 +431,51 @@ export function foreignKey(
 /**
  * Creates a one-to-many relationship field
  *
- * @param relatedClass - The class constructor of the related objects
+ * Supports lazy string-based references to avoid circular dependencies:
+ * - String: `oneToMany('Product')` - Recommended, avoids circular deps
+ * - Function: `oneToMany(() => Product)` - Lazy evaluation
+ * - Class: `oneToMany(Product)` - Direct reference (legacy, can cause circular deps)
+ *
+ * @param relatedClass - String name, lazy function, or class constructor of the related objects
  * @param options - Configuration options for the relationship
  * @returns Field instance configured for one-to-many relationships
  * @example
  * ```typescript
  * class Category extends SmrtObject {
- *   products = oneToMany(Product);
+ *   // Recommended: Lazy string reference
+ *   products = oneToMany('Product');
  * }
  *
  * class Customer extends SmrtObject {
- *   orders = oneToMany(Order, { onDelete: 'cascade' });
+ *   orders = oneToMany('Order', { onDelete: 'cascade' });
  * }
  * ```
  */
 export function oneToMany(
-  relatedClass: any,
+  relatedClass: string | Function | any,
   options: Omit<RelationshipFieldOptions, 'related'> = {},
 ): Field {
+  // Resolve the related class name (same logic as foreignKey)
+  let relatedName: string;
+
+  if (typeof relatedClass === 'string') {
+    relatedName = relatedClass;
+  } else if (typeof relatedClass === 'function' && relatedClass.prototype === undefined) {
+    const resolvedClass = relatedClass();
+    relatedName = resolvedClass.name;
+  } else {
+    relatedName = relatedClass.name;
+  }
+
   const field = new Field('oneToMany', {
     ...options,
-    related: relatedClass.name,
+    related: relatedName,
   } as FieldOptions);
 
-  // Store reference to related class
-  (field as any).relatedClass = relatedClass;
+  // Store reference to related class for backward compatibility
+  if (typeof relatedClass !== 'string') {
+    (field as any).relatedClass = relatedClass;
+  }
 
   return field;
 }
@@ -428,32 +483,52 @@ export function oneToMany(
 /**
  * Creates a many-to-many relationship field
  *
- * @param relatedClass - The class constructor of the related objects
+ * Supports lazy string-based references to avoid circular dependencies:
+ * - String: `manyToMany('Category')` - Recommended, avoids circular deps
+ * - Function: `manyToMany(() => Category)` - Lazy evaluation
+ * - Class: `manyToMany(Category)` - Direct reference (legacy, can cause circular deps)
+ *
+ * @param relatedClass - String name, lazy function, or class constructor of the related objects
  * @param options - Configuration options for the relationship
  * @returns Field instance configured for many-to-many relationships
  * @example
  * ```typescript
  * class Product extends SmrtObject {
- *   categories = manyToMany(Category);
- *   tags = manyToMany(Tag);
+ *   // Recommended: Lazy string references
+ *   categories = manyToMany('Category');
+ *   tags = manyToMany('Tag');
  * }
  *
  * class User extends SmrtObject {
- *   roles = manyToMany(Role);
+ *   roles = manyToMany('Role');
  * }
  * ```
  */
 export function manyToMany(
-  relatedClass: any,
+  relatedClass: string | Function | any,
   options: Omit<RelationshipFieldOptions, 'related'> = {},
 ): Field {
+  // Resolve the related class name (same logic as foreignKey)
+  let relatedName: string;
+
+  if (typeof relatedClass === 'string') {
+    relatedName = relatedClass;
+  } else if (typeof relatedClass === 'function' && relatedClass.prototype === undefined) {
+    const resolvedClass = relatedClass();
+    relatedName = resolvedClass.name;
+  } else {
+    relatedName = relatedClass.name;
+  }
+
   const field = new Field('manyToMany', {
     ...options,
-    related: relatedClass.name,
+    related: relatedName,
   } as FieldOptions);
 
-  // Store reference to related class
-  (field as any).relatedClass = relatedClass;
+  // Store reference to related class for backward compatibility
+  if (typeof relatedClass !== 'string') {
+    (field as any).relatedClass = relatedClass;
+  }
 
   return field;
 }
