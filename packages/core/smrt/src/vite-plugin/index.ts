@@ -56,6 +56,7 @@ const VIRTUAL_MODULES = {
   '@smrt/manifest': 'smrt:manifest',
   '@smrt/schema': 'smrt:schema',
   '@smrt/ui': 'smrt:ui',
+  '@smrt/cli': 'smrt:cli',
 };
 
 export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
@@ -254,6 +255,10 @@ export function smrtPlugin(options: SmrtPluginOptions = {}): Plugin {
         case 'smrt:index-html':
           // Virtual index.html for projects without one
           return await loadDefaultHTML();
+
+        case 'smrt:cli':
+          // CLI module for command-line interface generation
+          return await generateCLIModule(manifest);
 
         default:
           return null;
@@ -831,11 +836,49 @@ declare module '@smrt/mcp' {
 // Types module - Auto-generated TypeScript interfaces
 declare module '@smrt/types' {
   export const types: string;
-  
+
   // Auto-generated interfaces for discovered SMRT objects
 ${objectInterfaces}
 
   export default types;
+}
+
+// CLI module - Auto-generated command-line interface
+declare module '@smrt/cli' {
+  export interface CLIConfig {
+    name?: string;
+    version?: string;
+    description?: string;
+    prompt?: boolean;
+    colors?: boolean;
+  }
+
+  export interface CLIContext {
+    db?: any;
+    ai?: any;
+    user?: {
+      id: string;
+      roles?: string[];
+    };
+  }
+
+  export interface CLICommandMap {
+    [objectName: string]: {
+      collection: string;
+      commands: string[];
+    };
+  }
+
+  export const cliCommands: CLICommandMap;
+
+  export function setupCLI(config?: CLIConfig, context?: CLIContext): {
+    run: (argv: string[]) => Promise<void>;
+    generator: any;
+  };
+
+  export function getCLIHandler(config?: CLIConfig, context?: CLIContext): (argv: string[]) => Promise<void>;
+
+  export default setupCLI;
 }`;
 
     // Write the declarations file
@@ -1041,6 +1084,152 @@ async function loadDefaultHTML(): Promise<string> {
  */
 async function loadDefaultUI(): Promise<string> {
   return getDefaultUIModule();
+}
+
+/**
+ * Generate virtual CLI module
+ */
+async function generateCLIModule(
+  manifest: SmartObjectManifest,
+): Promise<string> {
+  try {
+    // Import CLI types
+    const commands: string[] = [];
+    const objectImports: string[] = [];
+
+    // Generate CLI setup code for each object
+    for (const [className, objectDef] of Object.entries(manifest.objects)) {
+      const config = objectDef.decoratorConfig;
+      const cliConfig = config?.cli;
+
+      // Skip if CLI is disabled
+      if (cliConfig === false) continue;
+
+      // Determine which operations to include
+      const excluded =
+        (typeof cliConfig === 'object' ? cliConfig.exclude : []) || [];
+      const included =
+        typeof cliConfig === 'object' ? cliConfig.include : null;
+
+      const shouldInclude = (command: string) => {
+        if (included && !included.includes(command)) return false;
+        if (excluded.includes(command)) return false;
+        return true;
+      };
+
+      // Get collection name
+      const collectionName = objectDef.collection;
+
+      // Generate import statement for the object class
+      objectImports.push(
+        `// Import ${className} and ${className}Collection for CLI operations`,
+      );
+
+      // Generate command registration
+      const availableCommands: string[] = [];
+
+      // Standard CRUD commands
+      if (shouldInclude('list'))
+        availableCommands.push(`'${collectionName}:list'`);
+      if (shouldInclude('get'))
+        availableCommands.push(`'${collectionName}:get'`);
+      if (shouldInclude('create'))
+        availableCommands.push(`'${collectionName}:create'`);
+      if (shouldInclude('update'))
+        availableCommands.push(`'${collectionName}:update'`);
+      if (shouldInclude('delete'))
+        availableCommands.push(`'${collectionName}:delete'`);
+
+      // Custom action methods
+      for (const [methodName, method] of Object.entries(objectDef.methods)) {
+        // Skip private methods and standard CRUD
+        if (
+          methodName.startsWith('_') ||
+          ['list', 'get', 'create', 'update', 'delete', 'save'].includes(
+            methodName,
+          )
+        )
+          continue;
+
+        if (shouldInclude(methodName)) {
+          availableCommands.push(`'${collectionName}:${methodName}'`);
+        }
+      }
+
+      if (availableCommands.length > 0) {
+        commands.push(`
+  // ${className} commands
+  ${className}: {
+    collection: '${collectionName}',
+    commands: [${availableCommands.join(', ')}]
+  }`);
+      }
+    }
+
+    return `
+// Auto-generated CLI module from SMRT objects
+// This file is generated automatically - do not edit
+
+import { CLIGenerator } from '@have/smrt/generators/cli';
+import type { CLIConfig, CLIContext } from '@have/smrt/generators/cli';
+
+${objectImports.join('\n')}
+
+/**
+ * Available CLI commands by object
+ */
+export const cliCommands = {${commands.join(',\n')}
+};
+
+/**
+ * Setup CLI with auto-generated commands
+ *
+ * @example
+ * import { setupCLI } from '@smrt/cli';
+ *
+ * const cli = setupCLI({
+ *   name: 'my-app',
+ *   version: '1.0.0'
+ * });
+ *
+ * cli.run(process.argv);
+ */
+export function setupCLI(config: CLIConfig = {}, context: CLIContext = {}) {
+  const generator = new CLIGenerator(config, context);
+  return {
+    run: async (argv: string[]) => {
+      const handler = generator.generateHandler();
+      await handler(argv.slice(2)); // Remove 'node' and script name
+    },
+    generator
+  };
+}
+
+/**
+ * Get CLI handler directly
+ */
+export function getCLIHandler(config: CLIConfig = {}, context: CLIContext = {}) {
+  const generator = new CLIGenerator(config, context);
+  return generator.generateHandler();
+}
+
+export default setupCLI;
+`;
+  } catch (error) {
+    console.warn('[smrt] Error generating CLI module:', error);
+    return `
+// Error generating CLI module
+export const cliCommands = {};
+export function setupCLI() {
+  console.warn("CLI generation failed");
+  return { run: async () => {} };
+}
+export function getCLIHandler() {
+  return async () => console.warn("CLI generation failed");
+}
+export default setupCLI;
+`;
+  }
 }
 
 /**
