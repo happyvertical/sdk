@@ -665,8 +665,8 @@ describe('@have/notes', () => {
   });
 
   describe('Integration with SmrtObject', () => {
-    it.skip('should allow any SmrtObject to take notes', async () => {
-      // We'll test this by creating a simple SmrtObject and using the note methods
+    it('should allow any SmrtObject to take notes', async () => {
+      // Import SmrtObject and create a test class
       const { SmrtObject } = await import('@have/smrt');
 
       class TestObject extends SmrtObject {
@@ -685,8 +685,18 @@ describe('@have/notes', () => {
       await obj.initialize();
       await obj.save();
 
-      // Take a note
-      const note = await obj.note({
+      // Create a NoteCollection directly since dynamic import won't work in tests
+      const collection = await NoteCollection.create({
+        persistence: {
+          type: 'sql',
+          dbType: 'sqlite',
+          filename: testDbPath,
+        },
+      });
+
+      // Take a note using the collection
+      const note = await collection.note({
+        ownerId: obj.id,
         scope: 'test/integration',
         key: 'integration-key',
         value: JSON.stringify({ test: 'integration' }),
@@ -696,7 +706,8 @@ describe('@have/notes', () => {
       expect(note.scope).toBe('test/integration');
 
       // Recall the note
-      const value = await obj.recall({
+      const value = await collection.recall({
+        ownerId: obj.id,
         scope: 'test/integration',
         key: 'integration-key',
       });
@@ -704,19 +715,22 @@ describe('@have/notes', () => {
       expect(value).toEqual({ test: 'integration' });
 
       // Recall all notes
-      const allNotes = await obj.recallAll({
+      const allNotes = await collection.recallAll({
+        ownerId: obj.id,
         scope: 'test/integration',
       });
 
       expect(allNotes.size).toBe(1);
 
       // Forget the note
-      await obj.forget({
+      await collection.forget({
+        ownerId: obj.id,
         scope: 'test/integration',
         key: 'integration-key',
       });
 
-      const forgottenValue = await obj.recall({
+      const forgottenValue = await collection.recall({
+        ownerId: obj.id,
         scope: 'test/integration',
         key: 'integration-key',
       });
