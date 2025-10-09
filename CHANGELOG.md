@@ -1,3 +1,10 @@
+## [0.20.5](https://github.com/happyvertical/sdk/compare/v0.20.4...v0.20.5) (2025-10-09)
+
+
+### Bug Fixes
+
+* CLI auto-generation improvements ([da3cfd3](https://github.com/happyvertical/sdk/commit/da3cfd38658b04e30d2aa04a695d6e6f8c591f07)), closes [#149](https://github.com/happyvertical/sdk/issues/149) [#151](https://github.com/happyvertical/sdk/issues/151)
+
 ## [0.20.4](https://github.com/happyvertical/sdk/compare/v0.20.3...v0.20.4) (2025-10-09)
 
 
