@@ -8,8 +8,27 @@
 import { createInterface } from 'node:readline';
 import type { SmrtCollection } from '../collection';
 import { ObjectRegistry } from '../registry';
-import { gnodeCommands, generateCommands } from '../cli/commands/index.js';
 import { parseCliArgs, type Command, type ParsedArgs } from '@have/utils';
+
+// Lazy-load commands to avoid loading tar dependencies unless needed
+let _gnodeCommands: Record<string, Command> | null = null;
+let _generateCommands: Record<string, Command> | null = null;
+
+async function getGnodeCommands(): Promise<Record<string, Command>> {
+  if (!_gnodeCommands) {
+    const { gnodeCommands } = await import('../cli/commands/index.js');
+    _gnodeCommands = gnodeCommands;
+  }
+  return _gnodeCommands;
+}
+
+async function getGenerateCommands(): Promise<Record<string, Command>> {
+  if (!_generateCommands) {
+    const { generateCommands } = await import('../cli/commands/index.js');
+    _generateCommands = generateCommands;
+  }
+  return _generateCommands;
+}
 
 export interface CLIConfig {
   name?: string;
@@ -82,12 +101,17 @@ export class CLIGenerator {
    */
   generateHandler(): (argv: string[]) => Promise<void> {
     const commands = this.generateCommands();
-    const builtInCommands = {
-      ...gnodeCommands,
-      ...generateCommands,
-    };
 
     return async (argv: string[]) => {
+      const [gnodeCommands, generateCommands] = await Promise.all([
+        getGnodeCommands(),
+        getGenerateCommands(),
+      ]);
+      const builtInCommands = {
+        ...gnodeCommands,
+        ...generateCommands,
+      };
+
       const parsed = parseCliArgs(argv, commands, builtInCommands);
       await this.executeCommand(parsed, commands);
     };
@@ -280,11 +304,15 @@ export class CLIGenerator {
     commands: CLICommand[],
   ): Promise<void> {
     if (!parsed.command) {
-      this.showHelp(commands);
+      await this.showHelp(commands);
       return;
     }
 
     // Check for built-in subcommands first (gnode, generate-*)
+    const [gnodeCommands, generateCommands] = await Promise.all([
+      getGnodeCommands(),
+      getGenerateCommands(),
+    ]);
     const builtInCommands = {
       ...gnodeCommands,
       ...generateCommands,
@@ -391,7 +419,7 @@ export class CLIGenerator {
       description: 'Show help information',
       aliases: ['h'],
       handler: async (_args, _options) => {
-        this.showHelp(commands);
+        await this.showHelp(commands);
       },
     });
 
@@ -450,12 +478,17 @@ export class CLIGenerator {
   /**
    * Show help information
    */
-  showHelp(commands: CLICommand[]): void {
+  async showHelp(commands: CLICommand[]): Promise<void> {
     console.log(`${this.config.name} v${this.config.version}`);
     console.log(this.config.description);
     console.log();
 
     // Show built-in subcommands first
+    const [gnodeCommands, generateCommands] = await Promise.all([
+      getGnodeCommands(),
+      getGenerateCommands(),
+    ]);
+
     console.log('Gnode Commands:');
     for (const command of Object.values(gnodeCommands)) {
       this.showCommandHelp(command);
