@@ -1,3 +1,10 @@
+## [0.20.4](https://github.com/happyvertical/sdk/compare/v0.20.3...v0.20.4) (2025-10-09)
+
+
+### Bug Fixes
+
+* **assets:** replace deprecated objectClass with _itemClass ([5764588](https://github.com/happyvertical/sdk/commit/57645885ec91ad52dd492f0b23d7eb97d61d3259)), closes [#146](https://github.com/happyvertical/sdk/issues/146)
+
 ## [0.20.3](https://github.com/happyvertical/sdk/compare/v0.20.2...v0.20.3) (2025-10-09)
 
 

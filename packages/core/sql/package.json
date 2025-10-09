@@ -1,6 +1,6 @@
 {
   "name": "@have/sql",
-  "version": "0.20.2",
+  "version": "0.20.3",
   "description": "Database interface with support for SQLite and PostgreSQL",
   "type": "module",
   "main": "./dist/index.js",

@@ -1,6 +1,6 @@
 {
   "name": "@have/geo",
-  "version": "0.20.2",
+  "version": "0.20.3",
   "description": "Standardized geographical information interface supporting Google Maps and OpenStreetMap",
   "type": "module",
   "main": "./dist/index.js",
