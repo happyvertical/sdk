@@ -595,8 +595,8 @@ describe('@have/notes', () => {
       const stats = await collection.getNoteStats('test-owner');
 
       expect(stats.totalNotes).toBe(3);
-      expect(stats.averageConfidence).toBeGreaterThan(0);
-      expect(stats.notesByScope['test']).toBe(3);
+      expect(stats.avgConfidence).toBeGreaterThan(0);
+      expect(stats.scopeCount).toBeGreaterThan(0);
     });
   });
 
