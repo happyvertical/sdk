@@ -47,7 +47,9 @@ export class NoteCollection extends SmrtCollection<Note> {
       note.lastUsed = new Date();
     }
 
-    return (await this.create(note)) as Note;
+    const createdNote = (await this.create(note)) as Note;
+    await createdNote.save();
+    return createdNote;
   }
 
   /**
