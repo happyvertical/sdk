@@ -36,9 +36,9 @@ export class NoteCollection extends SmrtCollection<Note> {
     processedOptions.createdAt = new Date();
     processedOptions.updatedAt = new Date();
 
-    // Initialize lastUsed if not provided
-    if (!processedOptions.lastUsed) {
-      processedOptions.lastUsed = new Date();
+    // Initialize lastUsedAt if not provided
+    if (!processedOptions.lastUsedAt) {
+      processedOptions.lastUsedAt = new Date();
     }
 
     // Use this.create() which will handle initialization properly
@@ -494,8 +494,8 @@ export class NoteCollection extends SmrtCollection<Note> {
     for (const note of allNotes) {
       if (
         note.confidence < threshold &&
-        note.lastUsed &&
-        note.lastUsed < thirtyDaysAgo
+        note.lastUsedAt &&
+        note.lastUsedAt < thirtyDaysAgo
       ) {
         await note.delete();
         count++;

@@ -40,7 +40,7 @@ export class Note extends SmrtObject {
   // Timestamps
   createdAt = new Date();
   updatedAt = new Date();
-  lastUsed: Date | null = null; // Track recency for time decay
+  lastUsedAt: Date | null = null; // Track recency for time decay
   expiresAt: Date | null = null; // Optional expiration
 
   /**
@@ -95,7 +95,7 @@ export class Note extends SmrtObject {
    */
   recordSuccess(): void {
     this.successCount++;
-    this.lastUsed = new Date();
+    this.lastUsedAt = new Date();
 
     // Boost confidence slightly (max 1.0)
     this.confidence = Math.min(1.0, this.confidence + 0.05);
@@ -109,7 +109,7 @@ export class Note extends SmrtObject {
    */
   recordFailure(): void {
     this.failureCount++;
-    this.lastUsed = new Date();
+    this.lastUsedAt = new Date();
 
     // Penalize confidence significantly
     this.confidence = Math.max(0.0, this.confidence - 0.2);
@@ -124,10 +124,10 @@ export class Note extends SmrtObject {
    * @param decayRate - Rate of decay (default: 0.05)
    */
   applyTimeDecay(decayRate = 0.05): void {
-    if (!this.lastUsed) return;
+    if (!this.lastUsedAt) return;
 
     const daysSinceUse =
-      (Date.now() - this.lastUsed.getTime()) / (1000 * 60 * 60 * 24);
+      (Date.now() - this.lastUsedAt.getTime()) / (1000 * 60 * 60 * 24);
     const decay = Math.exp(-decayRate * daysSinceUse);
 
     this.confidence = this.confidence * decay;
