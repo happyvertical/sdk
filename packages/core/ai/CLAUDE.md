@@ -500,14 +500,57 @@ Context lengths are hardcoded based on known model limits (update when new model
 
 ### Function Calling / Tool Usage
 
-Function calling support varies:
-- **OpenAI**: Full support with `tools` and `tool_choice` parameters
-- **Anthropic**: Supports tool use with different format
-- **Gemini**: Supports function calling with Google-specific format
-- **Bedrock**: Depends on underlying model
+**All major providers now support tool use with a unified interface!**
+
+Function calling support:
+- **OpenAI**: Full native support with `tools` and `tool_choice` parameters
+- **Anthropic**: Full native support via Claude's tool use API (maps to `name`, `description`, `input_schema`)
+- **Gemini**: Full native support via Google's function calling API (maps to `functionDeclarations`)
+- **Bedrock**: Depends on underlying model (Claude models support tool use)
 - **Hugging Face**: Generally not supported (model-dependent)
 
-Each provider maps the standardized `AITool` interface to its native format.
+**Unified Tool Interface**: All providers use the standardized `AITool` interface from `ChatOptions`, which is automatically mapped to each provider's native format:
+
+```typescript
+const response = await client.chat([
+  { role: 'user', content: 'What is the weather in Tokyo?' }
+], {
+  tools: [{
+    type: 'function',
+    function: {
+      name: 'get_weather',
+      description: 'Get current weather for a location',
+      parameters: {
+        type: 'object',
+        properties: {
+          location: { type: 'string', description: 'City name' },
+          unit: { type: 'string', enum: ['celsius', 'fahrenheit'] }
+        },
+        required: ['location']
+      }
+    }
+  }],
+  toolChoice: 'auto' // Works across OpenAI, Anthropic, and Gemini
+});
+
+// Access tool calls from any provider
+if (response.toolCalls) {
+  for (const call of response.toolCalls) {
+    console.log(`${call.function.name}: ${call.function.arguments}`);
+  }
+}
+```
+
+**Provider-Specific Mappings:**
+- **OpenAI**: Direct pass-through of tools array, native `tool_choice` support
+- **Anthropic**: Converts to `tools` array with `input_schema`, maps `tool_choice` to Anthropic's format
+- **Gemini**: Wraps in `functionDeclarations` array, uses `functionCallingConfig` for tool choice
+
+**Structured Output Support:**
+All providers now support `responseFormat: { type: 'json_object' }`:
+- **OpenAI**: Native JSON mode support
+- **Anthropic**: Adds JSON instruction to system message (prompt-based)
+- **Gemini**: Uses `responseMimeType: 'application/json'` (native support)
 
 ### Legacy Client Components
 
@@ -892,12 +935,15 @@ bun run clean
 - **Safety Settings**: Configure content filtering and safety thresholds
 - **Project ID**: Required for some operations, optional for others
 - **Model Variants**: Gemini Pro vs Gemini Flash for different use cases
+- **Function Calling**: Full support with `functionDeclarations` and `functionCallingConfig`
+- **JSON Mode**: Native `responseMimeType: 'application/json'` support
 
 ### Anthropic Claude
 - **Constitutional AI**: Built-in safety and helpfulness guidelines
 - **Message Format**: Specific requirements for message role sequence
-- **Tool Use**: Advanced function calling capabilities
+- **Tool Use**: Full native support via Claude's tool use API with `input_schema`
 - **Context Length**: Claude 3 models support up to 200k tokens
+- **JSON Mode**: Implemented via system message instructions (prompt-based approach)
 
 ### AWS Bedrock
 - **Model Access**: Request access to specific models before use
