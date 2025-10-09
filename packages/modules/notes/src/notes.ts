@@ -21,35 +21,30 @@ export class NoteCollection extends SmrtCollection<Note> {
    * @returns Created Note instance
    */
   async note(options: Partial<Note>): Promise<Note> {
-    // Extract collection-compatible options
-    const { persistence, db, ai, fs, _className } = this.options;
-    const note = new Note({ persistence, db, ai, fs, _className });
-
-    // Set all provided properties
-    Object.assign(note, options);
-
-    // Handle value serialization
+    // Handle value serialization if needed
+    const processedOptions = { ...options };
     if (options.value && typeof options.value === 'object') {
-      note.setValue(options.value);
+      processedOptions.value = JSON.stringify(options.value);
     }
 
-    // Handle metadata serialization
+    // Handle metadata serialization if needed
     if (options.metadata && typeof options.metadata === 'object') {
-      note.setMetadata(options.metadata);
+      processedOptions.metadata = JSON.stringify(options.metadata);
     }
 
     // Set timestamps
-    note.createdAt = new Date();
-    note.updatedAt = new Date();
+    processedOptions.createdAt = new Date();
+    processedOptions.updatedAt = new Date();
 
     // Initialize lastUsed if not provided
-    if (!note.lastUsed) {
-      note.lastUsed = new Date();
+    if (!processedOptions.lastUsed) {
+      processedOptions.lastUsed = new Date();
     }
 
-    const createdNote = (await this.create(note)) as Note;
-    await createdNote.save();
-    return createdNote;
+    // Use this.create() which will handle initialization properly
+    const note = (await this.create(processedOptions)) as Note;
+    await note.save();
+    return note;
   }
 
   /**
