@@ -1,3 +1,10 @@
+# [0.20.0](https://github.com/happyvertical/sdk/compare/v0.19.2...v0.20.0) (2025-10-09)
+
+
+### Features
+
+* **smrt:** add @smrt/cli virtual module for auto-generated CLI ([ab49c44](https://github.com/happyvertical/sdk/commit/ab49c44405b97dfc3f9adea974be8fd7d23da9d7)), closes [#147](https://github.com/happyvertical/sdk/issues/147)
+
 ## [0.19.2](https://github.com/happyvertical/sdk/compare/v0.19.1...v0.19.2) (2025-10-08)
 
 
