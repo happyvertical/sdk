@@ -8,7 +8,7 @@ import { SmrtCollection } from '@have/smrt';
 import { AssetMetafield } from './asset-metafield';
 
 export class AssetMetafieldCollection extends SmrtCollection<AssetMetafield> {
-  static readonly objectClass = AssetMetafield;
+  static readonly _itemClass = AssetMetafield;
 
   /**
    * Get or create an asset metafield by slug
