@@ -1,5 +1,9 @@
 # Happy Vertical SDK
 
+<p align="center">
+  <img src="./smrt-homer.png" alt="SMRT Framework" width="400">
+</p>
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 Build powerful AI agents in TypeScript with the SMRT framework. Define your business logic once and get REST APIs, AI tools, and CLI commands automatically generated.
