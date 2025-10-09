@@ -1,6 +1,6 @@
 {
   "name": "@have/cache",
-  "version": "0.20.1",
+  "version": "0.20.2",
   "description": "Standardized caching interface supporting Memory, File, and Redis backends",
   "type": "module",
   "main": "./dist/index.js",
