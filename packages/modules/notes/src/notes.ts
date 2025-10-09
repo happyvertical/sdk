@@ -21,7 +21,9 @@ export class NoteCollection extends SmrtCollection<Note> {
    * @returns Created Note instance
    */
   async note(options: Partial<Note>): Promise<Note> {
-    const note = new Note();
+    // Extract collection-compatible options
+    const { persistence, db, ai, fs, _className } = this.options;
+    const note = new Note({ persistence, db, ai, fs, _className });
 
     // Set all provided properties
     Object.assign(note, options);
