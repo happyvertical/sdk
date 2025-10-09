@@ -188,14 +188,13 @@ describe('@have/notes', () => {
 
   describe('NoteCollection', () => {
     it('should create and store a note', async () => {
-      const collection = new NoteCollection({
-        db: {
-          type: 'sqlite',
+      const collection = await NoteCollection.create({
+        persistence: {
+          type: 'sql',
+          dbType: 'sqlite',
           filename: testDbPath,
         },
       });
-
-      await collection.initialize();
 
       const note = await collection.note({
         ownerId: 'test-owner',
@@ -211,14 +210,13 @@ describe('@have/notes', () => {
     });
 
     it('should recall a note by key', async () => {
-      const collection = new NoteCollection({
-        db: {
-          type: 'sqlite',
+      const collection = await NoteCollection.create({
+        persistence: {
+          type: 'sql',
+          dbType: 'sqlite',
           filename: testDbPath,
         },
       });
-
-      await collection.initialize();
 
       // Store a note
       await collection.note({
@@ -239,14 +237,13 @@ describe('@have/notes', () => {
     });
 
     it('should recall with hierarchical fallback', async () => {
-      const collection = new NoteCollection({
-        db: {
-          type: 'sqlite',
+      const collection = await NoteCollection.create({
+        persistence: {
+          type: 'sql',
+          dbType: 'sqlite',
           filename: testDbPath,
         },
       });
-
-      await collection.initialize();
 
       // Store notes at different levels
       await collection.note({
@@ -277,14 +274,13 @@ describe('@have/notes', () => {
     });
 
     it('should filter by minimum confidence', async () => {
-      const collection = new NoteCollection({
-        db: {
-          type: 'sqlite',
+      const collection = await NoteCollection.create({
+        persistence: {
+          type: 'sql',
+          dbType: 'sqlite',
           filename: testDbPath,
         },
       });
-
-      await collection.initialize();
 
       // Store notes with different confidence levels
       await collection.note({
@@ -325,14 +321,13 @@ describe('@have/notes', () => {
     });
 
     it('should recall all notes in a scope', async () => {
-      const collection = new NoteCollection({
-        db: {
-          type: 'sqlite',
+      const collection = await NoteCollection.create({
+        persistence: {
+          type: 'sql',
+          dbType: 'sqlite',
           filename: testDbPath,
         },
       });
-
-      await collection.initialize();
 
       // Store multiple notes
       await collection.note({
@@ -360,14 +355,13 @@ describe('@have/notes', () => {
     });
 
     it('should manage note versions correctly', async () => {
-      const collection = new NoteCollection({
-        db: {
-          type: 'sqlite',
+      const collection = await NoteCollection.create({
+        persistence: {
+          type: 'sql',
+          dbType: 'sqlite',
           filename: testDbPath,
         },
       });
-
-      await collection.initialize();
 
       // Store version 1
       await collection.note({
@@ -408,14 +402,13 @@ describe('@have/notes', () => {
     });
 
     it('should forget a specific note', async () => {
-      const collection = new NoteCollection({
-        db: {
-          type: 'sqlite',
+      const collection = await NoteCollection.create({
+        persistence: {
+          type: 'sql',
+          dbType: 'sqlite',
           filename: testDbPath,
         },
       });
-
-      await collection.initialize();
 
       // Store a note
       await collection.note({
@@ -450,14 +443,13 @@ describe('@have/notes', () => {
     });
 
     it('should forget all notes in a scope', async () => {
-      const collection = new NoteCollection({
-        db: {
-          type: 'sqlite',
+      const collection = await NoteCollection.create({
+        persistence: {
+          type: 'sql',
+          dbType: 'sqlite',
           filename: testDbPath,
         },
       });
-
-      await collection.initialize();
 
       // Store multiple notes
       await collection.note({
@@ -505,14 +497,13 @@ describe('@have/notes', () => {
     });
 
     it('should archive low confidence notes', async () => {
-      const collection = new NoteCollection({
-        db: {
-          type: 'sqlite',
+      const collection = await NoteCollection.create({
+        persistence: {
+          type: 'sql',
+          dbType: 'sqlite',
           filename: testDbPath,
         },
       });
-
-      await collection.initialize();
 
       // Store notes with different confidence levels
       await collection.note({
@@ -555,14 +546,13 @@ describe('@have/notes', () => {
     });
 
     it('should get note statistics', async () => {
-      const collection = new NoteCollection({
-        db: {
-          type: 'sqlite',
+      const collection = await NoteCollection.create({
+        persistence: {
+          type: 'sql',
+          dbType: 'sqlite',
           filename: testDbPath,
         },
       });
-
-      await collection.initialize();
 
       // Store notes with various properties
       await collection.note({
