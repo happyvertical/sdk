@@ -1,3 +1,10 @@
+## [0.20.3](https://github.com/happyvertical/sdk/compare/v0.20.2...v0.20.3) (2025-10-09)
+
+
+### Bug Fixes
+
+* **smrt:** lazy-load gnode and generate commands in CLIGenerator ([1170d4c](https://github.com/happyvertical/sdk/commit/1170d4cd1e82068dd0e4758f3e2bbccb8df93474)), closes [#151](https://github.com/happyvertical/sdk/issues/151)
+
 ## [0.20.2](https://github.com/happyvertical/sdk/compare/v0.20.1...v0.20.2) (2025-10-09)
 
 

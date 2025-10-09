@@ -1,6 +1,6 @@
 {
   "name": "@have/pdf",
-  "version": "0.20.1",
+  "version": "0.20.2",
   "description": "Modern PDF processing utilities with text extraction and OCR support using unpdf and @have/ocr",
   "type": "module",
   "main": "./dist/index.js",
