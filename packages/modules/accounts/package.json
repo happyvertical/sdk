@@ -1,6 +1,6 @@
 {
   "name": "@have/accounts",
-  "version": "0.20.3",
+  "version": "0.20.4",
   "description": "Flexible accounting ledger with multi-currency support and SMRT framework integration",
   "type": "module",
   "main": "./dist/index.js",
