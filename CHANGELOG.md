@@ -1,3 +1,10 @@
+## [0.20.2](https://github.com/happyvertical/sdk/compare/v0.20.1...v0.20.2) (2025-10-09)
+
+
+### Bug Fixes
+
+* **smrt:** replace TypeScript import with JSDoc in @smrt/cli virtual module ([1e9844f](https://github.com/happyvertical/sdk/commit/1e9844fa14d37d7d0d8548c047c2a2af34425241)), closes [#149](https://github.com/happyvertical/sdk/issues/149)
+
 ## [0.20.1](https://github.com/happyvertical/sdk/compare/v0.20.0...v0.20.1) (2025-10-09)
 
 # [0.20.0](https://github.com/happyvertical/sdk/compare/v0.19.2...v0.20.0) (2025-10-09)
