@@ -792,16 +792,19 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
   }
 
   /**
-   * Generates slug from object name
+   * Generates slug from object name, or falls back to ID if name is not provided
    */
   private async generateSlug(object: SmrtObject): Promise<string> {
-    if (!object.name) {
-      throw ValidationError.requiredField('name', object.constructor.name);
+    // Use name if available, otherwise fall back to ID
+    const source = object.name || object.id;
+
+    if (!source) {
+      throw ValidationError.requiredField('name or id', object.constructor.name);
     }
 
     // Explicitly convert Field to string for TypeScript
-    const nameStr = String(object.name);
-    return nameStr
+    const sourceStr = String(source);
+    return sourceStr
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');
