@@ -8,7 +8,7 @@ import { SmrtCollection } from '@have/smrt';
 import { AssetType } from './asset-type';
 
 export class AssetTypeCollection extends SmrtCollection<AssetType> {
-  static readonly objectClass = AssetType;
+  static readonly _itemClass = AssetType;
 
   /**
    * Get or create an asset type by slug

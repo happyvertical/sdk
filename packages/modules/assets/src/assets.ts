@@ -8,7 +8,7 @@ import { SmrtCollection } from '@have/smrt';
 import { Asset } from './asset';
 
 export class AssetCollection extends SmrtCollection<Asset> {
-  static readonly objectClass = Asset;
+  static readonly _itemClass = Asset;
 
   /**
    * Add a tag to an asset (uses @have/tags)
