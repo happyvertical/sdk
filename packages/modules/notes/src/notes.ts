@@ -531,11 +531,13 @@ export class NoteCollection extends SmrtCollection<Note> {
     const avgConfidence =
       notes.reduce((sum, n) => sum + n.confidence, 0) / notes.length;
 
-    const oldest = notes.reduce((min, n) =>
-      n.createdAt < min ? n.createdAt : min,
+    const oldest = notes.reduce(
+      (min, n) => (n.createdAt < min ? n.createdAt : min),
+      notes[0].createdAt,
     );
-    const newest = notes.reduce((max, n) =>
-      n.createdAt > max ? n.createdAt : max,
+    const newest = notes.reduce(
+      (max, n) => (n.createdAt > max ? n.createdAt : max),
+      notes[0].createdAt,
     );
 
     const now = new Date();
