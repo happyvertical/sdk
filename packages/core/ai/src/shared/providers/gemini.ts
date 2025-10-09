@@ -75,7 +75,7 @@ export class GeminiProvider implements AIInterface {
     try {
       await this.ensureClient();
 
-      const model = this.client.getGenerativeModel({
+      const modelConfig: any = {
         model: options.model || this.options.defaultModel,
         generationConfig: {
           maxOutputTokens: options.maxTokens,
@@ -86,24 +86,58 @@ export class GeminiProvider implements AIInterface {
             : options.stop
               ? [options.stop]
               : undefined,
+          // Add response MIME type for JSON output
+          responseMimeType: options.responseFormat?.type === 'json_object'
+            ? 'application/json'
+            : undefined,
         },
-      });
+      };
+
+      // Add tools if provided
+      if (options.tools && options.tools.length > 0) {
+        modelConfig.tools = [{
+          functionDeclarations: options.tools.map((tool) => ({
+            name: tool.function.name,
+            description: tool.function.description || '',
+            parameters: tool.function.parameters || { type: 'object' },
+          })),
+        }];
+
+        // Map tool choice
+        if (options.toolChoice) {
+          modelConfig.toolConfig = this.mapToolChoice(options.toolChoice);
+        }
+      }
+
+      const model = this.client.getGenerativeModel(modelConfig);
 
       // Convert messages to Gemini format
       const prompt = this.messagesToGeminiFormat(messages);
       const result = await model.generateContent(prompt);
       const response = await result.response;
 
+      // Extract tool calls from response
+      const functionCalls = response.functionCalls();
+      const toolCalls = functionCalls?.map((call: any) => ({
+        id: `call_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+        type: 'function' as const,
+        function: {
+          name: call.name,
+          arguments: JSON.stringify(call.args),
+        },
+      }));
+
       return {
         content: response.text() || '',
         model: options.model || this.options.defaultModel,
-        finishReason: 'stop',
+        finishReason: this.mapFinishReason(response),
         usage: {
           promptTokens: result.response.usageMetadata?.promptTokenCount || 0,
           completionTokens:
             result.response.usageMetadata?.candidatesTokenCount || 0,
           totalTokens: result.response.usageMetadata?.totalTokenCount || 0,
         },
+        toolCalls: toolCalls && toolCalls.length > 0 ? toolCalls : undefined,
       };
     } catch (error) {
       throw this.mapError(error);
@@ -222,6 +256,39 @@ export class GeminiProvider implements AIInterface {
         'vision',
       ],
     };
+  }
+
+  private mapToolChoice(
+    toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } },
+  ): any {
+    if (!toolChoice || toolChoice === 'auto') {
+      return { functionCallingConfig: { mode: 'AUTO' } };
+    }
+
+    if (toolChoice === 'none') {
+      return { functionCallingConfig: { mode: 'NONE' } };
+    }
+
+    if (typeof toolChoice === 'object' && toolChoice.type === 'function') {
+      return {
+        functionCallingConfig: {
+          mode: 'ANY',
+          allowedFunctionNames: [toolChoice.function.name],
+        },
+      };
+    }
+
+    return { functionCallingConfig: { mode: 'AUTO' } };
+  }
+
+  private mapFinishReason(response: any): AIResponse['finishReason'] {
+    // Check if response has function calls
+    if (response.functionCalls && response.functionCalls().length > 0) {
+      return 'tool_calls';
+    }
+
+    // Gemini doesn't provide detailed finish reasons, default to 'stop'
+    return 'stop';
   }
 
   private messagesToGeminiFormat(messages: AIMessage[]): string {
