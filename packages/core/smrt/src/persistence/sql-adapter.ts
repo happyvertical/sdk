@@ -792,16 +792,34 @@ export class SqlPersistenceAdapter implements PersistenceAdapter {
   }
 
   /**
-   * Generates slug from object name
+   * Generates slug from object name, or falls back to ID if name is not provided
+   *
+   * When using ID (UUID), hyphens are stripped to create a slug that:
+   * - Doesn't match UUID regex patterns (no hyphens)
+   * - Is reversible (add hyphens back at positions 8, 12, 16, 20 for UUID)
    */
   private async generateSlug(object: SmrtObject): Promise<string> {
-    if (!object.name) {
-      throw ValidationError.requiredField('name', object.constructor.name);
+    // Use name if available, otherwise fall back to ID
+    const source = object.name || object.id;
+
+    if (!source) {
+      throw ValidationError.requiredField('name or id', object.constructor.name);
     }
 
     // Explicitly convert Field to string for TypeScript
-    const nameStr = String(object.name);
-    return nameStr
+    const sourceStr = String(source);
+
+    // Check if source is a UUID (has hyphens in UUID positions)
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(sourceStr);
+
+    if (isUuid) {
+      // For UUIDs, simply remove hyphens
+      // Example: 123e4567-e89b-12d3-a456-426614174000 → 123e4567e89b12d3a456426614174000
+      return sourceStr.replace(/-/g, '');
+    }
+
+    // For names, apply standard slug transformation
+    return sourceStr
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)/g, '');

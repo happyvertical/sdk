@@ -286,9 +286,9 @@ Key Methods:
 
 Core Properties:
 - `id: string` - Unique UUID identifier (auto-generated if not provided)
-- `slug: string` - URL-friendly identifier (auto-generated from name if not set)
+- `slug: string` - URL-friendly identifier (auto-generated from name, or ID as fallback if name not provided)
 - `context: string` - Optional context to scope the slug (enables multiple objects with same slug in different contexts)
-- `name: string` - Human-readable name, primarily for display
+- `name: string` - Human-readable name, primarily for display (optional - ID will be used for slug if omitted)
 - `created_at: Date` - Creation timestamp (auto-managed by database trigger)
 - `updated_at: Date` - Last update timestamp (auto-managed by database trigger)
 
