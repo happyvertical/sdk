@@ -32,7 +32,7 @@ export class GeminiProvider implements AIInterface {
 
   constructor(options: GeminiOptions) {
     this.options = {
-      defaultModel: 'gemini-1.5-pro',
+      defaultModel: 'gemini-2.5-flash',
       ...options,
     };
 
@@ -77,28 +77,33 @@ export class GeminiProvider implements AIInterface {
     try {
       await this.ensureClient();
 
-      const modelConfig: Record<string, any> = {
-        model: options.model || this.options.defaultModel,
-        generationConfig: {
-          maxOutputTokens: options.maxTokens,
-          temperature: options.temperature,
-          topP: options.topP,
-          stopSequences: Array.isArray(options.stop)
-            ? options.stop
-            : options.stop
-              ? [options.stop]
-              : undefined,
-          // Add response MIME type for JSON output
-          responseMimeType:
-            options.responseFormat?.type === 'json_object'
-              ? 'application/json'
-              : undefined,
-        },
+      const model = options.model || this.options.defaultModel;
+      const generationConfig: Record<string, any> = {
+        maxOutputTokens: options.maxTokens,
+        temperature: options.temperature,
+        topP: options.topP,
+        stopSequences: Array.isArray(options.stop)
+          ? options.stop
+          : options.stop
+            ? [options.stop]
+            : undefined,
+        // Add response MIME type for JSON output
+        responseMimeType:
+          options.responseFormat?.type === 'json_object'
+            ? 'application/json'
+            : undefined,
+      };
+
+      // Build request config
+      const requestConfig: Record<string, any> = {
+        model,
+        contents: this.messagesToGeminiFormat(messages),
+        generationConfig,
       };
 
       // Add tools if provided
       if (options.tools && options.tools.length > 0) {
-        modelConfig.tools = [
+        requestConfig.tools = [
           {
             functionDeclarations: options.tools.map((tool) => ({
               name: tool.function.name,
@@ -110,47 +115,49 @@ export class GeminiProvider implements AIInterface {
 
         // Map tool choice
         if (options.toolChoice) {
-          modelConfig.toolConfig = this.mapToolChoice(options.toolChoice);
+          requestConfig.toolConfig = this.mapToolChoice(options.toolChoice);
         }
       }
 
-      const model = this.client.getGenerativeModel(modelConfig);
-
-      // Convert messages to Gemini format
-      const prompt = this.messagesToGeminiFormat(messages);
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
+      // Call new SDK API: ai.models.generateContent()
+      const result = await this.client.models.generateContent(requestConfig);
 
       // Extract tool calls from response
-      // Note: Gemini doesn't provide IDs for function calls, so we generate them
+      // NOTE: Gemini 2.5 doesn't seem to reliably return functionCall objects
+      // even when tools are provided. The model often describes tool calls in text
+      // instead of using the structured function calling API.
       let toolCalls: AIResponse['toolCalls'];
-      try {
-        const functionCalls = response.functionCalls?.();
-        if (functionCalls && functionCalls.length > 0) {
-          toolCalls = functionCalls.map((call: any) => ({
+      const firstCandidate = result.candidates?.[0];
+      if (firstCandidate?.content?.parts) {
+        const functionCalls = firstCandidate.content.parts.filter(
+          (part: any) => part.functionCall,
+        );
+        if (functionCalls.length > 0) {
+          toolCalls = functionCalls.map((part: any) => ({
             id: `call_${crypto.randomUUID()}`,
             type: 'function' as const,
             function: {
-              name: call.name,
-              arguments: JSON.stringify(call.args),
+              name: part.functionCall.name,
+              arguments: JSON.stringify(part.functionCall.args || {}),
             },
           }));
         }
-      } catch (error) {
-        // functionCalls() method may not exist or may throw
-        // Continue without tool calls rather than failing
-        toolCalls = undefined;
+      }
+
+      // Clean content - remove markdown code blocks if JSON mode was requested
+      let content = result.text || '';
+      if (options.responseFormat?.type === 'json_object') {
+        content = this.stripMarkdownCodeBlock(content);
       }
 
       return {
-        content: response.text() || '',
-        model: options.model || this.options.defaultModel,
-        finishReason: this.mapFinishReason(response),
+        content,
+        model,
+        finishReason: this.mapFinishReason(result),
         usage: {
-          promptTokens: result.response.usageMetadata?.promptTokenCount || 0,
-          completionTokens:
-            result.response.usageMetadata?.candidatesTokenCount || 0,
-          totalTokens: result.response.usageMetadata?.totalTokenCount || 0,
+          promptTokens: result.usageMetadata?.promptTokenCount || 0,
+          completionTokens: result.usageMetadata?.candidatesTokenCount || 0,
+          totalTokens: result.usageMetadata?.totalTokenCount || 0,
         },
         toolCalls: toolCalls && toolCalls.length > 0 ? toolCalls : undefined,
       };
@@ -224,31 +231,31 @@ export class GeminiProvider implements AIInterface {
     // Return static list of known Gemini models
     return [
       {
-        id: 'gemini-1.5-pro',
-        name: 'Gemini 1.5 Pro',
-        description: 'Most capable Gemini model with 2M token context',
-        contextLength: 2000000,
+        id: 'gemini-2.0-flash-001',
+        name: 'Gemini 2.0 Flash',
+        description: 'Latest fast and efficient Gemini model with function calling',
+        contextLength: 1000000,
         capabilities: ['text', 'chat', 'vision', 'functions'],
         supportsFunctions: true,
         supportsVision: true,
       },
       {
-        id: 'gemini-1.5-flash',
-        name: 'Gemini 1.5 Flash',
-        description: 'Fast and efficient Gemini model',
+        id: 'gemini-2.5-flash',
+        name: 'Gemini 2.5 Flash',
+        description: 'Experimental next-generation Gemini model',
         contextLength: 1000000,
-        capabilities: ['text', 'chat', 'vision'],
+        capabilities: ['text', 'chat', 'vision', 'functions'],
         supportsFunctions: true,
         supportsVision: true,
       },
       {
-        id: 'gemini-1.0-pro',
-        name: 'Gemini 1.0 Pro',
-        description: 'Previous generation Gemini model',
-        contextLength: 32000,
-        capabilities: ['text', 'chat'],
-        supportsFunctions: false,
-        supportsVision: false,
+        id: 'gemini-1.5-pro',
+        name: 'Gemini 1.5 Pro (Legacy)',
+        description: 'Previous generation model (may not be available)',
+        contextLength: 2000000,
+        capabilities: ['text', 'chat', 'vision', 'functions'],
+        supportsFunctions: true,
+        supportsVision: true,
       },
     ];
   }
@@ -297,9 +304,15 @@ export class GeminiProvider implements AIInterface {
   }
 
   private mapFinishReason(response: any): AIResponse['finishReason'] {
-    // Check if response has function calls
-    if (response.functionCalls && response.functionCalls().length > 0) {
-      return 'tool_calls';
+    // Check if response has function calls in any candidate
+    const firstCandidate = response.candidates?.[0];
+    if (firstCandidate?.content?.parts) {
+      const hasFunctionCall = firstCandidate.content.parts.some(
+        (part: any) => part.functionCall,
+      );
+      if (hasFunctionCall) {
+        return 'tool_calls';
+      }
     }
 
     // Gemini doesn't provide detailed finish reasons, default to 'stop'
@@ -307,8 +320,9 @@ export class GeminiProvider implements AIInterface {
   }
 
   private messagesToGeminiFormat(messages: AIMessage[]): string {
-    // Gemini expects a simple text prompt, so convert chat messages to text
-    return `${messages
+    // Convert messages to a simple text prompt
+    // The new SDK expects a string for the contents field
+    return messages
       .map((message) => {
         switch (message.role) {
           case 'system':
@@ -321,7 +335,14 @@ export class GeminiProvider implements AIInterface {
             return message.content;
         }
       })
-      .join('\n\n')}\n\nAssistant:`;
+      .join('\n\n');
+  }
+
+  private stripMarkdownCodeBlock(text: string): string {
+    // Remove markdown code blocks like ```json\n...\n```
+    const codeBlockRegex = /^```(?:json|javascript|typescript)?\s*\n?([\s\S]*?)\n?```\s*$/;
+    const match = text.match(codeBlockRegex);
+    return match ? match[1].trim() : text.trim();
   }
 
   private mapError(error: unknown): AIError {
