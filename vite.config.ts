@@ -126,6 +126,7 @@ function createPackageBuild(
         '@have/gnode',
         '@have/content',
         '@have/products',
+        '@have/notes',
 
         // Virtual modules from SMRT framework
         '@smrt/types',
@@ -266,6 +267,11 @@ const packages = [
     entry: 'packages/modules/products/src/lib/models/index.ts',
     directory: 'modules' as const,
   },
+  {
+    name: 'notes',
+    entry: 'packages/modules/notes/src/index.ts',
+    directory: 'modules' as const,
+  },
 ];
 
 export default defineConfig(({ command, mode }) => {
@@ -338,13 +344,17 @@ export default defineConfig(({ command, mode }) => {
             ),
             '@have/events': resolve(__dirname, 'packages/modules/events/src'),
             '@have/assets': resolve(__dirname, 'packages/modules/assets/src'),
-            '@have/accounts': resolve(__dirname, 'packages/modules/accounts/src'),
+            '@have/accounts': resolve(
+              __dirname,
+              'packages/modules/accounts/src',
+            ),
             '@have/gnode': resolve(__dirname, 'packages/modules/gnode/src'),
             '@have/content': resolve(__dirname, 'packages/modules/content/src'),
             '@have/products': resolve(
               __dirname,
               'packages/modules/products/src',
             ),
+            '@have/notes': resolve(__dirname, 'packages/modules/notes/src'),
           },
         },
       };
@@ -383,6 +393,7 @@ export default defineConfig(({ command, mode }) => {
         '@have/gnode': resolve(__dirname, 'packages/modules/gnode/src'),
         '@have/content': resolve(__dirname, 'packages/modules/content/src'),
         '@have/products': resolve(__dirname, 'packages/modules/products/src'),
+        '@have/notes': resolve(__dirname, 'packages/modules/notes/src'),
       },
     },
     optimizeDeps: {

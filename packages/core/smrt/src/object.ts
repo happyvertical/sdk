@@ -1111,4 +1111,198 @@ export class SmrtObject extends SmrtClass {
 
     return executeToolCallInternal(this, toolCall, allowedMethods);
   }
+
+  /**
+   * Take a note on this object
+   *
+   * Stores hierarchical notes with confidence tracking for self-learning patterns.
+   * Automatically sets ownerId to this.id.
+   *
+   * @param options - Note options (all properties except ownerId)
+   * @returns Promise resolving to the created/updated Note
+   * @example
+   * ```typescript
+   * // Store a discovered regex pattern
+   * await agent.note({
+   *   scope: 'discovery/parser/example.com',
+   *   key: normalizedUrl,
+   *   value: JSON.stringify({ patterns: ['regex1', 'regex2'] }),
+   *   metadata: JSON.stringify({ aiProvider: 'openai' }),
+   *   confidence: 0.9
+   * });
+   * ```
+   */
+  public async note(options: any): Promise<any> {
+    const { NoteCollection } = await import('@have/notes');
+    const { persistence, db, ai, fs, _className } = this.options;
+    const noteCollection = new (NoteCollection as any)({
+      persistence,
+      db,
+      ai,
+      fs,
+      _className,
+    });
+    await noteCollection.initialize();
+
+    return await noteCollection.note({
+      ownerId: this.id,
+      scope: options.scope || 'global',
+      version: options.version || 1,
+      confidence: options.confidence || 1.0,
+      successCount: options.successCount || 0,
+      failureCount: options.failureCount || 0,
+      ...options,
+    });
+  }
+
+  /**
+   * Recall a note value for this object
+   *
+   * Retrieves note values with hierarchical search and confidence filtering.
+   * Returns only the value (parsed from JSON if applicable).
+   *
+   * @param options - Recall options (all properties except ownerId)
+   * @returns Promise resolving to the note value or null if not found
+   * @example
+   * ```typescript
+   * // Recall a strategy with fallback to parent scopes
+   * const strategy = await agent.recall({
+   *   scope: 'discovery/parser/example.com/article',
+   *   key: normalizedUrl,
+   *   includeAncestors: true,
+   *   minConfidence: 0.6
+   * });
+   * ```
+   */
+  public async recall(options: any): Promise<any> {
+    const { NoteCollection } = await import('@have/notes');
+    const { persistence, db, ai, fs, _className } = this.options;
+    const noteCollection = new (NoteCollection as any)({
+      persistence,
+      db,
+      ai,
+      fs,
+      _className,
+    });
+    await noteCollection.initialize();
+
+    return await noteCollection.recall({
+      ownerId: this.id,
+      scope: options.scope || 'global',
+      latestVersionOnly: options.latestVersionOnly ?? true,
+      ...options,
+    });
+  }
+
+  /**
+   * Recall all notes for this object in a scope
+   *
+   * Returns a Map of key -> value for all notes matching the criteria.
+   * Useful for bulk retrieval of strategies or cached patterns.
+   *
+   * @param options - Recall options without key (returns all keys in scope)
+   * @returns Promise resolving to Map of key -> value pairs
+   * @example
+   * ```typescript
+   * // Get all strategies for a domain
+   * const strategies = await agent.recallAll({
+   *   scope: 'discovery/parser/example.com',
+   *   minConfidence: 0.5
+   * });
+   *
+   * for (const [url, pattern] of strategies) {
+   *   console.log(`Cached pattern for ${url}:`, pattern);
+   * }
+   * ```
+   */
+  public async recallAll(options: any = {}): Promise<Map<string, any>> {
+    const { NoteCollection } = await import('@have/notes');
+    const { persistence, db, ai, fs, _className } = this.options;
+    const noteCollection = new (NoteCollection as any)({
+      persistence,
+      db,
+      ai,
+      fs,
+      _className,
+    });
+    await noteCollection.initialize();
+
+    return await noteCollection.recallAll({
+      ownerId: this.id,
+      scope: options.scope || 'global',
+      ...options,
+    });
+  }
+
+  /**
+   * Forget a specific note for this object
+   *
+   * Deletes a note by scope and key. Use for invalidating cached strategies
+   * or removing outdated patterns.
+   *
+   * @param options - Note identification (scope and key required, no value)
+   * @returns Promise that resolves when note is deleted
+   * @example
+   * ```typescript
+   * // Remove an outdated strategy
+   * await agent.forget({
+   *   scope: 'discovery/parser/example.com',
+   *   key: normalizedUrl
+   * });
+   * ```
+   */
+  public async forget(options: any): Promise<void> {
+    const { NoteCollection } = await import('@have/notes');
+    const { persistence, db, ai, fs, _className } = this.options;
+    const noteCollection = new (NoteCollection as any)({
+      persistence,
+      db,
+      ai,
+      fs,
+      _className,
+    });
+    await noteCollection.initialize();
+
+    return await noteCollection.forget({
+      ownerId: this.id,
+      scope: options.scope || 'global',
+      ...options,
+    });
+  }
+
+  /**
+   * Forget all notes in a scope for this object
+   *
+   * Deletes all notes matching the scope pattern. Useful for clearing
+   * cached strategies for an entire domain or category.
+   *
+   * @param options - Recall options without key (deletes all in scope)
+   * @returns Promise resolving to number of notes deleted
+   * @example
+   * ```typescript
+   * // Clear all strategies for a domain
+   * const count = await agent.forgetScope({
+   *   scope: 'discovery/parser/example.com'
+   * });
+   * console.log(`Cleared ${count} cached strategies`);
+   * ```
+   */
+  public async forgetScope(options: any = {}): Promise<number> {
+    const { NoteCollection } = await import('@have/notes');
+    const { persistence, db, ai, fs, _className } = this.options;
+    const noteCollection = new (NoteCollection as any)({
+      persistence,
+      db,
+      ai,
+      fs,
+      _className,
+    });
+    await noteCollection.initialize();
+
+    return await noteCollection.forgetScope({
+      ownerId: this.id,
+      scope: options.scope || 'global',
+      ...options,
+    });
+  }
 }
