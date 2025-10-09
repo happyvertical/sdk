@@ -1,3 +1,23 @@
+# [0.21.0](https://github.com/happyvertical/sdk/compare/v0.20.5...v0.21.0) (2025-10-09)
+
+
+### Bug Fixes
+
+* **notes:** address code review comments ([be04be6](https://github.com/happyvertical/sdk/commit/be04be6bdfdc71fc756078ab4ba3e82906f8727f))
+* **notes:** enable integration test by using direct imports ([0cbafa1](https://github.com/happyvertical/sdk/commit/0cbafa1b0f44bcd8c452b30320ca8e45586cd013))
+* **notes:** pass collection options when creating Note instances in note() method ([b1fda55](https://github.com/happyvertical/sdk/commit/b1fda5594467665d916ac4818f63fbbb255b4ded))
+* **notes:** properly pass options to create() instead of instance ([d7b2369](https://github.com/happyvertical/sdk/commit/d7b2369de432bd20e3dc5c5e5a960862ba3057b6))
+* **notes:** rename lastUsed to lastUsedAt for proper DATETIME support ([6c3f5cd](https://github.com/happyvertical/sdk/commit/6c3f5cd1618b08aaa6d88a011c487907cd9c0c98)), closes [#149](https://github.com/happyvertical/sdk/issues/149)
+* **notes:** save Note instances to database in note() method ([6bb9513](https://github.com/happyvertical/sdk/commit/6bb95136f4034a33b6bab138a4d525f44e881c13))
+* **notes:** update tests to use static factory pattern for NoteCollection ([e95292e](https://github.com/happyvertical/sdk/commit/e95292e921f2f5ccd2475bfe3b2ad9324fe2a461))
+* **smrt:** strip hyphens from UUID-based slugs to avoid UUID regex matching ([6ce5126](https://github.com/happyvertical/sdk/commit/6ce5126ccef45ca262829ca116e747e1a211ce90))
+* **smrt:** use ID as fallback for slug generation when name is not provided ([28bb171](https://github.com/happyvertical/sdk/commit/28bb171550201e36967a98eedff0c0e67ffe7adf))
+
+
+### Features
+
+* **notes:** add hierarchical note-taking module for SMRT objects ([f328935](https://github.com/happyvertical/sdk/commit/f3289355dd6a0eaff76b715fee2e519eae50a722)), closes [#149](https://github.com/happyvertical/sdk/issues/149)
+
 ## [0.20.5](https://github.com/happyvertical/sdk/compare/v0.20.4...v0.20.5) (2025-10-09)
 
 
