@@ -1171,7 +1171,11 @@ async function generateCLIModule(
 // This file is generated automatically - do not edit
 
 import { CLIGenerator } from '@have/smrt/generators/cli';
-import type { CLIConfig, CLIContext } from '@have/smrt/generators/cli';
+
+/**
+ * @typedef {import('@have/smrt/generators/cli').CLIConfig} CLIConfig
+ * @typedef {import('@have/smrt/generators/cli').CLIContext} CLIContext
+ */
 
 ${objectImports.join('\n')}
 
