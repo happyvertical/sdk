@@ -1188,6 +1188,10 @@ export const cliCommands = {${commands.join(',\n')}
 /**
  * Setup CLI with auto-generated commands
  *
+ * @param {CLIConfig} [config={}] - CLI configuration
+ * @param {CLIContext} [context={}] - CLI context
+ * @returns {{run: function(string[]): Promise<void>, generator: *}}
+ *
  * @example
  * import { setupCLI } from '@smrt/cli';
  *
@@ -1198,10 +1202,10 @@ export const cliCommands = {${commands.join(',\n')}
  *
  * cli.run(process.argv);
  */
-export function setupCLI(config: CLIConfig = {}, context: CLIContext = {}) {
+export function setupCLI(config = {}, context = {}) {
   const generator = new CLIGenerator(config, context);
   return {
-    run: async (argv: string[]) => {
+    run: async (argv) => {
       const handler = generator.generateHandler();
       await handler(argv.slice(2)); // Remove 'node' and script name
     },
@@ -1211,8 +1215,12 @@ export function setupCLI(config: CLIConfig = {}, context: CLIContext = {}) {
 
 /**
  * Get CLI handler directly
+ *
+ * @param {CLIConfig} [config={}] - CLI configuration
+ * @param {CLIContext} [context={}] - CLI context
+ * @returns {function(string[]): Promise<void>}
  */
-export function getCLIHandler(config: CLIConfig = {}, context: CLIContext = {}) {
+export function getCLIHandler(config = {}, context = {}) {
   const generator = new CLIGenerator(config, context);
   return generator.generateHandler();
 }

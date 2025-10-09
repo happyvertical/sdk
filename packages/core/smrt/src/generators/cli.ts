@@ -103,16 +103,8 @@ export class CLIGenerator {
     const commands = this.generateCommands();
 
     return async (argv: string[]) => {
-      const [gnodeCommands, generateCommands] = await Promise.all([
-        getGnodeCommands(),
-        getGenerateCommands(),
-      ]);
-      const builtInCommands = {
-        ...gnodeCommands,
-        ...generateCommands,
-      };
-
-      const parsed = parseCliArgs(argv, commands, builtInCommands);
+      // Parse args first without built-in commands to avoid loading them unnecessarily
+      const parsed = parseCliArgs(argv, commands, {});
       await this.executeCommand(parsed, commands);
     };
   }
@@ -308,7 +300,41 @@ export class CLIGenerator {
       return;
     }
 
-    // Check for built-in subcommands first (gnode, generate-*)
+    // First check auto-generated object commands (no dependencies to load)
+    const command = commands.find(
+      (cmd) =>
+        cmd.name === parsed.command ||
+        (parsed.command && cmd.aliases && cmd.aliases.includes(parsed.command)),
+    );
+
+    if (command) {
+      // Validate required arguments
+      if (command.args && parsed.args.length < command.args.length) {
+        this.exitWithError(
+          `Missing required arguments: ${command.args.slice(parsed.args.length).join(', ')}`,
+        );
+        return;
+      }
+
+      // Check if handler exists before invoking
+      if (!command.handler) {
+        this.exitWithError(`Command '${parsed.command}' has no handler defined`);
+        return;
+      }
+
+      try {
+        await command.handler(parsed.args, parsed.options);
+        return;
+      } catch (error) {
+        this.exitWithError(
+          `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        );
+        return;
+      }
+    }
+
+    // Only load built-in commands if not found in object commands
+    // This avoids loading tar dependencies unless actually needed
     const [gnodeCommands, generateCommands] = await Promise.all([
       getGnodeCommands(),
       getGenerateCommands(),
@@ -350,39 +376,8 @@ export class CLIGenerator {
       }
     }
 
-    // Fall back to auto-generated object commands
-    const command = commands.find(
-      (cmd) =>
-        cmd.name === parsed.command ||
-        (parsed.command && cmd.aliases && cmd.aliases.includes(parsed.command)),
-    );
-
-    if (!command) {
-      this.exitWithError(`Unknown command '${parsed.command}'`);
-      return;
-    }
-
-    // Validate required arguments
-    if (command.args && parsed.args.length < command.args.length) {
-      this.exitWithError(
-        `Missing required arguments: ${command.args.slice(parsed.args.length).join(', ')}`,
-      );
-      return;
-    }
-
-    // Check if handler exists before invoking
-    if (!command.handler) {
-      this.exitWithError(`Command '${parsed.command}' has no handler defined`);
-      return;
-    }
-
-    try {
-      await command.handler(parsed.args, parsed.options);
-    } catch (error) {
-      this.exitWithError(
-        `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      );
-    }
+    // Command not found in either object or built-in commands
+    this.exitWithError(`Unknown command '${parsed.command}'`);
   }
 
   /**
