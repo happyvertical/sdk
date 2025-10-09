@@ -2,6 +2,8 @@
  * Google Gemini provider implementation
  */
 
+import crypto from 'node:crypto';
+
 import type {
   AICapabilities,
   AIInterface,
@@ -75,7 +77,7 @@ export class GeminiProvider implements AIInterface {
     try {
       await this.ensureClient();
 
-      const modelConfig: any = {
+      const modelConfig: Record<string, any> = {
         model: options.model || this.options.defaultModel,
         generationConfig: {
           maxOutputTokens: options.maxTokens,
@@ -87,21 +89,24 @@ export class GeminiProvider implements AIInterface {
               ? [options.stop]
               : undefined,
           // Add response MIME type for JSON output
-          responseMimeType: options.responseFormat?.type === 'json_object'
-            ? 'application/json'
-            : undefined,
+          responseMimeType:
+            options.responseFormat?.type === 'json_object'
+              ? 'application/json'
+              : undefined,
         },
       };
 
       // Add tools if provided
       if (options.tools && options.tools.length > 0) {
-        modelConfig.tools = [{
-          functionDeclarations: options.tools.map((tool) => ({
-            name: tool.function.name,
-            description: tool.function.description || '',
-            parameters: tool.function.parameters || { type: 'object' },
-          })),
-        }];
+        modelConfig.tools = [
+          {
+            functionDeclarations: options.tools.map((tool) => ({
+              name: tool.function.name,
+              description: tool.function.description || '',
+              parameters: tool.function.parameters || { type: 'object' },
+            })),
+          },
+        ];
 
         // Map tool choice
         if (options.toolChoice) {
@@ -117,15 +122,25 @@ export class GeminiProvider implements AIInterface {
       const response = await result.response;
 
       // Extract tool calls from response
-      const functionCalls = response.functionCalls();
-      const toolCalls = functionCalls?.map((call: any) => ({
-        id: `call_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-        type: 'function' as const,
-        function: {
-          name: call.name,
-          arguments: JSON.stringify(call.args),
-        },
-      }));
+      // Note: Gemini doesn't provide IDs for function calls, so we generate them
+      let toolCalls: AIResponse['toolCalls'];
+      try {
+        const functionCalls = response.functionCalls?.();
+        if (functionCalls && functionCalls.length > 0) {
+          toolCalls = functionCalls.map((call: any) => ({
+            id: `call_${crypto.randomUUID()}`,
+            type: 'function' as const,
+            function: {
+              name: call.name,
+              arguments: JSON.stringify(call.args),
+            },
+          }));
+        }
+      } catch (error) {
+        // functionCalls() method may not exist or may throw
+        // Continue without tool calls rather than failing
+        toolCalls = undefined;
+      }
 
       return {
         content: response.text() || '',

@@ -135,7 +135,7 @@ export class AnthropicProvider implements AIInterface {
         this.mapMessagesToAnthropic(messages);
 
       // Build request parameters
-      const requestParams: any = {
+      const requestParams: Record<string, any> = {
         model: options.model || this.options.defaultModel,
         messages: anthropicMessages,
         max_tokens: options.maxTokens || 4096,
@@ -147,19 +147,25 @@ export class AnthropicProvider implements AIInterface {
             ? [options.stop]
             : undefined,
         system: system || undefined,
-        tools: options.tools?.map((tool) => ({
-          name: tool.function.name,
-          description: tool.function.description || '',
-          input_schema: tool.function.parameters || { type: 'object' },
-        })),
+        tools:
+          options.tools && options.tools.length > 0
+            ? options.tools.map((tool) => ({
+                name: tool.function.name,
+                description: tool.function.description || '',
+                input_schema: tool.function.parameters || { type: 'object' },
+              }))
+            : undefined,
         tool_choice: this.mapToolChoice(options.toolChoice),
         stream: false,
       };
 
-      // Add response format if specified (Anthropic doesn't natively support this,
-      // but we can add instructions to the system message)
+      // Add response format if specified
+      // NOTE: Anthropic doesn't have native JSON mode like OpenAI. This is a prompt-based
+      // approach that instructs the model to output JSON, but doesn't guarantee valid JSON.
+      // For critical use cases, validate and parse the response with error handling.
       if (options.responseFormat?.type === 'json_object') {
-        const jsonInstruction = '\n\nIMPORTANT: You must respond with valid JSON only. Do not include any explanatory text outside the JSON object.';
+        const jsonInstruction =
+          '\n\nIMPORTANT: You must respond with valid JSON only. Do not include any explanatory text outside the JSON object.';
         requestParams.system = requestParams.system
           ? requestParams.system + jsonInstruction
           : jsonInstruction.trim();

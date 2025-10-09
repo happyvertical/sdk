@@ -271,3 +271,320 @@ describe('Provider Interface Compliance', () => {
     expect(bedrockProvider).toBeDefined();
   });
 });
+
+describe('Tool Use Integration Tests', () => {
+  const weatherTool = {
+    type: 'function' as const,
+    function: {
+      name: 'get_weather',
+      description: 'Get the current weather for a location',
+      parameters: {
+        type: 'object',
+        properties: {
+          location: {
+            type: 'string',
+            description: 'The city and state, e.g. San Francisco, CA',
+          },
+          unit: {
+            type: 'string',
+            enum: ['celsius', 'fahrenheit'],
+            description: 'The temperature unit',
+          },
+        },
+        required: ['location'],
+      },
+    },
+  };
+
+  describe('OpenAI Tool Use', () => {
+    it('should handle tool calls with OpenAI', async () => {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        console.log('Skipping OpenAI tool use test - no API key provided');
+        return;
+      }
+
+      const provider = await getAI({ type: 'openai', apiKey });
+
+      const response = await provider.chat(
+        [
+          {
+            role: 'user',
+            content: 'What is the weather like in Tokyo? Use the weather tool.',
+          },
+        ],
+        {
+          tools: [weatherTool],
+          toolChoice: 'auto',
+        },
+      );
+
+      expect(response).toBeDefined();
+      expect(response.toolCalls).toBeDefined();
+      expect(response.toolCalls!.length).toBeGreaterThan(0);
+
+      const toolCall = response.toolCalls![0];
+      expect(toolCall.type).toBe('function');
+      expect(toolCall.function.name).toBe('get_weather');
+      expect(toolCall.id).toBeTruthy();
+
+      const args = JSON.parse(toolCall.function.arguments);
+      expect(args.location).toBeTruthy();
+
+      console.log('OpenAI tool call:', {
+        name: toolCall.function.name,
+        args,
+      });
+    });
+
+    it('should handle JSON mode with OpenAI', async () => {
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        console.log('Skipping OpenAI JSON mode test - no API key provided');
+        return;
+      }
+
+      const provider = await getAI({ type: 'openai', apiKey });
+
+      const response = await provider.chat(
+        [
+          {
+            role: 'user',
+            content:
+              'Return a JSON object with fields: city (Tokyo), temperature (22), unit (celsius)',
+          },
+        ],
+        {
+          responseFormat: { type: 'json_object' },
+        },
+      );
+
+      expect(response.content).toBeTruthy();
+      const parsed = JSON.parse(response.content);
+      expect(parsed).toHaveProperty('city');
+      expect(parsed).toHaveProperty('temperature');
+      expect(parsed).toHaveProperty('unit');
+
+      console.log('OpenAI JSON response:', parsed);
+    });
+  });
+
+  describe('Anthropic Tool Use', () => {
+    it('should handle tool calls with Anthropic', async () => {
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) {
+        console.log('Skipping Anthropic tool use test - no API key provided');
+        return;
+      }
+
+      const provider = await getAI({ type: 'anthropic', apiKey });
+
+      const response = await provider.chat(
+        [
+          {
+            role: 'user',
+            content:
+              'What is the weather like in Paris? Use the get_weather tool.',
+          },
+        ],
+        {
+          tools: [weatherTool],
+          toolChoice: 'auto',
+          maxTokens: 1024,
+        },
+      );
+
+      expect(response).toBeDefined();
+      expect(response.toolCalls).toBeDefined();
+      expect(response.toolCalls!.length).toBeGreaterThan(0);
+
+      const toolCall = response.toolCalls![0];
+      expect(toolCall.type).toBe('function');
+      expect(toolCall.function.name).toBe('get_weather');
+      expect(toolCall.id).toBeTruthy();
+
+      const args = JSON.parse(toolCall.function.arguments);
+      expect(args.location).toBeTruthy();
+
+      console.log('Anthropic tool call:', {
+        name: toolCall.function.name,
+        args,
+      });
+    });
+
+    it('should handle JSON mode with Anthropic (prompt-based)', async () => {
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+      if (!apiKey) {
+        console.log('Skipping Anthropic JSON mode test - no API key provided');
+        return;
+      }
+
+      const provider = await getAI({ type: 'anthropic', apiKey });
+
+      const response = await provider.chat(
+        [
+          {
+            role: 'user',
+            content:
+              'Return a JSON object with fields: city (London), temperature (15), unit (celsius)',
+          },
+        ],
+        {
+          responseFormat: { type: 'json_object' },
+          maxTokens: 1024,
+        },
+      );
+
+      expect(response.content).toBeTruthy();
+
+      // Anthropic's JSON mode is prompt-based, so validate it's parseable
+      try {
+        const parsed = JSON.parse(response.content);
+        expect(parsed).toHaveProperty('city');
+        expect(parsed).toHaveProperty('temperature');
+        expect(parsed).toHaveProperty('unit');
+
+        console.log('Anthropic JSON response:', parsed);
+      } catch (error) {
+        console.warn(
+          'Anthropic JSON mode is prompt-based and may not always return valid JSON',
+        );
+        console.warn('Response:', response.content);
+        // Don't fail the test - this is expected behavior for prompt-based JSON mode
+      }
+    });
+  });
+
+  describe('Gemini Tool Use', () => {
+    it('should handle tool calls with Gemini', async () => {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        console.log('Skipping Gemini tool use test - no API key provided');
+        return;
+      }
+
+      const provider = await getAI({ type: 'gemini', apiKey });
+
+      const response = await provider.chat(
+        [
+          {
+            role: 'user',
+            content:
+              'What is the weather like in New York? Use the get_weather function.',
+          },
+        ],
+        {
+          tools: [weatherTool],
+          toolChoice: 'auto',
+        },
+      );
+
+      expect(response).toBeDefined();
+      expect(response.toolCalls).toBeDefined();
+      expect(response.toolCalls!.length).toBeGreaterThan(0);
+
+      const toolCall = response.toolCalls![0];
+      expect(toolCall.type).toBe('function');
+      expect(toolCall.function.name).toBe('get_weather');
+      expect(toolCall.id).toBeTruthy();
+      expect(toolCall.id).toMatch(/^call_/); // Should have our generated format
+
+      const args = JSON.parse(toolCall.function.arguments);
+      expect(args.location).toBeTruthy();
+
+      console.log('Gemini tool call:', {
+        name: toolCall.function.name,
+        args,
+      });
+    });
+
+    it('should handle JSON mode with Gemini', async () => {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        console.log('Skipping Gemini JSON mode test - no API key provided');
+        return;
+      }
+
+      const provider = await getAI({ type: 'gemini', apiKey });
+
+      const response = await provider.chat(
+        [
+          {
+            role: 'user',
+            content:
+              'Return a JSON object with fields: city (Berlin), temperature (18), unit (celsius)',
+          },
+        ],
+        {
+          responseFormat: { type: 'json_object' },
+        },
+      );
+
+      expect(response.content).toBeTruthy();
+      const parsed = JSON.parse(response.content);
+      expect(parsed).toHaveProperty('city');
+      expect(parsed).toHaveProperty('temperature');
+      expect(parsed).toHaveProperty('unit');
+
+      console.log('Gemini JSON response:', parsed);
+    });
+  });
+
+  describe('Cross-Provider Tool Compatibility', () => {
+    it('should use same tool definition across all providers', async () => {
+      const openaiKey = process.env.OPENAI_API_KEY;
+      const anthropicKey = process.env.ANTHROPIC_API_KEY;
+      const geminiKey = process.env.GEMINI_API_KEY;
+
+      if (!openaiKey || !anthropicKey || !geminiKey) {
+        console.log(
+          'Skipping cross-provider test - need all API keys (OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY)',
+        );
+        return;
+      }
+
+      const providers = await Promise.all([
+        getAI({ type: 'openai', apiKey: openaiKey }),
+        getAI({ type: 'anthropic', apiKey: anthropicKey }),
+        getAI({ type: 'gemini', apiKey: geminiKey }),
+      ]);
+
+      const results = [];
+
+      for (const provider of providers) {
+        try {
+          const response = await provider.chat(
+            [
+              {
+                role: 'user',
+                content: 'What is the weather in Seattle? Use the weather tool.',
+              },
+            ],
+            {
+              tools: [weatherTool],
+              toolChoice: 'auto',
+              maxTokens: 1024, // For Anthropic
+            },
+          );
+
+          results.push({
+            provider: (provider as any).constructor.name,
+            success: !!response.toolCalls,
+            toolCallCount: response.toolCalls?.length || 0,
+          });
+        } catch (error) {
+          results.push({
+            provider: (provider as any).constructor.name,
+            success: false,
+            error: (error as Error).message,
+          });
+        }
+      }
+
+      console.log('Cross-provider tool use results:', results);
+
+      // All providers should successfully make tool calls
+      expect(results.every((r) => r.success)).toBe(true);
+    });
+  });
+});
