@@ -8,7 +8,7 @@ import { SmrtCollection } from '@have/smrt';
 import { AssetStatus } from './asset-status';
 
 export class AssetStatusCollection extends SmrtCollection<AssetStatus> {
-  static readonly objectClass = AssetStatus;
+  static readonly _itemClass = AssetStatus;
 
   /**
    * Get or create an asset status by slug
