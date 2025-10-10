@@ -1,3 +1,16 @@
+# [0.22.0](https://github.com/happyvertical/sdk/compare/v0.21.0...v0.22.0) (2025-10-10)
+
+
+### Bug Fixes
+
+* **ai:** improve type safety and error handling in AI providers ([a2f990f](https://github.com/happyvertical/sdk/commit/a2f990ff5683e13bffba0ee3f5a5cd71b531dd00))
+* **ai:** update Gemini provider for @google/genai SDK compatibility ([1273455](https://github.com/happyvertical/sdk/commit/12734553fa8747e8a99a9e34c060ed6ef972fa6a))
+
+
+### Features
+
+* **ai:** add tool use and structured output support to all providers ([d87f577](https://github.com/happyvertical/sdk/commit/d87f577dfa394a723d3a33cff2205b815f863c89)), closes [#157](https://github.com/happyvertical/sdk/issues/157)
+
 # [0.21.0](https://github.com/happyvertical/sdk/compare/v0.20.5...v0.21.0) (2025-10-09)
 
 
