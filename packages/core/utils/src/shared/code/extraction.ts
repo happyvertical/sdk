@@ -186,34 +186,81 @@ export function extractFunctionDefinition(
     return '';
   }
 
-  // Pattern to match function declarations and expressions
+  // Patterns to find the start of function definitions
   const patterns = [
-    // function foo() { ... } (closing brace on same or different line)
-    new RegExp(
-      `function\\s+${functionName}\\s*\\([^)]*\\)\\s*\\{[^}]*\\}`,
-      'i',
-    ),
+    // function foo() { ... }
+    {
+      regex: new RegExp(
+        `function\\s+${functionName}\\s*\\([^)]*\\)\\s*\\{`,
+        'i',
+      ),
+      hasBraces: true,
+    },
     // const foo = function() { ... }
-    new RegExp(
-      `(?:const|let|var)\\s+${functionName}\\s*=\\s*function\\s*\\([^)]*\\)\\s*\\{[^}]*\\}`,
-      'i',
-    ),
+    {
+      regex: new RegExp(
+        `(?:const|let|var)\\s+${functionName}\\s*=\\s*function\\s*\\([^)]*\\)\\s*\\{`,
+        'i',
+      ),
+      hasBraces: true,
+    },
     // const foo = () => { ... }
-    new RegExp(
-      `(?:const|let|var)\\s+${functionName}\\s*=\\s*\\([^)]*\\)\\s*=>\\s*\\{[^}]*\\}`,
-      'i',
-    ),
-    // const foo = () => ...
-    new RegExp(
-      `(?:const|let|var)\\s+${functionName}\\s*=\\s*\\([^)]*\\)\\s*=>\\s*[^;]+;?`,
-      'i',
-    ),
+    {
+      regex: new RegExp(
+        `(?:const|let|var)\\s+${functionName}\\s*=\\s*\\([^)]*\\)\\s*=>\\s*\\{`,
+        'i',
+      ),
+      hasBraces: true,
+    },
+    // const foo = () => ... (no braces)
+    {
+      regex: new RegExp(
+        `(?:const|let|var)\\s+${functionName}\\s*=\\s*\\([^)]*\\)\\s*=>\\s*[^;]+;?`,
+        'i',
+      ),
+      hasBraces: false,
+    },
   ];
 
-  for (const pattern of patterns) {
-    const match = code.match(pattern);
-    if (match) {
-      return match[0].trim();
+  for (const { regex, hasBraces } of patterns) {
+    const match = code.match(regex);
+    if (match && match.index !== undefined) {
+      const startIdx = match.index;
+
+      // For arrow functions without braces, return the match directly
+      if (!hasBraces) {
+        return match[0].trim();
+      }
+
+      // For functions with braces, extract the full body using brace counting
+      // Find the position of the opening brace
+      const braceIdx = code.indexOf('{', startIdx);
+      if (braceIdx === -1) continue;
+
+      let idx = braceIdx;
+      let depth = 0;
+      let endIdx = -1;
+
+      // Count braces to find the matching closing brace
+      while (idx < code.length) {
+        const char = code[idx];
+
+        if (char === '{') {
+          depth++;
+        } else if (char === '}') {
+          depth--;
+          if (depth === 0) {
+            endIdx = idx;
+            break;
+          }
+        }
+        idx++;
+      }
+
+      // If we found the matching closing brace, extract the full function
+      if (endIdx !== -1) {
+        return code.slice(startIdx, endIdx + 1).trim();
+      }
     }
   }
 

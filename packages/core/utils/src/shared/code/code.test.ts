@@ -196,6 +196,23 @@ const multiply = (x, y) => {
       const func = extractFunctionDefinition(code, 'bar');
       expect(func).toBe('');
     });
+
+    it('should handle nested braces in function body', () => {
+      const code = `
+const processData = (input) => {
+  const config = { nested: { value: 1 } };
+  if (true) {
+    return { result: config.nested.value };
+  }
+};
+      `;
+
+      const func = extractFunctionDefinition(code, 'processData');
+      expect(func).toContain('const processData =');
+      expect(func).toContain('{ nested: { value: 1 } }');
+      expect(func).toContain('if (true) {');
+      expect(func).toContain('return { result: config.nested.value }');
+    });
   });
 });
 

@@ -152,18 +152,26 @@ export function validateCode(
     );
   }
 
-  // Filter dangerous patterns based on options
-  const effectivePatterns = disallowedPatterns.filter((pattern) => {
-    // Allow require if explicitly enabled
-    if (allowRequire && pattern.source.includes('require')) {
+  // Create explicit pattern to flag mapping for more reliable filtering
+  const patternFlags = new Map([
+    [DANGEROUS_PATTERNS[0], 'require'], // /require\s*\(/i
+    [DANGEROUS_PATTERNS[1], 'import'],  // /import\s+/i
+    [DANGEROUS_PATTERNS[2], 'eval'],    // /eval\s*\(/i
+    [DANGEROUS_PATTERNS[3], 'eval'],    // /Function\s*\(/i - also controlled by allowEval
+    // Patterns 4-9 are always dangerous (process, fs, child_process, etc.)
+  ]);
+
+  // Filter dangerous patterns based on options using explicit mapping
+  const effectivePatterns = disallowedPatterns.filter((pattern, index) => {
+    const patternType = patternFlags.get(DANGEROUS_PATTERNS[index]);
+
+    if (patternType === 'require' && allowRequire) {
       return false;
     }
-    // Allow import if explicitly enabled
-    if (allowImport && pattern.source.includes('import')) {
+    if (patternType === 'import' && allowImport) {
       return false;
     }
-    // Allow eval if explicitly enabled
-    if (allowEval && (pattern.source.includes('eval') || pattern.source.includes('Function'))) {
+    if (patternType === 'eval' && allowEval) {
       return false;
     }
     return true;
@@ -198,7 +206,7 @@ export function validateCode(
   const stats = {
     length: code.length,
     lines: code.split('\n').length,
-    hasAsync: /async\s+function|\basync\s*\(/.test(code),
+    hasAsync: /\basync\b\s*(function|\([\w\s,={}[\]]*\)\s*=>|\w+\s*\()/m.test(code),
     hasArrowFunctions: /=>/.test(code),
     hasClasses: /\bclass\s+\w+/.test(code),
   };
@@ -257,18 +265,27 @@ function checkCodeSyntax(code: string): string[] {
 /**
  * Finds potentially undeclared variables in code
  *
- * This is a basic static analysis and may have false positives/negatives
+ * **Important Limitations:**
+ * This is a basic regex-based static analysis with known limitations:
+ * - Cannot detect variables in destructuring assignments
+ * - May miss variables declared in nested scopes
+ * - Cannot handle dynamic variable access (e.g., obj[varName])
+ * - Will have false positives for method calls and object properties
+ * - Does not understand scope chains or closures
+ *
+ * For production use cases requiring accurate variable analysis, consider using
+ * a proper AST parser like @babel/parser or acorn.
  *
  * @param code - The code to analyze
  * @param allowedGlobals - List of allowed global variables
- * @returns Array of potentially undeclared variable names
+ * @returns Array of potentially undeclared variable names (may include false positives)
  */
 function findUndeclaredVariables(
   code: string,
   allowedGlobals: string[],
 ): string[] {
-  // This is a simplified check - a full implementation would use an AST parser
-  // For now, we just look for common patterns
+  // This is a simplified regex-based check with known limitations (see JSDoc)
+  // A full implementation would use an AST parser for accurate analysis
 
   const undeclaredVars: Set<string> = new Set();
 
