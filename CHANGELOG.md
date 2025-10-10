@@ -1,3 +1,10 @@
+# [0.23.0](https://github.com/happyvertical/sdk/compare/v0.22.0...v0.23.0) (2025-10-10)
+
+
+### Features
+
+* **utils:** add code extraction and safe execution utilities ([9921657](https://github.com/happyvertical/sdk/commit/9921657183aa5b88ae4859c631f6479d12a329a9)), closes [#158](https://github.com/happyvertical/sdk/issues/158) [#158](https://github.com/happyvertical/sdk/issues/158)
+
 # [0.22.0](https://github.com/happyvertical/sdk/compare/v0.21.0...v0.22.0) (2025-10-10)
 
 
