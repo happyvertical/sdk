@@ -55,6 +55,7 @@
     { "path": "./packages/core/sql" },
     { "path": "./packages/core/ocr" },
     { "path": "./packages/core/pdf" },
+    { "path": "./packages/core/documents" },
     { "path": "./packages/core/ai" },
     { "path": "./packages/core/spider" },
     { "path": "./packages/core/smrt" },
