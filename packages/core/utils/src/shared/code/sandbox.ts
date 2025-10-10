@@ -175,7 +175,7 @@ export function executeCode<T = any>(
 
     if (captureResult) {
       // Check if code has multiple statements or function definitions
-      const hasMultipleStatements = code.includes(';') || code.includes('\n') && code.trim().split('\n').length > 1;
+      const hasMultipleStatements = code.includes(';') || (code.includes('\n') && code.trim().split('\n').length > 1);
       const hasFunctionDef = /function\s+\w+|const\s+\w+\s*=\s*function|const\s+\w+\s*=\s*\(/i.test(code);
 
       if (hasMultipleStatements || hasFunctionDef) {
