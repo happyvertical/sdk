@@ -134,7 +134,8 @@ export class AnthropicProvider implements AIInterface {
       const { system, anthropicMessages } =
         this.mapMessagesToAnthropic(messages);
 
-      const response = await this.client.messages.create({
+      // Build request parameters
+      const requestParams: Record<string, any> = {
         model: options.model || this.options.defaultModel,
         messages: anthropicMessages,
         max_tokens: options.maxTokens || 4096,
@@ -146,11 +147,51 @@ export class AnthropicProvider implements AIInterface {
             ? [options.stop]
             : undefined,
         system: system || undefined,
+        tools:
+          options.tools && options.tools.length > 0
+            ? options.tools.map((tool) => ({
+                name: tool.function.name,
+                description: tool.function.description || '',
+                input_schema: tool.function.parameters || { type: 'object' },
+              }))
+            : undefined,
+        tool_choice: this.mapToolChoice(options.toolChoice),
         stream: false,
-      });
+      };
+
+      // Add response format if specified
+      // NOTE: Anthropic doesn't have native JSON mode like OpenAI. This is a prompt-based
+      // approach that instructs the model to output JSON, but doesn't guarantee valid JSON.
+      // For critical use cases, validate and parse the response with error handling.
+      if (options.responseFormat?.type === 'json_object') {
+        const jsonInstruction =
+          '\n\nIMPORTANT: You must respond with valid JSON only. Do not include any explanatory text outside the JSON object.';
+        requestParams.system = requestParams.system
+          ? requestParams.system + jsonInstruction
+          : jsonInstruction.trim();
+      }
+
+      const response = await this.client.messages.create(requestParams);
+
+      // Extract text content and tool calls from response
+      const textContent = response.content
+        .filter((block: any) => block.type === 'text')
+        .map((block: any) => block.text)
+        .join('');
+
+      const toolCalls = response.content
+        .filter((block: any) => block.type === 'tool_use')
+        .map((block: any) => ({
+          id: block.id,
+          type: 'function' as const,
+          function: {
+            name: block.name,
+            arguments: JSON.stringify(block.input),
+          },
+        }));
 
       return {
-        content: response.content[0]?.text || '',
+        content: textContent,
         model: response.model,
         finishReason: this.mapFinishReason(response.stop_reason),
         usage: {
@@ -159,6 +200,7 @@ export class AnthropicProvider implements AIInterface {
           totalTokens:
             response.usage.input_tokens + response.usage.output_tokens,
         },
+        toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       };
     } catch (error) {
       throw this.mapError(error);
@@ -335,6 +377,27 @@ export class AnthropicProvider implements AIInterface {
     }
 
     return { system, anthropicMessages };
+  }
+
+  private mapToolChoice(
+    toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } },
+  ): any {
+    if (!toolChoice || toolChoice === 'auto') {
+      return { type: 'auto' };
+    }
+
+    if (toolChoice === 'none') {
+      return undefined; // Anthropic doesn't have explicit 'none', just omit tools
+    }
+
+    if (typeof toolChoice === 'object' && toolChoice.type === 'function') {
+      return {
+        type: 'tool',
+        name: toolChoice.function.name,
+      };
+    }
+
+    return { type: 'auto' };
   }
 
   private mapFinishReason(reason: string | null): AIResponse['finishReason'] {
