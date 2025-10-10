@@ -1,5 +1,5 @@
 import type { AIClientOptions } from '@have/ai';
-import { AIClient } from '@have/ai';
+import { AIClient, getAI } from '@have/ai';
 import type { FilesystemAdapterOptions } from '@have/files';
 import { FilesystemAdapter } from '@have/files';
 import type { DatabaseInterface } from '@have/sql';
@@ -151,7 +151,8 @@ export class SmrtClass {
       this._fs = await FilesystemAdapter.create(this.options.fs);
     }
     if (this.options.ai) {
-      this._ai = await AIClient.create(this.options.ai);
+      // Use getAI() factory to support all AI providers (OpenAI, Anthropic, Gemini, etc.)
+      this._ai = await getAI(this.options.ai as any) as AIClient;
     }
     await this.initializeSignals();
     return this;
