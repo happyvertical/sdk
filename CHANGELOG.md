@@ -1,3 +1,10 @@
+## [0.23.1](https://github.com/happyvertical/sdk/compare/v0.23.0...v0.23.1) (2025-10-10)
+
+
+### Bug Fixes
+
+* **smrt:** integrate getAI factory for multi-provider support ([07afe96](https://github.com/happyvertical/sdk/commit/07afe96c50d602c6b9157fbfbeab1d283fad32ae)), closes [#159](https://github.com/happyvertical/sdk/issues/159)
+
 # [0.23.0](https://github.com/happyvertical/sdk/compare/v0.22.0...v0.23.0) (2025-10-10)
 
 
