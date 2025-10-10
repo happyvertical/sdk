@@ -24,8 +24,7 @@
     "@have/ai": "workspace:*",
     "@have/files": "workspace:*",
     "@have/utils": "workspace:*",
-    "@have/pdf": "workspace:*",
-    "@have/spider": "workspace:*",
+    "@have/documents": "workspace:*",
     "yaml": "^2.8.1"
   },
   "devDependencies": {

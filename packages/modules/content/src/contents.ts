@@ -1,13 +1,13 @@
 import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { AIClientOptions } from '@have/ai';
+import { fetchDocument } from '@have/documents';
 import { ensureDirectoryExists } from '@have/files';
 import type { SmrtCollectionOptions } from '@have/smrt';
 import { SmrtCollection } from '@have/smrt';
 import { makeSlug } from '@have/utils';
 import YAML from 'yaml';
 import { Content } from './content';
-import { Document } from './document';
 
 /**
  * Configuration options for Contents collection
@@ -130,16 +130,18 @@ export class Contents extends SmrtCollection<Content> {
       return existing;
     }
 
-    const doc = await Document.create({
+    // Fetch and process the document using @have/documents
+    const doc = await fetchDocument(options.url, {
       cacheDir: options?.mirrorDir,
-      url: options.url,
     });
 
     const filename = url.pathname.split('/').pop();
     const nameWithoutExtension = filename?.replace(/\.[^/.]+$/, '');
     const title = nameWithoutExtension?.replace(/[-_]/g, ' ');
     const slug = makeSlug(title as string);
-    const body = await doc.getText();
+
+    // Extract text from all document parts
+    const body = doc.parts.map((part) => part.content).join('\n\n');
     if (body) {
       const content = new Content({
         url: options.url,
