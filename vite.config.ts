@@ -265,7 +265,7 @@ const packages = [
   },
   {
     name: 'content',
-    entry: 'packages/modules/content/src/content.ts',
+    entry: 'packages/modules/content/src/index.ts',
     directory: 'modules' as const,
   },
   {
