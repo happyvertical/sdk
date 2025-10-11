@@ -1,6 +1,6 @@
 {
   "name": "@have/spider",
-  "version": "0.24.2",
+  "version": "0.25.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
