@@ -1,6 +1,6 @@
 {
   "name": "@have/types",
-  "version": "0.23.1",
+  "version": "0.24.0",
   "description": "Shared type definitions for the HAVE SDK",
   "type": "module",
   "main": "./dist/index.js",
