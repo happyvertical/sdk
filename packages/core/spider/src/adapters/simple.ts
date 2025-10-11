@@ -6,6 +6,7 @@ import { request } from 'undici';
 import type {
   FetchOptions,
   ISpiderAdapter,
+  Link,
   Page,
   SimpleAdapterOptions,
 } from '../shared/types';
@@ -44,16 +45,26 @@ export class SimpleAdapter implements ISpiderAdapter {
   }
 
   /**
-   * Extract links from HTML using cheerio
+   * Extract links from HTML using cheerio with metadata
    */
-  private extractLinks(html: string): string[] {
+  private extractLinks(html: string): Link[] {
     const $ = cheerio.load(html);
-    const links: string[] = [];
+    const links: Link[] = [];
 
     $('a').each((_, element) => {
-      const href = $(element).attr('href');
+      const $link = $(element);
+      const href = $link.attr('href');
       if (href) {
-        links.push(href);
+        const classes = $link.attr('class');
+        links.push({
+          href,
+          text: $link.text().trim() || '',
+          title: $link.attr('title'),
+          ariaLabel: $link.attr('aria-label'),
+          rel: $link.attr('rel'),
+          target: $link.attr('target'),
+          classes: classes ? classes.split(' ').filter((c) => c.trim()) : undefined,
+        });
       }
     });
 
