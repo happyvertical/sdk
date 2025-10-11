@@ -93,7 +93,8 @@ export class Document {
       path.resolve(os.tmpdir(), '.cache', 'have-sdk', 'documents');
 
     if (this.url.protocol.startsWith('file')) {
-      // Decode URL-encoded characters in pathname (e.g., %20 -> space)
+      // Decode URL-encoded characters in the pathname only (e.g., %20 -> space).
+      // Note: Query parameters and hash fragments are not decoded here.
       this._localPath = decodeURIComponent(this.url.pathname);
       this.isRemote = false;
     } else if (this.url.protocol.startsWith('http')) {
