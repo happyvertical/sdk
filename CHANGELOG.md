@@ -1,3 +1,10 @@
+## [0.24.2](https://github.com/happyvertical/sdk/compare/v0.24.1...v0.24.2) (2025-10-11)
+
+
+### Bug Fixes
+
+* **spider:** correct cheerio ESM import with interop setting ([5f5c433](https://github.com/happyvertical/sdk/commit/5f5c433c557bcfedaace4467de1d09786c868529)), closes [#166](https://github.com/happyvertical/sdk/issues/166)
+
 ## [0.24.1](https://github.com/happyvertical/sdk/compare/v0.24.0...v0.24.1) (2025-10-11)
 
 
