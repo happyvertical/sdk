@@ -7,6 +7,7 @@ import type {
   CrawleeAdapterOptions,
   FetchOptions,
   ISpiderAdapter,
+  Link,
   Page,
 } from '../shared/types';
 
@@ -47,16 +48,26 @@ export class CrawleeAdapter implements ISpiderAdapter {
   }
 
   /**
-   * Extract links from HTML using cheerio (simple extraction)
+   * Extract links from HTML using cheerio with metadata
    */
-  private extractLinksFromHtml(html: string): string[] {
+  private extractLinksFromHtml(html: string): Link[] {
     const $ = cheerio.load(html);
-    const links: string[] = [];
+    const links: Link[] = [];
 
     $('a').each((_, element) => {
-      const href = $(element).attr('href');
+      const $link = $(element);
+      const href = $link.attr('href');
       if (href) {
-        links.push(href);
+        const classes = $link.attr('class');
+        links.push({
+          href,
+          text: $link.text().trim() || '',
+          title: $link.attr('title'),
+          ariaLabel: $link.attr('aria-label'),
+          rel: $link.attr('rel'),
+          target: $link.attr('target'),
+          classes: classes ? classes.split(' ').filter((c) => c.trim()) : undefined,
+        });
       }
     });
 
@@ -67,11 +78,10 @@ export class CrawleeAdapter implements ISpiderAdapter {
    * Expand all navigation/accordion elements and extract all links from a page
    *
    * This method is useful for pages with hidden content behind expandable elements.
-   * It will click through accordion buttons, expand menus, and collect all links.
+   * It will click through accordion buttons, expand menus, and collect all links with metadata.
    *
    * @param page - Playwright page instance
-   * @param options - Options for link extraction
-   * @returns Array of extracted links
+   * @returns Array of extracted links with metadata
    *
    * @example
    * ```typescript
@@ -81,16 +91,33 @@ export class CrawleeAdapter implements ISpiderAdapter {
    * const links = await spider.extractLinks(page);
    * ```
    */
-  async extractLinks(page: any): Promise<string[]> {
-    // This logic runs in the browser context to expand navigation and collect links
+  async extractLinks(page: any): Promise<Link[]> {
+    // This logic runs in the browser context to expand navigation and collect links with metadata
     const allLinks = await page.evaluate(() => {
-      const linkSet = new Set<string>();
+      // Use Map to avoid duplicate hrefs while preserving link metadata
+      const linkMap = new Map<string, any>();
       const clickedElements = new Set<Element>();
 
-      // Extract all current links
+      // Extract all current links with metadata
       const extractLinks = () => {
         document.querySelectorAll('a[href]').forEach((a) => {
-          linkSet.add((a as HTMLAnchorElement).href);
+          const link = a as HTMLAnchorElement;
+          const href = link.href;
+
+          // Only add if not already present (first occurrence wins)
+          if (!linkMap.has(href)) {
+            linkMap.set(href, {
+              href,
+              text: link.textContent?.trim() || '',
+              title: link.title || undefined,
+              ariaLabel: link.getAttribute('aria-label') || undefined,
+              rel: link.rel || undefined,
+              target: link.target || undefined,
+              classes: link.className
+                ? link.className.split(' ').filter((c) => c.trim())
+                : undefined,
+            });
+          }
         });
       };
 
@@ -148,7 +175,7 @@ export class CrawleeAdapter implements ISpiderAdapter {
         if (clickedCount === 0) break;
       }
 
-      return Array.from(linkSet);
+      return Array.from(linkMap.values());
     });
 
     return allLinks;

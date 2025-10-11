@@ -1,4 +1,44 @@
 /**
+ * Represents a link extracted from a web page with metadata
+ */
+export interface Link {
+  /**
+   * The URL the link points to (absolute or relative)
+   */
+  href: string;
+
+  /**
+   * The visible text content of the link
+   */
+  text: string;
+
+  /**
+   * The title attribute (hover text)
+   */
+  title?: string;
+
+  /**
+   * The aria-label attribute for accessibility
+   */
+  ariaLabel?: string;
+
+  /**
+   * The rel attribute (e.g., "nofollow", "external")
+   */
+  rel?: string;
+
+  /**
+   * The target attribute (e.g., "_blank")
+   */
+  target?: string;
+
+  /**
+   * CSS classes applied to the link
+   */
+  classes?: string[];
+}
+
+/**
  * Standardized data structure representing a web page
  */
 export interface Page {
@@ -13,9 +53,9 @@ export interface Page {
   content: string;
 
   /**
-   * An array of links extracted from the page
+   * An array of links extracted from the page with metadata
    */
-  links: string[];
+  links: Link[];
 
   /**
    * The original raw response from the adapter
