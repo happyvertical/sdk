@@ -158,3 +158,243 @@ export type SpiderAdapterOptions =
   | SimpleAdapterOptions
   | DomAdapterOptions
   | CrawleeAdapterOptions;
+
+// ============================================================================
+// Harvester Types - Content Extraction Strategies
+// ============================================================================
+
+/**
+ * Result from a harvest operation with metadata about the strategy used
+ */
+export interface HarvestResult {
+  /** The final URL after any redirects */
+  url: string;
+
+  /** Raw HTML content */
+  content: string;
+
+  /** Extracted links with metadata */
+  links: Link[];
+
+  /** Harvester strategy that was used */
+  strategy: HarvesterStrategy;
+
+  /** Performance metrics */
+  metrics: HarvestMetrics;
+
+  /** Raw response data */
+  raw: any;
+}
+
+/**
+ * Information about which harvesting strategy was used
+ */
+export interface HarvesterStrategy {
+  /** Type of harvester used */
+  type: HarvesterType;
+
+  /** Spider adapter used */
+  spider: 'simple' | 'dom' | 'crawlee';
+
+  /** Configuration used */
+  config: Record<string, any>;
+
+  /** Confidence score (0-1) of strategy effectiveness */
+  confidence: number;
+}
+
+/**
+ * Performance metrics from a harvest
+ */
+export interface HarvestMetrics {
+  /** Total execution time in ms */
+  duration: number;
+
+  /** Number of links found */
+  linkCount: number;
+
+  /** Number of interactions performed (clicks, scrolls, etc) */
+  interactionCount: number;
+
+  /** Whether the harvester believes it found all content */
+  complete: boolean;
+}
+
+/**
+ * Types of harvesting strategies
+ */
+export type HarvesterType =
+  | 'basic' // No interactions, just scrape
+  | 'accordion' // Expand accordions
+  | 'ajax' // Wait for async loads
+  | 'scroll' // Infinite scroll
+  | 'pagination' // Multi-page navigation
+  | 'tabs' // Tab switching
+  | 'hybrid'; // Multiple strategies combined
+
+/**
+ * Base interface all harvesters must implement
+ */
+export interface IHarvester {
+  /**
+   * Harvest content from a URL
+   */
+  harvest(url: string, options?: HarvestOptions): Promise<HarvestResult>;
+
+  /**
+   * Get harvester type
+   */
+  getType(): HarvesterType;
+}
+
+/**
+ * Options for harvest operations
+ */
+export interface HarvestOptions {
+  /** Custom headers */
+  headers?: Record<string, string>;
+
+  /** Timeout in ms */
+  timeout?: number;
+
+  /** Use cache for fetched pages */
+  cache?: boolean;
+
+  /** Cache expiry time in ms */
+  cacheExpiry?: number;
+
+  /** Max time to spend harvesting in ms */
+  maxDuration?: number;
+
+  /** Max interactions to perform */
+  maxInteractions?: number;
+}
+
+/**
+ * Options for basic harvester
+ */
+export interface BasicHarvesterOptions {
+  harvester: 'basic';
+
+  /** Which spider to use */
+  spider?: 'simple' | 'dom' | 'crawlee';
+
+  /** Cache directory */
+  cacheDir?: string;
+}
+
+/**
+ * Options for accordion harvester
+ */
+export interface AccordionHarvesterOptions {
+  harvester: 'accordion';
+
+  /** Cache directory */
+  cacheDir?: string;
+
+  /** Max iterations for accordion expansion */
+  maxIterations?: number;
+
+  /** Delay between clicks in ms */
+  clickDelay?: number;
+
+  /** Custom accordion selectors */
+  customSelectors?: string[];
+
+  /** Handle exclusive accordions (one-at-a-time) */
+  handleExclusive?: boolean;
+
+  /** Whether to run browser in headless mode */
+  headless?: boolean;
+
+  /** Custom user agent string */
+  userAgent?: string;
+}
+
+/**
+ * Options for AJAX harvester
+ */
+export interface AjaxHarvesterOptions {
+  harvester: 'ajax';
+
+  /** Cache directory */
+  cacheDir?: string;
+
+  /** Max time to wait for content in ms */
+  maxWaitTime?: number;
+
+  /** How to detect completion */
+  completionStrategy?: 'link-count' | 'network-idle' | 'custom-selector';
+
+  /** Selector to wait for (if using custom-selector) */
+  waitForSelector?: string;
+
+  /** Whether to run browser in headless mode */
+  headless?: boolean;
+
+  /** Custom user agent string */
+  userAgent?: string;
+}
+
+/**
+ * Options for scroll harvester
+ */
+export interface ScrollHarvesterOptions {
+  harvester: 'scroll';
+
+  /** Cache directory */
+  cacheDir?: string;
+
+  /** Max scrolls to perform */
+  maxScrolls?: number;
+
+  /** Delay between scrolls in ms */
+  scrollDelay?: number;
+
+  /** How to detect no more content */
+  endDetection?: 'link-count' | 'scroll-position' | 'sentinel';
+
+  /** Sentinel selector (if using sentinel detection) */
+  sentinelSelector?: string;
+
+  /** Whether to run browser in headless mode */
+  headless?: boolean;
+
+  /** Custom user agent string */
+  userAgent?: string;
+}
+
+/**
+ * Options for pagination harvester
+ */
+export interface PaginationHarvesterOptions {
+  harvester: 'pagination';
+
+  /** Cache directory */
+  cacheDir?: string;
+
+  /** Max pages to crawl */
+  maxPages?: number;
+
+  /** Selector for next button */
+  nextSelector?: string;
+
+  /** Follow numbered page links */
+  followPageNumbers?: boolean;
+
+  /** Whether to run browser in headless mode */
+  headless?: boolean;
+
+  /** Custom user agent string */
+  userAgent?: string;
+}
+
+/**
+ * Discriminated union of all harvester options
+ */
+export type HarvesterOptions =
+  | BasicHarvesterOptions
+  | AccordionHarvesterOptions
+  | AjaxHarvesterOptions
+  | ScrollHarvesterOptions
+  | PaginationHarvesterOptions;
