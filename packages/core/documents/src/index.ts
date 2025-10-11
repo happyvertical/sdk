@@ -42,6 +42,9 @@ export { Document } from './document';
 // Processors
 export { PDFProcessor } from './processors/pdf';
 
+// Utilities
+export { getTitleFromUrl } from './utils';
+
 // Types
 export type {
   Document as DocumentType,

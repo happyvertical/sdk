@@ -9,6 +9,7 @@ import type {
   FetchDocumentOptions,
 } from '../types';
 import { Document as BaseDocument } from '../document';
+import { getTitleFromUrl } from '../utils';
 
 /**
  * PDF Document Processor
@@ -73,7 +74,7 @@ export class PDFProcessor implements DocumentProcessor {
     // Create main document part
     const mainPart: DocumentPart = {
       id: uuidv4(),
-      title: this.getTitleFromUrl(url),
+      title: getTitleFromUrl(url, 'PDF Document'),
       content: extractedText || '',
       type: 'text',
       metadata: {
@@ -105,20 +106,6 @@ export class PDFProcessor implements DocumentProcessor {
     await setCached(cacheKey, JSON.stringify(document));
 
     return document;
-  }
-
-  /**
-   * Extract title from URL
-   */
-  private getTitleFromUrl(url: string): string {
-    try {
-      const urlObj = new URL(url);
-      const pathname = urlObj.pathname;
-      const filename = pathname.split('/').pop() || 'document';
-      return filename.replace(/\.pdf$/i, '').replace(/[-_]/g, ' ');
-    } catch {
-      return 'PDF Document';
-    }
   }
 
   /**
