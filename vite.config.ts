@@ -57,6 +57,7 @@ function createPackageBuild(
         'vite',
         'vitest',
         'cheerio',
+        'crawlee',
         'puppeteer',
         'playwright',
         'playwright-core',
