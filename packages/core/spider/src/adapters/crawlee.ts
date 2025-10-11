@@ -47,9 +47,9 @@ export class CrawleeAdapter implements ISpiderAdapter {
   }
 
   /**
-   * Extract links from HTML using cheerio
+   * Extract links from HTML using cheerio (simple extraction)
    */
-  private extractLinks(html: string): string[] {
+  private extractLinksFromHtml(html: string): string[] {
     const $ = cheerio.load(html);
     const links: string[] = [];
 
@@ -61,6 +61,97 @@ export class CrawleeAdapter implements ISpiderAdapter {
     });
 
     return links;
+  }
+
+  /**
+   * Expand all navigation/accordion elements and extract all links from a page
+   *
+   * This method is useful for pages with hidden content behind expandable elements.
+   * It will click through accordion buttons, expand menus, and collect all links.
+   *
+   * @param page - Playwright page instance
+   * @param options - Options for link extraction
+   * @returns Array of extracted links
+   *
+   * @example
+   * ```typescript
+   * const spider = await getSpider({ adapter: 'crawlee' });
+   * const page = await browser.newPage();
+   * await page.goto('https://example.com');
+   * const links = await spider.extractLinks(page);
+   * ```
+   */
+  async extractLinks(page: any): Promise<string[]> {
+    // This logic runs in the browser context to expand navigation and collect links
+    const allLinks = await page.evaluate(() => {
+      const linkSet = new Set<string>();
+      const clickedElements = new Set<Element>();
+
+      // Extract all current links
+      const extractLinks = () => {
+        document.querySelectorAll('a[href]').forEach((a) => {
+          linkSet.add((a as HTMLAnchorElement).href);
+        });
+      };
+
+      // Click an element and wait for changes
+      const clickAndWait = (element: Element) => {
+        if (clickedElements.has(element)) return false;
+        try {
+          (element as HTMLElement).click();
+          clickedElements.add(element);
+          return true;
+        } catch {
+          return false;
+        }
+      };
+
+      // Extract initial links
+      extractLinks();
+
+      // Click expandable elements iteratively
+      for (let iteration = 0; iteration < 3; iteration++) {
+        let clickedCount = 0;
+
+        // Click semantic accordion elements
+        const semanticSelectors = [
+          'button[aria-expanded="false"]',
+          '[role="button"][aria-expanded="false"]',
+          '.accordion-header',
+          '.accordion-button',
+          'summary',
+          '[data-toggle]',
+        ];
+
+        for (const selector of semanticSelectors) {
+          document.querySelectorAll(selector).forEach((el) => {
+            if (clickAndWait(el)) clickedCount++;
+          });
+        }
+
+        // For hash links, only click if they're likely accordion triggers
+        // (short text, no external URL patterns)
+        document.querySelectorAll('a[href="#"]').forEach((link) => {
+          const text = link.textContent?.trim() || '';
+          // Skip if it looks like a skip link or has common nav patterns
+          if (text.toLowerCase().includes('skip')) return;
+          if (text.toLowerCase().includes('menu')) return;
+          if (text.length > 100) return; // Likely not an accordion trigger
+
+          if (clickAndWait(link)) clickedCount++;
+        });
+
+        // Extract links after this round of clicks
+        extractLinks();
+
+        // Stop if nothing was clicked
+        if (clickedCount === 0) break;
+      }
+
+      return Array.from(linkSet);
+    });
+
+    return allLinks;
   }
 
   /**
@@ -146,81 +237,11 @@ export class CrawleeAdapter implements ISpiderAdapter {
               // Wait a bit for any initial animations
               await page.waitForTimeout(500);
 
-              // Expand all navigation/accordion elements and collect links
-              // This uses page.evaluate to run logic directly in the browser
-              const allLinks = await page.evaluate(() => {
-                const linkSet = new Set<string>();
-                const clickedElements = new Set<Element>();
-
-                // Extract all current links
-                const extractLinks = () => {
-                  document.querySelectorAll('a[href]').forEach((a) => {
-                    linkSet.add((a as HTMLAnchorElement).href);
-                  });
-                };
-
-                // Click an element and wait for changes
-                const clickAndWait = (element: Element) => {
-                  if (clickedElements.has(element)) return false;
-                  try {
-                    (element as HTMLElement).click();
-                    clickedElements.add(element);
-                    return true;
-                  } catch {
-                    return false;
-                  }
-                };
-
-                // Extract initial links
-                extractLinks();
-
-                // Click expandable elements iteratively
-                for (let iteration = 0; iteration < 3; iteration++) {
-                  let clickedCount = 0;
-
-                  // Click semantic accordion elements
-                  const semanticSelectors = [
-                    'button[aria-expanded="false"]',
-                    '[role="button"][aria-expanded="false"]',
-                    '.accordion-header',
-                    '.accordion-button',
-                    'summary',
-                    '[data-toggle]',
-                  ];
-
-                  for (const selector of semanticSelectors) {
-                    document.querySelectorAll(selector).forEach((el) => {
-                      if (clickAndWait(el)) clickedCount++;
-                    });
-                  }
-
-                  // For hash links, only click if they're likely accordion triggers
-                  // (short text, no external URL patterns)
-                  document.querySelectorAll('a[href="#"]').forEach((link) => {
-                    const text = link.textContent?.trim() || '';
-                    // Skip if it looks like a skip link or has common nav patterns
-                    if (text.toLowerCase().includes('skip')) return;
-                    if (text.toLowerCase().includes('menu')) return;
-                    if (text.length > 100) return; // Likely not an accordion trigger
-
-                    if (clickAndWait(link)) clickedCount++;
-                  });
-
-                  // Extract links after this round of clicks
-                  extractLinks();
-
-                  // Stop if nothing was clicked
-                  if (clickedCount === 0) break;
-                }
-
-                return Array.from(linkSet);
-              });
+              // Extract all links by expanding navigation elements
+              const links = await this.extractLinks(page);
 
               // Get the final HTML content
               const content = await page.content();
-
-              // Use the links collected from page.evaluate
-              const links = allLinks;
 
               // Get the final URL after any redirects
               const finalUrl = page.url();
