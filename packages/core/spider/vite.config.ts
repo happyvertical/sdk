@@ -20,6 +20,8 @@ export default defineConfig({
         entryFileNames: '[name].js',
         // Preserve the exact module structure for clean subpath exports
         preserveModulesRoot: 'src',
+        // Force ESM-style imports for external dependencies
+        interop: 'esModule',
       },
       external: [
         // Node.js built-ins
