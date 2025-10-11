@@ -1,3 +1,10 @@
+## [0.24.1](https://github.com/happyvertical/sdk/compare/v0.24.0...v0.24.1) (2025-10-11)
+
+
+### Bug Fixes
+
+* **content:** correct build entry point and remove fetchDocument re-export ([62dde14](https://github.com/happyvertical/sdk/commit/62dde14011ef7d203d6d227d35e8a440a4ab08c9)), closes [#162](https://github.com/happyvertical/sdk/issues/162)
+
 # [0.24.0](https://github.com/happyvertical/sdk/compare/v0.23.1...v0.24.0) (2025-10-11)
 
 
