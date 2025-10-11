@@ -1,0 +1,50 @@
+import { describe, expect, it } from 'vitest';
+import { getHarvester } from '../shared/harvester-factory';
+
+/**
+ * Diagnostic test to understand the Bentley directory accordion behavior
+ */
+describe('Directory Accordion Diagnostic', () => {
+  it.skip('should analyze Bentley page structure and accordion behavior', async () => {
+    const url =
+      'https://townofbentley.ca/town-office/council/meetings-agendas/';
+
+    const harvester = await getHarvester({
+      harvester: 'accordion',
+      maxIterations: 15, // More iterations
+      clickDelay: 500, // Longer delay
+      headless: false, // Run with visible browser to see what happens
+    });
+
+    const result = await harvester.harvest(url, {
+      cache: false,
+      timeout: 90000,
+    });
+
+    console.log('\n=== DIAGNOSTIC RESULTS ===');
+    console.log(`Total links found: ${result.links.length}`);
+    console.log(`Interactions performed: ${result.metrics.interactionCount}`);
+    console.log(`Duration: ${result.metrics.duration}ms`);
+    console.log(`Confidence: ${result.strategy.confidence}`);
+
+    // Group links by type
+    const pdfLinks = result.links.filter((l) => l.href.endsWith('.pdf'));
+    const yearLinks = result.links.filter((l) => /^\d{4}$/.test(l.text));
+    const meetingLinks = result.links.filter((l) =>
+      /meeting|agenda|minutes/i.test(l.text),
+    );
+
+    console.log(`\nPDF links: ${pdfLinks.length}`);
+    console.log(`Year links: ${yearLinks.length}`);
+    console.log(`Meeting links: ${meetingLinks.length}`);
+
+    console.log(`\nSample PDF links:`);
+    pdfLinks.slice(0, 5).forEach((link, i) => {
+      console.log(`  ${i + 1}. ${link.text.substring(0, 60)}`);
+      console.log(`     ${link.href}`);
+    });
+
+    // This test is just for diagnostic purposes
+    expect(result).toBeDefined();
+  }, 120000);
+});
