@@ -53,19 +53,9 @@ export class Contents extends SmrtCollection<Content> {
   private loaded: Map<string, any>;
 
   /**
-   * Creates and initializes a Contents collection
-   *
-   * @param options - Configuration options
-   * @returns Promise resolving to the initialized Contents collection
-   */
-  static async create(options: ContentsOptions): Promise<Contents> {
-    const contents = new Contents(options);
-    await contents.initialize();
-    return contents;
-  }
-
-  /**
    * Creates a new Contents collection
+   *
+   * Use the static `create()` method inherited from SmrtCollection for proper initialization.
    *
    * @param options - Configuration options
    */
