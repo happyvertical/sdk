@@ -1,3 +1,17 @@
+# [0.24.0](https://github.com/happyvertical/sdk/compare/v0.23.1...v0.24.0) (2025-10-11)
+
+
+### Bug Fixes
+
+* **build:** add @have/documents to build order ([4fc2b70](https://github.com/happyvertical/sdk/commit/4fc2b705d0d4acdde554ee23270c6662a2998189)), closes [#163](https://github.com/happyvertical/sdk/issues/163)
+* **build:** add @have/documents to vite configuration ([e2dfdc8](https://github.com/happyvertical/sdk/commit/e2dfdc89f09e86336bea8f4de56ca09e194d18db))
+* **content:** remove custom create() method from Contents class ([96b9f39](https://github.com/happyvertical/sdk/commit/96b9f3957bea135e8809accc7d431ee1c39303b4))
+
+
+### Features
+
+* **documents:** add @have/documents package for multi-part document processing ([72a23bb](https://github.com/happyvertical/sdk/commit/72a23bb1350a296e2bbab639ebf482d173ffe803)), closes [#162](https://github.com/happyvertical/sdk/issues/162)
+
 ## [0.23.1](https://github.com/happyvertical/sdk/compare/v0.23.0...v0.23.1) (2025-10-10)
 
 
