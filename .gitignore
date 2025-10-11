@@ -140,3 +140,6 @@ repomix-output.xml
 
 # MCP Server logs
 /tmp/smrt-mcp-*.log
+
+# Document processing cache
+*.processed_pdf
