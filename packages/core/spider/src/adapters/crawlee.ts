@@ -7,6 +7,7 @@ import type {
   CrawleeAdapterOptions,
   FetchOptions,
   ISpiderAdapter,
+  Link,
   Page,
 } from '../shared/types';
 
@@ -47,16 +48,26 @@ export class CrawleeAdapter implements ISpiderAdapter {
   }
 
   /**
-   * Extract links from HTML using cheerio
+   * Extract links from HTML using cheerio with metadata
    */
-  private extractLinks(html: string): string[] {
+  private extractLinks(html: string): Link[] {
     const $ = cheerio.load(html);
-    const links: string[] = [];
+    const links: Link[] = [];
 
     $('a').each((_, element) => {
-      const href = $(element).attr('href');
+      const $link = $(element);
+      const href = $link.attr('href');
       if (href) {
-        links.push(href);
+        const classes = $link.attr('class');
+        links.push({
+          href,
+          text: $link.text().trim() || '',
+          title: $link.attr('title'),
+          ariaLabel: $link.attr('aria-label'),
+          rel: $link.attr('rel'),
+          target: $link.attr('target'),
+          classes: classes ? classes.split(' ').filter((c) => c.trim()) : undefined,
+        });
       }
     });
 
@@ -146,16 +157,33 @@ export class CrawleeAdapter implements ISpiderAdapter {
               // Wait a bit for any initial animations
               await page.waitForTimeout(500);
 
-              // Expand all navigation/accordion elements and collect links
+              // Expand all navigation/accordion elements and collect links with metadata
               // This uses page.evaluate to run logic directly in the browser
               const allLinks = await page.evaluate(() => {
-                const linkSet = new Set<string>();
+                // Use Map to avoid duplicate hrefs while preserving link metadata
+                const linkMap = new Map<string, any>();
                 const clickedElements = new Set<Element>();
 
-                // Extract all current links
+                // Extract all current links with metadata
                 const extractLinks = () => {
                   document.querySelectorAll('a[href]').forEach((a) => {
-                    linkSet.add((a as HTMLAnchorElement).href);
+                    const link = a as HTMLAnchorElement;
+                    const href = link.href;
+
+                    // Only add if not already present (first occurrence wins)
+                    if (!linkMap.has(href)) {
+                      linkMap.set(href, {
+                        href,
+                        text: link.textContent?.trim() || '',
+                        title: link.title || undefined,
+                        ariaLabel: link.getAttribute('aria-label') || undefined,
+                        rel: link.rel || undefined,
+                        target: link.target || undefined,
+                        classes: link.className
+                          ? link.className.split(' ').filter((c) => c.trim())
+                          : undefined,
+                      });
+                    }
                   });
                 };
 
@@ -213,7 +241,7 @@ export class CrawleeAdapter implements ISpiderAdapter {
                   if (clickedCount === 0) break;
                 }
 
-                return Array.from(linkSet);
+                return Array.from(linkMap.values());
               });
 
               // Get the final HTML content

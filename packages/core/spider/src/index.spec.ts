@@ -64,7 +64,7 @@ describe('SimpleAdapter', () => {
     expect(page2.content).toBe(page1.content);
   });
 
-  it('should extract links correctly', async () => {
+  it('should extract links correctly with metadata', async () => {
     const spider = await getSpider({ adapter: 'simple' });
     // Use a reliable, fast page with links (IANA - same org as example.com)
     const page = await spider.fetch('https://www.iana.org', {
@@ -73,6 +73,18 @@ describe('SimpleAdapter', () => {
 
     expect(Array.isArray(page.links)).toBe(true);
     expect(page.links.length).toBeGreaterThan(0);
+
+    // Verify Link metadata structure
+    const link = page.links[0];
+    expect(link).toBeDefined();
+    expect(typeof link.href).toBe('string');
+    expect(typeof link.text).toBe('string');
+    // Optional fields may be undefined
+    if (link.title) expect(typeof link.title).toBe('string');
+    if (link.ariaLabel) expect(typeof link.ariaLabel).toBe('string');
+    if (link.rel) expect(typeof link.rel).toBe('string');
+    if (link.target) expect(typeof link.target).toBe('string');
+    if (link.classes) expect(Array.isArray(link.classes)).toBe(true);
   });
 
   it('should throw ValidationError for invalid URL', async () => {
@@ -152,7 +164,7 @@ describe('DomAdapter', () => {
     expect(page2.content).toBe(page1.content);
   });
 
-  it('should extract links from processed HTML', async () => {
+  it('should extract links from processed HTML with metadata', async () => {
     const spider = await getSpider({ adapter: 'dom' });
     // Use a reliable, fast page with links (IANA - same org as example.com)
     const page = await spider.fetch('https://www.iana.org', {
@@ -161,6 +173,18 @@ describe('DomAdapter', () => {
 
     expect(Array.isArray(page.links)).toBe(true);
     expect(page.links.length).toBeGreaterThan(0);
+
+    // Verify Link metadata structure
+    const link = page.links[0];
+    expect(link).toBeDefined();
+    expect(typeof link.href).toBe('string');
+    expect(typeof link.text).toBe('string');
+    // Optional fields may be undefined
+    if (link.title) expect(typeof link.title).toBe('string');
+    if (link.ariaLabel) expect(typeof link.ariaLabel).toBe('string');
+    if (link.rel) expect(typeof link.rel).toBe('string');
+    if (link.target) expect(typeof link.target).toBe('string');
+    if (link.classes) expect(Array.isArray(link.classes)).toBe(true);
   });
 
   it('should throw ValidationError for invalid URL', async () => {
@@ -188,12 +212,24 @@ describe('CrawleeAdapter', () => {
     expect(page.raw).toBeDefined();
   }, 60000); // Longer timeout for browser operations
 
-  it('should extract links with browser', async () => {
+  it('should extract links with browser and metadata', async () => {
     const spider = await getSpider({ adapter: 'crawlee' });
     const page = await spider.fetch('https://example.com', { cache: false });
 
     expect(Array.isArray(page.links)).toBe(true);
     expect(page.links.length).toBeGreaterThan(0);
+
+    // Verify Link metadata structure
+    const link = page.links[0];
+    expect(link).toBeDefined();
+    expect(typeof link.href).toBe('string');
+    expect(typeof link.text).toBe('string');
+    // Optional fields may be undefined
+    if (link.title) expect(typeof link.title).toBe('string');
+    if (link.ariaLabel) expect(typeof link.ariaLabel).toBe('string');
+    if (link.rel) expect(typeof link.rel).toBe('string');
+    if (link.target) expect(typeof link.target).toBe('string');
+    if (link.classes) expect(Array.isArray(link.classes)).toBe(true);
   }, 60000);
 
   it('should cache browser-fetched pages', async () => {

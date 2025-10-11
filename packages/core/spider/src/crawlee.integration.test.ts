@@ -33,7 +33,7 @@ describe('Crawlee Integration - Bentley Town PDF Links', () => {
 
     // Extract PDF links
     const pdfLinks = page.links.filter((link) =>
-      link.toLowerCase().endsWith('.pdf'),
+      link.href.toLowerCase().endsWith('.pdf'),
     );
 
     // Verify we found PDF links
@@ -44,7 +44,7 @@ describe('Crawlee Integration - Bentley Town PDF Links', () => {
       `\n📄 Found ${pdfLinks.length} PDF links on Bentley town page:`,
     );
     pdfLinks.slice(0, 5).forEach((link, i) => {
-      console.log(`  ${i + 1}. ${link}`);
+      console.log(`  ${i + 1}. ${link.href} (${link.text || 'no text'})`);
     });
 
     if (pdfLinks.length > 5) {
@@ -54,8 +54,8 @@ describe('Crawlee Integration - Bentley Town PDF Links', () => {
     // Verify link format (should be actual PDF files from the town)
     const hasTownPdfLinks = pdfLinks.some(
       (link) =>
-        link.includes('townofbentley.ca') &&
-        link.toLowerCase().endsWith('.pdf'),
+        link.href.includes('townofbentley.ca') &&
+        link.href.toLowerCase().endsWith('.pdf'),
     );
 
     expect(hasTownPdfLinks).toBe(true);
@@ -112,12 +112,16 @@ describe('Crawlee Integration - Bentley Town PDF Links', () => {
     const page = await spider.fetch(url, { cache: false });
 
     const pdfLinks = page.links.filter((link) =>
-      link.toLowerCase().endsWith('.pdf'),
+      link.href.toLowerCase().endsWith('.pdf'),
     );
 
     // Some links might be relative, some absolute
-    const hasRelativeLinks = pdfLinks.some((link) => !link.startsWith('http'));
-    const hasAbsoluteLinks = pdfLinks.some((link) => link.startsWith('http'));
+    const hasRelativeLinks = pdfLinks.some(
+      (link) => !link.href.startsWith('http'),
+    );
+    const hasAbsoluteLinks = pdfLinks.some((link) =>
+      link.href.startsWith('http'),
+    );
 
     // At least one type should exist
     expect(hasRelativeLinks || hasAbsoluteLinks).toBe(true);
