@@ -48,6 +48,8 @@ export class AccordionHarvester implements IHarvester {
     '.accordion-button',
     '.expand-button',
     'details summary',
+    'li.directory.collapsed > a', // Directory/file browser accordions
+    'li.collapsed > a', // Generic collapsed list items
   ];
 
   constructor(options: AccordionHarvesterOptions) {
@@ -69,15 +71,147 @@ export class AccordionHarvester implements IHarvester {
   }
 
   /**
+   * Extract all links from the current page state
+   */
+  private async extractCurrentLinks(page: any): Promise<Link[]> {
+    return page.evaluate(() => {
+      const linkMap = new Map<string, any>();
+      document.querySelectorAll('a[href]').forEach((a) => {
+        const link = a as HTMLAnchorElement;
+        const href = link.href;
+        if (!linkMap.has(href)) {
+          linkMap.set(href, {
+            href,
+            text: link.textContent?.trim() || '',
+            title: link.title || undefined,
+            ariaLabel: link.getAttribute('aria-label') || undefined,
+            rel: link.rel || undefined,
+            target: link.target || undefined,
+            classes: link.className
+              ? link.className.split(' ').filter((c) => c.trim())
+              : undefined,
+          });
+        }
+      });
+      return Array.from(linkMap.values());
+    });
+  }
+
+  /**
    * Extract links from a page by expanding accordions
    *
-   * This method runs in the browser context to interact with the page.
+   * This method uses Playwright's native click() to properly trigger events.
    * It systematically clicks expandable elements and extracts links after each click.
    *
    * @param page - Playwright page instance
    * @returns Promise resolving to array of links and interaction count
    */
   private async extractLinksWithAccordions(
+    page: any,
+  ): Promise<{ links: Link[]; interactionCount: number }> {
+    const selectors = [
+      ...this.DEFAULT_SELECTORS,
+      ...(this.options.customSelectors || []),
+    ];
+
+    const linkMap = new Map<string, Link>();
+    let interactionCount = 0;
+    const clickedSelectors = new Set<string>();
+
+    // Extract initial links
+    const initialLinks = await this.extractCurrentLinks(page);
+    initialLinks.forEach((link) => linkMap.set(link.href, link));
+    let previousLinkCount = linkMap.size;
+
+    // Iterate to find and click expandable elements
+    // Each iteration re-queries the DOM to find newly revealed elements
+    for (let iteration = 0; iteration < (this.options.maxIterations || 10); iteration++) {
+      let clickedInIteration = 0;
+
+      // Try each selector
+      for (const selector of selectors) {
+        // Find all matching elements
+        const elements = await page.$$(selector);
+
+        for (const element of elements) {
+          // Generate a unique identifier for this element
+          const elementId = await element.evaluate((el: Element, sel: string) => {
+            // Create a unique path for this element
+            const getPath = (el: Element): string => {
+              if (el.id) return `#${el.id}`;
+              const parent = el.parentElement;
+              if (!parent) return el.tagName;
+              const index = Array.from(parent.children).indexOf(el);
+              return `${getPath(parent)} > ${el.tagName}:nth-child(${index + 1})`;
+            };
+            return `${sel}::${getPath(el)}`;
+          }, selector);
+
+          // Skip if already clicked
+          if (clickedSelectors.has(elementId)) {
+            continue;
+          }
+
+          // Check if element is visible
+          const isVisible = await element.isVisible();
+          if (!isVisible) {
+            continue;
+          }
+
+          // Click the element using Playwright's native click (properly triggers JS events)
+          try {
+            await element.click();
+            clickedSelectors.add(elementId);
+            interactionCount++;
+            clickedInIteration++;
+
+            // Wait for any AJAX content to load
+            try {
+              await page.waitForLoadState('networkidle', {
+                timeout: 3000,
+              });
+            } catch {
+              // If network doesn't go idle, just wait a bit
+              await page.waitForTimeout(this.options.clickDelay || 500);
+            }
+
+            // Extract links after click
+            const newLinks = await this.extractCurrentLinks(page);
+            newLinks.forEach((link) => linkMap.set(link.href, link));
+          } catch (err) {
+            // Element not clickable, skip
+            continue;
+          }
+        }
+      }
+
+      // Check if we clicked anything or found new links in this iteration
+      const currentLinkCount = linkMap.size;
+
+      if (clickedInIteration === 0) {
+        // No elements clicked in this iteration, we're done
+        break;
+      }
+
+      if (currentLinkCount === previousLinkCount) {
+        // No new links found despite clicking, we might be done
+        // But continue one more iteration to be sure
+      }
+
+      previousLinkCount = currentLinkCount;
+    }
+
+    return {
+      links: Array.from(linkMap.values()),
+      interactionCount,
+    };
+  }
+
+  /**
+   * Old page.evaluate()-based implementation (keeping for reference)
+   * This version didn't properly trigger JavaScript event handlers
+   */
+  private async extractLinksWithAccordionsOld(
     page: any,
   ): Promise<{ links: Link[]; interactionCount: number }> {
     const selectors = [
@@ -148,9 +282,12 @@ export class AccordionHarvester implements IHarvester {
               // Check if element is actually an accordion trigger
               const ariaExpanded = element.getAttribute('aria-expanded');
               const ariaControls = element.getAttribute('aria-controls');
+              const isDirectory = element.parentElement?.classList.contains('directory') ||
+                                  element.parentElement?.classList.contains('collapsed');
 
               // Skip elements that don't look like accordion triggers
-              if (!ariaExpanded && !ariaControls && !selector.includes('details')) {
+              // Allow if: has aria-expanded, has aria-controls, is details summary, or is directory-style
+              if (!ariaExpanded && !ariaControls && !selector.includes('details') && !isDirectory) {
                 continue;
               }
 
@@ -161,9 +298,11 @@ export class AccordionHarvester implements IHarvester {
                 interactionCount++;
                 foundNewElement = true;
 
-                // Wait for potential animations/transitions
+                // Wait for potential animations/transitions and content loading
+                // Use a longer delay for directory-style accordions as they may load content async
+                const waitTime = isDirectory ? Math.max(clickDelay, 500) : clickDelay;
                 const start = Date.now();
-                while (Date.now() - start < clickDelay) {
+                while (Date.now() - start < waitTime) {
                   // Busy wait (synchronous delay in browser context)
                 }
 
@@ -281,8 +420,8 @@ export class AccordionHarvester implements IHarvester {
               // Wait for page to load
               await page.waitForLoadState('networkidle', { timeout });
 
-              // Wait a bit for any initial animations
-              await page.waitForTimeout(500);
+              // Wait for any initial animations and lazy-loaded content
+              await page.waitForTimeout(1000);
 
               // Extract links with accordion expansion
               const { links, interactionCount } =
