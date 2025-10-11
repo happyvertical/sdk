@@ -50,7 +50,7 @@ export class CrawleeAdapter implements ISpiderAdapter {
   /**
    * Extract links from HTML using cheerio with metadata
    */
-  private extractLinks(html: string): Link[] {
+  private extractLinksFromHtml(html: string): Link[] {
     const $ = cheerio.load(html);
     const links: Link[] = [];
 
@@ -72,6 +72,113 @@ export class CrawleeAdapter implements ISpiderAdapter {
     });
 
     return links;
+  }
+
+  /**
+   * Expand all navigation/accordion elements and extract all links from a page
+   *
+   * This method is useful for pages with hidden content behind expandable elements.
+   * It will click through accordion buttons, expand menus, and collect all links with metadata.
+   *
+   * @param page - Playwright page instance
+   * @returns Array of extracted links with metadata
+   *
+   * @example
+   * ```typescript
+   * const spider = await getSpider({ adapter: 'crawlee' });
+   * const page = await browser.newPage();
+   * await page.goto('https://example.com');
+   * const links = await spider.extractLinks(page);
+   * ```
+   */
+  async extractLinks(page: any): Promise<Link[]> {
+    // This logic runs in the browser context to expand navigation and collect links with metadata
+    const allLinks = await page.evaluate(() => {
+      // Use Map to avoid duplicate hrefs while preserving link metadata
+      const linkMap = new Map<string, any>();
+      const clickedElements = new Set<Element>();
+
+      // Extract all current links with metadata
+      const extractLinks = () => {
+        document.querySelectorAll('a[href]').forEach((a) => {
+          const link = a as HTMLAnchorElement;
+          const href = link.href;
+
+          // Only add if not already present (first occurrence wins)
+          if (!linkMap.has(href)) {
+            linkMap.set(href, {
+              href,
+              text: link.textContent?.trim() || '',
+              title: link.title || undefined,
+              ariaLabel: link.getAttribute('aria-label') || undefined,
+              rel: link.rel || undefined,
+              target: link.target || undefined,
+              classes: link.className
+                ? link.className.split(' ').filter((c) => c.trim())
+                : undefined,
+            });
+          }
+        });
+      };
+
+      // Click an element and wait for changes
+      const clickAndWait = (element: Element) => {
+        if (clickedElements.has(element)) return false;
+        try {
+          (element as HTMLElement).click();
+          clickedElements.add(element);
+          return true;
+        } catch {
+          return false;
+        }
+      };
+
+      // Extract initial links
+      extractLinks();
+
+      // Click expandable elements iteratively
+      for (let iteration = 0; iteration < 3; iteration++) {
+        let clickedCount = 0;
+
+        // Click semantic accordion elements
+        const semanticSelectors = [
+          'button[aria-expanded="false"]',
+          '[role="button"][aria-expanded="false"]',
+          '.accordion-header',
+          '.accordion-button',
+          'summary',
+          '[data-toggle]',
+        ];
+
+        for (const selector of semanticSelectors) {
+          document.querySelectorAll(selector).forEach((el) => {
+            if (clickAndWait(el)) clickedCount++;
+          });
+        }
+
+        // For hash links, only click if they're likely accordion triggers
+        // (short text, no external URL patterns)
+        document.querySelectorAll('a[href="#"]').forEach((link) => {
+          const text = link.textContent?.trim() || '';
+          // Skip if it looks like a skip link or has common nav patterns
+          if (text.toLowerCase().includes('skip')) return;
+          if (text.toLowerCase().includes('menu')) return;
+          if (text.length > 100) return; // Likely not an accordion trigger
+
+          if (clickAndWait(link)) clickedCount++;
+        });
+
+        // Extract links after this round of clicks
+        extractLinks();
+
+        // Stop if nothing was clicked
+        if (clickedCount === 0) break;
+      }
+
+      return Array.from(linkMap.values());
+    });
+
+    return allLinks;
   }
 
   /**
@@ -157,98 +264,11 @@ export class CrawleeAdapter implements ISpiderAdapter {
               // Wait a bit for any initial animations
               await page.waitForTimeout(500);
 
-              // Expand all navigation/accordion elements and collect links with metadata
-              // This uses page.evaluate to run logic directly in the browser
-              const allLinks = await page.evaluate(() => {
-                // Use Map to avoid duplicate hrefs while preserving link metadata
-                const linkMap = new Map<string, any>();
-                const clickedElements = new Set<Element>();
-
-                // Extract all current links with metadata
-                const extractLinks = () => {
-                  document.querySelectorAll('a[href]').forEach((a) => {
-                    const link = a as HTMLAnchorElement;
-                    const href = link.href;
-
-                    // Only add if not already present (first occurrence wins)
-                    if (!linkMap.has(href)) {
-                      linkMap.set(href, {
-                        href,
-                        text: link.textContent?.trim() || '',
-                        title: link.title || undefined,
-                        ariaLabel: link.getAttribute('aria-label') || undefined,
-                        rel: link.rel || undefined,
-                        target: link.target || undefined,
-                        classes: link.className
-                          ? link.className.split(' ').filter((c) => c.trim())
-                          : undefined,
-                      });
-                    }
-                  });
-                };
-
-                // Click an element and wait for changes
-                const clickAndWait = (element: Element) => {
-                  if (clickedElements.has(element)) return false;
-                  try {
-                    (element as HTMLElement).click();
-                    clickedElements.add(element);
-                    return true;
-                  } catch {
-                    return false;
-                  }
-                };
-
-                // Extract initial links
-                extractLinks();
-
-                // Click expandable elements iteratively
-                for (let iteration = 0; iteration < 3; iteration++) {
-                  let clickedCount = 0;
-
-                  // Click semantic accordion elements
-                  const semanticSelectors = [
-                    'button[aria-expanded="false"]',
-                    '[role="button"][aria-expanded="false"]',
-                    '.accordion-header',
-                    '.accordion-button',
-                    'summary',
-                    '[data-toggle]',
-                  ];
-
-                  for (const selector of semanticSelectors) {
-                    document.querySelectorAll(selector).forEach((el) => {
-                      if (clickAndWait(el)) clickedCount++;
-                    });
-                  }
-
-                  // For hash links, only click if they're likely accordion triggers
-                  // (short text, no external URL patterns)
-                  document.querySelectorAll('a[href="#"]').forEach((link) => {
-                    const text = link.textContent?.trim() || '';
-                    // Skip if it looks like a skip link or has common nav patterns
-                    if (text.toLowerCase().includes('skip')) return;
-                    if (text.toLowerCase().includes('menu')) return;
-                    if (text.length > 100) return; // Likely not an accordion trigger
-
-                    if (clickAndWait(link)) clickedCount++;
-                  });
-
-                  // Extract links after this round of clicks
-                  extractLinks();
-
-                  // Stop if nothing was clicked
-                  if (clickedCount === 0) break;
-                }
-
-                return Array.from(linkMap.values());
-              });
+              // Extract all links by expanding navigation elements
+              const links = await this.extractLinks(page);
 
               // Get the final HTML content
               const content = await page.content();
-
-              // Use the links collected from page.evaluate
-              const links = allLinks;
 
               // Get the final URL after any redirects
               const finalUrl = page.url();
