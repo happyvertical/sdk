@@ -21,6 +21,7 @@ const buildOrder = [
   ['pdf', 'core'],          // Depends on ocr
   ['ai', 'core'],           // No internal dependencies
   ['spider', 'core'],       // Depends on utils, files
+  ['documents', 'core'],    // Depends on pdf, spider, ocr, files, utils
   ['smrt', 'core'],         // Depends on ai, files, sql, utils, types, logger (framework)
   // SMRT domain modules
   ['notes', 'modules'],     // Depends on smrt (for SmrtObject integration)
@@ -32,7 +33,7 @@ const buildOrder = [
   ['assets', 'modules'],    // Depends on smrt, utils, tags
   ['accounts', 'modules'],  // Depends on smrt, utils, sql
   ['gnode', 'modules'],     // Depends on smrt
-  ['content', 'modules'],   // Depends on smrt, pdf, spider
+  ['content', 'modules'],   // Depends on smrt, documents
   ['products', 'modules'],  // Depends on smrt
 ];
 
