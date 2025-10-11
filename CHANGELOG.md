@@ -1,3 +1,10 @@
+# [0.26.0](https://github.com/happyvertical/sdk/compare/v0.25.0...v0.26.0) (2025-10-11)
+
+
+### Features
+
+* **spider:** add comprehensive link metadata extraction ([281c394](https://github.com/happyvertical/sdk/commit/281c394fccf931c557c862cd655c64efc3157fae))
+
 # [0.25.0](https://github.com/happyvertical/sdk/compare/v0.24.2...v0.25.0) (2025-10-11)
 
 ## [0.24.2](https://github.com/happyvertical/sdk/compare/v0.24.1...v0.24.2) (2025-10-11)
