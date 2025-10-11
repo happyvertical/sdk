@@ -113,6 +113,7 @@ function createPackageBuild(
         '@have/sql',
         '@have/ocr',
         '@have/pdf',
+        '@have/documents',
         '@have/ai',
         '@have/spider',
         '@have/smrt',
@@ -199,6 +200,11 @@ const packages = [
   {
     name: 'pdf',
     entry: 'packages/core/pdf/src/index.ts',
+    directory: 'core' as const,
+  },
+  {
+    name: 'documents',
+    entry: 'packages/core/documents/src/index.ts',
     directory: 'core' as const,
   },
   {
@@ -332,6 +338,7 @@ export default defineConfig(({ command, mode }) => {
             '@have/sql': resolve(__dirname, 'packages/core/sql/src'),
             '@have/ocr': resolve(__dirname, 'packages/core/ocr/src'),
             '@have/pdf': resolve(__dirname, 'packages/core/pdf/src'),
+            '@have/documents': resolve(__dirname, 'packages/core/documents/src'),
             '@have/ai': resolve(__dirname, 'packages/core/ai/src'),
             '@have/spider': resolve(__dirname, 'packages/core/spider/src'),
             '@have/smrt': resolve(__dirname, 'packages/core/smrt/src'),
@@ -380,6 +387,7 @@ export default defineConfig(({ command, mode }) => {
         '@have/sql': resolve(__dirname, 'packages/core/sql/src'),
         '@have/ocr': resolve(__dirname, 'packages/core/ocr/src'),
         '@have/pdf': resolve(__dirname, 'packages/core/pdf/src'),
+        '@have/documents': resolve(__dirname, 'packages/core/documents/src'),
         '@have/ai': resolve(__dirname, 'packages/core/ai/src'),
         '@have/spider': resolve(__dirname, 'packages/core/spider/src'),
         '@have/smrt': resolve(__dirname, 'packages/core/smrt/src'),

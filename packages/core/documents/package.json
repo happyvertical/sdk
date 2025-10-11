@@ -1,0 +1,47 @@
+{
+  "name": "@have/documents",
+  "version": "0.1.0",
+  "description": "Multi-part document processing with support for PDF, HTML, and Markdown",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "vite build --mode library && tsc --emitDeclarationOnly",
+    "build:watch": "vite build --mode library --watch",
+    "dev": "vite --port 3004",
+    "test": "vitest run",
+    "test:watch": "vitest watch"
+  },
+  "dependencies": {
+    "@have/files": "workspace:*",
+    "@have/pdf": "workspace:*",
+    "@have/spider": "workspace:*",
+    "@have/ocr": "workspace:*",
+    "@have/utils": "workspace:*",
+    "uuid": "^11.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.2",
+    "@types/uuid": "^10.0.0",
+    "typescript": "^5.6.3",
+    "vite": "^6.2.1",
+    "vitest": "^3.2.4"
+  },
+  "keywords": [
+    "documents",
+    "pdf",
+    "html",
+    "markdown",
+    "ocr",
+    "content-extraction"
+  ]
+}
