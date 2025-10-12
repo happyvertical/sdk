@@ -1,41 +1,41 @@
 import { getSpider } from '../shared/factory';
 import type {
-  BasicHarvesterOptions,
-  HarvestMetrics,
-  HarvestOptions,
-  HarvestResult,
-  HarvesterStrategy,
-  HarvesterType,
-  IHarvester,
+  BasicScraperOptions,
+  ScrapeMetrics,
+  ScrapeOptions,
+  ScrapeResult,
+  ScraperStrategy,
+  ScraperType,
+  IScraper,
   ISpiderAdapter,
 } from '../shared/types';
 
 /**
- * Basic harvester - simple scraping with no interactions
+ * Basic scraper - simple scraping with no interactions
  *
- * This harvester performs straightforward page fetching without any
+ * This scraper performs straightforward page fetching without any
  * browser interactions like clicking, scrolling, or waiting for AJAX.
  * It's the fastest and lightest option when you just need to extract
  * links from static HTML.
  *
  * @example
  * ```typescript
- * const harvester = new BasicHarvester({
- *   harvester: 'basic',
+ * const scraper = new BasicScraper({
+ *   scraper: 'basic',
  *   spider: 'simple', // Fast HTTP-only fetching
- *   cacheDir: '.cache/harvester'
+ *   cacheDir: '.cache/scraper'
  * });
  *
- * const result = await harvester.harvest('https://example.com');
+ * const result = await scraper.scrape('https://example.com');
  * console.log(`Found ${result.links.length} links`);
  * console.log(`Strategy: ${result.strategy.type} using ${result.strategy.spider}`);
  * ```
  */
-export class BasicHarvester implements IHarvester {
+export class BasicScraper implements IScraper {
   private spider?: ISpiderAdapter;
-  private options: BasicHarvesterOptions;
+  private options: BasicScraperOptions;
 
-  constructor(options: BasicHarvesterOptions) {
+  constructor(options: BasicScraperOptions) {
     this.options = options;
   }
 
@@ -54,26 +54,26 @@ export class BasicHarvester implements IHarvester {
   }
 
   /**
-   * Get the harvester type
+   * Get the scraper type
    */
-  getType(): HarvesterType {
+  getType(): ScraperType {
     return 'basic';
   }
 
   /**
-   * Harvest content from a URL using basic fetching
+   * Scrape content from a URL using basic fetching
    *
    * This method performs no browser interactions - it simply fetches
    * the page and extracts all links from the initial HTML.
    *
-   * @param url - The URL to harvest
-   * @param options - Optional harvest configuration
-   * @returns Promise resolving to harvest results with metrics
+   * @param url - The URL to scrape
+   * @param options - Optional scrape configuration
+   * @returns Promise resolving to scrape results with metrics
    */
-  async harvest(
+  async scrape(
     url: string,
-    options?: HarvestOptions,
-  ): Promise<HarvestResult> {
+    options?: ScrapeOptions,
+  ): Promise<ScrapeResult> {
     const startTime = Date.now();
     const spider = await this.initSpider();
 
@@ -88,24 +88,24 @@ export class BasicHarvester implements IHarvester {
     const duration = Date.now() - startTime;
 
     // Build strategy information
-    const strategy: HarvesterStrategy = {
+    const strategy: ScraperStrategy = {
       type: this.getType(),
       spider: this.options.spider || 'simple',
       config: {
         cacheDir: this.options.cacheDir,
       },
-      confidence: 1.0, // Basic harvester is always confident (no detection needed)
+      confidence: 1.0, // Basic scraper is always confident (no detection needed)
     };
 
     // Build metrics
-    const metrics: HarvestMetrics = {
+    const metrics: ScrapeMetrics = {
       duration,
       linkCount: page.links.length,
-      interactionCount: 0, // No interactions in basic harvester
-      complete: true, // Basic harvester always completes (no partial results)
+      interactionCount: 0, // No interactions in basic scraper
+      complete: true, // Basic scraper always completes (no partial results)
     };
 
-    // Convert Page to HarvestResult
+    // Convert Page to ScrapeResult
     return {
       url: page.url,
       content: page.content,

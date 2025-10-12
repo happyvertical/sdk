@@ -1,32 +1,32 @@
 import { describe, expect, it } from 'vitest';
-import { getHarvester } from '../shared/harvester-factory';
+import { getScraper } from '../shared/scraper-factory';
 
 /**
- * Integration tests for harvesters using real-world websites
- * These tests verify that harvesters can handle actual page interactions
+ * Integration tests for scrapers using real-world websites
+ * These tests verify that scrapers can handle actual page interactions
  *
  * NOTE: The Bentley town page uses a complex hierarchical directory/tree structure
  * (jqueryFileTree) with multiple levels: years → months → individual meetings.
- * The TreeHarvester now handles this properly with enhanced hierarchical expansion.
+ * The TreeScraper now handles this properly with enhanced hierarchical expansion.
  */
-describe('Harvester Integration - Bentley Town Meetings', () => {
+describe('Scraper Integration - Bentley Town Meetings', () => {
   it('should extract links from Bentley meetings page with directory tree', async () => {
     const url =
       'https://townofbentley.ca/town-office/council/meetings-agendas/';
 
-    const treeHarvester = await getHarvester({
-      harvester: 'tree',
+    const treeScraper = await getScraper({
+      scraper: 'tree',
       maxIterations: 20, // Increased for hierarchical trees
       clickDelay: 500,
       headless: true,
     });
 
-    const result = await treeHarvester.harvest(url, {
+    const result = await treeScraper.scrape(url, {
       cache: false,
       timeout: 120000, // 2 minutes for deep hierarchy
     });
 
-    // Verify HarvestResult structure
+    // Verify ScrapeResult structure
     expect(result).toBeDefined();
     expect(result.url).toBeTruthy();
     expect(result.content).toBeDefined();
@@ -43,7 +43,7 @@ describe('Harvester Integration - Bentley Town Meetings', () => {
     expect(result.metrics.complete).toBe(true);
 
     console.log(
-      `\n🎯 TreeHarvester with hierarchical expansion:`,
+      `\n🎯 TreeScraper with hierarchical expansion:`,
     );
     console.log(`   Total links: ${result.links.length}`);
     console.log(`   Interactions: ${result.metrics.interactionCount}`);
@@ -82,13 +82,13 @@ describe('Harvester Integration - Bentley Town Meetings', () => {
 
   it('should handle pages with no tree structure gracefully', async () => {
     // Test with a simple page that has no tree structure
-    const harvester = await getHarvester({
-      harvester: 'tree',
+    const scraper = await getScraper({
+      scraper: 'tree',
       maxIterations: 5,
       headless: true,
     });
 
-    const result = await harvester.harvest('https://example.com', {
+    const result = await scraper.scrape('https://example.com', {
       cache: false,
     });
 
@@ -103,21 +103,21 @@ describe('Harvester Integration - Bentley Town Meetings', () => {
     const url =
       'https://townofbentley.ca/town-office/council/meetings-agendas/';
 
-    const harvester = await getHarvester({
-      harvester: 'tree',
+    const scraper = await getScraper({
+      scraper: 'tree',
       maxIterations: 10,
       clickDelay: 500,
       headless: true,
     });
 
-    const result = await harvester.harvest(url, { cache: false, timeout: 90000 });
+    const result = await scraper.scrape(url, { cache: false, timeout: 90000 });
 
-    console.log(`\n🔍 Tree Harvester Results:`);
+    console.log(`\n🔍 Tree Scraper Results:`);
     console.log(`   Total links: ${result.links.length}`);
     console.log(`   Interactions: ${result.metrics.interactionCount}`);
     console.log(`   Duration: ${result.metrics.duration}ms`);
 
-    // Verify harvester performed interactions
+    // Verify scraper performed interactions
     expect(result.metrics.interactionCount).toBeGreaterThan(0);
 
     // Verify it found links

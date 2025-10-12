@@ -160,13 +160,13 @@ export type SpiderAdapterOptions =
   | CrawleeAdapterOptions;
 
 // ============================================================================
-// Harvester Types - Content Extraction Strategies
+// Scraper Types - Content Extraction Strategies
 // ============================================================================
 
 /**
- * Result from a harvest operation with metadata about the strategy used
+ * Result from a scrape operation with metadata about the strategy used
  */
-export interface HarvestResult {
+export interface ScrapeResult {
   /** The final URL after any redirects */
   url: string;
 
@@ -176,22 +176,22 @@ export interface HarvestResult {
   /** Extracted links with metadata */
   links: Link[];
 
-  /** Harvester strategy that was used */
-  strategy: HarvesterStrategy;
+  /** Scraper strategy that was used */
+  strategy: ScraperStrategy;
 
   /** Performance metrics */
-  metrics: HarvestMetrics;
+  metrics: ScrapeMetrics;
 
   /** Raw response data */
   raw: any;
 }
 
 /**
- * Information about which harvesting strategy was used
+ * Information about which scraping strategy was used
  */
-export interface HarvesterStrategy {
-  /** Type of harvester used */
-  type: HarvesterType;
+export interface ScraperStrategy {
+  /** Type of scraper used */
+  type: ScraperType;
 
   /** Spider adapter used */
   spider: 'simple' | 'dom' | 'crawlee';
@@ -204,9 +204,9 @@ export interface HarvesterStrategy {
 }
 
 /**
- * Performance metrics from a harvest
+ * Performance metrics from a scrape
  */
-export interface HarvestMetrics {
+export interface ScrapeMetrics {
   /** Total execution time in ms */
   duration: number;
 
@@ -216,14 +216,14 @@ export interface HarvestMetrics {
   /** Number of interactions performed (clicks, scrolls, etc) */
   interactionCount: number;
 
-  /** Whether the harvester believes it found all content */
+  /** Whether the scraper believes it found all content */
   complete: boolean;
 }
 
 /**
- * Types of harvesting strategies
+ * Types of scraping strategies
  */
-export type HarvesterType =
+export type ScraperType =
   | 'basic' // No interactions, just scrape
   | 'tree' // Expand hierarchical trees/accordions
   | 'ajax' // Wait for async loads
@@ -233,24 +233,24 @@ export type HarvesterType =
   | 'hybrid'; // Multiple strategies combined
 
 /**
- * Base interface all harvesters must implement
+ * Base interface all scrapers must implement
  */
-export interface IHarvester {
+export interface IScraper {
   /**
-   * Harvest content from a URL
+   * Scrape content from a URL
    */
-  harvest(url: string, options?: HarvestOptions): Promise<HarvestResult>;
+  scrape(url: string, options?: ScrapeOptions): Promise<ScrapeResult>;
 
   /**
-   * Get harvester type
+   * Get scraper type
    */
-  getType(): HarvesterType;
+  getType(): ScraperType;
 }
 
 /**
- * Options for harvest operations
+ * Options for scrape operations
  */
-export interface HarvestOptions {
+export interface ScrapeOptions {
   /** Custom headers */
   headers?: Record<string, string>;
 
@@ -263,7 +263,7 @@ export interface HarvestOptions {
   /** Cache expiry time in ms */
   cacheExpiry?: number;
 
-  /** Max time to spend harvesting in ms */
+  /** Max time to spend scraping in ms */
   maxDuration?: number;
 
   /** Max interactions to perform */
@@ -271,10 +271,10 @@ export interface HarvestOptions {
 }
 
 /**
- * Options for basic harvester
+ * Options for basic scraper
  */
-export interface BasicHarvesterOptions {
-  harvester: 'basic';
+export interface BasicScraperOptions {
+  scraper: 'basic';
 
   /** Which spider to use */
   spider?: 'simple' | 'dom' | 'crawlee';
@@ -284,10 +284,10 @@ export interface BasicHarvesterOptions {
 }
 
 /**
- * Options for tree harvester
+ * Options for tree scraper
  */
-export interface TreeHarvesterOptions {
-  harvester: 'tree';
+export interface TreeScraperOptions {
+  scraper: 'tree';
 
   /** Cache directory */
   cacheDir?: string;
@@ -312,10 +312,10 @@ export interface TreeHarvesterOptions {
 }
 
 /**
- * Options for AJAX harvester
+ * Options for AJAX scraper
  */
-export interface AjaxHarvesterOptions {
-  harvester: 'ajax';
+export interface AjaxScraperOptions {
+  scraper: 'ajax';
 
   /** Cache directory */
   cacheDir?: string;
@@ -337,10 +337,10 @@ export interface AjaxHarvesterOptions {
 }
 
 /**
- * Options for scroll harvester
+ * Options for scroll scraper
  */
-export interface ScrollHarvesterOptions {
-  harvester: 'scroll';
+export interface ScrollScraperOptions {
+  scraper: 'scroll';
 
   /** Cache directory */
   cacheDir?: string;
@@ -365,10 +365,10 @@ export interface ScrollHarvesterOptions {
 }
 
 /**
- * Options for pagination harvester
+ * Options for pagination scraper
  */
-export interface PaginationHarvesterOptions {
-  harvester: 'pagination';
+export interface PaginationScraperOptions {
+  scraper: 'pagination';
 
   /** Cache directory */
   cacheDir?: string;
@@ -390,11 +390,11 @@ export interface PaginationHarvesterOptions {
 }
 
 /**
- * Discriminated union of all harvester options
+ * Discriminated union of all scraper options
  */
-export type HarvesterOptions =
-  | BasicHarvesterOptions
-  | TreeHarvesterOptions
-  | AjaxHarvesterOptions
-  | ScrollHarvesterOptions
-  | PaginationHarvesterOptions;
+export type ScraperOptions =
+  | BasicScraperOptions
+  | TreeScraperOptions
+  | AjaxScraperOptions
+  | ScrollScraperOptions
+  | PaginationScraperOptions;

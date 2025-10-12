@@ -1,19 +1,19 @@
 import { Configuration, PlaywrightCrawler } from 'crawlee';
 import type {
-  TreeHarvesterOptions,
-  HarvestMetrics,
-  HarvestOptions,
-  HarvestResult,
-  HarvesterStrategy,
-  HarvesterType,
-  IHarvester,
+  TreeScraperOptions,
+  ScrapeMetrics,
+  ScrapeOptions,
+  ScrapeResult,
+  ScraperStrategy,
+  ScraperType,
+  IScraper,
   Link,
 } from '../shared/types';
 
 /**
- * Tree harvester - expand hierarchical tree structures to reveal hidden content
+ * Tree scraper - expand hierarchical tree structures to reveal hidden content
  *
- * This harvester handles pages with nested, hierarchical content structures
+ * This scraper handles pages with nested, hierarchical content structures
  * like directory browsers, file trees, or multi-level accordions. It
  * systematically expands tree nodes to reveal all nested content.
  *
@@ -22,21 +22,21 @@ import type {
  *
  * @example
  * ```typescript
- * const harvester = new TreeHarvester({
- *   harvester: 'tree',
+ * const scraper = new TreeScraper({
+ *   scraper: 'tree',
  *   maxIterations: 20,
  *   clickDelay: 500,
  *   customSelectors: ['.my-tree-node'],
  *   handleExclusive: true
  * });
  *
- * const result = await harvester.harvest('https://example.com/meetings');
+ * const result = await scraper.scrape('https://example.com/meetings');
  * console.log(`Found ${result.links.length} links after ${result.metrics.interactionCount} clicks`);
  * console.log(`Confidence: ${result.strategy.confidence}`);
  * ```
  */
-export class TreeHarvester implements IHarvester {
-  private options: TreeHarvesterOptions;
+export class TreeScraper implements IScraper {
+  private options: TreeScraperOptions;
   private cacheDir: string;
 
   // Default tree/expandable element selectors
@@ -52,7 +52,7 @@ export class TreeHarvester implements IHarvester {
     'li.collapsed > a', // Generic collapsed list items
   ];
 
-  constructor(options: TreeHarvesterOptions) {
+  constructor(options: TreeScraperOptions) {
     this.options = {
       maxIterations: 10,
       clickDelay: 100,
@@ -64,9 +64,9 @@ export class TreeHarvester implements IHarvester {
   }
 
   /**
-   * Get the harvester type
+   * Get the scraper type
    */
-  getType(): HarvesterType {
+  getType(): ScraperType {
     return 'tree';
   }
 
@@ -365,25 +365,25 @@ export class TreeHarvester implements IHarvester {
   }
 
   /**
-   * Harvest content from a URL by expanding hierarchical tree structures
+   * Scrape content from a URL by expanding hierarchical tree structures
    *
    * This method launches a headless browser, navigates to the URL,
    * and systematically expands all tree nodes to extract all hidden links.
    * Optimized for deep hierarchical structures like directory browsers.
    *
-   * @param url - The URL to harvest
-   * @param options - Optional harvest configuration
-   * @returns Promise resolving to harvest results with metrics
+   * @param url - The URL to scrape
+   * @param options - Optional scrape configuration
+   * @returns Promise resolving to scrape results with metrics
    */
-  async harvest(
+  async scrape(
     url: string,
-    options?: HarvestOptions,
-  ): Promise<HarvestResult> {
+    options?: ScrapeOptions,
+  ): Promise<ScrapeResult> {
     const startTime = Date.now();
     const timeout = options?.timeout || 30000;
 
-    let harvestResult: HarvestResult | null = null;
-    let harvestError: Error | null = null;
+    let scrapeResult: ScrapeResult | null = null;
+    let scrapeError: Error | null = null;
 
     try {
       // Create a unique configuration for this crawler instance
@@ -445,7 +445,7 @@ export class TreeHarvester implements IHarvester {
               const duration = Date.now() - startTime;
 
               // Build strategy information
-              const strategy: HarvesterStrategy = {
+              const strategy: ScraperStrategy = {
                 type: this.getType(),
                 spider: 'crawlee',
                 config: {
@@ -462,14 +462,14 @@ export class TreeHarvester implements IHarvester {
               };
 
               // Build metrics
-              const metrics: HarvestMetrics = {
+              const metrics: ScrapeMetrics = {
                 duration,
                 linkCount: links.length,
                 interactionCount,
-                complete: true, // Accordion harvester always completes
+                complete: true, // Tree scraper always completes
               };
 
-              harvestResult = {
+              scrapeResult = {
                 url: page.url(),
                 content,
                 links,
@@ -482,13 +482,13 @@ export class TreeHarvester implements IHarvester {
                 },
               };
             } catch (error) {
-              harvestError =
+              scrapeError =
                 error instanceof Error ? error : new Error(String(error));
             }
           },
           failedRequestHandler: async ({ request }, error) => {
-            harvestError = new Error(
-              `Failed to harvest ${request.url}: ${error.message}`,
+            scrapeError = new Error(
+              `Failed to scrape ${request.url}: ${error.message}`,
             );
           },
         },
@@ -502,19 +502,19 @@ export class TreeHarvester implements IHarvester {
       await crawler.teardown();
 
       // Check if we got the result
-      if (harvestError) {
-        throw harvestError;
+      if (scrapeError) {
+        throw scrapeError;
       }
 
-      if (!harvestResult) {
-        throw new Error('Tree harvest failed - no result captured');
+      if (!scrapeResult) {
+        throw new Error('Tree scrape failed - no result captured');
       }
 
-      return harvestResult;
+      return scrapeResult;
     } catch (error) {
       if (error instanceof Error) {
         throw new Error(
-          `Failed to harvest page with TreeHarvester: ${error.message}`,
+          `Failed to scrape page with TreeScraper: ${error.message}`,
         );
       }
       throw error;
