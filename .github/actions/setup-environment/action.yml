@@ -23,6 +23,10 @@ outputs:
     description: 'Whether pnpm cache was hit'
     value: ${{ steps.pnpm-cache.outputs.cache-hit }}
 
+  playwright-cache-hit:
+    description: 'Whether Playwright browser cache was hit'
+    value: ${{ steps.playwright-cache.outputs.cache-hit }}
+
   store-path:
     description: 'pnpm store path'
     value: ${{ steps.pnpm-store.outputs.path }}
@@ -62,6 +66,22 @@ runs:
         restore-keys: |
           ${{ runner.os }}-pnpm-store-
 
+    - name: Get Playwright version
+      id: playwright-version
+      shell: bash
+      run: |
+        PLAYWRIGHT_VERSION=$(npm list playwright --depth=0 --json 2>/dev/null | grep -oP '"playwright":\s*{\s*"version":\s*"\K[^"]+' || echo "1.54.2")
+        echo "version=$PLAYWRIGHT_VERSION" >> $GITHUB_OUTPUT
+
+    - name: Cache Playwright browsers
+      uses: actions/cache@v4
+      id: playwright-cache
+      with:
+        path: ~/.cache/ms-playwright
+        key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+        restore-keys: |
+          ${{ runner.os }}-playwright-
+
     - name: Install system dependencies for ONNX Runtime
       shell: bash
       run: |
@@ -82,3 +102,8 @@ runs:
       env:
         # Force ONNX Runtime to skip CUDA installation
         ONNXRUNTIME_NODE_INSTALL_CUDA: 'skip'
+
+    - name: Install Playwright browsers
+      if: inputs.install-deps == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: npx playwright install --with-deps chromium
