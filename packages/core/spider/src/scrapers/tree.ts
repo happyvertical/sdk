@@ -1,3 +1,5 @@
+import { getCache } from '@have/cache';
+import type { ICacheAdapter } from '@have/cache';
 import { Configuration, PlaywrightCrawler } from 'crawlee';
 import type {
   TreeScraperOptions,
@@ -38,6 +40,7 @@ import type {
 export class TreeScraper implements IScraper {
   private options: TreeScraperOptions;
   private cacheDir: string;
+  private cache?: ICacheAdapter;
 
   // Default tree/expandable element selectors
   private readonly DEFAULT_SELECTORS = [
@@ -68,6 +71,31 @@ export class TreeScraper implements IScraper {
    */
   getType(): ScraperType {
     return 'tree';
+  }
+
+  /**
+   * Initialize the cache adapter if needed
+   */
+  private async initCache(): Promise<ICacheAdapter> {
+    if (!this.cache) {
+      this.cache = await getCache({
+        provider: 'file',
+        cacheDir: this.cacheDir,
+      });
+    }
+    return this.cache;
+  }
+
+  /**
+   * Generate a cache key from a URL and scrape options
+   *
+   * Cache key includes URL, maxIterations, and clickDelay to differentiate
+   * results with different expansion parameters.
+   */
+  private getCacheKey(url: string, options?: ScrapeOptions): string {
+    const maxIterations = this.options.maxIterations || 10;
+    const clickDelay = this.options.clickDelay || 100;
+    return `tree:${encodeURIComponent(url)}:${maxIterations}:${clickDelay}`;
   }
 
   /**
@@ -381,6 +409,27 @@ export class TreeScraper implements IScraper {
   ): Promise<ScrapeResult> {
     const startTime = Date.now();
     const timeout = options?.timeout || 30000;
+    const cache = options?.cache !== false; // Default to true
+    const cacheExpiry = options?.cacheExpiry || 300000; // 5 minutes default
+
+    // Check cache if enabled
+    if (cache) {
+      const cacheAdapter = await this.initCache();
+      const cacheKey = this.getCacheKey(url, options);
+      const cached = await cacheAdapter.get<ScrapeResult>(cacheKey);
+
+      if (cached) {
+        return cached;
+      }
+    }
+
+    // Rate limiting: delay before page load to be respectful to servers
+    const rateLimit = this.options.rateLimit !== undefined
+      ? this.options.rateLimit
+      : 1000; // Default 1000ms
+    if (rateLimit > 0) {
+      await new Promise(resolve => setTimeout(resolve, rateLimit));
+    }
 
     let scrapeResult: ScrapeResult | null = null;
     let scrapeError: Error | null = null;
@@ -508,6 +557,14 @@ export class TreeScraper implements IScraper {
 
       if (!scrapeResult) {
         throw new Error('Tree scrape failed - no result captured');
+      }
+
+      // Cache the result if caching is enabled
+      if (cache) {
+        const cacheAdapter = await this.initCache();
+        const cacheKey = this.getCacheKey(url, options);
+        const ttl = Math.floor(cacheExpiry / 1000); // Convert to seconds
+        await cacheAdapter.set(cacheKey, scrapeResult, ttl);
       }
 
       return scrapeResult;
