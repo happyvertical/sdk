@@ -98,10 +98,29 @@ export class Document {
       this._localPath = decodeURIComponent(this.url.pathname);
       this.isRemote = false;
     } else if (this.url.protocol.startsWith('http')) {
+      // Generate cache path from URL pathname
+      // Query parameters (?) and fragments (#) are automatically excluded from url.pathname
+      let pathname = this.url.pathname;
+
+      // Remove trailing slash (directory-style URLs)
+      if (pathname.endsWith('/')) {
+        pathname = pathname.slice(0, -1);
+      }
+
+      // Add file extension if missing and we know the type
+      // This is crucial for URLs like /download/file/?wpdmdl=123 which have no extension
+      if (!pathname.match(/\.[a-z0-9]+$/i)) {
+        // Add appropriate extension based on MIME type
+        if (this.type === 'application/pdf' || options.type === 'application/pdf') {
+          pathname += '.pdf';
+        }
+        // Future: Add other common extensions (html, json, etc.)
+      }
+
       this._localPath = path.join(
         this._cacheDir,
         makeSlug(this.url.hostname),
-        this.url.pathname,
+        pathname,
       );
       this.isRemote = true;
     }
