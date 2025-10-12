@@ -1,6 +1,6 @@
 {
   "name": "@have/logger",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "description": "Structured logging for HAVE SDK with signal adapter",
   "type": "module",
   "main": "./dist/index.js",

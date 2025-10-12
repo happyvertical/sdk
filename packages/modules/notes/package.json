@@ -1,6 +1,6 @@
 {
   "name": "@have/notes",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "type": "module",
   "description": "Hierarchical note-taking system for SMRT objects with confidence tracking and versioning",
   "author": "HappyVertical",
