@@ -47,8 +47,22 @@ export async function fetchDocument(
   url: string,
   options: FetchDocumentOptions = {},
 ): Promise<Document> {
-  // Determine MIME type
-  const type = options.type || getMimeType(url) || '';
+  // Determine type - check URL extension first, then MIME type
+  // This handles servers that return incorrect Content-Type headers (e.g., application/octet-stream for PDFs)
+  let type = options.type;
+
+  if (!type) {
+    // Extract file extension from URL
+    const urlLower = url.toLowerCase();
+
+    // Check for common document extensions in URL
+    if (urlLower.endsWith('.pdf') || urlLower.includes('.pdf?') || urlLower.includes('.pdf#')) {
+      type = 'application/pdf';
+    } else {
+      // Fall back to MIME type detection
+      type = getMimeType(url) || '';
+    }
+  }
 
   // Find appropriate processor
   const processor = processors.find((p) => p.supports(type));

@@ -153,6 +153,7 @@ export function parseCliArgs(
     args: args.slice(commandWordCount),
     options: {},
     strict: false, // Allow unknown options
+    allowPositionals: true, // Required for mixing positional args and options
   };
 
   if (matchedCommand.options) {
