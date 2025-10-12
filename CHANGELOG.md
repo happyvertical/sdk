@@ -1,3 +1,15 @@
+## [0.27.1](https://github.com/happyvertical/sdk/compare/v0.27.0...v0.27.1) (2025-10-12)
+
+
+### Bug Fixes
+
+* **documents, utils:** enhance PDF detection and CLI parser ([#174](https://github.com/happyvertical/sdk/issues/174), [#168](https://github.com/happyvertical/sdk/issues/168), [#175](https://github.com/happyvertical/sdk/issues/175)) ([327e63f](https://github.com/happyvertical/sdk/commit/327e63fd3f2beda592ce9b78f148e5b02fa4849a))
+
+
+### Performance Improvements
+
+* **ci:** add caching for Playwright browsers and build artifacts ([4f4b042](https://github.com/happyvertical/sdk/commit/4f4b0420462a8a6f4cf045d427b2ba039453eb6a))
+
 # [0.27.0](https://github.com/happyvertical/sdk/compare/v0.26.0...v0.27.0) (2025-10-12)
 
 
