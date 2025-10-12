@@ -56,26 +56,15 @@ export async function getHarvester(
       return new TreeHarvester(options);
     }
 
-    case 'ajax': {
-      const { AjaxHarvester } = await import('../harvesters/ajax');
-      return new AjaxHarvester(options);
-    }
-
-    case 'scroll': {
-      const { ScrollHarvester } = await import('../harvesters/scroll');
-      return new ScrollHarvester(options);
-    }
-
-    case 'pagination': {
-      const { PaginationHarvester } = await import('../harvesters/pagination');
-      return new PaginationHarvester(options);
-    }
-
+    // TODO: Implement additional harvesters
+    case 'ajax':
+    case 'scroll':
+    case 'pagination':
     default: {
       // TypeScript exhaustiveness check
       const unsupported = (options as any).harvester;
       throw new ValidationError(
-        `Unsupported harvester type: ${unsupported}`,
+        `Unsupported harvester type: ${unsupported}. Only 'basic' and 'tree' are currently implemented.`,
         { options },
       );
     }

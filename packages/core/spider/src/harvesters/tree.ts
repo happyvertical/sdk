@@ -1,6 +1,6 @@
 import { Configuration, PlaywrightCrawler } from 'crawlee';
 import type {
-  AccordionHarvesterOptions,
+  TreeHarvesterOptions,
   HarvestMetrics,
   HarvestOptions,
   HarvestResult,
