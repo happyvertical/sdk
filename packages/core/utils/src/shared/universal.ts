@@ -481,26 +481,57 @@ export const parseAmazonDateString = (dateStr: string): Date => {
  * Extracts and parses a date from a string
  *
  * Intelligently extracts dates from filenames or text strings by looking for
- * year patterns (20XX) and month names. Useful for processing document filenames.
+ * common date patterns. Supports multiple formats including:
+ * - ISO dates (2023-01-15, 2023/01/15)
+ * - US dates (01/15/2023, 01-15-2023)
+ * - Natural language (January 15, 2023, Oct 14 2025)
+ * - Filenames with dates (Report_January_15_2023.pdf)
  *
- * @param str - String containing date information (often a filename)
+ * @param str - String containing date information (filename, title, or text)
  * @returns Parsed Date object or null if no valid date found
  * @example
  * ```typescript
  * dateInString("Report_January_15_2023.pdf"); // Date(2023, 0, 15)
+ * dateInString("Regular Council Meeting October 14, 2025"); // Date(2025, 9, 14)
  * dateInString("financial-report-dec-2023.pdf"); // Date(2023, 11, 1)
+ * dateInString("2023-01-15"); // Date(2023, 0, 15)
  * dateInString("no-date-here.pdf"); // null
  * ```
  */
 export const dateInString = (str: string): Date | null => {
-  const cleanFilename =
-    str.split('/').pop()?.replace('.pdf', '').toLowerCase() || '';
+  const cleanStr = str.toLowerCase();
 
-  const yearMatch = cleanFilename.match(/20\d{2}/);
+  // Try standard date formats first (ISO, US, etc.)
+  // Pattern: YYYY-MM-DD or YYYY/MM/DD
+  const isoMatch = cleanStr.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    const date = new Date(
+      Number.parseInt(year, 10),
+      Number.parseInt(month, 10) - 1,
+      Number.parseInt(day, 10),
+    );
+    if (!Number.isNaN(date.getTime())) return date;
+  }
+
+  // Pattern: MM/DD/YYYY or MM-DD-YYYY
+  const usMatch = cleanStr.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+  if (usMatch) {
+    const [, month, day, year] = usMatch;
+    const date = new Date(
+      Number.parseInt(year, 10),
+      Number.parseInt(month, 10) - 1,
+      Number.parseInt(day, 10),
+    );
+    if (!Number.isNaN(date.getTime())) return date;
+  }
+
+  // Try to extract date from natural language (month name + day + year)
+  const yearMatch = cleanStr.match(/20\d{2}/);
   if (!yearMatch) return null;
   const year = Number.parseInt(yearMatch[0], 10);
 
-  const monthPatterns = {
+  const monthPatterns: Record<string, number> = {
     january: 1,
     jan: 1,
     february: 2,
@@ -518,6 +549,7 @@ export const dateInString = (str: string): Date | null => {
     aug: 8,
     september: 9,
     sep: 9,
+    sept: 9,
     october: 10,
     oct: 10,
     november: 11,
@@ -530,8 +562,9 @@ export const dateInString = (str: string): Date | null => {
   let monthStart = -1;
   let monthName = '';
 
+  // Find the first month name in the string
   for (const [name, monthNum] of Object.entries(monthPatterns)) {
-    const monthIndex = cleanFilename.indexOf(name);
+    const monthIndex = cleanStr.indexOf(name);
     if (monthIndex !== -1) {
       foundMonth = monthNum;
       monthStart = monthIndex;
@@ -542,22 +575,40 @@ export const dateInString = (str: string): Date | null => {
 
   if (!foundMonth) return null;
 
-  const beforeMonth = cleanFilename.substring(
+  // Look for day number near the month name or year (before or after)
+  // Search window: [month-15 chars] MONTH [month+15 chars] ... [year-15 chars] YEAR [year+15 chars]
+  const yearIndex = cleanStr.indexOf(yearMatch[0]);
+
+  const beforeMonth = cleanStr.substring(
     Math.max(0, monthStart - 15),
     monthStart,
   );
-  const afterMonth = cleanFilename.substring(
+  const afterMonth = cleanStr.substring(
     monthStart + monthName.length,
-    Math.min(cleanFilename.length, monthStart + monthName.length + 15),
+    Math.min(cleanStr.length, monthStart + monthName.length + 15),
+  );
+  const beforeYear = cleanStr.substring(
+    Math.max(0, yearIndex - 15),
+    yearIndex,
+  );
+  const afterYear = cleanStr.substring(
+    yearIndex + 4,
+    Math.min(cleanStr.length, yearIndex + 19),
   );
 
+  // Try to find day number (1-31) - avoiding matching digits from the year itself
+  // Look for day numbers that are isolated (not part of a longer number like "2023")
   const dayMatch =
-    beforeMonth.match(/(\d{1,2})\s*$/) ||
-    afterMonth.match(/^\s*(\d{1,2})/) ||
-    afterMonth.match(/(\d{1,2})/);
+    beforeMonth.match(/(?<!\d)(\d{1,2})\s*$/) || // Day before month (not preceded by another digit)
+    afterMonth.match(/^\s*(\d{1,2})(?!\d)/) || // Day right after month (not followed by another digit)
+    beforeYear.match(/(?<!\d)(\d{1,2})\s*$/) || // Day before year (not preceded by another digit)
+    afterYear.match(/^\s*(\d{1,2})(?!\d)/) || // Day right after year (not followed by another digit)
+    afterMonth.match(/[^\d](\d{1,2})(?!\d)/); // Day with non-digit before and after in month area
 
-  const day = dayMatch ? Number.parseInt(dayMatch[1], 10) : null;
-  if (!day) return null;
+  const day = dayMatch ? Number.parseInt(dayMatch[1], 10) : 1; // Default to 1st if no day found
+
+  // Validate day is in reasonable range
+  if (day < 1 || day > 31) return null;
 
   const date = new Date(year, foundMonth - 1, day);
   return !Number.isNaN(date.getTime()) ? date : null;
