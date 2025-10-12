@@ -144,5 +144,59 @@ describe('@have/documents', () => {
         /No processor available/,
       );
     });
+
+    it('should handle URLs with query parameters correctly', async () => {
+      // Create a Document instance directly to test cache path generation
+      const { Document: BaseDocument } = await import('./document');
+
+      // Test WordPress Download Manager style URL
+      const url =
+        'https://townofbentley.ca/download/regular-council-meeting-october-14-2025-agenda/?wpdmdl=17656&refresh=68ec319891f4d1760309656';
+
+      const doc = new BaseDocument(url, { type: 'application/pdf' });
+
+      // Cache path should NOT end with /
+      expect(doc.localPath).not.toMatch(/\/$/);
+
+      // Cache path should have .pdf extension
+      expect(doc.localPath).toMatch(/\.pdf$/);
+
+      // Cache path should not contain query parameters
+      expect(doc.localPath).not.toContain('?');
+      expect(doc.localPath).not.toContain('wpdmdl');
+
+      // Should be a valid file path (not directory)
+      expect(doc.localPath).toContain(
+        'regular-council-meeting-october-14-2025-agenda.pdf',
+      );
+    });
+
+    it('should handle URLs ending with slash correctly', async () => {
+      const { Document: BaseDocument } = await import('./document');
+
+      // URL with trailing slash but no query params
+      const url = 'https://example.com/documents/report/';
+
+      const doc = new BaseDocument(url, { type: 'application/pdf' });
+
+      // Should remove trailing slash and add extension
+      expect(doc.localPath).not.toMatch(/\/$/);
+      expect(doc.localPath).toMatch(/\.pdf$/);
+      expect(doc.localPath).toContain('report.pdf');
+    });
+
+    it('should preserve extension if already present', async () => {
+      const { Document: BaseDocument } = await import('./document');
+
+      // URL with explicit .pdf extension
+      const url = 'https://example.com/documents/report.pdf';
+
+      const doc = new BaseDocument(url, { type: 'application/pdf' });
+
+      // Should keep existing extension, not add another
+      expect(doc.localPath).toMatch(/\.pdf$/);
+      expect(doc.localPath).not.toMatch(/\.pdf\.pdf$/);
+      expect(doc.localPath).toContain('report.pdf');
+    });
   });
 });
