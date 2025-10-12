@@ -334,5 +334,38 @@ describe('parseCliArgs', () => {
       expect(result.args).toEqual(['my-site']);
       expect(result.options.template).toBe('town');
     });
+
+    // Regression test for issue #175
+    it('handles local path template option (issue #175)', () => {
+      const result = parseCliArgs(
+        ['gnode', 'create', 'caelus', '--template', './gnode-template-smrt-module'],
+        sampleCommands,
+      );
+      expect(result.command).toBe('gnode create');
+      expect(result.args).toEqual(['caelus']);
+      expect(result.options.template).toBe('./gnode-template-smrt-module');
+    });
+
+    // Regression test for issue #175 - equals syntax
+    it('handles local path template option with equals (issue #175)', () => {
+      const result = parseCliArgs(
+        ['gnode', 'create', 'caelus', '--template=./gnode-template-smrt-module'],
+        sampleCommands,
+      );
+      expect(result.command).toBe('gnode create');
+      expect(result.args).toEqual(['caelus']);
+      expect(result.options.template).toBe('./gnode-template-smrt-module');
+    });
+
+    // Regression test for issue #175 - quoted command name
+    it('handles quoted multi-word command (issue #175)', () => {
+      const result = parseCliArgs(
+        ['gnode create', 'caelus', '--template', './gnode-template-smrt-module'],
+        sampleCommands,
+      );
+      expect(result.command).toBe('gnode create');
+      expect(result.args).toEqual(['caelus']);
+      expect(result.options.template).toBe('./gnode-template-smrt-module');
+    });
   });
 });
