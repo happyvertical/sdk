@@ -6,26 +6,24 @@ import { getHarvester } from '../shared/harvester-factory';
  * These tests verify that harvesters can handle actual page interactions
  *
  * NOTE: The Bentley town page uses a complex hierarchical directory/tree structure
- * (jqueryFileTree) that requires special handling. The AccordionHarvester correctly
- * identifies and clicks directory elements, but the hierarchical nature (years → months →
- * individual meetings) needs additional optimization to fully expand all levels.
- * Tests are skipped pending further optimization.
+ * (jqueryFileTree) with multiple levels: years → months → individual meetings.
+ * The TreeHarvester now handles this properly with enhanced hierarchical expansion.
  */
 describe('Harvester Integration - Bentley Town Meetings', () => {
-  it.skip('should extract links from Bentley meetings page with directory accordions', async () => {
+  it('should extract links from Bentley meetings page with directory tree', async () => {
     const url =
       'https://townofbentley.ca/town-office/council/meetings-agendas/';
 
-    const accordionHarvester = await getHarvester({
-      harvester: 'accordion',
-      maxIterations: 10,
+    const treeHarvester = await getHarvester({
+      harvester: 'tree',
+      maxIterations: 20, // Increased for hierarchical trees
       clickDelay: 500,
       headless: true,
     });
 
-    const result = await accordionHarvester.harvest(url, {
+    const result = await treeHarvester.harvest(url, {
       cache: false,
-      timeout: 90000,
+      timeout: 120000, // 2 minutes for deep hierarchy
     });
 
     // Verify HarvestResult structure
@@ -36,7 +34,7 @@ describe('Harvester Integration - Bentley Town Meetings', () => {
     expect(Array.isArray(result.links)).toBe(true);
 
     // Verify strategy information
-    expect(result.strategy.type).toBe('accordion');
+    expect(result.strategy.type).toBe('tree');
     expect(result.strategy.spider).toBe('crawlee');
 
     // Verify metrics
@@ -45,36 +43,47 @@ describe('Harvester Integration - Bentley Town Meetings', () => {
     expect(result.metrics.complete).toBe(true);
 
     console.log(
-      `\n🎯 AccordionHarvester: Found ${result.links.length} links after ${result.metrics.interactionCount} interactions`,
+      `\n🎯 TreeHarvester with hierarchical expansion:`,
+    );
+    console.log(`   Total links: ${result.links.length}`);
+    console.log(`   Interactions: ${result.metrics.interactionCount}`);
+    console.log(`   Duration: ${result.metrics.duration}ms`);
+
+    // Verify we found accordions and clicked them (should be many for hierarchical tree)
+    expect(result.metrics.interactionCount).toBeGreaterThan(10);
+
+    // Extract meeting links
+    const meetingLinks = result.links.filter((link) =>
+      /meeting|agenda|minutes/i.test(link.text),
     );
 
-    // Verify we found accordions and clicked them
-    expect(result.metrics.interactionCount).toBeGreaterThan(0);
+    console.log(`   Meeting-related links: ${meetingLinks.length}`);
 
     // Extract PDF links specifically
     const pdfLinks = result.links.filter((link) =>
       link.href.toLowerCase().endsWith('.pdf'),
     );
 
-    console.log(
-      `\n📄 Found ${pdfLinks.length} PDF links`,
-    );
+    console.log(`   PDF links: ${pdfLinks.length}`);
 
     pdfLinks.slice(0, 5).forEach((link, i) => {
-      console.log(`  ${i + 1}. ${link.text || link.href}`);
+      console.log(`      ${i + 1}. ${link.text || link.href}`);
     });
+
+    // Verify we found lots of meeting links (hierarchical expansion reveals many)
+    expect(meetingLinks.length).toBeGreaterThan(20);
 
     // Verify we found PDFs (town meetings typically have agenda PDFs)
     expect(pdfLinks.length).toBeGreaterThan(0);
 
-    // Verify confidence score reflects that accordions were found
+    // Verify confidence score reflects that tree structure was found
     expect(result.strategy.confidence).toBeGreaterThanOrEqual(0.9);
-  }, 120000); // 2 minute timeout for integration test
+  }, 150000); // 2.5 minute timeout for deep hierarchy expansion
 
-  it('should handle pages with no accordions gracefully', async () => {
-    // Test with a simple page that has no accordions
+  it('should handle pages with no tree structure gracefully', async () => {
+    // Test with a simple page that has no tree structure
     const harvester = await getHarvester({
-      harvester: 'accordion',
+      harvester: 'tree',
       maxIterations: 5,
       headless: true,
     });
@@ -86,16 +95,16 @@ describe('Harvester Integration - Bentley Town Meetings', () => {
     // Should still work, just with no interactions
     expect(result).toBeDefined();
     expect(result.metrics.interactionCount).toBe(0);
-    expect(result.strategy.confidence).toBe(0.5); // Lower confidence when no accordions
+    expect(result.strategy.confidence).toBe(0.5); // Lower confidence when no tree structure
     expect(result.links.length).toBeGreaterThan(0); // Should still find normal links
   }, 60000);
 
-  it.skip('should perform interactions on directory-style accordions', async () => {
+  it.skip('should perform interactions on directory-style trees', async () => {
     const url =
       'https://townofbentley.ca/town-office/council/meetings-agendas/';
 
     const harvester = await getHarvester({
-      harvester: 'accordion',
+      harvester: 'tree',
       maxIterations: 10,
       clickDelay: 500,
       headless: true,
@@ -103,7 +112,7 @@ describe('Harvester Integration - Bentley Town Meetings', () => {
 
     const result = await harvester.harvest(url, { cache: false, timeout: 90000 });
 
-    console.log(`\n🔍 Accordion Harvester Results:`);
+    console.log(`\n🔍 Tree Harvester Results:`);
     console.log(`   Total links: ${result.links.length}`);
     console.log(`   Interactions: ${result.metrics.interactionCount}`);
     console.log(`   Duration: ${result.metrics.duration}ms`);
