@@ -57,6 +57,7 @@ export default defineConfig({
         // External dependencies for spider package
         '@mozilla/readability',
         'cheerio',
+        'crawlee',
         'happy-dom',
         'undici',
 
