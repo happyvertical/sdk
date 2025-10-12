@@ -112,59 +112,34 @@ describe('scrapeDocument', () => {
       expect(result.metadata.strategy).toBe('wordpress-pdf-link');
     });
 
-    it('should re-scrape non-PDF WordPress downloads (e.g., HTML pages)', async () => {
+    it('should detect wpdmdl parameter URLs without .pdf extension', async () => {
       const mockScraper = {
-        scrape: vi.fn()
-          .mockResolvedValueOnce({
-            // First call: WordPress download page with non-PDF link
-            url: 'https://example.com/download/document/',
-            content: `
-              <html>
-                <body>
-                  <a href="https://example.com/content/view?wpdmdl=12345">View Document</a>
-                </body>
-              </html>
-            `,
-            links: [],
-            strategy: { type: 'basic', spider: 'dom', config: {}, confidence: 1 },
-            metrics: { duration: 100, linkCount: 0, complete: true },
-          })
-          .mockResolvedValueOnce({
-            // Second call: Actual HTML page
-            url: 'https://example.com/content/view?wpdmdl=12345',
-            content: `
-              <html>
-                <head><title>Document Content</title></head>
-                <body><h1>Document Content</h1><p>Content here</p></body>
-              </html>
-            `,
-            links: [],
-            strategy: { type: 'basic', spider: 'dom', config: {}, confidence: 1 },
-            metrics: { duration: 100, linkCount: 0, complete: true },
-          }),
+        scrape: vi.fn().mockResolvedValueOnce({
+          url: 'https://example.com/download/meeting/',
+          content: `
+            <html>
+              <body>
+                <a href="https://example.com/download/meeting/?wpdmdl=17656&refresh=68ebf5c3cf">Download</a>
+              </body>
+            </html>
+          `,
+          links: [],
+          strategy: { type: 'basic', spider: 'dom', config: {}, confidence: 1 },
+          metrics: { duration: 100, linkCount: 0, complete: true },
+        }),
       };
 
       vi.mocked(scraperFactory.getScraper).mockResolvedValue(mockScraper as any);
 
-      const result = await scrapeDocument('https://example.com/download/document/');
+      const result = await scrapeDocument('https://example.com/download/meeting/');
 
-      // Should call scraper twice (once for detection, once for actual content)
-      expect(mockScraper.scrape).toHaveBeenCalledTimes(2);
-      expect(mockScraper.scrape).toHaveBeenNthCalledWith(
-        1,
-        'https://example.com/download/document/',
-        undefined
-      );
-      expect(mockScraper.scrape).toHaveBeenNthCalledWith(
-        2,
-        'https://example.com/content/view?wpdmdl=12345',
-        undefined
-      );
-
-      expect(result.url).toBe('https://example.com/content/view?wpdmdl=12345');
-      expect(result.metadata.isPdf).toBe(false);
-      expect(result.type).toBe('text/html');
-      expect(result.metadata.title).toBe('Document Content');
+      // Should only call scraper once (detected wpdmdl parameter, no re-scrape)
+      expect(mockScraper.scrape).toHaveBeenCalledTimes(1);
+      expect(result.url).toBe('https://example.com/download/meeting/?wpdmdl=17656&refresh=68ebf5c3cf');
+      expect(result.metadata.isPdf).toBe(true);
+      expect(result.metadata.complete).toBe(false);
+      expect(result.metadata.strategy).toBe('wordpress-pdf-link');
+      expect(result.text).toBe(''); // No binary content downloaded
     });
 
     it('should not trigger re-scrape for non-WordPress pages', async () => {
