@@ -202,4 +202,116 @@ describe('TreeScraper', () => {
     expect(result.metrics.interactionCount).toBe(0);
     expect(result.strategy.confidence).toBe(0.5); // Lower confidence when no tree structure
   }, 60000);
+
+  it('should respect cache options for tree scraper', async () => {
+    const scraper = await getScraper({
+      scraper: 'tree',
+      headless: true,
+      maxIterations: 3,
+      cacheDir: '.cache/tree-scraper-test',
+    });
+
+    // First scrape - not cached
+    const startTime1 = Date.now();
+    const result1 = await scraper.scrape('https://example.com', {
+      cache: true,
+      cacheExpiry: 60000,
+    });
+    const duration1 = Date.now() - startTime1;
+    expect(result1).toBeDefined();
+
+    // Second scrape - should be cached (much faster)
+    const startTime2 = Date.now();
+    const result2 = await scraper.scrape('https://example.com', {
+      cache: true,
+      cacheExpiry: 60000,
+    });
+    const duration2 = Date.now() - startTime2;
+
+    // Cached result should be identical
+    expect(result2.content).toBe(result1.content);
+    expect(result2.links).toEqual(result1.links);
+
+    // Cached result should be much faster (at least 10x faster)
+    expect(duration2).toBeLessThan(duration1 / 10);
+  }, 90000);
+
+  it('should respect different cache keys for different maxIterations', async () => {
+    const scraper1 = await getScraper({
+      scraper: 'tree',
+      headless: true,
+      maxIterations: 3,
+      cacheDir: '.cache/tree-scraper-test-2',
+    });
+
+    const scraper2 = await getScraper({
+      scraper: 'tree',
+      headless: true,
+      maxIterations: 5,
+      cacheDir: '.cache/tree-scraper-test-2',
+    });
+
+    // Scrape with maxIterations=3
+    const result1 = await scraper1.scrape('https://example.com', {
+      cache: true,
+      cacheExpiry: 60000,
+    });
+
+    // Scrape with maxIterations=5 - should NOT use cache from scraper1
+    // because different maxIterations means different cache key
+    const startTime = Date.now();
+    const result2 = await scraper2.scrape('https://example.com', {
+      cache: true,
+      cacheExpiry: 60000,
+    });
+    const duration = Date.now() - startTime;
+
+    // Both results should be defined
+    expect(result1).toBeDefined();
+    expect(result2).toBeDefined();
+
+    // Duration should indicate a real scrape (not cached)
+    // Cached results are < 100ms, real scrapes are > 1000ms
+    expect(duration).toBeGreaterThan(1000);
+  }, 120000);
+
+  it('should apply rate limiting delay', async () => {
+    const rateLimit = 2000; // 2 second delay
+    const scraper = await getScraper({
+      scraper: 'tree',
+      headless: true,
+      maxIterations: 1,
+      rateLimit,
+    });
+
+    const startTime = Date.now();
+    await scraper.scrape('https://example.com', {
+      cache: false, // Disable cache to ensure real scrape
+    });
+    const duration = Date.now() - startTime;
+
+    // Duration should include the rate limit delay
+    // Should be at least rateLimit ms (plus actual scrape time)
+    expect(duration).toBeGreaterThanOrEqual(rateLimit);
+  }, 90000);
+
+  it('should allow disabling rate limiting', async () => {
+    const scraper = await getScraper({
+      scraper: 'tree',
+      headless: true,
+      maxIterations: 1,
+      rateLimit: 0, // Disable rate limiting
+    });
+
+    const startTime = Date.now();
+    await scraper.scrape('https://example.com', {
+      cache: false,
+    });
+    const duration = Date.now() - startTime;
+
+    // Duration should be relatively fast without rate limiting
+    // (though still > 1s for actual browser scrape)
+    expect(duration).toBeGreaterThan(1000);
+    expect(duration).toBeLessThan(10000); // Should complete within 10s
+  }, 60000);
 });

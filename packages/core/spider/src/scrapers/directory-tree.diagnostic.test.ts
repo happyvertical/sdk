@@ -3,9 +3,13 @@ import { getScraper } from '../shared/scraper-factory';
 
 /**
  * Diagnostic test to understand the Bentley directory tree behavior
+ *
+ * This test is skipped in regular CI runs because it performs deep
+ * hierarchical scraping which can take 10+ minutes. Run manually with:
+ * npx vitest run src/scrapers/directory-tree.diagnostic.test.ts
  */
 describe('Directory Tree Diagnostic', () => {
-  it('should analyze Bentley page structure and tree behavior', async () => {
+  it.skip('should analyze Bentley page structure and tree behavior', async () => {
     const url =
       'https://townofbentley.ca/town-office/council/meetings-agendas/';
 
