@@ -66,7 +66,14 @@ function extractWordPressDownloadUrl(url: string, html: string): string | null {
   );
 
   if (wpdmLinkMatch) {
-    const downloadUrl = wpdmLinkMatch[1];
+    let downloadUrl = wpdmLinkMatch[1];
+    // Decode HTML entities (&amp; → &, &quot; → ", etc.)
+    downloadUrl = downloadUrl
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#039;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
     // Make absolute if relative
     if (downloadUrl.startsWith('/')) {
       const urlObj = new URL(url);
@@ -81,7 +88,14 @@ function extractWordPressDownloadUrl(url: string, html: string): string | null {
   );
 
   if (pdfLinkMatch) {
-    const pdfUrl = pdfLinkMatch[1];
+    let pdfUrl = pdfLinkMatch[1];
+    // Decode HTML entities (&amp; → &, &quot; → ", etc.)
+    pdfUrl = pdfUrl
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#039;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
     // Make absolute if relative
     if (pdfUrl.startsWith('/')) {
       const urlObj = new URL(url);

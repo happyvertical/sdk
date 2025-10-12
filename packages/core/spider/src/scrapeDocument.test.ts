@@ -142,6 +142,33 @@ describe('scrapeDocument', () => {
       expect(result.text).toBe(''); // No binary content downloaded
     });
 
+    it('should decode HTML entities in extracted WordPress URLs', async () => {
+      const mockScraper = {
+        scrape: vi.fn().mockResolvedValueOnce({
+          url: 'https://example.com/download/meeting/',
+          content: `
+            <html>
+              <body>
+                <a href="https://example.com/download/meeting/?wpdmdl=17656&amp;refresh=68ebf5c3cf&amp;test=value">Download</a>
+              </body>
+            </html>
+          `,
+          links: [],
+          strategy: { type: 'basic', spider: 'dom', config: {}, confidence: 1 },
+          metrics: { duration: 100, linkCount: 0, complete: true },
+        }),
+      };
+
+      vi.mocked(scraperFactory.getScraper).mockResolvedValue(mockScraper as any);
+
+      const result = await scrapeDocument('https://example.com/download/meeting/');
+
+      // Should decode &amp; to &
+      expect(result.url).toBe('https://example.com/download/meeting/?wpdmdl=17656&refresh=68ebf5c3cf&test=value');
+      expect(result.metadata.isPdf).toBe(true);
+      expect(result.metadata.strategy).toBe('wordpress-pdf-link');
+    });
+
     it('should not trigger re-scrape for non-WordPress pages', async () => {
       const mockScraper = {
         scrape: vi.fn().mockResolvedValue({
