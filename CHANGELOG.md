@@ -1,3 +1,39 @@
+# [0.27.0](https://github.com/happyvertical/sdk/compare/v0.26.0...v0.27.0) (2025-10-12)
+
+
+### Bug Fixes
+
+* **spider:** resolve build errors after TreeHarvester rename ([76be123](https://github.com/happyvertical/sdk/commit/76be123abe77bdaf2ee9cd10376579dfef7f5007))
+
+
+### Features
+
+* **spider:** add caching and rate limiting to TreeScraper ([6ba07b6](https://github.com/happyvertical/sdk/commit/6ba07b62672780cf1945008d671d99c1617e2388)), closes [#172](https://github.com/happyvertical/sdk/issues/172)
+* **spider:** add harvester architecture for content extraction strategies ([21ec483](https://github.com/happyvertical/sdk/commit/21ec483bda3998161f0cd45f4a4018f4c77ddabf))
+* **spider:** add integration tests and improve AccordionHarvester for hierarchical structures ([e536131](https://github.com/happyvertical/sdk/commit/e536131d0dd0266f2aafb65bab6e4ba1c8c6b49f))
+* **spider:** rename harvest → scrape and add convenience functions ([e07da83](https://github.com/happyvertical/sdk/commit/e07da8310717fdd2fccd81903c01f97efae36450))
+
+
+### BREAKING CHANGES
+
+* **spider:** Rename all harvest terminology to industry-standard scrape terminology
+
+- Rename types: HarvestResult → ScrapeResult, HarvestOptions → ScrapeOptions, etc.
+- Rename factory: harvester-factory.ts → scraper-factory.ts
+- Rename directory: harvesters/ → scrapers/
+- Rename classes: BasicHarvester → BasicScraper, TreeHarvester → TreeScraper
+- Update discriminator: harvester: 'basic' → scraper: 'basic'
+- Update all method names: .harvest() → .scrape()
+- Update all test files with new terminology
+
+NEW: Add convenience functions for common use cases
+- scrapeIndex(): High-level function for extracting link indexes
+- scrapeDocument(): Smart document content extraction with type detection
+- findDocumentLinks(): Helper to find downloadable documents on a page
+
+Test results: ✅ 36 tests passing (2 skipped)
+Build results: ✅ Package builds successfully
+
 # [0.26.0](https://github.com/happyvertical/sdk/compare/v0.25.0...v0.26.0) (2025-10-11)
 
 
