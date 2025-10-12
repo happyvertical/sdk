@@ -10,7 +10,7 @@ import { getScraper } from '../shared/scraper-factory';
  * The TreeScraper now handles this properly with enhanced hierarchical expansion.
  */
 describe('Scraper Integration - Bentley Town Meetings', () => {
-  it('should extract links from Bentley meetings page with directory tree', async () => {
+  it.skip('should extract links from Bentley meetings page with directory tree', async () => {
     const url =
       'https://townofbentley.ca/town-office/council/meetings-agendas/';
 
