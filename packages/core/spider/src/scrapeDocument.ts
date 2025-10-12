@@ -163,8 +163,29 @@ export async function scrapeDocument(
   // Check if this is a WordPress Download Manager page
   const wpDownloadUrl = extractWordPressDownloadUrl(url, result.content);
   if (wpDownloadUrl) {
-    // Re-scrape using the actual download URL
     actualUrl = wpDownloadUrl;
+
+    // Check if the extracted URL is a PDF
+    if (wpDownloadUrl.toLowerCase().endsWith('.pdf') ||
+        wpDownloadUrl.toLowerCase().includes('.pdf?') ||
+        wpDownloadUrl.toLowerCase().includes('.pdf#')) {
+      // Don't re-scrape PDFs, just return the URL
+      return {
+        url: actualUrl,
+        type: 'application/pdf',
+        text: '',
+        html: undefined,
+        metadata: {
+          title: undefined,
+          description: undefined,
+          isPdf: true,
+          complete: false,  // Indicate PDF needs separate processing
+          strategy: 'wordpress-pdf-link',
+        },
+      };
+    }
+
+    // For non-PDF downloads, re-scrape as usual
     result = await scraper.scrape(wpDownloadUrl, options);
   }
 
