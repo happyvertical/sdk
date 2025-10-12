@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getHarvester } from '../shared/harvester-factory';
+import { getScraper } from '../shared/scraper-factory';
 
 /**
  * Diagnostic test to understand the Bentley directory tree behavior
@@ -9,14 +9,14 @@ describe('Directory Tree Diagnostic', () => {
     const url =
       'https://townofbentley.ca/town-office/council/meetings-agendas/';
 
-    const harvester = await getHarvester({
-      harvester: 'tree',
+    const scraper = await getScraper({
+      scraper: 'tree',
       maxIterations: 20, // More iterations for deep hierarchy
       clickDelay: 500, // Longer delay
       headless: true,
     });
 
-    const result = await harvester.harvest(url, {
+    const result = await scraper.scrape(url, {
       cache: false,
       timeout: 90000,
     });

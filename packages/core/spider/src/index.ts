@@ -1,54 +1,93 @@
 /**
- * @have/spider - Web scraping and HTML content extraction
+ * @have/spider - Web scraping and content extraction
  *
- * This package provides a standardized interface for fetching and parsing web content.
+ * This package provides a standardized interface for fetching and parsing web content
+ * with two main use cases: extracting link indexes and extracting document content.
+ *
+ * ## Quick Start
+ *
+ * ### Scraping an index page for links
+ * ```typescript
+ * import { scrapeIndex } from '@have/spider';
+ *
+ * const result = await scrapeIndex('https://example.com/meetings');
+ * console.log(`Found ${result.links.length} links`);
+ * ```
+ *
+ * ### Extracting document content
+ * ```typescript
+ * import { scrapeDocument } from '@have/spider';
+ *
+ * const doc = await scrapeDocument('https://example.com/article');
+ * console.log(doc.text); // Extracted content
+ * console.log(doc.metadata.title); // Page title
+ * ```
  *
  * ## Spider Adapters
  * Different fetching mechanisms (HOW to fetch):
- * - Simple: Fast HTTP requests with cheerio parsing
- * - DOM: HTML processing with happy-dom for complex pages
- * - Crawlee: Full browser automation with Playwright
+ * - **Simple**: Fast HTTP requests with cheerio parsing
+ * - **DOM**: HTML processing with happy-dom for complex pages
+ * - **Crawlee**: Full browser automation with Playwright
  *
- * ## Harvesters
+ * ## Scraper Strategies
  * Different content extraction strategies (HOW to extract):
- * - Basic: Simple scraping with no interactions
- * - Accordion: Expand accordions to reveal hidden content
- * - AJAX: Wait for async content to load (coming soon)
- * - Scroll: Handle infinite scroll (coming soon)
- * - Pagination: Navigate through multiple pages (coming soon)
+ * - **Basic**: Simple scraping with no interactions
+ * - **Tree**: Expand hierarchical trees/accordions to reveal hidden content
+ * - **AJAX**: Wait for async content to load (coming soon)
+ * - **Scroll**: Handle infinite scroll (coming soon)
+ * - **Pagination**: Navigate through multiple pages (coming soon)
  *
- * @example Spider Usage
+ * ## Advanced Usage
+ *
+ * ### Using specific scraper strategies
  * ```typescript
- * import { getSpider } from '@have/spider';
+ * import { scrapeIndex } from '@have/spider';
  *
- * // Create a simple HTTP adapter
- * const spider = await getSpider({ adapter: 'simple' });
- *
- * // Fetch a page
- * const page = await spider.fetch('https://example.com');
- * console.log(page.links);
+ * // Use tree scraper for pages with collapsible sections
+ * const result = await scrapeIndex('https://example.com/meetings', {
+ *   scraper: {
+ *     scraper: 'tree',
+ *     maxIterations: 20,
+ *     clickDelay: 500
+ *   }
+ * });
  * ```
  *
- * @example Harvester Usage
+ * ### Direct factory usage
  * ```typescript
- * import { getHarvester } from '@have/spider';
+ * import { getScraper } from '@have/spider';
  *
- * // Create an accordion harvester
- * const harvester = await getHarvester({
- *   harvester: 'accordion',
+ * const scraper = await getScraper({
+ *   scraper: 'tree',
  *   maxIterations: 10
  * });
  *
- * // Harvest a page with accordion expansion
- * const result = await harvester.harvest('https://example.com/meetings');
- * console.log(`Found ${result.links.length} links`);
+ * const result = await scraper.scrape('https://example.com');
  * console.log(`Made ${result.metrics.interactionCount} interactions`);
+ * ```
+ *
+ * ### Spider adapter usage
+ * ```typescript
+ * import { getSpider } from '@have/spider';
+ *
+ * const spider = await getSpider({ adapter: 'simple' });
+ * const page = await spider.fetch('https://example.com');
+ * console.log(page.links);
  * ```
  */
 
-// Export factory functions
-export * from './shared/factory';
-export * from './shared/harvester-factory';
+// Export convenience functions (recommended API)
+export { scrapeIndex } from './scrapeIndex';
+export {
+  scrapeDocument,
+  findDocumentLinks,
+  type DocumentResult,
+  type DocumentLinkOptions,
+} from './scrapeDocument';
+
+// Export factory functions (advanced usage)
+export { getSpider } from './shared/factory';
+export { getScraper } from './shared/scraper-factory';
 
 // Export all types
 export * from './shared/types';

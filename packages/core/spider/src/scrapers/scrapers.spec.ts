@@ -1,49 +1,49 @@
 import { describe, expect, it } from 'vitest';
-import { getHarvester } from '../shared/harvester-factory';
+import { getScraper } from '../shared/scraper-factory';
 
-describe('Harvester Factory', () => {
-  it('should create basic harvester', async () => {
-    const harvester = await getHarvester({ harvester: 'basic' });
-    expect(harvester).toBeDefined();
-    expect(harvester.getType()).toBe('basic');
-    expect(typeof harvester.harvest).toBe('function');
+describe('Scraper Factory', () => {
+  it('should create basic scraper', async () => {
+    const scraper = await getScraper({ scraper: 'basic' });
+    expect(scraper).toBeDefined();
+    expect(scraper.getType()).toBe('basic');
+    expect(typeof scraper.scrape).toBe('function');
   });
 
-  it('should create basic harvester with custom spider', async () => {
-    const harvester = await getHarvester({
-      harvester: 'basic',
+  it('should create basic scraper with custom spider', async () => {
+    const scraper = await getScraper({
+      scraper: 'basic',
       spider: 'dom',
     });
-    expect(harvester).toBeDefined();
-    expect(harvester.getType()).toBe('basic');
+    expect(scraper).toBeDefined();
+    expect(scraper.getType()).toBe('basic');
   });
 
-  it('should create tree harvester', async () => {
-    const harvester = await getHarvester({ harvester: 'tree' });
-    expect(harvester).toBeDefined();
-    expect(harvester.getType()).toBe('tree');
-    expect(typeof harvester.harvest).toBe('function');
+  it('should create tree scraper', async () => {
+    const scraper = await getScraper({ scraper: 'tree' });
+    expect(scraper).toBeDefined();
+    expect(scraper.getType()).toBe('tree');
+    expect(typeof scraper.scrape).toBe('function');
   });
 
-  it('should throw error for unsupported harvester', async () => {
+  it('should throw error for unsupported scraper', async () => {
     await expect(
-      getHarvester({ harvester: 'invalid' } as any),
-    ).rejects.toThrow('Unsupported harvester');
+      getScraper({ scraper: 'invalid' } as any),
+    ).rejects.toThrow('Unsupported scraper');
   });
 });
 
-describe('BasicHarvester', () => {
-  it('should harvest a simple page', async () => {
-    const harvester = await getHarvester({
-      harvester: 'basic',
+describe('BasicScraper', () => {
+  it('should scrape a simple page', async () => {
+    const scraper = await getScraper({
+      scraper: 'basic',
       spider: 'simple',
     });
 
-    const result = await harvester.harvest('https://example.com', {
+    const result = await scraper.scrape('https://example.com', {
       cache: false,
     });
 
-    // Verify HarvestResult structure
+    // Verify ScrapeResult structure
     expect(result).toBeDefined();
     expect(result.url).toBe('https://example.com');
     expect(result.content).toBeDefined();
@@ -69,12 +69,12 @@ describe('BasicHarvester', () => {
   });
 
   it('should use DOM spider when specified', async () => {
-    const harvester = await getHarvester({
-      harvester: 'basic',
+    const scraper = await getScraper({
+      scraper: 'basic',
       spider: 'dom',
     });
 
-    const result = await harvester.harvest('https://example.com', {
+    const result = await scraper.scrape('https://example.com', {
       cache: false,
     });
 
@@ -83,12 +83,12 @@ describe('BasicHarvester', () => {
   });
 
   it('should extract link metadata', async () => {
-    const harvester = await getHarvester({
-      harvester: 'basic',
+    const scraper = await getScraper({
+      scraper: 'basic',
       spider: 'simple',
     });
 
-    const result = await harvester.harvest('https://www.iana.org', {
+    const result = await scraper.scrape('https://www.iana.org', {
       cache: false,
     });
 
@@ -106,21 +106,21 @@ describe('BasicHarvester', () => {
   });
 
   it('should respect cache options', async () => {
-    const harvester = await getHarvester({
-      harvester: 'basic',
+    const scraper = await getScraper({
+      scraper: 'basic',
       spider: 'simple',
-      cacheDir: '.cache/harvester-test',
+      cacheDir: '.cache/scraper-test',
     });
 
-    // First harvest - not cached
-    const result1 = await harvester.harvest('https://example.com', {
+    // First scrape - not cached
+    const result1 = await scraper.scrape('https://example.com', {
       cache: true,
       cacheExpiry: 60000,
     });
     expect(result1).toBeDefined();
 
-    // Second harvest - should be cached
-    const result2 = await harvester.harvest('https://example.com', {
+    // Second scrape - should be cached
+    const result2 = await scraper.scrape('https://example.com', {
       cache: true,
       cacheExpiry: 60000,
     });
@@ -128,19 +128,19 @@ describe('BasicHarvester', () => {
   });
 });
 
-describe('TreeHarvester', () => {
-  it('should harvest a page with browser', async () => {
-    const harvester = await getHarvester({
-      harvester: 'tree',
+describe('TreeScraper', () => {
+  it('should scrape a page with browser', async () => {
+    const scraper = await getScraper({
+      scraper: 'tree',
       headless: true,
       maxIterations: 3, // Keep low for tests
     });
 
-    const result = await harvester.harvest('https://example.com', {
+    const result = await scraper.scrape('https://example.com', {
       cache: false,
     });
 
-    // Verify HarvestResult structure
+    // Verify ScrapeResult structure
     expect(result).toBeDefined();
     expect(result.url).toBeTruthy();
     expect(result.content).toBeDefined();
@@ -161,13 +161,13 @@ describe('TreeHarvester', () => {
   }, 60000); // Longer timeout for browser operations
 
   it('should extract link metadata with browser', async () => {
-    const harvester = await getHarvester({
-      harvester: 'tree',
+    const scraper = await getScraper({
+      scraper: 'tree',
       headless: true,
       maxIterations: 3,
     });
 
-    const result = await harvester.harvest('https://example.com', {
+    const result = await scraper.scrape('https://example.com', {
       cache: false,
     });
 
@@ -187,13 +187,13 @@ describe('TreeHarvester', () => {
   }, 60000);
 
   it('should report interaction count', async () => {
-    const harvester = await getHarvester({
-      harvester: 'tree',
+    const scraper = await getScraper({
+      scraper: 'tree',
       headless: true,
       maxIterations: 5,
     });
 
-    const result = await harvester.harvest('https://example.com', {
+    const result = await scraper.scrape('https://example.com', {
       cache: false,
     });
 
