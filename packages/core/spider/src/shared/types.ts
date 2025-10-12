@@ -225,7 +225,7 @@ export interface HarvestMetrics {
  */
 export type HarvesterType =
   | 'basic' // No interactions, just scrape
-  | 'accordion' // Expand accordions
+  | 'tree' // Expand hierarchical trees/accordions
   | 'ajax' // Wait for async loads
   | 'scroll' // Infinite scroll
   | 'pagination' // Multi-page navigation
@@ -284,24 +284,24 @@ export interface BasicHarvesterOptions {
 }
 
 /**
- * Options for accordion harvester
+ * Options for tree harvester
  */
-export interface AccordionHarvesterOptions {
-  harvester: 'accordion';
+export interface TreeHarvesterOptions {
+  harvester: 'tree';
 
   /** Cache directory */
   cacheDir?: string;
 
-  /** Max iterations for accordion expansion */
+  /** Max iterations for tree expansion */
   maxIterations?: number;
 
   /** Delay between clicks in ms */
   clickDelay?: number;
 
-  /** Custom accordion selectors */
+  /** Custom tree node selectors */
   customSelectors?: string[];
 
-  /** Handle exclusive accordions (one-at-a-time) */
+  /** Handle exclusive expansion (one-at-a-time) */
   handleExclusive?: boolean;
 
   /** Whether to run browser in headless mode */
@@ -394,7 +394,7 @@ export interface PaginationHarvesterOptions {
  */
 export type HarvesterOptions =
   | BasicHarvesterOptions
-  | AccordionHarvesterOptions
+  | TreeHarvesterOptions
   | AjaxHarvesterOptions
   | ScrollHarvesterOptions
   | PaginationHarvesterOptions;

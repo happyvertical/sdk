@@ -2,18 +2,18 @@ import { describe, expect, it } from 'vitest';
 import { getHarvester } from '../shared/harvester-factory';
 
 /**
- * Diagnostic test to understand the Bentley directory accordion behavior
+ * Diagnostic test to understand the Bentley directory tree behavior
  */
-describe('Directory Accordion Diagnostic', () => {
-  it.skip('should analyze Bentley page structure and accordion behavior', async () => {
+describe('Directory Tree Diagnostic', () => {
+  it('should analyze Bentley page structure and tree behavior', async () => {
     const url =
       'https://townofbentley.ca/town-office/council/meetings-agendas/';
 
     const harvester = await getHarvester({
-      harvester: 'accordion',
-      maxIterations: 15, // More iterations
+      harvester: 'tree',
+      maxIterations: 20, // More iterations for deep hierarchy
       clickDelay: 500, // Longer delay
-      headless: false, // Run with visible browser to see what happens
+      headless: true,
     });
 
     const result = await harvester.harvest(url, {

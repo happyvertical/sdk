@@ -6,7 +6,7 @@ import type { HarvesterOptions, IHarvester } from './types';
  *
  * Harvesters define HOW to extract content from a page:
  * - basic: Simple scraping with no interactions
- * - accordion: Expand accordions to reveal hidden content
+ * - tree: Expand hierarchical trees/accordions to reveal hidden content
  * - ajax: Wait for async content to load
  * - scroll: Handle infinite scroll
  * - pagination: Navigate through multiple pages
@@ -26,11 +26,11 @@ import type { HarvesterOptions, IHarvester } from './types';
  *   spider: 'simple'
  * });
  *
- * // Accordion harvester with custom selectors
+ * // Tree harvester with custom selectors
  * const harvester = await getHarvester({
- *   harvester: 'accordion',
- *   customSelectors: ['.my-accordion'],
- *   maxIterations: 10
+ *   harvester: 'tree',
+ *   customSelectors: ['.my-tree-node'],
+ *   maxIterations: 20
  * });
  * ```
  */
@@ -51,9 +51,9 @@ export async function getHarvester(
       return new BasicHarvester(options);
     }
 
-    case 'accordion': {
-      const { AccordionHarvester } = await import('../harvesters/accordion');
-      return new AccordionHarvester(options);
+    case 'tree': {
+      const { TreeHarvester } = await import('../harvesters/tree');
+      return new TreeHarvester(options);
     }
 
     case 'ajax': {

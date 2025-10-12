@@ -11,22 +11,22 @@ import type {
 } from '../shared/types';
 
 /**
- * Accordion harvester - expand accordions to reveal hidden content
+ * Tree harvester - expand hierarchical tree structures to reveal hidden content
  *
- * This harvester handles pages where content is hidden in accordions,
- * collapsible sections, or expandable elements. It systematically clicks
- * through all expandable elements to reveal and extract all links.
+ * This harvester handles pages with nested, hierarchical content structures
+ * like directory browsers, file trees, or multi-level accordions. It
+ * systematically expands tree nodes to reveal all nested content.
  *
- * Handles both exclusive accordions (one-at-a-time) and independent
- * collapsible sections, as links are stored before moving to the next element.
+ * Optimized for deep hierarchical structures like jQuery File Tree where
+ * clicking one element reveals new expandable elements (years → months → files).
  *
  * @example
  * ```typescript
- * const harvester = new AccordionHarvester({
- *   harvester: 'accordion',
- *   maxIterations: 10,
- *   clickDelay: 100,
- *   customSelectors: ['.my-accordion'],
+ * const harvester = new TreeHarvester({
+ *   harvester: 'tree',
+ *   maxIterations: 20,
+ *   clickDelay: 500,
+ *   customSelectors: ['.my-tree-node'],
  *   handleExclusive: true
  * });
  *
@@ -35,11 +35,11 @@ import type {
  * console.log(`Confidence: ${result.strategy.confidence}`);
  * ```
  */
-export class AccordionHarvester implements IHarvester {
-  private options: AccordionHarvesterOptions;
+export class TreeHarvester implements IHarvester {
+  private options: TreeHarvesterOptions;
   private cacheDir: string;
 
-  // Default accordion selectors (most common patterns)
+  // Default tree/expandable element selectors
   private readonly DEFAULT_SELECTORS = [
     '[role="button"][aria-expanded]',
     'button[aria-expanded]',
@@ -48,11 +48,11 @@ export class AccordionHarvester implements IHarvester {
     '.accordion-button',
     '.expand-button',
     'details summary',
-    'li.directory.collapsed > a', // Directory/file browser accordions
+    'li.directory.collapsed > a', // Directory/file browser trees
     'li.collapsed > a', // Generic collapsed list items
   ];
 
-  constructor(options: AccordionHarvesterOptions) {
+  constructor(options: TreeHarvesterOptions) {
     this.options = {
       maxIterations: 10,
       clickDelay: 100,
@@ -67,7 +67,7 @@ export class AccordionHarvester implements IHarvester {
    * Get the harvester type
    */
   getType(): HarvesterType {
-    return 'accordion';
+    return 'tree';
   }
 
   /**
@@ -98,15 +98,16 @@ export class AccordionHarvester implements IHarvester {
   }
 
   /**
-   * Extract links from a page by expanding accordions
+   * Extract links from a page by expanding hierarchical tree structures
    *
    * This method uses Playwright's native click() to properly trigger events.
-   * It systematically clicks expandable elements and extracts links after each click.
+   * It systematically clicks expandable tree nodes and extracts links after each click.
+   * Optimized for deep hierarchical trees (e.g., years → months → files).
    *
    * @param page - Playwright page instance
    * @returns Promise resolving to array of links and interaction count
    */
-  private async extractLinksWithAccordions(
+  private async extractLinksWithTreeExpansion(
     page: any,
   ): Promise<{ links: Link[]; interactionCount: number }> {
     const selectors = [
@@ -121,16 +122,19 @@ export class AccordionHarvester implements IHarvester {
     // Extract initial links
     const initialLinks = await this.extractCurrentLinks(page);
     initialLinks.forEach((link) => linkMap.set(link.href, link));
-    let previousLinkCount = linkMap.size;
 
-    // Iterate to find and click expandable elements
-    // Each iteration re-queries the DOM to find newly revealed elements
+    // Keep expanding until no more expandable elements are found
+    // This handles deep hierarchical structures (trees) by continuously
+    // re-querying for newly revealed expandable elements
+    let consecutiveEmptyIterations = 0;
+    const maxConsecutiveEmpty = 2; // Stop after 2 iterations with no clicks
+
     for (let iteration = 0; iteration < (this.options.maxIterations || 10); iteration++) {
       let clickedInIteration = 0;
 
-      // Try each selector
+      // Try each selector, clicking ALL matching elements we find
       for (const selector of selectors) {
-        // Find all matching elements
+        // Re-query DOM to find newly revealed elements
         const elements = await page.$$(selector);
 
         for (const element of elements) {
@@ -175,30 +179,38 @@ export class AccordionHarvester implements IHarvester {
               await page.waitForTimeout(this.options.clickDelay || 500);
             }
 
-            // Extract links after click
+            // Extract links after each click (not just at the end)
             const newLinks = await this.extractCurrentLinks(page);
             newLinks.forEach((link) => linkMap.set(link.href, link));
+
+            // After clicking, immediately re-query this selector to find
+            // any newly revealed elements at the same level or deeper
+            // This enables proper hierarchical expansion
+            break; // Break to re-query and find newly revealed elements
           } catch (err) {
             // Element not clickable, skip
             continue;
           }
         }
+
+        // If we clicked something with this selector, restart selector loop
+        // to check for newly revealed elements
+        if (clickedInIteration > 0) {
+          break;
+        }
       }
 
-      // Check if we clicked anything or found new links in this iteration
-      const currentLinkCount = linkMap.size;
-
+      // Track consecutive iterations with no clicks
       if (clickedInIteration === 0) {
-        // No elements clicked in this iteration, we're done
-        break;
+        consecutiveEmptyIterations++;
+        if (consecutiveEmptyIterations >= maxConsecutiveEmpty) {
+          // No elements found for multiple iterations, we're done
+          break;
+        }
+      } else {
+        // Reset counter when we click something
+        consecutiveEmptyIterations = 0;
       }
-
-      if (currentLinkCount === previousLinkCount) {
-        // No new links found despite clicking, we might be done
-        // But continue one more iteration to be sure
-      }
-
-      previousLinkCount = currentLinkCount;
     }
 
     return {
@@ -211,7 +223,7 @@ export class AccordionHarvester implements IHarvester {
    * Old page.evaluate()-based implementation (keeping for reference)
    * This version didn't properly trigger JavaScript event handlers
    */
-  private async extractLinksWithAccordionsOld(
+  private async extractLinksWithTreeExpansionOld(
     page: any,
   ): Promise<{ links: Link[]; interactionCount: number }> {
     const selectors = [
@@ -353,11 +365,11 @@ export class AccordionHarvester implements IHarvester {
   }
 
   /**
-   * Harvest content from a URL by expanding accordions
+   * Harvest content from a URL by expanding hierarchical tree structures
    *
    * This method launches a headless browser, navigates to the URL,
-   * and systematically expands all accordion elements to extract
-   * all hidden links.
+   * and systematically expands all tree nodes to extract all hidden links.
+   * Optimized for deep hierarchical structures like directory browsers.
    *
    * @param url - The URL to harvest
    * @param options - Optional harvest configuration
@@ -423,9 +435,9 @@ export class AccordionHarvester implements IHarvester {
               // Wait for any initial animations and lazy-loaded content
               await page.waitForTimeout(1000);
 
-              // Extract links with accordion expansion
+              // Extract links with tree expansion
               const { links, interactionCount } =
-                await this.extractLinksWithAccordions(page);
+                await this.extractLinksWithTreeExpansion(page);
 
               // Get page content
               const content = await page.content();
@@ -445,8 +457,8 @@ export class AccordionHarvester implements IHarvester {
                 },
                 confidence:
                   interactionCount > 0
-                    ? 0.9 // High confidence if we found accordions
-                    : 0.5, // Lower confidence if no accordions found (might be wrong strategy)
+                    ? 0.9 // High confidence if we found expandable tree nodes
+                    : 0.5, // Lower confidence if no tree structure found (might be wrong strategy)
               };
 
               // Build metrics
@@ -495,14 +507,14 @@ export class AccordionHarvester implements IHarvester {
       }
 
       if (!harvestResult) {
-        throw new Error('Accordion harvest failed - no result captured');
+        throw new Error('Tree harvest failed - no result captured');
       }
 
       return harvestResult;
     } catch (error) {
       if (error instanceof Error) {
         throw new Error(
-          `Failed to harvest page with AccordionHarvester: ${error.message}`,
+          `Failed to harvest page with TreeHarvester: ${error.message}`,
         );
       }
       throw error;

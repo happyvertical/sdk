@@ -18,10 +18,10 @@ describe('Harvester Factory', () => {
     expect(harvester.getType()).toBe('basic');
   });
 
-  it('should create accordion harvester', async () => {
-    const harvester = await getHarvester({ harvester: 'accordion' });
+  it('should create tree harvester', async () => {
+    const harvester = await getHarvester({ harvester: 'tree' });
     expect(harvester).toBeDefined();
-    expect(harvester.getType()).toBe('accordion');
+    expect(harvester.getType()).toBe('tree');
     expect(typeof harvester.harvest).toBe('function');
   });
 
@@ -128,10 +128,10 @@ describe('BasicHarvester', () => {
   });
 });
 
-describe('AccordionHarvester', () => {
+describe('TreeHarvester', () => {
   it('should harvest a page with browser', async () => {
     const harvester = await getHarvester({
-      harvester: 'accordion',
+      harvester: 'tree',
       headless: true,
       maxIterations: 3, // Keep low for tests
     });
@@ -148,7 +148,7 @@ describe('AccordionHarvester', () => {
 
     // Verify strategy information
     expect(result.strategy).toBeDefined();
-    expect(result.strategy.type).toBe('accordion');
+    expect(result.strategy.type).toBe('tree');
     expect(result.strategy.spider).toBe('crawlee');
     expect(result.strategy.confidence).toBeGreaterThan(0);
 
@@ -162,7 +162,7 @@ describe('AccordionHarvester', () => {
 
   it('should extract link metadata with browser', async () => {
     const harvester = await getHarvester({
-      harvester: 'accordion',
+      harvester: 'tree',
       headless: true,
       maxIterations: 3,
     });
@@ -188,7 +188,7 @@ describe('AccordionHarvester', () => {
 
   it('should report interaction count', async () => {
     const harvester = await getHarvester({
-      harvester: 'accordion',
+      harvester: 'tree',
       headless: true,
       maxIterations: 5,
     });
@@ -197,9 +197,9 @@ describe('AccordionHarvester', () => {
       cache: false,
     });
 
-    // example.com has no accordions, so interaction count should be 0
-    // This tests the "no accordions found" case
+    // example.com has no tree structure, so interaction count should be 0
+    // This tests the "no tree structure found" case
     expect(result.metrics.interactionCount).toBe(0);
-    expect(result.strategy.confidence).toBe(0.5); // Lower confidence when no accordions
+    expect(result.strategy.confidence).toBe(0.5); // Lower confidence when no tree structure
   }, 60000);
 });
