@@ -37,12 +37,70 @@ export interface DocumentResult {
 }
 
 /**
+ * Detect if a URL is a WordPress Download Manager page and extract the actual download URL
+ *
+ * WordPress Download Manager (WPDM) uses URLs like:
+ * - https://example.com/download/file-name/?wpdmdl=12345&refresh=hash
+ * - https://example.com/download/file-name/
+ *
+ * @param url - The URL to check
+ * @param html - The HTML content of the page
+ * @returns The actual download URL if detected, null otherwise
+ */
+function extractWordPressDownloadUrl(url: string, html: string): string | null {
+  // Check if this looks like a WordPress download manager page
+  const isWpdmPage =
+    url.includes('/download/') ||
+    html.includes('wpdmdl=') ||
+    html.includes('wpdm-download-link') ||
+    html.includes('wpdm_view_count');
+
+  if (!isWpdmPage) {
+    return null;
+  }
+
+  // Try to find download link with wpdmdl parameter
+  // Pattern: <a href="url?wpdmdl=ID&refresh=hash">
+  const wpdmLinkMatch = html.match(
+    /href=["']([^"']*wpdmdl=\d+[^"']*)["']/i
+  );
+
+  if (wpdmLinkMatch) {
+    const downloadUrl = wpdmLinkMatch[1];
+    // Make absolute if relative
+    if (downloadUrl.startsWith('/')) {
+      const urlObj = new URL(url);
+      return `${urlObj.protocol}//${urlObj.host}${downloadUrl}`;
+    }
+    return downloadUrl;
+  }
+
+  // Try to find direct PDF links in the page
+  const pdfLinkMatch = html.match(
+    /href=["']([^"']*\.pdf[^"']*)["']/i
+  );
+
+  if (pdfLinkMatch) {
+    const pdfUrl = pdfLinkMatch[1];
+    // Make absolute if relative
+    if (pdfUrl.startsWith('/')) {
+      const urlObj = new URL(url);
+      return `${urlObj.protocol}//${urlObj.host}${pdfUrl}`;
+    }
+    return pdfUrl;
+  }
+
+  return null;
+}
+
+/**
  * Convenience function to scrape and extract document content from a URL
  *
  * This function intelligently handles different document types:
  * - HTML pages: Extracts main content and metadata
  * - PDF links: Detects and flags for PDF processing (requires @have/pdf)
  * - Download pages: Detects links to downloadable documents
+ * - WordPress Download Manager: Automatically extracts actual download URLs
  *
  * For full document processing with PDF support, use @have/content's Document class.
  * This function provides the foundation for document discovery and basic extraction.
@@ -68,6 +126,16 @@ export interface DocumentResult {
  * }
  * ```
  *
+ * @example WordPress Download Manager
+ * ```typescript
+ * // Automatically handles WordPress download pages
+ * const doc = await scrapeDocument('https://site.com/download/file/');
+ * // Extracts and follows the actual download URL
+ * if (doc.metadata.isPdf) {
+ *   console.log('PDF downloaded from WordPress Download Manager');
+ * }
+ * ```
+ *
  * @example Custom options
  * ```typescript
  * const doc = await scrapeDocument('https://example.com/article', {
@@ -89,7 +157,16 @@ export async function scrapeDocument(
     spider: 'dom',
   });
 
-  const result = await scraper.scrape(url, options);
+  let result = await scraper.scrape(url, options);
+  let actualUrl = url;
+
+  // Check if this is a WordPress Download Manager page
+  const wpDownloadUrl = extractWordPressDownloadUrl(url, result.content);
+  if (wpDownloadUrl) {
+    // Re-scrape using the actual download URL
+    actualUrl = wpDownloadUrl;
+    result = await scraper.scrape(wpDownloadUrl, options);
+  }
 
   // Detect if URL points to a PDF
   const isPdf =
@@ -134,7 +211,7 @@ export async function scrapeDocument(
   }
 
   return {
-    url: result.url,
+    url: actualUrl, // Use the actual download URL if redirected from WordPress
     type: isPdf ? 'application/pdf' : 'text/html',
     text,
     html: !isPdf ? result.content : undefined,
