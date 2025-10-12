@@ -298,6 +298,9 @@ export interface TreeScraperOptions {
   /** Delay between clicks in ms */
   clickDelay?: number;
 
+  /** Rate limit delay between page loads in ms (default: 1000ms) */
+  rateLimit?: number;
+
   /** Custom tree node selectors */
   customSelectors?: string[];
 
