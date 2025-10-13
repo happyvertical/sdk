@@ -221,3 +221,66 @@ it.skipIf(!process.env.OPENAI_API_KEY)(
     expect(articleCount).toEqual(1);
   },
 );
+
+it.skipIf(!process.env.OPENAI_API_KEY)(
+  'should support variant field for namespaced classification',
+  async () => {
+    const contents = await Contents.create({
+      ai: {
+        type: 'openai',
+        apiKey: process.env.OPENAI_API_KEY!,
+      },
+      db: {
+        url: getTestDbUrl('variant-field'),
+      },
+    });
+
+    // Test 1: Create content with variant
+    const upcomingArticle = await contents.getOrUpsert({
+      type: 'article',
+      variant: 'praeco:meeting:upcoming',
+      title: 'Upcoming Council Meeting',
+      body: 'Meeting preview content',
+      source: 'meeting-123',
+    });
+
+    expect(upcomingArticle.variant).toBe('praeco:meeting:upcoming');
+    expect(upcomingArticle.id).toBeDefined();
+
+    // Test 2: Create different variant for same meeting
+    const summaryArticle = await contents.getOrUpsert({
+      type: 'article',
+      variant: 'praeco:meeting:summary',
+      title: 'Council Meeting Summary',
+      body: 'Meeting summary content',
+      source: 'meeting-123',
+    });
+
+    expect(summaryArticle.variant).toBe('praeco:meeting:summary');
+    expect(summaryArticle.id).not.toBe(upcomingArticle.id);
+
+    // Test 3: Content without variant (null)
+    const regularArticle = await contents.getOrUpsert({
+      type: 'article',
+      title: 'Regular Article',
+      body: 'Regular content',
+    });
+
+    expect(regularArticle.variant).toBeNull();
+
+    // Test 4: Query by specific variant
+    const praecoSummaries = await contents.list({
+      where: {
+        type: 'article',
+        variant: 'praeco:meeting:summary',
+      },
+    });
+
+    expect(praecoSummaries?.length).toBe(1);
+    expect(praecoSummaries?.[0]?.id).toBe(summaryArticle.id);
+
+    // Test 5: toJSON includes variant
+    const json = upcomingArticle.toJSON();
+    expect(json.variant).toBe('praeco:meeting:upcoming');
+  },
+);

@@ -11,6 +11,13 @@ export interface ContentOptions extends SmrtObjectOptions {
   type?: string | null;
 
   /**
+   * Content variant for namespaced classification within types
+   * Format: generator:domain:specific-type
+   * Example: "praeco:meeting:upcoming"
+   */
+  variant?: string | null;
+
+  /**
    * Reference to file storage key
    */
   fileKey?: string | null;
@@ -109,6 +116,13 @@ export class Content extends SmrtObject {
   public type: string | null = null;
 
   /**
+   * Content variant for namespaced classification within types
+   * Format: generator:domain:specific-type
+   * Example: "praeco:meeting:upcoming"
+   */
+  public variant: string | null = null;
+
+  /**
    * Reference to file storage key
    */
   public fileKey: string | null = null;
@@ -184,6 +198,7 @@ export class Content extends SmrtObject {
   constructor(options: ContentOptions = {}) {
     super(options);
     this.type = options.type || null;
+    this.variant = options.variant || null;
     this.fileKey = options.fileKey || null;
     this.author = options.author || null;
     this.title = options.title || '';
@@ -256,6 +271,7 @@ export class Content extends SmrtObject {
       slug: this.slug || '',
       context: this.context || '',
       type: this.type,
+      variant: this.variant || '',
       fileKey: this.fileKey || '',
       author: this.author || '',
       title: this.title || '',
