@@ -192,7 +192,8 @@ export class SmrtClass {
 
     // Create all system tables
     for (const createTableSQL of ALL_SYSTEM_TABLES) {
-      await this._db.execute`${createTableSQL}`;
+      // Execute as raw SQL (not a parameterized query)
+      await this._db.query(createTableSQL);
     }
 
     // Record current schema version
