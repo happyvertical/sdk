@@ -1116,43 +1116,59 @@ export class SmrtObject extends SmrtClass {
    * Take a note on this object
    *
    * Stores hierarchical notes with confidence tracking for self-learning patterns.
-   * Automatically sets ownerId to this.id.
+   * Notes are stored in the _smrt_notes system table.
    *
-   * @param options - Note options (all properties except ownerId)
-   * @returns Promise resolving to the created/updated Note
+   * @param options - Note options
+   * @returns Promise that resolves when note is stored
    * @example
    * ```typescript
    * // Store a discovered regex pattern
    * await agent.note({
    *   scope: 'discovery/parser/example.com',
    *   key: normalizedUrl,
-   *   value: JSON.stringify({ patterns: ['regex1', 'regex2'] }),
-   *   metadata: JSON.stringify({ aiProvider: 'openai' }),
+   *   value: { patterns: ['regex1', 'regex2'] },
+   *   metadata: { aiProvider: 'openai' },
    *   confidence: 0.9
    * });
    * ```
    */
-  public async note(options: any): Promise<any> {
-    const { NoteCollection } = await import('@have/notes');
-    const { persistence, db, ai, fs, _className } = this.options;
-    const noteCollection = new (NoteCollection as any)({
-      persistence,
-      db,
-      ai,
-      fs,
-      _className,
-    });
-    await noteCollection.initialize();
+  public async note(options: {
+    scope: string;
+    key: string;
+    value: any;
+    metadata?: any;
+    confidence?: number;
+    version?: number;
+    expiresAt?: Date;
+  }): Promise<void> {
+    if (!this.systemDb) {
+      throw new Error('Database not initialized. Call initialize() first.');
+    }
 
-    return await noteCollection.note({
-      ownerId: this.id,
-      scope: options.scope || 'global',
-      version: options.version || 1,
-      confidence: options.confidence || 1.0,
-      successCount: options.successCount || 0,
-      failureCount: options.failureCount || 0,
-      ...options,
-    });
+    const id = crypto.randomUUID();
+    const now = new Date();
+
+    await this.systemDb.run(
+      `INSERT OR REPLACE INTO _smrt_notes (
+        id, owner_class, owner_id, scope, key, value, metadata,
+        version, confidence, created_at, updated_at, last_used_at, expires_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        this._className,
+        this.id,
+        options.scope,
+        options.key,
+        JSON.stringify(options.value),
+        options.metadata ? JSON.stringify(options.metadata) : null,
+        options.version ?? 1,
+        options.confidence ?? 1.0,
+        now,
+        now,
+        now,
+        options.expiresAt ?? null,
+      ],
+    );
   }
 
   /**
@@ -1161,7 +1177,7 @@ export class SmrtObject extends SmrtClass {
    * Retrieves note values with hierarchical search and confidence filtering.
    * Returns only the value (parsed from JSON if applicable).
    *
-   * @param options - Recall options (all properties except ownerId)
+   * @param options - Recall options
    * @returns Promise resolving to the note value or null if not found
    * @example
    * ```typescript
@@ -1174,24 +1190,59 @@ export class SmrtObject extends SmrtClass {
    * });
    * ```
    */
-  public async recall(options: any): Promise<any> {
-    const { NoteCollection } = await import('@have/notes');
-    const { persistence, db, ai, fs, _className } = this.options;
-    const noteCollection = new (NoteCollection as any)({
-      persistence,
-      db,
-      ai,
-      fs,
-      _className,
-    });
-    await noteCollection.initialize();
+  public async recall(options: {
+    scope: string;
+    key: string;
+    includeAncestors?: boolean;
+    minConfidence?: number;
+  }): Promise<any | null> {
+    if (!this.systemDb) {
+      throw new Error('Database not initialized. Call initialize() first.');
+    }
 
-    return await noteCollection.recall({
-      ownerId: this.id,
-      scope: options.scope || 'global',
-      latestVersionOnly: options.latestVersionOnly ?? true,
-      ...options,
-    });
+    let query = `
+      SELECT value, confidence
+      FROM _smrt_notes
+      WHERE owner_class = ? AND owner_id = ? AND scope = ? AND key = ?
+    `;
+    const params: any[] = [
+      this._className,
+      this.id,
+      options.scope,
+      options.key,
+    ];
+
+    if (options.minConfidence !== undefined) {
+      query += ` AND confidence >= ?`;
+      params.push(options.minConfidence);
+    }
+
+    query += ` ORDER BY confidence DESC, version DESC LIMIT 1`;
+
+    const result = await this.systemDb.get(query, params);
+
+    if (result) {
+      return JSON.parse(result.value);
+    }
+
+    // Hierarchical fallback to parent scopes
+    if (options.includeAncestors) {
+      const scopeParts = options.scope.split('/');
+      while (scopeParts.length > 0) {
+        scopeParts.pop();
+        const parentScope = scopeParts.join('/') || 'global';
+
+        const parentResult = await this.recall({
+          ...options,
+          scope: parentScope,
+          includeAncestors: false,
+        });
+
+        if (parentResult) return parentResult;
+      }
+    }
+
+    return null;
   }
 
   /**
@@ -1215,23 +1266,48 @@ export class SmrtObject extends SmrtClass {
    * }
    * ```
    */
-  public async recallAll(options: any = {}): Promise<Map<string, any>> {
-    const { NoteCollection } = await import('@have/notes');
-    const { persistence, db, ai, fs, _className } = this.options;
-    const noteCollection = new (NoteCollection as any)({
-      persistence,
-      db,
-      ai,
-      fs,
-      _className,
-    });
-    await noteCollection.initialize();
+  public async recallAll(options: {
+    scope?: string;
+    includeDescendants?: boolean;
+    minConfidence?: number;
+  } = {}): Promise<Map<string, any>> {
+    if (!this.systemDb) {
+      throw new Error('Database not initialized. Call initialize() first.');
+    }
 
-    return await noteCollection.recallAll({
-      ownerId: this.id,
-      scope: options.scope || 'global',
-      ...options,
-    });
+    const results = new Map<string, any>();
+
+    let query = `
+      SELECT key, value, confidence
+      FROM _smrt_notes
+      WHERE owner_class = ? AND owner_id = ?
+    `;
+    const params: any[] = [this._className, this.id];
+
+    if (options.scope) {
+      if (options.includeDescendants) {
+        query += ` AND (scope = ? OR scope LIKE ?)`;
+        params.push(options.scope, `${options.scope}/%`);
+      } else {
+        query += ` AND scope = ?`;
+        params.push(options.scope);
+      }
+    }
+
+    if (options.minConfidence !== undefined) {
+      query += ` AND confidence >= ?`;
+      params.push(options.minConfidence);
+    }
+
+    query += ` ORDER BY confidence DESC`;
+
+    const rows = await this.systemDb.all(query, params);
+
+    for (const row of rows) {
+      results.set(row.key, JSON.parse(row.value));
+    }
+
+    return results;
   }
 
   /**
@@ -1240,7 +1316,7 @@ export class SmrtObject extends SmrtClass {
    * Deletes a note by scope and key. Use for invalidating cached strategies
    * or removing outdated patterns.
    *
-   * @param options - Note identification (scope and key required, no value)
+   * @param options - Note identification (scope and key required)
    * @returns Promise that resolves when note is deleted
    * @example
    * ```typescript
@@ -1251,23 +1327,16 @@ export class SmrtObject extends SmrtClass {
    * });
    * ```
    */
-  public async forget(options: any): Promise<void> {
-    const { NoteCollection } = await import('@have/notes');
-    const { persistence, db, ai, fs, _className } = this.options;
-    const noteCollection = new (NoteCollection as any)({
-      persistence,
-      db,
-      ai,
-      fs,
-      _className,
-    });
-    await noteCollection.initialize();
+  public async forget(options: { scope: string; key: string }): Promise<void> {
+    if (!this.systemDb) {
+      throw new Error('Database not initialized. Call initialize() first.');
+    }
 
-    return await noteCollection.forget({
-      ownerId: this.id,
-      scope: options.scope || 'global',
-      ...options,
-    });
+    await this.systemDb.run(
+      `DELETE FROM _smrt_notes
+       WHERE owner_class = ? AND owner_id = ? AND scope = ? AND key = ?`,
+      [this._className, this.id, options.scope, options.key],
+    );
   }
 
   /**
@@ -1276,33 +1345,41 @@ export class SmrtObject extends SmrtClass {
    * Deletes all notes matching the scope pattern. Useful for clearing
    * cached strategies for an entire domain or category.
    *
-   * @param options - Recall options without key (deletes all in scope)
+   * @param options - Scope options (scope required, includeDescendants optional)
    * @returns Promise resolving to number of notes deleted
    * @example
    * ```typescript
    * // Clear all strategies for a domain
    * const count = await agent.forgetScope({
-   *   scope: 'discovery/parser/example.com'
+   *   scope: 'discovery/parser/example.com',
+   *   includeDescendants: true
    * });
    * console.log(`Cleared ${count} cached strategies`);
    * ```
    */
-  public async forgetScope(options: any = {}): Promise<number> {
-    const { NoteCollection } = await import('@have/notes');
-    const { persistence, db, ai, fs, _className } = this.options;
-    const noteCollection = new (NoteCollection as any)({
-      persistence,
-      db,
-      ai,
-      fs,
-      _className,
-    });
-    await noteCollection.initialize();
+  public async forgetScope(options: {
+    scope: string;
+    includeDescendants?: boolean;
+  }): Promise<number> {
+    if (!this.systemDb) {
+      throw new Error('Database not initialized. Call initialize() first.');
+    }
 
-    return await noteCollection.forgetScope({
-      ownerId: this.id,
-      scope: options.scope || 'global',
-      ...options,
-    });
+    let query = `
+      DELETE FROM _smrt_notes
+      WHERE owner_class = ? AND owner_id = ?
+    `;
+    const params: any[] = [this._className, this.id];
+
+    if (options.includeDescendants) {
+      query += ` AND (scope = ? OR scope LIKE ?)`;
+      params.push(options.scope, `${options.scope}/%`);
+    } else {
+      query += ` AND scope = ?`;
+      params.push(options.scope);
+    }
+
+    const result = await this.systemDb.run(query, params);
+    return result.changes || 0;
   }
 }

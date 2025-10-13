@@ -1035,6 +1035,83 @@ export class ObjectRegistry {
 
     return inverseRelationships;
   }
+
+  /**
+   * Persist registry state to system tables
+   *
+   * Saves all registered class metadata to the _smrt_registry system table
+   * for runtime introspection and debugging. This enables applications to
+   * query what SMRT objects exist and their configurations.
+   *
+   * @param db - Database interface to persist to
+   * @returns Promise that resolves when persistence is complete
+   * @example
+   * ```typescript
+   * // After registering all classes
+   * await ObjectRegistry.persistToDatabase(db);
+   *
+   * // Later, query the system table
+   * const rows = await db.all('SELECT * FROM _smrt_registry');
+   * console.log('Registered classes:', rows.map(r => r.class_name));
+   * ```
+   */
+  static async persistToDatabase(
+    db: import('@have/sql').DatabaseInterface,
+  ): Promise<void> {
+    for (const [className, registered] of ObjectRegistry.classes.entries()) {
+      const fieldsData: any = {};
+      for (const [key, value] of registered.fields) {
+        fieldsData[key] = {
+          type: value.type,
+          options: value.options,
+        };
+      }
+
+      await db.run(
+        `INSERT OR REPLACE INTO _smrt_registry
+         (class_name, schema_version, fields, relationships, config, manifest, last_updated)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          className,
+          '1.0.0', // Could be derived from package version
+          JSON.stringify(fieldsData),
+          JSON.stringify(ObjectRegistry.getRelationships(className)),
+          JSON.stringify(registered.config),
+          JSON.stringify({
+            name: registered.name,
+            tableName: registered.schema?.tableName,
+            tools: registered.tools,
+          }),
+          new Date(),
+        ],
+      );
+    }
+  }
+
+  /**
+   * Load registry metadata from system tables
+   *
+   * Reads the _smrt_registry system table to inspect what classes
+   * have been registered. This is primarily for introspection and
+   * debugging - actual class registration happens via @smrt() decorator.
+   *
+   * @param db - Database interface to load from
+   * @returns Promise resolving to array of class metadata
+   * @example
+   * ```typescript
+   * const metadata = await ObjectRegistry.loadFromDatabase(db);
+   * for (const meta of metadata) {
+   *   console.log(`Class: ${meta.class_name}`);
+   *   console.log(`Table: ${JSON.parse(meta.manifest).tableName}`);
+   * }
+   * ```
+   */
+  static async loadFromDatabase(
+    db: import('@have/sql').DatabaseInterface,
+  ): Promise<any[]> {
+    const rows = await db.all('SELECT * FROM _smrt_registry ORDER BY class_name');
+    return rows;
+  }
 }
 
 /**
