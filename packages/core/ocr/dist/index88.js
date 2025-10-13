@@ -1,5 +1,5 @@
-var tensor = {};
+var crc = { exports: {} };
 export {
-  tensor as __exports
+  crc as __module
 };
 //# sourceMappingURL=index88.js.map

@@ -1,85 +1,47 @@
-var formatNormaliser;
-var hasRequiredFormatNormaliser;
-function requireFormatNormaliser() {
-  if (hasRequiredFormatNormaliser) return formatNormaliser;
-  hasRequiredFormatNormaliser = 1;
-  function dePalette(indata, outdata, width, height, palette) {
-    let pxPos = 0;
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        let color = palette[indata[pxPos]];
-        if (!color) {
-          throw new Error("index " + indata[pxPos] + " not in palette");
-        }
-        for (let i = 0; i < 4; i++) {
-          outdata[pxPos + i] = color[i];
-        }
-        pxPos += 4;
+import { __exports as dist } from "./index43.js";
+import { __require as requireCjs } from "./index44.js";
+import { __require as requireBackend } from "./index45.js";
+import { __require as requireVersion } from "./index46.js";
+var hasRequiredDist;
+function requireDist() {
+  if (hasRequiredDist) return dist;
+  hasRequiredDist = 1;
+  (function(exports) {
+    var __createBinding = dist && dist.__createBinding || (Object.create ? (function(o, m, k, k2) {
+      if (k2 === void 0) k2 = k;
+      var desc = Object.getOwnPropertyDescriptor(m, k);
+      if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+        desc = { enumerable: true, get: function() {
+          return m[k];
+        } };
       }
+      Object.defineProperty(o, k2, desc);
+    }) : (function(o, m, k, k2) {
+      if (k2 === void 0) k2 = k;
+      o[k2] = m[k];
+    }));
+    var __exportStar = dist && dist.__exportStar || function(m, exports2) {
+      for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports2, p)) __createBinding(exports2, m, p);
+    };
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.listSupportedBackends = void 0;
+    __exportStar(requireCjs(), exports);
+    var backend_1 = requireBackend();
+    Object.defineProperty(exports, "listSupportedBackends", { enumerable: true, get: function() {
+      return backend_1.listSupportedBackends;
+    } });
+    const onnxruntime_common_1 = requireCjs();
+    const version_1 = requireVersion();
+    const backend_2 = requireBackend();
+    const backends = (0, backend_2.listSupportedBackends)();
+    for (const backend of backends) {
+      (0, onnxruntime_common_1.registerBackend)(backend.name, backend_2.onnxruntimeBackend, 100);
     }
-  }
-  function replaceTransparentColor(indata, outdata, width, height, transColor) {
-    let pxPos = 0;
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        let makeTrans = false;
-        if (transColor.length === 1) {
-          if (transColor[0] === indata[pxPos]) {
-            makeTrans = true;
-          }
-        } else if (transColor[0] === indata[pxPos] && transColor[1] === indata[pxPos + 1] && transColor[2] === indata[pxPos + 2]) {
-          makeTrans = true;
-        }
-        if (makeTrans) {
-          for (let i = 0; i < 4; i++) {
-            outdata[pxPos + i] = 0;
-          }
-        }
-        pxPos += 4;
-      }
-    }
-  }
-  function scaleDepth(indata, outdata, width, height, depth) {
-    let maxOutSample = 255;
-    let maxInSample = Math.pow(2, depth) - 1;
-    let pxPos = 0;
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        for (let i = 0; i < 4; i++) {
-          outdata[pxPos + i] = Math.floor(
-            indata[pxPos + i] * maxOutSample / maxInSample + 0.5
-          );
-        }
-        pxPos += 4;
-      }
-    }
-  }
-  formatNormaliser = function(indata, imageData, skipRescale = false) {
-    let depth = imageData.depth;
-    let width = imageData.width;
-    let height = imageData.height;
-    let colorType = imageData.colorType;
-    let transColor = imageData.transColor;
-    let palette = imageData.palette;
-    let outdata = indata;
-    if (colorType === 3) {
-      dePalette(indata, outdata, width, height, palette);
-    } else {
-      if (transColor) {
-        replaceTransparentColor(indata, outdata, width, height, transColor);
-      }
-      if (depth !== 8 && !skipRescale) {
-        if (depth === 16) {
-          outdata = Buffer.alloc(width * height * 4);
-        }
-        scaleDepth(indata, outdata, width, height, depth);
-      }
-    }
-    return outdata;
-  };
-  return formatNormaliser;
+    Object.defineProperty(onnxruntime_common_1.env.versions, "node", { value: version_1.version, enumerable: true });
+  })(dist);
+  return dist;
 }
 export {
-  requireFormatNormaliser as __require
+  requireDist as __require
 };
 //# sourceMappingURL=index42.js.map

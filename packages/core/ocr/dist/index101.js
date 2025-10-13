@@ -1,5 +1,5 @@
-var syncInflate = { exports: {} };
+var onnxValue = {};
 export {
-  syncInflate as __module
+  onnxValue as __exports
 };
 //# sourceMappingURL=index101.js.map

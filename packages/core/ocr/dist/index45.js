@@ -1,109 +1,141 @@
-import { __module as packer } from "./index69.js";
-import { __require as requireConstants } from "./index44.js";
-import { __require as requireCrc } from "./index66.js";
-import { __require as requireBitpacker } from "./index70.js";
-import { __require as requireFilterPack } from "./index71.js";
-import require$$1 from "zlib";
-var hasRequiredPacker;
-function requirePacker() {
-  if (hasRequiredPacker) return packer.exports;
-  hasRequiredPacker = 1;
-  let constants = requireConstants();
-  let CrcStream = requireCrc();
-  let bitPacker = requireBitpacker();
-  let filter = requireFilterPack();
-  let zlib = require$$1;
-  let Packer = packer.exports = function(options) {
-    this._options = options;
-    options.deflateChunkSize = options.deflateChunkSize || 32 * 1024;
-    options.deflateLevel = options.deflateLevel != null ? options.deflateLevel : 9;
-    options.deflateStrategy = options.deflateStrategy != null ? options.deflateStrategy : 3;
-    options.inputHasAlpha = options.inputHasAlpha != null ? options.inputHasAlpha : true;
-    options.deflateFactory = options.deflateFactory || zlib.createDeflate;
-    options.bitDepth = options.bitDepth || 8;
-    options.colorType = typeof options.colorType === "number" ? options.colorType : constants.COLORTYPE_COLOR_ALPHA;
-    options.inputColorType = typeof options.inputColorType === "number" ? options.inputColorType : constants.COLORTYPE_COLOR_ALPHA;
-    if ([
-      constants.COLORTYPE_GRAYSCALE,
-      constants.COLORTYPE_COLOR,
-      constants.COLORTYPE_COLOR_ALPHA,
-      constants.COLORTYPE_ALPHA
-    ].indexOf(options.colorType) === -1) {
-      throw new Error(
-        "option color type:" + options.colorType + " is not supported at present"
-      );
+import { __exports as backend } from "./index73.js";
+import { __require as requireBinding } from "./index74.js";
+var hasRequiredBackend;
+function requireBackend() {
+  if (hasRequiredBackend) return backend;
+  hasRequiredBackend = 1;
+  var __classPrivateFieldSet = backend && backend.__classPrivateFieldSet || function(receiver, state, value, kind, f) {
+    if (kind === "m") throw new TypeError("Private method is not writable");
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
+    return kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value), value;
+  };
+  var __classPrivateFieldGet = backend && backend.__classPrivateFieldGet || function(receiver, state, kind, f) {
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+    return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
+  };
+  var _OnnxruntimeSessionHandler_inferenceSession;
+  Object.defineProperty(backend, "__esModule", { value: true });
+  backend.listSupportedBackends = backend.onnxruntimeBackend = void 0;
+  const binding_1 = requireBinding();
+  const dataTypeStrings = [
+    void 0,
+    "float32",
+    "uint8",
+    "int8",
+    "uint16",
+    "int16",
+    "int32",
+    "int64",
+    "string",
+    "bool",
+    "float16",
+    "float64",
+    "uint32",
+    "uint64",
+    void 0,
+    void 0,
+    void 0,
+    void 0,
+    void 0,
+    void 0,
+    void 0,
+    "uint4",
+    "int4"
+  ];
+  class OnnxruntimeSessionHandler {
+    constructor(pathOrBuffer, options) {
+      _OnnxruntimeSessionHandler_inferenceSession.set(this, void 0);
+      (0, binding_1.initOrt)();
+      __classPrivateFieldSet(this, _OnnxruntimeSessionHandler_inferenceSession, new binding_1.binding.InferenceSession(), "f");
+      if (typeof pathOrBuffer === "string") {
+        __classPrivateFieldGet(this, _OnnxruntimeSessionHandler_inferenceSession, "f").loadModel(pathOrBuffer, options);
+      } else {
+        __classPrivateFieldGet(this, _OnnxruntimeSessionHandler_inferenceSession, "f").loadModel(pathOrBuffer.buffer, pathOrBuffer.byteOffset, pathOrBuffer.byteLength, options);
+      }
+      this.inputNames = [];
+      this.outputNames = [];
+      this.inputMetadata = [];
+      this.outputMetadata = [];
+      const fillNamesAndMetadata = (rawMetadata) => {
+        const names = [];
+        const metadata = [];
+        for (const m of rawMetadata) {
+          names.push(m.name);
+          if (!m.isTensor) {
+            metadata.push({ name: m.name, isTensor: false });
+          } else {
+            const type = dataTypeStrings[m.type];
+            if (type === void 0) {
+              throw new Error(`Unsupported data type: ${m.type}`);
+            }
+            const shape = [];
+            for (let i = 0; i < m.shape.length; ++i) {
+              const dim = m.shape[i];
+              if (dim === -1) {
+                shape.push(m.symbolicDimensions[i]);
+              } else if (dim >= 0) {
+                shape.push(dim);
+              } else {
+                throw new Error(`Invalid dimension: ${dim}`);
+              }
+            }
+            metadata.push({
+              name: m.name,
+              isTensor: m.isTensor,
+              type,
+              shape
+            });
+          }
+        }
+        return [names, metadata];
+      };
+      [this.inputNames, this.inputMetadata] = fillNamesAndMetadata(__classPrivateFieldGet(this, _OnnxruntimeSessionHandler_inferenceSession, "f").inputMetadata);
+      [this.outputNames, this.outputMetadata] = fillNamesAndMetadata(__classPrivateFieldGet(this, _OnnxruntimeSessionHandler_inferenceSession, "f").outputMetadata);
     }
-    if ([
-      constants.COLORTYPE_GRAYSCALE,
-      constants.COLORTYPE_COLOR,
-      constants.COLORTYPE_COLOR_ALPHA,
-      constants.COLORTYPE_ALPHA
-    ].indexOf(options.inputColorType) === -1) {
-      throw new Error(
-        "option input color type:" + options.inputColorType + " is not supported at present"
-      );
+    async dispose() {
+      __classPrivateFieldGet(this, _OnnxruntimeSessionHandler_inferenceSession, "f").dispose();
     }
-    if (options.bitDepth !== 8 && options.bitDepth !== 16) {
-      throw new Error(
-        "option bit depth:" + options.bitDepth + " is not supported at present"
-      );
+    startProfiling() {
     }
-  };
-  Packer.prototype.getDeflateOptions = function() {
-    return {
-      chunkSize: this._options.deflateChunkSize,
-      level: this._options.deflateLevel,
-      strategy: this._options.deflateStrategy
-    };
-  };
-  Packer.prototype.createDeflate = function() {
-    return this._options.deflateFactory(this.getDeflateOptions());
-  };
-  Packer.prototype.filterData = function(data, width, height) {
-    let packedData = bitPacker(data, width, height, this._options);
-    let bpp = constants.COLORTYPE_TO_BPP_MAP[this._options.colorType];
-    let filteredData = filter(packedData, width, height, this._options, bpp);
-    return filteredData;
-  };
-  Packer.prototype._packChunk = function(type, data) {
-    let len = data ? data.length : 0;
-    let buf = Buffer.alloc(len + 12);
-    buf.writeUInt32BE(len, 0);
-    buf.writeUInt32BE(type, 4);
-    if (data) {
-      data.copy(buf, 8);
+    endProfiling() {
+      __classPrivateFieldGet(this, _OnnxruntimeSessionHandler_inferenceSession, "f").endProfiling();
     }
-    buf.writeInt32BE(
-      CrcStream.crc32(buf.slice(4, buf.length - 4)),
-      buf.length - 4
-    );
-    return buf;
-  };
-  Packer.prototype.packGAMA = function(gamma) {
-    let buf = Buffer.alloc(4);
-    buf.writeUInt32BE(Math.floor(gamma * constants.GAMMA_DIVISION), 0);
-    return this._packChunk(constants.TYPE_gAMA, buf);
-  };
-  Packer.prototype.packIHDR = function(width, height) {
-    let buf = Buffer.alloc(13);
-    buf.writeUInt32BE(width, 0);
-    buf.writeUInt32BE(height, 4);
-    buf[8] = this._options.bitDepth;
-    buf[9] = this._options.colorType;
-    buf[10] = 0;
-    buf[11] = 0;
-    buf[12] = 0;
-    return this._packChunk(constants.TYPE_IHDR, buf);
-  };
-  Packer.prototype.packIDAT = function(data) {
-    return this._packChunk(constants.TYPE_IDAT, data);
-  };
-  Packer.prototype.packIEND = function() {
-    return this._packChunk(constants.TYPE_IEND, null);
-  };
-  return packer.exports;
+    async run(feeds, fetches, options) {
+      return new Promise((resolve, reject) => {
+        setImmediate(() => {
+          try {
+            resolve(__classPrivateFieldGet(this, _OnnxruntimeSessionHandler_inferenceSession, "f").run(feeds, fetches, options));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      });
+    }
+  }
+  _OnnxruntimeSessionHandler_inferenceSession = /* @__PURE__ */ new WeakMap();
+  class OnnxruntimeBackend {
+    async init() {
+      return Promise.resolve();
+    }
+    async createInferenceSessionHandler(pathOrBuffer, options) {
+      return new Promise((resolve, reject) => {
+        setImmediate(() => {
+          try {
+            resolve(new OnnxruntimeSessionHandler(pathOrBuffer, options || {}));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      });
+    }
+  }
+  backend.onnxruntimeBackend = new OnnxruntimeBackend();
+  backend.listSupportedBackends = binding_1.binding.listSupportedBackends;
+  return backend;
 }
 export {
-  requirePacker as __require
+  requireBackend as __require
 };
 //# sourceMappingURL=index45.js.map

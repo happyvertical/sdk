@@ -1,5 +1,5 @@
-import { a as SmrtClass, c as createPersistenceAdapter } from "./chunks/collection-BGOgPnHN.js";
-import { A, f, C, g, h, i, d, e, S, b } from "./chunks/collection-BGOgPnHN.js";
+import { a as SmrtClass, c as createPersistenceAdapter } from "./chunks/collection-fcVk8Wh3.js";
+import { A, f, C, g, h, i, d, e, S, b } from "./chunks/collection-fcVk8Wh3.js";
 import { ValidationError, RuntimeError, DatabaseError, ErrorUtils } from "./chunks/errors-Cl0_Kxat.js";
 import { AIError, ConfigurationError, FilesystemError, NetworkError, SmrtError, ValidationReport, ValidationUtils } from "./chunks/errors-Cl0_Kxat.js";
 import { Field } from "./fields.js";
@@ -9,15 +9,15 @@ import { MCPGenerator } from "./generators/mcp.js";
 import { APIGenerator, createRestServer, startRestServer } from "./generators/rest.js";
 import { generateOpenAPISpec, setupSwaggerUI } from "./generators/swagger.js";
 import { escapeSqlValue } from "@have/sql";
-import { O as ObjectRegistry, f as fieldsFromClass, s as setupTableFromClass, t as tableNameFromClass, a as toSnakeCase } from "./chunks/registry-k1kmsUq0.js";
-import { b as b2, b as b3 } from "./chunks/registry-k1kmsUq0.js";
+import { O as ObjectRegistry, f as fieldsFromClass, s as setupTableFromClass, t as tableNameFromClass, a as toSnakeCase } from "./chunks/registry-DirJKcgN.js";
+import { b as b2, b as b3 } from "./chunks/registry-DirJKcgN.js";
 import { a, c, b as b4 } from "./chunks/server-DwHneUSW.js";
 import { getManifest } from "./manifest.js";
 import { M, c as c2, a as a2, b as b5, s } from "./chunks/manifest-generator-Bb3IuFsV.js";
 import { MetricsAdapter } from "./chunks/metrics-JaU-tpt3.js";
 import { PubSubAdapter } from "./chunks/pubsub-BJ1ZU6QU.js";
-import { smrtPlugin } from "./vite-plugin.js";
-import { staticManifest } from "./chunks/static-manifest-Bo2Ao2ZF.js";
+import { s as s2 } from "./chunks/index-CBwtE8XY.js";
+import { staticManifest } from "./chunks/static-manifest-C9XjwjJV.js";
 function validateToolCall(methodName, args, allowedMethods) {
   if (!allowedMethods.includes(methodName)) {
     throw ValidationError.invalidValue(
@@ -999,26 +999,24 @@ Based on the content body, please follow the instructions and provide a response
     }
     const id = crypto.randomUUID();
     const now = /* @__PURE__ */ new Date();
-    await this.systemDb.run(
+    await this.systemDb.query(
       `INSERT OR REPLACE INTO _smrt_notes (
         id, owner_class, owner_id, scope, key, value, metadata,
         version, confidence, created_at, updated_at, last_used_at, expires_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        this._className,
-        this.id,
-        options.scope,
-        options.key,
-        JSON.stringify(options.value),
-        options.metadata ? JSON.stringify(options.metadata) : null,
-        options.version ?? 1,
-        options.confidence ?? 1,
-        now,
-        now,
-        now,
-        options.expiresAt ?? null
-      ]
+      id,
+      this._className,
+      this.id,
+      options.scope,
+      options.key,
+      JSON.stringify(options.value),
+      options.metadata ? JSON.stringify(options.metadata) : null,
+      options.version ?? 1,
+      options.confidence ?? 1,
+      now,
+      now,
+      now,
+      options.expiresAt ?? null
     );
   }
   /**
@@ -1125,7 +1123,7 @@ Based on the content body, please follow the instructions and provide a response
       params.push(options.minConfidence);
     }
     query += ` ORDER BY confidence DESC`;
-    const rows = await this.systemDb.all(query, params);
+    const { rows } = await this.systemDb.query(query, ...params);
     for (const row of rows) {
       results.set(row.key, JSON.parse(row.value));
     }
@@ -1152,10 +1150,13 @@ Based on the content body, please follow the instructions and provide a response
     if (!this.systemDb) {
       throw new Error("Database not initialized. Call initialize() first.");
     }
-    await this.systemDb.run(
+    await this.systemDb.query(
       `DELETE FROM _smrt_notes
        WHERE owner_class = ? AND owner_id = ? AND scope = ? AND key = ?`,
-      [this._className, this.id, options.scope, options.key]
+      this._className,
+      this.id,
+      options.scope,
+      options.key
     );
   }
   /**
@@ -1192,8 +1193,8 @@ Based on the content body, please follow the instructions and provide a response
       query += ` AND scope = ?`;
       params.push(options.scope);
     }
-    const result = await this.systemDb.run(query, params);
-    return result.changes || 0;
+    const { rowCount } = await this.systemDb.query(query, ...params);
+    return rowCount || 0;
   }
 }
 class Pleb extends SmrtObject {
@@ -1290,7 +1291,7 @@ export {
   setupSwaggerUI,
   s as shouldIncludeMethod,
   b2 as smrt,
-  smrtPlugin,
+  s2 as smrtPlugin,
   b3 as smrtRegistry,
   startRestServer,
   text,

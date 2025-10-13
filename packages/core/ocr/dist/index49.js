@@ -1,5 +1,5 @@
-var cjs = {};
+var chunkstream = { exports: {} };
 export {
-  cjs as __exports
+  chunkstream as __module
 };
 //# sourceMappingURL=index49.js.map

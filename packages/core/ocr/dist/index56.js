@@ -1,69 +1,144 @@
-import { __exports as trace } from "./index92.js";
-import { __require as requireEnvImpl } from "./index85.js";
-var hasRequiredTrace;
-function requireTrace() {
-  if (hasRequiredTrace) return trace;
-  hasRequiredTrace = 1;
-  (function(exports) {
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.TRACE_EVENT_END = exports.TRACE_EVENT_BEGIN = exports.TRACE_FUNC_END = exports.TRACE_FUNC_BEGIN = exports.TRACE = void 0;
-    const env_impl_js_1 = requireEnvImpl();
-    const TRACE = (deviceType, label) => {
-      if (typeof env_impl_js_1.env.trace === "undefined" ? !env_impl_js_1.env.wasm.trace : !env_impl_js_1.env.trace) {
+import { __module as syncInflate } from "./index84.js";
+import require$$0 from "assert";
+import require$$1 from "zlib";
+import require$$0$1 from "util";
+import require$$3 from "buffer";
+var hasRequiredSyncInflate;
+function requireSyncInflate() {
+  if (hasRequiredSyncInflate) return syncInflate.exports;
+  hasRequiredSyncInflate = 1;
+  (function(module, exports) {
+    let assert = require$$0.ok;
+    let zlib = require$$1;
+    let util = require$$0$1;
+    let kMaxLength = require$$3.kMaxLength;
+    function Inflate(opts) {
+      if (!(this instanceof Inflate)) {
+        return new Inflate(opts);
+      }
+      if (opts && opts.chunkSize < zlib.Z_MIN_CHUNK) {
+        opts.chunkSize = zlib.Z_MIN_CHUNK;
+      }
+      zlib.Inflate.call(this, opts);
+      this._offset = this._offset === void 0 ? this._outOffset : this._offset;
+      this._buffer = this._buffer || this._outBuffer;
+      if (opts && opts.maxLength != null) {
+        this._maxLength = opts.maxLength;
+      }
+    }
+    function createInflate(opts) {
+      return new Inflate(opts);
+    }
+    function _close(engine, callback) {
+      if (!engine._handle) {
         return;
       }
-      console.timeStamp(`${deviceType}::ORT::${label}`);
-    };
-    exports.TRACE = TRACE;
-    const TRACE_FUNC = (msg, extraMsg) => {
-      const stack = new Error().stack?.split(/\r\n|\r|\n/g) || [];
-      let hasTraceFunc = false;
-      for (let i = 0; i < stack.length; i++) {
-        if (hasTraceFunc && !stack[i].includes("TRACE_FUNC")) {
-          let label = `FUNC_${msg}::${stack[i].trim().split(" ")[1]}`;
-          if (extraMsg) {
-            label += `::${extraMsg}`;
-          }
-          (0, exports.TRACE)("CPU", label);
+      engine._handle.close();
+      engine._handle = null;
+    }
+    Inflate.prototype._processChunk = function(chunk, flushFlag, asyncCb) {
+      if (typeof asyncCb === "function") {
+        return zlib.Inflate._processChunk.call(this, chunk, flushFlag, asyncCb);
+      }
+      let self = this;
+      let availInBefore = chunk && chunk.length;
+      let availOutBefore = this._chunkSize - this._offset;
+      let leftToInflate = this._maxLength;
+      let inOff = 0;
+      let buffers = [];
+      let nread = 0;
+      let error;
+      this.on("error", function(err) {
+        error = err;
+      });
+      function handleChunk(availInAfter, availOutAfter) {
+        if (self._hadError) {
           return;
         }
-        if (stack[i].includes("TRACE_FUNC")) {
-          hasTraceFunc = true;
+        let have = availOutBefore - availOutAfter;
+        assert(have >= 0, "have should not go down");
+        if (have > 0) {
+          let out = self._buffer.slice(self._offset, self._offset + have);
+          self._offset += have;
+          if (out.length > leftToInflate) {
+            out = out.slice(0, leftToInflate);
+          }
+          buffers.push(out);
+          nread += out.length;
+          leftToInflate -= out.length;
+          if (leftToInflate === 0) {
+            return false;
+          }
         }
+        if (availOutAfter === 0 || self._offset >= self._chunkSize) {
+          availOutBefore = self._chunkSize;
+          self._offset = 0;
+          self._buffer = Buffer.allocUnsafe(self._chunkSize);
+        }
+        if (availOutAfter === 0) {
+          inOff += availInBefore - availInAfter;
+          availInBefore = availInAfter;
+          return true;
+        }
+        return false;
       }
-    };
-    const TRACE_FUNC_BEGIN = (extraMsg) => {
-      if (typeof env_impl_js_1.env.trace === "undefined" ? !env_impl_js_1.env.wasm.trace : !env_impl_js_1.env.trace) {
-        return;
+      assert(this._handle, "zlib binding closed");
+      let res;
+      do {
+        res = this._handle.writeSync(
+          flushFlag,
+          chunk,
+          // in
+          inOff,
+          // in_off
+          availInBefore,
+          // in_len
+          this._buffer,
+          // out
+          this._offset,
+          //out_off
+          availOutBefore
+        );
+        res = res || this._writeState;
+      } while (!this._hadError && handleChunk(res[0], res[1]));
+      if (this._hadError) {
+        throw error;
       }
-      TRACE_FUNC("BEGIN", extraMsg);
-    };
-    exports.TRACE_FUNC_BEGIN = TRACE_FUNC_BEGIN;
-    const TRACE_FUNC_END = (extraMsg) => {
-      if (typeof env_impl_js_1.env.trace === "undefined" ? !env_impl_js_1.env.wasm.trace : !env_impl_js_1.env.trace) {
-        return;
+      if (nread >= kMaxLength) {
+        _close(this);
+        throw new RangeError(
+          "Cannot create final Buffer. It would be larger than 0x" + kMaxLength.toString(16) + " bytes"
+        );
       }
-      TRACE_FUNC("END", extraMsg);
+      let buf = Buffer.concat(buffers, nread);
+      _close(this);
+      return buf;
     };
-    exports.TRACE_FUNC_END = TRACE_FUNC_END;
-    const TRACE_EVENT_BEGIN = (extraMsg) => {
-      if (typeof env_impl_js_1.env.trace === "undefined" ? !env_impl_js_1.env.wasm.trace : !env_impl_js_1.env.trace) {
-        return;
+    util.inherits(Inflate, zlib.Inflate);
+    function zlibBufferSync(engine, buffer) {
+      if (typeof buffer === "string") {
+        buffer = Buffer.from(buffer);
       }
-      console.time(`ORT::${extraMsg}`);
-    };
-    exports.TRACE_EVENT_BEGIN = TRACE_EVENT_BEGIN;
-    const TRACE_EVENT_END = (extraMsg) => {
-      if (typeof env_impl_js_1.env.trace === "undefined" ? !env_impl_js_1.env.wasm.trace : !env_impl_js_1.env.trace) {
-        return;
+      if (!(buffer instanceof Buffer)) {
+        throw new TypeError("Not a string or buffer");
       }
-      console.timeEnd(`ORT::${extraMsg}`);
-    };
-    exports.TRACE_EVENT_END = TRACE_EVENT_END;
-  })(trace);
-  return trace;
+      let flushFlag = engine._finishFlushFlag;
+      if (flushFlag == null) {
+        flushFlag = zlib.Z_FINISH;
+      }
+      return engine._processChunk(buffer, flushFlag);
+    }
+    function inflateSync(buffer, opts) {
+      return zlibBufferSync(new Inflate(opts), buffer);
+    }
+    module.exports = exports = inflateSync;
+    exports.Inflate = Inflate;
+    exports.createInflate = createInflate;
+    exports.inflateSync = inflateSync;
+  })(syncInflate, syncInflate.exports);
+  return syncInflate.exports;
 }
 export {
-  requireTrace as __require
+  requireSyncInflate as __require
 };
 //# sourceMappingURL=index56.js.map

@@ -1,5 +1,5 @@
-import { S as SmrtCollection } from "../chunks/collection-BGOgPnHN.js";
-import { O as ObjectRegistry } from "../chunks/registry-k1kmsUq0.js";
+import { S as SmrtCollection } from "../chunks/collection-fcVk8Wh3.js";
+import { O as ObjectRegistry } from "../chunks/registry-DirJKcgN.js";
 class MCPGenerator {
   config;
   context;

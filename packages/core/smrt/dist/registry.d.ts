@@ -439,6 +439,116 @@ export declare class ObjectRegistry {
      */
     static getRelationships(className: string): RelationshipMetadata[];
     /**
+     * Get complete metadata for a single object (convenience method)
+     *
+     * Returns all available metadata for an object in a single call, including:
+     * - Class information
+     * - Field definitions
+     * - Configuration
+     * - Schema definition
+     * - Validators
+     * - Relationships
+     * - Tools (AI-callable methods)
+     *
+     * This is a convenience method that aggregates multiple registry queries
+     * into a single comprehensive metadata object.
+     *
+     * @param className - Name of the class to get metadata for
+     * @returns Complete metadata object or null if class not found
+     * @example
+     * ```typescript
+     * const productMeta = ObjectRegistry.getObjectMetadata('Product');
+     * if (productMeta) {
+     *   console.log('Name:', productMeta.name);
+     *   console.log('Table:', productMeta.schema.tableName);
+     *   console.log('Fields:', productMeta.fields.size);
+     *   console.log('API config:', productMeta.config.api);
+     *   console.log('Relationships:', productMeta.relationships.length);
+     * }
+     * ```
+     */
+    static getObjectMetadata(className: string): {
+        name: string;
+        constructor: typeof SmrtObject;
+        collectionConstructor?: new (options: any) => SmrtCollection<any>;
+        config: SmartObjectConfig;
+        fields: Map<string, any>;
+        schema: SchemaDefinition | undefined;
+        validators: ValidatorFunction[];
+        relationships: RelationshipMetadata[];
+        inverseRelationships: RelationshipMetadata[];
+        tools?: Array<{
+            type: 'function';
+            function: {
+                name: string;
+                description?: string;
+                parameters?: Record<string, any>;
+            };
+        }>;
+    } | null;
+    /**
+     * Get metadata for all registered objects (convenience method)
+     *
+     * Returns comprehensive metadata for every registered object, combining
+     * multiple registry queries into a single convenient data structure.
+     *
+     * This is particularly useful for:
+     * - Admin dashboards showing all objects
+     * - Documentation generation
+     * - Schema visualization
+     * - Debugging and introspection
+     *
+     * @returns Array of complete metadata objects for all registered classes
+     * @example
+     * ```typescript
+     * const allMetadata = ObjectRegistry.getAllObjectMetadata();
+     *
+     * // Generate admin dashboard
+     * for (const meta of allMetadata) {
+     *   console.log(`${meta.name}:`);
+     *   console.log(`  Table: ${meta.schema?.tableName}`);
+     *   console.log(`  Fields: ${meta.fields.size}`);
+     *   console.log(`  API: ${meta.config.api ? 'enabled' : 'disabled'}`);
+     *   console.log(`  Relationships: ${meta.relationships.length}`);
+     * }
+     *
+     * // Generate schema documentation
+     * const schemaDoc = allMetadata.map(meta => ({
+     *   name: meta.name,
+     *   table: meta.schema?.tableName,
+     *   fields: Array.from(meta.fields.entries()).map(([name, field]) => ({
+     *     name,
+     *     type: field.type,
+     *     required: field.options?.required || false
+     *   })),
+     *   relationships: meta.relationships.map(rel => ({
+     *     field: rel.fieldName,
+     *     target: rel.targetClass,
+     *     type: rel.type
+     *   }))
+     * }));
+     * ```
+     */
+    static getAllObjectMetadata(): Array<{
+        name: string;
+        constructor: typeof SmrtObject;
+        collectionConstructor?: new (options: any) => SmrtCollection<any>;
+        config: SmartObjectConfig;
+        fields: Map<string, any>;
+        schema: SchemaDefinition | undefined;
+        validators: ValidatorFunction[];
+        relationships: RelationshipMetadata[];
+        inverseRelationships: RelationshipMetadata[];
+        tools?: Array<{
+            type: 'function';
+            function: {
+                name: string;
+                description?: string;
+                parameters?: Record<string, any>;
+            };
+        }>;
+    }>;
+    /**
      * Get inverse relationships (relationships where this class is the target)
      *
      * @param className - Name of the class to find inverse relationships for

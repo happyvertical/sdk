@@ -1,6 +1,34 @@
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
+
+// Function to read smrt package exports and generate entries
+function getSmrtEntries(directory: 'core' | 'modules') {
+  const pkgPath = resolve(
+    __dirname,
+    `packages/${directory}/smrt/package.json`,
+  );
+  const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'));
+  const entries: Record<string, string> = {};
+
+  for (const [key, value] of Object.entries(pkg.exports as Record<string, string>)) {
+    // Convert export key to entry name: '.' → 'index', './fields' → 'fields'
+    const entryName = key === '.' ? 'index' : key.replace(/^\.\//, '');
+
+    // Convert dist path to source path: './dist/fields.js' → 'src/fields.ts'
+    const sourcePath = value
+      .replace(/^\.\/dist\//, 'src/')
+      .replace(/\.js$/, '.ts');
+
+    entries[entryName] = resolve(
+      __dirname,
+      `packages/${directory}/smrt/${sourcePath}`,
+    );
+  }
+
+  return entries;
+}
 
 // Function to create per-package build configuration
 function createPackageBuild(
@@ -8,6 +36,147 @@ function createPackageBuild(
   entryPath: string,
   directory: 'core' | 'modules',
 ) {
+  // Special handling for smrt package with multiple entry points
+  if (packageName === 'smrt') {
+    const entries = getSmrtEntries(directory);
+
+    return {
+      lib: {
+        entry: entries,
+        formats: ['es'] as const,
+      },
+      rollupOptions: {
+        output: {
+          dir: `packages/${directory}/${packageName}/dist`,
+          format: 'es' as const,
+          preserveModules: false, // Bundle entry points for smrt
+          entryFileNames: '[name].js',
+          chunkFileNames: 'chunks/[name]-[hash].js',
+        },
+        external: [
+          // Node.js built-ins - externalize completely to avoid api-extractor issues
+          /^node:/,
+          /^bun:/,
+          'fs',
+          'path',
+          'url',
+          'os',
+          'crypto',
+        'stream',
+        'util',
+        'events',
+        'child_process',
+        'buffer',
+        'Buffer',
+        'zlib',
+        'assert',
+        'http',
+        'https',
+        'net',
+        'tls',
+        'dns',
+        'cluster',
+        'worker_threads',
+        'perf_hooks',
+        'readline',
+        'repl',
+        'vm',
+        'v8',
+        'inspector',
+
+        // External dependencies - don't bundle these
+        'svelte',
+        'vite',
+        'vitest',
+        'cheerio',
+        'crawlee',
+        'puppeteer',
+        'playwright',
+        'playwright-core',
+        'sqlite3',
+        'better-sqlite3',
+        'pg',
+        'mysql2',
+        'typeorm',
+        'prisma',
+        '@prisma/client',
+        'sharp',
+        'canvas',
+        'pdf-parse',
+        'pdf2pic',
+        'tesseract.js',
+        'openai',
+        /^openai\//,
+        'anthropic',
+        '@anthropic-ai/sdk',
+        '@google/generative-ai',
+        '@google/genai',
+        '@aws-sdk/client-bedrock-runtime',
+        '@langchain/core',
+        '@langchain/openai',
+        '@langchain/anthropic',
+        '@langchain/community',
+        'date-fns',
+        'pluralize',
+        'uuid',
+        '@paralleldrive/cuid2',
+        'yaml',
+        'jsdom',
+        'happy-dom',
+        'axios',
+        'node-fetch',
+        'express',
+        'cors',
+        'dotenv',
+        'typescript',
+        '@googlemaps/google-maps-services-js',
+        '@google-cloud/translate',
+        'deepl-node',
+        'redis',
+
+        // Internal @have/* packages - externalize to avoid cross-package bundling issues
+        '@have/types',
+        '@have/config',
+        '@have/utils',
+        '@have/logger',
+        '@have/files',
+        '@have/cache',
+        '@have/geo',
+        '@have/translator',
+        '@have/sql',
+        '@have/ocr',
+        '@have/pdf',
+        '@have/documents',
+        '@have/ai',
+        '@have/spider',
+        '@have/smrt',
+        '@have/agents',
+        '@have/tags',
+        '@have/places',
+        '@have/profiles',
+        '@have/events',
+        '@have/assets',
+        '@have/accounts',
+        '@have/gnode',
+        '@have/content',
+        '@have/products',
+
+        // Virtual modules from SMRT framework
+        '@smrt/types',
+        '@smrt/routes',
+        '@smrt/client',
+        '@smrt/mcp',
+        '@smrt/manifest',
+      ],
+    },
+    minify: false, // Keep code readable for library usage
+    sourcemap: true,
+    target: 'es2022',
+    reportCompressedSize: false, // Speed up build
+  };
+  }
+
+  // Standard configuration for all other packages (single entry, preserveModules: true)
   return {
     lib: {
       entry: resolve(__dirname, entryPath),
