@@ -1,0 +1,52 @@
+import { __module as resolveFrom } from "./index68.js";
+import require$$0$1 from "path";
+import require$$0$2 from "./index14.js";
+import require$$0 from "fs";
+var hasRequiredResolveFrom;
+function requireResolveFrom() {
+  if (hasRequiredResolveFrom) return resolveFrom.exports;
+  hasRequiredResolveFrom = 1;
+  const path = require$$0$1;
+  const Module = require$$0$2;
+  const fs = require$$0;
+  const resolveFrom$1 = (fromDir, moduleId, silent) => {
+    if (typeof fromDir !== "string") {
+      throw new TypeError(`Expected \`fromDir\` to be of type \`string\`, got \`${typeof fromDir}\``);
+    }
+    if (typeof moduleId !== "string") {
+      throw new TypeError(`Expected \`moduleId\` to be of type \`string\`, got \`${typeof moduleId}\``);
+    }
+    try {
+      fromDir = fs.realpathSync(fromDir);
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        fromDir = path.resolve(fromDir);
+      } else if (silent) {
+        return null;
+      } else {
+        throw err;
+      }
+    }
+    const fromFile = path.join(fromDir, "noop.js");
+    const resolveFileName = () => Module._resolveFilename(moduleId, {
+      id: fromFile,
+      filename: fromFile,
+      paths: Module._nodeModulePaths(fromDir)
+    });
+    if (silent) {
+      try {
+        return resolveFileName();
+      } catch (err) {
+        return null;
+      }
+    }
+    return resolveFileName();
+  };
+  resolveFrom.exports = (fromDir, moduleId) => resolveFrom$1(fromDir, moduleId);
+  resolveFrom.exports.silent = (fromDir, moduleId) => resolveFrom$1(fromDir, moduleId, true);
+  return resolveFrom.exports;
+}
+export {
+  requireResolveFrom as __require
+};
+//# sourceMappingURL=index28.js.map
