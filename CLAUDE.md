@@ -151,6 +151,122 @@ The following packages are SMRT-specific modules located in the `smrt/` director
 
 **Note**: All packages now use Node.js-only builds for simplified deployment and better performance. The dual-target (browser/node) architecture has been removed in favor of focused Node.js development.
 
+### SMRT System Tables
+
+The SMRT framework includes built-in system tables for storing framework metadata alongside user data. These tables use a `_smrt_` prefix to avoid naming conflicts:
+
+#### System Tables Architecture
+
+- **`_smrt_notes`**: Self-learning pattern cache for AI agents
+  - Stores discovered patterns, successful strategies, and learned behaviors
+  - Includes confidence tracking and hierarchical scoping (e.g., `discovery/parser/domain.com`)
+  - Supports versioning and expiration for evolving patterns
+  - Used by `note()`, `recall()`, `recallAll()`, `forget()`, and `forgetScope()` methods
+
+- **`_smrt_migrations`**: Schema version tracking
+  - Records framework schema changes and migrations
+  - Tracks applied migrations with timestamps and descriptions
+  - Enables backward compatibility and upgrade paths
+
+- **`_smrt_registry`**: Object registry persistence
+  - Stores metadata about registered SMRT objects
+  - Includes field definitions, relationships, and configuration
+  - Supports runtime introspection and code generation
+
+- **`_smrt_signals`**: Signal history and audit log
+  - Records signal events across the application
+  - Enables debugging, monitoring, and audit trails
+  - Supports temporal queries and event replay
+
+#### Database Initialization
+
+System tables are automatically created when `SmrtClass.initialize()` is called:
+
+```typescript
+class MyAgent extends SmrtObject {
+  // ...
+}
+
+const agent = new MyAgent({ db: 'my-database.db' });
+await agent.initialize(); // System tables created automatically
+
+// System tables are now available
+await agent.note({
+  scope: 'discovery/parser',
+  key: 'date-format',
+  value: 'MM/DD/YYYY',
+  confidence: 0.95
+});
+```
+
+**Key Features**:
+- **Idempotent initialization**: Tables only created once per database
+- **Shared database**: System tables use the same database as user data
+- **Per-database tracking**: Static Set tracks which databases have been initialized
+- **No migration required**: Fresh installations get the latest schema automatically
+
+#### Using System Tables
+
+All SMRT objects have built-in methods for working with system tables:
+
+```typescript
+// Store learned patterns
+await agent.note({
+  scope: 'parser/html',
+  key: 'selector',
+  value: '.content > article',
+  confidence: 0.9
+});
+
+// Recall patterns with hierarchical fallback
+const selector = await agent.recall({
+  scope: 'parser/html/example.com',
+  key: 'selector',
+  includeAncestors: true // Falls back to parent scopes
+});
+
+// Recall all matching patterns
+const allSelectors = await agent.recallAll({
+  scope: 'parser/html',
+  includeDescendants: true // Includes child scopes
+});
+
+// Clean up old patterns
+await agent.forget({
+  scope: 'parser/html',
+  key: 'old-selector'
+});
+
+await agent.forgetScope({
+  scope: 'parser/html/old-domain.com'
+});
+```
+
+**Hierarchical Scoping Example**:
+```typescript
+// Store at specific scope
+await agent.note({
+  scope: 'discovery/parser/example.com',
+  key: 'date-format',
+  value: 'MM/DD/YYYY'
+});
+
+// Store at parent scope
+await agent.note({
+  scope: 'discovery/parser',
+  key: 'date-format',
+  value: 'ISO-8601' // Fallback for unknown domains
+});
+
+// Recall with fallback
+const format = await agent.recall({
+  scope: 'discovery/parser/new-domain.com',
+  key: 'date-format',
+  includeAncestors: true
+});
+// Returns 'ISO-8601' (parent scope) since new-domain.com has no specific pattern
+```
+
 ### Code Style and Conventions
 
 - Code formatting is enforced by Biome
