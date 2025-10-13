@@ -561,6 +561,133 @@ describe('scrapeDocument', () => {
     });
   });
 
+  describe('Scraper configuration options', () => {
+    it('should use default basic scraper with dom spider when no options provided', async () => {
+      const mockScraper = {
+        scrape: vi.fn().mockResolvedValue({
+          url: 'https://example.com/page',
+          content: '<html><body><p>Content</p></body></html>',
+          links: [],
+          strategy: { type: 'basic', spider: 'dom', config: {}, confidence: 1 },
+          metrics: { duration: 100, linkCount: 0, complete: true },
+        }),
+      };
+
+      vi.mocked(scraperFactory.getScraper).mockResolvedValue(mockScraper as any);
+
+      await scrapeDocument('https://example.com/page');
+
+      // Should request basic scraper with dom spider (defaults)
+      expect(scraperFactory.getScraper).toHaveBeenCalledWith({
+        scraper: 'basic',
+        spider: 'dom',
+      });
+    });
+
+    it('should use crawlee scraper when specified in options', async () => {
+      const mockScraper = {
+        scrape: vi.fn().mockResolvedValue({
+          url: 'https://example.com/js-heavy-page',
+          content: '<html><body><p>JavaScript-generated content</p></body></html>',
+          links: [],
+          strategy: { type: 'basic', spider: 'crawlee', config: {}, confidence: 1 },
+          metrics: { duration: 2000, linkCount: 5, complete: true },
+        }),
+      };
+
+      vi.mocked(scraperFactory.getScraper).mockResolvedValue(mockScraper as any);
+
+      await scrapeDocument('https://example.com/js-heavy-page', {
+        scraper: 'crawlee',
+      });
+
+      // Should request basic scraper with crawlee spider
+      expect(scraperFactory.getScraper).toHaveBeenCalledWith({
+        scraper: 'crawlee',
+        spider: 'dom',  // Default spider when scraper specified
+      });
+    });
+
+    it('should use simple spider when specified in options', async () => {
+      const mockScraper = {
+        scrape: vi.fn().mockResolvedValue({
+          url: 'https://example.com/simple-page',
+          content: '<html><body><p>Simple HTML</p></body></html>',
+          links: [],
+          strategy: { type: 'basic', spider: 'simple', config: {}, confidence: 1 },
+          metrics: { duration: 50, linkCount: 0, complete: true },
+        }),
+      };
+
+      vi.mocked(scraperFactory.getScraper).mockResolvedValue(mockScraper as any);
+
+      await scrapeDocument('https://example.com/simple-page', {
+        spider: 'simple',
+      });
+
+      // Should request basic scraper with simple spider
+      expect(scraperFactory.getScraper).toHaveBeenCalledWith({
+        scraper: 'basic',
+        spider: 'simple',
+      });
+    });
+
+    it('should allow both scraper and spider to be configured', async () => {
+      const mockScraper = {
+        scrape: vi.fn().mockResolvedValue({
+          url: 'https://example.com/custom-config',
+          content: '<html><body><p>Custom scraper config</p></body></html>',
+          links: [],
+          strategy: { type: 'basic', spider: 'crawlee', config: {}, confidence: 1 },
+          metrics: { duration: 1500, linkCount: 3, complete: true },
+        }),
+      };
+
+      vi.mocked(scraperFactory.getScraper).mockResolvedValue(mockScraper as any);
+
+      await scrapeDocument('https://example.com/custom-config', {
+        scraper: 'crawlee',
+        spider: 'crawlee',
+      });
+
+      // Should request specified scraper and spider
+      expect(scraperFactory.getScraper).toHaveBeenCalledWith({
+        scraper: 'crawlee',
+        spider: 'crawlee',
+      });
+    });
+
+    it('should pass through other options like timeout and cache', async () => {
+      const mockScraper = {
+        scrape: vi.fn().mockResolvedValue({
+          url: 'https://example.com/page-with-options',
+          content: '<html><body><p>Content</p></body></html>',
+          links: [],
+          strategy: { type: 'basic', spider: 'dom', config: {}, confidence: 1 },
+          metrics: { duration: 100, linkCount: 0, complete: true },
+        }),
+      };
+
+      vi.mocked(scraperFactory.getScraper).mockResolvedValue(mockScraper as any);
+
+      const options = {
+        scraper: 'basic' as const,
+        spider: 'dom' as const,
+        timeout: 30000,
+        cache: true,
+        headers: { 'User-Agent': 'Test/1.0' },
+      };
+
+      await scrapeDocument('https://example.com/page-with-options', options);
+
+      // scrape() should receive the full options object
+      expect(mockScraper.scrape).toHaveBeenCalledWith(
+        'https://example.com/page-with-options',
+        options
+      );
+    });
+  });
+
   describe('Basic document scraping', () => {
     it('should extract title and description from HTML', async () => {
       const mockScraper = {
