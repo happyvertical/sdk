@@ -354,6 +354,213 @@ describe('scrapeDocument', () => {
     });
   });
 
+  describe('DocuShare document page detection', () => {
+    it('should detect DocuShare document pages with /dsweb/Get/ pattern', async () => {
+      const mockScraper = {
+        scrape: vi.fn().mockResolvedValueOnce({
+          url: 'https://example.com/docushare/dsweb/Get/Document-12345',
+          content: `
+            <html>
+              <head><title>Document Details</title></head>
+              <body>
+                <div class="document-details">
+                  <a href="/dsweb/Get/Document-12345/Council Minutes - Oct 2025.pdf">
+                    Download PDF
+                  </a>
+                </div>
+              </body>
+            </html>
+          `,
+          links: [],
+          strategy: { type: 'basic', spider: 'dom', config: {}, confidence: 1 },
+          metrics: { duration: 100, linkCount: 0, complete: true },
+        }),
+      };
+
+      vi.mocked(scraperFactory.getScraper).mockResolvedValue(mockScraper as any);
+
+      const result = await scrapeDocument(
+        'https://example.com/docushare/dsweb/Get/Document-12345'
+      );
+
+      expect(mockScraper.scrape).toHaveBeenCalledTimes(1);
+      expect(result.url).toBe('https://example.com/dsweb/Get/Document-12345/Council Minutes - Oct 2025.pdf');
+      expect(result.metadata.isPdf).toBe(true);
+      expect(result.metadata.complete).toBe(false);
+      expect(result.metadata.strategy).toBe('docushare-doc-link');
+      expect(result.type).toBe('application/pdf');
+      expect(result.text).toBe('');
+    });
+
+    it('should detect DocuShare with /dsweb/ServicesLib/ pattern', async () => {
+      const mockScraper = {
+        scrape: vi.fn().mockResolvedValueOnce({
+          url: 'https://example.com/docushare/dsweb/View/Collection-567',
+          content: `
+            <html>
+              <body>
+                <div class="document-list">
+                  <a href="/dsweb/ServicesLib/Document-12345/Meeting Agenda.pdf">View Document</a>
+                </div>
+              </body>
+            </html>
+          `,
+          links: [],
+          strategy: { type: 'basic', spider: 'dom', config: {}, confidence: 1 },
+          metrics: { duration: 100, linkCount: 0, complete: true },
+        }),
+      };
+
+      vi.mocked(scraperFactory.getScraper).mockResolvedValue(mockScraper as any);
+
+      const result = await scrapeDocument(
+        'https://example.com/docushare/dsweb/View/Collection-567'
+      );
+
+      expect(result.url).toBe('https://example.com/dsweb/ServicesLib/Document-12345/Meeting Agenda.pdf');
+      expect(result.metadata.isPdf).toBe(true);
+      expect(result.metadata.strategy).toBe('docushare-doc-link');
+    });
+
+    it('should handle DocuShare pages with HTML entities in filename', async () => {
+      const mockScraper = {
+        scrape: vi.fn().mockResolvedValueOnce({
+          url: 'https://example.com/docushare/dsweb/Get/Document-789',
+          content: `
+            <html>
+              <body>
+                <a href="/dsweb/Get/Document-789/Report &amp; Analysis.pdf">Download</a>
+              </body>
+            </html>
+          `,
+          links: [],
+          strategy: { type: 'basic', spider: 'dom', config: {}, confidence: 1 },
+          metrics: { duration: 100, linkCount: 0, complete: true },
+        }),
+      };
+
+      vi.mocked(scraperFactory.getScraper).mockResolvedValue(mockScraper as any);
+
+      const result = await scrapeDocument(
+        'https://example.com/docushare/dsweb/Get/Document-789'
+      );
+
+      expect(result.url).toBe('https://example.com/dsweb/Get/Document-789/Report & Analysis.pdf');
+      expect(result.metadata.isPdf).toBe(true);
+      expect(result.metadata.strategy).toBe('docushare-doc-link');
+    });
+
+    it('should handle DocuShare with various document types', async () => {
+      const mockScraper = {
+        scrape: vi.fn().mockResolvedValueOnce({
+          url: 'https://example.com/docushare/dsweb/Get/Document-999',
+          content: `
+            <html>
+              <body>
+                <a href="/dsweb/Get/Document-999/Spreadsheet.xlsx">Download Excel</a>
+              </body>
+            </html>
+          `,
+          links: [],
+          strategy: { type: 'basic', spider: 'dom', config: {}, confidence: 1 },
+          metrics: { duration: 100, linkCount: 0, complete: true },
+        }),
+      };
+
+      vi.mocked(scraperFactory.getScraper).mockResolvedValue(mockScraper as any);
+
+      const result = await scrapeDocument(
+        'https://example.com/docushare/dsweb/Get/Document-999'
+      );
+
+      expect(result.url).toBe('https://example.com/dsweb/Get/Document-999/Spreadsheet.xlsx');
+      expect(result.metadata.isPdf).toBe(false); // Not a PDF
+      expect(result.type).toBe('application/octet-stream'); // Generic document type
+      expect(result.metadata.strategy).toBe('docushare-doc-link');
+    });
+
+    it('should not trigger DocuShare detection for non-DocuShare URLs', async () => {
+      const mockScraper = {
+        scrape: vi.fn().mockResolvedValue({
+          url: 'https://example.com/documents/view/12345',
+          content: `
+            <html>
+              <body>
+                <a href="/documents/file.pdf">Download</a>
+              </body>
+            </html>
+          `,
+          links: [],
+          strategy: { type: 'basic', spider: 'dom', config: {}, confidence: 1 },
+          metrics: { duration: 100, linkCount: 0, complete: true },
+        }),
+      };
+
+      vi.mocked(scraperFactory.getScraper).mockResolvedValue(mockScraper as any);
+
+      const result = await scrapeDocument('https://example.com/documents/view/12345');
+
+      expect(result.url).toBe('https://example.com/documents/view/12345');
+      expect(result.metadata.isPdf).toBe(false);
+      expect(result.type).toBe('text/html');
+    });
+
+    it('should handle DocuShare pages with no document link found', async () => {
+      const mockScraper = {
+        scrape: vi.fn().mockResolvedValue({
+          url: 'https://example.com/docushare/dsweb/Get/Document-12345',
+          content: `
+            <html>
+              <body>
+                <p>Document not available</p>
+              </body>
+            </html>
+          `,
+          links: [],
+          strategy: { type: 'basic', spider: 'dom', config: {}, confidence: 1 },
+          metrics: { duration: 100, linkCount: 0, complete: true },
+        }),
+      };
+
+      vi.mocked(scraperFactory.getScraper).mockResolvedValue(mockScraper as any);
+
+      const result = await scrapeDocument(
+        'https://example.com/docushare/dsweb/Get/Document-12345'
+      );
+
+      expect(result.url).toBe('https://example.com/docushare/dsweb/Get/Document-12345');
+      expect(result.metadata.isPdf).toBe(false);
+      expect(result.type).toBe('text/html');
+    });
+
+    it('should detect DocuShare by HTML content markers', async () => {
+      const mockScraper = {
+        scrape: vi.fn().mockResolvedValueOnce({
+          url: 'https://example.com/documents/view',
+          content: `
+            <html>
+              <head><meta name="generator" content="DocuShare"></head>
+              <body>
+                <a href="/docushare/Reports/Annual_Report_2025.pdf">Download</a>
+              </body>
+            </html>
+          `,
+          links: [],
+          strategy: { type: 'basic', spider: 'dom', config: {}, confidence: 1 },
+          metrics: { duration: 100, linkCount: 0, complete: true },
+        }),
+      };
+
+      vi.mocked(scraperFactory.getScraper).mockResolvedValue(mockScraper as any);
+
+      const result = await scrapeDocument('https://example.com/documents/view');
+
+      expect(result.url).toBe('https://example.com/docushare/Reports/Annual_Report_2025.pdf');
+      expect(result.metadata.isPdf).toBe(true);
+      expect(result.metadata.strategy).toBe('docushare-doc-link');
+    });
+  });
+
   describe('Basic document scraping', () => {
     it('should extract title and description from HTML', async () => {
       const mockScraper = {
