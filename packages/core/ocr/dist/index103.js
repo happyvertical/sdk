@@ -1,5 +1,5 @@
-var filterParseSync = {};
+var binding = {};
 export {
-  filterParseSync as __exports
+  binding as __exports
 };
 //# sourceMappingURL=index103.js.map

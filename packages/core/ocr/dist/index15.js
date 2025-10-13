@@ -1,5 +1,5 @@
 import fs from "node:fs/promises";
-import { FileUtilsBase } from "./index35.js";
+import { FileUtilsBase } from "./index47.js";
 class FileUtils extends FileUtilsBase {
   static async read(path) {
     return await fs.readFile(path, "utf8");

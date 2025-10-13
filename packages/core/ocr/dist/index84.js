@@ -1,5 +1,5 @@
-var env = {};
+var syncInflate = { exports: {} };
 export {
-  env as __exports
+  syncInflate as __module
 };
 //# sourceMappingURL=index84.js.map

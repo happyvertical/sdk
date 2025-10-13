@@ -1,4 +1,4 @@
-import { getDefaultExportFromCjs } from "./index77.js";
+import { getDefaultExportFromCjs } from "./index62.js";
 import { __require as requireJpegJs } from "./index17.js";
 var jpegJsExports = requireJpegJs();
 const jpeg = /* @__PURE__ */ getDefaultExportFromCjs(jpegJsExports);

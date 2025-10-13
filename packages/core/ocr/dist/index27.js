@@ -1,5 +1,5 @@
-import { Ocr as Ocr$1 } from "./index10.js";
+var parserAsync = { exports: {} };
 export {
-  Ocr$1 as default
+  parserAsync as __module
 };
 //# sourceMappingURL=index27.js.map

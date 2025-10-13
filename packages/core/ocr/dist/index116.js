@@ -1,5 +1,5 @@
-var tensorConversionImpl = {};
+var tensorFactoryImpl = {};
 export {
-  tensorConversionImpl as __exports
+  tensorFactoryImpl as __exports
 };
 //# sourceMappingURL=index116.js.map

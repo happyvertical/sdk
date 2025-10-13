@@ -1,4 +1,4 @@
-import { Signal, ISignalAdapter } from '@have/types';
+import { Signal, ISignalAdapter } from '../../../types/src';
 /**
  * Execution metrics for a specific method
  */

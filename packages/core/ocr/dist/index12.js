@@ -1,5 +1,5 @@
-import cv from "./index28.js";
-import clipper from "./index29.js";
+import cv from "./index40.js";
+import clipper from "./index41.js";
 import { ImageRaw } from "./index11.js";
 async function splitIntoLineImages(image, sourceImage) {
   const w = image.width;

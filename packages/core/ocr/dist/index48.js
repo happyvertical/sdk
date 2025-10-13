@@ -1,52 +1,17 @@
-import require$$1 from "zlib";
-import { __require as requireConstants } from "./index44.js";
-import { __require as requirePacker } from "./index45.js";
-var packerSync;
-var hasRequiredPackerSync;
-function requirePackerSync() {
-  if (hasRequiredPackerSync) return packerSync;
-  hasRequiredPackerSync = 1;
-  let hasSyncZlib = true;
-  let zlib = require$$1;
-  if (!zlib.deflateSync) {
-    hasSyncZlib = false;
+class ImageRawBase {
+  data;
+  width;
+  height;
+  constructor({ data, width, height }) {
+    this.data = data;
+    this.width = width;
+    this.height = height;
   }
-  let constants = requireConstants();
-  let Packer = requirePacker();
-  packerSync = function(metaData, opt) {
-    if (!hasSyncZlib) {
-      throw new Error(
-        "To use the sync capability of this library in old node versions, please pin pngjs to v2.3.0"
-      );
-    }
-    let options = opt || {};
-    let packer = new Packer(options);
-    let chunks = [];
-    chunks.push(Buffer.from(constants.PNG_SIGNATURE));
-    chunks.push(packer.packIHDR(metaData.width, metaData.height));
-    if (metaData.gamma) {
-      chunks.push(packer.packGAMA(metaData.gamma));
-    }
-    let filteredData = packer.filterData(
-      metaData.data,
-      metaData.width,
-      metaData.height
-    );
-    let compressedData = zlib.deflateSync(
-      filteredData,
-      packer.getDeflateOptions()
-    );
-    filteredData = null;
-    if (!compressedData || !compressedData.length) {
-      throw new Error("bad png - invalid compressed data response");
-    }
-    chunks.push(packer.packIDAT(compressedData));
-    chunks.push(packer.packIEND());
-    return Buffer.concat(chunks);
-  };
-  return packerSync;
+  getImageRawData() {
+    return { data: this.data, width: this.width, height: this.height };
+  }
 }
 export {
-  requirePackerSync as __require
+  ImageRawBase
 };
 //# sourceMappingURL=index48.js.map

@@ -1,67 +1,63 @@
-import { __exports as tensorUtilsImpl } from "./index119.js";
-import { __require as requireTensorImpl } from "./index89.js";
-var hasRequiredTensorUtilsImpl;
-function requireTensorUtilsImpl() {
-  if (hasRequiredTensorUtilsImpl) return tensorUtilsImpl;
-  hasRequiredTensorUtilsImpl = 1;
-  Object.defineProperty(tensorUtilsImpl, "__esModule", { value: true });
-  tensorUtilsImpl.tensorReshape = tensorUtilsImpl.calculateSize = void 0;
-  const tensor_impl_js_1 = requireTensorImpl();
-  const calculateSize = (dims) => {
-    let size = 1;
-    for (let i = 0; i < dims.length; i++) {
-      const dim = dims[i];
-      if (typeof dim !== "number" || !Number.isSafeInteger(dim)) {
-        throw new TypeError(`dims[${i}] must be an integer, got: ${dim}`);
+import { __exports as tensorImplTypeMapping } from "./index117.js";
+var hasRequiredTensorImplTypeMapping;
+function requireTensorImplTypeMapping() {
+  if (hasRequiredTensorImplTypeMapping) return tensorImplTypeMapping;
+  hasRequiredTensorImplTypeMapping = 1;
+  (function(exports) {
+    Object.defineProperty(exports, "__esModule", { value: true });
+    exports.checkTypedArray = exports.NUMERIC_TENSOR_TYPEDARRAY_TO_TYPE_MAP = exports.NUMERIC_TENSOR_TYPE_TO_TYPEDARRAY_MAP = void 0;
+    exports.NUMERIC_TENSOR_TYPE_TO_TYPEDARRAY_MAP = /* @__PURE__ */ new Map([
+      ["float32", Float32Array],
+      ["uint8", Uint8Array],
+      ["int8", Int8Array],
+      ["uint16", Uint16Array],
+      ["int16", Int16Array],
+      ["int32", Int32Array],
+      ["bool", Uint8Array],
+      ["float64", Float64Array],
+      ["uint32", Uint32Array],
+      ["int4", Uint8Array],
+      ["uint4", Uint8Array]
+    ]);
+    exports.NUMERIC_TENSOR_TYPEDARRAY_TO_TYPE_MAP = /* @__PURE__ */ new Map([
+      [Float32Array, "float32"],
+      [Uint8Array, "uint8"],
+      [Int8Array, "int8"],
+      [Uint16Array, "uint16"],
+      [Int16Array, "int16"],
+      [Int32Array, "int32"],
+      [Float64Array, "float64"],
+      [Uint32Array, "uint32"]
+    ]);
+    let isTypedArrayChecked = false;
+    const checkTypedArray = () => {
+      if (!isTypedArrayChecked) {
+        isTypedArrayChecked = true;
+        const isBigInt64ArrayAvailable = typeof BigInt64Array !== "undefined" && BigInt64Array.from;
+        const isBigUint64ArrayAvailable = typeof BigUint64Array !== "undefined" && BigUint64Array.from;
+        const Float16Array = globalThis.Float16Array;
+        const isFloat16ArrayAvailable = typeof Float16Array !== "undefined" && Float16Array.from;
+        if (isBigInt64ArrayAvailable) {
+          exports.NUMERIC_TENSOR_TYPE_TO_TYPEDARRAY_MAP.set("int64", BigInt64Array);
+          exports.NUMERIC_TENSOR_TYPEDARRAY_TO_TYPE_MAP.set(BigInt64Array, "int64");
+        }
+        if (isBigUint64ArrayAvailable) {
+          exports.NUMERIC_TENSOR_TYPE_TO_TYPEDARRAY_MAP.set("uint64", BigUint64Array);
+          exports.NUMERIC_TENSOR_TYPEDARRAY_TO_TYPE_MAP.set(BigUint64Array, "uint64");
+        }
+        if (isFloat16ArrayAvailable) {
+          exports.NUMERIC_TENSOR_TYPE_TO_TYPEDARRAY_MAP.set("float16", Float16Array);
+          exports.NUMERIC_TENSOR_TYPEDARRAY_TO_TYPE_MAP.set(Float16Array, "float16");
+        } else {
+          exports.NUMERIC_TENSOR_TYPE_TO_TYPEDARRAY_MAP.set("float16", Uint16Array);
+        }
       }
-      if (dim < 0) {
-        throw new RangeError(`dims[${i}] must be a non-negative integer, got: ${dim}`);
-      }
-      size *= dim;
-    }
-    return size;
-  };
-  tensorUtilsImpl.calculateSize = calculateSize;
-  const tensorReshape = (tensor, dims) => {
-    switch (tensor.location) {
-      case "cpu":
-        return new tensor_impl_js_1.Tensor(tensor.type, tensor.data, dims);
-      case "cpu-pinned":
-        return new tensor_impl_js_1.Tensor({
-          location: "cpu-pinned",
-          data: tensor.data,
-          type: tensor.type,
-          dims
-        });
-      case "texture":
-        return new tensor_impl_js_1.Tensor({
-          location: "texture",
-          texture: tensor.texture,
-          type: tensor.type,
-          dims
-        });
-      case "gpu-buffer":
-        return new tensor_impl_js_1.Tensor({
-          location: "gpu-buffer",
-          gpuBuffer: tensor.gpuBuffer,
-          type: tensor.type,
-          dims
-        });
-      case "ml-tensor":
-        return new tensor_impl_js_1.Tensor({
-          location: "ml-tensor",
-          mlTensor: tensor.mlTensor,
-          type: tensor.type,
-          dims
-        });
-      default:
-        throw new Error(`tensorReshape: tensor location ${tensor.location} is not supported`);
-    }
-  };
-  tensorUtilsImpl.tensorReshape = tensorReshape;
-  return tensorUtilsImpl;
+    };
+    exports.checkTypedArray = checkTypedArray;
+  })(tensorImplTypeMapping);
+  return tensorImplTypeMapping;
 }
 export {
-  requireTensorUtilsImpl as __require
+  requireTensorImplTypeMapping as __require
 };
 //# sourceMappingURL=index111.js.map

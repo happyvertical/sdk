@@ -192,15 +192,16 @@ export class SmrtClass {
 
     // Create all system tables
     for (const createTableSQL of ALL_SYSTEM_TABLES) {
-      await this._db.exec(createTableSQL);
+      await this._db.execute`${createTableSQL}`;
     }
 
     // Record current schema version
-    await this._db.run(
-      `INSERT OR IGNORE INTO _smrt_migrations (version, description)
-       VALUES (?, ?)`,
-      [SMRT_SCHEMA_VERSION, 'Initial SMRT system tables'],
-    );
+    const version = SMRT_SCHEMA_VERSION;
+    const description = 'Initial SMRT system tables';
+    await this._db.execute`
+      INSERT OR IGNORE INTO _smrt_migrations (version, description)
+      VALUES (${version}, ${description})
+    `;
 
     // Mark this database as initialized
     SmrtClass._systemTablesInitialized.add(dbKey);

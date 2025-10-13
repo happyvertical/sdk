@@ -1,6 +1,6 @@
 import { __require as requireStats } from "./index61.js";
 import { __require as requireDispatcherBase } from "./index64.js";
-import { __require as requireFixedQueue } from "./index104.js";
+import { __require as requireFixedQueue } from "./index108.js";
 import { __require as requireSymbols } from "./index53.js";
 var poolBase;
 var hasRequiredPoolBase;

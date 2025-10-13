@@ -1,5 +1,5 @@
-var loader = {};
+var resolveFrom = { exports: {} };
 export {
-  loader as __exports
+  resolveFrom as __module
 };
 //# sourceMappingURL=index58.js.map

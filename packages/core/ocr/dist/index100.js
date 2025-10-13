@@ -1,5 +1,5 @@
-var interlace = {};
+var onnxModel = {};
 export {
-  interlace as __exports
+  onnxModel as __exports
 };
 //# sourceMappingURL=index100.js.map

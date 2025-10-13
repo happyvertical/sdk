@@ -1148,26 +1148,24 @@ export class SmrtObject extends SmrtClass {
     const id = crypto.randomUUID();
     const now = new Date();
 
-    await this.systemDb.run(
+    await this.systemDb.query(
       `INSERT OR REPLACE INTO _smrt_notes (
         id, owner_class, owner_id, scope, key, value, metadata,
         version, confidence, created_at, updated_at, last_used_at, expires_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        id,
-        this._className,
-        this.id,
-        options.scope,
-        options.key,
-        JSON.stringify(options.value),
-        options.metadata ? JSON.stringify(options.metadata) : null,
-        options.version ?? 1,
-        options.confidence ?? 1.0,
-        now,
-        now,
-        now,
-        options.expiresAt ?? null,
-      ],
+      id,
+      this._className,
+      this.id,
+      options.scope,
+      options.key,
+      JSON.stringify(options.value),
+      options.metadata ? JSON.stringify(options.metadata) : null,
+      options.version ?? 1,
+      options.confidence ?? 1.0,
+      now,
+      now,
+      now,
+      options.expiresAt ?? null,
     );
   }
 
@@ -1301,7 +1299,7 @@ export class SmrtObject extends SmrtClass {
 
     query += ` ORDER BY confidence DESC`;
 
-    const rows = await this.systemDb.all(query, params);
+    const { rows } = await this.systemDb.query(query, ...params);
 
     for (const row of rows) {
       results.set(row.key, JSON.parse(row.value));
@@ -1332,10 +1330,13 @@ export class SmrtObject extends SmrtClass {
       throw new Error('Database not initialized. Call initialize() first.');
     }
 
-    await this.systemDb.run(
+    await this.systemDb.query(
       `DELETE FROM _smrt_notes
        WHERE owner_class = ? AND owner_id = ? AND scope = ? AND key = ?`,
-      [this._className, this.id, options.scope, options.key],
+      this._className,
+      this.id,
+      options.scope,
+      options.key,
     );
   }
 
@@ -1379,7 +1380,7 @@ export class SmrtObject extends SmrtClass {
       params.push(options.scope);
     }
 
-    const result = await this.systemDb.run(query, params);
-    return result.changes || 0;
+    const { rowCount } = await this.systemDb.query(query, ...params);
+    return rowCount || 0;
   }
 }

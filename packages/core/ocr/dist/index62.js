@@ -1,5 +1,7 @@
-var chunkstream = { exports: {} };
+function getDefaultExportFromCjs(x) {
+  return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
+}
 export {
-  chunkstream as __module
+  getDefaultExportFromCjs
 };
 //# sourceMappingURL=index62.js.map

@@ -1,39 +1,48 @@
-var constants;
-var hasRequiredConstants;
-function requireConstants() {
-  if (hasRequiredConstants) return constants;
-  hasRequiredConstants = 1;
-  constants = {
-    PNG_SIGNATURE: [137, 80, 78, 71, 13, 10, 26, 10],
-    TYPE_IHDR: 1229472850,
-    TYPE_IEND: 1229278788,
-    TYPE_IDAT: 1229209940,
-    TYPE_PLTE: 1347179589,
-    TYPE_tRNS: 1951551059,
-    // eslint-disable-line camelcase
-    TYPE_gAMA: 1732332865,
-    // eslint-disable-line camelcase
-    // color-type bits
-    COLORTYPE_GRAYSCALE: 0,
-    COLORTYPE_PALETTE: 1,
-    COLORTYPE_COLOR: 2,
-    COLORTYPE_ALPHA: 4,
-    // e.g. grayscale and alpha
-    // color-type combinations
-    COLORTYPE_PALETTE_COLOR: 3,
-    COLORTYPE_COLOR_ALPHA: 6,
-    COLORTYPE_TO_BPP_MAP: {
-      0: 1,
-      2: 3,
-      3: 1,
-      4: 2,
-      6: 4
-    },
-    GAMMA_DIVISION: 1e5
-  };
-  return constants;
+import { __exports as cjs } from "./index63.js";
+import { __require as requireBackend } from "./index64.js";
+import { __require as requireEnv } from "./index65.js";
+import { __require as requireInferenceSession } from "./index66.js";
+import { __require as requireTensor } from "./index67.js";
+import { __require as requireTensorConversion } from "./index68.js";
+import { __require as requireTensorFactory } from "./index69.js";
+import { __require as requireTrace } from "./index70.js";
+import { __require as requireOnnxModel } from "./index71.js";
+import { __require as requireOnnxValue } from "./index72.js";
+var hasRequiredCjs;
+function requireCjs() {
+  if (hasRequiredCjs) return cjs;
+  hasRequiredCjs = 1;
+  (function(exports) {
+    var __createBinding = cjs && cjs.__createBinding || (Object.create ? (function(o, m, k, k2) {
+      if (k2 === void 0) k2 = k;
+      var desc = Object.getOwnPropertyDescriptor(m, k);
+      if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+        desc = { enumerable: true, get: function() {
+          return m[k];
+        } };
+      }
+      Object.defineProperty(o, k2, desc);
+    }) : (function(o, m, k, k2) {
+      if (k2 === void 0) k2 = k;
+      o[k2] = m[k];
+    }));
+    var __exportStar = cjs && cjs.__exportStar || function(m, exports2) {
+      for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports2, p)) __createBinding(exports2, m, p);
+    };
+    Object.defineProperty(exports, "__esModule", { value: true });
+    __exportStar(requireBackend(), exports);
+    __exportStar(requireEnv(), exports);
+    __exportStar(requireInferenceSession(), exports);
+    __exportStar(requireTensor(), exports);
+    __exportStar(requireTensorConversion(), exports);
+    __exportStar(requireTensorFactory(), exports);
+    __exportStar(requireTrace(), exports);
+    __exportStar(requireOnnxModel(), exports);
+    __exportStar(requireOnnxValue(), exports);
+  })(cjs);
+  return cjs;
 }
 export {
-  requireConstants as __require
+  requireCjs as __require
 };
 //# sourceMappingURL=index44.js.map
