@@ -1208,23 +1208,21 @@ export class ObjectRegistry {
         };
       }
 
-      await db.run(
+      await db.query(
         `INSERT OR REPLACE INTO _smrt_registry
          (class_name, schema_version, fields, relationships, config, manifest, last_updated)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          className,
-          '1.0.0', // Could be derived from package version
-          JSON.stringify(fieldsData),
-          JSON.stringify(ObjectRegistry.getRelationships(className)),
-          JSON.stringify(registered.config),
-          JSON.stringify({
-            name: registered.name,
-            tableName: registered.schema?.tableName,
-            tools: registered.tools,
-          }),
-          new Date(),
-        ],
+        className,
+        '1.0.0', // Could be derived from package version
+        JSON.stringify(fieldsData),
+        JSON.stringify(ObjectRegistry.getRelationships(className)),
+        JSON.stringify(registered.config),
+        JSON.stringify({
+          name: registered.name,
+          tableName: registered.schema?.tableName,
+          tools: registered.tools,
+        }),
+        new Date(),
       );
     }
   }
@@ -1250,7 +1248,7 @@ export class ObjectRegistry {
   static async loadFromDatabase(
     db: import('@have/sql').DatabaseInterface,
   ): Promise<any[]> {
-    const rows = await db.all('SELECT * FROM _smrt_registry ORDER BY class_name');
+    const { rows } = await db.query('SELECT * FROM _smrt_registry ORDER BY class_name');
     return rows;
   }
 }
