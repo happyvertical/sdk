@@ -281,6 +281,68 @@ describe('dateInString', () => {
     });
   });
 
+  describe('DocuShare and CivicWeb formats', () => {
+    it('should extract underscore-separated dates (YYYY_MM_DD)', () => {
+      const date = dateInString('Minutes_2025_01_16.pdf');
+      expect(date).toBeInstanceOf(Date);
+      expect(date?.getFullYear()).toBe(2025);
+      expect(date?.getMonth()).toBe(0); // January (0-based)
+      expect(date?.getDate()).toBe(16);
+    });
+
+    it('should extract underscore dates from complex filenames', () => {
+      const date = dateInString('Council_Meeting_Minutes_2025_10_13.pdf');
+      expect(date?.getFullYear()).toBe(2025);
+      expect(date?.getMonth()).toBe(9); // October (0-based)
+      expect(date?.getDate()).toBe(13);
+    });
+
+    it('should extract US dot format dates (MM.DD.YYYY)', () => {
+      const date = dateInString('02.13.2025.pdf');
+      expect(date).toBeInstanceOf(Date);
+      expect(date?.getFullYear()).toBe(2025);
+      expect(date?.getMonth()).toBe(1); // February (0-based)
+      expect(date?.getDate()).toBe(13);
+    });
+
+    it('should extract US dot dates from complex filenames', () => {
+      const date = dateInString('Agenda_Meeting_10.14.2025.pdf');
+      expect(date?.getFullYear()).toBe(2025);
+      expect(date?.getMonth()).toBe(9); // October (0-based)
+      expect(date?.getDate()).toBe(14);
+    });
+
+    it('should handle single-digit months in underscore format', () => {
+      const date = dateInString('Report_2025_3_5.pdf');
+      expect(date?.getFullYear()).toBe(2025);
+      expect(date?.getMonth()).toBe(2); // March (0-based)
+      expect(date?.getDate()).toBe(5);
+    });
+
+    it('should handle single-digit days in dot format', () => {
+      const date = dateInString('Summary_1.5.2025.pdf');
+      expect(date?.getFullYear()).toBe(2025);
+      expect(date?.getMonth()).toBe(0); // January (0-based)
+      expect(date?.getDate()).toBe(5);
+    });
+
+    it('should prioritize underscore dates over natural language', () => {
+      // Should extract 2025_01_16, not "December 2024"
+      const date = dateInString('December_2024_Minutes_2025_01_16.pdf');
+      expect(date?.getFullYear()).toBe(2025);
+      expect(date?.getMonth()).toBe(0); // January
+      expect(date?.getDate()).toBe(16);
+    });
+
+    it('should prioritize dot dates over natural language', () => {
+      // Should extract 02.13.2025, not "January 2024"
+      const date = dateInString('January_2024_Report_02.13.2025.pdf');
+      expect(date?.getFullYear()).toBe(2025);
+      expect(date?.getMonth()).toBe(1); // February
+      expect(date?.getDate()).toBe(13);
+    });
+  });
+
   describe('Edge cases', () => {
     it('should return null for strings with no date', () => {
       const date = dateInString('no-date-here.pdf');

@@ -501,7 +501,33 @@ export const parseAmazonDateString = (dateStr: string): Date => {
 export const dateInString = (str: string): Date | null => {
   const cleanStr = str.toLowerCase();
 
-  // Try standard date formats first (ISO, US, etc.)
+  // Try underscore-separated dates first (YYYY_MM_DD)
+  // Used by DocuShare document management systems
+  const underscoreMatch = str.match(/(\d{4})_(\d{1,2})_(\d{1,2})/);
+  if (underscoreMatch) {
+    const [, year, month, day] = underscoreMatch;
+    const date = new Date(
+      Number.parseInt(year, 10),
+      Number.parseInt(month, 10) - 1,
+      Number.parseInt(day, 10),
+    );
+    if (!Number.isNaN(date.getTime())) return date;
+  }
+
+  // Try US dot format (MM.DD.YYYY)
+  // Used by DocuShare file naming conventions
+  const dotMatch = str.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+  if (dotMatch) {
+    const [, month, day, year] = dotMatch;
+    const date = new Date(
+      Number.parseInt(year, 10),
+      Number.parseInt(month, 10) - 1,
+      Number.parseInt(day, 10),
+    );
+    if (!Number.isNaN(date.getTime())) return date;
+  }
+
+  // Try standard date formats (ISO, US, etc.)
   // Pattern: YYYY-MM-DD or YYYY/MM/DD
   const isoMatch = cleanStr.match(/(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
   if (isoMatch) {
