@@ -152,7 +152,8 @@ export class SmrtClass {
     }
     if (this.options.ai) {
       // Use getAI() factory to support all AI providers (OpenAI, Anthropic, Gemini, etc.)
-      this._ai = await getAI(this.options.ai as any) as AIClient;
+      // getAI() returns AIInterface, which we cast to AIClient for backward compatibility
+      this._ai = (await getAI(this.options.ai as any)) as any as AIClient;
     }
     await this.initializeSignals();
     return this;

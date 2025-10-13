@@ -27,11 +27,6 @@ export default defineConfig({
     rollupOptions: {
       output: {
         format: 'es',
-        // Generate entry points as .js files in their subdirectories
-        entryFileNames: (chunkInfo) => {
-          // Entry points get their configured path
-          return `${chunkInfo.name}.js`;
-        },
         // Preserve all modules in their directory structure for optimal tree-shaking
         preserveModules: true,
         preserveModulesRoot: 'src',
@@ -82,6 +77,7 @@ export default defineConfig({
         '@have/files',
         '@have/sql',
         '@have/ai',
+        '@have/notes', // Optional dependency for self-learning patterns
 
         // Virtual modules from SMRT framework
         '@smrt/types',
