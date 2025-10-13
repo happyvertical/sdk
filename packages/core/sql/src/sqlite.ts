@@ -300,7 +300,7 @@ export async function getDatabase(
 
         if (!exists) {
           // Table doesn't exist, create it
-          await client.execute(command);
+          await client.execute({ sql: command });
         } else {
           // Table exists, check for missing columns
           for (const column of columns) {
@@ -332,13 +332,13 @@ export async function getDatabase(
                 if (!columnInfo) {
                   // Column doesn't exist, add it
                   const alterCommand = `ALTER TABLE ${tableName} ADD COLUMN ${columnDef}`;
-                  await client.execute(alterCommand);
+                  await client.execute({ sql: alterCommand });
                 }
               } catch (_error) {
                 // If there's an error checking/adding the column, try alternate method
                 try {
                   const alterCommand = `ALTER TABLE ${tableName} ADD COLUMN ${columnDef}`;
-                  await client.execute(alterCommand);
+                  await client.execute({ sql: alterCommand });
                 } catch (alterError) {
                   // Column might already exist, continue
                   console.error(
@@ -365,7 +365,7 @@ export async function getDatabase(
     callback: (tx: DatabaseInterface) => Promise<T>,
   ): Promise<T> => {
     try {
-      await client.execute('BEGIN TRANSACTION');
+      await client.execute({ sql: 'BEGIN TRANSACTION' });
 
       // Create a transaction-scoped database interface
       // SQLite doesn't have separate transaction clients, so we reuse the same client
@@ -392,10 +392,10 @@ export async function getDatabase(
       };
 
       const result = await callback(txDb);
-      await client.execute('COMMIT');
+      await client.execute({ sql: 'COMMIT' });
       return result;
     } catch (error) {
-      await client.execute('ROLLBACK');
+      await client.execute({ sql: 'ROLLBACK' });
       throw error;
     }
   };
