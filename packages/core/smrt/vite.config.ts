@@ -77,7 +77,6 @@ export default defineConfig({
         '@have/files',
         '@have/sql',
         '@have/ai',
-        '@have/notes', // Optional dependency for self-learning patterns
 
         // Virtual modules from SMRT framework
         '@smrt/types',

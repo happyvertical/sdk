@@ -69,7 +69,6 @@
     { "path": "./packages/modules/accounts" },
     { "path": "./packages/modules/gnode" },
     { "path": "./packages/modules/content" },
-    { "path": "./packages/modules/products" },
-    { "path": "./packages/modules/notes" }
+    { "path": "./packages/modules/products" }
   ]
 }

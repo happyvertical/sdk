@@ -14,6 +14,7 @@ import type {
   PubSubConfig,
 } from './config.js';
 import { config } from './config.js';
+import { ALL_SYSTEM_TABLES, SMRT_SCHEMA_VERSION } from './system/schema.js';
 
 /**
  * Configuration options for the SmrtClass
@@ -126,6 +127,12 @@ export class SmrtClass {
   protected options: SmrtClassOptions;
 
   /**
+   * Track which databases have had system tables initialized
+   * Key is database connection identifier
+   */
+  private static _systemTablesInitialized = new Set<string>();
+
+  /**
    * Creates a new SmrtClass instance
    *
    * @param options - Configuration options for database, filesystem, and AI clients
@@ -146,6 +153,7 @@ export class SmrtClass {
   protected async initialize(): Promise<this> {
     if (this.options.db) {
       this._db = await getDatabase(this.options.db);
+      await this.ensureSystemTables();
     }
     if (this.options.fs) {
       this._fs = await FilesystemAdapter.create(this.options.fs);
@@ -157,6 +165,64 @@ export class SmrtClass {
     }
     await this.initializeSignals();
     return this;
+  }
+
+  /**
+   * Ensure SMRT system tables exist in the database
+   *
+   * System tables use _smrt_ prefix and store framework metadata:
+   * - _smrt_notes: Self-learning pattern cache
+   * - _smrt_migrations: Schema version tracking
+   * - _smrt_registry: Object registry persistence
+   * - _smrt_signals: Signal history/audit log
+   *
+   * This method is idempotent and safe to call multiple times.
+   * Tables are only created once per database connection.
+   */
+  private async ensureSystemTables(): Promise<void> {
+    if (!this._db) return;
+
+    // Generate unique key for this database connection
+    const dbKey = this.getDatabaseKey();
+
+    // Skip if already initialized for this database
+    if (SmrtClass._systemTablesInitialized.has(dbKey)) {
+      return;
+    }
+
+    // Create all system tables
+    for (const createTableSQL of ALL_SYSTEM_TABLES) {
+      await this._db.exec(createTableSQL);
+    }
+
+    // Record current schema version
+    await this._db.run(
+      `INSERT OR IGNORE INTO _smrt_migrations (version, description)
+       VALUES (?, ?)`,
+      [SMRT_SCHEMA_VERSION, 'Initial SMRT system tables'],
+    );
+
+    // Mark this database as initialized
+    SmrtClass._systemTablesInitialized.add(dbKey);
+  }
+
+  /**
+   * Generate unique identifier for database connection
+   * Used to track which databases have system tables initialized
+   */
+  private getDatabaseKey(): string {
+    // Use database URL/path as identifier
+    const dbUrl = this.options.db?.url || 'default';
+    const dbType = this.options.db?.type || 'sqlite';
+    return `${dbType}:${dbUrl}`;
+  }
+
+  /**
+   * Access system tables through standard database interface
+   * System tables use _smrt_ prefix to avoid conflicts with user tables
+   */
+  protected get systemDb(): DatabaseInterface {
+    return this._db;
   }
 
   /**
