@@ -2,6 +2,44 @@ import { getScraper } from './shared/scraper-factory';
 import type { ScrapeOptions } from './shared/types';
 
 /**
+ * Options for document scraping with scraper configuration
+ *
+ * Extends ScrapeOptions with scraper/spider selection capabilities,
+ * allowing callers to choose between different scraping strategies
+ * based on the document source's requirements.
+ */
+export interface DocumentScrapeOptions extends ScrapeOptions {
+  /**
+   * Scraper type to use for content extraction
+   * - 'basic': Fast, static HTML scraping (default)
+   * - 'crawlee': Full browser with JavaScript execution
+   *
+   * @default 'basic'
+   * @example
+   * ```typescript
+   * // Use crawlee for JavaScript-heavy pages
+   * await scrapeDocument(url, { scraper: 'crawlee' });
+   * ```
+   */
+  scraper?: 'basic' | 'crawlee';
+
+  /**
+   * Spider adapter for fetching pages
+   * - 'simple': Basic HTTP fetch
+   * - 'dom': HTML parsing with happy-dom
+   * - 'crawlee': Headless browser (requires scraper: 'crawlee')
+   *
+   * @default 'dom'
+   * @example
+   * ```typescript
+   * // Use simple spider for minimal overhead
+   * await scrapeDocument(url, { spider: 'simple' });
+   * ```
+   */
+  spider?: 'simple' | 'dom' | 'crawlee';
+}
+
+/**
  * Simple document structure returned by scrapeDocument
  */
 export interface DocumentResult {
@@ -269,7 +307,7 @@ function extractDocuShareDocumentUrl(url: string, html: string): string | null {
  * This function provides the foundation for document discovery and basic extraction.
  *
  * @param url - The URL of the document to scrape
- * @param options - Optional scrape configuration
+ * @param options - Optional scrape configuration including scraper/spider selection
  * @returns Promise resolving to document content and metadata
  *
  * @example Basic HTML page
@@ -335,16 +373,37 @@ function extractDocuShareDocumentUrl(url: string, html: string): string | null {
  *   }
  * });
  * ```
+ *
+ * @example Using crawlee for JavaScript-heavy pages
+ * ```typescript
+ * // CivicWeb and other systems that generate content with JavaScript
+ * const doc = await scrapeDocument(
+ *   'https://example.civicweb.net/filepro/documents/?preview=12345',
+ *   { scraper: 'crawlee' }  // Executes JavaScript to get dynamic content
+ * );
+ * ```
+ *
+ * @example Using simple spider for minimal overhead
+ * ```typescript
+ * // Fast scraping without DOM processing
+ * const doc = await scrapeDocument(
+ *   'https://example.com/simple-page.html',
+ *   { spider: 'simple' }  // Faster than 'dom' for basic pages
+ * );
+ * ```
  */
 export async function scrapeDocument(
   url: string,
-  options?: ScrapeOptions,
+  options?: DocumentScrapeOptions,
 ): Promise<DocumentResult> {
-  // Use basic scraper with DOM spider for better content extraction
+  // Use provided scraper config or defaults (basic + dom)
+  const scraperType = options?.scraper || 'basic';
+  const spiderType = options?.spider || 'dom';
+
   const scraper = await getScraper({
-    scraper: 'basic',
-    spider: 'dom',
-  });
+    scraper: scraperType,
+    spider: spiderType,
+  } as any);
 
   let result = await scraper.scrape(url, options);
   let actualUrl = url;
