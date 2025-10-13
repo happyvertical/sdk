@@ -132,6 +132,15 @@ jobs:
       - name: Build packages
         run: pnpm run build
 
+      - name: Verify build artifacts
+        shell: bash
+        run: |
+          echo "Verifying @have/smrt package exports..."
+          cd packages/core/smrt
+          npm run verify:exports
+          npm run verify:consumer-plugin
+          echo "✅ Build verification passed"
+
       - name: Type check
         run: pnpm run typecheck
 
