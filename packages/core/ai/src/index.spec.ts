@@ -48,6 +48,73 @@ it.skip('should create an AIThread and ask it a question', async () => {
   console.log(response);
 }, 30000);
 
+it('should support creating Anthropic client via AIClient.create', async () => {
+  const client = await AIClient.create({
+    type: 'anthropic',
+    apiKey: 'test-key',
+  } as any);
+  expect(client).toBeDefined();
+  expect(client.options.type).toBe('anthropic');
+});
+
+it('should support creating Gemini client via AIClient.create', async () => {
+  const client = await AIClient.create({
+    type: 'gemini',
+    apiKey: 'test-key',
+  } as any);
+  expect(client).toBeDefined();
+  expect(client.options.type).toBe('gemini');
+});
+
+it('should support creating Bedrock client via AIClient.create', async () => {
+  const client = await AIClient.create({
+    type: 'bedrock',
+    region: 'us-east-1',
+    credentials: {
+      accessKeyId: 'test-access-key',
+      secretAccessKey: 'test-secret',
+    },
+  } as any);
+  expect(client).toBeDefined();
+  expect(client.options.type).toBe('bedrock');
+});
+
+it('should support creating HuggingFace client via AIClient.create', async () => {
+  const client = await AIClient.create({
+    type: 'huggingface',
+    apiToken: 'test-token',
+    model: 'microsoft/DialoGPT-medium',
+  } as any);
+  expect(client).toBeDefined();
+  expect(client.options.type).toBe('huggingface');
+});
+
+it('should throw helpful error for unsupported provider type', async () => {
+  await expect(
+    AIClient.create({
+      type: 'invalid-provider' as any,
+      apiKey: 'test-key',
+    }),
+  ).rejects.toThrow('Unsupported AI provider type');
+});
+
+it('should list all supported providers in error message', async () => {
+  try {
+    await AIClient.create({
+      type: 'invalid-provider' as any,
+      apiKey: 'test-key',
+    });
+    // Should not reach here
+    expect(true).toBe(false);
+  } catch (error: any) {
+    expect(error.context.supportedTypes).toContain('openai');
+    expect(error.context.supportedTypes).toContain('anthropic');
+    expect(error.context.supportedTypes).toContain('gemini');
+    expect(error.context.supportedTypes).toContain('bedrock');
+    expect(error.context.supportedTypes).toContain('huggingface');
+  }
+});
+
 const minutes =
   'V, 1/ 7\n' +
   'NRL — un ON\n' +
