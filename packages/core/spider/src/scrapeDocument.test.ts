@@ -196,6 +196,164 @@ describe('scrapeDocument', () => {
     });
   });
 
+  describe('CivicWeb preview page detection', () => {
+    it('should detect CivicWeb preview pages and extract PDF URL', async () => {
+      const mockScraper = {
+        scrape: vi.fn().mockResolvedValueOnce({
+          url: 'https://wolfcreekschooldivision72.civicweb.net/filepro/documents/?preview=52835',
+          content: `
+            <html>
+              <head><title>Document Preview</title></head>
+              <body>
+                <div class="preview-container">
+                  <a href="/filepro/document/52835/Regular Board - 16 Oct 2025 - Agenda - Pdf.pdf">
+                    Download PDF
+                  </a>
+                </div>
+              </body>
+            </html>
+          `,
+          links: [],
+          strategy: { type: 'basic', spider: 'dom', config: {}, confidence: 1 },
+          metrics: { duration: 100, linkCount: 0, complete: true },
+        }),
+      };
+
+      vi.mocked(scraperFactory.getScraper).mockResolvedValue(mockScraper as any);
+
+      const result = await scrapeDocument(
+        'https://wolfcreekschooldivision72.civicweb.net/filepro/documents/?preview=52835'
+      );
+
+      // Should only scrape once (detected PDF link, no re-scrape)
+      expect(mockScraper.scrape).toHaveBeenCalledTimes(1);
+
+      // Should extract and return the actual PDF URL
+      expect(result.url).toBe(
+        'https://wolfcreekschooldivision72.civicweb.net/filepro/document/52835/Regular Board - 16 Oct 2025 - Agenda - Pdf.pdf'
+      );
+      expect(result.metadata.isPdf).toBe(true);
+      expect(result.metadata.complete).toBe(false); // PDF needs separate processing
+      expect(result.metadata.strategy).toBe('civicweb-pdf-link');
+      expect(result.type).toBe('application/pdf');
+      expect(result.text).toBe(''); // No binary content downloaded
+    });
+
+    it('should handle CivicWeb preview pages with HTML entities in URL', async () => {
+      const mockScraper = {
+        scrape: vi.fn().mockResolvedValueOnce({
+          url: 'https://example.civicweb.net/filepro/documents/?preview=12345',
+          content: `
+            <html>
+              <body>
+                <a href="/filepro/document/12345/Meeting &amp; Agenda.pdf">Download</a>
+              </body>
+            </html>
+          `,
+          links: [],
+          strategy: { type: 'basic', spider: 'dom', config: {}, confidence: 1 },
+          metrics: { duration: 100, linkCount: 0, complete: true },
+        }),
+      };
+
+      vi.mocked(scraperFactory.getScraper).mockResolvedValue(mockScraper as any);
+
+      const result = await scrapeDocument(
+        'https://example.civicweb.net/filepro/documents/?preview=12345'
+      );
+
+      // Should decode &amp; to &
+      expect(result.url).toBe('https://example.civicweb.net/filepro/document/12345/Meeting & Agenda.pdf');
+      expect(result.metadata.isPdf).toBe(true);
+      expect(result.metadata.strategy).toBe('civicweb-pdf-link');
+    });
+
+    it('should not trigger CivicWeb detection for non-CivicWeb URLs', async () => {
+      const mockScraper = {
+        scrape: vi.fn().mockResolvedValue({
+          url: 'https://example.com/documents/?preview=12345',
+          content: `
+            <html>
+              <body>
+                <a href="/document/12345/file.pdf">Download</a>
+              </body>
+            </html>
+          `,
+          links: [],
+          strategy: { type: 'basic', spider: 'dom', config: {}, confidence: 1 },
+          metrics: { duration: 100, linkCount: 0, complete: true },
+        }),
+      };
+
+      vi.mocked(scraperFactory.getScraper).mockResolvedValue(mockScraper as any);
+
+      const result = await scrapeDocument('https://example.com/documents/?preview=12345');
+
+      // Should process as regular HTML page (no CivicWeb detection)
+      expect(result.url).toBe('https://example.com/documents/?preview=12345');
+      expect(result.metadata.isPdf).toBe(false);
+      expect(result.type).toBe('text/html');
+    });
+
+    it('should handle CivicWeb pages with no PDF link found', async () => {
+      const mockScraper = {
+        scrape: vi.fn().mockResolvedValue({
+          url: 'https://example.civicweb.net/filepro/documents/?preview=12345',
+          content: `
+            <html>
+              <body>
+                <p>No PDF link available</p>
+              </body>
+            </html>
+          `,
+          links: [],
+          strategy: { type: 'basic', spider: 'dom', config: {}, confidence: 1 },
+          metrics: { duration: 100, linkCount: 0, complete: true },
+        }),
+      };
+
+      vi.mocked(scraperFactory.getScraper).mockResolvedValue(mockScraper as any);
+
+      const result = await scrapeDocument(
+        'https://example.civicweb.net/filepro/documents/?preview=12345'
+      );
+
+      // Should fall back to regular processing when no PDF link found
+      expect(result.url).toBe('https://example.civicweb.net/filepro/documents/?preview=12345');
+      expect(result.metadata.isPdf).toBe(false);
+      expect(result.type).toBe('text/html');
+    });
+
+    it('should detect CivicWeb by domain and path pattern', async () => {
+      const mockScraper = {
+        scrape: vi.fn().mockResolvedValueOnce({
+          url: 'https://schoolboard.civicweb.net/filepro/documents/view/12345',
+          content: `
+            <html>
+              <body>
+                <a href="/filepro/document/12345/Minutes.pdf">View PDF</a>
+              </body>
+            </html>
+          `,
+          links: [],
+          strategy: { type: 'basic', spider: 'dom', config: {}, confidence: 1 },
+          metrics: { duration: 100, linkCount: 0, complete: true },
+        }),
+      };
+
+      vi.mocked(scraperFactory.getScraper).mockResolvedValue(mockScraper as any);
+
+      // This URL doesn't have ?preview= but matches civicweb.net + /filepro/documents
+      const result = await scrapeDocument(
+        'https://schoolboard.civicweb.net/filepro/documents/view/12345?preview=12345'
+      );
+
+      expect(result.url).toBe('https://schoolboard.civicweb.net/filepro/document/12345/Minutes.pdf');
+      expect(result.metadata.isPdf).toBe(true);
+      expect(result.metadata.strategy).toBe('civicweb-pdf-link');
+    });
+  });
+
   describe('Basic document scraping', () => {
     it('should extract title and description from HTML', async () => {
       const mockScraper = {
