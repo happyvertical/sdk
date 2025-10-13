@@ -1133,6 +1133,7 @@ export class SmrtObject extends SmrtClass {
    * ```
    */
   public async note(options: any): Promise<any> {
+    // @ts-expect-error - @have/notes is an optional dependency
     const { NoteCollection } = await import('@have/notes');
     const { persistence, db, ai, fs, _className } = this.options;
     const noteCollection = new (NoteCollection as any)({
@@ -1175,6 +1176,7 @@ export class SmrtObject extends SmrtClass {
    * ```
    */
   public async recall(options: any): Promise<any> {
+    // @ts-expect-error - @have/notes is an optional dependency
     const { NoteCollection } = await import('@have/notes');
     const { persistence, db, ai, fs, _className } = this.options;
     const noteCollection = new (NoteCollection as any)({
@@ -1216,6 +1218,7 @@ export class SmrtObject extends SmrtClass {
    * ```
    */
   public async recallAll(options: any = {}): Promise<Map<string, any>> {
+    // @ts-expect-error - @have/notes is an optional dependency
     const { NoteCollection } = await import('@have/notes');
     const { persistence, db, ai, fs, _className } = this.options;
     const noteCollection = new (NoteCollection as any)({
@@ -1252,6 +1255,7 @@ export class SmrtObject extends SmrtClass {
    * ```
    */
   public async forget(options: any): Promise<void> {
+    // @ts-expect-error - @have/notes is an optional dependency
     const { NoteCollection } = await import('@have/notes');
     const { persistence, db, ai, fs, _className } = this.options;
     const noteCollection = new (NoteCollection as any)({
@@ -1288,6 +1292,7 @@ export class SmrtObject extends SmrtClass {
    * ```
    */
   public async forgetScope(options: any = {}): Promise<number> {
+    // @ts-expect-error - @have/notes is an optional dependency
     const { NoteCollection } = await import('@have/notes');
     const { persistence, db, ai, fs, _className } = this.options;
     const noteCollection = new (NoteCollection as any)({
