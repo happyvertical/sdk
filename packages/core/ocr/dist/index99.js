@@ -1,5 +1,5 @@
-var crc = { exports: {} };
+var trace = {};
 export {
-  crc as __module
+  trace as __exports
 };
 //# sourceMappingURL=index99.js.map

@@ -62,6 +62,15 @@ for (const [packageName, directory] of buildOrder) {
       cwd: process.cwd()
     });
 
+    // Post-build step for smrt: copy template files
+    if (packageName === 'smrt') {
+      console.log('  📋 Copying vite-plugin templates...');
+      execSync(`cp -r packages/${directory}/${packageName}/src/vite-plugin/templates packages/${directory}/${packageName}/dist/vite-plugin/`, {
+        stdio: 'inherit',
+        cwd: process.cwd()
+      });
+    }
+
     console.log(`✅ Successfully built @have/${packageName}\n`);
     successCount++;
   } catch (error) {

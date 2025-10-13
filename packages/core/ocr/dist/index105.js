@@ -1,14 +1,5 @@
-import { __exports as version } from "./index115.js";
-var hasRequiredVersion;
-function requireVersion() {
-  if (hasRequiredVersion) return version;
-  hasRequiredVersion = 1;
-  Object.defineProperty(version, "__esModule", { value: true });
-  version.version = void 0;
-  version.version = "1.23.0";
-  return version;
-}
+var envImpl = {};
 export {
-  requireVersion as __require
+  envImpl as __exports
 };
 //# sourceMappingURL=index105.js.map

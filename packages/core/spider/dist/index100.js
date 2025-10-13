@@ -4,7 +4,7 @@ import { __require as requireConstants } from "./index97.js";
 import { __require as requireUtil } from "./index98.js";
 import { __require as requireConnection } from "./index99.js";
 import { __require as requireFrame } from "./index102.js";
-import { __require as requirePermessageDeflate } from "./index117.js";
+import { __require as requirePermessageDeflate } from "./index116.js";
 var receiver;
 var hasRequiredReceiver;
 function requireReceiver() {

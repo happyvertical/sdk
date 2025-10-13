@@ -1,16 +1,5 @@
-import { __exports as inferenceSession } from "./index86.js";
-import { __require as requireInferenceSessionImpl } from "./index87.js";
-var hasRequiredInferenceSession;
-function requireInferenceSession() {
-  if (hasRequiredInferenceSession) return inferenceSession;
-  hasRequiredInferenceSession = 1;
-  Object.defineProperty(inferenceSession, "__esModule", { value: true });
-  inferenceSession.InferenceSession = void 0;
-  const inference_session_impl_js_1 = requireInferenceSessionImpl();
-  inferenceSession.InferenceSession = inference_session_impl_js_1.InferenceSession;
-  return inferenceSession;
-}
+var parser = { exports: {} };
 export {
-  requireInferenceSession as __require
+  parser as __module
 };
 //# sourceMappingURL=index52.js.map

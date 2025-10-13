@@ -1,5 +1,5 @@
-var common = {};
+var callsites = { exports: {} };
 export {
-  common as __exports
+  callsites as __module
 };
 //# sourceMappingURL=index70.js.map

@@ -1,5 +1,5 @@
-var packerAsync = { exports: {} };
+var dist = {};
 export {
-  packerAsync as __module
+  dist as __exports
 };
 //# sourceMappingURL=index43.js.map

@@ -1,5 +1,5 @@
 import filePath from "node:path";
-import { ImageRawBase } from "./index36.js";
+import { ImageRawBase } from "./index48.js";
 import sharp from "sharp";
 class ImageRaw extends ImageRawBase {
   #sharp;

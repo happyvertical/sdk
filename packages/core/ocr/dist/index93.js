@@ -1,5 +1,5 @@
-var onnxModel = {};
+var inferenceSession = {};
 export {
-  onnxModel as __exports
+  inferenceSession as __exports
 };
 //# sourceMappingURL=index93.js.map

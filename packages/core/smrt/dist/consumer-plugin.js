@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { generateDeclarations } from "./prebuild.js";
+import { g as generateDeclarations } from "./chunks/index-Dw0X9BVV.js";
 const VIRTUAL_MODULES = {
   "@smrt/routes": "smrt:routes",
   "@smrt/client": "smrt:client",
