@@ -46,3 +46,15 @@ export * from './signals/index';
 export * from './adapters/index';
 // Vite plugin for auto-service generation
 export { smrtPlugin } from './vite-plugin/index';
+// System tables and types (note-taking, migrations, registry, signals)
+export * from './system/index';
+export type {
+  NoteOptions,
+  NoteMetadata,
+  RecallOptions,
+  RecallAllOptions,
+  ForgetOptions,
+  ForgetScopeOptions,
+  DiscoveryStrategy,
+  SystemTableConfig,
+} from './system/types';
