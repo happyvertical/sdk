@@ -252,13 +252,25 @@ export class AIClient {
       return OpenAIClient.create(clientOptions);
     }
 
-    // Provide specific error messages for common issues
+    // Delegate to modern factory for non-OpenAI providers
     const providedType = (clientOptions as any).type;
+    if (providedType && providedType !== 'openai') {
+      const { getAI } = await import('./factory.js');
+      return (await getAI(clientOptions as any)) as any;
+    }
+
+    // Provide specific error messages for common issues
     if (providedType === 'openai') {
       throw new ValidationError(
         'OpenAI API key is required but missing or empty',
         {
-          supportedTypes: ['openai'],
+          supportedTypes: [
+            'openai',
+            'anthropic',
+            'gemini',
+            'bedrock',
+            'huggingface',
+          ],
           providedType,
           hint: 'Set OPENAI_API_KEY environment variable or pass apiKey in options',
         },
@@ -266,7 +278,13 @@ export class AIClient {
     }
 
     throw new ValidationError('Invalid client type specified', {
-      supportedTypes: ['openai'],
+      supportedTypes: [
+        'openai',
+        'anthropic',
+        'gemini',
+        'bedrock',
+        'huggingface',
+      ],
       providedType,
     });
   }
@@ -615,10 +633,13 @@ export class OpenAIClient extends AIClient {
 /**
  * Options for getting an AI client with type information
  */
-type GetAIClientOptions = OpenAIClientOptions & { type?: 'openai' };
+type GetAIClientOptions = AIClientOptions & {
+  type?: 'openai' | 'anthropic' | 'gemini' | 'bedrock' | 'huggingface';
+};
 
 /**
  * Factory function to create and initialize an appropriate AI client
+ * Delegates to the modern getAI() factory for all provider types
  *
  * @param options - Client configuration options
  * @returns Promise resolving to an initialized AI client
@@ -627,11 +648,7 @@ type GetAIClientOptions = OpenAIClientOptions & { type?: 'openai' };
 export async function getAIClient(
   options: GetAIClientOptions,
 ): Promise<AIClient> {
-  if (options.type === 'openai') {
-    return OpenAIClient.create(options);
-  }
-  throw new ValidationError('Invalid client type specified', {
-    supportedTypes: ['openai'],
-    providedType: options.type,
-  });
+  // Delegate to modern factory for all providers
+  const { getAI } = await import('./factory.js');
+  return (await getAI(options as any)) as any;
 }
