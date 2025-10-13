@@ -1,5 +1,5 @@
-var tensorFactory = {};
+var env = {};
 export {
-  tensorFactory as __exports
+  env as __exports
 };
 //# sourceMappingURL=index91.js.map

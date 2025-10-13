@@ -1,5 +1,5 @@
-var filterParse = { exports: {} };
+var tensorConversion = {};
 export {
-  filterParse as __module
+  tensorConversion as __exports
 };
 //# sourceMappingURL=index97.js.map

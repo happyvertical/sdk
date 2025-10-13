@@ -1,6 +1,6 @@
-import { __exports as pngSync } from "./index46.js";
-import { __require as requireParserSync } from "./index47.js";
-import { __require as requirePackerSync } from "./index48.js";
+import { __exports as pngSync } from "./index36.js";
+import { __require as requireParserSync } from "./index37.js";
+import { __require as requirePackerSync } from "./index38.js";
 var hasRequiredPngSync;
 function requirePngSync() {
   if (hasRequiredPngSync) return pngSync;

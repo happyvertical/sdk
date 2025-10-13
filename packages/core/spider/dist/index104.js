@@ -1,75 +1,86 @@
-var fixedQueue;
-var hasRequiredFixedQueue;
-function requireFixedQueue() {
-  if (hasRequiredFixedQueue) return fixedQueue;
-  hasRequiredFixedQueue = 1;
-  const kSize = 2048;
-  const kMask = kSize - 1;
-  class FixedCircularBuffer {
-    /** @type {number} */
-    bottom = 0;
-    /** @type {number} */
-    top = 0;
-    /** @type {Array<T|undefined>} */
-    list = new Array(kSize).fill(void 0);
-    /** @type {T|null} */
-    next = null;
-    /** @returns {boolean} */
-    isEmpty() {
-      return this.top === this.bottom;
+import { __require as requireUtil } from "./index24.js";
+import { __require as requireErrors } from "./index23.js";
+var unwrapHandler;
+var hasRequiredUnwrapHandler;
+function requireUnwrapHandler() {
+  if (hasRequiredUnwrapHandler) return unwrapHandler;
+  hasRequiredUnwrapHandler = 1;
+  const { parseHeaders } = requireUtil();
+  const { InvalidArgumentError } = requireErrors();
+  const kResume = Symbol("resume");
+  class UnwrapController {
+    #paused = false;
+    #reason = null;
+    #aborted = false;
+    #abort;
+    [kResume] = null;
+    constructor(abort) {
+      this.#abort = abort;
     }
-    /** @returns {boolean} */
-    isFull() {
-      return (this.top + 1 & kMask) === this.bottom;
+    pause() {
+      this.#paused = true;
     }
-    /**
-     * @param {T} data
-     * @returns {void}
-     */
-    push(data) {
-      this.list[this.top] = data;
-      this.top = this.top + 1 & kMask;
-    }
-    /** @returns {T|null} */
-    shift() {
-      const nextItem = this.list[this.bottom];
-      if (nextItem === void 0) {
-        return null;
+    resume() {
+      if (this.#paused) {
+        this.#paused = false;
+        this[kResume]?.();
       }
-      this.list[this.bottom] = void 0;
-      this.bottom = this.bottom + 1 & kMask;
-      return nextItem;
+    }
+    abort(reason) {
+      if (!this.#aborted) {
+        this.#aborted = true;
+        this.#reason = reason;
+        this.#abort(reason);
+      }
+    }
+    get aborted() {
+      return this.#aborted;
+    }
+    get reason() {
+      return this.#reason;
+    }
+    get paused() {
+      return this.#paused;
     }
   }
-  fixedQueue = class FixedQueue {
-    constructor() {
-      this.head = this.tail = new FixedCircularBuffer();
+  unwrapHandler = class UnwrapHandler {
+    #handler;
+    #controller;
+    constructor(handler) {
+      this.#handler = handler;
     }
-    /** @returns {boolean} */
-    isEmpty() {
-      return this.head.isEmpty();
+    static unwrap(handler) {
+      return !handler.onRequestStart ? handler : new UnwrapHandler(handler);
     }
-    /** @param {T} data */
-    push(data) {
-      if (this.head.isFull()) {
-        this.head = this.head.next = new FixedCircularBuffer();
+    onConnect(abort, context) {
+      this.#controller = new UnwrapController(abort);
+      this.#handler.onRequestStart?.(this.#controller, context);
+    }
+    onUpgrade(statusCode, rawHeaders, socket) {
+      this.#handler.onRequestUpgrade?.(this.#controller, statusCode, parseHeaders(rawHeaders), socket);
+    }
+    onHeaders(statusCode, rawHeaders, resume, statusMessage) {
+      this.#controller[kResume] = resume;
+      this.#handler.onResponseStart?.(this.#controller, statusCode, parseHeaders(rawHeaders), statusMessage);
+      return !this.#controller.paused;
+    }
+    onData(data) {
+      this.#handler.onResponseData?.(this.#controller, data);
+      return !this.#controller.paused;
+    }
+    onComplete(rawTrailers) {
+      this.#handler.onResponseEnd?.(this.#controller, parseHeaders(rawTrailers));
+    }
+    onError(err) {
+      if (!this.#handler.onResponseError) {
+        throw new InvalidArgumentError("invalid onError method");
       }
-      this.head.push(data);
-    }
-    /** @returns {T|null} */
-    shift() {
-      const tail = this.tail;
-      const next = tail.shift();
-      if (tail.isEmpty() && tail.next !== null) {
-        this.tail = tail.next;
-        tail.next = null;
-      }
-      return next;
+      this.#handler.onResponseError?.(this.#controller, err);
     }
   };
-  return fixedQueue;
+  return unwrapHandler;
 }
 export {
-  requireFixedQueue as __require
+  requireUnwrapHandler as __require
 };
 //# sourceMappingURL=index104.js.map

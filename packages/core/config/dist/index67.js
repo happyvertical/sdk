@@ -1,68 +1,17 @@
-import { __exports as lib } from "./index73.js";
-import { __require as requireIdentifier } from "./index74.js";
-import { __require as requireKeyword } from "./index75.js";
-var hasRequiredLib;
-function requireLib() {
-  if (hasRequiredLib) return lib;
-  hasRequiredLib = 1;
-  (function(exports) {
-    Object.defineProperty(exports, "__esModule", {
-      value: true
-    });
-    Object.defineProperty(exports, "isIdentifierChar", {
-      enumerable: true,
-      get: function() {
-        return _identifier.isIdentifierChar;
-      }
-    });
-    Object.defineProperty(exports, "isIdentifierName", {
-      enumerable: true,
-      get: function() {
-        return _identifier.isIdentifierName;
-      }
-    });
-    Object.defineProperty(exports, "isIdentifierStart", {
-      enumerable: true,
-      get: function() {
-        return _identifier.isIdentifierStart;
-      }
-    });
-    Object.defineProperty(exports, "isKeyword", {
-      enumerable: true,
-      get: function() {
-        return _keyword.isKeyword;
-      }
-    });
-    Object.defineProperty(exports, "isReservedWord", {
-      enumerable: true,
-      get: function() {
-        return _keyword.isReservedWord;
-      }
-    });
-    Object.defineProperty(exports, "isStrictBindOnlyReservedWord", {
-      enumerable: true,
-      get: function() {
-        return _keyword.isStrictBindOnlyReservedWord;
-      }
-    });
-    Object.defineProperty(exports, "isStrictBindReservedWord", {
-      enumerable: true,
-      get: function() {
-        return _keyword.isStrictBindReservedWord;
-      }
-    });
-    Object.defineProperty(exports, "isStrictReservedWord", {
-      enumerable: true,
-      get: function() {
-        return _keyword.isStrictReservedWord;
-      }
-    });
-    var _identifier = requireIdentifier();
-    var _keyword = requireKeyword();
-  })(lib);
-  return lib;
+import { __module as picocolors_browser } from "./index72.js";
+var hasRequiredPicocolors_browser;
+function requirePicocolors_browser() {
+  if (hasRequiredPicocolors_browser) return picocolors_browser.exports;
+  hasRequiredPicocolors_browser = 1;
+  var x = String;
+  var create = function() {
+    return { isColorSupported: false, reset: x, bold: x, dim: x, italic: x, underline: x, inverse: x, hidden: x, strikethrough: x, black: x, red: x, green: x, yellow: x, blue: x, magenta: x, cyan: x, white: x, gray: x, bgBlack: x, bgRed: x, bgGreen: x, bgYellow: x, bgBlue: x, bgMagenta: x, bgCyan: x, bgWhite: x, blackBright: x, redBright: x, greenBright: x, yellowBright: x, blueBright: x, magentaBright: x, cyanBright: x, whiteBright: x, bgBlackBright: x, bgRedBright: x, bgGreenBright: x, bgYellowBright: x, bgBlueBright: x, bgMagentaBright: x, bgCyanBright: x, bgWhiteBright: x };
+  };
+  picocolors_browser.exports = create();
+  picocolors_browser.exports.createColors = create;
+  return picocolors_browser.exports;
 }
 export {
-  requireLib as __require
+  requirePicocolors_browser as __require
 };
 //# sourceMappingURL=index67.js.map
