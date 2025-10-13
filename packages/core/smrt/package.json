@@ -17,7 +17,6 @@
     ".": "./dist/index.js",
     "./fields": "./dist/fields.js",
     "./utils": "./dist/utils.js",
-    "./cli": "./dist/cli.js",
     "./generators": "./dist/generators.js",
     "./generators/cli": "./dist/generators/cli.js",
     "./generators/rest": "./dist/generators/rest.js",
