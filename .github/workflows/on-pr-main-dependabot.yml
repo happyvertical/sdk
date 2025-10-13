@@ -4,31 +4,37 @@ on:
   pull_request:
     branches: [ main ]
 
+# Only one dependabot run per PR at a time
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 permissions:
   contents: write      # Required for auto-merge functionality
   pull-requests: write # Required for approving and merging PRs
 
 jobs:
+  # Run test suite first to validate dependency changes
+  test:
+    name: Validate Dependency Updates
+    uses: ./.github/workflows/test-suite.yml
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    with:
+      runner: 'ubuntu-latest'
+      node-version: '24'
+
+  # Handle dependabot-specific automation after tests pass
   dependabot:
     runs-on: ubuntu-latest
-    if: ${{ github.actor == 'dependabot[bot]' }}
+    needs: [test]
+    if: |
+      github.actor == 'dependabot[bot]' &&
+      needs.test.outputs.success == 'true'
 
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: testdb
-          PGUSER: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Validate security requirements
         run: |
           if [ -z "${{ secrets.GITHUB_TOKEN }}" ]; then
@@ -38,23 +44,14 @@ jobs:
           echo "✅ Security requirements validated"
           echo "::notice::Processing dependabot PR with enhanced security checks"
 
-      - name: Setup Environment
-        uses: ./.github/actions/setup-environment
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
-          node-version: '24'
-        
-      - name: Build packages
-        run: pnpm run build
-        
-      - name: Run tests
-        run: pnpm test
-        env:
-          SQLOO_HOST: localhost
-          SQLOO_USER: postgres
-          SQLOO_PASSWORD: postgres
-          SQLOO_DATABASE: testdb
-          SQLOO_PORT: 5432
-        
+          run_install: false
+
+      - name: Install dependencies for security audit
+        run: pnpm install --frozen-lockfile
+
       - name: Dependabot metadata
         id: metadata
         uses: dependabot/fetch-metadata@v2.2.0  # Pinned to specific version
