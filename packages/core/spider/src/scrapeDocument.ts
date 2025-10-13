@@ -162,6 +162,99 @@ function extractCivicWebDocumentUrl(url: string, html: string): string | null {
 }
 
 /**
+ * Detect if a URL is a DocuShare document page and extract the actual download URL
+ *
+ * DocuShare document management system (used by municipalities and organizations)
+ * uses document pages that link to downloadable files. Common patterns:
+ * - https://example.com/docushare/dsweb/Get/Document-12345
+ * - https://example.com/docushare/dsweb/View/Collection-12345
+ *
+ * The actual download link is embedded in the page:
+ * - https://example.com/docushare/dsweb/Get/Document-12345/filename.pdf
+ * - https://example.com/docushare/dsweb/ServicesLib/Document-12345/filename.pdf
+ *
+ * @param url - The URL to check
+ * @param html - The HTML content of the page
+ * @returns The actual download URL if detected, null otherwise
+ */
+function extractDocuShareDocumentUrl(url: string, html: string): string | null {
+  // Check if this looks like a DocuShare page
+  const isDocuSharePage =
+    url.includes('/docushare/dsweb/') ||
+    url.includes('DocuShare') ||
+    html.includes('DocuShare') ||
+    html.includes('/dsweb/Get/') ||
+    html.includes('/dsweb/ServicesLib/');
+
+  if (!isDocuSharePage) {
+    return null;
+  }
+
+  // Try to find direct download links for various file types
+  // Pattern 1: /dsweb/Get/Document-ID/filename.ext
+  const getMatch = html.match(
+    /href=["'](\/dsweb\/Get\/Document-\d+\/[^"']+\.(pdf|doc|docx|xls|xlsx|ppt|pptx))["']/i,
+  );
+
+  if (getMatch) {
+    let docUrl = getMatch[1];
+    // Decode HTML entities
+    docUrl = docUrl
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#039;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
+
+    // Make absolute URL
+    const urlObj = new URL(url);
+    return `${urlObj.protocol}//${urlObj.host}${docUrl}`;
+  }
+
+  // Pattern 2: /dsweb/ServicesLib/Document-ID/filename.ext
+  const servicesMatch = html.match(
+    /href=["'](\/dsweb\/ServicesLib\/Document-\d+\/[^"']+\.(pdf|doc|docx|xls|xlsx|ppt|pptx))["']/i,
+  );
+
+  if (servicesMatch) {
+    let docUrl = servicesMatch[1];
+    // Decode HTML entities
+    docUrl = docUrl
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#039;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
+
+    // Make absolute URL
+    const urlObj = new URL(url);
+    return `${urlObj.protocol}//${urlObj.host}${docUrl}`;
+  }
+
+  // Pattern 3: Direct link to any document file in DocuShare paths
+  const directMatch = html.match(
+    /href=["'](\/[^"']*(?:docushare|dsweb)[^"']+\.(pdf|doc|docx|xls|xlsx|ppt|pptx))["']/i,
+  );
+
+  if (directMatch) {
+    let docUrl = directMatch[1];
+    // Decode HTML entities
+    docUrl = docUrl
+      .replace(/&amp;/g, '&')
+      .replace(/&quot;/g, '"')
+      .replace(/&#039;/g, "'")
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
+
+    // Make absolute URL
+    const urlObj = new URL(url);
+    return `${urlObj.protocol}//${urlObj.host}${docUrl}`;
+  }
+
+  return null;
+}
+
+/**
  * Convenience function to scrape and extract document content from a URL
  *
  * This function intelligently handles different document types:
@@ -170,6 +263,7 @@ function extractCivicWebDocumentUrl(url: string, html: string): string | null {
  * - Download pages: Detects links to downloadable documents
  * - WordPress Download Manager: Automatically extracts actual download URLs
  * - CivicWeb preview pages: Extracts actual PDF URLs from preview pages
+ * - DocuShare document pages: Extracts direct download links for documents
  *
  * For full document processing with PDF support, use @have/content's Document class.
  * This function provides the foundation for document discovery and basic extraction.
@@ -215,6 +309,19 @@ function extractCivicWebDocumentUrl(url: string, html: string): string | null {
  * if (doc.metadata.strategy === 'civicweb-pdf-link') {
  *   console.log('PDF extracted from CivicWeb preview page');
  *   console.log(doc.url); // Actual PDF URL
+ * }
+ * ```
+ *
+ * @example DocuShare document pages
+ * ```typescript
+ * // Automatically handles DocuShare document pages
+ * const doc = await scrapeDocument(
+ *   'https://example.com/docushare/dsweb/Get/Document-12345'
+ * );
+ * // Extracts direct download link for document
+ * if (doc.metadata.strategy === 'docushare-doc-link') {
+ *   console.log('Document extracted from DocuShare page');
+ *   console.log(doc.url); // Direct download URL
  * }
  * ```
  *
@@ -279,6 +386,29 @@ export async function scrapeDocument(
         isPdf: true,
         complete: false,  // Indicate PDF needs separate processing
         strategy: 'civicweb-pdf-link',
+      },
+    };
+  }
+
+  // Check if this is a DocuShare document page
+  const docuShareUrl = extractDocuShareDocumentUrl(url, result.content);
+  if (docuShareUrl) {
+    // DocuShare pages embed direct download links
+    // Determine document type from extension
+    const isPdf = docuShareUrl.toLowerCase().endsWith('.pdf');
+    const docType = isPdf ? 'application/pdf' : 'application/octet-stream';
+
+    return {
+      url: docuShareUrl,
+      type: docType,
+      text: '',
+      html: undefined,
+      metadata: {
+        title: undefined,
+        description: undefined,
+        isPdf,
+        complete: false,  // Indicate document needs separate processing
+        strategy: 'docushare-doc-link',
       },
     };
   }
