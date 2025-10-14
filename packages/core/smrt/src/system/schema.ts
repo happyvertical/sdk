@@ -6,11 +6,11 @@
  */
 
 /**
- * Self-learning pattern cache
- * Stores AI-learned strategies (regex patterns, selectors) for reuse
+ * Context memory storage
+ * Stores remembered context (learned strategies, patterns, selectors) for reuse
  */
-export const CREATE_SMRT_NOTES_TABLE = `
-CREATE TABLE IF NOT EXISTS _smrt_notes (
+export const CREATE_SMRT_CONTEXTS_TABLE = `
+CREATE TABLE IF NOT EXISTS _smrt_contexts (
   id TEXT PRIMARY KEY,
   owner_class TEXT NOT NULL,
   owner_id TEXT NOT NULL,
@@ -29,17 +29,17 @@ CREATE TABLE IF NOT EXISTS _smrt_notes (
   UNIQUE(owner_class, owner_id, scope, key, version)
 );
 
-CREATE INDEX IF NOT EXISTS idx_smrt_notes_owner
-  ON _smrt_notes(owner_class, owner_id);
+CREATE INDEX IF NOT EXISTS idx_smrt_contexts_owner
+  ON _smrt_contexts(owner_class, owner_id);
 
-CREATE INDEX IF NOT EXISTS idx_smrt_notes_scope
-  ON _smrt_notes(scope);
+CREATE INDEX IF NOT EXISTS idx_smrt_contexts_scope
+  ON _smrt_contexts(scope);
 
-CREATE INDEX IF NOT EXISTS idx_smrt_notes_confidence
-  ON _smrt_notes(confidence);
+CREATE INDEX IF NOT EXISTS idx_smrt_contexts_confidence
+  ON _smrt_contexts(confidence);
 
-CREATE INDEX IF NOT EXISTS idx_smrt_notes_last_used
-  ON _smrt_notes(last_used_at);
+CREATE INDEX IF NOT EXISTS idx_smrt_contexts_last_used
+  ON _smrt_contexts(last_used_at);
 `;
 
 /**
@@ -102,7 +102,7 @@ CREATE INDEX IF NOT EXISTS idx_smrt_signals_timestamp
  * All system table creation statements
  */
 export const ALL_SYSTEM_TABLES = [
-  CREATE_SMRT_NOTES_TABLE,
+  CREATE_SMRT_CONTEXTS_TABLE,
   CREATE_SMRT_MIGRATIONS_TABLE,
   CREATE_SMRT_REGISTRY_TABLE,
   CREATE_SMRT_SIGNALS_TABLE,
