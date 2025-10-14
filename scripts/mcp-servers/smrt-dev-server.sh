@@ -6,11 +6,12 @@
 set -euo pipefail
 
 # Configuration
-SERVER_NAME="SMRT Development Server"
-SERVER_DIR="${SDK_ROOT:-$(dirname "$0")/../..}/mcp"
-SERVER_SCRIPT="$SERVER_DIR/dist/index.js"
-LOG_FILE="/tmp/smrt-mcp-server.log"
-PID_FILE="/tmp/smrt-mcp-server.pid"
+SERVER_NAME="SMRT Advisor MCP Server"
+SDK_ROOT="${SDK_ROOT:-$(dirname "$0")/../..}"
+SERVER_SCRIPT="$SDK_ROOT/packages/core/smrt/src/mcp-advisor/index.ts"
+LOG_FILE="/tmp/smrt-advisor-mcp-server.log"
+PID_FILE="/tmp/smrt-advisor-mcp-server.pid"
+DEBUG="${DEBUG:-false}"
 
 # Utility functions
 log() {
@@ -39,43 +40,25 @@ trap cleanup EXIT INT TERM
 
 # Check dependencies
 check_dependencies() {
-    if ! command -v node >/dev/null 2>&1; then
-        error "Node.js is not installed or not in PATH"
+    if ! command -v pnpm >/dev/null 2>&1; then
+        error "pnpm is not installed. Install with: npm install -g pnpm"
     fi
 
-    if ! command -v bun >/dev/null 2>&1; then
-        error "Bun is not installed or not in PATH"
-    fi
-
-    if [[ ! -d "$SERVER_DIR" ]]; then
-        error "Server directory not found: $SERVER_DIR"
+    if [[ ! -f "$SERVER_SCRIPT" ]]; then
+        error "Server script not found: $SERVER_SCRIPT"
     fi
 }
 
-# Build server if needed
+# No build needed - tsx runs TypeScript directly
 build_server() {
-    log "Checking if server build is needed..."
+    log "Running TypeScript directly with tsx - no build needed"
 
-    cd "$SERVER_DIR" || error "Cannot change to server directory"
-
-    # Check if dist directory exists and is newer than source
-    if [[ ! -f "$SERVER_SCRIPT" ]] || [[ "src" -nt "dist" ]]; then
-        log "Building MCP server..."
-
-        # Install dependencies if needed
-        if [[ ! -d "node_modules" ]] || [[ "package.json" -nt "node_modules/.package-lock.json" ]]; then
-            log "Installing dependencies..."
-            bun install || error "Failed to install dependencies"
-        fi
-
-        # Build the server
-        log "Compiling TypeScript..."
-        bun run build || error "Failed to build server"
-
-        log "Server build completed successfully"
-    else
-        log "Server is up to date"
+    # Verify server script exists
+    if [[ ! -f "$SERVER_SCRIPT" ]]; then
+        error "Server script not found: $SERVER_SCRIPT"
     fi
+
+    log "Server script verified: $SERVER_SCRIPT"
 }
 
 # Health check
@@ -105,15 +88,18 @@ health_check() {
 start_server() {
     log "Starting $SERVER_NAME..."
 
-    cd "$SERVER_DIR" || error "Cannot change to server directory"
+    cd "$SDK_ROOT" || error "Cannot change to SDK root directory"
 
-    # Start the server in the background
-    node "$SERVER_SCRIPT" &
+    # Set DEBUG environment variable if needed
+    export DEBUG="$DEBUG"
+
+    # Start the server using pnpm exec tsx to execute TypeScript directly
+    pnpm exec tsx "$SERVER_SCRIPT" &
     local pid=$!
 
     # Save PID
     echo "$pid" > "$PID_FILE"
-    log "Server started with PID: $pid"
+    log "Server started with PID: $pid (DEBUG=$DEBUG)"
 
     # Brief startup wait
     sleep 2
