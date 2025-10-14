@@ -40,8 +40,8 @@ trap cleanup EXIT INT TERM
 
 # Check dependencies
 check_dependencies() {
-    if ! command -v tsx >/dev/null 2>&1; then
-        error "tsx is not installed. Install with: npm install -g tsx"
+    if ! command -v pnpm >/dev/null 2>&1; then
+        error "pnpm is not installed. Install with: npm install -g pnpm"
     fi
 
     if [[ ! -f "$SERVER_SCRIPT" ]]; then
@@ -93,8 +93,8 @@ start_server() {
     # Set DEBUG environment variable if needed
     export DEBUG="$DEBUG"
 
-    # Start the server using tsx to execute TypeScript directly
-    tsx "$SERVER_SCRIPT" &
+    # Start the server using pnpm exec tsx to execute TypeScript directly
+    pnpm exec tsx "$SERVER_SCRIPT" &
     local pid=$!
 
     # Save PID
