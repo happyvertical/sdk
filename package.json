@@ -74,6 +74,8 @@
     "@anolilab/semantic-release-pnpm": "^2.0.4",
     "@biomejs/biome": "2.2.4",
     "@changesets/cli": "^2.27.12",
+    "@commitlint/cli": "^20.1.0",
+    "@commitlint/config-conventional": "^20.0.0",
     "@jpisnice/shadcn-ui-mcp-server": "1.1.0",
     "@playwright/mcp": "0.0.34",
     "@playwright/test": "^1.54.2",
