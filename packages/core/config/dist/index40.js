@@ -1,24 +1,23 @@
-import { __require as requireFailsafe } from "./index39.js";
-import { __require as require_null } from "./index47.js";
-import { __require as requireBool } from "./index51.js";
-import { __require as requireInt } from "./index52.js";
-import { __require as requireFloat } from "./index45.js";
-var json;
-var hasRequiredJson;
-function requireJson() {
-  if (hasRequiredJson) return json;
-  hasRequiredJson = 1;
-  json = requireFailsafe().extend({
-    implicit: [
-      require_null(),
-      requireBool(),
-      requireInt(),
-      requireFloat()
+import { __require as requireSchema } from "./index39.js";
+import { __require as requireStr } from "./index57.js";
+import { __require as requireSeq } from "./index56.js";
+import { __require as requireMap } from "./index47.js";
+var failsafe;
+var hasRequiredFailsafe;
+function requireFailsafe() {
+  if (hasRequiredFailsafe) return failsafe;
+  hasRequiredFailsafe = 1;
+  var Schema = requireSchema();
+  failsafe = new Schema({
+    explicit: [
+      requireStr(),
+      requireSeq(),
+      requireMap()
     ]
   });
-  return json;
+  return failsafe;
 }
 export {
-  requireJson as __require
+  requireFailsafe as __require
 };
 //# sourceMappingURL=index40.js.map

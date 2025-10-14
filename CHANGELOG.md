@@ -1,3 +1,10 @@
+# [0.31.0](https://github.com/happyvertical/sdk/compare/v0.30.0...v0.31.0) (2025-10-14)
+
+
+### Features
+
+* **utils:** add web utility functions for URL handling ([0eef7e5](https://github.com/happyvertical/sdk/commit/0eef7e5dff5d2a62deaf20be68fd445449b9c5b3))
+
 # [0.30.0](https://github.com/happyvertical/sdk/compare/v0.29.0...v0.30.0) (2025-10-14)
 
 

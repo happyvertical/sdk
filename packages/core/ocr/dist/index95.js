@@ -1,5 +1,5 @@
-var inferenceSession = {};
+var tensor = {};
 export {
-  inferenceSession as __exports
+  tensor as __exports
 };
 //# sourceMappingURL=index95.js.map

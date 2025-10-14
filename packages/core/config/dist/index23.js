@@ -1,5 +1,5 @@
-const __viteBrowserExternal = {};
+var loaders = {};
 export {
-  __viteBrowserExternal as default
+  loaders as __exports
 };
 //# sourceMappingURL=index23.js.map

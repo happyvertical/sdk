@@ -1,5 +1,5 @@
-var lib = {};
+var loader = {};
 export {
-  lib as __exports
+  loader as __exports
 };
 //# sourceMappingURL=index66.js.map

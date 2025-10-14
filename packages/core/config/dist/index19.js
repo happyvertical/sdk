@@ -1,5 +1,5 @@
-var loaders = {};
+const __viteBrowserExternal = {};
 export {
-  loaders as __exports
+  __viteBrowserExternal as default
 };
 //# sourceMappingURL=index19.js.map
