@@ -61,7 +61,7 @@ describe('@have/agents', () => {
         name: 'test-agent',
         db: {
           type: 'sqlite',
-          filename: testDbPath,
+          url: `file:${testDbPath}`,
         },
       });
 
@@ -75,7 +75,7 @@ describe('@have/agents', () => {
         name: 'test-agent',
         db: {
           type: 'sqlite',
-          filename: testDbPath,
+          url: `file:${testDbPath}`,
         },
       });
 
@@ -91,7 +91,7 @@ describe('@have/agents', () => {
         name: 'test-agent',
         db: {
           type: 'sqlite',
-          filename: testDbPath,
+          url: `file:${testDbPath}`,
         },
       });
 
@@ -108,7 +108,7 @@ describe('@have/agents', () => {
         name: 'test-agent',
         db: {
           type: 'sqlite',
-          filename: testDbPath,
+          url: `file:${testDbPath}`,
         },
       });
 
@@ -125,7 +125,7 @@ describe('@have/agents', () => {
         name: 'config-agent',
         db: {
           type: 'sqlite',
-          filename: testDbPath,
+          url: `file:${testDbPath}`,
         },
       });
 
