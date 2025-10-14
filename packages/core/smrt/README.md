@@ -197,6 +197,97 @@ await generator.generate();
 // Creates: ./mcp/documents-mcp-server.js for AI model integration
 ```
 
+## SMRT Advisor for Claude Code
+
+The SMRT Advisor is a development-time MCP server that integrates with Claude Code to help you write correct SMRT framework code. It provides 11 AI-callable tools for code generation, validation, preview, and discovery.
+
+### Features
+
+**Code Generation Tools (5)**:
+- `generate-smrt-class` - Generate complete SMRT classes with decorators and properties
+- `add-ai-methods` - Add AI-powered `is()`, `do()`, and `tool()` methods
+- `generate-field-definitions` - Generate field definitions with proper imports
+- `generate-collection` - Generate SmrtCollection subclasses
+- `configure-decorators` - Configure `@smrt()` decorator options
+
+**Validation Tool (1)**:
+- `validate-smrt-object` - Validate SMRT object structure and configuration
+
+**Preview Tools (2)**:
+- `preview-api-endpoints` - Preview auto-generated REST API endpoints
+- `preview-mcp-tools` - Preview auto-generated MCP tools
+
+**Discovery Tools (3)**:
+- `list-registered-objects` - List all registered SMRT objects
+- `get-object-schema` - Get field schemas (JSON/TypeScript/table formats)
+- `get-object-config` - Get decorator configuration (JSON/YAML)
+
+### Setup
+
+The advisor server is configured in your `.mcp.json` file:
+
+```json
+{
+  "mcpServers": {
+    "smrt-advisor": {
+      "type": "stdio",
+      "command": "pnpm",
+      "args": [
+        "exec",
+        "tsx",
+        "/path/to/sdk/packages/core/smrt/src/mcp-advisor/index.ts"
+      ],
+      "env": {
+        "DEBUG": "false"
+      },
+      "cwd": "/path/to/sdk"
+    }
+  }
+}
+```
+
+After restarting Claude Code, you can use the advisor tools directly in your development workflow.
+
+### Example Usage
+
+```typescript
+// Ask Claude Code to generate a SMRT class
+"Generate a Book class with title, author, isbn, and price fields"
+
+// Claude Code uses generate-smrt-class tool to create:
+import { SmrtObject, type SmrtObjectOptions, smrt } from '@have/smrt';
+import { text, decimal } from '@have/smrt/fields';
+
+export interface BookOptions extends SmrtObjectOptions {
+  title?: string;
+  author?: string;
+  isbn?: string;
+  price?: number;
+}
+
+@smrt({
+  api: { include: ['list', 'get', 'create', 'update'] },
+  mcp: { include: ['list', 'get'] },
+  cli: true
+})
+export class Book extends SmrtObject {
+  title = text({ required: true, description: "The title of the book" });
+  author = text({ required: true, description: "The author's name" });
+  isbn = text({ description: "International Standard Book Number" });
+  price = decimal({ description: "Price of the book" });
+
+  constructor(options: BookOptions = {}) {
+    super(options);
+    this.title = options.title || '';
+    this.author = options.author || '';
+    this.isbn = options.isbn || '';
+    this.price = options.price || 0;
+  }
+}
+```
+
+The advisor helps ensure your SMRT code follows best practices and generates correct configurations.
+
 ## Vite Plugin Integration
 
 Use the Vite plugin for automatic service generation during development:
