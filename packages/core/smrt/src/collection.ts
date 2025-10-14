@@ -775,4 +775,275 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
 
     return Number.parseInt(result.rows[0].count, 10);
   }
+
+  /**
+   * Remember collection-level context
+   *
+   * Stores context applicable to all instances of this collection type.
+   * Use for patterns that apply to the entire collection (e.g., default parsing strategies).
+   *
+   * @param options - Context options
+   * @returns Promise that resolves when context is stored
+   * @example
+   * ```typescript
+   * // Remember a default parsing strategy for all documents
+   * await documentCollection.remember({
+   *   scope: 'parser/default',
+   *   key: 'selector',
+   *   value: { pattern: '.content article' },
+   *   confidence: 0.8
+   * });
+   *
+   * // Update an existing context entry by specifying id
+   * await documentCollection.remember({
+   *   id: 'existing-context-id',
+   *   scope: 'parser/default',
+   *   key: 'selector',
+   *   value: { pattern: '.content main article' },
+   *   confidence: 0.85
+   * });
+   * ```
+   */
+  public async remember(options: {
+    id?: string;
+    scope: string;
+    key: string;
+    value: any;
+    metadata?: any;
+    confidence?: number;
+    version?: number;
+    expiresAt?: Date;
+  }): Promise<void> {
+    if (!this.systemDb) {
+      throw new Error('Database not initialized. Call initialize() first.');
+    }
+
+    const id = options.id || crypto.randomUUID();
+    const now = new Date();
+
+    await this.systemDb.query(
+      `INSERT OR REPLACE INTO _smrt_contexts (
+        id, owner_class, owner_id, scope, key, value, metadata,
+        version, confidence, created_at, updated_at, last_used_at, expires_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id,
+      this._itemClass.name,
+      '__collection__',
+      options.scope,
+      options.key,
+      JSON.stringify(options.value),
+      options.metadata ? JSON.stringify(options.metadata) : null,
+      options.version ?? 1,
+      options.confidence ?? 1.0,
+      now,
+      now,
+      now,
+      options.expiresAt ?? null,
+    );
+  }
+
+  /**
+   * Recall collection-level context
+   *
+   * Retrieves context that applies to all instances of this collection.
+   *
+   * @param options - Recall options
+   * @returns Promise resolving to the context value or null if not found
+   * @example
+   * ```typescript
+   * // Recall default parsing strategy
+   * const strategy = await documentCollection.recall({
+   *   scope: 'parser/default',
+   *   key: 'selector',
+   *   minConfidence: 0.5
+   * });
+   * ```
+   */
+  public async recall(options: {
+    scope: string;
+    key: string;
+    includeAncestors?: boolean;
+    minConfidence?: number;
+  }): Promise<any | null> {
+    if (!this.systemDb) {
+      throw new Error('Database not initialized. Call initialize() first.');
+    }
+
+    let query = `
+      SELECT value, confidence
+      FROM _smrt_contexts
+      WHERE owner_class = ? AND owner_id = ? AND scope = ? AND key = ?
+    `;
+    const params: any[] = [
+      this._itemClass.name,
+      '__collection__',
+      options.scope,
+      options.key,
+    ];
+
+    if (options.minConfidence !== undefined) {
+      query += ` AND confidence >= ?`;
+      params.push(options.minConfidence);
+    }
+
+    query += ` ORDER BY confidence DESC, version DESC LIMIT 1`;
+
+    const result = await this.systemDb.get(query, params);
+
+    if (result) {
+      return JSON.parse(result.value);
+    }
+
+    // Hierarchical fallback to parent scopes
+    if (options.includeAncestors) {
+      const scopeParts = options.scope.split('/');
+      while (scopeParts.length > 0) {
+        scopeParts.pop();
+        const parentScope = scopeParts.join('/') || 'global';
+
+        const parentResult = await this.recall({
+          ...options,
+          scope: parentScope,
+          includeAncestors: false,
+        });
+
+        if (parentResult) return parentResult;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Recall all collection-level context in a scope
+   *
+   * Returns a Map of key -> value for all collection contexts matching the criteria.
+   *
+   * @param options - Recall options
+   * @returns Promise resolving to Map of key -> value pairs
+   * @example
+   * ```typescript
+   * // Get all default strategies
+   * const strategies = await documentCollection.recallAll({
+   *   scope: 'parser/default',
+   *   minConfidence: 0.5
+   * });
+   * ```
+   */
+  public async recallAll(options: {
+    scope?: string;
+    includeDescendants?: boolean;
+    minConfidence?: number;
+  } = {}): Promise<Map<string, any>> {
+    if (!this.systemDb) {
+      throw new Error('Database not initialized. Call initialize() first.');
+    }
+
+    const results = new Map<string, any>();
+
+    let query = `
+      SELECT key, value, confidence
+      FROM _smrt_contexts
+      WHERE owner_class = ? AND owner_id = ?
+    `;
+    const params: any[] = [this._itemClass.name, '__collection__'];
+
+    if (options.scope) {
+      if (options.includeDescendants) {
+        query += ` AND (scope = ? OR scope LIKE ?)`;
+        params.push(options.scope, `${options.scope}/%`);
+      } else {
+        query += ` AND scope = ?`;
+        params.push(options.scope);
+      }
+    }
+
+    if (options.minConfidence !== undefined) {
+      query += ` AND confidence >= ?`;
+      params.push(options.minConfidence);
+    }
+
+    query += ` ORDER BY confidence DESC`;
+
+    const { rows } = await this.systemDb.query(query, ...params);
+
+    for (const row of rows) {
+      results.set(row.key, JSON.parse(row.value));
+    }
+
+    return results;
+  }
+
+  /**
+   * Forget collection-level context
+   *
+   * Deletes collection context by scope and key.
+   *
+   * @param options - Context identification
+   * @returns Promise that resolves when context is deleted
+   * @example
+   * ```typescript
+   * // Remove a default strategy
+   * await documentCollection.forget({
+   *   scope: 'parser/default',
+   *   key: 'selector'
+   * });
+   * ```
+   */
+  public async forget(options: { scope: string; key: string }): Promise<void> {
+    if (!this.systemDb) {
+      throw new Error('Database not initialized. Call initialize() first.');
+    }
+
+    await this.systemDb.query(
+      `DELETE FROM _smrt_contexts
+       WHERE owner_class = ? AND owner_id = ? AND scope = ? AND key = ?`,
+      this._itemClass.name,
+      '__collection__',
+      options.scope,
+      options.key,
+    );
+  }
+
+  /**
+   * Forget all collection-level context in a scope
+   *
+   * Deletes all collection contexts matching the scope pattern.
+   *
+   * @param options - Scope options
+   * @returns Promise resolving to number of contexts deleted
+   * @example
+   * ```typescript
+   * // Clear all default strategies
+   * const count = await documentCollection.forgetScope({
+   *   scope: 'parser/default',
+   *   includeDescendants: true
+   * });
+   * ```
+   */
+  public async forgetScope(options: {
+    scope: string;
+    includeDescendants?: boolean;
+  }): Promise<number> {
+    if (!this.systemDb) {
+      throw new Error('Database not initialized. Call initialize() first.');
+    }
+
+    let query = `
+      DELETE FROM _smrt_contexts
+      WHERE owner_class = ? AND owner_id = ?
+    `;
+    const params: any[] = [this._itemClass.name, '__collection__'];
+
+    if (options.includeDescendants) {
+      query += ` AND (scope = ? OR scope LIKE ?)`;
+      params.push(options.scope, `${options.scope}/%`);
+    } else {
+      query += ` AND scope = ?`;
+      params.push(options.scope);
+    }
+
+    const { rowCount } = await this.systemDb.query(query, ...params);
+    return rowCount || 0;
+  }
 }
