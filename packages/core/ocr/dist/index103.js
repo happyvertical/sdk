@@ -1,5 +1,5 @@
-var binding = {};
+var onnxValue = {};
 export {
-  binding as __exports
+  onnxValue as __exports
 };
 //# sourceMappingURL=index103.js.map

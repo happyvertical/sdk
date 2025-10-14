@@ -1,6 +1,6 @@
 {
   "name": "@have/utils",
-  "version": "0.28.0",
+  "version": "0.29.0",
   "description": "Foundation utilities for ID generation, date parsing, URL handling, string conversion, error handling, and logging",
   "type": "module",
   "main": "./dist/index.js",

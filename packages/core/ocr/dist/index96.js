@@ -1,287 +1,192 @@
-import { __exports as tensorImpl } from "./index108.js";
-import { __require as requireTensorConversionImpl } from "./index109.js";
-import { __require as requireTensorFactoryImpl } from "./index110.js";
-import { __require as requireTensorImplTypeMapping } from "./index111.js";
-import { __require as requireTensorUtilsImpl } from "./index112.js";
-var hasRequiredTensorImpl;
-function requireTensorImpl() {
-  if (hasRequiredTensorImpl) return tensorImpl;
-  hasRequiredTensorImpl = 1;
-  Object.defineProperty(tensorImpl, "__esModule", { value: true });
-  tensorImpl.Tensor = void 0;
-  const tensor_conversion_impl_js_1 = requireTensorConversionImpl();
-  const tensor_factory_impl_js_1 = requireTensorFactoryImpl();
-  const tensor_impl_type_mapping_js_1 = requireTensorImplTypeMapping();
-  const tensor_utils_impl_js_1 = requireTensorUtilsImpl();
-  class Tensor {
-    /**
-     * implementation.
-     */
-    constructor(arg0, arg1, arg2) {
-      (0, tensor_impl_type_mapping_js_1.checkTypedArray)();
-      let type;
-      let dims;
-      if (typeof arg0 === "object" && "location" in arg0) {
-        this.dataLocation = arg0.location;
-        type = arg0.type;
-        dims = arg0.dims;
-        switch (arg0.location) {
-          case "cpu-pinned": {
-            const expectedTypedArrayConstructor = tensor_impl_type_mapping_js_1.NUMERIC_TENSOR_TYPE_TO_TYPEDARRAY_MAP.get(type);
-            if (!expectedTypedArrayConstructor) {
-              throw new TypeError(`unsupported type "${type}" to create tensor from pinned buffer`);
-            }
-            if (!(arg0.data instanceof expectedTypedArrayConstructor)) {
-              throw new TypeError(`buffer should be of type ${expectedTypedArrayConstructor.name}`);
-            }
-            this.cpuData = arg0.data;
-            break;
-          }
-          case "texture": {
-            if (type !== "float32") {
-              throw new TypeError(`unsupported type "${type}" to create tensor from texture`);
-            }
-            this.gpuTextureData = arg0.texture;
-            this.downloader = arg0.download;
-            this.disposer = arg0.dispose;
-            break;
-          }
-          case "gpu-buffer": {
-            if (type !== "float32" && type !== "float16" && type !== "int32" && type !== "int64" && type !== "uint32" && type !== "uint8" && type !== "bool" && type !== "uint4" && type !== "int4") {
-              throw new TypeError(`unsupported type "${type}" to create tensor from gpu buffer`);
-            }
-            this.gpuBufferData = arg0.gpuBuffer;
-            this.downloader = arg0.download;
-            this.disposer = arg0.dispose;
-            break;
-          }
-          case "ml-tensor": {
-            if (type !== "float32" && type !== "float16" && type !== "int32" && type !== "int64" && type !== "uint32" && type !== "uint64" && type !== "int8" && type !== "uint8" && type !== "bool" && type !== "uint4" && type !== "int4") {
-              throw new TypeError(`unsupported type "${type}" to create tensor from MLTensor`);
-            }
-            this.mlTensorData = arg0.mlTensor;
-            this.downloader = arg0.download;
-            this.disposer = arg0.dispose;
-            break;
-          }
-          default:
-            throw new Error(`Tensor constructor: unsupported location '${this.dataLocation}'`);
+import { __exports as inferenceSessionImpl } from "./index105.js";
+import { __require as requireBackendImpl } from "./index92.js";
+import { __require as requireTensor } from "./index66.js";
+import { __require as requireTrace } from "./index69.js";
+var hasRequiredInferenceSessionImpl;
+function requireInferenceSessionImpl() {
+  if (hasRequiredInferenceSessionImpl) return inferenceSessionImpl;
+  hasRequiredInferenceSessionImpl = 1;
+  Object.defineProperty(inferenceSessionImpl, "__esModule", { value: true });
+  inferenceSessionImpl.InferenceSession = void 0;
+  const backend_impl_js_1 = requireBackendImpl();
+  const tensor_js_1 = requireTensor();
+  const trace_js_1 = requireTrace();
+  class InferenceSession {
+    constructor(handler) {
+      this.handler = handler;
+    }
+    async run(feeds, arg1, arg2) {
+      (0, trace_js_1.TRACE_FUNC_BEGIN)();
+      const fetches = {};
+      let options = {};
+      if (typeof feeds !== "object" || feeds === null || feeds instanceof tensor_js_1.Tensor || Array.isArray(feeds)) {
+        throw new TypeError("'feeds' must be an object that use input names as keys and OnnxValue as corresponding values.");
+      }
+      let isFetchesEmpty = true;
+      if (typeof arg1 === "object") {
+        if (arg1 === null) {
+          throw new TypeError("Unexpected argument[1]: cannot be null.");
         }
-      } else {
-        let data;
-        let maybeDims;
-        if (typeof arg0 === "string") {
-          type = arg0;
-          maybeDims = arg2;
-          if (arg0 === "string") {
-            if (!Array.isArray(arg1)) {
-              throw new TypeError("A string tensor's data must be a string array.");
+        if (arg1 instanceof tensor_js_1.Tensor) {
+          throw new TypeError("'fetches' cannot be a Tensor");
+        }
+        if (Array.isArray(arg1)) {
+          if (arg1.length === 0) {
+            throw new TypeError("'fetches' cannot be an empty array.");
+          }
+          isFetchesEmpty = false;
+          for (const name of arg1) {
+            if (typeof name !== "string") {
+              throw new TypeError("'fetches' must be a string array or an object.");
             }
-            data = arg1;
-          } else {
-            const typedArrayConstructor = tensor_impl_type_mapping_js_1.NUMERIC_TENSOR_TYPE_TO_TYPEDARRAY_MAP.get(arg0);
-            if (typedArrayConstructor === void 0) {
-              throw new TypeError(`Unsupported tensor type: ${arg0}.`);
+            if (this.outputNames.indexOf(name) === -1) {
+              throw new RangeError(`'fetches' contains invalid output name: ${name}.`);
             }
-            if (Array.isArray(arg1)) {
-              if (arg0 === "float16" && typedArrayConstructor === Uint16Array || arg0 === "uint4" || arg0 === "int4") {
-                throw new TypeError(`Creating a ${arg0} tensor from number array is not supported. Please use ${typedArrayConstructor.name} as data.`);
-              } else if (arg0 === "uint64" || arg0 === "int64") {
-                data = typedArrayConstructor.from(arg1, BigInt);
-              } else {
-                data = typedArrayConstructor.from(arg1);
-              }
-            } else if (arg1 instanceof typedArrayConstructor) {
-              data = arg1;
-            } else if (arg1 instanceof Uint8ClampedArray) {
-              if (arg0 === "uint8") {
-                data = Uint8Array.from(arg1);
-              } else {
-                throw new TypeError(`A Uint8ClampedArray tensor's data must be type of uint8`);
-              }
-            } else if (arg0 === "float16" && arg1 instanceof Uint16Array && typedArrayConstructor !== Uint16Array) {
-              data = new globalThis.Float16Array(arg1.buffer, arg1.byteOffset, arg1.length);
-            } else {
-              throw new TypeError(`A ${type} tensor's data must be type of ${typedArrayConstructor}`);
-            }
+            fetches[name] = null;
+          }
+          if (typeof arg2 === "object" && arg2 !== null) {
+            options = arg2;
+          } else if (typeof arg2 !== "undefined") {
+            throw new TypeError("'options' must be an object.");
           }
         } else {
-          maybeDims = arg1;
-          if (Array.isArray(arg0)) {
-            if (arg0.length === 0) {
-              throw new TypeError("Tensor type cannot be inferred from an empty array.");
+          let isFetches = false;
+          const arg1Keys = Object.getOwnPropertyNames(arg1);
+          for (const name of this.outputNames) {
+            if (arg1Keys.indexOf(name) !== -1) {
+              const v = arg1[name];
+              if (v === null || v instanceof tensor_js_1.Tensor) {
+                isFetches = true;
+                isFetchesEmpty = false;
+                fetches[name] = v;
+              }
             }
-            const firstElementType = typeof arg0[0];
-            if (firstElementType === "string") {
-              type = "string";
-              data = arg0;
-            } else if (firstElementType === "boolean") {
-              type = "bool";
-              data = Uint8Array.from(arg0);
-            } else {
-              throw new TypeError(`Invalid element type of data array: ${firstElementType}.`);
+          }
+          if (isFetches) {
+            if (typeof arg2 === "object" && arg2 !== null) {
+              options = arg2;
+            } else if (typeof arg2 !== "undefined") {
+              throw new TypeError("'options' must be an object.");
             }
-          } else if (arg0 instanceof Uint8ClampedArray) {
-            type = "uint8";
-            data = Uint8Array.from(arg0);
           } else {
-            const mappedType = tensor_impl_type_mapping_js_1.NUMERIC_TENSOR_TYPEDARRAY_TO_TYPE_MAP.get(arg0.constructor);
-            if (mappedType === void 0) {
-              throw new TypeError(`Unsupported type for tensor data: ${arg0.constructor}.`);
+            options = arg1;
+          }
+        }
+      } else if (typeof arg1 !== "undefined") {
+        throw new TypeError("Unexpected argument[1]: must be 'fetches' or 'options'.");
+      }
+      for (const name of this.inputNames) {
+        if (typeof feeds[name] === "undefined") {
+          throw new Error(`input '${name}' is missing in 'feeds'.`);
+        }
+      }
+      if (isFetchesEmpty) {
+        for (const name of this.outputNames) {
+          fetches[name] = null;
+        }
+      }
+      const results = await this.handler.run(feeds, fetches, options);
+      const returnValue = {};
+      for (const key in results) {
+        if (Object.hasOwnProperty.call(results, key)) {
+          const result = results[key];
+          if (result instanceof tensor_js_1.Tensor) {
+            returnValue[key] = result;
+          } else {
+            returnValue[key] = new tensor_js_1.Tensor(result.type, result.data, result.dims);
+          }
+        }
+      }
+      (0, trace_js_1.TRACE_FUNC_END)();
+      return returnValue;
+    }
+    async release() {
+      return this.handler.dispose();
+    }
+    static async create(arg0, arg1, arg2, arg3) {
+      (0, trace_js_1.TRACE_FUNC_BEGIN)();
+      let filePathOrUint8Array;
+      let options = {};
+      if (typeof arg0 === "string") {
+        filePathOrUint8Array = arg0;
+        if (typeof arg1 === "object" && arg1 !== null) {
+          options = arg1;
+        } else if (typeof arg1 !== "undefined") {
+          throw new TypeError("'options' must be an object.");
+        }
+      } else if (arg0 instanceof Uint8Array) {
+        filePathOrUint8Array = arg0;
+        if (typeof arg1 === "object" && arg1 !== null) {
+          options = arg1;
+        } else if (typeof arg1 !== "undefined") {
+          throw new TypeError("'options' must be an object.");
+        }
+      } else if (arg0 instanceof ArrayBuffer || typeof SharedArrayBuffer !== "undefined" && arg0 instanceof SharedArrayBuffer) {
+        const buffer = arg0;
+        let byteOffset = 0;
+        let byteLength = arg0.byteLength;
+        if (typeof arg1 === "object" && arg1 !== null) {
+          options = arg1;
+        } else if (typeof arg1 === "number") {
+          byteOffset = arg1;
+          if (!Number.isSafeInteger(byteOffset)) {
+            throw new RangeError("'byteOffset' must be an integer.");
+          }
+          if (byteOffset < 0 || byteOffset >= buffer.byteLength) {
+            throw new RangeError(`'byteOffset' is out of range [0, ${buffer.byteLength}).`);
+          }
+          byteLength = arg0.byteLength - byteOffset;
+          if (typeof arg2 === "number") {
+            byteLength = arg2;
+            if (!Number.isSafeInteger(byteLength)) {
+              throw new RangeError("'byteLength' must be an integer.");
             }
-            type = mappedType;
-            data = arg0;
-          }
-        }
-        if (maybeDims === void 0) {
-          maybeDims = [data.length];
-        } else if (!Array.isArray(maybeDims)) {
-          throw new TypeError("A tensor's dims must be a number array");
-        }
-        dims = maybeDims;
-        this.cpuData = data;
-        this.dataLocation = "cpu";
-      }
-      const size = (0, tensor_utils_impl_js_1.calculateSize)(dims);
-      if (this.cpuData && size !== this.cpuData.length) {
-        if ((type === "uint4" || type === "int4") && Math.ceil(size / 2) === this.cpuData.length) ;
-        else {
-          throw new Error(`Tensor's size(${size}) does not match data length(${this.cpuData.length}).`);
-        }
-      }
-      this.type = type;
-      this.dims = dims;
-      this.size = size;
-    }
-    // #endregion
-    // #region factory
-    static async fromImage(image, options) {
-      return (0, tensor_factory_impl_js_1.tensorFromImage)(image, options);
-    }
-    static fromTexture(texture, options) {
-      return (0, tensor_factory_impl_js_1.tensorFromTexture)(texture, options);
-    }
-    static fromGpuBuffer(gpuBuffer, options) {
-      return (0, tensor_factory_impl_js_1.tensorFromGpuBuffer)(gpuBuffer, options);
-    }
-    static fromMLTensor(mlTensor, options) {
-      return (0, tensor_factory_impl_js_1.tensorFromMLTensor)(mlTensor, options);
-    }
-    static fromPinnedBuffer(type, buffer, dims) {
-      return (0, tensor_factory_impl_js_1.tensorFromPinnedBuffer)(type, buffer, dims);
-    }
-    // #endregion
-    // #region conversions
-    toDataURL(options) {
-      return (0, tensor_conversion_impl_js_1.tensorToDataURL)(this, options);
-    }
-    toImageData(options) {
-      return (0, tensor_conversion_impl_js_1.tensorToImageData)(this, options);
-    }
-    // #endregion
-    // #region properties
-    get data() {
-      this.ensureValid();
-      if (!this.cpuData) {
-        throw new Error("The data is not on CPU. Use `getData()` to download GPU data to CPU, or use `texture` or `gpuBuffer` property to access the GPU data directly.");
-      }
-      return this.cpuData;
-    }
-    get location() {
-      return this.dataLocation;
-    }
-    get texture() {
-      this.ensureValid();
-      if (!this.gpuTextureData) {
-        throw new Error("The data is not stored as a WebGL texture.");
-      }
-      return this.gpuTextureData;
-    }
-    get gpuBuffer() {
-      this.ensureValid();
-      if (!this.gpuBufferData) {
-        throw new Error("The data is not stored as a WebGPU buffer.");
-      }
-      return this.gpuBufferData;
-    }
-    get mlTensor() {
-      this.ensureValid();
-      if (!this.mlTensorData) {
-        throw new Error("The data is not stored as a WebNN MLTensor.");
-      }
-      return this.mlTensorData;
-    }
-    // #endregion
-    // #region methods
-    async getData(releaseData) {
-      this.ensureValid();
-      switch (this.dataLocation) {
-        case "cpu":
-        case "cpu-pinned":
-          return this.data;
-        case "texture":
-        case "gpu-buffer":
-        case "ml-tensor": {
-          if (!this.downloader) {
-            throw new Error("The current tensor is not created with a specified data downloader.");
-          }
-          if (this.isDownloading) {
-            throw new Error("The current tensor is being downloaded.");
-          }
-          try {
-            this.isDownloading = true;
-            const data = await this.downloader();
-            this.downloader = void 0;
-            this.dataLocation = "cpu";
-            this.cpuData = data;
-            if (releaseData && this.disposer) {
-              this.disposer();
-              this.disposer = void 0;
+            if (byteLength <= 0 || byteOffset + byteLength > buffer.byteLength) {
+              throw new RangeError(`'byteLength' is out of range (0, ${buffer.byteLength - byteOffset}].`);
             }
-            return data;
-          } finally {
-            this.isDownloading = false;
+            if (typeof arg3 === "object" && arg3 !== null) {
+              options = arg3;
+            } else if (typeof arg3 !== "undefined") {
+              throw new TypeError("'options' must be an object.");
+            }
+          } else if (typeof arg2 !== "undefined") {
+            throw new TypeError("'byteLength' must be a number.");
           }
+        } else if (typeof arg1 !== "undefined") {
+          throw new TypeError("'options' must be an object.");
         }
-        default:
-          throw new Error(`cannot get data from location: ${this.dataLocation}`);
+        filePathOrUint8Array = new Uint8Array(buffer, byteOffset, byteLength);
+      } else {
+        throw new TypeError("Unexpected argument[0]: must be 'path' or 'buffer'.");
       }
+      const [backend, optionsWithValidatedEPs] = await (0, backend_impl_js_1.resolveBackendAndExecutionProviders)(options);
+      const handler = await backend.createInferenceSessionHandler(filePathOrUint8Array, optionsWithValidatedEPs);
+      (0, trace_js_1.TRACE_FUNC_END)();
+      return new InferenceSession(handler);
     }
-    dispose() {
-      if (this.isDownloading) {
-        throw new Error("The current tensor is being downloaded.");
-      }
-      if (this.disposer) {
-        this.disposer();
-        this.disposer = void 0;
-      }
-      this.cpuData = void 0;
-      this.gpuTextureData = void 0;
-      this.gpuBufferData = void 0;
-      this.mlTensorData = void 0;
-      this.downloader = void 0;
-      this.isDownloading = void 0;
-      this.dataLocation = "none";
+    startProfiling() {
+      this.handler.startProfiling();
     }
-    // #endregion
-    // #region tensor utilities
-    ensureValid() {
-      if (this.dataLocation === "none") {
-        throw new Error("The tensor is disposed.");
-      }
+    endProfiling() {
+      this.handler.endProfiling();
     }
-    reshape(dims) {
-      this.ensureValid();
-      if (this.downloader || this.disposer) {
-        throw new Error("Cannot reshape a tensor that owns GPU resource.");
-      }
-      return (0, tensor_utils_impl_js_1.tensorReshape)(this, dims);
+    get inputNames() {
+      return this.handler.inputNames;
+    }
+    get outputNames() {
+      return this.handler.outputNames;
+    }
+    get inputMetadata() {
+      return this.handler.inputMetadata;
+    }
+    get outputMetadata() {
+      return this.handler.outputMetadata;
     }
   }
-  tensorImpl.Tensor = Tensor;
-  return tensorImpl;
+  inferenceSessionImpl.InferenceSession = InferenceSession;
+  return inferenceSessionImpl;
 }
 export {
-  requireTensorImpl as __require
+  requireInferenceSessionImpl as __require
 };
 //# sourceMappingURL=index96.js.map

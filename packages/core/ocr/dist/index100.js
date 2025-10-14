@@ -1,5 +1,5 @@
-var onnxModel = {};
+var tensorFactory = {};
 export {
-  onnxModel as __exports
+  tensorFactory as __exports
 };
 //# sourceMappingURL=index100.js.map

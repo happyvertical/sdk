@@ -1,3 +1,16 @@
+# [0.30.0](https://github.com/happyvertical/sdk/compare/v0.29.0...v0.30.0) (2025-10-14)
+
+
+### Bug Fixes
+
+* **agents:** use in-memory database for tests ([a46ab11](https://github.com/happyvertical/sdk/commit/a46ab111eded3b4bd9bcad6141f66a6f386e3550))
+* **agents:** use url instead of filename for database config ([accbeb8](https://github.com/happyvertical/sdk/commit/accbeb8b69e0d536e35c2adbd108a201c03cfd36)), closes [#214](https://github.com/happyvertical/sdk/issues/214)
+
+
+### Features
+
+* **smrt:** remove persistence layer, enable direct db access ([da3f435](https://github.com/happyvertical/sdk/commit/da3f435b87c1f1dde898dcf0ba97dd4da4fc11b9)), closes [#203](https://github.com/happyvertical/sdk/issues/203) [#214](https://github.com/happyvertical/sdk/issues/214)
+
 # [0.29.0](https://github.com/happyvertical/sdk/compare/v0.28.0...v0.29.0) (2025-10-14)
 
 
