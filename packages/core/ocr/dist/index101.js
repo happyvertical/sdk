@@ -1,5 +1,5 @@
-var trace = {};
+var onnxValue = {};
 export {
-  trace as __exports
+  onnxValue as __exports
 };
 //# sourceMappingURL=index101.js.map

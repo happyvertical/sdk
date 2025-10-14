@@ -1,4 +1,4 @@
-import { __exports as tensorFactory } from "./index100.js";
+import { __exports as tensorFactory } from "./index98.js";
 var hasRequiredTensorFactory;
 function requireTensorFactory() {
   if (hasRequiredTensorFactory) return tensorFactory;

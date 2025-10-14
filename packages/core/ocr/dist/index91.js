@@ -1,5 +1,5 @@
-var backend = {};
+var env = {};
 export {
-  backend as __exports
+  env as __exports
 };
 //# sourceMappingURL=index91.js.map

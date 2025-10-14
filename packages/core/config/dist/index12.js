@@ -1,11 +1,11 @@
-import { __exports as loaders } from "./index19.js";
+import { __exports as loaders } from "./index23.js";
 import require$$0$1 from "fs";
 import require$$0$2 from "./index14.js";
 import require$$0 from "path";
 import require$$3 from "url";
-import { __require as requireImportFresh } from "./index20.js";
-import { __require as requireParseJson } from "./index21.js";
-import { __require as requireJsYaml } from "./index22.js";
+import { __require as requireImportFresh } from "./index24.js";
+import { __require as requireParseJson } from "./index25.js";
+import { __require as requireJsYaml } from "./index26.js";
 import require$$7 from "typescript";
 var hasRequiredLoaders;
 function requireLoaders() {

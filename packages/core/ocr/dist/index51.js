@@ -1,6 +1,6 @@
-import { __module as filterParse } from "./index84.js";
+import { __module as filterParse } from "./index82.js";
 import { __require as requireInterlace } from "./index55.js";
-import { __require as requirePaethPredictor } from "./index85.js";
+import { __require as requirePaethPredictor } from "./index83.js";
 var hasRequiredFilterParse;
 function requireFilterParse() {
   if (hasRequiredFilterParse) return filterParse.exports;

@@ -1,69 +1,58 @@
-import { __module as envPaths } from "./index57.js";
-import require$$0 from "path";
-import require$$1 from "os";
-var hasRequiredEnvPaths;
-function requireEnvPaths() {
-  if (hasRequiredEnvPaths) return envPaths.exports;
-  hasRequiredEnvPaths = 1;
-  const path = require$$0;
-  const os = require$$1;
-  const homedir = os.homedir();
-  const tmpdir = os.tmpdir();
-  const { env } = process;
-  const macos = (name) => {
-    const library = path.join(homedir, "Library");
-    return {
-      data: path.join(library, "Application Support", name),
-      config: path.join(library, "Preferences", name),
-      cache: path.join(library, "Caches", name),
-      log: path.join(library, "Logs", name),
-      temp: path.join(tmpdir, name)
-    };
-  };
-  const windows = (name) => {
-    const appData = env.APPDATA || path.join(homedir, "AppData", "Roaming");
-    const localAppData = env.LOCALAPPDATA || path.join(homedir, "AppData", "Local");
-    return {
-      // Data/config/cache/log are invented by me as Windows isn't opinionated about this
-      data: path.join(localAppData, name, "Data"),
-      config: path.join(appData, name, "Config"),
-      cache: path.join(localAppData, name, "Cache"),
-      log: path.join(localAppData, name, "Log"),
-      temp: path.join(tmpdir, name)
-    };
-  };
-  const linux = (name) => {
-    const username = path.basename(homedir);
-    return {
-      data: path.join(env.XDG_DATA_HOME || path.join(homedir, ".local", "share"), name),
-      config: path.join(env.XDG_CONFIG_HOME || path.join(homedir, ".config"), name),
-      cache: path.join(env.XDG_CACHE_HOME || path.join(homedir, ".cache"), name),
-      // https://wiki.debian.org/XDGBaseDirectorySpecification#state
-      log: path.join(env.XDG_STATE_HOME || path.join(homedir, ".local", "state"), name),
-      temp: path.join(tmpdir, username, name)
-    };
-  };
-  const envPaths$1 = (name, options) => {
-    if (typeof name !== "string") {
-      throw new TypeError(`Expected string, got ${typeof name}`);
+import { __require as requireErrorEx } from "./index31.js";
+import { __require as requireJsonParseEvenBetterErrors } from "./index32.js";
+import { __require as requireBuild } from "./index33.js";
+import { __require as requireLib } from "./index34.js";
+var parseJson_1;
+var hasRequiredParseJson;
+function requireParseJson() {
+  if (hasRequiredParseJson) return parseJson_1;
+  hasRequiredParseJson = 1;
+  const errorEx = requireErrorEx();
+  const fallback = requireJsonParseEvenBetterErrors();
+  const { default: LinesAndColumns } = requireBuild();
+  const { codeFrameColumns } = requireLib();
+  const JSONError = errorEx("JSONError", {
+    fileName: errorEx.append("in %s"),
+    codeFrame: errorEx.append("\n\n%s\n")
+  });
+  const parseJson = (string, reviver, filename) => {
+    if (typeof reviver === "string") {
+      filename = reviver;
+      reviver = null;
     }
-    options = Object.assign({ suffix: "nodejs" }, options);
-    if (options.suffix) {
-      name += `-${options.suffix}`;
+    try {
+      try {
+        return JSON.parse(string, reviver);
+      } catch (error) {
+        fallback(string, reviver);
+        throw error;
+      }
+    } catch (error) {
+      error.message = error.message.replace(/\n/g, "");
+      const indexMatch = error.message.match(/in JSON at position (\d+) while parsing/);
+      const jsonError = new JSONError(error);
+      if (filename) {
+        jsonError.fileName = filename;
+      }
+      if (indexMatch && indexMatch.length > 0) {
+        const lines = new LinesAndColumns(string);
+        const index = Number(indexMatch[1]);
+        const location = lines.locationForIndex(index);
+        const codeFrame = codeFrameColumns(
+          string,
+          { start: { line: location.line + 1, column: location.column + 1 } },
+          { highlightCode: true }
+        );
+        jsonError.codeFrame = codeFrame;
+      }
+      throw jsonError;
     }
-    if (process.platform === "darwin") {
-      return macos(name);
-    }
-    if (process.platform === "win32") {
-      return windows(name);
-    }
-    return linux(name);
   };
-  envPaths.exports = envPaths$1;
-  envPaths.exports.default = envPaths$1;
-  return envPaths.exports;
+  parseJson.JSONError = JSONError;
+  parseJson_1 = parseJson;
+  return parseJson_1;
 }
 export {
-  requireEnvPaths as __require
+  requireParseJson as __require
 };
 //# sourceMappingURL=index25.js.map
