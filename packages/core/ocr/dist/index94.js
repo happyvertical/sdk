@@ -1,7 +1,7 @@
-import { __exports as inferenceSessionImpl } from "./index107.js";
+import { __exports as inferenceSessionImpl } from "./index112.js";
 import { __require as requireBackendImpl } from "./index90.js";
-import { __require as requireTensor } from "./index67.js";
-import { __require as requireTrace } from "./index70.js";
+import { __require as requireTensor } from "./index66.js";
+import { __require as requireTrace } from "./index69.js";
 var hasRequiredInferenceSessionImpl;
 function requireInferenceSessionImpl() {
   if (hasRequiredInferenceSessionImpl) return inferenceSessionImpl;
@@ -17,7 +17,6 @@ function requireInferenceSessionImpl() {
     }
     async run(feeds, arg1, arg2) {
       (0, trace_js_1.TRACE_FUNC_BEGIN)();
-      (0, trace_js_1.TRACE_EVENT_BEGIN)("InferenceSession.run");
       const fetches = {};
       let options = {};
       if (typeof feeds !== "object" || feeds === null || feeds instanceof tensor_js_1.Tensor || Array.isArray(feeds)) {
@@ -98,7 +97,6 @@ function requireInferenceSessionImpl() {
           }
         }
       }
-      (0, trace_js_1.TRACE_EVENT_END)("InferenceSession.run");
       (0, trace_js_1.TRACE_FUNC_END)();
       return returnValue;
     }
@@ -107,7 +105,6 @@ function requireInferenceSessionImpl() {
     }
     static async create(arg0, arg1, arg2, arg3) {
       (0, trace_js_1.TRACE_FUNC_BEGIN)();
-      (0, trace_js_1.TRACE_EVENT_BEGIN)("InferenceSession.create");
       let filePathOrUint8Array;
       let options = {};
       if (typeof arg0 === "string") {
@@ -164,7 +161,6 @@ function requireInferenceSessionImpl() {
       }
       const [backend, optionsWithValidatedEPs] = await (0, backend_impl_js_1.resolveBackendAndExecutionProviders)(options);
       const handler = await backend.createInferenceSessionHandler(filePathOrUint8Array, optionsWithValidatedEPs);
-      (0, trace_js_1.TRACE_EVENT_END)("InferenceSession.create");
       (0, trace_js_1.TRACE_FUNC_END)();
       return new InferenceSession(handler);
     }

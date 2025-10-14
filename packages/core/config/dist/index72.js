@@ -1,5 +1,5 @@
-var picocolors_browser = { exports: {} };
+var jsTokens = {};
 export {
-  picocolors_browser as __module
+  jsTokens as __exports
 };
 //# sourceMappingURL=index72.js.map

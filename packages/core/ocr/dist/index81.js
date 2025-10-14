@@ -1,5 +1,7 @@
-var clipper = { exports: {} };
+function getDefaultExportFromCjs(x) {
+  return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
+}
 export {
-  clipper as __module
+  getDefaultExportFromCjs
 };
 //# sourceMappingURL=index81.js.map

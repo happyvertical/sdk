@@ -1,48 +1,43 @@
-import { __require as requireType } from "./index38.js";
-var _null;
-var hasRequired_null;
-function require_null() {
-  if (hasRequired_null) return _null;
-  hasRequired_null = 1;
+import { __require as requireType } from "./index37.js";
+var pairs;
+var hasRequiredPairs;
+function requirePairs() {
+  if (hasRequiredPairs) return pairs;
+  hasRequiredPairs = 1;
   var Type = requireType();
-  function resolveYamlNull(data) {
+  var _toString = Object.prototype.toString;
+  function resolveYamlPairs(data) {
     if (data === null) return true;
-    var max = data.length;
-    return max === 1 && data === "~" || max === 4 && (data === "null" || data === "Null" || data === "NULL");
+    var index, length, pair, keys, result, object = data;
+    result = new Array(object.length);
+    for (index = 0, length = object.length; index < length; index += 1) {
+      pair = object[index];
+      if (_toString.call(pair) !== "[object Object]") return false;
+      keys = Object.keys(pair);
+      if (keys.length !== 1) return false;
+      result[index] = [keys[0], pair[keys[0]]];
+    }
+    return true;
   }
-  function constructYamlNull() {
-    return null;
+  function constructYamlPairs(data) {
+    if (data === null) return [];
+    var index, length, pair, keys, result, object = data;
+    result = new Array(object.length);
+    for (index = 0, length = object.length; index < length; index += 1) {
+      pair = object[index];
+      keys = Object.keys(pair);
+      result[index] = [keys[0], pair[keys[0]]];
+    }
+    return result;
   }
-  function isNull(object) {
-    return object === null;
-  }
-  _null = new Type("tag:yaml.org,2002:null", {
-    kind: "scalar",
-    resolve: resolveYamlNull,
-    construct: constructYamlNull,
-    predicate: isNull,
-    represent: {
-      canonical: function() {
-        return "~";
-      },
-      lowercase: function() {
-        return "null";
-      },
-      uppercase: function() {
-        return "NULL";
-      },
-      camelcase: function() {
-        return "Null";
-      },
-      empty: function() {
-        return "";
-      }
-    },
-    defaultStyle: "lowercase"
+  pairs = new Type("tag:yaml.org,2002:pairs", {
+    kind: "sequence",
+    resolve: resolveYamlPairs,
+    construct: constructYamlPairs
   });
-  return _null;
+  return pairs;
 }
 export {
-  require_null as __require
+  requirePairs as __require
 };
 //# sourceMappingURL=index48.js.map

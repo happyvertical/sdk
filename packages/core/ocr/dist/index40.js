@@ -1,5 +1,5 @@
-import { getDefaultExportFromCjs } from "./index62.js";
-import { __require as requireOpencv } from "./index78.js";
+import { getDefaultExportFromCjs } from "./index81.js";
+import { __require as requireOpencv } from "./index77.js";
 var opencvExports = requireOpencv();
 const cv = /* @__PURE__ */ getDefaultExportFromCjs(opencvExports);
 export {

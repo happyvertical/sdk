@@ -1,19 +1,19 @@
-import { __require as requireType } from "./index38.js";
-var seq;
-var hasRequiredSeq;
-function requireSeq() {
-  if (hasRequiredSeq) return seq;
-  hasRequiredSeq = 1;
+import { __require as requireType } from "./index37.js";
+var str;
+var hasRequiredStr;
+function requireStr() {
+  if (hasRequiredStr) return str;
+  hasRequiredStr = 1;
   var Type = requireType();
-  seq = new Type("tag:yaml.org,2002:seq", {
-    kind: "sequence",
+  str = new Type("tag:yaml.org,2002:str", {
+    kind: "scalar",
     construct: function(data) {
-      return data !== null ? data : [];
+      return data !== null ? data : "";
     }
   });
-  return seq;
+  return str;
 }
 export {
-  requireSeq as __require
+  requireStr as __require
 };
 //# sourceMappingURL=index56.js.map

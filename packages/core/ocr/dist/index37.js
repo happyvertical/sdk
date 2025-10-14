@@ -1,7 +1,7 @@
 import require$$1 from "zlib";
-import { __require as requireSyncInflate } from "./index56.js";
-import { __require as requireSyncReader } from "./index57.js";
-import { __require as requireFilterParseSync } from "./index58.js";
+import { __require as requireSyncInflate } from "./index59.js";
+import { __require as requireSyncReader } from "./index60.js";
+import { __require as requireFilterParseSync } from "./index61.js";
 import { __require as requireParser } from "./index30.js";
 import { __require as requireBitmapper } from "./index31.js";
 import { __require as requireFormatNormaliser } from "./index32.js";

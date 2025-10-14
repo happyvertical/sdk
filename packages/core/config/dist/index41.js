@@ -1,24 +1,13 @@
-import { __require as requireFailsafe } from "./index40.js";
-import { __require as require_null } from "./index48.js";
-import { __require as requireBool } from "./index52.js";
-import { __require as requireInt } from "./index53.js";
-import { __require as requireFloat } from "./index46.js";
-var json;
-var hasRequiredJson;
-function requireJson() {
-  if (hasRequiredJson) return json;
-  hasRequiredJson = 1;
-  json = requireFailsafe().extend({
-    implicit: [
-      require_null(),
-      requireBool(),
-      requireInt(),
-      requireFloat()
-    ]
-  });
-  return json;
+import { __require as requireJson } from "./index40.js";
+var core;
+var hasRequiredCore;
+function requireCore() {
+  if (hasRequiredCore) return core;
+  hasRequiredCore = 1;
+  core = requireJson();
+  return core;
 }
 export {
-  requireJson as __require
+  requireCore as __require
 };
 //# sourceMappingURL=index41.js.map

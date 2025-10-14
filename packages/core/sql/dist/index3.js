@@ -144,7 +144,7 @@ async function getDatabase(options = {}) {
         const columns = match[3].trim().split(",\n");
         const exists = await tableExists(tableName);
         if (!exists) {
-          await client.execute(command);
+          await client.execute({ sql: command });
         } else {
           for (const column of columns) {
             const columnDef = column.trim();
@@ -162,12 +162,12 @@ async function getDatabase(options = {}) {
                 `;
                 if (!columnInfo) {
                   const alterCommand = `ALTER TABLE ${tableName} ADD COLUMN ${columnDef}`;
-                  await client.execute(alterCommand);
+                  await client.execute({ sql: alterCommand });
                 }
               } catch (_error) {
                 try {
                   const alterCommand = `ALTER TABLE ${tableName} ADD COLUMN ${columnDef}`;
-                  await client.execute(alterCommand);
+                  await client.execute({ sql: alterCommand });
                 } catch (alterError) {
                   console.error(
                     `Error adding column ${columnName} to ${tableName}:`,
@@ -183,7 +183,7 @@ async function getDatabase(options = {}) {
   };
   const transaction = async (callback) => {
     try {
-      await client.execute("BEGIN TRANSACTION");
+      await client.execute({ sql: "BEGIN TRANSACTION" });
       const txDb = {
         client,
         insert,
@@ -206,10 +206,10 @@ async function getDatabase(options = {}) {
         transaction
       };
       const result = await callback(txDb);
-      await client.execute("COMMIT");
+      await client.execute({ sql: "COMMIT" });
       return result;
     } catch (error) {
-      await client.execute("ROLLBACK");
+      await client.execute({ sql: "ROLLBACK" });
       throw error;
     }
   };

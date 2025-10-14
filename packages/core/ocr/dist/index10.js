@@ -1,5 +1,5 @@
-import { Detection } from "./index76.js";
-import { Recognition } from "./index77.js";
+import { Detection } from "./index75.js";
+import { Recognition } from "./index76.js";
 let Ocr$1 = class Ocr {
   static async create(options = {}) {
     const detection = await Detection.create(options);

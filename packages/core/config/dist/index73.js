@@ -1,5 +1,5 @@
-var jsTokens = {};
+var lib = {};
 export {
-  jsTokens as __exports
+  lib as __exports
 };
 //# sourceMappingURL=index73.js.map

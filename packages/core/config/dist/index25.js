@@ -1,4 +1,4 @@
-import { __module as envPaths } from "./index27.js";
+import { __module as envPaths } from "./index57.js";
 import require$$0 from "path";
 import require$$1 from "os";
 var hasRequiredEnvPaths;
