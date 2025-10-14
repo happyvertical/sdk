@@ -12,14 +12,19 @@ export interface SmrtClassOptions {
      */
     _className?: string;
     /**
-     * Database configuration options
+     * Database configuration - unified approach matching @have/sql
+     *
+     * Supports three formats:
+     * - String shortcut: 'products.db' (auto-detects database type)
+     * - Config object: { type: 'sqlite', url: 'products.db' }
+     * - DatabaseInterface instance: await getDatabase(...)
      */
-    db?: {
+    db?: string | {
         url?: string;
         type?: 'sqlite' | 'postgres';
         authToken?: string;
         [key: string]: any;
-    };
+    } | DatabaseInterface;
     /**
      * Filesystem adapter configuration options
      */

@@ -2,8 +2,6 @@ import { buildWhere, syncSchema } from '@have/sql';
 import type { SmrtClassOptions } from './class';
 import { SmrtClass } from './class';
 import type { SmrtObject } from './object';
-import type { PersistenceAdapter } from './persistence/adapter';
-import { createPersistenceAdapter } from './persistence';
 import { ObjectRegistry } from './registry';
 import {
   fieldsFromClass,
@@ -11,6 +9,8 @@ import {
   formatDataSql,
   generateSchema,
   tableNameFromClass,
+  toSnakeCase,
+  toCamelCase,
 } from './utils';
 
 /**
@@ -30,11 +30,6 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
    * Promise tracking the database setup operation
    */
   protected _db_setup_promise: Promise<void> | null = null;
-
-  /**
-   * Persistence adapter for storage operations
-   */
-  protected _persistenceAdapter?: PersistenceAdapter;
 
   /**
    * Gets the class constructor for items in this collection
@@ -167,7 +162,6 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
     // Extract only collection-compatible options from broader SmrtClassOptions
     const {
       _className,
-      persistence,
       db,
       ai,
       fs,
@@ -180,7 +174,6 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
 
     const collectionOptions: SmrtCollectionOptions = {
       _className,
-      persistence,
       db,
       ai,
       fs,
@@ -210,28 +203,8 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
   public async initialize(): Promise<this> {
     await super.initialize();
 
-    // Create persistence adapter based on configuration
-    if (this.options.persistence) {
-      // New persistence config
-      this._persistenceAdapter = await createPersistenceAdapter(
-        this.options.persistence,
-        this._itemClass,
-      );
-    } else if (this.options.db) {
-      // Legacy db config - create SQL adapter automatically
-      const { type: dbType, ...dbConfig } = this.options.db;
-      this._persistenceAdapter = await createPersistenceAdapter(
-        {
-          type: 'sql',
-          dbType: dbType as 'sqlite' | 'postgres',
-          ...dbConfig,
-        },
-        this._itemClass,
-      );
-    }
-
-    // Legacy: setup database if using db directly (no adapter)
-    if (this.options.db && !this._persistenceAdapter) {
+    // Setup database if configured
+    if (this.options.db) {
       await this.setupDb();
     }
 
@@ -245,12 +218,6 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
    * @returns Promise resolving to the object or null if not found
    */
   public async get(filter: string | Record<string, any>) {
-    // Use persistence adapter if available
-    if (this._persistenceAdapter) {
-      return await this._persistenceAdapter.load(filter, this._itemClass);
-    }
-
-    // Legacy implementation
     const where =
       typeof filter === 'string'
         ? /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
@@ -260,7 +227,6 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
           : { slug: filter, context: '' }
         : filter;
 
-    // let sql = `SELECT * FROM ${this.tableName}`;
     const { sql: whereSql, values: whereValues } = buildWhere(where);
 
     const { rows } = await this.db.query(
@@ -332,29 +298,6 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
      */
     include?: string[];
   }) {
-    // Use persistence adapter if available
-    if (this._persistenceAdapter) {
-      // SQL adapters will use JOIN-based eager loading automatically
-      // REST adapters will fall back to batch queries (handled separately below)
-      const results = await this._persistenceAdapter.list(
-        options,
-        this._itemClass,
-      );
-
-      // For non-SQL adapters (REST), eager load using batch approach
-      // SQL adapters handle this internally via JOINs
-      if (
-        this._persistenceAdapter.metadata.type !== 'sql' &&
-        options.include &&
-        options.include.length > 0
-      ) {
-        await this.eagerLoadRelationships(results, options.include);
-      }
-
-      return results;
-    }
-
-    // Legacy implementation
     const { where, offset, limit, orderBy } = options;
     const { sql: whereSql, values: whereValues } = buildWhere(where || {});
 
@@ -607,8 +550,6 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
     const params = {
       ai: this.options.ai,
       db: this.options.db,
-      persistence: this.options.persistence,
-      _persistenceAdapter: this._persistenceAdapter, // Share the adapter instance
       _skipLoad: true, // Don't try to load from DB - this is a new object
       ...options,
     };
@@ -824,12 +765,6 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
    * @returns Promise resolving to the total count of matching records
    */
   public async count(options: { where?: Record<string, any> } = {}) {
-    // Use persistence adapter if available
-    if (this._persistenceAdapter) {
-      return await this._persistenceAdapter.count(options);
-    }
-
-    // Legacy implementation
     const { where } = options;
     const { sql: whereSql, values: whereValues } = buildWhere(where || {});
 
