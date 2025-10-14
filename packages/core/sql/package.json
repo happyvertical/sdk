@@ -1,7 +1,7 @@
 {
   "name": "@have/sql",
   "version": "0.32.0",
-  "description": "Database interface with support for SQLite and PostgreSQL",
+  "description": "Database interface with support for SQLite, PostgreSQL, and DuckDB",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -19,6 +19,7 @@
     "test:watch": "npx vitest",
     "test:sqlite": "npx vitest run src/sqlite.spec.ts",
     "test:postgres": "npx vitest run src/postgres.spec.ts",
+    "test:duckdb": "npx vitest run src/duckdb.spec.ts",
     "build": "vite build",
     "build:watch": "vite build --watch",
     "docs": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules",
@@ -30,6 +31,7 @@
   "author": "willgriffin@gmail.com",
   "license": "ISC",
   "dependencies": {
+    "@duckdb/node-api": "^1.4.1-r.1",
     "@have/utils": "workspace:*",
     "@libsql/client": "^0.14.0",
     "sqlite-vss": "^0.1.2",
