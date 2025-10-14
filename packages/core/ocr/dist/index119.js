@@ -1,5 +1,5 @@
-var version = {};
+var tensorUtilsImpl = {};
 export {
-  version as __exports
+  tensorUtilsImpl as __exports
 };
 //# sourceMappingURL=index119.js.map

@@ -1,4 +1,4 @@
-import { __module as crc } from "./index88.js";
+import { __module as crc } from "./index84.js";
 var hasRequiredCrc;
 function requireCrc() {
   if (hasRequiredCrc) return crc.exports;

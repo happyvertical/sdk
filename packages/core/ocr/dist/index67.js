@@ -1,16 +1,12 @@
-import { __exports as tensor } from "./index95.js";
-import { __require as requireTensorImpl } from "./index96.js";
-var hasRequiredTensor;
-function requireTensor() {
-  if (hasRequiredTensor) return tensor;
-  hasRequiredTensor = 1;
-  Object.defineProperty(tensor, "__esModule", { value: true });
-  tensor.Tensor = void 0;
-  const tensor_impl_js_1 = requireTensorImpl();
-  tensor.Tensor = tensor_impl_js_1.Tensor;
-  return tensor;
+import { __exports as tensorConversion } from "./index97.js";
+var hasRequiredTensorConversion;
+function requireTensorConversion() {
+  if (hasRequiredTensorConversion) return tensorConversion;
+  hasRequiredTensorConversion = 1;
+  Object.defineProperty(tensorConversion, "__esModule", { value: true });
+  return tensorConversion;
 }
 export {
-  requireTensor as __require
+  requireTensorConversion as __require
 };
 //# sourceMappingURL=index67.js.map

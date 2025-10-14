@@ -1,5 +1,5 @@
-var syncInflate = { exports: {} };
+var crc = { exports: {} };
 export {
-  syncInflate as __module
+  crc as __module
 };
 //# sourceMappingURL=index84.js.map

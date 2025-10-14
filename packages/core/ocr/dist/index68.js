@@ -1,12 +1,12 @@
-import { __exports as tensorConversion } from "./index97.js";
-var hasRequiredTensorConversion;
-function requireTensorConversion() {
-  if (hasRequiredTensorConversion) return tensorConversion;
-  hasRequiredTensorConversion = 1;
-  Object.defineProperty(tensorConversion, "__esModule", { value: true });
-  return tensorConversion;
+import { __exports as tensorFactory } from "./index98.js";
+var hasRequiredTensorFactory;
+function requireTensorFactory() {
+  if (hasRequiredTensorFactory) return tensorFactory;
+  hasRequiredTensorFactory = 1;
+  Object.defineProperty(tensorFactory, "__esModule", { value: true });
+  return tensorFactory;
 }
 export {
-  requireTensorConversion as __require
+  requireTensorFactory as __require
 };
 //# sourceMappingURL=index68.js.map

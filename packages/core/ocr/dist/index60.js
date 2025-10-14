@@ -1,155 +1,42 @@
-import { __require as requireConstants } from "./index34.js";
-var bitpacker;
-var hasRequiredBitpacker;
-function requireBitpacker() {
-  if (hasRequiredBitpacker) return bitpacker;
-  hasRequiredBitpacker = 1;
-  let constants = requireConstants();
-  bitpacker = function(dataIn, width, height, options) {
-    let outHasAlpha = [constants.COLORTYPE_COLOR_ALPHA, constants.COLORTYPE_ALPHA].indexOf(
-      options.colorType
-    ) !== -1;
-    if (options.colorType === options.inputColorType) {
-      let bigEndian = (function() {
-        let buffer = new ArrayBuffer(2);
-        new DataView(buffer).setInt16(
-          0,
-          256,
-          true
-          /* littleEndian */
-        );
-        return new Int16Array(buffer)[0] !== 256;
-      })();
-      if (options.bitDepth === 8 || options.bitDepth === 16 && bigEndian) {
-        return dataIn;
-      }
-    }
-    let data = options.bitDepth !== 16 ? dataIn : new Uint16Array(dataIn.buffer);
-    let maxValue = 255;
-    let inBpp = constants.COLORTYPE_TO_BPP_MAP[options.inputColorType];
-    if (inBpp === 4 && !options.inputHasAlpha) {
-      inBpp = 3;
-    }
-    let outBpp = constants.COLORTYPE_TO_BPP_MAP[options.colorType];
-    if (options.bitDepth === 16) {
-      maxValue = 65535;
-      outBpp *= 2;
-    }
-    let outData = Buffer.alloc(width * height * outBpp);
-    let inIndex = 0;
-    let outIndex = 0;
-    let bgColor = options.bgColor || {};
-    if (bgColor.red === void 0) {
-      bgColor.red = maxValue;
-    }
-    if (bgColor.green === void 0) {
-      bgColor.green = maxValue;
-    }
-    if (bgColor.blue === void 0) {
-      bgColor.blue = maxValue;
-    }
-    function getRGBA() {
-      let red;
-      let green;
-      let blue;
-      let alpha = maxValue;
-      switch (options.inputColorType) {
-        case constants.COLORTYPE_COLOR_ALPHA:
-          alpha = data[inIndex + 3];
-          red = data[inIndex];
-          green = data[inIndex + 1];
-          blue = data[inIndex + 2];
-          break;
-        case constants.COLORTYPE_COLOR:
-          red = data[inIndex];
-          green = data[inIndex + 1];
-          blue = data[inIndex + 2];
-          break;
-        case constants.COLORTYPE_ALPHA:
-          alpha = data[inIndex + 1];
-          red = data[inIndex];
-          green = red;
-          blue = red;
-          break;
-        case constants.COLORTYPE_GRAYSCALE:
-          red = data[inIndex];
-          green = red;
-          blue = red;
-          break;
-        default:
-          throw new Error(
-            "input color type:" + options.inputColorType + " is not supported at present"
-          );
-      }
-      if (options.inputHasAlpha) {
-        if (!outHasAlpha) {
-          alpha /= maxValue;
-          red = Math.min(
-            Math.max(Math.round((1 - alpha) * bgColor.red + alpha * red), 0),
-            maxValue
-          );
-          green = Math.min(
-            Math.max(Math.round((1 - alpha) * bgColor.green + alpha * green), 0),
-            maxValue
-          );
-          blue = Math.min(
-            Math.max(Math.round((1 - alpha) * bgColor.blue + alpha * blue), 0),
-            maxValue
-          );
-        }
-      }
-      return { red, green, blue, alpha };
-    }
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        let rgba = getRGBA();
-        switch (options.colorType) {
-          case constants.COLORTYPE_COLOR_ALPHA:
-          case constants.COLORTYPE_COLOR:
-            if (options.bitDepth === 8) {
-              outData[outIndex] = rgba.red;
-              outData[outIndex + 1] = rgba.green;
-              outData[outIndex + 2] = rgba.blue;
-              if (outHasAlpha) {
-                outData[outIndex + 3] = rgba.alpha;
-              }
-            } else {
-              outData.writeUInt16BE(rgba.red, outIndex);
-              outData.writeUInt16BE(rgba.green, outIndex + 2);
-              outData.writeUInt16BE(rgba.blue, outIndex + 4);
-              if (outHasAlpha) {
-                outData.writeUInt16BE(rgba.alpha, outIndex + 6);
-              }
-            }
-            break;
-          case constants.COLORTYPE_ALPHA:
-          case constants.COLORTYPE_GRAYSCALE: {
-            let grayscale = (rgba.red + rgba.green + rgba.blue) / 3;
-            if (options.bitDepth === 8) {
-              outData[outIndex] = grayscale;
-              if (outHasAlpha) {
-                outData[outIndex + 1] = rgba.alpha;
-              }
-            } else {
-              outData.writeUInt16BE(grayscale, outIndex);
-              if (outHasAlpha) {
-                outData.writeUInt16BE(rgba.alpha, outIndex + 2);
-              }
-            }
-            break;
-          }
-          default:
-            throw new Error("unrecognised color Type " + options.colorType);
-        }
-        inIndex += inBpp;
-        outIndex += outBpp;
-      }
-    }
-    return outData;
+import { __module as syncReader } from "./index87.js";
+var hasRequiredSyncReader;
+function requireSyncReader() {
+  if (hasRequiredSyncReader) return syncReader.exports;
+  hasRequiredSyncReader = 1;
+  let SyncReader = syncReader.exports = function(buffer) {
+    this._buffer = buffer;
+    this._reads = [];
   };
-  return bitpacker;
+  SyncReader.prototype.read = function(length, callback) {
+    this._reads.push({
+      length: Math.abs(length),
+      // if length < 0 then at most this length
+      allowLess: length < 0,
+      func: callback
+    });
+  };
+  SyncReader.prototype.process = function() {
+    while (this._reads.length > 0 && this._buffer.length) {
+      let read = this._reads[0];
+      if (this._buffer.length && (this._buffer.length >= read.length || read.allowLess)) {
+        this._reads.shift();
+        let buf = this._buffer;
+        this._buffer = buf.slice(read.length);
+        read.func.call(this, buf.slice(0, read.length));
+      } else {
+        break;
+      }
+    }
+    if (this._reads.length > 0) {
+      throw new Error("There are some read requests waitng on finished stream");
+    }
+    if (this._buffer.length > 0) {
+      throw new Error("unrecognised content at end of stream");
+    }
+  };
+  return syncReader.exports;
 }
 export {
-  requireBitpacker as __require
+  requireSyncReader as __require
 };
 //# sourceMappingURL=index60.js.map

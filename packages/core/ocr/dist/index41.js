@@ -1,5 +1,5 @@
-import { getDefaultExportFromCjs } from "./index62.js";
-import { __require as requireClipper } from "./index80.js";
+import { getDefaultExportFromCjs } from "./index81.js";
+import { __require as requireClipper } from "./index79.js";
 var clipperExports = requireClipper();
 const clipper = /* @__PURE__ */ getDefaultExportFromCjs(clipperExports);
 export {

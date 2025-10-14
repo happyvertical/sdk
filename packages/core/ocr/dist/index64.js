@@ -1,20 +1,16 @@
-import { __exports as backend } from "./index89.js";
-import { __require as requireBackendImpl } from "./index90.js";
-var hasRequiredBackend;
-function requireBackend() {
-  if (hasRequiredBackend) return backend;
-  hasRequiredBackend = 1;
-  (function(exports) {
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.registerBackend = void 0;
-    var backend_impl_js_1 = requireBackendImpl();
-    Object.defineProperty(exports, "registerBackend", { enumerable: true, get: function() {
-      return backend_impl_js_1.registerBackend;
-    } });
-  })(backend);
-  return backend;
+import { __exports as env } from "./index91.js";
+import { __require as requireEnvImpl } from "./index92.js";
+var hasRequiredEnv;
+function requireEnv() {
+  if (hasRequiredEnv) return env;
+  hasRequiredEnv = 1;
+  Object.defineProperty(env, "__esModule", { value: true });
+  env.env = void 0;
+  const env_impl_js_1 = requireEnvImpl();
+  env.env = env_impl_js_1.env;
+  return env;
 }
 export {
-  requireBackend as __require
+  requireEnv as __require
 };
 //# sourceMappingURL=index64.js.map

@@ -1,13 +1,30 @@
-import { __require as requireJson } from "./index41.js";
-var core;
-var hasRequiredCore;
-function requireCore() {
-  if (hasRequiredCore) return core;
-  hasRequiredCore = 1;
-  core = requireJson();
-  return core;
+import { __require as requireCore } from "./index41.js";
+import { __require as requireTimestamp } from "./index50.js";
+import { __require as requireMerge } from "./index53.js";
+import { __require as requireBinary } from "./index44.js";
+import { __require as requireOmap } from "./index54.js";
+import { __require as requirePairs } from "./index48.js";
+import { __require as requireSet } from "./index49.js";
+var _default;
+var hasRequired_default;
+function require_default() {
+  if (hasRequired_default) return _default;
+  hasRequired_default = 1;
+  _default = requireCore().extend({
+    implicit: [
+      requireTimestamp(),
+      requireMerge()
+    ],
+    explicit: [
+      requireBinary(),
+      requireOmap(),
+      requirePairs(),
+      requireSet()
+    ]
+  });
+  return _default;
 }
 export {
-  requireCore as __require
+  require_default as __require
 };
 //# sourceMappingURL=index42.js.map

@@ -1,3 +1,44 @@
+# [0.28.0](https://github.com/happyvertical/sdk/compare/v0.27.1...v0.28.0) (2025-10-14)
+
+
+### Bug Fixes
+
+* **ai:** support all AI providers beyond OpenAI in AIClient.create() ([09618c6](https://github.com/happyvertical/sdk/commit/09618c6436edcba0fe2b7493c4c501eda7929501)), closes [#202](https://github.com/happyvertical/sdk/issues/202)
+* **build:** remove @have/notes from build order ([59acc85](https://github.com/happyvertical/sdk/commit/59acc854bdfd32498ed348cc8b2c6bc7a3152a55))
+* **documents:** generate valid cache paths for URLs with query parameters ([b6db005](https://github.com/happyvertical/sdk/commit/b6db005c94aa7b9eb0c926623afd030554a2d5e5)), closes [#189](https://github.com/happyvertical/sdk/issues/189)
+* **smrt:** add missing entry point files for package exports ([04cf008](https://github.com/happyvertical/sdk/commit/04cf008312747f0b721bd92153a181288293ea00)), closes [#212](https://github.com/happyvertical/sdk/issues/212)
+* **smrt:** generate JavaScript files for vite-plugin, prebuild, and consumer-plugin entry points ([347b42e](https://github.com/happyvertical/sdk/commit/347b42e2ac113c395de3bed78c6fb065d7041e2e)), closes [#204](https://github.com/happyvertical/sdk/issues/204)
+* **smrt:** migrate DatabaseInterface method calls to new API ([8f19c26](https://github.com/happyvertical/sdk/commit/8f19c26b2731c86a367cd2f74036d115d82c2f22))
+* **smrt:** resolve entry point JavaScript file generation in build ([54ac296](https://github.com/happyvertical/sdk/commit/54ac296d5aabca88fadbb3e59f735a25720e4c49)), closes [#204](https://github.com/happyvertical/sdk/issues/204)
+* **smrt:** suppress TypeScript errors for optional @have/notes imports ([1b2ac6b](https://github.com/happyvertical/sdk/commit/1b2ac6b149c8ede3b828148b945449c22e6d756c))
+* **spider:** add crawlee to external dependencies in vite config ([13a77cf](https://github.com/happyvertical/sdk/commit/13a77cfd70782f9bb807e00b721f51b3e9624e4e)), closes [#187](https://github.com/happyvertical/sdk/issues/187)
+* **spider:** decode HTML entities in WordPress Download Manager URLs ([354ec27](https://github.com/happyvertical/sdk/commit/354ec276cc725fb2c374e02a5fda856ae3640c06)), closes [#184](https://github.com/happyvertical/sdk/issues/184) [#039](https://github.com/happyvertical/sdk/issues/039) [#184](https://github.com/happyvertical/sdk/issues/184)
+* **spider:** detect WordPress downloads by wpdmdl param not .pdf extension ([a19c2a2](https://github.com/happyvertical/sdk/commit/a19c2a2023e750fa12ca8744e1e56231bf115a1c)), closes [#181](https://github.com/happyvertical/sdk/issues/181)
+* **spider:** prevent re-download of PDFs from WordPress pages ([8b7ba15](https://github.com/happyvertical/sdk/commit/8b7ba15ef934311d198887b450ead65d452a40a3)), closes [#179](https://github.com/happyvertical/sdk/issues/179)
+* **sql:** correct client.execute() API usage for LibSQL ([570508c](https://github.com/happyvertical/sdk/commit/570508c3b3ce8724867a9a80b84c7eb25ec3a38a)), closes [#211](https://github.com/happyvertical/sdk/issues/211)
+
+
+### Features
+
+* **build:** consolidate vite configs and fix smrt multi-entry build ([04058f4](https://github.com/happyvertical/sdk/commit/04058f46bb177deae3ffa573291829a1cf0dbddd)), closes [#211](https://github.com/happyvertical/sdk/issues/211) [#208](https://github.com/happyvertical/sdk/issues/208) [#211](https://github.com/happyvertical/sdk/issues/211)
+* **ci:** auto-trigger Claude on blocker label for urgent issue resolution ([cd7d875](https://github.com/happyvertical/sdk/commit/cd7d87526089e6c8f3d37170d46ae136c528b31a))
+* **ci:** enhance Claude Code workflow with full PR creation capabilities ([9fad4c2](https://github.com/happyvertical/sdk/commit/9fad4c254d5cf4a4d7c289939544cdc087c6e15d))
+* **content:** add variant field for namespaced content classification ([b60beea](https://github.com/happyvertical/sdk/commit/b60beeacb805d08c234361dad4b2bb0714c3361e)), closes [#200](https://github.com/happyvertical/sdk/issues/200)
+* **registry:** add convenience methods and comprehensive documentation ([cec1488](https://github.com/happyvertical/sdk/commit/cec1488391abf1f9616d96ac44f50c2224c86d1f)), closes [#211](https://github.com/happyvertical/sdk/issues/211) [#211](https://github.com/happyvertical/sdk/issues/211)
+* **smrt:** complete MCP server generation with runtime bootstrap and stdio transport ([edf22b7](https://github.com/happyvertical/sdk/commit/edf22b756aead473b00547fbb3a69112aa7447af)), closes [#209](https://github.com/happyvertical/sdk/issues/209) [#209](https://github.com/happyvertical/sdk/issues/209)
+* **smrt:** integrate note-taking system into core with system tables ([f080a67](https://github.com/happyvertical/sdk/commit/f080a6729237eba0f08bffc560820e1d2604e8d7))
+* **spider:** add CivicWeb preview page detection to scrapeDocument ([f47d3cb](https://github.com/happyvertical/sdk/commit/f47d3cb514cc8d76f5466d183dc86f0d50d6bda6)), closes [#193](https://github.com/happyvertical/sdk/issues/193)
+* **spider:** add DocuShare document page detection to scrapeDocument ([2cb7eac](https://github.com/happyvertical/sdk/commit/2cb7eacad13c52494cd3786224bbd8ef69625185))
+* **spider:** add scraper and spider configuration options to scrapeDocument ([750e487](https://github.com/happyvertical/sdk/commit/750e487f32e39eaa65273bd42e49ef76b57e0841)), closes [#195](https://github.com/happyvertical/sdk/issues/195)
+* **spider:** add WordPress download manager support to scrapeDocument ([4c2aa0a](https://github.com/happyvertical/sdk/commit/4c2aa0afbf50f2189d16bce756377d1d3f60f0ce)), closes [#177](https://github.com/happyvertical/sdk/issues/177)
+* **utils:** add support for underscore and dot date formats to dateInString ([3dedc02](https://github.com/happyvertical/sdk/commit/3dedc020758ac9570c913d47669407f0f8dbce50)), closes [#191](https://github.com/happyvertical/sdk/issues/191)
+* **utils:** enhance dateInString to support multiple date formats ([ce31195](https://github.com/happyvertical/sdk/commit/ce31195e01830ad05bc72ec141b32b0698a708e1))
+
+
+### BREAKING CHANGES
+
+* **smrt:** @have/notes package removed - functionality now built into @have/smrt
+
 ## [0.27.1](https://github.com/happyvertical/sdk/compare/v0.27.0...v0.27.1) (2025-10-12)
 
 

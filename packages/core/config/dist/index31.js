@@ -1,116 +1,97 @@
-import require$$0 from "util";
-import { __require as requireIsArrayish } from "./index64.js";
-var errorEx_1;
-var hasRequiredErrorEx;
-function requireErrorEx() {
-  if (hasRequiredErrorEx) return errorEx_1;
-  hasRequiredErrorEx = 1;
-  var util = require$$0;
-  var isArrayish = requireIsArrayish();
-  var errorEx = function errorEx2(name, properties) {
-    if (!name || name.constructor !== String) {
-      properties = name || {};
-      name = Error.name;
+var jsonParseEvenBetterErrors;
+var hasRequiredJsonParseEvenBetterErrors;
+function requireJsonParseEvenBetterErrors() {
+  if (hasRequiredJsonParseEvenBetterErrors) return jsonParseEvenBetterErrors;
+  hasRequiredJsonParseEvenBetterErrors = 1;
+  const hexify = (char) => {
+    const h = char.charCodeAt(0).toString(16).toUpperCase();
+    return "0x" + (h.length % 2 ? "0" : "") + h;
+  };
+  const parseError = (e, txt, context) => {
+    if (!txt) {
+      return {
+        message: e.message + " while parsing empty string",
+        position: 0
+      };
     }
-    var errorExError = function ErrorEXError(message) {
-      if (!this) {
-        return new ErrorEXError(message);
-      }
-      message = message instanceof Error ? message.message : message || this.message;
-      Error.call(this, message);
-      Error.captureStackTrace(this, errorExError);
-      this.name = name;
-      Object.defineProperty(this, "message", {
-        configurable: true,
-        enumerable: false,
-        get: function() {
-          var newMessage = message.split(/\r?\n/g);
-          for (var key in properties) {
-            if (!properties.hasOwnProperty(key)) {
-              continue;
-            }
-            var modifier = properties[key];
-            if ("message" in modifier) {
-              newMessage = modifier.message(this[key], newMessage) || newMessage;
-              if (!isArrayish(newMessage)) {
-                newMessage = [newMessage];
-              }
-            }
-          }
-          return newMessage.join("\n");
-        },
-        set: function(v) {
-          message = v;
-        }
-      });
-      var overwrittenStack = null;
-      var stackDescriptor = Object.getOwnPropertyDescriptor(this, "stack");
-      var stackGetter = stackDescriptor.get;
-      var stackValue = stackDescriptor.value;
-      delete stackDescriptor.value;
-      delete stackDescriptor.writable;
-      stackDescriptor.set = function(newstack) {
-        overwrittenStack = newstack;
+    const badToken = e.message.match(/^Unexpected token (.) .*position\s+(\d+)/i);
+    const errIdx = badToken ? +badToken[2] : e.message.match(/^Unexpected end of JSON.*/i) ? txt.length - 1 : null;
+    const msg = badToken ? e.message.replace(/^Unexpected token ./, `Unexpected token ${JSON.stringify(badToken[1])} (${hexify(badToken[1])})`) : e.message;
+    if (errIdx !== null && errIdx !== void 0) {
+      const start = errIdx <= context ? 0 : errIdx - context;
+      const end = errIdx + context >= txt.length ? txt.length : errIdx + context;
+      const slice = (start === 0 ? "" : "...") + txt.slice(start, end) + (end === txt.length ? "" : "...");
+      const near = txt === slice ? "" : "near ";
+      return {
+        message: msg + ` while parsing ${near}${JSON.stringify(slice)}`,
+        position: errIdx
       };
-      stackDescriptor.get = function() {
-        var stack = (overwrittenStack || (stackGetter ? stackGetter.call(this) : stackValue)).split(/\r?\n+/g);
-        if (!overwrittenStack) {
-          stack[0] = this.name + ": " + this.message;
-        }
-        var lineCount = 1;
-        for (var key in properties) {
-          if (!properties.hasOwnProperty(key)) {
-            continue;
-          }
-          var modifier = properties[key];
-          if ("line" in modifier) {
-            var line = modifier.line(this[key]);
-            if (line) {
-              stack.splice(lineCount++, 0, "    " + line);
-            }
-          }
-          if ("stack" in modifier) {
-            modifier.stack(this[key], stack);
-          }
-        }
-        return stack.join("\n");
-      };
-      Object.defineProperty(this, "stack", stackDescriptor);
-    };
-    if (Object.setPrototypeOf) {
-      Object.setPrototypeOf(errorExError.prototype, Error.prototype);
-      Object.setPrototypeOf(errorExError, Error);
     } else {
-      util.inherits(errorExError, Error);
+      return {
+        message: msg + ` while parsing '${txt.slice(0, context * 2)}'`,
+        position: 0
+      };
     }
-    return errorExError;
   };
-  errorEx.append = function(str, def) {
-    return {
-      message: function(v, message) {
-        v = v || def;
-        if (v) {
-          message[0] += " " + str.replace("%s", v.toString());
-        }
-        return message;
+  class JSONParseError extends SyntaxError {
+    constructor(er, txt, context, caller) {
+      context = context || 20;
+      const metadata = parseError(er, txt, context);
+      super(metadata.message);
+      Object.assign(this, metadata);
+      this.code = "EJSONPARSE";
+      this.systemError = er;
+      Error.captureStackTrace(this, caller || this.constructor);
+    }
+    get name() {
+      return this.constructor.name;
+    }
+    set name(n) {
+    }
+    get [Symbol.toStringTag]() {
+      return this.constructor.name;
+    }
+  }
+  const kIndent = Symbol.for("indent");
+  const kNewline = Symbol.for("newline");
+  const formatRE = /^\s*[{\[]((?:\r?\n)+)([\s\t]*)/;
+  const emptyRE = /^(?:\{\}|\[\])((?:\r?\n)+)?$/;
+  const parseJson = (txt, reviver, context) => {
+    const parseText = stripBOM(txt);
+    context = context || 20;
+    try {
+      const [, newline = "\n", indent = "  "] = parseText.match(emptyRE) || parseText.match(formatRE) || [, "", ""];
+      const result = JSON.parse(parseText, reviver);
+      if (result && typeof result === "object") {
+        result[kNewline] = newline;
+        result[kIndent] = indent;
       }
-    };
-  };
-  errorEx.line = function(str, def) {
-    return {
-      line: function(v) {
-        v = v || def;
-        if (v) {
-          return str.replace("%s", v.toString());
-        }
-        return null;
+      return result;
+    } catch (e) {
+      if (typeof txt !== "string" && !Buffer.isBuffer(txt)) {
+        const isEmptyArray = Array.isArray(txt) && txt.length === 0;
+        throw Object.assign(new TypeError(
+          `Cannot parse ${isEmptyArray ? "an empty array" : String(txt)}`
+        ), {
+          code: "EJSONPARSE",
+          systemError: e
+        });
       }
-    };
+      throw new JSONParseError(e, parseText, context, parseJson);
+    }
   };
-  errorEx_1 = errorEx;
-  return errorEx_1;
+  const stripBOM = (txt) => String(txt).replace(/^\uFEFF/, "");
+  jsonParseEvenBetterErrors = parseJson;
+  parseJson.JSONParseError = JSONParseError;
+  parseJson.noExceptions = (txt, reviver) => {
+    try {
+      return JSON.parse(stripBOM(txt), reviver);
+    } catch (e) {
+    }
+  };
+  return jsonParseEvenBetterErrors;
 }
 export {
-  requireErrorEx as __require
+  requireJsonParseEvenBetterErrors as __require
 };
 //# sourceMappingURL=index31.js.map

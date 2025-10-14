@@ -1,5 +1,5 @@
-var interlace = {};
+var syncReader = { exports: {} };
 export {
-  interlace as __exports
+  syncReader as __module
 };
 //# sourceMappingURL=index87.js.map

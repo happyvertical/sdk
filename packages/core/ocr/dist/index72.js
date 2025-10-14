@@ -1,12 +1,5 @@
-import { __exports as onnxValue } from "./index101.js";
-var hasRequiredOnnxValue;
-function requireOnnxValue() {
-  if (hasRequiredOnnxValue) return onnxValue;
-  hasRequiredOnnxValue = 1;
-  Object.defineProperty(onnxValue, "__esModule", { value: true });
-  return onnxValue;
-}
+var backend = {};
 export {
-  requireOnnxValue as __require
+  backend as __exports
 };
 //# sourceMappingURL=index72.js.map

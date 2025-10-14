@@ -1,30 +1,41 @@
-import { __require as requireCore } from "./index42.js";
-import { __require as requireTimestamp } from "./index51.js";
-import { __require as requireMerge } from "./index54.js";
-import { __require as requireBinary } from "./index45.js";
-import { __require as requireOmap } from "./index55.js";
-import { __require as requirePairs } from "./index49.js";
-import { __require as requireSet } from "./index50.js";
-var _default;
-var hasRequired_default;
-function require_default() {
-  if (hasRequired_default) return _default;
-  hasRequired_default = 1;
-  _default = requireCore().extend({
-    implicit: [
-      requireTimestamp(),
-      requireMerge()
-    ],
-    explicit: [
-      requireBinary(),
-      requireOmap(),
-      requirePairs(),
-      requireSet()
-    ]
-  });
-  return _default;
+var exception;
+var hasRequiredException;
+function requireException() {
+  if (hasRequiredException) return exception;
+  hasRequiredException = 1;
+  function formatError(exception2, compact) {
+    var where = "", message = exception2.reason || "(unknown reason)";
+    if (!exception2.mark) return message;
+    if (exception2.mark.name) {
+      where += 'in "' + exception2.mark.name + '" ';
+    }
+    where += "(" + (exception2.mark.line + 1) + ":" + (exception2.mark.column + 1) + ")";
+    if (!compact && exception2.mark.snippet) {
+      where += "\n\n" + exception2.mark.snippet;
+    }
+    return message + " " + where;
+  }
+  function YAMLException(reason, mark) {
+    Error.call(this);
+    this.name = "YAMLException";
+    this.reason = reason;
+    this.mark = mark;
+    this.message = formatError(this, false);
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, this.constructor);
+    } else {
+      this.stack = new Error().stack || "";
+    }
+  }
+  YAMLException.prototype = Object.create(Error.prototype);
+  YAMLException.prototype.constructor = YAMLException;
+  YAMLException.prototype.toString = function toString(compact) {
+    return this.name + ": " + formatError(this, compact);
+  };
+  exception = YAMLException;
+  return exception;
 }
 export {
-  require_default as __require
+  requireException as __require
 };
 //# sourceMappingURL=index43.js.map

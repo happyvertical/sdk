@@ -1,97 +1,75 @@
-var jsonParseEvenBetterErrors;
-var hasRequiredJsonParseEvenBetterErrors;
-function requireJsonParseEvenBetterErrors() {
-  if (hasRequiredJsonParseEvenBetterErrors) return jsonParseEvenBetterErrors;
-  hasRequiredJsonParseEvenBetterErrors = 1;
-  const hexify = (char) => {
-    const h = char.charCodeAt(0).toString(16).toUpperCase();
-    return "0x" + (h.length % 2 ? "0" : "") + h;
-  };
-  const parseError = (e, txt, context) => {
-    if (!txt) {
-      return {
-        message: e.message + " while parsing empty string",
-        position: 0
-      };
-    }
-    const badToken = e.message.match(/^Unexpected token (.) .*position\s+(\d+)/i);
-    const errIdx = badToken ? +badToken[2] : e.message.match(/^Unexpected end of JSON.*/i) ? txt.length - 1 : null;
-    const msg = badToken ? e.message.replace(/^Unexpected token ./, `Unexpected token ${JSON.stringify(badToken[1])} (${hexify(badToken[1])})`) : e.message;
-    if (errIdx !== null && errIdx !== void 0) {
-      const start = errIdx <= context ? 0 : errIdx - context;
-      const end = errIdx + context >= txt.length ? txt.length : errIdx + context;
-      const slice = (start === 0 ? "" : "...") + txt.slice(start, end) + (end === txt.length ? "" : "...");
-      const near = txt === slice ? "" : "near ";
-      return {
-        message: msg + ` while parsing ${near}${JSON.stringify(slice)}`,
-        position: errIdx
-      };
-    } else {
-      return {
-        message: msg + ` while parsing '${txt.slice(0, context * 2)}'`,
-        position: 0
-      };
-    }
-  };
-  class JSONParseError extends SyntaxError {
-    constructor(er, txt, context, caller) {
-      context = context || 20;
-      const metadata = parseError(er, txt, context);
-      super(metadata.message);
-      Object.assign(this, metadata);
-      this.code = "EJSONPARSE";
-      this.systemError = er;
-      Error.captureStackTrace(this, caller || this.constructor);
-    }
-    get name() {
-      return this.constructor.name;
-    }
-    set name(n) {
-    }
-    get [Symbol.toStringTag]() {
-      return this.constructor.name;
-    }
-  }
-  const kIndent = Symbol.for("indent");
-  const kNewline = Symbol.for("newline");
-  const formatRE = /^\s*[{\[]((?:\r?\n)+)([\s\t]*)/;
-  const emptyRE = /^(?:\{\}|\[\])((?:\r?\n)+)?$/;
-  const parseJson = (txt, reviver, context) => {
-    const parseText = stripBOM(txt);
-    context = context || 20;
-    try {
-      const [, newline = "\n", indent = "  "] = parseText.match(emptyRE) || parseText.match(formatRE) || [, "", ""];
-      const result = JSON.parse(parseText, reviver);
-      if (result && typeof result === "object") {
-        result[kNewline] = newline;
-        result[kIndent] = indent;
-      }
-      return result;
-    } catch (e) {
-      if (typeof txt !== "string" && !Buffer.isBuffer(txt)) {
-        const isEmptyArray = Array.isArray(txt) && txt.length === 0;
-        throw Object.assign(new TypeError(
-          `Cannot parse ${isEmptyArray ? "an empty array" : String(txt)}`
-        ), {
-          code: "EJSONPARSE",
-          systemError: e
-        });
-      }
-      throw new JSONParseError(e, parseText, context, parseJson);
-    }
-  };
-  const stripBOM = (txt) => String(txt).replace(/^\uFEFF/, "");
-  jsonParseEvenBetterErrors = parseJson;
-  parseJson.JSONParseError = JSONParseError;
-  parseJson.noExceptions = (txt, reviver) => {
-    try {
-      return JSON.parse(stripBOM(txt), reviver);
-    } catch (e) {
-    }
-  };
-  return jsonParseEvenBetterErrors;
+import { __exports as build } from "./index61.js";
+var hasRequiredBuild;
+function requireBuild() {
+  if (hasRequiredBuild) return build;
+  hasRequiredBuild = 1;
+  (function(exports) {
+    exports.__esModule = true;
+    exports.LinesAndColumns = void 0;
+    var LF = "\n";
+    var CR = "\r";
+    var LinesAndColumns = (
+      /** @class */
+      (function() {
+        function LinesAndColumns2(string) {
+          this.string = string;
+          var offsets = [0];
+          for (var offset = 0; offset < string.length; ) {
+            switch (string[offset]) {
+              case LF:
+                offset += LF.length;
+                offsets.push(offset);
+                break;
+              case CR:
+                offset += CR.length;
+                if (string[offset] === LF) {
+                  offset += LF.length;
+                }
+                offsets.push(offset);
+                break;
+              default:
+                offset++;
+                break;
+            }
+          }
+          this.offsets = offsets;
+        }
+        LinesAndColumns2.prototype.locationForIndex = function(index) {
+          if (index < 0 || index > this.string.length) {
+            return null;
+          }
+          var line = 0;
+          var offsets = this.offsets;
+          while (offsets[line + 1] <= index) {
+            line++;
+          }
+          var column = index - offsets[line];
+          return { line, column };
+        };
+        LinesAndColumns2.prototype.indexForLocation = function(location) {
+          var line = location.line, column = location.column;
+          if (line < 0 || line >= this.offsets.length) {
+            return null;
+          }
+          if (column < 0 || column > this.lengthOfLine(line)) {
+            return null;
+          }
+          return this.offsets[line] + column;
+        };
+        LinesAndColumns2.prototype.lengthOfLine = function(line) {
+          var offset = this.offsets[line];
+          var nextOffset = line === this.offsets.length - 1 ? this.string.length : this.offsets[line + 1];
+          return nextOffset - offset;
+        };
+        return LinesAndColumns2;
+      })()
+    );
+    exports.LinesAndColumns = LinesAndColumns;
+    exports["default"] = LinesAndColumns;
+  })(build);
+  return build;
 }
 export {
-  requireJsonParseEvenBetterErrors as __require
+  requireBuild as __require
 };
 //# sourceMappingURL=index32.js.map

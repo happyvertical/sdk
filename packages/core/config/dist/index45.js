@@ -1,88 +1,89 @@
-import { __require as requireType } from "./index38.js";
-var binary;
-var hasRequiredBinary;
-function requireBinary() {
-  if (hasRequiredBinary) return binary;
-  hasRequiredBinary = 1;
+import { __require as requireCommon } from "./index67.js";
+import { __require as requireType } from "./index37.js";
+var float;
+var hasRequiredFloat;
+function requireFloat() {
+  if (hasRequiredFloat) return float;
+  hasRequiredFloat = 1;
+  var common = requireCommon();
   var Type = requireType();
-  var BASE64_MAP = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\n\r";
-  function resolveYamlBinary(data) {
+  var YAML_FLOAT_PATTERN = new RegExp(
+    // 2.5e4, 2.5 and integers
+    "^(?:[-+]?(?:[0-9][0-9_]*)(?:\\.[0-9_]*)?(?:[eE][-+]?[0-9]+)?|\\.[0-9_]+(?:[eE][-+]?[0-9]+)?|[-+]?\\.(?:inf|Inf|INF)|\\.(?:nan|NaN|NAN))$"
+  );
+  function resolveYamlFloat(data) {
     if (data === null) return false;
-    var code, idx, bitlen = 0, max = data.length, map = BASE64_MAP;
-    for (idx = 0; idx < max; idx++) {
-      code = map.indexOf(data.charAt(idx));
-      if (code > 64) continue;
-      if (code < 0) return false;
-      bitlen += 6;
+    if (!YAML_FLOAT_PATTERN.test(data) || // Quick hack to not allow integers end with `_`
+    // Probably should update regexp & check speed
+    data[data.length - 1] === "_") {
+      return false;
     }
-    return bitlen % 8 === 0;
+    return true;
   }
-  function constructYamlBinary(data) {
-    var idx, tailbits, input = data.replace(/[\r\n=]/g, ""), max = input.length, map = BASE64_MAP, bits = 0, result = [];
-    for (idx = 0; idx < max; idx++) {
-      if (idx % 4 === 0 && idx) {
-        result.push(bits >> 16 & 255);
-        result.push(bits >> 8 & 255);
-        result.push(bits & 255);
+  function constructYamlFloat(data) {
+    var value, sign;
+    value = data.replace(/_/g, "").toLowerCase();
+    sign = value[0] === "-" ? -1 : 1;
+    if ("+-".indexOf(value[0]) >= 0) {
+      value = value.slice(1);
+    }
+    if (value === ".inf") {
+      return sign === 1 ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+    } else if (value === ".nan") {
+      return NaN;
+    }
+    return sign * parseFloat(value, 10);
+  }
+  var SCIENTIFIC_WITHOUT_DOT = /^[-+]?[0-9]+e/;
+  function representYamlFloat(object, style) {
+    var res;
+    if (isNaN(object)) {
+      switch (style) {
+        case "lowercase":
+          return ".nan";
+        case "uppercase":
+          return ".NAN";
+        case "camelcase":
+          return ".NaN";
       }
-      bits = bits << 6 | map.indexOf(input.charAt(idx));
-    }
-    tailbits = max % 4 * 6;
-    if (tailbits === 0) {
-      result.push(bits >> 16 & 255);
-      result.push(bits >> 8 & 255);
-      result.push(bits & 255);
-    } else if (tailbits === 18) {
-      result.push(bits >> 10 & 255);
-      result.push(bits >> 2 & 255);
-    } else if (tailbits === 12) {
-      result.push(bits >> 4 & 255);
-    }
-    return new Uint8Array(result);
-  }
-  function representYamlBinary(object) {
-    var result = "", bits = 0, idx, tail, max = object.length, map = BASE64_MAP;
-    for (idx = 0; idx < max; idx++) {
-      if (idx % 3 === 0 && idx) {
-        result += map[bits >> 18 & 63];
-        result += map[bits >> 12 & 63];
-        result += map[bits >> 6 & 63];
-        result += map[bits & 63];
+    } else if (Number.POSITIVE_INFINITY === object) {
+      switch (style) {
+        case "lowercase":
+          return ".inf";
+        case "uppercase":
+          return ".INF";
+        case "camelcase":
+          return ".Inf";
       }
-      bits = (bits << 8) + object[idx];
+    } else if (Number.NEGATIVE_INFINITY === object) {
+      switch (style) {
+        case "lowercase":
+          return "-.inf";
+        case "uppercase":
+          return "-.INF";
+        case "camelcase":
+          return "-.Inf";
+      }
+    } else if (common.isNegativeZero(object)) {
+      return "-0.0";
     }
-    tail = max % 3;
-    if (tail === 0) {
-      result += map[bits >> 18 & 63];
-      result += map[bits >> 12 & 63];
-      result += map[bits >> 6 & 63];
-      result += map[bits & 63];
-    } else if (tail === 2) {
-      result += map[bits >> 10 & 63];
-      result += map[bits >> 4 & 63];
-      result += map[bits << 2 & 63];
-      result += map[64];
-    } else if (tail === 1) {
-      result += map[bits >> 2 & 63];
-      result += map[bits << 4 & 63];
-      result += map[64];
-      result += map[64];
-    }
-    return result;
+    res = object.toString(10);
+    return SCIENTIFIC_WITHOUT_DOT.test(res) ? res.replace("e", ".e") : res;
   }
-  function isBinary(obj) {
-    return Object.prototype.toString.call(obj) === "[object Uint8Array]";
+  function isFloat(object) {
+    return Object.prototype.toString.call(object) === "[object Number]" && (object % 1 !== 0 || common.isNegativeZero(object));
   }
-  binary = new Type("tag:yaml.org,2002:binary", {
+  float = new Type("tag:yaml.org,2002:float", {
     kind: "scalar",
-    resolve: resolveYamlBinary,
-    construct: constructYamlBinary,
-    predicate: isBinary,
-    represent: representYamlBinary
+    resolve: resolveYamlFloat,
+    construct: constructYamlFloat,
+    predicate: isFloat,
+    represent: representYamlFloat,
+    defaultStyle: "lowercase"
   });
-  return binary;
+  return float;
 }
 export {
-  requireBinary as __require
+  requireFloat as __require
 };
 //# sourceMappingURL=index45.js.map

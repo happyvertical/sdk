@@ -141,9 +141,7 @@ async function extractImages$1(data, pageNumber) {
       continue;
     }
     const imageKey = operatorList.argsArray[i][0];
-    const image = await new Promise(
-      (resolve) => (imageKey.startsWith("g_") ? page.commonObjs : page.objs).get(imageKey, resolve)
-    );
+    const image = imageKey.startsWith("g_") ? await new Promise((resolve) => page.commonObjs.get(imageKey, (resolvedImage) => resolve(resolvedImage))) : await new Promise((resolve) => page.objs.get(imageKey, (resolvedImage) => resolve(resolvedImage)));
     if (!image || !image.data || !image.width || !image.height) {
       continue;
     }
@@ -319,7 +317,6 @@ const extractLinks = async (...args) => {
 };
 export {
   configureUnPDF,
-  createIsomorphicCanvasFactory,
   definePDFJSModule,
   extractImages,
   extractLinks,

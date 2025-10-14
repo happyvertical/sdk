@@ -1,5 +1,5 @@
-var filterParseSync = {};
+var syncInflate = { exports: {} };
 export {
-  filterParseSync as __exports
+  syncInflate as __module
 };
 //# sourceMappingURL=index86.js.map
