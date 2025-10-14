@@ -4,9 +4,19 @@
  * Exposes smrt objects as AI tools for Claude, GPT, and other AI models
  */
 
+import { writeFile } from 'node:fs/promises';
+import { resolve, dirname } from 'node:path';
+import { mkdir } from 'node:fs/promises';
 import { SmrtCollection } from '../collection';
 import type { SmrtObject } from '../object';
 import { ObjectRegistry } from '../registry';
+import {
+  generateRuntimeBootstrap,
+  generateMCPScript,
+  generateClaudeConfig,
+  generateMCPDocumentation,
+  type RuntimeOptions,
+} from './mcp-runtime-template.js';
 
 export interface MCPConfig {
   name?: string;
@@ -646,5 +656,109 @@ export class MCPGenerator {
       version: this.config.server?.version,
       description: this.config.description,
     };
+  }
+
+  /**
+   * Generate complete MCP server with stdio transport
+   *
+   * Creates a runnable Node.js script that exposes SMRT objects as MCP tools.
+   * The generated server includes:
+   * - Stdio transport integration
+   * - Tool registration from ObjectRegistry
+   * - Error handling and logging
+   * - Graceful shutdown
+   *
+   * @param options - Server generation options
+   * @returns Promise that resolves when all files are written
+   *
+   * @example
+   * ```typescript
+   * const generator = new MCPGenerator({
+   *   name: 'my-app',
+   *   version: '1.0.0'
+   * });
+   *
+   * await generator.generateServer({
+   *   outputPath: 'dist/mcp-server.js',
+   *   serverName: 'my-app-mcp',
+   *   debug: true
+   * });
+   * ```
+   */
+  async generateServer(options: {
+    /** Path to output server file (relative or absolute) */
+    outputPath?: string;
+
+    /** Server name for configuration */
+    serverName?: string;
+
+    /** Server version */
+    serverVersion?: string;
+
+    /** Enable debug logging */
+    debug?: boolean;
+
+    /** Generate Claude Desktop configuration example */
+    generateClaudeConfigFile?: boolean;
+
+    /** Generate README documentation */
+    generateReadme?: boolean;
+  } = {}): Promise<void> {
+    const {
+      outputPath = 'dist/mcp-server.js',
+      serverName = this.config.name || 'smrt-mcp-server',
+      serverVersion = this.config.version || '1.0.0',
+      debug = false,
+      generateClaudeConfigFile = true,
+      generateReadme = true,
+    } = options;
+
+    // Resolve output path
+    const resolvedPath = resolve(process.cwd(), outputPath);
+    const outputDir = dirname(resolvedPath);
+
+    // Ensure output directory exists
+    await mkdir(outputDir, { recursive: true });
+
+    // Generate server code
+    const runtimeOptions: RuntimeOptions = {
+      name: serverName,
+      version: serverVersion,
+      description: this.config.description,
+      config: this.config,
+      context: this.context,
+      debug,
+    };
+
+    const serverCode = generateRuntimeBootstrap(runtimeOptions);
+
+    // Write server file
+    await writeFile(resolvedPath, serverCode, 'utf-8');
+    console.log(`✅ Generated MCP server: ${resolvedPath}`);
+
+    // Generate Claude Desktop configuration example
+    if (generateClaudeConfigFile) {
+      const claudeConfig = generateClaudeConfig(serverName, resolvedPath);
+      const claudeConfigPath = resolve(outputDir, 'claude-config.example.json');
+      await writeFile(
+        claudeConfigPath,
+        JSON.stringify(claudeConfig, null, 2),
+        'utf-8',
+      );
+      console.log(`✅ Generated Claude config example: ${claudeConfigPath}`);
+    }
+
+    // Generate README documentation
+    if (generateReadme) {
+      const readme = generateMCPDocumentation(serverName, outputPath);
+      const readmePath = resolve(outputDir, 'MCP-README.md');
+      await writeFile(readmePath, readme, 'utf-8');
+      console.log(`✅ Generated MCP documentation: ${readmePath}`);
+    }
+
+    // Generate npm script suggestion
+    const mcpScript = generateMCPScript(outputPath);
+    console.log(`\n📝 Add this to your package.json scripts:`);
+    console.log(`   "mcp": "${mcpScript}"\n`);
   }
 }

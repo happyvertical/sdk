@@ -133,6 +133,8 @@ function createPackageBuild(
         '@google-cloud/translate',
         'deepl-node',
         'redis',
+        '@modelcontextprotocol/sdk',
+        /^@modelcontextprotocol\//,
 
         // Internal @have/* packages - externalize to avoid cross-package bundling issues
         '@have/types',
@@ -270,6 +272,8 @@ function createPackageBuild(
         '@google-cloud/translate',
         'deepl-node',
         'redis',
+        '@modelcontextprotocol/sdk',
+        /^@modelcontextprotocol\//,
 
         // Internal @have/* packages - externalize to avoid cross-package bundling issues
         '@have/types',

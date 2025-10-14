@@ -63,6 +63,8 @@
     "build:lib": "vite build --mode library",
     "build:app": "vite build --mode standalone",
     "build:federation": "vite build --mode federation",
+    "generate:mcp": "tsx src/mcp.ts",
+    "mcp": "node dist/mcp-server.js",
     "start": "npm run start:standalone",
     "start:standalone": "node dist/app/main.js",
     "start:federation": "node dist/federation/main.js",

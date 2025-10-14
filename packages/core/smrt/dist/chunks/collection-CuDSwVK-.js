@@ -4,7 +4,7 @@ import { FilesystemAdapter } from "@have/files";
 import { makeId } from "@have/utils";
 import { NetworkError, ValidationError, RuntimeError, ErrorUtils, DatabaseError } from "./errors-Cl0_Kxat.js";
 import { Field } from "../fields.js";
-import { t as tableNameFromClass, g as generateSchema, a as toSnakeCase, c as formatDataJs, f as fieldsFromClass, O as ObjectRegistry, d as formatDataSql } from "./registry-DirJKcgN.js";
+import { t as tableNameFromClass, g as generateSchema, a as toSnakeCase, c as formatDataJs, f as fieldsFromClass, O as ObjectRegistry, d as formatDataSql } from "./registry-CZx11Old.js";
 const DEFAULT_REDACT_KEYS = [
   "password",
   "passwd",
@@ -418,7 +418,7 @@ class SmrtClass {
       return;
     }
     for (const createTableSQL of ALL_SYSTEM_TABLES) {
-      await this._db.execute`${createTableSQL}`;
+      await this._db.query(createTableSQL);
     }
     const version = SMRT_SCHEMA_VERSION;
     const description = "Initial SMRT system tables";
@@ -2254,4 +2254,4 @@ export {
   SMRT_SCHEMA_VERSION as i,
   collection as j
 };
-//# sourceMappingURL=collection-fcVk8Wh3.js.map
+//# sourceMappingURL=collection-CuDSwVK-.js.map
