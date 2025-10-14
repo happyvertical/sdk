@@ -730,7 +730,7 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
    */
   get tableName() {
     if (!this._tableName) {
-      this._tableName = tableNameFromClass(this.constructor);
+      this._tableName = tableNameFromClass(this._itemClass);
     }
     return this._tableName;
   }
