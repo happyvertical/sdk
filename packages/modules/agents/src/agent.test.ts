@@ -1,8 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { Agent } from './agent.js';
 import { smrt } from '@have/smrt';
 import { getModuleConfig } from '@have/config';
-import { rmSync } from 'node:fs';
 
 // Test agent implementation
 interface TestAgentConfig {
@@ -35,25 +34,8 @@ class TestAgent extends Agent {
 }
 
 describe('@have/agents', () => {
-  const testDbPath = '.test-agent.db';
-
-  beforeEach(() => {
-    // Clean up any existing test database
-    try {
-      rmSync(testDbPath, { force: true });
-    } catch {
-      // Ignore if doesn't exist
-    }
-  });
-
-  afterEach(() => {
-    // Clean up test database
-    try {
-      rmSync(testDbPath, { force: true });
-    } catch {
-      // Ignore if cleanup fails
-    }
-  });
+  // Use in-memory database for tests to avoid file system issues and caching problems
+  const testDbUrl = 'file::memory:?cache=shared';
 
   describe('Agent lifecycle', () => {
     it('should initialize with default status', async () => {
@@ -61,7 +43,7 @@ describe('@have/agents', () => {
         name: 'test-agent',
         db: {
           type: 'sqlite',
-          url: `file:${testDbPath}`,
+          url: testDbUrl,
         },
       });
 
@@ -75,7 +57,7 @@ describe('@have/agents', () => {
         name: 'test-agent',
         db: {
           type: 'sqlite',
-          url: `file:${testDbPath}`,
+          url: testDbUrl,
         },
       });
 
@@ -91,7 +73,7 @@ describe('@have/agents', () => {
         name: 'test-agent',
         db: {
           type: 'sqlite',
-          url: `file:${testDbPath}`,
+          url: testDbUrl,
         },
       });
 
@@ -108,7 +90,7 @@ describe('@have/agents', () => {
         name: 'test-agent',
         db: {
           type: 'sqlite',
-          url: `file:${testDbPath}`,
+          url: testDbUrl,
         },
       });
 
@@ -125,7 +107,7 @@ describe('@have/agents', () => {
         name: 'config-agent',
         db: {
           type: 'sqlite',
-          url: `file:${testDbPath}`,
+          url: testDbUrl,
         },
       });
 
