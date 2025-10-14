@@ -1,49 +1,17 @@
-import { __exports as common } from "./index76.js";
-var hasRequiredCommon;
-function requireCommon() {
-  if (hasRequiredCommon) return common;
-  hasRequiredCommon = 1;
-  function isNothing(subject) {
-    return typeof subject === "undefined" || subject === null;
-  }
-  function isObject(subject) {
-    return typeof subject === "object" && subject !== null;
-  }
-  function toArray(sequence) {
-    if (Array.isArray(sequence)) return sequence;
-    else if (isNothing(sequence)) return [];
-    return [sequence];
-  }
-  function extend(target, source) {
-    var index, length, key, sourceKeys;
-    if (source) {
-      sourceKeys = Object.keys(source);
-      for (index = 0, length = sourceKeys.length; index < length; index += 1) {
-        key = sourceKeys[index];
-        target[key] = source[key];
-      }
-    }
-    return target;
-  }
-  function repeat(string, count) {
-    var result = "", cycle;
-    for (cycle = 0; cycle < count; cycle += 1) {
-      result += string;
-    }
-    return result;
-  }
-  function isNegativeZero(number) {
-    return number === 0 && Number.NEGATIVE_INFINITY === 1 / number;
-  }
-  common.isNothing = isNothing;
-  common.isObject = isObject;
-  common.toArray = toArray;
-  common.repeat = repeat;
-  common.isNegativeZero = isNegativeZero;
-  common.extend = extend;
-  return common;
+import { __module as picocolors_browser } from "./index72.js";
+var hasRequiredPicocolors_browser;
+function requirePicocolors_browser() {
+  if (hasRequiredPicocolors_browser) return picocolors_browser.exports;
+  hasRequiredPicocolors_browser = 1;
+  var x = String;
+  var create = function() {
+    return { isColorSupported: false, reset: x, bold: x, dim: x, italic: x, underline: x, inverse: x, hidden: x, strikethrough: x, black: x, red: x, green: x, yellow: x, blue: x, magenta: x, cyan: x, white: x, gray: x, bgBlack: x, bgRed: x, bgGreen: x, bgYellow: x, bgBlue: x, bgMagenta: x, bgCyan: x, bgWhite: x, blackBright: x, redBright: x, greenBright: x, yellowBright: x, blueBright: x, magentaBright: x, cyanBright: x, whiteBright: x, bgBlackBright: x, bgRedBright: x, bgGreenBright: x, bgYellowBright: x, bgBlueBright: x, bgMagentaBright: x, bgCyanBright: x, bgWhiteBright: x };
+  };
+  picocolors_browser.exports = create();
+  picocolors_browser.exports.createColors = create;
+  return picocolors_browser.exports;
 }
 export {
-  requireCommon as __require
+  requirePicocolors_browser as __require
 };
 //# sourceMappingURL=index67.js.map
