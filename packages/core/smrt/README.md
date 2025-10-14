@@ -404,6 +404,76 @@ for (const order of orders) {
 
 For more details, see the [full CLAUDE.md documentation](./CLAUDE.md#eager-loading-and-n1-query-prevention-phase-5).
 
+### Direct SQL Access
+
+All SMRT objects have public `db` property for direct database access via @have/sql. This enables custom queries, transactions, and advanced database operations:
+
+```typescript
+import { SmrtObject, SmrtCollection } from '@have/smrt';
+
+class Product extends SmrtObject {
+  name = text({ required: true });
+  price = decimal({ required: true });
+  category = text({ required: true });
+}
+
+const products = await ProductCollection.create({ db: 'products.db' });
+
+// Direct SQL queries
+const expensive = await products.db.many`
+  SELECT * FROM products
+  WHERE price > ${100}
+  ORDER BY price DESC
+  LIMIT 10
+`;
+
+// Execute custom updates
+await products.db.execute`
+  UPDATE products
+  SET price = price * 0.9
+  WHERE category = ${'electronics'}
+`;
+
+// Check query results
+const count = await products.db.pluck`
+  SELECT COUNT(*) FROM products WHERE price > ${50}
+`;
+
+// Use template literals for safe parameterization
+const category = 'books';
+const results = await products.db.query`
+  SELECT * FROM products WHERE category = ${category}
+`;
+```
+
+**Key Benefits**:
+- **Direct database access**: Use any SQL query, not limited to ORM methods
+- **Template literal safety**: Automatic SQL injection protection via tagged templates
+- **Full @have/sql power**: Access all DatabaseInterface methods (many, single, pluck, execute)
+- **Transaction support**: Use `db.transaction()` for atomic operations
+- **Performance**: Direct queries can be more efficient for complex operations
+
+**Configuration Options**:
+```typescript
+// String shortcut (auto-detects database type)
+const collection = await ProductCollection.create({
+  db: 'products.db'
+});
+
+// Config object (explicit type)
+const collection = await ProductCollection.create({
+  db: {
+    type: 'sqlite',
+    url: 'products.db'
+  }
+});
+
+// DatabaseInterface instance (pre-configured)
+import { getDatabase } from '@have/sql';
+const db = await getDatabase({ type: 'postgres', url: 'postgres://...' });
+const collection = await ProductCollection.create({ db });
+```
+
 ## Cross-Package Integration
 
 SMRT integrates seamlessly with other HAVE SDK packages:

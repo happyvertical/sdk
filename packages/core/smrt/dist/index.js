@@ -1,5 +1,5 @@
-import { a as SmrtClass, c as createPersistenceAdapter } from "./chunks/collection-CuDSwVK-.js";
-import { A, f, C, g, h, i, d, e, S, b } from "./chunks/collection-CuDSwVK-.js";
+import { a as SmrtClass } from "./chunks/collection-CP8KFUgv.js";
+import { A, e, C, f, g, h, b, d, S, c } from "./chunks/collection-CP8KFUgv.js";
 import { ValidationError, RuntimeError, DatabaseError, ErrorUtils } from "./chunks/errors-Cl0_Kxat.js";
 import { AIError, ConfigurationError, FilesystemError, NetworkError, SmrtError, ValidationReport, ValidationUtils } from "./chunks/errors-Cl0_Kxat.js";
 import { Field } from "./fields.js";
@@ -9,11 +9,11 @@ import { MCPGenerator } from "./generators/mcp.js";
 import { APIGenerator, createRestServer, startRestServer } from "./generators/rest.js";
 import { generateOpenAPISpec, setupSwaggerUI } from "./generators/swagger.js";
 import { escapeSqlValue } from "@have/sql";
-import { O as ObjectRegistry, f as fieldsFromClass, s as setupTableFromClass, t as tableNameFromClass, a as toSnakeCase } from "./chunks/registry-CZx11Old.js";
-import { b as b2, b as b3 } from "./chunks/registry-CZx11Old.js";
-import { a, c, b as b4 } from "./chunks/server-DwHneUSW.js";
+import { O as ObjectRegistry, f as fieldsFromClass, s as setupTableFromClass, t as tableNameFromClass, a as toSnakeCase } from "./chunks/registry-5R-JaQug.js";
+import { b as b2, b as b3 } from "./chunks/registry-5R-JaQug.js";
+import { a, c as c2, b as b4 } from "./chunks/server-DwHneUSW.js";
 import { getManifest } from "./manifest.js";
-import { M, c as c2, a as a2, b as b5, s } from "./chunks/manifest-generator-Bb3IuFsV.js";
+import { M, c as c3, a as a2, b as b5, s } from "./chunks/manifest-generator-Bb3IuFsV.js";
 import { MetricsAdapter } from "./chunks/metrics-JaU-tpt3.js";
 import { PubSubAdapter } from "./chunks/pubsub-BJ1ZU6QU.js";
 import { s as s2 } from "./chunks/index-CoRmHlvP.js";
@@ -158,10 +158,6 @@ class SmrtObject extends SmrtClass {
    */
   _tableName;
   /**
-   * Persistence adapter for storage operations
-   */
-  _persistenceAdapter;
-  /**
    * Cache for loaded relationships to avoid repeated database queries
    * Maps fieldName to loaded object(s)
    */
@@ -295,25 +291,7 @@ class SmrtObject extends SmrtClass {
     if (!this.options._extractingFields) {
       this.initializePropertiesFromOptions();
     }
-    if (this.options._persistenceAdapter) {
-      this._persistenceAdapter = this.options._persistenceAdapter;
-    } else if (this.options.persistence) {
-      this._persistenceAdapter = await createPersistenceAdapter(
-        this.options.persistence,
-        this.constructor
-      );
-    } else if (this.options.db) {
-      const { type: dbType, ...dbConfig } = this.options.db;
-      this._persistenceAdapter = await createPersistenceAdapter(
-        {
-          type: "sql",
-          dbType,
-          ...dbConfig
-        },
-        this.constructor
-      );
-    }
-    if (this.options.db && !this._persistenceAdapter) {
+    if (this.options.db) {
       await setupTableFromClass(this.db, this.constructor);
       await this.db.query(`
         CREATE UNIQUE INDEX IF NOT EXISTS idx_${this.tableName}_slug_context
@@ -480,10 +458,6 @@ class SmrtObject extends SmrtClass {
    */
   async save() {
     try {
-      if (this._persistenceAdapter) {
-        await this._persistenceAdapter.save(this);
-        return this;
-      }
       await this.validateBeforeSave();
       if (!this.id) {
         this.id = crypto.randomUUID();
@@ -496,7 +470,7 @@ class SmrtObject extends SmrtClass {
         this.created_at = /* @__PURE__ */ new Date();
       }
       try {
-        await setupTableFromClass(this.options.db, this.constructor);
+        await setupTableFromClass(this.db, this.constructor);
       } catch (error) {
         throw DatabaseError.schemaError(
           this._tableName || this.constructor.name,
@@ -753,13 +727,9 @@ Based on the content body, please follow the instructions and provide a response
    */
   async delete() {
     await this.runHook("beforeDelete");
-    if (this._persistenceAdapter && this.id) {
-      await this._persistenceAdapter.delete(this.id);
-    } else {
-      await this.db.query(`DELETE FROM ${this.tableName} WHERE id = ?`, [
-        this.id
-      ]);
-    }
+    await this.db.query(`DELETE FROM ${this.tableName} WHERE id = ?`, [
+      this.id
+    ]);
     await this.runHook("afterDelete");
   }
   /**
@@ -1238,10 +1208,10 @@ export {
   A as ALL_SYSTEM_TABLES,
   APIGenerator,
   CLIGenerator,
-  f as CREATE_SMRT_MIGRATIONS_TABLE,
+  e as CREATE_SMRT_MIGRATIONS_TABLE,
   C as CREATE_SMRT_NOTES_TABLE,
-  g as CREATE_SMRT_REGISTRY_TABLE,
-  h as CREATE_SMRT_SIGNALS_TABLE,
+  f as CREATE_SMRT_REGISTRY_TABLE,
+  g as CREATE_SMRT_SIGNALS_TABLE,
   ConfigurationError,
   DatabaseError,
   ErrorUtils,
@@ -1255,9 +1225,9 @@ export {
   Pleb,
   PubSubAdapter,
   RuntimeError,
-  i as SMRT_SCHEMA_VERSION,
-  d as SignalBus,
-  e as SignalSanitizer,
+  h as SMRT_SCHEMA_VERSION,
+  b as SignalBus,
+  d as SignalSanitizer,
   SmrtClass,
   S as SmrtCollection,
   SmrtError,
@@ -1266,11 +1236,11 @@ export {
   ValidationReport,
   ValidationUtils,
   boolean,
-  b as config,
-  c2 as convertTypeToJsonSchema,
+  c as config,
+  c3 as convertTypeToJsonSchema,
   a as createMCPServer,
   createRestServer,
-  c as createSmrtClient,
+  c2 as createSmrtClient,
   b4 as createSmrtServer,
   datetime,
   decimal,

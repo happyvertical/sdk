@@ -26,9 +26,8 @@ describe('Issue #144: Integration Test with Real Collections', () => {
 
     // This should not throw "duplicate column name: created_at" error
     const events = await EventCollection.create({
-      persistence: {
-        type: 'sql',
-        dbType: 'sqlite',
+      db: {
+        type: 'sqlite',
         url: `file:${testDbPath}`,
       },
     });
@@ -41,9 +40,8 @@ describe('Issue #144: Integration Test with Real Collections', () => {
 
     // This should not throw duplicate column errors
     const profiles = await ProfileCollection.create({
-      persistence: {
-        type: 'sql',
-        dbType: 'sqlite',
+      db: {
+        type: 'sqlite',
         url: `file:${testDbPath}`,
       },
     });

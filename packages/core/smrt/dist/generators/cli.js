@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { createInterface } from "node:readline";
-import { O as ObjectRegistry } from "../chunks/registry-CZx11Old.js";
+import { O as ObjectRegistry } from "../chunks/registry-5R-JaQug.js";
 import { parseCliArgs } from "@have/utils";
 let _gnodeCommands = null;
 let _generateCommands = null;
