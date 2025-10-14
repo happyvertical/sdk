@@ -1,5 +1,18 @@
 {
   "mcpServers": {
+    "smrt-advisor": {
+      "type": "stdio",
+      "command": "pnpm",
+      "args": [
+        "exec",
+        "tsx",
+        "/Users/will/Work/happyvertical/repos/sdk/packages/core/smrt/src/mcp-advisor/index.ts"
+      ],
+      "env": {
+        "DEBUG": "false"
+      },
+      "cwd": "/Users/will/Work/happyvertical/repos/sdk"
+    },
     "mcp-svelte-docs": {
       "type": "stdio",
       "command": "npx",
