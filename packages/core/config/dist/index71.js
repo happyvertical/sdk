@@ -1,5 +1,5 @@
-var picocolors_browser = { exports: {} };
+var common = {};
 export {
-  picocolors_browser as __module
+  common as __exports
 };
 //# sourceMappingURL=index71.js.map

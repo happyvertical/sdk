@@ -1,85 +1,27 @@
-import { __require as requireCommon } from "./index67.js";
-var snippet;
-var hasRequiredSnippet;
-function requireSnippet() {
-  if (hasRequiredSnippet) return snippet;
-  hasRequiredSnippet = 1;
-  var common = requireCommon();
-  function getLine(buffer, lineStart, lineEnd, position, maxLineLength) {
-    var head = "";
-    var tail = "";
-    var maxHalfLength = Math.floor(maxLineLength / 2) - 1;
-    if (position - lineStart > maxHalfLength) {
-      head = " ... ";
-      lineStart = position - maxHalfLength + head.length;
-    }
-    if (lineEnd - position > maxHalfLength) {
-      tail = " ...";
-      lineEnd = position + maxHalfLength - tail.length;
-    }
-    return {
-      str: head + buffer.slice(lineStart, lineEnd).replace(/\t/g, "→") + tail,
-      pos: position - lineStart + head.length
-      // relative position
-    };
-  }
-  function padStart(string, max) {
-    return common.repeat(" ", max - string.length) + string;
-  }
-  function makeSnippet(mark, options) {
-    options = Object.create(options || null);
-    if (!mark.buffer) return null;
-    if (!options.maxLength) options.maxLength = 79;
-    if (typeof options.indent !== "number") options.indent = 1;
-    if (typeof options.linesBefore !== "number") options.linesBefore = 3;
-    if (typeof options.linesAfter !== "number") options.linesAfter = 2;
-    var re = /\r?\n|\r|\0/g;
-    var lineStarts = [0];
-    var lineEnds = [];
-    var match;
-    var foundLineNo = -1;
-    while (match = re.exec(mark.buffer)) {
-      lineEnds.push(match.index);
-      lineStarts.push(match.index + match[0].length);
-      if (mark.position <= match.index && foundLineNo < 0) {
-        foundLineNo = lineStarts.length - 2;
-      }
-    }
-    if (foundLineNo < 0) foundLineNo = lineStarts.length - 1;
-    var result = "", i, line;
-    var lineNoLength = Math.min(mark.line + options.linesAfter, lineEnds.length).toString().length;
-    var maxLineLength = options.maxLength - (options.indent + lineNoLength + 3);
-    for (i = 1; i <= options.linesBefore; i++) {
-      if (foundLineNo - i < 0) break;
-      line = getLine(
-        mark.buffer,
-        lineStarts[foundLineNo - i],
-        lineEnds[foundLineNo - i],
-        mark.position - (lineStarts[foundLineNo] - lineStarts[foundLineNo - i]),
-        maxLineLength
-      );
-      result = common.repeat(" ", options.indent) + padStart((mark.line - i + 1).toString(), lineNoLength) + " | " + line.str + "\n" + result;
-    }
-    line = getLine(mark.buffer, lineStarts[foundLineNo], lineEnds[foundLineNo], mark.position, maxLineLength);
-    result += common.repeat(" ", options.indent) + padStart((mark.line + 1).toString(), lineNoLength) + " | " + line.str + "\n";
-    result += common.repeat("-", options.indent + lineNoLength + 3 + line.pos) + "^\n";
-    for (i = 1; i <= options.linesAfter; i++) {
-      if (foundLineNo + i >= lineEnds.length) break;
-      line = getLine(
-        mark.buffer,
-        lineStarts[foundLineNo + i],
-        lineEnds[foundLineNo + i],
-        mark.position - (lineStarts[foundLineNo] - lineStarts[foundLineNo + i]),
-        maxLineLength
-      );
-      result += common.repeat(" ", options.indent) + padStart((mark.line + i + 1).toString(), lineNoLength) + " | " + line.str + "\n";
-    }
-    return result.replace(/\n$/, "");
-  }
-  snippet = makeSnippet;
-  return snippet;
+import { __exports as jsTokens } from "./index73.js";
+var hasRequiredJsTokens;
+function requireJsTokens() {
+  if (hasRequiredJsTokens) return jsTokens;
+  hasRequiredJsTokens = 1;
+  Object.defineProperty(jsTokens, "__esModule", {
+    value: true
+  });
+  jsTokens.default = /((['"])(?:(?!\2|\\).|\\(?:\r\n|[\s\S]))*(\2)?|`(?:[^`\\$]|\\[\s\S]|\$(?!\{)|\$\{(?:[^{}]|\{[^}]*\}?)*\}?)*(`)?)|(\/\/.*)|(\/\*(?:[^*]|\*(?!\/))*(\*\/)?)|(\/(?!\*)(?:\[(?:(?![\]\\]).|\\.)*\]|(?![\/\]\\]).|\\.)+\/(?:(?!\s*(?:\b|[\u0080-\uFFFF$\\'"~({]|[+\-!](?!=)|\.?\d))|[gmiyus]{1,6}\b(?![\u0080-\uFFFF$\\]|\s*(?:[+\-*%&|^<>!=?({]|\/(?![\/*])))))|(0[xX][\da-fA-F]+|0[oO][0-7]+|0[bB][01]+|(?:\d*\.\d+|\d+\.?)(?:[eE][+-]?\d+)?)|((?!\d)(?:(?!\s)[$\w\u0080-\uFFFF]|\\u[\da-fA-F]{4}|\\u\{[\da-fA-F]+\})+)|(--|\+\+|&&|\|\||=>|\.{3}|(?:[+\-\/%&|^]|\*{1,2}|<{1,2}|>{1,3}|!=?|={1,2})=?|[?~.,:;[\](){}])|(\s+)|(^$|[\s\S])/g;
+  jsTokens.matchToToken = function(match) {
+    var token = { type: "invalid", value: match[0], closed: void 0 };
+    if (match[1]) token.type = "string", token.closed = !!(match[3] || match[4]);
+    else if (match[5]) token.type = "comment";
+    else if (match[6]) token.type = "comment", token.closed = !!match[7];
+    else if (match[8]) token.type = "regex";
+    else if (match[9]) token.type = "number";
+    else if (match[10]) token.type = "name";
+    else if (match[11]) token.type = "punctuator";
+    else if (match[12]) token.type = "whitespace";
+    return token;
+  };
+  return jsTokens;
 }
 export {
-  requireSnippet as __require
+  requireJsTokens as __require
 };
 //# sourceMappingURL=index68.js.map

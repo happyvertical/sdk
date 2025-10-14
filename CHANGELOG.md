@@ -1,3 +1,16 @@
+# [0.29.0](https://github.com/happyvertical/sdk/compare/v0.28.0...v0.29.0) (2025-10-14)
+
+
+### Bug Fixes
+
+* **smrt:** run MCP advisor directly via pnpm exec tsx without bridge script ([fe98301](https://github.com/happyvertical/sdk/commit/fe98301d822d42658fc7fba972c1056ad815c01d))
+* **smrt:** use pnpm exec tsx for MCP advisor server to avoid global dependency ([02fb46a](https://github.com/happyvertical/sdk/commit/02fb46a7963e46bc21e564c67e58aec58c045b6c))
+
+
+### Features
+
+* **smrt:** implement SMRT Framework Advisor MCP server with 11 development tools ([fd0e169](https://github.com/happyvertical/sdk/commit/fd0e1699b9a1d29615fb2e8757df0d0cc65f8cf0)), closes [#210](https://github.com/happyvertical/sdk/issues/210) [#209](https://github.com/happyvertical/sdk/issues/209) [#209](https://github.com/happyvertical/sdk/issues/209) [#209](https://github.com/happyvertical/sdk/issues/209) [#210](https://github.com/happyvertical/sdk/issues/210)
+
 # [0.28.0](https://github.com/happyvertical/sdk/compare/v0.27.1...v0.28.0) (2025-10-14)
 
 
