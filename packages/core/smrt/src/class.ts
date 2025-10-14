@@ -4,7 +4,6 @@ import type { FilesystemAdapterOptions } from '@have/files';
 import { FilesystemAdapter } from '@have/files';
 import type { DatabaseInterface } from '@have/sql';
 import { getDatabase } from '@have/sql';
-import type { PersistenceConfig } from './persistence/types';
 import type { ISignalAdapter } from '@have/types';
 import type { LoggerConfig } from '@have/logger';
 import { SignalBus } from './signals/bus.js';
@@ -26,21 +25,19 @@ export interface SmrtClassOptions {
   _className?: string;
 
   /**
-   * Persistence configuration (new unified approach)
-   * Use this to configure SQL, REST, or other persistence backends
+   * Database configuration - unified approach matching @have/sql
+   *
+   * Supports three formats:
+   * - String shortcut: 'products.db' (auto-detects database type)
+   * - Config object: { type: 'sqlite', url: 'products.db' }
+   * - DatabaseInterface instance: await getDatabase(...)
    */
-  persistence?: PersistenceConfig;
-
-  /**
-   * Database configuration options (legacy, for backward compatibility)
-   * @deprecated Use `persistence: { type: 'sql', ... }` instead
-   */
-  db?: {
+  db?: string | {
     url?: string;
     type?: 'sqlite' | 'postgres';
     authToken?: string;
     [key: string]: any;
-  };
+  } | DatabaseInterface;
 
   /**
    * Filesystem adapter configuration options
@@ -152,7 +149,20 @@ export class SmrtClass {
    */
   protected async initialize(): Promise<this> {
     if (this.options.db) {
-      this._db = await getDatabase(this.options.db);
+      // Handle three db config formats:
+      // 1. String: 'products.db' (shortcut)
+      // 2. Config object: { type: 'sqlite', url: 'products.db' }
+      // 3. DatabaseInterface instance: await getDatabase(...)
+      if (typeof this.options.db === 'string') {
+        // String shortcut - let getDatabase auto-detect type from URL
+        this._db = await getDatabase({ url: this.options.db });
+      } else if ('query' in this.options.db) {
+        // Already a DatabaseInterface instance
+        this._db = this.options.db as DatabaseInterface;
+      } else {
+        // Config object - pass directly to getDatabase
+        this._db = await getDatabase(this.options.db);
+      }
       await this.ensureSystemTables();
     }
     if (this.options.fs) {
@@ -213,9 +223,24 @@ export class SmrtClass {
    * Used to track which databases have system tables initialized
    */
   private getDatabaseKey(): string {
-    // Use database URL/path as identifier
-    const dbUrl = this.options.db?.url || 'default';
-    const dbType = this.options.db?.type || 'sqlite';
+    if (!this.options.db) {
+      return 'default';
+    }
+
+    // Handle string shortcut
+    if (typeof this.options.db === 'string') {
+      return `sqlite:${this.options.db}`;
+    }
+
+    // Handle DatabaseInterface instance
+    if ('query' in this.options.db) {
+      // Use a generic key for instances (they share the same physical database)
+      return 'instance:database';
+    }
+
+    // Handle config object
+    const dbUrl = this.options.db.url || 'default';
+    const dbType = this.options.db.type || 'sqlite';
     return `${dbType}:${dbUrl}`;
   }
 

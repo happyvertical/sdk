@@ -11,8 +11,6 @@ import {
   ValidationError,
 } from './errors';
 import { Field } from './fields/index';
-import type { PersistenceAdapter } from './persistence/adapter';
-import { createPersistenceAdapter } from './persistence';
 import { ObjectRegistry } from './registry';
 import {
   fieldsFromClass,
@@ -88,11 +86,6 @@ export class SmrtObject extends SmrtClass {
    * Database table name for this object
    */
   public _tableName!: string;
-
-  /**
-   * Persistence adapter for storage operations
-   */
-  protected _persistenceAdapter?: PersistenceAdapter;
 
   /**
    * Cache for loaded relationships to avoid repeated database queries
@@ -275,34 +268,8 @@ export class SmrtObject extends SmrtClass {
       this.initializePropertiesFromOptions();
     }
 
-    // Use provided adapter if available (from collection)
-    if ((this.options as any)._persistenceAdapter) {
-      this._persistenceAdapter = (this.options as any)._persistenceAdapter;
-    } else if (this.options.persistence) {
-      // New persistence config
-      this._persistenceAdapter = await createPersistenceAdapter(
-        this.options.persistence,
-        this.constructor as new (
-          ...args: any[]
-        ) => SmrtObject,
-      );
-    } else if (this.options.db) {
-      // Legacy db config - create SQL adapter automatically
-      const { type: dbType, ...dbConfig } = this.options.db;
-      this._persistenceAdapter = await createPersistenceAdapter(
-        {
-          type: 'sql',
-          dbType: dbType as 'sqlite' | 'postgres',
-          ...dbConfig,
-        },
-        this.constructor as new (
-          ...args: any[]
-        ) => SmrtObject,
-      );
-    }
-
-    // Legacy: setup database tables if using db directly (no adapter)
-    if (this.options.db && !this._persistenceAdapter) {
+    // Setup database tables if database is configured
+    if (this.options.db) {
       await setupTableFromClass(this.db, this.constructor);
       await this.db.query(`
         CREATE UNIQUE INDEX IF NOT EXISTS idx_${this.tableName}_slug_context
@@ -515,13 +482,6 @@ export class SmrtObject extends SmrtClass {
    */
   async save() {
     try {
-      // Use persistence adapter if available
-      if (this._persistenceAdapter) {
-        await this._persistenceAdapter.save(this);
-        return this;
-      }
-
-      // Legacy implementation for backward compatibility
       // Validate object state before saving
       await this.validateBeforeSave();
 
@@ -542,7 +502,7 @@ export class SmrtObject extends SmrtClass {
 
       // Setup database table with proper error handling
       try {
-        await setupTableFromClass(this.options.db, this.constructor);
+        await setupTableFromClass(this.db, this.constructor);
       } catch (error) {
         throw DatabaseError.schemaError(
           this._tableName || this.constructor.name,
@@ -843,15 +803,9 @@ export class SmrtObject extends SmrtClass {
   public async delete(): Promise<void> {
     await this.runHook('beforeDelete');
 
-    // Use persistence adapter if available
-    if (this._persistenceAdapter && this.id) {
-      await this._persistenceAdapter.delete(this.id);
-    } else {
-      // Legacy implementation
-      await this.db.query(`DELETE FROM ${this.tableName} WHERE id = ?`, [
-        this.id,
-      ]);
-    }
+    await this.db.query(`DELETE FROM ${this.tableName} WHERE id = ?`, [
+      this.id,
+    ]);
 
     await this.runHook('afterDelete');
   }

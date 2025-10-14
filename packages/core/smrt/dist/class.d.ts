@@ -1,7 +1,6 @@
 import { AIClientOptions, AIClient } from '../../ai/src';
 import { FilesystemAdapterOptions, FilesystemAdapter } from '../../files/src';
 import { DatabaseInterface } from '../../sql/src';
-import { PersistenceConfig } from './persistence/types';
 import { ISignalAdapter } from '../../types/src';
 import { LoggerConfig } from '@have/logger';
 import { SignalBus } from './signals/bus.js';
@@ -15,20 +14,19 @@ export interface SmrtClassOptions {
      */
     _className?: string;
     /**
-     * Persistence configuration (new unified approach)
-     * Use this to configure SQL, REST, or other persistence backends
+     * Database configuration - unified approach matching @have/sql
+     *
+     * Supports three formats:
+     * - String shortcut: 'products.db' (auto-detects database type)
+     * - Config object: { type: 'sqlite', url: 'products.db' }
+     * - DatabaseInterface instance: await getDatabase(...)
      */
-    persistence?: PersistenceConfig;
-    /**
-     * Database configuration options (legacy, for backward compatibility)
-     * @deprecated Use `persistence: { type: 'sql', ... }` instead
-     */
-    db?: {
+    db?: string | {
         url?: string;
         type?: 'sqlite' | 'postgres';
         authToken?: string;
         [key: string]: any;
-    };
+    } | DatabaseInterface;
     /**
      * Filesystem adapter configuration options
      */
