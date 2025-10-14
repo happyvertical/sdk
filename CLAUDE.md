@@ -157,11 +157,11 @@ The SMRT framework includes built-in system tables for storing framework metadat
 
 #### System Tables Architecture
 
-- **`_smrt_notes`**: Self-learning pattern cache for AI agents
-  - Stores discovered patterns, successful strategies, and learned behaviors
+- **`_smrt_contexts`**: Context memory storage for AI agents
+  - Stores remembered context (learned strategies, patterns, selectors) for reuse
   - Includes confidence tracking and hierarchical scoping (e.g., `discovery/parser/domain.com`)
   - Supports versioning and expiration for evolving patterns
-  - Used by `note()`, `recall()`, `recallAll()`, `forget()`, and `forgetScope()` methods
+  - Used by `remember()`, `recall()`, `recallAll()`, `forget()`, and `forgetScope()` methods
 
 - **`_smrt_migrations`**: Schema version tracking
   - Records framework schema changes and migrations
@@ -191,7 +191,7 @@ const agent = new MyAgent({ db: 'my-database.db' });
 await agent.initialize(); // System tables created automatically
 
 // System tables are now available
-await agent.note({
+await agent.remember({
   scope: 'discovery/parser',
   key: 'date-format',
   value: 'MM/DD/YYYY',
@@ -210,8 +210,8 @@ await agent.note({
 All SMRT objects have built-in methods for working with system tables:
 
 ```typescript
-// Store learned patterns
-await agent.note({
+// Remember learned patterns
+await agent.remember({
   scope: 'parser/html',
   key: 'selector',
   value: '.content > article',
@@ -244,15 +244,15 @@ await agent.forgetScope({
 
 **Hierarchical Scoping Example**:
 ```typescript
-// Store at specific scope
-await agent.note({
+// Remember at specific scope
+await agent.remember({
   scope: 'discovery/parser/example.com',
   key: 'date-format',
   value: 'MM/DD/YYYY'
 });
 
-// Store at parent scope
-await agent.note({
+// Remember at parent scope
+await agent.remember({
   scope: 'discovery/parser',
   key: 'date-format',
   value: 'ISO-8601' // Fallback for unknown domains

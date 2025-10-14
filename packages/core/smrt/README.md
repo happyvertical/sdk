@@ -474,6 +474,357 @@ const db = await getDatabase({ type: 'postgres', url: 'postgres://...' });
 const collection = await ProductCollection.create({ db });
 ```
 
+## Context Memory System
+
+The Context Memory System enables SMRT objects to remember and recall operational knowledge, learned patterns, and parsing strategies. This is essential for AI agents that discover effective approaches and need to reuse them across sessions.
+
+### Why Context Memory?
+
+When an AI agent discovers that a specific CSS selector works for extracting content from a website, or learns that a particular date format is used consistently, it should remember this for future use. The Context Memory System provides persistent storage for these learned patterns with:
+
+- **Hierarchical scoping**: Organize patterns by domain, context, and specificity
+- **Confidence tracking**: Store how reliable each pattern is (0-1 scale)
+- **Automatic fallback**: Query from specific to general scopes
+- **Success metrics**: Track usage counts for pattern optimization
+- **Expiration support**: Optional TTL for time-sensitive patterns
+
+### Core Methods
+
+#### Object-Level Context
+
+Store and retrieve context specific to an individual object instance:
+
+```typescript
+import { SmrtObject } from '@have/smrt';
+import { text } from '@have/smrt/fields';
+
+class WebScraper extends SmrtObject {
+  url = text({ required: true });
+
+  async discoverContentSelector() {
+    const url = this.url;
+
+    // Try to recall previously discovered selector
+    const remembered = await this.recall({
+      scope: `parser/content/${new URL(url).hostname}`,
+      key: 'article-selector',
+      includeAncestors: true // Falls back to parent scopes
+    });
+
+    if (remembered) {
+      console.log(`Using cached selector (confidence: ${remembered.confidence})`);
+      return remembered.value;
+    }
+
+    // Discover selector using AI
+    const selector = await this.do(`
+      Analyze this webpage and determine the best CSS selector
+      for the main article content: ${url}
+    `);
+
+    // Remember for future use
+    await this.remember({
+      scope: `parser/content/${new URL(url).hostname}`,
+      key: 'article-selector',
+      value: selector,
+      confidence: 0.9,
+      metadata: { discoveredAt: new Date() }
+    });
+
+    return selector;
+  }
+}
+```
+
+#### Collection-Level Context
+
+Store context shared across all instances of a collection:
+
+```typescript
+class ScraperCollection extends SmrtCollection<WebScraper> {
+  static readonly _itemClass = WebScraper;
+
+  async getDefaultUserAgent() {
+    // Recall collection-wide default
+    const remembered = await this.recall({
+      scope: 'config/http',
+      key: 'user-agent'
+    });
+
+    if (remembered) {
+      return remembered.value;
+    }
+
+    // Set default for all instances
+    const userAgent = 'Mozilla/5.0 (compatible; MyBot/1.0)';
+    await this.remember({
+      scope: 'config/http',
+      key: 'user-agent',
+      value: userAgent,
+      confidence: 1.0
+    });
+
+    return userAgent;
+  }
+}
+```
+
+### Hierarchical Scoping
+
+Context scopes follow a hierarchical pattern for intelligent fallback:
+
+```typescript
+// Most specific scope
+await scraper.remember({
+  scope: 'parser/date/example.com/news',
+  key: 'format',
+  value: 'MM/DD/YYYY'
+});
+
+// Broader scope (fallback for other sections)
+await scraper.remember({
+  scope: 'parser/date/example.com',
+  key: 'format',
+  value: 'ISO-8601'
+});
+
+// General scope (fallback for all domains)
+await scraper.remember({
+  scope: 'parser/date',
+  key: 'format',
+  value: 'YYYY-MM-DD'
+});
+
+// Query with ancestor fallback
+const format = await scraper.recall({
+  scope: 'parser/date/example.com/events',
+  key: 'format',
+  includeAncestors: true
+});
+// Returns 'ISO-8601' (parent scope match)
+```
+
+**Scope Hierarchy Example**:
+```
+parser/                           # Root: General patterns
+└── date/                         # Date parsing strategies
+    ├── example.com/              # Domain-specific patterns
+    │   ├── news/                 # Section-specific patterns
+    │   └── events/               # Section-specific patterns
+    └── another-site.com/
+```
+
+### All Context Methods
+
+#### `remember(options)` - Store Context
+
+```typescript
+await object.remember({
+  id?: string,           // Optional: Update existing entry
+  scope: string,         // Hierarchical scope (e.g., 'parser/html/domain.com')
+  key: string,           // Context key within scope
+  value: any,            // Context value (JSON-serializable)
+  metadata?: any,        // Additional metadata
+  confidence?: number,   // Confidence score 0-1 (default: 1.0)
+  version?: number,      // Version number (default: 1)
+  expiresAt?: Date       // Optional expiration timestamp
+});
+```
+
+#### `recall(options)` - Retrieve Context
+
+```typescript
+const context = await object.recall({
+  scope: string,              // Scope to query
+  key: string,                // Context key
+  includeAncestors?: boolean, // Search parent scopes (default: false)
+  minConfidence?: number      // Minimum confidence threshold (default: 0)
+});
+
+// Returns: { value, confidence, metadata, ... } or null if not found
+```
+
+#### `recallAll(options)` - Retrieve Multiple Contexts
+
+```typescript
+const contexts = await object.recallAll({
+  scope: string,                // Scope to query
+  includeDescendants?: boolean, // Include child scopes (default: false)
+  minConfidence?: number        // Minimum confidence threshold (default: 0)
+});
+
+// Returns: Array of context entries
+```
+
+#### `forget(options)` - Delete Context
+
+```typescript
+await object.forget({
+  scope: string,  // Scope containing the context
+  key: string     // Context key to delete
+});
+```
+
+#### `forgetScope(options)` - Delete Entire Scope
+
+```typescript
+// Delete all contexts in a scope
+await object.forgetScope({
+  scope: string,                // Scope to delete
+  includeDescendants?: boolean  // Delete child scopes too (default: false)
+});
+```
+
+### Practical Use Cases
+
+#### 1. Website Parsing Patterns
+
+```typescript
+class ArticleScraper extends SmrtObject {
+  async extractArticle(url: string) {
+    const domain = new URL(url).hostname;
+
+    // Try to recall parsing strategy
+    const strategy = await this.recall({
+      scope: `parser/article/${domain}`,
+      key: 'extraction-strategy',
+      includeAncestors: true
+    });
+
+    if (strategy) {
+      return await this.applyStrategy(url, strategy.value);
+    }
+
+    // Discover new strategy with AI
+    const newStrategy = await this.discoverStrategy(url);
+
+    // Remember for next time
+    await this.remember({
+      scope: `parser/article/${domain}`,
+      key: 'extraction-strategy',
+      value: newStrategy,
+      confidence: 0.85
+    });
+
+    return await this.applyStrategy(url, newStrategy);
+  }
+}
+```
+
+#### 2. API Response Patterns
+
+```typescript
+class APIClient extends SmrtObject {
+  async fetchData(endpoint: string) {
+    // Recall known response structure
+    const structure = await this.recall({
+      scope: `api/response/${endpoint}`,
+      key: 'structure'
+    });
+
+    if (structure) {
+      // Use known structure for efficient parsing
+      return this.parseResponse(response, structure.value);
+    }
+
+    // Analyze and remember response structure
+    const response = await fetch(endpoint);
+    const discoveredStructure = await this.analyzeStructure(response);
+
+    await this.remember({
+      scope: `api/response/${endpoint}`,
+      key: 'structure',
+      value: discoveredStructure,
+      confidence: 1.0
+    });
+
+    return this.parseResponse(response, discoveredStructure);
+  }
+}
+```
+
+#### 3. Configuration Defaults
+
+```typescript
+class DocumentProcessor extends SmrtObject {
+  async initialize() {
+    await super.initialize();
+
+    // Recall processing preferences
+    const preferences = await this.recallAll({
+      scope: 'config/processing',
+      includeDescendants: true
+    });
+
+    // Apply remembered preferences
+    for (const pref of preferences) {
+      this.applyPreference(pref.key, pref.value);
+    }
+  }
+
+  async updatePreference(key: string, value: any) {
+    await this.remember({
+      scope: 'config/processing',
+      key,
+      value,
+      confidence: 1.0
+    });
+  }
+}
+```
+
+#### 4. Pattern Evolution and Versioning
+
+```typescript
+class PatternLearner extends SmrtObject {
+  async evolvePattern(scope: string, key: string) {
+    // Get current pattern version
+    const current = await this.recall({ scope, key });
+
+    if (!current) return;
+
+    // Create improved version
+    const improved = await this.improvePattern(current.value);
+
+    // Store as new version
+    await this.remember({
+      scope,
+      key,
+      value: improved,
+      version: (current.version || 1) + 1,
+      confidence: 0.7, // Lower confidence for untested version
+      metadata: {
+        previousVersion: current.version,
+        improvedAt: new Date()
+      }
+    });
+  }
+}
+```
+
+### Database Storage
+
+Context is stored in the `_smrt_contexts` system table alongside your application data. The table includes:
+
+- **Hierarchical scopes**: For organizing patterns by domain and specificity
+- **Confidence tracking**: To prioritize reliable patterns
+- **Version support**: For pattern evolution over time
+- **Usage metrics**: Success/failure counts for optimization
+- **Timestamps**: Created, updated, and last used dates
+- **Expiration**: Optional TTL for time-sensitive patterns
+
+The system table is automatically created when you initialize any SMRT object with database configuration.
+
+### Best Practices
+
+1. **Use hierarchical scopes**: Organize from general to specific (e.g., `parser/date/domain.com/section`)
+2. **Include confidence scores**: Track how reliable each pattern is
+3. **Set appropriate confidence thresholds**: Filter out low-confidence patterns with `minConfidence`
+4. **Use metadata for debugging**: Store discovery timestamps, AI model used, etc.
+5. **Clean up old patterns**: Use `forgetScope()` to remove outdated contexts
+6. **Version critical patterns**: Use version numbers for pattern evolution
+7. **Consider expiration**: Set `expiresAt` for time-sensitive patterns
+
 ## Cross-Package Integration
 
 SMRT integrates seamlessly with other HAVE SDK packages:

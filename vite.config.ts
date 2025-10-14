@@ -177,7 +177,7 @@ function createPackageBuild(
     };
   }
 
-  // Standard configuration for all other packages (single entry, preserveModules: true)
+  // Standard configuration for all other packages (single entry, bundled output)
   return {
     lib: {
       entry: resolve(__dirname, entryPath),
@@ -188,8 +188,9 @@ function createPackageBuild(
       output: {
         dir: `packages/${directory}/${packageName}/dist`,
         format: 'es' as const,
-        preserveModules: true,
-        preserveModulesRoot: `packages/${directory}/${packageName}/src`,
+        preserveModules: false,
+        entryFileNames: '[name].js',
+        chunkFileNames: 'chunks/[name]-[hash].js',
       },
       external: [
         // Node.js built-ins - externalize completely to avoid api-extractor issues
