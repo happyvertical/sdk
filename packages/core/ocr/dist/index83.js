@@ -1,24 +1,5 @@
-var paethPredictor;
-var hasRequiredPaethPredictor;
-function requirePaethPredictor() {
-  if (hasRequiredPaethPredictor) return paethPredictor;
-  hasRequiredPaethPredictor = 1;
-  paethPredictor = function paethPredictor2(left, above, upLeft) {
-    let paeth = left + above - upLeft;
-    let pLeft = Math.abs(paeth - left);
-    let pAbove = Math.abs(paeth - above);
-    let pUpLeft = Math.abs(paeth - upLeft);
-    if (pLeft <= pAbove && pLeft <= pUpLeft) {
-      return left;
-    }
-    if (pAbove <= pUpLeft) {
-      return above;
-    }
-    return upLeft;
-  };
-  return paethPredictor;
-}
+var interlace = {};
 export {
-  requirePaethPredictor as __require
+  interlace as __exports
 };
 //# sourceMappingURL=index83.js.map

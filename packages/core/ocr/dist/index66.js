@@ -1,5 +1,5 @@
-import { __exports as tensor } from "./index95.js";
-import { __require as requireTensorImpl } from "./index96.js";
+import { __exports as tensor } from "./index97.js";
+import { __require as requireTensorImpl } from "./index98.js";
 var hasRequiredTensor;
 function requireTensor() {
   if (hasRequiredTensor) return tensor;

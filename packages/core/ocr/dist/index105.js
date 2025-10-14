@@ -1,5 +1,5 @@
-var envImpl = {};
+var inferenceSessionImpl = {};
 export {
-  envImpl as __exports
+  inferenceSessionImpl as __exports
 };
 //# sourceMappingURL=index105.js.map

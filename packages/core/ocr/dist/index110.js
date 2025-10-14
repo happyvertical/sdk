@@ -1,5 +1,5 @@
 import { __exports as tensorFactoryImpl } from "./index117.js";
-import { __require as requireTensorImpl } from "./index96.js";
+import { __require as requireTensorImpl } from "./index98.js";
 var hasRequiredTensorFactoryImpl;
 function requireTensorFactoryImpl() {
   if (hasRequiredTensorFactoryImpl) return tensorFactoryImpl;

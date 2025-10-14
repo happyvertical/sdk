@@ -1,5 +1,5 @@
-var trace = {};
+var tensorConversion = {};
 export {
-  trace as __exports
+  tensorConversion as __exports
 };
 //# sourceMappingURL=index99.js.map
