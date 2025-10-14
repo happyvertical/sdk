@@ -14,3 +14,8 @@ pre-commit:
     validate-changeset-config:
       glob: ".changeset/**/*"
       run: node scripts/validate-changeset-config.js
+
+commit-msg:
+  commands:
+    commitlint:
+      run: './node_modules/.bin/commitlint --edit {1}'
