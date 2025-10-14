@@ -515,7 +515,7 @@ class ObjectRegistry {
     }
     let collectionConstructor = registered.collectionConstructor;
     if (!collectionConstructor) {
-      const { SmrtCollection: SmrtCollectionClass } = await import("./collection-CuDSwVK-.js").then((n) => n.j);
+      const { SmrtCollection: SmrtCollectionClass } = await import("./collection-CP8KFUgv.js").then((n) => n.i);
       class DefaultCollection extends SmrtCollectionClass {
         static _itemClass = registered.constructor;
       }
@@ -1165,4 +1165,4 @@ export {
   setupTableFromClass as s,
   tableNameFromClass as t
 };
-//# sourceMappingURL=registry-CZx11Old.js.map
+//# sourceMappingURL=registry-5R-JaQug.js.map

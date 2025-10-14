@@ -1,6 +1,5 @@
 import { SmrtClassOptions, SmrtClass } from './class';
 import { SmrtObject } from './object';
-import { PersistenceAdapter } from './persistence/adapter';
 /**
  * Configuration options for SmrtCollection
  */
@@ -18,10 +17,6 @@ export declare class SmrtCollection<ModelType extends SmrtObject> extends SmrtCl
      * Promise tracking the database setup operation
      */
     protected _db_setup_promise: Promise<void> | null;
-    /**
-     * Persistence adapter for storage operations
-     */
-    protected _persistenceAdapter?: PersistenceAdapter;
     /**
      * Gets the class constructor for items in this collection
      */
@@ -144,7 +139,7 @@ export declare class SmrtCollection<ModelType extends SmrtObject> extends SmrtCl
          * ```
          */
         include?: string[];
-    }): Promise<ModelType[]>;
+    }): Promise<Awaited<ModelType>[]>;
     /**
      * Eagerly load relationships for a collection of instances
      *

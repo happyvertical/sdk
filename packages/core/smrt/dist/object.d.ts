@@ -1,7 +1,6 @@
 import { AITool } from '../../ai/src';
 import { SmrtClassOptions, SmrtClass } from './class';
 import { Field } from './fields/index';
-import { PersistenceAdapter } from './persistence/adapter';
 import { ToolCall, ToolCallResult } from './tools/tool-executor';
 /**
  * Options for SmrtObject initialization
@@ -56,10 +55,6 @@ export declare class SmrtObject extends SmrtClass {
      * Database table name for this object
      */
     _tableName: string;
-    /**
-     * Persistence adapter for storage operations
-     */
-    protected _persistenceAdapter?: PersistenceAdapter;
     /**
      * Cache for loaded relationships to avoid repeated database queries
      * Maps fieldName to loaded object(s)
