@@ -1,3 +1,10 @@
+# [0.32.0](https://github.com/happyvertical/sdk/compare/v0.31.0...v0.32.0) (2025-10-14)
+
+
+### Bug Fixes
+
+* **build:** eliminate numbered intermediate dist files ([6e70c4e](https://github.com/happyvertical/sdk/commit/6e70c4eb3cdee386306906b62d2bccb65fde82c5))
+
 # [0.31.0](https://github.com/happyvertical/sdk/compare/v0.30.0...v0.31.0) (2025-10-14)
 
 

@@ -239,5 +239,127 @@ export declare class SmrtCollection<ModelType extends SmrtObject> extends SmrtCl
     count(options?: {
         where?: Record<string, any>;
     }): Promise<number>;
+    /**
+     * Remember collection-level context
+     *
+     * Stores context applicable to all instances of this collection type.
+     * Use for patterns that apply to the entire collection (e.g., default parsing strategies).
+     *
+     * @param options - Context options
+     * @returns Promise that resolves when context is stored
+     * @example
+     * ```typescript
+     * // Remember a default parsing strategy for all documents
+     * await documentCollection.remember({
+     *   scope: 'parser/default',
+     *   key: 'selector',
+     *   value: { pattern: '.content article' },
+     *   confidence: 0.8
+     * });
+     *
+     * // Update an existing context entry by specifying id
+     * await documentCollection.remember({
+     *   id: 'existing-context-id',
+     *   scope: 'parser/default',
+     *   key: 'selector',
+     *   value: { pattern: '.content main article' },
+     *   confidence: 0.85
+     * });
+     * ```
+     */
+    remember(options: {
+        id?: string;
+        scope: string;
+        key: string;
+        value: any;
+        metadata?: any;
+        confidence?: number;
+        version?: number;
+        expiresAt?: Date;
+    }): Promise<void>;
+    /**
+     * Recall collection-level context
+     *
+     * Retrieves context that applies to all instances of this collection.
+     *
+     * @param options - Recall options
+     * @returns Promise resolving to the context value or null if not found
+     * @example
+     * ```typescript
+     * // Recall default parsing strategy
+     * const strategy = await documentCollection.recall({
+     *   scope: 'parser/default',
+     *   key: 'selector',
+     *   minConfidence: 0.5
+     * });
+     * ```
+     */
+    recall(options: {
+        scope: string;
+        key: string;
+        includeAncestors?: boolean;
+        minConfidence?: number;
+    }): Promise<any | null>;
+    /**
+     * Recall all collection-level context in a scope
+     *
+     * Returns a Map of key -> value for all collection contexts matching the criteria.
+     *
+     * @param options - Recall options
+     * @returns Promise resolving to Map of key -> value pairs
+     * @example
+     * ```typescript
+     * // Get all default strategies
+     * const strategies = await documentCollection.recallAll({
+     *   scope: 'parser/default',
+     *   minConfidence: 0.5
+     * });
+     * ```
+     */
+    recallAll(options?: {
+        scope?: string;
+        includeDescendants?: boolean;
+        minConfidence?: number;
+    }): Promise<Map<string, any>>;
+    /**
+     * Forget collection-level context
+     *
+     * Deletes collection context by scope and key.
+     *
+     * @param options - Context identification
+     * @returns Promise that resolves when context is deleted
+     * @example
+     * ```typescript
+     * // Remove a default strategy
+     * await documentCollection.forget({
+     *   scope: 'parser/default',
+     *   key: 'selector'
+     * });
+     * ```
+     */
+    forget(options: {
+        scope: string;
+        key: string;
+    }): Promise<void>;
+    /**
+     * Forget all collection-level context in a scope
+     *
+     * Deletes all collection contexts matching the scope pattern.
+     *
+     * @param options - Scope options
+     * @returns Promise resolving to number of contexts deleted
+     * @example
+     * ```typescript
+     * // Clear all default strategies
+     * const count = await documentCollection.forgetScope({
+     *   scope: 'parser/default',
+     *   includeDescendants: true
+     * });
+     * ```
+     */
+    forgetScope(options: {
+        scope: string;
+        includeDescendants?: boolean;
+    }): Promise<number>;
 }
 //# sourceMappingURL=collection.d.ts.map
