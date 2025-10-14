@@ -1,5 +1,5 @@
-import { a as SmrtClass } from "./chunks/collection-CP8KFUgv.js";
-import { A, e, C, f, g, h, b, d, S, c } from "./chunks/collection-CP8KFUgv.js";
+import { a as SmrtClass } from "./chunks/collection-zd453FnA.js";
+import { A, C, e, f, g, h, b, d, S, c } from "./chunks/collection-zd453FnA.js";
 import { ValidationError, RuntimeError, DatabaseError, ErrorUtils } from "./chunks/errors-Cl0_Kxat.js";
 import { AIError, ConfigurationError, FilesystemError, NetworkError, SmrtError, ValidationReport, ValidationUtils } from "./chunks/errors-Cl0_Kxat.js";
 import { Field } from "./fields.js";
@@ -9,8 +9,8 @@ import { MCPGenerator } from "./generators/mcp.js";
 import { APIGenerator, createRestServer, startRestServer } from "./generators/rest.js";
 import { generateOpenAPISpec, setupSwaggerUI } from "./generators/swagger.js";
 import { escapeSqlValue } from "@have/sql";
-import { O as ObjectRegistry, f as fieldsFromClass, s as setupTableFromClass, t as tableNameFromClass, a as toSnakeCase } from "./chunks/registry-5R-JaQug.js";
-import { b as b2, b as b3 } from "./chunks/registry-5R-JaQug.js";
+import { O as ObjectRegistry, f as fieldsFromClass, s as setupTableFromClass, t as tableNameFromClass, a as toSnakeCase } from "./chunks/registry-DlqK03oe.js";
+import { b as b2, b as b3 } from "./chunks/registry-DlqK03oe.js";
 import { a, c as c2, b as b4 } from "./chunks/server-DwHneUSW.js";
 import { getManifest } from "./manifest.js";
 import { M, c as c3, a as a2, b as b5, s } from "./chunks/manifest-generator-Bb3IuFsV.js";
@@ -944,33 +944,42 @@ Based on the content body, please follow the instructions and provide a response
     return executeToolCall(this, toolCall, allowedMethods);
   }
   /**
-   * Take a note on this object
+   * Remember context about this object
    *
-   * Stores hierarchical notes with confidence tracking for self-learning patterns.
-   * Notes are stored in the _smrt_notes system table.
+   * Stores hierarchical context with confidence tracking for learned patterns.
+   * Context is stored in the _smrt_contexts system table.
    *
-   * @param options - Note options
-   * @returns Promise that resolves when note is stored
+   * @param options - Context options
+   * @returns Promise that resolves when context is stored
    * @example
    * ```typescript
-   * // Store a discovered regex pattern
-   * await agent.note({
+   * // Remember a discovered parsing strategy
+   * await agent.remember({
    *   scope: 'discovery/parser/example.com',
    *   key: normalizedUrl,
    *   value: { patterns: ['regex1', 'regex2'] },
    *   metadata: { aiProvider: 'openai' },
    *   confidence: 0.9
    * });
+   *
+   * // Update an existing context entry by specifying id
+   * await agent.remember({
+   *   id: 'existing-context-id',
+   *   scope: 'discovery/parser/example.com',
+   *   key: normalizedUrl,
+   *   value: { patterns: ['regex1', 'regex2', 'regex3'] },
+   *   confidence: 0.95
+   * });
    * ```
    */
-  async note(options) {
+  async remember(options) {
     if (!this.systemDb) {
       throw new Error("Database not initialized. Call initialize() first.");
     }
-    const id = crypto.randomUUID();
+    const id = options.id || crypto.randomUUID();
     const now = /* @__PURE__ */ new Date();
     await this.systemDb.query(
-      `INSERT OR REPLACE INTO _smrt_notes (
+      `INSERT OR REPLACE INTO _smrt_contexts (
         id, owner_class, owner_id, scope, key, value, metadata,
         version, confidence, created_at, updated_at, last_used_at, expires_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -990,13 +999,13 @@ Based on the content body, please follow the instructions and provide a response
     );
   }
   /**
-   * Recall a note value for this object
+   * Recall remembered context for this object
    *
-   * Retrieves note values with hierarchical search and confidence filtering.
+   * Retrieves context values with hierarchical search and confidence filtering.
    * Returns only the value (parsed from JSON if applicable).
    *
    * @param options - Recall options
-   * @returns Promise resolving to the note value or null if not found
+   * @returns Promise resolving to the context value or null if not found
    * @example
    * ```typescript
    * // Recall a strategy with fallback to parent scopes
@@ -1014,7 +1023,7 @@ Based on the content body, please follow the instructions and provide a response
     }
     let query = `
       SELECT value, confidence
-      FROM _smrt_notes
+      FROM _smrt_contexts
       WHERE owner_class = ? AND owner_id = ? AND scope = ? AND key = ?
     `;
     const params = [
@@ -1048,9 +1057,9 @@ Based on the content body, please follow the instructions and provide a response
     return null;
   }
   /**
-   * Recall all notes for this object in a scope
+   * Recall all remembered context for this object in a scope
    *
-   * Returns a Map of key -> value for all notes matching the criteria.
+   * Returns a Map of key -> value for all context matching the criteria.
    * Useful for bulk retrieval of strategies or cached patterns.
    *
    * @param options - Recall options without key (returns all keys in scope)
@@ -1075,7 +1084,7 @@ Based on the content body, please follow the instructions and provide a response
     const results = /* @__PURE__ */ new Map();
     let query = `
       SELECT key, value, confidence
-      FROM _smrt_notes
+      FROM _smrt_contexts
       WHERE owner_class = ? AND owner_id = ?
     `;
     const params = [this._className, this.id];
@@ -1100,13 +1109,13 @@ Based on the content body, please follow the instructions and provide a response
     return results;
   }
   /**
-   * Forget a specific note for this object
+   * Forget specific remembered context for this object
    *
-   * Deletes a note by scope and key. Use for invalidating cached strategies
+   * Deletes context by scope and key. Use for invalidating cached strategies
    * or removing outdated patterns.
    *
-   * @param options - Note identification (scope and key required)
-   * @returns Promise that resolves when note is deleted
+   * @param options - Context identification (scope and key required)
+   * @returns Promise that resolves when context is deleted
    * @example
    * ```typescript
    * // Remove an outdated strategy
@@ -1121,7 +1130,7 @@ Based on the content body, please follow the instructions and provide a response
       throw new Error("Database not initialized. Call initialize() first.");
     }
     await this.systemDb.query(
-      `DELETE FROM _smrt_notes
+      `DELETE FROM _smrt_contexts
        WHERE owner_class = ? AND owner_id = ? AND scope = ? AND key = ?`,
       this._className,
       this.id,
@@ -1130,13 +1139,13 @@ Based on the content body, please follow the instructions and provide a response
     );
   }
   /**
-   * Forget all notes in a scope for this object
+   * Forget all remembered context in a scope for this object
    *
-   * Deletes all notes matching the scope pattern. Useful for clearing
+   * Deletes all context matching the scope pattern. Useful for clearing
    * cached strategies for an entire domain or category.
    *
    * @param options - Scope options (scope required, includeDescendants optional)
-   * @returns Promise resolving to number of notes deleted
+   * @returns Promise resolving to number of contexts deleted
    * @example
    * ```typescript
    * // Clear all strategies for a domain
@@ -1152,7 +1161,7 @@ Based on the content body, please follow the instructions and provide a response
       throw new Error("Database not initialized. Call initialize() first.");
     }
     let query = `
-      DELETE FROM _smrt_notes
+      DELETE FROM _smrt_contexts
       WHERE owner_class = ? AND owner_id = ?
     `;
     const params = [this._className, this.id];
@@ -1208,8 +1217,8 @@ export {
   A as ALL_SYSTEM_TABLES,
   APIGenerator,
   CLIGenerator,
+  C as CREATE_SMRT_CONTEXTS_TABLE,
   e as CREATE_SMRT_MIGRATIONS_TABLE,
-  C as CREATE_SMRT_NOTES_TABLE,
   f as CREATE_SMRT_REGISTRY_TABLE,
   g as CREATE_SMRT_SIGNALS_TABLE,
   ConfigurationError,

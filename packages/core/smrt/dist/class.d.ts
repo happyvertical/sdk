@@ -121,7 +121,7 @@ export declare class SmrtClass {
      * Ensure SMRT system tables exist in the database
      *
      * System tables use _smrt_ prefix and store framework metadata:
-     * - _smrt_notes: Self-learning pattern cache
+     * - _smrt_contexts: Context memory storage for remembered patterns
      * - _smrt_migrations: Schema version tracking
      * - _smrt_registry: Object registry persistence
      * - _smrt_signals: Signal history/audit log

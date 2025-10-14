@@ -5,10 +5,10 @@
  * All system tables are created in the same database as user data.
  */
 /**
- * Self-learning pattern cache
- * Stores AI-learned strategies (regex patterns, selectors) for reuse
+ * Context memory storage
+ * Stores remembered context (learned strategies, patterns, selectors) for reuse
  */
-export declare const CREATE_SMRT_NOTES_TABLE = "\nCREATE TABLE IF NOT EXISTS _smrt_notes (\n  id TEXT PRIMARY KEY,\n  owner_class TEXT NOT NULL,\n  owner_id TEXT NOT NULL,\n  scope TEXT NOT NULL,\n  key TEXT NOT NULL,\n  value TEXT,\n  metadata TEXT,\n  version INTEGER DEFAULT 1,\n  confidence REAL DEFAULT 1.0,\n  success_count INTEGER DEFAULT 0,\n  failure_count INTEGER DEFAULT 0,\n  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,\n  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,\n  last_used_at DATETIME,\n  expires_at DATETIME,\n  UNIQUE(owner_class, owner_id, scope, key, version)\n);\n\nCREATE INDEX IF NOT EXISTS idx_smrt_notes_owner\n  ON _smrt_notes(owner_class, owner_id);\n\nCREATE INDEX IF NOT EXISTS idx_smrt_notes_scope\n  ON _smrt_notes(scope);\n\nCREATE INDEX IF NOT EXISTS idx_smrt_notes_confidence\n  ON _smrt_notes(confidence);\n\nCREATE INDEX IF NOT EXISTS idx_smrt_notes_last_used\n  ON _smrt_notes(last_used_at);\n";
+export declare const CREATE_SMRT_CONTEXTS_TABLE = "\nCREATE TABLE IF NOT EXISTS _smrt_contexts (\n  id TEXT PRIMARY KEY,\n  owner_class TEXT NOT NULL,\n  owner_id TEXT NOT NULL,\n  scope TEXT NOT NULL,\n  key TEXT NOT NULL,\n  value TEXT,\n  metadata TEXT,\n  version INTEGER DEFAULT 1,\n  confidence REAL DEFAULT 1.0,\n  success_count INTEGER DEFAULT 0,\n  failure_count INTEGER DEFAULT 0,\n  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,\n  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,\n  last_used_at DATETIME,\n  expires_at DATETIME,\n  UNIQUE(owner_class, owner_id, scope, key, version)\n);\n\nCREATE INDEX IF NOT EXISTS idx_smrt_contexts_owner\n  ON _smrt_contexts(owner_class, owner_id);\n\nCREATE INDEX IF NOT EXISTS idx_smrt_contexts_scope\n  ON _smrt_contexts(scope);\n\nCREATE INDEX IF NOT EXISTS idx_smrt_contexts_confidence\n  ON _smrt_contexts(confidence);\n\nCREATE INDEX IF NOT EXISTS idx_smrt_contexts_last_used\n  ON _smrt_contexts(last_used_at);\n";
 /**
  * Schema version tracking
  * Records which SMRT framework versions have been applied

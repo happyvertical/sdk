@@ -380,26 +380,36 @@ export declare class SmrtObject extends SmrtClass {
      */
     executeToolCall(toolCall: ToolCall): Promise<ToolCallResult>;
     /**
-     * Take a note on this object
+     * Remember context about this object
      *
-     * Stores hierarchical notes with confidence tracking for self-learning patterns.
-     * Notes are stored in the _smrt_notes system table.
+     * Stores hierarchical context with confidence tracking for learned patterns.
+     * Context is stored in the _smrt_contexts system table.
      *
-     * @param options - Note options
-     * @returns Promise that resolves when note is stored
+     * @param options - Context options
+     * @returns Promise that resolves when context is stored
      * @example
      * ```typescript
-     * // Store a discovered regex pattern
-     * await agent.note({
+     * // Remember a discovered parsing strategy
+     * await agent.remember({
      *   scope: 'discovery/parser/example.com',
      *   key: normalizedUrl,
      *   value: { patterns: ['regex1', 'regex2'] },
      *   metadata: { aiProvider: 'openai' },
      *   confidence: 0.9
      * });
+     *
+     * // Update an existing context entry by specifying id
+     * await agent.remember({
+     *   id: 'existing-context-id',
+     *   scope: 'discovery/parser/example.com',
+     *   key: normalizedUrl,
+     *   value: { patterns: ['regex1', 'regex2', 'regex3'] },
+     *   confidence: 0.95
+     * });
      * ```
      */
-    note(options: {
+    remember(options: {
+        id?: string;
         scope: string;
         key: string;
         value: any;
@@ -409,13 +419,13 @@ export declare class SmrtObject extends SmrtClass {
         expiresAt?: Date;
     }): Promise<void>;
     /**
-     * Recall a note value for this object
+     * Recall remembered context for this object
      *
-     * Retrieves note values with hierarchical search and confidence filtering.
+     * Retrieves context values with hierarchical search and confidence filtering.
      * Returns only the value (parsed from JSON if applicable).
      *
      * @param options - Recall options
-     * @returns Promise resolving to the note value or null if not found
+     * @returns Promise resolving to the context value or null if not found
      * @example
      * ```typescript
      * // Recall a strategy with fallback to parent scopes
@@ -434,9 +444,9 @@ export declare class SmrtObject extends SmrtClass {
         minConfidence?: number;
     }): Promise<any | null>;
     /**
-     * Recall all notes for this object in a scope
+     * Recall all remembered context for this object in a scope
      *
-     * Returns a Map of key -> value for all notes matching the criteria.
+     * Returns a Map of key -> value for all context matching the criteria.
      * Useful for bulk retrieval of strategies or cached patterns.
      *
      * @param options - Recall options without key (returns all keys in scope)
@@ -460,13 +470,13 @@ export declare class SmrtObject extends SmrtClass {
         minConfidence?: number;
     }): Promise<Map<string, any>>;
     /**
-     * Forget a specific note for this object
+     * Forget specific remembered context for this object
      *
-     * Deletes a note by scope and key. Use for invalidating cached strategies
+     * Deletes context by scope and key. Use for invalidating cached strategies
      * or removing outdated patterns.
      *
-     * @param options - Note identification (scope and key required)
-     * @returns Promise that resolves when note is deleted
+     * @param options - Context identification (scope and key required)
+     * @returns Promise that resolves when context is deleted
      * @example
      * ```typescript
      * // Remove an outdated strategy
@@ -481,13 +491,13 @@ export declare class SmrtObject extends SmrtClass {
         key: string;
     }): Promise<void>;
     /**
-     * Forget all notes in a scope for this object
+     * Forget all remembered context in a scope for this object
      *
-     * Deletes all notes matching the scope pattern. Useful for clearing
+     * Deletes all context matching the scope pattern. Useful for clearing
      * cached strategies for an entire domain or category.
      *
      * @param options - Scope options (scope required, includeDescendants optional)
-     * @returns Promise resolving to number of notes deleted
+     * @returns Promise resolving to number of contexts deleted
      * @example
      * ```typescript
      * // Clear all strategies for a domain
