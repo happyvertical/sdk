@@ -1,5 +1,5 @@
-import { a as SmrtClass, c as createPersistenceAdapter } from "./chunks/collection-fcVk8Wh3.js";
-import { A, f, C, g, h, i, d, e, S, b } from "./chunks/collection-fcVk8Wh3.js";
+import { a as SmrtClass, c as createPersistenceAdapter } from "./chunks/collection-CuDSwVK-.js";
+import { A, f, C, g, h, i, d, e, S, b } from "./chunks/collection-CuDSwVK-.js";
 import { ValidationError, RuntimeError, DatabaseError, ErrorUtils } from "./chunks/errors-Cl0_Kxat.js";
 import { AIError, ConfigurationError, FilesystemError, NetworkError, SmrtError, ValidationReport, ValidationUtils } from "./chunks/errors-Cl0_Kxat.js";
 import { Field } from "./fields.js";
@@ -9,15 +9,15 @@ import { MCPGenerator } from "./generators/mcp.js";
 import { APIGenerator, createRestServer, startRestServer } from "./generators/rest.js";
 import { generateOpenAPISpec, setupSwaggerUI } from "./generators/swagger.js";
 import { escapeSqlValue } from "@have/sql";
-import { O as ObjectRegistry, f as fieldsFromClass, s as setupTableFromClass, t as tableNameFromClass, a as toSnakeCase } from "./chunks/registry-DirJKcgN.js";
-import { b as b2, b as b3 } from "./chunks/registry-DirJKcgN.js";
+import { O as ObjectRegistry, f as fieldsFromClass, s as setupTableFromClass, t as tableNameFromClass, a as toSnakeCase } from "./chunks/registry-CZx11Old.js";
+import { b as b2, b as b3 } from "./chunks/registry-CZx11Old.js";
 import { a, c, b as b4 } from "./chunks/server-DwHneUSW.js";
 import { getManifest } from "./manifest.js";
 import { M, c as c2, a as a2, b as b5, s } from "./chunks/manifest-generator-Bb3IuFsV.js";
 import { MetricsAdapter } from "./chunks/metrics-JaU-tpt3.js";
 import { PubSubAdapter } from "./chunks/pubsub-BJ1ZU6QU.js";
-import { s as s2 } from "./chunks/index-CBwtE8XY.js";
-import { staticManifest } from "./chunks/static-manifest-C9XjwjJV.js";
+import { s as s2 } from "./chunks/index-CoRmHlvP.js";
+import { staticManifest } from "./chunks/static-manifest-CMPc36rs.js";
 function validateToolCall(methodName, args, allowedMethods) {
   if (!allowedMethods.includes(methodName)) {
     throw ValidationError.invalidValue(

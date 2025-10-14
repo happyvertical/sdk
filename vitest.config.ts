@@ -48,7 +48,7 @@ export default defineConfig({
 
     // Timeouts for different test types
     testTimeout: 30000, // Longer for potential OCR/PDF processing
-    hookTimeout: 10000,
+    hookTimeout: 30000, // Match testTimeout for slow CI environments
 
     // Reporter configuration
     reporters: ['default'],

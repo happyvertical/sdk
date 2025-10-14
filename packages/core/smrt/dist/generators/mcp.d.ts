@@ -90,5 +90,46 @@ export declare class MCPGenerator {
         version: string | undefined;
         description: string | undefined;
     };
+    /**
+     * Generate complete MCP server with stdio transport
+     *
+     * Creates a runnable Node.js script that exposes SMRT objects as MCP tools.
+     * The generated server includes:
+     * - Stdio transport integration
+     * - Tool registration from ObjectRegistry
+     * - Error handling and logging
+     * - Graceful shutdown
+     *
+     * @param options - Server generation options
+     * @returns Promise that resolves when all files are written
+     *
+     * @example
+     * ```typescript
+     * const generator = new MCPGenerator({
+     *   name: 'my-app',
+     *   version: '1.0.0'
+     * });
+     *
+     * await generator.generateServer({
+     *   outputPath: 'dist/mcp-server.js',
+     *   serverName: 'my-app-mcp',
+     *   debug: true
+     * });
+     * ```
+     */
+    generateServer(options?: {
+        /** Path to output server file (relative or absolute) */
+        outputPath?: string;
+        /** Server name for configuration */
+        serverName?: string;
+        /** Server version */
+        serverVersion?: string;
+        /** Enable debug logging */
+        debug?: boolean;
+        /** Generate Claude Desktop configuration example */
+        generateClaudeConfigFile?: boolean;
+        /** Generate README documentation */
+        generateReadme?: boolean;
+    }): Promise<void>;
 }
 //# sourceMappingURL=mcp.d.ts.map

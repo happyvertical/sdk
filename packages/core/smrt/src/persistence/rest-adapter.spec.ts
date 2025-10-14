@@ -72,8 +72,8 @@ describe('REST Persistence Adapter Integration', () => {
     server = serverInfo.server;
     serverUrl = `http://localhost:${testPort}`;
 
-    // Wait for server to be ready
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Wait for server to be ready (longer wait for CI environments)
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
     // Setup client with REST persistence
     clientCollection = await ProductCollection.create({
