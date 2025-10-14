@@ -960,6 +960,79 @@ class Document extends SmrtObject {
 
 **Learn more**: See the [Performance Considerations](./CLAUDE.md#performance-considerations) section in CLAUDE.md for detailed optimization strategies.
 
+## Troubleshooting
+
+### Collection Table Names
+
+**Issue**: Collections query incorrect table names (e.g., `place_collections` instead of `places`).
+
+**Cause**: In versions before v0.32.1, collections used their own class name for table naming instead of the item class name.
+
+**Fixed in v0.32.1**: Collections now correctly use the item class name for table naming:
+```typescript
+class PlaceCollection extends SmrtCollection<Place> {
+  static readonly _itemClass = Place;
+  // Table name: 'places' (from Place class), not 'place_collections'
+}
+```
+
+**Migration**: If you have data in the incorrectly-named table:
+```sql
+-- Rename the table to match the item class name
+ALTER TABLE place_collections RENAME TO places;
+```
+
+### Static Factory Pattern Required
+
+**Issue**: TypeError when trying to instantiate collections with `new`.
+
+**Cause**: Collection constructors are protected to prevent partially-initialized instances.
+
+**Solution**: Always use the static `create()` factory method:
+```typescript
+// ✅ CORRECT - Fully initialized collection
+const collection = await ProductCollection.create({
+  db: { type: 'sqlite', url: 'products.db' }
+});
+
+// ❌ WRONG - Constructor is protected
+const collection = new ProductCollection(options); // Error!
+```
+
+The static factory method ensures collections are fully initialized with database connections, AI clients, and file system access before use.
+
+### Collection _itemClass Requirement
+
+**Issue**: Error "Collection must define a static _itemClass property".
+
+**Cause**: Collections require a static `_itemClass` property to know which object type they manage.
+
+**Solution**: Always define the static _itemClass:
+```typescript
+class DocumentCollection extends SmrtCollection<Document> {
+  static readonly _itemClass = Document; // Required!
+}
+```
+
+### Slug and Context Uniqueness
+
+**Issue**: UNIQUE constraint violation when saving objects.
+
+**Cause**: SMRT enforces a unique constraint on `(slug, context)` pairs.
+
+**Understanding**: Objects can have the same slug if they have different contexts:
+```typescript
+// These are DIFFERENT objects (different contexts)
+const blog = await collection.create({ slug: 'intro', context: '/blog' });
+const docs = await collection.create({ slug: 'intro', context: '/docs' });
+
+// This FAILS (same slug + context)
+const blog2 = await collection.create({ slug: 'intro', context: '/blog' });
+// Error: UNIQUE constraint failed: slug, context
+```
+
+**Solution**: Ensure unique slugs within the same context, or use different contexts for objects with the same slug.
+
 ## API Reference
 
 See the [API documentation](https://happyvertical.github.io/sdk/modules/_have_smrt.html) for detailed information on all available methods and options.
