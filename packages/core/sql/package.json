@@ -1,6 +1,6 @@
 {
   "name": "@have/sql",
-  "version": "0.32.0",
+  "version": "0.32.1",
   "description": "Database interface with support for SQLite, PostgreSQL, and DuckDB",
   "type": "module",
   "main": "./dist/index.js",
