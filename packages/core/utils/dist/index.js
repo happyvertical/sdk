@@ -5,6 +5,7 @@ import { disableLogging, enableLogging, getLogger, setLogger } from "./index5.js
 import { ApiError, BaseError, DatabaseError, ErrorCode, FileError, NetworkError, ParsingError, TimeoutError, ValidationError } from "./index6.js";
 import { addInterval, camelCase, createId, dateInString, domainToCamel, formatDate, getTempDirectory, isArray, isPlainObject, isPlural, isSingular, isUrl, isValidDate, keysToCamel, keysToSnake, logTicker, makeId, makeSlug, parseAmazonDateString, parseDate, pluralizeWord, prettyDate, singularize, sleep, snakeCase, urlFilename, urlPath, waitFor } from "./index7.js";
 import { parseCliArgs } from "./index8.js";
+import { generateScopeFromUrl, hashPageContent, normalizeUrl } from "./index9.js";
 import { isCuid } from "@paralleldrive/cuid2";
 export {
   ApiError,
@@ -33,8 +34,10 @@ export {
   extractFunctionDefinition,
   extractJSON,
   formatDate,
+  generateScopeFromUrl,
   getLogger,
   getTempDirectory,
+  hashPageContent,
   isArray,
   isCuid,
   isPlainObject,
@@ -48,6 +51,7 @@ export {
   logTicker,
   makeId,
   makeSlug,
+  normalizeUrl,
   parseAmazonDateString,
   parseCliArgs,
   parseDate,
