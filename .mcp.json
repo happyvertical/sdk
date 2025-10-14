@@ -1,5 +1,16 @@
 {
   "mcpServers": {
+    "smrt-advisor": {
+      "type": "stdio",
+      "command": "bash",
+      "args": [
+        "/Users/will/Work/happyvertical/repos/sdk/scripts/mcp-servers/smrt-dev-server.sh"
+      ],
+      "env": {
+        "SDK_ROOT": "/Users/will/Work/happyvertical/repos/sdk",
+        "DEBUG": "false"
+      }
+    },
     "mcp-svelte-docs": {
       "type": "stdio",
       "command": "npx",
