@@ -14,6 +14,44 @@ export interface DatabaseOptions {
 }
 
 /**
+ * DuckDB-specific connection options
+ */
+export interface DuckDBOptions extends DatabaseOptions {
+  /**
+   * Database type identifier
+   */
+  type?: 'duckdb';
+
+  /**
+   * Path to directory containing JSON files to auto-register as tables
+   * @default './data'
+   */
+  dataDir?: string;
+
+  /**
+   * Automatically register JSON files in dataDir as queryable tables
+   * @default true
+   */
+  autoRegisterJSON?: boolean;
+
+  /**
+   * Strategy for writing data back to JSON files
+   * - 'immediate': Write changes to JSON files immediately
+   * - 'manual': Require explicit export calls
+   * - 'none': Read-only mode, no writes to JSON files
+   * @default 'none'
+   */
+  writeStrategy?: 'immediate' | 'manual' | 'none';
+
+  /**
+   * Whether to use a persistent DuckDB file for caching/indexes
+   * If true, uses url or defaults to ':memory:'
+   * @default false
+   */
+  persistent?: boolean;
+}
+
+/**
  * Result of a database operation that modifies data
  */
 export interface QueryResult {
