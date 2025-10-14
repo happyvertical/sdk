@@ -2,7 +2,7 @@ import { getDatabase, buildWhere, syncSchema } from "@have/sql";
 import { getAI } from "@have/ai";
 import { FilesystemAdapter } from "@have/files";
 import { makeId } from "@have/utils";
-import { O as ObjectRegistry, c as formatDataJs, d as formatDataSql, f as fieldsFromClass, g as generateSchema, t as tableNameFromClass } from "./registry-DlqK03oe.js";
+import { O as ObjectRegistry, c as formatDataJs, d as formatDataSql, f as fieldsFromClass, g as generateSchema, t as tableNameFromClass } from "./registry-DkbGSTJN.js";
 const DEFAULT_REDACT_KEYS = [
   "password",
   "passwd",
@@ -1142,7 +1142,7 @@ class SmrtCollection extends SmrtClass {
    */
   get tableName() {
     if (!this._tableName) {
-      this._tableName = tableNameFromClass(this.constructor);
+      this._tableName = tableNameFromClass(this._itemClass);
     }
     return this._tableName;
   }
@@ -1413,4 +1413,4 @@ export {
   SMRT_SCHEMA_VERSION as h,
   collection as i
 };
-//# sourceMappingURL=collection-zd453FnA.js.map
+//# sourceMappingURL=collection-CsqQw3k7.js.map
