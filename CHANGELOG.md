@@ -1,3 +1,10 @@
+## [0.32.1](https://github.com/happyvertical/sdk/compare/v0.32.0...v0.32.1) (2025-10-14)
+
+
+### Bug Fixes
+
+* **smrt:** use item class instead of collection class for table name ([b43b6d8](https://github.com/happyvertical/sdk/commit/b43b6d85542de1808e43d7034f31503292762b81)), closes [#218](https://github.com/happyvertical/sdk/issues/218)
+
 # [0.32.0](https://github.com/happyvertical/sdk/compare/v0.31.0...v0.32.0) (2025-10-14)
 
 

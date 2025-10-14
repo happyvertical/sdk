@@ -1,5 +1,5 @@
-import { a as SmrtClass } from "./chunks/collection-zd453FnA.js";
-import { A, C, e, f, g, h, b, d, S, c } from "./chunks/collection-zd453FnA.js";
+import { a as SmrtClass } from "./chunks/collection-CsqQw3k7.js";
+import { A, C, e, f, g, h, b, d, S, c } from "./chunks/collection-CsqQw3k7.js";
 import { ValidationError, RuntimeError, DatabaseError, ErrorUtils } from "./chunks/errors-Cl0_Kxat.js";
 import { AIError, ConfigurationError, FilesystemError, NetworkError, SmrtError, ValidationReport, ValidationUtils } from "./chunks/errors-Cl0_Kxat.js";
 import { Field } from "./fields.js";
@@ -9,8 +9,8 @@ import { MCPGenerator } from "./generators/mcp.js";
 import { APIGenerator, createRestServer, startRestServer } from "./generators/rest.js";
 import { generateOpenAPISpec, setupSwaggerUI } from "./generators/swagger.js";
 import { escapeSqlValue } from "@have/sql";
-import { O as ObjectRegistry, f as fieldsFromClass, s as setupTableFromClass, t as tableNameFromClass, a as toSnakeCase } from "./chunks/registry-DlqK03oe.js";
-import { b as b2, b as b3 } from "./chunks/registry-DlqK03oe.js";
+import { O as ObjectRegistry, f as fieldsFromClass, s as setupTableFromClass, t as tableNameFromClass, a as toSnakeCase } from "./chunks/registry-DkbGSTJN.js";
+import { b as b2, b as b3 } from "./chunks/registry-DkbGSTJN.js";
 import { a, c as c2, b as b4 } from "./chunks/server-DwHneUSW.js";
 import { getManifest } from "./manifest.js";
 import { M, c as c3, a as a2, b as b5, s } from "./chunks/manifest-generator-Bb3IuFsV.js";
