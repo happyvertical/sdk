@@ -233,6 +233,44 @@ export async function getDatabase(
   };
 
   /**
+   * Inserts a record or updates it if it already exists (UPSERT)
+   *
+   * @param table - Table name
+   * @param conflictColumns - Columns that define the uniqueness constraint
+   * @param data - Data to insert or update
+   * @returns Promise resolving to operation result
+   * @throws Error if the upsert operation fails
+   */
+  const upsert = async (
+    table: string,
+    conflictColumns: string[],
+    data: Record<string, any>,
+  ): Promise<QueryResult> => {
+    const keys = Object.keys(data);
+    const values = Object.values(data);
+    const placeholders = keys.map(() => '?').join(', ');
+    const updateSet = keys
+      .map((key) => `${key} = excluded.${key}`)
+      .join(', ');
+    const conflict = conflictColumns.join(', ');
+
+    const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
+
+    try {
+      const result = await client.execute({ sql, args: values });
+      return { operation: 'upsert', affected: result.rowsAffected };
+    } catch (e) {
+      throw new DatabaseError('Failed to upsert record into table', {
+        table,
+        sql,
+        values,
+        conflictColumns,
+        originalError: e instanceof Error ? e.message : String(e),
+      });
+    }
+  };
+
+  /**
    * Gets a record matching the where criteria or inserts it if not found
    *
    * @param table - Table name
@@ -375,6 +413,7 @@ export async function getDatabase(
         get,
         list,
         update,
+        upsert,
         getOrInsert,
         table,
         many,
@@ -587,6 +626,7 @@ export async function getDatabase(
       query,
       insert,
       update,
+      upsert,
       get,
       list,
       getOrInsert,
@@ -612,6 +652,7 @@ export async function getDatabase(
     query,
     insert,
     update,
+    upsert,
     get,
     list,
     getOrInsert,
