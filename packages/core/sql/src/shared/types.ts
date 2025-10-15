@@ -257,6 +257,38 @@ export interface DatabaseInterface {
   ) => Promise<QueryResult>;
 
   /**
+   * Inserts a record or updates it if it already exists (UPSERT)
+   * Uses database-specific ON CONFLICT / ON DUPLICATE KEY syntax
+   *
+   * @param table - Table name
+   * @param conflictColumns - Columns that define the uniqueness constraint
+   * @param data - Data to insert or update
+   * @returns Promise resolving to operation result
+   *
+   * @example
+   * ```typescript
+   * // Upsert a user by email
+   * await db.upsert('users', ['email'], {
+   *   email: 'user@example.com',
+   *   name: 'John Doe',
+   *   updated_at: new Date().toISOString()
+   * });
+   *
+   * // Upsert with composite key
+   * await db.upsert('settings', ['user_id', 'key'], {
+   *   user_id: '123',
+   *   key: 'theme',
+   *   value: 'dark'
+   * });
+   * ```
+   */
+  upsert: (
+    table: string,
+    conflictColumns: string[],
+    data: Record<string, any>,
+  ) => Promise<QueryResult>;
+
+  /**
    * Gets a record matching the where criteria or inserts it if not found
    *
    * @param table - Table name

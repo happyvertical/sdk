@@ -255,7 +255,87 @@ const user = await db.getOrInsert('users',
   { email: 'new@example.com' }, // where criteria
   { id: 'newuser', name: 'New User', email: 'new@example.com' } // data to insert
 );
+
+// Upsert (insert or update on conflict)
+await db.upsert('users', ['email'], {
+  email: 'user@example.com',
+  name: 'John Doe',
+  updated_at: new Date().toISOString()
+});
 ```
+
+### UPSERT Operations
+
+The `upsert()` method provides database-agnostic UPSERT functionality using each adapter's native SQL syntax. This fixes Issue #226 (DuckDB compatibility) by letting each adapter handle its own ON CONFLICT syntax.
+
+```typescript
+// Basic upsert on single column
+await db.upsert('users', ['email'], {
+  id: 'user123',
+  email: 'user@example.com',
+  name: 'John Doe',
+  updated_at: new Date().toISOString()
+});
+// If email exists: updates the record
+// If email doesn't exist: inserts new record
+
+// Upsert with composite unique constraint
+await db.upsert('posts', ['slug', 'context'], {
+  id: 'post123',
+  slug: 'my-post',
+  context: '/blog',
+  title: 'Updated Title',
+  content: 'Updated content'
+});
+// Matches on (slug='my-post' AND context='/blog')
+// If match found: updates title and content
+// If not found: inserts new record
+
+// Upsert in SMRT framework (automatic conflict resolution)
+class Article extends SmrtObject {
+  title: string = '';
+  content: string = '';
+}
+
+const article = new Article({
+  slug: 'my-article',
+  context: '/blog',
+  title: 'My Article',
+  content: 'Article content'
+});
+
+// Saves using db.upsert() with (slug, context) as conflict columns
+await article.save();
+```
+
+**Key Features**:
+- **Per-Adapter Implementation**: Each database adapter uses its native UPSERT syntax
+- **Composite Keys**: Support for multi-column unique constraints
+- **Transaction Support**: Works within transaction contexts
+- **Type Safe**: Returns `QueryResult` with operation type and affected rows
+
+**Adapter-Specific SQL**:
+```typescript
+// SQLite/DuckDB: ON CONFLICT with excluded.column
+INSERT INTO users (id, email, name) VALUES (?, ?, ?)
+ON CONFLICT(email) DO UPDATE SET
+  id = excluded.id,
+  name = excluded.name
+
+// PostgreSQL: ON CONFLICT with numbered placeholders
+INSERT INTO users (id, email, name) VALUES ($1, $2, $3)
+ON CONFLICT(email) DO UPDATE SET
+  id = $1,
+  name = $3
+
+// JSON Adapter: Same as DuckDB, with write strategy validation
+```
+
+**Important Notes**:
+- Conflict columns must have a UNIQUE constraint or be PRIMARY KEY
+- All columns in data are updated on conflict, not just changed ones
+- For partial updates, use `db.update()` instead
+- Returns `{ operation: 'upsert', affected: number }`
 
 ### Advanced Query Building
 
@@ -893,6 +973,7 @@ interface DatabaseInterface {
   get(table: string, where: Record<string, any>): Promise<Record<string, any> | null>;
   list(table: string, where: Record<string, any>): Promise<Record<string, any>[]>;
   update(table: string, where: Record<string, any>, data: Record<string, any>): Promise<QueryResult>;
+  upsert(table: string, conflictColumns: string[], data: Record<string, any>): Promise<QueryResult>;
   getOrInsert(table: string, where: Record<string, any>, data: Record<string, any>): Promise<Record<string, any>>;
 
   // Table interface factory
