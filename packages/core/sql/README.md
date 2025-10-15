@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-Database interaction library with support for SQLite (including LibSQL/Turso) and PostgreSQL in the HAVE SDK.
+Database interaction library with support for SQLite (including LibSQL/Turso), PostgreSQL, and DuckDB in the HAVE SDK.
 
 ## Overview
 
@@ -10,8 +10,9 @@ The `@have/sql` package provides a simple and consistent interface for interacti
 
 ## Features
 
-- **Unified API** for SQLite, LibSQL, and PostgreSQL
+- **Unified API** for SQLite, LibSQL, PostgreSQL, and DuckDB
 - **Template literal query interface** with automatic parameterization and shorthand aliases
+- **DuckDB JSON support** for querying git-tracked JSON files with SQL
 - **Vector search capabilities** with SQLite-VSS integration
 - **LibSQL/Turso support** with remote connections and encryption
 - **Type-safe query results** with comprehensive TypeScript support
@@ -76,6 +77,85 @@ const pgUrlDb = await getDatabase({
   type: 'postgres',
   url: 'postgresql://user:pass@localhost:5432/dbname',
 });
+
+// Connect to DuckDB (in-memory)
+const duckDb = await getDatabase({
+  type: 'duckdb',
+  url: ':memory:',
+  dataDir: './data', // Auto-register JSON files from this directory
+  autoRegisterJSON: true,
+  writeStrategy: 'none', // Read-only by default
+});
+
+// Connect to DuckDB (file-based)
+const duckFileDb = await getDatabase({
+  type: 'duckdb',
+  url: 'my-database.duckdb',
+  dataDir: './data',
+  autoRegisterJSON: true,
+  writeStrategy: 'immediate', // Auto-export changes to JSON files
+});
+```
+
+### DuckDB-Specific Features
+
+DuckDB provides unique capabilities for working with JSON files as data sources:
+
+```typescript
+// Auto-register JSON files as queryable tables
+const db = await getDatabase({
+  type: 'duckdb',
+  url: ':memory:',
+  dataDir: './data', // Scans this directory for .json files
+  autoRegisterJSON: true,
+  writeStrategy: 'none',
+});
+
+// If you have ./data/users.json and ./data/products.json,
+// they're automatically available as tables
+const users = await db.many`SELECT * FROM users WHERE active = ${true}`;
+const products = await db.many`SELECT * FROM products WHERE price > ${100}`;
+
+// Join across JSON files
+const results = await db.many`
+  SELECT u.name, p.title, o.total
+  FROM users u
+  JOIN orders o ON u.id = o.user_id
+  JOIN products p ON o.product_id = p.id
+  WHERE u.status = ${'active'}
+`;
+
+// Write-back strategies
+// 'none' (default) - Read-only, perfect for git-tracked fixtures
+// 'immediate' - Auto-export to JSON after insert/update
+// 'manual' - Use exportTable() method for explicit control
+
+const dbWithWrites = await getDatabase({
+  type: 'duckdb',
+  url: ':memory:',
+  dataDir: './data',
+  writeStrategy: 'manual',
+});
+
+await dbWithWrites.insert('users', {
+  id: 'user-123',
+  name: 'Alice',
+  email: 'alice@example.com',
+});
+
+// Manually export to JSON file
+await dbWithWrites.exportTable('users');
+// Creates/updates ./data/users.json
+```
+
+#### Use Cases for DuckDB
+
+- **Version-controlled datasets**: Track data changes in git alongside your code
+- **Test fixtures**: SQL-queryable test data that's easy to review in pull requests
+- **Configuration management**: Complex config files with relational queries
+- **Analytics**: Run SQL queries over exported data without database setup
+- **CI/CD pipelines**: Reproducible data for integration tests
+- **Documentation**: Data samples that are both human and machine readable
 ```
 
 ### Executing Queries
