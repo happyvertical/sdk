@@ -5,7 +5,8 @@ import { extname, join, basename } from "node:path";
 async function createJSONConnection(options) {
   const {
     dataDir,
-    autoRegister = true
+    autoRegister = true,
+    skipSmrtTables = false
   } = options;
   if (!dataDir) {
     throw new DatabaseError("dataDir is required for JSON adapter", {
@@ -25,7 +26,7 @@ async function createJSONConnection(options) {
     } catch (error) {
     }
     if (autoRegister) {
-      await loadJSONTables(connection, dataDir);
+      await loadJSONTables(connection, dataDir, skipSmrtTables);
     }
     return connection;
   } catch (error) {
@@ -36,16 +37,41 @@ async function createJSONConnection(options) {
     });
   }
 }
-async function loadJSONTables(connection, dataDir) {
+async function loadJSONTables(connection, dataDir, skipSmrtTables = false) {
   try {
     const files = await readdir(dataDir);
-    const jsonFiles = files.filter((file) => extname(file).toLowerCase() === ".json");
+    const jsonFiles = files.filter(
+      (file) => extname(file).toLowerCase() === ".json"
+    );
     for (const file of jsonFiles) {
       const filePath = join(dataDir, file);
       const tableName = basename(file, ".json");
-      await connection.run(
-        `CREATE TABLE ${tableName} AS SELECT * FROM read_json('${filePath}', auto_detect=true, format='auto', ignore_errors=true)`
-      );
+      const smrtSchema = await getSmrtSchemaForTable(tableName);
+      if (smrtSchema && skipSmrtTables) {
+        console.log(
+          `[json-adapter] Skipping ${tableName} - will be created by SMRT framework`
+        );
+        continue;
+      }
+      if (smrtSchema) {
+        console.log(
+          `[json-adapter] Creating ${tableName} with SMRT schema definition`
+        );
+        await createTableFromSmrtSchema(connection, tableName, smrtSchema);
+        try {
+          await connection.run(
+            `INSERT INTO ${tableName} SELECT * FROM read_json('${filePath}', auto_detect=true, format='auto', ignore_errors=true)`
+          );
+        } catch (error) {
+          console.warn(
+            `[json-adapter] Could not load data for ${tableName}: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
+      } else {
+        await connection.run(
+          `CREATE TABLE ${tableName} AS SELECT * FROM read_json('${filePath}', auto_detect=true, format='auto', ignore_errors=true)`
+        );
+      }
     }
   } catch (error) {
     if (error.code !== "ENOENT") {
@@ -68,6 +94,55 @@ function convertBigInts(obj) {
     return result;
   }
   return obj;
+}
+async function getSmrtSchemaForTable(tableName) {
+  try {
+    const { ObjectRegistry } = await import("./registry-B3GUIyDa.js").then((n) => n.r);
+    const allClasses = ObjectRegistry.getAllClasses();
+    for (const [className, registered] of allClasses) {
+      const schema = ObjectRegistry.getSchema(className);
+      if (schema && schema.tableName === tableName) {
+        return {
+          ddl: schema.ddl,
+          indexes: schema.indexes,
+          tableName: schema.tableName,
+          fields: ObjectRegistry.getFields(className)
+        };
+      }
+    }
+    return null;
+  } catch (error) {
+    return null;
+  }
+}
+async function createTableFromSmrtSchema(connection, tableName, schema) {
+  const ddlLines = schema.ddl.split("\n");
+  const createTableEnd = ddlLines.findIndex(
+    (line) => line.trim().startsWith(");")
+  );
+  if (createTableEnd === -1) {
+    throw new DatabaseError("Invalid SMRT schema DDL - no closing parenthesis", {
+      tableName,
+      ddl: schema.ddl
+    });
+  }
+  const createTableSQL = ddlLines.slice(0, createTableEnd + 1).join("\n");
+  try {
+    await connection.run(createTableSQL);
+    for (const indexSQL of schema.indexes) {
+      try {
+        await connection.run(indexSQL);
+      } catch (error) {
+        console.warn(`[json-adapter] Failed to create index: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  } catch (error) {
+    throw new DatabaseError("Failed to create table from SMRT schema", {
+      tableName,
+      sql: createTableSQL,
+      originalError: error instanceof Error ? error.message : String(error)
+    });
+  }
 }
 async function getDatabase(options) {
   const connection = await createJSONConnection(options);
@@ -170,11 +245,33 @@ async function getDatabase(options) {
       );
     }
     const keys = Object.keys(data);
-    const values = Object.values(data);
-    const placeholders = keys.map((_, idx) => `$${idx + 1}`).join(", ");
-    const updateSet = keys.map((key, idx) => `${key} = $${idx + 1}`).join(", ");
+    const dataValues = Object.values(data);
+    const placeholders = [];
+    const values = [];
+    let paramIdx = 1;
+    for (const value of dataValues) {
+      if (value === null) {
+        placeholders.push("NULL");
+      } else {
+        placeholders.push(`$${paramIdx}`);
+        values.push(value);
+        paramIdx++;
+      }
+    }
+    const updateSetParts = [];
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      const value = dataValues[i];
+      if (value === null) {
+        updateSetParts.push(`${key} = NULL`);
+      } else {
+        updateSetParts.push(`${key} = $${paramIdx}`);
+        values.push(value);
+        paramIdx++;
+      }
+    }
     const conflict = conflictColumns.join(", ");
-    const sql = `INSERT INTO ${table2} (${keys.join(", ")}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
+    const sql = `INSERT INTO ${table2} (${keys.join(", ")}) VALUES (${placeholders.join(", ")}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSetParts.join(", ")}`;
     try {
       await connection.run(sql, values);
       if (writeStrategy === "immediate") {
@@ -182,6 +279,14 @@ async function getDatabase(options) {
       }
       return { operation: "upsert", affected: 1 };
     } catch (e) {
+      console.error("UPSERT failed:", {
+        table: table2,
+        sql,
+        values,
+        valueTypes: values.map((v) => `${typeof v} (${v})`),
+        conflictColumns,
+        error: e instanceof Error ? e.message : String(e)
+      });
       throw new DatabaseError("Failed to upsert record into table", {
         table: table2,
         sql,
@@ -433,4 +538,4 @@ async function getDatabase(options) {
 export {
   getDatabase
 };
-//# sourceMappingURL=json-CDRL39gd.js.map
+//# sourceMappingURL=json-BHdzDGjq.js.map

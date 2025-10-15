@@ -12,6 +12,16 @@ import { readdir, mkdir } from 'node:fs/promises';
 import { join, basename, extname } from 'node:path';
 
 /**
+ * Schema definition extracted from SMRT ObjectRegistry
+ */
+interface SmrtSchemaDefinition {
+  ddl: string;
+  indexes: string[];
+  tableName: string;
+  fields: Map<string, any>;
+}
+
+/**
  * Creates a JSON database connection using DuckDB in-memory engine
  *
  * This adapter uses DuckDB as a query engine for JSON files, storing everything
@@ -25,6 +35,7 @@ async function createJSONConnection(options: JSONOptions) {
   const {
     dataDir,
     autoRegister = true,
+    skipSmrtTables = false,
   } = options;
 
   if (!dataDir) {
@@ -51,7 +62,7 @@ async function createJSONConnection(options: JSONOptions) {
 
     // Load JSON files as in-memory tables
     if (autoRegister) {
-      await loadJSONTables(connection, dataDir);
+      await loadJSONTables(connection, dataDir, skipSmrtTables);
     }
 
     return connection;
@@ -70,23 +81,64 @@ async function createJSONConnection(options: JSONOptions) {
  * Unlike the DuckDB adapter which creates views, this creates actual tables
  * so that indexes can be added.
  *
+ * When a JSON file corresponds to a registered SMRT object, it will use the
+ * SMRT schema definition to create properly-typed tables instead of relying
+ * on DuckDB's auto-detection (which fails with empty strings/null values).
+ *
  * @param connection - DuckDB connection
  * @param dataDir - Directory containing JSON files
+ * @param skipSmrtTables - If true, skip auto-registration for tables with SMRT schemas (default: false)
  */
-async function loadJSONTables(connection: any, dataDir: string) {
+async function loadJSONTables(
+  connection: any,
+  dataDir: string,
+  skipSmrtTables = false,
+) {
   try {
     const files = await readdir(dataDir);
-    const jsonFiles = files.filter((file) => extname(file).toLowerCase() === '.json');
+    const jsonFiles = files.filter((file) =>
+      extname(file).toLowerCase() === '.json',
+    );
 
     for (const file of jsonFiles) {
       const filePath = join(dataDir, file);
       const tableName = basename(file, '.json');
 
-      // Create table from JSON file (not a view - allows indexes)
-      // DuckDB automatically infers schema from JSON
-      await connection.run(
-        `CREATE TABLE ${tableName} AS SELECT * FROM read_json('${filePath}', auto_detect=true, format='auto', ignore_errors=true)`
-      );
+      // Check if this table has a SMRT schema definition
+      const smrtSchema = await getSmrtSchemaForTable(tableName);
+
+      if (smrtSchema && skipSmrtTables) {
+        // Skip SMRT tables - they will be created by SMRT framework
+        console.log(
+          `[json-adapter] Skipping ${tableName} - will be created by SMRT framework`,
+        );
+        continue;
+      }
+
+      if (smrtSchema) {
+        // Create table with SMRT-derived types
+        console.log(
+          `[json-adapter] Creating ${tableName} with SMRT schema definition`,
+        );
+        await createTableFromSmrtSchema(connection, tableName, smrtSchema);
+
+        // Load JSON data into properly-typed table
+        try {
+          await connection.run(
+            `INSERT INTO ${tableName} SELECT * FROM read_json('${filePath}', auto_detect=true, format='auto', ignore_errors=true)`,
+          );
+        } catch (error) {
+          // If INSERT fails (e.g., empty file), that's okay - table structure is what matters
+          console.warn(
+            `[json-adapter] Could not load data for ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      } else {
+        // Fallback to auto-detection for non-SMRT tables
+        await connection.run(
+          `CREATE TABLE ${tableName} AS SELECT * FROM read_json('${filePath}', auto_detect=true, format='auto', ignore_errors=true)`,
+        );
+      }
     }
   } catch (error) {
     // If directory doesn't exist or is empty, that's okay
@@ -117,6 +169,103 @@ function convertBigInts(obj: any): any {
     return result;
   }
   return obj;
+}
+
+/**
+ * Attempts to get schema definition from SMRT ObjectRegistry for a table
+ *
+ * @param tableName - Name of the table to look up (snake_case plural form)
+ * @returns Schema definition or null if not found in registry
+ */
+async function getSmrtSchemaForTable(
+  tableName: string,
+): Promise<SmrtSchemaDefinition | null> {
+  try {
+    // Try to import ObjectRegistry from @have/smrt
+    const { ObjectRegistry } = await import('@have/smrt/registry');
+
+    // Get all registered classes
+    const allClasses = ObjectRegistry.getAllClasses();
+
+    // Search for a class whose table name matches
+    for (const [className, registered] of allClasses) {
+      const schema = ObjectRegistry.getSchema(className);
+
+      if (schema && schema.tableName === tableName) {
+        return {
+          ddl: schema.ddl,
+          indexes: schema.indexes,
+          tableName: schema.tableName,
+          fields: ObjectRegistry.getFields(className),
+        };
+      }
+    }
+
+    return null;
+  } catch (error) {
+    // @have/smrt not available or ObjectRegistry not initialized
+    return null;
+  }
+}
+
+/**
+ * Creates a table from SMRT schema definition with proper typing
+ *
+ * @param connection - DuckDB connection
+ * @param tableName - Name of the table to create
+ * @param schema - Schema definition from SMRT ObjectRegistry
+ */
+async function createTableFromSmrtSchema(
+  connection: any,
+  tableName: string,
+  schema: SmrtSchemaDefinition,
+): Promise<void> {
+  // Extract CREATE TABLE statement (without triggers which aren't supported)
+  const ddlLines = schema.ddl.split('\n');
+  const createTableEnd = ddlLines.findIndex((line) =>
+    line.trim().startsWith(');'),
+  );
+
+  if (createTableEnd === -1) {
+    throw new DatabaseError('Invalid SMRT schema DDL - no closing parenthesis', {
+      tableName,
+      ddl: schema.ddl,
+    });
+  }
+
+  // Get just the CREATE TABLE statement
+  const createTableSQL = ddlLines.slice(0, createTableEnd + 1).join('\n');
+
+  try {
+    await connection.run(createTableSQL);
+
+    // Create indexes if defined
+    for (const indexSQL of schema.indexes) {
+      try {
+        await connection.run(indexSQL);
+      } catch (error) {
+        // Index creation might fail if column doesn't exist or syntax incompatibility
+        console.warn(`[json-adapter] Failed to create index: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  } catch (error) {
+    throw new DatabaseError('Failed to create table from SMRT schema', {
+      tableName,
+      sql: createTableSQL,
+      originalError: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+/**
+ * Checks if a table name corresponds to a registered SMRT object
+ *
+ * @param tableName - Name of the table to check
+ * @returns True if the table matches a SMRT object's table name
+ */
+async function isSmrtTable(tableName: string): Promise<boolean> {
+  const schema = await getSmrtSchemaForTable(tableName);
+  return schema !== null;
 }
 
 /**
@@ -319,14 +468,43 @@ export async function getDatabase(
     }
 
     const keys = Object.keys(data);
-    const values = Object.values(data);
-    const placeholders = keys.map((_, idx) => `$${idx + 1}`).join(', ');
-    const updateSet = keys
-      .map((key, idx) => `${key} = $${idx + 1}`)
-      .join(', ');
-    const conflict = conflictColumns.join(', ');
+    const dataValues = Object.values(data);
 
-    const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
+    // Separate null and non-null values for DuckDB type inference
+    // Use NULL literals for null values, parameters for non-null values
+    const placeholders: string[] = [];
+    const values: any[] = [];
+    let paramIdx = 1;
+
+    for (const value of dataValues) {
+      if (value === null) {
+        placeholders.push('NULL');
+      } else {
+        placeholders.push(`$${paramIdx}`);
+        values.push(value);
+        paramIdx++;
+      }
+    }
+
+    // Build UPDATE SET clause with same approach
+    // DO NOT reset paramIdx - parameters must be unique across entire query
+    const updateSetParts: string[] = [];
+
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      const value = dataValues[i];
+
+      if (value === null) {
+        updateSetParts.push(`${key} = NULL`);
+      } else {
+        updateSetParts.push(`${key} = $${paramIdx}`);
+        values.push(value);
+        paramIdx++;
+      }
+    }
+
+    const conflict = conflictColumns.join(', ');
+    const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders.join(', ')}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSetParts.join(', ')}`;
 
     try {
       await connection.run(sql, values);
@@ -338,6 +516,15 @@ export async function getDatabase(
 
       return { operation: 'upsert', affected: 1 };
     } catch (e) {
+      // Log detailed error information for debugging
+      console.error('UPSERT failed:', {
+        table,
+        sql,
+        values,
+        valueTypes: values.map((v) => `${typeof v} (${v})`),
+        conflictColumns,
+        error: e instanceof Error ? e.message : String(e),
+      });
       throw new DatabaseError('Failed to upsert record into table', {
         table,
         sql,

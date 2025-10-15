@@ -2,7 +2,7 @@ import { getDatabase, buildWhere, syncSchema } from "@have/sql";
 import { getAI } from "@have/ai";
 import { FilesystemAdapter } from "@have/files";
 import { makeId } from "@have/utils";
-import { O as ObjectRegistry, b as formatDataJs, c as formatDataSql, f as fieldsFromClass, g as generateSchema, t as tableNameFromClass } from "./registry-D4gz_uk4.js";
+import { O as ObjectRegistry, c as formatDataJs, d as formatDataSql, f as fieldsFromClass, g as generateSchema, t as tableNameFromClass } from "./registry-BgJdzGGH.js";
 const DEFAULT_REDACT_KEYS = [
   "password",
   "passwd",
@@ -1359,4 +1359,4 @@ export {
   SMRT_SCHEMA_VERSION as h,
   collection as i
 };
-//# sourceMappingURL=collection-Bh6gqlw1.js.map
+//# sourceMappingURL=collection-DOxCGb3L.js.map

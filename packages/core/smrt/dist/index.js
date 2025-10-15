@@ -1,5 +1,5 @@
-import { a as SmrtClass } from "./chunks/collection-Bh6gqlw1.js";
-import { A, C, e, f, g, h, b, d, S, c } from "./chunks/collection-Bh6gqlw1.js";
+import { a as SmrtClass } from "./chunks/collection-DOxCGb3L.js";
+import { A, C, e, f, g, h, b, d, S, c } from "./chunks/collection-DOxCGb3L.js";
 import { ValidationError, RuntimeError, DatabaseError, ErrorUtils } from "./chunks/errors-Cl0_Kxat.js";
 import { AIError, ConfigurationError, FilesystemError, NetworkError, SmrtError, ValidationReport, ValidationUtils } from "./chunks/errors-Cl0_Kxat.js";
 import { Field } from "./fields.js";
@@ -8,11 +8,11 @@ import { CLIGenerator, main } from "./generators/cli.js";
 import { MCPGenerator } from "./generators/mcp.js";
 import { APIGenerator, createRestServer, startRestServer } from "./generators/rest.js";
 import { generateOpenAPISpec, setupSwaggerUI } from "./generators/swagger.js";
-import { O as ObjectRegistry, f as fieldsFromClass, s as setupTableFromClass, t as tableNameFromClass } from "./chunks/registry-D4gz_uk4.js";
-import { a, a as a2 } from "./chunks/registry-D4gz_uk4.js";
-import { a as a3, c as c2, b as b2 } from "./chunks/server-DwHneUSW.js";
+import { O as ObjectRegistry, f as fieldsFromClass, s as setupTableFromClass, t as tableNameFromClass, a as toSnakeCase } from "./chunks/registry-BgJdzGGH.js";
+import { b as b2, b as b3 } from "./chunks/registry-BgJdzGGH.js";
+import { a, c as c2, b as b4 } from "./chunks/server-DwHneUSW.js";
 import { getManifest } from "./manifest.js";
-import { M, c as c3, a as a4, b as b3, s } from "./chunks/manifest-generator-Bb3IuFsV.js";
+import { M, c as c3, a as a2, b as b5, s } from "./chunks/manifest-generator-Bb3IuFsV.js";
 import { MetricsAdapter } from "./chunks/metrics-JaU-tpt3.js";
 import { PubSubAdapter } from "./chunks/pubsub-BJ1ZU6QU.js";
 import { s as s2 } from "./chunks/index-CoRmHlvP.js";
@@ -443,7 +443,11 @@ class SmrtObject extends SmrtClass {
           error instanceof Error ? error : new Error(String(error))
         );
       }
-      const data = this.toJSON();
+      const jsonData = this.toJSON();
+      const data = {};
+      for (const [key, value] of Object.entries(jsonData)) {
+        data[toSnakeCase(key)] = value;
+      }
       await ErrorUtils.withRetry(
         async () => {
           try {
@@ -1215,10 +1219,10 @@ export {
   boolean,
   c as config,
   c3 as convertTypeToJsonSchema,
-  a3 as createMCPServer,
+  a as createMCPServer,
   createRestServer,
   c2 as createSmrtClient,
-  b2 as createSmrtServer,
+  b4 as createSmrtServer,
   datetime,
   decimal,
   executeToolCall,
@@ -1226,8 +1230,8 @@ export {
   foreignKey,
   formatToolResults,
   generateOpenAPISpec,
-  a4 as generateToolFromMethod,
-  b3 as generateToolManifest,
+  a2 as generateToolFromMethod,
+  b5 as generateToolManifest,
   getManifest,
   integer,
   json,
@@ -1237,9 +1241,9 @@ export {
   oneToMany,
   setupSwaggerUI,
   s as shouldIncludeMethod,
-  a as smrt,
+  b2 as smrt,
   s2 as smrtPlugin,
-  a2 as smrtRegistry,
+  b3 as smrtRegistry,
   startRestServer,
   text,
   validateToolCall

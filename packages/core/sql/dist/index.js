@@ -321,7 +321,7 @@ async function getDatabase(options = {}) {
     return duckdb.getDatabase(options);
   }
   if (options.type === "json") {
-    const json = await import("./chunks/json-CDRL39gd.js");
+    const json = await import("./chunks/json-BHdzDGjq.js");
     return json.getDatabase(options);
   }
   throw new Error("Invalid database type");
