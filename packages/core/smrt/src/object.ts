@@ -468,7 +468,13 @@ export class SmrtObject extends SmrtClass {
 
       // Execute save operation with retry logic for transient failures
       // Use per-adapter upsert method instead of generating SQL
-      const data = this.toJSON();
+      const jsonData = this.toJSON();
+
+      // Convert camelCase keys to snake_case for database columns
+      const data: Record<string, any> = {};
+      for (const [key, value] of Object.entries(jsonData)) {
+        data[toSnakeCase(key)] = value;
+      }
 
       await ErrorUtils.withRetry(
         async () => {

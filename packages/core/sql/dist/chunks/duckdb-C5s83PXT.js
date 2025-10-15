@@ -142,6 +142,29 @@ async function getDatabase(options = {}) {
       });
     }
   };
+  const upsert = async (table2, conflictColumns, data) => {
+    const keys = Object.keys(data);
+    const values = Object.values(data);
+    const placeholders = keys.map((_, idx) => `$${idx + 1}`).join(", ");
+    const updateSet = keys.map((key, idx) => `${key} = $${idx + 1}`).join(", ");
+    const conflict = conflictColumns.join(", ");
+    const sql = `INSERT INTO ${table2} (${keys.join(", ")}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
+    try {
+      await connection.run(sql, values);
+      if (writeStrategy === "immediate") {
+        await exportTableToJSON(connection, table2, dataDir);
+      }
+      return { operation: "upsert", affected: 1 };
+    } catch (e) {
+      throw new DatabaseError("Failed to upsert record into table", {
+        table: table2,
+        sql,
+        values,
+        conflictColumns,
+        originalError: e instanceof Error ? e.message : String(e)
+      });
+    }
+  };
   const getOrInsert = async (table2, where, data) => {
     const result = await get(table2, where);
     if (result) return result;
@@ -299,6 +322,7 @@ async function getDatabase(options = {}) {
       query,
       insert,
       update,
+      upsert,
       get,
       list,
       getOrInsert,
@@ -325,6 +349,7 @@ async function getDatabase(options = {}) {
         get,
         list,
         update,
+        upsert,
         getOrInsert,
         table,
         many,
@@ -353,6 +378,7 @@ async function getDatabase(options = {}) {
     query,
     insert,
     update,
+    upsert,
     get,
     list,
     getOrInsert,
@@ -376,4 +402,4 @@ async function getDatabase(options = {}) {
 export {
   getDatabase
 };
-//# sourceMappingURL=duckdb-BiknJljG.js.map
+//# sourceMappingURL=duckdb-C5s83PXT.js.map

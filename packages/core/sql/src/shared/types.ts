@@ -83,6 +83,14 @@ export interface JSONOptions {
    * @default 'immediate'
    */
   writeStrategy?: 'immediate' | 'manual' | 'none';
+
+  /**
+   * Skip auto-registration for tables that match SMRT object schemas
+   * When true, tables with SMRT schemas will be skipped during autoRegister,
+   * allowing SMRT framework to create them with proper types first.
+   * @default false
+   */
+  skipSmrtTables?: boolean;
 }
 
 /**

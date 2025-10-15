@@ -96,6 +96,26 @@ function getDatabase(options = {}) {
       });
     }
   };
+  const upsert = async (table2, conflictColumns, data) => {
+    const keys = Object.keys(data);
+    const values = Object.values(data);
+    const placeholders = keys.map((_, i) => `$${i + 1}`).join(", ");
+    const updateSet = keys.map((key, i) => `${key} = $${i + 1}`).join(", ");
+    const conflict = conflictColumns.join(", ");
+    const sql = `INSERT INTO ${table2} (${keys.join(", ")}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
+    try {
+      const result = await client.query(sql, values);
+      return { operation: "upsert", affected: result.rowCount ?? 0 };
+    } catch (e) {
+      throw new DatabaseError("Failed to upsert record into table", {
+        table: table2,
+        sql,
+        values,
+        conflictColumns,
+        originalError: e instanceof Error ? e.message : String(e)
+      });
+    }
+  };
   const getOrInsert = async (table2, where, data) => {
     const result = await get(table2, where);
     if (result) return result;
@@ -299,6 +319,16 @@ function getDatabase(options = {}) {
           const result2 = await txClient.query(sql, [...values, ...whereValues]);
           return { operation: "update", affected: result2.rowCount ?? 0 };
         },
+        upsert: async (table2, conflictColumns, data) => {
+          const keys = Object.keys(data);
+          const values = Object.values(data);
+          const placeholders = keys.map((_, i) => `$${i + 1}`).join(", ");
+          const updateSet = keys.map((key, i) => `${key} = $${i + 1}`).join(", ");
+          const conflict = conflictColumns.join(", ");
+          const sql = `INSERT INTO ${table2} (${keys.join(", ")}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
+          const result2 = await txClient.query(sql, values);
+          return { operation: "upsert", affected: result2.rowCount ?? 0 };
+        },
         getOrInsert: async (table2, where, data) => {
           const result2 = await txDb.get(table2, where);
           if (result2) return result2;
@@ -391,6 +421,7 @@ function getDatabase(options = {}) {
       client,
       insert,
       update,
+      upsert,
       get,
       getOrInsert,
       list,
@@ -414,6 +445,7 @@ function getDatabase(options = {}) {
     client,
     insert,
     update,
+    upsert,
     get,
     getOrInsert,
     list,
@@ -436,4 +468,4 @@ function getDatabase(options = {}) {
 export {
   getDatabase
 };
-//# sourceMappingURL=postgres-C9DnNIn1.js.map
+//# sourceMappingURL=postgres-B7IAgBFj.js.map
