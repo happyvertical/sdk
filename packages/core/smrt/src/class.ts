@@ -207,11 +207,12 @@ export class SmrtClass {
     }
 
     // Record current schema version
+    const id = crypto.randomUUID();
     const version = SMRT_SCHEMA_VERSION;
     const description = 'Initial SMRT system tables';
     await this._db.execute`
-      INSERT OR IGNORE INTO _smrt_migrations (version, description)
-      VALUES (${version}, ${description})
+      INSERT OR IGNORE INTO _smrt_migrations (id, version, description)
+      VALUES (${id}, ${version}, ${description})
     `;
 
     // Mark this database as initialized
