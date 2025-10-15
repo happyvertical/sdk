@@ -212,12 +212,6 @@ export declare class SmrtCollection<ModelType extends SmrtObject> extends SmrtCl
      */
     generateSchema(): string;
     /**
-     * Sets up database triggers for automatically updating timestamps
-     *
-     * @returns Promise that resolves when triggers are set up
-     */
-    setupTriggers(): Promise<void>;
-    /**
      * Gets the database table name for this collection
      */
     get tableName(): string;

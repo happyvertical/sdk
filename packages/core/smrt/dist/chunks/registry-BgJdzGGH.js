@@ -175,28 +175,6 @@ CREATE INDEX IF NOT EXISTS ${tableName}_slug_context_idx ON ${tableName} (slug, 
   }
   return schema;
 }
-function generateTriggerDefinitions(tableName, primaryKeyColumn = "id") {
-  return [
-    {
-      name: `${tableName}_set_created_at`,
-      when: "AFTER",
-      event: "INSERT",
-      tableName,
-      condition: "NEW.created_at IS NULL",
-      body: `UPDATE ${tableName} SET created_at = datetime('now'), updated_at = datetime('now') WHERE ${primaryKeyColumn} = NEW.${primaryKeyColumn};`,
-      description: "Automatically set created_at and updated_at on insert when created_at is null"
-    },
-    {
-      name: `${tableName}_set_updated_at`,
-      when: "AFTER",
-      event: "UPDATE",
-      tableName,
-      condition: "NEW.updated_at = OLD.updated_at",
-      body: `UPDATE ${tableName} SET updated_at = datetime('now') WHERE ${primaryKeyColumn} = NEW.${primaryKeyColumn};`,
-      description: "Automatically update updated_at on row updates when unchanged"
-    }
-  ];
-}
 function tableNameFromClass(ClassType) {
   return ClassType.name.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase().replace(/([^s])$/, "$1s").replace(/y$/, "ies");
 }
@@ -225,62 +203,12 @@ async function setupTableFromClass(db, ClassType) {
         }
       }
       await syncSchema({ db, schema });
-      await setupTriggers(db, tableName, primaryKeyColumn);
     } catch (error) {
       _setup_table_from_class_promises[tableName] = null;
       throw error;
     }
   })();
   return _setup_table_from_class_promises[tableName];
-}
-async function setupTriggers(db, tableName, primaryKeyColumn = "id") {
-  const triggers = [
-    `${tableName}_set_created_at`,
-    `${tableName}_set_updated_at`
-  ];
-  const tableExists = await db.tableExists(tableName);
-  if (!tableExists) {
-    console.warn(
-      `[smrt] Skipping trigger creation - table ${tableName} does not exist`
-    );
-    return;
-  }
-  for (const trigger of triggers) {
-    const exists = await db.pluck`SELECT name FROM sqlite_master WHERE type='trigger' AND name=${trigger}`;
-    if (!exists) {
-      try {
-        if (trigger === `${tableName}_set_created_at`) {
-          const createTriggerSQL = `
-            CREATE TRIGGER ${trigger}
-            AFTER INSERT ON ${tableName}
-            FOR EACH ROW
-            WHEN NEW.created_at IS NULL
-            BEGIN
-              UPDATE ${tableName}
-              SET created_at = datetime('now'), updated_at = datetime('now')
-              WHERE ${primaryKeyColumn} = NEW.${primaryKeyColumn};
-            END;
-          `;
-          await db.query(createTriggerSQL);
-        } else if (trigger === `${tableName}_set_updated_at`) {
-          const createTriggerSQL = `
-            CREATE TRIGGER ${trigger}
-            AFTER UPDATE ON ${tableName}
-            FOR EACH ROW
-            WHEN NEW.updated_at = OLD.updated_at
-            BEGIN
-              UPDATE ${tableName}
-              SET updated_at = datetime('now')
-              WHERE ${primaryKeyColumn} = NEW.${primaryKeyColumn};
-            END;
-          `;
-          await db.query(createTriggerSQL);
-        }
-      } catch (error) {
-        console.warn(`[smrt] Failed to create trigger ${trigger}:`, error);
-      }
-    }
-  }
 }
 function formatDataJs(data) {
   const normalizedData = {};
@@ -335,7 +263,6 @@ class ObjectRegistry {
     const fields = ObjectRegistry.extractFields(ctor);
     const tableName = tableNameFromClass(ctor);
     const schemaDDL = generateSchema(ctor);
-    const triggerDefs = generateTriggerDefinitions(tableName);
     const indexes = [];
     const ddlLines = schemaDDL.split("\n");
     const tableEndIndex = ddlLines.findIndex((line) => line.includes(");"));
@@ -348,7 +275,8 @@ class ObjectRegistry {
     const schema = {
       ddl: schemaDDL,
       indexes,
-      triggers: triggerDefs,
+      triggers: [],
+      // No longer using database triggers - timestamps managed by application
       tableName
     };
     const validators = ObjectRegistry.compileValidators(name, fields);
@@ -515,7 +443,7 @@ class ObjectRegistry {
     }
     let collectionConstructor = registered.collectionConstructor;
     if (!collectionConstructor) {
-      const { SmrtCollection: SmrtCollectionClass } = await import("./collection-CBZZu_c7.js").then((n) => n.i);
+      const { SmrtCollection: SmrtCollectionClass } = await import("./collection-DOxCGb3L.js").then((n) => n.i);
       class DefaultCollection extends SmrtCollectionClass {
         static _itemClass = registered.constructor;
       }
@@ -1159,10 +1087,8 @@ export {
   dateAsString as j,
   keysToSnakeCase as k,
   dateAsObject as l,
-  generateTriggerDefinitions as m,
-  classnameToTablename as n,
-  setupTriggers as o,
+  classnameToTablename as m,
   setupTableFromClass as s,
   tableNameFromClass as t
 };
-//# sourceMappingURL=registry-oaHyPj_D.js.map
+//# sourceMappingURL=registry-BgJdzGGH.js.map

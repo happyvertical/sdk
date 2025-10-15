@@ -1,3 +1,5 @@
+# [0.34.0](https://github.com/happyvertical/sdk/compare/v0.33.0...v0.34.0) (2025-10-15)
+
 # [0.33.0](https://github.com/happyvertical/sdk/compare/v0.32.2...v0.33.0) (2025-10-15)
 
 
