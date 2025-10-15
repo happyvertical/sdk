@@ -1,7 +1,6 @@
 // import type { AIMessageOptions } from '@have/ai';
 
 import type { AITool } from '@have/ai';
-import { escapeSqlValue } from '@have/sql';
 import type { SmrtClassOptions } from './class';
 import { SmrtClass } from './class';
 import {
@@ -369,50 +368,6 @@ export class SmrtObject extends SmrtClass {
     return data;
   }
 
-  /**
-   * Generates an SQL UPSERT statement for saving this object to the database
-   * Converts camelCase property names to snake_case column names
-   *
-   * @returns SQL statement for inserting or updating this object
-   */
-  generateUpsertStatement() {
-    const fields = this.getFields();
-    const columns = ['id', 'slug', 'context'];
-    const id = escapeSqlValue(this.id) || '';
-    const slug = escapeSqlValue(this.slug);
-    const context = escapeSqlValue(this.context || '');
-    const values = [id, slug, context];
-    const updates = [`slug = ${slug}`, `context = ${context}`];
-
-    for (const [key, field] of Object.entries(fields)) {
-      if (key === 'slug' || key === 'context') continue;
-
-      // Convert camelCase property name to snake_case column name
-      const columnName = toSnakeCase(key);
-      columns.push(columnName);
-
-      const value =
-        typeof field.value === 'boolean' ? (field.value ? 1 : 0) : field.value;
-
-      const escapedValue = escapeSqlValue(value);
-
-      values.push(escapedValue);
-      updates.push(`${columnName} = ${escapedValue}`);
-    }
-
-    // Use UPSERT syntax with explicit ON CONFLICT handling
-    const sql = `
-      INSERT INTO ${this.tableName} (${columns.join(', ')})
-      VALUES (${values.join(', ')})
-      ON CONFLICT(slug, context)
-      WHERE slug = ${slug} AND context = ${context}
-      DO UPDATE SET
-        ${updates.join(',\n        ')}
-      WHERE ${this.tableName}.slug = ${slug} AND ${this.tableName}.context = ${context};
-    `;
-
-    return sql;
-  }
 
   /**
    * Gets or generates a unique ID for this object
@@ -512,12 +467,13 @@ export class SmrtObject extends SmrtClass {
       }
 
       // Execute save operation with retry logic for transient failures
-      const sql = this.generateUpsertStatement();
+      // Use per-adapter upsert method instead of generating SQL
+      const data = this.toJSON();
 
       await ErrorUtils.withRetry(
         async () => {
           try {
-            await this.db.query(sql);
+            await this.db.upsert(this.tableName, ['slug', 'context'], data);
           } catch (error) {
             // Detect specific database error types
             if (error instanceof Error) {
@@ -535,7 +491,10 @@ export class SmrtObject extends SmrtClass {
                   this.constructor.name,
                 );
               }
-              throw DatabaseError.queryFailed(sql, error);
+              throw DatabaseError.queryFailed(
+                `UPSERT INTO ${this.tableName}`,
+                error,
+              );
             }
             throw error;
           }

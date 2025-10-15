@@ -1,5 +1,5 @@
 import { PostgresOptions } from './postgres';
-import { DatabaseInterface, DuckDBOptions } from './shared/types';
+import { DatabaseInterface, DuckDBOptions, JSONOptions } from './shared/types';
 import { SqliteOptions } from './sqlite';
 import { buildWhere } from './shared/utils';
 /**
@@ -11,7 +11,7 @@ type GetDatabaseOptions = (PostgresOptions & {
     type?: 'sqlite';
 }) | (DuckDBOptions & {
     type?: 'duckdb';
-});
+}) | JSONOptions;
 /**
  * Creates a database connection based on the provided options, or returns an existing database instance
  *

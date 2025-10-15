@@ -320,6 +320,10 @@ async function getDatabase(options = {}) {
     const duckdb = await import("./chunks/duckdb-BiknJljG.js");
     return duckdb.getDatabase(options);
   }
+  if (options.type === "json") {
+    const json = await import("./chunks/json-De9Nj7Kj.js");
+    return json.getDatabase(options);
+  }
   throw new Error("Invalid database type");
 }
 async function syncSchema(options) {

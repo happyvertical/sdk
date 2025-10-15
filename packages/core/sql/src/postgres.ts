@@ -224,6 +224,44 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
   };
 
   /**
+   * Inserts a record or updates it if it already exists (UPSERT)
+   *
+   * @param table - Table name
+   * @param conflictColumns - Columns that define the uniqueness constraint
+   * @param data - Data to insert or update
+   * @returns Promise resolving to operation result
+   * @throws Error if the upsert operation fails
+   */
+  const upsert = async (
+    table: string,
+    conflictColumns: string[],
+    data: Record<string, any>,
+  ): Promise<BaseQueryResult> => {
+    const keys = Object.keys(data);
+    const values = Object.values(data);
+    const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+    const updateSet = keys
+      .map((key, i) => `${key} = $${i + 1}`)
+      .join(', ');
+    const conflict = conflictColumns.join(', ');
+
+    const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
+
+    try {
+      const result = await client.query(sql, values);
+      return { operation: 'upsert', affected: result.rowCount ?? 0 };
+    } catch (e) {
+      throw new DatabaseError('Failed to upsert record into table', {
+        table,
+        sql,
+        values,
+        conflictColumns,
+        originalError: e instanceof Error ? e.message : String(e),
+      });
+    }
+  };
+
+  /**
    * Gets a record matching the where criteria or inserts it if not found
    *
    * @param table - Table name
@@ -591,6 +629,18 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
           const result = await txClient.query(sql, [...values, ...whereValues]);
           return { operation: 'update', affected: result.rowCount ?? 0 };
         },
+        upsert: async (table, conflictColumns, data) => {
+          const keys = Object.keys(data);
+          const values = Object.values(data);
+          const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+          const updateSet = keys
+            .map((key, i) => `${key} = $${i + 1}`)
+            .join(', ');
+          const conflict = conflictColumns.join(', ');
+          const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
+          const result = await txClient.query(sql, values);
+          return { operation: 'upsert', affected: result.rowCount ?? 0 };
+        },
         getOrInsert: async (table, where, data) => {
           const result = await txDb.get(table, where);
           if (result) return result;
@@ -696,6 +746,7 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
       client,
       insert,
       update,
+      upsert,
       get,
       getOrInsert,
       list,
@@ -721,6 +772,7 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
     client,
     insert,
     update,
+    upsert,
     get,
     getOrInsert,
     list,
