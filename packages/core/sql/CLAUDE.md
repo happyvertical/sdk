@@ -83,7 +83,96 @@ const dbFromUrl = await getDatabase({
   type: 'postgres',
   url: 'postgresql://user:pass@localhost:5432/dbname'
 });
+
+// Create a JSON database adapter (DuckDB-backed, in-memory)
+// Uses JSON files as data source, no WAL files or persistent DB files
+const jsonDb = await getDatabase({
+  type: 'json',
+  dataDir: './data',           // Directory with JSON files (required)
+  writeStrategy: 'immediate',  // Auto-save changes to JSON (default)
+  autoRegister: true           // Load all JSON files as tables (default)
+});
 ```
+
+### JSON Adapter (DuckDB-backed)
+
+The JSON adapter provides SQL query capabilities over JSON files using DuckDB's in-memory engine. It's ideal for:
+- Local-first applications with JSON as the source of truth
+- Development and testing with JSON fixtures
+- Avoiding WAL files and persistent database files
+- Simple data management with full SQL capabilities
+
+**Key Features**:
+- ✅ **No WAL files** - Everything in-memory, no write-ahead logs
+- ✅ **No persistent DB files** - JSON files are the only persistent storage
+- ✅ **Full SQL support** - All DuckDB SQL features available
+- ✅ **Automatic schema inference** - DuckDB infers schema from JSON
+- ✅ **Index support** - Can create indexes on tables (unlike views)
+- ✅ **SMRT framework compatible** - Works with automatic table creation
+
+**Usage Example**:
+```typescript
+import { getDatabase } from '@have/sql';
+
+// Create JSON database
+const db = await getDatabase({
+  type: 'json',
+  dataDir: './data',          // JSON files location
+  writeStrategy: 'immediate'  // Auto-save after every change
+});
+
+// JSON files become queryable tables
+// ./data/users.json → users table
+// ./data/posts.json → posts table
+
+// Query JSON data with SQL
+const activeUsers = await db.many`
+  SELECT * FROM users
+  WHERE status = 'active'
+  ORDER BY created_at DESC
+`;
+
+// Writes update JSON files (based on writeStrategy)
+await db.insert('users', {
+  id: '123',
+  name: 'Alice',
+  email: 'alice@example.com',
+  status: 'active'
+});
+// → ./data/users.json updated with new record
+
+// Export table manually (for 'manual' write strategy)
+await db.exportTable('users');
+```
+
+**Write Strategies**:
+- `'immediate'` (default) - Auto-save after every insert/update
+- `'manual'` - Require explicit `exportTable()` calls
+- `'none'` - Read-only mode (throws error on writes)
+
+**Startup Behavior**:
+1. Creates data directory if it doesn't exist
+2. Scans for `*.json` files in `dataDir`
+3. Loads each JSON file as an in-memory table
+4. Schema auto-inferred from JSON structure
+5. Tables ready for SQL queries
+
+**Comparison with DuckDB Adapter**:
+
+| Feature | JSON Adapter | DuckDB Adapter |
+|---------|-------------|----------------|
+| Database file | None (in-memory only) | Configurable (file or :memory:) |
+| WAL files | Never created | Created for persistent DBs |
+| JSON handling | Creates tables | Creates views |
+| Index support | ✅ Yes (on tables) | ❌ No (views can't have indexes) |
+| Write strategy | Configurable | Configurable |
+| Use case | JSON-first apps | DuckDB-first apps |
+
+**Limitations**:
+- ⚠️ **Memory usage** - All data loaded into RAM
+- ⚠️ **Single-process** - No concurrent writes across processes
+- ⚠️ **Full table exports** - Entire table written to JSON on changes
+- ⚠️ **Startup time** - Proportional to JSON file sizes
 
 ### Template Literal Queries (Recommended)
 

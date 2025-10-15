@@ -46,10 +46,6 @@ export declare class RuntimeSchemaManager {
      */
     private createIndex;
     /**
-     * Create trigger from definition
-     */
-    private createTrigger;
-    /**
      * Update schema if changes are detected
      */
     private updateSchemaIfNeeded;

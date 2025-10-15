@@ -1,5 +1,5 @@
 import type { PostgresOptions } from './postgres';
-import type { DatabaseInterface, DuckDBOptions } from './shared/types';
+import type { DatabaseInterface, DuckDBOptions, JSONOptions } from './shared/types';
 import type { SqliteOptions } from './sqlite';
 
 /**
@@ -8,7 +8,8 @@ import type { SqliteOptions } from './sqlite';
 type GetDatabaseOptions =
   | (PostgresOptions & { type?: 'postgres' })
   | (SqliteOptions & { type?: 'sqlite' })
-  | (DuckDBOptions & { type?: 'duckdb' });
+  | (DuckDBOptions & { type?: 'duckdb' })
+  | JSONOptions;
 
 /**
  * Checks if the provided value is a database instance rather than configuration options
@@ -60,6 +61,10 @@ export async function getDatabase(
   if (options.type === 'duckdb') {
     const duckdb = await import('./duckdb.js');
     return duckdb.getDatabase(options as DuckDBOptions);
+  }
+  if (options.type === 'json') {
+    const json = await import('./json.js');
+    return json.getDatabase(options as JSONOptions);
   }
   throw new Error('Invalid database type');
 }
