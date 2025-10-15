@@ -112,30 +112,6 @@ export declare function fieldsFromClass(ClassType: new (...args: any[]) => any, 
  */
 export declare function generateSchema(ClassType: new (...args: any[]) => any): string;
 /**
- * Generates trigger definitions for automatic timestamp management
- *
- * @param tableName - Name of the table to create triggers for
- * @param primaryKeyColumn - Name of the primary key column (default: 'id')
- * @returns Array of trigger definitions compatible with RuntimeSchemaManager
- */
-export declare function generateTriggerDefinitions(tableName: string, primaryKeyColumn?: string): ({
-    name: string;
-    when: "AFTER";
-    event: "INSERT";
-    tableName: string;
-    condition: string;
-    body: string;
-    description: string;
-} | {
-    name: string;
-    when: "AFTER";
-    event: "UPDATE";
-    tableName: string;
-    condition: string;
-    body: string;
-    description: string;
-})[];
-/**
  * Generates a table name from a class constructor
  *
  * @param ClassType - Class constructor or function
@@ -167,14 +143,6 @@ export declare function classnameToTablename(className: string): string;
  * ```
  */
 export declare function setupTableFromClass(db: any, ClassType: any): Promise<void | null>;
-/**
- * Sets up database triggers for automatic timestamp updates
- *
- * @param db - Database connection
- * @param tableName - Name of the table to set up triggers for
- * @returns Promise that resolves when triggers are set up
- */
-export declare function setupTriggers(db: any, tableName: string, primaryKeyColumn?: string): Promise<void>;
 /**
  * Formats data for JavaScript by converting date strings to Date objects
  * and snake_case column names to camelCase properties
