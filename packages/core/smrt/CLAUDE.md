@@ -5,7 +5,7 @@
 The `@have/smrt` package is the core framework for building vertical AI agents in the HAVE SDK. It provides a comprehensive foundation for creating intelligent agents with persistent storage, cross-package integration, and automatic code generation capabilities.
 
 ### Core Framework Architecture
-- **Object-Relational Mapping**: Automatic schema generation from TypeScript class properties with database triggers
+- **Object-Relational Mapping**: Automatic schema generation from TypeScript class properties with application-level timestamp management
 - **AI-First Design**: Built-in `is()` and `do()` methods for AI-powered validation and operations
 - **Collection Management**: Standardized CRUD operations with flexible querying (operators: =, >, <, >=, <=, !=, in, like)
 - **Error Handling System**: Comprehensive error types (DatabaseError, ValidationError, AIError, etc.) with retry logic
@@ -289,8 +289,8 @@ Core Properties:
 - `slug: string` - URL-friendly identifier (auto-generated from name, or ID as fallback if name not provided)
 - `context: string` - Optional context to scope the slug (enables multiple objects with same slug in different contexts)
 - `name: string` - Human-readable name, primarily for display (optional - ID will be used for slug if omitted)
-- `created_at: Date` - Creation timestamp (auto-managed by database trigger)
-- `updated_at: Date` - Last update timestamp (auto-managed by database trigger)
+- `created_at: Date` - Creation timestamp (auto-managed by application on first save)
+- `updated_at: Date` - Last update timestamp (auto-managed by application on each save)
 
 Key Methods:
 - `save()` - Saves object to database with UPSERT on (slug, context) constraint
@@ -306,6 +306,12 @@ Key Methods:
 - `number` → INTEGER
 - `Date` → DATETIME
 - Properties ending with `_at` or `_date` → DATETIME
+
+**Timestamp Management**:
+- `created_at` and `updated_at` are automatically set by the `save()` method
+- `created_at` is set only on the first save (when the field is null/undefined)
+- `updated_at` is set on every save
+- Timestamps are managed at the application level for database-agnostic compatibility
 
 **Lifecycle Hooks** (via ObjectRegistry):
 - `beforeSave`, `afterSave`, `beforeDelete`, `afterDelete`
@@ -332,7 +338,7 @@ Key Methods:
 - `create(options)` - Creates new object instance (automatically calls initialize())
 - `getOrUpsert(data, defaults)` - Gets existing or creates new object
 - `count(options)` - Counts records matching filters
-- `setupDb()` - Sets up database schema, triggers, and indexes (called automatically during initialize)
+- `setupDb()` - Sets up database schema and indexes (called automatically during initialize)
 
 **Advanced Querying** (list method):
 Supports operators in field names:
@@ -359,7 +365,7 @@ await collection.list({
 **Schema Management**:
 - Automatic table creation with proper indexes
 - Composite unique constraint on (slug, context)
-- Automatic timestamp triggers (created_at, updated_at)
+- Application-level timestamp management (created_at, updated_at set during save())
 - Deferred setup with promise caching to avoid race conditions
 
 #### Eager Loading and N+1 Query Prevention (Phase 5)
@@ -1977,7 +1983,7 @@ class Product extends SmrtObject {
 class Event extends SmrtObject {
   start_date = new Date(); // → DATETIME column
   end_date = new Date();   // → DATETIME column
-  created_at = new Date(); // → DATETIME column (also auto-managed by trigger)
+  created_at = new Date(); // → DATETIME column (auto-managed by save() method)
 }
 ```
 

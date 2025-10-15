@@ -166,7 +166,7 @@ export class RuntimeSchemaManager {
     schema: SchemaDefinition,
     options: { force?: boolean; debug?: boolean },
   ): Promise<void> {
-    const { tableName, columns, indexes, triggers } = schema;
+    const { tableName, columns, indexes } = schema;
 
     if (options.debug) {
       console.log(`[schema] Initializing ${schemaName} (${tableName})`);
@@ -183,11 +183,6 @@ export class RuntimeSchemaManager {
       for (const index of indexes) {
         await this.createIndex(db, tableName, index);
       }
-
-      // Create triggers
-      for (const trigger of triggers) {
-        await this.createTrigger(db, trigger);
-      }
     } else if (options.force) {
       // Recreate table if forced
       await db.query(`DROP TABLE IF EXISTS ${tableName}`);
@@ -195,10 +190,6 @@ export class RuntimeSchemaManager {
 
       for (const index of indexes) {
         await this.createIndex(db, tableName, index);
-      }
-
-      for (const trigger of triggers) {
-        await this.createTrigger(db, trigger);
       }
     } else {
       // Table exists, check for schema changes
@@ -259,41 +250,6 @@ export class RuntimeSchemaManager {
     await db.query(createIndexSQL);
   }
 
-  /**
-   * Create trigger from definition
-   */
-  private async createTrigger(
-    db: DatabaseInterface,
-    trigger: any,
-  ): Promise<void> {
-    try {
-      // Check if trigger already exists
-      const exists =
-        await db.pluck`SELECT name FROM sqlite_master WHERE type='trigger' AND name=${trigger.name}`;
-      if (exists) {
-        return; // Skip if trigger already exists
-      }
-
-      const conditionClause = trigger.condition
-        ? ` WHEN ${trigger.condition}`
-        : '';
-      const forEachRowClause =
-        trigger.when !== 'INSTEAD OF' ? ' FOR EACH ROW' : '';
-
-      // Extract table name from trigger definition or use provided tableName
-      const tableName =
-        trigger.tableName ||
-        trigger.name.split('_').slice(0, -3).join('_') ||
-        'unknown';
-
-      const createTriggerSQL = `CREATE TRIGGER ${trigger.name} ${trigger.when} ${trigger.event} ON ${tableName}${forEachRowClause}${conditionClause} BEGIN ${trigger.body} END`;
-
-      await db.query(createTriggerSQL);
-    } catch (error) {
-      console.warn(`[schema] Failed to create trigger ${trigger.name}:`, error);
-      // Continue with other triggers instead of failing completely
-    }
-  }
 
   /**
    * Update schema if changes are detected

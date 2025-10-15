@@ -634,7 +634,6 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
           schema,
         );
         await syncSchema({ db: this.db, schema });
-        await this.setupTriggers();
       } catch (error) {
         this._db_setup_promise = null; // Allow retry on failure
         throw error;
@@ -665,65 +664,6 @@ export class SmrtCollection<ModelType extends SmrtObject> extends SmrtClass {
     return generateSchema(this._itemClass);
   }
 
-  /**
-   * Sets up database triggers for automatically updating timestamps
-   *
-   * @returns Promise that resolves when triggers are set up
-   */
-  async setupTriggers() {
-    const triggers = [
-      `${this.tableName}_set_created_at`,
-      `${this.tableName}_set_updated_at`,
-    ];
-
-    // Check if table exists before creating triggers
-    const tableExists = await this.db.tableExists(this.tableName);
-    if (!tableExists) {
-      console.warn(
-        `[smrt] Skipping trigger creation - table ${this.tableName} does not exist`,
-      );
-      return;
-    }
-
-    for (const trigger of triggers) {
-      const exists = await this.db
-        .pluck`SELECT name FROM sqlite_master WHERE type='trigger' AND name=${trigger}`;
-      if (!exists) {
-        try {
-          if (trigger === `${this.tableName}_set_created_at`) {
-            const createTriggerSQL = `
-              CREATE TRIGGER ${trigger}
-              AFTER INSERT ON ${this.tableName}
-              FOR EACH ROW
-              WHEN NEW.created_at IS NULL
-              BEGIN
-                UPDATE ${this.tableName}
-                SET created_at = datetime('now'), updated_at = datetime('now')
-                WHERE id = NEW.id;
-              END;
-            `;
-            await this.db.query(createTriggerSQL);
-          } else if (trigger === `${this.tableName}_set_updated_at`) {
-            const createTriggerSQL = `
-              CREATE TRIGGER ${trigger}
-              AFTER UPDATE ON ${this.tableName}
-              FOR EACH ROW
-              WHEN NEW.updated_at = OLD.updated_at
-              BEGIN
-                UPDATE ${this.tableName}
-                SET updated_at = datetime('now')
-                WHERE id = NEW.id;
-              END;
-            `;
-            await this.db.query(createTriggerSQL);
-          }
-        } catch (error) {
-          console.warn(`[smrt] Failed to create trigger ${trigger}:`, error);
-          // Continue with other triggers instead of failing completely
-        }
-      }
-    }
-  }
 
   /**
    * Gets the database table name for this collection
