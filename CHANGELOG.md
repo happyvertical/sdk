@@ -1,3 +1,10 @@
+# [0.36.0](https://github.com/happyvertical/sdk/compare/v0.35.0...v0.36.0) (2025-10-15)
+
+
+### Features
+
+* **sql:** add per-adapter upsert() method to fix DuckDB compatibility ([f817d81](https://github.com/happyvertical/sdk/commit/f817d81e15beccbe0c99d9c1fd4521d7ebb09d98)), closes [#226](https://github.com/happyvertical/sdk/issues/226) [#226](https://github.com/happyvertical/sdk/issues/226) [#226](https://github.com/happyvertical/sdk/issues/226)
+
 # [0.35.0](https://github.com/happyvertical/sdk/compare/v0.34.0...v0.35.0) (2025-10-15)
 
 

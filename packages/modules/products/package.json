@@ -1,6 +1,6 @@
 {
   "name": "@have/products",
-  "version": "0.34.0",
+  "version": "0.35.0",
   "description": "SMRT products module: triple-purpose microservice template for standalone apps, federated modules, and NPM libraries",
   "author": "Will Griffin <willgriffin@gmail.com>",
   "type": "module",
