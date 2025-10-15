@@ -174,6 +174,133 @@ await db.exportTable('users');
 - ⚠️ **Full table exports** - Entire table written to JSON on changes
 - ⚠️ **Startup time** - Proportional to JSON file sizes
 
+#### SMRT Framework Integration
+
+The JSON adapter integrates with the SMRT framework to solve type inference issues when JSON files contain empty strings or null values. This fixes **Issue #228** where DuckDB's auto-detection would infer columns as `ANY` type, causing UPSERT operations to fail.
+
+**Problem Scenario** (without SMRT integration):
+```json
+// data/organizations.json
+[
+  {
+    "id": "123",
+    "slug": "town-of-bentley",
+    "context": "",
+    "name": "town-of-bentley",
+    "url": "",           // Empty string - DuckDB infers as ANY type
+    "meetings_url": "",  // Empty string - DuckDB infers as ANY type
+    "location": "",
+    "timezone": ""
+  }
+]
+```
+
+Without SMRT integration, DuckDB's `auto_detect=true` creates columns as `ANY` type, and subsequent UPSERT operations fail with:
+```
+Error: Cannot create values of type ANY. Specify a specific type.
+```
+
+**Solution with SMRT Integration**:
+```typescript
+import { smrt, SmrtObject } from '@have/smrt';
+import { text } from '@have/smrt/fields';
+import { getDatabase } from '@have/sql';
+
+// 1. Define SMRT object BEFORE initializing database
+@smrt()
+class Organization extends SmrtObject {
+  name = text({ required: true });
+  url = text();
+  meetings_url = text();
+  location = text();
+  timezone = text();
+}
+
+// Register the SMRT object (happens automatically with @smrt decorator)
+// This makes the schema available to the JSON adapter
+
+// 2. Initialize JSON adapter - it will check for SMRT schemas
+const db = await getDatabase({
+  type: 'json',
+  dataDir: './data',
+  writeStrategy: 'immediate',
+  // autoRegister defaults to true - will use SMRT schemas when found
+});
+
+// 3. Tables are created with proper types from SMRT schema
+// - ObjectRegistry lookup: data/organizations.json → 'organizations' table → Organization class
+// - Schema extraction: Gets CREATE TABLE statement from SMRT
+// - Table creation: Uses TEXT types instead of ANY
+// - Data loading: JSON data inserted into properly-typed table
+
+// 4. UPSERT operations now work correctly
+const org = new Organization({
+  slug: 'another-org',
+  context: '',
+  name: 'Another Organization',
+  url: 'https://example.com',
+  meetings_url: 'https://example.com/meetings',
+  location: 'Some Location',
+  timezone: 'America/Denver'
+});
+
+await org.save(); // Uses db.upsert() with properly-typed columns
+```
+
+**How It Works**:
+1. **Schema Lookup**: `getSmrtSchemaForTable(tableName)` checks ObjectRegistry for matching SMRT object
+2. **Table Creation**: `createTableFromSmrtSchema()` creates table with proper SQL types (TEXT, INTEGER, etc.)
+3. **Data Loading**: JSON data inserted into properly-typed table using INSERT INTO ... SELECT FROM read_json()
+4. **Fallback**: Non-SMRT tables use DuckDB auto-detection as before
+
+**Configuration Options**:
+```typescript
+// Option 1: Default behavior (recommended)
+// JSON adapter uses SMRT schemas when available, falls back to auto-detection
+const db = await getDatabase({
+  type: 'json',
+  dataDir: './data',
+  autoRegister: true  // Load all JSON files
+});
+
+// Option 2: Skip SMRT tables
+// Let SMRT framework create tables first, then load JSON data
+const db = await getDatabase({
+  type: 'json',
+  dataDir: './data',
+  autoRegister: true,
+  skipSmrtTables: true  // Skip tables with SMRT schemas
+});
+
+// Option 3: Manual table creation
+// Disable auto-registration entirely
+const db = await getDatabase({
+  type: 'json',
+  dataDir: './data',
+  autoRegister: false  // Don't auto-load JSON files
+});
+// Then manually create tables via SMRT or SQL
+```
+
+**Best Practices**:
+1. **Register SMRT objects before database initialization**
+2. **Use descriptive field types** to generate proper SQL schemas
+3. **Test with empty/null initial data** to ensure type inference works
+4. **Use autoRegister: true** (default) for seamless integration
+5. **Use skipSmrtTables: false** (default) unless you need SMRT to create tables first
+
+**Limitations**:
+- Only works when SMRT objects are registered before database initialization
+- Table names must match SMRT object table names (pluralized snake_case)
+- JSON files must be named to match table names (e.g., `organizations.json` → `organizations` table)
+
+**Debugging**:
+```typescript
+// Enable console logging to see SMRT schema detection
+// Look for: "[json-adapter] Creating {table} with SMRT schema definition"
+// Or: "[json-adapter] Skipping {table} - will be created by SMRT framework"
+```
+
 ### Template Literal Queries (Recommended)
 
 Template literal queries provide safe parameter binding with an intuitive syntax. The package automatically handles database-specific placeholder formats.
