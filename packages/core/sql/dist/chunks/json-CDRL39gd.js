@@ -1,34 +1,42 @@
 import { DatabaseError } from "@have/utils";
 import { DatabaseSchemaManager, buildWhere } from "../index.js";
-import { readdir } from "node:fs/promises";
+import { mkdir, readdir } from "node:fs/promises";
 import { extname, join, basename } from "node:path";
-async function createDuckDBConnection(options) {
+async function createJSONConnection(options) {
   const {
-    url = ":memory:",
-    dataDir = "./data",
-    autoRegisterJSON = true
+    dataDir,
+    autoRegister = true
   } = options;
+  if (!dataDir) {
+    throw new DatabaseError("dataDir is required for JSON adapter", {
+      options
+    });
+  }
   try {
     const duckdbModule = "@duckdb/node-api";
     const { DuckDBInstance } = await import(
       /* @vite-ignore */
       duckdbModule
     );
-    const instance = await DuckDBInstance.create(url);
+    const instance = await DuckDBInstance.create(":memory:");
     const connection = await instance.connect();
-    if (autoRegisterJSON && dataDir) {
-      await registerJSONFiles(connection, dataDir);
+    try {
+      await mkdir(dataDir, { recursive: true });
+    } catch (error) {
+    }
+    if (autoRegister) {
+      await loadJSONTables(connection, dataDir);
     }
     return connection;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    throw new DatabaseError(`Failed to create DuckDB connection: ${errorMessage}`, {
-      url,
+    throw new DatabaseError(`Failed to create JSON database connection: ${errorMessage}`, {
+      dataDir,
       originalError: errorMessage
     });
   }
 }
-async function registerJSONFiles(connection, dataDir) {
+async function loadJSONTables(connection, dataDir) {
   try {
     const files = await readdir(dataDir);
     const jsonFiles = files.filter((file) => extname(file).toLowerCase() === ".json");
@@ -36,12 +44,12 @@ async function registerJSONFiles(connection, dataDir) {
       const filePath = join(dataDir, file);
       const tableName = basename(file, ".json");
       await connection.run(
-        `CREATE OR REPLACE VIEW ${tableName} AS SELECT * FROM read_json('${filePath}', auto_detect=true, format='auto')`
+        `CREATE TABLE ${tableName} AS SELECT * FROM read_json('${filePath}', auto_detect=true, format='auto', ignore_errors=true)`
       );
     }
   } catch (error) {
     if (error.code !== "ENOENT") {
-      throw new DatabaseError(`Failed to register JSON files from ${dataDir}`, {
+      throw new DatabaseError(`Failed to load JSON tables from ${dataDir}`, {
         dataDir,
         originalError: error instanceof Error ? error.message : String(error)
       });
@@ -61,11 +69,17 @@ function convertBigInts(obj) {
   }
   return obj;
 }
-async function getDatabase(options = {}) {
-  const connection = await createDuckDBConnection(options);
-  const writeStrategy = options.writeStrategy || "none";
-  const dataDir = options.dataDir || "./data";
+async function getDatabase(options) {
+  const connection = await createJSONConnection(options);
+  const writeStrategy = options.writeStrategy || "immediate";
+  const dataDir = options.dataDir;
   const insert = async (table2, data) => {
+    if (writeStrategy === "none") {
+      throw new DatabaseError(
+        "Cannot insert: write strategy is set to none (read-only mode)",
+        { table: table2, writeStrategy }
+      );
+    }
     const records = Array.isArray(data) ? data : [data];
     if (records.length === 0) {
       return { operation: "insert", affected: 0 };
@@ -122,6 +136,12 @@ async function getDatabase(options = {}) {
     }
   };
   const update = async (table2, where, data) => {
+    if (writeStrategy === "none") {
+      throw new DatabaseError(
+        "Cannot update: write strategy is set to none (read-only mode)",
+        { table: table2, writeStrategy }
+      );
+    }
     const keys = Object.keys(data);
     const setClause = keys.map((key, idx) => `${key} = $${idx + 1}`).join(", ");
     const { sql: whereClause, values: whereValues } = buildWhere(where, keys.length + 1);
@@ -138,6 +158,35 @@ async function getDatabase(options = {}) {
         table: table2,
         sql,
         values,
+        originalError: e instanceof Error ? e.message : String(e)
+      });
+    }
+  };
+  const upsert = async (table2, conflictColumns, data) => {
+    if (writeStrategy === "none") {
+      throw new DatabaseError(
+        "Cannot upsert: write strategy is set to none (read-only mode)",
+        { table: table2, writeStrategy }
+      );
+    }
+    const keys = Object.keys(data);
+    const values = Object.values(data);
+    const placeholders = keys.map((_, idx) => `$${idx + 1}`).join(", ");
+    const updateSet = keys.map((key, idx) => `${key} = $${idx + 1}`).join(", ");
+    const conflict = conflictColumns.join(", ");
+    const sql = `INSERT INTO ${table2} (${keys.join(", ")}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
+    try {
+      await connection.run(sql, values);
+      if (writeStrategy === "immediate") {
+        await exportTableToJSON(connection, table2, dataDir);
+      }
+      return { operation: "upsert", affected: 1 };
+    } catch (e) {
+      throw new DatabaseError("Failed to upsert record into table", {
+        table: table2,
+        sql,
+        values,
+        conflictColumns,
         originalError: e instanceof Error ? e.message : String(e)
       });
     }
@@ -173,7 +222,7 @@ async function getDatabase(options = {}) {
   const exportTable = async (table2) => {
     if (writeStrategy === "none") {
       throw new DatabaseError(
-        "Cannot export table: write strategy is set to none",
+        "Cannot export table: write strategy is set to none (read-only mode)",
         { table: table2, writeStrategy }
       );
     }
@@ -285,6 +334,11 @@ async function getDatabase(options = {}) {
   const syncSchema = async (schema) => {
     const commands = schema.trim().split(";").filter((command) => command.trim() !== "");
     for (const command of commands) {
+      const trimmedCommand = command.trim().toUpperCase();
+      if (trimmedCommand.startsWith("CREATE TRIGGER")) {
+        console.warn("[json-adapter] Skipping trigger creation - timestamps managed at application level");
+        continue;
+      }
       try {
         await connection.run(command);
       } catch (e) {
@@ -299,6 +353,7 @@ async function getDatabase(options = {}) {
       query,
       insert,
       update,
+      upsert,
       get,
       list,
       getOrInsert,
@@ -325,6 +380,7 @@ async function getDatabase(options = {}) {
         get,
         list,
         update,
+        upsert,
         getOrInsert,
         table,
         many,
@@ -353,6 +409,7 @@ async function getDatabase(options = {}) {
     query,
     insert,
     update,
+    upsert,
     get,
     list,
     getOrInsert,
@@ -369,11 +426,11 @@ async function getDatabase(options = {}) {
     syncSchema,
     initializeSchemas,
     transaction,
-    // DuckDB-specific export method
+    // JSON-specific export method
     exportTable
   };
 }
 export {
   getDatabase
 };
-//# sourceMappingURL=duckdb-BiknJljG.js.map
+//# sourceMappingURL=json-CDRL39gd.js.map

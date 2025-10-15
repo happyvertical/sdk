@@ -309,19 +309,19 @@ async function getDatabase(options = {}) {
     options.type = "sqlite";
   }
   if (options.type === "postgres") {
-    const postgres = await import("./chunks/postgres-C9DnNIn1.js");
+    const postgres = await import("./chunks/postgres-B7IAgBFj.js");
     return postgres.getDatabase(options);
   }
   if (options.type === "sqlite") {
-    const sqlite = await import("./chunks/sqlite-Chw5R1WG.js");
+    const sqlite = await import("./chunks/sqlite-BJQU7fQj.js");
     return sqlite.getDatabase(options);
   }
   if (options.type === "duckdb") {
-    const duckdb = await import("./chunks/duckdb-BiknJljG.js");
+    const duckdb = await import("./chunks/duckdb-C5s83PXT.js");
     return duckdb.getDatabase(options);
   }
   if (options.type === "json") {
-    const json = await import("./chunks/json-De9Nj7Kj.js");
+    const json = await import("./chunks/json-CDRL39gd.js");
     return json.getDatabase(options);
   }
   throw new Error("Invalid database type");
