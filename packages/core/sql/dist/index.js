@@ -316,6 +316,10 @@ async function getDatabase(options = {}) {
     const sqlite = await import("./chunks/sqlite-Chw5R1WG.js");
     return sqlite.getDatabase(options);
   }
+  if (options.type === "duckdb") {
+    const duckdb = await import("./chunks/duckdb-BiknJljG.js");
+    return duckdb.getDatabase(options);
+  }
   throw new Error("Invalid database type");
 }
 async function syncSchema(options) {

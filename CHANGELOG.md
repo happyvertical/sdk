@@ -1,3 +1,15 @@
+# [0.33.0](https://github.com/happyvertical/sdk/compare/v0.32.2...v0.33.0) (2025-10-15)
+
+
+### Bug Fixes
+
+* **smrt:** use UUID-based primary keys for database-agnostic system tables ([c5f4db2](https://github.com/happyvertical/sdk/commit/c5f4db298427bcdf4077940bba0276a4d61ab325)), closes [#220](https://github.com/happyvertical/sdk/issues/220)
+
+
+### Features
+
+* **sql:** add DuckDB adapter with JSON file support ([f993725](https://github.com/happyvertical/sdk/commit/f993725b388ab181d4c3ba4335211e062154d43e))
+
 ## [0.32.2](https://github.com/happyvertical/sdk/compare/v0.32.1...v0.32.2) (2025-10-14)
 
 ## [0.32.1](https://github.com/happyvertical/sdk/compare/v0.32.0...v0.32.1) (2025-10-14)
