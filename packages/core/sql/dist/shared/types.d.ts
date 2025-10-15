@@ -45,6 +45,36 @@ export interface DuckDBOptions extends DatabaseOptions {
     persistent?: boolean;
 }
 /**
+ * JSON database adapter options (DuckDB-backed)
+ *
+ * Uses DuckDB's in-memory engine to query JSON files directly.
+ * No WAL files or persistent database files are created.
+ */
+export interface JSONOptions {
+    /**
+     * Database type identifier
+     */
+    type: 'json';
+    /**
+     * Path to directory containing JSON files (required)
+     * JSON files in this directory will be loaded as queryable tables
+     */
+    dataDir: string;
+    /**
+     * Automatically load all JSON files in dataDir as tables
+     * @default true
+     */
+    autoRegister?: boolean;
+    /**
+     * Strategy for writing changes back to JSON files
+     * - 'immediate': Auto-save after every insert/update (default)
+     * - 'manual': Require explicit exportTable() calls
+     * - 'none': Read-only mode, throws error on writes
+     * @default 'immediate'
+     */
+    writeStrategy?: 'immediate' | 'manual' | 'none';
+}
+/**
  * Result of a database operation that modifies data
  */
 export interface QueryResult {
