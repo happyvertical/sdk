@@ -1,3 +1,10 @@
+# [0.35.0](https://github.com/happyvertical/sdk/compare/v0.34.0...v0.35.0) (2025-10-15)
+
+
+### Features
+
+* **sql:** add JSON adapter with in-memory DuckDB engine ([3a4883d](https://github.com/happyvertical/sdk/commit/3a4883d96fdc3d130b4099b2cdf313b89fd1136f)), closes [#224](https://github.com/happyvertical/sdk/issues/224) [#224](https://github.com/happyvertical/sdk/issues/224)
+
 # [0.34.0](https://github.com/happyvertical/sdk/compare/v0.33.0...v0.34.0) (2025-10-15)
 
 # [0.33.0](https://github.com/happyvertical/sdk/compare/v0.32.2...v0.33.0) (2025-10-15)
