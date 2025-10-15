@@ -2,7 +2,7 @@ import { getDatabase, buildWhere, syncSchema } from "@have/sql";
 import { getAI } from "@have/ai";
 import { FilesystemAdapter } from "@have/files";
 import { makeId } from "@have/utils";
-import { O as ObjectRegistry, c as formatDataJs, d as formatDataSql, f as fieldsFromClass, g as generateSchema, t as tableNameFromClass } from "./registry-oaHyPj_D.js";
+import { O as ObjectRegistry, c as formatDataJs, d as formatDataSql, f as fieldsFromClass, g as generateSchema, t as tableNameFromClass } from "./registry-BgJdzGGH.js";
 const DEFAULT_REDACT_KEYS = [
   "password",
   "passwd",
@@ -1058,7 +1058,6 @@ class SmrtCollection extends SmrtClass {
           schema
         );
         await syncSchema({ db: this.db, schema });
-        await this.setupTriggers();
       } catch (error) {
         this._db_setup_promise = null;
         throw error;
@@ -1083,60 +1082,6 @@ class SmrtCollection extends SmrtClass {
    */
   generateSchema() {
     return generateSchema(this._itemClass);
-  }
-  /**
-   * Sets up database triggers for automatically updating timestamps
-   *
-   * @returns Promise that resolves when triggers are set up
-   */
-  async setupTriggers() {
-    const triggers = [
-      `${this.tableName}_set_created_at`,
-      `${this.tableName}_set_updated_at`
-    ];
-    const tableExists = await this.db.tableExists(this.tableName);
-    if (!tableExists) {
-      console.warn(
-        `[smrt] Skipping trigger creation - table ${this.tableName} does not exist`
-      );
-      return;
-    }
-    for (const trigger of triggers) {
-      const exists = await this.db.pluck`SELECT name FROM sqlite_master WHERE type='trigger' AND name=${trigger}`;
-      if (!exists) {
-        try {
-          if (trigger === `${this.tableName}_set_created_at`) {
-            const createTriggerSQL = `
-              CREATE TRIGGER ${trigger}
-              AFTER INSERT ON ${this.tableName}
-              FOR EACH ROW
-              WHEN NEW.created_at IS NULL
-              BEGIN
-                UPDATE ${this.tableName}
-                SET created_at = datetime('now'), updated_at = datetime('now')
-                WHERE id = NEW.id;
-              END;
-            `;
-            await this.db.query(createTriggerSQL);
-          } else if (trigger === `${this.tableName}_set_updated_at`) {
-            const createTriggerSQL = `
-              CREATE TRIGGER ${trigger}
-              AFTER UPDATE ON ${this.tableName}
-              FOR EACH ROW
-              WHEN NEW.updated_at = OLD.updated_at
-              BEGIN
-                UPDATE ${this.tableName}
-                SET updated_at = datetime('now')
-                WHERE id = NEW.id;
-              END;
-            `;
-            await this.db.query(createTriggerSQL);
-          }
-        } catch (error) {
-          console.warn(`[smrt] Failed to create trigger ${trigger}:`, error);
-        }
-      }
-    }
   }
   /**
    * Gets the database table name for this collection
@@ -1414,4 +1359,4 @@ export {
   SMRT_SCHEMA_VERSION as h,
   collection as i
 };
-//# sourceMappingURL=collection-CBZZu_c7.js.map
+//# sourceMappingURL=collection-DOxCGb3L.js.map

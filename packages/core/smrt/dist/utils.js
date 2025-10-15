@@ -1,19 +1,17 @@
 import "@have/sql";
-import { n, l, j, f, c, d, g, m, i, h, k, s, o, t, e, a } from "./chunks/registry-oaHyPj_D.js";
+import { m, l, j, f, c, d, g, i, h, k, s, t, e, a } from "./chunks/registry-BgJdzGGH.js";
 export {
-  n as classnameToTablename,
+  m as classnameToTablename,
   l as dateAsObject,
   j as dateAsString,
   f as fieldsFromClass,
   c as formatDataJs,
   d as formatDataSql,
   g as generateSchema,
-  m as generateTriggerDefinitions,
   i as isDateField,
   h as keysToCamelCase,
   k as keysToSnakeCase,
   s as setupTableFromClass,
-  o as setupTriggers,
   t as tableNameFromClass,
   e as toCamelCase,
   a as toSnakeCase
