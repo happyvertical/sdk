@@ -349,40 +349,6 @@ export function generateSchema(ClassType: new (...args: any[]) => any) {
   return schema;
 }
 
-/**
- * Generates trigger definitions for automatic timestamp management
- *
- * @param tableName - Name of the table to create triggers for
- * @param primaryKeyColumn - Name of the primary key column (default: 'id')
- * @returns Array of trigger definitions compatible with RuntimeSchemaManager
- */
-export function generateTriggerDefinitions(
-  tableName: string,
-  primaryKeyColumn: string = 'id',
-) {
-  return [
-    {
-      name: `${tableName}_set_created_at`,
-      when: 'AFTER' as const,
-      event: 'INSERT' as const,
-      tableName,
-      condition: 'NEW.created_at IS NULL',
-      body: `UPDATE ${tableName} SET created_at = datetime('now'), updated_at = datetime('now') WHERE ${primaryKeyColumn} = NEW.${primaryKeyColumn};`,
-      description:
-        'Automatically set created_at and updated_at on insert when created_at is null',
-    },
-    {
-      name: `${tableName}_set_updated_at`,
-      when: 'AFTER' as const,
-      event: 'UPDATE' as const,
-      tableName,
-      condition: 'NEW.updated_at = OLD.updated_at',
-      body: `UPDATE ${tableName} SET updated_at = datetime('now') WHERE ${primaryKeyColumn} = NEW.${primaryKeyColumn};`,
-      description:
-        'Automatically update updated_at on row updates when unchanged',
-    },
-  ];
-}
 
 /**
  * Generates a table name from a class constructor
@@ -478,7 +444,6 @@ export async function setupTableFromClass(db: any, ClassType: any) {
       }
 
       await syncSchema({ db, schema });
-      await setupTriggers(db, tableName, primaryKeyColumn);
     } catch (error) {
       _setup_table_from_class_promises[tableName] = null; // Allow retry on failure
       throw error;
@@ -488,71 +453,6 @@ export async function setupTableFromClass(db: any, ClassType: any) {
   return _setup_table_from_class_promises[tableName];
 }
 
-/**
- * Sets up database triggers for automatic timestamp updates
- *
- * @param db - Database connection
- * @param tableName - Name of the table to set up triggers for
- * @returns Promise that resolves when triggers are set up
- */
-export async function setupTriggers(
-  db: any,
-  tableName: string,
-  primaryKeyColumn: string = 'id',
-) {
-  const triggers = [
-    `${tableName}_set_created_at`,
-    `${tableName}_set_updated_at`,
-  ];
-
-  // Check if table exists before creating triggers
-  const tableExists = await db.tableExists(tableName);
-  if (!tableExists) {
-    console.warn(
-      `[smrt] Skipping trigger creation - table ${tableName} does not exist`,
-    );
-    return;
-  }
-
-  for (const trigger of triggers) {
-    const exists =
-      await db.pluck`SELECT name FROM sqlite_master WHERE type='trigger' AND name=${trigger}`;
-    if (!exists) {
-      try {
-        if (trigger === `${tableName}_set_created_at`) {
-          const createTriggerSQL = `
-            CREATE TRIGGER ${trigger}
-            AFTER INSERT ON ${tableName}
-            FOR EACH ROW
-            WHEN NEW.created_at IS NULL
-            BEGIN
-              UPDATE ${tableName}
-              SET created_at = datetime('now'), updated_at = datetime('now')
-              WHERE ${primaryKeyColumn} = NEW.${primaryKeyColumn};
-            END;
-          `;
-          await db.query(createTriggerSQL);
-        } else if (trigger === `${tableName}_set_updated_at`) {
-          const createTriggerSQL = `
-            CREATE TRIGGER ${trigger}
-            AFTER UPDATE ON ${tableName}
-            FOR EACH ROW
-            WHEN NEW.updated_at = OLD.updated_at
-            BEGIN
-              UPDATE ${tableName}
-              SET updated_at = datetime('now')
-              WHERE ${primaryKeyColumn} = NEW.${primaryKeyColumn};
-            END;
-          `;
-          await db.query(createTriggerSQL);
-        }
-      } catch (error) {
-        console.warn(`[smrt] Failed to create trigger ${trigger}:`, error);
-        // Continue with other triggers instead of failing completely
-      }
-    }
-  }
-}
 
 /**
  * Formats data for JavaScript by converting date strings to Date objects

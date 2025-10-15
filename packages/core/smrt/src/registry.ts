@@ -31,7 +31,6 @@ import type { SmrtCollection } from './collection';
 import type { SmrtObject } from './object';
 import {
   generateSchema,
-  generateTriggerDefinitions,
   tableNameFromClass,
 } from './utils';
 
@@ -262,7 +261,6 @@ export class ObjectRegistry {
     // Generate and cache schema definition
     const tableName = tableNameFromClass(ctor);
     const schemaDDL = generateSchema(ctor);
-    const triggerDefs = generateTriggerDefinitions(tableName);
 
     // Parse schema DDL to extract indexes
     const indexes: string[] = [];
@@ -279,7 +277,7 @@ export class ObjectRegistry {
     const schema: SchemaDefinition = {
       ddl: schemaDDL,
       indexes,
-      triggers: triggerDefs,
+      triggers: [], // No longer using database triggers - timestamps managed by application
       tableName,
     };
 
