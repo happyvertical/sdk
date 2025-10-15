@@ -157,6 +157,8 @@ The SMRT framework includes built-in system tables for storing framework metadat
 
 #### System Tables Architecture
 
+All system tables use UUID-based TEXT primary keys for database-agnostic compatibility across SQLite, DuckDB, and PostgreSQL. This eliminates database-specific syntax issues (e.g., SQLite's AUTOINCREMENT) and ensures consistent behavior across all supported databases.
+
 - **`_smrt_contexts`**: Context memory storage for AI agents
   - Stores remembered context (learned strategies, patterns, selectors) for reuse
   - Includes confidence tracking and hierarchical scoping (e.g., `discovery/parser/domain.com`)
@@ -164,7 +166,7 @@ The SMRT framework includes built-in system tables for storing framework metadat
   - Used by `remember()`, `recall()`, `recallAll()`, `forget()`, and `forgetScope()` methods
 
 - **`_smrt_migrations`**: Schema version tracking
-  - Records framework schema changes and migrations
+  - Records framework schema changes and migrations with UUID identifiers
   - Tracks applied migrations with timestamps and descriptions
   - Enables backward compatibility and upgrade paths
 

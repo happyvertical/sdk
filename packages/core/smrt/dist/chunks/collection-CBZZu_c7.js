@@ -2,7 +2,7 @@ import { getDatabase, buildWhere, syncSchema } from "@have/sql";
 import { getAI } from "@have/ai";
 import { FilesystemAdapter } from "@have/files";
 import { makeId } from "@have/utils";
-import { O as ObjectRegistry, c as formatDataJs, d as formatDataSql, f as fieldsFromClass, g as generateSchema, t as tableNameFromClass } from "./registry-DkbGSTJN.js";
+import { O as ObjectRegistry, c as formatDataJs, d as formatDataSql, f as fieldsFromClass, g as generateSchema, t as tableNameFromClass } from "./registry-oaHyPj_D.js";
 const DEFAULT_REDACT_KEYS = [
   "password",
   "passwd",
@@ -286,7 +286,7 @@ CREATE INDEX IF NOT EXISTS idx_smrt_contexts_last_used
 `;
 const CREATE_SMRT_MIGRATIONS_TABLE = `
 CREATE TABLE IF NOT EXISTS _smrt_migrations (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT PRIMARY KEY,
   version TEXT NOT NULL UNIQUE,
   applied_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   description TEXT,
@@ -424,11 +424,12 @@ class SmrtClass {
     for (const createTableSQL of ALL_SYSTEM_TABLES) {
       await this._db.query(createTableSQL);
     }
+    const id = crypto.randomUUID();
     const version = SMRT_SCHEMA_VERSION;
     const description = "Initial SMRT system tables";
     await this._db.execute`
-      INSERT OR IGNORE INTO _smrt_migrations (version, description)
-      VALUES (${version}, ${description})
+      INSERT OR IGNORE INTO _smrt_migrations (id, version, description)
+      VALUES (${id}, ${version}, ${description})
     `;
     SmrtClass._systemTablesInitialized.add(dbKey);
   }
@@ -1413,4 +1414,4 @@ export {
   SMRT_SCHEMA_VERSION as h,
   collection as i
 };
-//# sourceMappingURL=collection-CsqQw3k7.js.map
+//# sourceMappingURL=collection-CBZZu_c7.js.map

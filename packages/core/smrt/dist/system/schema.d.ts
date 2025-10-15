@@ -13,7 +13,7 @@ export declare const CREATE_SMRT_CONTEXTS_TABLE = "\nCREATE TABLE IF NOT EXISTS 
  * Schema version tracking
  * Records which SMRT framework versions have been applied
  */
-export declare const CREATE_SMRT_MIGRATIONS_TABLE = "\nCREATE TABLE IF NOT EXISTS _smrt_migrations (\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  version TEXT NOT NULL UNIQUE,\n  applied_at DATETIME DEFAULT CURRENT_TIMESTAMP,\n  description TEXT,\n  checksum TEXT\n);\n";
+export declare const CREATE_SMRT_MIGRATIONS_TABLE = "\nCREATE TABLE IF NOT EXISTS _smrt_migrations (\n  id TEXT PRIMARY KEY,\n  version TEXT NOT NULL UNIQUE,\n  applied_at DATETIME DEFAULT CURRENT_TIMESTAMP,\n  description TEXT,\n  checksum TEXT\n);\n";
 /**
  * Runtime object registry persistence
  * Stores metadata about registered SMRT objects for introspection
