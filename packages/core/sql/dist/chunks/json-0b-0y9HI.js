@@ -162,6 +162,65 @@ async function getDatabase(options) {
       });
     }
   };
+  const upsert = async (table2, conflictColumns, data) => {
+    if (writeStrategy === "none") {
+      throw new DatabaseError(
+        "Cannot upsert: write strategy is set to none (read-only mode)",
+        { table: table2, writeStrategy }
+      );
+    }
+    const keys = Object.keys(data);
+    const dataValues = Object.values(data);
+    const placeholders = [];
+    const values = [];
+    let paramIdx = 1;
+    for (const value of dataValues) {
+      if (value === null) {
+        placeholders.push("NULL");
+      } else {
+        placeholders.push(`$${paramIdx}`);
+        values.push(value);
+        paramIdx++;
+      }
+    }
+    const updateSetParts = [];
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      const value = dataValues[i];
+      if (value === null) {
+        updateSetParts.push(`${key} = NULL`);
+      } else {
+        updateSetParts.push(`${key} = $${paramIdx}`);
+        values.push(value);
+        paramIdx++;
+      }
+    }
+    const conflict = conflictColumns.join(", ");
+    const sql = `INSERT INTO ${table2} (${keys.join(", ")}) VALUES (${placeholders.join(", ")}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSetParts.join(", ")}`;
+    try {
+      await connection.run(sql, values);
+      if (writeStrategy === "immediate") {
+        await exportTableToJSON(connection, table2, dataDir);
+      }
+      return { operation: "upsert", affected: 1 };
+    } catch (e) {
+      console.error("UPSERT failed:", {
+        table: table2,
+        sql,
+        values,
+        valueTypes: values.map((v) => `${typeof v} (${v})`),
+        conflictColumns,
+        error: e instanceof Error ? e.message : String(e)
+      });
+      throw new DatabaseError("Failed to upsert record into table", {
+        table: table2,
+        sql,
+        values,
+        conflictColumns,
+        originalError: e instanceof Error ? e.message : String(e)
+      });
+    }
+  };
   const getOrInsert = async (table2, where, data) => {
     const result = await get(table2, where);
     if (result) return result;
@@ -324,6 +383,7 @@ async function getDatabase(options) {
       query,
       insert,
       update,
+      upsert,
       get,
       list,
       getOrInsert,
@@ -350,6 +410,7 @@ async function getDatabase(options) {
         get,
         list,
         update,
+        upsert,
         getOrInsert,
         table,
         many,
@@ -378,6 +439,7 @@ async function getDatabase(options) {
     query,
     insert,
     update,
+    upsert,
     get,
     list,
     getOrInsert,
@@ -401,4 +463,4 @@ async function getDatabase(options) {
 export {
   getDatabase
 };
-//# sourceMappingURL=json-De9Nj7Kj.js.map
+//# sourceMappingURL=json-0b-0y9HI.js.map

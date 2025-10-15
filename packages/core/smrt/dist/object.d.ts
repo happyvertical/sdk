@@ -174,13 +174,6 @@ export declare class SmrtObject extends SmrtClass {
      */
     toJSON(): any;
     /**
-     * Generates an SQL UPSERT statement for saving this object to the database
-     * Converts camelCase property names to snake_case column names
-     *
-     * @returns SQL statement for inserting or updating this object
-     */
-    generateUpsertStatement(): string;
-    /**
      * Gets or generates a unique ID for this object
      *
      * @returns Promise resolving to the object's ID

@@ -115,6 +115,26 @@ async function getDatabase(options = {}) {
       });
     }
   };
+  const upsert = async (table2, conflictColumns, data) => {
+    const keys = Object.keys(data);
+    const values = Object.values(data);
+    const placeholders = keys.map(() => "?").join(", ");
+    const updateSet = keys.map((key) => `${key} = excluded.${key}`).join(", ");
+    const conflict = conflictColumns.join(", ");
+    const sql = `INSERT INTO ${table2} (${keys.join(", ")}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
+    try {
+      const result = await client.execute({ sql, args: values });
+      return { operation: "upsert", affected: result.rowsAffected };
+    } catch (e) {
+      throw new DatabaseError("Failed to upsert record into table", {
+        table: table2,
+        sql,
+        values,
+        conflictColumns,
+        originalError: e instanceof Error ? e.message : String(e)
+      });
+    }
+  };
   const getOrInsert = async (table2, where, data) => {
     const result = await get(table2, where);
     if (result) return result;
@@ -189,6 +209,7 @@ async function getDatabase(options = {}) {
         get,
         list,
         update,
+        upsert,
         getOrInsert,
         table,
         many,
@@ -316,6 +337,7 @@ async function getDatabase(options = {}) {
       query,
       insert,
       update,
+      upsert,
       get,
       list,
       getOrInsert,
@@ -339,6 +361,7 @@ async function getDatabase(options = {}) {
     query,
     insert,
     update,
+    upsert,
     get,
     list,
     getOrInsert,
@@ -360,4 +383,4 @@ async function getDatabase(options = {}) {
 export {
   getDatabase
 };
-//# sourceMappingURL=sqlite-Chw5R1WG.js.map
+//# sourceMappingURL=sqlite-BJQU7fQj.js.map
