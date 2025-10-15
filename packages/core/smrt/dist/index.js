@@ -1,5 +1,5 @@
-import { a as SmrtClass } from "./chunks/collection-DOxCGb3L.js";
-import { A, C, e, f, g, h, b, d, S, c } from "./chunks/collection-DOxCGb3L.js";
+import { a as SmrtClass } from "./chunks/collection-Bh6gqlw1.js";
+import { A, C, e, f, g, h, b, d, S, c } from "./chunks/collection-Bh6gqlw1.js";
 import { ValidationError, RuntimeError, DatabaseError, ErrorUtils } from "./chunks/errors-Cl0_Kxat.js";
 import { AIError, ConfigurationError, FilesystemError, NetworkError, SmrtError, ValidationReport, ValidationUtils } from "./chunks/errors-Cl0_Kxat.js";
 import { Field } from "./fields.js";
@@ -8,12 +8,11 @@ import { CLIGenerator, main } from "./generators/cli.js";
 import { MCPGenerator } from "./generators/mcp.js";
 import { APIGenerator, createRestServer, startRestServer } from "./generators/rest.js";
 import { generateOpenAPISpec, setupSwaggerUI } from "./generators/swagger.js";
-import { escapeSqlValue } from "@have/sql";
-import { O as ObjectRegistry, f as fieldsFromClass, s as setupTableFromClass, t as tableNameFromClass, a as toSnakeCase } from "./chunks/registry-BgJdzGGH.js";
-import { b as b2, b as b3 } from "./chunks/registry-BgJdzGGH.js";
-import { a, c as c2, b as b4 } from "./chunks/server-DwHneUSW.js";
+import { O as ObjectRegistry, f as fieldsFromClass, s as setupTableFromClass, t as tableNameFromClass } from "./chunks/registry-D4gz_uk4.js";
+import { a, a as a2 } from "./chunks/registry-D4gz_uk4.js";
+import { a as a3, c as c2, b as b2 } from "./chunks/server-DwHneUSW.js";
 import { getManifest } from "./manifest.js";
-import { M, c as c3, a as a2, b as b5, s } from "./chunks/manifest-generator-Bb3IuFsV.js";
+import { M, c as c3, a as a4, b as b3, s } from "./chunks/manifest-generator-Bb3IuFsV.js";
 import { MetricsAdapter } from "./chunks/metrics-JaU-tpt3.js";
 import { PubSubAdapter } from "./chunks/pubsub-BJ1ZU6QU.js";
 import { s as s2 } from "./chunks/index-CoRmHlvP.js";
@@ -372,40 +371,6 @@ class SmrtObject extends SmrtClass {
     return data;
   }
   /**
-   * Generates an SQL UPSERT statement for saving this object to the database
-   * Converts camelCase property names to snake_case column names
-   *
-   * @returns SQL statement for inserting or updating this object
-   */
-  generateUpsertStatement() {
-    const fields = this.getFields();
-    const columns = ["id", "slug", "context"];
-    const id = escapeSqlValue(this.id) || "";
-    const slug = escapeSqlValue(this.slug);
-    const context = escapeSqlValue(this.context || "");
-    const values = [id, slug, context];
-    const updates = [`slug = ${slug}`, `context = ${context}`];
-    for (const [key, field] of Object.entries(fields)) {
-      if (key === "slug" || key === "context") continue;
-      const columnName = toSnakeCase(key);
-      columns.push(columnName);
-      const value = typeof field.value === "boolean" ? field.value ? 1 : 0 : field.value;
-      const escapedValue = escapeSqlValue(value);
-      values.push(escapedValue);
-      updates.push(`${columnName} = ${escapedValue}`);
-    }
-    const sql = `
-      INSERT INTO ${this.tableName} (${columns.join(", ")})
-      VALUES (${values.join(", ")})
-      ON CONFLICT(slug, context)
-      WHERE slug = ${slug} AND context = ${context}
-      DO UPDATE SET
-        ${updates.join(",\n        ")}
-      WHERE ${this.tableName}.slug = ${slug} AND ${this.tableName}.context = ${context};
-    `;
-    return sql;
-  }
-  /**
    * Gets or generates a unique ID for this object
    *
    * @returns Promise resolving to the object's ID
@@ -478,11 +443,11 @@ class SmrtObject extends SmrtClass {
           error instanceof Error ? error : new Error(String(error))
         );
       }
-      const sql = this.generateUpsertStatement();
+      const data = this.toJSON();
       await ErrorUtils.withRetry(
         async () => {
           try {
-            await this.db.query(sql);
+            await this.db.upsert(this.tableName, ["slug", "context"], data);
           } catch (error) {
             if (error instanceof Error) {
               if (error.message.includes("UNIQUE constraint failed")) {
@@ -499,7 +464,10 @@ class SmrtObject extends SmrtClass {
                   this.constructor.name
                 );
               }
-              throw DatabaseError.queryFailed(sql, error);
+              throw DatabaseError.queryFailed(
+                `UPSERT INTO ${this.tableName}`,
+                error
+              );
             }
             throw error;
           }
@@ -1247,10 +1215,10 @@ export {
   boolean,
   c as config,
   c3 as convertTypeToJsonSchema,
-  a as createMCPServer,
+  a3 as createMCPServer,
   createRestServer,
   c2 as createSmrtClient,
-  b4 as createSmrtServer,
+  b2 as createSmrtServer,
   datetime,
   decimal,
   executeToolCall,
@@ -1258,8 +1226,8 @@ export {
   foreignKey,
   formatToolResults,
   generateOpenAPISpec,
-  a2 as generateToolFromMethod,
-  b5 as generateToolManifest,
+  a4 as generateToolFromMethod,
+  b3 as generateToolManifest,
   getManifest,
   integer,
   json,
@@ -1269,9 +1237,9 @@ export {
   oneToMany,
   setupSwaggerUI,
   s as shouldIncludeMethod,
-  b2 as smrt,
+  a as smrt,
   s2 as smrtPlugin,
-  b3 as smrtRegistry,
+  a2 as smrtRegistry,
   startRestServer,
   text,
   validateToolCall

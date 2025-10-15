@@ -443,7 +443,7 @@ class ObjectRegistry {
     }
     let collectionConstructor = registered.collectionConstructor;
     if (!collectionConstructor) {
-      const { SmrtCollection: SmrtCollectionClass } = await import("./collection-DOxCGb3L.js").then((n) => n.i);
+      const { SmrtCollection: SmrtCollectionClass } = await import("./collection-Bh6gqlw1.js").then((n) => n.i);
       class DefaultCollection extends SmrtCollectionClass {
         static _itemClass = registered.constructor;
       }
@@ -1075,10 +1075,10 @@ function smrt(config = {}) {
 }
 export {
   ObjectRegistry as O,
-  toSnakeCase as a,
-  smrt as b,
-  formatDataJs as c,
-  formatDataSql as d,
+  smrt as a,
+  formatDataJs as b,
+  formatDataSql as c,
+  toSnakeCase as d,
   toCamelCase as e,
   fieldsFromClass as f,
   generateSchema as g,
@@ -1091,4 +1091,4 @@ export {
   setupTableFromClass as s,
   tableNameFromClass as t
 };
-//# sourceMappingURL=registry-BgJdzGGH.js.map
+//# sourceMappingURL=registry-D4gz_uk4.js.map
