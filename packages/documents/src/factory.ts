@@ -1,6 +1,6 @@
 import { getMimeType } from '@have/files';
-import type { Document, FetchDocumentOptions } from './types';
 import { PDFProcessor } from './processors/pdf';
+import type { Document, FetchDocumentOptions } from './types';
 
 /**
  * Available document processors

@@ -1,5 +1,5 @@
-import { getCache } from '@have/cache';
 import type { ICacheAdapter } from '@have/cache';
+import { getCache } from '@have/cache';
 import { getLogger, isUrl, NetworkError, ValidationError } from '@have/utils';
 import * as cheerio from 'cheerio';
 import { Window } from 'happy-dom';

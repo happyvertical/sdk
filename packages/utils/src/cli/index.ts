@@ -5,8 +5,8 @@
  */
 
 export {
-  parseCliArgs,
   type Command,
   type OptionConfig,
   type ParsedArgs,
+  parseCliArgs,
 } from './parse-args.js';

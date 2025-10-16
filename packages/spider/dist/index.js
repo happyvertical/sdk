@@ -12,13 +12,9 @@ async function getScraper(options) {
       return new BasicScraper(options);
     }
     case "tree": {
-      const { TreeScraper } = await import("./chunks/tree-coDvq3Pm.js");
+      const { TreeScraper } = await import("./chunks/tree-ChA3QSJ6.js");
       return new TreeScraper(options);
     }
-    // TODO: Implement additional scrapers
-    case "ajax":
-    case "scroll":
-    case "pagination":
     default: {
       const unsupported = options.scraper;
       throw new ValidationError(
@@ -28,22 +24,12 @@ async function getScraper(options) {
     }
   }
 }
-async function scrapeIndex(url, options) {
-  const scraperOptions = options?.scraper || {
-    scraper: "basic",
-    spider: "simple"
-  };
-  const scraper = await getScraper(scraperOptions);
-  return scraper.scrape(url, options?.scrape);
-}
 function extractWordPressDownloadUrl(url, html) {
   const isWpdmPage = url.includes("/download/") || html.includes("wpdmdl=") || html.includes("wpdm-download-link") || html.includes("wpdm_view_count");
   if (!isWpdmPage) {
     return null;
   }
-  const wpdmLinkMatch = html.match(
-    /href=["']([^"']*wpdmdl=\d+[^"']*)["']/i
-  );
+  const wpdmLinkMatch = html.match(/href=["']([^"']*wpdmdl=\d+[^"']*)["']/i);
   if (wpdmLinkMatch) {
     let downloadUrl = wpdmLinkMatch[1];
     downloadUrl = downloadUrl.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
@@ -53,9 +39,7 @@ function extractWordPressDownloadUrl(url, html) {
     }
     return downloadUrl;
   }
-  const pdfLinkMatch = html.match(
-    /href=["']([^"']*\.pdf[^"']*)["']/i
-  );
+  const pdfLinkMatch = html.match(/href=["']([^"']*\.pdf[^"']*)["']/i);
   if (pdfLinkMatch) {
     let pdfUrl = pdfLinkMatch[1];
     pdfUrl = pdfUrl.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
@@ -127,8 +111,8 @@ async function scrapeDocument(url, options) {
     scraper: scraperType,
     spider: spiderType
   });
-  let result = await scraper.scrape(url, options);
-  let actualUrl = url;
+  const result = await scraper.scrape(url, options);
+  const actualUrl = url;
   const wpDownloadUrl = extractWordPressDownloadUrl(url, result.content);
   if (wpDownloadUrl) {
     return {
@@ -186,9 +170,7 @@ async function scrapeDocument(url, options) {
   let title;
   let description;
   if (!isPdf && result.content) {
-    const titleMatch = result.content.match(
-      /<title[^>]*>([^<]+)<\/title>/i
-    );
+    const titleMatch = result.content.match(/<title[^>]*>([^<]+)<\/title>/i);
     if (titleMatch) {
       title = titleMatch[1].trim();
     }
@@ -201,7 +183,10 @@ async function scrapeDocument(url, options) {
   }
   let text = result.content;
   if (!isPdf) {
-    text = text.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "");
+    text = text.replace(
+      /<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi,
+      ""
+    );
     text = text.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "");
     text = text.replace(/<[^>]+>/g, " ");
     text = text.replace(/\s+/g, " ").trim();
@@ -241,6 +226,14 @@ async function findDocumentLinks(url, options) {
   }).map((link) => link.href);
   return [...new Set(documentLinks)];
 }
+async function scrapeIndex(url, options) {
+  const scraperOptions = options?.scraper || {
+    scraper: "basic",
+    spider: "simple"
+  };
+  const scraper = await getScraper(scraperOptions);
+  return scraper.scrape(url, options?.scrape);
+}
 function isSimpleOptions(options) {
   return options.adapter === "simple";
 }
@@ -260,7 +253,7 @@ async function getSpider(options) {
     return new DomAdapter(options);
   }
   if (isCrawleeOptions(options)) {
-    const { CrawleeAdapter } = await import("./chunks/crawlee-B6DveyH2.js");
+    const { CrawleeAdapter } = await import("./chunks/crawlee-CgrsOEr_.js");
     return new CrawleeAdapter(options);
   }
   throw new Error(`Unsupported adapter: ${options.adapter}`);

@@ -1,4 +1,4 @@
-import { ScraperOptions, ScrapeOptions, ScrapeResult } from './shared/types';
+import { ScrapeOptions, ScrapeResult, ScraperOptions } from './shared/types';
 /**
  * Convenience function to scrape an index page for links
  *

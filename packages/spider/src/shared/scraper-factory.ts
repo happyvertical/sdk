@@ -1,5 +1,5 @@
 import { ValidationError } from '@have/utils';
-import type { ScraperOptions, IScraper } from './types';
+import type { IScraper, ScraperOptions } from './types';
 
 /**
  * Factory function to create scraper instances
@@ -53,11 +53,6 @@ export async function getScraper(options: ScraperOptions): Promise<IScraper> {
       const { TreeScraper } = await import('../scrapers/tree');
       return new TreeScraper(options);
     }
-
-    // TODO: Implement additional scrapers
-    case 'ajax':
-    case 'scroll':
-    case 'pagination':
     default: {
       // TypeScript exhaustiveness check
       const unsupported = (options as any).scraper;

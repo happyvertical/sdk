@@ -1,10 +1,10 @@
-import { getMimeType, downloadFileWithCache, getCached, setCached } from "@have/files";
-import { v4 } from "uuid";
-import { getPDFReader } from "@have/pdf";
 import os from "node:os";
 import path from "node:path";
 import { URL as URL$1 } from "node:url";
+import { getMimeType, downloadFileWithCache, getCached, setCached } from "@have/files";
 import { makeSlug } from "@have/utils";
+import { getPDFReader } from "@have/pdf";
+import { v4 } from "uuid";
 class Document {
   /**
    * Flag indicating if document is from a remote source
@@ -229,7 +229,7 @@ class PDFProcessor {
    * @param runOcr - Whether to run OCR on extracted images
    * @returns Promise resolving to array of DocumentImages
    */
-  async extractImages(filePath, runOcr) {
+  async extractImages(_filePath, _runOcr) {
     return [];
   }
 }

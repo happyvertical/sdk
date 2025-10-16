@@ -2,7 +2,7 @@
  * Tests for scrapeDocument functionality
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { scrapeDocument } from './scrapeDocument';
 import * as scraperFactory from './shared/scraper-factory';
 

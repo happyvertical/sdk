@@ -1,5 +1,5 @@
 import { URL } from 'node:url';
-import { Document as DocumentType, DocumentPart, FetchDocumentOptions } from './types';
+import { DocumentPart, Document as DocumentType, FetchDocumentOptions } from './types';
 /**
  * Base document handler with multi-part support
  *

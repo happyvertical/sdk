@@ -2,7 +2,7 @@
  * Integration tests for Memory cache provider
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getCache } from './index';
 import type { ICacheAdapter } from './shared/types';
 

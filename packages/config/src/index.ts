@@ -1,25 +1,17 @@
-import {
-  loadConfig as _loadConfig,
-  clearConfigCache,
-  isConfigLoaded,
-} from './loader.js';
+import { loadConfig as _loadConfig, clearConfigCache } from './loader.js';
 import {
   setConfig as _setConfig,
-  getRuntimeConfig,
   clearRuntimeConfig,
+  getRuntimeConfig,
   mergeConfigs,
 } from './merge.js';
-import type {
-  SmrtConfig,
-  SmrtGlobalConfig,
-  LoadConfigOptions,
-} from './types.js';
+import type { LoadConfigOptions, SmrtConfig } from './types.js';
 
 // Re-export types
 export type {
+  LoadConfigOptions,
   SmrtConfig,
   SmrtGlobalConfig,
-  LoadConfigOptions,
 } from './types.js';
 
 // Cached loaded config

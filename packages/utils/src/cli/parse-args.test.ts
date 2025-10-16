@@ -2,8 +2,8 @@
  * Tests for CLI Argument Parsing
  */
 
-import { describe, it, expect } from 'vitest';
-import { parseCliArgs, type Command } from './parse-args';
+import { describe, expect, it } from 'vitest';
+import { type Command, parseCliArgs } from './parse-args';
 
 describe('parseCliArgs', () => {
   const sampleCommands: Command[] = [

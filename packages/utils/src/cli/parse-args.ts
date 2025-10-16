@@ -175,7 +175,7 @@ export function parseCliArgs(
       args: parsed.positionals || [],
       options: parsed.values || {},
     };
-  } catch (error) {
+  } catch (_error) {
     // Fallback for parse errors - extract positional args manually
     return {
       command: commandName,

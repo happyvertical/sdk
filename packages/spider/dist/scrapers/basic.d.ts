@@ -1,4 +1,4 @@
-import { BasicScraperOptions, ScrapeOptions, ScrapeResult, ScraperType, IScraper } from '../shared/types';
+import { BasicScraperOptions, IScraper, ScrapeOptions, ScrapeResult, ScraperType } from '../shared/types';
 /**
  * Basic scraper - simple scraping with no interactions
  *

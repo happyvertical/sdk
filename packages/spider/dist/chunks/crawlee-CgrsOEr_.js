@@ -1,6 +1,5 @@
 import { getCache } from "@have/cache";
 import { ValidationError, isUrl, NetworkError } from "@have/utils";
-import * as cheerio from "cheerio";
 import { Configuration, PlaywrightCrawler } from "crawlee";
 class CrawleeAdapter {
   cache;
@@ -29,30 +28,6 @@ class CrawleeAdapter {
    */
   getCacheKey(url) {
     return `crawlee:${encodeURIComponent(url)}`;
-  }
-  /**
-   * Extract links from HTML using cheerio with metadata
-   */
-  extractLinksFromHtml(html) {
-    const $ = cheerio.load(html);
-    const links = [];
-    $("a").each((_, element) => {
-      const $link = $(element);
-      const href = $link.attr("href");
-      if (href) {
-        const classes = $link.attr("class");
-        links.push({
-          href,
-          text: $link.text().trim() || "",
-          title: $link.attr("title"),
-          ariaLabel: $link.attr("aria-label"),
-          rel: $link.attr("rel"),
-          target: $link.attr("target"),
-          classes: classes ? classes.split(" ").filter((c) => c.trim()) : void 0
-        });
-      }
-    });
-    return links;
   }
   /**
    * Expand all navigation/accordion elements and extract all links from a page
@@ -262,4 +237,4 @@ class CrawleeAdapter {
 export {
   CrawleeAdapter
 };
-//# sourceMappingURL=crawlee-B6DveyH2.js.map
+//# sourceMappingURL=crawlee-CgrsOEr_.js.map

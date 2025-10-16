@@ -221,7 +221,7 @@ class DatabaseSchemaManager {
   /**
    * Update schema if changes are detected
    */
-  async updateSchemaIfNeeded(db, schema) {
+  async updateSchemaIfNeeded(_db, schema) {
     console.log(
       `[schema] Schema update logic not yet implemented for ${schema.tableName}`
     );
@@ -317,11 +317,11 @@ async function getDatabase(options = {}) {
     return sqlite.getDatabase(options);
   }
   if (options.type === "duckdb") {
-    const duckdb = await import("./chunks/duckdb-C5s83PXT.js");
+    const duckdb = await import("./chunks/duckdb-MV3iZ_sU.js");
     return duckdb.getDatabase(options);
   }
   if (options.type === "json") {
-    const json = await import("./chunks/json-DY66pnr2.js");
+    const json = await import("./chunks/json-BLreH1KJ.js");
     return json.getDatabase(options);
   }
   throw new Error("Invalid database type");

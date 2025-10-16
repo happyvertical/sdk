@@ -1,5 +1,5 @@
-import { Signal, ISignalAdapter } from './signal-types.js';
 import { Logger } from './logger.js';
+import { ISignalAdapter, Signal } from './signal-types.js';
 /**
  * Logger Adapter - Converts signals to structured log messages
  *

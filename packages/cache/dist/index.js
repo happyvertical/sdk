@@ -102,11 +102,11 @@ async function getCache(options) {
     return new MemoryProvider(options);
   }
   if (isFileOptions(options)) {
-    const { FileProvider } = await import("./chunks/file-hoHp7tsj.js");
+    const { FileProvider } = await import("./chunks/file-DyC_7WDS.js");
     return new FileProvider(options);
   }
   if (isRedisOptions(options)) {
-    const { RedisProvider } = await import("./chunks/redis-uGgI804z.js");
+    const { RedisProvider } = await import("./chunks/redis-D-SNLXE_.js");
     return new RedisProvider(options);
   }
   throw new Error(`Unsupported provider: ${options.provider}`);

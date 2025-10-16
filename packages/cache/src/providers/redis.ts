@@ -2,9 +2,9 @@
  * Redis cache provider implementation
  */
 
-import { createClient, type RedisClientType } from 'redis';
-import { gzip, gunzip } from 'node:zlib';
 import { promisify } from 'node:util';
+import { gunzip, gzip } from 'node:zlib';
+import { createClient, type RedisClientType } from 'redis';
 import type { CacheStats, ICacheProvider, RedisOptions } from '../shared/types';
 import {
   CacheConnectionError,
@@ -12,14 +12,7 @@ import {
   CacheKeyError,
   CacheSerializationError,
 } from '../shared/types';
-import {
-  calculateSize,
-  deserialize,
-  formatKey,
-  isValidKey,
-  matchesPattern,
-  serialize,
-} from '../shared/utils';
+import { deserialize, formatKey, isValidKey, serialize } from '../shared/utils';
 
 const gzipAsync = promisify(gzip);
 const gunzipAsync = promisify(gunzip);
@@ -145,7 +138,7 @@ export class RedisProvider implements ICacheProvider {
       // Compress if enabled and value is large enough
       if (this.enableCompression && data.length > this.compressionThreshold) {
         const compressed = await gzipAsync(Buffer.from(data, 'utf-8'));
-        data = 'gzip:' + compressed.toString('base64');
+        data = `gzip:${compressed.toString('base64')}`;
       }
 
       const effectiveTTL = ttl ?? this.defaultTTL;
@@ -348,7 +341,7 @@ export class RedisProvider implements ICacheProvider {
         // Compress if enabled and value is large enough
         if (this.enableCompression && data.length > this.compressionThreshold) {
           const compressed = await gzipAsync(Buffer.from(data, 'utf-8'));
-          data = 'gzip:' + compressed.toString('base64');
+          data = `gzip:${compressed.toString('base64')}`;
         }
 
         const effectiveTTL = entry.ttl ?? this.defaultTTL;
@@ -464,7 +457,7 @@ export class RedisProvider implements ICacheProvider {
       try {
         await this.client.quit();
         this.connected = false;
-      } catch (error: any) {
+      } catch (_error: any) {
         // Force disconnect if graceful quit fails
         await this.client.disconnect();
         this.connected = false;

@@ -1,7 +1,7 @@
-import { DatabaseError } from "@have/utils";
-import { DatabaseSchemaManager, buildWhere } from "../index.js";
 import { readdir } from "node:fs/promises";
 import { extname, join, basename } from "node:path";
+import { DatabaseError } from "@have/utils";
+import { DatabaseSchemaManager, buildWhere } from "../index.js";
 async function createDuckDBConnection(options) {
   const {
     url = ":memory:",
@@ -22,16 +22,21 @@ async function createDuckDBConnection(options) {
     return connection;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    throw new DatabaseError(`Failed to create DuckDB connection: ${errorMessage}`, {
-      url,
-      originalError: errorMessage
-    });
+    throw new DatabaseError(
+      `Failed to create DuckDB connection: ${errorMessage}`,
+      {
+        url,
+        originalError: errorMessage
+      }
+    );
   }
 }
 async function registerJSONFiles(connection, dataDir) {
   try {
     const files = await readdir(dataDir);
-    const jsonFiles = files.filter((file) => extname(file).toLowerCase() === ".json");
+    const jsonFiles = files.filter(
+      (file) => extname(file).toLowerCase() === ".json"
+    );
     for (const file of jsonFiles) {
       const filePath = join(dataDir, file);
       const tableName = basename(file, ".json");
@@ -71,7 +76,9 @@ async function getDatabase(options = {}) {
       return { operation: "insert", affected: 0 };
     }
     const keys = Object.keys(records[0]);
-    const placeholders = records.map((_, idx) => `(${keys.map((__, colIdx) => `$${idx * keys.length + colIdx + 1}`).join(", ")})`).join(", ");
+    const placeholders = records.map(
+      (_, idx) => `(${keys.map((__, colIdx) => `$${idx * keys.length + colIdx + 1}`).join(", ")})`
+    ).join(", ");
     const sql = `INSERT INTO ${table2} (${keys.join(", ")}) VALUES ${placeholders}`;
     const values = records.flatMap((record) => Object.values(record));
     try {
@@ -124,7 +131,10 @@ async function getDatabase(options = {}) {
   const update = async (table2, where, data) => {
     const keys = Object.keys(data);
     const setClause = keys.map((key, idx) => `${key} = $${idx + 1}`).join(", ");
-    const { sql: whereClause, values: whereValues } = buildWhere(where, keys.length + 1);
+    const { sql: whereClause, values: whereValues } = buildWhere(
+      where,
+      keys.length + 1
+    );
     const sql = `UPDATE ${table2} SET ${setClause} ${whereClause}`;
     const values = [...Object.values(data), ...whereValues];
     try {
@@ -402,4 +412,4 @@ async function getDatabase(options = {}) {
 export {
   getDatabase
 };
-//# sourceMappingURL=duckdb-C5s83PXT.js.map
+//# sourceMappingURL=duckdb-MV3iZ_sU.js.map

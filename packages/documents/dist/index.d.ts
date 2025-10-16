@@ -32,9 +32,9 @@
  * }
  * ```
  */
-export { fetchDocument } from './factory';
 export { Document } from './document';
+export { fetchDocument } from './factory';
 export { PDFProcessor } from './processors/pdf';
+export type { Document as DocumentType, DocumentImage, DocumentPart, DocumentProcessor, FetchDocumentOptions, } from './types';
 export { getTitleFromUrl } from './utils';
-export type { Document as DocumentType, DocumentPart, DocumentImage, FetchDocumentOptions, DocumentProcessor, } from './types';
 //# sourceMappingURL=index.d.ts.map

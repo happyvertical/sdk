@@ -169,7 +169,7 @@ function extractCivicWebDocumentUrl(url: string, html: string): string | null {
   const previewMatch = url.match(/\?preview=(\d+)/);
   if (!previewMatch) return null;
 
-  const docId = previewMatch[1];
+  const _docId = previewMatch[1];
 
   // Look for the actual document URL in the HTML
   // Pattern: /filepro/document/{ID}/{filename}.pdf

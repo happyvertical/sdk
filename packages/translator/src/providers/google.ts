@@ -3,8 +3,8 @@
  */
 
 import { v2 } from '@google-cloud/translate';
-import { getCache } from '@have/cache';
 import type { ICacheAdapter } from '@have/cache';
+import { getCache } from '@have/cache';
 import type {
   GoogleTranslateOptions,
   ITranslationProvider,

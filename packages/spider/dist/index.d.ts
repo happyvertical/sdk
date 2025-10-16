@@ -75,8 +75,8 @@
  * console.log(page.links);
  * ```
  */
+export { type DocumentLinkOptions, type DocumentResult, findDocumentLinks, scrapeDocument, } from './scrapeDocument';
 export { scrapeIndex } from './scrapeIndex';
-export { scrapeDocument, findDocumentLinks, type DocumentResult, type DocumentLinkOptions, } from './scrapeDocument';
 export { getSpider } from './shared/factory';
 export { getScraper } from './shared/scraper-factory';
 export * from './shared/types';

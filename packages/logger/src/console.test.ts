@@ -2,7 +2,7 @@
  * Tests for ConsoleLogger
  */
 
-import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConsoleLogger } from './console.js';
 
 describe('ConsoleLogger', () => {

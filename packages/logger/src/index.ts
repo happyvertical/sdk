@@ -19,10 +19,10 @@
  * ```
  */
 
-export { ConsoleLogger } from './console.js';
 export { LoggerAdapter } from './adapter.js';
-export type { Logger, LogLevel, LoggerConfig } from './logger.js';
-export type { Signal, ISignalAdapter, SignalType } from './signal-types.js';
+export { ConsoleLogger } from './console.js';
+export type { Logger, LoggerConfig, LogLevel } from './logger.js';
+export type { ISignalAdapter, Signal, SignalType } from './signal-types.js';
 
 import { ConsoleLogger } from './console.js';
 import type { Logger, LoggerConfig } from './logger.js';

@@ -3,8 +3,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { createLogger } from './index.js';
 import { ConsoleLogger } from './console.js';
+import { createLogger } from './index.js';
 
 describe('createLogger', () => {
   it('should create console logger with info level when config is true', () => {

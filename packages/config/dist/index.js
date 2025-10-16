@@ -4795,14 +4795,14 @@ async function loadConfig$1(options = {}) {
     cache
     // Respect cache option
   });
-  let result;
+  let result = null;
   try {
     if (configPath) {
       result = await explorer.load(configPath);
     } else {
       result = await explorer.search();
     }
-  } catch (error) {
+  } catch (_error) {
     return {};
   }
   const config = result?.config || {};
@@ -4864,7 +4864,11 @@ function getModuleConfig(moduleName, defaults2) {
   const globalConfig = fileConfig.smrt || {};
   const moduleConfig = fileConfig.modules?.[moduleName] || {};
   const runtimeModuleConfig = runtime.modules?.[moduleName] || {};
-  const defaultsWithGlobal = mergeConfigs(defaults2 || {}, globalConfig, {});
+  const defaultsWithGlobal = mergeConfigs(
+    defaults2 || {},
+    globalConfig,
+    {}
+  );
   const withModuleConfig = mergeConfigs(defaultsWithGlobal, moduleConfig, {});
   const final = mergeConfigs(withModuleConfig, runtimeModuleConfig, {});
   return final;
@@ -4875,7 +4879,11 @@ function getPackageConfig(packageName, defaults2) {
   const globalConfig = fileConfig.smrt || {};
   const packageConfig = fileConfig.packages?.[packageName] || {};
   const runtimePackageConfig = runtime.packages?.[packageName] || {};
-  const defaultsWithGlobal = mergeConfigs(defaults2 || {}, globalConfig, {});
+  const defaultsWithGlobal = mergeConfigs(
+    defaults2 || {},
+    globalConfig,
+    {}
+  );
   const withPackageConfig = mergeConfigs(defaultsWithGlobal, packageConfig, {});
   const final = mergeConfigs(withPackageConfig, runtimePackageConfig, {});
   return final;

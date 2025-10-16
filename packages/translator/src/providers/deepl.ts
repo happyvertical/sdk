@@ -2,9 +2,9 @@
  * DeepL provider implementation
  */
 
-import * as deepl from 'deepl-node';
-import { getCache } from '@have/cache';
 import type { ICacheAdapter } from '@have/cache';
+import { getCache } from '@have/cache';
+import * as deepl from 'deepl-node';
 import type {
   DeepLOptions,
   ITranslationProvider,

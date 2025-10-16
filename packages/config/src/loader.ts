@@ -32,7 +32,7 @@ export async function loadConfig(
     cache: cache, // Respect cache option
   });
 
-  let result;
+  let result: Awaited<ReturnType<typeof explorer.load>> = null;
 
   // Load from specific path or search
   try {
@@ -41,7 +41,7 @@ export async function loadConfig(
     } else {
       result = await explorer.search();
     }
-  } catch (error) {
+  } catch (_error) {
     // Return empty config on error
     return {};
   }

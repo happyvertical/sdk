@@ -33,23 +33,20 @@
  * ```
  */
 
+// Base classes
+export { Document } from './document';
 // Main factory function
 export { fetchDocument } from './factory';
 
-// Base classes
-export { Document } from './document';
-
 // Processors
 export { PDFProcessor } from './processors/pdf';
-
-// Utilities
-export { getTitleFromUrl } from './utils';
-
 // Types
 export type {
   Document as DocumentType,
-  DocumentPart,
   DocumentImage,
-  FetchDocumentOptions,
+  DocumentPart,
   DocumentProcessor,
+  FetchDocumentOptions,
 } from './types';
+// Utilities
+export { getTitleFromUrl } from './utils';

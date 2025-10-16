@@ -163,9 +163,9 @@ export function validateColumnName(column: string): string {
 import { buildWhere } from './shared/utils';
 export { buildWhere };
 
+export type { SchemaInitializationResult } from './schema-manager';
 // Export schema management
 export { DatabaseSchemaManager } from './schema-manager';
-export type { SchemaInitializationResult } from './schema-manager';
 
 export * from './shared/types';
 

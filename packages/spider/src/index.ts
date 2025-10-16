@@ -76,14 +76,14 @@
  * ```
  */
 
+export {
+  type DocumentLinkOptions,
+  type DocumentResult,
+  findDocumentLinks,
+  scrapeDocument,
+} from './scrapeDocument';
 // Export convenience functions (recommended API)
 export { scrapeIndex } from './scrapeIndex';
-export {
-  scrapeDocument,
-  findDocumentLinks,
-  type DocumentResult,
-  type DocumentLinkOptions,
-} from './scrapeDocument';
 
 // Export factory functions (advanced usage)
 export { getSpider } from './shared/factory';

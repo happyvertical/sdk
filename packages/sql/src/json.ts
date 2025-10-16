@@ -1,15 +1,15 @@
+import { mkdir, readdir } from 'node:fs/promises';
+import { basename, extname, join } from 'node:path';
 import { DatabaseError } from '@have/utils';
+import { DatabaseSchemaManager } from './schema-manager';
 import type {
   DatabaseInterface,
-  QueryResult,
-  TableInterface,
   JSONOptions,
+  QueryResult,
   SchemaInitializationOptions,
+  TableInterface,
 } from './shared/types';
 import { buildWhere } from './shared/utils';
-import { DatabaseSchemaManager } from './schema-manager';
-import { readdir, mkdir } from 'node:fs/promises';
-import { join, basename, extname } from 'node:path';
 
 /**
  * Schema definition extracted from SMRT ObjectRegistry
@@ -52,7 +52,7 @@ async function createJSONConnection(options: JSONOptions) {
     // Ensure data directory exists
     try {
       await mkdir(dataDir, { recursive: true });
-    } catch (error) {
+    } catch (_error) {
       // Directory might already exist, that's okay
     }
 
@@ -196,7 +196,7 @@ async function getSmrtSchemaForTable(
     const allClasses = ObjectRegistry.getAllClasses();
 
     // Search for a class whose table name matches
-    for (const [className, registered] of allClasses) {
+    for (const [className, _registered] of allClasses) {
       const schema = ObjectRegistry.getSchema(className);
 
       if (schema && schema.tableName === tableName) {
@@ -210,7 +210,7 @@ async function getSmrtSchemaForTable(
     }
 
     return null;
-  } catch (error) {
+  } catch (_error) {
     // @have/smrt not available or ObjectRegistry not initialized
     return null;
   }
@@ -364,7 +364,7 @@ async function insertRecordsWithCast(
  * @param tableName - Name of the table to check
  * @returns True if the table matches a SMRT object's table name
  */
-async function isSmrtTable(tableName: string): Promise<boolean> {
+async function _isSmrtTable(tableName: string): Promise<boolean> {
   const schema = await getSmrtSchemaForTable(tableName);
   return schema !== null;
 }

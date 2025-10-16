@@ -3,5 +3,5 @@
  *
  * Utilities for building command-line interfaces
  */
-export { parseCliArgs, type Command, type OptionConfig, type ParsedArgs, } from './parse-args.js';
+export { type Command, type OptionConfig, type ParsedArgs, parseCliArgs, } from './parse-args.js';
 //# sourceMappingURL=index.d.ts.map

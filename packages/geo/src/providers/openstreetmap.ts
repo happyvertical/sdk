@@ -2,8 +2,8 @@
  * OpenStreetMap (Nominatim) provider implementation
  */
 
-import { getCache } from '@have/cache';
 import type { ICacheAdapter } from '@have/cache';
+import { getCache } from '@have/cache';
 import type {
   IGeoProvider,
   Location,
