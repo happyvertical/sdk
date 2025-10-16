@@ -123,12 +123,20 @@ async function loadJSONTables(
         await createTableFromSmrtSchema(connection, tableName, smrtSchema);
 
         // Load JSON data into properly-typed table
+        // IMPORTANT: Don't use read_json() with auto_detect because DuckDB will
+        // re-infer types from the data, causing ANY type issues with empty strings.
+        // Instead, read JSON file and insert records using our CAST logic.
         try {
-          await connection.run(
-            `INSERT INTO ${tableName} SELECT * FROM read_json('${filePath}', auto_detect=true, format='auto', ignore_errors=true)`,
-          );
+          const { readFile } = await import('node:fs/promises');
+          const jsonContent = await readFile(filePath, 'utf-8');
+          const records = JSON.parse(jsonContent);
+
+          if (Array.isArray(records) && records.length > 0) {
+            // Use a helper to insert records with proper CAST handling
+            await insertRecordsWithCast(connection, tableName, records);
+          }
         } catch (error) {
-          // If INSERT fails (e.g., empty file), that's okay - table structure is what matters
+          // If INSERT fails (e.g., empty file, parse error), that's okay - table structure is what matters
           console.warn(
             `[json-adapter] Could not load data for ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
           );
@@ -275,6 +283,55 @@ async function createTableFromSmrtSchema(
       originalError: error instanceof Error ? error.message : String(error),
     });
   }
+}
+
+/**
+ * Inserts records with proper CAST handling for empty strings
+ *
+ * This helper avoids using read_json() with auto_detect, which causes DuckDB
+ * to re-infer column types from data (causing ANY type for empty strings).
+ * Instead, it uses parameterized INSERT with CAST to maintain table schema.
+ *
+ * @param connection - DuckDB connection
+ * @param tableName - Name of the table to insert into
+ * @param records - Array of records to insert
+ */
+async function insertRecordsWithCast(
+  connection: any,
+  tableName: string,
+  records: Record<string, any>[],
+): Promise<void> {
+  if (records.length === 0) return;
+
+  const keys = Object.keys(records[0]);
+
+  // Build placeholders with CAST for empty strings
+  const values: any[] = [];
+  let paramIdx = 1;
+
+  const placeholders = records
+    .map((record) => {
+      const rowPlaceholders = keys.map((key) => {
+        const value = record[key];
+
+        if (value === null) {
+          return 'NULL';
+        } else if (value === '' && typeof value === 'string') {
+          // CAST empty strings to TEXT to prevent DuckDB ANY type inference
+          values.push(value);
+          return `CAST($${paramIdx++} AS TEXT)`;
+        } else {
+          values.push(value);
+          return `$${paramIdx++}`;
+        }
+      });
+      return `(${rowPlaceholders.join(', ')})`;
+    })
+    .join(', ');
+
+  const sql = `INSERT INTO ${tableName} (${keys.join(', ')}) VALUES ${placeholders}`;
+
+  await connection.run(sql, values);
 }
 
 /**
