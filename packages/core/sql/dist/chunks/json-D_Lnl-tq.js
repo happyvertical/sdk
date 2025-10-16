@@ -97,7 +97,7 @@ function convertBigInts(obj) {
 }
 async function getSmrtSchemaForTable(tableName) {
   try {
-    const { ObjectRegistry } = await import("./registry-B3GUIyDa.js").then((n) => n.r);
+    const { ObjectRegistry } = await import("./registry-BLel7Dtz.js").then((n) => n.r);
     const allClasses = ObjectRegistry.getAllClasses();
     for (const [className, registered] of allClasses) {
       const schema = ObjectRegistry.getSchema(className);
@@ -126,14 +126,24 @@ async function createTableFromSmrtSchema(connection, tableName, schema) {
       ddl: schema.ddl
     });
   }
-  const createTableSQL = ddlLines.slice(0, createTableEnd + 1).join("\n");
+  let createTableSQL = ddlLines.slice(0, createTableEnd + 1).join("\n");
+  createTableSQL = createTableSQL.replace(
+    /\b(\w+)\s+(TEXT|VARCHAR)\s+DEFAULT\s+''/g,
+    "$1 $2 DEFAULT CAST('' AS $2)"
+  );
+  createTableSQL = createTableSQL.replace(
+    /\b(\w+)\s+(TEXT|VARCHAR)\s+DEFAULT\s+NULL/g,
+    "$1 $2 DEFAULT CAST(NULL AS $2)"
+  );
   try {
     await connection.run(createTableSQL);
     for (const indexSQL of schema.indexes) {
       try {
         await connection.run(indexSQL);
       } catch (error) {
-        console.warn(`[json-adapter] Failed to create index: ${error instanceof Error ? error.message : String(error)}`);
+        console.warn(
+          `[json-adapter] Failed to create index: ${error instanceof Error ? error.message : String(error)}`
+        );
       }
     }
   } catch (error) {
@@ -538,4 +548,4 @@ async function getDatabase(options) {
 export {
   getDatabase
 };
-//# sourceMappingURL=json-BHdzDGjq.js.map
+//# sourceMappingURL=json-D_Lnl-tq.js.map
