@@ -59,19 +59,16 @@ const config: Config = {
       {
         entryPoints: [
           '../packages/ai/src/index.ts',
-          '../packages/assets/src/index.ts',
           '../packages/cache/src/index.ts',
-          '../packages/events/src/index.ts',
+          '../packages/config/src/index.ts',
+          '../packages/documents/src/index.ts',
           '../packages/files/src/index.ts',
           '../packages/geo/src/index.ts',
+          '../packages/logger/src/index.ts',
           '../packages/ocr/src/index.ts',
           '../packages/pdf/src/index.ts',
-          '../packages/places/src/index.ts',
-          '../packages/profiles/src/index.ts',
-          '../packages/smrt/src/index.ts',
           '../packages/spider/src/index.ts',
           '../packages/sql/src/index.ts',
-          '../packages/tags/src/index.ts',
           '../packages/translator/src/index.ts',
           '../packages/utils/src/index.ts',
         ],
@@ -89,18 +86,6 @@ const config: Config = {
         excludeInternal: true,
         disableSources: false,
         plugin: ['typedoc-plugin-markdown'],
-      },
-    ],
-    [
-      '@docusaurus/plugin-content-docs',
-      {
-        id: 'smrt',
-        path: '../packages/smrt/docs',
-        routeBasePath: 'smrt',
-        sidebarPath: './sidebars.smrt.js',
-        editUrl: 'https://github.com/happyvertical/sdk/tree/main/packages/smrt/docs/',
-        showLastUpdateTime: true,
-        showLastUpdateAuthor: true,
       },
     ],
   ],
@@ -150,19 +135,6 @@ const config: Config = {
             {
               label: 'Tutorials',
               to: '/docs/tutorials/build-research-agent',
-            },
-          ],
-        },
-        {
-          title: 'Framework',
-          items: [
-            {
-              label: 's-m-r-t Core',
-              to: '/smrt/overview',
-            },
-            {
-              label: 'Code Generators',
-              to: '/smrt/code-generators',
             },
           ],
         },

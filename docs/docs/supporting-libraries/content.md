@@ -527,7 +527,7 @@ it('should be able to getOrInsert a content item', async () => {
     <div className="feature-card">
       <h3>🗄️ SMRT Framework</h3>
       <p>Learn about the core framework that powers content processing</p>
-      <a href="/smrt/overview" className="nav-pill">SMRT Overview →</a>
+      <a href="/docs" className="nav-pill">SMRT Overview →</a>
     </div>
   </div>
 </div>

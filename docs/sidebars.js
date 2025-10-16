@@ -17,15 +17,6 @@ const sidebars = {
     },
     {
       type: 'category',
-      label: 'The SMRT Framework',
-      collapsed: false,
-      items: [
-        'smrt-framework/overview',
-        // Additional framework docs to be added
-      ],
-    },
-    {
-      type: 'category',
       label: 'Tutorials',
       collapsed: true,
       items: [
