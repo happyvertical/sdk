@@ -235,7 +235,16 @@ export class Field {
     }
 
     if (this.options.default !== undefined) {
-      constraints.push(`DEFAULT ${this.escapeSqlValue(this.options.default)}`);
+      const sqlType = this.getSqlType();
+      const escapedValue = this.escapeSqlValue(this.options.default);
+
+      // Add explicit CAST for TEXT types to prevent DuckDB ANY type inference
+      // DuckDB infers ANY type when DEFAULT is an empty string or NULL without explicit type
+      if (sqlType === 'TEXT' && (this.options.default === '' || this.options.default === null)) {
+        constraints.push(`DEFAULT CAST(${escapedValue} AS TEXT)`);
+      } else {
+        constraints.push(`DEFAULT ${escapedValue}`);
+      }
     }
 
     return constraints;
