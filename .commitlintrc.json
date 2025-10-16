@@ -24,6 +24,7 @@
       [
         "ai",
         "cache",
+        "ci",
         "config",
         "content",
         "documents",
