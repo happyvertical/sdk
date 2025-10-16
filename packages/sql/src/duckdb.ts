@@ -2,12 +2,23 @@ import { readdir } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import { DatabaseError } from '@have/utils';
 import { DatabaseSchemaManager } from './schema-manager';
+import {
+  generateAddColumnStatement,
+  generateCreateIndexStatement,
+  validateColumnName,
+  validateIndexName,
+  validateTableName,
+} from './shared/alter-utils';
 import type {
+  ColumnDefinition,
+  ColumnDefinitionWithName,
   DatabaseInterface,
   DuckDBOptions,
+  IndexDefinition,
   QueryResult,
   SchemaInitializationOptions,
   TableInterface,
+  TableSchemaInfo,
 } from './shared/types';
 import { buildWhere } from './shared/utils';
 
@@ -633,6 +644,213 @@ export async function getDatabase(
   };
 
   /**
+   * Retrieves the schema information for a table
+   *
+   * @param table - Table name
+   * @returns Promise resolving to table schema info or null if table doesn't exist
+   * @throws Error if the query fails
+   */
+  const getTableSchema = async (
+    table: string,
+  ): Promise<TableSchemaInfo | null> => {
+    validateTableName(table);
+
+    try {
+      // Check if table exists
+      const exists = await tableExists(table);
+      if (!exists) {
+        return null;
+      }
+
+      // Get column information from information_schema
+      const columnRows = await many`
+        SELECT
+          column_name,
+          data_type,
+          is_nullable,
+          column_default
+        FROM information_schema.columns
+        WHERE table_name = ${table}
+        ORDER BY ordinal_position
+      `;
+
+      // Get primary key columns from DuckDB system tables
+      const pkRows = await many`
+        SELECT column_name
+        FROM duckdb_constraints() con
+        JOIN duckdb_columns() cols
+          ON con.table_oid = cols.table_oid
+        WHERE con.table_name = ${table}
+          AND con.constraint_type = 'PRIMARY KEY'
+          AND cols.column_name = ANY(con.constraint_column_names)
+      `;
+
+      const pkColumns = new Set(pkRows.map((row) => row.column_name));
+
+      const columns: Record<string, ColumnDefinition> = {};
+      for (const row of columnRows) {
+        const colName = row.column_name as string;
+        columns[colName] = {
+          type: row.data_type as string,
+          primaryKey: pkColumns.has(colName),
+          notNull: row.is_nullable === 'NO',
+          defaultValue: row.column_default,
+        };
+      }
+
+      // Get index information from duckdb_indexes()
+      const indexRows = await many`
+        SELECT
+          index_name,
+          sql
+        FROM duckdb_indexes()
+        WHERE table_name = ${table}
+          AND NOT is_primary
+      `;
+
+      const indexes: IndexDefinition[] = [];
+      for (const row of indexRows) {
+        const indexName = row.index_name as string;
+        const indexDef = (row.sql as string) || '';
+
+        // Parse column names from index definition
+        const colMatch = indexDef.match(/\(([^)]+)\)/);
+        const indexColumns = colMatch
+          ? colMatch[1].split(',').map((col) => col.trim())
+          : [];
+
+        const isUnique = indexDef.toUpperCase().includes('UNIQUE');
+
+        indexes.push({
+          name: indexName,
+          columns: indexColumns,
+          unique: isUnique,
+        });
+      }
+
+      // Get foreign key information
+      const fkRows = await many`
+        SELECT
+          constraint_column_names,
+          constraint_column_indexes,
+          constraint_text
+        FROM duckdb_constraints()
+        WHERE table_name = ${table}
+          AND constraint_type = 'FOREIGN KEY'
+      `;
+
+      const foreignKeys: Array<{
+        column: string;
+        referencesTable: string;
+        referencesColumn: string;
+        onDelete?: string;
+        onUpdate?: string;
+      }> = [];
+
+      for (const fkRow of fkRows) {
+        // Parse foreign key constraint text to extract referenced table and column
+        const fkText = (fkRow.constraint_text as string) || '';
+        const referencesMatch = fkText.match(
+          /REFERENCES\s+(\w+)\s*\(([^)]+)\)/i,
+        );
+
+        if (
+          referencesMatch &&
+          Array.isArray(fkRow.constraint_column_names) &&
+          fkRow.constraint_column_names.length > 0
+        ) {
+          const columnName = fkRow.constraint_column_names[0];
+          const referencedTable = referencesMatch[1];
+          const referencedColumn = referencesMatch[2].trim();
+
+          const onDeleteMatch = fkText.match(/ON DELETE\s+(\w+)/i);
+          const onUpdateMatch = fkText.match(/ON UPDATE\s+(\w+)/i);
+
+          foreignKeys.push({
+            column: columnName,
+            referencesTable: referencedTable,
+            referencesColumn: referencedColumn,
+            onDelete: onDeleteMatch ? onDeleteMatch[1] : undefined,
+            onUpdate: onUpdateMatch ? onUpdateMatch[1] : undefined,
+          });
+        }
+      }
+
+      return {
+        tableName: table,
+        columns,
+        indexes,
+        foreignKeys,
+      };
+    } catch (e) {
+      throw new DatabaseError('Failed to retrieve table schema', {
+        table,
+        originalError: e instanceof Error ? e.message : String(e),
+      });
+    }
+  };
+
+  /**
+   * ALTER TABLE operations for schema evolution
+   */
+  const alterTable = {
+    /**
+     * Adds a new column to an existing table
+     *
+     * @param table - Table name
+     * @param column - Column definition with name
+     * @returns Promise that resolves when column is added
+     * @throws Error if the alter operation fails
+     */
+    addColumn: async (
+      table: string,
+      column: ColumnDefinitionWithName,
+    ): Promise<void> => {
+      validateTableName(table);
+      validateColumnName(column.name);
+
+      try {
+        const sql = generateAddColumnStatement(table, column, 'duckdb');
+        await connection.run(sql);
+      } catch (e) {
+        throw new DatabaseError('Failed to add column to table', {
+          table,
+          column: column.name,
+          originalError: e instanceof Error ? e.message : String(e),
+        });
+      }
+    },
+
+    /**
+     * Adds a new index to an existing table
+     *
+     * @param table - Table name
+     * @param index - Index definition
+     * @returns Promise that resolves when index is created
+     * @throws Error if the create index operation fails
+     */
+    addIndex: async (table: string, index: IndexDefinition): Promise<void> => {
+      validateTableName(table);
+      validateIndexName(index.name);
+
+      for (const col of index.columns) {
+        validateColumnName(col);
+      }
+
+      try {
+        const sql = generateCreateIndexStatement(table, index);
+        await connection.run(sql);
+      } catch (e) {
+        throw new DatabaseError('Failed to create index on table', {
+          table,
+          index: index.name,
+          originalError: e instanceof Error ? e.message : String(e),
+        });
+      }
+    },
+  };
+
+  /**
    * Executes a callback within a database transaction
    * Automatically commits on success or rolls back on error
    *
@@ -700,6 +918,8 @@ export async function getDatabase(
     syncSchema,
     initializeSchemas,
     transaction,
+    getTableSchema,
+    alterTable,
     // DuckDB-specific export method
     exportTable,
   } as DatabaseInterface & { exportTable: (table: string) => Promise<void> };
