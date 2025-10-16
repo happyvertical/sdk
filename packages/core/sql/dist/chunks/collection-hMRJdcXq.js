@@ -2,7 +2,7 @@ import { getDatabase, buildWhere, syncSchema } from "@have/sql";
 import { getAI } from "@have/ai";
 import { FilesystemAdapter } from "@have/files";
 import { makeId } from "@have/utils";
-import { O as ObjectRegistry, f as formatDataJs, a as formatDataSql, b as fieldsFromClass, g as generateSchema, t as tableNameFromClass } from "./registry-B3GUIyDa.js";
+import { O as ObjectRegistry, f as formatDataJs, a as formatDataSql, b as fieldsFromClass, g as generateSchema, t as tableNameFromClass } from "./registry-BLel7Dtz.js";
 const DEFAULT_REDACT_KEYS = [
   "password",
   "passwd",
@@ -1344,4 +1344,4 @@ class SmrtCollection extends SmrtClass {
 export {
   SmrtCollection
 };
-//# sourceMappingURL=collection-BQJISjdQ.js.map
+//# sourceMappingURL=collection-hMRJdcXq.js.map
