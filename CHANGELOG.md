@@ -1,3 +1,10 @@
+## [0.37.1](https://github.com/happyvertical/sdk/compare/v0.37.0...v0.37.1) (2025-10-16)
+
+
+### Bug Fixes
+
+* **sql:** explicitly cast DEFAULT values in SMRT schemas to prevent DuckDB ANY type inference ([f6b29bf](https://github.com/happyvertical/sdk/commit/f6b29bfddc1f810b8f90064a708a9f6872a40a0c)), closes [#228](https://github.com/happyvertical/sdk/issues/228)
+
 # [0.37.0](https://github.com/happyvertical/sdk/compare/v0.36.0...v0.37.0) (2025-10-15)
 
 
