@@ -1,6 +1,6 @@
 {
   "name": "@have/documents",
-  "version": "0.36.0",
+  "version": "0.37.0",
   "description": "Multi-part document processing with support for PDF, HTML, and Markdown",
   "type": "module",
   "main": "dist/index.js",

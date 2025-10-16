@@ -1,6 +1,6 @@
 {
   "name": "@have/files",
-  "version": "0.36.0",
+  "version": "0.37.0",
   "description": "File system utilities for local and remote file operations",
   "type": "module",
   "main": "./dist/index.js",
