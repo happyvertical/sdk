@@ -332,12 +332,32 @@ export async function getDatabase(
     }
 
     const keys = Object.keys(records[0]);
+
+    // Build placeholders with CAST for empty strings
+    const values: any[] = [];
+    let paramIdx = 1;
+
     const placeholders = records
-      .map((_, idx) => `(${keys.map((__, colIdx) => `$${idx * keys.length + colIdx + 1}`).join(', ')})`)
+      .map((record) => {
+        const rowPlaceholders = keys.map((key) => {
+          const value = record[key];
+
+          if (value === null) {
+            return 'NULL';
+          } else if (value === '' && typeof value === 'string') {
+            // CAST empty strings to TEXT to prevent DuckDB ANY type inference
+            values.push(value);
+            return `CAST($${paramIdx++} AS TEXT)`;
+          } else {
+            values.push(value);
+            return `$${paramIdx++}`;
+          }
+        });
+        return `(${rowPlaceholders.join(', ')})`;
+      })
       .join(', ');
 
     const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES ${placeholders}`;
-    const values = records.flatMap((record) => Object.values(record));
 
     try {
       await connection.run(sql, values);
@@ -499,6 +519,11 @@ export async function getDatabase(
     for (const value of dataValues) {
       if (value === null) {
         placeholders.push('NULL');
+      } else if (value === '' && typeof value === 'string') {
+        // CAST empty strings to TEXT to prevent DuckDB ANY type inference
+        placeholders.push(`CAST($${paramIdx} AS TEXT)`);
+        values.push(value);
+        paramIdx++;
       } else {
         placeholders.push(`$${paramIdx}`);
         values.push(value);
@@ -516,6 +541,11 @@ export async function getDatabase(
 
       if (value === null) {
         updateSetParts.push(`${key} = NULL`);
+      } else if (value === '' && typeof value === 'string') {
+        // CAST empty strings to TEXT to prevent DuckDB ANY type inference
+        updateSetParts.push(`${key} = CAST($${paramIdx} AS TEXT)`);
+        values.push(value);
+        paramIdx++;
       } else {
         updateSetParts.push(`${key} = $${paramIdx}`);
         values.push(value);

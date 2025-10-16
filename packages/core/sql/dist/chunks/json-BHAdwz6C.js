@@ -170,9 +170,24 @@ async function getDatabase(options) {
       return { operation: "insert", affected: 0 };
     }
     const keys = Object.keys(records[0]);
-    const placeholders = records.map((_, idx) => `(${keys.map((__, colIdx) => `$${idx * keys.length + colIdx + 1}`).join(", ")})`).join(", ");
+    const values = [];
+    let paramIdx = 1;
+    const placeholders = records.map((record) => {
+      const rowPlaceholders = keys.map((key) => {
+        const value = record[key];
+        if (value === null) {
+          return "NULL";
+        } else if (value === "" && typeof value === "string") {
+          values.push(value);
+          return `CAST($${paramIdx++} AS TEXT)`;
+        } else {
+          values.push(value);
+          return `$${paramIdx++}`;
+        }
+      });
+      return `(${rowPlaceholders.join(", ")})`;
+    }).join(", ");
     const sql = `INSERT INTO ${table2} (${keys.join(", ")}) VALUES ${placeholders}`;
-    const values = records.flatMap((record) => Object.values(record));
     try {
       await connection.run(sql, values);
       const affected = records.length;
@@ -262,6 +277,10 @@ async function getDatabase(options) {
     for (const value of dataValues) {
       if (value === null) {
         placeholders.push("NULL");
+      } else if (value === "" && typeof value === "string") {
+        placeholders.push(`CAST($${paramIdx} AS TEXT)`);
+        values.push(value);
+        paramIdx++;
       } else {
         placeholders.push(`$${paramIdx}`);
         values.push(value);
@@ -274,6 +293,10 @@ async function getDatabase(options) {
       const value = dataValues[i];
       if (value === null) {
         updateSetParts.push(`${key} = NULL`);
+      } else if (value === "" && typeof value === "string") {
+        updateSetParts.push(`${key} = CAST($${paramIdx} AS TEXT)`);
+        values.push(value);
+        paramIdx++;
       } else {
         updateSetParts.push(`${key} = $${paramIdx}`);
         values.push(value);
@@ -548,4 +571,4 @@ async function getDatabase(options) {
 export {
   getDatabase
 };
-//# sourceMappingURL=json-D_Lnl-tq.js.map
+//# sourceMappingURL=json-BHAdwz6C.js.map
