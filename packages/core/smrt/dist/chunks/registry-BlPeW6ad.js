@@ -130,7 +130,7 @@ function generateSchema(ClassType) {
   if (!hasCustomPK) {
     schema += "  id TEXT PRIMARY KEY,\n";
     schema += "  slug TEXT NOT NULL,\n";
-    schema += "  context TEXT NOT NULL DEFAULT '',\n";
+    schema += "  context TEXT NOT NULL DEFAULT CAST('' AS TEXT),\n";
   }
   let hasCreatedAt = false;
   let hasUpdatedAt = false;
@@ -443,7 +443,7 @@ class ObjectRegistry {
     }
     let collectionConstructor = registered.collectionConstructor;
     if (!collectionConstructor) {
-      const { SmrtCollection: SmrtCollectionClass } = await import("./collection-DOxCGb3L.js").then((n) => n.i);
+      const { SmrtCollection: SmrtCollectionClass } = await import("./collection-CIP8-yZ4.js").then((n) => n.i);
       class DefaultCollection extends SmrtCollectionClass {
         static _itemClass = registered.constructor;
       }
@@ -1091,4 +1091,4 @@ export {
   setupTableFromClass as s,
   tableNameFromClass as t
 };
-//# sourceMappingURL=registry-BgJdzGGH.js.map
+//# sourceMappingURL=registry-BlPeW6ad.js.map

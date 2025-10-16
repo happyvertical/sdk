@@ -290,7 +290,7 @@ export function generateSchema(ClassType: new (...args: any[]) => any) {
 
     // Add slug and context fields
     schema += '  slug TEXT NOT NULL,\n';
-    schema += "  context TEXT NOT NULL DEFAULT '',\n";
+    schema += "  context TEXT NOT NULL DEFAULT CAST('' AS TEXT),\n";
   }
 
   // Track which timestamp fields we've added to avoid duplicates
