@@ -276,6 +276,6 @@ If you get "SDK not found" errors:
 ## Next Steps
 
 - [Getting Started](../getting-started/installation)
-- [s-m-r-t Framework](/smrt/overview)
-- [API Generation](/smrt/code-generators)
+- [SMRT Framework](https://github.com/happyvertical/smrt)
 - [Build a Research Agent](../tutorials/build-research-agent)
+- [Supporting Libraries](../supporting-libraries/content)
