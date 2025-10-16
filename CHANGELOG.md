@@ -1,3 +1,10 @@
+# [0.40.0](https://github.com/happyvertical/sdk/compare/v0.39.0...v0.40.0) (2025-10-16)
+
+
+### Features
+
+* **ci:** add auto-fix workflow for PR failures ([297ffc8](https://github.com/happyvertical/sdk/commit/297ffc872b55653b9e43c82d63478ab51251bd0e))
+
 # [0.39.0](https://github.com/happyvertical/sdk/compare/v0.38.0...v0.39.0) (2025-10-16)
 
 
