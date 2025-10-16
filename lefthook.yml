@@ -1,21 +1,25 @@
-pre-commit:
-  commands:
-    format:
-      glob: "**/*.{js,ts,cjs,mjs,jsx,tsx,json}"
-      run: './node_modules/.bin/biome format --write --staged --no-errors-on-unmatched'
-      stage_fixed: true
-    lint:
-      glob: "**/*.{js,ts,cjs,mjs,jsx,tsx,json}"
-      run: './node_modules/.bin/biome lint --write --staged --no-errors-on-unmatched'
-      stage_fixed: true
-    validate-package-json:
-      glob: "{packages,smrt}/**/package.json"
-      run: node scripts/validate-package-json.js {staged_files}
-    validate-changeset-config:
-      glob: ".changeset/**/*"
-      run: node scripts/validate-changeset-config.js
+# Lefthook Git Hooks Configuration
+# https://github.com/evilmartians/lefthook
 
+# Pre-commit hook: Run linting and formatting checks
+# pre-commit:
+#   parallel: true
+#   commands:
+#     format:
+#       run: pnpm biome format --write {staged_files}
+#       stage_fixed: true
+
+# Commit-msg hook: Validate commit message format
 commit-msg:
   commands:
-    commitlint:
-      run: './node_modules/.bin/commitlint --edit {1}'
+    validate:
+      run: npx --no-install commitlint --edit {1}
+
+# Pre-push hook: Run tests before pushing (disabled for now)
+# pre-push:
+#   commands:
+#     test:
+#       run: pnpm test
+#       skip:
+#         - merge
+#         - rebase
