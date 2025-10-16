@@ -2,7 +2,7 @@ import { getDatabase, buildWhere, syncSchema } from "@have/sql";
 import { getAI } from "@have/ai";
 import { FilesystemAdapter } from "@have/files";
 import { makeId } from "@have/utils";
-import { O as ObjectRegistry, c as formatDataJs, d as formatDataSql, f as fieldsFromClass, g as generateSchema, t as tableNameFromClass } from "./registry-BgJdzGGH.js";
+import { O as ObjectRegistry, f as formatDataJs, a as formatDataSql, b as fieldsFromClass, g as generateSchema, t as tableNameFromClass } from "./registry-BLel7Dtz.js";
 const DEFAULT_REDACT_KEYS = [
   "password",
   "passwd",
@@ -1341,22 +1341,7 @@ class SmrtCollection extends SmrtClass {
     return rowCount || 0;
   }
 }
-const collection = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-  __proto__: null,
-  SmrtCollection
-}, Symbol.toStringTag, { value: "Module" }));
 export {
-  ALL_SYSTEM_TABLES as A,
-  CREATE_SMRT_CONTEXTS_TABLE as C,
-  SmrtCollection as S,
-  SmrtClass as a,
-  SignalBus as b,
-  config as c,
-  SignalSanitizer as d,
-  CREATE_SMRT_MIGRATIONS_TABLE as e,
-  CREATE_SMRT_REGISTRY_TABLE as f,
-  CREATE_SMRT_SIGNALS_TABLE as g,
-  SMRT_SCHEMA_VERSION as h,
-  collection as i
+  SmrtCollection
 };
-//# sourceMappingURL=collection-DOxCGb3L.js.map
+//# sourceMappingURL=collection-hMRJdcXq.js.map

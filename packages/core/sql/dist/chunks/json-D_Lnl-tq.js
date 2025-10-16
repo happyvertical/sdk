@@ -97,7 +97,7 @@ function convertBigInts(obj) {
 }
 async function getSmrtSchemaForTable(tableName) {
   try {
-    const { ObjectRegistry } = await import("./registry-B3GUIyDa.js").then((n) => n.r);
+    const { ObjectRegistry } = await import("./registry-BLel7Dtz.js").then((n) => n.r);
     const allClasses = ObjectRegistry.getAllClasses();
     for (const [className, registered] of allClasses) {
       const schema = ObjectRegistry.getSchema(className);
@@ -548,4 +548,4 @@ async function getDatabase(options) {
 export {
   getDatabase
 };
-//# sourceMappingURL=json-D5BRqPQR.js.map
+//# sourceMappingURL=json-D_Lnl-tq.js.map
