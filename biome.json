@@ -25,11 +25,16 @@
       "recommended": true,
       "suspicious": {
         "noExplicitAny": "info",
-        "noArrayIndexKey": "warn"
+        "noArrayIndexKey": "warn",
+        "noImplicitAnyLet": "warn"
       },
       "correctness": {
         "noUnusedVariables": "warn",
-        "noUnusedImports": "warn"
+        "noUnusedImports": "warn",
+        "useParseIntRadix": "warn"
+      },
+      "style": {
+        "noNonNullAssertion": "warn"
       }
     }
   },
@@ -88,13 +93,20 @@
     {
       "includes": [
         "packages/ai/src/**/*.ts",
-        "packages/smrt/src/**/*.ts",
-        "packages/sql/src/**/*.ts"
+        "packages/cache/src/**/*.ts",
+        "packages/config/src/**/*.ts",
+        "packages/documents/src/**/*.ts",
+        "packages/files/src/**/*.ts",
+        "packages/sql/src/**/*.ts",
+        "packages/utils/src/**/*.ts"
       ],
       "linter": {
         "rules": {
           "suspicious": {
             "noExplicitAny": "off"
+          },
+          "style": {
+            "noNonNullAssertion": "warn"
           }
         }
       }
