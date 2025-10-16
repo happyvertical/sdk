@@ -249,9 +249,36 @@ await org.save(); // Uses db.upsert() with properly-typed columns
 
 **How It Works**:
 1. **Schema Lookup**: `getSmrtSchemaForTable(tableName)` checks ObjectRegistry for matching SMRT object
-2. **Table Creation**: `createTableFromSmrtSchema()` creates table with proper SQL types (TEXT, INTEGER, etc.)
-3. **Data Loading**: JSON data inserted into properly-typed table using INSERT INTO ... SELECT FROM read_json()
-4. **Fallback**: Non-SMRT tables use DuckDB auto-detection as before
+2. **DEFAULT Value Fixing**: Explicit CAST() added to all DEFAULT values to prevent DuckDB's ANY type inference:
+   - `DEFAULT ''` → `DEFAULT CAST('' AS TEXT)`
+   - `DEFAULT NULL` → `DEFAULT CAST(NULL AS TEXT)`
+3. **Table Creation**: `createTableFromSmrtSchema()` creates table with properly-typed columns
+4. **Data Loading**: JSON data inserted into properly-typed table using INSERT INTO ... SELECT FROM read_json()
+5. **Fallback**: Non-SMRT tables use DuckDB auto-detection as before
+
+**Technical Details**:
+DuckDB has a known issue where DEFAULT values with empty strings or NULL cause type inference to fail, resulting in columns with `ANY` type instead of `TEXT`. The fix explicitly casts all DEFAULT values to their column types:
+
+```sql
+-- Before (causes ANY type):
+CREATE TABLE organizations (
+  id TEXT PRIMARY KEY,
+  name TEXT DEFAULT '',
+  url TEXT DEFAULT NULL
+);
+
+-- After (proper TEXT typing):
+CREATE TABLE organizations (
+  id TEXT PRIMARY KEY,
+  name TEXT DEFAULT CAST('' AS TEXT),
+  url TEXT DEFAULT CAST(NULL AS TEXT)
+);
+```
+
+This ensures that:
+- INSERT operations work with empty strings
+- UPSERT operations don't fail with "Cannot create values of type ANY"
+- Columns maintain proper TEXT typing throughout their lifecycle
 
 **Configuration Options**:
 ```typescript
