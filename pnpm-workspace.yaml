@@ -2,8 +2,6 @@ packages:
   - 'packages/*'
   - 'docs'
   - 'test-town-gnode'
-  - '../bentleyalberta.com'
 
 # pnpm workspace configuration for HAVE SDK monorepo
-# Infrastructure packages now in packages/* (cache, config, documents, etc.)
-# Modules packages in packages/modules/* (tags, places, profiles, etc.)
+# Infrastructure packages in packages/* (ai, cache, config, documents, etc.)
