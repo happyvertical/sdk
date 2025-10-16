@@ -574,5 +574,82 @@ describe('JSON adapter tests', () => {
       const newResult = await db.get('test_default_cast', { id: data3.id });
       expect(newResult).toMatchObject(data3);
     });
+
+    it('should CAST empty string parameters in INSERT/UPSERT operations', async () => {
+      // This test verifies the fix for issue #228 - empty string parameters
+      // Problem: When INSERT/UPSERT sends empty strings as parameters, DuckDB
+      //          infers them as ANY type even if the table has TEXT columns
+      // Solution: Wrap empty string parameters with CAST($N AS TEXT)
+
+      // Create a table (even without DEFAULT CAST, this test should pass now)
+      await db.execute`
+        CREATE TABLE test_param_cast (
+          id TEXT PRIMARY KEY,
+          slug TEXT NOT NULL,
+          context TEXT NOT NULL,
+          name TEXT,
+          url TEXT,
+          meetings_url TEXT,
+          UNIQUE(slug, context)
+        )
+      `;
+
+      // Insert with empty strings - the parameters themselves need CAST
+      const data1 = {
+        id: randomUUID(),
+        slug: 'param-test',
+        context: '', // Empty string parameter - needs CAST
+        name: '',    // Empty string parameter - needs CAST
+        url: '',     // Empty string parameter - needs CAST
+        meetings_url: '',
+      };
+
+      // This INSERT should work because we CAST empty string parameters
+      await db.insert('test_param_cast', data1);
+
+      // Verify insert worked
+      const inserted = await db.get('test_param_cast', { id: data1.id });
+      expect(inserted).toMatchObject(data1);
+
+      // UPSERT with empty strings - this is the critical test
+      const data2 = {
+        id: data1.id,
+        slug: 'param-test',
+        context: '', // Empty string in UPSERT
+        name: 'Updated Name',
+        url: 'https://example.com',
+        meetings_url: '', // Still empty
+      };
+
+      // This should succeed because empty strings are CAST in both INSERT and UPDATE clauses
+      await db.upsert('test_param_cast', ['slug', 'context'], data2);
+
+      // Verify update worked
+      const updated = await db.get('test_param_cast', { id: data1.id });
+      expect(updated).toMatchObject({
+        id: data1.id,
+        slug: 'param-test',
+        context: '',
+        name: 'Updated Name',
+        url: 'https://example.com',
+        meetings_url: '',
+      });
+
+      // UPSERT to insert new record with all empty strings
+      const data3 = {
+        id: randomUUID(),
+        slug: 'all-empty',
+        context: '',
+        name: '',
+        url: '',
+        meetings_url: '',
+      };
+
+      await db.upsert('test_param_cast', ['slug', 'context'], data3);
+
+      // Verify new record was inserted
+      const newRecord = await db.get('test_param_cast', { id: data3.id });
+      expect(newRecord).toMatchObject(data3);
+    });
   });
 });
