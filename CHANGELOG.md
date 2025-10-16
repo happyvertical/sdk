@@ -1,3 +1,10 @@
+# [0.39.0](https://github.com/happyvertical/sdk/compare/v0.38.0...v0.39.0) (2025-10-16)
+
+
+### Bug Fixes
+
+* **docs:** remove references to split SMRT packages ([0858d39](https://github.com/happyvertical/sdk/commit/0858d398b00a1f0814a2326093f02f894095ceba)), closes [#238](https://github.com/happyvertical/sdk/issues/238)
+
 # [0.38.0](https://github.com/happyvertical/sdk/compare/v0.37.1...v0.38.0) (2025-10-16)
 
 
