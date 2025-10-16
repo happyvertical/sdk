@@ -1,3 +1,10 @@
+# [0.41.0](https://github.com/happyvertical/sdk/compare/v0.40.0...v0.41.0) (2025-10-16)
+
+
+### Features
+
+* **sql:** standardize ALTER TABLE methods across database adapters ([49d8f13](https://github.com/happyvertical/sdk/commit/49d8f138913e1f7a2c5fb6a26eab3896724e7b07)), closes [#241](https://github.com/happyvertical/sdk/issues/241) [#241](https://github.com/happyvertical/sdk/issues/241)
+
 # [0.40.0](https://github.com/happyvertical/sdk/compare/v0.39.0...v0.40.0) (2025-10-16)
 
 
