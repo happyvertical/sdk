@@ -1,14 +1,14 @@
-import { v4 as uuidv4 } from 'uuid';
 import { getCached, setCached } from '@have/files';
 import { getPDFReader } from '@have/pdf';
+import { v4 as uuidv4 } from 'uuid';
+import { Document as BaseDocument } from '../document';
 import type {
   Document,
-  DocumentPart,
   DocumentImage,
+  DocumentPart,
   DocumentProcessor,
   FetchDocumentOptions,
 } from '../types';
-import { Document as BaseDocument } from '../document';
 import { getTitleFromUrl } from '../utils';
 
 /**
@@ -119,8 +119,8 @@ export class PDFProcessor implements DocumentProcessor {
    * @returns Promise resolving to array of DocumentImages
    */
   private async extractImages(
-    filePath: string,
-    runOcr: boolean,
+    _filePath: string,
+    _runOcr: boolean,
   ): Promise<DocumentImage[]> {
     // TODO: Implement image extraction using @have/pdf
     // For now, return empty array as placeholder

@@ -38,14 +38,14 @@ export function extractCodeBlock(text: string, language?: string): string {
   );
 
   const match = text.match(codeBlockRegex);
-  if (match && match[1]) {
+  if (match?.[1]) {
     return match[1].trim();
   }
 
   // If no markdown code block found, check for inline code
   const inlineRegex = /`([^`]+)`/;
   const inlineMatch = text.match(inlineRegex);
-  if (inlineMatch && inlineMatch[1]) {
+  if (inlineMatch?.[1]) {
     return inlineMatch[1].trim();
   }
 
@@ -146,9 +146,9 @@ export function extractAllCodeBlocks(
   );
 
   const blocks: string[] = [];
-  let match: RegExpExecArray | null;
+  const matches = text.matchAll(codeBlockRegex);
 
-  while ((match = codeBlockRegex.exec(text)) !== null) {
+  for (const match of matches) {
     if (match[1]) {
       blocks.push(match[1].trim());
     }

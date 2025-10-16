@@ -1,4 +1,4 @@
-import { ScraperOptions, IScraper } from './types';
+import { IScraper, ScraperOptions } from './types';
 /**
  * Factory function to create scraper instances
  *

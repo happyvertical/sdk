@@ -18,10 +18,6 @@ export declare class CrawleeAdapter implements ISpiderAdapter {
      */
     private getCacheKey;
     /**
-     * Extract links from HTML using cheerio with metadata
-     */
-    private extractLinksFromHtml;
-    /**
      * Expand all navigation/accordion elements and extract all links from a page
      *
      * This method is useful for pages with hidden content behind expandable elements.

@@ -3,8 +3,8 @@
  */
 
 import { Client } from '@googlemaps/google-maps-services-js';
-import { getCache } from '@have/cache';
 import type { ICacheAdapter } from '@have/cache';
+import { getCache } from '@have/cache';
 import type {
   GoogleMapsOptions,
   IGeoProvider,

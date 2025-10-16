@@ -2,10 +2,10 @@
  * Tests for LoggerAdapter
  */
 
-import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LoggerAdapter } from './adapter.js';
-import type { Signal } from './signal-types.js';
 import type { Logger } from './logger.js';
+import type { Signal } from './signal-types.js';
 
 describe('LoggerAdapter', () => {
   let mockLogger: Logger;

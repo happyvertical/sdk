@@ -1,4 +1,4 @@
-import { TreeScraperOptions, ScrapeOptions, ScrapeResult, ScraperType, IScraper } from '../shared/types';
+import { IScraper, ScrapeOptions, ScrapeResult, ScraperType, TreeScraperOptions } from '../shared/types';
 /**
  * Tree scraper - expand hierarchical tree structures to reveal hidden content
  *
@@ -60,11 +60,6 @@ export declare class TreeScraper implements IScraper {
      * @returns Promise resolving to array of links and interaction count
      */
     private extractLinksWithTreeExpansion;
-    /**
-     * Old page.evaluate()-based implementation (keeping for reference)
-     * This version didn't properly trigger JavaScript event handlers
-     */
-    private extractLinksWithTreeExpansionOld;
     /**
      * Scrape content from a URL by expanding hierarchical tree structures
      *

@@ -197,7 +197,7 @@ export declare class AIClient {
 export declare function getOpenAI(options: {
     apiKey?: string;
     baseUrl?: string;
-}): Promise<any>;
+}): Promise<OpenAI>;
 /**
  * Options specific to OpenAI text completion requests
  */

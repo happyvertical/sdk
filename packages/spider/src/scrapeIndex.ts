@@ -1,8 +1,8 @@
 import { getScraper } from './shared/scraper-factory';
 import type {
-  ScraperOptions,
   ScrapeOptions,
   ScrapeResult,
+  ScraperOptions,
 } from './shared/types';
 
 /**

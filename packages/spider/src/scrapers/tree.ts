@@ -1,15 +1,15 @@
-import { getCache } from '@have/cache';
 import type { ICacheAdapter } from '@have/cache';
+import { getCache } from '@have/cache';
 import { Configuration, PlaywrightCrawler } from 'crawlee';
 import type {
-  TreeScraperOptions,
+  IScraper,
+  Link,
   ScrapeMetrics,
   ScrapeOptions,
   ScrapeResult,
   ScraperStrategy,
   ScraperType,
-  IScraper,
-  Link,
+  TreeScraperOptions,
 } from '../shared/types';
 
 /**
@@ -92,7 +92,7 @@ export class TreeScraper implements IScraper {
    * Cache key includes URL, maxIterations, and clickDelay to differentiate
    * results with different expansion parameters.
    */
-  private getCacheKey(url: string, options?: ScrapeOptions): string {
+  private getCacheKey(url: string, _options?: ScrapeOptions): string {
     const maxIterations = this.options.maxIterations || 10;
     const clickDelay = this.options.clickDelay || 100;
     return `tree:${encodeURIComponent(url)}:${maxIterations}:${clickDelay}`;
@@ -149,7 +149,9 @@ export class TreeScraper implements IScraper {
 
     // Extract initial links
     const initialLinks = await this.extractCurrentLinks(page);
-    initialLinks.forEach((link) => linkMap.set(link.href, link));
+    for (const link of initialLinks) {
+      linkMap.set(link.href, link);
+    }
 
     // Keep expanding until no more expandable elements are found
     // This handles deep hierarchical structures (trees) by continuously
@@ -216,14 +218,15 @@ export class TreeScraper implements IScraper {
 
             // Extract links after each click (not just at the end)
             const newLinks = await this.extractCurrentLinks(page);
-            newLinks.forEach((link) => linkMap.set(link.href, link));
+            for (const link of newLinks) {
+              linkMap.set(link.href, link);
+            }
 
             // After clicking, immediately re-query this selector to find
             // any newly revealed elements at the same level or deeper
             // This enables proper hierarchical expansion
             break; // Break to re-query and find newly revealed elements
-          } catch (err) {
-          }
+          } catch (_err) {}
         }
 
         // If we clicked something with this selector, restart selector loop
@@ -250,159 +253,6 @@ export class TreeScraper implements IScraper {
       links: Array.from(linkMap.values()),
       interactionCount,
     };
-  }
-
-  /**
-   * Old page.evaluate()-based implementation (keeping for reference)
-   * This version didn't properly trigger JavaScript event handlers
-   */
-  private async extractLinksWithTreeExpansionOld(
-    page: any,
-  ): Promise<{ links: Link[]; interactionCount: number }> {
-    const selectors = [
-      ...this.DEFAULT_SELECTORS,
-      ...(this.options.customSelectors || []),
-    ];
-
-    const result = await page.evaluate(
-      ({
-        selectors,
-        maxIterations,
-        clickDelay,
-      }: {
-        selectors: string[];
-        maxIterations: number;
-        clickDelay: number;
-      }) => {
-        const linkMap = new Map<string, any>();
-        const clickedElements = new Set<Element>();
-        let interactionCount = 0;
-        let previousLinkCount = 0;
-
-        // Extract all current links and store in map
-        const extractLinks = () => {
-          document.querySelectorAll('a[href]').forEach((a) => {
-            const link = a as HTMLAnchorElement;
-            const href = link.href;
-            if (!linkMap.has(href)) {
-              linkMap.set(href, {
-                href,
-                text: link.textContent?.trim() || '',
-                title: link.title || undefined,
-                ariaLabel: link.getAttribute('aria-label') || undefined,
-                rel: link.rel || undefined,
-                target: link.target || undefined,
-                classes: link.className
-                  ? link.className.split(' ').filter((c) => c.trim())
-                  : undefined,
-              });
-            }
-          });
-        };
-
-        // Initial extraction
-        extractLinks();
-        previousLinkCount = linkMap.size;
-
-        // Iterate through expandable elements
-        for (let iteration = 0; iteration < maxIterations; iteration++) {
-          let foundNewElement = false;
-
-          // Try each selector
-          for (const selector of selectors) {
-            const elements = document.querySelectorAll(selector);
-
-            for (const element of elements) {
-              // Skip if already clicked
-              if (clickedElements.has(element)) {
-                continue;
-              }
-
-              // Check if element is visible and clickable
-              const rect = element.getBoundingClientRect();
-              if (rect.width === 0 || rect.height === 0) {
-                continue;
-              }
-
-              // Check if element is actually an accordion trigger
-              const ariaExpanded = element.getAttribute('aria-expanded');
-              const ariaControls = element.getAttribute('aria-controls');
-              const isDirectory =
-                element.parentElement?.classList.contains('directory') ||
-                element.parentElement?.classList.contains('collapsed');
-
-              // Skip elements that don't look like accordion triggers
-              // Allow if: has aria-expanded, has aria-controls, is details summary, or is directory-style
-              if (
-                !ariaExpanded &&
-                !ariaControls &&
-                !selector.includes('details') &&
-                !isDirectory
-              ) {
-                continue;
-              }
-
-              // Click the element
-              try {
-                (element as HTMLElement).click();
-                clickedElements.add(element);
-                interactionCount++;
-                foundNewElement = true;
-
-                // Wait for potential animations/transitions and content loading
-                // Use a longer delay for directory-style accordions as they may load content async
-                const waitTime = isDirectory
-                  ? Math.max(clickDelay, 500)
-                  : clickDelay;
-                const start = Date.now();
-                while (Date.now() - start < waitTime) {
-                  // Busy wait (synchronous delay in browser context)
-                }
-
-                // Extract links after click
-                extractLinks();
-              } catch (err) {
-                // Element not clickable or hidden, skip
-                continue;
-              }
-
-              // Only click one element per iteration if handling exclusive accordions
-              break;
-            }
-
-            if (foundNewElement) {
-              break;
-            }
-          }
-
-          // Check if we found new links
-          const currentLinkCount = linkMap.size;
-          if (currentLinkCount === previousLinkCount) {
-            // No new links found, we're done
-            break;
-          }
-
-          previousLinkCount = currentLinkCount;
-
-          // If no new elements found to click, we're done
-          if (!foundNewElement) {
-            break;
-          }
-        }
-
-        return {
-          links: Array.from(linkMap.values()),
-          interactionCount,
-        };
-      },
-      {
-        selectors,
-        maxIterations: this.options.maxIterations || 10,
-        clickDelay: this.options.clickDelay || 100,
-      },
-    );
-
-    return result;
   }
 
   /**

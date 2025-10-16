@@ -1,5 +1,5 @@
-import { SmrtConfig, LoadConfigOptions } from './types.js';
-export type { SmrtConfig, SmrtGlobalConfig, LoadConfigOptions, } from './types.js';
+import { LoadConfigOptions, SmrtConfig } from './types.js';
+export type { LoadConfigOptions, SmrtConfig, SmrtGlobalConfig, } from './types.js';
 /**
  * Load and parse configuration from project root
  */

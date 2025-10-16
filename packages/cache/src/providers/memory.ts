@@ -8,7 +8,7 @@ import type {
   ICacheProvider,
   MemoryOptions,
 } from '../shared/types';
-import { CacheError, CacheKeyError, CacheSizeError } from '../shared/types';
+import { CacheKeyError, CacheSizeError } from '../shared/types';
 import {
   calculateExpiration,
   calculateSize,

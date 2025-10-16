@@ -1,13 +1,13 @@
 import { DatabaseError } from '@have/utils';
 import type { Client } from '@libsql/client';
+import { DatabaseSchemaManager } from './schema-manager';
 import type {
   DatabaseInterface,
   QueryResult,
-  TableInterface,
   SchemaInitializationOptions,
+  TableInterface,
 } from './shared/types';
 import { buildWhere } from './shared/utils';
-import { DatabaseSchemaManager } from './schema-manager';
 
 /**
  * Creates a LibSQL client using the default client implementation

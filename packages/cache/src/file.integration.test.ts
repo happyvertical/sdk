@@ -2,8 +2,8 @@
  * Integration tests for File cache provider
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { rm } from 'node:fs/promises';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getCache } from './index';
 import type { ICacheAdapter } from './shared/types';
 
@@ -78,7 +78,7 @@ describe('File Cache Provider Integration', () => {
     it('should compress large values when enabled', async () => {
       const compressedCache = await getCache({
         provider: 'file',
-        cacheDir: testCacheDir + '-compressed',
+        cacheDir: `${testCacheDir}-compressed`,
         compression: true,
       });
 
@@ -89,7 +89,7 @@ describe('File Cache Provider Integration', () => {
       expect(result).toEqual(largeValue);
 
       await compressedCache.close();
-      await rm(testCacheDir + '-compressed', { recursive: true, force: true });
+      await rm(`${testCacheDir}-compressed`, { recursive: true, force: true });
     });
   });
 

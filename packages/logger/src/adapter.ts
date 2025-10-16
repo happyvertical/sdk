@@ -2,8 +2,8 @@
  * Signal adapter for structured logging
  */
 
-import type { Signal, ISignalAdapter } from './signal-types.js';
 import type { Logger } from './logger.js';
+import type { ISignalAdapter, Signal } from './signal-types.js';
 
 /**
  * Logger Adapter - Converts signals to structured log messages

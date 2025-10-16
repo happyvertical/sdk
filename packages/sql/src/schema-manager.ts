@@ -5,13 +5,10 @@
 
 import type {
   DatabaseInterface,
-  SchemaDefinition,
-  SchemaManifest,
-  SchemaInitializationOptions,
-  ColumnDefinition,
   IndexDefinition,
+  SchemaDefinition,
+  SchemaInitializationOptions,
   TriggerDefinition,
-  ForeignKeyDefinition,
 } from './shared/types.js';
 
 export interface SchemaInitializationResult {
@@ -292,7 +289,7 @@ export class DatabaseSchemaManager {
    * Update schema if changes are detected
    */
   private async updateSchemaIfNeeded(
-    db: DatabaseInterface,
+    _db: DatabaseInterface,
     schema: SchemaDefinition,
   ): Promise<void> {
     // For now, just log that update is needed

@@ -162,7 +162,7 @@ export function validateCode(
   ]);
 
   // Filter dangerous patterns based on options using explicit mapping
-  const effectivePatterns = disallowedPatterns.filter((pattern, index) => {
+  const effectivePatterns = disallowedPatterns.filter((_pattern, index) => {
     const patternType = patternFlags.get(DANGEROUS_PATTERNS[index]);
 
     if (patternType === 'require' && allowRequire) {

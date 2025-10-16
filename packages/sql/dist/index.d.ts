@@ -57,8 +57,8 @@ export declare function escapeSqlValue(value: any): string;
  */
 export declare function validateColumnName(column: string): string;
 export { buildWhere };
-export { DatabaseSchemaManager } from './schema-manager';
 export type { SchemaInitializationResult } from './schema-manager';
+export { DatabaseSchemaManager } from './schema-manager';
 export * from './shared/types';
 declare const _default: {
     getDatabase: typeof getDatabase;

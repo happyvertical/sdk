@@ -1,13 +1,13 @@
 import { DatabaseError } from '@have/utils';
 import { Pool } from 'pg';
+import { DatabaseSchemaManager } from './schema-manager';
 import type {
   QueryResult as BaseQueryResult,
   DatabaseInterface,
-  TableInterface,
   SchemaInitializationOptions,
+  TableInterface,
 } from './shared/types';
 import { buildWhere } from './shared/utils';
-import { DatabaseSchemaManager } from './schema-manager';
 
 /**
  * Configuration options for PostgreSQL database connections

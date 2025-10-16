@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getDatabase } from './duckdb';
 import type { DatabaseInterface } from './shared/types';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 describe('DuckDB Adapter', () => {
   let db: DatabaseInterface;

@@ -1,12 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
-  loadConfig,
+  clearCache,
   getModuleConfig,
   getPackageConfig,
+  loadConfig,
   setConfig,
-  clearCache,
 } from './index.js';
 
 describe('@have/config', () => {

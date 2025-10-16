@@ -1,13 +1,9 @@
-import { DatabaseError } from "@have/utils";
-import { DatabaseSchemaManager, buildWhere } from "../index.js";
 import { mkdir, readdir } from "node:fs/promises";
 import { extname, join, basename } from "node:path";
+import { DatabaseError } from "@have/utils";
+import { DatabaseSchemaManager, buildWhere } from "../index.js";
 async function createJSONConnection(options) {
-  const {
-    dataDir,
-    autoRegister = true,
-    skipSmrtTables = false
-  } = options;
+  const { dataDir, autoRegister = true, skipSmrtTables = false } = options;
   if (!dataDir) {
     throw new DatabaseError("dataDir is required for JSON adapter", {
       options
@@ -23,7 +19,7 @@ async function createJSONConnection(options) {
     const connection = await instance.connect();
     try {
       await mkdir(dataDir, { recursive: true });
-    } catch (error) {
+    } catch (_error) {
     }
     if (autoRegister) {
       await loadJSONTables(connection, dataDir, skipSmrtTables);
@@ -31,10 +27,13 @@ async function createJSONConnection(options) {
     return connection;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    throw new DatabaseError(`Failed to create JSON database connection: ${errorMessage}`, {
-      dataDir,
-      originalError: errorMessage
-    });
+    throw new DatabaseError(
+      `Failed to create JSON database connection: ${errorMessage}`,
+      {
+        dataDir,
+        originalError: errorMessage
+      }
+    );
   }
 }
 async function loadJSONTables(connection, dataDir, skipSmrtTables = false) {
@@ -103,7 +102,7 @@ async function getSmrtSchemaForTable(tableName) {
     const smrtPackage = await import("@have/smrt");
     const { ObjectRegistry } = smrtPackage;
     const allClasses = ObjectRegistry.getAllClasses();
-    for (const [className, registered] of allClasses) {
+    for (const [className, _registered] of allClasses) {
       const schema = ObjectRegistry.getSchema(className);
       if (schema && schema.tableName === tableName) {
         return {
@@ -115,7 +114,7 @@ async function getSmrtSchemaForTable(tableName) {
       }
     }
     return null;
-  } catch (error) {
+  } catch (_error) {
     return null;
   }
 }
@@ -125,10 +124,13 @@ async function createTableFromSmrtSchema(connection, tableName, schema) {
     (line) => line.trim().startsWith(");")
   );
   if (createTableEnd === -1) {
-    throw new DatabaseError("Invalid SMRT schema DDL - no closing parenthesis", {
-      tableName,
-      ddl: schema.ddl
-    });
+    throw new DatabaseError(
+      "Invalid SMRT schema DDL - no closing parenthesis",
+      {
+        tableName,
+        ddl: schema.ddl
+      }
+    );
   }
   let createTableSQL = ddlLines.slice(0, createTableEnd + 1).join("\n");
   createTableSQL = createTableSQL.replace(
@@ -284,7 +286,10 @@ async function getDatabase(options) {
     }
     const keys = Object.keys(data);
     const setClause = keys.map((key, idx) => `${key} = $${idx + 1}`).join(", ");
-    const { sql: whereClause, values: whereValues } = buildWhere(where, keys.length + 1);
+    const { sql: whereClause, values: whereValues } = buildWhere(
+      where,
+      keys.length + 1
+    );
     const sql = `UPDATE ${table2} SET ${setClause} ${whereClause}`;
     const values = [...Object.values(data), ...whereValues];
     try {
@@ -522,7 +527,9 @@ async function getDatabase(options) {
     for (const command of commands) {
       const trimmedCommand = command.trim().toUpperCase();
       if (trimmedCommand.startsWith("CREATE TRIGGER")) {
-        console.warn("[json-adapter] Skipping trigger creation - timestamps managed at application level");
+        console.warn(
+          "[json-adapter] Skipping trigger creation - timestamps managed at application level"
+        );
         continue;
       }
       try {
@@ -619,4 +626,4 @@ async function getDatabase(options) {
 export {
   getDatabase
 };
-//# sourceMappingURL=json-DY66pnr2.js.map
+//# sourceMappingURL=json-BLreH1KJ.js.map

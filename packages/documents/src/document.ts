@@ -1,17 +1,11 @@
 import os from 'node:os';
 import path from 'node:path';
 import { URL } from 'node:url';
-import type { FilesystemAdapter } from '@have/files';
-import {
-  downloadFileWithCache,
-  getCached,
-  getMimeType,
-  setCached,
-} from '@have/files';
+import { downloadFileWithCache, getMimeType } from '@have/files';
 import { makeSlug } from '@have/utils';
 import type {
-  Document as DocumentType,
   DocumentPart,
+  Document as DocumentType,
   FetchDocumentOptions,
 } from './types';
 

@@ -4,17 +4,17 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-  extractCodeBlock,
-  extractJSON,
-  extractAllCodeBlocks,
-  extractFunctionDefinition,
   createSandbox,
   executeCode,
   executeCodeAsync,
   executeInSandbox,
   executeInSandboxAsync,
-  validateCode,
+  extractAllCodeBlocks,
+  extractCodeBlock,
+  extractFunctionDefinition,
+  extractJSON,
   isSafeCode,
+  validateCode,
 } from './index';
 
 describe('Code Extraction', () => {

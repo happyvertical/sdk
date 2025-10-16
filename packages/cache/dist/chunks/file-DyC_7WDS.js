@@ -1,7 +1,7 @@
 import { readFile, rm, stat, mkdir, readdir, writeFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
-import { gunzip, gzip } from "node:zlib";
 import { promisify } from "node:util";
+import { gunzip, gzip } from "node:zlib";
 import { isValidKey, CacheKeyError, formatKey, deserialize, isExpired, CacheError, calculateExpiration, calculateSize, extractKey, matchesPattern, serialize, CacheSerializationError, CacheSizeError } from "../index.js";
 const gzipAsync = promisify(gzip);
 const gunzipAsync = promisify(gunzip);
@@ -447,4 +447,4 @@ class FileProvider {
 export {
   FileProvider
 };
-//# sourceMappingURL=file-hoHp7tsj.js.map
+//# sourceMappingURL=file-DyC_7WDS.js.map

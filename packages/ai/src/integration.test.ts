@@ -321,9 +321,9 @@ describe('Tool Use Integration Tests', () => {
 
       expect(response).toBeDefined();
       expect(response.toolCalls).toBeDefined();
-      expect(response.toolCalls!.length).toBeGreaterThan(0);
+      expect(response.toolCalls?.length).toBeGreaterThan(0);
 
-      const toolCall = response.toolCalls![0];
+      const toolCall = response.toolCalls?.[0];
       expect(toolCall.type).toBe('function');
       expect(toolCall.function.name).toBe('get_weather');
       expect(toolCall.id).toBeTruthy();
@@ -396,9 +396,9 @@ describe('Tool Use Integration Tests', () => {
 
       expect(response).toBeDefined();
       expect(response.toolCalls).toBeDefined();
-      expect(response.toolCalls!.length).toBeGreaterThan(0);
+      expect(response.toolCalls?.length).toBeGreaterThan(0);
 
-      const toolCall = response.toolCalls![0];
+      const toolCall = response.toolCalls?.[0];
       expect(toolCall.type).toBe('function');
       expect(toolCall.function.name).toBe('get_weather');
       expect(toolCall.id).toBeTruthy();
@@ -487,9 +487,9 @@ describe('Tool Use Integration Tests', () => {
 
       expect(response).toBeDefined();
       expect(response.toolCalls).toBeDefined();
-      expect(response.toolCalls!.length).toBeGreaterThan(0);
+      expect(response.toolCalls?.length).toBeGreaterThan(0);
 
-      const toolCall = response.toolCalls![0];
+      const toolCall = response.toolCalls?.[0];
       expect(toolCall.type).toBe('function');
       expect(toolCall.function.name).toBe('get_weather');
       expect(toolCall.id).toBeTruthy();

@@ -1,6 +1,6 @@
-import { createClient } from "redis";
-import { gunzip, gzip } from "node:zlib";
 import { promisify } from "node:util";
+import { gunzip, gzip } from "node:zlib";
+import { createClient } from "redis";
 import { CacheConnectionError, isValidKey, CacheKeyError, formatKey, deserialize, CacheError, serialize, CacheSerializationError } from "../index.js";
 const gzipAsync = promisify(gzip);
 const gunzipAsync = promisify(gunzip);
@@ -96,7 +96,7 @@ class RedisProvider {
       let data = serialize(value);
       if (this.enableCompression && data.length > this.compressionThreshold) {
         const compressed = await gzipAsync(Buffer.from(data, "utf-8"));
-        data = "gzip:" + compressed.toString("base64");
+        data = `gzip:${compressed.toString("base64")}`;
       }
       const effectiveTTL = ttl ?? this.defaultTTL;
       if (effectiveTTL !== void 0 && effectiveTTL > 0) {
@@ -255,7 +255,7 @@ class RedisProvider {
         let data = serialize(entry.value);
         if (this.enableCompression && data.length > this.compressionThreshold) {
           const compressed = await gzipAsync(Buffer.from(data, "utf-8"));
-          data = "gzip:" + compressed.toString("base64");
+          data = `gzip:${compressed.toString("base64")}`;
         }
         const effectiveTTL = entry.ttl ?? this.defaultTTL;
         if (effectiveTTL !== void 0 && effectiveTTL > 0) {
@@ -352,7 +352,7 @@ class RedisProvider {
       try {
         await this.client.quit();
         this.connected = false;
-      } catch (error) {
+      } catch (_error) {
         await this.client.disconnect();
         this.connected = false;
       }
@@ -362,4 +362,4 @@ class RedisProvider {
 export {
   RedisProvider
 };
-//# sourceMappingURL=redis-uGgI804z.js.map
+//# sourceMappingURL=redis-D-SNLXE_.js.map

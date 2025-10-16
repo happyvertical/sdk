@@ -1,15 +1,15 @@
+import { readdir } from 'node:fs/promises';
+import { basename, extname, join } from 'node:path';
 import { DatabaseError } from '@have/utils';
+import { DatabaseSchemaManager } from './schema-manager';
 import type {
   DatabaseInterface,
-  QueryResult,
-  TableInterface,
   DuckDBOptions,
+  QueryResult,
   SchemaInitializationOptions,
+  TableInterface,
 } from './shared/types';
 import { buildWhere } from './shared/utils';
-import { DatabaseSchemaManager } from './schema-manager';
-import { readdir } from 'node:fs/promises';
-import { join, basename, extname } from 'node:path';
 
 /**
  * Creates a DuckDB connection instance

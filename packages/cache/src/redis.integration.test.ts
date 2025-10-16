@@ -3,13 +3,13 @@
  * These tests require a running Redis instance
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getCache } from './index';
 import type { ICacheAdapter } from './shared/types';
 
 // Skip tests if Redis is not explicitly configured
 const REDIS_HOST = process.env.REDIS_HOST || 'localhost';
-const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379');
+const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379', 10);
 const SKIP_REDIS = !process.env.REDIS_HOST;
 
 describe.skipIf(SKIP_REDIS)('Redis Cache Provider Integration', () => {

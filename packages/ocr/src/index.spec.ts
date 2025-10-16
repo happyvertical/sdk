@@ -9,6 +9,7 @@ import { describe, expect, test } from 'vitest';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
 import type { OCRImage } from './index';
 import {
   getAvailableProviders,

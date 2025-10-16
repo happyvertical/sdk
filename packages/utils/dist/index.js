@@ -1,11 +1,97 @@
+import { basename } from "node:path";
+import { parseArgs } from "node:util";
 import * as vm from "node:vm";
 import { createId as createId$1 } from "@paralleldrive/cuid2";
 import { isCuid } from "@paralleldrive/cuid2";
 import { isValid, add, format, parse, parseISO } from "date-fns";
 import pluralize from "pluralize";
-import { basename } from "node:path";
-import { parseArgs } from "node:util";
 import { createHash } from "node:crypto";
+function parseCliArgs(argv, commands, builtInCommands = {}) {
+  let args = argv;
+  if (args.length > 0 && basename(args[0]) === "node") {
+    args = args.slice(1);
+  }
+  if (args.length > 0 && args[0].endsWith(".js")) {
+    args = args.slice(1);
+  }
+  if (args.length === 0) {
+    return { args: [], options: {} };
+  }
+  if (args.includes("--help")) {
+    return { command: "help", args: [], options: {} };
+  }
+  if (args.includes("--version")) {
+    return { command: "version", args: [], options: {} };
+  }
+  let matchedCommand;
+  let commandName;
+  let commandWordCount = 0;
+  for (let i = Math.min(3, args.length); i > 0; i--) {
+    const possibleCommand = args.slice(0, i).join(" ");
+    const found = builtInCommands[possibleCommand] || commands.find(
+      (cmd) => cmd.name === possibleCommand || cmd.aliases?.includes(possibleCommand)
+    );
+    if (found) {
+      matchedCommand = found;
+      commandName = possibleCommand;
+      commandWordCount = i;
+      break;
+    }
+  }
+  if (!commandName && args.length > 0) {
+    commandName = args[0];
+    commandWordCount = 1;
+    matchedCommand = commands.find(
+      (cmd) => cmd.name === commandName || cmd.aliases?.includes(commandName)
+    );
+  }
+  if (!matchedCommand) {
+    if (args.includes("-h")) {
+      return { command: "help", args: [], options: {} };
+    }
+    if (args.includes("-v")) {
+      return { command: "version", args: [], options: {} };
+    }
+    return {
+      command: commandName,
+      args: args.slice(1).filter((arg) => !arg.startsWith("-")),
+      options: {}
+    };
+  }
+  const parseConfig = {
+    args: args.slice(commandWordCount),
+    options: {},
+    strict: false,
+    // Allow unknown options
+    allowPositionals: true
+    // Required for mixing positional args and options
+  };
+  if (matchedCommand.options) {
+    for (const [name, option] of Object.entries(matchedCommand.options)) {
+      parseConfig.options[name] = {
+        type: option.type === "boolean" ? "boolean" : "string",
+        ...option.default !== void 0 && { default: option.default }
+      };
+      if (option.short) {
+        parseConfig.options[name].short = option.short;
+      }
+    }
+  }
+  try {
+    const parsed = parseArgs(parseConfig);
+    return {
+      command: commandName,
+      args: parsed.positionals || [],
+      options: parsed.values || {}
+    };
+  } catch (_error) {
+    return {
+      command: commandName,
+      args: args.slice(commandWordCount).filter((arg) => !arg.startsWith("-")),
+      options: {}
+    };
+  }
+}
 function extractCodeBlock(text, language) {
   if (!text) {
     return "";
@@ -16,12 +102,12 @@ function extractCodeBlock(text, language) {
     "i"
   );
   const match = text.match(codeBlockRegex);
-  if (match && match[1]) {
+  if (match?.[1]) {
     return match[1].trim();
   }
   const inlineRegex = /`([^`]+)`/;
   const inlineMatch = text.match(inlineRegex);
-  if (inlineMatch && inlineMatch[1]) {
+  if (inlineMatch?.[1]) {
     return inlineMatch[1].trim();
   }
   return "";
@@ -63,8 +149,8 @@ function extractAllCodeBlocks(text, language) {
     "gi"
   );
   const blocks = [];
-  let match;
-  while ((match = codeBlockRegex.exec(text)) !== null) {
+  const matches = text.matchAll(codeBlockRegex);
+  for (const match of matches) {
     if (match[1]) {
       blocks.push(match[1].trim());
     }
@@ -186,7 +272,9 @@ function executeCode(code, sandbox, options = {}) {
     let wrappedCode;
     if (captureResult) {
       const hasMultipleStatements = code.includes(";") || code.includes("\n") && code.trim().split("\n").length > 1;
-      const hasFunctionDef = /function\s+\w+|const\s+\w+\s*=\s*function|const\s+\w+\s*=\s*\(/i.test(code);
+      const hasFunctionDef = /function\s+\w+|const\s+\w+\s*=\s*function|const\s+\w+\s*=\s*\(/i.test(
+        code
+      );
       if (hasMultipleStatements || hasFunctionDef) {
         wrappedCode = code;
       } else {
@@ -325,7 +413,7 @@ function validateCode(code, options = {}) {
     // /Function\s*\(/i - also controlled by allowEval
     // Patterns 4-9 are always dangerous (process, fs, child_process, etc.)
   ]);
-  const effectivePatterns = disallowedPatterns.filter((pattern, index) => {
+  const effectivePatterns = disallowedPatterns.filter((_pattern, index) => {
     const patternType = patternFlags.get(DANGEROUS_PATTERNS[index]);
     if (patternType === "require" && allowRequire) {
       return false;
@@ -360,12 +448,16 @@ function validateCode(code, options = {}) {
   const stats = {
     length: code.length,
     lines: code.split("\n").length,
-    hasAsync: /\basync\b\s*(function|\([\w\s,={}[\]]*\)\s*=>|\w+\s*\()/m.test(code),
+    hasAsync: /\basync\b\s*(function|\([\w\s,={}[\]]*\)\s*=>|\w+\s*\()/m.test(
+      code
+    ),
     hasArrowFunctions: /=>/.test(code),
     hasClasses: /\bclass\s+\w+/.test(code)
   };
   if (stats.lines > 100) {
-    warnings.push(`Code is long (${stats.lines} lines) - consider breaking into smaller functions`);
+    warnings.push(
+      `Code is long (${stats.lines} lines) - consider breaking into smaller functions`
+    );
   }
   return {
     valid: errors.length === 0,
@@ -875,10 +967,7 @@ const dateInString = (str) => {
     monthStart + monthName.length,
     Math.min(cleanStr.length, monthStart + monthName.length + 15)
   );
-  const beforeYear = cleanStr.substring(
-    Math.max(0, yearIndex - 15),
-    yearIndex
-  );
+  const beforeYear = cleanStr.substring(Math.max(0, yearIndex - 15), yearIndex);
   const afterYear = cleanStr.substring(
     yearIndex + 4,
     Math.min(cleanStr.length, yearIndex + 19)
@@ -922,92 +1011,6 @@ const getTempDirectory = (subfolder) => {
   const basePath = `${tmpBase}/.have-sdk`;
   return subfolder ? `${basePath}/${subfolder}` : basePath;
 };
-function parseCliArgs(argv, commands, builtInCommands = {}) {
-  let args = argv;
-  if (args.length > 0 && basename(args[0]) === "node") {
-    args = args.slice(1);
-  }
-  if (args.length > 0 && args[0].endsWith(".js")) {
-    args = args.slice(1);
-  }
-  if (args.length === 0) {
-    return { args: [], options: {} };
-  }
-  if (args.includes("--help")) {
-    return { command: "help", args: [], options: {} };
-  }
-  if (args.includes("--version")) {
-    return { command: "version", args: [], options: {} };
-  }
-  let matchedCommand;
-  let commandName;
-  let commandWordCount = 0;
-  for (let i = Math.min(3, args.length); i > 0; i--) {
-    const possibleCommand = args.slice(0, i).join(" ");
-    const found = builtInCommands[possibleCommand] || commands.find(
-      (cmd) => cmd.name === possibleCommand || cmd.aliases?.includes(possibleCommand)
-    );
-    if (found) {
-      matchedCommand = found;
-      commandName = possibleCommand;
-      commandWordCount = i;
-      break;
-    }
-  }
-  if (!commandName && args.length > 0) {
-    commandName = args[0];
-    commandWordCount = 1;
-    matchedCommand = commands.find(
-      (cmd) => cmd.name === commandName || cmd.aliases?.includes(commandName)
-    );
-  }
-  if (!matchedCommand) {
-    if (args.includes("-h")) {
-      return { command: "help", args: [], options: {} };
-    }
-    if (args.includes("-v")) {
-      return { command: "version", args: [], options: {} };
-    }
-    return {
-      command: commandName,
-      args: args.slice(1).filter((arg) => !arg.startsWith("-")),
-      options: {}
-    };
-  }
-  const parseConfig = {
-    args: args.slice(commandWordCount),
-    options: {},
-    strict: false,
-    // Allow unknown options
-    allowPositionals: true
-    // Required for mixing positional args and options
-  };
-  if (matchedCommand.options) {
-    for (const [name, option] of Object.entries(matchedCommand.options)) {
-      parseConfig.options[name] = {
-        type: option.type === "boolean" ? "boolean" : "string",
-        ...option.default !== void 0 && { default: option.default }
-      };
-      if (option.short) {
-        parseConfig.options[name].short = option.short;
-      }
-    }
-  }
-  try {
-    const parsed = parseArgs(parseConfig);
-    return {
-      command: commandName,
-      args: parsed.positionals || [],
-      options: parsed.values || {}
-    };
-  } catch (error) {
-    return {
-      command: commandName,
-      args: args.slice(commandWordCount).filter((arg) => !arg.startsWith("-")),
-      options: {}
-    };
-  }
-}
 function normalizeUrl(url) {
   const parsed = new URL(url);
   parsed.protocol = parsed.protocol.toLowerCase();
