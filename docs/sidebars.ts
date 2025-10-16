@@ -18,11 +18,6 @@ const sidebars: SidebarsConfig = {
       ],
     },
     {
-      type: 'link',
-      label: 's-m-r-t Framework',
-      href: '/smrt/overview',
-    },
-    {
       type: 'category',
       label: 'Tutorials',
       collapsed: true,
