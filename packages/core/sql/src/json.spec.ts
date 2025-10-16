@@ -503,5 +503,76 @@ describe('JSON adapter tests', () => {
       // 2. UNIQUE constraints on (slug, context) enable UPSERT operations
       // 3. Empty strings are handled correctly from the start
     });
+
+    it('should fix DuckDB type inference with explicit DEFAULT casts', async () => {
+      // This test verifies the fix for issue #228 reopening
+      // Problem: DuckDB infers ANY type for columns with DEFAULT '' even in SMRT schemas
+      // Solution: Explicitly cast DEFAULT values with CAST('' AS TEXT)
+
+      // Create a table with explicit casts (simulating fixed SMRT schema)
+      await db.execute`
+        CREATE TABLE test_default_cast (
+          id TEXT PRIMARY KEY,
+          slug TEXT NOT NULL,
+          context TEXT NOT NULL DEFAULT CAST('' AS TEXT),
+          name TEXT DEFAULT CAST('' AS TEXT),
+          url TEXT DEFAULT CAST('' AS TEXT),
+          meetings_url TEXT DEFAULT CAST('' AS TEXT),
+          UNIQUE(slug, context)
+        )
+      `;
+
+      // Insert with empty strings - should work with explicit casts
+      const data1 = {
+        id: randomUUID(),
+        slug: 'test-cast',
+        context: '',
+        name: '',
+        url: '',
+        meetings_url: '',
+      };
+
+      await db.insert('test_default_cast', data1);
+
+      // CRITICAL: Test UPSERT with empty strings
+      // This would fail with "Cannot create values of type ANY" without the fix
+      const data2 = {
+        id: data1.id,
+        slug: 'test-cast',
+        context: '',
+        name: 'Updated Name',
+        url: 'https://example.com',
+        meetings_url: '',
+      };
+
+      // This UPSERT should succeed with properly-typed columns
+      await db.upsert('test_default_cast', ['slug', 'context'], data2);
+
+      // Verify the update worked
+      const result = await db.get('test_default_cast', { id: data1.id });
+      expect(result).toMatchObject({
+        id: data1.id,
+        slug: 'test-cast',
+        context: '',
+        name: 'Updated Name',
+        url: 'https://example.com',
+        meetings_url: '',
+      });
+
+      // Test inserting new record with empty strings via UPSERT
+      const data3 = {
+        id: randomUUID(),
+        slug: 'new-cast',
+        context: '',
+        name: '',
+        url: '',
+        meetings_url: '',
+      };
+
+      await db.upsert('test_default_cast', ['slug', 'context'], data3);
+
+      const newResult = await db.get('test_default_cast', { id: data3.id });
+      expect(newResult).toMatchObject(data3);
+    });
   });
 });
