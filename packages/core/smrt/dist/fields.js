@@ -99,7 +99,13 @@ class Field {
       constraints.push("UNIQUE");
     }
     if (this.options.default !== void 0) {
-      constraints.push(`DEFAULT ${this.escapeSqlValue(this.options.default)}`);
+      const sqlType = this.getSqlType();
+      const escapedValue = this.escapeSqlValue(this.options.default);
+      if (sqlType === "TEXT" && (this.options.default === "" || this.options.default === null)) {
+        constraints.push(`DEFAULT CAST(${escapedValue} AS TEXT)`);
+      } else {
+        constraints.push(`DEFAULT ${escapedValue}`);
+      }
     }
     return constraints;
   }
