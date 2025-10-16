@@ -114,6 +114,12 @@ export class SchemaGenerator {
       // Handle default values
       if (fieldDef.default !== undefined) {
         column.defaultValue = fieldDef.default;
+      } else if (!fieldDef.required && this.mapFieldTypeToSQL(fieldDef.type) === 'TEXT') {
+        // For TEXT columns without explicit default or required constraint,
+        // add NOT NULL DEFAULT '' to prevent DuckDB ANY type inference
+        // DuckDB infers ANY type for nullable TEXT columns without defaults
+        column.notNull = true;
+        column.defaultValue = '';
       }
 
       // Handle foreign keys

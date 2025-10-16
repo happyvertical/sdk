@@ -59,9 +59,12 @@ async function loadJSONTables(connection, dataDir, skipSmrtTables = false) {
         );
         await createTableFromSmrtSchema(connection, tableName, smrtSchema);
         try {
-          await connection.run(
-            `INSERT INTO ${tableName} SELECT * FROM read_json('${filePath}', auto_detect=true, format='auto', ignore_errors=true)`
-          );
+          const { readFile } = await import("node:fs/promises");
+          const jsonContent = await readFile(filePath, "utf-8");
+          const records = JSON.parse(jsonContent);
+          if (Array.isArray(records) && records.length > 0) {
+            await insertRecordsWithCast(connection, tableName, records);
+          }
         } catch (error) {
           console.warn(
             `[json-adapter] Could not load data for ${tableName}: ${error instanceof Error ? error.message : String(error)}`
@@ -97,7 +100,8 @@ function convertBigInts(obj) {
 }
 async function getSmrtSchemaForTable(tableName) {
   try {
-    const { ObjectRegistry } = await import("./registry-BLel7Dtz.js").then((n) => n.r);
+    const smrtPackage = await import("@have/smrt");
+    const { ObjectRegistry } = smrtPackage;
     const allClasses = ObjectRegistry.getAllClasses();
     for (const [className, registered] of allClasses) {
       const schema = ObjectRegistry.getSchema(className);
@@ -137,6 +141,19 @@ async function createTableFromSmrtSchema(connection, tableName, schema) {
   );
   try {
     await connection.run(createTableSQL);
+    const schemaInfo = await connection.runAndReadAll(
+      `PRAGMA table_info(${tableName})`
+    );
+    const columns = schemaInfo.getRowObjects();
+    console.log(`[json-adapter] Created ${tableName} with schema:`, {
+      columns: columns.map((col) => ({
+        name: col.name,
+        type: col.type,
+        default: col.dflt_value,
+        notNull: col.notnull,
+        pk: col.pk
+      }))
+    });
     for (const indexSQL of schema.indexes) {
       try {
         await connection.run(indexSQL);
@@ -153,6 +170,32 @@ async function createTableFromSmrtSchema(connection, tableName, schema) {
       originalError: error instanceof Error ? error.message : String(error)
     });
   }
+}
+async function insertRecordsWithCast(connection, tableName, records) {
+  if (records.length === 0) return;
+  const keys = Object.keys(records[0]);
+  const values = [];
+  let paramIdx = 1;
+  const placeholders = records.map((record) => {
+    const rowPlaceholders = keys.map((key) => {
+      const value = record[key];
+      if (value === null) {
+        return "NULL";
+      } else if (value === "" && typeof value === "string") {
+        values.push(value);
+        return `CAST($${paramIdx++} AS TEXT)`;
+      } else if (value instanceof Date) {
+        values.push(value.toISOString());
+        return `$${paramIdx++}`;
+      } else {
+        values.push(value);
+        return `$${paramIdx++}`;
+      }
+    });
+    return `(${rowPlaceholders.join(", ")})`;
+  }).join(", ");
+  const sql = `INSERT INTO ${tableName} (${keys.join(", ")}) VALUES ${placeholders}`;
+  await connection.run(sql, values);
 }
 async function getDatabase(options) {
   const connection = await createJSONConnection(options);
@@ -177,9 +220,6 @@ async function getDatabase(options) {
         const value = record[key];
         if (value === null) {
           return "NULL";
-        } else if (value === "" && typeof value === "string") {
-          values.push(value);
-          return `CAST($${paramIdx++} AS TEXT)`;
         } else {
           values.push(value);
           return `$${paramIdx++}`;
@@ -281,6 +321,10 @@ async function getDatabase(options) {
         placeholders.push(`CAST($${paramIdx} AS TEXT)`);
         values.push(value);
         paramIdx++;
+      } else if (value instanceof Date) {
+        placeholders.push(`$${paramIdx}`);
+        values.push(value.toISOString());
+        paramIdx++;
       } else {
         placeholders.push(`$${paramIdx}`);
         values.push(value);
@@ -296,6 +340,10 @@ async function getDatabase(options) {
       } else if (value === "" && typeof value === "string") {
         updateSetParts.push(`${key} = CAST($${paramIdx} AS TEXT)`);
         values.push(value);
+        paramIdx++;
+      } else if (value instanceof Date) {
+        updateSetParts.push(`${key} = $${paramIdx}`);
+        values.push(value.toISOString());
         paramIdx++;
       } else {
         updateSetParts.push(`${key} = $${paramIdx}`);
@@ -571,4 +619,4 @@ async function getDatabase(options) {
 export {
   getDatabase
 };
-//# sourceMappingURL=json-BHAdwz6C.js.map
+//# sourceMappingURL=json-DY66pnr2.js.map

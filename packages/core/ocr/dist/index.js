@@ -100,7 +100,7 @@ class OCRFactory {
       }
       if (this.environment === "node") {
         try {
-          const { ONNXGutenyeProvider } = await import("./chunks/onnx-gutenye-BFM7r-Bt.js");
+          const { ONNXGutenyeProvider } = await import("./chunks/onnx-gutenye-DYi42Mm1.js");
           this.providers.set("onnx", new ONNXGutenyeProvider());
         } catch {
         }

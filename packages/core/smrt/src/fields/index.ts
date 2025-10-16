@@ -245,6 +245,11 @@ export class Field {
       } else {
         constraints.push(`DEFAULT ${escapedValue}`);
       }
+    } else if (!this.options.required && this.getSqlType() === 'TEXT') {
+      // For TEXT columns without explicit default or required constraint,
+      // add NOT NULL DEFAULT '' to prevent DuckDB ANY type inference
+      // DuckDB infers ANY type for nullable TEXT columns without defaults
+      constraints.push("NOT NULL DEFAULT ''");
     }
 
     return constraints;

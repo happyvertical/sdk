@@ -279,7 +279,8 @@ export function generateSchema(ClassType: new (...args: any[]) => any) {
     }
   }
 
-  let schema = `CREATE TABLE IF NOT EXISTS ${tableName} (\n`;
+  // Quote table name to handle SQL reserved keywords (e.g., "is", "as", "select")
+  let schema = `CREATE TABLE IF NOT EXISTS "${tableName}" (\n`;
 
   // If there's a custom primary key, use it; otherwise use default id field
   const hasCustomPK = customPKField !== null;
@@ -317,7 +318,13 @@ export function generateSchema(ClassType: new (...args: any[]) => any) {
     const columnName = toSnakeCase(key);
     const fieldDef = cachedFields.get(key);
     const sqlType = fieldDef?.getSqlType() || field.type || 'TEXT';
-    const constraints = fieldDef?.getSqlConstraints() || [];
+    let constraints = fieldDef?.getSqlConstraints() || [];
+
+    // For TEXT columns without Field definitions (simple properties like url = ''),
+    // add NOT NULL DEFAULT '' to prevent DuckDB ANY type inference
+    if (constraints.length === 0 && sqlType === 'TEXT') {
+      constraints = ["NOT NULL DEFAULT ''"];
+    }
 
     schema += `  ${columnName} ${sqlType}${constraints.length > 0 ? ' ' + constraints.join(' ') : ''},\n`;
   }
