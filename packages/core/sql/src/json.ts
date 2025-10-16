@@ -211,6 +211,10 @@ async function getSmrtSchemaForTable(
 /**
  * Creates a table from SMRT schema definition with proper typing
  *
+ * DuckDB has issues with type inference when DEFAULT values are empty strings.
+ * This function explicitly casts all DEFAULT values to their column types to
+ * prevent DuckDB from inferring ANY type.
+ *
  * @param connection - DuckDB connection
  * @param tableName - Name of the table to create
  * @param schema - Schema definition from SMRT ObjectRegistry
@@ -233,8 +237,22 @@ async function createTableFromSmrtSchema(
     });
   }
 
-  // Get just the CREATE TABLE statement
-  const createTableSQL = ddlLines.slice(0, createTableEnd + 1).join('\n');
+  // Get CREATE TABLE statement
+  let createTableSQL = ddlLines.slice(0, createTableEnd + 1).join('\n');
+
+  // Fix DEFAULT values for DuckDB type inference
+  // DuckDB infers ANY type when DEFAULT is an empty string without explicit cast
+  // Replace patterns like: DEFAULT '' with DEFAULT CAST('' AS TEXT)
+  createTableSQL = createTableSQL.replace(
+    /\b(\w+)\s+(TEXT|VARCHAR)\s+DEFAULT\s+''/g,
+    "$1 $2 DEFAULT CAST('' AS $2)",
+  );
+
+  // Also handle DEFAULT NULL cases to ensure proper typing
+  createTableSQL = createTableSQL.replace(
+    /\b(\w+)\s+(TEXT|VARCHAR)\s+DEFAULT\s+NULL/g,
+    '$1 $2 DEFAULT CAST(NULL AS $2)',
+  );
 
   try {
     await connection.run(createTableSQL);
@@ -245,7 +263,9 @@ async function createTableFromSmrtSchema(
         await connection.run(indexSQL);
       } catch (error) {
         // Index creation might fail if column doesn't exist or syntax incompatibility
-        console.warn(`[json-adapter] Failed to create index: ${error instanceof Error ? error.message : String(error)}`);
+        console.warn(
+          `[json-adapter] Failed to create index: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
     }
   } catch (error) {
