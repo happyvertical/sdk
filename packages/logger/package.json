@@ -19,7 +19,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@have/types": "workspace:*",
     "@have/utils": "workspace:*"
   },
   "devDependencies": {
