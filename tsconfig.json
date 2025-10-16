@@ -35,40 +35,27 @@
     "docs/**/*",
     "**/node_modules/**",
     "dist/**/*",
-    "packages/core/*/dist/**/*",
-    "packages/modules/*/dist/**/*",
-    "packages/core/*/.svelte-kit/**/*",
-    "packages/modules/*/.svelte-kit/**/*",
+    "packages/*/dist/**/*",
+    "packages/*/.svelte-kit/**/*",
     "**/*.test.ts",
     "**/*.spec.ts"
   ],
   "references": [
-    // Core packages - infrastructure and framework
-    { "path": "./packages/core/types" },
-    { "path": "./packages/core/config" },
-    { "path": "./packages/core/utils" },
-    { "path": "./packages/core/logger" },
-    { "path": "./packages/core/files" },
-    { "path": "./packages/core/cache" },
-    { "path": "./packages/core/geo" },
-    { "path": "./packages/core/translator" },
-    { "path": "./packages/core/sql" },
-    { "path": "./packages/core/ocr" },
-    { "path": "./packages/core/pdf" },
-    { "path": "./packages/core/documents" },
-    { "path": "./packages/core/ai" },
-    { "path": "./packages/core/spider" },
-    { "path": "./packages/core/smrt" },
-    // SMRT modules - domain models
-    { "path": "./packages/modules/agents" },
-    { "path": "./packages/modules/tags" },
-    { "path": "./packages/modules/places" },
-    { "path": "./packages/modules/profiles" },
-    { "path": "./packages/modules/events" },
-    { "path": "./packages/modules/assets" },
-    { "path": "./packages/modules/accounts" },
-    { "path": "./packages/modules/gnode" },
-    { "path": "./packages/modules/content" },
-    { "path": "./packages/modules/products" }
+    // Core foundation packages
+    { "path": "./packages/utils" },
+    { "path": "./packages/logger" },
+    { "path": "./packages/files" },
+    { "path": "./packages/sql" },
+    { "path": "./packages/ai" },
+
+    // Infrastructure packages
+    { "path": "./packages/config" },
+    { "path": "./packages/cache" },
+    { "path": "./packages/geo" },
+    { "path": "./packages/translator" },
+    { "path": "./packages/ocr" },
+    { "path": "./packages/pdf" },
+    { "path": "./packages/documents" },
+    { "path": "./packages/spider" }
   ]
 }

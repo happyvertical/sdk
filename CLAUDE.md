@@ -10,62 +10,62 @@ The HAppy VErtical (HAVE) SDK is a TypeScript monorepo designed for building ver
 - Support for testing and scaling with minimal overhead
 - Standardized interfaces across different packages
 
+> **Important**: As of October 2024, the SMRT framework has been split into its own repository at [github.com/happyvertical/smrt](https://github.com/happyvertical/smrt). This SDK provides core foundation packages (ai, files, sql, utils, logger) and infrastructure packages that can be used with SMRT or independently.
+
 ## Monorepo Structure
 
-The SDK is organized as a pnpm workspace with packages organized into two main categories:
+The SDK is organized as a pnpm workspace with the following packages:
 
-### Core Packages (`packages/core/`)
-Infrastructure and framework packages that provide foundational capabilities:
+### Core Foundation Packages (`packages/`)
+Core packages used by infrastructure and the SMRT framework:
 
-- **types**: Shared type definitions
-- **utils**: Base utility functions used across all packages
-- **logger**: Logging infrastructure with @have/logger
-- **files**: File system operations (local and remote, Node.js-focused)
+- **utils**: Base utility functions
+- **logger**: Logging infrastructure
+- **files**: File system operations (local and remote)
+- **sql**: Database operations (SQLite, Postgres, DuckDB)
+- **ai**: Multi-provider AI client (OpenAI, Anthropic, Google, AWS)
+
+### Infrastructure Packages (`packages/`)
+Infrastructure packages for advanced functionality:
+
 - **cache**: Caching utilities and abstractions
+- **config**: Configuration management
 - **geo**: Geographic utilities and services
 - **translator**: Translation services integration
-- **sql**: Database interaction (SQLite and Postgres)
 - **ocr**: Optical Character Recognition with multiple providers
 - **pdf**: PDF parsing and processing with OCR fallback
-- **ai**: Standardized AI interface (OpenAI, Anthropic, Google Gemini, AWS Bedrock)
 - **spider**: Web crawling and content extraction
-- **smrt**: Core AI agent framework with auto-generation capabilities
-- **config**: Configuration management
-- **languages**: Language support
-
-### SMRT Modules (`packages/modules/`)
-Domain-specific modules built on the SMRT framework:
-
-- **tags**: Tagging system with hierarchies and contexts
-- **places**: Places and location management
-- **profiles**: User profile management
-- **events**: Event management and scheduling
-- **assets**: Asset management with versioning
-- **content**: Content processing for documents and media
-- **products**: Product catalog (reference implementation)
-- **gnode**: Federation module for distributed knowledge bases
+- **documents**: Document processing and management
 
 ## Development Patterns
 
 ### Dependency Management
 
 - Package versioning is synchronized across the monorepo
-- Internal dependencies use `workspace:*` to reference other packages
+- Internal SDK packages use `workspace:*` to reference other SDK packages
 - External dependencies are kept to a minimum
-- Bun 1.0+ is required for all development and runtime environments
+- Node.js 24+ or Bun 1.0+ required for development and runtime
 
 ### Build Process
 
 The build process follows a specific order to respect internal dependencies:
 
-1. `@have/utils` (base utilities used by all packages)
-2. `@have/files` (file system interactions)
-3. `@have/sql` (database interactions, no internal dependencies)
-4. `@have/ocr` (OCR processing, no internal dependencies)
-5. `@have/pdf` (PDF processing with OCR integration)
-6. `@have/ai` (AI model interfaces, no internal dependencies)
-7. `@have/spider` (web crawling with files integration)
-8. `@have/smrt` (core agent framework, depends on ai, files, sql, utils)
+**Core Foundation Packages** (in `packages/`):
+1. `@have/utils` (base utilities, no internal dependencies)
+2. `@have/logger` (logging infrastructure, no internal dependencies)
+3. `@have/files` (file system operations, no internal dependencies)
+4. `@have/sql` (database operations, no internal dependencies)
+5. `@have/ai` (AI client with multi-provider support, no internal dependencies)
+
+**Infrastructure Packages** (in `packages/`):
+1. `@have/config` (configuration management, no internal dependencies)
+2. `@have/cache` (caching utilities, no internal dependencies)
+3. `@have/geo` (geographic utilities, no internal dependencies)
+4. `@have/translator` (translation services, no internal dependencies)
+5. `@have/ocr` (OCR providers, no internal dependencies)
+6. `@have/pdf` (PDF processing, depends on ocr)
+7. `@have/spider` (web crawling, no internal dependencies)
+8. `@have/documents` (document processing, depends on pdf, spider, ocr)
 
 ### TypeScript Project References
 
@@ -81,7 +81,7 @@ Each package must have:
 **Example package tsconfig.json:**
 ```json
 {
-  "extends": "../../../tsconfig.json",  // Three levels up (packages/core/types -> root)
+  "extends": "../../tsconfig.json",  // Two levels up (packages/cache -> root)
   "compilerOptions": {
     "composite": true,
     "outDir": "./dist",
@@ -97,37 +97,25 @@ Each package must have:
 ```json
 {
   "references": [
-    // Core packages
-    { "path": "./packages/core/types" },
-    { "path": "./packages/core/utils" },
-    { "path": "./packages/core/smrt" },
-    // ... all 15 core packages
+    // Core foundation packages
+    { "path": "./packages/utils" },
+    { "path": "./packages/logger" },
+    { "path": "./packages/files" },
+    { "path": "./packages/sql" },
+    { "path": "./packages/ai" },
 
-    // SMRT modules
-    { "path": "./packages/modules/tags" },
-    { "path": "./packages/modules/places" },
-    // ... all 8 module packages
+    // Infrastructure packages
+    { "path": "./packages/config" },
+    { "path": "./packages/cache" },
+    { "path": "./packages/geo" },
+    { "path": "./packages/translator" },
+    { "path": "./packages/ocr" },
+    { "path": "./packages/pdf" },
+    { "path": "./packages/documents" },
+    { "path": "./packages/spider" }
   ]
 }
 ```
-
-#### Common TypeScript Issues and Fixes
-
-**Issue**: `Argument of type 'SmrtObjectOptions' is not assignable to parameter of type 'SmrtCollectionOptions'`
-
-**Cause**: When passing `this.options` from a SmrtObject to a collection constructor, TypeScript sees incompatible types because SmrtObjectOptions has additional properties (id, name, slug, context) that collections don't need.
-
-**Fix**: Extract only collection-compatible options when creating collections:
-```typescript
-// ❌ WRONG - Type error
-const collection = new ProfileCollection(this.options);
-
-// ✅ CORRECT - Extract only collection options
-const { persistence, db, ai, fs, _className } = this.options;
-const collection = new ProfileCollection({ persistence, db, ai, fs, _className });
-```
-
-**Never use `as any` to bypass type errors** - always find and fix the root cause.
 
 #### Verifying TypeScript Configuration
 
@@ -142,132 +130,7 @@ npx tsc --build --force
 npm run build
 ```
 
-### SMRT Modules (smrt/ directory)
-
-The following packages are SMRT-specific modules located in the `smrt/` directory and excluded from the main build:
-
-- `@have/content` (content processing, depends on smrt, pdf, spider)
-- `@have/products` (microservice template and examples)
-
-**Note**: All packages now use Node.js-only builds for simplified deployment and better performance. The dual-target (browser/node) architecture has been removed in favor of focused Node.js development.
-
-### SMRT System Tables
-
-The SMRT framework includes built-in system tables for storing framework metadata alongside user data. These tables use a `_smrt_` prefix to avoid naming conflicts:
-
-#### System Tables Architecture
-
-All system tables use UUID-based TEXT primary keys for database-agnostic compatibility across SQLite, DuckDB, and PostgreSQL. This eliminates database-specific syntax issues (e.g., SQLite's AUTOINCREMENT) and ensures consistent behavior across all supported databases.
-
-- **`_smrt_contexts`**: Context memory storage for AI agents
-  - Stores remembered context (learned strategies, patterns, selectors) for reuse
-  - Includes confidence tracking and hierarchical scoping (e.g., `discovery/parser/domain.com`)
-  - Supports versioning and expiration for evolving patterns
-  - Used by `remember()`, `recall()`, `recallAll()`, `forget()`, and `forgetScope()` methods
-
-- **`_smrt_migrations`**: Schema version tracking
-  - Records framework schema changes and migrations with UUID identifiers
-  - Tracks applied migrations with timestamps and descriptions
-  - Enables backward compatibility and upgrade paths
-
-- **`_smrt_registry`**: Object registry persistence
-  - Stores metadata about registered SMRT objects
-  - Includes field definitions, relationships, and configuration
-  - Supports runtime introspection and code generation
-
-- **`_smrt_signals`**: Signal history and audit log
-  - Records signal events across the application
-  - Enables debugging, monitoring, and audit trails
-  - Supports temporal queries and event replay
-
-#### Database Initialization
-
-System tables are automatically created when `SmrtClass.initialize()` is called:
-
-```typescript
-class MyAgent extends SmrtObject {
-  // ...
-}
-
-const agent = new MyAgent({ db: 'my-database.db' });
-await agent.initialize(); // System tables created automatically
-
-// System tables are now available
-await agent.remember({
-  scope: 'discovery/parser',
-  key: 'date-format',
-  value: 'MM/DD/YYYY',
-  confidence: 0.95
-});
-```
-
-**Key Features**:
-- **Idempotent initialization**: Tables only created once per database
-- **Shared database**: System tables use the same database as user data
-- **Per-database tracking**: Static Set tracks which databases have been initialized
-- **No migration required**: Fresh installations get the latest schema automatically
-
-#### Using System Tables
-
-All SMRT objects have built-in methods for working with system tables:
-
-```typescript
-// Remember learned patterns
-await agent.remember({
-  scope: 'parser/html',
-  key: 'selector',
-  value: '.content > article',
-  confidence: 0.9
-});
-
-// Recall patterns with hierarchical fallback
-const selector = await agent.recall({
-  scope: 'parser/html/example.com',
-  key: 'selector',
-  includeAncestors: true // Falls back to parent scopes
-});
-
-// Recall all matching patterns
-const allSelectors = await agent.recallAll({
-  scope: 'parser/html',
-  includeDescendants: true // Includes child scopes
-});
-
-// Clean up old patterns
-await agent.forget({
-  scope: 'parser/html',
-  key: 'old-selector'
-});
-
-await agent.forgetScope({
-  scope: 'parser/html/old-domain.com'
-});
-```
-
-**Hierarchical Scoping Example**:
-```typescript
-// Remember at specific scope
-await agent.remember({
-  scope: 'discovery/parser/example.com',
-  key: 'date-format',
-  value: 'MM/DD/YYYY'
-});
-
-// Remember at parent scope
-await agent.remember({
-  scope: 'discovery/parser',
-  key: 'date-format',
-  value: 'ISO-8601' // Fallback for unknown domains
-});
-
-// Recall with fallback
-const format = await agent.recall({
-  scope: 'discovery/parser/new-domain.com',
-  key: 'date-format',
-  includeAncestors: true
-});
-// Returns 'ISO-8601' (parent scope) since new-domain.com has no specific pattern
-```
+**Note**: All packages use Node.js-only builds for simplified deployment and better performance. The dual-target (browser/node) architecture has been removed in favor of focused Node.js development.
 
 ### Code Style and Conventions
 
@@ -313,15 +176,28 @@ npm run format
 
 ## Cross-Package Dependencies
 
-The packages have these dependency relationships:
+### Core Foundation Package Dependencies
+
+Core foundation packages have minimal dependencies:
 
 - `utils`: No internal dependencies
+- `logger`: No internal dependencies
 - `files`: Depends on `utils`
-- `spider`: Depends on `utils` and `files`
 - `sql`: No internal dependencies
-- `pdf`: No internal dependencies
 - `ai`: No internal dependencies
-- `smrt`: Depends on all other packages
+
+### Infrastructure Package Dependencies
+
+SDK infrastructure packages have these dependency relationships:
+
+- `config`: No internal dependencies
+- `cache`: No internal dependencies
+- `geo`: Depends on `utils`
+- `translator`: No internal dependencies
+- `ocr`: Depends on `utils`
+- `spider`: No internal dependencies
+- `pdf`: Depends on `ocr`, `utils`
+- `documents`: Depends on `pdf`, `spider`, `ocr`, `utils`
 
 When adding new features, maintain this dependency hierarchy to avoid circular dependencies.
 

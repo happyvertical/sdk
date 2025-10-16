@@ -6,7 +6,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-Build powerful AI agents in TypeScript with the SMRT framework. Define your business logic once and get REST APIs, AI tools, and CLI commands automatically generated.
+Build powerful AI agents in TypeScript with the [SMRT framework](https://github.com/happyvertical/smrt). Define your business logic once and get REST APIs, AI tools, and CLI commands automatically generated.
+
+> **Note**: The SMRT framework has been split into its own repository at [github.com/happyvertical/smrt](https://github.com/happyvertical/smrt). This SDK now provides infrastructure packages that work alongside SMRT for building complete AI agent applications.
 
 ## Quick Start
 
@@ -106,18 +108,49 @@ This automatically provides:
 - **TypeScript declarations** for virtual `@smrt/*` modules
 - **Unified interface** across multiple SMRT packages
 
-## Core Packages
+## Architecture
+
+The SDK is organized into two main categories:
+
+### SMRT Framework (External Dependency)
+The [SMRT framework](https://github.com/happyvertical/smrt) provides the core agent capabilities:
+- **[@have/smrt](https://github.com/happyvertical/smrt)** - Core framework with agents, smart objects, and code generation
+- **[@have/ai](https://github.com/happyvertical/smrt)** - Multi-provider AI client (OpenAI, Anthropic, Google, AWS)
+- **[@have/files](https://github.com/happyvertical/smrt)** - File system operations and utilities
+- **[@have/sql](https://github.com/happyvertical/smrt)** - Database operations for SQLite, Postgres, and DuckDB
+- **[@have/utils](https://github.com/happyvertical/smrt)** - Shared utilities and helpers
+- **[@have/logger](https://github.com/happyvertical/smrt)** - Logging infrastructure
+- **[@have/types](https://github.com/happyvertical/smrt)** - Shared TypeScript type definitions
+
+### Infrastructure Packages (This SDK)
+Infrastructure packages that extend SMRT capabilities:
 
 | Package | Purpose |
 |---------|---------|
-| **[@have/smrt](./packages/smrt/)** | Core framework with agents, smart objects, and code generation |
-| **[@have/ai](./packages/ai/)** | Multi-provider AI client (OpenAI, Anthropic, Google, AWS) |
-| **[@have/files](./packages/files/)** | File system operations and utilities |
-| **[@have/spider](./packages/spider/)** | Web crawling and content extraction |
-| **[@have/sql](./packages/sql/)** | Database operations for SQLite and Postgres |
+| **[@have/cache](./packages/cache/)** | Caching utilities and abstractions |
+| **[@have/config](./packages/config/)** | Configuration management |
+| **[@have/documents](./packages/documents/)** | Document processing and management |
+| **[@have/geo](./packages/geo/)** | Geographic utilities and services |
+| **[@have/translator](./packages/translator/)** | Translation services integration |
+| **[@have/ocr](./packages/ocr/)** | Optical Character Recognition providers |
 | **[@have/pdf](./packages/pdf/)** | PDF parsing and text extraction |
-| **[@have/ocr](./packages/ocr/)** | Optical Character Recognition |
-| **[@have/utils](./packages/utils/)** | Shared utilities and helpers |
+| **[@have/spider](./packages/spider/)** | Web crawling and content extraction |
+
+### SMRT Modules (Domain Models)
+Domain-specific modules built on the SMRT framework:
+
+| Module | Purpose |
+|--------|---------|
+| **[@have/agents](./packages/modules/agents/)** | Agent management system |
+| **[@have/tags](./packages/modules/tags/)** | Tagging system with hierarchies and contexts |
+| **[@have/places](./packages/modules/places/)** | Places and location management |
+| **[@have/profiles](./packages/modules/profiles/)** | User profile management with relationships |
+| **[@have/events](./packages/modules/events/)** | Event management and scheduling |
+| **[@have/assets](./packages/modules/assets/)** | Asset management with versioning |
+| **[@have/accounts](./packages/modules/accounts/)** | Account management system |
+| **[@have/gnode](./packages/modules/gnode/)** | Federation module for distributed knowledge bases |
+| **[@have/content](./packages/modules/content/)** | Content processing for documents and media |
+| **[@have/products](./packages/modules/products/)** | Product catalog and microservice template |
 
 ## MCP Server for Claude Desktop
 
