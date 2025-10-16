@@ -15,8 +15,8 @@
     }
   },
   "scripts": {
-    "build": "vite build --mode library && tsc --emitDeclarationOnly",
-    "build:watch": "vite build --mode library --watch",
+    "build": "vite build",
+    "build:watch": "vite build --watch",
     "dev": "vite --port 3004",
     "test": "vitest run",
     "test:watch": "vitest watch"
