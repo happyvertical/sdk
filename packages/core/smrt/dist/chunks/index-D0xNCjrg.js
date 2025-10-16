@@ -1241,7 +1241,7 @@ export default setupCLI;
 }
 async function generateSchemaModule(manifest) {
   try {
-    const { SchemaGenerator } = await import("./index--CL1Xh7q.js");
+    const { SchemaGenerator } = await import("./index-YrRKnEDs.js");
     const schemaGenerator = new SchemaGenerator();
     const schemas = {};
     for (const [className, objectDef] of Object.entries(manifest.objects)) {
@@ -1294,4 +1294,4 @@ export default {};`;
 export {
   smrtPlugin as s
 };
-//# sourceMappingURL=index-CoRmHlvP.js.map
+//# sourceMappingURL=index-D0xNCjrg.js.map

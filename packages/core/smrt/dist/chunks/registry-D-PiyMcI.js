@@ -1,12 +1,38 @@
-import "@have/sql";
+import { syncSchema } from "@have/sql";
 function toSnakeCase(str) {
   return str.replace(/([A-Z])/g, "_$1").toLowerCase().replace(/^_/, "");
 }
 function toCamelCase(str) {
   return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
 }
+function keysToSnakeCase(obj) {
+  const result = {};
+  for (const [key, value] of Object.entries(obj)) {
+    result[toSnakeCase(key)] = value;
+  }
+  return result;
+}
+function keysToCamelCase(obj) {
+  const result = {};
+  for (const [key, value] of Object.entries(obj)) {
+    result[toCamelCase(key)] = value;
+  }
+  return result;
+}
 function isDateField(key) {
   return key.endsWith("_date") || key.endsWith("_at") || key === "date";
+}
+function dateAsString(date) {
+  if (typeof date === "string") {
+    return new Date(date);
+  }
+  return date;
+}
+function dateAsObject(date) {
+  if (date instanceof Date) {
+    return date.toISOString();
+  }
+  return date;
 }
 function fieldsFromClass(ClassType, values) {
   const className = ClassType.name;
@@ -17,7 +43,7 @@ function fieldsFromClass(ClassType, values) {
       fields2[key] = {
         name: key,
         type: field.type || "TEXT",
-        ...{}
+        ...values && key in values ? { value: values[key] } : {}
       };
     }
     return fields2;
@@ -73,7 +99,9 @@ function fieldsFromClass(ClassType, values) {
         fields[key] = {
           name: key,
           type,
-          ...{}
+          ...values && key in values ? {
+            value: values[key]
+          } : {}
         };
       }
     }
@@ -121,7 +149,10 @@ function generateSchema(ClassType) {
     const columnName = toSnakeCase(key);
     const fieldDef = cachedFields.get(key);
     const sqlType = fieldDef?.getSqlType() || field.type || "TEXT";
-    const constraints = fieldDef?.getSqlConstraints() || [];
+    let constraints = fieldDef?.getSqlConstraints() || [];
+    if (constraints.length === 0 && sqlType === "TEXT") {
+      constraints = ["NOT NULL DEFAULT ''"];
+    }
     schema += `  ${columnName} ${sqlType}${constraints.length > 0 ? " " + constraints.join(" ") : ""},
 `;
   }
@@ -149,6 +180,38 @@ CREATE INDEX IF NOT EXISTS ${tableName}_slug_context_idx ON ${tableName} (slug, 
 }
 function tableNameFromClass(ClassType) {
   return ClassType.name.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase().replace(/([^s])$/, "$1s").replace(/y$/, "ies");
+}
+function classnameToTablename(className) {
+  const tableName = className.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase().replace(/([^s])$/, "$1s").replace(/y$/, "ies");
+  return tableName;
+}
+const _setup_table_from_class_promises = {};
+async function setupTableFromClass(db, ClassType) {
+  const tableName = classnameToTablename(ClassType.name);
+  if (_setup_table_from_class_promises[tableName] !== void 0 || null) {
+    return _setup_table_from_class_promises[tableName];
+  }
+  _setup_table_from_class_promises[tableName] = (async () => {
+    try {
+      const schema = generateSchema(ClassType);
+      const className = ClassType.name;
+      const cachedFields = ObjectRegistry.getFields(className);
+      let primaryKeyColumn = "id";
+      if (cachedFields.size > 0) {
+        for (const [key, field] of cachedFields.entries()) {
+          if (field.options?.primaryKey) {
+            primaryKeyColumn = toSnakeCase(key);
+            break;
+          }
+        }
+      }
+      await syncSchema({ db, schema });
+    } catch (error) {
+      _setup_table_from_class_promises[tableName] = null;
+      throw error;
+    }
+  })();
+  return _setup_table_from_class_promises[tableName];
 }
 function formatDataJs(data) {
   const normalizedData = {};
@@ -383,7 +446,7 @@ class ObjectRegistry {
     }
     let collectionConstructor = registered.collectionConstructor;
     if (!collectionConstructor) {
-      const { SmrtCollection: SmrtCollectionClass } = await import("./collection-hMRJdcXq.js");
+      const { SmrtCollection: SmrtCollectionClass } = await import("./collection-NDCR7hfn.js").then((n) => n.i);
       class DefaultCollection extends SmrtCollectionClass {
         static _itemClass = registered.constructor;
       }
@@ -1007,17 +1070,28 @@ class ObjectRegistry {
     return rows;
   }
 }
-const registry = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
-  __proto__: null,
-  ObjectRegistry
-}, Symbol.toStringTag, { value: "Module" }));
+function smrt(config = {}) {
+  return (ctor) => {
+    ObjectRegistry.register(ctor, config);
+    return ctor;
+  };
+}
 export {
   ObjectRegistry as O,
-  formatDataSql as a,
-  fieldsFromClass as b,
-  formatDataJs as f,
+  toSnakeCase as a,
+  smrt as b,
+  formatDataJs as c,
+  formatDataSql as d,
+  toCamelCase as e,
+  fieldsFromClass as f,
   generateSchema as g,
-  registry as r,
+  keysToCamelCase as h,
+  isDateField as i,
+  dateAsString as j,
+  keysToSnakeCase as k,
+  dateAsObject as l,
+  classnameToTablename as m,
+  setupTableFromClass as s,
   tableNameFromClass as t
 };
-//# sourceMappingURL=registry-BLel7Dtz.js.map
+//# sourceMappingURL=registry-D-PiyMcI.js.map

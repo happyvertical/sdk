@@ -106,6 +106,8 @@ class Field {
       } else {
         constraints.push(`DEFAULT ${escapedValue}`);
       }
+    } else if (!this.options.required && this.getSqlType() === "TEXT") {
+      constraints.push("NOT NULL DEFAULT ''");
     }
     return constraints;
   }

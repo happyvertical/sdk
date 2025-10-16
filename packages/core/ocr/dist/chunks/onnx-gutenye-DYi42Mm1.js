@@ -13996,7 +13996,7 @@ function requireVersion$1() {
   hasRequiredVersion$1 = 1;
   Object.defineProperty(version$1, "__esModule", { value: true });
   version$1.version = void 0;
-  version$1.version = "1.22.0";
+  version$1.version = "1.23.0";
   return version$1;
 }
 var hasRequiredEnvImpl;
@@ -14853,7 +14853,7 @@ function requireTrace() {
   hasRequiredTrace = 1;
   (function(exports) {
     Object.defineProperty(exports, "__esModule", { value: true });
-    exports.TRACE_FUNC_END = exports.TRACE_FUNC_BEGIN = exports.TRACE = void 0;
+    exports.TRACE_EVENT_END = exports.TRACE_EVENT_BEGIN = exports.TRACE_FUNC_END = exports.TRACE_FUNC_BEGIN = exports.TRACE = void 0;
     const env_impl_js_1 = requireEnvImpl();
     const TRACE = (deviceType, label) => {
       if (typeof env_impl_js_1.env.trace === "undefined" ? !env_impl_js_1.env.wasm.trace : !env_impl_js_1.env.trace) {
@@ -14893,6 +14893,20 @@ function requireTrace() {
       TRACE_FUNC("END", extraMsg);
     };
     exports.TRACE_FUNC_END = TRACE_FUNC_END;
+    const TRACE_EVENT_BEGIN = (extraMsg) => {
+      if (typeof env_impl_js_1.env.trace === "undefined" ? !env_impl_js_1.env.wasm.trace : !env_impl_js_1.env.trace) {
+        return;
+      }
+      console.time(`ORT::${extraMsg}`);
+    };
+    exports.TRACE_EVENT_BEGIN = TRACE_EVENT_BEGIN;
+    const TRACE_EVENT_END = (extraMsg) => {
+      if (typeof env_impl_js_1.env.trace === "undefined" ? !env_impl_js_1.env.wasm.trace : !env_impl_js_1.env.trace) {
+        return;
+      }
+      console.timeEnd(`ORT::${extraMsg}`);
+    };
+    exports.TRACE_EVENT_END = TRACE_EVENT_END;
   })(trace);
   return trace;
 }
@@ -14911,6 +14925,7 @@ function requireInferenceSessionImpl() {
     }
     async run(feeds, arg1, arg2) {
       (0, trace_js_1.TRACE_FUNC_BEGIN)();
+      (0, trace_js_1.TRACE_EVENT_BEGIN)("InferenceSession.run");
       const fetches = {};
       let options = {};
       if (typeof feeds !== "object" || feeds === null || feeds instanceof tensor_js_1.Tensor || Array.isArray(feeds)) {
@@ -14991,6 +15006,7 @@ function requireInferenceSessionImpl() {
           }
         }
       }
+      (0, trace_js_1.TRACE_EVENT_END)("InferenceSession.run");
       (0, trace_js_1.TRACE_FUNC_END)();
       return returnValue;
     }
@@ -14999,6 +15015,7 @@ function requireInferenceSessionImpl() {
     }
     static async create(arg0, arg1, arg2, arg3) {
       (0, trace_js_1.TRACE_FUNC_BEGIN)();
+      (0, trace_js_1.TRACE_EVENT_BEGIN)("InferenceSession.create");
       let filePathOrUint8Array;
       let options = {};
       if (typeof arg0 === "string") {
@@ -15055,6 +15072,7 @@ function requireInferenceSessionImpl() {
       }
       const [backend2, optionsWithValidatedEPs] = await (0, backend_impl_js_1.resolveBackendAndExecutionProviders)(options);
       const handler = await backend2.createInferenceSessionHandler(filePathOrUint8Array, optionsWithValidatedEPs);
+      (0, trace_js_1.TRACE_EVENT_END)("InferenceSession.create");
       (0, trace_js_1.TRACE_FUNC_END)();
       return new InferenceSession2(handler);
     }
@@ -15346,7 +15364,7 @@ function requireVersion() {
   hasRequiredVersion = 1;
   Object.defineProperty(version, "__esModule", { value: true });
   version.version = void 0;
-  version.version = "1.22.0";
+  version.version = "1.23.0";
   return version;
 }
 var hasRequiredDist;
@@ -20104,4 +20122,4 @@ class ONNXGutenyeProvider {
 export {
   ONNXGutenyeProvider
 };
-//# sourceMappingURL=onnx-gutenye-BFM7r-Bt.js.map
+//# sourceMappingURL=onnx-gutenye-DYi42Mm1.js.map

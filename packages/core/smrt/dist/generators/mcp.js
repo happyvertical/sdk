@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
-import { S as SmrtCollection } from "../chunks/collection-CIP8-yZ4.js";
-import { O as ObjectRegistry } from "../chunks/registry-BlPeW6ad.js";
+import { S as SmrtCollection } from "../chunks/collection-NDCR7hfn.js";
+import { O as ObjectRegistry } from "../chunks/registry-D-PiyMcI.js";
 function generateRuntimeBootstrap(options = {}) {
   const {
     name = "smrt-mcp-server",

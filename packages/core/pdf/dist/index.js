@@ -257,7 +257,7 @@ async function getPDFReader(options = {}) {
           "unpdf provider is only available in Node.js environments"
         );
       }
-      const { CombinedNodeProvider } = await import("./chunks/combined-D6RgH07S.js");
+      const { CombinedNodeProvider } = await import("./chunks/combined-BSqwEvtH.js");
       return new CombinedNodeProvider();
     }
     case "pdfjs": {

@@ -81,6 +81,9 @@ class SchemaGenerator {
       };
       if (fieldDef.default !== void 0) {
         column.defaultValue = fieldDef.default;
+      } else if (!fieldDef.required && this.mapFieldTypeToSQL(fieldDef.type) === "TEXT") {
+        column.notNull = true;
+        column.defaultValue = "";
       }
       if (fieldDef.type === "foreignKey" && fieldDef.related) {
         const [table, column_name = "id"] = fieldDef.related.split(".");
@@ -210,4 +213,4 @@ class SchemaGenerator {
 export {
   SchemaGenerator
 };
-//# sourceMappingURL=index--CL1Xh7q.js.map
+//# sourceMappingURL=index-YrRKnEDs.js.map

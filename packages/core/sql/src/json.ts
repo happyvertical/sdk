@@ -190,7 +190,8 @@ async function getSmrtSchemaForTable(
 ): Promise<SmrtSchemaDefinition | null> {
   try {
     // Try to import ObjectRegistry from @have/smrt
-    const { ObjectRegistry } = await import('@have/smrt/registry');
+    const smrtPackage = await import('@have/smrt');
+    const { ObjectRegistry } = smrtPackage;
 
     // Get all registered classes
     const allClasses = ObjectRegistry.getAllClasses();
@@ -265,6 +266,22 @@ async function createTableFromSmrtSchema(
   try {
     await connection.run(createTableSQL);
 
+    // Verify schema was created correctly
+    const schemaInfo = await connection.runAndReadAll(
+      `PRAGMA table_info(${tableName})`
+    );
+    const columns = schemaInfo.getRowObjects();
+
+    console.log(`[json-adapter] Created ${tableName} with schema:`, {
+      columns: columns.map((col: any) => ({
+        name: col.name,
+        type: col.type,
+        default: col.dflt_value,
+        notNull: col.notnull,
+        pk: col.pk
+      }))
+    });
+
     // Create indexes if defined
     for (const indexSQL of schema.indexes) {
       try {
@@ -305,7 +322,7 @@ async function insertRecordsWithCast(
 
   const keys = Object.keys(records[0]);
 
-  // Build placeholders with CAST for empty strings
+  // Build placeholders - schema has NOT NULL DEFAULT '' to prevent ANY type
   const values: any[] = [];
   let paramIdx = 1;
 
@@ -317,10 +334,15 @@ async function insertRecordsWithCast(
         if (value === null) {
           return 'NULL';
         } else if (value === '' && typeof value === 'string') {
-          // CAST empty strings to TEXT to prevent DuckDB ANY type inference
+          // CAST empty strings to TEXT to prevent DuckDB ANY type inference on parameters
           values.push(value);
           return `CAST($${paramIdx++} AS TEXT)`;
+        } else if (value instanceof Date) {
+          // Convert Date objects to ISO strings for DuckDB
+          values.push(value.toISOString());
+          return `$${paramIdx++}`;
         } else {
+          // Direct parameter binding for other values
           values.push(value);
           return `$${paramIdx++}`;
         }
@@ -401,11 +423,8 @@ export async function getDatabase(
 
           if (value === null) {
             return 'NULL';
-          } else if (value === '' && typeof value === 'string') {
-            // CAST empty strings to TEXT to prevent DuckDB ANY type inference
-            values.push(value);
-            return `CAST($${paramIdx++} AS TEXT)`;
           } else {
+            // Direct parameter binding - schema has NOT NULL DEFAULT '' to prevent ANY type
             values.push(value);
             return `$${paramIdx++}`;
           }
@@ -567,8 +586,7 @@ export async function getDatabase(
     const keys = Object.keys(data);
     const dataValues = Object.values(data);
 
-    // Separate null and non-null values for DuckDB type inference
-    // Use NULL literals for null values, parameters for non-null values
+    // Build placeholders - schema has NOT NULL DEFAULT '' to prevent ANY type
     const placeholders: string[] = [];
     const values: any[] = [];
     let paramIdx = 1;
@@ -577,11 +595,17 @@ export async function getDatabase(
       if (value === null) {
         placeholders.push('NULL');
       } else if (value === '' && typeof value === 'string') {
-        // CAST empty strings to TEXT to prevent DuckDB ANY type inference
+        // CAST empty strings to TEXT to prevent DuckDB ANY type inference on parameters
         placeholders.push(`CAST($${paramIdx} AS TEXT)`);
         values.push(value);
         paramIdx++;
+      } else if (value instanceof Date) {
+        // Convert Date objects to ISO strings for DuckDB
+        placeholders.push(`$${paramIdx}`);
+        values.push(value.toISOString());
+        paramIdx++;
       } else {
+        // Direct parameter binding for other values
         placeholders.push(`$${paramIdx}`);
         values.push(value);
         paramIdx++;
@@ -599,11 +623,17 @@ export async function getDatabase(
       if (value === null) {
         updateSetParts.push(`${key} = NULL`);
       } else if (value === '' && typeof value === 'string') {
-        // CAST empty strings to TEXT to prevent DuckDB ANY type inference
+        // CAST empty strings to TEXT to prevent DuckDB ANY type inference on parameters
         updateSetParts.push(`${key} = CAST($${paramIdx} AS TEXT)`);
         values.push(value);
         paramIdx++;
+      } else if (value instanceof Date) {
+        // Convert Date objects to ISO strings for DuckDB
+        updateSetParts.push(`${key} = $${paramIdx}`);
+        values.push(value.toISOString());
+        paramIdx++;
       } else {
+        // Direct parameter binding for other values
         updateSetParts.push(`${key} = $${paramIdx}`);
         values.push(value);
         paramIdx++;
