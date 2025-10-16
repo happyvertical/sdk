@@ -1,0 +1,170 @@
+name: Auto Fix PR Failures
+
+on:
+  workflow_run:
+    workflows: ["Pull Request Validation"]
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+  issues: write
+  id-token: write # Required for OIDC token exchange
+
+jobs:
+  auto-fix:
+    # Only run if:
+    # 1. The workflow failed
+    # 2. It's from a pull request
+    # 3. Not already a claude-auto-fix branch (prevent recursion)
+    if: |
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.pull_requests[0] &&
+      !startsWith(github.event.workflow_run.head_branch, 'claude-auto-fix-')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check if PR is draft
+        id: check_draft
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: ${{ github.event.workflow_run.pull_requests[0].number }}
+            });
+
+            core.setOutput('is_draft', pr.data.draft.toString());
+
+            if (pr.data.draft) {
+              core.notice('Skipping auto-fix for draft PR');
+            }
+
+      - name: Checkout code
+        if: steps.check_draft.outputs.is_draft != 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_branch }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup git identity
+        if: steps.check_draft.outputs.is_draft != 'true'
+        run: |
+          git config --global user.email "claude[bot]@users.noreply.github.com"
+          git config --global user.name "claude[bot]"
+
+      - name: Create fix branch
+        if: steps.check_draft.outputs.is_draft != 'true'
+        id: branch
+        run: |
+          BRANCH_NAME="claude-auto-fix-${{ github.event.workflow_run.head_branch }}-${{ github.run_id }}"
+          git checkout -b "$BRANCH_NAME"
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+
+      - name: Get CI failure details
+        if: steps.check_draft.outputs.is_draft != 'true'
+        id: failure_details
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run = await github.rest.actions.getWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: ${{ github.event.workflow_run.id }}
+            });
+
+            const jobs = await github.rest.actions.listJobsForWorkflowRun({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: ${{ github.event.workflow_run.id }}
+            });
+
+            const failedJobs = jobs.data.jobs.filter(job => job.conclusion === 'failure');
+
+            let errorLogs = [];
+            for (const job of failedJobs) {
+              try {
+                const logs = await github.rest.actions.downloadJobLogsForWorkflowRun({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  job_id: job.id
+                });
+                errorLogs.push({
+                  jobName: job.name,
+                  logs: logs.data
+                });
+              } catch (error) {
+                console.error(`Failed to get logs for job ${job.name}:`, error);
+              }
+            }
+
+            return {
+              runUrl: run.data.html_url,
+              failedJobs: failedJobs.map(j => j.name),
+              errorLogs: errorLogs
+            };
+
+      - name: Fix CI failures with Claude
+        if: steps.check_draft.outputs.is_draft != 'true'
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          prompt: |
+            The PR validation workflow has failed. Please analyze the failure and fix it.
+
+            Failed CI Run: ${{ fromJSON(steps.failure_details.outputs.result).runUrl }}
+            Failed Jobs: ${{ join(fromJSON(steps.failure_details.outputs.result).failedJobs, ', ') }}
+            PR Number: ${{ github.event.workflow_run.pull_requests[0].number }}
+            Branch Name: ${{ steps.branch.outputs.branch_name }}
+            Base Branch: ${{ github.event.workflow_run.head_branch }}
+            Repository: ${{ github.repository }}
+
+            Error logs from failed jobs:
+            ${{ toJSON(fromJSON(steps.failure_details.outputs.result).errorLogs) }}
+
+            Please:
+            1. Analyze the error logs to understand what failed
+            2. Fix the issues that caused the failure
+            3. Test your fixes locally using 'pnpm run build' and 'pnpm test'
+            4. Commit your changes with a descriptive message
+            5. Push the changes to the fix branch: ${{ steps.branch.outputs.branch_name }}
+            6. Create a PR from the fix branch back to the original branch: ${{ github.event.workflow_run.head_branch }}
+
+            Important context:
+            - This is a TypeScript monorepo using pnpm workspaces
+            - The build uses Vite for all packages
+            - Tests run with Vitest
+            - Always test changes locally before committing
+            - Follow the user's directive: "don't push again until everything works locally"
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_args: "--allowedTools 'Edit,Write,Read,Glob,Grep,Bash(git:*),Bash(pnpm:*),Bash(npm:*),Bash(npx:*),Bash(gh:*)'"
+
+      - name: Comment on PR
+        if: always() && steps.check_draft.outputs.is_draft != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = ${{ github.event.workflow_run.pull_requests[0].number }};
+            const branchName = "${{ steps.branch.outputs.branch_name }}";
+            const success = "${{ steps.claude.outcome }}" === "success";
+
+            let comment = `## 🤖 Claude Auto-Fix Results\n\n`;
+
+            if (success) {
+              comment += `✅ Claude has analyzed the CI failure and created a fix branch: \`${branchName}\`\n\n`;
+              comment += `A pull request with the fixes will be created automatically.`;
+            } else {
+              comment += `❌ Claude encountered an issue while attempting to fix the CI failure.\n\n`;
+              comment += `Please review the [workflow run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for details.`;
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: comment
+            });
