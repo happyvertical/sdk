@@ -1,3 +1,24 @@
+# [0.38.0](https://github.com/happyvertical/sdk/compare/v0.37.1...v0.38.0) (2025-10-16)
+
+
+### Bug Fixes
+
+* **build:** fix SDK build after SMRT framework split ([e895ca8](https://github.com/happyvertical/sdk/commit/e895ca871166d385388a88865e09fda7369ec5e1))
+* **ci:** remove SMRT package verification step ([7b52b28](https://github.com/happyvertical/sdk/commit/7b52b28131b4661a52a79893876f95a489c61740))
+* **deps:** remove @have/types dependency from logger and config packages ([1b00c9d](https://github.com/happyvertical/sdk/commit/1b00c9dcc8ecec1fceb206126504e013b4e9829e))
+* **lint:** resolve linting errors by fixing code issues ([51f3d2f](https://github.com/happyvertical/sdk/commit/51f3d2f0b0f1b4818f0f854598838932dbc0f8b5))
+* **smrt:** add CAST to DEFAULT values in runtime-manager schema generation ([a9a883a](https://github.com/happyvertical/sdk/commit/a9a883a4bca6daf39a10298506a36ae514d6c508)), closes [#228](https://github.com/happyvertical/sdk/issues/228) [#229](https://github.com/happyvertical/sdk/issues/229) [#230](https://github.com/happyvertical/sdk/issues/230) [#229](https://github.com/happyvertical/sdk/issues/229) [#230](https://github.com/happyvertical/sdk/issues/230)
+* **smrt:** add explicit CAST to DEFAULT values for DuckDB type inference ([47b6fbb](https://github.com/happyvertical/sdk/commit/47b6fbbf19848f2a364b84a72e47e890224c2b63)), closes [#228](https://github.com/happyvertical/sdk/issues/228)
+* **sql:** cast empty string parameters in json adapter insert/upsert ([5262e7f](https://github.com/happyvertical/sdk/commit/5262e7f2a6c0ae1be5dc98111f0bb1f50b6333a0)), closes [#228](https://github.com/happyvertical/sdk/issues/228) [#229](https://github.com/happyvertical/sdk/issues/229) [#230](https://github.com/happyvertical/sdk/issues/230) [#231](https://github.com/happyvertical/sdk/issues/231) [#228](https://github.com/happyvertical/sdk/issues/228)
+* **sql:** prevent DuckDB type re-inference during JSON data loading ([d6389e2](https://github.com/happyvertical/sdk/commit/d6389e2c272cf595a78381dc134acf0b27024756)), closes [#228](https://github.com/happyvertical/sdk/issues/228) [#230](https://github.com/happyvertical/sdk/issues/230) [#233](https://github.com/happyvertical/sdk/issues/233)
+* **test:** update vitest config after SMRT framework split ([bc7abf8](https://github.com/happyvertical/sdk/commit/bc7abf84946db92c9a0a82220fae012be8ddb269))
+* **workspace:** update pnpm workspace and lockfile ([614b47d](https://github.com/happyvertical/sdk/commit/614b47d068f6d01e5555cc45791c63e7e8428441))
+
+
+### Features
+
+* **sql:** fix DuckDB type inference issues in JSON adapter ([2419cba](https://github.com/happyvertical/sdk/commit/2419cbae6fd1ee951500dfe81b26f930ace44038)), closes [#235](https://github.com/happyvertical/sdk/issues/235) [#228](https://github.com/happyvertical/sdk/issues/228) [#225](https://github.com/happyvertical/sdk/issues/225) [#235](https://github.com/happyvertical/sdk/issues/235)
+
 ## [0.37.1](https://github.com/happyvertical/sdk/compare/v0.37.0...v0.37.1) (2025-10-16)
 
 
