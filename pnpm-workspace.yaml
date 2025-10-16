@@ -1,10 +1,7 @@
 packages:
-  - 'packages/core/*'
-  - 'packages/modules/*'
+  - 'packages/*'
   - 'docs'
   - 'test-town-gnode'
-  - '../bentleyalberta.com'
 
 # pnpm workspace configuration for HAVE SDK monorepo
-# Core packages: infrastructure and framework (types, utils, smrt, etc.)
-# Modules packages: SMRT domain modules (tags, places, profiles, etc.)
+# Infrastructure packages in packages/* (ai, cache, config, documents, etc.)
