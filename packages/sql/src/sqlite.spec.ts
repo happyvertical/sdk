@@ -252,4 +252,150 @@ describe('sqlite tests', () => {
       expect(result2.affected).toBeGreaterThanOrEqual(1);
     });
   });
+
+  describe('ALTER TABLE functionality', () => {
+    beforeEach(async () => {
+      await db.execute`
+        CREATE TABLE test_alter (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL
+        )
+      `;
+    });
+
+    afterEach(async () => {
+      await db.execute`DROP TABLE IF EXISTS test_alter`;
+    });
+
+    it('should add a new column to an existing table', async () => {
+      // Verify initial schema
+      const schemaBefore = await db.getTableSchema!('test_alter');
+      expect(schemaBefore).toBeDefined();
+      expect(Object.keys(schemaBefore!.columns)).toHaveLength(2);
+      expect(schemaBefore!.columns.id).toBeDefined();
+      expect(schemaBefore!.columns.name).toBeDefined();
+
+      // Add new column (note: UNIQUE constraint not supported in ALTER TABLE ADD COLUMN in SQLite)
+      await db.alterTable!.addColumn('test_alter', {
+        name: 'email',
+        type: 'TEXT',
+      });
+
+      // Verify column was added
+      const schemaAfter = await db.getTableSchema!('test_alter');
+      expect(schemaAfter).toBeDefined();
+      expect(Object.keys(schemaAfter!.columns)).toHaveLength(3);
+      expect(schemaAfter!.columns.email).toBeDefined();
+      expect(schemaAfter!.columns.email.type).toBe('TEXT');
+
+      // Verify we can insert data with the new column
+      await db.insert('test_alter', {
+        id: randomUUID(),
+        name: 'Test User',
+        email: 'test@example.com',
+      });
+
+      const result =
+        await db.single`SELECT * FROM test_alter WHERE email = 'test@example.com'`;
+      expect(result).toBeDefined();
+      expect(result?.email).toBe('test@example.com');
+    });
+
+    it('should add a new index to an existing table', async () => {
+      // Verify initial schema has no indexes
+      const schemaBefore = await db.getTableSchema!('test_alter');
+      expect(schemaBefore).toBeDefined();
+      expect(schemaBefore!.indexes).toHaveLength(0);
+
+      // Add new index
+      await db.alterTable!.addIndex('test_alter', {
+        name: 'idx_test_alter_name',
+        columns: ['name'],
+      });
+
+      // Verify index was added
+      const schemaAfter = await db.getTableSchema!('test_alter');
+      expect(schemaAfter).toBeDefined();
+      expect(schemaAfter!.indexes.length).toBeGreaterThan(0);
+
+      const nameIndex = schemaAfter!.indexes.find(
+        (idx: any) => idx.name === 'idx_test_alter_name',
+      );
+      expect(nameIndex).toBeDefined();
+      expect(nameIndex!.columns).toEqual(['name']);
+    });
+
+    it('should add a unique index to a table', async () => {
+      // Add unique index
+      await db.alterTable!.addIndex('test_alter', {
+        name: 'idx_test_alter_name_unique',
+        columns: ['name'],
+        unique: true,
+      });
+
+      // Verify index was added and is unique
+      const schema = await db.getTableSchema!('test_alter');
+      expect(schema).toBeDefined();
+
+      const uniqueIndex = schema!.indexes.find(
+        (idx: any) => idx.name === 'idx_test_alter_name_unique',
+      );
+      expect(uniqueIndex).toBeDefined();
+      expect(uniqueIndex!.unique).toBe(true);
+    });
+
+    it('should retrieve complete table schema', async () => {
+      // Add some complexity to the table
+      await db.alterTable!.addColumn('test_alter', {
+        name: 'age',
+        type: 'INTEGER',
+        defaultValue: 0,
+      });
+
+      await db.alterTable!.addIndex('test_alter', {
+        name: 'idx_test_name',
+        columns: ['name'],
+      });
+
+      // Get full schema
+      const schema = await db.getTableSchema!('test_alter');
+      expect(schema).toBeDefined();
+      expect(schema!.tableName).toBe('test_alter');
+      expect(Object.keys(schema!.columns)).toHaveLength(3);
+
+      // Verify primary key detection
+      expect(schema!.columns.id.primaryKey).toBe(true);
+      expect(schema!.columns.name.primaryKey).toBe(false);
+
+      // Verify NOT NULL detection
+      expect(schema!.columns.name.notNull).toBe(true);
+
+      // Verify indexes
+      expect(schema!.indexes.length).toBeGreaterThan(0);
+    });
+
+    it('should return null for non-existent table schema', async () => {
+      const schema = await db.getTableSchema!('nonexistent_table');
+      expect(schema).toBeNull();
+    });
+
+    it('should handle column with default value', async () => {
+      await db.alterTable!.addColumn('test_alter', {
+        name: 'status',
+        type: 'TEXT',
+        defaultValue: 'active',
+      });
+
+      // Insert row without specifying status
+      await db.insert('test_alter', {
+        id: randomUUID(),
+        name: 'Test User',
+      });
+
+      const result =
+        await db.single`SELECT status FROM test_alter WHERE name = 'Test User'`;
+      expect(result).toBeDefined();
+      expect(result?.status).toBe('active');
+    });
+  });
 });

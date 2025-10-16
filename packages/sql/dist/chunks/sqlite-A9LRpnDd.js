@@ -1,5 +1,6 @@
 import { DatabaseError } from "@have/utils";
 import { DatabaseSchemaManager, buildWhere } from "../index.js";
+import { v as validateTableName, a as validateIndexName, b as validateColumnName, g as generateCreateIndexStatement, c as generateAddColumnStatement } from "./alter-utils-HriCak_3.js";
 async function createLibSQLClient(options) {
   const { url = ":memory:", authToken, encryptionKey } = options;
   let libsqlUrl = url;
@@ -163,7 +164,7 @@ async function getDatabase(options = {}) {
         const columns = match[3].trim().split(",\n");
         const exists = await tableExists(tableName);
         if (!exists) {
-          await client.execute({ sql: command });
+          await client.execute({ sql: command, args: [] });
         } else {
           for (const column of columns) {
             const columnDef = column.trim();
@@ -181,12 +182,12 @@ async function getDatabase(options = {}) {
                 `;
                 if (!columnInfo) {
                   const alterCommand = `ALTER TABLE ${tableName} ADD COLUMN ${columnDef}`;
-                  await client.execute({ sql: alterCommand });
+                  await client.execute({ sql: alterCommand, args: [] });
                 }
               } catch (_error) {
                 try {
                   const alterCommand = `ALTER TABLE ${tableName} ADD COLUMN ${columnDef}`;
-                  await client.execute({ sql: alterCommand });
+                  await client.execute({ sql: alterCommand, args: [] });
                 } catch (alterError) {
                   console.error(
                     `Error adding column ${columnName} to ${tableName}:`,
@@ -202,7 +203,7 @@ async function getDatabase(options = {}) {
   };
   const transaction = async (callback) => {
     try {
-      await client.execute({ sql: "BEGIN TRANSACTION" });
+      await client.execute({ sql: "BEGIN TRANSACTION", args: [] });
       const txDb = {
         client,
         insert,
@@ -226,10 +227,10 @@ async function getDatabase(options = {}) {
         transaction
       };
       const result = await callback(txDb);
-      await client.execute({ sql: "COMMIT" });
+      await client.execute({ sql: "COMMIT", args: [] });
       return result;
     } catch (error) {
-      await client.execute({ sql: "ROLLBACK" });
+      await client.execute({ sql: "ROLLBACK", args: [] });
       throw error;
     }
   };
@@ -356,6 +357,118 @@ async function getDatabase(options = {}) {
     };
     await schemaManager.initializeSchemas(currentDb, options2);
   };
+  const getTableSchema = async (table2) => {
+    validateTableName(table2);
+    try {
+      const exists = await tableExists(table2);
+      if (!exists) {
+        return null;
+      }
+      const columnRows = await many`SELECT * FROM pragma_table_info(${table2})`;
+      const columns = {};
+      for (const row of columnRows) {
+        const colName = row.name;
+        columns[colName] = {
+          type: row.type,
+          primaryKey: row.pk === 1,
+          notNull: row.notnull === 1,
+          defaultValue: row.dflt_value
+        };
+      }
+      const indexRows = await many`
+        SELECT name, sql FROM sqlite_master
+        WHERE type = 'index'
+          AND tbl_name = ${table2}
+          AND name NOT LIKE 'sqlite_%'
+      `;
+      const indexes = [];
+      for (const row of indexRows) {
+        const indexName = row.name;
+        const indexInfoRows = await many`SELECT * FROM pragma_index_info(${indexName})`;
+        const indexColumns = [];
+        for (const infoRow of indexInfoRows) {
+          indexColumns.push(infoRow.name);
+        }
+        const indexListRow = await single`SELECT * FROM pragma_index_list(${table2}) WHERE name = ${indexName}`;
+        indexes.push({
+          name: indexName,
+          columns: indexColumns,
+          unique: indexListRow?.unique === 1
+        });
+      }
+      const fkRows = await many`SELECT * FROM pragma_foreign_key_list(${table2})`;
+      const foreignKeys = [];
+      for (const fkRow of fkRows) {
+        foreignKeys.push({
+          column: fkRow.from,
+          referencesTable: fkRow.table,
+          referencesColumn: fkRow.to,
+          onDelete: fkRow.on_delete,
+          onUpdate: fkRow.on_update
+        });
+      }
+      return {
+        tableName: table2,
+        columns,
+        indexes,
+        foreignKeys
+      };
+    } catch (e) {
+      throw new DatabaseError("Failed to retrieve table schema", {
+        table: table2,
+        originalError: e instanceof Error ? e.message : String(e)
+      });
+    }
+  };
+  const alterTable = {
+    /**
+     * Adds a new column to an existing table
+     *
+     * @param table - Table name
+     * @param column - Column definition with name
+     * @returns Promise that resolves when column is added
+     * @throws Error if the alter operation fails
+     */
+    addColumn: async (table2, column) => {
+      validateTableName(table2);
+      validateColumnName(column.name);
+      try {
+        const sql = generateAddColumnStatement(table2, column, "sqlite");
+        await client.execute({ sql, args: [] });
+      } catch (e) {
+        throw new DatabaseError("Failed to add column to table", {
+          table: table2,
+          column: column.name,
+          originalError: e instanceof Error ? e.message : String(e)
+        });
+      }
+    },
+    /**
+     * Adds a new index to an existing table
+     *
+     * @param table - Table name
+     * @param index - Index definition
+     * @returns Promise that resolves when index is created
+     * @throws Error if the create index operation fails
+     */
+    addIndex: async (table2, index) => {
+      validateTableName(table2);
+      validateIndexName(index.name);
+      for (const col of index.columns) {
+        validateColumnName(col);
+      }
+      try {
+        const sql = generateCreateIndexStatement(table2, index);
+        await client.execute({ sql, args: [] });
+      } catch (e) {
+        throw new DatabaseError("Failed to create index on table", {
+          table: table2,
+          index: index.name,
+          originalError: e instanceof Error ? e.message : String(e)
+        });
+      }
+    }
+  };
   return {
     client,
     query,
@@ -377,10 +490,12 @@ async function getDatabase(options = {}) {
     xx,
     syncSchema,
     initializeSchemas,
-    transaction
+    transaction,
+    getTableSchema,
+    alterTable
   };
 }
 export {
   getDatabase
 };
-//# sourceMappingURL=sqlite-BJQU7fQj.js.map
+//# sourceMappingURL=sqlite-A9LRpnDd.js.map

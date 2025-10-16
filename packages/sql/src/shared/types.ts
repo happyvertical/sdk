@@ -154,6 +154,13 @@ export interface ColumnDefinition {
 }
 
 /**
+ * Column definition with name for ALTER TABLE operations
+ */
+export interface ColumnDefinitionWithName extends ColumnDefinition {
+  name: string;
+}
+
+/**
  * Index definition structure
  */
 export interface IndexDefinition {
@@ -202,6 +209,20 @@ export interface SchemaInitializationOptions {
   force?: boolean;
   /** Enable debug logging */
   debug?: boolean;
+}
+
+/**
+ * Table schema information returned by getTableSchema()
+ */
+export interface TableSchemaInfo {
+  /** Table name */
+  tableName: string;
+  /** Columns in the table */
+  columns: Record<string, ColumnDefinition>;
+  /** Indexes on the table */
+  indexes: IndexDefinition[];
+  /** Foreign key constraints */
+  foreignKeys: ForeignKeyDefinition[];
 }
 
 /**
@@ -434,6 +455,40 @@ export interface DatabaseInterface {
   transaction?: <T>(
     callback: (tx: DatabaseInterface) => Promise<T>,
   ) => Promise<T>;
+
+  /**
+   * Retrieves the schema information for a table
+   *
+   * @param table - Table name
+   * @returns Promise resolving to table schema info or null if table doesn't exist
+   */
+  getTableSchema?: (table: string) => Promise<TableSchemaInfo | null>;
+
+  /**
+   * ALTER TABLE operations for schema evolution
+   */
+  alterTable?: {
+    /**
+     * Adds a new column to an existing table
+     *
+     * @param table - Table name
+     * @param column - Column definition with name
+     * @returns Promise that resolves when column is added
+     */
+    addColumn: (
+      table: string,
+      column: ColumnDefinitionWithName,
+    ) => Promise<void>;
+
+    /**
+     * Adds a new index to an existing table
+     *
+     * @param table - Table name
+     * @param index - Index definition
+     * @returns Promise that resolves when index is created
+     */
+    addIndex: (table: string, index: IndexDefinition) => Promise<void>;
+  };
 }
 
 /**

@@ -1,6 +1,7 @@
 import { DatabaseError } from "@have/utils";
 import { Pool } from "pg";
 import { buildWhere, DatabaseSchemaManager } from "../index.js";
+import { v as validateTableName, a as validateIndexName, b as validateColumnName, g as generateCreateIndexStatement, c as generateAddColumnStatement } from "./alter-utils-HriCak_3.js";
 function getDatabase(options = {}) {
   const {
     url = process.env.SQLOO_URL,
@@ -441,6 +442,160 @@ function getDatabase(options = {}) {
     };
     await schemaManager.initializeSchemas(currentDb, options2);
   };
+  const getTableSchema = async (table2) => {
+    validateTableName(table2);
+    try {
+      const exists = await tableExists(table2);
+      if (!exists) {
+        return null;
+      }
+      const columnRows = await many`
+        SELECT
+          column_name,
+          data_type,
+          is_nullable,
+          column_default
+        FROM information_schema.columns
+        WHERE table_name = ${table2}
+          AND table_schema = 'public'
+        ORDER BY ordinal_position
+      `;
+      const pkRows = await many`
+        SELECT kcu.column_name
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON tc.constraint_name = kcu.constraint_name
+          AND tc.table_schema = kcu.table_schema
+        WHERE tc.table_name = ${table2}
+          AND tc.table_schema = 'public'
+          AND tc.constraint_type = 'PRIMARY KEY'
+      `;
+      const pkColumns = new Set(pkRows.map((row) => row.column_name));
+      const columns = {};
+      for (const row of columnRows) {
+        const colName = row.column_name;
+        columns[colName] = {
+          type: row.data_type,
+          primaryKey: pkColumns.has(colName),
+          notNull: row.is_nullable === "NO",
+          defaultValue: row.column_default
+        };
+      }
+      const indexRows = await many`
+        SELECT
+          indexname,
+          indexdef
+        FROM pg_indexes
+        WHERE tablename = ${table2}
+          AND schemaname = 'public'
+          AND indexname NOT LIKE '%_pkey'
+      `;
+      const indexes = [];
+      for (const row of indexRows) {
+        const indexName = row.indexname;
+        const indexDef = row.indexdef;
+        const colMatch = indexDef.match(/\(([^)]+)\)/);
+        const indexColumns = colMatch ? colMatch[1].split(",").map((col) => col.trim()) : [];
+        const isUnique = indexDef.toUpperCase().includes("UNIQUE");
+        indexes.push({
+          name: indexName,
+          columns: indexColumns,
+          unique: isUnique
+        });
+      }
+      const fkRows = await many`
+        SELECT
+          kcu.column_name,
+          ccu.table_name AS foreign_table_name,
+          ccu.column_name AS foreign_column_name,
+          rc.delete_rule,
+          rc.update_rule
+        FROM information_schema.table_constraints AS tc
+        JOIN information_schema.key_column_usage AS kcu
+          ON tc.constraint_name = kcu.constraint_name
+          AND tc.table_schema = kcu.table_schema
+        JOIN information_schema.constraint_column_usage AS ccu
+          ON ccu.constraint_name = tc.constraint_name
+          AND ccu.table_schema = tc.table_schema
+        JOIN information_schema.referential_constraints AS rc
+          ON rc.constraint_name = tc.constraint_name
+          AND rc.constraint_schema = tc.table_schema
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND tc.table_name = ${table2}
+          AND tc.table_schema = 'public'
+      `;
+      const foreignKeys = [];
+      for (const fkRow of fkRows) {
+        foreignKeys.push({
+          column: fkRow.column_name,
+          referencesTable: fkRow.foreign_table_name,
+          referencesColumn: fkRow.foreign_column_name,
+          onDelete: fkRow.delete_rule,
+          onUpdate: fkRow.update_rule
+        });
+      }
+      return {
+        tableName: table2,
+        columns,
+        indexes,
+        foreignKeys
+      };
+    } catch (e) {
+      throw new DatabaseError("Failed to retrieve table schema", {
+        table: table2,
+        originalError: e instanceof Error ? e.message : String(e)
+      });
+    }
+  };
+  const alterTable = {
+    /**
+     * Adds a new column to an existing table
+     *
+     * @param table - Table name
+     * @param column - Column definition with name
+     * @returns Promise that resolves when column is added
+     * @throws Error if the alter operation fails
+     */
+    addColumn: async (table2, column) => {
+      validateTableName(table2);
+      validateColumnName(column.name);
+      try {
+        const sql = generateAddColumnStatement(table2, column, "postgres");
+        await client.query(sql);
+      } catch (e) {
+        throw new DatabaseError("Failed to add column to table", {
+          table: table2,
+          column: column.name,
+          originalError: e instanceof Error ? e.message : String(e)
+        });
+      }
+    },
+    /**
+     * Adds a new index to an existing table
+     *
+     * @param table - Table name
+     * @param index - Index definition
+     * @returns Promise that resolves when index is created
+     * @throws Error if the create index operation fails
+     */
+    addIndex: async (table2, index) => {
+      validateTableName(table2);
+      validateIndexName(index.name);
+      for (const col of index.columns) {
+        validateColumnName(col);
+      }
+      try {
+        const sql = generateCreateIndexStatement(table2, index);
+        await client.query(sql);
+      } catch (e) {
+        throw new DatabaseError("Failed to create index on table", {
+          table: table2,
+          index: index.name,
+          originalError: e instanceof Error ? e.message : String(e)
+        });
+      }
+    }
+  };
   return {
     client,
     insert,
@@ -462,10 +617,12 @@ function getDatabase(options = {}) {
     tableExists,
     syncSchema,
     initializeSchemas,
-    transaction
+    transaction,
+    getTableSchema,
+    alterTable
   };
 }
 export {
   getDatabase
 };
-//# sourceMappingURL=postgres-B7IAgBFj.js.map
+//# sourceMappingURL=postgres-CV4jlBV5.js.map
