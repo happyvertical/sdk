@@ -313,7 +313,7 @@ async function getDatabase(options = {}) {
     return postgres.getDatabase(options);
   }
   if (options.type === "sqlite") {
-    const sqlite = await import("./chunks/sqlite-DleqToJ2.js");
+    const sqlite = await import("./chunks/sqlite-D6ufNJSW.js");
     return sqlite.getDatabase(options);
   }
   if (options.type === "duckdb") {

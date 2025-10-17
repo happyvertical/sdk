@@ -19,6 +19,14 @@ export interface SqliteOptions {
      * Encryption key for encrypted SQLite databases (LibSQL feature)
      */
     encryptionKey?: string;
+    /**
+     * Unique identifier for in-memory databases to enable connection sharing
+     * When multiple getDatabase() calls use the same dbid, they receive
+     * the same database connection instance.
+     *
+     * Auto-generated for :memory: databases if not provided.
+     */
+    dbid?: string;
 }
 /**
  * Creates a SQLite database adapter
