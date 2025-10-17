@@ -21,6 +21,29 @@ import type {
 import { buildWhere } from './shared/utils';
 
 /**
+ * Connection cache for in-memory databases with memoryId
+ * Enables sharing of :memory: databases across multiple getDatabase() calls
+ */
+const memoryConnectionCache = new Map<string, DatabaseInterface>();
+
+/**
+ * Pending connection promises to handle concurrent getDatabase() calls
+ * Prevents creating duplicate connections when parallel calls happen
+ */
+const pendingConnections = new Map<
+  string,
+  Promise<DatabaseInterface>
+>();
+
+/**
+ * Generates a unique identifier for in-memory databases
+ * @returns A unique database identifier string
+ */
+function generateDbId(): string {
+  return `memory-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+}
+
+/**
  * Creates a LibSQL client using the default client implementation
  * Supports in-memory databases and remote LibSQL URLs
  *
@@ -92,6 +115,15 @@ export interface SqliteOptions {
    * Encryption key for encrypted SQLite databases (LibSQL feature)
    */
   encryptionKey?: string;
+
+  /**
+   * Unique identifier for in-memory databases to enable connection sharing
+   * When multiple getDatabase() calls use the same dbid, they receive
+   * the same database connection instance.
+   *
+   * Auto-generated for :memory: databases if not provided.
+   */
+  dbid?: string;
 }
 
 /**
@@ -103,7 +135,31 @@ export interface SqliteOptions {
 export async function getDatabase(
   options: SqliteOptions = {},
 ): Promise<DatabaseInterface> {
-  const client = await createLibSQLClient(options);
+  const url = options.url || ':memory:';
+
+  // Auto-generate dbid for :memory: databases if not provided
+  // Mutate options object to ensure child objects reuse the same connection
+  if (url === ':memory:' && !options.dbid) {
+    options.dbid = generateDbId();
+  }
+
+  // Check if we have a cached connection for this dbid
+  if (options.dbid) {
+    const cached = memoryConnectionCache.get(options.dbid);
+    if (cached) {
+      return cached;
+    }
+
+    // Check if there's a pending connection for this dbid
+    const pending = pendingConnections.get(options.dbid);
+    if (pending) {
+      return pending;
+    }
+  }
+
+  // Create a new connection promise
+  const connectionPromise = (async () => {
+    const client = await createLibSQLClient(options);
 
   /**
    * Inserts one or more records into a table
@@ -817,29 +873,52 @@ export async function getDatabase(
     },
   };
 
-  return {
-    client,
-    query,
-    insert,
-    update,
-    upsert,
-    get,
-    list,
-    getOrInsert,
-    table,
-    tableExists,
-    many,
-    single,
-    pluck,
-    execute,
-    oo,
-    oO,
-    ox,
-    xx,
-    syncSchema,
-    initializeSchemas,
-    transaction,
-    getTableSchema,
-    alterTable,
-  };
+    return {
+      client,
+      query,
+      insert,
+      update,
+      upsert,
+      get,
+      list,
+      getOrInsert,
+      table,
+      tableExists,
+      many,
+      single,
+      pluck,
+      execute,
+      oo,
+      oO,
+      ox,
+      xx,
+      syncSchema,
+      initializeSchemas,
+      transaction,
+      getTableSchema,
+      alterTable,
+    };
+  })();
+
+  // Store the pending connection promise if dbid exists
+  if (options.dbid) {
+    pendingConnections.set(options.dbid, connectionPromise);
+  }
+
+  try {
+    // Wait for the connection to be established
+    const db = await connectionPromise;
+
+    // Cache the connection for reuse if dbid exists
+    if (options.dbid) {
+      memoryConnectionCache.set(options.dbid, db);
+    }
+
+    return db;
+  } finally {
+    // Clean up pending connection promise
+    if (options.dbid) {
+      pendingConnections.delete(options.dbid);
+    }
+  }
 }

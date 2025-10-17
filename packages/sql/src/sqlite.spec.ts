@@ -398,4 +398,224 @@ describe('sqlite tests', () => {
       expect(result?.status).toBe('active');
     });
   });
+
+  describe('memory database sharing with dbid', () => {
+    it('should auto-generate dbid for :memory: databases', async () => {
+      const options = { type: 'sqlite' as const, url: ':memory:' };
+      const db1 = await getDatabase(options);
+
+      // Options should be mutated to include dbid
+      expect(options.dbid).toBeDefined();
+      expect(typeof options.dbid).toBe('string');
+    });
+
+    it('should reuse connection when same dbid is provided', async () => {
+      // Create first database with explicit dbid
+      const dbid = 'test-shared-memory-1';
+      const db1 = await getDatabase({
+        type: 'sqlite',
+        url: ':memory:',
+        dbid,
+      });
+
+      // Create table and insert data
+      await db1.execute`
+        CREATE TABLE shared_test (
+          id TEXT PRIMARY KEY,
+          value TEXT
+        )
+      `;
+      await db1.insert('shared_test', { id: 'test-1', value: 'from db1' });
+
+      // Create second database with same dbid
+      const db2 = await getDatabase({
+        type: 'sqlite',
+        url: ':memory:',
+        dbid,
+      });
+
+      // db2 should see the table and data from db1
+      const result = await db2.get('shared_test', { id: 'test-1' });
+      expect(result).toEqual({ id: 'test-1', value: 'from db1' });
+
+      // Verify both databases are the same instance
+      expect(db1).toBe(db2);
+    });
+
+    it('should create separate connections for different dbids', async () => {
+      // Create first database
+      const db1 = await getDatabase({
+        type: 'sqlite',
+        url: ':memory:',
+        dbid: 'memory-1',
+      });
+
+      await db1.execute`
+        CREATE TABLE isolated_test (
+          id TEXT PRIMARY KEY,
+          value TEXT
+        )
+      `;
+      await db1.insert('isolated_test', { id: 'test-1', value: 'from db1' });
+
+      // Create second database with different dbid
+      const db2 = await getDatabase({
+        type: 'sqlite',
+        url: ':memory:',
+        dbid: 'memory-2',
+      });
+
+      // db2 should not see db1's tables
+      const tableExists = await db2.tableExists('isolated_test');
+      expect(tableExists).toBe(false);
+
+      // Verify databases are different instances
+      expect(db1).not.toBe(db2);
+    });
+
+    it('should mutate options object to propagate dbid to child objects', async () => {
+      const options = { type: 'sqlite' as const, url: ':memory:' };
+
+      // Create parent database - should auto-generate dbid
+      const parentDb = await getDatabase(options);
+
+      // Options now has dbid
+      expect(options.dbid).toBeDefined();
+      const parentDbId = options.dbid;
+
+      // Create table and data
+      await parentDb.execute`
+        CREATE TABLE parent_child_test (
+          id TEXT PRIMARY KEY,
+          data TEXT
+        )
+      `;
+      await parentDb.insert('parent_child_test', {
+        id: 'parent-1',
+        data: 'parent data',
+      });
+
+      // Simulate child object using same options (now with memoryId)
+      const childDb = await getDatabase(options);
+
+      // Child should see parent's data
+      const result = await childDb.get('parent_child_test', {
+        id: 'parent-1',
+      });
+      expect(result).toEqual({ id: 'parent-1', data: 'parent data' });
+
+      // Verify same connection
+      expect(childDb).toBe(parentDb);
+
+      // Verify dbid was preserved
+      expect(options.dbid).toBe(parentDbId);
+    });
+
+    it('should handle parallel calls with same dbid', async () => {
+      const dbid = 'test-parallel-1';
+
+      // Create multiple connections in parallel with same dbid
+      const [db1, db2, db3] = await Promise.all([
+        getDatabase({ type: 'sqlite', url: ':memory:', dbid }),
+        getDatabase({ type: 'sqlite', url: ':memory:', dbid }),
+        getDatabase({ type: 'sqlite', url: ':memory:', dbid }),
+      ]);
+
+      // All should be the same instance
+      expect(db1).toBe(db2);
+      expect(db2).toBe(db3);
+
+      // Create table with first connection
+      await db1.execute`
+        CREATE TABLE parallel_test (
+          id TEXT PRIMARY KEY,
+          value TEXT
+        )
+      `;
+
+      // All connections should see the table
+      const exists1 = await db1.tableExists('parallel_test');
+      const exists2 = await db2.tableExists('parallel_test');
+      const exists3 = await db3.tableExists('parallel_test');
+
+      expect(exists1).toBe(true);
+      expect(exists2).toBe(true);
+      expect(exists3).toBe(true);
+    });
+
+    it('should handle parallel calls with auto-generated dbid', async () => {
+      const options = { type: 'sqlite' as const, url: ':memory:' };
+
+      // Create first connection - generates dbid
+      const db1 = await getDatabase(options);
+      const dbid = options.dbid;
+
+      // Create subsequent connections in parallel - should reuse dbid
+      const [db2, db3] = await Promise.all([
+        getDatabase(options),
+        getDatabase(options),
+      ]);
+
+      // All should be the same instance
+      expect(db1).toBe(db2);
+      expect(db2).toBe(db3);
+
+      // Verify dbid remained constant
+      expect(options.dbid).toBe(dbid);
+    });
+
+    it('should only cache :memory: databases with dbid', async () => {
+      // File-based database should not be cached
+      const fileDb1 = await getDatabase({
+        type: 'sqlite',
+        url: 'file::memory:?cache=shared',
+      });
+
+      const fileDb2 = await getDatabase({
+        type: 'sqlite',
+        url: 'file::memory:?cache=shared',
+      });
+
+      // File-based databases without dbid are separate instances
+      // (even though they might share the same underlying connection in libsql)
+      expect(fileDb1).not.toBe(fileDb2);
+    });
+
+    it('should work with nested collection scenario', async () => {
+      // Simulate SMRT framework scenario from Issue #249
+      const parentOptions = { type: 'sqlite' as const, url: ':memory:' };
+
+      // Parent creates connection and table
+      const parentDb = await getDatabase(parentOptions);
+      await parentDb.execute`
+        CREATE TABLE councils (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          url TEXT
+        )
+      `;
+      await parentDb.insert('councils', {
+        id: 'council-1',
+        name: 'Town Council',
+        url: 'https://example.com',
+      });
+
+      // Child collection uses same options (now with auto-generated dbid)
+      const childDb = await getDatabase(parentOptions);
+
+      // Child should be able to query parent's tables
+      const council = await childDb.single`
+        SELECT * FROM councils WHERE name = ${'Town Council'}
+      `;
+
+      expect(council).toEqual({
+        id: 'council-1',
+        name: 'Town Council',
+        url: 'https://example.com',
+      });
+
+      // Verify same connection instance
+      expect(childDb).toBe(parentDb);
+    });
+  });
 });
