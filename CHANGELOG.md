@@ -1,3 +1,10 @@
+# [0.43.0](https://github.com/happyvertical/sdk/compare/v0.42.0...v0.43.0) (2025-10-17)
+
+
+### Features
+
+* **sql:** add dbid parameter for memory database connection sharing ([824ec99](https://github.com/happyvertical/sdk/commit/824ec99284b8cdca87c3c112466921f9d45c5b7a)), closes [#249](https://github.com/happyvertical/sdk/issues/249) [#249](https://github.com/happyvertical/sdk/issues/249)
+
 # [0.42.0](https://github.com/happyvertical/sdk/compare/v0.41.1...v0.42.0) (2025-10-17)
 
 
