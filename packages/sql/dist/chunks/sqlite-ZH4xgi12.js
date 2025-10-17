@@ -39,19 +39,27 @@ async function getDatabase(options = {}) {
   const url = options.url || ":memory:";
   if (url === ":memory:" && !options.dbid) {
     options.dbid = generateDbId();
+    console.log("[sqlite] Generated new dbid for :memory: database:", options.dbid);
   }
   if (options.dbid) {
     const cached = memoryConnectionCache.get(options.dbid);
     if (cached) {
+      console.log("[sqlite] Cache HIT - reusing existing connection for dbid:", options.dbid);
+      console.log("[sqlite] Cached connection client:", typeof cached.client, cached.client.constructor.name);
       return cached;
     }
     const pending = pendingConnections.get(options.dbid);
     if (pending) {
+      console.log("[sqlite] Pending connection found for dbid:", options.dbid);
       return pending;
     }
+    console.log("[sqlite] Cache MISS - creating new connection for dbid:", options.dbid);
+    console.log("[sqlite] Cache size:", memoryConnectionCache.size, "Pending size:", pendingConnections.size);
   }
   const connectionPromise = (async () => {
     const client = await createLibSQLClient(options);
+    console.log("[sqlite] Created new LibSQL client for dbid:", options.dbid, "url:", options.url);
+    console.log("[sqlite] Client type:", typeof client, client.constructor.name);
     const insert = async (table2, data) => {
       let sql;
       let values;
@@ -522,6 +530,8 @@ async function getDatabase(options = {}) {
     const db = await connectionPromise;
     if (options.dbid) {
       memoryConnectionCache.set(options.dbid, db);
+      console.log("[sqlite] Cached connection for dbid:", options.dbid);
+      console.log("[sqlite] Cache now has", memoryConnectionCache.size, "connection(s)");
     }
     return db;
   } finally {
@@ -533,4 +543,4 @@ async function getDatabase(options = {}) {
 export {
   getDatabase
 };
-//# sourceMappingURL=sqlite-D6ufNJSW.js.map
+//# sourceMappingURL=sqlite-ZH4xgi12.js.map
