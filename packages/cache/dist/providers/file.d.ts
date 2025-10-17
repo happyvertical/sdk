@@ -1,9 +1,9 @@
-import { CacheStats, FileOptions, ICacheProvider } from '../shared/types';
+import { CacheStats, FileOptions, CacheProvider } from '../shared/types';
 /**
  * File cache provider implementation
  * Stores cache entries as files with optional compression
  */
-export declare class FileProvider implements ICacheProvider {
+export declare class FileProvider implements CacheProvider {
     private cacheDir;
     private namespace?;
     private defaultTTL?;

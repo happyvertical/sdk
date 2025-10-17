@@ -1,9 +1,9 @@
-import { ISpiderAdapter, SpiderAdapterOptions } from './types';
+import { SpiderAdapter, SpiderAdapterOptions } from './types';
 /**
  * Factory function to create a spider adapter instance
  *
  * @param options - Configuration options for the spider adapter
- * @returns Promise resolving to a spider adapter that implements ISpiderAdapter
+ * @returns Promise resolving to a spider adapter that implements SpiderAdapter
  *
  * @example
  * ```typescript
@@ -25,5 +25,5 @@ import { ISpiderAdapter, SpiderAdapterOptions } from './types';
  * console.log(page.links);
  * ```
  */
-export declare function getSpider(options: SpiderAdapterOptions): Promise<ISpiderAdapter>;
+export declare function getSpider(options: SpiderAdapterOptions): Promise<SpiderAdapter>;
 //# sourceMappingURL=factory.d.ts.map

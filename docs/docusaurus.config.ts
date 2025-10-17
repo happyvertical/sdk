@@ -23,9 +23,6 @@ const config: Config = {
   markdown: {
     format: 'detect',
     mermaid: true,
-    hooks: {
-      onBrokenMarkdownLinks: 'warn',
-    },
   },
 
   // Internationalization

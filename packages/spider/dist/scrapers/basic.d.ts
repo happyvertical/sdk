@@ -1,4 +1,4 @@
-import { BasicScraperOptions, IScraper, ScrapeOptions, ScrapeResult, ScraperType } from '../shared/types';
+import { BasicScraperOptions, Scraper, ScrapeOptions, ScrapeResult, ScraperType } from '../shared/types';
 /**
  * Basic scraper - simple scraping with no interactions
  *
@@ -20,7 +20,7 @@ import { BasicScraperOptions, IScraper, ScrapeOptions, ScrapeResult, ScraperType
  * console.log(`Strategy: ${result.strategy.type} using ${result.strategy.spider}`);
  * ```
  */
-export declare class BasicScraper implements IScraper {
+export declare class BasicScraper implements Scraper {
     private spider?;
     private options;
     constructor(options: BasicScraperOptions);

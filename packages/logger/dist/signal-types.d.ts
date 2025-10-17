@@ -36,7 +36,7 @@ export interface Signal {
 /**
  * Signal Adapter interface - Handles signals for various purposes
  */
-export interface ISignalAdapter {
+export interface SignalAdapter {
     /**
      * Handle a signal
      * @param signal - The signal to handle

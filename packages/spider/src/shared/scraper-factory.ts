@@ -1,5 +1,5 @@
 import { ValidationError } from '@have/utils';
-import type { IScraper, ScraperOptions } from './types';
+import type { Scraper, ScraperOptions } from './types';
 
 /**
  * Factory function to create scraper instances
@@ -34,7 +34,7 @@ import type { IScraper, ScraperOptions } from './types';
  * });
  * ```
  */
-export async function getScraper(options: ScraperOptions): Promise<IScraper> {
+export async function getScraper(options: ScraperOptions): Promise<Scraper> {
   if (!options || typeof options !== 'object') {
     throw new ValidationError('Scraper options are required', { options });
   }

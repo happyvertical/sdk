@@ -2,7 +2,7 @@ import { readdir } from "node:fs/promises";
 import { extname, join, basename } from "node:path";
 import { DatabaseError } from "@have/utils";
 import { DatabaseSchemaManager, buildWhere } from "../index.js";
-import { v as validateTableName, a as validateIndexName, b as validateColumnName, g as generateCreateIndexStatement, c as generateAddColumnStatement } from "./alter-utils-HriCak_3.js";
+import { v as validateTableName, a as validateIndexName, b as validateColumnName, g as generateCreateIndexStatement, c as generateAddColumnStatement } from "./alter-utils-OwKqvidR.js";
 async function createDuckDBConnection(options) {
   const {
     url = ":memory:",
@@ -565,4 +565,4 @@ async function getDatabase(options = {}) {
 export {
   getDatabase
 };
-//# sourceMappingURL=duckdb-BXiJvd0g.js.map
+//# sourceMappingURL=duckdb-BCe5YUsE.js.map

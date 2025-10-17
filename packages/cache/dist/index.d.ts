@@ -1,11 +1,11 @@
-import { CacheAdapterOptions, ICacheAdapter } from './shared/types';
+import { CacheAdapter, CacheAdapterOptions } from './shared/types';
 export * from './shared/types';
 export * from './shared/utils';
 /**
  * Factory function to create a cache adapter instance
  *
  * @param options - Configuration options for the cache provider
- * @returns Promise resolving to a cache adapter that implements ICacheAdapter
+ * @returns Promise resolving to a cache adapter that implements CacheAdapter
  *
  * @example
  * ```typescript
@@ -35,5 +35,5 @@ export * from './shared/utils';
  * const user = await memoryCache.get('user:123');
  * ```
  */
-export declare function getCache(options: CacheAdapterOptions): Promise<ICacheAdapter>;
+export declare function getCache(options: CacheAdapterOptions): Promise<CacheAdapter>;
 //# sourceMappingURL=index.d.ts.map

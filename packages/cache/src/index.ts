@@ -4,9 +4,9 @@
  */
 
 import type {
+  CacheAdapter,
   CacheAdapterOptions,
   FileOptions,
-  ICacheAdapter,
   MemoryOptions,
   RedisOptions,
 } from './shared/types';
@@ -42,7 +42,7 @@ function isRedisOptions(options: CacheAdapterOptions): options is RedisOptions {
  * Factory function to create a cache adapter instance
  *
  * @param options - Configuration options for the cache provider
- * @returns Promise resolving to a cache adapter that implements ICacheAdapter
+ * @returns Promise resolving to a cache adapter that implements CacheAdapter
  *
  * @example
  * ```typescript
@@ -74,7 +74,7 @@ function isRedisOptions(options: CacheAdapterOptions): options is RedisOptions {
  */
 export async function getCache(
   options: CacheAdapterOptions,
-): Promise<ICacheAdapter> {
+): Promise<CacheAdapter> {
   if (isMemoryOptions(options)) {
     const { MemoryProvider } = await import('./providers/memory.js');
     return new MemoryProvider(options);

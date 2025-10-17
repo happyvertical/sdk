@@ -3,11 +3,11 @@
  */
 
 import { Client } from '@googlemaps/google-maps-services-js';
-import type { ICacheAdapter } from '@have/cache';
+import type { CacheAdapter } from '@have/cache';
 import { getCache } from '@have/cache';
 import type {
+  GeoProvider,
   GoogleMapsOptions,
-  IGeoProvider,
   Location,
 } from '../shared/types';
 import {
@@ -25,12 +25,12 @@ import {
 /**
  * Google Maps provider implementation with in-memory caching
  */
-export class GoogleMapsProvider implements IGeoProvider {
+export class GoogleMapsProvider implements GeoProvider {
   private client: Client;
   private apiKey: string;
   private timeout: number;
   private maxResults: number;
-  private cache: ICacheAdapter | null = null;
+  private cache: CacheAdapter | null = null;
 
   constructor(options: GoogleMapsOptions) {
     this.client = new Client({});

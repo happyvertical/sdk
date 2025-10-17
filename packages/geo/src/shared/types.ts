@@ -68,7 +68,7 @@ export interface Location {
 /**
  * Geo provider interface - all providers must implement this
  */
-export interface IGeoProvider {
+export interface GeoProvider {
   /**
    * Look up locations based on a query string
    * @param query - Search string (address, city, country, POI, etc.)
@@ -86,9 +86,9 @@ export interface IGeoProvider {
 }
 
 /**
- * Geo adapter interface (structurally identical to IGeoProvider)
+ * Geo adapter interface (structurally identical to GeoProvider)
  */
-export interface IGeoAdapter {
+export interface GeoAdapter {
   /**
    * Look up locations based on a query string
    * @param query - Search string (address, city, country, POI, etc.)

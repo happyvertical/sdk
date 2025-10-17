@@ -309,15 +309,15 @@ async function getDatabase(options = {}) {
     options.type = "sqlite";
   }
   if (options.type === "postgres") {
-    const postgres = await import("./chunks/postgres-CV4jlBV5.js");
+    const postgres = await import("./chunks/postgres-C0u-_n6D.js");
     return postgres.getDatabase(options);
   }
   if (options.type === "sqlite") {
-    const sqlite = await import("./chunks/sqlite-A9LRpnDd.js");
+    const sqlite = await import("./chunks/sqlite-DleqToJ2.js");
     return sqlite.getDatabase(options);
   }
   if (options.type === "duckdb") {
-    const duckdb = await import("./chunks/duckdb-BXiJvd0g.js");
+    const duckdb = await import("./chunks/duckdb-BCe5YUsE.js");
     return duckdb.getDatabase(options);
   }
   if (options.type === "json") {

@@ -5,7 +5,7 @@
 import { promisify } from 'node:util';
 import { gunzip, gzip } from 'node:zlib';
 import { createClient, type RedisClientType } from 'redis';
-import type { CacheStats, ICacheProvider, RedisOptions } from '../shared/types';
+import type { CacheStats, CacheProvider, RedisOptions } from '../shared/types';
 import {
   CacheConnectionError,
   CacheError,
@@ -21,7 +21,7 @@ const gunzipAsync = promisify(gunzip);
  * Redis cache provider implementation
  * Uses official redis client with optional compression
  */
-export class RedisProvider implements ICacheProvider {
+export class RedisProvider implements CacheProvider {
   private client: RedisClientType;
   private namespace?: string;
   private defaultTTL?: number;
