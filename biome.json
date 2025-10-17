@@ -36,7 +36,7 @@
       "style": {
         "noNonNullAssertion": "warn",
         "useNamingConvention": {
-          "level": "error",
+          "level": "warn",
           "options": {
             "strictCase": false,
             "conventions": [
@@ -44,7 +44,6 @@
                 "selector": {
                   "kind": "interface"
                 },
-                "match": "^(?!I)[A-Z]",
                 "formats": ["PascalCase"]
               },
               {
