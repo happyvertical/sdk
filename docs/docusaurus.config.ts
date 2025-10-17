@@ -15,8 +15,18 @@ const config: Config = {
   organizationName: 'happyvertical',
   projectName: 'sdk',
 
-  onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'warn',
+  onBrokenLinks: 'warn',
+
+  // Markdown configuration
+  // Use 'detect' to allow CommonMark for TypeDoc-generated API docs
+  // while still supporting MDX for hand-written docs
+  markdown: {
+    format: 'detect',
+    mermaid: true,
+    hooks: {
+      onBrokenMarkdownLinks: 'warn',
+    },
+  },
 
   // Internationalization
   i18n: {
@@ -54,43 +64,7 @@ const config: Config = {
     ],
   ],
 
-  plugins: [
-    './plugins/esm-resolver',
-    [
-      'docusaurus-plugin-typedoc',
-      {
-        entryPoints: [
-          '../packages/ai/src/index.ts',
-          '../packages/cache/src/index.ts',
-          '../packages/config/src/index.ts',
-          '../packages/documents/src/index.ts',
-          '../packages/files/src/index.ts',
-          '../packages/geo/src/index.ts',
-          '../packages/logger/src/index.ts',
-          '../packages/ocr/src/index.ts',
-          '../packages/pdf/src/index.ts',
-          '../packages/spider/src/index.ts',
-          '../packages/sql/src/index.ts',
-          '../packages/translator/src/index.ts',
-          '../packages/utils/src/index.ts',
-        ],
-        tsconfig: './typedoc.tsconfig.json',
-        out: 'api',
-        readme: 'none',
-        sidebar: {
-          autoConfiguration: true,
-          pretty: true,
-        },
-        watch: process.env.TYPEDOC_WATCH === 'true',
-        excludePrivate: true,
-        excludeProtected: true,
-        excludeExternals: true,
-        excludeInternal: true,
-        disableSources: false,
-        plugin: ['typedoc-plugin-markdown'],
-      },
-    ],
-  ],
+  plugins: [],
 
   themes: ['@docusaurus/theme-mermaid'],
 
@@ -107,10 +81,10 @@ const config: Config = {
           position: 'left',
           label: 'Docs',
         },
-        { to: '/blog', label: 'Blog', position: 'left' },
         {
-          type: 'docsVersionDropdown',
-          position: 'right',
+          href: 'https://github.com/happyvertical/sdk/releases',
+          label: 'Changelog',
+          position: 'left',
         },
         {
           href: 'https://github.com/happyvertical/sdk',
@@ -139,23 +113,11 @@ const config: Config = {
               label: 'GitHub',
               href: 'https://github.com/happyvertical/sdk',
             },
-            {
-              label: 'Discord',
-              href: 'https://discord.gg/smrt-agents',
-            },
-            {
-              label: 'Twitter',
-              href: 'https://twitter.com/smrtframework',
-            },
           ],
         },
         {
           title: 'More',
           items: [
-            {
-              label: 'Blog',
-              to: '/blog',
-            },
             {
               label: 'Changelog',
               href: 'https://github.com/happyvertical/sdk/releases',
