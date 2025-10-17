@@ -374,6 +374,127 @@ const similarDocs = await db.many`
 `;
 ```
 
+## Writing Custom Adapters
+
+To add support for a new database, implement the `DatabaseInterface`:
+
+```typescript
+import { DatabaseInterface, QueryResult, TableInterface } from '@have/sql';
+
+export class MyDatabaseAdapter implements DatabaseInterface {
+  client: any; // Your database client
+
+  constructor(options: MyDatabaseOptions) {
+    // Initialize database connection
+  }
+
+  // Template literal queries (required)
+  async many(strings: TemplateStringsArray, ...vars: any[]): Promise<Record<string, any>[]> {
+    const { sql, values } = this.buildQuery(strings, vars);
+    const result = await this.client.query(sql, values);
+    return result.rows;
+  }
+
+  async single(strings: TemplateStringsArray, ...vars: any[]): Promise<Record<string, any> | null> {
+    const rows = await this.many(strings, ...vars);
+    return rows[0] || null;
+  }
+
+  async pluck(strings: TemplateStringsArray, ...vars: any[]): Promise<any> {
+    const row = await this.single(strings, ...vars);
+    return row ? Object.values(row)[0] : null;
+  }
+
+  async execute(strings: TemplateStringsArray, ...vars: any[]): Promise<void> {
+    const { sql, values } = this.buildQuery(strings, vars);
+    await this.client.query(sql, values);
+  }
+
+  // Shorthand aliases
+  oo = this.many;
+  oO = this.single;
+  ox = this.pluck;
+  xx = this.execute;
+
+  // Object-relational methods
+  async insert(table: string, data: Record<string, any> | Record<string, any>[]): Promise<QueryResult> {
+    // Implement batch insert support
+  }
+
+  async get(table: string, where: Record<string, any>): Promise<Record<string, any> | null> {
+    // Implement single record retrieval
+  }
+
+  async list(table: string, where: Record<string, any>): Promise<Record<string, any>[]> {
+    // Implement filtered list retrieval
+  }
+
+  async update(table: string, where: Record<string, any>, data: Record<string, any>): Promise<QueryResult> {
+    // Implement record update
+  }
+
+  async upsert(table: string, conflictColumns: string[], data: Record<string, any>): Promise<QueryResult> {
+    // Implement UPSERT using database-specific syntax
+    // SQLite/DuckDB: ON CONFLICT(...) DO UPDATE
+    // PostgreSQL: ON CONFLICT(...) DO UPDATE
+  }
+
+  // Raw query execution
+  async query(sql: string, ...vars: any[]): Promise<{ rows: Record<string, any>[]; rowCount: number }> {
+    // Execute raw SQL with parameters
+  }
+
+  // Schema management
+  async tableExists(table: string): Promise<boolean> {
+    // Check if table exists
+  }
+
+  // Transaction support (optional but recommended)
+  async transaction<T>(callback: (tx: DatabaseInterface) => Promise<T>): Promise<T> {
+    // Implement transaction with automatic commit/rollback
+  }
+
+  // Helper: Build parameterized query
+  private buildQuery(strings: TemplateStringsArray, vars: any[]) {
+    // Convert template literal to parameterized query
+    // Handle database-specific placeholder format (? vs $1, $2...)
+  }
+
+  // Table interface factory
+  table(name: string): TableInterface {
+    return {
+      insert: (data) => this.insert(name, data),
+      get: (where) => this.get(name, where),
+      list: (where) => this.list(name, where),
+      update: (where, data) => this.update(name, where, data)
+    };
+  }
+}
+```
+
+### Registering Your Adapter
+
+Update the factory function in `index.ts`:
+
+```typescript
+export async function getDatabase(options: GetDatabaseOptions): Promise<DatabaseInterface> {
+  if (options.type === 'mydatabase') {
+    const { MyDatabaseAdapter } = await import('./mydatabase.js');
+    return new MyDatabaseAdapter(options);
+  }
+  // ... other adapters
+}
+```
+
+### Implementation Guidelines
+
+- **Parameter Placeholders**: Use `?` for positional (SQLite) or `$1, $2...` for numbered (PostgreSQL)
+- **Batch Operations**: Support array data in `insert()` for performance
+- **Error Handling**: Wrap database errors in `DatabaseError` from `@have/utils`
+- **Transactions**: Acquire dedicated client from pool or reuse existing connection
+- **UPSERT Syntax**: Use database-specific ON CONFLICT handling
+- **Type Coercion**: Handle database-specific type conversions appropriately
+
 ## Important Notes
 
 - **Always use parameterized queries** with template literals or the query method
