@@ -29,6 +29,8 @@ const config: Config = {
       'classic',
       {
         docs: {
+          path: 'content',
+          routeBasePath: '/',
           sidebarPath: './sidebars.ts',
           editUrl: 'https://github.com/happyvertical/sdk/tree/main/docs/',
           showLastUpdateTime: true,
@@ -126,15 +128,7 @@ const config: Config = {
           items: [
             {
               label: 'Introduction',
-              to: '/docs',
-            },
-            {
-              label: 'Getting Started',
-              to: '/docs/getting-started/installation',
-            },
-            {
-              label: 'Tutorials',
-              to: '/docs/tutorials/build-research-agent',
+              to: '/',
             },
           ],
         },
