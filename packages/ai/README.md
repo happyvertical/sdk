@@ -252,6 +252,74 @@ async function robustChat(messages: AIMessage[]) {
 }
 ```
 
+## Writing Custom Providers
+
+To add support for a new AI provider, implement the `AIInterface`:
+
+```typescript
+import { AIInterface, AIMessage, AIResponse, ChatOptions } from '@have/ai';
+
+export class MyAIProvider implements AIInterface {
+  constructor(private options: MyProviderOptions) {
+    // Initialize provider client
+  }
+
+  async chat(messages: AIMessage[], options?: ChatOptions): Promise<AIResponse> {
+    // Implement chat completion
+    // Map provider's response to AIResponse format
+  }
+
+  async complete(prompt: string, options?: CompletionOptions): Promise<AIResponse> {
+    // Implement text completion
+  }
+
+  async embed(text: string | string[], options?: EmbeddingOptions): Promise<EmbeddingResponse> {
+    // Implement embeddings (if supported)
+  }
+
+  async *stream(messages: AIMessage[], options?: ChatOptions): AsyncIterable<string> {
+    // Implement streaming responses
+    for await (const chunk of providerStream) {
+      yield chunk.content;
+    }
+  }
+
+  async countTokens(text: string): Promise<number> {
+    // Estimate or calculate token count
+  }
+
+  async getModels(): Promise<AIModel[]> {
+    // Return available models
+  }
+
+  async getCapabilities(): Promise<AICapabilities> {
+    // Return provider capabilities
+  }
+}
+```
+
+### Registering Your Provider
+
+Update the factory function in `shared/factory.ts`:
+
+```typescript
+export async function getAI(options: GetAIOptions): Promise<AIInterface> {
+  if (isMyProviderOptions(options)) {
+    const { MyAIProvider } = await import('./providers/my-provider.js');
+    return new MyAIProvider(options);
+  }
+  // ... other providers
+}
+```
+
+### Implementation Guidelines
+
+- **Error Mapping**: Map provider-specific errors to standardized error types (`AIError`, `RateLimitError`, `AuthenticationError`)
+- **Message Formatting**: Convert standard `AIMessage` format to provider's expected format
+- **Streaming**: Use async generators for streaming responses
+- **Token Counting**: Provide approximations if exact counting isn't available
+- **Type Safety**: Define provider-specific options interface
+
 ## TypeScript Support
 
 The package is written in TypeScript and provides comprehensive type definitions:

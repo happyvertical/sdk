@@ -373,6 +373,143 @@ async function cleanup() {
 }
 ```
 
+## Writing Custom Adapters
+
+To add support for a new cache backend, implement the cache adapter interface:
+
+```typescript
+interface CacheAdapter {
+  get(key: string): Promise<string | undefined>;
+  set(key: string, value: string, ttl?: number): Promise<void>;
+  delete(key: string): Promise<boolean>;
+  clear(pattern?: string): Promise<void>;
+  has(key: string): Promise<boolean>;
+  keys(pattern?: string): Promise<string[]>;
+  touch(key: string, ttl: number): Promise<void>;
+  getStats(): Promise<CacheStats>;
+}
+```
+
+### Example Implementation
+
+```typescript
+import type { CacheAdapter, CacheStats } from '@have/cache';
+
+export class MyCustomCache implements CacheAdapter {
+  constructor(private options: MyCustomCacheOptions) {
+    // Initialize your cache backend
+  }
+
+  async get(key: string): Promise<string | undefined> {
+    // Retrieve value from your backend
+    // Return undefined if not found or expired
+  }
+
+  async set(key: string, value: string, ttl?: number): Promise<void> {
+    // Store value with optional TTL (in seconds)
+    // Calculate expiration time if TTL provided
+  }
+
+  async delete(key: string): Promise<boolean> {
+    // Remove key from cache
+    // Return true if deleted, false if not found
+  }
+
+  async clear(pattern?: string): Promise<void> {
+    // Clear all keys or keys matching pattern
+    // Pattern uses glob-style matching (*, ?, etc.)
+  }
+
+  async has(key: string): Promise<boolean> {
+    // Check if key exists and is not expired
+  }
+
+  async keys(pattern?: string): Promise<string[]> {
+    // Return all keys or keys matching pattern
+    // Filter out expired keys
+  }
+
+  async touch(key: string, ttl: number): Promise<void> {
+    // Update TTL for existing key
+    // Don't modify the value, only expiration
+  }
+
+  async getStats(): Promise<CacheStats> {
+    return {
+      hits: this.stats.hits,
+      misses: this.stats.misses,
+      hitRate: this.stats.hits / (this.stats.hits + this.stats.misses),
+      entries: await this.countEntries(),
+      totalSize: await this.calculateSize(),
+      evictions: this.stats.evictions,
+      backend: {
+        type: 'mycustom',
+        info: {} // Backend-specific info
+      }
+    };
+  }
+}
+```
+
+### Registering Your Adapter
+
+Update the factory function to support your adapter:
+
+```typescript
+import { getCache } from '@have/cache';
+
+// Register your adapter
+const cache = await getCache({
+  provider: 'mycustom',
+  // Your custom options
+  option1: 'value1',
+  option2: 'value2'
+});
+```
+
+### Implementation Guidelines
+
+- **TTL Handling**: Store expiration timestamp, check on every `get()` call
+- **Eviction Policies**: Implement LRU, LFU, or FIFO as appropriate for your backend
+- **Statistics Tracking**: Increment hits/misses/evictions counters for monitoring
+- **Pattern Matching**: Support glob-style patterns in `keys()` and `clear()`
+- **Error Handling**: Throw `CacheError` with appropriate error codes
+- **Cleanup**: Implement periodic cleanup of expired entries
+- **Thread Safety**: Ensure concurrent access is handled correctly
+- **Batch Operations**: Consider supporting `getMany()`, `setMany()`, `deleteMany()` for performance
+
+### Advanced Features (Optional)
+
+```typescript
+export class AdvancedCustomCache extends MyCustomCache {
+  // Batch operations
+  async getMany(keys: string[]): Promise<Map<string, string>> {
+    // Fetch multiple keys efficiently
+  }
+
+  async setMany(entries: Array<{ key: string; value: string; ttl?: number }>): Promise<void> {
+    // Store multiple entries in one operation
+  }
+
+  async deleteMany(keys: string[]): Promise<number> {
+    // Delete multiple keys, return count deleted
+  }
+
+  // Compression support
+  async set(key: string, value: string, ttl?: number): Promise<void> {
+    const compressed = this.shouldCompress(value)
+      ? await this.compress(value)
+      : value;
+    await super.set(key, compressed, ttl);
+  }
+
+  async get(key: string): Promise<string | undefined> {
+    const value = await super.get(key);
+    return value ? await this.decompress(value) : undefined;
+  }
+}
+```
+
 ## Error Handling
 
 The package provides specific error types for different failure scenarios:
