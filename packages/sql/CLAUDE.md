@@ -94,6 +94,120 @@ const jsonDb = await getDatabase({
 });
 ```
 
+### Sharing In-Memory Databases with dbid
+
+**Problem**: By default, each `:memory:` database creates a separate isolated instance. This causes issues when parent and child objects need to share the same database, such as in the SMRT framework where nested collections need to access parent tables.
+
+**Solution**: The `dbid` parameter enables connection sharing for in-memory databases. When multiple `getDatabase()` calls use the same `dbid`, they receive the same database connection instance.
+
+**Features**:
+- ✅ **Automatic dbid generation** - No manual ID management required
+- ✅ **Options object mutation** - dbid propagates automatically to child objects
+- ✅ **Race condition safe** - Parallel calls with same dbid handled correctly
+- ✅ **Connection caching** - Cached connections reused efficiently
+- ✅ **Zero configuration** - Works automatically for `:memory:` databases
+
+**Basic Usage**:
+```typescript
+import { getDatabase } from '@have/sql';
+
+// Parent creates database - dbid is auto-generated
+const parentOptions = { type: 'sqlite' as const, url: ':memory:' };
+const parentDb = await getDatabase(parentOptions);
+
+// Options object is mutated to include dbid
+console.log(parentOptions.dbid); // "memory-1234567890-abc123" (example)
+
+// Create tables in parent
+await parentDb.execute`
+  CREATE TABLE users (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL
+  )
+`;
+
+// Child uses same options - automatically gets same connection
+const childDb = await getDatabase(parentOptions);
+
+// Child can access parent's tables
+const users = await childDb.many`SELECT * FROM users`;
+
+// Verify same connection instance
+console.log(childDb === parentDb); // true
+```
+
+**Explicit dbid** (advanced usage):
+```typescript
+// Create database with explicit dbid
+const db1 = await getDatabase({
+  type: 'sqlite',
+  url: ':memory:',
+  dbid: 'my-shared-db'
+});
+
+// Later, reuse same connection
+const db2 = await getDatabase({
+  type: 'sqlite',
+  url: ':memory:',
+  dbid: 'my-shared-db'
+});
+
+// db1 and db2 are the same instance
+console.log(db1 === db2); // true
+```
+
+**Parallel Connection Handling**:
+```typescript
+// Multiple parallel calls with same options
+const options = { type: 'sqlite' as const, url: ':memory:' };
+
+// All three calls happen simultaneously
+const [db1, db2, db3] = await Promise.all([
+  getDatabase(options),
+  getDatabase(options),
+  getDatabase(options)
+]);
+
+// All receive the same connection instance
+console.log(db1 === db2 && db2 === db3); // true
+```
+
+**SMRT Framework Integration** (solves Issue #249):
+```typescript
+// Parent SMRT object with database
+class Council extends SmrtObject {
+  name = text({ required: true });
+  url = text();
+
+  // Child collection
+  meetings = collection(Meeting, {
+    // Uses this.options.db which includes auto-generated dbid
+    // Child automatically shares parent's database connection
+  });
+}
+
+// Parent creates :memory: database and tables
+const council = new Council({
+  name: 'Town Council',
+  url: 'https://example.com'
+});
+
+await council.save(); // Creates councils table
+
+// Child collection automatically shares database
+await council.meetings.create({
+  title: 'Council Meeting',
+  date: new Date()
+}); // Works! Shares parent's database
+```
+
+**Important Notes**:
+- Only applies to `:memory:` databases (not file-based)
+- dbid is automatically generated if not provided
+- Options object is mutated to include dbid
+- Connection cache persists for application lifetime
+- Safe for concurrent access with pending promise tracking
+
 ### JSON Adapter (DuckDB-backed)
 
 The JSON adapter provides SQL query capabilities over JSON files using DuckDB's in-memory engine. It's ideal for:
