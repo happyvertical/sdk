@@ -5,7 +5,7 @@
 import type {
   CacheEntry,
   CacheStats,
-  ICacheProvider,
+  CacheProvider,
   MemoryOptions,
 } from '../shared/types';
 import { CacheKeyError, CacheSizeError } from '../shared/types';
@@ -23,7 +23,7 @@ import {
  * Memory cache provider implementation
  * Stores cache entries in memory with LRU eviction
  */
-export class MemoryProvider implements ICacheProvider {
+export class MemoryProvider implements CacheProvider {
   private cache: Map<string, CacheEntry>;
   private namespace?: string;
   private defaultTTL?: number;

@@ -1,9 +1,9 @@
-import { CacheStats, ICacheProvider, RedisOptions } from '../shared/types';
+import { CacheStats, CacheProvider, RedisOptions } from '../shared/types';
 /**
  * Redis cache provider implementation
  * Uses official redis client with optional compression
  */
-export declare class RedisProvider implements ICacheProvider {
+export declare class RedisProvider implements CacheProvider {
     private options;
     private client;
     private namespace?;

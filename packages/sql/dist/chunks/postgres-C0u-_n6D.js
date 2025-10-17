@@ -1,7 +1,7 @@
 import { DatabaseError } from "@have/utils";
 import { Pool } from "pg";
 import { buildWhere, DatabaseSchemaManager } from "../index.js";
-import { v as validateTableName, a as validateIndexName, b as validateColumnName, g as generateCreateIndexStatement, c as generateAddColumnStatement } from "./alter-utils-HriCak_3.js";
+import { v as validateTableName, a as validateIndexName, b as validateColumnName, g as generateCreateIndexStatement, c as generateAddColumnStatement } from "./alter-utils-OwKqvidR.js";
 function getDatabase(options = {}) {
   const {
     url = process.env.SQLOO_URL,
@@ -625,4 +625,4 @@ function getDatabase(options = {}) {
 export {
   getDatabase
 };
-//# sourceMappingURL=postgres-CV4jlBV5.js.map
+//# sourceMappingURL=postgres-C0u-_n6D.js.map

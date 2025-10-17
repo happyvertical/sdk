@@ -1,9 +1,9 @@
-import { DomAdapterOptions, FetchOptions, ISpiderAdapter, Page } from '../shared/types';
+import { DomAdapterOptions, FetchOptions, SpiderAdapter, Page } from '../shared/types';
 /**
  * DOM processing adapter for fetching and normalizing web pages
  * Uses happy-dom to process HTML and cheerio for parsing
  */
-export declare class DomAdapter implements ISpiderAdapter {
+export declare class DomAdapter implements SpiderAdapter {
     private cache?;
     private cacheDir;
     constructor(options: DomAdapterOptions);

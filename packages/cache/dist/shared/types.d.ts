@@ -74,7 +74,7 @@ export interface CacheStats {
 /**
  * Cache provider interface - all providers must implement this
  */
-export interface ICacheProvider {
+export interface CacheProvider {
     /**
      * Retrieves a value from the cache by key
      * @param key - The cache key
@@ -154,9 +154,9 @@ export interface ICacheProvider {
     close(): Promise<void>;
 }
 /**
- * Cache adapter interface (structurally identical to ICacheProvider)
+ * Cache adapter interface (structurally identical to CacheProvider)
  */
-export interface ICacheAdapter extends ICacheProvider {
+export interface CacheAdapter extends CacheProvider {
 }
 /**
  * Memory cache options

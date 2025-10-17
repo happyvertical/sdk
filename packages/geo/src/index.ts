@@ -4,9 +4,9 @@
  */
 
 import type {
+  GeoAdapter,
   GeoAdapterOptions,
   GoogleMapsOptions,
-  IGeoAdapter,
   OpenStreetMapOptions,
 } from './shared/types';
 
@@ -36,7 +36,7 @@ function isOpenStreetMapOptions(
  * Factory function to create a geo adapter instance
  *
  * @param options - Configuration options for the geo provider
- * @returns Promise resolving to a geo adapter that implements IGeoAdapter
+ * @returns Promise resolving to a geo adapter that implements GeoAdapter
  *
  * @example
  * ```typescript
@@ -58,7 +58,7 @@ function isOpenStreetMapOptions(
  */
 export async function getGeoAdapter(
   options: GeoAdapterOptions,
-): Promise<IGeoAdapter> {
+): Promise<GeoAdapter> {
   if (isGoogleMapsOptions(options)) {
     const { GoogleMapsProvider } = await import('./providers/google.js');
     return new GoogleMapsProvider(options);

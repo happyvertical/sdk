@@ -22,7 +22,7 @@ import { Logger, LoggerConfig } from './logger.js';
 export { LoggerAdapter } from './adapter.js';
 export { ConsoleLogger } from './console.js';
 export type { Logger, LoggerConfig, LogLevel } from './logger.js';
-export type { ISignalAdapter, Signal, SignalType } from './signal-types.js';
+export type { Signal, SignalAdapter, SignalType } from './signal-types.js';
 /**
  * Create a logger from configuration
  *

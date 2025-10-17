@@ -98,7 +98,7 @@ export interface SupportedLanguage {
 /**
  * Translation provider interface - all providers must implement this
  */
-export interface ITranslationProvider {
+export interface TranslationProvider {
   /**
    * Translates text from source language to target language
    * @param text The text to translate
@@ -142,7 +142,7 @@ export interface ITranslationProvider {
 /**
  * Translator interface - extends provider interface with convenience methods
  */
-export interface ITranslator extends ITranslationProvider {
+export interface Translator extends TranslationProvider {
   /**
    * Creates a pre-configured translation function for repeated translations
    * @param sourceLanguage Optional source language code (ISO 639-1). If undefined, auto-detects

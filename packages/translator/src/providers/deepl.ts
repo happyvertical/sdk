@@ -2,14 +2,14 @@
  * DeepL provider implementation
  */
 
-import type { ICacheAdapter } from '@have/cache';
+import type { CacheAdapter } from '@have/cache';
 import { getCache } from '@have/cache';
 import * as deepl from 'deepl-node';
 import type {
   DeepLOptions,
-  ITranslationProvider,
   LanguageDetectionResult,
   SupportedLanguage,
+  TranslationProvider,
   TranslationResult,
 } from '../shared/types';
 import {
@@ -24,10 +24,10 @@ import { isValidText } from '../shared/utils';
 /**
  * DeepL provider implementation with in-memory caching
  */
-export class DeepLProvider implements ITranslationProvider {
+export class DeepLProvider implements TranslationProvider {
   private client: deepl.Translator;
   private timeout: number;
-  private cache: ICacheAdapter | null = null;
+  private cache: CacheAdapter | null = null;
 
   constructor(options: DeepLOptions) {
     this.client = new deepl.Translator(options.apiKey, {

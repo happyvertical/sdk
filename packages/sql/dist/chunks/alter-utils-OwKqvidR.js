@@ -10,7 +10,10 @@ function generateAddColumnStatement(table, column, dialect) {
     parts.push("UNIQUE");
   }
   if (column.defaultValue !== void 0) {
-    const defaultClause = generateDefaultClause(column.type, column.defaultValue);
+    const defaultClause = generateDefaultClause(
+      column.type,
+      column.defaultValue
+    );
     parts.push(`DEFAULT ${defaultClause}`);
   }
   if (column.check) {
@@ -108,4 +111,4 @@ export {
   generateCreateIndexStatement as g,
   validateTableName as v
 };
-//# sourceMappingURL=alter-utils-HriCak_3.js.map
+//# sourceMappingURL=alter-utils-OwKqvidR.js.map

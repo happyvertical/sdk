@@ -1,11 +1,11 @@
-import type { ICacheAdapter } from '@have/cache';
+import type { CacheAdapter } from '@have/cache';
 import { getCache } from '@have/cache';
 import { isUrl, NetworkError, ValidationError } from '@have/utils';
 import * as cheerio from 'cheerio';
 import { request } from 'undici';
 import type {
   FetchOptions,
-  ISpiderAdapter,
+  SpiderAdapter,
   Link,
   Page,
   SimpleAdapterOptions,
@@ -15,8 +15,8 @@ import type {
  * Simple HTTP adapter for fetching web pages
  * Uses undici for fast HTTP requests and cheerio for parsing
  */
-export class SimpleAdapter implements ISpiderAdapter {
-  private cache?: ICacheAdapter;
+export class SimpleAdapter implements SpiderAdapter {
+  private cache?: CacheAdapter;
   private cacheDir: string;
 
   constructor(options: SimpleAdapterOptions) {
@@ -26,7 +26,7 @@ export class SimpleAdapter implements ISpiderAdapter {
   /**
    * Initialize the cache adapter if needed
    */
-  private async initCache(): Promise<ICacheAdapter> {
+  private async initCache(): Promise<CacheAdapter> {
     if (!this.cache) {
       this.cache = await getCache({
         provider: 'file',

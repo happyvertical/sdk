@@ -1,5 +1,5 @@
 import { Logger } from './logger.js';
-import { ISignalAdapter, Signal } from './signal-types.js';
+import { Signal, SignalAdapter } from './signal-types.js';
 /**
  * Logger Adapter - Converts signals to structured log messages
  *
@@ -17,7 +17,7 @@ import { ISignalAdapter, Signal } from './signal-types.js';
  * signalBus.register(adapter);
  * ```
  */
-export declare class LoggerAdapter implements ISignalAdapter {
+export declare class LoggerAdapter implements SignalAdapter {
     private logger;
     constructor(logger: Logger);
     /**
