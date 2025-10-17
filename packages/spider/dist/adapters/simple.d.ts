@@ -1,9 +1,9 @@
-import { FetchOptions, ISpiderAdapter, Page, SimpleAdapterOptions } from '../shared/types';
+import { FetchOptions, SpiderAdapter, Page, SimpleAdapterOptions } from '../shared/types';
 /**
  * Simple HTTP adapter for fetching web pages
  * Uses undici for fast HTTP requests and cheerio for parsing
  */
-export declare class SimpleAdapter implements ISpiderAdapter {
+export declare class SimpleAdapter implements SpiderAdapter {
     private cache?;
     private cacheDir;
     constructor(options: SimpleAdapterOptions);

@@ -17,7 +17,7 @@ import type {
   CacheEntry,
   CacheStats,
   FileOptions,
-  ICacheProvider,
+  CacheProvider,
 } from '../shared/types';
 import {
   CacheError,
@@ -44,7 +44,7 @@ const gunzipAsync = promisify(gunzip);
  * File cache provider implementation
  * Stores cache entries as files with optional compression
  */
-export class FileProvider implements ICacheProvider {
+export class FileProvider implements CacheProvider {
   private cacheDir: string;
   private namespace?: string;
   private defaultTTL?: number;

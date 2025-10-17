@@ -3,13 +3,13 @@
  */
 
 import { v2 } from '@google-cloud/translate';
-import type { ICacheAdapter } from '@have/cache';
+import type { CacheAdapter } from '@have/cache';
 import { getCache } from '@have/cache';
 import type {
   GoogleTranslateOptions,
-  ITranslationProvider,
   LanguageDetectionResult,
   SupportedLanguage,
+  TranslationProvider,
   TranslationResult,
 } from '../shared/types';
 import {
@@ -30,10 +30,10 @@ const { Translate } = v2;
 /**
  * Google Translate provider implementation with in-memory caching
  */
-export class GoogleTranslateProvider implements ITranslationProvider {
+export class GoogleTranslateProvider implements TranslationProvider {
   private client: InstanceType<typeof Translate>;
   private timeout: number;
-  private cache: ICacheAdapter | null = null;
+  private cache: CacheAdapter | null = null;
 
   constructor(options: GoogleTranslateOptions) {
     this.client = new Translate({

@@ -1,8 +1,8 @@
 import { getSpider } from '../shared/factory';
 import type {
   BasicScraperOptions,
-  IScraper,
-  ISpiderAdapter,
+  Scraper,
+  SpiderAdapter,
   ScrapeMetrics,
   ScrapeOptions,
   ScrapeResult,
@@ -31,8 +31,8 @@ import type {
  * console.log(`Strategy: ${result.strategy.type} using ${result.strategy.spider}`);
  * ```
  */
-export class BasicScraper implements IScraper {
-  private spider?: ISpiderAdapter;
+export class BasicScraper implements Scraper {
+  private spider?: SpiderAdapter;
   private options: BasicScraperOptions;
 
   constructor(options: BasicScraperOptions) {
@@ -42,7 +42,7 @@ export class BasicScraper implements IScraper {
   /**
    * Initialize the spider adapter if needed
    */
-  private async initSpider(): Promise<ISpiderAdapter> {
+  private async initSpider(): Promise<SpiderAdapter> {
     if (!this.spider) {
       const spiderType = this.options.spider || 'simple';
       this.spider = await getSpider({

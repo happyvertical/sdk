@@ -1,6 +1,6 @@
 import { DatabaseError } from "@have/utils";
 import { DatabaseSchemaManager, buildWhere } from "../index.js";
-import { v as validateTableName, a as validateIndexName, b as validateColumnName, g as generateCreateIndexStatement, c as generateAddColumnStatement } from "./alter-utils-HriCak_3.js";
+import { v as validateTableName, a as validateIndexName, b as validateColumnName, g as generateCreateIndexStatement, c as generateAddColumnStatement } from "./alter-utils-OwKqvidR.js";
 async function createLibSQLClient(options) {
   const { url = ":memory:", authToken, encryptionKey } = options;
   let libsqlUrl = url;
@@ -498,4 +498,4 @@ async function getDatabase(options = {}) {
 export {
   getDatabase
 };
-//# sourceMappingURL=sqlite-A9LRpnDd.js.map
+//# sourceMappingURL=sqlite-DleqToJ2.js.map

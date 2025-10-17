@@ -2,10 +2,10 @@
  * OpenStreetMap (Nominatim) provider implementation
  */
 
-import type { ICacheAdapter } from '@have/cache';
+import type { CacheAdapter } from '@have/cache';
 import { getCache } from '@have/cache';
 import type {
-  IGeoProvider,
+  GeoProvider,
   Location,
   OpenStreetMapOptions,
 } from '../shared/types';
@@ -47,14 +47,14 @@ interface NominatimResult {
 /**
  * OpenStreetMap provider using Nominatim API with in-memory caching
  */
-export class OpenStreetMapProvider implements IGeoProvider {
+export class OpenStreetMapProvider implements GeoProvider {
   private baseUrl = 'https://nominatim.openstreetmap.org';
   private userAgent: string;
   private rateLimitDelay: number;
   private lastRequestTime = 0;
   private timeout: number;
   private maxResults: number;
-  private cache: ICacheAdapter | null = null;
+  private cache: CacheAdapter | null = null;
 
   constructor(options: OpenStreetMapOptions) {
     this.userAgent = options.userAgent || '@have/geo (Node.js)';

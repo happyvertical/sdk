@@ -1,9 +1,9 @@
-import { CrawleeAdapterOptions, FetchOptions, ISpiderAdapter, Link, Page } from '../shared/types';
+import { CrawleeAdapterOptions, FetchOptions, SpiderAdapter, Link, Page } from '../shared/types';
 /**
  * Crawlee headless browser adapter for fetching web pages
  * Uses Playwright through Crawlee for full browser automation
  */
-export declare class CrawleeAdapter implements ISpiderAdapter {
+export declare class CrawleeAdapter implements SpiderAdapter {
     private cache?;
     private cacheDir;
     private headless;

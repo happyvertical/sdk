@@ -80,7 +80,7 @@ export interface FetchOptions {
 /**
  * Interface that all spider adapters must implement
  */
-export interface ISpiderAdapter {
+export interface SpiderAdapter {
     /**
      * Fetches a web page and returns a standardized Page object
      *
@@ -186,7 +186,7 @@ export type ScraperType = 'basic' | 'tree' | 'ajax' | 'scroll' | 'pagination' | 
 /**
  * Base interface all scrapers must implement
  */
-export interface IScraper {
+export interface Scraper {
     /**
      * Scrape content from a URL
      */
