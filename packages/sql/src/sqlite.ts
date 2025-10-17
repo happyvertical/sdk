@@ -141,34 +141,55 @@ export async function getDatabase(
   // Mutate options object to ensure child objects reuse the same connection
   if (url === ':memory:' && !options.dbid) {
     options.dbid = generateDbId();
-    console.log('[sqlite] Generated new dbid for :memory: database:', options.dbid);
   }
 
   // Check if we have a cached connection for this dbid
   if (options.dbid) {
     const cached = memoryConnectionCache.get(options.dbid);
     if (cached) {
-      console.log('[sqlite] Cache HIT - reusing existing connection for dbid:', options.dbid);
-      console.log('[sqlite] Cached connection client:', typeof cached.client, cached.client.constructor.name);
       return cached;
     }
 
     // Check if there's a pending connection for this dbid
     const pending = pendingConnections.get(options.dbid);
     if (pending) {
-      console.log('[sqlite] Pending connection found for dbid:', options.dbid);
       return pending;
     }
-
-    console.log('[sqlite] Cache MISS - creating new connection for dbid:', options.dbid);
-    console.log('[sqlite] Cache size:', memoryConnectionCache.size, 'Pending size:', pendingConnections.size);
   }
 
   // Create a new connection promise
   const connectionPromise = (async () => {
     const client = await createLibSQLClient(options);
-    console.log('[sqlite] Created new LibSQL client for dbid:', options.dbid, 'url:', options.url);
-    console.log('[sqlite] Client type:', typeof client, client.constructor.name);
+
+  /**
+   * Serializes a value for SQLite storage
+   * Converts objects and arrays to JSON strings
+   * Converts Dates to ISO strings
+   * Passes through primitives unchanged
+   */
+  const serializeValue = (value: any): any => {
+    if (value === null || value === undefined) {
+      return value;
+    }
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+    if (typeof value === 'object') {
+      return JSON.stringify(value);
+    }
+    return value;
+  };
+
+  /**
+   * Serializes all values in an object
+   */
+  const serializeRecord = (record: Record<string, any>): Record<string, any> => {
+    const serialized: Record<string, any> = {};
+    for (const [key, value] of Object.entries(record)) {
+      serialized[key] = serializeValue(value);
+    }
+    return serialized;
+  };
 
   /**
    * Inserts one or more records into a table
@@ -186,20 +207,24 @@ export async function getDatabase(
     let values: any[];
 
     if (Array.isArray(data)) {
-      const keys = Object.keys(data[0]);
-      const placeholders = data
+      // Serialize all records in the array
+      const serializedData = data.map(record => serializeRecord(record));
+      const keys = Object.keys(serializedData[0]);
+      const placeholders = serializedData
         .map(() => `(${keys.map(() => '?').join(', ')})`)
         .join(', ');
       sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES ${placeholders}`;
-      values = data.reduce(
+      values = serializedData.reduce(
         (acc, row) => acc.concat(Object.values(row)),
         [] as any[],
       );
     } else {
-      const keys = Object.keys(data);
+      // Serialize the single record
+      const serializedData = serializeRecord(data);
+      const keys = Object.keys(serializedData);
       const placeholders = keys.map(() => '?').join(', ');
       sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
-      values = Object.values(data);
+      values = Object.values(serializedData);
     }
     try {
       const result = await client.execute({ sql: sql, args: values });
@@ -284,9 +309,12 @@ export async function getDatabase(
     where: Record<string, any>,
     data: Record<string, any>,
   ): Promise<QueryResult> => {
-    const keys = Object.keys(data);
-    const values = Object.values(data);
+    // Serialize the data to update
+    const serializedData = serializeRecord(data);
+    const keys = Object.keys(serializedData);
+    const values = Object.values(serializedData);
     const setClause = keys.map((key) => `${key} = ?`).join(', ');
+
     const whereKeys = Object.keys(where);
     const whereValues = Object.values(where);
     const whereClause = whereKeys.map((key) => `${key} = ?`).join(' AND ');
@@ -322,8 +350,10 @@ export async function getDatabase(
     conflictColumns: string[],
     data: Record<string, any>,
   ): Promise<QueryResult> => {
-    const keys = Object.keys(data);
-    const values = Object.values(data);
+    // Serialize the data before upserting
+    const serializedData = serializeRecord(data);
+    const keys = Object.keys(serializedData);
+    const values = Object.values(serializedData);
     const placeholders = keys.map(() => '?').join(', ');
     const updateSet = keys.map((key) => `${key} = excluded.${key}`).join(', ');
     const conflict = conflictColumns.join(', ');
@@ -393,75 +423,49 @@ export async function getDatabase(
    * @returns Promise that resolves when schema is synchronized
    */
   const syncSchema = async (schema: string): Promise<void> => {
-    const commands = schema
-      .trim()
+    console.log('[sqlite.syncSchema] Starting schema sync for dbid:', options.dbid);
+    console.log('[sqlite.syncSchema] Schema length:', schema.length, 'chars');
+
+    // List of SQL reserved keywords that need to stay quoted
+    const reservedKeywords = new Set([
+      'references', 'order', 'group', 'table', 'index', 'select', 'from', 'where',
+      'join', 'left', 'right', 'inner', 'outer', 'on', 'as', 'and', 'or', 'not',
+      'like', 'in', 'between', 'case', 'when', 'then', 'else', 'end', 'union',
+      'distinct', 'having', 'limit', 'offset', 'default', 'check', 'unique',
+      'primary', 'foreign', 'key', 'constraint', 'cascade'
+    ]);
+
+    // Normalize whitespace and simplify CAST expressions
+    let normalizedSchema = schema
+      .replace(/\s+/g, ' ')  // Replace multiple whitespace with single space
+      .replace(/DEFAULT CAST\(([^)]+)\s+AS\s+\w+\)/gi, 'DEFAULT $1')  // Simplify CAST in DEFAULT clauses
+      .trim();
+
+    // Remove quotes around identifiers EXCEPT for reserved keywords
+    normalizedSchema = normalizedSchema.replace(/"(\w+)"/g, (match, identifier) => {
+      return reservedKeywords.has(identifier.toLowerCase()) ? match : identifier;
+    });
+
+    console.log('[sqlite.syncSchema] Normalized schema:', normalizedSchema);
+
+    // Split into individual commands
+    const commands = normalizedSchema
       .split(';')
-      .filter((command) => command.trim() !== '');
+      .map(cmd => cmd.trim())
+      .filter(cmd => cmd.length > 0);
 
+    console.log('[sqlite.syncSchema] Found', commands.length, 'commands to process');
+
+    // Execute each command
     for (const command of commands) {
-      const createTableRegex =
-        /CREATE TABLE (IF NOT EXISTS )?(\w+) \(([\s\S]+)\)/i;
-      const match = command.match(createTableRegex);
-
-      if (match) {
-        const tableName = match[2];
-        const columns = match[3].trim().split(',\n');
-
-        // Check if table exists
-        const exists = await tableExists(tableName);
-
-        if (!exists) {
-          // Table doesn't exist, create it
-          await client.execute({ sql: command, args: [] });
-        } else {
-          // Table exists, check for missing columns
-          for (const column of columns) {
-            const columnDef = column.trim();
-            const columnMatch = columnDef.match(/(\w+)\s+(\w+[^,]*)/);
-
-            if (columnMatch) {
-              const columnName = columnMatch[1];
-
-              // Skip constraint definitions
-              if (
-                columnName.toUpperCase() === 'PRIMARY' ||
-                columnName.toUpperCase() === 'FOREIGN' ||
-                columnName.toUpperCase() === 'UNIQUE' ||
-                columnName.toUpperCase() === 'CHECK' ||
-                columnName.toUpperCase() === 'CONSTRAINT'
-              ) {
-                continue;
-              }
-
-              try {
-                // Check if column exists using pragma_table_info
-                const columnInfo = await single`
-                  SELECT *
-                  FROM pragma_table_info(${tableName})
-                  WHERE name = ${columnName}
-                `;
-
-                if (!columnInfo) {
-                  // Column doesn't exist, add it
-                  const alterCommand = `ALTER TABLE ${tableName} ADD COLUMN ${columnDef}`;
-                  await client.execute({ sql: alterCommand, args: [] });
-                }
-              } catch (_error) {
-                // If there's an error checking/adding the column, try alternate method
-                try {
-                  const alterCommand = `ALTER TABLE ${tableName} ADD COLUMN ${columnDef}`;
-                  await client.execute({ sql: alterCommand, args: [] });
-                } catch (alterError) {
-                  // Column might already exist, continue
-                  console.error(
-                    `Error adding column ${columnName} to ${tableName}:`,
-                    alterError,
-                  );
-                }
-              }
-            }
-          }
-        }
+      try {
+        console.log('[sqlite.syncSchema] Executing:', command.substring(0, 50) + '...');
+        await client.execute(command);
+        console.log('[sqlite.syncSchema] Successfully executed command');
+      } catch (error) {
+        console.error('[sqlite.syncSchema] Failed to execute command:', command);
+        console.error('[sqlite.syncSchema] Error:', error);
+        throw error;
       }
     }
   };
@@ -921,8 +925,6 @@ export async function getDatabase(
     // Cache the connection for reuse if dbid exists
     if (options.dbid) {
       memoryConnectionCache.set(options.dbid, db);
-      console.log('[sqlite] Cached connection for dbid:', options.dbid);
-      console.log('[sqlite] Cache now has', memoryConnectionCache.size, 'connection(s)');
     }
 
     return db;

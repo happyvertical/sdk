@@ -39,43 +39,56 @@ async function getDatabase(options = {}) {
   const url = options.url || ":memory:";
   if (url === ":memory:" && !options.dbid) {
     options.dbid = generateDbId();
-    console.log("[sqlite] Generated new dbid for :memory: database:", options.dbid);
   }
   if (options.dbid) {
     const cached = memoryConnectionCache.get(options.dbid);
     if (cached) {
-      console.log("[sqlite] Cache HIT - reusing existing connection for dbid:", options.dbid);
-      console.log("[sqlite] Cached connection client:", typeof cached.client, cached.client.constructor.name);
       return cached;
     }
     const pending = pendingConnections.get(options.dbid);
     if (pending) {
-      console.log("[sqlite] Pending connection found for dbid:", options.dbid);
       return pending;
     }
-    console.log("[sqlite] Cache MISS - creating new connection for dbid:", options.dbid);
-    console.log("[sqlite] Cache size:", memoryConnectionCache.size, "Pending size:", pendingConnections.size);
   }
   const connectionPromise = (async () => {
     const client = await createLibSQLClient(options);
-    console.log("[sqlite] Created new LibSQL client for dbid:", options.dbid, "url:", options.url);
-    console.log("[sqlite] Client type:", typeof client, client.constructor.name);
+    const serializeValue = (value) => {
+      if (value === null || value === void 0) {
+        return value;
+      }
+      if (value instanceof Date) {
+        return value.toISOString();
+      }
+      if (typeof value === "object") {
+        return JSON.stringify(value);
+      }
+      return value;
+    };
+    const serializeRecord = (record) => {
+      const serialized = {};
+      for (const [key, value] of Object.entries(record)) {
+        serialized[key] = serializeValue(value);
+      }
+      return serialized;
+    };
     const insert = async (table2, data) => {
       let sql;
       let values;
       if (Array.isArray(data)) {
-        const keys = Object.keys(data[0]);
-        const placeholders = data.map(() => `(${keys.map(() => "?").join(", ")})`).join(", ");
+        const serializedData = data.map((record) => serializeRecord(record));
+        const keys = Object.keys(serializedData[0]);
+        const placeholders = serializedData.map(() => `(${keys.map(() => "?").join(", ")})`).join(", ");
         sql = `INSERT INTO ${table2} (${keys.join(", ")}) VALUES ${placeholders}`;
-        values = data.reduce(
+        values = serializedData.reduce(
           (acc, row) => acc.concat(Object.values(row)),
           []
         );
       } else {
-        const keys = Object.keys(data);
+        const serializedData = serializeRecord(data);
+        const keys = Object.keys(serializedData);
         const placeholders = keys.map(() => "?").join(", ");
         sql = `INSERT INTO ${table2} (${keys.join(", ")}) VALUES (${placeholders})`;
-        values = Object.values(data);
+        values = Object.values(serializedData);
       }
       try {
         const result = await client.execute({ sql, args: values });
@@ -122,8 +135,9 @@ async function getDatabase(options = {}) {
       }
     };
     const update = async (table2, where, data) => {
-      const keys = Object.keys(data);
-      const values = Object.values(data);
+      const serializedData = serializeRecord(data);
+      const keys = Object.keys(serializedData);
+      const values = Object.values(serializedData);
       const setClause = keys.map((key) => `${key} = ?`).join(", ");
       const whereKeys = Object.keys(where);
       const whereValues = Object.values(where);
@@ -145,8 +159,9 @@ async function getDatabase(options = {}) {
       }
     };
     const upsert = async (table2, conflictColumns, data) => {
-      const keys = Object.keys(data);
-      const values = Object.values(data);
+      const serializedData = serializeRecord(data);
+      const keys = Object.keys(serializedData);
+      const values = Object.values(serializedData);
       const placeholders = keys.map(() => "?").join(", ");
       const updateSet = keys.map((key) => `${key} = excluded.${key}`).join(", ");
       const conflict = conflictColumns.join(", ");
@@ -183,49 +198,65 @@ async function getDatabase(options = {}) {
       return tableExists2;
     };
     const syncSchema = async (schema) => {
-      const commands = schema.trim().split(";").filter((command) => command.trim() !== "");
+      console.log("[sqlite.syncSchema] Starting schema sync for dbid:", options.dbid);
+      console.log("[sqlite.syncSchema] Schema length:", schema.length, "chars");
+      const reservedKeywords = /* @__PURE__ */ new Set([
+        "references",
+        "order",
+        "group",
+        "table",
+        "index",
+        "select",
+        "from",
+        "where",
+        "join",
+        "left",
+        "right",
+        "inner",
+        "outer",
+        "on",
+        "as",
+        "and",
+        "or",
+        "not",
+        "like",
+        "in",
+        "between",
+        "case",
+        "when",
+        "then",
+        "else",
+        "end",
+        "union",
+        "distinct",
+        "having",
+        "limit",
+        "offset",
+        "default",
+        "check",
+        "unique",
+        "primary",
+        "foreign",
+        "key",
+        "constraint",
+        "cascade"
+      ]);
+      let normalizedSchema = schema.replace(/\s+/g, " ").replace(/DEFAULT CAST\(([^)]+)\s+AS\s+\w+\)/gi, "DEFAULT $1").trim();
+      normalizedSchema = normalizedSchema.replace(/"(\w+)"/g, (match, identifier) => {
+        return reservedKeywords.has(identifier.toLowerCase()) ? match : identifier;
+      });
+      console.log("[sqlite.syncSchema] Normalized schema:", normalizedSchema);
+      const commands = normalizedSchema.split(";").map((cmd) => cmd.trim()).filter((cmd) => cmd.length > 0);
+      console.log("[sqlite.syncSchema] Found", commands.length, "commands to process");
       for (const command of commands) {
-        const createTableRegex = /CREATE TABLE (IF NOT EXISTS )?(\w+) \(([\s\S]+)\)/i;
-        const match = command.match(createTableRegex);
-        if (match) {
-          const tableName = match[2];
-          const columns = match[3].trim().split(",\n");
-          const exists = await tableExists(tableName);
-          if (!exists) {
-            await client.execute({ sql: command, args: [] });
-          } else {
-            for (const column of columns) {
-              const columnDef = column.trim();
-              const columnMatch = columnDef.match(/(\w+)\s+(\w+[^,]*)/);
-              if (columnMatch) {
-                const columnName = columnMatch[1];
-                if (columnName.toUpperCase() === "PRIMARY" || columnName.toUpperCase() === "FOREIGN" || columnName.toUpperCase() === "UNIQUE" || columnName.toUpperCase() === "CHECK" || columnName.toUpperCase() === "CONSTRAINT") {
-                  continue;
-                }
-                try {
-                  const columnInfo = await single`
-                  SELECT *
-                  FROM pragma_table_info(${tableName})
-                  WHERE name = ${columnName}
-                `;
-                  if (!columnInfo) {
-                    const alterCommand = `ALTER TABLE ${tableName} ADD COLUMN ${columnDef}`;
-                    await client.execute({ sql: alterCommand, args: [] });
-                  }
-                } catch (_error) {
-                  try {
-                    const alterCommand = `ALTER TABLE ${tableName} ADD COLUMN ${columnDef}`;
-                    await client.execute({ sql: alterCommand, args: [] });
-                  } catch (alterError) {
-                    console.error(
-                      `Error adding column ${columnName} to ${tableName}:`,
-                      alterError
-                    );
-                  }
-                }
-              }
-            }
-          }
+        try {
+          console.log("[sqlite.syncSchema] Executing:", command.substring(0, 50) + "...");
+          await client.execute(command);
+          console.log("[sqlite.syncSchema] Successfully executed command");
+        } catch (error) {
+          console.error("[sqlite.syncSchema] Failed to execute command:", command);
+          console.error("[sqlite.syncSchema] Error:", error);
+          throw error;
         }
       }
     };
@@ -530,8 +561,6 @@ async function getDatabase(options = {}) {
     const db = await connectionPromise;
     if (options.dbid) {
       memoryConnectionCache.set(options.dbid, db);
-      console.log("[sqlite] Cached connection for dbid:", options.dbid);
-      console.log("[sqlite] Cache now has", memoryConnectionCache.size, "connection(s)");
     }
     return db;
   } finally {
@@ -543,4 +572,4 @@ async function getDatabase(options = {}) {
 export {
   getDatabase
 };
-//# sourceMappingURL=sqlite-ZH4xgi12.js.map
+//# sourceMappingURL=sqlite-D8DaQzf6.js.map
