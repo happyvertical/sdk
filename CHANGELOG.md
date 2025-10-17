@@ -1,3 +1,36 @@
+# [0.42.0](https://github.com/happyvertical/sdk/compare/v0.41.1...v0.42.0) (2025-10-17)
+
+
+* refactor!: remove 'I' prefix from interface names ([bd6d6c5](https://github.com/happyvertical/sdk/commit/bd6d6c50035acbaca5bb5cf271138bb31b29aa20))
+
+
+### Bug Fixes
+
+* **ci:** remove invalid markdown.hooks configuration from Docusaurus ([d00d25d](https://github.com/happyvertical/sdk/commit/d00d25db0b6a9f9bd530eca00196bbe66d1bd102))
+* **ci:** remove unsupported regex pattern from Biome naming convention ([592dee1](https://github.com/happyvertical/sdk/commit/592dee155132b391b940cb3bee73c65856518417))
+
+
+### BREAKING CHANGES
+
+* All interface names have been updated:
+- ICacheProvider → CacheProvider
+- ICacheAdapter → CacheAdapter
+- IGeoProvider → GeoProvider
+- IGeoAdapter → GeoAdapter
+- ISignalAdapter → SignalAdapter
+- ITranslationProvider → TranslationProvider
+- ITranslator → Translator
+- ISpiderAdapter → SpiderAdapter
+- IScraper → Scraper
+
+Changes include:
+- Created STYLE_GUIDE.md with TypeScript naming conventions
+- Configured Biome linter with useNamingConvention rule
+- Updated all interface definitions and implementations
+- Updated all imports and type references
+- All tests pass (497/501, 4 unrelated API failures)
+- All packages build successfully
+
 ## [0.41.1](https://github.com/happyvertical/sdk/compare/v0.41.0...v0.41.1) (2025-10-17)
 
 # [0.41.0](https://github.com/happyvertical/sdk/compare/v0.40.0...v0.41.0) (2025-10-16)
