@@ -1,9 +1,9 @@
-import { CacheStats, ICacheProvider, MemoryOptions } from '../shared/types';
+import { CacheStats, CacheProvider, MemoryOptions } from '../shared/types';
 /**
  * Memory cache provider implementation
  * Stores cache entries in memory with LRU eviction
  */
-export declare class MemoryProvider implements ICacheProvider {
+export declare class MemoryProvider implements CacheProvider {
     private cache;
     private namespace?;
     private defaultTTL?;

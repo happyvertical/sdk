@@ -1,11 +1,11 @@
-import type { ICacheAdapter } from '@have/cache';
+import type { CacheAdapter } from '@have/cache';
 import { getCache } from '@have/cache';
 import { isUrl, NetworkError, ValidationError } from '@have/utils';
 import { Configuration, PlaywrightCrawler } from 'crawlee';
 import type {
   CrawleeAdapterOptions,
   FetchOptions,
-  ISpiderAdapter,
+  SpiderAdapter,
   Link,
   Page,
 } from '../shared/types';
@@ -14,8 +14,8 @@ import type {
  * Crawlee headless browser adapter for fetching web pages
  * Uses Playwright through Crawlee for full browser automation
  */
-export class CrawleeAdapter implements ISpiderAdapter {
-  private cache?: ICacheAdapter;
+export class CrawleeAdapter implements SpiderAdapter {
+  private cache?: CacheAdapter;
   private cacheDir: string;
   private headless: boolean;
   private userAgent?: string;
@@ -29,7 +29,7 @@ export class CrawleeAdapter implements ISpiderAdapter {
   /**
    * Initialize the cache adapter if needed
    */
-  private async initCache(): Promise<ICacheAdapter> {
+  private async initCache(): Promise<CacheAdapter> {
     if (!this.cache) {
       this.cache = await getCache({
         provider: 'file',

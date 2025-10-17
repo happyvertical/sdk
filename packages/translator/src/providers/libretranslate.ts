@@ -3,10 +3,10 @@
  */
 
 import type {
-  ITranslationProvider,
   LanguageDetectionResult,
   LibreTranslateOptions,
   SupportedLanguage,
+  TranslationProvider,
   TranslationResult,
 } from '../shared/types';
 import {
@@ -41,7 +41,7 @@ interface LibreTranslateLanguage {
 /**
  * LibreTranslate provider implementation
  */
-export class LibreTranslateProvider implements ITranslationProvider {
+export class LibreTranslateProvider implements TranslationProvider {
   private baseUrl: string;
   private apiKey?: string;
   private timeout: number;

@@ -1,4 +1,4 @@
-import { IScraper, ScrapeOptions, ScrapeResult, ScraperType, TreeScraperOptions } from '../shared/types';
+import { Scraper, ScrapeOptions, ScrapeResult, ScraperType, TreeScraperOptions } from '../shared/types';
 /**
  * Tree scraper - expand hierarchical tree structures to reveal hidden content
  *
@@ -24,7 +24,7 @@ import { IScraper, ScrapeOptions, ScrapeResult, ScraperType, TreeScraperOptions 
  * console.log(`Confidence: ${result.strategy.confidence}`);
  * ```
  */
-export declare class TreeScraper implements IScraper {
+export declare class TreeScraper implements Scraper {
     private options;
     private cacheDir;
     private cache?;

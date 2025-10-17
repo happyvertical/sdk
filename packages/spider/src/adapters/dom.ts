@@ -1,4 +1,4 @@
-import type { ICacheAdapter } from '@have/cache';
+import type { CacheAdapter } from '@have/cache';
 import { getCache } from '@have/cache';
 import { getLogger, isUrl, NetworkError, ValidationError } from '@have/utils';
 import * as cheerio from 'cheerio';
@@ -7,7 +7,7 @@ import { request } from 'undici';
 import type {
   DomAdapterOptions,
   FetchOptions,
-  ISpiderAdapter,
+  SpiderAdapter,
   Link,
   Page,
 } from '../shared/types';
@@ -16,8 +16,8 @@ import type {
  * DOM processing adapter for fetching and normalizing web pages
  * Uses happy-dom to process HTML and cheerio for parsing
  */
-export class DomAdapter implements ISpiderAdapter {
-  private cache?: ICacheAdapter;
+export class DomAdapter implements SpiderAdapter {
+  private cache?: CacheAdapter;
   private cacheDir: string;
 
   constructor(options: DomAdapterOptions) {
@@ -27,7 +27,7 @@ export class DomAdapter implements ISpiderAdapter {
   /**
    * Initialize the cache adapter if needed
    */
-  private async initCache(): Promise<ICacheAdapter> {
+  private async initCache(): Promise<CacheAdapter> {
     if (!this.cache) {
       this.cache = await getCache({
         provider: 'file',

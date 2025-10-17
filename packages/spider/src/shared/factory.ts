@@ -1,8 +1,8 @@
 import type {
   CrawleeAdapterOptions,
   DomAdapterOptions,
-  ISpiderAdapter,
   SimpleAdapterOptions,
+  SpiderAdapter,
   SpiderAdapterOptions,
 } from './types';
 
@@ -37,7 +37,7 @@ function isCrawleeOptions(
  * Factory function to create a spider adapter instance
  *
  * @param options - Configuration options for the spider adapter
- * @returns Promise resolving to a spider adapter that implements ISpiderAdapter
+ * @returns Promise resolving to a spider adapter that implements SpiderAdapter
  *
  * @example
  * ```typescript
@@ -61,7 +61,7 @@ function isCrawleeOptions(
  */
 export async function getSpider(
   options: SpiderAdapterOptions,
-): Promise<ISpiderAdapter> {
+): Promise<SpiderAdapter> {
   if (isSimpleOptions(options)) {
     const { SimpleAdapter } = await import('../adapters/simple.js');
     return new SimpleAdapter(options);

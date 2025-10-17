@@ -6,12 +6,12 @@
 import type {
   DeepLOptions,
   GoogleTranslateOptions,
-  ITranslationProvider,
-  ITranslator,
   LanguageDetectionResult,
   LibreTranslateOptions,
   SupportedLanguage,
+  TranslationProvider,
   TranslationResult,
+  Translator,
   TranslatorOptions,
 } from './shared/types';
 
@@ -47,8 +47,8 @@ function isLibreTranslateOptions(
 /**
  * Translator wrapper class that adds templateFunction to providers
  */
-class TranslatorWrapper implements ITranslator {
-  constructor(private provider: ITranslationProvider) {}
+class TranslatorWrapper implements Translator {
+  constructor(private provider: TranslationProvider) {}
 
   async translate(
     text: string,
@@ -97,7 +97,7 @@ class TranslatorWrapper implements ITranslator {
  * Factory function to create a translator instance
  *
  * @param options - Configuration options for the translation provider
- * @returns Promise resolving to a translator that implements ITranslator
+ * @returns Promise resolving to a translator that implements Translator
  *
  * @example
  * ```typescript
@@ -129,8 +129,8 @@ class TranslatorWrapper implements ITranslator {
  */
 export async function getTranslator(
   options: TranslatorOptions,
-): Promise<ITranslator> {
-  let provider: ITranslationProvider;
+): Promise<Translator> {
+  let provider: TranslationProvider;
 
   if (isGoogleTranslateOptions(options)) {
     const { GoogleTranslateProvider } = await import('./providers/google.js');

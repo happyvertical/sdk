@@ -1,8 +1,8 @@
-import type { ICacheAdapter } from '@have/cache';
+import type { CacheAdapter } from '@have/cache';
 import { getCache } from '@have/cache';
 import { Configuration, PlaywrightCrawler } from 'crawlee';
 import type {
-  IScraper,
+  Scraper,
   Link,
   ScrapeMetrics,
   ScrapeOptions,
@@ -37,10 +37,10 @@ import type {
  * console.log(`Confidence: ${result.strategy.confidence}`);
  * ```
  */
-export class TreeScraper implements IScraper {
+export class TreeScraper implements Scraper {
   private options: TreeScraperOptions;
   private cacheDir: string;
-  private cache?: ICacheAdapter;
+  private cache?: CacheAdapter;
 
   // Default tree/expandable element selectors
   private readonly DEFAULT_SELECTORS = [
@@ -76,7 +76,7 @@ export class TreeScraper implements IScraper {
   /**
    * Initialize the cache adapter if needed
    */
-  private async initCache(): Promise<ICacheAdapter> {
+  private async initCache(): Promise<CacheAdapter> {
     if (!this.cache) {
       this.cache = await getCache({
         provider: 'file',

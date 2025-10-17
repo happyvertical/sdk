@@ -1,4 +1,4 @@
-import { IScraper, ScraperOptions } from './types';
+import { Scraper, ScraperOptions } from './types';
 /**
  * Factory function to create scraper instances
  *
@@ -32,5 +32,5 @@ import { IScraper, ScraperOptions } from './types';
  * });
  * ```
  */
-export declare function getScraper(options: ScraperOptions): Promise<IScraper>;
+export declare function getScraper(options: ScraperOptions): Promise<Scraper>;
 //# sourceMappingURL=scraper-factory.d.ts.map
