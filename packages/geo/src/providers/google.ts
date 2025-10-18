@@ -5,11 +5,7 @@
 import { Client } from '@googlemaps/google-maps-services-js';
 import type { CacheAdapter } from '@have/cache';
 import { getCache } from '@have/cache';
-import type {
-  GeoProvider,
-  GoogleMapsOptions,
-  Location,
-} from '../shared/types';
+import type { GeoProvider, GoogleMapsOptions, Location } from '../shared/types';
 import {
   AuthenticationError,
   GeoError,

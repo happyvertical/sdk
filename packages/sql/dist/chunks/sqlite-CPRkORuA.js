@@ -198,7 +198,10 @@ async function getDatabase(options = {}) {
       return tableExists2;
     };
     const syncSchema = async (schema) => {
-      console.log("[sqlite.syncSchema] Starting schema sync for dbid:", options.dbid);
+      console.log(
+        "[sqlite.syncSchema] Starting schema sync for dbid:",
+        options.dbid
+      );
       console.log("[sqlite.syncSchema] Schema length:", schema.length, "chars");
       const reservedKeywords = /* @__PURE__ */ new Set([
         "references",
@@ -242,19 +245,32 @@ async function getDatabase(options = {}) {
         "cascade"
       ]);
       let normalizedSchema = schema.replace(/\s+/g, " ").replace(/DEFAULT CAST\(([^)]+)\s+AS\s+\w+\)/gi, "DEFAULT $1").trim();
-      normalizedSchema = normalizedSchema.replace(/"(\w+)"/g, (match, identifier) => {
-        return reservedKeywords.has(identifier.toLowerCase()) ? match : identifier;
-      });
+      normalizedSchema = normalizedSchema.replace(
+        /"(\w+)"/g,
+        (match, identifier) => {
+          return reservedKeywords.has(identifier.toLowerCase()) ? match : identifier;
+        }
+      );
       console.log("[sqlite.syncSchema] Normalized schema:", normalizedSchema);
       const commands = normalizedSchema.split(";").map((cmd) => cmd.trim()).filter((cmd) => cmd.length > 0);
-      console.log("[sqlite.syncSchema] Found", commands.length, "commands to process");
+      console.log(
+        "[sqlite.syncSchema] Found",
+        commands.length,
+        "commands to process"
+      );
       for (const command of commands) {
         try {
-          console.log("[sqlite.syncSchema] Executing:", command.substring(0, 50) + "...");
+          console.log(
+            "[sqlite.syncSchema] Executing:",
+            command.substring(0, 50) + "..."
+          );
           await client.execute(command);
           console.log("[sqlite.syncSchema] Successfully executed command");
         } catch (error) {
-          console.error("[sqlite.syncSchema] Failed to execute command:", command);
+          console.error(
+            "[sqlite.syncSchema] Failed to execute command:",
+            command
+          );
           console.error("[sqlite.syncSchema] Error:", error);
           throw error;
         }
@@ -572,4 +588,4 @@ async function getDatabase(options = {}) {
 export {
   getDatabase
 };
-//# sourceMappingURL=sqlite-D8DaQzf6.js.map
+//# sourceMappingURL=sqlite-CPRkORuA.js.map
