@@ -64,7 +64,7 @@ describe('SimpleAdapter', () => {
     expect(page2.content).toBe(page1.content);
   });
 
-  it('should extract links correctly with metadata', async () => {
+  it.skipIf(process.env.CI === 'true')('should extract links correctly with metadata', async () => {
     const spider = await getSpider({ adapter: 'simple' });
     // Use a reliable, fast page with links (IANA - same org as example.com)
     const page = await spider.fetch('https://www.iana.org', {
@@ -164,7 +164,7 @@ describe('DomAdapter', () => {
     expect(page2.content).toBe(page1.content);
   });
 
-  it('should extract links from processed HTML with metadata', async () => {
+  it.skipIf(process.env.CI === 'true')('should extract links from processed HTML with metadata', async () => {
     const spider = await getSpider({ adapter: 'dom' });
     // Use a reliable, fast page with links (IANA - same org as example.com)
     const page = await spider.fetch('https://www.iana.org', {
