@@ -185,6 +185,10 @@ export async function getDatabase(
     ): Record<string, any> => {
       const serialized: Record<string, any> = {};
       for (const [key, value] of Object.entries(record)) {
+        // Skip undefined values - they cannot be passed to the database
+        if (value === undefined) {
+          continue;
+        }
         serialized[key] = serializeValue(value);
       }
       return serialized;

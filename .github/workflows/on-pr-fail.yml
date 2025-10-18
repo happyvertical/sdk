@@ -140,7 +140,7 @@ jobs:
             - Tests run with Vitest
             - Always test changes locally before committing
             - Follow the user's directive: "don't push again until everything works locally"
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: "--allowedTools 'Edit,Write,Read,Glob,Grep,Bash(git:*),Bash(pnpm:*),Bash(npm:*),Bash(npx:*),Bash(gh:*)'"
 
       - name: Comment on PR
