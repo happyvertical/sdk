@@ -67,6 +67,9 @@ async function getDatabase(options = {}) {
     const serializeRecord = (record) => {
       const serialized = {};
       for (const [key, value] of Object.entries(record)) {
+        if (value === void 0) {
+          continue;
+        }
         serialized[key] = serializeValue(value);
       }
       return serialized;
@@ -588,4 +591,4 @@ async function getDatabase(options = {}) {
 export {
   getDatabase
 };
-//# sourceMappingURL=sqlite-CPRkORuA.js.map
+//# sourceMappingURL=sqlite-DDGMi05V.js.map

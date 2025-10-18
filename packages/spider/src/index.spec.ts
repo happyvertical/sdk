@@ -64,28 +64,31 @@ describe('SimpleAdapter', () => {
     expect(page2.content).toBe(page1.content);
   });
 
-  it('should extract links correctly with metadata', async () => {
-    const spider = await getSpider({ adapter: 'simple' });
-    // Use a reliable, fast page with links (IANA - same org as example.com)
-    const page = await spider.fetch('https://www.iana.org', {
-      cache: false,
-    });
+  it.skipIf(process.env.CI === 'true')(
+    'should extract links correctly with metadata',
+    async () => {
+      const spider = await getSpider({ adapter: 'simple' });
+      // Use a reliable, fast page with links (IANA - same org as example.com)
+      const page = await spider.fetch('https://www.iana.org', {
+        cache: false,
+      });
 
-    expect(Array.isArray(page.links)).toBe(true);
-    expect(page.links.length).toBeGreaterThan(0);
+      expect(Array.isArray(page.links)).toBe(true);
+      expect(page.links.length).toBeGreaterThan(0);
 
-    // Verify Link metadata structure
-    const link = page.links[0];
-    expect(link).toBeDefined();
-    expect(typeof link.href).toBe('string');
-    expect(typeof link.text).toBe('string');
-    // Optional fields may be undefined
-    if (link.title) expect(typeof link.title).toBe('string');
-    if (link.ariaLabel) expect(typeof link.ariaLabel).toBe('string');
-    if (link.rel) expect(typeof link.rel).toBe('string');
-    if (link.target) expect(typeof link.target).toBe('string');
-    if (link.classes) expect(Array.isArray(link.classes)).toBe(true);
-  });
+      // Verify Link metadata structure
+      const link = page.links[0];
+      expect(link).toBeDefined();
+      expect(typeof link.href).toBe('string');
+      expect(typeof link.text).toBe('string');
+      // Optional fields may be undefined
+      if (link.title) expect(typeof link.title).toBe('string');
+      if (link.ariaLabel) expect(typeof link.ariaLabel).toBe('string');
+      if (link.rel) expect(typeof link.rel).toBe('string');
+      if (link.target) expect(typeof link.target).toBe('string');
+      if (link.classes) expect(Array.isArray(link.classes)).toBe(true);
+    },
+  );
 
   it('should throw ValidationError for invalid URL', async () => {
     const spider = await getSpider({ adapter: 'simple' });
@@ -164,28 +167,31 @@ describe('DomAdapter', () => {
     expect(page2.content).toBe(page1.content);
   });
 
-  it('should extract links from processed HTML with metadata', async () => {
-    const spider = await getSpider({ adapter: 'dom' });
-    // Use a reliable, fast page with links (IANA - same org as example.com)
-    const page = await spider.fetch('https://www.iana.org', {
-      cache: false,
-    });
+  it.skipIf(process.env.CI === 'true')(
+    'should extract links from processed HTML with metadata',
+    async () => {
+      const spider = await getSpider({ adapter: 'dom' });
+      // Use a reliable, fast page with links (IANA - same org as example.com)
+      const page = await spider.fetch('https://www.iana.org', {
+        cache: false,
+      });
 
-    expect(Array.isArray(page.links)).toBe(true);
-    expect(page.links.length).toBeGreaterThan(0);
+      expect(Array.isArray(page.links)).toBe(true);
+      expect(page.links.length).toBeGreaterThan(0);
 
-    // Verify Link metadata structure
-    const link = page.links[0];
-    expect(link).toBeDefined();
-    expect(typeof link.href).toBe('string');
-    expect(typeof link.text).toBe('string');
-    // Optional fields may be undefined
-    if (link.title) expect(typeof link.title).toBe('string');
-    if (link.ariaLabel) expect(typeof link.ariaLabel).toBe('string');
-    if (link.rel) expect(typeof link.rel).toBe('string');
-    if (link.target) expect(typeof link.target).toBe('string');
-    if (link.classes) expect(Array.isArray(link.classes)).toBe(true);
-  });
+      // Verify Link metadata structure
+      const link = page.links[0];
+      expect(link).toBeDefined();
+      expect(typeof link.href).toBe('string');
+      expect(typeof link.text).toBe('string');
+      // Optional fields may be undefined
+      if (link.title) expect(typeof link.title).toBe('string');
+      if (link.ariaLabel) expect(typeof link.ariaLabel).toBe('string');
+      if (link.rel) expect(typeof link.rel).toBe('string');
+      if (link.target) expect(typeof link.target).toBe('string');
+      if (link.classes) expect(Array.isArray(link.classes)).toBe(true);
+    },
+  );
 
   it('should throw ValidationError for invalid URL', async () => {
     const spider = await getSpider({ adapter: 'dom' });
