@@ -15,11 +15,17 @@ commit-msg:
     validate:
       run: npx --no-install commitlint --edit {1}
 
-# Pre-push hook: Run tests before pushing (disabled for now)
-# pre-push:
-#   commands:
-#     test:
-#       run: pnpm test
-#       skip:
-#         - merge
-#         - rebase
+# Pre-push hook: Run checks before pushing
+pre-push:
+  parallel: true
+  commands:
+    typecheck:
+      run: pnpm typecheck
+      skip:
+        - merge
+        - rebase
+    format:
+      run: pnpm biome format .
+      skip:
+        - merge
+        - rebase
