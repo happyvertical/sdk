@@ -1,3 +1,11 @@
+## [0.43.1](https://github.com/happyvertical/sdk/compare/v0.43.0...v0.43.1) (2025-10-18)
+
+
+### Bug Fixes
+
+* **ci:** use OAuth token for auto-fix workflow ([d30c912](https://github.com/happyvertical/sdk/commit/d30c912a5ede6040f7f86b11004d40a8a3e9736d))
+* **sql:** skip undefined values in serializeRecord ([b832a5b](https://github.com/happyvertical/sdk/commit/b832a5bf3660b6439c92a2604dbc90fee8a3246a))
+
 # [0.43.0](https://github.com/happyvertical/sdk/compare/v0.42.0...v0.43.0) (2025-10-17)
 
 
