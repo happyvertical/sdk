@@ -30,10 +30,7 @@ const memoryConnectionCache = new Map<string, DatabaseInterface>();
  * Pending connection promises to handle concurrent getDatabase() calls
  * Prevents creating duplicate connections when parallel calls happen
  */
-const pendingConnections = new Map<
-  string,
-  Promise<DatabaseInterface>
->();
+const pendingConnections = new Map<string, Promise<DatabaseInterface>>();
 
 /**
  * Generates a unique identifier for in-memory databases
@@ -161,730 +158,790 @@ export async function getDatabase(
   const connectionPromise = (async () => {
     const client = await createLibSQLClient(options);
 
-  /**
-   * Serializes a value for SQLite storage
-   * Converts objects and arrays to JSON strings
-   * Converts Dates to ISO strings
-   * Passes through primitives unchanged
-   */
-  const serializeValue = (value: any): any => {
-    if (value === null || value === undefined) {
+    /**
+     * Serializes a value for SQLite storage
+     * Converts objects and arrays to JSON strings
+     * Converts Dates to ISO strings
+     * Passes through primitives unchanged
+     */
+    const serializeValue = (value: any): any => {
+      if (value === null || value === undefined) {
+        return value;
+      }
+      if (value instanceof Date) {
+        return value.toISOString();
+      }
+      if (typeof value === 'object') {
+        return JSON.stringify(value);
+      }
       return value;
-    }
-    if (value instanceof Date) {
-      return value.toISOString();
-    }
-    if (typeof value === 'object') {
-      return JSON.stringify(value);
-    }
-    return value;
-  };
+    };
 
-  /**
-   * Serializes all values in an object
-   */
-  const serializeRecord = (record: Record<string, any>): Record<string, any> => {
-    const serialized: Record<string, any> = {};
-    for (const [key, value] of Object.entries(record)) {
-      serialized[key] = serializeValue(value);
-    }
-    return serialized;
-  };
+    /**
+     * Serializes all values in an object
+     */
+    const serializeRecord = (
+      record: Record<string, any>,
+    ): Record<string, any> => {
+      const serialized: Record<string, any> = {};
+      for (const [key, value] of Object.entries(record)) {
+        serialized[key] = serializeValue(value);
+      }
+      return serialized;
+    };
 
-  /**
-   * Inserts one or more records into a table
-   *
-   * @param table - Table name
-   * @param data - Single record or array of records to insert
-   * @returns Promise resolving to operation result
-   * @throws Error if the insert operation fails
-   */
-  const insert = async (
-    table: string,
-    data: Record<string, any> | Record<string, any>[],
-  ): Promise<QueryResult> => {
-    let sql: string;
-    let values: any[];
+    /**
+     * Inserts one or more records into a table
+     *
+     * @param table - Table name
+     * @param data - Single record or array of records to insert
+     * @returns Promise resolving to operation result
+     * @throws Error if the insert operation fails
+     */
+    const insert = async (
+      table: string,
+      data: Record<string, any> | Record<string, any>[],
+    ): Promise<QueryResult> => {
+      let sql: string;
+      let values: any[];
 
-    if (Array.isArray(data)) {
-      // Serialize all records in the array
-      const serializedData = data.map(record => serializeRecord(record));
-      const keys = Object.keys(serializedData[0]);
-      const placeholders = serializedData
-        .map(() => `(${keys.map(() => '?').join(', ')})`)
-        .join(', ');
-      sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES ${placeholders}`;
-      values = serializedData.reduce(
-        (acc, row) => acc.concat(Object.values(row)),
-        [] as any[],
-      );
-    } else {
-      // Serialize the single record
+      if (Array.isArray(data)) {
+        // Serialize all records in the array
+        const serializedData = data.map((record) => serializeRecord(record));
+        const keys = Object.keys(serializedData[0]);
+        const placeholders = serializedData
+          .map(() => `(${keys.map(() => '?').join(', ')})`)
+          .join(', ');
+        sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES ${placeholders}`;
+        values = serializedData.reduce(
+          (acc, row) => acc.concat(Object.values(row)),
+          [] as any[],
+        );
+      } else {
+        // Serialize the single record
+        const serializedData = serializeRecord(data);
+        const keys = Object.keys(serializedData);
+        const placeholders = keys.map(() => '?').join(', ');
+        sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
+        values = Object.values(serializedData);
+      }
+      try {
+        const result = await client.execute({ sql: sql, args: values });
+        return { operation: 'insert', affected: result.rowsAffected };
+      } catch (e) {
+        throw new DatabaseError('Failed to insert records into table', {
+          table,
+          sql,
+          values,
+          originalError: e instanceof Error ? e.message : String(e),
+        });
+      }
+    };
+
+    /**
+     * Retrieves a single record matching the where criteria
+     *
+     * @param table - Table name
+     * @param where - Criteria to match records
+     * @returns Promise resolving to matching record or null if not found
+     * @throws Error if the query fails
+     */
+    const get = async (
+      table: string,
+      where: Record<string, any>,
+    ): Promise<Record<string, any> | null> => {
+      const keys = Object.keys(where);
+      const values = Object.values(where);
+      const whereClause = keys.map((key) => `${key} = ?`).join(' AND ');
+      const sql = `SELECT * FROM ${table} WHERE ${whereClause}`;
+      try {
+        const result = await client.execute({ sql: sql, args: values });
+        return result.rows[0] || null;
+      } catch (e) {
+        throw new DatabaseError('Failed to retrieve record from table', {
+          table,
+          sql,
+          values,
+          originalError: e instanceof Error ? e.message : String(e),
+        });
+      }
+    };
+
+    /**
+     * Retrieves multiple records matching the where criteria
+     *
+     * @param table - Table name
+     * @param where - Criteria to match records
+     * @returns Promise resolving to array of matching records
+     * @throws Error if the query fails
+     */
+    const list = async (
+      table: string,
+      where: Record<string, any>,
+    ): Promise<Record<string, any>[]> => {
+      const { sql: whereClause, values } = buildWhere(where);
+      const sql = `SELECT * FROM ${table} ${whereClause}`;
+      try {
+        const result = await client.execute({ sql, args: values });
+        return result.rows;
+      } catch (e) {
+        throw new DatabaseError('Failed to list records from table', {
+          table,
+          sql,
+          values,
+          originalError: e instanceof Error ? e.message : String(e),
+        });
+      }
+    };
+
+    /**
+     * Updates records matching the where criteria
+     *
+     * @param table - Table name
+     * @param where - Criteria to match records to update
+     * @param data - New data to set
+     * @returns Promise resolving to operation result
+     * @throws Error if the update operation fails
+     */
+    const update = async (
+      table: string,
+      where: Record<string, any>,
+      data: Record<string, any>,
+    ): Promise<QueryResult> => {
+      // Serialize the data to update
       const serializedData = serializeRecord(data);
       const keys = Object.keys(serializedData);
-      const placeholders = keys.map(() => '?').join(', ');
-      sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
-      values = Object.values(serializedData);
-    }
-    try {
-      const result = await client.execute({ sql: sql, args: values });
-      return { operation: 'insert', affected: result.rowsAffected };
-    } catch (e) {
-      throw new DatabaseError('Failed to insert records into table', {
-        table,
-        sql,
-        values,
-        originalError: e instanceof Error ? e.message : String(e),
-      });
-    }
-  };
+      const values = Object.values(serializedData);
+      const setClause = keys.map((key) => `${key} = ?`).join(', ');
 
-  /**
-   * Retrieves a single record matching the where criteria
-   *
-   * @param table - Table name
-   * @param where - Criteria to match records
-   * @returns Promise resolving to matching record or null if not found
-   * @throws Error if the query fails
-   */
-  const get = async (
-    table: string,
-    where: Record<string, any>,
-  ): Promise<Record<string, any> | null> => {
-    const keys = Object.keys(where);
-    const values = Object.values(where);
-    const whereClause = keys.map((key) => `${key} = ?`).join(' AND ');
-    const sql = `SELECT * FROM ${table} WHERE ${whereClause}`;
-    try {
-      const result = await client.execute({ sql: sql, args: values });
-      return result.rows[0] || null;
-    } catch (e) {
-      throw new DatabaseError('Failed to retrieve record from table', {
-        table,
-        sql,
-        values,
-        originalError: e instanceof Error ? e.message : String(e),
-      });
-    }
-  };
+      const whereKeys = Object.keys(where);
+      const whereValues = Object.values(where);
+      const whereClause = whereKeys.map((key) => `${key} = ?`).join(' AND ');
 
-  /**
-   * Retrieves multiple records matching the where criteria
-   *
-   * @param table - Table name
-   * @param where - Criteria to match records
-   * @returns Promise resolving to array of matching records
-   * @throws Error if the query fails
-   */
-  const list = async (
-    table: string,
-    where: Record<string, any>,
-  ): Promise<Record<string, any>[]> => {
-    const { sql: whereClause, values } = buildWhere(where);
-    const sql = `SELECT * FROM ${table} ${whereClause}`;
-    try {
-      const result = await client.execute({ sql, args: values });
-      return result.rows;
-    } catch (e) {
-      throw new DatabaseError('Failed to list records from table', {
-        table,
-        sql,
-        values,
-        originalError: e instanceof Error ? e.message : String(e),
-      });
-    }
-  };
-
-  /**
-   * Updates records matching the where criteria
-   *
-   * @param table - Table name
-   * @param where - Criteria to match records to update
-   * @param data - New data to set
-   * @returns Promise resolving to operation result
-   * @throws Error if the update operation fails
-   */
-  const update = async (
-    table: string,
-    where: Record<string, any>,
-    data: Record<string, any>,
-  ): Promise<QueryResult> => {
-    // Serialize the data to update
-    const serializedData = serializeRecord(data);
-    const keys = Object.keys(serializedData);
-    const values = Object.values(serializedData);
-    const setClause = keys.map((key) => `${key} = ?`).join(', ');
-
-    const whereKeys = Object.keys(where);
-    const whereValues = Object.values(where);
-    const whereClause = whereKeys.map((key) => `${key} = ?`).join(' AND ');
-
-    const sql = `UPDATE ${table} SET ${setClause} WHERE ${whereClause}`;
-    try {
-      const result = await client.execute({
-        sql,
-        args: [...values, ...whereValues],
-      });
-      return { operation: 'update', affected: result.rowsAffected };
-    } catch (e) {
-      throw new DatabaseError('Failed to update records in table', {
-        table,
-        sql,
-        values: [...values, ...whereValues],
-        originalError: e instanceof Error ? e.message : String(e),
-      });
-    }
-  };
-
-  /**
-   * Inserts a record or updates it if it already exists (UPSERT)
-   *
-   * @param table - Table name
-   * @param conflictColumns - Columns that define the uniqueness constraint
-   * @param data - Data to insert or update
-   * @returns Promise resolving to operation result
-   * @throws Error if the upsert operation fails
-   */
-  const upsert = async (
-    table: string,
-    conflictColumns: string[],
-    data: Record<string, any>,
-  ): Promise<QueryResult> => {
-    // Serialize the data before upserting
-    const serializedData = serializeRecord(data);
-    const keys = Object.keys(serializedData);
-    const values = Object.values(serializedData);
-    const placeholders = keys.map(() => '?').join(', ');
-    const updateSet = keys.map((key) => `${key} = excluded.${key}`).join(', ');
-    const conflict = conflictColumns.join(', ');
-
-    const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
-
-    try {
-      const result = await client.execute({ sql, args: values });
-      return { operation: 'upsert', affected: result.rowsAffected };
-    } catch (e) {
-      throw new DatabaseError('Failed to upsert record into table', {
-        table,
-        sql,
-        values,
-        conflictColumns,
-        originalError: e instanceof Error ? e.message : String(e),
-      });
-    }
-  };
-
-  /**
-   * Gets a record matching the where criteria or inserts it if not found
-   *
-   * @param table - Table name
-   * @param where - Criteria to match existing record
-   * @param data - Data to insert if no record found
-   * @returns Promise resolving to the record (either retrieved or newly inserted)
-   * @throws Error if the operation fails or if the record cannot be retrieved after insert
-   */
-  const getOrInsert = async (
-    table: string,
-    where: Record<string, any>,
-    data: Record<string, any>,
-  ): Promise<Record<string, any>> => {
-    const result = await get(table, where);
-    if (result) return result;
-    await insert(table, data);
-
-    const inserted = await get(table, where);
-    if (!inserted) {
-      throw new DatabaseError('Failed to insert and retrieve record', {
-        table,
-        where,
-        data,
-      });
-    }
-    return inserted;
-  };
-
-  /**
-   * Checks if a table exists in the database
-   *
-   * @param tableName - Name of the table to check
-   * @returns Promise resolving to boolean indicating if the table exists
-   */
-  const tableExists = async (tableName: string): Promise<boolean> => {
-    const tableExists =
-      !!(await pluck`SELECT name FROM sqlite_master WHERE type='table' AND name=${tableName}`);
-    return tableExists;
-  };
-
-  /**
-   * Synchronizes database schema with provided SQL DDL
-   * Creates tables if they don't exist and adds missing columns
-   *
-   * @param schema - SQL schema definition with CREATE TABLE statements
-   * @returns Promise that resolves when schema is synchronized
-   */
-  const syncSchema = async (schema: string): Promise<void> => {
-    console.log('[sqlite.syncSchema] Starting schema sync for dbid:', options.dbid);
-    console.log('[sqlite.syncSchema] Schema length:', schema.length, 'chars');
-
-    // List of SQL reserved keywords that need to stay quoted
-    const reservedKeywords = new Set([
-      'references', 'order', 'group', 'table', 'index', 'select', 'from', 'where',
-      'join', 'left', 'right', 'inner', 'outer', 'on', 'as', 'and', 'or', 'not',
-      'like', 'in', 'between', 'case', 'when', 'then', 'else', 'end', 'union',
-      'distinct', 'having', 'limit', 'offset', 'default', 'check', 'unique',
-      'primary', 'foreign', 'key', 'constraint', 'cascade'
-    ]);
-
-    // Normalize whitespace and simplify CAST expressions
-    let normalizedSchema = schema
-      .replace(/\s+/g, ' ')  // Replace multiple whitespace with single space
-      .replace(/DEFAULT CAST\(([^)]+)\s+AS\s+\w+\)/gi, 'DEFAULT $1')  // Simplify CAST in DEFAULT clauses
-      .trim();
-
-    // Remove quotes around identifiers EXCEPT for reserved keywords
-    normalizedSchema = normalizedSchema.replace(/"(\w+)"/g, (match, identifier) => {
-      return reservedKeywords.has(identifier.toLowerCase()) ? match : identifier;
-    });
-
-    console.log('[sqlite.syncSchema] Normalized schema:', normalizedSchema);
-
-    // Split into individual commands
-    const commands = normalizedSchema
-      .split(';')
-      .map(cmd => cmd.trim())
-      .filter(cmd => cmd.length > 0);
-
-    console.log('[sqlite.syncSchema] Found', commands.length, 'commands to process');
-
-    // Execute each command
-    for (const command of commands) {
+      const sql = `UPDATE ${table} SET ${setClause} WHERE ${whereClause}`;
       try {
-        console.log('[sqlite.syncSchema] Executing:', command.substring(0, 50) + '...');
-        await client.execute(command);
-        console.log('[sqlite.syncSchema] Successfully executed command');
+        const result = await client.execute({
+          sql,
+          args: [...values, ...whereValues],
+        });
+        return { operation: 'update', affected: result.rowsAffected };
+      } catch (e) {
+        throw new DatabaseError('Failed to update records in table', {
+          table,
+          sql,
+          values: [...values, ...whereValues],
+          originalError: e instanceof Error ? e.message : String(e),
+        });
+      }
+    };
+
+    /**
+     * Inserts a record or updates it if it already exists (UPSERT)
+     *
+     * @param table - Table name
+     * @param conflictColumns - Columns that define the uniqueness constraint
+     * @param data - Data to insert or update
+     * @returns Promise resolving to operation result
+     * @throws Error if the upsert operation fails
+     */
+    const upsert = async (
+      table: string,
+      conflictColumns: string[],
+      data: Record<string, any>,
+    ): Promise<QueryResult> => {
+      // Serialize the data before upserting
+      const serializedData = serializeRecord(data);
+      const keys = Object.keys(serializedData);
+      const values = Object.values(serializedData);
+      const placeholders = keys.map(() => '?').join(', ');
+      const updateSet = keys
+        .map((key) => `${key} = excluded.${key}`)
+        .join(', ');
+      const conflict = conflictColumns.join(', ');
+
+      const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
+
+      try {
+        const result = await client.execute({ sql, args: values });
+        return { operation: 'upsert', affected: result.rowsAffected };
+      } catch (e) {
+        throw new DatabaseError('Failed to upsert record into table', {
+          table,
+          sql,
+          values,
+          conflictColumns,
+          originalError: e instanceof Error ? e.message : String(e),
+        });
+      }
+    };
+
+    /**
+     * Gets a record matching the where criteria or inserts it if not found
+     *
+     * @param table - Table name
+     * @param where - Criteria to match existing record
+     * @param data - Data to insert if no record found
+     * @returns Promise resolving to the record (either retrieved or newly inserted)
+     * @throws Error if the operation fails or if the record cannot be retrieved after insert
+     */
+    const getOrInsert = async (
+      table: string,
+      where: Record<string, any>,
+      data: Record<string, any>,
+    ): Promise<Record<string, any>> => {
+      const result = await get(table, where);
+      if (result) return result;
+      await insert(table, data);
+
+      const inserted = await get(table, where);
+      if (!inserted) {
+        throw new DatabaseError('Failed to insert and retrieve record', {
+          table,
+          where,
+          data,
+        });
+      }
+      return inserted;
+    };
+
+    /**
+     * Checks if a table exists in the database
+     *
+     * @param tableName - Name of the table to check
+     * @returns Promise resolving to boolean indicating if the table exists
+     */
+    const tableExists = async (tableName: string): Promise<boolean> => {
+      const tableExists =
+        !!(await pluck`SELECT name FROM sqlite_master WHERE type='table' AND name=${tableName}`);
+      return tableExists;
+    };
+
+    /**
+     * Synchronizes database schema with provided SQL DDL
+     * Creates tables if they don't exist and adds missing columns
+     *
+     * @param schema - SQL schema definition with CREATE TABLE statements
+     * @returns Promise that resolves when schema is synchronized
+     */
+    const syncSchema = async (schema: string): Promise<void> => {
+      console.log(
+        '[sqlite.syncSchema] Starting schema sync for dbid:',
+        options.dbid,
+      );
+      console.log('[sqlite.syncSchema] Schema length:', schema.length, 'chars');
+
+      // List of SQL reserved keywords that need to stay quoted
+      const reservedKeywords = new Set([
+        'references',
+        'order',
+        'group',
+        'table',
+        'index',
+        'select',
+        'from',
+        'where',
+        'join',
+        'left',
+        'right',
+        'inner',
+        'outer',
+        'on',
+        'as',
+        'and',
+        'or',
+        'not',
+        'like',
+        'in',
+        'between',
+        'case',
+        'when',
+        'then',
+        'else',
+        'end',
+        'union',
+        'distinct',
+        'having',
+        'limit',
+        'offset',
+        'default',
+        'check',
+        'unique',
+        'primary',
+        'foreign',
+        'key',
+        'constraint',
+        'cascade',
+      ]);
+
+      // Normalize whitespace and simplify CAST expressions
+      let normalizedSchema = schema
+        .replace(/\s+/g, ' ') // Replace multiple whitespace with single space
+        .replace(/DEFAULT CAST\(([^)]+)\s+AS\s+\w+\)/gi, 'DEFAULT $1') // Simplify CAST in DEFAULT clauses
+        .trim();
+
+      // Remove quotes around identifiers EXCEPT for reserved keywords
+      normalizedSchema = normalizedSchema.replace(
+        /"(\w+)"/g,
+        (match, identifier) => {
+          return reservedKeywords.has(identifier.toLowerCase())
+            ? match
+            : identifier;
+        },
+      );
+
+      console.log('[sqlite.syncSchema] Normalized schema:', normalizedSchema);
+
+      // Split into individual commands
+      const commands = normalizedSchema
+        .split(';')
+        .map((cmd) => cmd.trim())
+        .filter((cmd) => cmd.length > 0);
+
+      console.log(
+        '[sqlite.syncSchema] Found',
+        commands.length,
+        'commands to process',
+      );
+
+      // Execute each command
+      for (const command of commands) {
+        try {
+          console.log(
+            '[sqlite.syncSchema] Executing:',
+            command.substring(0, 50) + '...',
+          );
+          await client.execute(command);
+          console.log('[sqlite.syncSchema] Successfully executed command');
+        } catch (error) {
+          console.error(
+            '[sqlite.syncSchema] Failed to execute command:',
+            command,
+          );
+          console.error('[sqlite.syncSchema] Error:', error);
+          throw error;
+        }
+      }
+    };
+
+    /**
+     * Executes a callback within a database transaction
+     * Automatically commits on success or rolls back on error
+     *
+     * @param callback - Function to execute within transaction
+     * @returns Promise resolving to callback result
+     */
+    const transaction = async <T>(
+      callback: (tx: DatabaseInterface) => Promise<T>,
+    ): Promise<T> => {
+      try {
+        await client.execute({ sql: 'BEGIN TRANSACTION', args: [] });
+
+        // Create a transaction-scoped database interface
+        // SQLite doesn't have separate transaction clients, so we reuse the same client
+        const txDb: DatabaseInterface = {
+          client,
+          insert,
+          get,
+          list,
+          update,
+          upsert,
+          getOrInsert,
+          table,
+          many,
+          single,
+          pluck,
+          execute,
+          query,
+          oo: many,
+          oO: single,
+          ox: pluck,
+          xx: execute,
+          tableExists,
+          syncSchema,
+          transaction,
+        };
+
+        const result = await callback(txDb);
+        await client.execute({ sql: 'COMMIT', args: [] });
+        return result;
       } catch (error) {
-        console.error('[sqlite.syncSchema] Failed to execute command:', command);
-        console.error('[sqlite.syncSchema] Error:', error);
+        await client.execute({ sql: 'ROLLBACK', args: [] });
         throw error;
       }
-    }
-  };
+    };
 
-  /**
-   * Executes a callback within a database transaction
-   * Automatically commits on success or rolls back on error
-   *
-   * @param callback - Function to execute within transaction
-   * @returns Promise resolving to callback result
-   */
-  const transaction = async <T>(
-    callback: (tx: DatabaseInterface) => Promise<T>,
-  ): Promise<T> => {
-    try {
-      await client.execute({ sql: 'BEGIN TRANSACTION', args: [] });
+    /**
+     * Creates a table-specific interface for simplified table operations
+     *
+     * @param tableName - Table name
+     * @returns TableInterface for the specified table
+     */
+    const table = (tableName: string): TableInterface => ({
+      insert: (data) => insert(tableName, data),
+      get: (where) => get(tableName, where),
+      list: (where) => list(tableName, where),
+    });
 
-      // Create a transaction-scoped database interface
-      // SQLite doesn't have separate transaction clients, so we reuse the same client
-      const txDb: DatabaseInterface = {
+    /**
+     * Parses a tagged template literal into a SQL query and values
+     *
+     * @param strings - Template strings
+     * @param vars - Variables to interpolate into the query
+     * @returns Object with SQL query and values array
+     */
+    const parseTemplate = (strings: TemplateStringsArray, ...vars: any[]) => {
+      let sql = strings[0];
+      const values = [];
+      for (let i = 0; i < vars.length; i++) {
+        values.push(vars[i]);
+        sql += `?${strings[i + 1]}`;
+      }
+      return { sql, values };
+    };
+
+    /**
+     * Executes a SQL query using template literals and returns a single value
+     *
+     * @param strings - Template strings
+     * @param vars - Variables to interpolate into the query
+     * @returns Promise resolving to a single value (first column of first row)
+     * @throws Error if the query fails
+     */
+    const pluck = async (
+      strings: TemplateStringsArray,
+      ...vars: any[]
+    ): Promise<any> => {
+      const { sql, values } = parseTemplate(strings, ...vars);
+      try {
+        const result = await client.execute({ sql, args: values });
+        return result.rows[0]?.[Object.keys(result.rows[0])[0]] ?? null;
+      } catch (e) {
+        throw new DatabaseError('Failed to execute pluck query', {
+          sql,
+          values,
+          originalError: e instanceof Error ? e.message : String(e),
+        });
+      }
+    };
+
+    /**
+     * Executes a SQL query using template literals and returns a single row
+     *
+     * @param strings - Template strings
+     * @param vars - Variables to interpolate into the query
+     * @returns Promise resolving to a single result record or null
+     * @throws Error if the query fails
+     */
+    const single = async (
+      strings: TemplateStringsArray,
+      ...vars: any[]
+    ): Promise<Record<string, any> | null> => {
+      const { sql, values } = parseTemplate(strings, ...vars);
+      try {
+        const result = await client.execute({ sql, args: values });
+        return result.rows[0] || null;
+      } catch (e) {
+        throw new DatabaseError('Failed to execute single query', {
+          sql,
+          values,
+          originalError: e instanceof Error ? e.message : String(e),
+        });
+      }
+    };
+
+    /**
+     * Executes a SQL query using template literals and returns multiple rows
+     *
+     * @param strings - Template strings
+     * @param vars - Variables to interpolate into the query
+     * @returns Promise resolving to array of result records
+     * @throws Error if the query fails
+     */
+    const many = async (
+      strings: TemplateStringsArray,
+      ...vars: any[]
+    ): Promise<Record<string, any>[]> => {
+      const { sql, values } = parseTemplate(strings, ...vars);
+      try {
+        const result = await client.execute({ sql, args: values });
+        return result.rows;
+      } catch (e) {
+        throw new DatabaseError('Failed to execute many query', {
+          sql,
+          values,
+          originalError: e instanceof Error ? e.message : String(e),
+        });
+      }
+    };
+
+    /**
+     * Executes a SQL query using template literals without returning results
+     *
+     * @param strings - Template strings
+     * @param vars - Variables to interpolate into the query
+     * @returns Promise that resolves when the query completes
+     * @throws Error if the query fails
+     */
+    const execute = async (
+      strings: TemplateStringsArray,
+      ...vars: any[]
+    ): Promise<void> => {
+      const { sql, values } = parseTemplate(strings, ...vars);
+      try {
+        await client.execute({ sql, args: values });
+      } catch (e) {
+        throw new DatabaseError('Failed to execute query', {
+          sql,
+          values,
+          originalError: e instanceof Error ? e.message : String(e),
+        });
+      }
+    };
+
+    /**
+     * Executes a raw SQL query with parameterized values
+     *
+     * @param str - SQL query string
+     * @param values - Variables to use as parameters
+     * @returns Promise resolving to query result with rows and metadata
+     * @throws Error if the query fails
+     */
+    const query = async (str: string, ...values: any[]) => {
+      const sql = str;
+      const args = Array.isArray(values[0]) ? values[0] : values;
+      try {
+        const result = await client.execute({ sql, args });
+        return {
+          command: sql.split(' ')[0].toUpperCase(),
+          rowCount: result.rowsAffected ?? result.rows.length,
+          oid: null,
+          fields: Object.keys(result.rows[0] || {}).map((name) => ({
+            name,
+            tableID: 0,
+            columnID: 0,
+            dataTypeID: 0,
+            dataTypeSize: -1,
+            dataTypeModifier: -1,
+            format: 'text',
+          })),
+          rows: result.rows,
+        };
+      } catch (e) {
+        throw new DatabaseError('Failed to execute raw query', {
+          sql,
+          args,
+          originalError: e instanceof Error ? e.message : String(e),
+        });
+      }
+    };
+
+    // Shorthand aliases for query methods
+    const oo = many; // (o)bjective-(o)bjects: returns multiple rows
+    const oO = single; // (o)bjective-(O)bject: returns a single row
+    const ox = pluck; // (o)bjective-(x): returns a single value
+    const xx = execute; // (x)ecute-(x)ecute: executes without returning
+
+    /**
+     * Initialize database schemas from JSON manifest
+     * Supports dependency resolution and schema overrides
+     *
+     * @param options - Schema initialization options
+     * @returns Promise that resolves when schemas are initialized
+     */
+    const initializeSchemas = async (
+      options: SchemaInitializationOptions,
+    ): Promise<void> => {
+      const schemaManager = new DatabaseSchemaManager();
+      const currentDb: DatabaseInterface = {
         client,
+        query,
         insert,
-        get,
-        list,
         update,
         upsert,
+        get,
+        list,
         getOrInsert,
         table,
+        tableExists,
         many,
         single,
         pluck,
         execute,
-        query,
-        oo: many,
-        oO: single,
-        ox: pluck,
-        xx: execute,
-        tableExists,
+        oo,
+        oO,
+        ox,
+        xx,
         syncSchema,
         transaction,
       };
 
-      const result = await callback(txDb);
-      await client.execute({ sql: 'COMMIT', args: [] });
-      return result;
-    } catch (error) {
-      await client.execute({ sql: 'ROLLBACK', args: [] });
-      throw error;
-    }
-  };
-
-  /**
-   * Creates a table-specific interface for simplified table operations
-   *
-   * @param tableName - Table name
-   * @returns TableInterface for the specified table
-   */
-  const table = (tableName: string): TableInterface => ({
-    insert: (data) => insert(tableName, data),
-    get: (where) => get(tableName, where),
-    list: (where) => list(tableName, where),
-  });
-
-  /**
-   * Parses a tagged template literal into a SQL query and values
-   *
-   * @param strings - Template strings
-   * @param vars - Variables to interpolate into the query
-   * @returns Object with SQL query and values array
-   */
-  const parseTemplate = (strings: TemplateStringsArray, ...vars: any[]) => {
-    let sql = strings[0];
-    const values = [];
-    for (let i = 0; i < vars.length; i++) {
-      values.push(vars[i]);
-      sql += `?${strings[i + 1]}`;
-    }
-    return { sql, values };
-  };
-
-  /**
-   * Executes a SQL query using template literals and returns a single value
-   *
-   * @param strings - Template strings
-   * @param vars - Variables to interpolate into the query
-   * @returns Promise resolving to a single value (first column of first row)
-   * @throws Error if the query fails
-   */
-  const pluck = async (
-    strings: TemplateStringsArray,
-    ...vars: any[]
-  ): Promise<any> => {
-    const { sql, values } = parseTemplate(strings, ...vars);
-    try {
-      const result = await client.execute({ sql, args: values });
-      return result.rows[0]?.[Object.keys(result.rows[0])[0]] ?? null;
-    } catch (e) {
-      throw new DatabaseError('Failed to execute pluck query', {
-        sql,
-        values,
-        originalError: e instanceof Error ? e.message : String(e),
-      });
-    }
-  };
-
-  /**
-   * Executes a SQL query using template literals and returns a single row
-   *
-   * @param strings - Template strings
-   * @param vars - Variables to interpolate into the query
-   * @returns Promise resolving to a single result record or null
-   * @throws Error if the query fails
-   */
-  const single = async (
-    strings: TemplateStringsArray,
-    ...vars: any[]
-  ): Promise<Record<string, any> | null> => {
-    const { sql, values } = parseTemplate(strings, ...vars);
-    try {
-      const result = await client.execute({ sql, args: values });
-      return result.rows[0] || null;
-    } catch (e) {
-      throw new DatabaseError('Failed to execute single query', {
-        sql,
-        values,
-        originalError: e instanceof Error ? e.message : String(e),
-      });
-    }
-  };
-
-  /**
-   * Executes a SQL query using template literals and returns multiple rows
-   *
-   * @param strings - Template strings
-   * @param vars - Variables to interpolate into the query
-   * @returns Promise resolving to array of result records
-   * @throws Error if the query fails
-   */
-  const many = async (
-    strings: TemplateStringsArray,
-    ...vars: any[]
-  ): Promise<Record<string, any>[]> => {
-    const { sql, values } = parseTemplate(strings, ...vars);
-    try {
-      const result = await client.execute({ sql, args: values });
-      return result.rows;
-    } catch (e) {
-      throw new DatabaseError('Failed to execute many query', {
-        sql,
-        values,
-        originalError: e instanceof Error ? e.message : String(e),
-      });
-    }
-  };
-
-  /**
-   * Executes a SQL query using template literals without returning results
-   *
-   * @param strings - Template strings
-   * @param vars - Variables to interpolate into the query
-   * @returns Promise that resolves when the query completes
-   * @throws Error if the query fails
-   */
-  const execute = async (
-    strings: TemplateStringsArray,
-    ...vars: any[]
-  ): Promise<void> => {
-    const { sql, values } = parseTemplate(strings, ...vars);
-    try {
-      await client.execute({ sql, args: values });
-    } catch (e) {
-      throw new DatabaseError('Failed to execute query', {
-        sql,
-        values,
-        originalError: e instanceof Error ? e.message : String(e),
-      });
-    }
-  };
-
-  /**
-   * Executes a raw SQL query with parameterized values
-   *
-   * @param str - SQL query string
-   * @param values - Variables to use as parameters
-   * @returns Promise resolving to query result with rows and metadata
-   * @throws Error if the query fails
-   */
-  const query = async (str: string, ...values: any[]) => {
-    const sql = str;
-    const args = Array.isArray(values[0]) ? values[0] : values;
-    try {
-      const result = await client.execute({ sql, args });
-      return {
-        command: sql.split(' ')[0].toUpperCase(),
-        rowCount: result.rowsAffected ?? result.rows.length,
-        oid: null,
-        fields: Object.keys(result.rows[0] || {}).map((name) => ({
-          name,
-          tableID: 0,
-          columnID: 0,
-          dataTypeID: 0,
-          dataTypeSize: -1,
-          dataTypeModifier: -1,
-          format: 'text',
-        })),
-        rows: result.rows,
-      };
-    } catch (e) {
-      throw new DatabaseError('Failed to execute raw query', {
-        sql,
-        args,
-        originalError: e instanceof Error ? e.message : String(e),
-      });
-    }
-  };
-
-  // Shorthand aliases for query methods
-  const oo = many; // (o)bjective-(o)bjects: returns multiple rows
-  const oO = single; // (o)bjective-(O)bject: returns a single row
-  const ox = pluck; // (o)bjective-(x): returns a single value
-  const xx = execute; // (x)ecute-(x)ecute: executes without returning
-
-  /**
-   * Initialize database schemas from JSON manifest
-   * Supports dependency resolution and schema overrides
-   *
-   * @param options - Schema initialization options
-   * @returns Promise that resolves when schemas are initialized
-   */
-  const initializeSchemas = async (
-    options: SchemaInitializationOptions,
-  ): Promise<void> => {
-    const schemaManager = new DatabaseSchemaManager();
-    const currentDb: DatabaseInterface = {
-      client,
-      query,
-      insert,
-      update,
-      upsert,
-      get,
-      list,
-      getOrInsert,
-      table,
-      tableExists,
-      many,
-      single,
-      pluck,
-      execute,
-      oo,
-      oO,
-      ox,
-      xx,
-      syncSchema,
-      transaction,
+      await schemaManager.initializeSchemas(currentDb, options);
     };
 
-    await schemaManager.initializeSchemas(currentDb, options);
-  };
+    /**
+     * Retrieves the schema information for a table
+     *
+     * @param table - Table name
+     * @returns Promise resolving to table schema info or null if table doesn't exist
+     * @throws Error if the query fails
+     */
+    const getTableSchema = async (
+      table: string,
+    ): Promise<TableSchemaInfo | null> => {
+      validateTableName(table);
 
-  /**
-   * Retrieves the schema information for a table
-   *
-   * @param table - Table name
-   * @returns Promise resolving to table schema info or null if table doesn't exist
-   * @throws Error if the query fails
-   */
-  const getTableSchema = async (
-    table: string,
-  ): Promise<TableSchemaInfo | null> => {
-    validateTableName(table);
+      try {
+        // Check if table exists
+        const exists = await tableExists(table);
+        if (!exists) {
+          return null;
+        }
 
-    try {
-      // Check if table exists
-      const exists = await tableExists(table);
-      if (!exists) {
-        return null;
-      }
+        // Get column information from pragma_table_info
+        const columnRows =
+          await many`SELECT * FROM pragma_table_info(${table})`;
 
-      // Get column information from pragma_table_info
-      const columnRows = await many`SELECT * FROM pragma_table_info(${table})`;
+        const columns: Record<string, ColumnDefinition> = {};
+        for (const row of columnRows) {
+          const colName = row.name as string;
+          columns[colName] = {
+            type: row.type as string,
+            primaryKey: row.pk === 1,
+            notNull: row.notnull === 1,
+            defaultValue: row.dflt_value,
+          };
+        }
 
-      const columns: Record<string, ColumnDefinition> = {};
-      for (const row of columnRows) {
-        const colName = row.name as string;
-        columns[colName] = {
-          type: row.type as string,
-          primaryKey: row.pk === 1,
-          notNull: row.notnull === 1,
-          defaultValue: row.dflt_value,
-        };
-      }
-
-      // Get index information from sqlite_master
-      const indexRows = await many`
+        // Get index information from sqlite_master
+        const indexRows = await many`
         SELECT name, sql FROM sqlite_master
         WHERE type = 'index'
           AND tbl_name = ${table}
           AND name NOT LIKE 'sqlite_%'
       `;
 
-      const indexes: IndexDefinition[] = [];
-      for (const row of indexRows) {
-        const indexName = row.name as string;
+        const indexes: IndexDefinition[] = [];
+        for (const row of indexRows) {
+          const indexName = row.name as string;
 
-        // Get index columns from pragma_index_info
-        const indexInfoRows =
-          await many`SELECT * FROM pragma_index_info(${indexName})`;
+          // Get index columns from pragma_index_info
+          const indexInfoRows =
+            await many`SELECT * FROM pragma_index_info(${indexName})`;
 
-        const indexColumns: string[] = [];
-        for (const infoRow of indexInfoRows) {
-          indexColumns.push(infoRow.name as string);
+          const indexColumns: string[] = [];
+          for (const infoRow of indexInfoRows) {
+            indexColumns.push(infoRow.name as string);
+          }
+
+          // Check if index is unique from pragma_index_list
+          const indexListRow =
+            await single`SELECT * FROM pragma_index_list(${table}) WHERE name = ${indexName}`;
+
+          indexes.push({
+            name: indexName,
+            columns: indexColumns,
+            unique: indexListRow?.unique === 1,
+          });
         }
 
-        // Check if index is unique from pragma_index_list
-        const indexListRow =
-          await single`SELECT * FROM pragma_index_list(${table}) WHERE name = ${indexName}`;
+        // Get foreign key information from pragma_foreign_key_list
+        const fkRows =
+          await many`SELECT * FROM pragma_foreign_key_list(${table})`;
 
-        indexes.push({
-          name: indexName,
-          columns: indexColumns,
-          unique: indexListRow?.unique === 1,
-        });
-      }
+        const foreignKeys: Array<{
+          column: string;
+          referencesTable: string;
+          referencesColumn: string;
+          onDelete?: string;
+          onUpdate?: string;
+        }> = [];
 
-      // Get foreign key information from pragma_foreign_key_list
-      const fkRows =
-        await many`SELECT * FROM pragma_foreign_key_list(${table})`;
+        for (const fkRow of fkRows) {
+          foreignKeys.push({
+            column: fkRow.from as string,
+            referencesTable: fkRow.table as string,
+            referencesColumn: fkRow.to as string,
+            onDelete: fkRow.on_delete as string | undefined,
+            onUpdate: fkRow.on_update as string | undefined,
+          });
+        }
 
-      const foreignKeys: Array<{
-        column: string;
-        referencesTable: string;
-        referencesColumn: string;
-        onDelete?: string;
-        onUpdate?: string;
-      }> = [];
-
-      for (const fkRow of fkRows) {
-        foreignKeys.push({
-          column: fkRow.from as string,
-          referencesTable: fkRow.table as string,
-          referencesColumn: fkRow.to as string,
-          onDelete: fkRow.on_delete as string | undefined,
-          onUpdate: fkRow.on_update as string | undefined,
-        });
-      }
-
-      return {
-        tableName: table,
-        columns,
-        indexes,
-        foreignKeys,
-      };
-    } catch (e) {
-      throw new DatabaseError('Failed to retrieve table schema', {
-        table,
-        originalError: e instanceof Error ? e.message : String(e),
-      });
-    }
-  };
-
-  /**
-   * ALTER TABLE operations for schema evolution
-   */
-  const alterTable = {
-    /**
-     * Adds a new column to an existing table
-     *
-     * @param table - Table name
-     * @param column - Column definition with name
-     * @returns Promise that resolves when column is added
-     * @throws Error if the alter operation fails
-     */
-    addColumn: async (
-      table: string,
-      column: ColumnDefinitionWithName,
-    ): Promise<void> => {
-      validateTableName(table);
-      validateColumnName(column.name);
-
-      try {
-        const sql = generateAddColumnStatement(table, column, 'sqlite');
-        await client.execute({ sql, args: [] });
+        return {
+          tableName: table,
+          columns,
+          indexes,
+          foreignKeys,
+        };
       } catch (e) {
-        throw new DatabaseError('Failed to add column to table', {
+        throw new DatabaseError('Failed to retrieve table schema', {
           table,
-          column: column.name,
           originalError: e instanceof Error ? e.message : String(e),
         });
       }
-    },
+    };
 
     /**
-     * Adds a new index to an existing table
-     *
-     * @param table - Table name
-     * @param index - Index definition
-     * @returns Promise that resolves when index is created
-     * @throws Error if the create index operation fails
+     * ALTER TABLE operations for schema evolution
      */
-    addIndex: async (table: string, index: IndexDefinition): Promise<void> => {
-      validateTableName(table);
-      validateIndexName(index.name);
+    const alterTable = {
+      /**
+       * Adds a new column to an existing table
+       *
+       * @param table - Table name
+       * @param column - Column definition with name
+       * @returns Promise that resolves when column is added
+       * @throws Error if the alter operation fails
+       */
+      addColumn: async (
+        table: string,
+        column: ColumnDefinitionWithName,
+      ): Promise<void> => {
+        validateTableName(table);
+        validateColumnName(column.name);
 
-      for (const col of index.columns) {
-        validateColumnName(col);
-      }
+        try {
+          const sql = generateAddColumnStatement(table, column, 'sqlite');
+          await client.execute({ sql, args: [] });
+        } catch (e) {
+          throw new DatabaseError('Failed to add column to table', {
+            table,
+            column: column.name,
+            originalError: e instanceof Error ? e.message : String(e),
+          });
+        }
+      },
 
-      try {
-        const sql = generateCreateIndexStatement(table, index);
-        await client.execute({ sql, args: [] });
-      } catch (e) {
-        throw new DatabaseError('Failed to create index on table', {
-          table,
-          index: index.name,
-          originalError: e instanceof Error ? e.message : String(e),
-        });
-      }
-    },
-  };
+      /**
+       * Adds a new index to an existing table
+       *
+       * @param table - Table name
+       * @param index - Index definition
+       * @returns Promise that resolves when index is created
+       * @throws Error if the create index operation fails
+       */
+      addIndex: async (
+        table: string,
+        index: IndexDefinition,
+      ): Promise<void> => {
+        validateTableName(table);
+        validateIndexName(index.name);
+
+        for (const col of index.columns) {
+          validateColumnName(col);
+        }
+
+        try {
+          const sql = generateCreateIndexStatement(table, index);
+          await client.execute({ sql, args: [] });
+        } catch (e) {
+          throw new DatabaseError('Failed to create index on table', {
+            table,
+            index: index.name,
+            originalError: e instanceof Error ? e.message : String(e),
+          });
+        }
+      },
+    };
 
     return {
       client,
