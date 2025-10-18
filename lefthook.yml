@@ -1,13 +1,13 @@
 # Lefthook Git Hooks Configuration
 # https://github.com/evilmartians/lefthook
 
-# Pre-commit hook: Run linting and formatting checks
-# pre-commit:
-#   parallel: true
-#   commands:
-#     format:
-#       run: pnpm biome format --write {staged_files}
-#       stage_fixed: true
+# Pre-commit hook: Auto-format staged files
+pre-commit:
+  commands:
+    format:
+      glob: "*.{js,jsx,ts,tsx,svelte}"
+      run: pnpm biome format --write {staged_files}
+      stage_fixed: true
 
 # Commit-msg hook: Validate commit message format
 commit-msg:
