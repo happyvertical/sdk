@@ -39,21 +39,6 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
-      label: '@have/config',
-      link: { type: 'doc', id: 'config' },
-      collapsed: true,
-      items: [
-        { type: 'link', label: 'Features', href: '/config#features' },
-        { type: 'link', label: 'Installation', href: '/config#installation' },
-        { type: 'link', label: 'Quick Start', href: '/config#quick-start' },
-        { type: 'link', label: 'Configuration File Formats', href: '/config#configuration-file-formats' },
-        { type: 'link', label: 'API Reference', href: '/config#api-reference' },
-        { type: 'link', label: 'Configuration Structure', href: '/config#configuration-structure' },
-        { type: 'link', label: '📚 API Reference', href: '/api/config/globals' },
-      ],
-    },
-    {
-      type: 'category',
       label: '@have/documents',
       link: { type: 'doc', id: 'documents' },
       collapsed: true,

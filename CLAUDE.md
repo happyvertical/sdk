@@ -29,7 +29,6 @@ Core packages used by infrastructure and the SMRT framework:
 Infrastructure packages for advanced functionality:
 
 - **cache**: Caching utilities and abstractions
-- **config**: Configuration management
 - **geo**: Geographic utilities and services
 - **translator**: Translation services integration
 - **ocr**: Optical Character Recognition with multiple providers
@@ -58,14 +57,13 @@ The build process follows a specific order to respect internal dependencies:
 5. `@have/ai` (AI client with multi-provider support, no internal dependencies)
 
 **Infrastructure Packages** (in `packages/`):
-1. `@have/config` (configuration management, no internal dependencies)
-2. `@have/cache` (caching utilities, no internal dependencies)
-3. `@have/geo` (geographic utilities, no internal dependencies)
-4. `@have/translator` (translation services, no internal dependencies)
-5. `@have/ocr` (OCR providers, no internal dependencies)
-6. `@have/pdf` (PDF processing, depends on ocr)
-7. `@have/spider` (web crawling, no internal dependencies)
-8. `@have/documents` (document processing, depends on pdf, spider, ocr)
+1. `@have/cache` (caching utilities, no internal dependencies)
+2. `@have/geo` (geographic utilities, no internal dependencies)
+3. `@have/translator` (translation services, no internal dependencies)
+4. `@have/ocr` (OCR providers, no internal dependencies)
+5. `@have/pdf` (PDF processing, depends on ocr)
+6. `@have/spider` (web crawling, no internal dependencies)
+7. `@have/documents` (document processing, depends on pdf, spider, ocr)
 
 ### TypeScript Project References
 
@@ -105,7 +103,6 @@ Each package must have:
     { "path": "./packages/ai" },
 
     // Infrastructure packages
-    { "path": "./packages/config" },
     { "path": "./packages/cache" },
     { "path": "./packages/geo" },
     { "path": "./packages/translator" },
@@ -190,7 +187,6 @@ Core foundation packages have minimal dependencies:
 
 SDK infrastructure packages have these dependency relationships:
 
-- `config`: No internal dependencies
 - `cache`: No internal dependencies
 - `geo`: Depends on `utils`
 - `translator`: No internal dependencies
