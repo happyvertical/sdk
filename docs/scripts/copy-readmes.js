@@ -22,7 +22,6 @@ const packagesDir = join(repoRoot, 'packages');
 const packages = [
   'ai',
   'cache',
-  'config',
   'documents',
   'files',
   'geo',
