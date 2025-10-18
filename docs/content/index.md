@@ -60,6 +60,29 @@ await cache.set('session:abc', sessionData, 3600); // Expires in 1 hour
 
 ---
 
+## @have/config
+
+Centralized configuration management for SMRT modules with support for multiple configuration sources.
+
+```typescript
+import { loadConfig } from '@have/config';
+
+// Auto-discover configuration
+const config = await loadConfig('myapp');
+
+// Config will be loaded from (in order of precedence):
+// - package.json "myapp" property
+// - .myapprc (JSON or YAML)
+// - myapp.config.js
+// - myapp.config.ts
+
+console.log(config);
+```
+
+[Full documentation →](/config)
+
+---
+
 ## @have/documents
 
 Multi-part document processing with support for PDF, HTML, and Markdown formats.
