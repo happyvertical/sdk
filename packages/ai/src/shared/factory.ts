@@ -120,7 +120,7 @@ function isClaudeCliOptions(
  */
 export async function getAI(options: GetAIOptions = {}): Promise<AIInterface> {
   // Load environment variables with user options taking precedence
-  const config = loadEnvConfig(options as Record<string, any>, {
+  options = loadEnvConfig(options as Record<string, any>, {
     packageName: 'ai',
     schema: {
       provider: 'string',
@@ -135,38 +135,38 @@ export async function getAI(options: GetAIOptions = {}): Promise<AIInterface> {
   }) as GetAIOptions;
 
   // Normalize 'provider' field to 'type' for consistency
-  if ('provider' in config && !config.type) {
-    (config as any).type = (config as any).provider;
+  if ('provider' in options && !options.type) {
+    (options as any).type = (options as any).provider;
   }
 
-  if (isOpenAIOptions(config)) {
+  if (isOpenAIOptions(options)) {
     const { OpenAIProvider } = await import('./providers/openai.js');
-    return new OpenAIProvider(config);
+    return new OpenAIProvider(options);
   }
 
-  if (isGeminiOptions(config)) {
+  if (isGeminiOptions(options)) {
     const { GeminiProvider } = await import('./providers/gemini.js');
-    return new GeminiProvider(config);
+    return new GeminiProvider(options);
   }
 
-  if (isAnthropicOptions(config)) {
+  if (isAnthropicOptions(options)) {
     const { AnthropicProvider } = await import('./providers/anthropic.js');
-    return new AnthropicProvider(config);
+    return new AnthropicProvider(options);
   }
 
-  if (isHuggingFaceOptions(config)) {
+  if (isHuggingFaceOptions(options)) {
     const { HuggingFaceProvider } = await import('./providers/huggingface.js');
-    return new HuggingFaceProvider(config);
+    return new HuggingFaceProvider(options);
   }
 
-  if (isBedrockOptions(config)) {
+  if (isBedrockOptions(options)) {
     const { BedrockProvider } = await import('./providers/bedrock.js');
-    return new BedrockProvider(config);
+    return new BedrockProvider(options);
   }
 
-  if (isClaudeCliOptions(config)) {
+  if (isClaudeCliOptions(options)) {
     const { ClaudeCliProvider } = await import('./providers/claude-cli.js');
-    return new ClaudeCliProvider(config);
+    return new ClaudeCliProvider(options);
   }
 
   throw new ValidationError('Unsupported AI provider type', {
@@ -178,7 +178,7 @@ export async function getAI(options: GetAIOptions = {}): Promise<AIInterface> {
       'bedrock',
       'claude-cli',
     ],
-    providedType: (config as any).type,
+    providedType: (options as any).type,
   });
 }
 
