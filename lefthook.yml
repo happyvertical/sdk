@@ -25,7 +25,7 @@ pre-push:
         - merge
         - rebase
     format:
-      run: pnpm biome check .
+      run: pnpm biome format --check .
       skip:
         - merge
         - rebase
