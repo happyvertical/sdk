@@ -30,7 +30,7 @@ The package is structured with clear separation of concerns:
 
 2. **Provider Implementations** (`shared/providers/`)
    - Each provider implements the `AIInterface` interface
-   - Located in: `openai.ts`, `anthropic.ts`, `gemini.ts`, `huggingface.ts`, `bedrock.ts`
+   - Located in: `openai.ts`, `anthropic.ts`, `gemini.ts`, `huggingface.ts`, `bedrock.ts`, `claude-cli.ts`
    - All providers handle error mapping to standardized error types
    - Streaming support via async generators
 
@@ -128,6 +128,14 @@ const bedrockClient = await getAI({
     sessionToken: process.env.AWS_SESSION_TOKEN // optional
   },
   defaultModel: 'anthropic.claude-3-sonnet-20240229-v1:0'
+});
+
+// Create a Claude CLI client (uses Claude Max subscription)
+const claudeCliClient = await getAI({
+  type: 'claude-cli',
+  defaultModel: 'sonnet',
+  // Optional: specify custom CLI path
+  cliPath: '/custom/path/to/claude'
 });
 
 // Auto-detect provider from credentials
@@ -1042,6 +1050,16 @@ bun run clean
 - **Inference Endpoints**: Dedicated endpoints for production use
 - **Community Models**: Access to community-contributed models
 
+### Claude CLI
+- **Unique Architecture**: Shells out to Claude Code CLI instead of using API
+- **Zero Additional Cost**: Leverages Claude Max subscription
+- **Simple Authentication**: Uses existing Claude session or setup-token
+- **CLI Requirements**: Requires Claude Code CLI to be installed
+- **Installation**: Visit https://docs.claude.com/en/docs/claude-code/
+- **Supported Models**: sonnet, opus, haiku (short names) or full model IDs
+- **Output Parsing**: JSON and stream-json formats
+- **Error Handling**: Maps CLI exit codes and stderr to standard errors
+
 ## API Documentation
 
 The @have/ai package generates comprehensive API documentation in both HTML and markdown formats using TypeDoc:
@@ -1118,6 +1136,48 @@ Since AI provider SDKs change rapidly with new models and features, always check
 - **JavaScript Client**: https://huggingface.co/docs/huggingface.js/
 - **Model Hub**: https://huggingface.co/models
 - **NPM Package**: https://www.npmjs.com/package/@huggingface/inference
+
+### Claude CLI Provider
+The `claude-cli` provider is a unique implementation that shells out to the Claude Code CLI instead of using API keys. This enables users with Claude Max subscriptions to use their subscription for AI operations instead of paying separately for API usage.
+
+**Key Implementation Details:**
+- **No External SDK Required**: Uses Node.js built-in `child_process` module to execute CLI commands
+- **CLI Detection**: Automatically finds `claude` binary in PATH or uses custom `cliPath` option
+- **Authentication**: Uses existing Claude session (local) or `setup-token` for CI/CD
+- **Output Formats**:
+  - Chat/Complete: `--print --output-format json`
+  - Streaming: `--print --output-format stream-json`
+- **Error Mapping**: Parses stderr to map CLI errors to standard AIError types
+- **Model Mapping**: Supports short names (sonnet, opus, haiku) and full model IDs
+- **Limitations**: No embeddings, no function calling (CLI limitations)
+
+**CLI Command Pattern:**
+```bash
+claude --print --output-format json --model sonnet "your prompt here"
+claude --print --output-format stream-json --model sonnet --system-prompt "system" "prompt"
+```
+
+**Authentication Setup:**
+- **Local Development**: Uses existing Claude Code session (already logged in)
+- **CI/CD Workflows**: Use `claude setup-token` to create long-lived authentication token
+  - Store token in GitHub Secrets or equivalent
+  - CLI automatically uses token when available
+
+**Use Cases:**
+- Local development without API key management
+- Personal projects using Claude Max subscription
+- CI/CD workflows for automated content generation
+- Cost savings by leveraging existing Max subscription
+
+**File Location**: `packages/ai/src/shared/providers/claude-cli.ts`
+
+**Provider Options:**
+```typescript
+interface ClaudeCliOptions extends BaseAIOptions {
+  type: 'claude-cli';
+  cliPath?: string; // Optional custom path to claude binary
+}
+```
 
 ## Expert Agent Instructions
 

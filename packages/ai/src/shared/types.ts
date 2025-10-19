@@ -520,6 +520,19 @@ export interface BedrockOptions extends BaseAIOptions {
 }
 
 /**
+ * Claude CLI provider options
+ * Uses the local Claude Code CLI instead of API keys
+ */
+export interface ClaudeCliOptions extends BaseAIOptions {
+  type: 'claude-cli';
+  /**
+   * Optional custom path to claude binary
+   * If not specified, will search in PATH
+   */
+  cliPath?: string;
+}
+
+/**
  * Union type for all provider options
  */
 export type GetAIOptions =
@@ -527,7 +540,8 @@ export type GetAIOptions =
   | GeminiOptions
   | AnthropicOptions
   | HuggingFaceOptions
-  | BedrockOptions;
+  | BedrockOptions
+  | ClaudeCliOptions;
 
 /**
  * Error types for AI operations

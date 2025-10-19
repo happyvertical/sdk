@@ -17,7 +17,7 @@ The `@have/ai` package provides a unified interface for interacting with various
 
 ## Features
 
-- **Multi-Provider Support**: OpenAI, Anthropic, Google Gemini, AWS Bedrock, and Hugging Face
+- **Multi-Provider Support**: OpenAI, Anthropic, Google Gemini, AWS Bedrock, Hugging Face, and Claude CLI
 - **Unified Interface**: Consistent API across all providers
 - **Type-Safe**: Full TypeScript support with comprehensive type definitions
 - **Streaming Responses**: Real-time content streaming for all providers
@@ -26,6 +26,7 @@ The `@have/ai` package provides a unified interface for interacting with various
 - **Auto-Detection**: Automatically detect provider from credentials
 - **Embeddings**: Text embeddings support (OpenAI and other embedding providers)
 - **Model Information**: Query available models and capabilities
+- **Claude Max Integration**: Use Claude CLI to leverage Max subscription instead of API billing
 
 ## Installation
 
@@ -98,6 +99,13 @@ const bedrock = await getAI({
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!
   },
   defaultModel: 'anthropic.claude-3-sonnet-20240229-v1:0'
+});
+
+// Claude CLI (uses Claude Max subscription)
+const claudeCli = await getAI({
+  type: 'claude-cli',
+  defaultModel: 'sonnet' // or 'opus', 'haiku'
+  // No API key needed - uses existing Claude session
 });
 ```
 
@@ -226,6 +234,42 @@ console.log('Available models:', models.map(m => m.id));
 - **Features**: Custom models, specialized use cases
 - **Strengths**: Model variety, community ecosystem
 
+### Claude CLI
+- **Models**: Claude Sonnet, Opus, Haiku (via CLI short names)
+- **Features**: Chat, completions, streaming (no embeddings or function calling)
+- **Strengths**: Zero cost (uses Claude Max subscription), no API key management
+- **Authentication**:
+  - **Local**: Uses existing Claude Code session (no setup needed)
+  - **CI/CD**: Use `claude setup-token` to create long-lived token for GitHub Actions
+
+```typescript
+// Local development (uses Claude Max session)
+const client = await getAI({
+  type: 'claude-cli',
+  defaultModel: 'sonnet'
+});
+
+// With custom CLI path
+const client = await getAI({
+  type: 'claude-cli',
+  cliPath: '/custom/path/to/claude'
+});
+
+// Chat example
+const response = await client.chat([
+  { role: 'user', content: 'Explain TypeScript generics' }
+]);
+
+// Streaming example
+for await (const chunk of client.stream([
+  { role: 'user', content: 'Write a story about AI' }
+])) {
+  process.stdout.write(chunk);
+}
+```
+
+**Note**: Requires Claude Code CLI to be installed. Visit [Claude Code documentation](https://docs.claude.com/en/docs/claude-code/) for installation instructions.
+
 ## Environment Variable Configuration
 
 The `@have/ai` package supports configuration via environment variables using the `HAVE_AI_*` prefix pattern:
@@ -242,7 +286,7 @@ HAVE_AI_BASE_URL=https://custom.proxy.com/v1
 
 ### Supported Environment Variables
 
-- `HAVE_AI_PROVIDER` or `HAVE_AI_TYPE` → Provider type ('openai', 'anthropic', 'gemini', 'huggingface', 'bedrock')
+- `HAVE_AI_PROVIDER` or `HAVE_AI_TYPE` → Provider type ('openai', 'anthropic', 'gemini', 'huggingface', 'bedrock', 'claude-cli')
 - `HAVE_AI_MODEL` or `HAVE_AI_DEFAULT_MODEL` → Default model name
 - `HAVE_AI_TIMEOUT` → Request timeout in milliseconds (number)
 - `HAVE_AI_MAX_RETRIES` → Maximum retry attempts (number)
