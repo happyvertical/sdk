@@ -15,9 +15,9 @@ import { promisify } from 'node:util';
 import { gunzip, gzip } from 'node:zlib';
 import type {
   CacheEntry,
+  CacheProvider,
   CacheStats,
   FileOptions,
-  CacheProvider,
 } from '../shared/types';
 import {
   CacheError,

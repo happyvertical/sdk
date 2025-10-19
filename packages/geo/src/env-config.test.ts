@@ -2,7 +2,7 @@
  * Tests for environment variable configuration loading
  */
 
-import { describe, expect, it, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getGeoAdapter } from './index';
 import type { GeoAdapter } from './shared/types';
 

@@ -9,11 +9,11 @@ import {
   validateTableName,
 } from './shared/alter-utils';
 import type {
+  QueryResult as BaseQueryResult,
   ColumnDefinition,
   ColumnDefinitionWithName,
   DatabaseInterface,
   IndexDefinition,
-  QueryResult as BaseQueryResult,
   SchemaInitializationOptions,
   TableInterface,
   TableSchemaInfo,
@@ -76,7 +76,7 @@ export interface PostgresOptions {
  */
 export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
   // Load HAVE_SQL_* environment variables first
-  let config = loadEnvConfig(options, {
+  const config = loadEnvConfig(options, {
     packageName: 'sql',
     schema: {
       url: 'string',
