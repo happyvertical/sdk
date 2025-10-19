@@ -10,9 +10,9 @@ import { Configuration, PlaywrightCrawler } from 'crawlee';
 import type {
   CrawleeAdapterOptions,
   FetchOptions,
-  SpiderAdapter,
   Link,
   Page,
+  SpiderAdapter,
 } from '../shared/types';
 
 /**

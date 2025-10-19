@@ -6,6 +6,7 @@
  * and environment detection.
  */
 
+import { loadEnvConfig } from '@have/utils';
 import type {
   OCREnvironment,
   OCRFactoryOptions,
@@ -15,9 +16,7 @@ import type {
   OCRProviderInfo,
   OCRResult,
 } from './types';
-
 import { OCRDependencyError, OCRError } from './types';
-import { loadEnvConfig } from '@have/utils';
 
 /**
  * Detect the current runtime environment (Node.js, browser, or unknown).

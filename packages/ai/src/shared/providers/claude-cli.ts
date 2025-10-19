@@ -7,9 +7,8 @@
  * Authentication is handled via existing Claude session or setup-token.
  */
 
-import { spawn } from 'node:child_process';
+import { exec, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { exec } from 'node:child_process';
 
 import type {
   AICapabilities,

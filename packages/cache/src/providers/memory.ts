@@ -4,8 +4,8 @@
 
 import type {
   CacheEntry,
-  CacheStats,
   CacheProvider,
+  CacheStats,
   MemoryOptions,
 } from '../shared/types';
 import { CacheKeyError, CacheSizeError } from '../shared/types';

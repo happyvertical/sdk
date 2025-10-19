@@ -3,7 +3,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
-import { OCRFactory, getOCR, resetOCRFactory } from './factory';
+import { getOCR, OCRFactory, resetOCRFactory } from './factory';
 
 describe('OCRFactory environment variable configuration', () => {
   // Store original env vars

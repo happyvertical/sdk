@@ -2,11 +2,11 @@ import type { CacheAdapter } from '@have/cache';
 import { getCache } from '@have/cache';
 import { Configuration, PlaywrightCrawler } from 'crawlee';
 import type {
-  Scraper,
   Link,
   ScrapeMetrics,
   ScrapeOptions,
   ScrapeResult,
+  Scraper,
   ScraperStrategy,
   ScraperType,
   TreeScraperOptions,

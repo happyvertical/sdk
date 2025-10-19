@@ -103,9 +103,7 @@ function convertType(value, type) {
     case "number": {
       const num = Number(value);
       if (Number.isNaN(num)) {
-        throw new Error(
-          `Cannot convert "${value}" to number: result is NaN`
-        );
+        throw new Error(`Cannot convert "${value}" to number: result is NaN`);
       }
       return num;
     }

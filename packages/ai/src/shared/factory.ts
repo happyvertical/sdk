@@ -3,7 +3,7 @@
  * Works in both browser and Node.js environments
  */
 
-import { ValidationError, loadEnvConfig } from '@have/utils';
+import { loadEnvConfig, ValidationError } from '@have/utils';
 
 import type {
   AIInterface,

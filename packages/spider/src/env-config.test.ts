@@ -1,7 +1,7 @@
 /**
  * Tests for environment variable configuration in spider package
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getSpider } from './shared/factory';
 
 describe('Spider Environment Variable Configuration', () => {
