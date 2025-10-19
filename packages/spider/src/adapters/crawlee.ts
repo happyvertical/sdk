@@ -1,13 +1,18 @@
 import type { CacheAdapter } from '@have/cache';
 import { getCache } from '@have/cache';
-import { isUrl, NetworkError, ValidationError } from '@have/utils';
+import {
+  isUrl,
+  loadEnvConfig,
+  NetworkError,
+  ValidationError,
+} from '@have/utils';
 import { Configuration, PlaywrightCrawler } from 'crawlee';
 import type {
   CrawleeAdapterOptions,
   FetchOptions,
-  SpiderAdapter,
   Link,
   Page,
+  SpiderAdapter,
 } from '../shared/types';
 
 /**
@@ -157,12 +162,26 @@ export class CrawleeAdapter implements SpiderAdapter {
    * Fetches a web page using headless browser and returns a standardized Page object
    */
   async fetch(url: string, options?: FetchOptions): Promise<Page> {
+    // Load configuration from environment variables and merge with user options
+    const config = loadEnvConfig<FetchOptions>(options || {}, {
+      packageName: 'spider',
+      schema: {
+        timeout: 'number',
+        maxRequests: 'number',
+        userAgent: 'string',
+      },
+    });
+
     const {
       headers = {},
       timeout = 30000,
       cache = true,
       cacheExpiry = 300000, // 5 minutes default
-    } = options || {};
+      userAgent: envUserAgent,
+    } = config;
+
+    // Prefer user-provided userAgent from constructor, fallback to env var
+    const effectiveUserAgent = this.userAgent || envUserAgent;
 
     // Validate URL
     if (!url || typeof url !== 'string') {
@@ -212,9 +231,9 @@ export class CrawleeAdapter implements SpiderAdapter {
           preNavigationHooks: [
             async ({ page }) => {
               // Set custom user agent if provided
-              if (this.userAgent) {
+              if (effectiveUserAgent) {
                 await page.setExtraHTTPHeaders({
-                  'User-Agent': this.userAgent,
+                  'User-Agent': effectiveUserAgent,
                 });
               }
 

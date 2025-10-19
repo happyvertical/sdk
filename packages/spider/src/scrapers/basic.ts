@@ -1,13 +1,13 @@
 import { getSpider } from '../shared/factory';
 import type {
   BasicScraperOptions,
-  Scraper,
-  SpiderAdapter,
   ScrapeMetrics,
   ScrapeOptions,
   ScrapeResult,
+  Scraper,
   ScraperStrategy,
   ScraperType,
+  SpiderAdapter,
 } from '../shared/types';
 
 /**

@@ -467,7 +467,7 @@ export interface BaseAIOptions {
  */
 export interface OpenAIOptions extends BaseAIOptions {
   type?: 'openai';
-  apiKey: string;
+  apiKey?: string;
   baseUrl?: string;
   organization?: string;
 }
@@ -477,7 +477,7 @@ export interface OpenAIOptions extends BaseAIOptions {
  */
 export interface GeminiOptions extends BaseAIOptions {
   type: 'gemini';
-  apiKey: string;
+  apiKey?: string;
   baseUrl?: string;
   projectId?: string;
   location?: string;
@@ -488,7 +488,7 @@ export interface GeminiOptions extends BaseAIOptions {
  */
 export interface AnthropicOptions extends BaseAIOptions {
   type: 'anthropic';
-  apiKey: string;
+  apiKey?: string;
   baseUrl?: string;
   anthropicVersion?: string;
 }
@@ -498,7 +498,7 @@ export interface AnthropicOptions extends BaseAIOptions {
  */
 export interface HuggingFaceOptions extends BaseAIOptions {
   type: 'huggingface';
-  apiToken: string;
+  apiToken?: string;
   endpoint?: string;
   model?: string;
   useCache?: boolean;
@@ -510,7 +510,7 @@ export interface HuggingFaceOptions extends BaseAIOptions {
  */
 export interface BedrockOptions extends BaseAIOptions {
   type: 'bedrock';
-  region: string;
+  region?: string;
   credentials?: {
     accessKeyId: string;
     secretAccessKey: string;

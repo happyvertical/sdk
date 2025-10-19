@@ -1,3 +1,4 @@
+import { loadEnvConfig } from "@have/utils";
 const VALID_OPERATORS = {
   "=": "=",
   ">": ">",
@@ -305,24 +306,36 @@ async function getDatabase(options = {}) {
   if (isDatabaseInstance(options)) {
     return options;
   }
-  if (!options.type && (options.url?.startsWith("file:") || options.url === ":memory:")) {
-    options.type = "sqlite";
+  const config = loadEnvConfig(options, {
+    packageName: "sql",
+    schema: {
+      type: "string",
+      url: "string",
+      host: "string",
+      port: "number",
+      database: "string",
+      user: "string",
+      password: "string"
+    }
+  });
+  if (!config.type && (config.url?.startsWith("file:") || config.url === ":memory:")) {
+    config.type = "sqlite";
   }
-  if (options.type === "postgres") {
-    const postgres = await import("./chunks/postgres-C0u-_n6D.js");
-    return postgres.getDatabase(options);
+  if (config.type === "postgres") {
+    const postgres = await import("./chunks/postgres-VQwiPP8D.js");
+    return postgres.getDatabase(config);
   }
-  if (options.type === "sqlite") {
+  if (config.type === "sqlite") {
     const sqlite = await import("./chunks/sqlite-DDGMi05V.js");
-    return sqlite.getDatabase(options);
+    return sqlite.getDatabase(config);
   }
-  if (options.type === "duckdb") {
+  if (config.type === "duckdb") {
     const duckdb = await import("./chunks/duckdb-BCe5YUsE.js");
-    return duckdb.getDatabase(options);
+    return duckdb.getDatabase(config);
   }
-  if (options.type === "json") {
+  if (config.type === "json") {
     const json = await import("./chunks/json-BLreH1KJ.js");
-    return json.getDatabase(options);
+    return json.getDatabase(config);
   }
   throw new Error("Invalid database type");
 }

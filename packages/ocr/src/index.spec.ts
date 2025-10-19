@@ -7,8 +7,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, test } from 'vitest';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const Filename = fileURLToPath(import.meta.url);
+const Dirname = dirname(Filename);
 
 import type { OCRImage } from './index';
 import {
@@ -79,7 +79,7 @@ describe('@have/ocr', () => {
     }
 
     // Read the test image
-    const testImagePath = join(__dirname, '../test/test.png');
+    const testImagePath = join(Dirname, '../test/test.png');
     const imageBuffer = await readFile(testImagePath);
 
     // Create OCR image
@@ -160,7 +160,7 @@ describe('@have/ocr', () => {
     }
 
     // Read the test image
-    const testImagePath = join(__dirname, '../test/test.png');
+    const testImagePath = join(Dirname, '../test/test.png');
     const imageBuffer = await readFile(testImagePath);
 
     // Create OCR image
@@ -241,7 +241,7 @@ describe('@have/ocr', () => {
     }
 
     // Read the test image
-    const testImagePath = join(__dirname, '../test/test.png');
+    const testImagePath = join(Dirname, '../test/test.png');
     const imageBuffer = await readFile(testImagePath);
 
     // Create OCR image

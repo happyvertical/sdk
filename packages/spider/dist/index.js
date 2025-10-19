@@ -245,15 +245,15 @@ function isCrawleeOptions(options) {
 }
 async function getSpider(options) {
   if (isSimpleOptions(options)) {
-    const { SimpleAdapter } = await import("./chunks/simple-CJl6QFjv.js");
+    const { SimpleAdapter } = await import("./chunks/simple-Db2j4w2d.js");
     return new SimpleAdapter(options);
   }
   if (isDomOptions(options)) {
-    const { DomAdapter } = await import("./chunks/dom-CTb3N55z.js");
+    const { DomAdapter } = await import("./chunks/dom-D_HcGpTa.js");
     return new DomAdapter(options);
   }
   if (isCrawleeOptions(options)) {
-    const { CrawleeAdapter } = await import("./chunks/crawlee-CgrsOEr_.js");
+    const { CrawleeAdapter } = await import("./chunks/crawlee-BVsFe_ze.js");
     return new CrawleeAdapter(options);
   }
   throw new Error(`Unsupported adapter: ${options.adapter}`);

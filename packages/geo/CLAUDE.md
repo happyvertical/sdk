@@ -73,7 +73,7 @@ private handleError(error: unknown): GeoError {
 ```typescript
 import { getGeoAdapter } from '@have/geo';
 
-// Create Google Maps adapter
+// Create Google Maps adapter with explicit options
 const googleGeo = await getGeoAdapter({
   provider: 'google',
   apiKey: process.env.GOOGLE_MAPS_API_KEY!,
@@ -81,13 +81,65 @@ const googleGeo = await getGeoAdapter({
   maxResults: 10
 });
 
-// Create OpenStreetMap adapter
+// Create OpenStreetMap adapter with explicit options
 const osmGeo = await getGeoAdapter({
   provider: 'openstreetmap',
   rateLimitDelay: 1000,
   userAgent: 'MyApp/1.0',
   timeout: 10000,
   maxResults: 10
+});
+
+// Create adapter using environment variables
+// HAVE_GEO_PROVIDER=google
+// GOOGLE_MAPS_API_KEY=your-api-key
+const geoFromEnv = await getGeoAdapter();
+
+// Mix environment variables with explicit options
+// (explicit options take precedence)
+const mixed = await getGeoAdapter({
+  maxResults: 20  // Overrides HAVE_GEO_MAX_RESULTS if set
+});
+```
+
+### Environment Variable Configuration
+
+The package supports configuration via environment variables using the `loadEnvConfig()` utility from `@have/utils`. This enables zero-configuration setup when environment variables are properly configured.
+
+**Supported Environment Variables:**
+
+| Variable | Type | Description | Example |
+|----------|------|-------------|---------|
+| `HAVE_GEO_PROVIDER` | string | Provider to use | `google` or `openstreetmap` |
+| `GOOGLE_MAPS_API_KEY` | string | Google Maps API key | `AIza...` |
+| `HAVE_GEO_TIMEOUT` | number | Request timeout (ms) | `15000` |
+| `HAVE_GEO_MAX_RESULTS` | number | Max results to return | `5` |
+| `HAVE_GEO_RATE_LIMIT_DELAY` | number | OSM rate limit delay (ms) | `2000` |
+| `HAVE_GEO_USER_AGENT` | string | Custom User-Agent for OSM | `MyApp/1.0` |
+
+**Configuration Precedence:**
+
+1. User-provided options (highest priority)
+2. Environment variables
+3. Default values (lowest priority)
+
+**Example Usage:**
+
+```bash
+# .env file
+HAVE_GEO_PROVIDER=google
+GOOGLE_MAPS_API_KEY=your-api-key
+HAVE_GEO_TIMEOUT=20000
+HAVE_GEO_MAX_RESULTS=10
+```
+
+```typescript
+// No options needed - uses environment variables
+const adapter = await getGeoAdapter();
+
+// Override specific values
+const customAdapter = await getGeoAdapter({
+  timeout: 30000  // Overrides HAVE_GEO_TIMEOUT
 });
 ```
 

@@ -7,9 +7,9 @@ import type { DatabaseInterface } from './shared/types';
 describe('DuckDB Adapter', () => {
   let db: DatabaseInterface;
   // Get the directory of this test file, then go to ../test/fixtures/data
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = dirname(__filename);
-  const testDataDir = join(__dirname, '..', 'test', 'fixtures', 'data');
+  const Filename = fileURLToPath(import.meta.url);
+  const Dirname = dirname(Filename);
+  const testDataDir = join(Dirname, '..', 'test', 'fixtures', 'data');
 
   beforeEach(async () => {
     // Create in-memory DuckDB instance with test fixtures

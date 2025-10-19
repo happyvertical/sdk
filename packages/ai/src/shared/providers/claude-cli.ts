@@ -7,9 +7,8 @@
  * Authentication is handled via existing Claude session or setup-token.
  */
 
-import { spawn } from 'node:child_process';
+import { exec, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { exec } from 'node:child_process';
 
 import type {
   AICapabilities,
@@ -199,7 +198,7 @@ export class ClaudeCliProvider implements AIInterface {
           // Parse JSON output
           const result = JSON.parse(stdout);
           resolve(result);
-        } catch (error) {
+        } catch (_error) {
           reject(
             new AIError(
               'Failed to parse CLI output as JSON',

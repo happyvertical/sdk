@@ -146,6 +146,91 @@ const autoClient = await getAIAuto({
 });
 ```
 
+### Environment Variable Configuration
+
+The `@have/ai` package supports configuration via environment variables using the `HAVE_AI_*` prefix pattern. This allows you to configure AI providers without hardcoding credentials or settings in your code.
+
+**Supported Environment Variables:**
+
+- `HAVE_AI_PROVIDER` or `HAVE_AI_TYPE` → Provider type (string: 'openai', 'anthropic', 'gemini', 'claude-cli', etc.)
+- `HAVE_AI_MODEL` or `HAVE_AI_DEFAULT_MODEL` → Default model name (string)
+- `HAVE_AI_TIMEOUT` → Request timeout in milliseconds (number)
+- `HAVE_AI_MAX_RETRIES` → Maximum number of retries (number)
+- `HAVE_AI_API_KEY` → API key fallback (string) - used if provider-specific key not set
+- `HAVE_AI_BASE_URL` → Custom base URL for API requests (string)
+
+**Provider-Specific Environment Variables:**
+
+In addition to `HAVE_AI_*` variables, the package also checks provider-specific environment variables:
+
+- `OPENAI_API_KEY` → OpenAI API key
+- `ANTHROPIC_API_KEY` → Anthropic API key
+- `GEMINI_API_KEY` or `GOOGLE_API_KEY` → Google Gemini API key
+- `HF_TOKEN` → Hugging Face API token
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` → AWS Bedrock credentials
+
+**Precedence Order:**
+
+User-provided options always take precedence over environment variables:
+1. **Explicit options** passed to `getAI()` (highest priority)
+2. **HAVE_AI_* environment variables**
+3. **Provider-specific environment variables** (lowest priority)
+
+**Examples:**
+
+```typescript
+import { getAI, getAIAuto } from '@have/ai';
+
+// Example 1: Use environment variables only
+// Set: HAVE_AI_PROVIDER=claude-cli, HAVE_AI_MODEL=sonnet
+const client1 = await getAI({});
+// Creates ClaudeCliProvider with model 'sonnet'
+
+// Example 2: Mix env vars and options (options take precedence)
+// Set: HAVE_AI_PROVIDER=openai, HAVE_AI_MODEL=gpt-3.5-turbo
+const client2 = await getAI({
+  type: 'claude-cli', // Overrides HAVE_AI_PROVIDER
+  defaultModel: 'opus' // Overrides HAVE_AI_MODEL
+});
+// Creates ClaudeCliProvider with model 'opus'
+
+// Example 3: Configure timeout and retries via env vars
+// Set: HAVE_AI_TYPE=openai, HAVE_AI_API_KEY=sk-..., HAVE_AI_TIMEOUT=60000, HAVE_AI_MAX_RETRIES=5
+const client3 = await getAI({});
+// Creates OpenAIProvider with 60s timeout and 5 max retries
+
+// Example 4: Use HAVE_AI_API_KEY as fallback
+// Set: HAVE_AI_PROVIDER=openai, HAVE_AI_API_KEY=sk-...
+const client4 = await getAI({});
+// Creates OpenAIProvider using HAVE_AI_API_KEY (no OPENAI_API_KEY needed)
+
+// Example 5: Provider-specific keys still work
+// Set: OPENAI_API_KEY=sk-...
+const client5 = await getAIAuto({});
+// Auto-detects OpenAI from OPENAI_API_KEY
+
+// Example 6: Custom base URL for proxies
+// Set: HAVE_AI_TYPE=openai, HAVE_AI_API_KEY=sk-..., HAVE_AI_BASE_URL=https://my-proxy.com/v1
+const client6 = await getAI({});
+// Creates OpenAIProvider pointing to custom proxy
+```
+
+**Use Cases:**
+
+1. **Development**: Set provider and model in `.env` file for local development
+2. **CI/CD**: Configure providers via environment variables in GitHub Actions or other CI systems
+3. **Container Deployments**: Inject configuration via Docker environment variables
+4. **Multi-Environment**: Different providers for dev/staging/production using env vars
+5. **API Key Rotation**: Update keys without changing code
+
+**Best Practices:**
+
+- Use `.env` files with tools like `dotenv` for local development
+- Never commit `.env` files to version control
+- Use secrets management (GitHub Secrets, AWS Secrets Manager, etc.) in production
+- Validate environment variables are set before calling `getAI()` in production code
+- Use `HAVE_AI_API_KEY` as a general fallback to simplify multi-provider setups
+
 ### Chat Completions
 
 ```typescript

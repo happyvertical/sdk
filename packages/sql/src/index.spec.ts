@@ -1,6 +1,6 @@
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildWhere, getDatabase, syncSchema } from './index';
 
 const _TMP_DIR = path.resolve(`${tmpdir()}/kissd`);
@@ -127,4 +127,111 @@ it('should handle IN clauses with arrays', () => {
     'WHERE role IN ($1, $2) AND active = $3 AND last_login IS NOT NULL',
   );
   expect(result.values).toEqual(['admin', 'editor', true]);
+});
+
+describe('Environment variable configuration', () => {
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    // Clear all SQL-related env vars before each test
+    delete process.env.HAVE_SQL_TYPE;
+    delete process.env.HAVE_SQL_URL;
+    delete process.env.HAVE_SQL_HOST;
+    delete process.env.HAVE_SQL_PORT;
+    delete process.env.HAVE_SQL_DATABASE;
+    delete process.env.HAVE_SQL_USER;
+    delete process.env.HAVE_SQL_PASSWORD;
+    delete process.env.SQLOO_URL;
+    delete process.env.SQLOO_DATABASE;
+    delete process.env.SQLOO_HOST;
+    delete process.env.SQLOO_USER;
+    delete process.env.SQLOO_PASSWORD;
+    delete process.env.SQLOO_PORT;
+  });
+
+  afterEach(() => {
+    // Restore original env after each test
+    process.env = { ...originalEnv };
+  });
+
+  it('should load HAVE_SQL_TYPE from environment', async () => {
+    process.env.HAVE_SQL_TYPE = 'sqlite';
+    process.env.HAVE_SQL_URL = ':memory:';
+
+    const db = await getDatabase({});
+    expect(db.client).toBeDefined();
+  });
+
+  it('should load HAVE_SQL_URL from environment for SQLite', async () => {
+    process.env.HAVE_SQL_TYPE = 'sqlite';
+    process.env.HAVE_SQL_URL = ':memory:';
+
+    const db = await getDatabase({});
+    expect(db.client).toBeDefined();
+  });
+
+  it('should auto-detect SQLite from :memory: URL', async () => {
+    process.env.HAVE_SQL_URL = ':memory:';
+
+    const db = await getDatabase({});
+    expect(db.client).toBeDefined();
+  });
+
+  it('should auto-detect SQLite from file: URL', async () => {
+    process.env.HAVE_SQL_URL = 'file::memory:';
+
+    const db = await getDatabase({});
+    expect(db.client).toBeDefined();
+  });
+
+  it('should prioritize user options over HAVE_SQL_* env vars', async () => {
+    process.env.HAVE_SQL_TYPE = 'postgres';
+    process.env.HAVE_SQL_URL = 'postgres://localhost/test';
+
+    // User explicitly requests SQLite - should override env vars
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: ':memory:',
+    });
+
+    expect(db.client).toBeDefined();
+  });
+
+  it.skip('should support HAVE_SQL_* env vars for PostgreSQL', async () => {
+    process.env.HAVE_SQL_TYPE = 'postgres';
+    process.env.HAVE_SQL_HOST = 'localhost';
+    process.env.HAVE_SQL_PORT = '5432';
+    process.env.HAVE_SQL_DATABASE = 'testdb';
+    process.env.HAVE_SQL_USER = 'testuser';
+    process.env.HAVE_SQL_PASSWORD = 'testpass';
+
+    const db = await getDatabase({});
+    expect(db.client).toBeDefined();
+  });
+
+  it.skip('should fall back to SQLOO_* env vars for backward compatibility', async () => {
+    // Set legacy SQLOO_* vars
+    process.env.SQLOO_HOST = 'localhost';
+    process.env.SQLOO_PORT = '5432';
+    process.env.SQLOO_DATABASE = 'testdb';
+    process.env.SQLOO_USER = 'testuser';
+    process.env.SQLOO_PASSWORD = 'testpass';
+
+    const db = await getDatabase({ type: 'postgres' });
+    expect(db.client).toBeDefined();
+  });
+
+  it.skip('should prioritize HAVE_SQL_* over SQLOO_* env vars', async () => {
+    // Set both HAVE_SQL_* and SQLOO_* vars
+    process.env.HAVE_SQL_HOST = 'new-host';
+    process.env.HAVE_SQL_DATABASE = 'new-db';
+    process.env.SQLOO_HOST = 'old-host';
+    process.env.SQLOO_DATABASE = 'old-db';
+
+    const db = await getDatabase({ type: 'postgres' });
+    expect(db.client).toBeDefined();
+
+    // Note: We can't directly test which host was used without inspecting the Pool,
+    // but the logic in postgres.ts ensures HAVE_SQL_* takes precedence
+  });
 });

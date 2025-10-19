@@ -1,5 +1,5 @@
 import { getCache } from "@have/cache";
-import { getLogger, ValidationError, isUrl, NetworkError } from "@have/utils";
+import { getLogger, loadEnvConfig, ValidationError, isUrl, NetworkError } from "@have/utils";
 import * as cheerio from "cheerio";
 import { Window } from "happy-dom";
 import { request } from "undici";
@@ -71,13 +71,22 @@ class DomAdapter {
    * Fetches a web page and returns a standardized Page object
    */
   async fetch(url, options) {
+    const config = loadEnvConfig(options || {}, {
+      packageName: "spider",
+      schema: {
+        timeout: "number",
+        maxRequests: "number",
+        userAgent: "string"
+      }
+    });
     const {
       headers = {},
       timeout = 3e4,
       cache = true,
-      cacheExpiry = 3e5
+      cacheExpiry = 3e5,
       // 5 minutes default
-    } = options || {};
+      userAgent
+    } = config;
     if (!url || typeof url !== "string") {
       throw new ValidationError("URL is required and must be a string", {
         url
@@ -96,7 +105,7 @@ class DomAdapter {
     }
     try {
       const defaultHeaders = {
-        "User-Agent": "Mozilla/5.0 (compatible; HappyVertical Spider/2.0; +https://happyvertical.com/bot)",
+        "User-Agent": userAgent || "Mozilla/5.0 (compatible; HappyVertical Spider/2.0; +https://happyvertical.com/bot)",
         Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.5",
         // Note: undici automatically handles gzip/deflate/br decompression
@@ -156,4 +165,4 @@ class DomAdapter {
 export {
   DomAdapter
 };
-//# sourceMappingURL=dom-CTb3N55z.js.map
+//# sourceMappingURL=dom-D_HcGpTa.js.map

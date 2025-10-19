@@ -1,3 +1,4 @@
+import { loadEnvConfig } from "@have/utils";
 class CacheError extends Error {
   constructor(message, code, provider) {
     super(message);
@@ -97,19 +98,44 @@ function isRedisOptions(options) {
   return options.provider === "redis";
 }
 async function getCache(options) {
-  if (isMemoryOptions(options)) {
+  const config = loadEnvConfig(options, {
+    packageName: "cache",
+    schema: {
+      provider: "string",
+      namespace: "string",
+      defaultTTL: "number",
+      maxSize: "number",
+      maxEntries: "number",
+      evictionPolicy: "string",
+      checkPeriod: "number",
+      cacheDir: "string",
+      compression: "boolean",
+      fileExtension: "string",
+      host: "string",
+      port: "number",
+      password: "string",
+      db: "number",
+      keyPrefix: "string",
+      enableCompression: "boolean",
+      compressionThreshold: "number",
+      connectTimeout: "number",
+      commandTimeout: "number"
+    },
+    allowUnknown: false
+  });
+  if (isMemoryOptions(config)) {
     const { MemoryProvider } = await import("./chunks/memory-C6vfNZYg.js");
-    return new MemoryProvider(options);
+    return new MemoryProvider(config);
   }
-  if (isFileOptions(options)) {
+  if (isFileOptions(config)) {
     const { FileProvider } = await import("./chunks/file-DyC_7WDS.js");
-    return new FileProvider(options);
+    return new FileProvider(config);
   }
-  if (isRedisOptions(options)) {
+  if (isRedisOptions(config)) {
     const { RedisProvider } = await import("./chunks/redis-D-SNLXE_.js");
-    return new RedisProvider(options);
+    return new RedisProvider(config);
   }
-  throw new Error(`Unsupported provider: ${options.provider}`);
+  throw new Error(`Unsupported provider: ${config.provider}`);
 }
 export {
   CacheConnectionError,
