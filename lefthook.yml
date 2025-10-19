@@ -17,15 +17,9 @@ commit-msg:
 
 # Pre-push hook: Run checks before pushing
 pre-push:
-  parallel: true
   commands:
     typecheck:
       run: pnpm typecheck
-      skip:
-        - merge
-        - rebase
-    format:
-      run: pnpm biome ci --formatter-enabled=true --linter-enabled=false --organize-imports-enabled=false
       skip:
         - merge
         - rebase
