@@ -111,7 +111,6 @@ export function convertType(
           `Cannot parse "${value}" as JSON: ${error instanceof Error ? error.message : 'Unknown error'}`,
         );
       }
-    case 'string':
     default:
       return value;
   }
@@ -224,7 +223,7 @@ export function loadEnvConfig<T extends Record<string, any>>(
     // Apply transform function if provided
     if (transform[fieldName as keyof T]) {
       try {
-        config[fieldName] = transform[fieldName as keyof T]!(envValue);
+        config[fieldName] = transform[fieldName as keyof T]?.(envValue);
       } catch (error) {
         console.warn(
           `Failed to transform ${envVarName}="${envValue}":`,

@@ -23,7 +23,7 @@ export * from './shared/utils';
 /**
  * Type guard for Google Translate options
  */
-function isGoogleTranslateOptions(
+function _isGoogleTranslateOptions(
   options: TranslatorOptions,
 ): options is GoogleTranslateOptions {
   return options.provider === 'google';
@@ -32,14 +32,14 @@ function isGoogleTranslateOptions(
 /**
  * Type guard for DeepL options
  */
-function isDeepLOptions(options: TranslatorOptions): options is DeepLOptions {
+function _isDeepLOptions(options: TranslatorOptions): options is DeepLOptions {
   return options.provider === 'deepl';
 }
 
 /**
  * Type guard for LibreTranslate options
  */
-function isLibreTranslateOptions(
+function _isLibreTranslateOptions(
   options: TranslatorOptions,
 ): options is LibreTranslateOptions {
   return options.provider === 'libretranslate';
