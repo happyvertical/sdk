@@ -57,6 +57,14 @@ export declare class OCRFactory {
     /**
      * Create a new OCR factory instance.
      *
+     * Environment variables are loaded using the pattern HAVE_OCR_{FIELD}:
+     * - HAVE_OCR_PROVIDER → provider
+     * - HAVE_OCR_LANGUAGE → defaultOptions.language
+     * - HAVE_OCR_CONFIDENCE_THRESHOLD → defaultOptions.confidenceThreshold
+     * - HAVE_OCR_TIMEOUT → defaultOptions.timeout
+     *
+     * User-provided options always take precedence over environment variables.
+     *
      * @param options - Configuration options for the factory
      *
      * @example Auto-selection with defaults
@@ -74,6 +82,14 @@ export declare class OCRFactory {
      *     confidenceThreshold: 75
      *   }
      * });
+     * ```
+     *
+     * @example Using environment variables
+     * ```typescript
+     * // Set: HAVE_OCR_PROVIDER=onnx
+     * // Set: HAVE_OCR_LANGUAGE=eng+chi_sim
+     * // Set: HAVE_OCR_CONFIDENCE_THRESHOLD=85
+     * const factory = new OCRFactory(); // Uses env vars
      * ```
      */
     constructor(options?: OCRFactoryOptions);
@@ -351,6 +367,14 @@ export declare class OCRFactory {
  * options, it returns a global singleton for efficient resource usage.
  * When called with options, it creates a new instance with custom configuration.
  *
+ * Environment variables are loaded using the pattern HAVE_OCR_{FIELD}:
+ * - HAVE_OCR_PROVIDER → provider
+ * - HAVE_OCR_LANGUAGE → defaultOptions.language
+ * - HAVE_OCR_CONFIDENCE_THRESHOLD → defaultOptions.confidenceThreshold
+ * - HAVE_OCR_TIMEOUT → defaultOptions.timeout
+ *
+ * User-provided options always take precedence over environment variables.
+ *
  * @param options - Optional factory configuration. If provided, creates a new instance.
  * @returns OCR factory instance ready for use
  *
@@ -372,6 +396,14 @@ export declare class OCRFactory {
  *     confidenceThreshold: 80
  *   }
  * });
+ * ```
+ *
+ * @example Using environment variables
+ * ```typescript
+ * // Set: HAVE_OCR_PROVIDER=onnx
+ * // Set: HAVE_OCR_LANGUAGE=eng+chi_sim
+ * // Set: HAVE_OCR_CONFIDENCE_THRESHOLD=85
+ * const factory = getOCR(); // Uses env vars for defaults
  * ```
  *
  * @example Environment-specific usage

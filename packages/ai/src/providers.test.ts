@@ -285,3 +285,146 @@ describe('Error Mapping', () => {
     expect(mappedError.provider).toBe('huggingface');
   });
 });
+
+describe('Environment Variable Configuration', () => {
+  // Store original env vars to restore after tests
+  const originalEnv = { ...process.env };
+
+  afterEach(() => {
+    // Restore original environment variables
+    process.env = { ...originalEnv };
+  });
+
+  it('should load provider type from HAVE_AI_PROVIDER', async () => {
+    process.env.HAVE_AI_PROVIDER = 'claude-cli';
+    process.env.HAVE_AI_MODEL = 'sonnet';
+
+    const { getAI } = await import('./shared/factory');
+    const client = await getAI({});
+
+    expect(client).toBeInstanceOf(ClaudeCliProvider);
+  });
+
+  it('should load provider type from HAVE_AI_TYPE', async () => {
+    process.env.HAVE_AI_TYPE = 'claude-cli';
+
+    const { getAI } = await import('./shared/factory');
+    const client = await getAI({});
+
+    expect(client).toBeInstanceOf(ClaudeCliProvider);
+  });
+
+  it('should load timeout and maxRetries from env vars', async () => {
+    process.env.HAVE_AI_TYPE = 'openai';
+    process.env.HAVE_AI_API_KEY = 'test-key';
+    process.env.HAVE_AI_TIMEOUT = '60000';
+    process.env.HAVE_AI_MAX_RETRIES = '5';
+
+    const { getAI } = await import('./shared/factory');
+    const client = await getAI({});
+
+    expect(client).toBeInstanceOf(OpenAIProvider);
+    expect((client as any).options.timeout).toBe(60000);
+    expect((client as any).options.maxRetries).toBe(5);
+  });
+
+  it('should load model from HAVE_AI_MODEL', async () => {
+    process.env.HAVE_AI_TYPE = 'openai';
+    process.env.HAVE_AI_API_KEY = 'test-key';
+    process.env.HAVE_AI_MODEL = 'gpt-3.5-turbo';
+
+    const { getAI } = await import('./shared/factory');
+    const client = await getAI({});
+
+    expect(client).toBeInstanceOf(OpenAIProvider);
+    expect((client as any).options.defaultModel).toBe('gpt-3.5-turbo');
+  });
+
+  it('should load baseUrl from HAVE_AI_BASE_URL', async () => {
+    process.env.HAVE_AI_TYPE = 'openai';
+    process.env.HAVE_AI_API_KEY = 'test-key';
+    process.env.HAVE_AI_BASE_URL = 'https://custom.openai.proxy';
+
+    const { getAI } = await import('./shared/factory');
+    const client = await getAI({});
+
+    expect(client).toBeInstanceOf(OpenAIProvider);
+    expect((client as any).options.baseUrl).toBe('https://custom.openai.proxy');
+  });
+
+  it('should prioritize user options over env vars', async () => {
+    process.env.HAVE_AI_TYPE = 'openai';
+    process.env.HAVE_AI_MODEL = 'gpt-3.5-turbo';
+    process.env.HAVE_AI_TIMEOUT = '30000';
+
+    const { getAI } = await import('./shared/factory');
+    const client = await getAI({
+      type: 'claude-cli',
+      defaultModel: 'opus',
+      timeout: 90000,
+    });
+
+    expect(client).toBeInstanceOf(ClaudeCliProvider);
+    expect((client as any).options.defaultModel).toBe('opus');
+    expect((client as any).options.timeout).toBe(90000);
+  });
+
+  it('should support HAVE_AI_API_KEY as fallback', async () => {
+    process.env.HAVE_AI_TYPE = 'openai';
+    process.env.HAVE_AI_API_KEY = 'fallback-key';
+
+    const { getAI } = await import('./shared/factory');
+    const client = await getAI({});
+
+    expect(client).toBeInstanceOf(OpenAIProvider);
+    expect((client as any).options.apiKey).toBe('fallback-key');
+  });
+
+  it('should handle getAIAuto with HAVE_AI_PROVIDER', async () => {
+    process.env.HAVE_AI_PROVIDER = 'claude-cli';
+    process.env.HAVE_AI_MODEL = 'sonnet';
+
+    const { getAIAuto } = await import('./node/factory');
+    const client = await getAIAuto({});
+
+    expect(client).toBeInstanceOf(ClaudeCliProvider);
+  });
+
+  it('should handle numeric conversion correctly', async () => {
+    process.env.HAVE_AI_TYPE = 'openai';
+    process.env.HAVE_AI_API_KEY = 'test-key';
+    process.env.HAVE_AI_TIMEOUT = '45000';
+    process.env.HAVE_AI_MAX_RETRIES = '3';
+
+    const { getAI } = await import('./shared/factory');
+    const client = await getAI({});
+
+    expect((client as any).options.timeout).toBe(45000);
+    expect((client as any).options.timeout).not.toBe('45000');
+    expect((client as any).options.maxRetries).toBe(3);
+    expect((client as any).options.maxRetries).not.toBe('3');
+  });
+
+  it('should pass Issue #258 test case - claude-cli provider from env', async () => {
+    // This is the exact test case from Issue #258
+    process.env.HAVE_AI_PROVIDER = 'claude-cli';
+    process.env.HAVE_AI_MODEL = 'sonnet';
+
+    const { getAI } = await import('./shared/factory');
+    const ai = await getAI({}); // Should use claude-cli provider, not default to OpenAI
+
+    expect(ai).toBeInstanceOf(ClaudeCliProvider);
+    expect((ai as any).options.defaultModel).toBe('sonnet');
+  });
+
+  it('should work with empty object when env vars are set', async () => {
+    process.env.HAVE_AI_TYPE = 'claude-cli';
+    process.env.HAVE_AI_MODEL = 'opus';
+
+    const { getAI } = await import('./shared/factory');
+    const client = await getAI({});
+
+    expect(client).toBeInstanceOf(ClaudeCliProvider);
+    expect((client as any).options.defaultModel).toBe('opus');
+  });
+});

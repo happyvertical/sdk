@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   getAvailableProviders,
   getPDFReader,
@@ -70,5 +70,86 @@ describe('PDF Factory Tests', () => {
       maxFileSize: 50 * 1024 * 1024, // 50MB
     });
     expect(reader).toBeDefined();
+  });
+
+  describe('Environment Variable Configuration', () => {
+    const originalEnv = process.env;
+
+    beforeEach(() => {
+      // Reset environment before each test
+      process.env = { ...originalEnv };
+    });
+
+    afterAll(() => {
+      // Restore original environment
+      process.env = originalEnv;
+    });
+
+    it('should load enableOCR from HAVE_PDF_ENABLE_OCR environment variable', async () => {
+      process.env.HAVE_PDF_ENABLE_OCR = 'true';
+      const reader = await getPDFReader();
+      expect(reader).toBeDefined();
+      // Note: Reader doesn't expose config directly, but we verify it doesn't throw
+    });
+
+    it('should load timeout from HAVE_PDF_TIMEOUT environment variable', async () => {
+      process.env.HAVE_PDF_TIMEOUT = '30000';
+      const reader = await getPDFReader();
+      expect(reader).toBeDefined();
+    });
+
+    it('should load provider from HAVE_PDF_PROVIDER environment variable', async () => {
+      process.env.HAVE_PDF_PROVIDER = 'unpdf';
+      const reader = await getPDFReader();
+      expect(reader).toBeDefined();
+      expect(reader.constructor.name).toBe('CombinedNodeProvider');
+    });
+
+    it('should load maxFileSize from HAVE_PDF_MAX_FILE_SIZE environment variable', async () => {
+      process.env.HAVE_PDF_MAX_FILE_SIZE = '52428800'; // 50MB in bytes
+      const reader = await getPDFReader();
+      expect(reader).toBeDefined();
+    });
+
+    it('should allow user options to override environment variables', async () => {
+      process.env.HAVE_PDF_PROVIDER = 'pdfjs';
+      // User explicitly specifies unpdf, should override env var
+      const reader = await getPDFReader({ provider: 'unpdf' });
+      expect(reader).toBeDefined();
+      expect(reader.constructor.name).toBe('CombinedNodeProvider');
+    });
+
+    it('should handle boolean environment variables correctly', async () => {
+      // Test various boolean formats
+      process.env.HAVE_PDF_ENABLE_OCR = '1';
+      let reader = await getPDFReader();
+      expect(reader).toBeDefined();
+
+      process.env.HAVE_PDF_ENABLE_OCR = 'yes';
+      reader = await getPDFReader();
+      expect(reader).toBeDefined();
+
+      process.env.HAVE_PDF_ENABLE_OCR = 'false';
+      reader = await getPDFReader();
+      expect(reader).toBeDefined();
+    });
+
+    it('should handle invalid number conversion gracefully', async () => {
+      process.env.HAVE_PDF_TIMEOUT = 'not-a-number';
+      // Should not throw, just use default or skip invalid value
+      const reader = await getPDFReader();
+      expect(reader).toBeDefined();
+    });
+
+    it('should combine multiple environment variables', async () => {
+      process.env.HAVE_PDF_ENABLE_OCR = 'true';
+      process.env.HAVE_PDF_TIMEOUT = '60000';
+      process.env.HAVE_PDF_PROVIDER = 'unpdf';
+      process.env.HAVE_PDF_MAX_FILE_SIZE = '104857600'; // 100MB
+
+      const reader = await getPDFReader();
+      expect(reader).toBeDefined();
+      expect(reader.constructor.name).toBe('CombinedNodeProvider');
+    });
   });
 });

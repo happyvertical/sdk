@@ -3,12 +3,13 @@
  * Includes support for environment variable detection
  */
 
-import { ValidationError } from '@have/utils';
+import { loadEnvConfig, ValidationError } from '@have/utils';
 import { getAI as getAIUniversal } from '../shared/factory';
 
 import type {
   AIInterface,
   BedrockOptions,
+  GetAIOptions,
   HuggingFaceOptions,
   OpenAIOptions,
 } from '../shared/types';
@@ -22,6 +23,15 @@ export { getAI } from '../shared/factory';
  * Node.js-enhanced auto-detection of AI provider based on available credentials
  * Includes support for environment variables
  *
+ * Supports both HAVE_AI_* environment variables and provider-specific variables:
+ * - HAVE_AI_PROVIDER / HAVE_AI_TYPE → provider type
+ * - HAVE_AI_API_KEY → fallback API key
+ * - OPENAI_API_KEY → OpenAI-specific key
+ * - ANTHROPIC_API_KEY → Anthropic-specific key
+ * - GEMINI_API_KEY / GOOGLE_API_KEY → Gemini-specific key
+ * - HF_TOKEN → Hugging Face token
+ * - AWS_* → AWS Bedrock credentials
+ *
  * @param options - Configuration options that may contain provider-specific credentials
  * @returns Promise resolving to an AI provider instance
  * @throws ValidationError if no provider can be detected from the options
@@ -29,48 +39,73 @@ export { getAI } from '../shared/factory';
 export async function getAIAuto(
   options: Record<string, any> = {},
 ): Promise<AIInterface> {
-  // First try universal detection
+  // Load HAVE_AI_* environment variables first
+  const config = loadEnvConfig(options, {
+    packageName: 'ai',
+    schema: {
+      provider: 'string',
+      type: 'string',
+      model: 'string',
+      defaultModel: 'string',
+      timeout: 'number',
+      maxRetries: 'number',
+      apiKey: 'string',
+      baseUrl: 'string',
+    },
+  }) as GetAIOptions;
+
+  // Normalize 'provider' field to 'type'
+  if ('provider' in config && !config.type) {
+    (config as any).type = (config as any).provider;
+  }
+
+  // If type is specified (either from options or env vars), use getAI directly
+  if (config.type) {
+    return getAIUniversal(config);
+  }
+
+  // First try universal detection with loaded config
   try {
     return await import('../shared/factory.js').then((m) =>
-      m.getAIAuto(options),
+      m.getAIAuto(config),
     );
   } catch (_error) {
     // If universal detection fails, try Node.js-specific environment variables
   }
 
   // Auto-detect provider based on available credentials including environment variables
-  if ((options.apiKey || process.env.OPENAI_API_KEY) && !options.type) {
+  if ((config.apiKey || process.env.OPENAI_API_KEY) && !config.type) {
     // Default to OpenAI if apiKey is provided without explicit type
     return getAIUniversal({
-      ...options,
+      ...config,
       type: 'openai',
-      apiKey: options.apiKey || process.env.OPENAI_API_KEY,
+      apiKey: config.apiKey || process.env.OPENAI_API_KEY,
     } as OpenAIOptions);
   }
 
-  if (options.apiToken || process.env.HF_TOKEN) {
+  if ((config as any).apiToken || process.env.HF_TOKEN) {
     // Hugging Face uses apiToken or HF_TOKEN
     return getAIUniversal({
-      ...options,
+      ...config,
       type: 'huggingface',
-      apiToken: options.apiToken || process.env.HF_TOKEN,
+      apiToken: (config as any).apiToken || process.env.HF_TOKEN,
     } as HuggingFaceOptions);
   }
 
   if (
-    (options.region || process.env.AWS_DEFAULT_REGION) &&
-    (options.credentials || process.env.AWS_ACCESS_KEY_ID)
+    ((config as any).region || process.env.AWS_DEFAULT_REGION) &&
+    ((config as any).credentials || process.env.AWS_ACCESS_KEY_ID)
   ) {
     // AWS Bedrock uses region and AWS credentials (explicit or from env)
     const bedrockOptions: BedrockOptions = {
-      ...options,
+      ...config,
       type: 'bedrock',
-      region: options.region || process.env.AWS_DEFAULT_REGION,
+      region: (config as any).region || process.env.AWS_DEFAULT_REGION,
     };
 
     // Add credentials if available in environment
     if (
-      !options.credentials &&
+      !(config as any).credentials &&
       process.env.AWS_ACCESS_KEY_ID &&
       process.env.AWS_SECRET_ACCESS_KEY
     ) {
@@ -93,10 +128,16 @@ export async function getAIAuto(
         'anthropic',
         'huggingface',
         'bedrock',
+        'claude-cli',
       ],
-      providedOptions: Object.keys(options),
+      providedOptions: Object.keys(config),
       checkedEnvVars: [
+        'HAVE_AI_PROVIDER',
+        'HAVE_AI_TYPE',
+        'HAVE_AI_API_KEY',
         'OPENAI_API_KEY',
+        'ANTHROPIC_API_KEY',
+        'GEMINI_API_KEY',
         'HF_TOKEN',
         'AWS_ACCESS_KEY_ID',
         'AWS_DEFAULT_REGION',

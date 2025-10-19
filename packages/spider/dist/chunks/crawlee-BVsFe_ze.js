@@ -1,5 +1,5 @@
 import { getCache } from "@have/cache";
-import { ValidationError, isUrl, NetworkError } from "@have/utils";
+import { loadEnvConfig, ValidationError, isUrl, NetworkError } from "@have/utils";
 import { Configuration, PlaywrightCrawler } from "crawlee";
 class CrawleeAdapter {
   cache;
@@ -111,13 +111,23 @@ class CrawleeAdapter {
    * Fetches a web page using headless browser and returns a standardized Page object
    */
   async fetch(url, options) {
+    const config = loadEnvConfig(options || {}, {
+      packageName: "spider",
+      schema: {
+        timeout: "number",
+        maxRequests: "number",
+        userAgent: "string"
+      }
+    });
     const {
       headers = {},
       timeout = 3e4,
       cache = true,
-      cacheExpiry = 3e5
+      cacheExpiry = 3e5,
       // 5 minutes default
-    } = options || {};
+      userAgent: envUserAgent
+    } = config;
+    const effectiveUserAgent = this.userAgent || envUserAgent;
     if (!url || typeof url !== "string") {
       throw new ValidationError("URL is required and must be a string", {
         url
@@ -155,9 +165,9 @@ class CrawleeAdapter {
           requestHandlerTimeoutSecs: Math.floor(timeout / 1e3),
           preNavigationHooks: [
             async ({ page }) => {
-              if (this.userAgent) {
+              if (effectiveUserAgent) {
                 await page.setExtraHTTPHeaders({
-                  "User-Agent": this.userAgent
+                  "User-Agent": effectiveUserAgent
                 });
               }
               if (Object.keys(headers).length > 0) {
@@ -237,4 +247,4 @@ class CrawleeAdapter {
 export {
   CrawleeAdapter
 };
-//# sourceMappingURL=crawlee-CgrsOEr_.js.map
+//# sourceMappingURL=crawlee-BVsFe_ze.js.map

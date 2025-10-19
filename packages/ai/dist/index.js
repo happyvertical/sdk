@@ -1,4 +1,4 @@
-import { ValidationError, ApiError } from "@have/utils";
+import { ValidationError, ApiError, loadEnvConfig } from "@have/utils";
 import OpenAI from "openai";
 function isOpenAIClientOptions(options) {
   return options.type === "openai" && "apiKey" in options && !!options.apiKey;
@@ -267,7 +267,27 @@ function isHuggingFaceOptions(options) {
 function isBedrockOptions(options) {
   return options.type === "bedrock";
 }
-async function getAI(options) {
+function isClaudeCliOptions(options) {
+  return options.type === "claude-cli";
+}
+async function getAI(options = {}) {
+  options = loadEnvConfig(options, {
+    packageName: "ai",
+    schema: {
+      provider: "string",
+      type: "string",
+      // Alias for provider
+      model: "string",
+      defaultModel: "string",
+      timeout: "number",
+      maxRetries: "number",
+      apiKey: "string",
+      baseUrl: "string"
+    }
+  });
+  if ("provider" in options && !options.type) {
+    options.type = options.provider;
+  }
   if (isOpenAIOptions(options)) {
     const { OpenAIProvider } = await import("./chunks/openai-CpwJar1k.js");
     return new OpenAIProvider(options);
@@ -288,8 +308,19 @@ async function getAI(options) {
     const { BedrockProvider } = await import("./chunks/bedrock-C4FYsLH7.js");
     return new BedrockProvider(options);
   }
+  if (isClaudeCliOptions(options)) {
+    const { ClaudeCliProvider } = await import("./chunks/claude-cli-NeVjiZXv.js");
+    return new ClaudeCliProvider(options);
+  }
   throw new ValidationError("Unsupported AI provider type", {
-    supportedTypes: ["openai", "gemini", "anthropic", "huggingface", "bedrock"],
+    supportedTypes: [
+      "openai",
+      "gemini",
+      "anthropic",
+      "huggingface",
+      "bedrock",
+      "claude-cli"
+    ],
     providedType: options.type
   });
 }

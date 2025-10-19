@@ -5,7 +5,7 @@
 import { promisify } from 'node:util';
 import { gunzip, gzip } from 'node:zlib';
 import { createClient, type RedisClientType } from 'redis';
-import type { CacheStats, CacheProvider, RedisOptions } from '../shared/types';
+import type { CacheProvider, CacheStats, RedisOptions } from '../shared/types';
 import {
   CacheConnectionError,
   CacheError,

@@ -5,14 +5,14 @@ import { fetchDocument } from './factory';
 import type { Document } from './types';
 
 // Get the directory of this test file
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const Filename = fileURLToPath(import.meta.url);
+const Dirname = path.dirname(Filename);
 
 describe('@have/documents', () => {
   describe('fetchDocument', () => {
     it('should fetch and process a PDF document', async () => {
       const testPdfPath = path.resolve(
-        __dirname,
+        Dirname,
         '../testdata/Signed Minutes - September 9, 2025 Regular Meeting.pdf',
       );
       const fileUrl = `file://${testPdfPath}`;
@@ -39,7 +39,7 @@ describe('@have/documents', () => {
 
     it('should handle document structure correctly', async () => {
       const testPdfPath = path.resolve(
-        __dirname,
+        Dirname,
         '../testdata/Signed Minutes - September 9, 2025 Regular Meeting.pdf',
       );
       const fileUrl = `file://${testPdfPath}`;
@@ -57,7 +57,7 @@ describe('@have/documents', () => {
 
     it('should handle large PDF documents', async () => {
       const testPdfPath = path.resolve(
-        __dirname,
+        Dirname,
         '../testdata/Agenda-Package-September-9-2025-Regular-Council-Meeting.pdf',
       );
       const fileUrl = `file://${testPdfPath}`;
@@ -76,7 +76,7 @@ describe('@have/documents', () => {
 
     it('should cache processed PDFs', async () => {
       const testPdfPath = path.resolve(
-        __dirname,
+        Dirname,
         '../testdata/Signed Minutes - September 9, 2025 Regular Meeting.pdf',
       );
       const fileUrl = `file://${testPdfPath}`;
@@ -103,7 +103,7 @@ describe('@have/documents', () => {
 
     it('should include metadata about the document', async () => {
       const testPdfPath = path.resolve(
-        __dirname,
+        Dirname,
         '../testdata/Signed Minutes - September 9, 2025 Regular Meeting.pdf',
       );
       const fileUrl = `file://${testPdfPath}`;
@@ -118,7 +118,7 @@ describe('@have/documents', () => {
 
     it('should handle extractImages option', async () => {
       const testPdfPath = path.resolve(
-        __dirname,
+        Dirname,
         '../testdata/Signed Minutes - September 9, 2025 Regular Meeting.pdf',
       );
       const fileUrl = `file://${testPdfPath}`;

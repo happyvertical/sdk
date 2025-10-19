@@ -34,7 +34,7 @@ export type DatabaseDialect = 'sqlite' | 'postgres' | 'duckdb';
 export function generateAddColumnStatement(
   table: string,
   column: ColumnDefinitionWithName,
-  dialect: DatabaseDialect,
+  _dialect: DatabaseDialect,
 ): string {
   const parts: string[] = [column.name, column.type];
 

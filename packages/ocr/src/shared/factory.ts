@@ -6,6 +6,7 @@
  * and environment detection.
  */
 
+import { loadEnvConfig } from '@have/utils';
 import type {
   OCREnvironment,
   OCRFactoryOptions,
@@ -15,7 +16,6 @@ import type {
   OCRProviderInfo,
   OCRResult,
 } from './types';
-
 import { OCRDependencyError, OCRError } from './types';
 
 /**
@@ -109,6 +109,14 @@ export class OCRFactory {
   /**
    * Create a new OCR factory instance.
    *
+   * Environment variables are loaded using the pattern HAVE_OCR_{FIELD}:
+   * - HAVE_OCR_PROVIDER → provider
+   * - HAVE_OCR_LANGUAGE → defaultOptions.language
+   * - HAVE_OCR_CONFIDENCE_THRESHOLD → defaultOptions.confidenceThreshold
+   * - HAVE_OCR_TIMEOUT → defaultOptions.timeout
+   *
+   * User-provided options always take precedence over environment variables.
+   *
    * @param options - Configuration options for the factory
    *
    * @example Auto-selection with defaults
@@ -127,11 +135,69 @@ export class OCRFactory {
    *   }
    * });
    * ```
+   *
+   * @example Using environment variables
+   * ```typescript
+   * // Set: HAVE_OCR_PROVIDER=onnx
+   * // Set: HAVE_OCR_LANGUAGE=eng+chi_sim
+   * // Set: HAVE_OCR_CONFIDENCE_THRESHOLD=85
+   * const factory = new OCRFactory(); // Uses env vars
+   * ```
    */
   constructor(options: OCRFactoryOptions = {}) {
-    this.primaryProvider = options.provider || 'auto';
+    // Load configuration from environment variables
+    // We define a flattened config interface for loading env vars
+    interface FlatOCRConfig {
+      provider?: string;
+      language?: string;
+      confidenceThreshold?: number;
+      timeout?: number;
+    }
+
+    // Create flattened user options for env loading
+    // Only include fields that are actually defined to avoid blocking env var loading
+    const flatUserOptions: FlatOCRConfig = {};
+    if (options.provider !== undefined) {
+      flatUserOptions.provider = options.provider;
+    }
+    if (options.defaultOptions?.language !== undefined) {
+      flatUserOptions.language = options.defaultOptions.language;
+    }
+    if (options.defaultOptions?.confidenceThreshold !== undefined) {
+      flatUserOptions.confidenceThreshold =
+        options.defaultOptions.confidenceThreshold;
+    }
+    if (options.defaultOptions?.timeout !== undefined) {
+      flatUserOptions.timeout = options.defaultOptions.timeout;
+    }
+
+    // Load config with env vars merged
+    const config = loadEnvConfig<FlatOCRConfig>(flatUserOptions, {
+      packageName: 'ocr',
+      schema: {
+        provider: 'string',
+        language: 'string',
+        confidenceThreshold: 'number',
+        timeout: 'number',
+      },
+    });
+
+    // Set provider configuration
+    this.primaryProvider = config.provider || 'auto';
     this.fallbackProviders = options.fallbackProviders || [];
-    this.defaultOptions = options.defaultOptions;
+
+    // Build defaultOptions from both config and user options
+    // User-provided defaultOptions take precedence over env vars
+    // Use explicit undefined checks to handle falsy values like 0
+    this.defaultOptions = {
+      ...(config.language !== undefined && { language: config.language }),
+      ...(config.confidenceThreshold !== undefined && {
+        confidenceThreshold: config.confidenceThreshold,
+      }),
+      ...(config.timeout !== undefined && { timeout: config.timeout }),
+      ...options.defaultOptions,
+    };
+
     this.environment = detectEnvironment();
   }
 
@@ -690,6 +756,14 @@ let globalOCRFactory: OCRFactory | null = null;
  * options, it returns a global singleton for efficient resource usage.
  * When called with options, it creates a new instance with custom configuration.
  *
+ * Environment variables are loaded using the pattern HAVE_OCR_{FIELD}:
+ * - HAVE_OCR_PROVIDER → provider
+ * - HAVE_OCR_LANGUAGE → defaultOptions.language
+ * - HAVE_OCR_CONFIDENCE_THRESHOLD → defaultOptions.confidenceThreshold
+ * - HAVE_OCR_TIMEOUT → defaultOptions.timeout
+ *
+ * User-provided options always take precedence over environment variables.
+ *
  * @param options - Optional factory configuration. If provided, creates a new instance.
  * @returns OCR factory instance ready for use
  *
@@ -711,6 +785,14 @@ let globalOCRFactory: OCRFactory | null = null;
  *     confidenceThreshold: 80
  *   }
  * });
+ * ```
+ *
+ * @example Using environment variables
+ * ```typescript
+ * // Set: HAVE_OCR_PROVIDER=onnx
+ * // Set: HAVE_OCR_LANGUAGE=eng+chi_sim
+ * // Set: HAVE_OCR_CONFIDENCE_THRESHOLD=85
+ * const factory = getOCR(); // Uses env vars for defaults
  * ```
  *
  * @example Environment-specific usage
