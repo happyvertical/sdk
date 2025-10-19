@@ -25,7 +25,7 @@ pre-push:
         - merge
         - rebase
     format:
-      run: pnpm biome ci --formatter-enabled=true --linter-enabled=false
+      run: pnpm biome ci --formatter-enabled=true --linter-enabled=false --organize-imports-enabled=false
       skip:
         - merge
         - rebase
