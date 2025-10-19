@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@have/ocr": "workspace:*",
+    "@have/utils": "workspace:*",
     "unpdf": "^1.0.6"
   },
   "devDependencies": {

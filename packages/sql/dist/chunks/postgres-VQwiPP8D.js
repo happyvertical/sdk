@@ -1,16 +1,45 @@
-import { DatabaseError } from "@have/utils";
+import { loadEnvConfig, DatabaseError } from "@have/utils";
 import { Pool } from "pg";
 import { buildWhere, DatabaseSchemaManager } from "../index.js";
 import { v as validateTableName, a as validateIndexName, b as validateColumnName, g as generateCreateIndexStatement, c as generateAddColumnStatement } from "./alter-utils-OwKqvidR.js";
 function getDatabase(options = {}) {
+  let config = loadEnvConfig(options, {
+    packageName: "sql",
+    schema: {
+      url: "string",
+      database: "string",
+      host: "string",
+      port: "number",
+      user: "string",
+      password: "string"
+    }
+  });
+  if (!config.url && !config.host && !config.database && !config.user) {
+    const legacyConfig = loadEnvConfig({}, {
+      prefix: "SQLOO",
+      schema: {
+        url: "string",
+        database: "string",
+        host: "string",
+        port: "number",
+        user: "string",
+        password: "string"
+      }
+    });
+    for (const [key, value] of Object.entries(legacyConfig)) {
+      if (config[key] === void 0 && value !== void 0) {
+        config[key] = value;
+      }
+    }
+  }
   const {
-    url = process.env.SQLOO_URL,
-    database = process.env.SQLOO_DATABASE,
-    host = process.env.SQLOO_HOST || "localhost",
-    user = process.env.SQLOO_USER,
-    password = process.env.SQLOO_PASSWORD,
-    port = Number(process.env.SQLOO_PORT) || 5432
-  } = options;
+    url,
+    database,
+    host = "localhost",
+    user,
+    password,
+    port = 5432
+  } = config;
   const client = new Pool(
     url ? { connectionString: url } : {
       host,
@@ -625,4 +654,4 @@ function getDatabase(options = {}) {
 export {
   getDatabase
 };
-//# sourceMappingURL=postgres-C0u-_n6D.js.map
+//# sourceMappingURL=postgres-VQwiPP8D.js.map

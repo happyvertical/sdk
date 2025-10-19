@@ -2,6 +2,7 @@
  * @have/pdf - Factory for creating PDF readers with automatic provider selection
  */
 
+import { loadEnvConfig } from '@have/utils';
 import type { PDFReader, PDFReaderOptions } from './types';
 
 /**
@@ -35,6 +36,12 @@ import type { PDFReader, PDFReaderOptions } from './types';
  *   }
  * });
  *
+ * // Load configuration from environment variables
+ * // HAVE_PDF_ENABLE_OCR=true
+ * // HAVE_PDF_TIMEOUT=30000
+ * // HAVE_PDF_PROVIDER=unpdf
+ * const reader = await getPDFReader(); // Uses env vars
+ *
  * // Force specific provider (with error handling)
  * try {
  *   const unpdfReader = await getPDFReader({ provider: 'unpdf' });
@@ -60,7 +67,18 @@ import type { PDFReader, PDFReaderOptions } from './types';
 export async function getPDFReader(
   options: PDFReaderOptions = {},
 ): Promise<PDFReader> {
-  const { provider = 'auto', ...readerOptions } = options;
+  // Load configuration from environment variables, with user options taking precedence
+  const config = loadEnvConfig(options, {
+    packageName: 'pdf',
+    schema: {
+      enableOCR: 'boolean',
+      timeout: 'number',
+      provider: 'string',
+      maxFileSize: 'number',
+    },
+  });
+
+  const { provider = 'auto', ...readerOptions } = config;
 
   // Environment detection for automatic provider selection
   const isNode =

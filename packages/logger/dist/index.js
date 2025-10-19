@@ -1,3 +1,4 @@
+import { loadEnvConfig } from "@have/utils";
 class LoggerAdapter {
   constructor(logger) {
     this.logger = logger;
@@ -125,9 +126,23 @@ class NoopLogger {
 }
 function createLogger(config) {
   if (typeof config === "boolean") {
-    return config ? new ConsoleLogger("info") : new NoopLogger();
+    if (!config) {
+      return new NoopLogger();
+    }
+    const envConfig = loadEnvConfig(
+      {},
+      {
+        packageName: "logger",
+        schema: { level: "string" }
+      }
+    );
+    return new ConsoleLogger(envConfig.level || "info");
   }
-  const level = config.level || "info";
+  const mergedConfig = loadEnvConfig(config, {
+    packageName: "logger",
+    schema: { level: "string" }
+  });
+  const level = mergedConfig.level || "info";
   return new ConsoleLogger(level);
 }
 export {

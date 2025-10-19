@@ -15,6 +15,17 @@ type GetDatabaseOptions = (PostgresOptions & {
 /**
  * Creates a database connection based on the provided options, or returns an existing database instance
  *
+ * Loads configuration from environment variables using the HAVE_SQL_* pattern:
+ * - HAVE_SQL_TYPE → type ('sqlite' | 'postgres' | 'duckdb' | 'json')
+ * - HAVE_SQL_URL → url (connection string)
+ * - HAVE_SQL_HOST → host (database server hostname)
+ * - HAVE_SQL_PORT → port (database server port number)
+ * - HAVE_SQL_DATABASE → database (database name)
+ * - HAVE_SQL_USER → user (authentication username)
+ * - HAVE_SQL_PASSWORD → password (authentication password)
+ *
+ * User-provided options always take precedence over environment variables.
+ *
  * @param options - Configuration options for the database connection or an existing database instance
  * @returns Promise resolving to a DatabaseInterface implementation
  * @throws Error if the database type is invalid

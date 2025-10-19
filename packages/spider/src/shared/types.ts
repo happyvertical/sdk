@@ -76,6 +76,7 @@ export interface FetchOptions {
   /**
    * Request timeout in milliseconds
    * @default 30000
+   * @env HAVE_SPIDER_TIMEOUT
    */
   timeout?: number;
 
@@ -90,6 +91,18 @@ export interface FetchOptions {
    * @default 300000 (5 minutes)
    */
   cacheExpiry?: number;
+
+  /**
+   * Custom user agent string
+   * @env HAVE_SPIDER_USER_AGENT
+   */
+  userAgent?: string;
+
+  /**
+   * Maximum number of requests allowed
+   * @env HAVE_SPIDER_MAX_REQUESTS
+   */
+  maxRequests?: number;
 }
 
 /**

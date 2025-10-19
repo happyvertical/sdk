@@ -92,6 +92,98 @@ function parseCliArgs(argv, commands, builtInCommands = {}) {
     };
   }
 }
+function toCamelCase(str) {
+  return str.toLowerCase().replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+function toScreamingSnakeCase(str) {
+  return str.replace(/([A-Z])/g, "_$1").toUpperCase().replace(/^_/, "");
+}
+function convertType(value, type) {
+  switch (type) {
+    case "number": {
+      const num = Number(value);
+      if (Number.isNaN(num)) {
+        throw new Error(
+          `Cannot convert "${value}" to number: result is NaN`
+        );
+      }
+      return num;
+    }
+    case "boolean":
+      return value.toLowerCase() === "true" || value === "1" || value.toLowerCase() === "yes";
+    case "json":
+      try {
+        return JSON.parse(value);
+      } catch (error) {
+        throw new Error(
+          `Cannot parse "${value}" as JSON: ${error instanceof Error ? error.message : "Unknown error"}`
+        );
+      }
+    case "string":
+    default:
+      return value;
+  }
+}
+function loadEnvConfig(userOptions = {}, options = {}) {
+  const {
+    prefix = "HAVE",
+    packageName,
+    schema = {},
+    transform = {},
+    allowUnknown = true
+  } = options;
+  const envPrefix = packageName && prefix ? `${prefix}_${packageName.toUpperCase()}_` : prefix ? `${prefix}_` : "";
+  const config = { ...userOptions };
+  const fieldsToScan = allowUnknown ? (
+    // Scan all env vars if allowUnknown is true
+    /* @__PURE__ */ new Set([
+      ...Object.keys(schema),
+      // Also scan environment for any matching vars
+      ...Object.keys(process.env).filter((key) => envPrefix && key.startsWith(envPrefix)).map((key) => {
+        const fieldName = key.slice(envPrefix.length);
+        return toCamelCase(fieldName);
+      })
+    ])
+  ) : (
+    // Only scan schema fields if allowUnknown is false
+    new Set(Object.keys(schema))
+  );
+  for (const fieldName of fieldsToScan) {
+    if (fieldName in userOptions) {
+      continue;
+    }
+    const envVarName = envPrefix ? envPrefix + toScreamingSnakeCase(fieldName) : fieldName;
+    const envValue = process.env[envVarName];
+    if (envValue === void 0) {
+      continue;
+    }
+    if (transform[fieldName]) {
+      try {
+        config[fieldName] = transform[fieldName](envValue);
+      } catch (error) {
+        console.warn(
+          `Failed to transform ${envVarName}="${envValue}":`,
+          error instanceof Error ? error.message : error
+        );
+      }
+      continue;
+    }
+    const fieldType = schema[fieldName];
+    if (fieldType) {
+      try {
+        config[fieldName] = convertType(envValue, fieldType);
+      } catch (error) {
+        console.warn(
+          `Failed to convert ${envVarName}="${envValue}" to ${fieldType}:`,
+          error instanceof Error ? error.message : error
+        );
+      }
+      continue;
+    }
+    config[fieldName] = envValue;
+  }
+  return config;
+}
 function extractCodeBlock(text, language) {
   if (!text) {
     return "";
@@ -1065,6 +1157,7 @@ export {
   ValidationError,
   addInterval,
   camelCase,
+  convertType,
   createId,
   createSandbox,
   dateInString,
@@ -1094,6 +1187,7 @@ export {
   isValidDate,
   keysToCamel,
   keysToSnake,
+  loadEnvConfig,
   logTicker,
   makeId,
   makeSlug,
@@ -1107,6 +1201,8 @@ export {
   singularize,
   sleep,
   snakeCase,
+  toCamelCase,
+  toScreamingSnakeCase,
   urlFilename,
   urlPath,
   validateCode,

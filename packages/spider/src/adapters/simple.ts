@@ -1,6 +1,11 @@
 import type { CacheAdapter } from '@have/cache';
 import { getCache } from '@have/cache';
-import { isUrl, NetworkError, ValidationError } from '@have/utils';
+import {
+  isUrl,
+  loadEnvConfig,
+  NetworkError,
+  ValidationError,
+} from '@have/utils';
 import * as cheerio from 'cheerio';
 import { request } from 'undici';
 import type {
@@ -77,12 +82,23 @@ export class SimpleAdapter implements SpiderAdapter {
    * Fetches a web page and returns a standardized Page object
    */
   async fetch(url: string, options?: FetchOptions): Promise<Page> {
+    // Load configuration from environment variables and merge with user options
+    const config = loadEnvConfig<FetchOptions>(options || {}, {
+      packageName: 'spider',
+      schema: {
+        timeout: 'number',
+        maxRequests: 'number',
+        userAgent: 'string',
+      },
+    });
+
     const {
       headers = {},
       timeout = 30000,
       cache = true,
       cacheExpiry = 300000, // 5 minutes default
-    } = options || {};
+      userAgent,
+    } = config;
 
     // Validate URL
     if (!url || typeof url !== 'string') {
@@ -110,6 +126,7 @@ export class SimpleAdapter implements SpiderAdapter {
     try {
       const defaultHeaders = {
         'User-Agent':
+          userAgent ||
           'Mozilla/5.0 (compatible; HappyVertical Spider/2.0; +https://happyvertical.com/bot)',
         Accept:
           'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
