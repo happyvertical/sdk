@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { AnthropicProvider } from './shared/providers/anthropic';
 import { BedrockProvider } from './shared/providers/bedrock';
+import { ClaudeCliProvider } from './shared/providers/claude-cli';
 import { GeminiProvider } from './shared/providers/gemini';
 import { HuggingFaceProvider } from './shared/providers/huggingface';
 import { OpenAIProvider } from './shared/providers/openai';
@@ -57,6 +58,77 @@ describe('OpenAI Provider', () => {
         'vision',
       ],
     });
+  });
+});
+
+describe('Claude CLI Provider', () => {
+  it('should initialize with valid options', () => {
+    const provider = new ClaudeCliProvider({
+      type: 'claude-cli',
+      defaultModel: 'sonnet',
+    });
+
+    expect(provider).toBeInstanceOf(ClaudeCliProvider);
+    expect((provider as any).options.defaultModel).toBe('sonnet');
+  });
+
+  it('should initialize with custom CLI path', () => {
+    const provider = new ClaudeCliProvider({
+      type: 'claude-cli',
+      cliPath: '/custom/path/to/claude',
+    });
+
+    expect(provider).toBeInstanceOf(ClaudeCliProvider);
+    expect((provider as any).options.cliPath).toBe('/custom/path/to/claude');
+  });
+
+  it('should have all required interface methods', () => {
+    const provider = new ClaudeCliProvider({ type: 'claude-cli' });
+
+    expect(typeof provider.chat).toBe('function');
+    expect(typeof provider.complete).toBe('function');
+    expect(typeof provider.embed).toBe('function');
+    expect(typeof provider.stream).toBe('function');
+    expect(typeof provider.countTokens).toBe('function');
+    expect(typeof provider.getModels).toBe('function');
+    expect(typeof provider.getCapabilities).toBe('function');
+  });
+
+  it('should return correct capabilities', async () => {
+    const provider = new ClaudeCliProvider({ type: 'claude-cli' });
+    const capabilities = await provider.getCapabilities();
+
+    expect(capabilities).toEqual({
+      chat: true,
+      completion: true,
+      embeddings: false, // Claude CLI doesn't support embeddings
+      streaming: true,
+      functions: false, // Not supported via CLI
+      vision: false, // Not supported in current CLI version
+      fineTuning: false,
+      maxContextLength: 200000,
+      supportedOperations: ['chat', 'completion', 'streaming'],
+    });
+  });
+
+  it('should return static models list', async () => {
+    const provider = new ClaudeCliProvider({ type: 'claude-cli' });
+
+    const models = await provider.getModels();
+    expect(Array.isArray(models)).toBe(true);
+    expect(models.length).toBeGreaterThan(0);
+    expect(models[0]).toHaveProperty('id');
+    expect(models[0]).toHaveProperty('name');
+    expect(models.map((m) => m.id)).toContain('sonnet');
+  });
+
+  it('should throw error for embeddings', async () => {
+    const provider = new ClaudeCliProvider({ type: 'claude-cli' });
+
+    await expect(provider.embed('test text')).rejects.toThrow(AIError);
+    await expect(provider.embed('test text')).rejects.toThrow(
+      /does not support embeddings/,
+    );
   });
 });
 
@@ -139,6 +211,12 @@ describe('Provider Implementations', () => {
       region: 'us-east-1',
     });
     expect(bedrockProvider).toBeInstanceOf(BedrockProvider);
+
+    // Claude CLI should work now
+    const claudeCliProvider = new ClaudeCliProvider({
+      type: 'claude-cli',
+    });
+    expect(claudeCliProvider).toBeInstanceOf(ClaudeCliProvider);
   });
 
   it('should create all providers successfully', () => {
@@ -160,6 +238,7 @@ describe('Provider Implementations', () => {
     expect(
       () => new BedrockProvider({ type: 'bedrock', region: 'us-east-1' }),
     ).not.toThrow();
+    expect(() => new ClaudeCliProvider({ type: 'claude-cli' })).not.toThrow();
   });
 });
 
@@ -170,20 +249,25 @@ describe('Token Counting', () => {
       type: 'huggingface',
       apiToken: 'test-token',
     });
+    const claudeCliProvider = new ClaudeCliProvider({ type: 'claude-cli' });
 
     const text = 'Hello, this is a test message with several words.';
 
     const openaiTokens = await openaiProvider.countTokens(text);
     const hfTokens = await hfProvider.countTokens(text);
+    const claudeCliTokens = await claudeCliProvider.countTokens(text);
 
     expect(typeof openaiTokens).toBe('number');
     expect(typeof hfTokens).toBe('number');
+    expect(typeof claudeCliTokens).toBe('number');
     expect(openaiTokens).toBeGreaterThan(0);
     expect(hfTokens).toBeGreaterThan(0);
+    expect(claudeCliTokens).toBeGreaterThan(0);
 
     // Should be reasonable estimates (not wildly off)
     expect(openaiTokens).toBeLessThan(100);
     expect(hfTokens).toBeLessThan(100);
+    expect(claudeCliTokens).toBeLessThan(100);
   });
 });
 
