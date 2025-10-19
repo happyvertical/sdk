@@ -9,6 +9,7 @@ import type {
   AIInterface,
   AnthropicOptions,
   BedrockOptions,
+  ClaudeCliOptions,
   GeminiOptions,
   GetAIOptions,
   HuggingFaceOptions,
@@ -69,6 +70,17 @@ function isBedrockOptions(options: GetAIOptions): options is BedrockOptions {
 }
 
 /**
+ * Checks if the options are for Claude CLI provider
+ * @param options - The AI provider options to check
+ * @returns True if options are for Claude CLI provider
+ */
+function isClaudeCliOptions(
+  options: GetAIOptions,
+): options is ClaudeCliOptions {
+  return options.type === 'claude-cli';
+}
+
+/**
  * Creates an AI provider instance based on the provided options.
  * Universal version that works in both browser and Node.js environments.
  *
@@ -119,8 +131,20 @@ export async function getAI(options: GetAIOptions): Promise<AIInterface> {
     return new BedrockProvider(options);
   }
 
+  if (isClaudeCliOptions(options)) {
+    const { ClaudeCliProvider } = await import('./providers/claude-cli.js');
+    return new ClaudeCliProvider(options);
+  }
+
   throw new ValidationError('Unsupported AI provider type', {
-    supportedTypes: ['openai', 'gemini', 'anthropic', 'huggingface', 'bedrock'],
+    supportedTypes: [
+      'openai',
+      'gemini',
+      'anthropic',
+      'huggingface',
+      'bedrock',
+      'claude-cli',
+    ],
     providedType: (options as any).type,
   });
 }
