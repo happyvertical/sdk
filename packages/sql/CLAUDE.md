@@ -94,6 +94,95 @@ const jsonDb = await getDatabase({
 });
 ```
 
+### Environment Variable Configuration
+
+The package supports environment variable configuration using the `HAVE_SQL_*` pattern for automatic connection setup. User-provided options always take precedence over environment variables.
+
+**Supported Environment Variables**:
+```bash
+# Database type and connection
+HAVE_SQL_TYPE=postgres       # Database type: 'sqlite' | 'postgres' | 'duckdb' | 'json'
+HAVE_SQL_URL=postgres://...  # Connection string (takes precedence over individual options)
+
+# PostgreSQL/connection options
+HAVE_SQL_HOST=localhost      # Database server hostname
+HAVE_SQL_PORT=5432          # Database server port
+HAVE_SQL_DATABASE=mydb      # Database name
+HAVE_SQL_USER=username      # Authentication username
+HAVE_SQL_PASSWORD=secret    # Authentication password
+```
+
+**Usage Examples**:
+```typescript
+import { getDatabase } from '@have/sql';
+
+// Example 1: Use environment variables only
+// Set: HAVE_SQL_TYPE=sqlite, HAVE_SQL_URL=:memory:
+const db = await getDatabase({});
+
+// Example 2: Environment variables with user override
+// Set: HAVE_SQL_TYPE=postgres, HAVE_SQL_HOST=localhost
+const db = await getDatabase({
+  database: 'mydb'  // Override just the database, use env for type and host
+});
+
+// Example 3: User options override env vars completely
+// Set: HAVE_SQL_TYPE=postgres
+const db = await getDatabase({
+  type: 'sqlite',    // User option overrides HAVE_SQL_TYPE env var
+  url: ':memory:'
+});
+```
+
+**Backward Compatibility with SQLOO_* Variables**:
+
+The package maintains backward compatibility with legacy `SQLOO_*` environment variables for PostgreSQL:
+
+```bash
+# Legacy variables (still supported for backward compatibility)
+SQLOO_URL=postgres://...    # Connection string
+SQLOO_DATABASE=mydb        # Database name
+SQLOO_HOST=localhost       # Host
+SQLOO_USER=username        # Username
+SQLOO_PASSWORD=secret      # Password
+SQLOO_PORT=5432           # Port
+```
+
+**Priority Order** (from highest to lowest):
+1. User-provided options passed to `getDatabase()`
+2. `HAVE_SQL_*` environment variables (new standard)
+3. `SQLOO_*` environment variables (legacy, PostgreSQL only)
+4. Default values (e.g., `host: 'localhost'`, `port: 5432`)
+
+**Migration Guide from SQLOO_* to HAVE_SQL_***:
+
+```bash
+# Old (still works):
+export SQLOO_HOST=localhost
+export SQLOO_PORT=5432
+export SQLOO_DATABASE=mydb
+export SQLOO_USER=admin
+export SQLOO_PASSWORD=secret
+
+# New (recommended):
+export HAVE_SQL_TYPE=postgres
+export HAVE_SQL_HOST=localhost
+export HAVE_SQL_PORT=5432
+export HAVE_SQL_DATABASE=mydb
+export HAVE_SQL_USER=admin
+export HAVE_SQL_PASSWORD=secret
+
+# Or use connection URL:
+export HAVE_SQL_TYPE=postgres
+export HAVE_SQL_URL=postgresql://admin:secret@localhost:5432/mydb
+```
+
+**Benefits of HAVE_SQL_* Pattern**:
+- Consistent with other `@have/*` packages
+- Supports all database types (not just PostgreSQL)
+- Clearer naming convention aligned with package structure
+- Future-proof for new database features
+
 ### Sharing In-Memory Databases with dbid
 
 **Problem**: By default, each `:memory:` database creates a separate isolated instance. This causes issues when parent and child objects need to share the same database, such as in the SMRT framework where nested collections need to access parent tables.
@@ -950,9 +1039,11 @@ The legacy `syncSchema()` function has specific parsing requirements:
 - Uses BEGIN/COMMIT/ROLLBACK on the existing connection
 - No separate transaction client needed
 
-### Environment Variables for PostgreSQL
+### Legacy Environment Variables (Deprecated)
 
-The PostgreSQL adapter checks these environment variables as defaults:
+**Note**: This section describes legacy environment variables that are still supported for backward compatibility. New code should use the `HAVE_SQL_*` pattern documented in the "Environment Variable Configuration" section above.
+
+The PostgreSQL adapter still supports legacy `SQLOO_*` environment variables:
 
 ```typescript
 SQLOO_URL       // Connection string (takes precedence)
@@ -963,7 +1054,23 @@ SQLOO_PASSWORD  // Password
 SQLOO_PORT      // Port (default: 5432)
 ```
 
-Options passed to `getDatabase()` override environment variables.
+**Behavior**:
+- `SQLOO_*` variables are only checked if no `HAVE_SQL_*` variables are set
+- User-provided options always take precedence over environment variables
+- These variables only work for PostgreSQL connections
+- **Recommendation**: Migrate to `HAVE_SQL_*` pattern for consistency across all database types
+
+**Migration Example**:
+```bash
+# Old (deprecated but still works):
+export SQLOO_HOST=localhost
+export SQLOO_DATABASE=mydb
+
+# New (recommended):
+export HAVE_SQL_TYPE=postgres
+export HAVE_SQL_HOST=localhost
+export HAVE_SQL_DATABASE=mydb
+```
 
 ### Type Coercion Differences
 

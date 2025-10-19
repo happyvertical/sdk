@@ -1,3 +1,4 @@
+import { loadEnvConfig } from "@have/utils";
 class OCRError extends Error {
   constructor(message, provider, context) {
     super(message);
@@ -56,6 +57,14 @@ class OCRFactory {
   /**
    * Create a new OCR factory instance.
    *
+   * Environment variables are loaded using the pattern HAVE_OCR_{FIELD}:
+   * - HAVE_OCR_PROVIDER → provider
+   * - HAVE_OCR_LANGUAGE → defaultOptions.language
+   * - HAVE_OCR_CONFIDENCE_THRESHOLD → defaultOptions.confidenceThreshold
+   * - HAVE_OCR_TIMEOUT → defaultOptions.timeout
+   *
+   * User-provided options always take precedence over environment variables.
+   *
    * @param options - Configuration options for the factory
    *
    * @example Auto-selection with defaults
@@ -74,11 +83,48 @@ class OCRFactory {
    *   }
    * });
    * ```
+   *
+   * @example Using environment variables
+   * ```typescript
+   * // Set: HAVE_OCR_PROVIDER=onnx
+   * // Set: HAVE_OCR_LANGUAGE=eng+chi_sim
+   * // Set: HAVE_OCR_CONFIDENCE_THRESHOLD=85
+   * const factory = new OCRFactory(); // Uses env vars
+   * ```
    */
   constructor(options = {}) {
-    this.primaryProvider = options.provider || "auto";
+    const flatUserOptions = {};
+    if (options.provider !== void 0) {
+      flatUserOptions.provider = options.provider;
+    }
+    if (options.defaultOptions?.language !== void 0) {
+      flatUserOptions.language = options.defaultOptions.language;
+    }
+    if (options.defaultOptions?.confidenceThreshold !== void 0) {
+      flatUserOptions.confidenceThreshold = options.defaultOptions.confidenceThreshold;
+    }
+    if (options.defaultOptions?.timeout !== void 0) {
+      flatUserOptions.timeout = options.defaultOptions.timeout;
+    }
+    const config = loadEnvConfig(flatUserOptions, {
+      packageName: "ocr",
+      schema: {
+        provider: "string",
+        language: "string",
+        confidenceThreshold: "number",
+        timeout: "number"
+      }
+    });
+    this.primaryProvider = config.provider || "auto";
     this.fallbackProviders = options.fallbackProviders || [];
-    this.defaultOptions = options.defaultOptions;
+    this.defaultOptions = {
+      ...config.language !== void 0 && { language: config.language },
+      ...config.confidenceThreshold !== void 0 && {
+        confidenceThreshold: config.confidenceThreshold
+      },
+      ...config.timeout !== void 0 && { timeout: config.timeout },
+      ...options.defaultOptions
+    };
     this.environment = detectEnvironment();
   }
   /**

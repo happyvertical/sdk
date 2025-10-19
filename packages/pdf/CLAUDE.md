@@ -119,6 +119,105 @@ for (const pdfFile of pdfFiles) {
 }
 ```
 
+### Environment Variable Configuration
+
+The @have/pdf package supports configuration via environment variables using the `HAVE_PDF_{FIELD}` naming pattern. Environment variables are automatically loaded and merged with user-provided options, with user options always taking precedence.
+
+#### Supported Environment Variables
+
+| Environment Variable | Type | Description | Example |
+|---------------------|------|-------------|---------|
+| `HAVE_PDF_ENABLE_OCR` | boolean | Enable OCR fallback for image-based PDFs | `true`, `false`, `1`, `0`, `yes`, `no` |
+| `HAVE_PDF_TIMEOUT` | number | Processing timeout in milliseconds | `30000`, `60000` |
+| `HAVE_PDF_PROVIDER` | string | PDF provider to use | `unpdf`, `pdfjs`, `auto` |
+| `HAVE_PDF_MAX_FILE_SIZE` | number | Maximum file size in bytes | `52428800` (50MB) |
+
+#### Usage Examples
+
+```typescript
+import { getPDFReader } from '@have/pdf';
+
+// Set environment variables (in .env file or shell)
+// HAVE_PDF_ENABLE_OCR=true
+// HAVE_PDF_TIMEOUT=30000
+// HAVE_PDF_PROVIDER=unpdf
+
+// Create reader using environment variables
+const reader = await getPDFReader();
+// Uses: enableOCR=true, timeout=30000, provider='unpdf'
+
+// Override environment variables with user options
+const customReader = await getPDFReader({
+  timeout: 60000, // Overrides HAVE_PDF_TIMEOUT
+  provider: 'auto', // Overrides HAVE_PDF_PROVIDER
+});
+// Uses: enableOCR=true (from env), timeout=60000 (user), provider='auto' (user)
+
+// Boolean environment variables support multiple formats
+// HAVE_PDF_ENABLE_OCR=true  → true
+// HAVE_PDF_ENABLE_OCR=1     → true
+// HAVE_PDF_ENABLE_OCR=yes   → true
+// HAVE_PDF_ENABLE_OCR=false → false
+// HAVE_PDF_ENABLE_OCR=0     → false
+```
+
+#### Configuration Priority
+
+Configuration is resolved in the following order (highest to lowest priority):
+
+1. **User-provided options** (passed directly to `getPDFReader()`)
+2. **Environment variables** (`HAVE_PDF_{FIELD}`)
+3. **Default values** (defined in the package)
+
+```typescript
+// Example with priority demonstration
+process.env.HAVE_PDF_TIMEOUT = '30000';
+process.env.HAVE_PDF_ENABLE_OCR = 'true';
+
+// User option overrides env var
+const reader = await getPDFReader({ timeout: 60000 });
+// Result: timeout=60000 (user), enableOCR=true (env)
+```
+
+#### Type Conversion
+
+Environment variables are automatically converted to the correct type based on the schema:
+
+- **boolean**: Accepts `true`, `false`, `1`, `0`, `yes`, `no` (case-insensitive)
+- **number**: Converts string to number, logs warning if conversion fails
+- **string**: Used as-is without conversion
+
+```typescript
+// Invalid type conversions are handled gracefully
+process.env.HAVE_PDF_TIMEOUT = 'not-a-number';
+const reader = await getPDFReader();
+// Logs warning, skips invalid value, uses default
+```
+
+#### Best Practices
+
+1. **Use environment variables for deployment configuration**: Set default values per environment (dev, staging, prod)
+2. **Use user options for runtime configuration**: Override defaults based on specific use cases
+3. **Validate critical settings**: Check capabilities and dependencies after creating reader
+4. **Document environment variables**: Add comments in `.env.example` files
+
+```typescript
+// Good: Deployment-level config via env vars, runtime overrides via options
+// .env file:
+// HAVE_PDF_ENABLE_OCR=true
+// HAVE_PDF_TIMEOUT=30000
+
+// Runtime usage:
+const reader = await getPDFReader();
+const deps = await reader.checkDependencies();
+if (!deps.available) {
+  console.error('PDF processing unavailable:', deps.error);
+}
+
+// Special case: disable OCR for fast processing
+const fastReader = await getPDFReader({ enableOCR: false });
+```
+
 ### Comprehensive PDF Analysis
 
 ```typescript

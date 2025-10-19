@@ -670,6 +670,74 @@ bun add @have/ocr
 # The package will work out of the box with Tesseract.js
 ```
 
+### Environment Variable Configuration
+
+The @have/ocr package supports configuration via environment variables using the pattern `HAVE_OCR_{FIELD}`:
+
+**Supported Environment Variables:**
+
+- `HAVE_OCR_PROVIDER` - OCR provider to use (`'auto'`, `'tesseract'`, `'onnx'`, `'web-ocr'`)
+- `HAVE_OCR_LANGUAGE` - Default language for OCR (`'eng'`, `'eng+chi_sim'`, etc.)
+- `HAVE_OCR_CONFIDENCE_THRESHOLD` - Minimum confidence threshold (0-100)
+- `HAVE_OCR_TIMEOUT` - Processing timeout in milliseconds
+
+**Example Configuration:**
+
+```bash
+# Set environment variables
+export HAVE_OCR_PROVIDER=onnx
+export HAVE_OCR_LANGUAGE=eng+chi_sim
+export HAVE_OCR_CONFIDENCE_THRESHOLD=85
+export HAVE_OCR_TIMEOUT=45000
+```
+
+```typescript
+import { getOCR } from '@have/ocr';
+
+// Factory automatically loads configuration from env vars
+const factory = getOCR();
+const result = await factory.performOCR(images);
+// Uses: provider=onnx, language=eng+chi_sim, confidenceThreshold=85, timeout=45000
+```
+
+**Precedence Rules:**
+
+1. User-provided options (highest priority)
+2. Environment variables
+3. Package defaults (lowest priority)
+
+```typescript
+// Environment variables are overridden by user options
+process.env.HAVE_OCR_PROVIDER = 'onnx';
+process.env.HAVE_OCR_LANGUAGE = 'eng';
+
+const factory = getOCR({
+  provider: 'tesseract', // Overrides HAVE_OCR_PROVIDER
+  defaultOptions: {
+    language: 'jpn', // Overrides HAVE_OCR_LANGUAGE
+  },
+});
+// Uses: provider=tesseract, language=jpn
+```
+
+**Partial Override:**
+
+```typescript
+// Mix env vars with user options
+process.env.HAVE_OCR_PROVIDER = 'onnx';
+process.env.HAVE_OCR_CONFIDENCE_THRESHOLD = '80';
+process.env.HAVE_OCR_TIMEOUT = '40000';
+
+const factory = getOCR({
+  defaultOptions: {
+    language: 'chi_sim', // User-provided
+    // confidenceThreshold and timeout come from env vars
+  },
+});
+// Uses: provider=onnx (env), language=chi_sim (user),
+//       confidenceThreshold=80 (env), timeout=40000 (env)
+```
+
 ### Enhanced OCR with ONNX (Node.js only)
 
 ```bash

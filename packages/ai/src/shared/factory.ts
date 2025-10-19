@@ -3,7 +3,7 @@
  * Works in both browser and Node.js environments
  */
 
-import { ValidationError } from '@have/utils';
+import { ValidationError, loadEnvConfig } from '@have/utils';
 
 import type {
   AIInterface,
@@ -72,18 +72,31 @@ function isBedrockOptions(options: GetAIOptions): options is BedrockOptions {
  * Creates an AI provider instance based on the provided options.
  * Universal version that works in both browser and Node.js environments.
  *
+ * Supports environment variable configuration using the pattern:
+ * - HAVE_AI_PROVIDER → provider type (string)
+ * - HAVE_AI_MODEL → defaultModel (string)
+ * - HAVE_AI_TIMEOUT → timeout (number)
+ * - HAVE_AI_MAX_RETRIES → maxRetries (number)
+ * - HAVE_AI_API_KEY → apiKey (string) - fallback if provider-specific key not set
+ * - HAVE_AI_BASE_URL → baseUrl (string)
+ *
+ * User-provided options always take precedence over environment variables.
+ *
  * @param options - Configuration options for the AI provider. Must include provider type and credentials.
  * @returns Promise resolving to an AI provider instance that implements the AIInterface
  * @throws {ValidationError} When the provider type is unsupported or invalid
  *
  * @example
  * ```typescript
- * // Create OpenAI client
+ * // Create OpenAI client with explicit options
  * const openai = await getAI({
  *   type: 'openai',
  *   apiKey: process.env.OPENAI_API_KEY!,
  *   defaultModel: 'gpt-4o'
  * });
+ *
+ * // Or use environment variables (HAVE_AI_PROVIDER=openai, HAVE_AI_API_KEY=sk-...)
+ * const client = await getAI({});
  *
  * // Create Anthropic client
  * const anthropic = await getAI({
@@ -93,35 +106,55 @@ function isBedrockOptions(options: GetAIOptions): options is BedrockOptions {
  * });
  * ```
  */
-export async function getAI(options: GetAIOptions): Promise<AIInterface> {
-  if (isOpenAIOptions(options)) {
+export async function getAI(options: GetAIOptions = {}): Promise<AIInterface> {
+  // Load environment variables with user options taking precedence
+  const config = loadEnvConfig(options as Record<string, any>, {
+    packageName: 'ai',
+    schema: {
+      provider: 'string',
+      type: 'string', // Alias for provider
+      model: 'string',
+      defaultModel: 'string',
+      timeout: 'number',
+      maxRetries: 'number',
+      apiKey: 'string',
+      baseUrl: 'string',
+    },
+  }) as GetAIOptions;
+
+  // Normalize 'provider' field to 'type' for consistency
+  if ('provider' in config && !config.type) {
+    (config as any).type = (config as any).provider;
+  }
+
+  if (isOpenAIOptions(config)) {
     const { OpenAIProvider } = await import('./providers/openai.js');
-    return new OpenAIProvider(options);
+    return new OpenAIProvider(config);
   }
 
-  if (isGeminiOptions(options)) {
+  if (isGeminiOptions(config)) {
     const { GeminiProvider } = await import('./providers/gemini.js');
-    return new GeminiProvider(options);
+    return new GeminiProvider(config);
   }
 
-  if (isAnthropicOptions(options)) {
+  if (isAnthropicOptions(config)) {
     const { AnthropicProvider } = await import('./providers/anthropic.js');
-    return new AnthropicProvider(options);
+    return new AnthropicProvider(config);
   }
 
-  if (isHuggingFaceOptions(options)) {
+  if (isHuggingFaceOptions(config)) {
     const { HuggingFaceProvider } = await import('./providers/huggingface.js');
-    return new HuggingFaceProvider(options);
+    return new HuggingFaceProvider(config);
   }
 
-  if (isBedrockOptions(options)) {
+  if (isBedrockOptions(config)) {
     const { BedrockProvider } = await import('./providers/bedrock.js');
-    return new BedrockProvider(options);
+    return new BedrockProvider(config);
   }
 
   throw new ValidationError('Unsupported AI provider type', {
     supportedTypes: ['openai', 'gemini', 'anthropic', 'huggingface', 'bedrock'],
-    providedType: (options as any).type,
+    providedType: (config as any).type,
   });
 }
 

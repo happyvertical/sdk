@@ -1,4 +1,4 @@
-import { DatabaseError } from '@have/utils';
+import { DatabaseError, loadEnvConfig } from '@have/utils';
 import { Pool } from 'pg';
 import { DatabaseSchemaManager } from './schema-manager';
 import {
@@ -58,18 +58,71 @@ export interface PostgresOptions {
 /**
  * Creates a PostgreSQL database adapter
  *
+ * Loads configuration from environment variables with backward compatibility:
+ * - First checks HAVE_SQL_* environment variables (new standard)
+ * - Falls back to SQLOO_* environment variables (legacy)
+ * - User-provided options always take precedence
+ *
+ * Environment variables:
+ * - HAVE_SQL_URL / SQLOO_URL → Connection string (takes precedence)
+ * - HAVE_SQL_DATABASE / SQLOO_DATABASE → Database name
+ * - HAVE_SQL_HOST / SQLOO_HOST → Host (default: 'localhost')
+ * - HAVE_SQL_USER / SQLOO_USER → Username
+ * - HAVE_SQL_PASSWORD / SQLOO_PASSWORD → Password
+ * - HAVE_SQL_PORT / SQLOO_PORT → Port (default: 5432)
+ *
  * @param options - PostgreSQL connection options
  * @returns Database interface for PostgreSQL
  */
 export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
+  // Load HAVE_SQL_* environment variables first
+  let config = loadEnvConfig(options, {
+    packageName: 'sql',
+    schema: {
+      url: 'string',
+      database: 'string',
+      host: 'string',
+      port: 'number',
+      user: 'string',
+      password: 'string',
+    },
+  });
+
+  // For backward compatibility, fall back to SQLOO_* if HAVE_SQL_* not set
+  // Only check legacy vars if the new ones aren't present
+  if (!config.url && !config.host && !config.database && !config.user) {
+    const legacyConfig = loadEnvConfig(
+      {},
+      {
+        prefix: 'SQLOO',
+        schema: {
+          url: 'string',
+          database: 'string',
+          host: 'string',
+          port: 'number',
+          user: 'string',
+          password: 'string',
+        },
+      },
+    );
+
+    // Merge legacy config, but don't override user options or HAVE_SQL_* vars
+    for (const [key, value] of Object.entries(legacyConfig)) {
+      if (config[key] === undefined && value !== undefined) {
+        config[key] = value;
+      }
+    }
+  }
+
+  // Apply defaults
   const {
-    url = process.env.SQLOO_URL,
-    database = process.env.SQLOO_DATABASE,
-    host = process.env.SQLOO_HOST || 'localhost',
-    user = process.env.SQLOO_USER,
-    password = process.env.SQLOO_PASSWORD,
-    port = Number(process.env.SQLOO_PORT) || 5432,
-  } = options;
+    url,
+    database,
+    host = 'localhost',
+    user,
+    password,
+    port = 5432,
+  } = config;
 
   // Create a connection pool
   const client = new Pool(

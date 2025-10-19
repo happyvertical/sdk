@@ -265,6 +265,50 @@ try {
 
 ### Environment-Based Configuration
 
+#### Using Environment Variables
+
+The logger supports configuration via the `HAVE_LOGGER_LEVEL` environment variable:
+
+```typescript
+// Set environment variable
+process.env.HAVE_LOGGER_LEVEL = 'debug';
+
+// Create logger - automatically uses 'debug' level from env
+const logger = createLogger(true);
+
+logger.debug('This will be shown'); // ✅ Output
+logger.info('This will be shown');  // ✅ Output
+```
+
+**Environment Variable**: `HAVE_LOGGER_LEVEL`
+- **Values**: `debug`, `info`, `warn`, `error`
+- **Default**: `info` (if not set)
+- **Scope**: Applies when `createLogger(true)` or `createLogger({})` is used
+- **Precedence**: User-provided options always override environment variables
+
+```typescript
+// User options take precedence over env vars
+process.env.HAVE_LOGGER_LEVEL = 'info';
+
+const logger = createLogger({ level: 'warn' });
+// Uses 'warn' from config, not 'info' from env var
+```
+
+**Common Environment Patterns**:
+
+```bash
+# Development - verbose logging
+export HAVE_LOGGER_LEVEL=debug
+
+# Production - only important messages
+export HAVE_LOGGER_LEVEL=warn
+
+# Testing - minimal output
+export HAVE_LOGGER_LEVEL=error
+```
+
+#### Programmatic Environment Configuration
+
 Adjust log levels based on environment:
 
 ```typescript

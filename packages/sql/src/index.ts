@@ -1,3 +1,4 @@
+import { loadEnvConfig } from '@have/utils';
 import type { PostgresOptions } from './postgres';
 import type {
   DatabaseInterface,
@@ -35,6 +36,17 @@ function isDatabaseInstance(value: any): value is DatabaseInterface {
 /**
  * Creates a database connection based on the provided options, or returns an existing database instance
  *
+ * Loads configuration from environment variables using the HAVE_SQL_* pattern:
+ * - HAVE_SQL_TYPE → type ('sqlite' | 'postgres' | 'duckdb' | 'json')
+ * - HAVE_SQL_URL → url (connection string)
+ * - HAVE_SQL_HOST → host (database server hostname)
+ * - HAVE_SQL_PORT → port (database server port number)
+ * - HAVE_SQL_DATABASE → database (database name)
+ * - HAVE_SQL_USER → user (authentication username)
+ * - HAVE_SQL_PASSWORD → password (authentication password)
+ *
+ * User-provided options always take precedence over environment variables.
+ *
  * @param options - Configuration options for the database connection or an existing database instance
  * @returns Promise resolving to a DatabaseInterface implementation
  * @throws Error if the database type is invalid
@@ -46,29 +58,44 @@ export async function getDatabase(
   if (isDatabaseInstance(options)) {
     return options;
   }
+
+  // Load HAVE_SQL_* environment variables
+  const config = loadEnvConfig(options, {
+    packageName: 'sql',
+    schema: {
+      type: 'string',
+      url: 'string',
+      host: 'string',
+      port: 'number',
+      database: 'string',
+      user: 'string',
+      password: 'string',
+    },
+  });
+
   // if no type but url starts with file:, set to sqlite
   if (
-    !options.type &&
-    (options.url?.startsWith('file:') || options.url === ':memory:')
+    !config.type &&
+    (config.url?.startsWith('file:') || config.url === ':memory:')
   ) {
-    options.type = 'sqlite';
+    config.type = 'sqlite';
   }
 
-  if (options.type === 'postgres') {
+  if (config.type === 'postgres') {
     const postgres = await import('./postgres.js');
-    return postgres.getDatabase(options as PostgresOptions);
+    return postgres.getDatabase(config as PostgresOptions);
   }
-  if (options.type === 'sqlite') {
+  if (config.type === 'sqlite') {
     const sqlite = await import('./sqlite.js');
-    return sqlite.getDatabase(options as SqliteOptions);
+    return sqlite.getDatabase(config as SqliteOptions);
   }
-  if (options.type === 'duckdb') {
+  if (config.type === 'duckdb') {
     const duckdb = await import('./duckdb.js');
-    return duckdb.getDatabase(options as DuckDBOptions);
+    return duckdb.getDatabase(config as DuckDBOptions);
   }
-  if (options.type === 'json') {
+  if (config.type === 'json') {
     const json = await import('./json.js');
-    return json.getDatabase(options as JSONOptions);
+    return json.getDatabase(config as JSONOptions);
   }
   throw new Error('Invalid database type');
 }

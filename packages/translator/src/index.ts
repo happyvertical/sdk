@@ -3,6 +3,7 @@
  * Provides standardized translation interface
  */
 
+import { loadEnvConfig } from '@have/utils';
 import type {
   DeepLOptions,
   GoogleTranslateOptions,
@@ -96,26 +97,33 @@ class TranslatorWrapper implements Translator {
 /**
  * Factory function to create a translator instance
  *
- * @param options - Configuration options for the translation provider
+ * Supports environment variable configuration using HAVE_TRANSLATOR_* pattern:
+ * - HAVE_TRANSLATOR_PROVIDER: Translation provider ('google'|'deepl'|'libretranslate')
+ *
+ * Provider-specific API keys are loaded from their respective environment variables:
+ * - GOOGLE_TRANSLATE_API_KEY: Google Translate API key
+ * - DEEPL_API_KEY: DeepL API key
+ *
+ * @param options - Configuration options for the translation provider (optional if using env vars)
  * @returns Promise resolving to a translator that implements Translator
  *
  * @example
  * ```typescript
- * // Create Google Translate translator
+ * // Using explicit options
  * const translator = await getTranslator({
  *   provider: 'google',
  *   apiKey: process.env.GOOGLE_TRANSLATE_API_KEY!
  * });
  *
- * // Create DeepL translator
- * const deeplTranslator = await getTranslator({
- *   provider: 'deepl',
- *   apiKey: process.env.DEEPL_API_KEY!
- * });
+ * // Using environment variables
+ * // Set: HAVE_TRANSLATOR_PROVIDER=deepl
+ * //      DEEPL_API_KEY=your_key_here
+ * const translator = await getTranslator();
  *
- * // Create LibreTranslate translator
- * const libreTranslator = await getTranslator({
- *   provider: 'libretranslate'
+ * // Mix of env vars and explicit options (explicit takes precedence)
+ * // Set: HAVE_TRANSLATOR_PROVIDER=google
+ * const translator = await getTranslator({
+ *   apiKey: 'explicit_key' // Overrides env var
  * });
  *
  * // Use the translator
@@ -128,24 +136,54 @@ class TranslatorWrapper implements Translator {
  * ```
  */
 export async function getTranslator(
-  options: TranslatorOptions,
+  options: Partial<TranslatorOptions> = {},
 ): Promise<Translator> {
+  // Load configuration from environment variables with user options taking precedence
+  const config: Record<string, any> = loadEnvConfig(
+    options as Record<string, any>,
+    {
+      packageName: 'translator',
+      schema: {
+        provider: 'string',
+        timeout: 'number',
+        maxRetries: 'number',
+      },
+      allowUnknown: true,
+    },
+  );
+
+  // Load provider-specific API keys from their respective env vars
+  // This maintains backward compatibility with existing env var patterns
+  if (!config.apiKey) {
+    if (config.provider === 'google' && process.env.GOOGLE_TRANSLATE_API_KEY) {
+      config.apiKey = process.env.GOOGLE_TRANSLATE_API_KEY;
+    } else if (config.provider === 'deepl' && process.env.DEEPL_API_KEY) {
+      config.apiKey = process.env.DEEPL_API_KEY;
+    }
+  }
+
+  // Validate provider is set
+  if (!config.provider) {
+    throw new Error(
+      'Translation provider not specified. Set HAVE_TRANSLATOR_PROVIDER environment variable or pass provider in options.',
+    );
+  }
+
   let provider: TranslationProvider;
 
-  if (isGoogleTranslateOptions(options)) {
+  if (config.provider === 'google') {
     const { GoogleTranslateProvider } = await import('./providers/google.js');
-    provider = new GoogleTranslateProvider(options);
-  } else if (isDeepLOptions(options)) {
+    provider = new GoogleTranslateProvider(config as GoogleTranslateOptions);
+  } else if (config.provider === 'deepl') {
     const { DeepLProvider } = await import('./providers/deepl.js');
-    provider = new DeepLProvider(options);
-  } else if (isLibreTranslateOptions(options)) {
+    provider = new DeepLProvider(config as DeepLOptions);
+  } else if (config.provider === 'libretranslate') {
     const { LibreTranslateProvider } = await import(
       './providers/libretranslate.js'
     );
-    provider = new LibreTranslateProvider(options);
+    provider = new LibreTranslateProvider(config as LibreTranslateOptions);
   } else {
-    // This should never happen due to TypeScript's discriminated union
-    throw new Error(`Unsupported provider: ${(options as any).provider}`);
+    throw new Error(`Unsupported provider: ${config.provider}`);
   }
 
   return new TranslatorWrapper(provider);
