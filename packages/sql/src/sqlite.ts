@@ -512,7 +512,7 @@ export async function getDatabase(
         try {
           console.log(
             '[sqlite.syncSchema] Executing:',
-            command.substring(0, 50) + '...',
+            `${command.substring(0, 50)}...`,
           );
           await client.execute(command);
           console.log('[sqlite.syncSchema] Successfully executed command');

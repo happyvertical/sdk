@@ -198,7 +198,7 @@ export class ClaudeCliProvider implements AIInterface {
           // Parse JSON output
           const result = JSON.parse(stdout);
           resolve(result);
-        } catch (error) {
+        } catch (_error) {
           reject(
             new AIError(
               'Failed to parse CLI output as JSON',
