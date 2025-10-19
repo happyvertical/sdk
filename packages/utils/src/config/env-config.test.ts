@@ -220,6 +220,7 @@ describe('loadEnvConfig', () => {
             database: 'string',
             port: 'number',
           },
+          allowUnknown: false, // Only load schema-defined fields
         },
       );
 
@@ -509,6 +510,7 @@ describe('loadEnvConfig', () => {
             host: 'string',
             port: 'number',
           },
+          allowUnknown: false, // Only load schema-defined fields
         },
       );
 
