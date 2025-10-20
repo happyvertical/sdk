@@ -1,3 +1,10 @@
+## [0.44.1](https://github.com/happyvertical/sdk/compare/v0.44.0...v0.44.1) (2025-10-20)
+
+
+### Bug Fixes
+
+* **spider:** disable useNamingConvention to avoid biome crash ([3b9d8a5](https://github.com/happyvertical/sdk/commit/3b9d8a51de624b75daed4d337dd77247fa541edb))
+
 # [0.44.0](https://github.com/happyvertical/sdk/compare/v0.43.1...v0.44.0) (2025-10-20)
 
 
