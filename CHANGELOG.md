@@ -1,3 +1,10 @@
+# [0.45.0](https://github.com/happyvertical/sdk/compare/v0.44.1...v0.45.0) (2025-10-20)
+
+
+### Features
+
+* **config:** add sdk-mcp server for package documentation queries ([704907a](https://github.com/happyvertical/sdk/commit/704907a578d43e39dda994abedc3feafedd93d0e)), closes [#237](https://github.com/happyvertical/sdk/issues/237)
+
 ## [0.44.1](https://github.com/happyvertical/sdk/compare/v0.44.0...v0.44.1) (2025-10-20)
 
 
