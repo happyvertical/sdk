@@ -370,6 +370,18 @@ async function _isSmrtTable(tableName: string): Promise<boolean> {
 }
 
 /**
+ * Validates that a table name is valid (alphanumeric + underscores only)
+ *
+ * @param table - Table name to validate
+ * @throws DatabaseError if table name is invalid
+ */
+function validateTableName(table: string): void {
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(table)) {
+    throw new DatabaseError(`Invalid table name: ${table}`, { table });
+  }
+}
+
+/**
  * Creates a JSON database adapter using DuckDB in-memory engine
  *
  * This adapter provides SQL query capabilities over JSON files without creating
@@ -398,6 +410,8 @@ export async function getDatabase(
     table: string,
     data: Record<string, any> | Record<string, any>[],
   ): Promise<QueryResult> => {
+    validateTableName(table);
+
     // Enforce read-only mode
     if (writeStrategy === 'none') {
       throw new DatabaseError(
@@ -469,6 +483,8 @@ export async function getDatabase(
     table: string,
     where: Record<string, any>,
   ): Promise<Record<string, any> | null> => {
+    validateTableName(table);
+
     const { sql: whereClause, values } = buildWhere(where, 1);
     const sql = `SELECT * FROM ${table} ${whereClause} LIMIT 1`;
 
@@ -498,6 +514,8 @@ export async function getDatabase(
     table: string,
     where: Record<string, any>,
   ): Promise<Record<string, any>[]> => {
+    validateTableName(table);
+
     const { sql: whereClause, values } = buildWhere(where, 1);
     const sql = `SELECT * FROM ${table} ${whereClause}`;
 
@@ -528,6 +546,8 @@ export async function getDatabase(
     where: Record<string, any>,
     data: Record<string, any>,
   ): Promise<QueryResult> => {
+    validateTableName(table);
+
     // Enforce read-only mode
     if (writeStrategy === 'none') {
       throw new DatabaseError(
@@ -580,6 +600,8 @@ export async function getDatabase(
     conflictColumns: string[],
     data: Record<string, any>,
   ): Promise<QueryResult> => {
+    validateTableName(table);
+
     // Enforce read-only mode
     if (writeStrategy === 'none') {
       throw new DatabaseError(
