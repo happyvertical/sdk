@@ -1,3 +1,21 @@
+# [0.44.0](https://github.com/happyvertical/sdk/compare/v0.43.1...v0.44.0) (2025-10-20)
+
+
+### Bug Fixes
+
+* **ai:** add afterEach import and normalize model to defaultModel ([30ddc9d](https://github.com/happyvertical/sdk/commit/30ddc9dc870cba74f7ac89fe0fd0d43c2a861db5))
+* **ai:** skip Claude CLI integration tests by default ([ebb4441](https://github.com/happyvertical/sdk/commit/ebb4441840f41c8b7044f265a4b4579e8dc67f13))
+* **ai:** use options consistently instead of mixing config and options variables ([5b357c3](https://github.com/happyvertical/sdk/commit/5b357c3bb673fe839f583ffac7fee7eec9c3127c))
+* **sql:** ensure options object mutation for dbid propagation ([b20c061](https://github.com/happyvertical/sdk/commit/b20c06121d0ab058d17a823951282b927fd90438))
+* **translator:** skip LibreTranslate integration tests by default ([36e3f54](https://github.com/happyvertical/sdk/commit/36e3f548af8eadf91af50109b05e0c5ab7429856))
+* **utils:** use allowUnknown: false in env-config tests to avoid CI environment pollution ([f82e381](https://github.com/happyvertical/sdk/commit/f82e381324796d1e297789aff9484c2805d53e15))
+
+
+### Features
+
+* **ai:** add claude-cli provider for Claude Max subscription usage ([af5776a](https://github.com/happyvertical/sdk/commit/af5776ab82db97d15710df97305ff111632bf352)), closes [#254](https://github.com/happyvertical/sdk/issues/254)
+* **config:** add environment variable configuration support ([0d4bc00](https://github.com/happyvertical/sdk/commit/0d4bc00b2c7a13df9d5b560c1619d0c151799f77)), closes [#258](https://github.com/happyvertical/sdk/issues/258) [#258](https://github.com/happyvertical/sdk/issues/258)
+
 ## [0.43.1](https://github.com/happyvertical/sdk/compare/v0.43.0...v0.43.1) (2025-10-18)
 
 
