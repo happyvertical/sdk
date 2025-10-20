@@ -1,9 +1,9 @@
 import { loadEnvConfig, DatabaseError } from "@have/utils";
 import { Pool } from "pg";
 import { buildWhere, DatabaseSchemaManager } from "../index.js";
-import { v as validateTableName, a as validateIndexName, b as validateColumnName, g as generateCreateIndexStatement, c as generateAddColumnStatement } from "./alter-utils-OwKqvidR.js";
+import { v as validateTableName, a as validateIndexName, b as validateColumnName, g as generateCreateIndexStatement, c as generateAddColumnStatement } from "./alter-utils-DPxgAQfb.js";
 function getDatabase(options = {}) {
-  let config = loadEnvConfig(options, {
+  const config = loadEnvConfig(options, {
     packageName: "sql",
     schema: {
       url: "string",
@@ -15,17 +15,20 @@ function getDatabase(options = {}) {
     }
   });
   if (!config.url && !config.host && !config.database && !config.user) {
-    const legacyConfig = loadEnvConfig({}, {
-      prefix: "SQLOO",
-      schema: {
-        url: "string",
-        database: "string",
-        host: "string",
-        port: "number",
-        user: "string",
-        password: "string"
+    const legacyConfig = loadEnvConfig(
+      {},
+      {
+        prefix: "SQLOO",
+        schema: {
+          url: "string",
+          database: "string",
+          host: "string",
+          port: "number",
+          user: "string",
+          password: "string"
+        }
       }
-    });
+    );
     for (const [key, value] of Object.entries(legacyConfig)) {
       if (config[key] === void 0 && value !== void 0) {
         config[key] = value;
@@ -654,4 +657,4 @@ function getDatabase(options = {}) {
 export {
   getDatabase
 };
-//# sourceMappingURL=postgres-VQwiPP8D.js.map
+//# sourceMappingURL=postgres-PJVevJE-.js.map

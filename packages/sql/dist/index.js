@@ -306,36 +306,39 @@ async function getDatabase(options = {}) {
   if (isDatabaseInstance(options)) {
     return options;
   }
-  const config = loadEnvConfig(options, {
-    packageName: "sql",
-    schema: {
-      type: "string",
-      url: "string",
-      host: "string",
-      port: "number",
-      database: "string",
-      user: "string",
-      password: "string"
-    }
-  });
-  if (!config.type && (config.url?.startsWith("file:") || config.url === ":memory:")) {
-    config.type = "sqlite";
+  Object.assign(
+    options,
+    loadEnvConfig(options, {
+      packageName: "sql",
+      schema: {
+        type: "string",
+        url: "string",
+        host: "string",
+        port: "number",
+        database: "string",
+        user: "string",
+        password: "string"
+      }
+    })
+  );
+  if (!options.type && (options.url?.startsWith("file:") || options.url === ":memory:")) {
+    options.type = "sqlite";
   }
-  if (config.type === "postgres") {
-    const postgres = await import("./chunks/postgres-VQwiPP8D.js");
-    return postgres.getDatabase(config);
+  if (options.type === "postgres") {
+    const postgres = await import("./chunks/postgres-PJVevJE-.js");
+    return postgres.getDatabase(options);
   }
-  if (config.type === "sqlite") {
-    const sqlite = await import("./chunks/sqlite-DDGMi05V.js");
-    return sqlite.getDatabase(config);
+  if (options.type === "sqlite") {
+    const sqlite = await import("./chunks/sqlite-CuBZXf-r.js");
+    return sqlite.getDatabase(options);
   }
-  if (config.type === "duckdb") {
-    const duckdb = await import("./chunks/duckdb-BCe5YUsE.js");
-    return duckdb.getDatabase(config);
+  if (options.type === "duckdb") {
+    const duckdb = await import("./chunks/duckdb-BrmeAR4g.js");
+    return duckdb.getDatabase(options);
   }
-  if (config.type === "json") {
-    const json = await import("./chunks/json-BLreH1KJ.js");
-    return json.getDatabase(config);
+  if (options.type === "json") {
+    const json = await import("./chunks/json-CSDkiD8r.js");
+    return json.getDatabase(options);
   }
   throw new Error("Invalid database type");
 }
