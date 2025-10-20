@@ -23,10 +23,17 @@ export default defineConfig({
     // Global test setup
     setupFiles: ['./vitest.setup.ts'],
 
-    // Only include TypeScript test files to avoid duplicates
-    include: ['packages/*/src/**/*.{test,spec}.{ts,mts}'],
+    // Include all test file types following the testing standard
+    // - *.test.ts: Unit tests
+    // - *.spec.ts: Integration tests
+    // - *.examples.test.ts: Cookbook/example tests
+    // - *.optional.test.ts: Optional tests (external APIs, slow tests)
+    include: [
+      'packages/*/src/**/*.{test,spec,examples.test,optional.test}.{ts,mts}',
+    ],
 
     // Exclude only what Vitest shouldn't handle
+    // Note: By default, optional tests are included. Use --grep pattern to exclude.
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
