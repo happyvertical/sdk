@@ -3,7 +3,7 @@
  * Tests actual functionality without complex mocks
  */
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { AnthropicProvider } from './shared/providers/anthropic';
 import { BedrockProvider } from './shared/providers/bedrock';
 import { ClaudeCliProvider } from './shared/providers/claude-cli';

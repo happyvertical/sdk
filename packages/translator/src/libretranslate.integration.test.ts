@@ -8,8 +8,9 @@ import { getTranslator } from './index';
 
 describe('LibreTranslate Provider Integration', () => {
   describe('translate', () => {
-    // Skip in CI due to public LibreTranslate API reliability issues
-    it.skipIf(process.env.CI)(
+    // Skip by default - run with RUN_INTEGRATION_TESTS=true
+    // LibreTranslate public instance has reliability issues
+    it.skipIf(!process.env.RUN_INTEGRATION_TESTS)(
       'should translate from English to Spanish',
       async () => {
         const translator = await getTranslator({
@@ -26,8 +27,8 @@ describe('LibreTranslate Provider Integration', () => {
       30000,
     );
 
-    // Skip in CI due to public LibreTranslate API reliability issues
-    it.skipIf(process.env.CI)(
+    // Skip by default - run with RUN_INTEGRATION_TESTS=true
+    it.skipIf(!process.env.RUN_INTEGRATION_TESTS)(
       'should auto-detect source language',
       async () => {
         const translator = await getTranslator({
@@ -45,8 +46,8 @@ describe('LibreTranslate Provider Integration', () => {
   });
 
   describe('templateFunction', () => {
-    // Skip in CI due to public LibreTranslate API reliability issues
-    it.skipIf(process.env.CI)(
+    // Skip by default - run with RUN_INTEGRATION_TESTS=true
+    it.skipIf(!process.env.RUN_INTEGRATION_TESTS)(
       'should create a reusable translation function',
       async () => {
         const translator = await getTranslator({
@@ -66,8 +67,8 @@ describe('LibreTranslate Provider Integration', () => {
       60000,
     );
 
-    // Skip in CI due to public LibreTranslate API reliability issues
-    it.skipIf(process.env.CI)(
+    // Skip by default - run with RUN_INTEGRATION_TESTS=true
+    it.skipIf(!process.env.RUN_INTEGRATION_TESTS)(
       'should use default target language (en)',
       async () => {
         const translator = await getTranslator({
