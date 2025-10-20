@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.2.4/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.2.6/schema.json",
   "files": {
     "includes": [
       "packages/*/src/**/*.{js,ts,tsx,jsx,svelte}",
@@ -156,9 +156,7 @@
       }
     },
     {
-      "includes": [
-        "packages/spider/src/**/*.ts"
-      ],
+      "includes": ["packages/spider/src/**/*.ts"],
       "linter": {
         "rules": {
           "style": {
