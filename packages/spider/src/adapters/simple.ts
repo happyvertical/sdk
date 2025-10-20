@@ -10,10 +10,10 @@ import * as cheerio from 'cheerio';
 import { request } from 'undici';
 import type {
   FetchOptions,
-  SpiderAdapter,
   Link,
   Page,
   SimpleAdapterOptions,
+  SpiderAdapter,
 } from '../shared/types';
 
 /**
