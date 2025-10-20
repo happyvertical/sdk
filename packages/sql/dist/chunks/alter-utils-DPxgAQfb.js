@@ -1,4 +1,4 @@
-function generateAddColumnStatement(table, column, dialect) {
+function generateAddColumnStatement(table, column, _dialect) {
   const parts = [column.name, column.type];
   if (column.primaryKey) {
     parts.push("PRIMARY KEY");
@@ -111,4 +111,4 @@ export {
   generateCreateIndexStatement as g,
   validateTableName as v
 };
-//# sourceMappingURL=alter-utils-OwKqvidR.js.map
+//# sourceMappingURL=alter-utils-DPxgAQfb.js.map

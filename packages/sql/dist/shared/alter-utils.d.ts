@@ -22,7 +22,7 @@ export type DatabaseDialect = 'sqlite' | 'postgres' | 'duckdb';
  * // Returns: "ALTER TABLE users ADD COLUMN email TEXT UNIQUE"
  * ```
  */
-export declare function generateAddColumnStatement(table: string, column: ColumnDefinitionWithName, dialect: DatabaseDialect): string;
+export declare function generateAddColumnStatement(table: string, column: ColumnDefinitionWithName, _dialect: DatabaseDialect): string;
 /**
  * Generates a DEFAULT clause for a column definition
  *
