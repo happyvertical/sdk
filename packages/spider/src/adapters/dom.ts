@@ -13,9 +13,9 @@ import { request } from 'undici';
 import type {
   DomAdapterOptions,
   FetchOptions,
-  SpiderAdapter,
   Link,
   Page,
+  SpiderAdapter,
 } from '../shared/types';
 
 /**
