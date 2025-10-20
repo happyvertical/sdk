@@ -1,6 +1,6 @@
 import { DatabaseError } from "@have/utils";
 import { DatabaseSchemaManager, buildWhere } from "../index.js";
-import { v as validateTableName, a as validateIndexName, b as validateColumnName, g as generateCreateIndexStatement, c as generateAddColumnStatement } from "./alter-utils-OwKqvidR.js";
+import { v as validateTableName, a as validateIndexName, b as validateColumnName, g as generateCreateIndexStatement, c as generateAddColumnStatement } from "./alter-utils-DPxgAQfb.js";
 const memoryConnectionCache = /* @__PURE__ */ new Map();
 const pendingConnections = /* @__PURE__ */ new Map();
 function generateDbId() {
@@ -265,7 +265,7 @@ async function getDatabase(options = {}) {
         try {
           console.log(
             "[sqlite.syncSchema] Executing:",
-            command.substring(0, 50) + "..."
+            `${command.substring(0, 50)}...`
           );
           await client.execute(command);
           console.log("[sqlite.syncSchema] Successfully executed command");
@@ -591,4 +591,4 @@ async function getDatabase(options = {}) {
 export {
   getDatabase
 };
-//# sourceMappingURL=sqlite-DDGMi05V.js.map
+//# sourceMappingURL=sqlite-CuBZXf-r.js.map

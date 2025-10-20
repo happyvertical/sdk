@@ -199,11 +199,17 @@ async function insertRecordsWithCast(connection, tableName, records) {
   const sql = `INSERT INTO ${tableName} (${keys.join(", ")}) VALUES ${placeholders}`;
   await connection.run(sql, values);
 }
+function validateTableName(table) {
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(table)) {
+    throw new DatabaseError(`Invalid table name: ${table}`, { table });
+  }
+}
 async function getDatabase(options) {
   const connection = await createJSONConnection(options);
   const writeStrategy = options.writeStrategy || "immediate";
   const dataDir = options.dataDir;
   const insert = async (table2, data) => {
+    validateTableName(table2);
     if (writeStrategy === "none") {
       throw new DatabaseError(
         "Cannot insert: write strategy is set to none (read-only mode)",
@@ -247,6 +253,7 @@ async function getDatabase(options) {
     }
   };
   const get = async (table2, where) => {
+    validateTableName(table2);
     const { sql: whereClause, values } = buildWhere(where, 1);
     const sql = `SELECT * FROM ${table2} ${whereClause} LIMIT 1`;
     try {
@@ -263,6 +270,7 @@ async function getDatabase(options) {
     }
   };
   const list = async (table2, where) => {
+    validateTableName(table2);
     const { sql: whereClause, values } = buildWhere(where, 1);
     const sql = `SELECT * FROM ${table2} ${whereClause}`;
     try {
@@ -278,6 +286,7 @@ async function getDatabase(options) {
     }
   };
   const update = async (table2, where, data) => {
+    validateTableName(table2);
     if (writeStrategy === "none") {
       throw new DatabaseError(
         "Cannot update: write strategy is set to none (read-only mode)",
@@ -308,6 +317,7 @@ async function getDatabase(options) {
     }
   };
   const upsert = async (table2, conflictColumns, data) => {
+    validateTableName(table2);
     if (writeStrategy === "none") {
       throw new DatabaseError(
         "Cannot upsert: write strategy is set to none (read-only mode)",
@@ -626,4 +636,4 @@ async function getDatabase(options) {
 export {
   getDatabase
 };
-//# sourceMappingURL=json-BLreH1KJ.js.map
+//# sourceMappingURL=json-CSDkiD8r.js.map
