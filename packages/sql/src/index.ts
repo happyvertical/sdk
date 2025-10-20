@@ -59,43 +59,47 @@ export async function getDatabase(
     return options;
   }
 
-  // Load HAVE_SQL_* environment variables
-  const config = loadEnvConfig(options, {
-    packageName: 'sql',
-    schema: {
-      type: 'string',
-      url: 'string',
-      host: 'string',
-      port: 'number',
-      database: 'string',
-      user: 'string',
-      password: 'string',
-    },
-  });
+  // Load HAVE_SQL_* environment variables and merge into options
+  // This ensures options object is mutated (needed for dbid propagation)
+  Object.assign(
+    options,
+    loadEnvConfig(options, {
+      packageName: 'sql',
+      schema: {
+        type: 'string',
+        url: 'string',
+        host: 'string',
+        port: 'number',
+        database: 'string',
+        user: 'string',
+        password: 'string',
+      },
+    }),
+  );
 
   // if no type but url starts with file:, set to sqlite
   if (
-    !config.type &&
-    (config.url?.startsWith('file:') || config.url === ':memory:')
+    !options.type &&
+    (options.url?.startsWith('file:') || options.url === ':memory:')
   ) {
-    config.type = 'sqlite';
+    options.type = 'sqlite';
   }
 
-  if (config.type === 'postgres') {
+  if (options.type === 'postgres') {
     const postgres = await import('./postgres.js');
-    return postgres.getDatabase(config as PostgresOptions);
+    return postgres.getDatabase(options as PostgresOptions);
   }
-  if (config.type === 'sqlite') {
+  if (options.type === 'sqlite') {
     const sqlite = await import('./sqlite.js');
-    return sqlite.getDatabase(config as SqliteOptions);
+    return sqlite.getDatabase(options as SqliteOptions);
   }
-  if (config.type === 'duckdb') {
+  if (options.type === 'duckdb') {
     const duckdb = await import('./duckdb.js');
-    return duckdb.getDatabase(config as DuckDBOptions);
+    return duckdb.getDatabase(options as DuckDBOptions);
   }
-  if (config.type === 'json') {
+  if (options.type === 'json') {
     const json = await import('./json.js');
-    return json.getDatabase(config as JSONOptions);
+    return json.getDatabase(options as JSONOptions);
   }
   throw new Error('Invalid database type');
 }

@@ -139,6 +139,11 @@ export async function getAI(options: GetAIOptions = {}): Promise<AIInterface> {
     (options as any).type = (options as any).provider;
   }
 
+  // Normalize 'model' field to 'defaultModel' for consistency
+  if ('model' in options && !options.defaultModel) {
+    (options as any).defaultModel = (options as any).model;
+  }
+
   if (isOpenAIOptions(options)) {
     const { OpenAIProvider } = await import('./providers/openai.js');
     return new OpenAIProvider(options);
