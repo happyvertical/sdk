@@ -36,6 +36,11 @@ Infrastructure packages for advanced functionality:
 - **spider**: Web crawling and content extraction
 - **documents**: Document processing and management
 
+### Developer Tools (`packages/`)
+Tools for SDK development and documentation:
+
+- **sdk-mcp**: MCP server for routing queries to package experts (CLAUDE.md files)
+
 ## Development Patterns
 
 ### Dependency Management
@@ -196,6 +201,19 @@ SDK infrastructure packages have these dependency relationships:
 - `documents`: Depends on `pdf`, `spider`, `ocr`, `utils`
 
 When adding new features, maintain this dependency hierarchy to avoid circular dependencies.
+
+### Adding New Packages
+
+When adding a new package to the SDK:
+
+1. **Create package directory** in `packages/` with proper structure
+2. **Add CLAUDE.md** file documenting the package's purpose and APIs
+3. **Update root tsconfig.json** to include the new package in `references` array
+4. **Update build order** in this CLAUDE.md if the package has dependencies
+5. **Update SDK MCP Server** (`packages/sdk-mcp/src/registry.ts`) to include the new package in keyword mapping and registry
+6. **Run full build** to ensure TypeScript project references are correct
+
+**Important**: The SDK MCP Server auto-discovers packages via `packages/*/CLAUDE.md` files, but you should update the keyword mapping in `registry.ts` to ensure proper query routing.
 
 ## Contribution Guidelines
 
