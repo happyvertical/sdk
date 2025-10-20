@@ -157,6 +157,18 @@
     },
     {
       "includes": [
+        "packages/spider/src/**/*.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "useNamingConvention": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
         "**/vite.config.ts",
         "**/vitest.config.ts",
         "**/rollup.config.js",
