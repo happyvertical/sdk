@@ -70,6 +70,32 @@ The build process follows a specific order to respect internal dependencies:
 6. `@have/spider` (web crawling, no internal dependencies)
 7. `@have/documents` (document processing, depends on pdf, spider, ocr)
 
+### Build Artifacts and Git
+
+**IMPORTANT**: Build artifacts (`dist/` directories) are NOT tracked in git.
+
+**Why**:
+- Prevents noisy diffs on every build
+- Avoids merge conflicts on build artifacts
+- Keeps git history clean and repository size small
+- Follows industry-standard practice for TypeScript monorepos
+
+**How it works**:
+- `dist/` is in `.gitignore`
+- Build artifacts are generated locally during development
+- Published npm packages include `dist/` (via `files` field in package.json)
+- CI/CD builds before publishing to npm
+
+**For developers**:
+- Run `npm run build` to generate dist/ locally
+- dist/ directories are gitignored and will not be committed
+- All packages have `files` field specifying what goes to npm
+
+**For package publishing**:
+- CI builds all packages before publishing
+- Published packages include dist/, README.md, and LICENSE
+- Users of published packages get the built artifacts
+
 ### TypeScript Project References
 
 The SDK uses TypeScript project references for proper type resolution across packages. **This is critical for avoiding module resolution conflicts.**
@@ -233,6 +259,808 @@ HAppy VErtical follows a standardized development workflow across all projects. 
 
 All HAppy VErtical projects should reference and follow these workflow standards to ensure consistency across the organization.
 
+### SOP: Starting Work on an Issue
+
+**IMPORTANT**: This SOP should be followed automatically whenever beginning implementation work, whether explicitly asked or implied.
+
+**Related Standards**:
+- [Organization-Wide Testing Standard](../../TESTING_STANDARD.md) - Must be followed for all test writing
+- [Definition of Ready](./docs/workflow/DEFINITION_OF_READY.md) - Issue readiness criteria
+- [Definition of Done](./docs/workflow/DEFINITION_OF_DONE.md) - PR completion checklist
+
+#### When This SOP Triggers
+
+This procedure triggers in these scenarios:
+- User mentions implementing/working on an issue (e.g., "let's work on #270")
+- User asks to start implementing a feature/fix
+- Beginning any implementation work (even without explicit issue number)
+- Returning to work after interruption
+
+#### Step 1: Verify Git State
+
+Before any work begins, ensure a clean git state:
+
+```bash
+# Check current status
+git status
+
+# If there are uncommitted changes: STOP
+# DO NOT PROCEED - inform user they must commit or stash changes first
+```
+
+**If uncommitted changes exist**:
+- Stop the SOP immediately
+- Inform the user: "You have uncommitted changes. Please commit or stash them before starting new work."
+- Do not attempt to stash or commit automatically
+- Wait for user to resolve
+
+**If clean working tree**:
+- Proceed to Step 2
+
+#### Step 2: Sync with Main Branch
+
+Ensure local main is up-to-date:
+
+```bash
+# If not on main, checkout main
+git checkout main
+
+# Pull latest changes
+git pull origin main
+```
+
+**If already on a feature branch**:
+- First verify working tree is clean (Step 1)
+- Then checkout main and sync
+- Claude will create/checkout the correct feature branch in Step 4
+
+#### Step 3: Identify Issue(s) and Context
+
+**Interactive Mode** (default):
+- If no issue number mentioned, use wizard to ask which issue(s) to work on
+- If user mentions issue(s), fetch issue details using `gh issue view #XXX`
+- Read the issue description, labels, and comments for context
+
+**Non-Interactive/CI Mode**:
+- Issue number must be provided as input
+- If missing, exit with error: "Issue number required for non-interactive mode"
+- Fetch issue details using `gh issue view #XXX`
+
+**Multiple Issues**:
+- If working on multiple related issues, note all issue numbers
+- Branch will be named: `{type}/issue-XXX-YYY-short-desc`
+- PR will use: `Closes #XXX, Fixes #YYY` syntax
+
+#### Step 4: Create or Checkout Feature Branch
+
+**Branch Naming Convention**:
+```
+{type}/issue-{numbers}-{short-description}
+
+Examples:
+feat/issue-270-testing-standard
+fix/issue-123-database-connection
+docs/issue-45-api-guide
+refactor/issue-89-cleanup-cache
+test/issue-67-integration-tests
+feat/issue-270-271-combined-work  # Multiple issues
+```
+
+**Determining Branch Type**:
+- Read issue labels and title to infer type (feat/fix/docs/refactor/test)
+- Default to `feat` if unclear
+
+**Branch Creation**:
+```bash
+# Check if branch already exists remotely
+git fetch origin
+
+# If branch exists, check it out
+git checkout {type}/issue-XXX-short-desc
+
+# If branch does not exist, create it
+git checkout -b {type}/issue-XXX-short-desc
+
+# If branch exists remotely but not locally
+git checkout -b {type}/issue-XXX-short-desc origin/{type}/issue-XXX-short-desc
+```
+
+**Context Awareness**:
+- If branch already exists: Assume continuing previous work
+- Check last commit message to understand current state
+- Review existing changes since branching from main
+
+#### Step 5: Planning Phase (Interactive Mode Only)
+
+**IMPORTANT**: Use the AskUserQuestion wizard for ALL clarifying questions.
+
+**Standard Questions to Ask** (use wizard):
+1. **Implementation Approach**
+   - Technical approach (architecture, design patterns)
+   - Library/tool choices
+   - Integration points
+
+2. **Scope Clarification**
+   - What's in scope vs. out of scope
+   - Priority of sub-tasks
+   - Must-haves vs. nice-to-haves
+
+3. **Custom Questions Based on Issue Type**:
+   - **Features**: User experience, API design, backward compatibility
+   - **Bugs**: Root cause, reproduction steps, regression test strategy (per TESTING_STANDARD.md)
+   - **Refactoring**: Impact scope, breaking changes, migration path
+   - **Docs**: Audience, format, examples needed
+   - **Tests**: Follow organization-wide testing standard (see `../../TESTING_STANDARD.md`)
+
+4. **Test Strategy** (Always Ask):
+   - What test types are needed? (unit/integration/examples/optional)
+   - Should tests use real resources or mocks? (default: real resources per TESTING_STANDARD.md)
+   - Are README examples affected? (if yes, must add corresponding tests)
+   - Is this fixing a bug? (if yes, write failing test first per BDD/TDD workflow)
+
+**Wizard Question Format**:
+```typescript
+// Use AskUserQuestion with 1-4 questions
+// Focus on decisions that can't be standardized
+// Avoid asking questions with obvious answers from issue context
+```
+
+**Recording Planning Decisions**:
+After wizard responses, post a comment to the issue:
+
+```bash
+gh issue comment {issue-number} --body "$(cat <<'EOF'
+## Planning Notes
+
+### Implementation Approach
+[Summary of technical approach decided]
+
+### Scope
+- In scope: [list]
+- Out of scope: [list]
+
+### Key Decisions
+1. [Decision 1 and rationale]
+2. [Decision 2 and rationale]
+
+### Test Strategy
+Following [Organization-Wide Testing Standard](../../TESTING_STANDARD.md):
+
+**Test Types**:
+- [ ] Unit tests (`*.test.ts`) - [if needed, describe what]
+- [ ] Integration tests (`*.spec.ts`) - [describe real resources to use]
+- [ ] Example tests (`*.examples.test.ts`) - [if demonstrating common patterns]
+- [ ] Optional tests (`*.optional.test.ts`) - [if using external APIs/expensive resources]
+
+**Testing Approach**:
+- Using real resources: [SQLite in-memory / temp directories / test server / Docker]
+- Mocking only: [list exceptions with justification]
+- README examples: [list examples that need corresponding tests]
+- BDD/TDD: [if bug fix, describe failing test to write first]
+
+**Test Verification**:
+- [ ] Tests document behavior (not implementation)
+- [ ] Tests read like executable examples
+- [ ] README examples have corresponding tests
+- [ ] Following package-specific guidelines (if applicable)
+
+EOF
+)"
+```
+
+#### Step 6: Create Task List (If Applicable)
+
+For complex issues with multiple steps, use TodoWrite to create task list:
+
+```typescript
+// Use TodoWrite tool
+// Break down work into specific, actionable items
+// Use both content (imperative) and activeForm (present continuous)
+```
+
+**When to use TodoWrite**:
+- Issue has 3+ distinct steps
+- Multi-package changes required
+- Complex workflow with dependencies
+
+**When to skip TodoWrite**:
+- Single straightforward change
+- Trivial update
+- Simple bug fix
+
+#### Step 7: Begin Implementation
+
+**Implementation Order** (following Testing Standard):
+
+For **bug fixes**:
+1. Write failing test that reproduces the issue (BDD/TDD approach)
+2. Implement fix to make test pass
+3. Verify test passes and provides regression protection
+
+For **new features**:
+1. Write tests from user stories (integration tests with real resources)
+2. Implement feature to make tests pass
+3. Add example tests for common usage patterns
+4. Update README with examples (and corresponding tests)
+
+For **all work**:
+- Follow the plan established in Step 5
+- Update TodoWrite task list as you progress
+- Mark tasks as in_progress → completed as you work
+- Follow standard coding conventions from CLAUDE.md
+- Follow testing standards from TESTING_STANDARD.md:
+  - Use real resources (in-memory DBs, temp files) over mocks
+  - Write tests that read like documentation
+  - Ensure README examples have corresponding tests
+  - Test behavior, not implementation
+
+#### Non-Interactive/CI Mode Behavior
+
+When running in CI or non-interactive environment:
+
+**Detection**:
+```bash
+# Check if running interactively
+if [ -t 0 ]; then
+  # Interactive mode
+else
+  # Non-interactive mode
+fi
+```
+
+**Alternative Behaviors**:
+
+1. **Post questions as comments**:
+   - If clarification needed, post wizard questions as issue comment
+   - Format as checklist for user to answer
+   - Exit with status indicating user input needed
+
+2. **Use sensible defaults**:
+   - Infer type from labels (bug → fix, feature → feat)
+   - Use issue title for branch description
+   - Skip custom planning questions
+   - Proceed with implementation using issue description as spec
+
+3. **Fail with guidance**:
+   - If critical clarifications needed, exit with error
+   - Post comment explaining what information is needed
+   - Exit code indicates manual intervention required
+
+**Preference**: Use option 2 (sensible defaults) for simple issues, option 1 (post questions) for complex issues requiring decisions.
+
+#### SOP Checklist
+
+Use this checklist to verify SOP completion:
+
+**Pre-Implementation**:
+- [ ] Working tree is clean (no uncommitted changes)
+- [ ] Main branch is synced with remote
+- [ ] Issue(s) identified and context loaded
+- [ ] Feature branch created/checked out with correct naming
+- [ ] Planning phase completed (interactive) or defaults used (CI)
+- [ ] Planning notes posted to issue (if interactive)
+- [ ] Task list created (if applicable)
+
+**Testing Strategy Confirmed** (per TESTING_STANDARD.md):
+- [ ] Test types identified (unit/integration/examples/optional)
+- [ ] Real resources vs. mocks decided (default: real resources)
+- [ ] README examples identified (if any need corresponding tests)
+- [ ] BDD/TDD approach confirmed for bug fixes (write failing test first)
+- [ ] Package-specific testing guidelines reviewed (if applicable)
+
+**Ready to Implement**:
+- [ ] Know which tests to write first (bugs: failing test; features: integration tests)
+- [ ] Implementation order clear (test → implement → verify)
+- [ ] All questions answered, ready to code
+
+#### Exception Handling
+
+**Merge Conflicts on Main Sync**:
+- Stop SOP, inform user
+- Ask user to resolve conflicts before continuing
+
+**Branch Already Exists with Different Type**:
+- Example: `fix/issue-270-X` exists but labels indicate `feat`
+- Use existing branch (don't rename)
+- Note the discrepancy for user
+
+**Issue Not Found**:
+- If `gh issue view` fails, stop SOP
+- Inform user the issue doesn't exist or isn't accessible
+- Ask user to verify issue number
+
+**Multiple Remote Branches for Same Issue**:
+- List branches and ask user which to use
+- Use wizard to present options
+
+#### Tips for Claude
+
+- **Be proactive**: Don't wait for user to say "follow the SOP" - do it automatically
+- **Be context-aware**: Detect if returning to existing work vs. starting fresh
+- **Be communicative**: Inform user of each step ("Syncing with main...", "Creating feature branch...", etc.)
+- **Be flexible**: If user shortcuts the process (e.g., already on correct branch), skip unnecessary steps
+- **Use the wizard**: Never ask clarifying questions in plain text - always use AskUserQuestion
+
+### SOP: Creating a Pull Request
+
+**IMPORTANT**: This SOP should be followed automatically when work is complete, before pushing changes.
+
+**Related Standards**:
+- [Organization-Wide Testing Standard](../../TESTING_STANDARD.md) - Enforced by code reviewer
+- [Definition of Done](./docs/workflow/DEFINITION_OF_DONE.md) - Verified before PR creation
+- [Code Reviewer Agent](./.claude/agents/code-reviewer.md) - Automated review process
+
+#### When This SOP Triggers
+
+This procedure triggers when:
+- User indicates work is complete ("ready", "done", "create PR", etc.)
+- User says "push" or "ready for review"
+- Work appears complete based on context
+
+**DO NOT trigger** when:
+- Work is still in progress
+- Tests are failing
+- User is experimenting or exploring
+
+#### Step 1: Verify Work Completion
+
+Before starting PR process, confirm:
+
+```bash
+# Check current branch
+git branch --show-current
+
+# Verify on feature branch (not main)
+# If on main: Stop, inform user they need to be on a feature branch
+```
+
+**If not on feature branch**:
+- Stop SOP immediately
+- Inform user: "You're on main branch. Create a feature branch first."
+- Reference "Start Work on Issue" SOP
+
+**If on feature branch**:
+- Proceed to Step 2
+
+#### Step 2: Run Quality Checks
+
+Run all quality checks in sequence:
+
+```bash
+# 1. Lint
+npm run lint
+
+# 2. Format
+npm run format
+
+# 3. Type check
+npm run typecheck || npm run build
+
+# 4. Tests
+npm test
+```
+
+**Track results**:
+- Note which checks passed/failed
+- Capture error messages for failed checks
+
+#### Step 3: Auto-Fix Issues (If Any)
+
+**If lint or format failures**:
+
+```bash
+# Attempt auto-fix
+npm run lint --fix
+npm run format --fix
+
+# Re-run checks
+npm run lint
+npm run format
+```
+
+**If auto-fix succeeds**:
+- Continue to next check
+- Note auto-fixes applied
+
+**If auto-fix fails**:
+- Stop SOP
+- Show errors to user
+- Message: "Please fix lint/format errors manually and try again"
+- Exit
+
+**If typecheck or tests fail**:
+- Stop SOP immediately (cannot auto-fix)
+- Show errors to user
+- Message: "Fix TypeScript errors / failing tests before creating PR"
+- Exit
+
+**If all checks pass**:
+- Proceed to Step 4
+
+#### Step 4: Run Code Review Agent
+
+Invoke the code-reviewer agent to verify quality standards BEFORE creating the final commit:
+
+```bash
+# Invoke code-reviewer agent (via Task tool or direct delegation)
+# See .claude/agents/code-reviewer.md for details
+```
+
+**Code Reviewer Checks**:
+1. Testing standards (TESTING_STANDARD.md)
+2. Coding standards (CLAUDE.md)
+3. Definition of Done (docs/workflow/DEFINITION_OF_DONE.md)
+4. Gemini code review (non-trivial files only, via Gemini MCP)
+
+**Review Process**:
+```
+Agent reviews code
+  ↓
+Issues found?
+  ↓ YES
+Auto-fixable?
+  ↓ YES
+Apply auto-fixes and commit them
+  ↓
+Re-run review (repeat until clean or no more auto-fixes)
+  ↓
+Blocking issues remain?
+  ↓ YES
+Stop: Report issues to user
+  ↓ NO
+Continue to Step 5
+```
+
+**If blocking issues found**:
+- Stop SOP
+- Show code review report to user
+- Message: "Code review found {N} blocking issues. Please fix and try again."
+- List each issue with file/line number
+- Exit
+
+**If non-blocking suggestions only**:
+- Note suggestions for PR description
+- Continue to Step 5
+
+**If all checks pass**:
+- Capture review summary for PR body
+- All fixes have been committed
+- Proceed to Step 5
+
+#### Step 5: Squash Commits
+
+Combine all commits on the feature branch (including any code review fixes) into a single commit:
+
+```bash
+# Get first commit on branch
+FIRST_COMMIT=$(git merge-base main HEAD)
+
+# Count commits to squash
+COMMIT_COUNT=$(git rev-list --count ${FIRST_COMMIT}..HEAD)
+
+# If more than 1 commit, squash
+if [ $COMMIT_COUNT -gt 1 ]; then
+  # Interactive rebase to squash
+  git rebase -i ${FIRST_COMMIT}
+
+  # OR use reset + commit approach:
+  git reset --soft ${FIRST_COMMIT}
+  git commit -m "$(generate_commit_message)"
+fi
+```
+
+**Commit Message Format** (Conventional Commits):
+```
+{type}({scope}): {description}
+
+{body}
+
+Closes #{issue-number}
+```
+
+**Examples**:
+```
+feat(cache): add Redis provider support
+
+- Implement RedisCache class with get/set/delete operations
+- Add connection pooling and retry logic
+- Add integration tests with real Redis (Docker)
+- Add example tests for common patterns
+- Update README with usage examples
+
+Closes #123
+
+fix(sql): handle null values in upsert operations
+
+Fixes issue where null values were being converted to undefined,
+causing database constraint violations.
+
+- Add null value handling in upsert method
+- Add regression test reproducing the issue
+- Verified fix with SQLite and Postgres
+
+Closes #45
+```
+
+**Generate commit message**:
+- Use `{type}` from branch name (feat/fix/docs/refactor/test)
+- Use `{scope}` from package name or area changed
+- Use `{description}` from issue title or summary
+- Include `{body}` with bullet list of changes
+- Include `Closes #{issue-number}` from issue
+
+#### Step 6: Create PR Body
+
+Generate comprehensive PR description using this template:
+
+```markdown
+## Summary
+
+{Summary of what was implemented, referencing planning notes from issue}
+
+## Changes
+
+{Bullet list of key changes:}
+- {Feature/fix/refactor implemented}
+- {Files modified or added}
+- {Integration points}
+
+## Testing
+
+Following [Organization-Wide Testing Standard](../../TESTING_STANDARD.md):
+
+**Test Types Added**:
+- [x] Unit tests (`*.test.ts`) - {describe what}
+- [x] Integration tests (`*.spec.ts`) - {describe what}
+- [x] Example tests (`*.examples.test.ts`) - {if applicable}
+- [ ] Optional tests (`*.optional.test.ts`) - {if applicable}
+
+**Testing Approach**:
+- Used real resources: {SQLite in-memory / temp directories / test server / etc.}
+- Mocked only: {list exceptions with justification, or "None"}
+- README examples: {list examples with corresponding tests, or "No examples affected"}
+- BDD/TDD: {if bug fix, note regression test added}
+
+**Test Results**:
+```
+✅ All tests pass (X passing)
+✅ New tests: Y added
+✅ Coverage: Z% of changed code
+```
+
+## Code Review
+
+{Include code reviewer agent summary}
+
+**Standards Verified**:
+- ✅ Testing standards (TESTING_STANDARD.md)
+- ✅ Coding standards (CLAUDE.md)
+- ✅ Definition of Done
+
+**Auto-Fixes Applied**:
+{List any auto-fixes, or "None"}
+
+**Gemini Review**:
+- Files reviewed: {count}
+- Issues found: {count or "None"}
+{If issues: list with severity}
+
+**Non-Blocking Suggestions**:
+{List suggestions from review, or "None"}
+
+## Checklist
+
+- [x] Tests pass
+- [x] Code linted
+- [x] Code formatted
+- [x] TypeScript compiles
+- [x] Documentation updated (if applicable)
+- [x] Conventional commit message
+- [x] Issue reference included
+
+Closes #{issue-number}
+```
+
+**Variables to fill**:
+- `{Summary}`: From issue planning notes or commit body
+- `{Changes}`: Extract from git diff and commit message
+- `{Test Types}`: Check which test files were added
+- `{Testing Approach}`: Analyze test files for resource usage
+- `{Code Review}`: Use code reviewer agent output
+- `{issue-number}`: From branch name or commits
+
+#### Step 7: Push and Create PR
+
+Push the branch and create the pull request:
+
+```bash
+# Push branch to remote
+git push origin $(git branch --show-current)
+
+# Create PR with gh CLI
+gh pr create \
+  --title "$(git log -1 --pretty=%s)" \
+  --body "$(cat <<'EOF'
+{PR body from Step 6}
+EOF
+)"
+```
+
+**PR Title**: Use the commit subject line (first line of squashed commit)
+
+**PR Labels** (auto-apply based on type):
+- `feat/*` → label: `enhancement`
+- `fix/*` → label: `bug`
+- `docs/*` → label: `documentation`
+- `refactor/*` → label: `refactoring`
+- `test/*` → label: `testing`
+
+**Additional labels** (if applicable):
+- `breaking-change` (if breaking changes noted)
+- `needs-review` (always)
+
+#### Step 8: Return to Main Branch
+
+After PR created, return to main branch:
+
+```bash
+# Checkout main
+git checkout main
+
+# Pull latest (in case main was updated)
+git pull origin main
+
+# Inform user
+echo "✅ PR created: {PR URL}"
+echo "✅ Returned to main branch"
+echo "You can continue with other work or wait for review feedback"
+```
+
+**Leave feature branch**:
+- Feature branch remains on remote for review
+- User can return to it if review feedback requires changes
+- Branch will be deleted automatically after PR merge (GitHub setting)
+
+#### SOP Checklist
+
+Use this checklist to verify PR SOP completion:
+
+**Pre-PR Checks**:
+- [ ] On feature branch (not main)
+- [ ] All commits made
+- [ ] Work complete and ready for review
+
+**Quality Checks**:
+- [ ] Lint passed (or auto-fixed)
+- [ ] Format passed (or auto-fixed)
+- [ ] TypeScript compiles
+- [ ] All tests pass
+
+**Code Review** (before squashing):
+- [ ] Testing standards verified
+- [ ] Coding standards verified
+- [ ] Definition of Done checked
+- [ ] Gemini review completed (non-trivial files)
+- [ ] No blocking issues remain
+- [ ] Auto-fixes applied and committed (if any)
+
+**Final Commit** (after code review):
+- [ ] All commits squashed to single commit
+- [ ] Conventional commit message format
+- [ ] Issue reference in commit message
+
+**PR Creation**:
+- [ ] Branch pushed to remote
+- [ ] PR created with comprehensive body
+- [ ] PR title from commit subject
+- [ ] Labels applied
+- [ ] Issue will be closed on merge
+
+**Cleanup**:
+- [ ] Returned to main branch
+- [ ] User informed of PR URL
+- [ ] Ready for next task
+
+#### Exception Handling
+
+**Not on Feature Branch**:
+- Stop immediately
+- Message: "You're on {branch}. Please create a feature branch first."
+- Reference "Start Work on Issue" SOP
+
+**Quality Checks Fail (Non-Auto-Fixable)**:
+- Stop immediately
+- Show errors clearly
+- Message: "Fix {lint/typecheck/tests} errors and try again"
+- Do not create PR
+
+**Code Review Finds Blocking Issues**:
+- Stop immediately
+- Show code review report
+- List each blocking issue with file:line
+- Message: "Fix {N} blocking issues and run review again"
+- Provide option to re-run just code review (skip quality checks if already passed)
+
+**Git Push Fails**:
+- Common reason: Remote branch has been updated
+- Message: "Remote branch updated. Pull changes first:"
+- Suggest: `git pull origin {branch} --rebase`
+- Do not create PR until push succeeds
+
+**PR Creation Fails**:
+- Check if PR already exists for this branch
+- If exists: Message: "PR already exists: {URL}. Update it with `git push --force-with-lease`"
+- If gh CLI error: Show error, suggest manual PR creation via GitHub web UI
+
+**Gemini MCP Not Available**:
+- Warning (not blocking)
+- Skip Gemini review, continue with other checks
+- Note in PR body: "⚠️ Gemini review skipped (MCP server unavailable)"
+- Recommend manual review
+
+#### Post-PR Workflow
+
+After PR created, typical workflows:
+
+**Scenario 1: Review Feedback Received**
+```bash
+# Return to feature branch
+git checkout {feature-branch}
+
+# Make requested changes
+# ... edit files ...
+
+# Run quality checks again
+npm run lint && npm run format && npm test
+
+# Commit changes
+git add .
+git commit -m "fix: address review feedback"
+
+# Run code review again
+# {invoke code-reviewer agent}
+
+# Push to update PR
+git push origin {feature-branch}
+
+# Return to main
+git checkout main
+```
+
+**Scenario 2: Start New Issue While Waiting**
+```bash
+# Already on main from PR SOP
+# Start new issue (triggers "Start Work on Issue" SOP)
+
+# User says: "Let's work on #456"
+# {SOP creates new feature branch, begins work}
+```
+
+**Scenario 3: PR Approved and Merged**
+```bash
+# GitHub merges PR (squash merge)
+# GitHub deletes remote branch (if configured)
+
+# Update local main
+git checkout main
+git pull origin main
+
+# Delete local feature branch
+git branch -d {feature-branch}
+
+# Continue with other work
+```
+
+#### Tips for Claude
+
+- **Trigger proactively**: When user indicates work complete, start SOP automatically
+- **Be thorough**: Don't skip quality checks or code review
+- **Auto-fix aggressively**: Fix lint/format issues without asking
+- **Stop on errors**: Don't create PR if quality checks fail
+- **Clear feedback**: Show exactly what needs fixing if issues found
+- **Comprehensive PR body**: Include all context for reviewers
+- **Clean up**: Always return to main after PR created
+
 ### Git Branching Strategy
 
 **IMPORTANT**: Never push directly to `main`. Always use feature branches and pull requests.
@@ -320,6 +1148,34 @@ npm run build  # Includes documentation generation
 
 This repository is designed to support building AI agents with minimal overhead and maximum flexibility.
 
+## Communication Guidelines
+
+### Using the Wizard for Questions
+
+**ALWAYS use the AskUserQuestion wizard when asking clarifying questions.** Never ask questions in plain text.
+
+The wizard provides:
+- Structured, easy-to-answer questions
+- Multiple choice options with clear descriptions
+- Multi-select support for non-exclusive choices
+- Better user experience than reading paragraphs of questions
+
+**Examples of when to use the wizard**:
+- Clarifying requirements during planning
+- Asking about implementation approach
+- Getting architectural decisions
+- Confirming scope or priorities
+- Resolving ambiguities in issues
+
+**How to use the wizard**:
+```typescript
+// Use AskUserQuestion tool with 1-4 questions
+// Each question has a header (max 12 chars), question text, and 2-4 options
+// Each option has a label and description
+```
+
+**Exception**: Do not use the wizard for simple yes/no confirmations or when context makes the answer obvious.
+
 ## Agent Orchestration Guidelines
 
 When working with multiple agents in the HAVE SDK, follow these orchestration patterns:
@@ -344,6 +1200,37 @@ Example: Multiple domain agents analyzing different packages concurrently
 2. Delegate sub-components to specialized agents
 3. Integrate results at each level
 
+### Specialized Agents
+
+The SDK includes specialized agents for specific workflows:
+
+#### Code Reviewer Agent
+
+**Purpose**: Automated code review before PR creation
+
+**Location**: `.claude/agents/code-reviewer.md`
+
+**Responsibilities**:
+- Verify testing standards (TESTING_STANDARD.md)
+- Verify coding standards (CLAUDE.md)
+- Check Definition of Done
+- Coordinate Gemini code review (via MCP)
+- Auto-fix issues when possible
+
+**When to Use**:
+- Automatically invoked by "Create PR" SOP
+- Before pushing changes to remote
+- Can be invoked manually for pre-PR review
+
+**Example**:
+```typescript
+// Invoked automatically by PR SOP
+// User says: "ready to create PR"
+// Claude runs code-reviewer agent before pushing
+```
+
+See [Code Reviewer Agent](./.claude/agents/code-reviewer.md) for complete documentation.
+
 ### Best Practices for Multi-Agent Coordination
 
 - **Single Responsibility**: Each agent should focus on one domain
@@ -351,6 +1238,7 @@ Example: Multiple domain agents analyzing different packages concurrently
 - **Avoid Redundancy**: Don't have multiple agents doing the same work
 - **Validate Integration**: Ensure combined outputs meet requirements
 - **Use TodoWrite**: Track complex multi-step workflows
+- **Proactive Use**: Use specialized agents (like code-reviewer) automatically when appropriate
 
 ### Agent Performance Tracking
 

@@ -1,3 +1,10 @@
+## [0.45.1](https://github.com/happyvertical/sdk/compare/v0.45.0...v0.45.1) (2025-10-20)
+
+
+### Bug Fixes
+
+* **sql:** add table name validation to JSON adapter methods ([b8b2291](https://github.com/happyvertical/sdk/commit/b8b2291d0935f09ef8f648823c90808308a20324)), closes [#267](https://github.com/happyvertical/sdk/issues/267)
+
 # [0.45.0](https://github.com/happyvertical/sdk/compare/v0.44.1...v0.45.0) (2025-10-20)
 
 

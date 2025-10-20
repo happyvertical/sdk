@@ -17,6 +17,9 @@ smrt/*/node_modules
 # Build outputs
 build/
 docs/manual/
+dist/
+packages/*/dist/
+smrt/*/dist/
 
 # Auto-generated documentation
 packages/*/docs/
