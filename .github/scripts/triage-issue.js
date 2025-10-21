@@ -11,7 +11,7 @@
  * - Route critical issues to "To Do" status
  */
 
-const https = require('node:https');
+import https from 'node:https';
 
 // Environment variables
 const {
