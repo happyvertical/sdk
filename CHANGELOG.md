@@ -1,3 +1,10 @@
+## [0.45.4](https://github.com/happyvertical/sdk/compare/v0.45.3...v0.45.4) (2025-10-21)
+
+
+### Bug Fixes
+
+* **ci:** exclude docs package from recursive builds ([74a1562](https://github.com/happyvertical/sdk/commit/74a156271d5fd94f93032f646b9c88583786a173)), closes [happyvertical/smrt#43](https://github.com/happyvertical/smrt/issues/43)
+
 ## [0.45.3](https://github.com/happyvertical/sdk/compare/v0.45.2...v0.45.3) (2025-10-21)
 
 ## [0.45.2](https://github.com/happyvertical/sdk/compare/v0.45.1...v0.45.2) (2025-10-20)
