@@ -1,0 +1,161 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Bug Report
+
+        Thank you for reporting a bug! Please provide details to help us reproduce and fix it.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Clear description of the bug
+      placeholder: What's happening that shouldn't be?
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed steps to reproduce the bug
+      placeholder: |
+        1. Install package X
+        2. Call function Y with parameters Z
+        3. Observe error...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What should happen instead?
+      placeholder: Describe the expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happens?
+      placeholder: Describe the actual behavior (include error messages if any)
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Your environment details
+      placeholder: |
+        - OS: [e.g., macOS 14.0, Ubuntu 22.04]
+        - Node.js: [e.g., 24.0.0]
+        - Package version: [e.g., @happyvertical/sql@0.37.0]
+      render: markdown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: affected-packages
+    attributes:
+      label: Affected Packages
+      description: Which packages does this bug affect?
+      multiple: true
+      options:
+        - "@happyvertical/ai"
+        - "@happyvertical/cache"
+        - "@happyvertical/documents"
+        - "@happyvertical/files"
+        - "@happyvertical/geo"
+        - "@happyvertical/logger"
+        - "@happyvertical/ocr"
+        - "@happyvertical/pdf"
+        - "@happyvertical/spider"
+        - "@happyvertical/sql"
+        - "@happyvertical/translator"
+        - "@happyvertical/utils"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: How severe is this bug?
+      options:
+        - "Critical - Blocks all usage"
+        - "High - Blocks major functionality"
+        - "Medium - Workaround available"
+        - "Low - Minor inconvenience"
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Any other context, logs, or screenshots
+      placeholder: Add any other context about the problem here
+    validations:
+      required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+        ## 📋 SOP Checklist (for implementer)
+
+        This checklist ensures proper workflow adherence per [CLAUDE.md SOPs](../../CLAUDE.md).
+
+  - type: checkboxes
+    id: sop-start-work
+    attributes:
+      label: "SOP: Start Work on Issue"
+      description: Complete before beginning implementation
+      options:
+        - label: "✅ Git state verified (clean working tree)"
+        - label: "✅ Main branch synced (git pull origin main)"
+        - label: "✅ Feature branch created (fix/issue-XXX-description)"
+        - label: "✅ Project board updated (moved to 'In Progress')"
+        - label: "✅ Planning questions answered (via AskUserQuestion wizard)"
+        - label: "✅ Planning notes posted (comment on this issue)"
+        - label: "✅ **BDD/TDD: Write failing test first** (per TESTING_STANDARD.md)"
+        - label: "✅ Test reproduces the bug reliably"
+        - label: "✅ Task list created (if complex, via TodoWrite)"
+
+  - type: checkboxes
+    id: sop-create-pr
+    attributes:
+      label: "SOP: Create Pull Request"
+      description: Complete before creating PR
+      options:
+        - label: "✅ Bug fix implemented (failing test now passes)"
+        - label: "✅ Quality checks passed (lint, format, typecheck)"
+        - label: "✅ All tests passing (npm test)"
+        - label: "✅ Regression test included (prevents future recurrence)"
+        - label: "✅ Code reviewer agent run (via .claude/agents/code-reviewer.md)"
+        - label: "✅ Auto-fixes applied (if any from code review)"
+        - label: "✅ Commits squashed (single conventional commit)"
+        - label: "✅ PR created with comprehensive body"
+        - label: "✅ Project board updated (moved to 'Review & Testing')"
+        - label: "✅ Returned to main branch"
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+        **Note**: The SOP checklists above are guidelines for the implementer. For bug fixes:
+        - Write failing test first (BDD/TDD approach)
+        - Implement fix to make test pass
+        - Regression test prevents bug from recurring
+
+        These can be checked off as work progresses.

@@ -1,3 +1,22 @@
+# [0.46.0](https://github.com/happyvertical/sdk/compare/v0.45.4...v0.46.0) (2025-10-21)
+
+
+### Bug Fixes
+
+* **build:** resolve TypeScript compilation errors in github-actions, utils, and sql packages ([065debd](https://github.com/happyvertical/sdk/commit/065debdbd867fe999b86dff22c1e2e4bb5d457cd)), closes [#296](https://github.com/happyvertical/sdk/issues/296)
+* **ci:** convert triage script to ES module syntax ([85900a3](https://github.com/happyvertical/sdk/commit/85900a37604c2e11a45f30394ca3d570d517ceca))
+* **ci:** disable npm publishing in semantic-release ([6e628ad](https://github.com/happyvertical/sdk/commit/6e628ad91ca8b36f6daf2c641d3e2797fd260ffa)), closes [#293](https://github.com/happyvertical/sdk/issues/293)
+* **ci:** use GH_TOKEN for triage workflow ([cd9714b](https://github.com/happyvertical/sdk/commit/cd9714b56cc6c60470c7f58721a48aacc0a83047))
+* **release:** update vite external packages from [@have](https://github.com/have) to [@happyvertical](https://github.com/happyvertical) ([7c97003](https://github.com/happyvertical/sdk/commit/7c970037922b89b4f55307b24b2bd7d2c5a36ab2))
+
+
+### Features
+
+* **ci:** cancel PR validation on merge ([1bd1499](https://github.com/happyvertical/sdk/commit/1bd149955e5f5c1d9e4452e938ea7c7e443f8028)), closes [#289](https://github.com/happyvertical/sdk/issues/289)
+* **ci:** centralize issue triage automation across HappyVertical repos ([84747c3](https://github.com/happyvertical/sdk/commit/84747c370623dd06fdbfd7b2f0d5b0e05a486cd0)), closes [#291](https://github.com/happyvertical/sdk/issues/291)
+* **ci:** implement AI-powered issue triage automation ([605e295](https://github.com/happyvertical/sdk/commit/605e2952f3cfd0790a0edbc0b62f2105597ef083)), closes [#284](https://github.com/happyvertical/sdk/issues/284)
+* **release:** enable automated publishing to GitHub Packages ([7fd7107](https://github.com/happyvertical/sdk/commit/7fd7107920033fa83acffee5c12b5fb5b3e98822)), closes [#281](https://github.com/happyvertical/sdk/issues/281)
+
 ## [0.45.4](https://github.com/happyvertical/sdk/compare/v0.45.3...v0.45.4) (2025-10-21)
 
 
