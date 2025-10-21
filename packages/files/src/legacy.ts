@@ -1,7 +1,7 @@
 /**
  * Legacy compatibility functions
  *
- * These functions maintain backward compatibility with the existing @have/files API
+ * These functions maintain backward compatibility with the existing @happyvertical/files API
  * while internally using the new standardized interface.
  */
 
@@ -10,7 +10,7 @@ import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import * as path from 'node:path';
 import { dirname } from 'node:path';
 import { URL } from 'node:url';
-import { getTempDirectory } from '@have/utils';
+import { getTempDirectory } from '@happyvertical/utils';
 
 /**
  * Default temporary directory for caching and intermediate files
@@ -20,7 +20,7 @@ const TMP_DIR = path.resolve(getTempDirectory('kissd'));
 /**
  * Checks if a path is a file (legacy compatibility function)
  *
- * This function provides backward compatibility with the existing @have/files API.
+ * This function provides backward compatibility with the existing @happyvertical/files API.
  * It synchronously checks if the given path exists and is a file (not a directory).
  *
  * @param file - Path to check
@@ -49,7 +49,7 @@ export const isFile = (file: string): false | ReturnType<typeof statSync> => {
 /**
  * Checks if a path is a directory (legacy compatibility function)
  *
- * This function provides backward compatibility with the existing @have/files API.
+ * This function provides backward compatibility with the existing @happyvertical/files API.
  * It synchronously checks if the given path exists and is a directory.
  *
  * @param dir - Path to check
@@ -88,7 +88,7 @@ export const isDirectory = (dir: string): boolean => {
 /**
  * Creates a directory if it doesn't exist (legacy compatibility function)
  *
- * This function provides backward compatibility with the existing @have/files API.
+ * This function provides backward compatibility with the existing @happyvertical/files API.
  * It ensures a directory exists by creating it (and any parent directories) if needed.
  *
  * @param dir - Directory path to create
@@ -112,7 +112,7 @@ export const ensureDirectoryExists = async (dir: string): Promise<void> => {
 /**
  * Uploads data to a URL using PUT method (legacy compatibility function)
  *
- * This function provides backward compatibility with the existing @have/files API.
+ * This function provides backward compatibility with the existing @happyvertical/files API.
  * It performs an HTTP PUT request to upload data to a remote URL.
  *
  * @param url - URL to upload data to
@@ -157,7 +157,7 @@ export const upload = async (
 /**
  * Downloads a file from a URL and saves it to a local file (legacy compatibility function)
  *
- * This function provides backward compatibility with the existing @have/files API.
+ * This function provides backward compatibility with the existing @happyvertical/files API.
  * It downloads content from a URL and writes it to a local file using streaming
  * to handle large files efficiently.
  *
@@ -221,7 +221,7 @@ export async function download(url: string, filepath: string): Promise<void> {
 /**
  * Downloads a file with caching support (legacy compatibility function)
  *
- * This function provides backward compatibility with the existing @have/files API.
+ * This function provides backward compatibility with the existing @happyvertical/files API.
  * It downloads a file only if it doesn't already exist locally, implementing
  * a simple caching mechanism to avoid redundant downloads.
  *
@@ -276,7 +276,7 @@ interface ListFilesOptions {
 /**
  * Lists files in a directory with optional filtering (legacy compatibility function)
  *
- * This function provides backward compatibility with the existing @have/files API.
+ * This function provides backward compatibility with the existing @happyvertical/files API.
  * It returns only files (not directories) from the specified directory, with
  * optional regular expression filtering.
  *

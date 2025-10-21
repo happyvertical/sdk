@@ -1,8 +1,8 @@
 /**
- * @have/pdf - Combined Node.js PDF reader with unpdf + OCR capabilities
+ * @happyvertical/pdf - Combined Node.js PDF reader with unpdf + OCR capabilities
  */
 
-import { getOCR } from '@have/ocr';
+import { getOCR } from '@happyvertical/ocr';
 import { BasePDFReader } from '../shared/base';
 import type {
   DependencyCheckResult,

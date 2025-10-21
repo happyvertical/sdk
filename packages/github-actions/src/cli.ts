@@ -113,7 +113,7 @@ function loadConfig(): TriageConfig {
 
 function showHelp() {
   console.log(`
-@have/github-actions CLI
+@happyvertical/github-actions CLI
 
 Usage:
   github-actions triage
@@ -133,8 +133,8 @@ Environment Variables:
 Config Format:
   {
     "repoDescription": "Repository description for AI",
-    "packagePattern": "@have/*",
-    "packageExamples": ["@have/ai", "@have/sql"],
+    "packagePattern": "@happyvertical/*",
+    "packageExamples": ["@happyvertical/ai", "@happyvertical/sql"],
     "projectEnabled": true,
     "projectId": "PVT_xxx",
     "statusFieldId": "PVTSSF_xxx",

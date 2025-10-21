@@ -1,11 +1,11 @@
 ---
 id: files
-title: "@have/files: File System Operations"
-sidebar_label: "@have/files"
+title: "@happyvertical/files: File System Operations"
+sidebar_label: "@happyvertical/files"
 sidebar_position: 4
 ---
 
-# @have/files
+# @happyvertical/files
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
@@ -13,7 +13,7 @@ File system interface abstraction layer for the HAVE SDK with Node.js-focused im
 
 ## Overview
 
-The `@have/files` package provides a standardized interface for file system operations using Node.js built-in modules. It offers a unified API for local file operations with plans for remote provider support, implementing modern Node.js filesystem capabilities including Web Streams integration and async resource management.
+The `@happyvertical/files` package provides a standardized interface for file system operations using Node.js built-in modules. It offers a unified API for local file operations with plans for remote provider support, implementing modern Node.js filesystem capabilities including Web Streams integration and async resource management.
 
 ## Key Features
 
@@ -23,19 +23,19 @@ The `@have/files` package provides a standardized interface for file system oper
 - **Comprehensive Error Handling**: Typed errors for file operations with proper error codes
 - **Stream Support**: Efficient handling of large files using Node.js streams
 - **Path Security**: Cross-platform path handling with directory traversal protection
-- **Legacy Compatibility**: Backward compatibility with existing @have/files APIs
+- **Legacy Compatibility**: Backward compatibility with existing @happyvertical/files APIs
 
 ## Installation
 
 ```bash
 # Install with bun (recommended)
-bun add @have/files
+bun add @happyvertical/files
 
 # Or with npm
-npm install @have/files
+npm install @happyvertical/files
 
 # Or with yarn
-yarn add @have/files
+yarn add @happyvertical/files
 ```
 
 ## Usage
@@ -43,7 +43,7 @@ yarn add @have/files
 ### Quick Start
 
 ```typescript
-import { getFilesystem } from '@have/files';
+import { getFilesystem } from '@happyvertical/files';
 
 // Create a local filesystem instance
 const fs = await getFilesystem({ type: 'local', basePath: '/app/data' });
@@ -116,7 +116,7 @@ import {
   FileNotFoundError,
   PermissionError,
   DirectoryNotEmptyError
-} from '@have/files';
+} from '@happyvertical/files';
 
 try {
   await fs.write('/protected/file.txt', 'content');
@@ -143,7 +143,7 @@ import {
   listFiles,
   getCached,
   setCached
-} from '@have/files';
+} from '@happyvertical/files';
 
 // Check file type (legacy)
 const fileStats = await isFile('/path/to/file.txt');
@@ -195,7 +195,7 @@ The package generates comprehensive API documentation using TypeDoc. See the gen
 
 ## Dependencies
 
-- **@have/utils**: Core utilities for path handling and temporary directories
+- **@happyvertical/utils**: Core utilities for path handling and temporary directories
 - **Node.js built-ins**: fs/promises, path, stream (no external filesystem dependencies)
 
 ## License

@@ -1,17 +1,17 @@
 ---
 id: sql
-title: "@have/sql: Database Operations"
-sidebar_label: "@have/sql"
+title: "@happyvertical/sql: Database Operations"
+sidebar_label: "@happyvertical/sql"
 sidebar_position: 6
 ---
 
-# @have/sql: Database Operations
+# @happyvertical/sql: Database Operations
 
 Database interaction with support for SQLite and PostgreSQL, providing the persistence layer for SMRT applications.
 
 ## Overview
 
-The `@have/sql` package provides database operations for SMRT:
+The `@happyvertical/sql` package provides database operations for SMRT:
 
 - **🗄️ Multi-Database**: SQLite and PostgreSQL support
 - **🔄 Migrations**: Automatic schema migrations
@@ -22,7 +22,7 @@ The `@have/sql` package provides database operations for SMRT:
 ## Quick Start
 
 ```typescript
-import { initializeDatabase, Database } from '@have/sql';
+import { initializeDatabase, Database } from '@happyvertical/sql';
 
 // Initialize database connection
 await initializeDatabase({

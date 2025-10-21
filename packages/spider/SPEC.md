@@ -11,7 +11,7 @@ The primary goal is to fetch a web page, parse its content, and extract relevant
 - **SpiderManager**: The main entry point and public interface of the package. It is initialized with a specific adapter and orchestrates the fetching and parsing of web content.
 - **Adapter**: An adapter that conforms to the `ISpiderAdapter` interface. Each adapter is responsible for communicating with a specific backend service (e.g., a simple HTTP client, a headless browser) and transforming the response into a standardized `Page` format.
 - **Page**: A standardized data structure representing a web page. It contains detailed information like the URL, content, and extracted links.
-- **Caching**: The package will use `@have/cache` to cache responses, reducing redundant fetches and improving performance.
+- **Caching**: The package will use `@happyvertical/cache` to cache responses, reducing redundant fetches and improving performance.
 
 ## Data Models
 
@@ -129,9 +129,9 @@ crawlAndLogLinks('https://example.com');
 
 ## Dependencies
 
-- `@have/cache`
-- `@have/files`
-- `@have/utils`
+- `@happyvertical/cache`
+- `@happyvertical/files`
+- `@happyvertical/utils`
 - `cheerio`
 - `happy-dom`
 - `crawlee`

@@ -248,7 +248,7 @@ This demonstrates how applications would use the `getCache` factory with differe
 #### Memory Cache (Development)
 
 ```typescript
-import { getCache } from '@have/cache';
+import { getCache } from '@happyvertical/cache';
 
 // Create a memory cache with LRU eviction
 const cache = await getCache({
@@ -301,7 +301,7 @@ await cache.clear('myapp');
 #### File Cache (Persistent Development/Testing)
 
 ```typescript
-import { getCache } from '@have/cache';
+import { getCache } from '@happyvertical/cache';
 import { resolve } from 'node:path';
 
 // Create a file-based cache
@@ -333,7 +333,7 @@ await cache.close();
 #### Redis Cache (Production)
 
 ```typescript
-import { getCache } from '@have/cache';
+import { getCache } from '@happyvertical/cache';
 
 // Create a Redis cache
 const cache = await getCache({
@@ -381,7 +381,7 @@ await cache.close();
 #### Cache Wrapper for Function Memoization
 
 ```typescript
-import { getCache } from '@have/cache';
+import { getCache } from '@happyvertical/cache';
 
 const cache = await getCache({ provider: 'memory' });
 
@@ -416,7 +416,7 @@ const expensiveData = await memoize(
 #### Multi-Layer Caching
 
 ```typescript
-import { getCache } from '@have/cache';
+import { getCache } from '@happyvertical/cache';
 
 // Create a two-tier cache: fast memory + persistent Redis
 const l1Cache = await getCache({
@@ -524,7 +524,7 @@ import {
   CacheKeyError,
   CacheSizeError,
   CacheSerializationError,
-} from '@have/cache';
+} from '@happyvertical/cache';
 
 try {
   await cache.set('my-key', myValue);

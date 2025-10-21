@@ -2,8 +2,8 @@
  * DeepL provider implementation
  */
 
-import type { CacheAdapter } from '@have/cache';
-import { getCache } from '@have/cache';
+import type { CacheAdapter } from '@happyvertical/cache';
+import { getCache } from '@happyvertical/cache';
 import * as deepl from 'deepl-node';
 import type {
   DeepLOptions,

@@ -1,4 +1,4 @@
-import { ValidationError } from '@have/utils';
+import { ValidationError } from '@happyvertical/utils';
 import { describe, expect, it } from 'vitest';
 import { getSpider } from './index';
 

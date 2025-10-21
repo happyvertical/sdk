@@ -1,5 +1,5 @@
 {
-  "name": "@have/geo",
+  "name": "@happyvertical/geo",
   "version": "0.37.0",
   "description": "Standardized geographical information interface supporting Google Maps and OpenStreetMap",
   "type": "module",
@@ -50,8 +50,8 @@
   "author": "willgriffin@gmail.com",
   "license": "ISC",
   "dependencies": {
-    "@have/utils": "workspace:*",
-    "@have/cache": "workspace:*",
+    "@happyvertical/utils": "workspace:*",
+    "@happyvertical/cache": "workspace:*",
     "@googlemaps/google-maps-services-js": "^3.4.0"
   },
   "devDependencies": {

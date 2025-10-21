@@ -299,7 +299,7 @@ describe('JSON adapter tests', () => {
 
   describe('SMRT integration', () => {
     it('should create tables with SMRT schema when available', async () => {
-      // This test requires @have/smrt to be available
+      // This test requires @happyvertical/smrt to be available
       // It demonstrates that the JSON adapter will use SMRT schemas when found
 
       // Create a JSON file with empty strings (would fail with auto-detection)

@@ -1,11 +1,11 @@
 ---
 id: sql
-title: "@have/sql: Database Interface"
-sidebar_label: "@have/sql"
+title: "@happyvertical/sql: Database Interface"
+sidebar_label: "@happyvertical/sql"
 sidebar_position: 10
 ---
 
-# @have/sql
+# @happyvertical/sql
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
@@ -13,7 +13,7 @@ Database interaction library with support for SQLite (including LibSQL/Turso), P
 
 ## Overview
 
-The `@have/sql` package provides a simple and consistent interface for interacting with SQL databases. It supports both SQLite/LibSQL and PostgreSQL with the same API, making it easy to develop locally with SQLite and deploy to production with PostgreSQL or Turso.
+The `@happyvertical/sql` package provides a simple and consistent interface for interacting with SQL databases. It supports both SQLite/LibSQL and PostgreSQL with the same API, making it easy to develop locally with SQLite and deploy to production with PostgreSQL or Turso.
 
 ## Features
 
@@ -34,13 +34,13 @@ The `@have/sql` package provides a simple and consistent interface for interacti
 
 ```bash
 # Install with npm
-npm install @have/sql
+npm install @happyvertical/sql
 
 # Or with yarn
-yarn add @have/sql
+yarn add @happyvertical/sql
 
 # Or with bun
-bun add @have/sql
+bun add @happyvertical/sql
 ```
 
 ## Usage
@@ -48,7 +48,7 @@ bun add @have/sql
 ### Connecting to a Database
 
 ```typescript
-import { getDatabase } from '@have/sql';
+import { getDatabase } from '@happyvertical/sql';
 
 // Connect to SQLite (in-memory)
 const sqliteDb = await getDatabase({
@@ -302,7 +302,7 @@ await db.transaction(async (tx) => {
 ### Advanced Query Building
 
 ```typescript
-import { buildWhere } from '@have/sql';
+import { buildWhere } from '@happyvertical/sql';
 
 // Build complex WHERE clauses with flexible operators
 const { sql, values } = buildWhere({
@@ -322,7 +322,7 @@ const products = await db.many`SELECT * FROM products ${sql}`;
 ### Schema Synchronization
 
 ```typescript
-import { syncSchema } from '@have/sql';
+import { syncSchema } from '@happyvertical/sql';
 
 // Define schema as SQL DDL
 const schema = `
@@ -386,7 +386,7 @@ const similarDocs = await db.many`
 To add support for a new database, implement the `DatabaseInterface`:
 
 ```typescript
-import { DatabaseInterface, QueryResult, TableInterface } from '@have/sql';
+import { DatabaseInterface, QueryResult, TableInterface } from '@happyvertical/sql';
 
 export class MyDatabaseAdapter implements DatabaseInterface {
   client: any; // Your database client
@@ -497,7 +497,7 @@ export async function getDatabase(options: GetDatabaseOptions): Promise<Database
 
 - **Parameter Placeholders**: Use `?` for positional (SQLite) or `$1, $2...` for numbered (PostgreSQL)
 - **Batch Operations**: Support array data in `insert()` for performance
-- **Error Handling**: Wrap database errors in `DatabaseError` from `@have/utils`
+- **Error Handling**: Wrap database errors in `DatabaseError` from `@happyvertical/utils`
 - **Transactions**: Acquire dedicated client from pool or reuse existing connection
 - **UPSERT Syntax**: Use database-specific ON CONFLICT handling
 - **Type Coercion**: Handle database-specific type conversions appropriately

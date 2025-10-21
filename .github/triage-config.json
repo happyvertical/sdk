@@ -1,7 +1,7 @@
 {
   "repoDescription": "TypeScript monorepo for AI agent development",
-  "packagePattern": "@have/*",
-  "packageExamples": ["@have/ai", "@have/sql", "@have/files", "@have/utils"],
+  "packagePattern": "@happyvertical/*",
+  "packageExamples": ["@happyvertical/ai", "@happyvertical/sql", "@happyvertical/files", "@happyvertical/utils"],
   "projectEnabled": true,
   "projectId": "PVT_kwDOB9Y8ns4A8-TY",
   "statusFieldId": "PVTSSF_lADOB9Y8ns4A8-TYzgw0GaY",

@@ -1,8 +1,8 @@
 /**
- * @have/pdf - Combined browser PDF reader with PDF.js + Web OCR capabilities
+ * @happyvertical/pdf - Combined browser PDF reader with PDF.js + Web OCR capabilities
  */
 
-import { getOCR } from '@have/ocr';
+import { getOCR } from '@happyvertical/ocr';
 import { BasePDFReader } from '../shared/base';
 import type {
   DependencyCheckResult,

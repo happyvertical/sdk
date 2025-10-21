@@ -84,7 +84,7 @@ describe('AI Analysis Validation', () => {
         priority: 'medium',
         urgency: 'normal',
         reasoning: 'New feature request',
-        affected_packages: ['@have/sql', '@have/cache'],
+        affected_packages: ['@happyvertical/sql', '@happyvertical/cache'],
       };
 
       expect(() => validateAIAnalysis(response)).not.toThrow();
@@ -261,7 +261,7 @@ describe('AI Analysis Validation', () => {
         priority: 'medium',
         urgency: 'normal',
         reasoning: 'Test',
-        affected_packages: ['@have/sql', 123, '@have/cache'],
+        affected_packages: ['@happyvertical/sql', 123, '@happyvertical/cache'],
       };
 
       expect(() => validateAIAnalysis(response)).toThrow(

@@ -1,8 +1,8 @@
-# @have/ai: AI Model Interface Package
+# @happyvertical/ai: AI Model Interface Package
 
 ## Purpose and Responsibilities
 
-The `@have/ai` package provides a standardized interface for interacting with various AI models across multiple providers. It is designed to:
+The `@happyvertical/ai` package provides a standardized interface for interacting with various AI models across multiple providers. It is designed to:
 
 - **Unify AI Provider APIs**: Provide a consistent interface across OpenAI, Google Gemini, Anthropic Claude, Hugging Face, and AWS Bedrock
 - **Simplify Provider Switching**: Enable seamless switching between AI providers without code changes
@@ -80,7 +80,7 @@ private mapError(error: unknown): AIError {
 ### Creating an AI Client
 
 ```typescript
-import { getAI, getAIAuto } from '@have/ai';
+import { getAI, getAIAuto } from '@happyvertical/ai';
 
 // Create an OpenAI client (default provider)
 const client = await getAI({
@@ -148,7 +148,7 @@ const autoClient = await getAIAuto({
 
 ### Environment Variable Configuration
 
-The `@have/ai` package supports configuration via environment variables using the `HAVE_AI_*` prefix pattern. This allows you to configure AI providers without hardcoding credentials or settings in your code.
+The `@happyvertical/ai` package supports configuration via environment variables using the `HAVE_AI_*` prefix pattern. This allows you to configure AI providers without hardcoding credentials or settings in your code.
 
 **Supported Environment Variables:**
 
@@ -179,7 +179,7 @@ User-provided options always take precedence over environment variables:
 **Examples:**
 
 ```typescript
-import { getAI, getAIAuto } from '@have/ai';
+import { getAI, getAIAuto } from '@happyvertical/ai';
 
 // Example 1: Use environment variables only
 // Set: HAVE_AI_PROVIDER=claude-cli, HAVE_AI_MODEL=sonnet
@@ -234,7 +234,7 @@ const client6 = await getAI({});
 ### Chat Completions
 
 ```typescript
-import { getAI, type AIMessage, type ChatOptions } from '@have/ai';
+import { getAI, type AIMessage, type ChatOptions } from '@happyvertical/ai';
 
 const client = await getAI({ 
   apiKey: process.env.OPENAI_API_KEY!,
@@ -298,7 +298,7 @@ if (toolResponse.toolCalls) {
 ### Text Completions
 
 ```typescript
-import { getAI } from '@have/ai';
+import { getAI } from '@happyvertical/ai';
 
 const client = await getAI({ apiKey: 'your-api-key' });
 
@@ -318,7 +318,7 @@ console.log(resultWithOptions.content);
 ### Embeddings
 
 ```typescript
-import { getAI } from '@have/ai';
+import { getAI } from '@happyvertical/ai';
 
 const client = await getAI({ apiKey: 'your-api-key' });
 
@@ -338,7 +338,7 @@ console.log(embeddings.embeddings); // Array of number arrays
 ### Streaming Responses
 
 ```typescript
-import { getAI } from '@have/ai';
+import { getAI } from '@happyvertical/ai';
 
 const client = await getAI({ apiKey: process.env.OPENAI_API_KEY! });
 
@@ -387,7 +387,7 @@ try {
 ### Model Information and Capabilities
 
 ```typescript
-import { getAI } from '@have/ai';
+import { getAI } from '@happyvertical/ai';
 
 const client = await getAI({ 
   apiKey: process.env.OPENAI_API_KEY!,
@@ -437,7 +437,7 @@ import {
   ModelNotFoundError,
   ContextLengthError,
   ContentFilterError 
-} from '@have/ai';
+} from '@happyvertical/ai';
 
 const client = await getAI({
   apiKey: process.env.OPENAI_API_KEY!,
@@ -475,7 +475,7 @@ try {
 ### Multi-Provider Usage Patterns
 
 ```typescript
-import { getAI } from '@have/ai';
+import { getAI } from '@happyvertical/ai';
 
 // Create multiple providers for redundancy
 const providers = await Promise.all([
@@ -658,7 +658,7 @@ The package includes legacy components for backward compatibility:
 - Manages conversation state with history and references
 - Useful for building conversational agents
 - Assembles messages with proper ordering (system → references → conversation)
-- Still actively used in `@have/smrt` package
+- Still actively used in `@happyvertical/smrt` package
 
 **`AIMessage` class** (`shared/message.ts`):
 - Message object wrapper (different from `AIMessage` interface)
@@ -711,7 +711,7 @@ The package includes legacy components for backward compatibility:
 The package has the following dependencies:
 
 ### Internal Dependencies
-- `@have/utils`: For utility functions, validation, and error handling
+- `@happyvertical/utils`: For utility functions, validation, and error handling
 
 ### External Dependencies
 - `openai`: Official OpenAI JavaScript/TypeScript SDK for GPT models
@@ -1062,7 +1062,7 @@ bun run clean
 
 ## API Documentation
 
-The @have/ai package generates comprehensive API documentation in both HTML and markdown formats using TypeDoc:
+The @happyvertical/ai package generates comprehensive API documentation in both HTML and markdown formats using TypeDoc:
 
 ### Generated Documentation Formats
 
@@ -1181,7 +1181,7 @@ interface ClaudeCliOptions extends BaseAIOptions {
 
 ## Expert Agent Instructions
 
-When working with @have/ai:
+When working with @happyvertical/ai:
 
 1. **Always check latest documentation** before implementing solutions using WebFetch tool
 2. **Stay current with API changes** - AI provider APIs evolve rapidly with new models and features
@@ -1296,7 +1296,7 @@ npm run clean
 
 ```typescript
 // Basic usage
-import { getAI } from '@have/ai';
+import { getAI } from '@happyvertical/ai';
 const client = await getAI({ type: 'openai', apiKey: '...' });
 const response = await client.chat([{ role: 'user', content: 'Hello' }]);
 
@@ -1306,7 +1306,7 @@ for await (const chunk of client.stream([{ role: 'user', content: 'Tell a story'
 }
 
 // Error handling
-import { RateLimitError, AuthenticationError } from '@have/ai';
+import { RateLimitError, AuthenticationError } from '@happyvertical/ai';
 try {
   await client.chat(messages);
 } catch (error) {
@@ -1324,7 +1324,7 @@ const response = await client.chat(messages, {
 });
 
 // Legacy AIThread for conversations
-import { AIThread } from '@have/ai';
+import { AIThread } from '@happyvertical/ai';
 const thread = await AIThread.create({ ai: { type: 'openai', apiKey: '...' } });
 await thread.addSystem('You are a helpful assistant');
 await thread.add({ role: 'user', content: 'Hello' });
@@ -1341,7 +1341,7 @@ const response = await thread.do('What is TypeScript?');
 6. **Testing**: Unit tests use mock/fake data, integration tests require real API keys
 7. **Type Safety**: Use discriminated unions - TypeScript narrows options based on `type` field
 8. **Backward Compatibility**: Legacy `AIClient`, `AIThread`, `AIMessage` class still supported
-9. **Dependencies**: Only depends on `@have/utils` internally + provider SDKs externally
+9. **Dependencies**: Only depends on `@happyvertical/utils` internally + provider SDKs externally
 10. **Documentation**: Auto-generated API docs in `docs/` using TypeDoc
 
 ### When to Use What

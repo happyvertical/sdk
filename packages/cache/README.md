@@ -1,11 +1,11 @@
 ---
 id: cache
-title: "@have/cache: Unified Caching Interface"
-sidebar_label: "@have/cache"
+title: "@happyvertical/cache: Unified Caching Interface"
+sidebar_label: "@happyvertical/cache"
 sidebar_position: 1
 ---
 
-# @have/cache
+# @happyvertical/cache
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
@@ -13,7 +13,7 @@ Standardized caching interface supporting Memory, File, and Redis backends with 
 
 ## Overview
 
-The `@have/cache` package provides a unified caching interface that works seamlessly across multiple storage backends. Whether you need in-memory caching for development, file-based persistence for single-instance applications, or Redis for distributed systems, this package offers a consistent API with powerful features like automatic expiration, eviction policies, and performance tracking.
+The `@happyvertical/cache` package provides a unified caching interface that works seamlessly across multiple storage backends. Whether you need in-memory caching for development, file-based persistence for single-instance applications, or Redis for distributed systems, this package offers a consistent API with powerful features like automatic expiration, eviction policies, and performance tracking.
 
 ## Key Features
 
@@ -31,13 +31,13 @@ The `@have/cache` package provides a unified caching interface that works seamle
 
 ```bash
 # Install with npm
-npm install @have/cache
+npm install @happyvertical/cache
 
 # Or with pnpm
-pnpm add @have/cache
+pnpm add @happyvertical/cache
 
 # Or with yarn
-yarn add @have/cache
+yarn add @happyvertical/cache
 
 # For Redis support, redis is already included
 ```
@@ -45,7 +45,7 @@ yarn add @have/cache
 ## Quick Start
 
 ```typescript
-import { getCache } from '@have/cache';
+import { getCache } from '@happyvertical/cache';
 
 // Create a memory cache
 const cache = await getCache({
@@ -174,7 +174,7 @@ const cache = await getCache({
 Best for development, testing, and single-instance applications with limited cache needs.
 
 ```typescript
-import { getCache } from '@have/cache';
+import { getCache } from '@happyvertical/cache';
 
 const cache = await getCache({
   provider: 'memory',
@@ -212,7 +212,7 @@ const product = await cache.get('product:456');
 Best for single-instance applications needing persistence across restarts.
 
 ```typescript
-import { getCache } from '@have/cache';
+import { getCache } from '@happyvertical/cache';
 
 const cache = await getCache({
   provider: 'file',
@@ -246,7 +246,7 @@ const report = await cache.get('report:2024');
 Best for distributed systems, multi-server applications, and production environments.
 
 ```typescript
-import { getCache } from '@have/cache';
+import { getCache } from '@happyvertical/cache';
 
 const cache = await getCache({
   provider: 'redis',
@@ -499,7 +499,7 @@ interface CacheAdapter {
 ### Example Implementation
 
 ```typescript
-import type { CacheAdapter, CacheStats } from '@have/cache';
+import type { CacheAdapter, CacheStats } from '@happyvertical/cache';
 
 export class MyCustomCache implements CacheAdapter {
   constructor(private options: MyCustomCacheOptions) {
@@ -562,7 +562,7 @@ export class MyCustomCache implements CacheAdapter {
 Update the factory function to support your adapter:
 
 ```typescript
-import { getCache } from '@have/cache';
+import { getCache } from '@happyvertical/cache';
 
 // Register your adapter
 const cache = await getCache({
@@ -627,7 +627,7 @@ import {
   CacheConnectionError,
   CacheSizeError,
   CacheSerializationError
-} from '@have/cache';
+} from '@happyvertical/cache';
 
 try {
   await cache.set('key', value);
@@ -795,7 +795,7 @@ async function getExpensiveData(key: string): Promise<Data> {
 
 ## Comparison with Other Caching Libraries
 
-| Feature | @have/cache | node-cache | cache-manager | keyv |
+| Feature | @happyvertical/cache | node-cache | cache-manager | keyv |
 |---------|-------------|------------|---------------|------|
 | Memory Cache | ✅ | ✅ | ✅ | ✅ |
 | File Cache | ✅ | ❌ | ❌ | ✅ |

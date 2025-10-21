@@ -1,17 +1,17 @@
 ---
 id: ocr
-title: "@have/ocr: Optical Character Recognition"
-sidebar_label: "@have/ocr"
+title: "@happyvertical/ocr: Optical Character Recognition"
+sidebar_label: "@happyvertical/ocr"
 sidebar_position: 9
 ---
 
-# @have/ocr: Optical Character Recognition
+# @happyvertical/ocr: Optical Character Recognition
 
 Standardized OCR interface with support for multiple providers including Tesseract.js and ONNX (PaddleOCR).
 
 ## Overview
 
-The `@have/ocr` package provides unified text extraction from images across different OCR engines:
+The `@happyvertical/ocr` package provides unified text extraction from images across different OCR engines:
 
 - **🔌 Multi-Provider Support**: Tesseract.js, ONNX (PaddleOCR), and Web OCR
 - **🌍 Multi-Language**: Support for 100+ languages (Tesseract) or 7 core languages (ONNX)
@@ -23,7 +23,7 @@ The `@have/ocr` package provides unified text extraction from images across diff
 ## Quick Start
 
 ```typescript
-import { getOCR } from '@have/ocr';
+import { getOCR } from '@happyvertical/ocr';
 
 // Create OCR factory with automatic provider selection
 const ocrFactory = getOCR();
@@ -143,7 +143,7 @@ import {
   OCRError,
   OCRDependencyError,
   OCRProcessingError
-} from '@have/ocr';
+} from '@happyvertical/ocr';
 
 try {
   const result = await ocrFactory.performOCR(images);

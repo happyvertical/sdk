@@ -38,7 +38,7 @@ export default defineConfig({
         'net',
         'tls',
         // Internal packages
-        /^@have\//,
+        /^@happyvertical\//,
       ],
     },
     minify: false,

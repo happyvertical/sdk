@@ -1,5 +1,5 @@
 /**
- * @have/pdf - PDF.js provider for browser PDF processing
+ * @happyvertical/pdf - PDF.js provider for browser PDF processing
  */
 
 import { BasePDFReader } from '../shared/base';

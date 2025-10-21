@@ -1,29 +1,29 @@
 ---
 id: documents
-title: "@have/documents: Document Processing"
-sidebar_label: "@have/documents"
+title: "@happyvertical/documents: Document Processing"
+sidebar_label: "@happyvertical/documents"
 sidebar_position: 5
 ---
 
-# @have/documents: Document Processing
+# @happyvertical/documents: Document Processing
 
 Multi-part document processing with support for PDF, HTML, and Markdown formats.
 
 ## Overview
 
-The `@have/documents` package provides comprehensive document processing capabilities:
+The `@happyvertical/documents` package provides comprehensive document processing capabilities:
 
 - **📄 Multi-Format Support**: Process PDFs, HTML, and Markdown documents
 - **🔍 Text Extraction**: Extract text content from various document formats
-- **🖼️ OCR Integration**: Fallback to OCR for scanned PDFs using @have/ocr
-- **🕷️ Web Scraping**: Extract content from HTML using @have/spider
+- **🖼️ OCR Integration**: Fallback to OCR for scanned PDFs using @happyvertical/ocr
+- **🕷️ Web Scraping**: Extract content from HTML using @happyvertical/spider
 - **📊 Structured Output**: Standardized document representation across formats
 - **🔗 Cross-Format**: Convert between document formats
 
 ## Quick Start
 
 ```typescript
-import { processDocument } from '@have/documents';
+import { processDocument } from '@happyvertical/documents';
 
 // Process a PDF document
 const pdfDoc = await processDocument({
@@ -72,7 +72,7 @@ interface Document {
 ## PDF Processing
 
 ```typescript
-import { processPDF } from '@have/documents';
+import { processPDF } from '@happyvertical/documents';
 
 // Basic PDF processing
 const doc = await processPDF('/path/to/document.pdf');
@@ -94,7 +94,7 @@ console.log('Images:', pdfWithImages.images);
 ## HTML Processing
 
 ```typescript
-import { processHTML } from '@have/documents';
+import { processHTML } from '@happyvertical/documents';
 
 // Process HTML file
 const htmlDoc = await processHTML('/path/to/page.html');
@@ -115,7 +115,7 @@ const article = await processHTML(htmlString, {
 ## Markdown Processing
 
 ```typescript
-import { processMarkdown } from '@have/documents';
+import { processMarkdown } from '@happyvertical/documents';
 
 // Process Markdown file
 const mdDoc = await processMarkdown('/path/to/README.md');

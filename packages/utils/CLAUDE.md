@@ -1,8 +1,8 @@
-# @have/utils: Foundational Utility Functions Package
+# @happyvertical/utils: Foundational Utility Functions Package
 
 ## Purpose and Responsibilities
 
-The `@have/utils` package provides foundational utility functions used throughout the HAVE SDK. It serves as the base dependency for most other packages and is designed to be the lowest-level package in the dependency hierarchy with **zero internal HAVE SDK dependencies**.
+The `@happyvertical/utils` package provides foundational utility functions used throughout the HAVE SDK. It serves as the base dependency for most other packages and is designed to be the lowest-level package in the dependency hierarchy with **zero internal HAVE SDK dependencies**.
 
 ### Core Functionality
 
@@ -32,7 +32,7 @@ This package is intentionally lightweight, uses Node.js-only builds (no browser 
 ### ID Generation
 
 ```typescript
-import { makeId, createId, isCuid } from '@have/utils';
+import { makeId, createId, isCuid } from '@happyvertical/utils';
 
 // Generate a CUID2 by default (more secure and collision-resistant than UUID)
 const id = makeId(); // "ckx5f8h3z0000qzrmn831i7rn"
@@ -57,7 +57,7 @@ if (isCuid(id)) {
 ### Slug Generation
 
 ```typescript
-import { makeSlug } from '@have/utils';
+import { makeSlug } from '@happyvertical/utils';
 
 // Convert strings to URL-friendly slugs
 const slug = makeSlug("My Example Title & Co."); // "my-example-title-38-co"
@@ -78,7 +78,7 @@ const intlSlug = makeSlug("Café España"); // "cafe-espana"
 ### Path Utilities
 
 ```typescript
-import { urlPath, urlFilename, getTempDirectory } from '@have/utils';
+import { urlPath, urlFilename, getTempDirectory } from '@happyvertical/utils';
 
 // Extract path components from URLs (hostname + pathname)
 const urlPathString = urlPath("https://example.com/path/to/resource");
@@ -102,7 +102,7 @@ const cacheDir = getTempDirectory("cache"); // "/tmp/.have-sdk/cache"
 ### String Case Conversions
 
 ```typescript
-import { camelCase, snakeCase, keysToCamel, keysToSnake } from '@have/utils';
+import { camelCase, snakeCase, keysToCamel, keysToSnake } from '@happyvertical/utils';
 
 // Convert individual strings
 const camelString = camelCase("some-string-here"); // "someStringHere"
@@ -128,7 +128,7 @@ const snakeCaseObj = keysToSnake({ userName: "john", userDetails: {...} });
 ### Date Utilities
 
 ```typescript
-import { dateInString, prettyDate, parseAmazonDateString } from '@have/utils';
+import { dateInString, prettyDate, parseAmazonDateString } from '@happyvertical/utils';
 
 // Extract dates from filenames (useful for processing files)
 const date = dateInString("Report_January_15_2023.pdf");
@@ -149,7 +149,7 @@ const awsDate = parseAmazonDateString('20220223T215409Z');
 ### Async Utilities
 
 ```typescript
-import { waitFor, sleep } from '@have/utils';
+import { waitFor, sleep } from '@happyvertical/utils';
 
 // Wait for a condition with timeout and custom delay
 await waitFor(
@@ -176,7 +176,7 @@ await waitFor(
 ### Type Checking
 
 ```typescript
-import { isArray, isPlainObject, isUrl } from '@have/utils';
+import { isArray, isPlainObject, isUrl } from '@happyvertical/utils';
 
 // Safe type guards
 function processData(data: unknown) {
@@ -207,7 +207,7 @@ import {
   NetworkError, 
   TimeoutError, 
   ParsingError 
-} from '@have/utils';
+} from '@happyvertical/utils';
 
 // Structured error handling with context
 function validateUserInput(input: string) {
@@ -244,7 +244,7 @@ async function fetchData(url: string) {
 ### Logging
 
 ```typescript
-import { getLogger, setLogger, disableLogging } from '@have/utils';
+import { getLogger, setLogger, disableLogging } from '@happyvertical/utils';
 
 // Use default console logger
 const logger = getLogger();
@@ -271,7 +271,7 @@ setLogger(new CustomLogger());
 ### Utility Functions
 
 ```typescript
-import { logTicker, domainToCamel } from '@have/utils';
+import { logTicker, domainToCamel } from '@happyvertical/utils';
 
 // Visual progress indicator
 let tick = null;
@@ -603,7 +603,7 @@ class StructuredLogger implements Logger {
 setLogger(new StructuredLogger());
 ```
 
-**Gotcha**: Logger is global and affects all packages using `@have/utils`. Set it once at application startup.
+**Gotcha**: Logger is global and affects all packages using `@happyvertical/utils`. Set it once at application startup.
 
 ### Slug Generation Edge Cases
 
@@ -623,34 +623,34 @@ makeSlug("product/category");        // "product-category" (/ → -)
 
 ```typescript
 // ID Generation
-import { makeId, createId, isCuid } from '@have/utils';
+import { makeId, createId, isCuid } from '@happyvertical/utils';
 
 // String Manipulation
-import { makeSlug, camelCase, snakeCase, keysToCamel, keysToSnake } from '@have/utils';
+import { makeSlug, camelCase, snakeCase, keysToCamel, keysToSnake } from '@happyvertical/utils';
 
 // Date Utilities
-import { dateInString, prettyDate, formatDate, parseDate, addInterval } from '@have/utils';
+import { dateInString, prettyDate, formatDate, parseDate, addInterval } from '@happyvertical/utils';
 
 // Path & URL
-import { urlPath, urlFilename, getTempDirectory, isUrl } from '@have/utils';
+import { urlPath, urlFilename, getTempDirectory, isUrl } from '@happyvertical/utils';
 
 // Type Guards
-import { isArray, isPlainObject } from '@have/utils';
+import { isArray, isPlainObject } from '@happyvertical/utils';
 
 // Async Utilities
-import { sleep, waitFor } from '@have/utils';
+import { sleep, waitFor } from '@happyvertical/utils';
 
 // Error Handling
 import {
   ValidationError, ApiError, FileError, NetworkError,
   DatabaseError, ParsingError, TimeoutError
-} from '@have/utils';
+} from '@happyvertical/utils';
 
 // Logging
-import { getLogger, setLogger, disableLogging, enableLogging } from '@have/utils';
+import { getLogger, setLogger, disableLogging, enableLogging } from '@happyvertical/utils';
 
 // Pluralization
-import { pluralizeWord, singularize, isPlural, isSingular } from '@have/utils';
+import { pluralizeWord, singularize, isPlural, isSingular } from '@happyvertical/utils';
 ```
 
 ## API Documentation
@@ -704,7 +704,7 @@ Always reference the latest documentation when planning utility implementations,
 
 ### Expert Agent Instructions
 
-When working with @have/utils:
+When working with @happyvertical/utils:
 
 1. **Always check latest documentation** before implementing solutions using WebFetch tool
 2. **Stay current with API changes** - utility libraries evolve to improve performance
@@ -722,30 +722,30 @@ import { format, parseISO } from 'date-fns';
 
 ## Cross-Package Integration
 
-As the foundational package, @have/utils is used throughout the SDK:
+As the foundational package, @happyvertical/utils is used throughout the SDK:
 
 ### Common Integration Patterns
 
 ```typescript
-// @have/files: Path and ID utilities
-import { makeSlug, urlFilename, makeId } from '@have/utils';
+// @happyvertical/files: Path and ID utilities
+import { makeSlug, urlFilename, makeId } from '@happyvertical/utils';
 const filename = `${makeSlug(title)}_${makeId()}.${extension}`;
 
-// @have/ai: Error handling and logging
-import { NetworkError, TimeoutError, getLogger } from '@have/utils';
+// @happyvertical/ai: Error handling and logging
+import { NetworkError, TimeoutError, getLogger } from '@happyvertical/utils';
 const logger = getLogger();
 logger.info('AI request started', { model: 'gpt-4' });
 
-// @have/spider: URL utilities and async operations
-import { isUrl, waitFor, sleep, urlPath } from '@have/utils';
+// @happyvertical/spider: URL utilities and async operations
+import { isUrl, waitFor, sleep, urlPath } from '@happyvertical/utils';
 await waitFor(async () => await crawl(url), { timeout: 30000 });
 
-// @have/sql: Key transformations for data normalization
-import { keysToCamel, keysToSnake } from '@have/utils';
+// @happyvertical/sql: Key transformations for data normalization
+import { keysToCamel, keysToSnake } from '@happyvertical/utils';
 const row = keysToCamel(dbResult); // snake_case → camelCase
 
-// @have/smrt: Comprehensive utility usage
-import { createId, formatDate, ValidationError } from '@have/utils';
+// @happyvertical/smrt: Comprehensive utility usage
+import { createId, formatDate, ValidationError } from '@happyvertical/utils';
 const collectionId = createId();
 ```
 
@@ -768,16 +768,16 @@ const collectionId = createId();
 ### Dependency Graph Position
 
 ```
-@have/utils (foundation - no internal deps)
+@happyvertical/utils (foundation - no internal deps)
     ↓
 All other packages depend on utils:
-- @have/files
-- @have/sql
-- @have/ocr
-- @have/pdf
-- @have/ai
-- @have/spider
-- @have/smrt (depends on all above)
+- @happyvertical/files
+- @happyvertical/sql
+- @happyvertical/ocr
+- @happyvertical/pdf
+- @happyvertical/ai
+- @happyvertical/spider
+- @happyvertical/smrt (depends on all above)
 ```
 
 This package provides the essential building blocks that enable all other HAVE SDK packages to function reliably with consistent behavior and error handling patterns.

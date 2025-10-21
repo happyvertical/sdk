@@ -1,5 +1,5 @@
 /**
- * @have/spider - Web scraping and content extraction
+ * @happyvertical/spider - Web scraping and content extraction
  *
  * This package provides a standardized interface for fetching and parsing web content
  * with two main use cases: extracting link indexes and extracting document content.
@@ -8,7 +8,7 @@
  *
  * ### Scraping an index page for links
  * ```typescript
- * import { scrapeIndex } from '@have/spider';
+ * import { scrapeIndex } from '@happyvertical/spider';
  *
  * const result = await scrapeIndex('https://example.com/meetings');
  * console.log(`Found ${result.links.length} links`);
@@ -16,7 +16,7 @@
  *
  * ### Extracting document content
  * ```typescript
- * import { scrapeDocument } from '@have/spider';
+ * import { scrapeDocument } from '@happyvertical/spider';
  *
  * const doc = await scrapeDocument('https://example.com/article');
  * console.log(doc.text); // Extracted content
@@ -41,7 +41,7 @@
  *
  * ### Using specific scraper strategies
  * ```typescript
- * import { scrapeIndex } from '@have/spider';
+ * import { scrapeIndex } from '@happyvertical/spider';
  *
  * // Use tree scraper for pages with collapsible sections
  * const result = await scrapeIndex('https://example.com/meetings', {
@@ -55,7 +55,7 @@
  *
  * ### Direct factory usage
  * ```typescript
- * import { getScraper } from '@have/spider';
+ * import { getScraper } from '@happyvertical/spider';
  *
  * const scraper = await getScraper({
  *   scraper: 'tree',
@@ -68,7 +68,7 @@
  *
  * ### Spider adapter usage
  * ```typescript
- * import { getSpider } from '@have/spider';
+ * import { getSpider } from '@happyvertical/spider';
  *
  * const spider = await getSpider({ adapter: 'simple' });
  * const page = await spider.fetch('https://example.com');

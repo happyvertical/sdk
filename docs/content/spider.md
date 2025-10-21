@@ -1,11 +1,11 @@
 ---
 id: spider
-title: "@have/spider: Web Crawling and Content Extraction"
-sidebar_label: "@have/spider"
+title: "@happyvertical/spider: Web Crawling and Content Extraction"
+sidebar_label: "@happyvertical/spider"
 sidebar_position: 9
 ---
 
-# @have/spider
+# @happyvertical/spider
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
@@ -13,7 +13,7 @@ Web scraping and content extraction with multiple adapters for different use cas
 
 ## Overview
 
-The `@have/spider` package provides a standardized interface for fetching and parsing web content through multiple adapters:
+The `@happyvertical/spider` package provides a standardized interface for fetching and parsing web content through multiple adapters:
 
 - **Simple**: Fast HTTP requests with cheerio parsing (best for static content)
 - **DOM**: HTML processing with happy-dom for complex pages
@@ -25,7 +25,7 @@ All adapters implement the same `ISpiderAdapter` interface and return a standard
 
 - **Provider Pattern**: Choose the right adapter for your use case
 - **Standardized Interface**: All adapters implement `ISpiderAdapter`
-- **Built-in Caching**: Automatic response caching with configurable expiry via `@have/cache`
+- **Built-in Caching**: Automatic response caching with configurable expiry via `@happyvertical/cache`
 - **Navigation Expansion**: Crawlee adapter automatically clicks accordions/expandable elements to discover hidden links
 - **Link Extraction**: All adapters extract and return page links
 - **Error Handling**: Comprehensive error types (`ValidationError`, `NetworkError`)
@@ -35,19 +35,19 @@ All adapters implement the same `ISpiderAdapter` interface and return a standard
 
 ```bash
 # Install with pnpm (recommended)
-pnpm add @have/spider
+pnpm add @happyvertical/spider
 
 # Or with npm
-npm install @have/spider
+npm install @happyvertical/spider
 
 # Or with bun
-bun add @have/spider
+bun add @happyvertical/spider
 ```
 
 ## Quick Start
 
 ```typescript
-import { getSpider } from '@have/spider';
+import { getSpider } from '@happyvertical/spider';
 
 // Create a spider adapter
 const spider = await getSpider({ adapter: 'simple' });
@@ -200,7 +200,7 @@ export HAVE_SPIDER_MAX_REQUESTS=100
 **Environment variables are merged with user options**, with user-provided values taking precedence:
 
 ```typescript
-import { getSpider } from '@have/spider';
+import { getSpider } from '@happyvertical/spider';
 
 // Set environment variable
 process.env.HAVE_SPIDER_TIMEOUT = '45000';
@@ -248,7 +248,7 @@ interface Page {
 ### Content Extraction with Simple Adapter
 
 ```typescript
-import { getSpider } from '@have/spider';
+import { getSpider } from '@happyvertical/spider';
 import * as cheerio from 'cheerio';
 
 const spider = await getSpider({ adapter: 'simple' });
@@ -272,7 +272,7 @@ console.log(article);
 Real-world example: Extracting PDF links from a town council website with accordion navigation.
 
 ```typescript
-import { getSpider } from '@have/spider';
+import { getSpider } from '@happyvertical/spider';
 
 const spider = await getSpider({
   adapter: 'crawlee',
@@ -308,7 +308,7 @@ pdfLinks.forEach(link => console.log(link));
 Use multiple adapters with fallback logic for resilience:
 
 ```typescript
-import { getSpider } from '@have/spider';
+import { getSpider } from '@happyvertical/spider';
 
 async function robustFetch(url: string) {
   // Try Crawlee first for best quality
@@ -330,7 +330,7 @@ const page = await robustFetch('https://example.com');
 ### Batch Processing with Caching
 
 ```typescript
-import { getSpider } from '@have/spider';
+import { getSpider } from '@happyvertical/spider';
 
 const spider = await getSpider({
   adapter: 'simple',
@@ -359,10 +359,10 @@ pages.forEach(page => {
 
 ## Error Handling
 
-The package uses standardized error types from `@have/utils`:
+The package uses standardized error types from `@happyvertical/utils`:
 
 ```typescript
-import { getSpider, ValidationError, NetworkError } from '@have/spider';
+import { getSpider, ValidationError, NetworkError } from '@happyvertical/spider';
 
 const spider = await getSpider({ adapter: 'simple' });
 
@@ -398,11 +398,11 @@ Based on real-world testing (Bentley town council website):
 
 ### Caching Strategy
 
-All adapters use `@have/cache` with file-based storage:
+All adapters use `@happyvertical/cache` with file-based storage:
 
 - **Cache Keys**: Prefixed by adapter type (`simple:`, `dom:`, `crawlee:`)
 - **Default Expiry**: 5 minutes (300,000ms)
-- **Storage**: Structured cache files via `@have/cache`
+- **Storage**: Structured cache files via `@happyvertical/cache`
 - **Bypass**: Set `cache: false` in fetch options
 
 **Cache Performance:**
@@ -490,13 +490,13 @@ const staticContent = { cacheExpiry: 604800000 }; // 7 days
 
 The spider package integrates seamlessly with other SDK packages:
 
-### With @have/pdf
+### With @happyvertical/pdf
 
 Extract PDF links and download documents:
 
 ```typescript
-import { getSpider } from '@have/spider';
-import { downloadFile } from '@have/files';
+import { getSpider } from '@happyvertical/spider';
+import { downloadFile } from '@happyvertical/files';
 
 const spider = await getSpider({ adapter: 'crawlee' });
 const page = await spider.fetch('https://example.com/documents');
@@ -509,13 +509,13 @@ for (const pdfUrl of pdfLinks) {
 }
 ```
 
-### With @have/ai
+### With @happyvertical/ai
 
 Extract content and send to AI for processing:
 
 ```typescript
-import { getSpider } from '@have/spider';
-import { getAI } from '@have/ai';
+import { getSpider } from '@happyvertical/spider';
+import { getAI } from '@happyvertical/ai';
 import * as cheerio from 'cheerio';
 
 const spider = await getSpider({ adapter: 'simple' });
@@ -532,13 +532,13 @@ const summary = await ai.chat([
 console.log(summary.content);
 ```
 
-### With @have/content
+### With @happyvertical/content
 
 Build a content mirror system:
 
 ```typescript
-import { getSpider } from '@have/spider';
-import { Contents } from '@have/content';
+import { getSpider } from '@happyvertical/spider';
+import { Contents } from '@happyvertical/content';
 
 const spider = await getSpider({ adapter: 'crawlee' });
 const contents = await Contents.create({
@@ -572,7 +572,7 @@ The v2.0 refactoring introduces **breaking changes** to align with the provider 
 
 **Before (v1.x):**
 ```typescript
-import { fetchPageSource, parseIndexSource } from '@have/spider';
+import { fetchPageSource, parseIndexSource } from '@happyvertical/spider';
 
 const html = await fetchPageSource({
   url: 'https://example.com',
@@ -585,7 +585,7 @@ const links = await parseIndexSource(html);
 
 **After (v2.0):**
 ```typescript
-import { getSpider } from '@have/spider';
+import { getSpider } from '@happyvertical/spider';
 
 const spider = await getSpider({ adapter: 'simple' });
 const page = await spider.fetch('https://example.com', {
@@ -625,8 +625,8 @@ const page = await spider.fetch('https://example.com');
 
 ### Runtime Dependencies
 
-- **@have/cache** - Caching infrastructure
-- **@have/utils** - Utility functions, error types, validation
+- **@happyvertical/cache** - Caching infrastructure
+- **@happyvertical/utils** - Utility functions, error types, validation
 - **cheerio** - Server-side HTML parsing (jQuery-like API)
 - **happy-dom** - Lightweight DOM implementation for HTML processing
 - **undici** - High-performance HTTP client for Node.js

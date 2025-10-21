@@ -293,13 +293,13 @@ function extractDocuShareDocumentUrl(url: string, html: string): string | null {
  *
  * This function intelligently handles different document types:
  * - HTML pages: Extracts main content and metadata
- * - PDF links: Detects and flags for PDF processing (requires @have/pdf)
+ * - PDF links: Detects and flags for PDF processing (requires @happyvertical/pdf)
  * - Download pages: Detects links to downloadable documents
  * - WordPress Download Manager: Automatically extracts actual download URLs
  * - CivicWeb preview pages: Extracts actual PDF URLs from preview pages
  * - DocuShare document pages: Extracts direct download links for documents
  *
- * For full document processing with PDF support, use @have/content's Document class.
+ * For full document processing with PDF support, use @happyvertical/content's Document class.
  * This function provides the foundation for document discovery and basic extraction.
  *
  * @param url - The URL of the document to scrape
@@ -308,7 +308,7 @@ function extractDocuShareDocumentUrl(url: string, html: string): string | null {
  *
  * @example Basic HTML page
  * ```typescript
- * import { scrapeDocument } from '@have/spider';
+ * import { scrapeDocument } from '@happyvertical/spider';
  *
  * const doc = await scrapeDocument('https://example.com/article');
  * console.log(doc.text); // Extracted text content
@@ -319,7 +319,7 @@ function extractDocuShareDocumentUrl(url: string, html: string): string | null {
  * ```typescript
  * const doc = await scrapeDocument('https://example.com/report.pdf');
  * if (doc.metadata.isPdf) {
- *   console.log('PDF detected, use @have/content or @have/pdf for extraction');
+ *   console.log('PDF detected, use @happyvertical/content or @happyvertical/pdf for extraction');
  * }
  * ```
  *
@@ -546,7 +546,7 @@ export interface DocumentLinkOptions {
  *
  * @example
  * ```typescript
- * import { findDocumentLinks, scrapeDocument } from '@have/spider';
+ * import { findDocumentLinks, scrapeDocument } from '@happyvertical/spider';
  *
  * // Find all PDF links on a page
  * const docLinks = await findDocumentLinks('https://example.com/publications');

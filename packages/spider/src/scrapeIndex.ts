@@ -20,7 +20,7 @@ import type {
  *
  * @example Basic usage
  * ```typescript
- * import { scrapeIndex } from '@have/spider';
+ * import { scrapeIndex } from '@happyvertical/spider';
  *
  * // Scrape a simple index page
  * const result = await scrapeIndex('https://example.com/docs');
@@ -29,7 +29,7 @@ import type {
  *
  * @example With tree expansion for hierarchical pages
  * ```typescript
- * import { scrapeIndex } from '@have/spider';
+ * import { scrapeIndex } from '@happyvertical/spider';
  *
  * // Scrape a page with collapsible sections
  * const result = await scrapeIndex('https://example.com/meetings', {
@@ -44,7 +44,7 @@ import type {
  *
  * @example With custom options
  * ```typescript
- * import { scrapeIndex } from '@have/spider';
+ * import { scrapeIndex } from '@happyvertical/spider';
  *
  * const result = await scrapeIndex('https://example.com/docs', {
  *   scraper: {

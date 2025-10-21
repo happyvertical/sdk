@@ -1,17 +1,17 @@
 ---
 id: cache
-title: "@have/cache: Standardized Caching Interface"
-sidebar_label: "@have/cache"
+title: "@happyvertical/cache: Standardized Caching Interface"
+sidebar_label: "@happyvertical/cache"
 sidebar_position: 3
 ---
 
-# @have/cache: Standardized Caching Interface
+# @happyvertical/cache: Standardized Caching Interface
 
 Unified caching interface supporting Memory, File, and Redis backends with a consistent API.
 
 ## Overview
 
-The `@have/cache` package provides a standardized caching layer that works seamlessly across different storage backends:
+The `@happyvertical/cache` package provides a standardized caching layer that works seamlessly across different storage backends:
 
 - **🔌 Multiple Backends**: Memory, File, and Redis adapters
 - **🔒 Type Safety**: Full TypeScript support with proper typing
@@ -22,7 +22,7 @@ The `@have/cache` package provides a standardized caching layer that works seaml
 ## Quick Start
 
 ```typescript
-import { getCache } from '@have/cache';
+import { getCache } from '@happyvertical/cache';
 
 // In-memory cache (fastest, non-persistent)
 const memoryCache = await getCache({

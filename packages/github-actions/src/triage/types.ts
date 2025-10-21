@@ -5,7 +5,7 @@
 export interface TriageConfig {
   /** Repository description for AI analysis */
   repoDescription: string;
-  /** Package pattern (e.g., "@have/*", "@smrt/*") */
+  /** Package pattern (e.g., "@happyvertical/*", "@smrt/*") */
   packagePattern?: string;
   /** Example package names for AI context */
   packageExamples?: string[];

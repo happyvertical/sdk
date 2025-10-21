@@ -1,17 +1,17 @@
 ---
 id: geo
-title: "@have/geo: Geographic Utilities"
-sidebar_label: "@have/geo"
+title: "@happyvertical/geo: Geographic Utilities"
+sidebar_label: "@happyvertical/geo"
 sidebar_position: 7
 ---
 
-# @have/geo: Geographic Utilities
+# @happyvertical/geo: Geographic Utilities
 
 Standardized geographical information interface supporting Google Maps and OpenStreetMap.
 
 ## Overview
 
-The `@have/geo` package provides unified access to geographic services across multiple providers:
+The `@happyvertical/geo` package provides unified access to geographic services across multiple providers:
 
 - **🗺️ Multi-Provider Support**: Google Maps and OpenStreetMap (Nominatim)
 - **📍 Location Lookup**: Search for places, addresses, and points of interest
@@ -23,7 +23,7 @@ The `@have/geo` package provides unified access to geographic services across mu
 ## Quick Start
 
 ```typescript
-import { getGeoAdapter } from '@have/geo';
+import { getGeoAdapter } from '@happyvertical/geo';
 
 // Create Google Maps adapter
 const googleGeo = await getGeoAdapter({
@@ -122,7 +122,7 @@ import {
   RateLimitError,
   AuthenticationError,
   InvalidQueryError
-} from '@have/geo';
+} from '@happyvertical/geo';
 
 try {
   const results = await adapter.lookup(query);

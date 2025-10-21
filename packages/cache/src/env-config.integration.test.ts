@@ -1,5 +1,5 @@
 /**
- * Integration tests for environment variable configuration in @have/cache
+ * Integration tests for environment variable configuration in @happyvertical/cache
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';

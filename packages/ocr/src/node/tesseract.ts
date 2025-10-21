@@ -1,5 +1,5 @@
 /**
- * @have/ocr - Tesseract.js provider for cross-platform OCR processing
+ * @happyvertical/ocr - Tesseract.js provider for cross-platform OCR processing
  *
  * This module implements the OCRProvider interface using Tesseract.js,
  * providing reliable OCR capabilities that work in both Node.js and
@@ -21,7 +21,7 @@ import { OCRDependencyError, OCRProcessingError } from '../shared/types';
  *
  * This provider leverages Tesseract.js to provide reliable OCR capabilities
  * without requiring system-level dependencies. It's the most compatible
- * provider in the @have/ocr package, working in virtually any JavaScript
+ * provider in the @happyvertical/ocr package, working in virtually any JavaScript
  * environment.
  *
  * ## Key Features

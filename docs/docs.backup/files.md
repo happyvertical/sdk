@@ -1,17 +1,17 @@
 ---
 id: files
-title: "@have/files: File System Operations"
-sidebar_label: "@have/files"
+title: "@happyvertical/files: File System Operations"
+sidebar_label: "@happyvertical/files"
 sidebar_position: 3
 ---
 
-# @have/files: File System Operations
+# @happyvertical/files: File System Operations
 
 Tools for interacting with file systems (local and remote) with Node.js-focused operations.
 
 ## Overview
 
-The `@have/files` package provides comprehensive file system operations:
+The `@happyvertical/files` package provides comprehensive file system operations:
 
 - **📁 File Operations**: Read, write, copy, move, delete files
 - **📂 Directory Management**: Create, list, traverse directories
@@ -22,7 +22,7 @@ The `@have/files` package provides comprehensive file system operations:
 ## Quick Start
 
 ```typescript
-import { getFilesystem } from '@have/files';
+import { getFilesystem } from '@happyvertical/files';
 
 // Create a local filesystem instance
 const fs = await getFilesystem({ type: 'local', basePath: '/app/data' });
@@ -43,7 +43,7 @@ const markdownFiles = await fs.list('.', { filter: /\.md$/, recursive: true });
 ## File Operations
 
 ```typescript
-import { getFilesystem } from '@have/files';
+import { getFilesystem } from '@happyvertical/files';
 
 const fs = await getFilesystem({ type: 'local' });
 
@@ -64,7 +64,7 @@ console.log('Modified:', stats.mtime);
 ## Integration Examples
 
 ```typescript
-import { getFilesystem } from '@have/files';
+import { getFilesystem } from '@happyvertical/files';
 import path from 'path';
 
 // Export content to files

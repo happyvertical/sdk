@@ -1,5 +1,5 @@
-import { getCached, setCached } from '@have/files';
-import { getPDFReader } from '@have/pdf';
+import { getCached, setCached } from '@happyvertical/files';
+import { getPDFReader } from '@happyvertical/pdf';
 import { v4 as uuidv4 } from 'uuid';
 import { Document as BaseDocument } from '../document';
 import type {
@@ -112,7 +112,7 @@ export class PDFProcessor implements DocumentProcessor {
    * Extract images from PDF
    *
    * This is a placeholder for future image extraction functionality.
-   * Will use @have/pdf's image extraction capabilities when available.
+   * Will use @happyvertical/pdf's image extraction capabilities when available.
    *
    * @param filePath - Local PDF file path
    * @param runOcr - Whether to run OCR on extracted images
@@ -122,13 +122,13 @@ export class PDFProcessor implements DocumentProcessor {
     _filePath: string,
     _runOcr: boolean,
   ): Promise<DocumentImage[]> {
-    // TODO: Implement image extraction using @have/pdf
+    // TODO: Implement image extraction using @happyvertical/pdf
     // For now, return empty array as placeholder
 
     // Future implementation will:
     // 1. Use getPDFReader() to extract images from PDF
     // 2. Save images to cache directory
-    // 3. If runOcr is true, use @have/ocr to extract text from images
+    // 3. If runOcr is true, use @happyvertical/ocr to extract text from images
     // 4. Return array of DocumentImage objects with metadata
 
     return [];

@@ -3,8 +3,8 @@
  */
 
 import { v2 } from '@google-cloud/translate';
-import type { CacheAdapter } from '@have/cache';
-import { getCache } from '@have/cache';
+import type { CacheAdapter } from '@happyvertical/cache';
+import { getCache } from '@happyvertical/cache';
 import type {
   GoogleTranslateOptions,
   LanguageDetectionResult,

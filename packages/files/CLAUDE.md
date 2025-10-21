@@ -1,16 +1,16 @@
-# @have/files: File System Interface Package
+# @happyvertical/files: File System Interface Package
 
 ## Purpose and Responsibilities
 
-The `@have/files` package provides a standardized interface for file system operations with multi-provider support. It serves as the file system abstraction layer for the HAVE SDK and handles:
+The `@happyvertical/files` package provides a standardized interface for file system operations with multi-provider support. It serves as the file system abstraction layer for the HAVE SDK and handles:
 
 - **Local and Remote File Systems**: Unified API for local filesystem with planned support for S3-compatible services, Google Drive, and WebDAV (Nextcloud/ownCloud)
 - **Cross-Platform Operations**: Consistent file operations across different Node.js platforms
 - **Stream Processing**: Efficient handling of large files through Node.js streams and Web Streams integration
-- **Temporary File Management**: Secure temporary file creation with automatic cleanup via @have/utils
+- **Temporary File Management**: Secure temporary file creation with automatic cleanup via @happyvertical/utils
 - **Caching and Performance**: Built-in caching for files and optimized data transfer
 - **Rate-Limited Fetch**: Automatic rate limiting for HTTP requests by domain
-- **Legacy Compatibility**: Backward compatibility with existing @have/files APIs
+- **Legacy Compatibility**: Backward compatibility with existing @happyvertical/files APIs
 - **Path Normalization**: Cross-platform path handling and URL-to-filesystem conversion
 - **Modern Node.js Features**: Utilizes latest fs/promises, async resource management, and Web Streams APIs
 
@@ -23,7 +23,7 @@ This package abstracts away the complexities of different file systems, allowing
 ### Core Components
 
 ```
-@have/files/
+@happyvertical/files/
 ├── src/
 │   ├── index.ts                    # Main exports and module initialization
 │   ├── shared/
@@ -64,7 +64,7 @@ All errors include: message, code, path (optional), and provider (optional).
 ### Provider Factory and Configuration
 
 ```typescript
-import { getFilesystem, getAvailableProviders } from '@have/files';
+import { getFilesystem, getAvailableProviders } from '@happyvertical/files';
 
 // Get local filesystem provider (default)
 const fs = await getFilesystem({ type: 'local', basePath: '/app/data' });
@@ -98,7 +98,7 @@ console.log(providers); // ['local'] (more to come)
 ### Core File Operations
 
 ```typescript
-import { getFilesystem } from '@have/files';
+import { getFilesystem } from '@happyvertical/files';
 
 const fs = await getFilesystem({ type: 'local' });
 
@@ -214,7 +214,7 @@ import {
   fetchToFile,
   addRateLimit,
   getRateLimit
-} from '@have/files';
+} from '@happyvertical/files';
 
 // Configure rate limits for specific domains
 await addRateLimit('api.github.com', 30, 60000); // 30 requests per minute
@@ -242,14 +242,14 @@ await fetchToFile('https://example.com/large-file.zip', './downloads/file.zip');
 ### Temporary File Management
 
 ```typescript
-import { getTempDirectory } from '@have/utils';
-import { getFilesystem } from '@have/files';
+import { getTempDirectory } from '@happyvertical/utils';
+import { getFilesystem } from '@happyvertical/files';
 import { join } from 'path';
 import { mkdir, rmdir } from 'fs/promises';
 
 const fs = await getFilesystem({ type: 'local' });
 
-// Create temporary files using getTempDirectory from @have/utils
+// Create temporary files using getTempDirectory from @happyvertical/utils
 const tempDir = getTempDirectory('processing');
 const tempFile = join(tempDir, 'data.json');
 
@@ -350,7 +350,7 @@ import {
   getCached,
   setCached,
   getMimeType
-} from '@have/files';
+} from '@happyvertical/files';
 
 // Check file type (legacy)
 const fileStats = await isFile('/path/to/file.txt');
@@ -375,7 +375,7 @@ const urlMime = getMimeType('https://example.com/image.jpg'); // 'image/jpeg'
 The package has carefully chosen dependencies for optimal performance:
 
 ### Internal Dependencies
-- **@have/utils**: Core utilities for path handling, temporary directory management (`getTempDirectory`), and cross-platform operations
+- **@happyvertical/utils**: Core utilities for path handling, temporary directory management (`getTempDirectory`), and cross-platform operations
 
 ### Runtime Dependencies
 - **Node.js fs/promises**: Modern async file system operations
@@ -446,7 +446,7 @@ To create a custom provider:
 
 1. **Extend BaseFilesystemProvider**:
 ```typescript
-import { BaseFilesystemProvider } from '@have/files';
+import { BaseFilesystemProvider } from '@happyvertical/files';
 
 export class MyCustomProvider extends BaseFilesystemProvider {
   constructor(options: MyCustomOptions) {
@@ -468,7 +468,7 @@ export class MyCustomProvider extends BaseFilesystemProvider {
 
 2. **Register the provider**:
 ```typescript
-import { registerProvider } from '@have/files';
+import { registerProvider } from '@happyvertical/files';
 
 registerProvider('mycustom', async () => {
   const { MyCustomProvider } = await import('./my-custom-provider.js');
@@ -491,7 +491,7 @@ import {
   FileNotFoundError,
   PermissionError,
   DirectoryNotEmptyError
-} from '@have/files';
+} from '@happyvertical/files';
 
 try {
   await fs.write('/protected/file.txt', 'content');
@@ -633,8 +633,8 @@ const safePath = path.join(tempDir, sanitizeFilename(userFilename));
 ```typescript
 // Use temporary directories for tests
 import { describe, it, beforeEach, afterEach } from 'vitest';
-import { getTempDirectory } from '@have/utils';
-import { getFilesystem } from '@have/files';
+import { getTempDirectory } from '@happyvertical/utils';
+import { getFilesystem } from '@happyvertical/files';
 
 describe('FileSystem Tests', () => {
   let fs: FilesystemInterface;
@@ -898,7 +898,7 @@ input.pipe(output2);
 
 ## API Documentation
 
-The @have/files package generates comprehensive API documentation in markdown format using TypeDoc:
+The @happyvertical/files package generates comprehensive API documentation in markdown format using TypeDoc:
 
 ### Generated Documentation
 
@@ -954,7 +954,7 @@ Always reference the latest Node.js LTS documentation when implementing file sys
 
 ### Expert Agent Instructions
 
-When working with @have/files:
+When working with @happyvertical/files:
 
 1. **Always check latest Node.js LTS documentation** before implementing solutions using WebFetch tool
 2. **Stay current with fs/promises API changes** - new methods are regularly added
@@ -1009,7 +1009,7 @@ When implementing or debugging specific providers:
 - Always use try/finally blocks for cleanup
 - Implement cleanup in error handlers
 - Consider using process exit handlers for critical cleanup
-- Use `getTempDirectory` from @have/utils for consistent temp paths
+- Use `getTempDirectory` from @happyvertical/utils for consistent temp paths
 
 **Memory issues with large files**:
 - Use streams instead of loading entire files into memory

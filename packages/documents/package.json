@@ -1,5 +1,5 @@
 {
-  "name": "@have/documents",
+  "name": "@happyvertical/documents",
   "version": "0.37.0",
   "description": "Multi-part document processing with support for PDF, HTML, and Markdown",
   "type": "module",
@@ -38,11 +38,11 @@
     "test:watch": "vitest watch"
   },
   "dependencies": {
-    "@have/files": "workspace:*",
-    "@have/pdf": "workspace:*",
-    "@have/spider": "workspace:*",
-    "@have/ocr": "workspace:*",
-    "@have/utils": "workspace:*",
+    "@happyvertical/files": "workspace:*",
+    "@happyvertical/pdf": "workspace:*",
+    "@happyvertical/spider": "workspace:*",
+    "@happyvertical/ocr": "workspace:*",
+    "@happyvertical/utils": "workspace:*",
     "uuid": "^11.0.5"
   },
   "devDependencies": {

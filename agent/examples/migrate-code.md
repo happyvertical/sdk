@@ -131,7 +131,7 @@ export class UserRepository {
 
 ```typescript
 // Migrated User class (SMRT version)
-import { BaseObject, smrt, text, boolean, datetime, json } from '@have/smrt';
+import { BaseObject, smrt, text, boolean, datetime, json } from '@happyvertical/smrt';
 
 // Define the interface for type safety (optional but recommended)
 export interface UserOptions {
@@ -324,7 +324,7 @@ export class User extends BaseObject<UserOptions> {
 
 ```typescript
 // Migrated UserRepository to UserCollection
-import { BaseCollection } from '@have/smrt';
+import { BaseCollection } from '@happyvertical/smrt';
 import { User } from './user';
 
 export class UserCollection extends BaseCollection<User> {
@@ -574,7 +574,7 @@ const analysis = await users.analyzeUserBase();
 
 ```typescript
 // Generate REST API
-import { APIGenerator } from '@have/smrt/generators';
+import { APIGenerator } from '@happyvertical/smrt/generators';
 
 const apiGen = new APIGenerator({
   collections: [UserCollection],

@@ -68,4 +68,4 @@ runs:
         echo "@have:registry=https://npm.pkg.github.com" >> ~/.npmrc
         echo "//npm.pkg.github.com/:_authToken=$GITHUB_TOKEN" >> ~/.npmrc
         # Install and run
-        npx --yes @have/github-actions@latest triage
+        npx --yes @happyvertical/github-actions@latest triage

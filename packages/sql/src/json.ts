@@ -1,6 +1,6 @@
 import { mkdir, readdir } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
-import { DatabaseError } from '@have/utils';
+import { DatabaseError } from '@happyvertical/utils';
 import { DatabaseSchemaManager } from './schema-manager';
 import type {
   DatabaseInterface,
@@ -188,8 +188,8 @@ async function getSmrtSchemaForTable(
   tableName: string,
 ): Promise<SmrtSchemaDefinition | null> {
   try {
-    // Try to import ObjectRegistry from @have/smrt
-    const smrtPackage = await import('@have/smrt');
+    // Try to import ObjectRegistry from @happyvertical/smrt
+    const smrtPackage = await import('@happyvertical/smrt');
     const { ObjectRegistry } = smrtPackage;
 
     // Get all registered classes
@@ -211,7 +211,7 @@ async function getSmrtSchemaForTable(
 
     return null;
   } catch (_error) {
-    // @have/smrt not available or ObjectRegistry not initialized
+    // @happyvertical/smrt not available or ObjectRegistry not initialized
     return null;
   }
 }

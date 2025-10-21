@@ -1,17 +1,17 @@
 ---
 id: pdf
-title: "@have/pdf: PDF Processing and Text Extraction"
-sidebar_label: "@have/pdf"
+title: "@happyvertical/pdf: PDF Processing and Text Extraction"
+sidebar_label: "@happyvertical/pdf"
 sidebar_position: 5
 ---
 
-# @have/pdf: PDF Processing and Text Extraction
+# @happyvertical/pdf: PDF Processing and Text Extraction
 
 Utilities for parsing and processing PDF documents with OCR fallback capabilities.
 
 ## Overview
 
-The `@have/pdf` package provides comprehensive PDF processing:
+The `@happyvertical/pdf` package provides comprehensive PDF processing:
 
 - **📄 Text Extraction**: Extract text from PDF documents
 - **🖼️ OCR Fallback**: Handle scanned PDFs with OCR
@@ -22,7 +22,7 @@ The `@have/pdf` package provides comprehensive PDF processing:
 ## Quick Start
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 // Get a PDF reader instance
 const reader = await getPDFReader();
@@ -41,7 +41,7 @@ console.log('Pages:', metadata.pageCount);
 ## Advanced Processing
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 const reader = await getPDFReader();
 
@@ -69,7 +69,7 @@ if (images.length > 0) {
 ## Integration Example
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 import path from 'path';
 
 async function processPDFDocument(filePath: string) {

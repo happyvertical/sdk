@@ -1,8 +1,8 @@
-# @have/geo: Geographical Information Package
+# @happyvertical/geo: Geographical Information Package
 
 ## Purpose and Responsibilities
 
-The `@have/geo` package provides a standardized interface for geographical information services, abstracting away provider-specific implementations. It is designed to:
+The `@happyvertical/geo` package provides a standardized interface for geographical information services, abstracting away provider-specific implementations. It is designed to:
 
 - **Unify Geo Provider APIs**: Provide a consistent interface across Google Maps and OpenStreetMap
 - **Simplify Provider Switching**: Enable seamless switching between geo providers without code changes
@@ -17,7 +17,7 @@ This package serves as the geographical information layer for building location-
 
 ## Architecture Overview
 
-The package follows the same architecture pattern as `@have/ai`:
+The package follows the same architecture pattern as `@happyvertical/ai`:
 
 ### Core Components
 
@@ -71,7 +71,7 @@ private handleError(error: unknown): GeoError {
 ### Creating a Geo Adapter
 
 ```typescript
-import { getGeoAdapter } from '@have/geo';
+import { getGeoAdapter } from '@happyvertical/geo';
 
 // Create Google Maps adapter with explicit options
 const googleGeo = await getGeoAdapter({
@@ -104,7 +104,7 @@ const mixed = await getGeoAdapter({
 
 ### Environment Variable Configuration
 
-The package supports configuration via environment variables using the `loadEnvConfig()` utility from `@have/utils`. This enables zero-configuration setup when environment variables are properly configured.
+The package supports configuration via environment variables using the `loadEnvConfig()` utility from `@happyvertical/utils`. This enables zero-configuration setup when environment variables are properly configured.
 
 **Supported Environment Variables:**
 
@@ -293,7 +293,7 @@ Uses direct HTTP requests to Nominatim:
 ## Dependencies
 
 ### Internal Dependencies
-- `@have/utils`: For utility functions and error handling
+- `@happyvertical/utils`: For utility functions and error handling
 
 ### External Dependencies
 - `@googlemaps/google-maps-services-js` (^3.4.0): Official Google Maps Services client

@@ -1,5 +1,5 @@
 /**
- * @have/ocr - Environment variable configuration tests
+ * @happyvertical/ocr - Environment variable configuration tests
  */
 
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';

@@ -1,5 +1,5 @@
 /**
- * @have/pdf - Shared type definitions for PDF processing
+ * @happyvertical/pdf - Shared type definitions for PDF processing
  */
 
 // Import OCR types from the dedicated OCR package
@@ -8,7 +8,7 @@ import type {
   DependencyCheckResult,
   OCROptions,
   OCRResult,
-} from '@have/ocr';
+} from '@happyvertical/ocr';
 
 /**
  * Configuration options for extracting text content from PDF documents
@@ -39,7 +39,7 @@ export interface ExtractTextOptions {
 }
 
 // Re-export OCR options from the OCR package for backward compatibility
-export type { OCROptions } from '@have/ocr';
+export type { OCROptions } from '@happyvertical/ocr';
 
 /**
  * Comprehensive metadata information extracted from PDF documents
@@ -89,7 +89,7 @@ export interface PDFImage extends BaseOCRImage {
 }
 
 // Re-export OCR result type from the OCR package for backward compatibility
-export type { OCRResult } from '@have/ocr';
+export type { OCRResult } from '@happyvertical/ocr';
 
 /**
  * Describes the processing capabilities and limitations of a PDF provider
@@ -168,7 +168,7 @@ export type {
   DependencyCheckResult,
   OCRFactoryOptions,
   OCRProvider,
-} from '@have/ocr';
+} from '@happyvertical/ocr';
 
 /**
  * Main PDF reader interface providing comprehensive PDF processing capabilities

@@ -10,12 +10,12 @@ slug: /
 
 TypeScript packages for building AI-powered applications.
 
-## @have/ai
+## @happyvertical/ai
 
 Multi-provider AI client with builtin adapters for OpenAI, Anthropic, Gemini, Bedrock, and HuggingFace.
 
 ```typescript
-import { getAI } from '@have/ai';
+import { getAI } from '@happyvertical/ai';
 
 // Initialize with your preferred provider
 const ai = await getAI({
@@ -35,12 +35,12 @@ console.log(response.content);
 
 ---
 
-## @have/cache
+## @happyvertical/cache
 
 Unified caching interface supporting Memory, File, and Redis backends with a consistent API.
 
 ```typescript
-import { getCache } from '@have/cache';
+import { getCache } from '@happyvertical/cache';
 
 // In-memory cache (fastest, non-persistent)
 const cache = await getCache({
@@ -60,12 +60,12 @@ await cache.set('session:abc', sessionData, 3600); // Expires in 1 hour
 
 ---
 
-## @have/config
+## @happyvertical/config
 
 Centralized configuration management for SMRT modules with support for multiple configuration sources.
 
 ```typescript
-import { loadConfig } from '@have/config';
+import { loadConfig } from '@happyvertical/config';
 
 // Auto-discover configuration
 const config = await loadConfig('myapp');
@@ -83,12 +83,12 @@ console.log(config);
 
 ---
 
-## @have/documents
+## @happyvertical/documents
 
 Multi-part document processing with support for PDF, HTML, and Markdown formats.
 
 ```typescript
-import { processDocument } from '@have/documents';
+import { processDocument } from '@happyvertical/documents';
 
 // Process a PDF document
 const pdfDoc = await processDocument({
@@ -105,12 +105,12 @@ console.log('Pages:', pdfDoc.pages);
 
 ---
 
-## @have/files
+## @happyvertical/files
 
 File system operations with local and remote provider support.
 
 ```typescript
-import { getFilesystem } from '@have/files';
+import { getFilesystem } from '@happyvertical/files';
 
 // Create a local filesystem instance
 const fs = await getFilesystem({ type: 'local', basePath: '/app/data' });
@@ -132,12 +132,12 @@ const markdownFiles = await fs.list('.', { filter: /\.md$/, recursive: true });
 
 ---
 
-## @have/geo
+## @happyvertical/geo
 
 Standardized geographical information interface supporting Google Maps and OpenStreetMap.
 
 ```typescript
-import { getGeoAdapter } from '@have/geo';
+import { getGeoAdapter } from '@happyvertical/geo';
 
 // Create Google Maps adapter
 const geo = await getGeoAdapter({
@@ -160,12 +160,12 @@ results.forEach(location => {
 
 ---
 
-## @have/logger
+## @happyvertical/logger
 
 Structured logging for HAVE SDK with signal adapter and observability support.
 
 ```typescript
-import { createLogger } from '@have/logger';
+import { createLogger } from '@happyvertical/logger';
 
 // Create a logger instance
 const logger = createLogger({
@@ -191,12 +191,12 @@ logger.info('User action', {
 
 ---
 
-## @have/ocr
+## @happyvertical/ocr
 
 Standardized OCR interface with support for multiple providers including Tesseract.js and ONNX (PaddleOCR).
 
 ```typescript
-import { getOCR } from '@have/ocr';
+import { getOCR } from '@happyvertical/ocr';
 
 // Create OCR factory with automatic provider selection
 const ocrFactory = getOCR();
@@ -223,12 +223,12 @@ console.log('Confidence:', result.confidence);
 
 ---
 
-## @have/pdf
+## @happyvertical/pdf
 
 PDF parsing and text extraction.
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 // Get a PDF reader instance
 const reader = await getPDFReader();
@@ -247,12 +247,12 @@ console.log('Author:', metadata.author);
 
 ---
 
-## @have/spider
+## @happyvertical/spider
 
 Web crawling and content extraction from websites.
 
 ```typescript
-import { scrapeDocument, scrapeIndex } from '@have/spider';
+import { scrapeDocument, scrapeIndex } from '@happyvertical/spider';
 
 // Scrape content from a single page
 const page = await scrapeDocument('https://example.com');
@@ -269,12 +269,12 @@ console.log('Found links:', index.links.length);
 
 ---
 
-## @have/sql
+## @happyvertical/sql
 
 Database interface with builtin adapters for SQLite, PostgreSQL, DuckDB, and JSON.
 
 ```typescript
-import { getDatabase } from '@have/sql';
+import { getDatabase } from '@happyvertical/sql';
 
 // Create SQLite database
 const db = await getDatabase({
@@ -295,12 +295,12 @@ console.log(users);
 
 ---
 
-## @have/translator
+## @happyvertical/translator
 
 Translation services integration supporting Google Translate, DeepL, and LibreTranslate.
 
 ```typescript
-import { getTranslator } from '@have/translator';
+import { getTranslator } from '@happyvertical/translator';
 
 // Create Google Translate client
 const translator = await getTranslator({
@@ -321,12 +321,12 @@ console.log('To:', result.targetLanguage);         // "es"
 
 ---
 
-## @have/utils
+## @happyvertical/utils
 
 Shared utilities and helpers.
 
 ```typescript
-import { generateId, formatDate, slugify } from '@have/utils';
+import { generateId, formatDate, slugify } from '@happyvertical/utils';
 
 // Generate unique IDs
 const id = generateId();

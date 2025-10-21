@@ -168,7 +168,7 @@ importers:
       '@google/genai':
         specifier: ^0.3.0
         version: 0.3.1
-      '@have/utils':
+      '@happyvertical/utils':
         specifier: workspace:*
         version: link:../utils
       openai:
@@ -193,7 +193,7 @@ importers:
 
   packages/cache:
     dependencies:
-      '@have/utils':
+      '@happyvertical/utils':
         specifier: workspace:*
         version: link:../utils
       redis:
@@ -218,19 +218,19 @@ importers:
 
   packages/documents:
     dependencies:
-      '@have/files':
+      '@happyvertical/files':
         specifier: workspace:*
         version: link:../files
-      '@have/ocr':
+      '@happyvertical/ocr':
         specifier: workspace:*
         version: link:../ocr
-      '@have/pdf':
+      '@happyvertical/pdf':
         specifier: workspace:*
         version: link:../pdf
-      '@have/spider':
+      '@happyvertical/spider':
         specifier: workspace:*
         version: link:../spider
-      '@have/utils':
+      '@happyvertical/utils':
         specifier: workspace:*
         version: link:../utils
       uuid:
@@ -255,7 +255,7 @@ importers:
 
   packages/files:
     dependencies:
-      '@have/utils':
+      '@happyvertical/utils':
         specifier: workspace:*
         version: link:../utils
     devDependencies:
@@ -292,10 +292,10 @@ importers:
       '@googlemaps/google-maps-services-js':
         specifier: ^3.4.0
         version: 3.4.2
-      '@have/cache':
+      '@happyvertical/cache':
         specifier: workspace:*
         version: link:../cache
-      '@have/utils':
+      '@happyvertical/utils':
         specifier: workspace:*
         version: link:../utils
     devDependencies:
@@ -335,7 +335,7 @@ importers:
 
   packages/logger:
     dependencies:
-      '@have/utils':
+      '@happyvertical/utils':
         specifier: workspace:*
         version: link:../utils
     devDependencies:
@@ -357,7 +357,7 @@ importers:
       '@gutenye/ocr-node':
         specifier: ^1.4.8
         version: 1.4.8
-      '@have/utils':
+      '@happyvertical/utils':
         specifier: workspace:*
         version: link:../utils
       jpeg-js:
@@ -391,10 +391,10 @@ importers:
 
   packages/pdf:
     dependencies:
-      '@have/ocr':
+      '@happyvertical/ocr':
         specifier: workspace:*
         version: link:../ocr
-      '@have/utils':
+      '@happyvertical/utils':
         specifier: workspace:*
         version: link:../utils
       unpdf:
@@ -422,13 +422,13 @@ importers:
 
   packages/sdk-mcp:
     dependencies:
-      '@have/ai':
+      '@happyvertical/ai':
         specifier: workspace:*
         version: link:../ai
-      '@have/files':
+      '@happyvertical/files':
         specifier: workspace:*
         version: link:../files
-      '@have/utils':
+      '@happyvertical/utils':
         specifier: workspace:*
         version: link:../utils
       '@modelcontextprotocol/sdk':
@@ -453,13 +453,13 @@ importers:
 
   packages/spider:
     dependencies:
-      '@have/cache':
+      '@happyvertical/cache':
         specifier: workspace:*
         version: link:../cache
-      '@have/files':
+      '@happyvertical/files':
         specifier: workspace:*
         version: link:../files
-      '@have/utils':
+      '@happyvertical/utils':
         specifier: workspace:*
         version: link:../utils
       '@mozilla/readability':
@@ -505,7 +505,7 @@ importers:
       '@duckdb/node-api':
         specifier: ^1.4.1-r.1
         version: 1.4.1-r.1
-      '@have/utils':
+      '@happyvertical/utils':
         specifier: workspace:*
         version: link:../utils
       '@libsql/client':
@@ -542,10 +542,10 @@ importers:
       '@google-cloud/translate':
         specifier: ^8.5.0
         version: 8.5.1
-      '@have/cache':
+      '@happyvertical/cache':
         specifier: workspace:*
         version: link:../cache
-      '@have/utils':
+      '@happyvertical/utils':
         specifier: workspace:*
         version: link:../utils
       deepl-node:

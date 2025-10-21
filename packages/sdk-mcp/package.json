@@ -1,5 +1,5 @@
 {
-  "name": "@have/sdk-mcp",
+  "name": "@happyvertical/sdk-mcp",
   "version": "0.1.0",
   "description": "MCP server for HAVE SDK - Routes queries to package experts using CLAUDE.md files",
   "type": "module",
@@ -43,9 +43,9 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4",
-    "@have/ai": "workspace:*",
-    "@have/files": "workspace:*",
-    "@have/utils": "workspace:*"
+    "@happyvertical/ai": "workspace:*",
+    "@happyvertical/files": "workspace:*",
+    "@happyvertical/utils": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

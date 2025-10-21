@@ -3,8 +3,8 @@
  */
 
 import { Client } from '@googlemaps/google-maps-services-js';
-import type { CacheAdapter } from '@have/cache';
-import { getCache } from '@have/cache';
+import type { CacheAdapter } from '@happyvertical/cache';
+import { getCache } from '@happyvertical/cache';
 import type { GeoProvider, GoogleMapsOptions, Location } from '../shared/types';
 import {
   AuthenticationError,

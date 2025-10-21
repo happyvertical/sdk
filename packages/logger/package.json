@@ -1,5 +1,5 @@
 {
-  "name": "@have/logger",
+  "name": "@happyvertical/logger",
   "version": "0.37.0",
   "description": "Structured logging for HAVE SDK with signal adapter",
   "type": "module",
@@ -28,7 +28,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@have/utils": "workspace:*"
+    "@happyvertical/utils": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

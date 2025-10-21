@@ -1,8 +1,8 @@
-# @have/sql: Database Interface Package
+# @happyvertical/sql: Database Interface Package
 
 ## Purpose and Responsibilities
 
-The `@have/sql` package provides a standardized interface for SQL database operations, with specific support for SQLite (via LibSQL) and PostgreSQL. It is designed to:
+The `@happyvertical/sql` package provides a standardized interface for SQL database operations, with specific support for SQLite (via LibSQL) and PostgreSQL. It is designed to:
 
 - Abstract away database-specific implementation details while maintaining direct SQL access
 - Provide a consistent API for common database operations across multiple database engines
@@ -47,7 +47,7 @@ All template literal methods (`many`, `single`, `pluck`, `execute`) automaticall
 ### Database Client Creation
 
 ```typescript
-import { getDatabase } from '@have/sql';
+import { getDatabase } from '@happyvertical/sql';
 
 // Create an SQLite client (auto-detected from URL)
 const sqliteDb = await getDatabase({
@@ -114,7 +114,7 @@ HAVE_SQL_PASSWORD=secret    # Authentication password
 
 **Usage Examples**:
 ```typescript
-import { getDatabase } from '@have/sql';
+import { getDatabase } from '@happyvertical/sql';
 
 // Example 1: Use environment variables only
 // Set: HAVE_SQL_TYPE=sqlite, HAVE_SQL_URL=:memory:
@@ -178,7 +178,7 @@ export HAVE_SQL_URL=postgresql://admin:secret@localhost:5432/mydb
 ```
 
 **Benefits of HAVE_SQL_* Pattern**:
-- Consistent with other `@have/*` packages
+- Consistent with other `@happyvertical/*` packages
 - Supports all database types (not just PostgreSQL)
 - Clearer naming convention aligned with package structure
 - Future-proof for new database features
@@ -198,7 +198,7 @@ export HAVE_SQL_URL=postgresql://admin:secret@localhost:5432/mydb
 
 **Basic Usage**:
 ```typescript
-import { getDatabase } from '@have/sql';
+import { getDatabase } from '@happyvertical/sql';
 
 // Parent creates database - dbid is auto-generated
 const parentOptions = { type: 'sqlite' as const, url: ':memory:' };
@@ -315,7 +315,7 @@ The JSON adapter provides SQL query capabilities over JSON files using DuckDB's 
 
 **Usage Example**:
 ```typescript
-import { getDatabase } from '@have/sql';
+import { getDatabase } from '@happyvertical/sql';
 
 // Create JSON database
 const db = await getDatabase({
@@ -405,9 +405,9 @@ Error: Cannot create values of type ANY. Specify a specific type.
 
 **Solution with SMRT Integration**:
 ```typescript
-import { smrt, SmrtObject } from '@have/smrt';
-import { text } from '@have/smrt/fields';
-import { getDatabase } from '@have/sql';
+import { smrt, SmrtObject } from '@happyvertical/smrt';
+import { text } from '@happyvertical/smrt/fields';
+import { getDatabase } from '@happyvertical/sql';
 
 // 1. Define SMRT object BEFORE initializing database
 @smrt()
@@ -697,7 +697,7 @@ ON CONFLICT(email) DO UPDATE SET
 ### Advanced Query Building
 
 ```typescript
-import { buildWhere } from '@have/sql';
+import { buildWhere } from '@happyvertical/sql';
 
 // Build complex WHERE clauses
 const { sql, values } = buildWhere({
@@ -731,7 +731,7 @@ const activeUsers = await usersTable.list({ status: 'active' });
 #### Legacy SQL DDL Schema (String-based)
 
 ```typescript
-import { syncSchema } from '@have/sql';
+import { syncSchema } from '@happyvertical/sql';
 
 // Define schema as SQL DDL
 const schemaSQL = `
@@ -766,7 +766,7 @@ const exists = await db.tableExists('users');
 The package now supports JSON manifest-based schema management with automatic dependency resolution:
 
 ```typescript
-import { DatabaseSchemaManager } from '@have/sql';
+import { DatabaseSchemaManager } from '@happyvertical/sql';
 
 // Define schema manifest
 const manifest = {
@@ -925,10 +925,10 @@ await db.transaction(async (tx) => {
 
 ### Error Handling
 
-The package provides structured error handling with context information via `DatabaseError` from `@have/utils`:
+The package provides structured error handling with context information via `DatabaseError` from `@happyvertical/utils`:
 
 ```typescript
-import { DatabaseError } from '@have/utils';
+import { DatabaseError } from '@happyvertical/utils';
 
 try {
   await db.insert('users', invalidData);
@@ -1090,7 +1090,7 @@ export HAVE_SQL_DATABASE=mydb
 The package has the following dependencies:
 
 ### Internal Dependencies
-- `@have/utils`: For shared utilities and `DatabaseError` error handling
+- `@happyvertical/utils`: For shared utilities and `DatabaseError` error handling
 
 ### External Dependencies
 - `@libsql/client` (^0.14.0): LibSQL client for SQLite compatibility with extensions and remote databases
@@ -1228,7 +1228,7 @@ npm run clean        # Clean build artifacts
 
 ## API Documentation
 
-The @have/sql package generates comprehensive API documentation in both HTML and markdown formats using TypeDoc:
+The @happyvertical/sql package generates comprehensive API documentation in both HTML and markdown formats using TypeDoc:
 
 ### Generated Documentation Formats
 
@@ -1298,7 +1298,7 @@ Always reference the latest documentation when planning database solutions, as t
 
 ### Expert Agent Instructions
 
-When working with @have/sql:
+When working with @happyvertical/sql:
 
 1. **Always check latest documentation** before implementing solutions using WebFetch tool
 2. **Stay current with LibSQL features** - Turso frequently adds new capabilities
@@ -1382,7 +1382,7 @@ interface DatabaseInterface {
 ### Exported Functions and Classes
 
 ```typescript
-// Main exports from @have/sql
+// Main exports from @happyvertical/sql
 export {
   getDatabase,           // Factory function for database instances
   syncSchema,            // Legacy SQL DDL schema sync
@@ -1413,7 +1413,7 @@ export type {
 
 ```typescript
 // Pattern: Safe dynamic queries with buildWhere
-import { buildWhere } from '@have/sql';
+import { buildWhere } from '@happyvertical/sql';
 
 const filters = {
   'status': 'active',
@@ -1498,7 +1498,7 @@ const results = await db.many`
 
 ```typescript
 // In-memory database for tests
-import { getDatabase } from '@have/sql';
+import { getDatabase } from '@happyvertical/sql';
 
 const testDb = await getDatabase({ type: 'sqlite', url: ':memory:' });
 

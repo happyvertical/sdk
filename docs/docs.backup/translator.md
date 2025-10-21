@@ -1,29 +1,29 @@
 ---
 id: translator
-title: "@have/translator: Translation Services"
-sidebar_label: "@have/translator"
+title: "@happyvertical/translator: Translation Services"
+sidebar_label: "@happyvertical/translator"
 sidebar_position: 13
 ---
 
-# @have/translator: Translation Services
+# @happyvertical/translator: Translation Services
 
 Standardized translation interface supporting Google Translate, DeepL, and LibreTranslate.
 
 ## Overview
 
-The `@have/translator` package provides unified access to translation services across multiple providers:
+The `@happyvertical/translator` package provides unified access to translation services across multiple providers:
 
 - **🌍 Multi-Provider Support**: Google Translate, DeepL, and LibreTranslate
 - **🔄 Auto-Detection**: Automatic source language detection
 - **📝 Batch Translation**: Translate multiple texts efficiently
 - **🎯 High Accuracy**: Provider-specific optimizations for quality
 - **🔒 Type Safety**: Full TypeScript support with standardized results
-- **⚡ Performance**: Built-in caching support via @have/cache
+- **⚡ Performance**: Built-in caching support via @happyvertical/cache
 
 ## Quick Start
 
 ```typescript
-import { getTranslator } from '@have/translator';
+import { getTranslator } from '@happyvertical/translator';
 
 // Create Google Translate client
 const translator = await getTranslator({

@@ -3,7 +3,7 @@
 import * as fs from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import * as path from 'node:path';
-import { getTempDirectory } from '@have/utils';
+import { getTempDirectory } from '@happyvertical/utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   download,

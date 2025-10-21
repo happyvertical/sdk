@@ -8,7 +8,7 @@ Copy the bridge script to your project:
 
 ```bash
 # From your project root
-cp node_modules/@have/sdk/scripts/mcp-smrt.sh ./scripts/
+cp node_modules/@happyvertical/sdk/scripts/mcp-smrt.sh ./scripts/
 chmod +x ./scripts/mcp-smrt.sh
 ```
 

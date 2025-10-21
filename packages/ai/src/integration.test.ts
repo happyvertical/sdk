@@ -3,7 +3,7 @@
  * These test real functionality without mocks
  */
 
-import { ValidationError } from '@have/utils';
+import { ValidationError } from '@happyvertical/utils';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { getAI, getAIAuto } from './shared/factory';
 import { HuggingFaceProvider } from './shared/providers/huggingface';

@@ -1,17 +1,17 @@
 ---
 id: spider
-title: "@have/spider: Web Crawling and Content Extraction"
-sidebar_label: "@have/spider"
+title: "@happyvertical/spider: Web Crawling and Content Extraction"
+sidebar_label: "@happyvertical/spider"
 sidebar_position: 4
 ---
 
-# @have/spider: Web Crawling and Content Extraction
+# @happyvertical/spider: Web Crawling and Content Extraction
 
 Web crawling and content parsing tools for extracting structured data from websites.
 
 ## Overview
 
-The `@have/spider` package provides powerful web scraping capabilities:
+The `@happyvertical/spider` package provides powerful web scraping capabilities:
 
 - **🕷️ Web Crawling**: Intelligent website crawling and navigation
 - **📄 Content Extraction**: Clean text and structured data extraction
@@ -22,7 +22,7 @@ The `@have/spider` package provides powerful web scraping capabilities:
 ## Quick Start
 
 ```typescript
-import { scrapeDocument } from '@have/spider';
+import { scrapeDocument } from '@happyvertical/spider';
 
 // Scrape content from a single page
 const page = await scrapeDocument('https://example.com');
@@ -40,7 +40,7 @@ const detailedPage = await scrapeDocument('https://example.com', {
 ## Content Extraction
 
 ```typescript
-import { scrapeDocument, scrapeIndex } from '@have/spider';
+import { scrapeDocument, scrapeIndex } from '@happyvertical/spider';
 
 // Scrape a single document/page
 const page = await scrapeDocument('https://blog.example.com/article');
@@ -60,7 +60,7 @@ const articles = await Promise.all(
 ## Integration Example
 
 ```typescript
-import { scrapeDocument, scrapeIndex } from '@have/spider';
+import { scrapeDocument, scrapeIndex } from '@happyvertical/spider';
 
 async function scrapeWebContent(url: string) {
   // Scrape the page

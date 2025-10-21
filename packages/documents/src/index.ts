@@ -1,5 +1,5 @@
 /**
- * @have/documents - Document processing with multi-part structure
+ * @happyvertical/documents - Document processing with multi-part structure
  *
  * This package provides unified document processing for PDFs, HTML,
  * and Markdown documents with support for:
@@ -10,7 +10,7 @@
  *
  * @example
  * ```typescript
- * import { fetchDocument } from '@have/documents';
+ * import { fetchDocument } from '@happyvertical/documents';
  *
  * // Fetch and process a PDF
  * const doc = await fetchDocument('https://example.com/report.pdf', {

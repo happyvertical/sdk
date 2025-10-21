@@ -1,5 +1,5 @@
 /**
- * @have/ocr - Standardized OCR interface with multi-provider support
+ * @happyvertical/ocr - Standardized OCR interface with multi-provider support
  *
  * This package provides a unified interface for Optical Character Recognition (OCR)
  * operations across multiple providers with intelligent fallback and environment detection.
@@ -16,7 +16,7 @@
  * ## Quick Start
  *
  * ```typescript
- * import { getOCR } from '@have/ocr';
+ * import { getOCR } from '@happyvertical/ocr';
  *
  * // Get OCR factory with automatic provider selection
  * const ocrFactory = getOCR();

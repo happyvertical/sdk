@@ -198,7 +198,7 @@ function getTranslator(options: TranslatorOptions): ITranslator;
 This demonstrates how other packages would use the `getTranslator` factory.
 
 ```typescript
-import { getTranslator } from '@have/translator';
+import { getTranslator } from '@happyvertical/translator';
 
 // The translator is created by calling the factory with the desired provider and config.
 const translator = await getTranslator({
@@ -261,7 +261,7 @@ results.forEach((result, i) => {
 The `templateFunction` method creates a pre-configured translation function that's perfect for repeated translations with the same language pair. This is especially useful in web applications where you want to translate multiple strings to a user's preferred language.
 
 ```typescript
-import { getTranslator } from '@have/translator';
+import { getTranslator } from '@happyvertical/translator';
 
 const translator = await getTranslator({
   provider: 'google',

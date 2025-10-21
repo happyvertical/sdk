@@ -1,6 +1,6 @@
 # Spider Test Fixtures
 
-This directory contains HTML fixtures for testing the @have/spider package's URL detection and document scraping capabilities.
+This directory contains HTML fixtures for testing the @happyvertical/spider package's URL detection and document scraping capabilities.
 
 ## Fixture Files
 

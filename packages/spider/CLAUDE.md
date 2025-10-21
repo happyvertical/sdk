@@ -22,21 +22,21 @@ Refactor the `@happyvertical/spider` package to follow the standardized provider
 
 5.  **Create `src/adapters/simple.ts`**:
     *   This adapter will implement the `ISpiderAdapter` interface.
-    *   The `fetch` method will use `@have/cache` to handle caching.
-    *   If the content is not in the cache, it will use the `fetchText` function from `@have/files` to get the page content.
+    *   The `fetch` method will use `@happyvertical/cache` to handle caching.
+    *   If the content is not in the cache, it will use the `fetchText` function from `@happyvertical/files` to get the page content.
     *   It will then use `cheerio` to parse the HTML and extract the links, similar to the current `parseIndexSource` function.
     *   It should return a `Page` object.
 
 6.  **Create `src/adapters/dom.ts`**:
     *   This adapter will also implement the `ISpiderAdapter` interface.
-    *   The `fetch` method will use `@have/cache` to handle caching.
+    *   The `fetch` method will use `@happyvertical/cache` to handle caching.
     *   If the content is not in the cache, it will use `happy-dom` to process the page, similar to the `cheap: false` path in the current `fetchPageSource` function.
     *   It will also use `cheerio` to extract links.
     *   It should return a `Page` object.
 
 7.  **Create `src/adapters/crawlee.ts`**:
     *   This adapter will implement the `ISpiderAdapter` interface.
-    *   The `fetch` method will use `@have/cache` to handle caching.
+    *   The `fetch` method will use `@happyvertical/cache` to handle caching.
     *   If the content is not in the cache, it will use `crawlee` to launch a headless browser, navigate to the URL, and get the page content.
     *   It will then use `cheerio` to parse the HTML and extract the links.
     *   It should return a `Page` object.
@@ -52,7 +52,7 @@ Refactor the `@happyvertical/spider` package to follow the standardized provider
     *   Ensure the tests cover the same functionality as the old tests.
 
 10. **Update `package.json`**:
-    *   Ensure all necessary dependencies are listed (`@have/cache`, `@have/files`, `@have/utils`, `cheerio`, `happy-dom`, `crawlee`, `undici`).
+    *   Ensure all necessary dependencies are listed (`@happyvertical/cache`, `@happyvertical/files`, `@happyvertical/utils`, `cheerio`, `happy-dom`, `crawlee`, `undici`).
 
 ## Code Style and Conventions
 

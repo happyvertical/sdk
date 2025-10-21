@@ -3,7 +3,7 @@
  * Provides standardized caching interface
  */
 
-import { loadEnvConfig } from '@have/utils';
+import { loadEnvConfig } from '@happyvertical/utils';
 import type {
   CacheAdapter,
   CacheAdapterOptions,

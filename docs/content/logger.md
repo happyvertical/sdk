@@ -1,11 +1,11 @@
 ---
 id: logger
-title: "@have/logger: Structured Logging"
-sidebar_label: "@have/logger"
+title: "@happyvertical/logger: Structured Logging"
+sidebar_label: "@happyvertical/logger"
 sidebar_position: 6
 ---
 
-# @have/logger
+# @happyvertical/logger
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
@@ -13,7 +13,7 @@ Structured logging for HAVE SDK with signal adapter integration and configurable
 
 ## Overview
 
-The `@have/logger` package provides a lightweight, structured logging system designed for the HAVE SDK. It offers a clean interface for logging with multiple severity levels, structured metadata support, and seamless integration with the SMRT framework's signal system for automatic operation tracking.
+The `@happyvertical/logger` package provides a lightweight, structured logging system designed for the HAVE SDK. It offers a clean interface for logging with multiple severity levels, structured metadata support, and seamless integration with the SMRT framework's signal system for automatic operation tracking.
 
 ## Key Features
 
@@ -30,19 +30,19 @@ The `@have/logger` package provides a lightweight, structured logging system des
 
 ```bash
 # Install with npm
-npm install @have/logger
+npm install @happyvertical/logger
 
 # Or with pnpm
-pnpm add @have/logger
+pnpm add @happyvertical/logger
 
 # Or with yarn
-yarn add @have/logger
+yarn add @happyvertical/logger
 ```
 
 ## Quick Start
 
 ```typescript
-import { createLogger } from '@have/logger';
+import { createLogger } from '@happyvertical/logger';
 
 // Create logger with info level (default)
 const logger = createLogger(true);
@@ -69,7 +69,7 @@ noopLogger.info('This message is discarded'); // No output, zero overhead
 The `createLogger` factory function provides multiple ways to create logger instances:
 
 ```typescript
-import { createLogger } from '@have/logger';
+import { createLogger } from '@happyvertical/logger';
 
 // Simple boolean configuration
 const logger1 = createLogger(true);  // Console logger with 'info' level
@@ -155,7 +155,7 @@ logger.debug('Cache hit', {
 For more control, use the ConsoleLogger class directly:
 
 ```typescript
-import { ConsoleLogger } from '@have/logger';
+import { ConsoleLogger } from '@happyvertical/logger';
 
 const logger = new ConsoleLogger('debug');
 
@@ -168,8 +168,8 @@ logger.debug('Detailed debugging information');
 Integrate with the SMRT framework's signal system for automatic operation logging:
 
 ```typescript
-import { createLogger, LoggerAdapter } from '@have/logger';
-import { SignalBus } from '@have/smrt';
+import { createLogger, LoggerAdapter } from '@happyvertical/logger';
+import { SignalBus } from '@happyvertical/smrt';
 
 // Create logger
 const logger = createLogger({ level: 'info' });
@@ -339,7 +339,7 @@ cacheLogger.debug('Cache miss', { key: 'user:123' });
 Implement the Logger interface for custom backends:
 
 ```typescript
-import type { Logger } from '@have/logger';
+import type { Logger } from '@happyvertical/logger';
 
 class FileLogger implements Logger {
   constructor(private filePath: string) {}
@@ -520,7 +520,7 @@ logger.info('system_metric', {
 
 ```typescript
 import express from 'express';
-import { createLogger } from '@have/logger';
+import { createLogger } from '@happyvertical/logger';
 
 const logger = createLogger({ level: 'info' });
 const app = express();
@@ -549,8 +549,8 @@ app.listen(3000, () => {
 ### SMRT Framework
 
 ```typescript
-import { SmrtObject } from '@have/smrt';
-import { createLogger, LoggerAdapter } from '@have/logger';
+import { SmrtObject } from '@happyvertical/smrt';
+import { createLogger, LoggerAdapter } from '@happyvertical/logger';
 
 // Create logger
 const logger = createLogger({ level: 'debug' });
@@ -586,7 +586,7 @@ signalBus.register(new LoggerAdapter(logger));
 
 ```typescript
 import { Worker } from 'worker_threads';
-import { createLogger } from '@have/logger';
+import { createLogger } from '@happyvertical/logger';
 
 const logger = createLogger({ level: 'info' });
 
@@ -616,7 +616,7 @@ worker.on('exit', (code) => {
 Full TypeScript definitions with type safety:
 
 ```typescript
-import type { Logger, LogLevel, LoggerConfig } from '@have/logger';
+import type { Logger, LogLevel, LoggerConfig } from '@happyvertical/logger';
 
 // Typed logger interface
 const logger: Logger = createLogger({ level: 'info' });
@@ -654,7 +654,7 @@ logger.info('User logged in', context);
 
 ## Comparison with Other Logging Libraries
 
-| Feature | @have/logger | winston | pino | bunyan |
+| Feature | @happyvertical/logger | winston | pino | bunyan |
 |---------|--------------|---------|------|--------|
 | Zero Config | ✅ | ❌ | ❌ | ❌ |
 | TypeScript | ✅ | ⚠️ | ✅ | ⚠️ |
@@ -665,7 +665,7 @@ logger.info('User logged in', context);
 | Transports | Console only | Many | Many | Many |
 | Learning Curve | Minimal | Steep | Medium | Medium |
 
-**When to use @have/logger**:
+**When to use @happyvertical/logger**:
 - Building with HAVE SDK (native signal integration)
 - Need simple, structured logging without complexity
 - Want minimal bundle size and dependencies

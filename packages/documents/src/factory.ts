@@ -1,4 +1,4 @@
-import { getMimeType } from '@have/files';
+import { getMimeType } from '@happyvertical/files';
 import { PDFProcessor } from './processors/pdf';
 import type { Document, FetchDocumentOptions } from './types';
 

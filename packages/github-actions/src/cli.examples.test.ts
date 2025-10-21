@@ -49,12 +49,16 @@ describe('CLI Examples', () => {
     it('Example: Config structure for monorepo without project board', () => {
       const config = {
         repoDescription: 'TypeScript monorepo for AI agent development',
-        packagePattern: '@have/*',
-        packageExamples: ['@have/ai', '@have/sql', '@have/files'],
+        packagePattern: '@happyvertical/*',
+        packageExamples: [
+          '@happyvertical/ai',
+          '@happyvertical/sql',
+          '@happyvertical/files',
+        ],
         projectEnabled: false,
       };
 
-      expect(config.packagePattern).toBe('@have/*');
+      expect(config.packagePattern).toBe('@happyvertical/*');
       expect(config.packageExamples).toHaveLength(3);
       expect(config.projectEnabled).toBe(false);
     });
@@ -62,8 +66,8 @@ describe('CLI Examples', () => {
     it('Example: Config structure for monorepo with project board', () => {
       const config = {
         repoDescription: 'TypeScript monorepo for AI agent development',
-        packagePattern: '@have/*',
-        packageExamples: ['@have/ai', '@have/sql'],
+        packagePattern: '@happyvertical/*',
+        packageExamples: ['@happyvertical/ai', '@happyvertical/sql'],
         projectEnabled: true,
         projectId: 'PVT_kwDOB9Y8ns4A8-TY',
         statusFieldId: 'PVTSSF_lADOB9Y8ns4A8-TYzgw0GaY',
@@ -136,7 +140,7 @@ describe('CLI Examples', () => {
 
       const config = {
         repoDescription: 'TypeScript monorepo',
-        packagePattern: '@have/*',
+        packagePattern: '@happyvertical/*',
         projectEnabled: false,
       };
 
@@ -157,7 +161,7 @@ describe('CLI Examples', () => {
       expect(context.repo).toBe('sdk');
       expect(context.issueNumber).toBe(123);
       expect(context.issueTitle).toBe('Add Redis cache support');
-      expect(context.config.packagePattern).toBe('@have/*');
+      expect(context.config.packagePattern).toBe('@happyvertical/*');
     });
 
     it('Example: Handling missing ISSUE_BODY gracefully', () => {

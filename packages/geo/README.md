@@ -1,11 +1,11 @@
 ---
 id: geo
-title: "@have/geo: Geographical Information"
-sidebar_label: "@have/geo"
+title: "@happyvertical/geo: Geographical Information"
+sidebar_label: "@happyvertical/geo"
 sidebar_position: 5
 ---
 
-# @have/geo
+# @happyvertical/geo
 
 Standardized geographical information interface supporting multiple providers (Google Maps, OpenStreetMap).
 
@@ -22,11 +22,11 @@ Standardized geographical information interface supporting multiple providers (G
 ## Installation
 
 ```bash
-npm install @have/geo
+npm install @happyvertical/geo
 # or
-pnpm add @have/geo
+pnpm add @happyvertical/geo
 # or
-yarn add @have/geo
+yarn add @happyvertical/geo
 ```
 
 ## Quick Start
@@ -34,7 +34,7 @@ yarn add @have/geo
 ### Google Maps
 
 ```typescript
-import { getGeoAdapter } from '@have/geo';
+import { getGeoAdapter } from '@happyvertical/geo';
 
 const adapter = await getGeoAdapter({
   provider: 'google',
@@ -63,7 +63,7 @@ console.log(locations[0].name);
 ### OpenStreetMap
 
 ```typescript
-import { getGeoAdapter } from '@have/geo';
+import { getGeoAdapter } from '@happyvertical/geo';
 
 const adapter = await getGeoAdapter({
   provider: 'openstreetmap',
@@ -92,7 +92,7 @@ export HAVE_GEO_MAX_RESULTS=5
 ```
 
 ```typescript
-import { getGeoAdapter } from '@have/geo';
+import { getGeoAdapter } from '@happyvertical/geo';
 
 // Create adapter using environment variables
 const adapter = await getGeoAdapter();
@@ -208,7 +208,7 @@ import {
   RateLimitError,
   AuthenticationError,
   NoResultsError
-} from '@have/geo';
+} from '@happyvertical/geo';
 
 try {
   const results = await adapter.lookup('Paris, France');
@@ -246,7 +246,7 @@ results.forEach(location => {
 ### Reverse Geocoding with Validation
 
 ```typescript
-import { validateCoordinates } from '@have/geo';
+import { validateCoordinates } from '@happyvertical/geo';
 
 const lat = 40.7128;
 const lng = -74.0060;

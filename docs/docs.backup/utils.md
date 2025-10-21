@@ -1,17 +1,17 @@
 ---
 id: utils
-title: "@have/utils: Shared Utilities"
-sidebar_label: "@have/utils"
+title: "@happyvertical/utils: Shared Utilities"
+sidebar_label: "@happyvertical/utils"
 sidebar_position: 7
 ---
 
-# @have/utils: Shared Utilities
+# @happyvertical/utils: Shared Utilities
 
 Shared utility functions used across SMRT packages including ID generation, string manipulation, and date handling.
 
 ## Overview
 
-The `@have/utils` package provides common utilities:
+The `@happyvertical/utils` package provides common utilities:
 
 - **🆔 ID Generation**: Unique identifier creation
 - **📝 String Utilities**: Manipulation and formatting
@@ -28,7 +28,7 @@ import {
   formatDate,
   debounce,
   chunk
-} from '@have/utils';
+} from '@happyvertical/utils';
 
 // Generate unique IDs
 const id = generateId(); // "abc123def456"

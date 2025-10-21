@@ -1,5 +1,5 @@
 /**
- * @have/ocr - Basic integration tests
+ * @happyvertical/ocr - Basic integration tests
  */
 
 import { readFile } from 'node:fs/promises';
@@ -18,7 +18,7 @@ import {
   OCRFactory,
 } from './index';
 
-describe('@have/ocr', () => {
+describe('@happyvertical/ocr', () => {
   test('should export main functions', () => {
     expect(getOCR).toBeDefined();
     expect(getAvailableProviders).toBeDefined();

@@ -1,5 +1,5 @@
 /**
- * @have/ocr - Shared type definitions for OCR processing
+ * @happyvertical/ocr - Shared type definitions for OCR processing
  *
  * This module provides comprehensive type definitions for all OCR operations,
  * including input formats, configuration options, results, and provider interfaces.

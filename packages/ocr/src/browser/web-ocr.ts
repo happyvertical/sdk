@@ -1,5 +1,5 @@
 /**
- * @have/ocr - Web OCR provider optimized for browser environments
+ * @happyvertical/ocr - Web OCR provider optimized for browser environments
  *
  * This module implements the OCRProvider interface specifically for browser
  * environments using Tesseract.js with WebAssembly for client-side OCR

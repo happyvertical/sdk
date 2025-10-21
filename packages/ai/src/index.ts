@@ -1,5 +1,5 @@
 /**
- * @have/ai - A standardized interface for AI model interactions
+ * @happyvertical/ai - A standardized interface for AI model interactions
  *
  * This package provides a unified interface for interacting with various AI models.
  * Supports multiple providers: OpenAI, Gemini, Anthropic, Hugging Face, AWS Bedrock, and Claude CLI.

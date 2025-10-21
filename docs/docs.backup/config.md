@@ -1,17 +1,17 @@
 ---
 id: config
-title: "@have/config: Configuration Management"
-sidebar_label: "@have/config"
+title: "@happyvertical/config: Configuration Management"
+sidebar_label: "@happyvertical/config"
 sidebar_position: 4
 ---
 
-# @have/config: Configuration Management
+# @happyvertical/config: Configuration Management
 
 Centralized configuration management for SMRT modules with support for multiple configuration sources.
 
 ## Overview
 
-The `@have/config` package provides flexible configuration management using cosmiconfig:
+The `@happyvertical/config` package provides flexible configuration management using cosmiconfig:
 
 - **📁 Multiple Sources**: Load from package.json, config files, or environment
 - **🔍 Auto-discovery**: Automatically finds configuration files
@@ -22,7 +22,7 @@ The `@have/config` package provides flexible configuration management using cosm
 ## Quick Start
 
 ```typescript
-import { loadConfig } from '@have/config';
+import { loadConfig } from '@happyvertical/config';
 
 // Auto-discover configuration
 const config = await loadConfig('myapp');
@@ -88,7 +88,7 @@ export default config;
 ## Type-Safe Configuration
 
 ```typescript
-import { loadConfig } from '@have/config';
+import { loadConfig } from '@happyvertical/config';
 
 interface AppConfig {
   apiKey: string;

@@ -1,12 +1,12 @@
-import type { CacheAdapter } from '@have/cache';
-import { getCache } from '@have/cache';
+import type { CacheAdapter } from '@happyvertical/cache';
+import { getCache } from '@happyvertical/cache';
 import {
   getLogger,
   isUrl,
   loadEnvConfig,
   NetworkError,
   ValidationError,
-} from '@have/utils';
+} from '@happyvertical/utils';
 import * as cheerio from 'cheerio';
 import { Window } from 'happy-dom';
 import { request } from 'undici';

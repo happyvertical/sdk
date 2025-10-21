@@ -3,7 +3,7 @@
  * Provides standardized geographical information interface
  */
 
-import { loadEnvConfig } from '@have/utils';
+import { loadEnvConfig } from '@happyvertical/utils';
 import type {
   GeoAdapter,
   GeoAdapterOptions,

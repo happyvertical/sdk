@@ -1,5 +1,5 @@
 import { mkdir } from 'node:fs/promises';
-import { getTempDirectory } from '@have/utils';
+import { getTempDirectory } from '@happyvertical/utils';
 import { getCached, setCached } from './index';
 
 /**

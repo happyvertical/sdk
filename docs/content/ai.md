@@ -1,11 +1,11 @@
 ---
 id: ai
-title: "@have/ai: Multi-Provider AI Integration"
-sidebar_label: "@have/ai"
+title: "@happyvertical/ai: Multi-Provider AI Integration"
+sidebar_label: "@happyvertical/ai"
 sidebar_position: 2
 ---
 
-# @have/ai
+# @happyvertical/ai
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
@@ -13,7 +13,7 @@ A standardized interface for AI model interactions across multiple providers in 
 
 ## Overview
 
-The `@have/ai` package provides a unified interface for interacting with various AI models, making it easy to switch between providers without changing your application code. Supports **OpenAI**, **Anthropic Claude**, **Google Gemini**, **AWS Bedrock**, and **Hugging Face** with a consistent API.
+The `@happyvertical/ai` package provides a unified interface for interacting with various AI models, making it easy to switch between providers without changing your application code. Supports **OpenAI**, **Anthropic Claude**, **Google Gemini**, **AWS Bedrock**, and **Hugging Face** with a consistent API.
 
 ## Features
 
@@ -32,13 +32,13 @@ The `@have/ai` package provides a unified interface for interacting with various
 
 ```bash
 # Install with bun (recommended)
-bun add @have/ai
+bun add @happyvertical/ai
 
 # Or with npm
-npm install @have/ai
+npm install @happyvertical/ai
 
 # Or with yarn
-yarn add @have/ai
+yarn add @happyvertical/ai
 ```
 
 ## Quick Start
@@ -46,7 +46,7 @@ yarn add @have/ai
 ### Basic Usage (Auto-Detection)
 
 ```typescript
-import { getAI } from '@have/ai';
+import { getAI } from '@happyvertical/ai';
 
 // OpenAI (default)
 const openai = await getAI({
@@ -67,7 +67,7 @@ console.log(`Tokens used: ${response.usage?.totalTokens}`);
 ### Multiple Providers
 
 ```typescript
-import { getAI } from '@have/ai';
+import { getAI } from '@happyvertical/ai';
 
 // OpenAI
 const openai = await getAI({
@@ -169,7 +169,7 @@ import {
   AuthenticationError,
   RateLimitError,
   ModelNotFoundError
-} from '@have/ai';
+} from '@happyvertical/ai';
 
 try {
   const response = await client.chat([
@@ -272,7 +272,7 @@ for await (const chunk of client.stream([
 
 ## Environment Variable Configuration
 
-The `@have/ai` package supports configuration via environment variables using the `HAVE_AI_*` prefix pattern:
+The `@happyvertical/ai` package supports configuration via environment variables using the `HAVE_AI_*` prefix pattern:
 
 ```bash
 # .env file
@@ -296,7 +296,7 @@ HAVE_AI_BASE_URL=https://custom.proxy.com/v1
 ### Usage Examples
 
 ```typescript
-import { getAI } from '@have/ai';
+import { getAI } from '@happyvertical/ai';
 
 // Example 1: Use environment variables only
 // Set: HAVE_AI_PROVIDER=openai, HAVE_AI_MODEL=gpt-4o
@@ -348,7 +348,7 @@ In addition to `HAVE_AI_*` variables, the package also checks:
 
 ### Auto-Detection
 ```typescript
-import { getAIAuto } from '@have/ai';
+import { getAIAuto } from '@happyvertical/ai';
 
 // Automatically detects provider from credentials
 const client = await getAIAuto({
@@ -382,7 +382,7 @@ async function robustChat(messages: AIMessage[]) {
 To add support for a new AI provider, implement the `AIInterface`:
 
 ```typescript
-import { AIInterface, AIMessage, AIResponse, ChatOptions } from '@have/ai';
+import { AIInterface, AIMessage, AIResponse, ChatOptions } from '@happyvertical/ai';
 
 export class MyAIProvider implements AIInterface {
   constructor(private options: MyProviderOptions) {
@@ -457,7 +457,7 @@ import type {
   ChatOptions,
   AICapabilities,
   TokenUsage
-} from '@have/ai';
+} from '@happyvertical/ai';
 ```
 
 ## API Reference

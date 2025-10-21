@@ -1,11 +1,11 @@
 ---
 id: utils
-title: "@have/utils: Shared Utilities"
-sidebar_label: "@have/utils"
+title: "@happyvertical/utils: Shared Utilities"
+sidebar_label: "@happyvertical/utils"
 sidebar_position: 12
 ---
 
-# @have/utils
+# @happyvertical/utils
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
@@ -13,7 +13,7 @@ Foundation utilities for ID generation, date parsing, URL handling, string conve
 
 ## Overview
 
-The `@have/utils` package provides core utilities that serve as the foundation for all other HAVE SDK packages. It offers essential functionality with minimal dependencies, focusing on pure, testable functions that work reliably across different environments.
+The `@happyvertical/utils` package provides core utilities that serve as the foundation for all other HAVE SDK packages. It offers essential functionality with minimal dependencies, focusing on pure, testable functions that work reliably across different environments.
 
 ## Features
 
@@ -31,13 +31,13 @@ The `@have/utils` package provides core utilities that serve as the foundation f
 
 ```bash
 # Install with bun (recommended)
-bun add @have/utils
+bun add @happyvertical/utils
 
 # Or with npm
-npm install @have/utils
+npm install @happyvertical/utils
 
 # Or with yarn
-yarn add @have/utils
+yarn add @happyvertical/utils
 ```
 
 ## Usage
@@ -45,7 +45,7 @@ yarn add @have/utils
 ### ID Generation
 
 ```typescript
-import { makeId, createId, isCuid } from '@have/utils';
+import { makeId, createId, isCuid } from '@happyvertical/utils';
 
 // Generate CUID2 (default, more secure than UUID)
 const id = makeId(); // "ckx5f8h3z0000qzrmn831i7rn"
@@ -65,7 +65,7 @@ if (isCuid(id)) {
 ### URL Utilities
 
 ```typescript
-import { urlFilename, urlPath, makeSlug, isUrl } from '@have/utils';
+import { urlFilename, urlPath, makeSlug, isUrl } from '@happyvertical/utils';
 
 // Extract filename from URL
 const filename = urlFilename("https://example.com/path/file.pdf"); // "file.pdf"
@@ -92,7 +92,7 @@ import {
   keysToCamel,
   keysToSnake,
   domainToCamel
-} from '@have/utils';
+} from '@happyvertical/utils';
 
 // Convert individual strings
 const camelString = camelCase("hello-world"); // "helloWorld"
@@ -124,7 +124,7 @@ import {
   formatDate,
   parseDate,
   addInterval
-} from '@have/utils';
+} from '@happyvertical/utils';
 
 // Extract dates from filenames
 const date = dateInString("Report_January_15_2023.pdf");
@@ -148,7 +148,7 @@ const nextWeek = addInterval(today, { days: 7 }); // Date 7 days from now
 ### Type Guards
 
 ```typescript
-import { isArray, isPlainObject } from '@have/utils';
+import { isArray, isPlainObject } from '@happyvertical/utils';
 
 function processData(data: unknown) {
   if (isArray(data)) {
@@ -166,7 +166,7 @@ function processData(data: unknown) {
 ### Async Utilities
 
 ```typescript
-import { waitFor, sleep } from '@have/utils';
+import { waitFor, sleep } from '@happyvertical/utils';
 
 // Wait for a condition with timeout
 const result = await waitFor(
@@ -192,7 +192,7 @@ import {
   FileError,
   ApiError,
   DatabaseError
-} from '@have/utils';
+} from '@happyvertical/utils';
 
 // Structured errors with context
 function validateEmail(email: string) {
@@ -225,7 +225,7 @@ try {
 ### Logging
 
 ```typescript
-import { getLogger, setLogger, disableLogging } from '@have/utils';
+import { getLogger, setLogger, disableLogging } from '@happyvertical/utils';
 
 // Use default console logger
 const logger = getLogger();
@@ -252,7 +252,7 @@ setLogger(new CustomLogger());
 ### Text Pluralization
 
 ```typescript
-import { pluralizeWord, singularize, isPlural, isSingular } from '@have/utils';
+import { pluralizeWord, singularize, isPlural, isSingular } from '@happyvertical/utils';
 
 // Pluralize English words
 pluralizeWord("cat"); // "cats"
@@ -267,7 +267,7 @@ isSingular("cat"); // true
 ### Utility Functions
 
 ```typescript
-import { logTicker, getTempDirectory } from '@have/utils';
+import { logTicker, getTempDirectory } from '@happyvertical/utils';
 
 // Visual progress indicator
 let tick = null;

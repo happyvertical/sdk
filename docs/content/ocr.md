@@ -1,11 +1,11 @@
 ---
 id: ocr
-title: "@have/ocr: Optical Character Recognition"
-sidebar_label: "@have/ocr"
+title: "@happyvertical/ocr: Optical Character Recognition"
+sidebar_label: "@happyvertical/ocr"
 sidebar_position: 7
 ---
 
-# @have/ocr
+# @happyvertical/ocr
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -13,7 +13,7 @@ Standardized OCR interface with multi-provider support for Node.js and browser e
 
 ## Overview
 
-The `@have/ocr` package provides a unified interface for Optical Character Recognition (OCR) operations with intelligent provider selection and automatic fallback. It abstracts away the complexities of different OCR engines, allowing consistent text extraction regardless of the underlying OCR provider.
+The `@happyvertical/ocr` package provides a unified interface for Optical Character Recognition (OCR) operations with intelligent provider selection and automatic fallback. It abstracts away the complexities of different OCR engines, allowing consistent text extraction regardless of the underlying OCR provider.
 
 ## Features
 
@@ -31,16 +31,16 @@ The `@have/ocr` package provides a unified interface for Optical Character Recog
 
 ```bash
 # npm
-npm install @have/ocr
+npm install @happyvertical/ocr
 
 # pnpm
-pnpm add @have/ocr
+pnpm add @happyvertical/ocr
 
 # yarn
-yarn add @have/ocr
+yarn add @happyvertical/ocr
 
 # bun
-bun add @have/ocr
+bun add @happyvertical/ocr
 ```
 
 The package includes Tesseract.js by default and ONNX provider (@gutenye/ocr-node) for high-accuracy OCR.
@@ -48,7 +48,7 @@ The package includes Tesseract.js by default and ONNX provider (@gutenye/ocr-nod
 ## Quick Start
 
 ```typescript
-import { getOCR } from '@have/ocr';
+import { getOCR } from '@happyvertical/ocr';
 
 // Get OCR factory with automatic provider selection
 const ocrFactory = getOCR();
@@ -85,7 +85,7 @@ High-accuracy OCR using PaddleOCR PP-OCRv4 models with ONNX Runtime. Provides su
 
 **Example:**
 ```typescript
-import { getOCR } from '@have/ocr';
+import { getOCR } from '@happyvertical/ocr';
 
 const onnxFactory = getOCR({ provider: 'onnx' });
 
@@ -119,7 +119,7 @@ Cross-platform OCR using Tesseract.js with WebAssembly. Good accuracy on machine
 
 **Example:**
 ```typescript
-import { getOCR } from '@have/ocr';
+import { getOCR } from '@happyvertical/ocr';
 
 const tesseractFactory = getOCR({ provider: 'tesseract' });
 
@@ -144,7 +144,7 @@ Browser-optimized Tesseract.js with progress tracking and memory management for 
 
 **Example:**
 ```typescript
-import { getOCR } from '@have/ocr';
+import { getOCR } from '@happyvertical/ocr';
 
 const webFactory = getOCR({ provider: 'web-ocr' });
 
@@ -162,7 +162,7 @@ console.log('Browser OCR completed:', result.text);
 ### Multi-Language OCR
 
 ```typescript
-import { getOCR } from '@have/ocr';
+import { getOCR } from '@happyvertical/ocr';
 
 const ocrFactory = getOCR();
 
@@ -185,7 +185,7 @@ console.log('Supported languages:', supportedLanguages);
 ### Environment-Specific Configuration
 
 ```typescript
-import { getOCR } from '@have/ocr';
+import { getOCR } from '@happyvertical/ocr';
 
 const ocrFactory = getOCR();
 const environment = ocrFactory.getEnvironment();
@@ -208,7 +208,7 @@ if (environment === 'node') {
 ### Custom Factory Configuration
 
 ```typescript
-import { OCRFactory } from '@have/ocr';
+import { OCRFactory } from '@happyvertical/ocr';
 
 const customFactory = new OCRFactory({
   provider: 'onnx',                   // Force specific provider
@@ -249,7 +249,7 @@ import {
   OCRDependencyError,
   OCRProcessingError,
   OCRUnsupportedError
-} from '@have/ocr';
+} from '@happyvertical/ocr';
 
 try {
   const result = await ocrFactory.performOCR(images);
@@ -283,7 +283,7 @@ import {
   OCROptions,
   DependencyCheckResult,
   OCRCapabilities
-} from '@have/ocr';
+} from '@happyvertical/ocr';
 
 export class MyOCRProvider implements OCRProvider {
   readonly name = 'my-provider';
@@ -349,7 +349,7 @@ export class MyOCRProvider implements OCRProvider {
 ### Registering Custom Providers
 
 ```typescript
-import { OCRFactory } from '@have/ocr';
+import { OCRFactory } from '@happyvertical/ocr';
 import { MyOCRProvider } from './my-ocr-provider';
 
 // Create factory with custom provider
