@@ -22,8 +22,48 @@ TypeScript SDK for building AI-powered applications.
 
 ## Installation
 
+### Installing from GitHub Packages
+
+All SDK packages are published to GitHub Packages. To install them, you need to configure npm to use GitHub Packages for the `@have` scope.
+
+#### 1. Create a GitHub Personal Access Token
+
+1. Go to GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)
+2. Generate a new token with `read:packages` scope
+3. Copy the token
+
+#### 2. Configure npm registry
+
+Create or update `.npmrc` in your project root:
+
+```bash
+@have:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=YOUR_GITHUB_TOKEN
+```
+
+Or set the token via environment variable:
+
+```bash
+echo "@have:registry=https://npm.pkg.github.com" >> .npmrc
+echo "//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}" >> .npmrc
+```
+
+#### 3. Install packages
+
 ```bash
 pnpm add @have/ai @have/sql @have/files
+```
+
+### Available Packages
+
+All SDK packages are available:
+
+```bash
+# Core packages
+pnpm add @have/utils @have/logger @have/files @have/sql @have/ai
+
+# Infrastructure packages
+pnpm add @have/cache @have/geo @have/translator @have/ocr @have/pdf @have/spider @have/documents
 ```
 
 ## Development

@@ -37,6 +37,22 @@
     "vitest": "^3.2.4"
   },
   "files": [
-    "dist"
-  ]
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/happyvertical/sdk.git",
+    "directory": "packages/utils"
+  },
+  "bugs": {
+    "url": "https://github.com/happyvertical/sdk/issues"
+  },
+  "homepage": "https://github.com/happyvertical/sdk/tree/main/packages/utils#readme",
+  "license": "MIT"
 }
