@@ -109,22 +109,22 @@ export function createPackageConfig(packageName: string) {
           'cosmiconfig',
           '@libsql/client',
 
-          // Internal @have/* packages - externalize to avoid cross-package bundling
-          /^@have\//,
-          '@have/utils',
-          '@have/logger',
-          '@have/files',
-          '@have/sql',
-          '@have/ai',
-          '@have/cache',
-          '@have/config',
-          '@have/geo',
-          '@have/translator',
-          '@have/ocr',
-          '@have/pdf',
-          '@have/documents',
-          '@have/spider',
-          '@have/smrt', // Optional dependency for SQL package (SMRT integration)
+          // Internal @happyvertical/* packages - externalize to avoid cross-package bundling
+          /^@happyvertical\//,
+          '@happyvertical/utils',
+          '@happyvertical/logger',
+          '@happyvertical/files',
+          '@happyvertical/sql',
+          '@happyvertical/ai',
+          '@happyvertical/cache',
+          '@happyvertical/config',
+          '@happyvertical/geo',
+          '@happyvertical/translator',
+          '@happyvertical/ocr',
+          '@happyvertical/pdf',
+          '@happyvertical/documents',
+          '@happyvertical/spider',
+          '@happyvertical/smrt', // Optional dependency for SQL package (SMRT integration)
         ],
       },
       minify: false, // Keep code readable for library usage
