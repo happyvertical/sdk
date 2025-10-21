@@ -485,7 +485,43 @@ git checkout -b {type}/issue-XXX-short-desc origin/{type}/issue-XXX-short-desc
 - Check last commit message to understand current state
 - Review existing changes since branching from main
 
-#### Step 5: Planning Phase (Interactive Mode Only)
+#### Step 5: Update Project Board Status
+
+Move the issue from "To Do" to "In Progress" on the project board:
+
+```bash
+# Get the issue number from branch name or context
+ISSUE_NUMBER={issue-number}
+
+# Update issue status to "In Progress" using gh CLI
+gh project item-edit 7 --owner happyvertical \
+  --field-name "Status" --text "In Progress" \
+  --id $(gh api graphql -f query='
+    query($org: String!, $repo: String!, $number: Int!) {
+      repository(owner: $org, name: $repo) {
+        issue(number: $number) {
+          projectItems(first: 10) {
+            nodes {
+              id
+            }
+          }
+        }
+      }
+    }' -f org=happyvertical -f repo=sdk -F number=$ISSUE_NUMBER --jq '.data.repository.issue.projectItems.nodes[0].id')
+```
+
+**Note**: Project number 7 is the "Development Workflow" project for happyvertical organization.
+
+**Manual alternative**:
+- If gh CLI commands fail, note in issue comment that work has started
+- Update project board manually via GitHub web UI: https://github.com/orgs/happyvertical/projects/7
+- Continue with SOP
+
+**Verify update**:
+- Confirm issue appears in "In Progress" column on project board
+- If update fails: Note failure, continue with work (board can be updated manually later)
+
+#### Step 6: Planning Phase (Interactive Mode Only)
 
 **IMPORTANT**: Use the AskUserQuestion wizard for ALL clarifying questions.
 
@@ -563,7 +599,7 @@ EOF
 )"
 ```
 
-#### Step 6: Create Task List (If Applicable)
+#### Step 7: Create Task List (If Applicable)
 
 For complex issues with multiple steps, use TodoWrite to create task list:
 
@@ -583,7 +619,7 @@ For complex issues with multiple steps, use TodoWrite to create task list:
 - Trivial update
 - Simple bug fix
 
-#### Step 7: Begin Implementation
+#### Step 8: Begin Implementation
 
 **Implementation Order** (following Testing Standard):
 
@@ -652,6 +688,7 @@ Use this checklist to verify SOP completion:
 - [ ] Main branch is synced with remote
 - [ ] Issue(s) identified and context loaded
 - [ ] Feature branch created/checked out with correct naming
+- [ ] Project board updated (issue moved to "In Progress")
 - [ ] Planning phase completed (interactive) or defaults used (CI)
 - [ ] Planning notes posted to issue (if interactive)
 - [ ] Task list created (if applicable)
@@ -1014,7 +1051,43 @@ EOF
 - `breaking-change` (if breaking changes noted)
 - `needs-review` (always)
 
-#### Step 8: Return to Main Branch
+#### Step 8: Update Project Board Status
+
+Move the issue from "In Progress" to "Review & Testing" on the project board:
+
+```bash
+# Get the issue number from branch name or commits
+ISSUE_NUMBER=$(git log -1 --pretty=%B | grep -oP '(?<=#)\d+')
+
+# Update issue status to "Review & Testing" using gh CLI
+gh project item-edit 7 --owner happyvertical \
+  --field-name "Status" --text "Review & Testing" \
+  --id $(gh api graphql -f query='
+    query($org: String!, $repo: String!, $number: Int!) {
+      repository(owner: $org, name: $repo) {
+        issue(number: $number) {
+          projectItems(first: 10) {
+            nodes {
+              id
+            }
+          }
+        }
+      }
+    }' -f org=happyvertical -f repo=sdk -F number=$ISSUE_NUMBER --jq '.data.repository.issue.projectItems.nodes[0].id')
+```
+
+**Note**: Project number 7 is the "Development Workflow" project for happyvertical organization.
+
+**Manual alternative**:
+- If gh CLI commands fail, note in PR description that review is requested
+- Update project board manually via GitHub web UI: https://github.com/orgs/happyvertical/projects/7
+- Continue with SOP
+
+**Verify update**:
+- Confirm issue appears in "Review & Testing" column on project board
+- If update fails: Note failure, continue (board can be updated manually later)
+
+#### Step 9: Return to Main Branch
 
 After PR created, return to main branch:
 
@@ -1070,6 +1143,7 @@ Use this checklist to verify PR SOP completion:
 - [ ] PR title from commit subject
 - [ ] Labels applied
 - [ ] Issue will be closed on merge
+- [ ] Project board updated (issue moved to "Review & Testing")
 
 **Cleanup**:
 - [ ] Returned to main branch
