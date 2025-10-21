@@ -68,6 +68,105 @@ const exists = await cache.has('user:123'); // true
 await cache.delete('user:123');
 ```
 
+## Environment Variable Configuration
+
+The cache package supports configuration via environment variables using the `HAVE_CACHE_*` pattern. Environment variables are automatically merged with programmatic options, with user-provided options taking precedence.
+
+### Supported Environment Variables
+
+**Common Settings** (all providers):
+- `HAVE_CACHE_PROVIDER` → provider ('memory' | 'file' | 'redis')
+- `HAVE_CACHE_NAMESPACE` → namespace (string)
+- `HAVE_CACHE_DEFAULT_TTL` → defaultTTL (number: seconds)
+
+**Memory Provider**:
+- `HAVE_CACHE_MAX_SIZE` → maxSize (number: bytes)
+- `HAVE_CACHE_MAX_ENTRIES` → maxEntries (number)
+- `HAVE_CACHE_EVICTION_POLICY` → evictionPolicy ('lru' | 'lfu' | 'fifo')
+- `HAVE_CACHE_CHECK_PERIOD` → checkPeriod (number: milliseconds)
+
+**File Provider**:
+- `HAVE_CACHE_CACHE_DIR` → cacheDir (string: path)
+- `HAVE_CACHE_MAX_SIZE` → maxSize (number: bytes)
+- `HAVE_CACHE_COMPRESSION` → compression (boolean: 'true' | 'false')
+- `HAVE_CACHE_FILE_EXTENSION` → fileExtension (string)
+- `HAVE_CACHE_CHECK_PERIOD` → checkPeriod (number: milliseconds)
+
+**Redis Provider**:
+- `HAVE_CACHE_HOST` → host (string)
+- `HAVE_CACHE_PORT` → port (number)
+- `HAVE_CACHE_PASSWORD` → password (string)
+- `HAVE_CACHE_DB` → db (number: 0-15)
+- `HAVE_CACHE_KEY_PREFIX` → keyPrefix (string)
+- `HAVE_CACHE_ENABLE_COMPRESSION` → enableCompression (boolean)
+- `HAVE_CACHE_COMPRESSION_THRESHOLD` → compressionThreshold (number: bytes)
+- `HAVE_CACHE_CONNECT_TIMEOUT` → connectTimeout (number: milliseconds)
+- `HAVE_CACHE_COMMAND_TIMEOUT` → commandTimeout (number: milliseconds)
+
+### Usage Examples
+
+**Production Memory Cache via Environment**:
+```bash
+# Set environment variables
+export HAVE_CACHE_PROVIDER=memory
+export HAVE_CACHE_NAMESPACE=prod:api
+export HAVE_CACHE_DEFAULT_TTL=3600
+export HAVE_CACHE_MAX_SIZE=536870912  # 512MB
+export HAVE_CACHE_EVICTION_POLICY=lru
+```
+
+```typescript
+// Minimal code - configuration from environment
+const cache = await getCache({ provider: 'memory' });
+```
+
+**Development File Cache via Environment**:
+```bash
+export HAVE_CACHE_PROVIDER=file
+export HAVE_CACHE_CACHE_DIR=./dev-cache
+export HAVE_CACHE_COMPRESSION=false
+export HAVE_CACHE_DEFAULT_TTL=300
+```
+
+```typescript
+// Only specify required options
+const cache = await getCache({
+  provider: 'file',
+  cacheDir: './dev-cache'  // Required for file provider
+});
+```
+
+**Redis Cache with Environment Overrides**:
+```bash
+export HAVE_CACHE_HOST=redis.production.com
+export HAVE_CACHE_PORT=6379
+export HAVE_CACHE_PASSWORD=secret123
+export HAVE_CACHE_DEFAULT_TTL=1800
+export HAVE_CACHE_ENABLE_COMPRESSION=true
+```
+
+```typescript
+// User options override environment variables
+const cache = await getCache({
+  provider: 'redis',
+  namespace: 'app-v2',  // Overrides HAVE_CACHE_NAMESPACE if set
+  // host, port, password, etc. loaded from environment
+});
+```
+
+**Hybrid Configuration**:
+```typescript
+// Environment: HAVE_CACHE_MAX_SIZE=104857600 (100MB)
+// Environment: HAVE_CACHE_EVICTION_POLICY=lru
+
+const cache = await getCache({
+  provider: 'memory',
+  namespace: 'app',           // From code
+  defaultTTL: 3600,           // From code
+  // maxSize and evictionPolicy loaded from environment
+});
+```
+
 ## Usage
 
 ### Memory Cache

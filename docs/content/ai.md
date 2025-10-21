@@ -17,7 +17,7 @@ The `@have/ai` package provides a unified interface for interacting with various
 
 ## Features
 
-- **Multi-Provider Support**: OpenAI, Anthropic, Google Gemini, AWS Bedrock, and Hugging Face
+- **Multi-Provider Support**: OpenAI, Anthropic, Google Gemini, AWS Bedrock, Hugging Face, and Claude CLI
 - **Unified Interface**: Consistent API across all providers
 - **Type-Safe**: Full TypeScript support with comprehensive type definitions
 - **Streaming Responses**: Real-time content streaming for all providers
@@ -26,6 +26,7 @@ The `@have/ai` package provides a unified interface for interacting with various
 - **Auto-Detection**: Automatically detect provider from credentials
 - **Embeddings**: Text embeddings support (OpenAI and other embedding providers)
 - **Model Information**: Query available models and capabilities
+- **Claude Max Integration**: Use Claude CLI to leverage Max subscription instead of API billing
 
 ## Installation
 
@@ -98,6 +99,13 @@ const bedrock = await getAI({
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!
   },
   defaultModel: 'anthropic.claude-3-sonnet-20240229-v1:0'
+});
+
+// Claude CLI (uses Claude Max subscription)
+const claudeCli = await getAI({
+  type: 'claude-cli',
+  defaultModel: 'sonnet' // or 'opus', 'haiku'
+  // No API key needed - uses existing Claude session
 });
 ```
 
@@ -225,6 +233,116 @@ console.log('Available models:', models.map(m => m.id));
 - **Models**: Thousands of community and commercial models
 - **Features**: Custom models, specialized use cases
 - **Strengths**: Model variety, community ecosystem
+
+### Claude CLI
+- **Models**: Claude Sonnet, Opus, Haiku (via CLI short names)
+- **Features**: Chat, completions, streaming (no embeddings or function calling)
+- **Strengths**: Zero cost (uses Claude Max subscription), no API key management
+- **Authentication**:
+  - **Local**: Uses existing Claude Code session (no setup needed)
+  - **CI/CD**: Use `claude setup-token` to create long-lived token for GitHub Actions
+
+```typescript
+// Local development (uses Claude Max session)
+const client = await getAI({
+  type: 'claude-cli',
+  defaultModel: 'sonnet'
+});
+
+// With custom CLI path
+const client = await getAI({
+  type: 'claude-cli',
+  cliPath: '/custom/path/to/claude'
+});
+
+// Chat example
+const response = await client.chat([
+  { role: 'user', content: 'Explain TypeScript generics' }
+]);
+
+// Streaming example
+for await (const chunk of client.stream([
+  { role: 'user', content: 'Write a story about AI' }
+])) {
+  process.stdout.write(chunk);
+}
+```
+
+**Note**: Requires Claude Code CLI to be installed. Visit [Claude Code documentation](https://docs.claude.com/en/docs/claude-code/) for installation instructions.
+
+## Environment Variable Configuration
+
+The `@have/ai` package supports configuration via environment variables using the `HAVE_AI_*` prefix pattern:
+
+```bash
+# .env file
+HAVE_AI_PROVIDER=openai
+HAVE_AI_MODEL=gpt-4o
+HAVE_AI_TIMEOUT=60000
+HAVE_AI_MAX_RETRIES=5
+HAVE_AI_API_KEY=your-api-key-here
+HAVE_AI_BASE_URL=https://custom.proxy.com/v1
+```
+
+### Supported Environment Variables
+
+- `HAVE_AI_PROVIDER` or `HAVE_AI_TYPE` → Provider type ('openai', 'anthropic', 'gemini', 'huggingface', 'bedrock', 'claude-cli')
+- `HAVE_AI_MODEL` or `HAVE_AI_DEFAULT_MODEL` → Default model name
+- `HAVE_AI_TIMEOUT` → Request timeout in milliseconds (number)
+- `HAVE_AI_MAX_RETRIES` → Maximum retry attempts (number)
+- `HAVE_AI_API_KEY` → API key (fallback if provider-specific key not set)
+- `HAVE_AI_BASE_URL` → Custom base URL for API requests
+
+### Usage Examples
+
+```typescript
+import { getAI } from '@have/ai';
+
+// Example 1: Use environment variables only
+// Set: HAVE_AI_PROVIDER=openai, HAVE_AI_MODEL=gpt-4o
+const client1 = await getAI({});
+// Creates OpenAIProvider with model 'gpt-4o'
+
+// Example 2: Mix env vars and options (options take precedence)
+// Set: HAVE_AI_PROVIDER=openai, HAVE_AI_MODEL=gpt-3.5-turbo
+const client2 = await getAI({
+  type: 'anthropic', // Overrides HAVE_AI_PROVIDER
+  defaultModel: 'claude-3-5-sonnet-20241022' // Overrides HAVE_AI_MODEL
+});
+
+// Example 3: Configure timeout and retries
+// Set: HAVE_AI_TYPE=openai, HAVE_AI_API_KEY=sk-..., HAVE_AI_TIMEOUT=60000
+const client3 = await getAI({});
+// Creates OpenAI client with 60s timeout
+
+// Example 4: Custom base URL for proxies
+// Set: HAVE_AI_TYPE=openai, HAVE_AI_API_KEY=sk-..., HAVE_AI_BASE_URL=https://proxy.com
+const client4 = await getAI({});
+```
+
+### Provider-Specific Environment Variables
+
+In addition to `HAVE_AI_*` variables, the package also checks:
+
+- `OPENAI_API_KEY` → OpenAI API key
+- `ANTHROPIC_API_KEY` → Anthropic API key
+- `GEMINI_API_KEY` / `GOOGLE_API_KEY` → Google Gemini API key
+- `HF_TOKEN` → Hugging Face API token
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` → AWS Bedrock
+
+### Precedence Order
+
+1. **Explicit options** passed to `getAI()` (highest priority)
+2. **HAVE_AI_* environment variables**
+3. **Provider-specific environment variables** (lowest priority)
+
+### Best Practices
+
+- Use `.env` files with `dotenv` for local development
+- Never commit `.env` files to version control
+- Use secrets management (GitHub Secrets, AWS Secrets Manager) in production
+- Validate environment variables before calling `getAI()` in production code
+- Use `HAVE_AI_API_KEY` as a general fallback for simpler multi-provider setups
 
 ## Advanced Usage
 
