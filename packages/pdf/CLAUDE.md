@@ -1,11 +1,11 @@
-# @have/pdf: PDF Processing Package
+# @happyvertical/pdf: PDF Processing Package
 
 ## Purpose and Responsibilities
 
-The `@have/pdf` package provides comprehensive tools for working with PDF documents in Node.js environments, combining direct text extraction with intelligent OCR fallback. It focuses on:
+The `@happyvertical/pdf` package provides comprehensive tools for working with PDF documents in Node.js environments, combining direct text extraction with intelligent OCR fallback. It focuses on:
 
 - **Text Extraction**: Direct extraction from text-based PDFs using unpdf
-- **OCR Integration**: Automatic fallback to OCR for image-based/scanned PDFs via @have/ocr
+- **OCR Integration**: Automatic fallback to OCR for image-based/scanned PDFs via @happyvertical/ocr
 - **Smart Analysis**: Document analysis with processing strategy recommendations (text/ocr/hybrid)
 - **Metadata Extraction**: Comprehensive PDF metadata (title, author, dates, encryption status)
 - **Image Extraction**: Extract images for OCR processing or display
@@ -13,7 +13,7 @@ The `@have/pdf` package provides comprehensive tools for working with PDF docume
 
 This package is particularly useful for AI agents that need to analyze document content, extract information from diverse PDF formats, and intelligently handle both text-based and image-based documents.
 
-**Expert Agent Expertise**: When working with this package, always proactively check the latest documentation for foundational libraries (unpdf and @have/ocr) as they frequently add new features, performance improvements, and language support that can enhance PDF processing solutions.
+**Expert Agent Expertise**: When working with this package, always proactively check the latest documentation for foundational libraries (unpdf and @happyvertical/ocr) as they frequently add new features, performance improvements, and language support that can enhance PDF processing solutions.
 
 ## Current Implementation Status
 
@@ -26,7 +26,7 @@ This package is particularly useful for AI agents that need to analyze document 
 ### Modern Factory-Based PDF Reader with Smart Processing
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 // Get a PDF reader with automatic provider selection
 const reader = await getPDFReader();
@@ -71,7 +71,7 @@ const text = await reader.extractText('/path/to/document.pdf', {
 ### Smart PDF Analysis with getInfo()
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 const reader = await getPDFReader();
 
@@ -121,7 +121,7 @@ for (const pdfFile of pdfFiles) {
 
 ### Environment Variable Configuration
 
-The @have/pdf package supports configuration via environment variables using the `HAVE_PDF_{FIELD}` naming pattern. Environment variables are automatically loaded and merged with user-provided options, with user options always taking precedence.
+The @happyvertical/pdf package supports configuration via environment variables using the `HAVE_PDF_{FIELD}` naming pattern. Environment variables are automatically loaded and merged with user-provided options, with user options always taking precedence.
 
 #### Supported Environment Variables
 
@@ -135,7 +135,7 @@ The @have/pdf package supports configuration via environment variables using the
 #### Usage Examples
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 // Set environment variables (in .env file or shell)
 // HAVE_PDF_ENABLE_OCR=true
@@ -221,7 +221,7 @@ const fastReader = await getPDFReader({ enableOCR: false });
 ### Comprehensive PDF Analysis
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 const reader = await getPDFReader();
 
@@ -242,7 +242,7 @@ console.log('Supported languages:', capabilities.ocrLanguages);
 ### Direct OCR Processing
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 const reader = await getPDFReader();
 
@@ -270,7 +270,7 @@ import {
   getAvailableProviders,
   isProviderAvailable,
   getProviderInfo
-} from '@have/pdf';
+} from '@happyvertical/pdf';
 
 // Check available providers in current environment
 const providers = getAvailableProviders();
@@ -298,7 +298,7 @@ try {
 ### Multi-Language OCR Support
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 const reader = await getPDFReader();
 
@@ -326,7 +326,7 @@ if (images.length > 0) {
 ### Dependency Validation and Error Handling
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 try {
   const reader = await getPDFReader();
@@ -364,7 +364,7 @@ import {
   extractImagesFromPDF,   // Use reader.extractImages() instead
   performOCROnImages,     // Use reader.performOCR() instead
   checkOCRDependencies    // Use reader.checkDependencies() instead
-} from '@have/pdf';
+} from '@happyvertical/pdf';
 
 // IMPORTANT: Migrate to new factory-based approach for better features and performance
 const reader = await getPDFReader();
@@ -408,7 +408,7 @@ src/
    - Lazy-loads unpdf to minimize bundle size
 
 3. **CombinedNodeProvider** (`src/node/combined.ts`)
-   - **Primary Node.js provider** - delegates to UnpdfProvider + @have/ocr
+   - **Primary Node.js provider** - delegates to UnpdfProvider + @happyvertical/ocr
    - Intelligent fallback: tries text extraction first, then OCR if needed
    - `extractText()` with automatic OCR fallback (unless `skipOCRFallback: true`)
    - Combines capabilities from both unpdf and OCR providers
@@ -426,7 +426,7 @@ All types are defined in `src/shared/types.ts`:
 
 - **Interfaces**: `PDFReader`, `PDFMetadata`, `PDFImage`, `PDFInfo`, `PDFCapabilities`, `ExtractTextOptions`
 - **Error Classes**: `PDFError`, `PDFUnsupportedError`, `PDFDependencyError`
-- **Re-exports from @have/ocr**: `OCROptions`, `OCRResult`, `DependencyCheckResult`
+- **Re-exports from @happyvertical/ocr**: `OCROptions`, `OCRResult`, `DependencyCheckResult`
 
 ## Dependencies
 
@@ -438,7 +438,7 @@ All types are defined in `src/shared/types.ts`:
    - Node.js only, lazy-loaded for performance
    - Used by: `UnpdfProvider`
 
-2. **@have/ocr** (internal workspace)
+2. **@happyvertical/ocr** (internal workspace)
    - Version: workspace:*
    - Purpose: OCR processing with multiple provider support
    - Provides: OCR factory, language support, image preprocessing
@@ -448,12 +448,12 @@ All types are defined in `src/shared/types.ts`:
 
 - **Node.js 18+** (Node.js 24+ recommended)
 - **Memory**: 2GB+ recommended for OCR processing
-- **OCR Dependencies**: Managed by @have/ocr (see @have/ocr documentation)
+- **OCR Dependencies**: Managed by @happyvertical/ocr (see @happyvertical/ocr documentation)
 
 ### Dependency Validation Pattern
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 const reader = await getPDFReader();
 
@@ -483,7 +483,7 @@ if (!capabilities.canPerformOCR) {
    - Factory handles environment detection and provider initialization
    - Supports explicit provider selection for testing: `{ provider: 'unpdf' }`
 
-2. **ENOTSUP Error Pattern** (borrowed from @have/files)
+2. **ENOTSUP Error Pattern** (borrowed from @happyvertical/files)
    - Base class methods throw `PDFUnsupportedError` by default
    - Providers only override methods they support
    - Consistent error handling across all unsupported operations
@@ -507,7 +507,7 @@ if (!capabilities.canPerformOCR) {
 
 ```typescript
 // Always use typed error classes
-import { PDFError, PDFUnsupportedError, PDFDependencyError } from '@have/pdf';
+import { PDFError, PDFUnsupportedError, PDFDependencyError } from '@happyvertical/pdf';
 
 // Throwing errors
 throw new PDFDependencyError('unpdf', 'Failed to load library');
@@ -603,7 +603,7 @@ When adding a new provider (e.g., PDF.js for browsers):
 ### 1. Basic Text Extraction (Text-Based PDFs)
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 const reader = await getPDFReader();
 const text = await reader.extractText('/path/to/document.pdf');
@@ -618,7 +618,7 @@ if (text) {
 ### 2. Smart Processing with Analysis First
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 const reader = await getPDFReader();
 
@@ -647,7 +647,7 @@ if (info.recommendedStrategy === 'text') {
 ### 3. OCR Processing for Scanned PDFs
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 const reader = await getPDFReader();
 
@@ -675,7 +675,7 @@ if (images.length > 0) {
 ### 4. Batch Processing with Error Handling
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 const reader = await getPDFReader();
 const pdfFiles = ['doc1.pdf', 'doc2.pdf', 'doc3.pdf'];
@@ -704,7 +704,7 @@ for (const pdfFile of pdfFiles) {
 ### 5. Metadata Extraction
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 const reader = await getPDFReader();
 const metadata = await reader.extractMetadata('/path/to/document.pdf');
@@ -722,7 +722,7 @@ console.log(`  Producer: ${metadata.producer || 'Unknown'}`);
 ### 6. Multi-Language OCR
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 const reader = await getPDFReader();
 
@@ -743,7 +743,7 @@ console.log('Multilingual text:', result.text);
 ### 7. Dependency Checking and Graceful Degradation
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 const reader = await getPDFReader();
 
@@ -913,7 +913,7 @@ if (!pdf || typeof pdf.numPages !== 'number') {
 
 ### 7. OCR Language Support Varies by Provider
 
-**Issue**: OCR language availability depends on @have/ocr provider selection.
+**Issue**: OCR language availability depends on @happyvertical/ocr provider selection.
 
 ```typescript
 // Check languages before processing
@@ -975,11 +975,11 @@ if (typeof process !== 'undefined' && process.versions?.node) {
 
 ```typescript
 // OLD - Deprecated (still works but don't use in new code)
-import { extractTextFromPDF } from '@have/pdf';
+import { extractTextFromPDF } from '@happyvertical/pdf';
 const text = await extractTextFromPDF('/path/to/pdf');
 
 // NEW - Preferred pattern
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 const reader = await getPDFReader();
 const text = await reader.extractText('/path/to/pdf');
 ```
@@ -1000,7 +1000,7 @@ console.log(text.length); // Exact
 
 ## API Documentation
 
-The @have/pdf package generates comprehensive API documentation in both HTML and markdown formats using TypeDoc:
+The @happyvertical/pdf package generates comprehensive API documentation in both HTML and markdown formats using TypeDoc:
 
 ### Generated Documentation Formats
 
@@ -1051,10 +1051,10 @@ Always reference the latest documentation when implementing PDF processing solut
 
 ### Internal Dependencies
 
-- **@have/ocr**: Internal workspace package providing OCR capabilities
+- **@happyvertical/ocr**: Internal workspace package providing OCR capabilities
   - Managed through workspace dependencies
   - Supports multiple OCR providers (tesseract.js, EasyOCR)
-  - See @have/ocr package documentation for detailed OCR capabilities
+  - See @happyvertical/ocr package documentation for detailed OCR capabilities
 
 ### Future Browser Support (Planned)
 
@@ -1064,7 +1064,7 @@ Always reference the latest documentation when implementing PDF processing solut
 
 ### Expert Agent Instructions
 
-When working with @have/pdf:
+When working with @happyvertical/pdf:
 
 1. **Always check latest documentation** before implementing solutions using WebFetch tool
 2. **Verify OCR language support** - libraries frequently add new languages
@@ -1096,7 +1096,7 @@ This package provides enterprise-grade PDF processing capabilities designed for 
 
 ```typescript
 // Primary factory function
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 // Type definitions
 import type {
@@ -1108,21 +1108,21 @@ import type {
   ExtractTextOptions,
   OCROptions,
   OCRResult
-} from '@have/pdf';
+} from '@happyvertical/pdf';
 
 // Error classes
 import {
   PDFError,
   PDFUnsupportedError,
   PDFDependencyError
-} from '@have/pdf';
+} from '@happyvertical/pdf';
 
 // Utility functions
 import {
   getAvailableProviders,
   isProviderAvailable,
   getProviderInfo
-} from '@have/pdf';
+} from '@happyvertical/pdf';
 ```
 
 ### Core Methods Cheat Sheet

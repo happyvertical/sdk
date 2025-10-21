@@ -1,5 +1,5 @@
 {
-  "name": "@have/files",
+  "name": "@happyvertical/files",
   "version": "0.37.0",
   "description": "File system utilities for local and remote file operations",
   "type": "module",
@@ -22,7 +22,7 @@
     "dev": "npm run build:watch & npm run test:watch"
   },
   "dependencies": {
-    "@have/utils": "workspace:*"
+    "@happyvertical/utils": "workspace:*"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "6.8.0",

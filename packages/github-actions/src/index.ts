@@ -1,5 +1,5 @@
 /**
- * @have/github-actions - Reusable GitHub Actions Utilities
+ * @happyvertical/github-actions - Reusable GitHub Actions Utilities
  *
  * Provides modular, testable utilities for GitHub Actions workflows including:
  * - Issue triage with AI analysis

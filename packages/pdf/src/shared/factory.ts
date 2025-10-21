@@ -1,8 +1,8 @@
 /**
- * @have/pdf - Factory for creating PDF readers with automatic provider selection
+ * @happyvertical/pdf - Factory for creating PDF readers with automatic provider selection
  */
 
-import { loadEnvConfig } from '@have/utils';
+import { loadEnvConfig } from '@happyvertical/utils';
 import type { PDFReader, PDFReaderOptions } from './types';
 
 /**

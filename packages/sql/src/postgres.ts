@@ -1,4 +1,4 @@
-import { DatabaseError, loadEnvConfig } from '@have/utils';
+import { DatabaseError, loadEnvConfig } from '@happyvertical/utils';
 import { Pool } from 'pg';
 import { DatabaseSchemaManager } from './schema-manager';
 import {

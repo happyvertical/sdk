@@ -8,7 +8,7 @@ import type { Document } from './types';
 const Filename = fileURLToPath(import.meta.url);
 const Dirname = path.dirname(Filename);
 
-describe('@have/documents', () => {
+describe('@happyvertical/documents', () => {
   describe('fetchDocument', () => {
     it('should fetch and process a PDF document', async () => {
       const testPdfPath = path.resolve(
@@ -33,7 +33,7 @@ describe('@have/documents', () => {
       expect(mainPart.title).toContain('Signed');
       expect(mainPart.content).toBeDefined();
       expect(mainPart.type).toBe('text');
-      // Note: Text extraction quality depends on @have/pdf package
+      // Note: Text extraction quality depends on @happyvertical/pdf package
       // We just verify the structure is correct
     }, 30000); // 30 second timeout for PDF processing
 
@@ -124,7 +124,7 @@ describe('@have/documents', () => {
       const fileUrl = `file://${testPdfPath}`;
 
       // Clear cache to ensure fresh processing with extractImages option
-      const { getCached, setCached } = await import('@have/files');
+      const { getCached, setCached } = await import('@happyvertical/files');
       await setCached(`${testPdfPath}.processed_pdf`, '');
 
       // With image extraction enabled

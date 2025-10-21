@@ -27,7 +27,7 @@ cd ../utils && pnpm link --global
 From your external project directory:
 ```bash
 # Link to the global packages
-pnpm link --global @have/ai @have/files @have/smrt @have/utils
+pnpm link --global @happyvertical/ai @happyvertical/files @happyvertical/smrt @happyvertical/utils
 
 # Install dependencies
 pnpm install
@@ -39,10 +39,10 @@ In your external project's `package.json`:
 ```json
 {
   "dependencies": {
-    "@have/ai": "file:../sdk/packages/ai",
-    "@have/files": "file:../sdk/packages/files",
-    "@have/smrt": "file:../sdk/packages/smrt",
-    "@have/utils": "file:../sdk/packages/utils"
+    "@happyvertical/ai": "file:../sdk/packages/ai",
+    "@happyvertical/files": "file:../sdk/packages/files",
+    "@happyvertical/smrt": "file:../sdk/packages/smrt",
+    "@happyvertical/utils": "file:../sdk/packages/utils"
   }
 }
 ```
@@ -68,9 +68,9 @@ npm publish --registry http://localhost:4873 packages/ai/
 
 Test that imports work in your external project:
 ```typescript
-import { getAI } from '@have/ai';
-import { getFilesystem } from '@have/files';
-import { SmrtObject } from '@have/smrt';
+import { getAI } from '@happyvertical/ai';
+import { getFilesystem } from '@happyvertical/files';
+import { SmrtObject } from '@happyvertical/smrt';
 
 // Should not throw "Failed to resolve entry" errors
 const ai = await getAI({ apiKey: 'test' });

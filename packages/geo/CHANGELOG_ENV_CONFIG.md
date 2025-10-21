@@ -1,8 +1,8 @@
-# Environment Configuration Integration - @have/geo
+# Environment Configuration Integration - @happyvertical/geo
 
 ## Summary
 
-Integrated `loadEnvConfig()` utility from `@have/utils` into the `@have/geo` package to enable environment variable-based configuration using the `HAVE_GEO_*` pattern.
+Integrated `loadEnvConfig()` utility from `@happyvertical/utils` into the `@happyvertical/geo` package to enable environment variable-based configuration using the `HAVE_GEO_*` pattern.
 
 ## Changes Made
 
@@ -97,7 +97,7 @@ HAVE_GEO_MAX_RESULTS=10
 ```
 
 ```typescript
-import { getGeoAdapter } from '@have/geo';
+import { getGeoAdapter } from '@happyvertical/geo';
 
 // No options needed
 const adapter = await getGeoAdapter();
@@ -200,7 +200,7 @@ const adapter = await getGeoAdapter({
 
 ## Dependencies
 
-No new dependencies added. Uses existing `@have/utils` dependency which provides `loadEnvConfig()`.
+No new dependencies added. Uses existing `@happyvertical/utils` dependency which provides `loadEnvConfig()`.
 
 ## Files Modified
 
@@ -244,11 +244,11 @@ This allows users to use the standard `GOOGLE_MAPS_API_KEY` environment variable
 ## Next Steps
 
 Consider applying this pattern to other packages in the SDK:
-- `@have/ai` - Already has env config support
-- `@have/sql` - Could benefit from `HAVE_SQL_*` env vars
-- `@have/cache` - Could benefit from `HAVE_CACHE_*` env vars
+- `@happyvertical/ai` - Already has env config support
+- `@happyvertical/sql` - Could benefit from `HAVE_SQL_*` env vars
+- `@happyvertical/cache` - Could benefit from `HAVE_CACHE_*` env vars
 - Other infrastructure packages
 
 ## Related Issues
 
-Addresses the requirement to integrate `loadEnvConfig()` utility from `@have/utils` into `@have/geo` package for consistent environment variable configuration across the SDK.
+Addresses the requirement to integrate `loadEnvConfig()` utility from `@happyvertical/utils` into `@happyvertical/geo` package for consistent environment variable configuration across the SDK.

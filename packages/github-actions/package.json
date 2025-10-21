@@ -1,5 +1,5 @@
 {
-  "name": "@have/github-actions",
+  "name": "@happyvertical/github-actions",
   "version": "0.1.0",
   "description": "Reusable GitHub Actions utilities for issue triage, PR validation, and workflow automation",
   "type": "module",

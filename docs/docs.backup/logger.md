@@ -1,17 +1,17 @@
 ---
 id: logger
-title: "@have/logger: Logging Infrastructure"
-sidebar_label: "@have/logger"
+title: "@happyvertical/logger: Logging Infrastructure"
+sidebar_label: "@happyvertical/logger"
 sidebar_position: 8
 ---
 
-# @have/logger: Logging Infrastructure
+# @happyvertical/logger: Logging Infrastructure
 
 Structured logging for HAVE SDK with signal adapter and observability support.
 
 ## Overview
 
-The `@have/logger` package provides enterprise-grade logging capabilities:
+The `@happyvertical/logger` package provides enterprise-grade logging capabilities:
 
 - **📊 Structured Logging**: JSON-formatted logs with context
 - **📡 Signal Adapter**: Integration with observability platforms
@@ -23,7 +23,7 @@ The `@have/logger` package provides enterprise-grade logging capabilities:
 ## Quick Start
 
 ```typescript
-import { createLogger } from '@have/logger';
+import { createLogger } from '@happyvertical/logger';
 
 // Create a logger instance
 const logger = createLogger({
@@ -110,7 +110,7 @@ childLogger.info('Authentication attempt');
 ## Signal Integration
 
 ```typescript
-import { createLogger, SignalAdapter } from '@have/logger';
+import { createLogger, SignalAdapter } from '@happyvertical/logger';
 
 // Create logger with signal adapter for observability
 const logger = createLogger({

@@ -1,4 +1,4 @@
-import { getAI } from '@have/ai';
+import { getAI } from '@happyvertical/ai';
 import type { PackageMetadata } from '../registry.js';
 import { getPackagesByNames, routeQuery } from '../router.js';
 
@@ -37,7 +37,7 @@ function buildContext(packages: PackageMetadata[]): string {
 
   for (const pkg of packages) {
     contextParts.push(
-      `## Package: @have/${pkg.name}\n\n${pkg.claudeMd}\n\n---\n`,
+      `## Package: @happyvertical/${pkg.name}\n\n${pkg.claudeMd}\n\n---\n`,
     );
   }
 
@@ -100,14 +100,14 @@ export async function ask(input: AskInput) {
 
     // Generate response using AI with expert context
     const systemPrompt = `You are an expert SDK documentation assistant for the HAppy VErtical (HAVE) SDK.
-You have access to the full documentation (CLAUDE.md files) for the following packages: ${packages.map((p) => `@have/${p.name}`).join(', ')}.
+You have access to the full documentation (CLAUDE.md files) for the following packages: ${packages.map((p) => `@happyvertical/${p.name}`).join(', ')}.
 
 Your role is to:
 1. Answer questions about the SDK using the provided package documentation
 2. Provide code examples when relevant
 3. Reference specific packages and documentation sections
 4. Be concise but thorough
-5. Include package names in your response (e.g., "@have/ai", "@have/sql")
+5. Include package names in your response (e.g., "@happyvertical/ai", "@happyvertical/sql")
 
 Use the documentation provided below to answer the user's question accurately.
 
@@ -127,7 +127,9 @@ ${context}
     );
 
     // Build response with package references
-    const packageList = packages.map((p) => `@have/${p.name}`).join(', ');
+    const packageList = packages
+      .map((p) => `@happyvertical/${p.name}`)
+      .join(', ');
     const footer = `\n\n---\n*Consulted packages: ${packageList}*`;
 
     return {

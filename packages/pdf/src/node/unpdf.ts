@@ -1,5 +1,5 @@
 /**
- * @have/pdf - unpdf provider for Node.js PDF processing
+ * @happyvertical/pdf - unpdf provider for Node.js PDF processing
  */
 
 import { promises as fs } from 'node:fs';

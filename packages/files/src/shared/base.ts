@@ -40,7 +40,7 @@ export abstract class BaseFilesystemProvider implements FilesystemInterface {
   private getDefaultCacheDir(): string {
     // Use context-aware temp directory from utils
     try {
-      const { getTempDirectory } = require('@have/utils');
+      const { getTempDirectory } = require('@happyvertical/utils');
       return getTempDirectory('files-cache');
     } catch {
       // Fallback if utils not available

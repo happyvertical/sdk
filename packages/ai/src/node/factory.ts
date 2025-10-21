@@ -3,7 +3,7 @@
  * Includes support for environment variable detection
  */
 
-import { loadEnvConfig, ValidationError } from '@have/utils';
+import { loadEnvConfig, ValidationError } from '@happyvertical/utils';
 import { getAI as getAIUniversal } from '../shared/factory';
 
 import type {

@@ -1,6 +1,6 @@
 import { readdir } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
-import { DatabaseError } from '@have/utils';
+import { DatabaseError } from '@happyvertical/utils';
 import { DatabaseSchemaManager } from './schema-manager';
 import {
   generateAddColumnStatement,

@@ -1,5 +1,5 @@
 /**
- * @have/ocr - ONNX OCR provider using @gutenye/ocr-node for high-accuracy text extraction
+ * @happyvertical/ocr - ONNX OCR provider using @gutenye/ocr-node for high-accuracy text extraction
  *
  * This module implements the OCRProvider interface using ONNX Runtime with
  * PaddleOCR models for state-of-the-art OCR accuracy. It provides optimized

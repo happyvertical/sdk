@@ -3,7 +3,7 @@
  * Provides standardized translation interface
  */
 
-import { loadEnvConfig } from '@have/utils';
+import { loadEnvConfig } from '@happyvertical/utils';
 import type {
   DeepLOptions,
   GoogleTranslateOptions,

@@ -2,8 +2,8 @@
  * OpenStreetMap (Nominatim) provider implementation
  */
 
-import type { CacheAdapter } from '@have/cache';
-import { getCache } from '@have/cache';
+import type { CacheAdapter } from '@happyvertical/cache';
+import { getCache } from '@happyvertical/cache';
 import type {
   GeoProvider,
   Location,
@@ -57,7 +57,7 @@ export class OpenStreetMapProvider implements GeoProvider {
   private cache: CacheAdapter | null = null;
 
   constructor(options: OpenStreetMapOptions) {
-    this.userAgent = options.userAgent || '@have/geo (Node.js)';
+    this.userAgent = options.userAgent || '@happyvertical/geo (Node.js)';
     this.rateLimitDelay = options.rateLimitDelay || 1000; // 1 second default
     this.timeout = options.timeout || 10000;
     this.maxResults = options.maxResults || 10;

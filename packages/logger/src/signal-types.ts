@@ -1,6 +1,6 @@
 /**
  * Local Signal type definitions for logger adapter
- * These types are copied from @have/types to keep logger independent
+ * These types are copied from @happyvertical/types to keep logger independent
  */
 
 /**

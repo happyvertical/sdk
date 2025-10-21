@@ -1,5 +1,5 @@
 /**
- * @have/files - Standardized filesystem interface with multi-provider support
+ * @happyvertical/files - Standardized filesystem interface with multi-provider support
  *
  * This package provides a unified interface for file operations across different
  * storage backends including local filesystem, S3-compatible services, Google Drive,
@@ -14,7 +14,7 @@
  * - Async/await support for all operations
  * - Comprehensive error handling with typed exceptions
  * - Built-in caching and rate limiting
- * - Legacy compatibility with existing @have/files APIs
+ * - Legacy compatibility with existing @happyvertical/files APIs
  * - TypeScript support with full type definitions
  * - Cross-platform path handling and security
  *
@@ -27,7 +27,7 @@
  *
  * @example
  * ```typescript
- * import { getFilesystem } from '@have/files';
+ * import { getFilesystem } from '@happyvertical/files';
  *
  * // Create a local filesystem instance
  * const fs = await getFilesystem({ type: 'local', basePath: '/app/data' });

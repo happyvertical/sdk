@@ -1,5 +1,5 @@
 /**
- * @have/pdf - Shared entry point with automatic environment detection
+ * @happyvertical/pdf - Shared entry point with automatic environment detection
  *
  * This entry point automatically detects the runtime environment and provides
  * the appropriate PDF processing capabilities for both Node.js and browser environments.

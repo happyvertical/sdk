@@ -1,5 +1,5 @@
 /**
- * @have/pdf - Browser-specific factory for creating PDF readers
+ * @happyvertical/pdf - Browser-specific factory for creating PDF readers
  */
 
 import type { PDFReader, PDFReaderOptions } from '../shared/types';

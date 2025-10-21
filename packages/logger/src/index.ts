@@ -1,13 +1,13 @@
 /**
- * @have/logger - Structured logging for HAVE SDK
+ * @happyvertical/logger - Structured logging for HAVE SDK
  *
  * Provides a structured logging interface with signal adapter integration.
  * Supports configurable log levels and console output.
  *
  * @example
  * ```typescript
- * import { createLogger, LoggerAdapter } from '@have/logger';
- * import { SignalBus } from '@have/smrt';
+ * import { createLogger, LoggerAdapter } from '@happyvertical/logger';
+ * import { SignalBus } from '@happyvertical/smrt';
  *
  * // Create logger
  * const logger = createLogger('info');
@@ -24,7 +24,7 @@ export { ConsoleLogger } from './console.js';
 export type { Logger, LoggerConfig, LogLevel } from './logger.js';
 export type { Signal, SignalAdapter, SignalType } from './signal-types.js';
 
-import { loadEnvConfig } from '@have/utils';
+import { loadEnvConfig } from '@happyvertical/utils';
 import { ConsoleLogger } from './console.js';
 import type { Logger, LoggerConfig, LogLevel } from './logger.js';
 

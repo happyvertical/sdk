@@ -1,4 +1,4 @@
-import { DatabaseError } from '@have/utils';
+import { DatabaseError } from '@happyvertical/utils';
 import type { Client } from '@libsql/client';
 import { DatabaseSchemaManager } from './schema-manager';
 import {

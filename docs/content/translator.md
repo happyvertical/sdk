@@ -1,11 +1,11 @@
 ---
 id: translator
-title: "@have/translator: Translation Services"
-sidebar_label: "@have/translator"
+title: "@happyvertical/translator: Translation Services"
+sidebar_label: "@happyvertical/translator"
 sidebar_position: 11
 ---
 
-# @have/translator
+# @happyvertical/translator
 
 Standardized translation interface supporting multiple providers (Google Translate, DeepL, LibreTranslate).
 
@@ -22,9 +22,9 @@ Standardized translation interface supporting multiple providers (Google Transla
 ## Installation
 
 ```bash
-npm install @have/translator
+npm install @happyvertical/translator
 # or
-pnpm add @have/translator
+pnpm add @happyvertical/translator
 ```
 
 ## Quick Start
@@ -46,7 +46,7 @@ export HAVE_TRANSLATOR_MAX_RETRIES=3
 ```
 
 ```typescript
-import { getTranslator } from '@have/translator';
+import { getTranslator } from '@happyvertical/translator';
 
 // No options needed - uses environment variables
 const translator = await getTranslator();
@@ -62,7 +62,7 @@ You can also pass configuration explicitly (which takes precedence over environm
 #### Google Translate
 
 ```typescript
-import { getTranslator } from '@have/translator';
+import { getTranslator } from '@happyvertical/translator';
 
 const translator = await getTranslator({
   provider: 'google',
@@ -255,7 +255,7 @@ import {
   QuotaExceededError,
   AuthenticationError,
   InvalidTextError
-} from '@have/translator';
+} from '@happyvertical/translator';
 
 try {
   const result = await translator.translate('Hello', 'es');

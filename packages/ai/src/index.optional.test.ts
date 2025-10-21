@@ -1,5 +1,5 @@
 /**
- * Optional tests for @have/ai
+ * Optional tests for @happyvertical/ai
  *
  * These tests require real API keys and make actual API calls.
  * Run with: npm run test:optional

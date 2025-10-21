@@ -1,5 +1,5 @@
 /**
- * @have/pdf - Base PDF reader provider with ENOTSUP error handling
+ * @happyvertical/pdf - Base PDF reader provider with ENOTSUP error handling
  */
 
 import type {

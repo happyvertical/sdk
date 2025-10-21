@@ -1,8 +1,8 @@
 import os from 'node:os';
 import path from 'node:path';
 import { URL } from 'node:url';
-import { downloadFileWithCache, getMimeType } from '@have/files';
-import { makeSlug } from '@have/utils';
+import { downloadFileWithCache, getMimeType } from '@happyvertical/files';
+import { makeSlug } from '@happyvertical/utils';
 import type {
   DocumentPart,
   Document as DocumentType,

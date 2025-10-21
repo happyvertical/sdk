@@ -1,5 +1,5 @@
 {
-  "name": "@have/utils",
+  "name": "@happyvertical/utils",
   "version": "0.37.0",
   "description": "Foundation utilities for ID generation, date parsing, URL handling, string conversion, error handling, and logging",
   "type": "module",

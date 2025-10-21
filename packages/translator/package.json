@@ -1,5 +1,5 @@
 {
-  "name": "@have/translator",
+  "name": "@happyvertical/translator",
   "version": "0.37.0",
   "description": "Standardized translation interface supporting Google Translate, DeepL, and LibreTranslate",
   "type": "module",
@@ -50,8 +50,8 @@
   "author": "willgriffin@gmail.com",
   "license": "ISC",
   "dependencies": {
-    "@have/utils": "workspace:*",
-    "@have/cache": "workspace:*",
+    "@happyvertical/utils": "workspace:*",
+    "@happyvertical/cache": "workspace:*",
     "@google-cloud/translate": "^8.5.0",
     "deepl-node": "^1.14.0"
   },

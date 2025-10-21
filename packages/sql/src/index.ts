@@ -1,4 +1,4 @@
-import { loadEnvConfig } from '@have/utils';
+import { loadEnvConfig } from '@happyvertical/utils';
 import type { PostgresOptions } from './postgres';
 import type {
   DatabaseInterface,

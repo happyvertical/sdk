@@ -1,5 +1,5 @@
 {
-  "name": "@have/sdk",
+  "name": "@happyvertical/sdk",
   "description": "HAppy VErtical SDK - A TypeScript monorepo for building vertical AI agents",
   "author": "Will Griffin <willgriffin@gmail.com>",
   "type": "module",
@@ -37,8 +37,8 @@
     "lint": "biome lint .",
     "lint:fix": "biome lint --apply .",
     "clean": "rm -rf packages/*/dist packages/*/docs packages/*/tsconfig.*.tsbuildinfo .tsbuildinfo dist /*.js /*.d.ts /*.js.map /*.d.ts.map",
-    "build": "pnpm -r --filter '!@have/docs' --workspace-concurrency=4 run build",
-    "build:clean": "pnpm run clean && pnpm -r --filter '!@have/docs' --workspace-concurrency=4 run build",
+    "build": "pnpm -r --filter '!@happyvertical/docs' --workspace-concurrency=4 run build",
+    "build:clean": "pnpm run clean && pnpm -r --filter '!@happyvertical/docs' --workspace-concurrency=4 run build",
     "typecheck": "tsc --noEmit",
     "mcp:setup-project": "cp scripts/mcp-smrt.sh ./scripts/ && chmod +x ./scripts/mcp-smrt.sh",
     "mcp:verify-project": "./scripts/mcp-smrt.sh verify",
@@ -56,7 +56,7 @@
     "release:test": "node scripts/release-helper.js test",
     "release:validate": "node scripts/release-helper.js validate",
     "release:full": "node scripts/release-helper.js full",
-    "gnode:create": "pnpm --filter @have/gnode cli:create"
+    "gnode:create": "pnpm --filter @happyvertical/gnode cli:create"
   },
   "devDependencies": {
     "@anolilab/semantic-release-pnpm": "^2.0.4",

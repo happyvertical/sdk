@@ -1,4 +1,4 @@
-import { ApiError, ValidationError } from '@have/utils';
+import { ApiError, ValidationError } from '@happyvertical/utils';
 import OpenAI from 'openai';
 
 import type { AIMessageOptions } from './message';

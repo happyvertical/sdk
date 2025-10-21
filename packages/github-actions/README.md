@@ -1,4 +1,4 @@
-# @have/github-actions
+# @happyvertical/github-actions
 
 GitHub Actions utilities for CI/CD automation across HappyVertical repositories.
 
@@ -51,7 +51,7 @@ jobs:
         run: |
           echo "@have:registry=https://npm.pkg.github.com" >> ~/.npmrc
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
-          npx --yes @have/github-actions@latest triage
+          npx --yes @happyvertical/github-actions@latest triage
 ```
 
 ### As a Reusable Composite Action
@@ -76,8 +76,8 @@ Create a `.github/triage-config.json` file in your repository:
 ```json
 {
   "repoDescription": "TypeScript monorepo for AI agent development",
-  "packagePattern": "@have/*",
-  "packageExamples": ["@have/ai", "@have/sql", "@have/files"],
+  "packagePattern": "@happyvertical/*",
+  "packageExamples": ["@happyvertical/ai", "@happyvertical/sql", "@happyvertical/files"],
   "projectEnabled": true,
   "projectId": "PVT_kwDOB9Y8ns4A8-TY",
   "statusFieldId": "PVTSSF_lADOB9Y8ns4A8-TYzgw0GaY",
@@ -94,7 +94,7 @@ Create a `.github/triage-config.json` file in your repository:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `repoDescription` | string | Yes | Brief description for AI context |
-| `packagePattern` | string | No | Pattern for monorepo packages (e.g., `@have/*`) |
+| `packagePattern` | string | No | Pattern for monorepo packages (e.g., `@happyvertical/*`) |
 | `packageExamples` | string[] | No | Example package names for AI guidance |
 | `projectEnabled` | boolean | No | Enable GitHub Projects V2 integration (default: `false`) |
 | `projectId` | string | Conditional | Project ID (required if `projectEnabled: true`) |
@@ -115,7 +115,7 @@ The package provides a `triage` command for use in GitHub Actions:
 # - ISSUE_AUTHOR: Issue author username
 # - CONFIG: Path to triage-config.json or JSON string
 
-npx @have/github-actions triage
+npx @happyvertical/github-actions triage
 ```
 
 ### Environment Variables
@@ -149,7 +149,7 @@ When an issue is opened or reopened, the triage automation:
 **Priority**: `high`
 **Urgency**: `normal`
 
-**Affected Packages**: @have/sql, @have/cache
+**Affected Packages**: @happyvertical/sql, @happyvertical/cache
 
 **Analysis**: This issue requests Redis cache provider support, which would
 add a new caching backend to the SDK. The request is well-defined with clear
@@ -166,7 +166,7 @@ use cases for distributed caching across multiple instances.
 While designed for GitHub Actions, the package can also be used programmatically:
 
 ```typescript
-import { triageIssue } from '@have/github-actions';
+import { triageIssue } from '@happyvertical/github-actions';
 
 const result = await triageIssue({
   token: process.env.GITHUB_TOKEN!,
@@ -178,7 +178,7 @@ const result = await triageIssue({
   issueAuthor: 'willthefirst',
   config: {
     repoDescription: 'TypeScript monorepo for AI agent development',
-    packagePattern: '@have/*',
+    packagePattern: '@happyvertical/*',
     projectEnabled: true,
     projectId: 'PVT_...',
     statusFieldId: 'PVTSSF_...',
@@ -278,8 +278,8 @@ gh api graphql -f query='
 ```json
 {
   "repoDescription": "TypeScript monorepo for AI agent development",
-  "packagePattern": "@have/*",
-  "packageExamples": ["@have/ai", "@have/sql", "@have/files", "@have/utils"],
+  "packagePattern": "@happyvertical/*",
+  "packageExamples": ["@happyvertical/ai", "@happyvertical/sql", "@happyvertical/files", "@happyvertical/utils"],
   "projectEnabled": true,
   "projectId": "PVT_kwDOB9Y8ns4A8-TY",
   "statusFieldId": "PVTSSF_lADOB9Y8ns4A8-TYzgw0GaY",

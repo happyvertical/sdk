@@ -1,12 +1,12 @@
 /**
- * @have/ocr - OCR factory for managing multiple providers with intelligent fallback
+ * @happyvertical/ocr - OCR factory for managing multiple providers with intelligent fallback
  *
  * This module provides the main factory class and utility functions for
  * OCR operations with automatic provider selection, fallback handling,
  * and environment detection.
  */
 
-import { loadEnvConfig } from '@have/utils';
+import { loadEnvConfig } from '@happyvertical/utils';
 import type {
   OCREnvironment,
   OCRFactoryOptions,
@@ -769,7 +769,7 @@ let globalOCRFactory: OCRFactory | null = null;
  *
  * @example Simple usage (global singleton)
  * ```typescript
- * import { getOCR } from '@have/ocr';
+ * import { getOCR } from '@happyvertical/ocr';
  *
  * const factory = getOCR();
  * const result = await factory.performOCR(images);

@@ -59,7 +59,14 @@ function validateAIAnalysis(parsed: unknown): AIAnalysis {
     }
   }
 
-  return response as AIAnalysis;
+  // All validations passed - construct validated object
+  return {
+    type: response.type,
+    priority: response.priority,
+    urgency: response.urgency,
+    reasoning: response.reasoning,
+    ...(response.affected_packages && { affected_packages: response.affected_packages }),
+  } as AIAnalysis;
 }
 
 export async function analyzeIssue(

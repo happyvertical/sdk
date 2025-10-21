@@ -1,24 +1,24 @@
 ---
 id: pdf
-title: "@have/pdf: PDF Processing and Text Extraction"
-sidebar_label: "@have/pdf"
+title: "@happyvertical/pdf: PDF Processing and Text Extraction"
+sidebar_label: "@happyvertical/pdf"
 sidebar_position: 8
 ---
 
-# @have/pdf
+# @happyvertical/pdf
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-Modern PDF processing utilities with text extraction and OCR support using unpdf and @have/ocr.
+Modern PDF processing utilities with text extraction and OCR support using unpdf and @happyvertical/ocr.
 
 ## Overview
 
-The `@have/pdf` package provides comprehensive PDF processing capabilities for Node.js environments. It intelligently combines direct text extraction with OCR fallback for handling both text-based and image-based PDFs.
+The `@happyvertical/pdf` package provides comprehensive PDF processing capabilities for Node.js environments. It intelligently combines direct text extraction with OCR fallback for handling both text-based and image-based PDFs.
 
 ## Key Features
 
 - **Text Extraction**: Direct text extraction from PDF documents using unpdf
-- **OCR Integration**: Automatic OCR fallback for image-based PDFs using @have/ocr
+- **OCR Integration**: Automatic OCR fallback for image-based PDFs using @happyvertical/ocr
 - **Metadata Extraction**: Comprehensive PDF metadata (title, author, dates, etc.)
 - **Image Extraction**: Extract images from PDFs for OCR or display
 - **Smart Analysis**: Document analysis with processing strategy recommendations
@@ -29,13 +29,13 @@ The `@have/pdf` package provides comprehensive PDF processing capabilities for N
 
 ```bash
 # Install with bun (recommended)
-bun add @have/pdf
+bun add @happyvertical/pdf
 
 # Or with npm
-npm install @have/pdf
+npm install @happyvertical/pdf
 
 # Or with yarn
-yarn add @have/pdf
+yarn add @happyvertical/pdf
 ```
 
 ## Quick Start
@@ -43,7 +43,7 @@ yarn add @have/pdf
 ### Basic PDF Text Extraction
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 // Create a PDF reader instance
 const reader = await getPDFReader();
@@ -56,7 +56,7 @@ console.log(text);
 ### Smart PDF Processing with Analysis
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 const reader = await getPDFReader();
 
@@ -79,7 +79,7 @@ if (text) {
 ### Extract Metadata and Images
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 const reader = await getPDFReader();
 
@@ -98,7 +98,7 @@ console.log(`Found ${images.length} images`);
 ### OCR Processing
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 const reader = await getPDFReader();
 
@@ -120,7 +120,7 @@ if (images.length > 0) {
 ### Advanced Configuration
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 // Configure reader with specific options
 const reader = await getPDFReader({
@@ -144,7 +144,7 @@ Currently supports **Node.js only**:
 ## Dependencies
 
 - **unpdf**: Modern PDF processing library for text, metadata, and image extraction
-- **@have/ocr**: OCR capabilities with multiple provider support (tesseract.js, EasyOCR)
+- **@happyvertical/ocr**: OCR capabilities with multiple provider support (tesseract.js, EasyOCR)
 
 ## System Requirements
 
@@ -162,7 +162,7 @@ Currently supports **Node.js only**:
 The package includes comprehensive error handling:
 
 ```typescript
-import { getPDFReader } from '@have/pdf';
+import { getPDFReader } from '@happyvertical/pdf';
 
 try {
   const reader = await getPDFReader();
@@ -193,7 +193,7 @@ import {
   extractImagesFromPDF,
   performOCROnImages,
   checkOCRDependencies
-} from '@have/pdf';
+} from '@happyvertical/pdf';
 ```
 
 ## API Documentation

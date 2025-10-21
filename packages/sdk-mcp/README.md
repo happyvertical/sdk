@@ -1,4 +1,4 @@
-# @have/sdk-mcp
+# @happyvertical/sdk-mcp
 
 MCP server for the HAVE SDK that acts as an orchestrator, routing developer queries to appropriate package experts using CLAUDE.md files.
 
@@ -14,7 +14,7 @@ The SDK MCP Server implements a RAG (Retrieval-Augmented Generation) pattern whe
 ## Installation
 
 ```bash
-pnpm install @have/sdk-mcp
+pnpm install @happyvertical/sdk-mcp
 ```
 
 ## Usage
@@ -95,7 +95,7 @@ When you ask a question, the router:
 The `ask` tool:
 1. Loads CLAUDE.md for relevant packages (top 3 matches)
 2. Builds context from documentation
-3. Uses AI (via `@have/ai`) to generate response
+3. Uses AI (via `@happyvertical/ai`) to generate response
 4. Includes package references in response
 
 ## Package Keywords
@@ -138,7 +138,7 @@ Developer Query → MCP Server (Orchestrator)
     ┌─────────────────┼─────────────────┐
     ↓                 ↓                 ↓
 Package Expert    Package Expert    Package Expert
-(@have/ai)        (@have/spider)    (@have/sql)
+(@happyvertical/ai)        (@happyvertical/spider)    (@happyvertical/sql)
 CLAUDE.md         CLAUDE.md         CLAUDE.md
     ↓                 ↓                 ↓
     └─────────────────┴─────────────────┘

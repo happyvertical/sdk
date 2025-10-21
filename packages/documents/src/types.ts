@@ -1,5 +1,5 @@
 /**
- * Type definitions for the @have/documents package
+ * Type definitions for the @happyvertical/documents package
  */
 
 /**

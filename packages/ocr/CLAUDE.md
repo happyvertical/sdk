@@ -1,8 +1,8 @@
-# @have/ocr: Standardized OCR Interface Package
+# @happyvertical/ocr: Standardized OCR Interface Package
 
 ## Purpose and Responsibilities
 
-The `@have/ocr` package provides a unified interface for Optical Character Recognition (OCR) operations with multi-provider support. It serves as the OCR abstraction layer for the HAVE SDK and handles:
+The `@happyvertical/ocr` package provides a unified interface for Optical Character Recognition (OCR) operations with multi-provider support. It serves as the OCR abstraction layer for the HAVE SDK and handles:
 
 - **Multi-Provider OCR**: Unified API for Tesseract.js and ONNX-based OCR engines (PaddleOCR PP-OCRv4)
 - **Intelligent Fallback**: Automatic provider selection and fallback when primary providers fail
@@ -77,7 +77,7 @@ const custom = getOCR({ provider: 'onnx' }); // Creates new instance
 ### Factory-Based OCR Interface
 
 ```typescript
-import { getOCR } from '@have/ocr';
+import { getOCR } from '@happyvertical/ocr';
 
 // Get OCR factory with automatic provider selection
 const ocrFactory = getOCR();
@@ -110,8 +110,8 @@ console.log('Processing time:', result.metadata?.processingTime);
 ### Image Processing and OCR
 
 ```typescript
-import { getOCR } from '@have/ocr';
-import type { OCRImage } from '@have/ocr';
+import { getOCR } from '@happyvertical/ocr';
+import type { OCRImage } from '@happyvertical/ocr';
 
 const ocrFactory = getOCR();
 
@@ -180,7 +180,7 @@ import {
   getAvailableProviders, 
   isProviderAvailable, 
   getProviderInfo 
-} from '@have/ocr';
+} from '@happyvertical/ocr';
 
 // Check available providers in current environment
 const providers = await getAvailableProviders();
@@ -284,7 +284,7 @@ if (environment === 'node') {
 ### Advanced Configuration and Customization
 
 ```typescript
-import { OCRFactory } from '@have/ocr';
+import { OCRFactory } from '@happyvertical/ocr';
 
 // Create custom OCR factory with specific configuration
 const customFactory = new OCRFactory({
@@ -356,7 +356,7 @@ try {
 ### Error Handling and Debugging
 
 ```typescript
-import { OCRError, OCRDependencyError, OCRProcessingError, OCRUnsupportedError } from '@have/ocr';
+import { OCRError, OCRDependencyError, OCRProcessingError, OCRUnsupportedError } from '@happyvertical/ocr';
 
 try {
   const result = await ocrFactory.performOCR(images);
@@ -423,7 +423,7 @@ const testFormats = async () => {
 The package manages dependencies intelligently based on the runtime environment:
 
 ### Core Dependencies
-- **@have/utils**: Shared utilities for the HAVE SDK
+- **@happyvertical/utils**: Shared utilities for the HAVE SDK
 - **tesseract.js**: Cross-platform OCR engine (works in Node.js and browsers)
   - Provides WebAssembly-based OCR processing
   - Automatic language model downloading and caching
@@ -665,14 +665,14 @@ expect(result.text.length).toBeGreaterThan(0);
 
 ```bash
 # Install the OCR package
-bun add @have/ocr
+bun add @happyvertical/ocr
 
 # The package will work out of the box with Tesseract.js
 ```
 
 ### Environment Variable Configuration
 
-The @have/ocr package supports configuration via environment variables using the pattern `HAVE_OCR_{FIELD}`:
+The @happyvertical/ocr package supports configuration via environment variables using the pattern `HAVE_OCR_{FIELD}`:
 
 **Supported Environment Variables:**
 
@@ -692,7 +692,7 @@ export HAVE_OCR_TIMEOUT=45000
 ```
 
 ```typescript
-import { getOCR } from '@have/ocr';
+import { getOCR } from '@happyvertical/ocr';
 
 // Factory automatically loads configuration from env vars
 const factory = getOCR();
@@ -750,7 +750,7 @@ const factory = getOCR({
 ```
 
 ```typescript
-import { getOCR } from '@have/ocr';
+import { getOCR } from '@happyvertical/ocr';
 
 // Use ONNX provider specifically for high-accuracy OCR
 const onnxFactory = getOCR({ provider: 'onnx' });
@@ -796,7 +796,7 @@ nix-shell -p nodejs
 ### Verification
 
 ```typescript
-import { getOCR } from '@have/ocr';
+import { getOCR } from '@happyvertical/ocr';
 
 const ocrFactory = getOCR();
 const available = await ocrFactory.isOCRAvailable();
@@ -808,7 +808,7 @@ console.log('Available providers:', providers.map(p => p.name));
 
 ## API Documentation
 
-The @have/ocr package generates comprehensive API documentation in both HTML and markdown formats using TypeDoc:
+The @happyvertical/ocr package generates comprehensive API documentation in both HTML and markdown formats using TypeDoc:
 
 ### Generated Documentation Formats
 
@@ -922,7 +922,7 @@ try {
 }
 
 // For testing, reset global factory
-import { resetOCRFactory } from '@have/ocr';
+import { resetOCRFactory } from '@happyvertical/ocr';
 afterEach(() => {
   resetOCRFactory();
 });
@@ -1040,7 +1040,7 @@ console.log({
 
 ## Expert Agent Instructions
 
-When working with @have/ocr:
+When working with @happyvertical/ocr:
 
 ### Decision Framework
 
@@ -1086,7 +1086,7 @@ Before committing OCR code:
 
 ```typescript
 // Standard pattern for production use
-import { getOCR, OCRDependencyError, OCRError } from '@have/ocr';
+import { getOCR, OCRDependencyError, OCRError } from '@happyvertical/ocr';
 
 const factory = getOCR({
   provider: 'auto',
@@ -1141,13 +1141,13 @@ This package provides enterprise-grade OCR capabilities designed for scalable AI
 
 ## Integration with PDF Package
 
-The @have/ocr package is designed to work seamlessly with the @have/pdf package for comprehensive document processing:
+The @happyvertical/ocr package is designed to work seamlessly with the @happyvertical/pdf package for comprehensive document processing:
 
 ### PDF OCR Fallback Processing
 
 ```typescript
-import { getOCR } from '@have/ocr';
-import { processPDF } from '@have/pdf'; // Hypothetical PDF package integration
+import { getOCR } from '@happyvertical/ocr';
+import { processPDF } from '@happyvertical/pdf'; // Hypothetical PDF package integration
 
 // Example of OCR fallback when PDF text extraction fails
 const processDocumentWithOCRFallback = async (pdfBuffer: Buffer) => {
@@ -1390,7 +1390,7 @@ Image Buffer → Decode (PNG/JPEG) → RGB → RGBA → JPEG (90%) → PaddleOCR
 
 **Basic Usage (90% of cases):**
 ```typescript
-import { getOCR } from '@have/ocr';
+import { getOCR } from '@happyvertical/ocr';
 const factory = getOCR();
 const result = await factory.performOCR(images);
 ```

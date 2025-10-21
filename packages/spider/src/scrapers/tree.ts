@@ -1,5 +1,5 @@
-import type { CacheAdapter } from '@have/cache';
-import { getCache } from '@have/cache';
+import type { CacheAdapter } from '@happyvertical/cache';
+import { getCache } from '@happyvertical/cache';
 import { Configuration, PlaywrightCrawler } from 'crawlee';
 import type {
   Link,

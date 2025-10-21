@@ -126,7 +126,7 @@ Changes include:
 
 * **build:** fix SDK build after SMRT framework split ([e895ca8](https://github.com/happyvertical/sdk/commit/e895ca871166d385388a88865e09fda7369ec5e1))
 * **ci:** remove SMRT package verification step ([7b52b28](https://github.com/happyvertical/sdk/commit/7b52b28131b4661a52a79893876f95a489c61740))
-* **deps:** remove @have/types dependency from logger and config packages ([1b00c9d](https://github.com/happyvertical/sdk/commit/1b00c9dcc8ecec1fceb206126504e013b4e9829e))
+* **deps:** remove @happyvertical/types dependency from logger and config packages ([1b00c9d](https://github.com/happyvertical/sdk/commit/1b00c9dcc8ecec1fceb206126504e013b4e9829e))
 * **lint:** resolve linting errors by fixing code issues ([51f3d2f](https://github.com/happyvertical/sdk/commit/51f3d2f0b0f1b4818f0f854598838932dbc0f8b5))
 * **smrt:** add CAST to DEFAULT values in runtime-manager schema generation ([a9a883a](https://github.com/happyvertical/sdk/commit/a9a883a4bca6daf39a10298506a36ae514d6c508)), closes [#228](https://github.com/happyvertical/sdk/issues/228) [#229](https://github.com/happyvertical/sdk/issues/229) [#230](https://github.com/happyvertical/sdk/issues/230) [#229](https://github.com/happyvertical/sdk/issues/229) [#230](https://github.com/happyvertical/sdk/issues/230)
 * **smrt:** add explicit CAST to DEFAULT values for DuckDB type inference ([47b6fbb](https://github.com/happyvertical/sdk/commit/47b6fbbf19848f2a364b84a72e47e890224c2b63)), closes [#228](https://github.com/happyvertical/sdk/issues/228)
@@ -237,13 +237,13 @@ Changes include:
 ### Bug Fixes
 
 * **ai:** support all AI providers beyond OpenAI in AIClient.create() ([09618c6](https://github.com/happyvertical/sdk/commit/09618c6436edcba0fe2b7493c4c501eda7929501)), closes [#202](https://github.com/happyvertical/sdk/issues/202)
-* **build:** remove @have/notes from build order ([59acc85](https://github.com/happyvertical/sdk/commit/59acc854bdfd32498ed348cc8b2c6bc7a3152a55))
+* **build:** remove @happyvertical/notes from build order ([59acc85](https://github.com/happyvertical/sdk/commit/59acc854bdfd32498ed348cc8b2c6bc7a3152a55))
 * **documents:** generate valid cache paths for URLs with query parameters ([b6db005](https://github.com/happyvertical/sdk/commit/b6db005c94aa7b9eb0c926623afd030554a2d5e5)), closes [#189](https://github.com/happyvertical/sdk/issues/189)
 * **smrt:** add missing entry point files for package exports ([04cf008](https://github.com/happyvertical/sdk/commit/04cf008312747f0b721bd92153a181288293ea00)), closes [#212](https://github.com/happyvertical/sdk/issues/212)
 * **smrt:** generate JavaScript files for vite-plugin, prebuild, and consumer-plugin entry points ([347b42e](https://github.com/happyvertical/sdk/commit/347b42e2ac113c395de3bed78c6fb065d7041e2e)), closes [#204](https://github.com/happyvertical/sdk/issues/204)
 * **smrt:** migrate DatabaseInterface method calls to new API ([8f19c26](https://github.com/happyvertical/sdk/commit/8f19c26b2731c86a367cd2f74036d115d82c2f22))
 * **smrt:** resolve entry point JavaScript file generation in build ([54ac296](https://github.com/happyvertical/sdk/commit/54ac296d5aabca88fadbb3e59f735a25720e4c49)), closes [#204](https://github.com/happyvertical/sdk/issues/204)
-* **smrt:** suppress TypeScript errors for optional @have/notes imports ([1b2ac6b](https://github.com/happyvertical/sdk/commit/1b2ac6b149c8ede3b828148b945449c22e6d756c))
+* **smrt:** suppress TypeScript errors for optional @happyvertical/notes imports ([1b2ac6b](https://github.com/happyvertical/sdk/commit/1b2ac6b149c8ede3b828148b945449c22e6d756c))
 * **spider:** add crawlee to external dependencies in vite config ([13a77cf](https://github.com/happyvertical/sdk/commit/13a77cfd70782f9bb807e00b721f51b3e9624e4e)), closes [#187](https://github.com/happyvertical/sdk/issues/187)
 * **spider:** decode HTML entities in WordPress Download Manager URLs ([354ec27](https://github.com/happyvertical/sdk/commit/354ec276cc725fb2c374e02a5fda856ae3640c06)), closes [#184](https://github.com/happyvertical/sdk/issues/184) [#039](https://github.com/happyvertical/sdk/issues/039) [#184](https://github.com/happyvertical/sdk/issues/184)
 * **spider:** detect WordPress downloads by wpdmdl param not .pdf extension ([a19c2a2](https://github.com/happyvertical/sdk/commit/a19c2a2023e750fa12ca8744e1e56231bf115a1c)), closes [#181](https://github.com/happyvertical/sdk/issues/181)
@@ -270,7 +270,7 @@ Changes include:
 
 ### BREAKING CHANGES
 
-* **smrt:** @have/notes package removed - functionality now built into @have/smrt
+* **smrt:** @happyvertical/notes package removed - functionality now built into @happyvertical/smrt
 
 ## [0.27.1](https://github.com/happyvertical/sdk/compare/v0.27.0...v0.27.1) (2025-10-12)
 
@@ -348,14 +348,14 @@ Build results: ✅ Package builds successfully
 
 ### Bug Fixes
 
-* **build:** add @have/documents to build order ([4fc2b70](https://github.com/happyvertical/sdk/commit/4fc2b705d0d4acdde554ee23270c6662a2998189)), closes [#163](https://github.com/happyvertical/sdk/issues/163)
-* **build:** add @have/documents to vite configuration ([e2dfdc8](https://github.com/happyvertical/sdk/commit/e2dfdc89f09e86336bea8f4de56ca09e194d18db))
+* **build:** add @happyvertical/documents to build order ([4fc2b70](https://github.com/happyvertical/sdk/commit/4fc2b705d0d4acdde554ee23270c6662a2998189)), closes [#163](https://github.com/happyvertical/sdk/issues/163)
+* **build:** add @happyvertical/documents to vite configuration ([e2dfdc8](https://github.com/happyvertical/sdk/commit/e2dfdc89f09e86336bea8f4de56ca09e194d18db))
 * **content:** remove custom create() method from Contents class ([96b9f39](https://github.com/happyvertical/sdk/commit/96b9f3957bea135e8809accc7d431ee1c39303b4))
 
 
 ### Features
 
-* **documents:** add @have/documents package for multi-part document processing ([72a23bb](https://github.com/happyvertical/sdk/commit/72a23bb1350a296e2bbab639ebf482d173ffe803)), closes [#162](https://github.com/happyvertical/sdk/issues/162)
+* **documents:** add @happyvertical/documents package for multi-part document processing ([72a23bb](https://github.com/happyvertical/sdk/commit/72a23bb1350a296e2bbab639ebf482d173ffe803)), closes [#162](https://github.com/happyvertical/sdk/issues/162)
 
 ## [0.23.1](https://github.com/happyvertical/sdk/compare/v0.23.0...v0.23.1) (2025-10-10)
 
@@ -472,7 +472,7 @@ Build results: ✅ Package builds successfully
 
 ### Features
 
-* **config:** add @have/config package for centralized configuration ([8ee2195](https://github.com/happyvertical/sdk/commit/8ee219576460c1cd314c4f6c2c107fdf72604e7b))
+* **config:** add @happyvertical/config package for centralized configuration ([8ee2195](https://github.com/happyvertical/sdk/commit/8ee219576460c1cd314c4f6c2c107fdf72604e7b))
 
 # [0.17.0](https://github.com/happyvertical/sdk/compare/v0.16.0...v0.17.0) (2025-10-07)
 
@@ -526,9 +526,9 @@ Build results: ✅ Package builds successfully
 * **smrt:** add data sanitization, cleanup methods, and enhanced error logging ([a97cfc3](https://github.com/happyvertical/sdk/commit/a97cfc381a405710384ba951816b5d4a8bf2e674))
 * **smrt:** complete static factory pattern migration across all packages ([44566de](https://github.com/happyvertical/sdk/commit/44566de71d3f5248a111037a883e9f3728775120))
 * **smrt:** implement static factory pattern for Collections ([9e36dbe](https://github.com/happyvertical/sdk/commit/9e36dbedd40675acd2d80cbe7f2bdca198c0de4d)), closes [#135](https://github.com/happyvertical/sdk/issues/135)
-* **smrt:** implement Universal Signaling System with @have/logger ([7d9a8ad](https://github.com/happyvertical/sdk/commit/7d9a8ad61da8fa191302a772ef696785c3c8692f)), closes [#134](https://github.com/happyvertical/sdk/issues/134)
+* **smrt:** implement Universal Signaling System with @happyvertical/logger ([7d9a8ad](https://github.com/happyvertical/sdk/commit/7d9a8ad61da8fa191302a772ef696785c3c8692f)), closes [#134](https://github.com/happyvertical/sdk/issues/134)
 * **smrt:** integrate SignalBus into ToolExecutor for automatic method tracking ([9a9ac4c](https://github.com/happyvertical/sdk/commit/9a9ac4ce7c75d7f0f8ef98a621aee68a795427fb)), closes [#134](https://github.com/happyvertical/sdk/issues/134)
-* **types,smrt:** create @have/types package and add SignalBus to smrt ([7b4b755](https://github.com/happyvertical/sdk/commit/7b4b755c25a8ba8c5a0dec35bb36c3b7170ca780)), closes [#134](https://github.com/happyvertical/sdk/issues/134)
+* **types,smrt:** create @happyvertical/types package and add SignalBus to smrt ([7b4b755](https://github.com/happyvertical/sdk/commit/7b4b755c25a8ba8c5a0dec35bb36c3b7170ca780)), closes [#134](https://github.com/happyvertical/sdk/issues/134)
 
 # [0.14.0](https://github.com/happyvertical/sdk/compare/v0.13.0...v0.14.0) (2025-10-06)
 
@@ -564,7 +564,7 @@ Build results: ✅ Package builds successfully
 
 * **spider:** Complete API redesign to align with SDK provider pattern
 
-This commit introduces a major refactoring of the @have/spider package:
+This commit introduces a major refactoring of the @happyvertical/spider package:
 
 ## New Architecture
 
@@ -578,7 +578,7 @@ This commit introduces a major refactoring of the @have/spider package:
 
 ## Key Features
 
-- Built-in caching via @have/cache with configurable expiry
+- Built-in caching via @happyvertical/cache with configurable expiry
 - Navigation expansion: Crawlee auto-clicks accordions/dropdowns
 - Link extraction: All adapters return discovered links
 - Error handling: ValidationError and NetworkError types
@@ -619,7 +619,7 @@ const links = page.links;
 - Real-world use case: Bentley town PDF extraction
 - Migration guide from v1.x
 - Best practices for ethical web scraping
-- Integration examples with @have/ai, @have/pdf, @have/content
+- Integration examples with @happyvertical/ai, @happyvertical/pdf, @happyvertical/content
 
 ## Testing
 
@@ -683,7 +683,7 @@ Closes #<issue-number-if-applicable>
 
 ### Features
 
-* add @have/gnode federation package ([28ca4dc](https://github.com/happyvertical/sdk/commit/28ca4dc4409205ce986f9945e7e5462df38c3247))
+* add @happyvertical/gnode federation package ([28ca4dc](https://github.com/happyvertical/sdk/commit/28ca4dc4409205ce986f9945e7e5462df38c3247))
 
 ## [0.8.1](https://github.com/happyvertical/sdk/compare/v0.8.0...v0.8.1) (2025-09-30)
 
@@ -800,7 +800,7 @@ Related to packages/content test failures - now all passing
 
 ### Bug Fixes
 
-* resolve TypeScript compilation errors in @have/sdk packages ([f9511c9](https://github.com/happyvertical/sdk/commit/f9511c9a533823134db4f4209cf2007e0f0bb602)), closes [#98](https://github.com/happyvertical/sdk/issues/98)
+* resolve TypeScript compilation errors in @happyvertical/sdk packages ([f9511c9](https://github.com/happyvertical/sdk/commit/f9511c9a533823134db4f4209cf2007e0f0bb602)), closes [#98](https://github.com/happyvertical/sdk/issues/98)
 
 # [0.4.0](https://github.com/happyvertical/sdk/compare/v0.3.3...v0.4.0) (2025-09-26)
 

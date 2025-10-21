@@ -1,5 +1,5 @@
 /**
- * Optional tests for @have/utils
+ * Optional tests for @happyvertical/utils
  *
  * These tests are slow or potentially flaky and are excluded from regular test runs.
  * Run with: npm run test:optional

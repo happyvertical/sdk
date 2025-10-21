@@ -1,11 +1,11 @@
 ---
 id: documents
-title: "@have/documents: Document Processing"
-sidebar_label: "@have/documents"
+title: "@happyvertical/documents: Document Processing"
+sidebar_label: "@happyvertical/documents"
 sidebar_position: 3
 ---
 
-# @have/documents
+# @happyvertical/documents
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -13,7 +13,7 @@ Document processing for PDFs, HTML, and Markdown with hierarchical structure.
 
 ## Overview
 
-`@have/documents` provides unified document processing with support for multiple formats. Documents are parsed into hierarchical parts with automatic image extraction and OCR capabilities.
+`@happyvertical/documents` provides unified document processing with support for multiple formats. Documents are parsed into hierarchical parts with automatic image extraction and OCR capabilities.
 
 ## Features
 
@@ -26,21 +26,21 @@ Document processing for PDFs, HTML, and Markdown with hierarchical structure.
 ## Installation
 
 ```bash
-npm install @have/documents
+npm install @happyvertical/documents
 ```
 
 ```bash
-pnpm add @have/documents
+pnpm add @happyvertical/documents
 ```
 
 ```bash
-yarn add @have/documents
+yarn add @happyvertical/documents
 ```
 
 ## Quick Start
 
 ```typescript
-import { fetchDocument } from '@have/documents';
+import { fetchDocument } from '@happyvertical/documents';
 
 // Fetch and process a PDF
 const doc = await fetchDocument('https://example.com/report.pdf', {
@@ -60,7 +60,7 @@ for (const part of doc.parts) {
 ### Process PDF with Images
 
 ```typescript
-import { fetchDocument } from '@have/documents';
+import { fetchDocument } from '@happyvertical/documents';
 
 const doc = await fetchDocument('https://example.com/annual-report.pdf', {
   extractImages: true,
@@ -75,7 +75,7 @@ console.log(`Parts: ${doc.parts.length}`);
 ### Extract Structured Content
 
 ```typescript
-import { fetchDocument } from '@have/documents';
+import { fetchDocument } from '@happyvertical/documents';
 
 const doc = await fetchDocument('https://example.com/document.pdf');
 
@@ -97,7 +97,7 @@ for (const part of doc.parts) {
 ### Access Document Parts and Images
 
 ```typescript
-import { fetchDocument } from '@have/documents';
+import { fetchDocument } from '@happyvertical/documents';
 
 const doc = await fetchDocument('https://example.com/scan.pdf', {
   extractImages: true,

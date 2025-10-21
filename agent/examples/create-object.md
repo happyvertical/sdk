@@ -7,7 +7,7 @@ This example walks through creating a complete SMRT object for e-commerce produc
 ### Step 1: Define the Object Structure
 
 ```typescript
-import { BaseObject, smrt, text, decimal, integer, boolean, datetime, json, foreignKey } from '@have/smrt';
+import { BaseObject, smrt, text, decimal, integer, boolean, datetime, json, foreignKey } from '@happyvertical/smrt';
 
 @smrt({
   api: {
@@ -271,7 +271,7 @@ export class Product extends BaseObject {
 ### Step 2: Create the Collection Class
 
 ```typescript
-import { BaseCollection } from '@have/smrt';
+import { BaseCollection } from '@happyvertical/smrt';
 import { Product } from './product';
 
 export class ProductCollection extends BaseCollection<Product> {
@@ -489,7 +489,7 @@ const inventoryAnalysis = await products.analyzeInventory();
 
 ```typescript
 // Generate REST API
-import { APIGenerator } from '@have/smrt/generators';
+import { APIGenerator } from '@happyvertical/smrt/generators';
 
 const apiGen = new APIGenerator({
   collections: [ProductCollection],
@@ -501,7 +501,7 @@ const apiGen = new APIGenerator({
 await apiGen.generate();
 
 // Generate CLI tools
-import { CLIGenerator } from '@have/smrt/generators';
+import { CLIGenerator } from '@happyvertical/smrt/generators';
 
 const cliGen = new CLIGenerator({
   collections: [ProductCollection],
@@ -512,7 +512,7 @@ const cliGen = new CLIGenerator({
 await cliGen.generate();
 
 // Generate MCP server
-import { MCPGenerator } from '@have/smrt/generators';
+import { MCPGenerator } from '@happyvertical/smrt/generators';
 
 const mcpGen = new MCPGenerator({
   collections: [ProductCollection],

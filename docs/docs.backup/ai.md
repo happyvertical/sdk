@@ -1,17 +1,17 @@
 ---
 id: ai
-title: "@have/ai: Multi-Provider AI Integration"
-sidebar_label: "@have/ai"
+title: "@happyvertical/ai: Multi-Provider AI Integration"
+sidebar_label: "@happyvertical/ai"
 sidebar_position: 2
 ---
 
-# @have/ai: Multi-Provider AI Integration
+# @happyvertical/ai: Multi-Provider AI Integration
 
 Unified interface for AI model interactions across multiple providers including OpenAI, Anthropic, Google Gemini, and AWS Bedrock.
 
 ## Overview
 
-The `@have/ai` package provides a standardized interface for AI interactions that works seamlessly across different providers:
+The `@happyvertical/ai` package provides a standardized interface for AI interactions that works seamlessly across different providers:
 
 - **🔌 Multi-Provider Support**: OpenAI, Anthropic, Gemini, Bedrock
 - **🔒 Type Safety**: Full TypeScript support with proper typing
@@ -22,7 +22,7 @@ The `@have/ai` package provides a standardized interface for AI interactions tha
 ## Quick Start
 
 ```typescript
-import { getAI } from '@have/ai';
+import { getAI } from '@happyvertical/ai';
 
 // Initialize with your preferred provider
 const ai = await getAI({

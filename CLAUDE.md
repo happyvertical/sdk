@@ -55,20 +55,20 @@ Tools for SDK development and documentation:
 The build process follows a specific order to respect internal dependencies:
 
 **Core Foundation Packages** (in `packages/`):
-1. `@have/utils` (base utilities, no internal dependencies)
-2. `@have/logger` (logging infrastructure, no internal dependencies)
-3. `@have/files` (file system operations, no internal dependencies)
-4. `@have/sql` (database operations, no internal dependencies)
-5. `@have/ai` (AI client with multi-provider support, no internal dependencies)
+1. `@happyvertical/utils` (base utilities, no internal dependencies)
+2. `@happyvertical/logger` (logging infrastructure, no internal dependencies)
+3. `@happyvertical/files` (file system operations, no internal dependencies)
+4. `@happyvertical/sql` (database operations, no internal dependencies)
+5. `@happyvertical/ai` (AI client with multi-provider support, no internal dependencies)
 
 **Infrastructure Packages** (in `packages/`):
-1. `@have/cache` (caching utilities, no internal dependencies)
-2. `@have/geo` (geographic utilities, no internal dependencies)
-3. `@have/translator` (translation services, no internal dependencies)
-4. `@have/ocr` (OCR providers, no internal dependencies)
-5. `@have/pdf` (PDF processing, depends on ocr)
-6. `@have/spider` (web crawling, no internal dependencies)
-7. `@have/documents` (document processing, depends on pdf, spider, ocr)
+1. `@happyvertical/cache` (caching utilities, no internal dependencies)
+2. `@happyvertical/geo` (geographic utilities, no internal dependencies)
+3. `@happyvertical/translator` (translation services, no internal dependencies)
+4. `@happyvertical/ocr` (OCR providers, no internal dependencies)
+5. `@happyvertical/pdf` (PDF processing, depends on ocr)
+6. `@happyvertical/spider` (web crawling, no internal dependencies)
+7. `@happyvertical/documents` (document processing, depends on pdf, spider, ocr)
 
 ### Build Artifacts and Git
 
@@ -134,7 +134,7 @@ Each package's `package.json` includes:
 
 ```json
 {
-  "name": "@have/{package-name}",
+  "name": "@happyvertical/{package-name}",
   "version": "0.45.2",
   "files": [
     "dist",
@@ -177,7 +177,7 @@ Users need to configure npm for GitHub Packages:
 
 **Install packages:**
 ```bash
-pnpm add @have/ai @have/sql @have/files
+pnpm add @happyvertical/ai @happyvertical/sql @happyvertical/files
 ```
 
 **GitHub Token Requirements**:
@@ -1335,7 +1335,7 @@ New issues are automatically triaged using GitHub Models API to streamline the i
 **Priority**: `critical|high|medium|low`
 **Urgency**: `urgent|normal`
 
-**Affected Packages**: List of @have/ packages identified
+**Affected Packages**: List of @happyvertical/ packages identified
 
 **Analysis**: Brief explanation of the triage decision
 
