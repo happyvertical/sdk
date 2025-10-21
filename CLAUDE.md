@@ -744,15 +744,20 @@ Use this checklist to verify SOP completion:
 
 #### When This SOP Triggers
 
-This procedure triggers when:
-- User indicates work is complete ("ready", "done", "create PR", etc.)
-- User says "push" or "ready for review"
-- Work appears complete based on context
+**TRIGGER AUTOMATICALLY**: This SOP should run **automatically** without waiting for explicit user request when:
+- All implementation work is complete
+- All commits are made
+- Tests are passing
+- Work appears ready for review based on context
+
+**Also trigger** when user explicitly indicates:
+- "ready", "done", "create PR", "push", "ready for review"
 
 **DO NOT trigger** when:
 - Work is still in progress
 - Tests are failing
 - User is experimenting or exploring
+- User says to wait or not ready yet
 
 #### Step 1: Verify Work Completion
 

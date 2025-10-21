@@ -1,0 +1,13 @@
+{
+  "repoDescription": "TypeScript monorepo for AI agent development",
+  "packagePattern": "@have/*",
+  "packageExamples": ["@have/ai", "@have/sql", "@have/files", "@have/utils"],
+  "projectEnabled": true,
+  "projectId": "PVT_kwDOB9Y8ns4A8-TY",
+  "statusFieldId": "PVTSSF_lADOB9Y8ns4A8-TYzgw0GaY",
+  "statusOptions": {
+    "To Do": "c0c9ab27",
+    "In Progress": "ce670088",
+    "Review & Testing": "ee1f96bd"
+  }
+}

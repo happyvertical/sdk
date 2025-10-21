@@ -17,17 +17,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-
       - name: Run AI triage
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
-          ISSUE_TITLE: ${{ github.event.issue.title }}
-          ISSUE_BODY: ${{ github.event.issue.body }}
-          ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
-          REPOSITORY: ${{ github.repository }}
-        run: node .github/scripts/triage-issue.js
+        uses: ./.github/actions/issue-triage
+        with:
+          github-token: ${{ secrets.GH_TOKEN }}
+          config-path: .github/triage-config.json
