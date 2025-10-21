@@ -96,6 +96,121 @@ The build process follows a specific order to respect internal dependencies:
 - Published packages include dist/, README.md, and LICENSE
 - Users of published packages get the built artifacts
 
+### Package Publishing
+
+**Publishing Platform**: All SDK packages are published to **GitHub Packages** (not npm).
+
+#### Automated Publishing Workflow
+
+Publishing is fully automated using semantic-release:
+
+1. **Trigger**: Merges to `main` branch automatically trigger the release workflow
+2. **Version Detection**: semantic-release analyzes conventional commits to determine version bump
+3. **Build**: All packages are built with `pnpm run build`
+4. **Publish**: Packages are published to GitHub Packages registry
+5. **Changelog**: CHANGELOG.md is automatically updated with release notes
+6. **Git Tag**: A git tag is created for the new version
+
+**GitHub Actions Workflow**: `.github/workflows/on-merge-main.yml`
+
+```yaml
+# Relevant configuration
+- name: Setup Environment
+  uses: ./.github/actions/setup-environment
+  with:
+    node-version: '24'
+    registry-url: 'https://npm.pkg.github.com'  # GitHub Packages
+
+- name: Release packages
+  run: pnpm run release
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # GitHub Packages auth
+```
+
+#### Package Configuration
+
+Each package's `package.json` includes:
+
+```json
+{
+  "name": "@have/{package-name}",
+  "version": "0.45.2",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/happyvertical/sdk.git",
+    "directory": "packages/{package-name}"
+  }
+}
+```
+
+#### Semantic Versioning
+
+Version bumps follow conventional commits:
+
+- `feat:` → Minor version bump (0.45.0 → 0.46.0)
+- `fix:`, `perf:`, `docs:`, `build:` → Patch version bump (0.45.0 → 0.45.1)
+- `refactor:` → Minor version bump
+- `breaking:` in commit body → Minor version bump (until 1.0.0)
+- `scope: no-release` → No version bump
+
+**Configuration**: `.releaserc.json`
+
+#### Installing Published Packages
+
+Users need to configure npm for GitHub Packages:
+
+**Create `.npmrc` in project root:**
+```
+@have:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=YOUR_GITHUB_TOKEN
+```
+
+**Install packages:**
+```bash
+pnpm add @have/ai @have/sql @have/files
+```
+
+**GitHub Token Requirements**:
+- Token needs `read:packages` scope
+- Create at: GitHub Settings → Developer settings → Personal access tokens
+
+#### Manual Publishing (Emergency Use Only)
+
+If automated publishing fails, packages can be published manually:
+
+```bash
+# Build all packages
+pnpm run build
+
+# Dry-run to preview changes
+pnpm run release:dry-run
+
+# Publish (only if automated workflow failed)
+pnpm run release
+```
+
+**Important**: Manual publishing should be rare. Fix the CI/CD workflow instead of routinely publishing manually.
+
+#### Release Scripts
+
+Available in root `package.json`:
+
+- `pnpm run release` - Automated semantic-release
+- `pnpm run release:dry-run` - Preview release without publishing
+- `pnpm run release:packages` - Release individual packages
+- `pnpm run release:preview` - Preview next version
+- `pnpm run release:validate` - Validate release configuration
+
 ### TypeScript Project References
 
 The SDK uses TypeScript project references for proper type resolution across packages. **This is critical for avoiding module resolution conflicts.**

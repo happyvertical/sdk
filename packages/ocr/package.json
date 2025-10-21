@@ -45,8 +45,19 @@
     "directory": "packages/ocr"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
+  "bugs": {
+    "url": "https://github.com/happyvertical/sdk/issues"
+  },
+  "homepage": "https://github.com/happyvertical/sdk/tree/main/packages/ocr#readme",
+  "license": "MIT",
   "scripts": {
     "test": "npx vitest run --testTimeout 120000",
     "test:watch": "npx vitest --testTimeout 120000",

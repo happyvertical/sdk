@@ -58,7 +58,7 @@ jobs:
         uses: ./.github/actions/setup-environment
         with:
           node-version: '24'
-          registry-url: 'https://registry.npmjs.org'
+          registry-url: 'https://npm.pkg.github.com'
 
       - name: Build packages
         run: pnpm run build
@@ -75,7 +75,7 @@ jobs:
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # NPM_TOKEN not needed since npmPublish is disabled
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # Job 3: Deploy documentation (only if build succeeds)
   # Note: We deploy docs on every merge to main to ensure they stay in sync
