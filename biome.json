@@ -4,6 +4,7 @@
     "includes": [
       "packages/*/src/**/*.{js,ts,tsx,jsx,svelte}",
       "docs/src/**/*.{js,ts,tsx,jsx}",
+      ".github/**/*.{js,ts}",
       "*.{js,ts,tsx,jsx}"
     ],
     "ignoreUnknown": true
@@ -182,6 +183,19 @@
           "correctness": {
             "noUnusedVariables": "off",
             "noUnusedFunctionParameters": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [".github/scripts/**/*.js"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useNamingConvention": "off"
+          },
+          "suspicious": {
+            "noAssignInExpressions": "off"
           }
         }
       }

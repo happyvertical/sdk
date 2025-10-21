@@ -63,13 +63,25 @@ The 8-stage workflow provides comprehensive tracking from initial issue creation
 
 ### Fresh
 
-The entry point for all work items. Fresh issues require initial triage to determine validity and priority:
-- **Validation**: Confirm issue is clear, actionable, and within project scope
-- **Duplicate Check**: Ensure no similar issues already exist
-- **Initial Classification**: Add appropriate type and priority labels
-- **Assignment**: Route to appropriate team member or keep unassigned for later triage
+The entry point for all work items. Fresh issues require initial triage to determine validity and priority.
 
-Issues should not remain in "Fresh" long - they move quickly to either Icebox, Backlog, or are closed.
+**Automated AI Triage** (since 2025-10-21):
+New issues are automatically triaged by AI using GitHub Models:
+- **AI Analysis**: Analyzes title and body to determine type, priority, and affected packages
+- **Auto-Labeling**: Applies type labels (type:bug, type:feature, etc.) automatically
+- **Duplicate Detection**: Searches for similar existing issues and flags potential duplicates
+- **Triage Comment**: Posts AI analysis with reasoning for transparency
+- **Urgent Routing**: Critical bugs and security issues are automatically moved to "To Do" status
+
+**Human Review**:
+After AI triage, maintainers should:
+- **Validation**: Confirm issue is clear, actionable, and within project scope
+- **Label Verification**: Verify AI-applied labels are accurate (adjust if needed)
+- **Duplicate Review**: Check flagged duplicates and close if confirmed
+- **Assignment**: Route to appropriate team member or keep unassigned for later triage
+- **Status Routing**: Move to Icebox (low priority), Backlog (prioritized), or close if invalid
+
+Issues should not remain in "Fresh" long - they move quickly to either Icebox, Backlog, or are closed. The AI triage accelerates this process by providing an initial analysis, but human judgment remains essential.
 
 ### Icebox
 
