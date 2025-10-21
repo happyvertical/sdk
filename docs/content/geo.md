@@ -79,13 +79,38 @@ const locations = await adapter.reverseGeocode(51.5007, -0.1246);
 console.log(locations[0]);
 ```
 
+### Using Environment Variables
+
+The package supports configuration via environment variables using the `HAVE_GEO_*` pattern:
+
+```bash
+# Set up environment variables
+export HAVE_GEO_PROVIDER=google
+export GOOGLE_MAPS_API_KEY=your-api-key-here
+export HAVE_GEO_TIMEOUT=15000
+export HAVE_GEO_MAX_RESULTS=5
+```
+
+```typescript
+import { getGeoAdapter } from '@have/geo';
+
+// Create adapter using environment variables
+const adapter = await getGeoAdapter();
+// Uses HAVE_GEO_PROVIDER=google and GOOGLE_MAPS_API_KEY from environment
+
+// Or override specific options while using env vars for others
+const customAdapter = await getGeoAdapter({
+  maxResults: 20  // Override env var HAVE_GEO_MAX_RESULTS
+});
+```
+
 ## API Reference
 
-### `getGeoAdapter(options)`
+### `getGeoAdapter(options?)`
 
 Factory function to create a geo adapter instance.
 
-**Options:**
+**Options:** (all optional when using environment variables)
 
 ```typescript
 // Google Maps
@@ -104,6 +129,40 @@ Factory function to create a geo adapter instance.
   timeout?: number;        // Request timeout (default: 10000ms)
   maxResults?: number;     // Max results to return (default: 10)
 }
+```
+
+### Environment Variables
+
+The package supports configuration via environment variables. User-provided options always take precedence over environment variables.
+
+| Environment Variable | Type | Description | Example |
+|---------------------|------|-------------|---------|
+| `HAVE_GEO_PROVIDER` | string | Provider to use ('google' or 'openstreetmap') | `google` |
+| `GOOGLE_MAPS_API_KEY` | string | Google Maps API key (for Google provider) | `AIza...` |
+| `HAVE_GEO_TIMEOUT` | number | Request timeout in milliseconds | `15000` |
+| `HAVE_GEO_MAX_RESULTS` | number | Maximum number of results to return | `5` |
+| `HAVE_GEO_RATE_LIMIT_DELAY` | number | Delay between requests for OpenStreetMap (ms) | `2000` |
+| `HAVE_GEO_USER_AGENT` | string | Custom User-Agent for OpenStreetMap | `MyApp/1.0` |
+
+**Example:**
+
+```bash
+# .env file
+HAVE_GEO_PROVIDER=google
+GOOGLE_MAPS_API_KEY=your-api-key
+HAVE_GEO_TIMEOUT=20000
+HAVE_GEO_MAX_RESULTS=10
+```
+
+```typescript
+// No options needed - uses environment variables
+const adapter = await getGeoAdapter();
+
+// Mix environment variables with explicit options
+// (explicit options take precedence)
+const customAdapter = await getGeoAdapter({
+  timeout: 30000  // Overrides HAVE_GEO_TIMEOUT
+});
 ```
 
 ### `IGeoAdapter` Interface

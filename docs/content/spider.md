@@ -177,7 +177,57 @@ interface FetchOptions {
   timeout?: number;                 // Request timeout in ms (default: 30000)
   cache?: boolean;                  // Enable caching (default: true)
   cacheExpiry?: number;             // Cache expiry in ms (default: 300000)
+  userAgent?: string;               // Custom user agent string
+  maxRequests?: number;             // Maximum number of requests allowed
 }
+```
+
+### Environment Variable Configuration
+
+The spider package supports configuration via environment variables using the `HAVE_SPIDER_*` pattern:
+
+```bash
+# Set timeout (milliseconds)
+export HAVE_SPIDER_TIMEOUT=60000
+
+# Set custom user agent
+export HAVE_SPIDER_USER_AGENT="MyBot/1.0 (+https://mysite.com/bot)"
+
+# Set maximum requests limit
+export HAVE_SPIDER_MAX_REQUESTS=100
+```
+
+**Environment variables are merged with user options**, with user-provided values taking precedence:
+
+```typescript
+import { getSpider } from '@have/spider';
+
+// Set environment variable
+process.env.HAVE_SPIDER_TIMEOUT = '45000';
+process.env.HAVE_SPIDER_USER_AGENT = 'EnvBot/1.0';
+
+const spider = await getSpider({ adapter: 'simple' });
+
+// Uses env var timeout (45000ms) and user agent
+await spider.fetch(url);
+
+// User options override env vars
+await spider.fetch(url, {
+  timeout: 30000, // This takes precedence over env var
+});
+```
+
+**Supported Environment Variables:**
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `HAVE_SPIDER_TIMEOUT` | number | 30000 | Request timeout in milliseconds |
+| `HAVE_SPIDER_USER_AGENT` | string | (see below) | Custom user agent string |
+| `HAVE_SPIDER_MAX_REQUESTS` | number | unlimited | Maximum number of requests |
+
+**Default User Agent** (when not set):
+```
+Mozilla/5.0 (compatible; HappyVertical Spider/2.0; +https://happyvertical.com/bot)
 ```
 
 ### Page Object

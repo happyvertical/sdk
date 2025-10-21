@@ -29,7 +29,37 @@ pnpm add @have/translator
 
 ## Quick Start
 
-### Google Translate
+### Using Environment Variables (Recommended)
+
+The translator package supports configuration via environment variables using the `HAVE_TRANSLATOR_*` pattern:
+
+```bash
+# Set the provider
+export HAVE_TRANSLATOR_PROVIDER=deepl
+
+# Provider-specific API keys
+export DEEPL_API_KEY=your_deepl_api_key_here
+
+# Optional: Additional configuration
+export HAVE_TRANSLATOR_TIMEOUT=60000
+export HAVE_TRANSLATOR_MAX_RETRIES=3
+```
+
+```typescript
+import { getTranslator } from '@have/translator';
+
+// No options needed - uses environment variables
+const translator = await getTranslator();
+
+const result = await translator.translate('Hello, world!', 'es');
+console.log(result.translatedText); // "¡Hola, mundo!"
+```
+
+### Using Explicit Options
+
+You can also pass configuration explicitly (which takes precedence over environment variables):
+
+#### Google Translate
 
 ```typescript
 import { getTranslator } from '@have/translator';
@@ -43,7 +73,7 @@ const result = await translator.translate('Hello, world!', 'es');
 console.log(result.translatedText); // "¡Hola, mundo!"
 ```
 
-### DeepL
+#### DeepL
 
 ```typescript
 const translator = await getTranslator({
@@ -56,7 +86,7 @@ const result = await translator.translate('Hello', 'fr', 'en');
 console.log(result.translatedText); // "Bonjour"
 ```
 
-### LibreTranslate
+#### LibreTranslate
 
 ```typescript
 const translator = await getTranslator({
@@ -65,6 +95,22 @@ const translator = await getTranslator({
 
 const result = await translator.translate('Hola', 'en');
 console.log(result.translatedText); // "Hello"
+```
+
+### Mixing Environment Variables and Options
+
+Environment variables and explicit options can be mixed. Explicit options always take precedence:
+
+```bash
+export HAVE_TRANSLATOR_PROVIDER=google
+export HAVE_TRANSLATOR_TIMEOUT=30000
+```
+
+```typescript
+// Provider from env, custom timeout from options
+const translator = await getTranslator({
+  timeout: 60000 // Overrides HAVE_TRANSLATOR_TIMEOUT
+});
 ```
 
 ## Template Function - The Key Feature
@@ -108,37 +154,70 @@ async function setupTranslations(userLang: string) {
 
 ## API Reference
 
-### `getTranslator(options)`
+### `getTranslator(options?)`
 
 Factory function to create a translator instance.
 
-**Options:**
+**Parameters:**
+- `options` (optional): Configuration object. If omitted, uses environment variables.
+
+**Environment Variables:**
+
+The following environment variables are supported:
+
+```bash
+# Core Configuration (HAVE_TRANSLATOR_* pattern)
+HAVE_TRANSLATOR_PROVIDER=google|deepl|libretranslate  # Required (or pass in options)
+HAVE_TRANSLATOR_TIMEOUT=30000                          # Optional: Request timeout in ms
+HAVE_TRANSLATOR_MAX_RETRIES=3                          # Optional: Max retry attempts
+
+# Provider-Specific API Keys (backward compatible)
+GOOGLE_TRANSLATE_API_KEY=your_google_api_key           # For Google Translate
+DEEPL_API_KEY=your_deepl_api_key                       # For DeepL
+
+# Provider-Specific Options (use explicit options instead)
+# These use the HAVE_TRANSLATOR_* prefix and snake_case → camelCase conversion
+HAVE_TRANSLATOR_API_URL=https://custom.libretranslate.com  # LibreTranslate custom instance
+HAVE_TRANSLATOR_FREE_API=true                               # DeepL free tier
+HAVE_TRANSLATOR_PROJECT_ID=my-gcp-project                   # Google Cloud project ID
+```
+
+**Options Object:**
 
 ```typescript
 // Google Translate
 {
   provider: 'google';
-  apiKey: string;
+  apiKey: string;            // Or set GOOGLE_TRANSLATE_API_KEY
   projectId?: string;
-  timeout?: number;
+  timeout?: number;          // Or set HAVE_TRANSLATOR_TIMEOUT
+  maxRetries?: number;       // Or set HAVE_TRANSLATOR_MAX_RETRIES
 }
 
 // DeepL
 {
   provider: 'deepl';
-  apiKey: string;
+  apiKey: string;            // Or set DEEPL_API_KEY
   freeApi?: boolean;
-  timeout?: number;
+  timeout?: number;          // Or set HAVE_TRANSLATOR_TIMEOUT
+  maxRetries?: number;       // Or set HAVE_TRANSLATOR_MAX_RETRIES
 }
 
 // LibreTranslate
 {
   provider: 'libretranslate';
-  apiUrl?: string;
+  apiUrl?: string;           // Or set HAVE_TRANSLATOR_API_URL
   apiKey?: string;
-  timeout?: number;
+  timeout?: number;          // Or set HAVE_TRANSLATOR_TIMEOUT
+  maxRetries?: number;       // Or set HAVE_TRANSLATOR_MAX_RETRIES
 }
 ```
+
+**Configuration Priority:**
+1. Explicit options (highest priority)
+2. Environment variables (HAVE_TRANSLATOR_*)
+3. Provider-specific env vars (GOOGLE_TRANSLATE_API_KEY, DEEPL_API_KEY)
+4. Default values (lowest priority)
 
 ### ITranslator Interface
 
