@@ -58,6 +58,7 @@
     { "path": "./packages/spider" },
 
     // Developer tools
-    { "path": "./packages/sdk-mcp" }
+    { "path": "./packages/sdk-mcp" },
+    { "path": "./packages/github-actions" }
   ]
 }
