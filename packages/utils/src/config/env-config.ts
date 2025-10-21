@@ -221,9 +221,10 @@ export function loadEnvConfig<T extends Record<string, any>>(
     }
 
     // Apply transform function if provided
-    if (transform[fieldName as keyof T]) {
+    const transformFn = (transform as Record<string, (value: string) => any>)[fieldName];
+    if (transformFn) {
       try {
-        config[fieldName] = transform[fieldName as keyof T]?.(envValue);
+        config[fieldName] = transformFn(envValue);
       } catch (error) {
         console.warn(
           `Failed to transform ${envVarName}="${envValue}":`,
@@ -234,7 +235,7 @@ export function loadEnvConfig<T extends Record<string, any>>(
     }
 
     // Apply schema type conversion if defined
-    const fieldType = schema[fieldName as keyof T];
+    const fieldType = (schema as Record<string, 'string' | 'number' | 'boolean' | 'json'>)[fieldName];
     if (fieldType) {
       try {
         config[fieldName] = convertType(envValue, fieldType);
