@@ -66,7 +66,7 @@ describe('BasicScraper', () => {
 
     // Verify raw data
     expect(result.raw).toBeDefined();
-  });
+  }, 15000); // Increased timeout to 15 seconds for CI environment
 
   it('should use DOM spider when specified', async () => {
     const scraper = await getScraper({
