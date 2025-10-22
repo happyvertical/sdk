@@ -16,9 +16,9 @@ import { buildWhere } from './shared/utils';
  */
 interface SmrtSchemaDefinition {
   ddl: string;
-  indexes: string[];
+  indexes?: string[];
   tableName: string;
-  fields: Map<string, any>;
+  fields?: Map<string, any>;
 }
 
 /**
@@ -32,7 +32,12 @@ interface SmrtSchemaDefinition {
  * @returns Promise resolving to a DuckDB connection
  */
 async function createJSONConnection(options: JSONOptions) {
-  const { dataDir, autoRegister = true, skipSmrtTables = false } = options;
+  const {
+    dataDir,
+    autoRegister = true,
+    skipSmrtTables = false,
+    schemas = {},
+  } = options;
 
   if (!dataDir) {
     throw new DatabaseError('dataDir is required for JSON adapter', {
@@ -58,7 +63,7 @@ async function createJSONConnection(options: JSONOptions) {
 
     // Load JSON files as in-memory tables
     if (autoRegister) {
-      await loadJSONTables(connection, dataDir, skipSmrtTables);
+      await loadJSONTables(connection, dataDir, skipSmrtTables, schemas);
     }
 
     return connection;
@@ -80,18 +85,21 @@ async function createJSONConnection(options: JSONOptions) {
  * Unlike the DuckDB adapter which creates views, this creates actual tables
  * so that indexes can be added.
  *
- * When a JSON file corresponds to a registered SMRT object, it will use the
- * SMRT schema definition to create properly-typed tables instead of relying
- * on DuckDB's auto-detection (which fails with empty strings/null values).
+ * Schema resolution priority:
+ * 1. Explicit schemas provided via options.schemas
+ * 2. SMRT ObjectRegistry lookup (if available)
+ * 3. DuckDB auto-detection (fallback)
  *
  * @param connection - DuckDB connection
  * @param dataDir - Directory containing JSON files
  * @param skipSmrtTables - If true, skip auto-registration for tables with SMRT schemas (default: false)
+ * @param providedSchemas - Explicit schema definitions provided by caller (optional)
  */
 async function loadJSONTables(
   connection: any,
   dataDir: string,
   skipSmrtTables = false,
+  providedSchemas: Record<string, import('./shared/types').SchemaProvider> = {},
 ) {
   try {
     const files = await readdir(dataDir);
@@ -103,23 +111,31 @@ async function loadJSONTables(
       const filePath = join(dataDir, file);
       const tableName = basename(file, '.json');
 
-      // Check if this table has a SMRT schema definition
-      const smrtSchema = await getSmrtSchemaForTable(tableName);
+      // Priority 1: Check for explicitly provided schema
+      const schema = providedSchemas[tableName];
 
-      if (smrtSchema && skipSmrtTables) {
-        // Skip SMRT tables - they will be created by SMRT framework
+      // Priority 2: Check if this table has a SMRT schema definition (if no schema provided)
+      let smrtSchema: SmrtSchemaDefinition | null = null;
+      if (!schema) {
+        smrtSchema = await getSmrtSchemaForTable(tableName);
+      }
+
+      // If schema is available (either provided or from SMRT) and skipSmrtTables is true, skip it
+      if ((schema || smrtSchema) && skipSmrtTables) {
+        // Skip tables with schemas - they will be created by framework
         console.log(
-          `[json-adapter] Skipping ${tableName} - will be created by SMRT framework`,
+          `[json-adapter] Skipping ${tableName} - will be created by framework`,
         );
         continue;
       }
 
-      if (smrtSchema) {
-        // Create table with SMRT-derived types
+      if (schema || smrtSchema) {
+        // Create table with provided schema or SMRT schema (proper typing)
+        const schemaToUse = smrtSchema || schema!;
         console.log(
-          `[json-adapter] Creating ${tableName} with SMRT schema definition`,
+          `[json-adapter] Creating ${tableName} with ${schema ? 'provided' : 'SMRT'} schema definition`,
         );
-        await createTableFromSmrtSchema(connection, tableName, smrtSchema);
+        await createTableFromSmrtSchema(connection, tableName, schemaToUse);
 
         // Load JSON data into properly-typed table
         // IMPORTANT: Don't use read_json() with auto_detect because DuckDB will
@@ -150,9 +166,12 @@ async function loadJSONTables(
   } catch (error) {
     // If directory doesn't exist or is empty, that's okay
     if ((error as any).code !== 'ENOENT') {
+      // Log the error for debugging
+      console.error('[json-adapter] Error loading JSON tables:', error);
       throw new DatabaseError(`Failed to load JSON tables from ${dataDir}`, {
         dataDir,
         originalError: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
       });
     }
   }
@@ -235,9 +254,10 @@ async function createTableFromSmrtSchema(
 ): Promise<void> {
   // Extract CREATE TABLE statement (without triggers which aren't supported)
   const ddlLines = schema.ddl.split('\n');
-  const createTableEnd = ddlLines.findIndex((line) =>
-    line.trim().startsWith(');'),
-  );
+  const createTableEnd = ddlLines.findIndex((line) => {
+    const trimmed = line.trim();
+    return trimmed === ')' || trimmed.startsWith(');');
+  });
 
   if (createTableEnd === -1) {
     throw new DatabaseError(
@@ -269,31 +289,38 @@ async function createTableFromSmrtSchema(
   try {
     await connection.run(createTableSQL);
 
-    // Verify schema was created correctly
-    const schemaInfo = await connection.runAndReadAll(
-      `PRAGMA table_info(${tableName})`,
-    );
-    const columns = schemaInfo.getRowObjects();
+    // Verify schema was created correctly (DuckDB uses DESCRIBE instead of PRAGMA)
+    try {
+      const schemaInfo = await connection.runAndReadAll(
+        `DESCRIBE ${tableName}`,
+      );
+      const columns = schemaInfo.getRowObjects();
 
-    console.log(`[json-adapter] Created ${tableName} with schema:`, {
-      columns: columns.map((col: any) => ({
-        name: col.name,
-        type: col.type,
-        default: col.dflt_value,
-        notNull: col.notnull,
-        pk: col.pk,
-      })),
-    });
+      console.log(`[json-adapter] Created ${tableName} with schema:`, {
+        columns: columns.map((col: any) => ({
+          name: col.column_name,
+          type: col.column_type,
+          null: col.null,
+        })),
+      });
+    } catch (error) {
+      // Schema verification failed, but table was created - log warning and continue
+      console.warn(
+        `[json-adapter] Could not verify schema for ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
 
     // Create indexes if defined
-    for (const indexSQL of schema.indexes) {
-      try {
-        await connection.run(indexSQL);
-      } catch (error) {
-        // Index creation might fail if column doesn't exist or syntax incompatibility
-        console.warn(
-          `[json-adapter] Failed to create index: ${error instanceof Error ? error.message : String(error)}`,
-        );
+    if (schema.indexes) {
+      for (const indexSQL of schema.indexes) {
+        try {
+          await connection.run(indexSQL);
+        } catch (error) {
+          // Index creation might fail if column doesn't exist or syntax incompatibility
+          console.warn(
+            `[json-adapter] Failed to create index: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
       }
     }
   } catch (error) {
