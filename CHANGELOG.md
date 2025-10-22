@@ -1,3 +1,11 @@
+# [0.47.0](https://github.com/happyvertical/sdk/compare/v0.46.0...v0.47.0) (2025-10-22)
+
+
+### Features
+
+* **ci:** add issue templates with SOP checklists ([202bbfe](https://github.com/happyvertical/sdk/commit/202bbfe5b2823e78aaef0f65b6ada226d7cdf6ce)), closes [#299](https://github.com/happyvertical/sdk/issues/299)
+* **sql:** add SchemaProvider pattern to eliminate circular dependency ([68ab4a9](https://github.com/happyvertical/sdk/commit/68ab4a9d59547fcaf1532853107b464076199f86)), closes [#298](https://github.com/happyvertical/sdk/issues/298)
+
 # [0.46.0](https://github.com/happyvertical/sdk/compare/v0.45.4...v0.46.0) (2025-10-21)
 
 
