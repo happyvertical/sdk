@@ -53,6 +53,83 @@ export interface PostgresOptions {
    * Port number for the PostgreSQL server
    */
   port?: number;
+
+  /**
+   * Explicit schema definitions for tables
+   * When provided, these schemas will be used for table creation
+   */
+  schemas?: Record<string, import('./shared/types').SchemaProvider>;
+}
+
+/**
+ * Creates tables from provided schema definitions
+ *
+ * @param pool - PostgreSQL connection pool
+ * @param schemas - Schema definitions to create
+ */
+async function createTablesFromSchemas(
+  pool: Pool,
+  schemas: Record<string, import('./shared/types').SchemaProvider>,
+): Promise<void> {
+  for (const [tableName, schema] of Object.entries(schemas)) {
+    try {
+      // Check if table already exists
+      const result = await pool.query(
+        `SELECT EXISTS (
+          SELECT FROM pg_tables
+          WHERE tablename = $1
+        )`,
+        [tableName],
+      );
+
+      if (result.rows[0].exists) {
+        console.log(`[postgres] Table ${tableName} already exists, skipping`);
+        continue;
+      }
+
+      console.log(
+        `[postgres] Creating table ${tableName} from provided schema`,
+      );
+
+      // Create table from DDL
+      await pool.query(schema.ddl);
+
+      // Create indexes
+      if (schema.indexes && schema.indexes.length > 0) {
+        for (const indexSQL of schema.indexes) {
+          try {
+            await pool.query(indexSQL);
+          } catch (error) {
+            console.warn(
+              `[postgres] Failed to create index for ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
+        }
+      }
+
+      // Create triggers (if supported)
+      if (schema.triggers && schema.triggers.length > 0) {
+        for (const triggerSQL of schema.triggers) {
+          try {
+            await pool.query(triggerSQL);
+          } catch (error) {
+            console.warn(
+              `[postgres] Failed to create trigger for ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
+        }
+      }
+    } catch (error) {
+      throw new DatabaseError(
+        `Failed to create table ${tableName} from schema`,
+        {
+          tableName,
+          schema,
+          originalError: error instanceof Error ? error.message : String(error),
+        },
+      );
+    }
+  }
 }
 
 /**
@@ -74,7 +151,9 @@ export interface PostgresOptions {
  * @param options - PostgreSQL connection options
  * @returns Database interface for PostgreSQL
  */
-export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
+export async function getDatabase(
+  options: PostgresOptions = {},
+): Promise<DatabaseInterface> {
   // Load HAVE_SQL_* environment variables first
   const config = loadEnvConfig(options, {
     packageName: 'sql',
@@ -136,6 +215,11 @@ export function getDatabase(options: PostgresOptions = {}): DatabaseInterface {
           database,
         },
   );
+
+  // Initialize tables from provided schemas
+  if (options.schemas && Object.keys(options.schemas).length > 0) {
+    await createTablesFromSchemas(client, options.schemas);
+  }
 
   /**
    * Inserts one or more records into a table

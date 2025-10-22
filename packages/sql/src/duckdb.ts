@@ -23,6 +23,72 @@ import type {
 import { buildWhere } from './shared/utils';
 
 /**
+ * Creates tables from provided schema definitions
+ *
+ * @param connection - DuckDB connection
+ * @param schemas - Schema definitions to create
+ */
+async function createTablesFromSchemas(
+  connection: any,
+  schemas: Record<string, import('./shared/types').SchemaProvider>,
+): Promise<void> {
+  for (const [tableName, schema] of Object.entries(schemas)) {
+    try {
+      // Check if table already exists
+      const result = await connection.runAndReadAll(
+        `SELECT name FROM sqlite_master WHERE type='table' AND name='${tableName}'`,
+      );
+      const rows = result.getRowObjects();
+
+      if (rows.length > 0) {
+        console.log(`[duckdb] Table ${tableName} already exists, skipping`);
+        continue;
+      }
+
+      console.log(`[duckdb] Creating table ${tableName} from provided schema`);
+
+      // Create table from DDL
+      await connection.run(schema.ddl);
+
+      // Create indexes
+      if (schema.indexes && schema.indexes.length > 0) {
+        for (const indexSQL of schema.indexes) {
+          try {
+            await connection.run(indexSQL);
+          } catch (error) {
+            console.warn(
+              `[duckdb] Failed to create index for ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
+        }
+      }
+
+      // Create triggers (if supported)
+      if (schema.triggers && schema.triggers.length > 0) {
+        for (const triggerSQL of schema.triggers) {
+          try {
+            await connection.run(triggerSQL);
+          } catch (error) {
+            console.warn(
+              `[duckdb] Failed to create trigger for ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
+        }
+      }
+    } catch (error) {
+      throw new DatabaseError(
+        `Failed to create table ${tableName} from schema`,
+        {
+          tableName,
+          schema,
+          originalError: error instanceof Error ? error.message : String(error),
+        },
+      );
+    }
+  }
+}
+
+/**
  * Creates a DuckDB connection instance
  *
  * @param options - DuckDB connection options
@@ -33,6 +99,7 @@ async function createDuckDBConnection(options: DuckDBOptions) {
     url = ':memory:',
     dataDir = './data',
     autoRegisterJSON = true,
+    schemas = {},
   } = options;
 
   try {
@@ -43,6 +110,11 @@ async function createDuckDBConnection(options: DuckDBOptions) {
     // Create DuckDB instance
     const instance = await DuckDBInstance.create(url);
     const connection = await instance.connect();
+
+    // Create tables from provided schemas first
+    if (schemas && Object.keys(schemas).length > 0) {
+      await createTablesFromSchemas(connection, schemas);
+    }
 
     // Auto-register JSON files if enabled
     if (autoRegisterJSON && dataDir) {

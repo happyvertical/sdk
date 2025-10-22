@@ -63,7 +63,7 @@ export async function getDatabase(
   // This ensures options object is mutated (needed for dbid propagation)
   Object.assign(
     options,
-    loadEnvConfig(options, {
+    loadEnvConfig(options as any, {
       packageName: 'sql',
       schema: {
         type: 'string',
@@ -74,7 +74,7 @@ export async function getDatabase(
         user: 'string',
         password: 'string',
       },
-    }),
+    }) as Partial<GetDatabaseOptions>,
   );
 
   // if no type but url starts with file:, set to sqlite

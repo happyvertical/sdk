@@ -49,6 +49,12 @@ export interface DuckDBOptions extends DatabaseOptions {
    * @default false
    */
   persistent?: boolean;
+
+  /**
+   * Explicit schema definitions for tables
+   * When provided, these schemas will be used for table creation
+   */
+  schemas?: Record<string, SchemaProvider>;
 }
 
 /**
@@ -91,6 +97,30 @@ export interface JSONOptions {
    * @default false
    */
   skipSmrtTables?: boolean;
+
+  /**
+   * Explicit schema definitions for tables
+   *
+   * When provided, these schemas will be used instead of auto-detection
+   * or SMRT registry lookup. This allows frameworks like SMRT to provide
+   * explicit schemas without creating circular dependencies.
+   *
+   * @example
+   * ```typescript
+   * const db = await getDatabase({
+   *   type: 'json',
+   *   dataDir: './data',
+   *   schemas: {
+   *     users: {
+   *       tableName: 'users',
+   *       ddl: 'CREATE TABLE users (id TEXT PRIMARY KEY, name TEXT)',
+   *       indexes: ['CREATE INDEX idx_users_name ON users(name)']
+   *     }
+   *   }
+   * });
+   * ```
+   */
+  schemas?: Record<string, SchemaProvider>;
 }
 
 /**
@@ -106,6 +136,51 @@ export interface QueryResult {
    * Number of rows affected by the operation
    */
   affected: number;
+}
+
+/**
+ * Schema definition that can be provided to database adapters
+ *
+ * Allows frameworks like SMRT to provide explicit schemas instead of
+ * relying on auto-detection or circular dependencies.
+ *
+ * This is a simpler, DDL-based alternative to SchemaDefinition which is
+ * used for structured JSON manifests.
+ */
+export interface SchemaProvider {
+  /**
+   * Table name in snake_case plural form
+   */
+  tableName: string;
+
+  /**
+   * DDL statement(s) to create the table
+   * Can be a single CREATE TABLE statement or multiple statements
+   */
+  ddl: string;
+
+  /**
+   * Index creation statements (optional)
+   * Each string should be a complete CREATE INDEX statement
+   */
+  indexes?: string[];
+
+  /**
+   * Trigger creation statements (optional, adapter-specific support)
+   * Each string should be a complete CREATE TRIGGER statement
+   */
+  triggers?: string[];
+
+  /**
+   * Schema version for migration tracking (optional)
+   */
+  version?: string;
+
+  /**
+   * Field metadata (optional, for advanced use cases)
+   * Used by some frameworks like SMRT for runtime type information
+   */
+  fields?: Map<string, any>;
 }
 
 /**

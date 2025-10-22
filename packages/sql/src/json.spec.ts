@@ -653,4 +653,204 @@ describe('JSON adapter tests', () => {
       expect(newRecord).toMatchObject(data3);
     });
   });
+
+  describe('SchemaProvider support', () => {
+    it('should create tables from provided schemas', async () => {
+      // Clean up existing db
+      if (db) {
+        rmSync(testDataDir, { recursive: true, force: true });
+      }
+
+      // Create new empty data directory
+      mkdirSync(testDataDir, { recursive: true });
+
+      // Create JSON file with data
+      writeFileSync(
+        `${testDataDir}/custom_table.json`,
+        JSON.stringify([
+          {
+            id: 'item-1',
+            name: 'Test Item',
+            value: 100,
+          },
+        ]),
+      );
+
+      // Define schema via SchemaProvider
+      const schemas = {
+        custom_table: {
+          tableName: 'custom_table',
+          ddl: `CREATE TABLE custom_table (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            value INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT NULL
+          )`,
+          indexes: ['CREATE INDEX idx_custom_name ON custom_table(name)'],
+        },
+      };
+
+      // Initialize database with provided schema
+      db = await getDatabase({
+        type: 'json',
+        dataDir: testDataDir,
+        writeStrategy: 'immediate',
+        schemas,
+      });
+
+      // Verify table was created with correct schema
+      const result = await db.many`SELECT * FROM custom_table`;
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        id: 'item-1',
+        name: 'Test Item',
+        value: 100,
+      });
+
+      // Verify insert works with schema
+      await db.insert('custom_table', {
+        id: 'item-2',
+        name: 'New Item',
+        value: 200,
+        created_at: new Date().toISOString(),
+      });
+
+      const allItems = await db.many`SELECT * FROM custom_table ORDER BY id`;
+      expect(allItems).toHaveLength(2);
+    });
+
+    it('should handle schemas without indexes', async () => {
+      // Clean up
+      if (db) {
+        rmSync(testDataDir, { recursive: true, force: true });
+      }
+
+      mkdirSync(testDataDir, { recursive: true });
+      writeFileSync(
+        `${testDataDir}/simple.json`,
+        JSON.stringify([{ id: '1', data: 'test' }]),
+      );
+
+      // Schema without indexes
+      const schemas = {
+        simple: {
+          tableName: 'simple',
+          ddl: `CREATE TABLE simple (
+            id TEXT PRIMARY KEY,
+            data TEXT
+          )`,
+          // No indexes defined
+        },
+      };
+
+      db = await getDatabase({
+        type: 'json',
+        dataDir: testDataDir,
+        schemas,
+      });
+
+      const result = await db.many`SELECT * FROM simple`;
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({ id: '1', data: 'test' });
+    });
+
+    it('should handle schemas with empty strings correctly', async () => {
+      // This test verifies the fix for Issue #228
+      if (db) {
+        rmSync(testDataDir, { recursive: true, force: true });
+      }
+
+      mkdirSync(testDataDir, { recursive: true });
+      writeFileSync(
+        `${testDataDir}/typed_table.json`,
+        JSON.stringify([
+          {
+            id: 'test-1',
+            name: 'Test',
+            url: '', // Empty string
+            description: '', // Empty string
+          },
+        ]),
+      );
+
+      // Provide explicit schema to ensure TEXT types (not ANY)
+      const schemas = {
+        typed_table: {
+          tableName: 'typed_table',
+          ddl: `CREATE TABLE typed_table (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            url TEXT DEFAULT CAST('' AS TEXT),
+            description TEXT DEFAULT CAST('' AS TEXT)
+          )`,
+        },
+      };
+
+      db = await getDatabase({
+        type: 'json',
+        dataDir: testDataDir,
+        schemas,
+      });
+
+      // Verify UPSERT works with empty strings
+      await db.upsert('typed_table', ['id'], {
+        id: 'test-1',
+        name: 'Updated Name',
+        url: 'https://example.com',
+        description: 'Updated description',
+      });
+
+      const result =
+        await db.single`SELECT * FROM typed_table WHERE id = 'test-1'`;
+      expect(result).toMatchObject({
+        id: 'test-1',
+        name: 'Updated Name',
+        url: 'https://example.com',
+        description: 'Updated description',
+      });
+    });
+
+    it('should allow manual table creation when autoRegister is false', async () => {
+      if (db) {
+        rmSync(testDataDir, { recursive: true, force: true });
+      }
+
+      mkdirSync(testDataDir, { recursive: true });
+      writeFileSync(
+        `${testDataDir}/manual.json`,
+        JSON.stringify([{ id: '1', value: 'test' }]),
+      );
+
+      // Create database without auto-registration
+      db = await getDatabase({
+        type: 'json',
+        dataDir: testDataDir,
+        autoRegister: false, // Don't load JSON files automatically
+      });
+
+      // Manually create table with schema
+      await db.execute`
+        CREATE TABLE manual (
+          id TEXT PRIMARY KEY,
+          value TEXT NOT NULL,
+          extra TEXT
+        )
+      `;
+
+      // Manually load JSON data
+      const jsonData = JSON.parse(
+        await import('node:fs/promises').then((fs) =>
+          fs.readFile(`${testDataDir}/manual.json`, 'utf-8'),
+        ),
+      );
+
+      for (const record of jsonData) {
+        await db.insert('manual', record);
+      }
+
+      const result = await db.many`SELECT * FROM manual`;
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({ id: '1', value: 'test' });
+    });
+  });
 });

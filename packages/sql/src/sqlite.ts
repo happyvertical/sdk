@@ -121,6 +121,78 @@ export interface SqliteOptions {
    * Auto-generated for :memory: databases if not provided.
    */
   dbid?: string;
+
+  /**
+   * Explicit schema definitions for tables
+   * When provided, these schemas will be used for table creation
+   */
+  schemas?: Record<string, import('./shared/types').SchemaProvider>;
+}
+
+/**
+ * Creates tables from provided schema definitions
+ *
+ * @param client - LibSQL client
+ * @param schemas - Schema definitions to create
+ */
+async function createTablesFromSchemas(
+  client: any,
+  schemas: Record<string, import('./shared/types').SchemaProvider>,
+): Promise<void> {
+  for (const [tableName, schema] of Object.entries(schemas)) {
+    try {
+      // Check if table already exists
+      const result = await client.execute({
+        sql: `SELECT name FROM sqlite_master WHERE type='table' AND name=?`,
+        args: [tableName],
+      });
+
+      if (result.rows.length > 0) {
+        console.log(`[sqlite] Table ${tableName} already exists, skipping`);
+        continue;
+      }
+
+      console.log(`[sqlite] Creating table ${tableName} from provided schema`);
+
+      // Create table from DDL
+      await client.execute(schema.ddl);
+
+      // Create indexes
+      if (schema.indexes && schema.indexes.length > 0) {
+        for (const indexSQL of schema.indexes) {
+          try {
+            await client.execute(indexSQL);
+          } catch (error) {
+            console.warn(
+              `[sqlite] Failed to create index for ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
+        }
+      }
+
+      // Create triggers (if supported)
+      if (schema.triggers && schema.triggers.length > 0) {
+        for (const triggerSQL of schema.triggers) {
+          try {
+            await client.execute(triggerSQL);
+          } catch (error) {
+            console.warn(
+              `[sqlite] Failed to create trigger for ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
+        }
+      }
+    } catch (error) {
+      throw new DatabaseError(
+        `Failed to create table ${tableName} from schema`,
+        {
+          tableName,
+          schema,
+          originalError: error instanceof Error ? error.message : String(error),
+        },
+      );
+    }
+  }
 }
 
 /**
@@ -157,6 +229,11 @@ export async function getDatabase(
   // Create a new connection promise
   const connectionPromise = (async () => {
     const client = await createLibSQLClient(options);
+
+    // Initialize tables from provided schemas
+    if (options.schemas && Object.keys(options.schemas).length > 0) {
+      await createTablesFromSchemas(client, options.schemas);
+    }
 
     /**
      * Serializes a value for SQLite storage
