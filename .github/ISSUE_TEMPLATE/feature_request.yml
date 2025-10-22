@@ -1,0 +1,132 @@
+name: Feature Request
+description: Propose a new feature or enhancement
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Feature Request
+
+        Thank you for suggesting a new feature! Please provide details below.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Clear description of the feature or enhancement
+      placeholder: What would you like to add or improve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: Why is this feature needed? What problem does it solve?
+      placeholder: Describe the use case or problem this feature addresses
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: How should this feature work?
+      placeholder: Describe your ideal implementation
+    validations:
+      required: false
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: What other approaches have you considered?
+      placeholder: Describe alternative solutions you've thought about
+    validations:
+      required: false
+
+  - type: dropdown
+    id: affected-packages
+    attributes:
+      label: Affected Packages
+      description: Which packages does this feature affect?
+      multiple: true
+      options:
+        - "@happyvertical/ai"
+        - "@happyvertical/cache"
+        - "@happyvertical/documents"
+        - "@happyvertical/files"
+        - "@happyvertical/geo"
+        - "@happyvertical/logger"
+        - "@happyvertical/ocr"
+        - "@happyvertical/pdf"
+        - "@happyvertical/spider"
+        - "@happyvertical/sql"
+        - "@happyvertical/translator"
+        - "@happyvertical/utils"
+        - "Infrastructure/Tooling"
+        - "Documentation"
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: breaking-changes
+    attributes:
+      label: Breaking Changes
+      description: Will this feature require breaking changes?
+      options:
+        - label: This feature requires breaking changes
+        - label: This feature can be implemented without breaking changes
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+        ## 📋 SOP Checklist (for implementer)
+
+        This checklist ensures proper workflow adherence per [CLAUDE.md SOPs](../../CLAUDE.md).
+
+  - type: checkboxes
+    id: sop-start-work
+    attributes:
+      label: "SOP: Start Work on Issue"
+      description: Complete before beginning implementation
+      options:
+        - label: "✅ Git state verified (clean working tree)"
+        - label: "✅ Main branch synced (git pull origin main)"
+        - label: "✅ Feature branch created (type/issue-XXX-description)"
+        - label: "✅ Project board updated (moved to 'In Progress')"
+        - label: "✅ Planning questions answered (via AskUserQuestion wizard)"
+        - label: "✅ Planning notes posted (comment on this issue)"
+        - label: "✅ Test strategy defined (per TESTING_STANDARD.md)"
+        - label: "✅ Task list created (if complex, via TodoWrite)"
+
+  - type: checkboxes
+    id: sop-create-pr
+    attributes:
+      label: "SOP: Create Pull Request"
+      description: Complete before creating PR
+      options:
+        - label: "✅ Quality checks passed (lint, format, typecheck)"
+        - label: "✅ All tests passing (npm test)"
+        - label: "✅ Code reviewer agent run (via .claude/agents/code-reviewer.md)"
+        - label: "✅ Auto-fixes applied (if any from code review)"
+        - label: "✅ Commits squashed (single conventional commit)"
+        - label: "✅ PR created with comprehensive body"
+        - label: "✅ Project board updated (moved to 'Review & Testing')"
+        - label: "✅ Returned to main branch"
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+
+        **Note**: The SOP checklists above are guidelines for the implementer. They help ensure:
+        - Proper git workflow
+        - Thorough planning and testing
+        - Code quality standards
+        - Project tracking accuracy
+
+        These can be checked off as work progresses.
