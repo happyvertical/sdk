@@ -432,6 +432,22 @@ export async function getDatabase(
     ): Promise<QueryResult> => {
       // Serialize the data before upserting
       const serializedData = serializeRecord(data);
+
+      // Validate that all conflict columns are present in the data
+      const missingColumns = conflictColumns.filter(
+        (col) => !(col in serializedData),
+      );
+
+      if (missingColumns.length > 0) {
+        throw new DatabaseError('Conflict columns missing from data', {
+          table,
+          conflictColumns,
+          missingColumns,
+          availableColumns: Object.keys(serializedData),
+          hint: 'All columns specified in ON CONFLICT must be present in the data being inserted. Undefined values are filtered out during serialization - consider using null or an empty string instead.',
+        });
+      }
+
       const keys = Object.keys(serializedData);
       const values = Object.values(serializedData);
       const placeholders = keys.map(() => '?').join(', ');

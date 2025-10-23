@@ -251,6 +251,87 @@ describe('sqlite tests', () => {
       expect(result2.operation).toBe('upsert');
       expect(result2.affected).toBeGreaterThanOrEqual(1);
     });
+
+    it('should handle upsert with composite unique constraint when using empty string', async () => {
+      // Create table with composite unique constraint like SMRT objects
+      await db.execute`
+        CREATE TABLE event_types (
+          id TEXT PRIMARY KEY,
+          slug TEXT NOT NULL,
+          context TEXT NOT NULL DEFAULT '',
+          name TEXT,
+          UNIQUE(slug, context)
+        )
+      `;
+
+      // SMRT objects should use empty string ('') instead of undefined for context
+      const id = randomUUID();
+      const data1 = {
+        id,
+        slug: 'council-meeting',
+        context: '', // Empty string is the correct default for SMRT objects
+        name: 'Council Meeting',
+      };
+
+      const result1 = await db.upsert(
+        'event_types',
+        ['slug', 'context'],
+        data1,
+      );
+      expect(result1.operation).toBe('upsert');
+
+      // Second upsert with same slug and context - should update
+      const data2 = {
+        id, // Same ID
+        slug: 'council-meeting',
+        context: '', // Same empty string
+        name: 'Updated Council Meeting',
+      };
+
+      const result2 = await db.upsert(
+        'event_types',
+        ['slug', 'context'],
+        data2,
+      );
+      expect(result2.operation).toBe('upsert');
+
+      // Verify only one record exists and was updated
+      const allRecords = await db.many`SELECT * FROM event_types`;
+      expect(allRecords).toHaveLength(1);
+      expect(allRecords[0].id).toBe(id);
+      expect(allRecords[0].name).toBe('Updated Council Meeting');
+      expect(allRecords[0].context).toBe('');
+
+      await db.execute`DROP TABLE event_types`;
+    });
+
+    it('should fail with clear error when conflict columns are missing from data (Issue #301 fix)', async () => {
+      // Create table
+      await db.execute`
+        CREATE TABLE test_table (
+          id TEXT PRIMARY KEY,
+          slug TEXT NOT NULL,
+          context TEXT NOT NULL DEFAULT '',
+          name TEXT,
+          UNIQUE(slug, context)
+        )
+      `;
+
+      // All conflict columns are undefined and get filtered out
+      const data = {
+        id: randomUUID(),
+        slug: undefined, // Filtered out by serializeRecord!
+        context: undefined, // Filtered out by serializeRecord!
+        name: 'Test Name',
+      };
+
+      // Should throw clear error about missing conflict columns
+      await expect(async () => {
+        await db.upsert('test_table', ['slug', 'context'], data);
+      }).rejects.toThrowError(/Conflict columns missing from data/);
+
+      await db.execute`DROP TABLE test_table`;
+    });
   });
 
   describe('ALTER TABLE functionality', () => {
