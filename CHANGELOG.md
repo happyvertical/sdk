@@ -1,3 +1,10 @@
+## [0.47.2](https://github.com/happyvertical/sdk/compare/v0.47.1...v0.47.2) (2025-10-23)
+
+
+### Bug Fixes
+
+* **sql:** preserve UUID strings in DuckDB JSON export/import cycle ([cf011b3](https://github.com/happyvertical/sdk/commit/cf011b31635b44d6549607387d746a8cbd0e95d8)), closes [#306](https://github.com/happyvertical/sdk/issues/306)
+
 ## [0.47.1](https://github.com/happyvertical/sdk/compare/v0.47.0...v0.47.1) (2025-10-23)
 
 
