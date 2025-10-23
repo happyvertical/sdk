@@ -439,6 +439,91 @@ export async function getDatabase(
   };
 
   /**
+   * Deletes records from a table matching the where criteria
+   *
+   * @param table - Table name
+   * @param where - Criteria to match records for deletion
+   * @returns Promise resolving to operation result with count of deleted rows
+   * @throws Error if the delete operation fails
+   */
+  const deleteRecords = async (
+    table: string,
+    where: Record<string, any>,
+  ): Promise<QueryResult> => {
+    validateTableName(table);
+
+    const keys = Object.keys(where);
+    if (keys.length === 0) {
+      throw new DatabaseError(
+        'DELETE requires at least one WHERE condition to prevent accidental deletion of all records',
+        { table },
+      );
+    }
+
+    const { sql: whereClause, values } = buildWhere(where, 1);
+    const sql = `DELETE FROM ${table} ${whereClause}`;
+
+    try {
+      await connection.run(sql, values);
+
+      // Handle write-back strategy
+      if (writeStrategy === 'immediate') {
+        await exportTableToJSON(connection, table, dataDir);
+      }
+
+      return { operation: 'delete', affected: 1 };
+    } catch (e) {
+      throw new DatabaseError('Failed to delete records from table', {
+        table,
+        sql,
+        values,
+        originalError: e instanceof Error ? e.message : String(e),
+      });
+    }
+  };
+
+  /**
+   * Counts records in a table matching the where criteria
+   *
+   * @param table - Table name
+   * @param where - Criteria to match records (optional, counts all if omitted)
+   * @returns Promise resolving to count of matching records
+   * @throws Error if the count operation fails
+   */
+  const count = async (
+    table: string,
+    where?: Record<string, any>,
+  ): Promise<number> => {
+    validateTableName(table);
+
+    try {
+      if (!where || Object.keys(where).length === 0) {
+        // Count all records
+        const result = await connection.runAndReadAll(
+          `SELECT COUNT(*) as count FROM ${table}`,
+        );
+        const rows = result.getRowObjects();
+        return Number(rows[0]?.count) || 0;
+      }
+
+      // Count with conditions
+      const { sql: whereClause, values } = buildWhere(where, 1);
+      const sql = `SELECT COUNT(*) as count FROM ${table} ${whereClause}`;
+
+      const result = await connection.runAndReadAll(sql, values);
+      const rows = result.getRowObjects();
+
+      return Number(rows[0]?.count) || 0;
+    } catch (e) {
+      throw new DatabaseError('Failed to count records in table', {
+        table,
+        where,
+        originalError: e instanceof Error ? e.message : String(e),
+      });
+    }
+  };
+
+  /**
    * Checks if a table exists in the database
    *
    * @param tableName - Name of the table to check
@@ -714,6 +799,8 @@ export async function getDatabase(
       get,
       list,
       getOrInsert,
+      delete: deleteRecords,
+      count,
       table,
       tableExists,
       many,
@@ -960,6 +1047,8 @@ export async function getDatabase(
         update,
         upsert,
         getOrInsert,
+        delete: deleteRecords,
+        count,
         table,
         many,
         single,
@@ -994,6 +1083,8 @@ export async function getDatabase(
     get,
     list,
     getOrInsert,
+    delete: deleteRecords,
+    count,
     table,
     tableExists,
     many,

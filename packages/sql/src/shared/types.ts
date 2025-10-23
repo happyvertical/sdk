@@ -416,6 +416,54 @@ export interface DatabaseInterface {
   ) => Promise<Record<string, any>>;
 
   /**
+   * Deletes records from a table matching the where criteria
+   *
+   * @param table - Table name
+   * @param where - Criteria to match records for deletion
+   * @returns Promise resolving to operation result with count of deleted rows
+   *
+   * @example
+   * ```typescript
+   * // Delete by ID
+   * await db.delete('products', { id: 'prod-123' });
+   *
+   * // Delete by criteria
+   * await db.delete('orders', { status: 'cancelled' });
+   *
+   * // Delete with multiple conditions
+   * await db.delete('sessions', {
+   *   user_id: 'user-123',
+   *   expired: true
+   * });
+   * ```
+   */
+  delete: (table: string, where: Record<string, any>) => Promise<QueryResult>;
+
+  /**
+   * Counts records in a table matching the where criteria
+   *
+   * @param table - Table name
+   * @param where - Criteria to match records (optional, counts all if omitted)
+   * @returns Promise resolving to count of matching records
+   *
+   * @example
+   * ```typescript
+   * // Count all records
+   * const total = await db.count('products');
+   *
+   * // Count with single condition
+   * const activeCount = await db.count('products', { active: true });
+   *
+   * // Count with multiple conditions
+   * const filteredCount = await db.count('orders', {
+   *   status: 'pending',
+   *   priority: 'high'
+   * });
+   * ```
+   */
+  count: (table: string, where?: Record<string, any>) => Promise<number>;
+
+  /**
    * Creates a table-specific interface for simplified table operations
    *
    * @param table - Table name
