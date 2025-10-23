@@ -5,6 +5,7 @@
 
 import { loadEnvConfig, ValidationError } from '@happyvertical/utils';
 
+import type { AIClientOptions } from './client';
 import type {
   AIInterface,
   AnthropicOptions,
@@ -25,7 +26,9 @@ import type {
  * @param options - The AI provider options to check
  * @returns True if options are for OpenAI provider (including default case)
  */
-function isOpenAIOptions(options: GetAIOptions): options is OpenAIOptions {
+function isOpenAIOptions(
+  options: GetAIOptions | AIClientOptions,
+): options is OpenAIOptions {
   return !options.type || options.type === 'openai';
 }
 
@@ -34,7 +37,9 @@ function isOpenAIOptions(options: GetAIOptions): options is OpenAIOptions {
  * @param options - The AI provider options to check
  * @returns True if options are for Gemini provider
  */
-function isGeminiOptions(options: GetAIOptions): options is GeminiOptions {
+function isGeminiOptions(
+  options: GetAIOptions | AIClientOptions,
+): options is GeminiOptions {
   return options.type === 'gemini';
 }
 
@@ -44,7 +49,7 @@ function isGeminiOptions(options: GetAIOptions): options is GeminiOptions {
  * @returns True if options are for Anthropic provider
  */
 function isAnthropicOptions(
-  options: GetAIOptions,
+  options: GetAIOptions | AIClientOptions,
 ): options is AnthropicOptions {
   return options.type === 'anthropic';
 }
@@ -55,7 +60,7 @@ function isAnthropicOptions(
  * @returns True if options are for Hugging Face provider
  */
 function isHuggingFaceOptions(
-  options: GetAIOptions,
+  options: GetAIOptions | AIClientOptions,
 ): options is HuggingFaceOptions {
   return options.type === 'huggingface';
 }
@@ -65,7 +70,9 @@ function isHuggingFaceOptions(
  * @param options - The AI provider options to check
  * @returns True if options are for Bedrock provider
  */
-function isBedrockOptions(options: GetAIOptions): options is BedrockOptions {
+function isBedrockOptions(
+  options: GetAIOptions | AIClientOptions,
+): options is BedrockOptions {
   return options.type === 'bedrock';
 }
 
@@ -75,7 +82,7 @@ function isBedrockOptions(options: GetAIOptions): options is BedrockOptions {
  * @returns True if options are for Claude CLI provider
  */
 function isClaudeCliOptions(
-  options: GetAIOptions,
+  options: GetAIOptions | AIClientOptions,
 ): options is ClaudeCliOptions {
   return options.type === 'claude-cli';
 }
@@ -94,7 +101,11 @@ function isClaudeCliOptions(
  *
  * User-provided options always take precedence over environment variables.
  *
- * @param options - Configuration options for the AI provider. Must include provider type and credentials.
+ * Accepts both GetAIOptions (provider-specific options with literal types)
+ * and AIClientOptions (legacy interface with generic string type) for
+ * backward compatibility with existing code.
+ *
+ * @param options - Configuration options for the AI provider. Can be GetAIOptions or AIClientOptions.
  * @returns Promise resolving to an AI provider instance that implements the AIInterface
  * @throws {ValidationError} When the provider type is unsupported or invalid
  *
@@ -116,9 +127,15 @@ function isClaudeCliOptions(
  *   apiKey: process.env.ANTHROPIC_API_KEY!,
  *   defaultModel: 'claude-3-5-sonnet-20241022'
  * });
+ *
+ * // Works with AIClientOptions (legacy interface)
+ * const clientOptions: AIClientOptions = { type: 'openai', apiKey: '...' };
+ * const legacy = await getAI(clientOptions);
  * ```
  */
-export async function getAI(options: GetAIOptions = {}): Promise<AIInterface> {
+export async function getAI(
+  options: GetAIOptions | AIClientOptions = {},
+): Promise<AIInterface> {
   // Load environment variables with user options taking precedence
   options = loadEnvConfig(options as Record<string, any>, {
     packageName: 'ai',
