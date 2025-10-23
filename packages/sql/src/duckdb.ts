@@ -200,6 +200,7 @@ export async function getDatabase(
   const connection = await createDuckDBConnection(options);
   const writeStrategy = options.writeStrategy || 'none';
   const dataDir = options.dataDir || './data';
+  const url = options.url || ':memory:';
 
   /**
    * Inserts one or more records into a table
@@ -704,6 +705,7 @@ export async function getDatabase(
   ): Promise<void> => {
     const schemaManager = new DatabaseSchemaManager();
     const currentDb: DatabaseInterface = {
+      url,
       client: connection,
       query,
       insert,
@@ -950,6 +952,7 @@ export async function getDatabase(
 
       // Create a transaction-scoped database interface
       const txDb: DatabaseInterface = {
+        url,
         client: connection,
         insert,
         get,
@@ -982,6 +985,7 @@ export async function getDatabase(
   };
 
   return {
+    url,
     client: connection,
     query,
     insert,

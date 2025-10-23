@@ -636,6 +636,7 @@ export async function getDatabase(
         // Create a transaction-scoped database interface
         // SQLite doesn't have separate transaction clients, so we reuse the same client
         const txDb: DatabaseInterface = {
+          url,
           client,
           insert,
           get,
@@ -850,6 +851,7 @@ export async function getDatabase(
     ): Promise<void> => {
       const schemaManager = new DatabaseSchemaManager();
       const currentDb: DatabaseInterface = {
+        url,
         client,
         query,
         insert,
@@ -1041,6 +1043,7 @@ export async function getDatabase(
     };
 
     return {
+      url,
       client,
       query,
       insert,

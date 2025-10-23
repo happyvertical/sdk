@@ -65,7 +65,9 @@ function validateAIAnalysis(parsed: unknown): AIAnalysis {
     priority: response.priority,
     urgency: response.urgency,
     reasoning: response.reasoning,
-    ...(response.affected_packages && { affected_packages: response.affected_packages }),
+    ...(response.affected_packages && {
+      affected_packages: response.affected_packages,
+    }),
   } as AIAnalysis;
 }
 

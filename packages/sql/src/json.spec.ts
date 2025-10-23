@@ -26,7 +26,7 @@ describe('JSON adapter tests', () => {
     // Initialize JSON database
     db = await getDatabase({
       type: 'json',
-      dataDir: testDataDir,
+      url: testDataDir,
       writeStrategy: 'immediate',
     });
   });
@@ -122,7 +122,7 @@ describe('JSON adapter tests', () => {
     // Reload database to pick up new table
     db = await getDatabase({
       type: 'json',
-      dataDir: testDataDir,
+      url: testDataDir,
       writeStrategy: 'immediate',
     });
 
@@ -169,7 +169,7 @@ describe('JSON adapter tests', () => {
 
   it('should use in-memory database (no WAL files)', async () => {
     // This test verifies the core requirement: no WAL files created
-    // The JSON adapter should only create JSON files in dataDir
+    // The JSON adapter should only create JSON files in the specified directory
 
     const data = {
       id: randomUUID(),
@@ -192,7 +192,7 @@ describe('JSON adapter tests', () => {
   it('should handle read-only mode (writeStrategy: none)', async () => {
     const readOnlyDb = await getDatabase({
       type: 'json',
-      dataDir: testDataDir,
+      url: testDataDir,
       writeStrategy: 'none',
     });
 
@@ -213,7 +213,7 @@ describe('JSON adapter tests', () => {
   it('should support manual export mode (writeStrategy: manual)', async () => {
     const manualDb = await getDatabase({
       type: 'json',
-      dataDir: testDataDir,
+      url: testDataDir,
       writeStrategy: 'manual',
     });
 
@@ -243,7 +243,7 @@ describe('JSON adapter tests', () => {
 
     const emptyDb = await getDatabase({
       type: 'json',
-      dataDir: emptyDir,
+      url: emptyDir,
       writeStrategy: 'immediate',
     });
 
@@ -326,7 +326,7 @@ describe('JSON adapter tests', () => {
       // In production, users would register SMRT objects before initializing the DB
       const testDb = await getDatabase({
         type: 'json',
-        dataDir: testDataDir,
+        url: testDataDir,
         writeStrategy: 'immediate',
       });
 
@@ -359,7 +359,7 @@ describe('JSON adapter tests', () => {
       // Note: Without actual SMRT registration, all tables are treated as non-SMRT
       const testDb = await getDatabase({
         type: 'json',
-        dataDir: testDataDir,
+        url: testDataDir,
         writeStrategy: 'immediate',
         skipSmrtTables: true,
       });
@@ -473,7 +473,7 @@ describe('JSON adapter tests', () => {
       // For this test, we reload to simulate the fixed behavior
       const testDb = await getDatabase({
         type: 'json',
-        dataDir: testDataDir,
+        url: testDataDir,
         writeStrategy: 'immediate',
       });
 
@@ -693,7 +693,7 @@ describe('JSON adapter tests', () => {
       // Initialize database with provided schema
       db = await getDatabase({
         type: 'json',
-        dataDir: testDataDir,
+        url: testDataDir,
         writeStrategy: 'immediate',
         schemas,
       });
@@ -745,7 +745,7 @@ describe('JSON adapter tests', () => {
 
       db = await getDatabase({
         type: 'json',
-        dataDir: testDataDir,
+        url: testDataDir,
         schemas,
       });
 
@@ -788,7 +788,7 @@ describe('JSON adapter tests', () => {
 
       db = await getDatabase({
         type: 'json',
-        dataDir: testDataDir,
+        url: testDataDir,
         schemas,
       });
 
@@ -824,7 +824,7 @@ describe('JSON adapter tests', () => {
       // Create database without auto-registration
       db = await getDatabase({
         type: 'json',
-        dataDir: testDataDir,
+        url: testDataDir,
         autoRegister: false, // Don't load JSON files automatically
       });
 
@@ -867,7 +867,7 @@ describe('JSON adapter tests', () => {
       // Create database with immediate write strategy
       db = await getDatabase({
         type: 'json',
-        dataDir: testDataDir,
+        url: testDataDir,
         writeStrategy: 'immediate',
         autoRegister: false, // Manual setup for precise control
       });
@@ -902,7 +902,7 @@ describe('JSON adapter tests', () => {
       // Recreate database from JSON files (simulates app restart)
       db = await getDatabase({
         type: 'json',
-        dataDir: testDataDir,
+        url: testDataDir,
         writeStrategy: 'immediate',
         autoRegister: true, // Load JSON files
       });

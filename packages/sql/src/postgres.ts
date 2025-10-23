@@ -187,32 +187,30 @@ export async function getDatabase(
 
     // Merge legacy config, but don't override user options or HAVE_SQL_* vars
     for (const [key, value] of Object.entries(legacyConfig)) {
-      if (config[key] === undefined && value !== undefined) {
-        config[key] = value;
+      if ((config as any)[key] === undefined && value !== undefined) {
+        (config as any)[key] = value;
       }
     }
   }
 
   // Apply defaults
-  const {
-    url,
-    database,
-    host = 'localhost',
-    user,
-    password,
-    port = 5432,
-  } = config;
+  const { database, host = 'localhost', user, password, port = 5432 } = config;
+
+  // Construct url if not provided (for DatabaseInterface requirement)
+  const url: string =
+    (config.url as string) ||
+    `postgresql://${user}${password ? `:${password}` : ''}@${host}:${port}/${database || 'postgres'}`;
 
   // Create a connection pool
   const client = new Pool(
-    url
-      ? { connectionString: url }
+    config.url
+      ? { connectionString: config.url as string }
       : {
-          host,
-          user,
-          password,
-          port,
-          database,
+          host: host as string,
+          user: user as string,
+          password: password as string,
+          port: port as number,
+          database: database as string,
         },
   );
 
@@ -731,6 +729,7 @@ export async function getDatabase(
 
       // Create a transaction-scoped database interface
       const txDb: DatabaseInterface = {
+        url,
         client: txClient,
         insert: async (table, data) => {
           // Reuse insert logic but with transaction client
@@ -902,6 +901,7 @@ export async function getDatabase(
   ): Promise<void> => {
     const schemaManager = new DatabaseSchemaManager();
     const currentDb: DatabaseInterface = {
+      url,
       client,
       insert,
       update,
@@ -1132,6 +1132,7 @@ export async function getDatabase(
   };
 
   return {
+    url,
     client,
     insert,
     update,
