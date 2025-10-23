@@ -1,3 +1,11 @@
+## [0.47.1](https://github.com/happyvertical/sdk/compare/v0.47.0...v0.47.1) (2025-10-23)
+
+
+### Bug Fixes
+
+* **ai:** accept AIClientOptions in getAI() for backward compatibility ([00b5961](https://github.com/happyvertical/sdk/commit/00b5961c9af0265072b397704bafb519a0498fc1)), closes [#303](https://github.com/happyvertical/sdk/issues/303)
+* **sql:** validate conflict columns in upsert operations ([cb83cba](https://github.com/happyvertical/sdk/commit/cb83cbac0927f9580ade6720a787a74c7796eccf)), closes [#301](https://github.com/happyvertical/sdk/issues/301) [#301](https://github.com/happyvertical/sdk/issues/301)
+
 # [0.47.0](https://github.com/happyvertical/sdk/compare/v0.46.0...v0.47.0) (2025-10-22)
 
 
