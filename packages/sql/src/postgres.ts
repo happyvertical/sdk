@@ -448,6 +448,92 @@ export async function getDatabase(
   };
 
   /**
+   * Deletes records from a table matching the where criteria
+   *
+   * @param table - Table name
+   * @param where - Criteria to match records for deletion
+   * @returns Promise resolving to operation result with count of deleted rows
+   * @throws Error if the delete operation fails
+   */
+  const deleteRecords = async (
+    table: string,
+    where: Record<string, any>,
+  ): Promise<BaseQueryResult> => {
+    validateTableName(table);
+
+    const keys = Object.keys(where);
+    if (keys.length === 0) {
+      throw new DatabaseError(
+        'DELETE requires at least one WHERE condition to prevent accidental deletion of all records',
+        { table },
+      );
+    }
+
+    const conditions = keys.map((key, i) => `${key} = $${i + 1}`).join(' AND ');
+    const values = Object.values(where);
+
+    try {
+      const result = await client.query(
+        `DELETE FROM ${table} WHERE ${conditions}`,
+        values,
+      );
+
+      return { operation: 'delete', affected: result.rowCount ?? 0 };
+    } catch (e) {
+      throw new DatabaseError('Failed to delete records from table', {
+        table,
+        where,
+        originalError: e,
+      });
+    }
+  };
+
+  /**
+   * Counts records in a table matching the where criteria
+   *
+   * @param table - Table name
+   * @param where - Criteria to match records (optional, counts all if omitted)
+   * @returns Promise resolving to count of matching records
+   * @throws Error if the count operation fails
+   */
+  const count = async (
+    table: string,
+    where?: Record<string, any>,
+  ): Promise<number> => {
+    validateTableName(table);
+
+    try {
+      if (!where || Object.keys(where).length === 0) {
+        // Count all records
+        const result = await client.query(
+          `SELECT COUNT(*) as count FROM ${table}`,
+        );
+        return Number(result.rows[0]?.count) || 0;
+      }
+
+      // Count with conditions
+      const keys = Object.keys(where);
+      const conditions = keys
+        .map((key, i) => `${key} = $${i + 1}`)
+        .join(' AND ');
+      const values = Object.values(where);
+
+      const result = await client.query(
+        `SELECT COUNT(*) as count FROM ${table} WHERE ${conditions}`,
+        values,
+      );
+
+      return Number(result.rows[0]?.count) || 0;
+    } catch (e) {
+      throw new DatabaseError('Failed to count records in table', {
+        table,
+        where,
+        originalError: e,
+      });
+    }
+  };
+
+  /**
    * Creates a table-specific interface for simplified table operations
    *
    * @param tableName - Table name
@@ -814,6 +900,44 @@ export async function getDatabase(
           }
           return inserted;
         },
+        delete: async (table, where) => {
+          validateTableName(table);
+          const keys = Object.keys(where);
+          if (keys.length === 0) {
+            throw new DatabaseError(
+              'DELETE requires at least one WHERE condition to prevent accidental deletion of all records',
+              { table },
+            );
+          }
+          const conditions = keys
+            .map((key, i) => `${key} = $${i + 1}`)
+            .join(' AND ');
+          const values = Object.values(where);
+          const result = await txClient.query(
+            `DELETE FROM ${table} WHERE ${conditions}`,
+            values,
+          );
+          return { operation: 'delete', affected: result.rowCount ?? 0 };
+        },
+        count: async (table, where) => {
+          validateTableName(table);
+          if (!where || Object.keys(where).length === 0) {
+            const result = await txClient.query(
+              `SELECT COUNT(*) as count FROM ${table}`,
+            );
+            return Number(result.rows[0]?.count) || 0;
+          }
+          const keys = Object.keys(where);
+          const conditions = keys
+            .map((key, i) => `${key} = $${i + 1}`)
+            .join(' AND ');
+          const values = Object.values(where);
+          const result = await txClient.query(
+            `SELECT COUNT(*) as count FROM ${table} WHERE ${conditions}`,
+            values,
+          );
+          return Number(result.rows[0]?.count) || 0;
+        },
         table: (tableName) => ({
           insert: (data) => txDb.insert(tableName, data),
           get: (data) => txDb.get(tableName, data),
@@ -908,6 +1032,8 @@ export async function getDatabase(
       upsert,
       get,
       getOrInsert,
+      delete: deleteRecords,
+      count,
       list,
       table,
       many,
@@ -1132,12 +1258,15 @@ export async function getDatabase(
   };
 
   return {
+    url,
     client,
     insert,
     update,
     upsert,
     get,
     getOrInsert,
+    delete: deleteRecords,
+    count,
     list,
     table,
     many,
