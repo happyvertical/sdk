@@ -1,3 +1,10 @@
+# [0.48.0](https://github.com/happyvertical/sdk/compare/v0.47.2...v0.48.0) (2025-10-23)
+
+
+### Features
+
+* **sql:** add delete() and count() methods to DatabaseInterface ([df23096](https://github.com/happyvertical/sdk/commit/df23096066e73506539237b74c4aa9753896ddd6)), closes [#309](https://github.com/happyvertical/sdk/issues/309) [#310](https://github.com/happyvertical/sdk/issues/310)
+
 ## [0.47.2](https://github.com/happyvertical/sdk/compare/v0.47.1...v0.47.2) (2025-10-23)
 
 
