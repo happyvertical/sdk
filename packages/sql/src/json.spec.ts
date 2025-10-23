@@ -852,5 +852,84 @@ describe('JSON adapter tests', () => {
       expect(result).toHaveLength(1);
       expect(result[0]).toMatchObject({ id: '1', value: 'test' });
     });
+
+    it('should preserve UUID strings through export/import cycle (Issue #306)', async () => {
+      // Issue: DuckDB converts UUID TEXT values to hugeint objects in JSON export
+      // This test ensures UUIDs remain as strings throughout the cycle
+
+      // Clean slate
+      if (db) {
+        rmSync(testDataDir, { recursive: true, force: true });
+      }
+
+      mkdirSync(testDataDir, { recursive: true });
+
+      // Create database with immediate write strategy
+      db = await getDatabase({
+        type: 'json',
+        dataDir: testDataDir,
+        writeStrategy: 'immediate',
+        autoRegister: false, // Manual setup for precise control
+      });
+
+      // Create table with TEXT id column (like SMRT objects use)
+      await db.execute`
+        CREATE TABLE councils (
+          id TEXT PRIMARY KEY NOT NULL,
+          slug TEXT NOT NULL,
+          name TEXT NOT NULL
+        )
+      `;
+
+      // Insert record with UUID string
+      const uuidId = randomUUID();
+      await db.insert('councils', {
+        id: uuidId,
+        slug: 'town-of-bentley',
+        name: 'Town of Bentley',
+      });
+
+      // Verify initial insert
+      const inserted =
+        await db.single`SELECT * FROM councils WHERE id = ${uuidId}`;
+      expect(inserted).toBeDefined();
+      expect(inserted?.id).toBe(uuidId);
+      expect(typeof inserted?.id).toBe('string');
+
+      // Export to JSON (this is where DuckDB might convert to hugeint)
+      await (db as any).exportTable('councils');
+
+      // Recreate database from JSON files (simulates app restart)
+      db = await getDatabase({
+        type: 'json',
+        dataDir: testDataDir,
+        writeStrategy: 'immediate',
+        autoRegister: true, // Load JSON files
+      });
+
+      // Read back and verify UUID is still a string, not hugeint object
+      const readBack =
+        await db.single`SELECT * FROM councils WHERE slug = 'town-of-bentley'`;
+      expect(readBack).toBeDefined();
+      expect(readBack?.id).toBe(uuidId);
+      expect(typeof readBack?.id).toBe('string');
+      // Ensure it's NOT a hugeint object
+      expect(readBack?.id).not.toHaveProperty('hugeint');
+
+      // Test upsert with UUID (the operation that was failing in Issue #306)
+      await db.upsert('councils', ['id'], {
+        id: uuidId,
+        slug: 'town-of-bentley-updated',
+        name: 'Town of Bentley - Updated',
+      });
+
+      // Verify upsert worked and ID is still a string
+      const afterUpsert =
+        await db.single`SELECT * FROM councils WHERE id = ${uuidId}`;
+      expect(afterUpsert).toBeDefined();
+      expect(afterUpsert?.id).toBe(uuidId);
+      expect(typeof afterUpsert?.id).toBe('string');
+      expect(afterUpsert?.slug).toBe('town-of-bentley-updated');
+    });
   });
 });
