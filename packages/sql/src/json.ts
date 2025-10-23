@@ -33,14 +33,14 @@ interface SmrtSchemaDefinition {
  */
 async function createJSONConnection(options: JSONOptions) {
   const {
-    dataDir,
+    url,
     autoRegister = true,
     skipSmrtTables = false,
     schemas = {},
   } = options;
 
-  if (!dataDir) {
-    throw new DatabaseError('dataDir is required for JSON adapter', {
+  if (!url) {
+    throw new DatabaseError('url is required for JSON adapter', {
       options,
     });
   }
@@ -56,14 +56,14 @@ async function createJSONConnection(options: JSONOptions) {
 
     // Ensure data directory exists
     try {
-      await mkdir(dataDir, { recursive: true });
+      await mkdir(url, { recursive: true });
     } catch (_error) {
       // Directory might already exist, that's okay
     }
 
     // Load JSON files as in-memory tables
     if (autoRegister) {
-      await loadJSONTables(connection, dataDir, skipSmrtTables, schemas);
+      await loadJSONTables(connection, url, skipSmrtTables, schemas);
     }
 
     return connection;
@@ -72,7 +72,7 @@ async function createJSONConnection(options: JSONOptions) {
     throw new DatabaseError(
       `Failed to create JSON database connection: ${errorMessage}`,
       {
-        dataDir,
+        url,
         originalError: errorMessage,
       },
     );
@@ -502,7 +502,7 @@ export async function getDatabase(
 ): Promise<DatabaseInterface> {
   const connection = await createJSONConnection(options);
   const writeStrategy = options.writeStrategy || 'immediate';
-  const dataDir = options.dataDir;
+  const { url } = options;
 
   /**
    * Inserts one or more records into a table
@@ -563,7 +563,7 @@ export async function getDatabase(
 
       // Handle write-back strategy
       if (writeStrategy === 'immediate') {
-        await exportTableToJSON(connection, table, dataDir);
+        await exportTableToJSON(connection, table, url);
       }
 
       return { operation: 'insert', affected };
@@ -677,7 +677,7 @@ export async function getDatabase(
 
       // Handle write-back strategy
       if (writeStrategy === 'immediate') {
-        await exportTableToJSON(connection, table, dataDir);
+        await exportTableToJSON(connection, table, url);
       }
 
       // DuckDB doesn't return rowsAffected in the same way, estimate from where clause
@@ -794,7 +794,7 @@ export async function getDatabase(
 
       // Handle write-back strategy
       if (writeStrategy === 'immediate') {
-        await exportTableToJSON(connection, table, dataDir);
+        await exportTableToJSON(connection, table, url);
       }
 
       return { operation: 'upsert', affected: 1 };
@@ -941,7 +941,7 @@ export async function getDatabase(
         { table, writeStrategy },
       );
     }
-    await exportTableToJSON(connection, table, dataDir);
+    await exportTableToJSON(connection, table, url);
   };
 
   /**
@@ -1173,6 +1173,7 @@ export async function getDatabase(
   ): Promise<void> => {
     const schemaManager = new DatabaseSchemaManager();
     const currentDb: DatabaseInterface = {
+      url,
       client: connection,
       query,
       insert,
@@ -1212,6 +1213,7 @@ export async function getDatabase(
 
       // Create a transaction-scoped database interface
       const txDb: DatabaseInterface = {
+        url,
         client: connection,
         insert,
         get,
@@ -1244,6 +1246,7 @@ export async function getDatabase(
   };
 
   return {
+    url,
     client: connection,
     query,
     insert,

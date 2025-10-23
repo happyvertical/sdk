@@ -73,7 +73,7 @@ export interface JSONOptions {
    * Path to directory containing JSON files (required)
    * JSON files in this directory will be loaded as queryable tables
    */
-  dataDir: string;
+  url: string;
 
   /**
    * Automatically load all JSON files in dataDir as tables
@@ -305,6 +305,15 @@ export interface TableSchemaInfo {
  * Provides a unified API for different database backends
  */
 export interface DatabaseInterface {
+  /**
+   * Database location identifier
+   * For file-based databases: file path
+   * For directory-based databases (JSON/DuckDB with JSON): directory path
+   * For in-memory databases: ':memory:'
+   * For remote databases: connection URL
+   */
+  url: string;
+
   /**
    * Underlying database client instance
    */
