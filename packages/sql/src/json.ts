@@ -157,10 +157,65 @@ async function loadJSONTables(
           );
         }
       } else {
-        // Fallback to auto-detection for non-SMRT tables
-        await connection.run(
-          `CREATE TABLE ${tableName} AS SELECT * FROM read_json('${filePath}', auto_detect=true, format='auto', ignore_errors=true)`,
-        );
+        // For non-SMRT tables, check for schema file first
+        // Schema files preserve constraints (PRIMARY KEY, UNIQUE, etc.)
+        const schemaPath = join(dataDir, `${tableName}.schema.sql`);
+        const { readFile, access } = await import('node:fs/promises');
+        const { constants } = await import('node:fs');
+
+        let schemaExists = false;
+        try {
+          await access(schemaPath, constants.F_OK);
+          schemaExists = true;
+        } catch {
+          schemaExists = false;
+        }
+
+        try {
+          if (schemaExists) {
+            // Use schema file to create table with proper constraints
+            const schemaDDL = await readFile(schemaPath, 'utf-8');
+            await connection.run(schemaDDL);
+          } else {
+            // Fall back to manual schema inference from JSON
+            const jsonContent = await readFile(filePath, 'utf-8');
+            const records = JSON.parse(jsonContent);
+
+            if (Array.isArray(records) && records.length > 0) {
+              // Infer schema from first record
+              const sampleRecord = records[0];
+              const columns = Object.keys(sampleRecord)
+                .map((key) => {
+                  const value = sampleRecord[key];
+                  // Infer types conservatively - use TEXT for strings to preserve UUIDs
+                  let type = 'TEXT';
+                  if (typeof value === 'number') {
+                    type = Number.isInteger(value) ? 'INTEGER' : 'DOUBLE';
+                  } else if (typeof value === 'boolean') {
+                    type = 'BOOLEAN';
+                  }
+                  return `${key} ${type}`;
+                })
+                .join(', ');
+
+              // Create table with inferred schema (no constraints)
+              await connection.run(`CREATE TABLE ${tableName} (${columns})`);
+            }
+          }
+
+          // Load data into table (works for both schema file and inferred schema)
+          const jsonContent = await readFile(filePath, 'utf-8');
+          const records = JSON.parse(jsonContent);
+
+          if (Array.isArray(records) && records.length > 0) {
+            await insertRecordsWithCast(connection, tableName, records);
+          }
+        } catch (error) {
+          // If manual loading fails, log and skip this table
+          console.warn(
+            `[json-adapter] Could not load ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
       }
     }
   } catch (error) {
@@ -178,14 +233,37 @@ async function loadJSONTables(
 }
 
 /**
- * Converts BigInt values to regular numbers in an object
+ * Converts BigInt and hugeint values in an object
  *
- * @param obj - Object that may contain BigInt values
- * @returns Object with BigInts converted to numbers
+ * Handles two cases:
+ * 1. JavaScript BigInt values → converted to numbers
+ * 2. DuckDB hugeint objects ({ hugeint: number }) → converted to strings
+ *
+ * DuckDB represents HUGEINT (128-bit integers) as objects with a single
+ * property called 'hugeint'. When UUID strings (stored as TEXT) are
+ * exported to JSON via COPY TO, DuckDB sometimes converts them to hugeint
+ * representation. This function converts them back to strings.
+ *
+ * @param obj - Object that may contain BigInt or hugeint values
+ * @returns Object with BigInts and hugeints converted
  */
 function convertBigInts(obj: any): any {
   if (obj === null || obj === undefined) return obj;
   if (typeof obj === 'bigint') return Number(obj);
+
+  // Handle DuckDB hugeint objects: { hugeint: number }
+  // Convert to string to preserve UUID/TEXT values
+  if (
+    typeof obj === 'object' &&
+    !Array.isArray(obj) &&
+    'hugeint' in obj &&
+    Object.keys(obj).length === 1
+  ) {
+    // Convert hugeint to string representation
+    // For UUIDs and other TEXT values that DuckDB converted
+    return String(obj.hugeint);
+  }
+
   if (Array.isArray(obj)) return obj.map(convertBigInts);
   if (typeof obj === 'object') {
     const result: any = {};
@@ -788,13 +866,15 @@ export async function getDatabase(
   };
 
   /**
-   * Exports a table to a JSON file
+   * Exports a table to JSON and schema files
    *
-   * Overwrites the existing JSON file with the current table contents.
+   * Exports two files:
+   * 1. {table}.json - Table data with all columns cast to TEXT
+   * 2. {table}.schema.sql - CREATE TABLE statement to preserve constraints
    *
    * @param connection - DuckDB connection
    * @param table - Table name
-   * @param dataDir - Directory to write JSON file
+   * @param dataDir - Directory to write files
    */
   const exportTableToJSON = async (
     connection: any,
@@ -802,9 +882,48 @@ export async function getDatabase(
     dataDir: string,
   ): Promise<void> => {
     const filePath = join(dataDir, `${table}.json`);
-    await connection.run(
-      `COPY (SELECT * FROM ${table}) TO '${filePath}' (FORMAT JSON, ARRAY true)`,
+    const schemaPath = join(dataDir, `${table}.schema.sql`);
+
+    // Export schema first using SHOW CREATE TABLE
+    try {
+      const schemaResult = await connection.runAndReadAll(
+        `SELECT sql FROM sqlite_master WHERE type='table' AND name='${table}'`,
+      );
+      const rows = schemaResult.getRowObjects();
+      if (rows.length > 0 && rows[0].sql) {
+        const { writeFile } = await import('node:fs/promises');
+        await writeFile(schemaPath, rows[0].sql, 'utf-8');
+      }
+    } catch (error) {
+      console.warn(
+        `[json-adapter] Could not export schema for ${table}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+
+    // Get column list to cast all as TEXT
+    // This prevents DuckDB from converting UUIDs and other TEXT values to hugeint in JSON
+    const columnsResult = await connection.runAndReadAll(
+      `SELECT column_name FROM information_schema.columns WHERE table_name = '${table}' ORDER BY ordinal_position`,
     );
+    const columns = columnsResult
+      .getRowObjects()
+      .map((row: any) => row.column_name);
+
+    if (columns.length === 0) {
+      // Fallback to SELECT * if we can't get column names
+      await connection.run(
+        `COPY (SELECT * FROM ${table}) TO '${filePath}' (FORMAT JSON, ARRAY true)`,
+      );
+      return;
+    }
+
+    // Cast all columns to TEXT to preserve UUID and other TEXT values as strings
+    const selectList = columns
+      .map((col: string) => `CAST(${col} AS TEXT) AS ${col}`)
+      .join(', ');
+    const sql = `COPY (SELECT ${selectList} FROM ${table}) TO '${filePath}' (FORMAT JSON, ARRAY true)`;
+
+    await connection.run(sql);
   };
 
   /**
