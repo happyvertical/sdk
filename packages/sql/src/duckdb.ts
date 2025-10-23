@@ -365,6 +365,19 @@ export async function getDatabase(
     conflictColumns: string[],
     data: Record<string, any>,
   ): Promise<QueryResult> => {
+    // Validate that all conflict columns are present in the data
+    const missingColumns = conflictColumns.filter((col) => !(col in data));
+
+    if (missingColumns.length > 0) {
+      throw new DatabaseError('Conflict columns missing from data', {
+        table,
+        conflictColumns,
+        missingColumns,
+        availableColumns: Object.keys(data),
+        hint: 'All columns specified in ON CONFLICT must be present in the data being inserted. Undefined values should be replaced with null or an appropriate default.',
+      });
+    }
+
     const keys = Object.keys(data);
     const values = Object.values(data);
     const placeholders = keys.map((_, idx) => `$${idx + 1}`).join(', ');
