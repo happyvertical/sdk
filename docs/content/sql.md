@@ -248,6 +248,15 @@ const user = await db.getOrInsert('users',
   { id: 'user-new', name: 'New User', email: 'new@example.com' } // data to insert if not found
 );
 
+// Delete records (requires at least one WHERE condition for safety)
+await db.delete('posts', { id: 'post-123' });
+await db.delete('logs', { level: 'debug', 'created_at <': '2024-01-01' });
+
+// Count records
+const totalPosts = await db.count('posts'); // Count all
+const publishedCount = await db.count('posts', { published: true }); // Count filtered
+console.log(`${publishedCount} published out of ${totalPosts} total posts`);
+
 // Create a table-specific helper
 const postsTable = db.table('posts');
 const post = await postsTable.get({ id: 'post-123' });
