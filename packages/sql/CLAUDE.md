@@ -619,6 +619,73 @@ await db.upsert('users', ['email'], {
   name: 'John Doe',
   updated_at: new Date().toISOString()
 });
+
+// Delete records matching criteria
+await db.delete('users', { status: 'inactive' });
+
+// Delete with multiple conditions
+await db.delete('sessions', {
+  user_id: 'user-123',
+  expired: true
+});
+
+// Count records (optional WHERE parameter)
+const totalUsers = await db.count('users');
+
+// Count with filter criteria
+const activeCount = await db.count('users', { status: 'active' });
+
+// Count with complex conditions
+const recentPosts = await db.count('posts', {
+  'created_at >': '2024-01-01',
+  'published': true
+});
+```
+
+### DELETE Operations
+
+The `delete()` method removes records matching the WHERE criteria. For safety, it requires at least one WHERE condition to prevent accidental deletion of all records.
+
+```typescript
+// Delete by ID
+await db.delete('products', { id: 'prod-123' });
+
+// Delete by criteria
+await db.delete('orders', { status: 'cancelled' });
+
+// Delete with multiple conditions
+await db.delete('sessions', {
+  user_id: 'user-123',
+  expired: true
+});
+
+// ❌ This will throw an error (safety check)
+await db.delete('products', {});  // Error: DELETE requires WHERE condition
+
+// Returns operation result
+const result = await db.delete('logs', { level: 'debug' });
+console.log(`Deleted ${result.affected} rows`);
+```
+
+### COUNT Operations
+
+The `count()` method returns the number of records matching optional WHERE criteria.
+
+```typescript
+// Count all records
+const total = await db.count('products');
+
+// Count with single condition
+const activeCount = await db.count('products', { active: true });
+
+// Count with multiple conditions
+const filteredCount = await db.count('orders', {
+  status: 'pending',
+  priority: 'high'
+});
+
+// Returns number directly (not object)
+console.log(`Found ${activeCount} active products`);
 ```
 
 ### UPSERT Operations
@@ -1350,6 +1417,8 @@ interface DatabaseInterface {
   update(table: string, where: Record<string, any>, data: Record<string, any>): Promise<QueryResult>;
   upsert(table: string, conflictColumns: string[], data: Record<string, any>): Promise<QueryResult>;
   getOrInsert(table: string, where: Record<string, any>, data: Record<string, any>): Promise<Record<string, any>>;
+  delete(table: string, where: Record<string, any>): Promise<QueryResult>;
+  count(table: string, where?: Record<string, any>): Promise<number>;
 
   // Table interface factory
   table(name: string): TableInterface;

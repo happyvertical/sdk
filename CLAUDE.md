@@ -40,6 +40,13 @@ Infrastructure packages for advanced functionality:
 Tools for SDK development and documentation:
 
 - **sdk-mcp**: MCP server for routing queries to package experts (CLAUDE.md files)
+- **github-actions**: Reusable GitHub Actions workflows and utilities
+
+### Experimental Packages (`packages/`)
+Packages under development (may not be fully functional):
+
+- **email**: Email utilities (stub/in development)
+- **languages**: Language detection and processing (stub/in development)
 
 ## Development Patterns
 
@@ -255,7 +262,11 @@ Each package must have:
     { "path": "./packages/ocr" },
     { "path": "./packages/pdf" },
     { "path": "./packages/documents" },
-    { "path": "./packages/spider" }
+    { "path": "./packages/spider" },
+
+    // Developer tools
+    { "path": "./packages/sdk-mcp" },
+    { "path": "./packages/github-actions" }
   ]
 }
 ```
@@ -334,12 +345,12 @@ Core foundation packages have minimal dependencies:
 SDK infrastructure packages have these dependency relationships:
 
 - `cache`: No internal dependencies
-- `geo`: Depends on `utils`
+- `geo`: Depends on `utils`, `cache`
 - `translator`: No internal dependencies
 - `ocr`: Depends on `utils`
 - `spider`: No internal dependencies
 - `pdf`: Depends on `ocr`, `utils`
-- `documents`: Depends on `pdf`, `spider`, `ocr`, `utils`
+- `documents`: Depends on `files`, `pdf`, `spider`, `ocr`, `utils`
 
 When adding new features, maintain this dependency hierarchy to avoid circular dependencies.
 
@@ -368,9 +379,9 @@ When adding a new package to the SDK:
 
 HAppy VErtical follows a standardized development workflow across all projects. The workflow documentation serves as the organization's source of truth:
 
-- **[Definition of Ready](./docs/workflow/DEFINITION_OF_READY.md)**: Criteria that must be met before an issue can be started
-- **[Definition of Done](./docs/workflow/DEFINITION_OF_DONE.md)**: Checklist for completing Pull Requests
-- **[Kanban Process](./docs/workflow/KANBAN.md)**: Kanban CI/CD workflow with automation setup
+- **[Definition of Ready](./notes/workflow/DEFINITION_OF_READY.md)**: Criteria that must be met before an issue can be started
+- **[Definition of Done](./notes/workflow/DEFINITION_OF_DONE.md)**: Checklist for completing Pull Requests
+- **[Kanban Process](./notes/workflow/KANBAN.md)**: Kanban CI/CD workflow with automation setup
 
 All HAppy VErtical projects should reference and follow these workflow standards to ensure consistency across the organization.
 
@@ -380,8 +391,8 @@ All HAppy VErtical projects should reference and follow these workflow standards
 
 **Related Standards**:
 - [Organization-Wide Testing Standard](../../TESTING_STANDARD.md) - Must be followed for all test writing
-- [Definition of Ready](./docs/workflow/DEFINITION_OF_READY.md) - Issue readiness criteria
-- [Definition of Done](./docs/workflow/DEFINITION_OF_DONE.md) - PR completion checklist
+- [Definition of Ready](./notes/workflow/DEFINITION_OF_READY.md) - Issue readiness criteria
+- [Definition of Done](./notes/workflow/DEFINITION_OF_DONE.md) - PR completion checklist
 
 #### When This SOP Triggers
 
@@ -739,7 +750,7 @@ Use this checklist to verify SOP completion:
 
 **Related Standards**:
 - [Organization-Wide Testing Standard](../../TESTING_STANDARD.md) - Enforced by code reviewer
-- [Definition of Done](./docs/workflow/DEFINITION_OF_DONE.md) - Verified before PR creation
+- [Definition of Done](./notes/workflow/DEFINITION_OF_DONE.md) - Verified before PR creation
 - [Code Reviewer Agent](./.claude/agents/code-reviewer.md) - Automated review process
 
 #### When This SOP Triggers
@@ -1358,7 +1369,7 @@ New issues are automatically triaged using GitHub Models API to streamline the i
 
 - **TypeScript**: Configured for ES2022 with strict type checking
 - **Biome**: Used for linting and formatting
-- **Bun**: Package management with workspace support
+- **pnpm**: Package management with workspace support
 - **Vitest**: Testing framework
 - **Changesets**: Used for versioning and publishing packages
 - **TypeDoc**: Used for generating API documentation

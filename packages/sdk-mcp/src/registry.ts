@@ -75,6 +75,18 @@ export const PACKAGE_KEYWORDS: Record<string, string[]> = {
   cache: ['cache', 'caching', 'redis', 'memory', 'store'],
   logger: ['log', 'logging', 'logger', 'debug', 'error'],
   documents: ['document processing', 'content extraction', 'analysis'],
+  'github-actions': [
+    'github',
+    'actions',
+    'workflow',
+    'ci',
+    'cd',
+    'automation',
+    'issue',
+    'pr',
+    'pull request',
+    'triage',
+  ],
 };
 
 /**

@@ -1,62 +1,234 @@
-# Claude-Specific Instructions for Spider Package Refactoring
+# @happyvertical/spider
 
-## Goal
+## Purpose and Responsibilities
 
-Refactor the `@happyvertical/spider` package to follow the standardized provider pattern used in other `@happyvertical` packages like `ai`, `sql`, and `files`. The refactored package should provide a `getSpider` factory function that returns a spider adapter based on the provided options.
+The spider package provides web scraping and content extraction through multiple adapters optimized for different use cases. It follows the standardized provider pattern to give developers the right tool for each scraping scenario, from simple static HTML to complex JavaScript-heavy pages.
 
-## Detailed Steps
+## Key Features
 
-1.  **Create a `src/shared` directory** to hold the shared interfaces and factory function.
+- **Provider Pattern**: Three adapters for different use cases (Simple, DOM, Crawlee)
+- **Standardized Interface**: All adapters implement ISpiderAdapter
+- **Built-in Caching**: Automatic response caching via @happyvertical/cache
+- **Navigation Expansion**: Crawlee adapter auto-expands accordions/dropdowns to discover hidden links
+- **Link Extraction**: Automatic extraction of all page links
+- **Environment Variable Configuration**: HAVE_SPIDER_* pattern for easy setup
 
-2.  **Create `src/shared/types.ts`** and define the following interfaces:
-    *   `Page`: The standardized data structure for a web page (as defined in `SPEC.md`).
-    *   `FetchOptions`: The options for a fetch operation (as defined in `SPEC.md`), including `cache` and `cacheExpiry`.
-    *   `ISpiderAdapter`: The interface that all spider adapters must implement (as defined in `SPEC.md`).
+## Architecture Overview
 
-3.  **Create `src/shared/factory.ts`** and implement the `getSpider` factory function:
-    *   It should take a `SpiderAdapterOptions` type, which will be a union of options for each adapter.
-    *   It should have a `switch` statement on `options.adapter` to dynamically import and return the correct adapter.
-    *   Initially, it should support three adapters: `simple`, `dom`, and `crawlee`.
+```
+getSpider(options)
+    ↓
+Adapter Selection
+    ├── Simple (fast HTTP + cheerio)
+    ├── DOM (happy-dom processing + cheerio)
+    └── Crawlee (Playwright browser automation)
+    ↓
+ISpiderAdapter Interface
+    ├── fetch(url, options) → Page
+    ├── Built-in caching (file-based)
+    └── Standardized output (url, content, links, raw)
+```
 
-4.  **Create `src/adapters` directory** to hold the adapter implementations.
+## Key APIs
 
-5.  **Create `src/adapters/simple.ts`**:
-    *   This adapter will implement the `ISpiderAdapter` interface.
-    *   The `fetch` method will use `@happyvertical/cache` to handle caching.
-    *   If the content is not in the cache, it will use the `fetchText` function from `@happyvertical/files` to get the page content.
-    *   It will then use `cheerio` to parse the HTML and extract the links, similar to the current `parseIndexSource` function.
-    *   It should return a `Page` object.
+### Basic Usage
 
-6.  **Create `src/adapters/dom.ts`**:
-    *   This adapter will also implement the `ISpiderAdapter` interface.
-    *   The `fetch` method will use `@happyvertical/cache` to handle caching.
-    *   If the content is not in the cache, it will use `happy-dom` to process the page, similar to the `cheap: false` path in the current `fetchPageSource` function.
-    *   It will also use `cheerio` to extract links.
-    *   It should return a `Page` object.
+```typescript
+import { getSpider } from '@happyvertical/spider';
 
-7.  **Create `src/adapters/crawlee.ts`**:
-    *   This adapter will implement the `ISpiderAdapter` interface.
-    *   The `fetch` method will use `@happyvertical/cache` to handle caching.
-    *   If the content is not in the cache, it will use `crawlee` to launch a headless browser, navigate to the URL, and get the page content.
-    *   It will then use `cheerio` to parse the HTML and extract the links.
-    *   It should return a `Page` object.
+// Simple adapter (fast HTTP)
+const spider = await getSpider({ adapter: 'simple' });
+const page = await spider.fetch('https://example.com');
 
-8.  **Update `src/index.ts`**:
-    *   Remove the existing `fetchPageSource`, `parseIndexSource`, `createWindow`, and `processHtml` functions.
-    *   Export the `getSpider` function from `./shared/factory`.
-    *   Export the types from `./shared/types`.
+console.log(page.url);      // Final URL after redirects
+console.log(page.content);  // HTML content
+console.log(page.links);    // Extracted links
+```
 
-9.  **Update `src/index.spec.ts`**:
-    *   Rewrite the tests to test the new `getSpider` factory and the `simple`, `dom`, and `crawlee` adapters.
-    *   Ensure the tests cover caching functionality.
-    *   Ensure the tests cover the same functionality as the old tests.
+### Adapter Selection
 
-10. **Update `package.json`**:
-    *   Ensure all necessary dependencies are listed (`@happyvertical/cache`, `@happyvertical/files`, `@happyvertical/utils`, `cheerio`, `happy-dom`, `crawlee`, `undici`).
+```typescript
+// Simple: Fast HTTP with cheerio (static content)
+const simple = await getSpider({
+  adapter: 'simple',
+  cacheDir: '.cache/spider',
+});
 
-## Code Style and Conventions
+// DOM: happy-dom processing (complex HTML)
+const dom = await getSpider({
+  adapter: 'dom',
+  cacheDir: '.cache/spider',
+});
 
-*   Follow the existing code style and conventions of the `@happyvertical` monorepo.
-*   Use TypeScript and adhere to the `tsconfig.json` settings.
-*   Write clear and concise code with JSDoc comments for all public APIs.
-*   Ensure all new files have the appropriate license header.
+// Crawlee: Playwright browser automation (dynamic content)
+const crawlee = await getSpider({
+  adapter: 'crawlee',
+  headless: true,
+  userAgent: 'MyBot/1.0 (+https://mysite.com/bot)',
+  cacheDir: '.cache/spider',
+});
+```
+
+### Fetch Options
+
+```typescript
+const page = await spider.fetch('https://example.com', {
+  headers: { 'User-Agent': 'MyBot/1.0' },
+  timeout: 30000,      // 30 seconds
+  cache: true,         // Enable caching
+  cacheExpiry: 300000, // 5 minutes
+});
+```
+
+### Environment Variable Configuration
+
+```bash
+# Configure via environment variables
+export HAVE_SPIDER_TIMEOUT=60000
+export HAVE_SPIDER_USER_AGENT="MyBot/1.0 (+https://mysite.com/bot)"
+export HAVE_SPIDER_MAX_REQUESTS=100
+```
+
+```typescript
+// Env vars are merged with options (user options take precedence)
+process.env.HAVE_SPIDER_TIMEOUT = '45000';
+
+const spider = await getSpider({ adapter: 'simple' });
+await spider.fetch(url); // Uses 45000ms timeout from env
+
+await spider.fetch(url, { timeout: 30000 }); // Overrides to 30000ms
+```
+
+### Page Object Structure
+
+```typescript
+interface Page {
+  url: string;      // Final URL after redirects
+  content: string;  // Full HTML content
+  links: string[];  // Extracted links
+  raw: any;         // Adapter-specific raw response
+}
+```
+
+## Adapter Characteristics
+
+### Simple Adapter
+- **Speed**: ~200ms first fetch, ~5ms cached
+- **Use Case**: Static HTML, high volume scraping
+- **Dependencies**: undici, cheerio
+- **Best For**: Fast content extraction, minimal resource usage
+
+### DOM Adapter
+- **Speed**: ~500ms first fetch, ~5ms cached
+- **Use Case**: Complex/malformed HTML needing normalization
+- **Dependencies**: happy-dom, cheerio
+- **Best For**: DOM manipulation without full browser
+
+### Crawlee Adapter
+- **Speed**: ~8000ms first fetch, ~5ms cached
+- **Use Case**: JavaScript-rendered content, dynamic loading
+- **Dependencies**: crawlee, playwright
+- **Best For**: Accordion navigation, hidden links, AJAX content
+- **Special Feature**: Auto-expands `[aria-expanded="false"]`, accordions, `<details>` tags
+
+## Dependencies
+
+- **Internal**:
+  - `@happyvertical/cache` - Caching infrastructure
+  - `@happyvertical/utils` - Error types, validation
+
+- **External**:
+  - `cheerio` - HTML parsing (all adapters)
+  - `undici` - HTTP client (Simple adapter)
+  - `happy-dom` - DOM implementation (DOM adapter)
+  - `crawlee` - Browser automation framework (Crawlee adapter)
+  - `playwright` - Browser engine (Crawlee dependency)
+
+## Development Guidelines
+
+- All adapters must implement ISpiderAdapter interface completely
+- Cache keys prefixed by adapter type (`simple:`, `dom:`, `crawlee:`)
+- Default cache expiry: 5 minutes (300,000ms)
+- Default timeout: 30 seconds (30,000ms)
+- Links should be absolute URLs (relative URLs converted)
+- Handle errors with ValidationError and NetworkError from @happyvertical/utils
+- Respect robots.txt and use descriptive User-Agent strings
+
+## Expert Agent Expertise
+
+When working with spider:
+
+1. **Adapter Selection**: Start with Simple, fallback to Crawlee if content missing
+2. **Caching Strategy**: Crawlee benefits most (8000ms → 5ms), always enable caching
+3. **Navigation Expansion**: Crawlee runs up to 3 iterations clicking expandable elements
+4. **Performance**: Simple is 10x faster than DOM, 40x faster than Crawlee (uncached)
+5. **Error Handling**: NetworkError for HTTP failures, ValidationError for bad inputs
+6. **Real-World Testing**: Integration tests use Bentley town council site (accordion navigation)
+
+## Common Patterns
+
+```typescript
+// PDF discovery with navigation expansion
+import { getSpider } from '@happyvertical/spider';
+
+const spider = await getSpider({
+  adapter: 'crawlee',
+  headless: true,
+});
+
+const page = await spider.fetch(
+  'https://townofbentley.ca/town-office/council/meetings-agendas/',
+  { timeout: 60000, cache: true }
+);
+
+const pdfLinks = page.links.filter(link => link.endsWith('.pdf'));
+console.log(`Found ${pdfLinks.length} PDFs`);
+
+// Fallback strategy for resilience
+async function robustFetch(url: string) {
+  try {
+    // Try Crawlee first for best quality
+    const spider = await getSpider({ adapter: 'crawlee' });
+    return await spider.fetch(url, { timeout: 30000 });
+  } catch (error) {
+    // Fallback to simple adapter
+    console.warn('Crawlee failed, using simple adapter');
+    const spider = await getSpider({ adapter: 'simple' });
+    return await spider.fetch(url, { timeout: 15000 });
+  }
+}
+
+// Batch processing with caching
+const spider = await getSpider({ adapter: 'simple' });
+const urls = ['https://example.com/1', 'https://example.com/2'];
+
+const pages = await Promise.all(
+  urls.map(url => spider.fetch(url, {
+    cache: true,
+    cacheExpiry: 600000, // 10 minutes
+  }))
+);
+
+// Integration with AI for content analysis
+import { getAI } from '@happyvertical/ai';
+
+const spider = await getSpider({ adapter: 'simple' });
+const page = await spider.fetch('https://news.example.com/article');
+
+const $ = cheerio.load(page.content);
+const articleText = $('article').text();
+
+const ai = await getAI({ type: 'anthropic' });
+const summary = await ai.chat([
+  { role: 'user', content: `Summarize: ${articleText}` }
+]);
+```
+
+## Related Packages
+
+- **@happyvertical/cache**: Powers built-in caching with file-based storage
+- **@happyvertical/utils**: Provides error types and validation
+- **@happyvertical/pdf**: Often used with spider to download extracted PDF links
+- **@happyvertical/documents**: Uses spider for web page processing
+- **@happyvertical/ai**: Commonly paired for content analysis
+- **@happyvertical/content**: Uses spider for content mirroring
