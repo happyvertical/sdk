@@ -234,19 +234,24 @@ async function loadJSONTables(
 }
 
 /**
- * Converts BigInt and hugeint values in an object
+ * Converts DuckDB-specific type representations to JavaScript types
  *
- * Handles two cases:
+ * Handles three cases:
  * 1. JavaScript BigInt values → converted to numbers
  * 2. DuckDB hugeint objects ({ hugeint: number }) → converted to strings
+ * 3. DuckDB timestamp objects ({ micros: number }) → converted to Date objects
  *
  * DuckDB represents HUGEINT (128-bit integers) as objects with a single
  * property called 'hugeint'. When UUID strings (stored as TEXT) are
  * exported to JSON via COPY TO, DuckDB sometimes converts them to hugeint
  * representation. This function converts them back to strings.
  *
- * @param obj - Object that may contain BigInt or hugeint values
- * @returns Object with BigInts and hugeints converted
+ * DuckDB represents TIMESTAMP values as objects with a single property
+ * called 'micros' containing microseconds since Unix epoch. This function
+ * converts them to JavaScript Date objects for proper round-trip serialization.
+ *
+ * @param obj - Object that may contain BigInt, hugeint, or timestamp values
+ * @returns Object with DuckDB types converted to JavaScript types
  */
 function convertBigInts(obj: any): any {
   if (obj === null || obj === undefined) return obj;
@@ -263,6 +268,25 @@ function convertBigInts(obj: any): any {
     // Convert hugeint to string representation
     // For UUIDs and other TEXT values that DuckDB converted
     return String(obj.hugeint);
+  }
+
+  // Handle DuckDB timestamp objects: { micros: number | bigint }
+  // Convert to JavaScript Date for proper round-trip serialization
+  // Fixes issue #319: JSON adapter fails to serialize Date fields during UPSERT
+  if (
+    typeof obj === 'object' &&
+    !Array.isArray(obj) &&
+    'micros' in obj &&
+    Object.keys(obj).length === 1 &&
+    (typeof obj.micros === 'number' || typeof obj.micros === 'bigint')
+  ) {
+    // Convert microseconds to milliseconds for Date constructor
+    // DuckDB stores timestamps as microseconds since Unix epoch
+    // Handle both number and bigint types (DuckDB can return either)
+    const micros =
+      typeof obj.micros === 'bigint' ? Number(obj.micros) : obj.micros;
+    const milliseconds = micros / 1000;
+    return new Date(milliseconds);
   }
 
   if (Array.isArray(obj)) return obj.map(convertBigInts);
@@ -560,6 +584,10 @@ export async function getDatabase(
 
           if (value === null) {
             return 'NULL';
+          } else if (value instanceof Date) {
+            // Convert Date objects to ISO strings for DuckDB (issue #319)
+            values.push(value.toISOString());
+            return `$${paramIdx++}`;
           } else {
             // Direct parameter binding - schema has NOT NULL DEFAULT '' to prevent ANY type
             values.push(value);
@@ -684,8 +712,13 @@ export async function getDatabase(
       keys.length + 1,
     );
 
+    // Convert Date objects to ISO strings for DuckDB (issue #319)
+    const dataValues = Object.values(data).map((value) =>
+      value instanceof Date ? value.toISOString() : value,
+    );
+
     const sql = `UPDATE ${table} SET ${setClause} ${whereClause}`;
-    const values = [...Object.values(data), ...whereValues];
+    const values = [...dataValues, ...whereValues];
 
     try {
       await connection.run(sql, values);
