@@ -2,6 +2,7 @@ import { mkdir, readdir } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import { DatabaseError } from '@happyvertical/utils';
 import { DatabaseSchemaManager } from './schema-manager';
+import { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils';
 import type {
   DatabaseInterface,
   JSONOptions,
@@ -321,6 +322,10 @@ async function getSmrtSchemaForTable(
  * This function explicitly casts all DEFAULT values to their column types to
  * prevent DuckDB from inferring ANY type.
  *
+ * Additionally, DuckDB has a known limitation (issue #12684) where ON CONFLICT
+ * clauses fail with UNIQUE INDEX but work with inline UNIQUE constraints.
+ * This function converts UNIQUE indexes to inline constraints for compatibility.
+ *
  * @param connection - DuckDB connection
  * @param tableName - Name of the table to create
  * @param schema - Schema definition from SMRT ObjectRegistry
@@ -364,6 +369,15 @@ async function createTableFromSmrtSchema(
     '$1 $2 DEFAULT CAST(NULL AS $2)',
   );
 
+  // Convert UNIQUE indexes to inline UNIQUE constraints for DuckDB compatibility
+  // DuckDB's ON CONFLICT requires inline constraints, not separate indexes
+  const transformed = convertUniqueIndexesToInlineConstraints(
+    createTableSQL,
+    schema.indexes,
+  );
+  createTableSQL = transformed.ddl;
+  const indexesToCreate = transformed.indexes;
+
   try {
     await connection.run(createTableSQL);
 
@@ -388,9 +402,10 @@ async function createTableFromSmrtSchema(
       );
     }
 
-    // Create indexes if defined
-    if (schema.indexes) {
-      for (const indexSQL of schema.indexes) {
+    // Create remaining indexes (non-UNIQUE indexes only)
+    // UNIQUE indexes have been converted to inline constraints
+    if (indexesToCreate && indexesToCreate.length > 0) {
+      for (const indexSQL of indexesToCreate) {
         try {
           await connection.run(indexSQL);
         } catch (error) {

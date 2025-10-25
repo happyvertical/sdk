@@ -9,6 +9,7 @@ import {
   validateIndexName,
   validateTableName,
 } from './shared/alter-utils';
+import { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils';
 import type {
   ColumnDefinition,
   ColumnDefinitionWithName,
@@ -24,6 +25,10 @@ import { buildWhere } from './shared/utils';
 
 /**
  * Creates tables from provided schema definitions
+ *
+ * DuckDB has a known limitation (issue #12684) where ON CONFLICT clauses
+ * fail with UNIQUE INDEX but work with inline UNIQUE constraints.
+ * This function converts UNIQUE indexes to inline constraints for compatibility.
  *
  * @param connection - DuckDB connection
  * @param schemas - Schema definitions to create
@@ -47,12 +52,20 @@ async function createTablesFromSchemas(
 
       console.log(`[duckdb] Creating table ${tableName} from provided schema`);
 
-      // Create table from DDL
-      await connection.run(schema.ddl);
+      // Convert UNIQUE indexes to inline UNIQUE constraints for DuckDB compatibility
+      // DuckDB's ON CONFLICT requires inline constraints, not separate indexes
+      const transformed = convertUniqueIndexesToInlineConstraints(
+        schema.ddl,
+        schema.indexes,
+      );
 
-      // Create indexes
-      if (schema.indexes && schema.indexes.length > 0) {
-        for (const indexSQL of schema.indexes) {
+      // Create table from transformed DDL
+      await connection.run(transformed.ddl);
+
+      // Create remaining indexes (non-UNIQUE indexes only)
+      // UNIQUE indexes have been converted to inline constraints
+      if (transformed.indexes && transformed.indexes.length > 0) {
+        for (const indexSQL of transformed.indexes) {
           try {
             await connection.run(indexSQL);
           } catch (error) {
