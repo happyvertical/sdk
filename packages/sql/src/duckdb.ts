@@ -393,12 +393,65 @@ export async function getDatabase(
     }
 
     const keys = Object.keys(data);
-    const values = Object.values(data);
-    const placeholders = keys.map((_, idx) => `$${idx + 1}`).join(', ');
-    const updateSet = keys.map((key, idx) => `${key} = $${idx + 1}`).join(', ');
-    const conflict = conflictColumns.join(', ');
+    const dataValues = Object.values(data);
 
-    const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
+    // Build placeholders and values with proper type handling for DuckDB
+    // DuckDB cannot infer types from empty strings or certain values, so we need explicit CAST
+    const placeholders: string[] = [];
+    const values: any[] = [];
+    let paramIdx = 1;
+
+    for (const value of dataValues) {
+      if (value === null) {
+        placeholders.push('NULL');
+      } else if (value === '' && typeof value === 'string') {
+        // CAST empty strings to TEXT to prevent DuckDB ANY type inference
+        placeholders.push(`CAST($${paramIdx} AS TEXT)`);
+        values.push(value);
+        paramIdx++;
+      } else if (value instanceof Date) {
+        // Convert Date objects to ISO strings for DuckDB
+        placeholders.push(`$${paramIdx}`);
+        values.push(value.toISOString());
+        paramIdx++;
+      } else {
+        // Direct parameter binding for other values
+        placeholders.push(`$${paramIdx}`);
+        values.push(value);
+        paramIdx++;
+      }
+    }
+
+    // Build UPDATE SET clause with same type handling
+    // DO NOT reset paramIdx - parameters must be unique across entire query
+    const updateSetParts: string[] = [];
+
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i];
+      const value = dataValues[i];
+
+      if (value === null) {
+        updateSetParts.push(`${key} = NULL`);
+      } else if (value === '' && typeof value === 'string') {
+        updateSetParts.push(`${key} = CAST($${paramIdx} AS TEXT)`);
+        values.push(value);
+        paramIdx++;
+      } else if (value instanceof Date) {
+        updateSetParts.push(`${key} = $${paramIdx}`);
+        values.push(value.toISOString());
+        paramIdx++;
+      } else {
+        updateSetParts.push(`${key} = $${paramIdx}`);
+        values.push(value);
+        paramIdx++;
+      }
+    }
+
+    // Quote conflict columns to match DuckDB's requirement for ON CONFLICT
+    // When UNIQUE constraints use quoted names, ON CONFLICT must also use quoted names
+    const conflict = conflictColumns.map((col) => `"${col}"`).join(', ');
+
+    const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders.join(', ')}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSetParts.join(', ')}`;
 
     try {
       await connection.run(sql, values);
