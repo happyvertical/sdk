@@ -1,3 +1,11 @@
+## [0.48.3](https://github.com/happyvertical/sdk/compare/v0.48.2...v0.48.3) (2025-10-25)
+
+
+### Bug Fixes
+
+* **sql:** convert DuckDB timestamp objects to Date in JSON adapter ([2e76fb6](https://github.com/happyvertical/sdk/commit/2e76fb6c5c02a9164430e35629410493746a07cd)), closes [#319](https://github.com/happyvertical/sdk/issues/319) [#319](https://github.com/happyvertical/sdk/issues/319)
+* **sql:** DuckDB schema transformation for inline UNIQUE constraints ([2d262e3](https://github.com/happyvertical/sdk/commit/2d262e33180462f862dd54f99605dc9cfc8f259a)), closes [#89](https://github.com/happyvertical/sdk/issues/89)
+
 ## [0.48.2](https://github.com/happyvertical/sdk/compare/v0.48.1...v0.48.2) (2025-10-25)
 
 
