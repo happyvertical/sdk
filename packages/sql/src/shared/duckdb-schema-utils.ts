@@ -42,8 +42,9 @@ export function parseIndexStatement(indexSQL: string): ParsedIndex | null {
   const trimmed = indexSQL.trim();
 
   // Match: CREATE [UNIQUE] INDEX [IF NOT EXISTS] name ON table (columns)
+  // Support both quoted and unquoted identifiers: table, "table", columns, "columns"
   const match = trimmed.match(
-    /CREATE\s+(UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s+ON\s+\w+\s*\(([^)]+)\)/i,
+    /CREATE\s+(UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s+ON\s+(?:"?\w+"?)\s*\(([^)]+)\)/i,
   );
 
   if (!match) {
@@ -52,9 +53,14 @@ export function parseIndexStatement(indexSQL: string): ParsedIndex | null {
 
   const [, uniqueKeyword, name, columnsStr] = match;
 
+  // Remove quotes from column names
+  const columns = columnsStr
+    .split(',')
+    .map((col) => col.trim().replace(/^"|"$/g, ''));
+
   return {
     name,
-    columns: columnsStr.split(',').map((col) => col.trim()),
+    columns,
     unique: Boolean(uniqueKeyword),
     sql: trimmed,
   };
@@ -139,9 +145,9 @@ export function convertUniqueIndexesToInlineConstraints(
     return { ddl, indexes };
   }
 
-  // Build inline UNIQUE constraints
+  // Build inline UNIQUE constraints with quoted column names
   const uniqueConstraints = uniqueIndexes.map((idx) => {
-    const columns = idx.columns.join(', ');
+    const columns = idx.columns.map((col) => `"${col}"`).join(', ');
     return `  UNIQUE(${columns})`;
   });
 

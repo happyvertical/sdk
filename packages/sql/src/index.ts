@@ -194,6 +194,10 @@ export function validateColumnName(column: string): string {
 import { buildWhere } from './shared/utils';
 export { buildWhere };
 
+// Import DuckDB schema transformation utilities
+import { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils';
+export { convertUniqueIndexesToInlineConstraints };
+
 export type { SchemaInitializationResult } from './schema-manager';
 // Export schema management
 export { DatabaseSchemaManager } from './schema-manager';

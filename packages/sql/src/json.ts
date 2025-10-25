@@ -801,7 +801,9 @@ export async function getDatabase(
       }
     }
 
-    const conflict = conflictColumns.join(', ');
+    // Quote conflict columns to match DuckDB's requirement for ON CONFLICT
+    // When UNIQUE constraints use quoted names, ON CONFLICT must also use quoted names
+    const conflict = conflictColumns.map((col) => `"${col}"`).join(', ');
     const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders.join(', ')}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSetParts.join(', ')}`;
 
     try {
