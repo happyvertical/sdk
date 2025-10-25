@@ -1,3 +1,10 @@
+## [0.48.2](https://github.com/happyvertical/sdk/compare/v0.48.1...v0.48.2) (2025-10-25)
+
+
+### Bug Fixes
+
+* **sql:** convert UNIQUE indexes to inline constraints for DuckDB ([36748ae](https://github.com/happyvertical/sdk/commit/36748aef2c2e7569113ccb2100f60ca5c88647a2)), closes [#12684](https://github.com/happyvertical/sdk/issues/12684) [#316](https://github.com/happyvertical/sdk/issues/316)
+
 ## [0.48.1](https://github.com/happyvertical/sdk/compare/v0.48.0...v0.48.1) (2025-10-24)
 
 # [0.48.0](https://github.com/happyvertical/sdk/compare/v0.47.2...v0.48.0) (2025-10-23)
