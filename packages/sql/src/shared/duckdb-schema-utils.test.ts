@@ -115,7 +115,7 @@ describe('duckdb-schema-utils', () => {
 
       const result = convertUniqueIndexesToInlineConstraints(ddl, indexes);
 
-      expect(result.ddl).toContain('UNIQUE(slug, context)');
+      expect(result.ddl).toContain('UNIQUE("slug", "context")');
       expect(result.indexes).toEqual([]);
     });
 
@@ -132,8 +132,8 @@ describe('duckdb-schema-utils', () => {
 
       const result = convertUniqueIndexesToInlineConstraints(ddl, indexes);
 
-      expect(result.ddl).toContain('UNIQUE(email)');
-      expect(result.ddl).toContain('UNIQUE(username)');
+      expect(result.ddl).toContain('UNIQUE("email")');
+      expect(result.ddl).toContain('UNIQUE("username")');
       expect(result.indexes).toEqual([]);
     });
 
@@ -150,7 +150,7 @@ describe('duckdb-schema-utils', () => {
 
       const result = convertUniqueIndexesToInlineConstraints(ddl, indexes);
 
-      expect(result.ddl).toContain('UNIQUE(slug)');
+      expect(result.ddl).toContain('UNIQUE("slug")');
       expect(result.indexes).toEqual([
         'CREATE INDEX idx_posts_user_id ON posts (user_id)',
       ]);
@@ -169,7 +169,7 @@ describe('duckdb-schema-utils', () => {
 
       const result = convertUniqueIndexesToInlineConstraints(ddl, indexes);
 
-      expect(result.ddl).toContain('UNIQUE(sku)');
+      expect(result.ddl).toContain('UNIQUE("sku")');
       expect(result.ddl).toContain('CHECK(price > 0)');
     });
 
@@ -208,7 +208,7 @@ describe('duckdb-schema-utils', () => {
 
       const result = convertUniqueIndexesToInlineConstraints(ddl, indexes);
 
-      expect(result.ddl).toContain('UNIQUE(name)');
+      expect(result.ddl).toContain('UNIQUE("name")');
     });
 
     it('should handle multi-column UNIQUE constraint', () => {
@@ -224,7 +224,7 @@ describe('duckdb-schema-utils', () => {
 
       const result = convertUniqueIndexesToInlineConstraints(ddl, indexes);
 
-      expect(result.ddl).toContain('UNIQUE(slug, context)');
+      expect(result.ddl).toContain('UNIQUE("slug", "context")');
       expect(result.indexes).toEqual([]);
     });
 
@@ -237,7 +237,7 @@ describe('duckdb-schema-utils', () => {
 
       const result = convertUniqueIndexesToInlineConstraints(ddl, indexes);
 
-      expect(result.ddl).toContain('UNIQUE(value)');
+      expect(result.ddl).toContain('UNIQUE("value")');
       expect(result.ddl).toContain(');');
     });
   });
