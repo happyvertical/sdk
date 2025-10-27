@@ -1,3 +1,10 @@
+# [0.49.0](https://github.com/happyvertical/sdk/compare/v0.48.3...v0.49.0) (2025-10-27)
+
+
+### Features
+
+* **weather:** add weather data provider package ([4d08fa8](https://github.com/happyvertical/sdk/commit/4d08fa87cc09f9aa17d2c8642537b7acbd9cbef2))
+
 ## [0.48.3](https://github.com/happyvertical/sdk/compare/v0.48.2...v0.48.3) (2025-10-25)
 
 
