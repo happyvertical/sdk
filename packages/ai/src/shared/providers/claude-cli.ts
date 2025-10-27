@@ -402,7 +402,18 @@ export class ClaudeCliProvider implements AIInterface {
     messages: AIMessage[],
     options: ChatOptions = {},
   ): Promise<AIResponse> {
-    const { prompt, systemPrompt } = this.mapMessagesToPrompt(messages);
+    let { prompt, systemPrompt } = this.mapMessagesToPrompt(messages);
+
+    // Add JSON format instruction if requested
+    // NOTE: Claude CLI doesn't have native JSON mode like OpenAI. This is a prompt-based
+    // approach that instructs the model to output JSON, similar to Anthropic provider.
+    if (options.responseFormat?.type === 'json_object') {
+      const jsonInstruction =
+        '\n\nIMPORTANT: You must respond with valid JSON only. Do not include any explanatory text outside the JSON object.';
+      systemPrompt = systemPrompt
+        ? systemPrompt + jsonInstruction
+        : jsonInstruction.trim();
+    }
 
     const result = await this.executeCommand(prompt, {
       model: options.model,
@@ -474,7 +485,16 @@ export class ClaudeCliProvider implements AIInterface {
     messages: AIMessage[],
     options: ChatOptions = {},
   ): AsyncIterable<string> {
-    const { prompt, systemPrompt } = this.mapMessagesToPrompt(messages);
+    let { prompt, systemPrompt } = this.mapMessagesToPrompt(messages);
+
+    // Add JSON format instruction if requested
+    if (options.responseFormat?.type === 'json_object') {
+      const jsonInstruction =
+        '\n\nIMPORTANT: You must respond with valid JSON only. Do not include any explanatory text outside the JSON object.';
+      systemPrompt = systemPrompt
+        ? systemPrompt + jsonInstruction
+        : jsonInstruction.trim();
+    }
 
     yield* this.executeStreamingCommand(prompt, {
       model: options.model,
