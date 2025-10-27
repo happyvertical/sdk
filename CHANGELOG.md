@@ -1,3 +1,10 @@
+## [0.49.1](https://github.com/happyvertical/sdk/compare/v0.49.0...v0.49.1) (2025-10-27)
+
+
+### Bug Fixes
+
+* **ai:** claude-cli provider now handles responseFormat option ([d62d51e](https://github.com/happyvertical/sdk/commit/d62d51e9cc93a8d98ee0063f8197c45d59f76e5c)), closes [#323](https://github.com/happyvertical/sdk/issues/323) [happyvertical/praeco#39](https://github.com/happyvertical/praeco/issues/39)
+
 # [0.49.0](https://github.com/happyvertical/sdk/compare/v0.48.3...v0.49.0) (2025-10-27)
 
 
