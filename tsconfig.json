@@ -52,6 +52,7 @@
     { "path": "./packages/cache" },
     { "path": "./packages/geo" },
     { "path": "./packages/translator" },
+    { "path": "./packages/weather" },
     { "path": "./packages/ocr" },
     { "path": "./packages/pdf" },
     { "path": "./packages/documents" },

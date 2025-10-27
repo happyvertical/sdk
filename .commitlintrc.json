@@ -41,6 +41,7 @@
         "sql",
         "translator",
         "utils",
+        "weather",
         "deps",
         "release"
       ]
