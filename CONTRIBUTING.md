@@ -1,5 +1,50 @@
 
 
+# Building and Development
+
+## Turborepo Build System
+
+The SDK uses [Turborepo](https://turbo.build/repo/docs) for intelligent build orchestration:
+
+- **Automatic Dependency Resolution**: Turborepo determines build order automatically based on package dependencies
+- **Incremental Builds**: Only rebuilds packages that have changed (and their dependents)
+- **Local Caching**: Build outputs are cached in `.turbo/` directory
+- **CI/CD Caching**: GitHub Actions shares build artifacts across runs
+
+### Common Development Commands
+
+```bash
+# Install dependencies
+pnpm install
+
+# Build all packages (incremental, uses cache when possible)
+npm run build
+
+# Clean all build artifacts and rebuild
+npm run build:clean
+
+# Build in watch mode (rebuilds on file changes)
+npm run dev
+
+# Run tests
+npm test
+
+# Run linter
+npm run lint
+
+# Type check
+npm run typecheck
+```
+
+### Working with Package Dependencies
+
+When you modify a package, Turborepo will automatically:
+1. Rebuild that package
+2. Rebuild any packages that depend on it
+3. Skip rebuilding packages that haven't changed
+
+This means you can focus on your changes and let Turborepo handle the build orchestration.
+
 # Coding Guidelines
 - Follow the Airbnb JavaScript Style Guide.
 - Add comments to clarify non-obvious logic. **Ensure all comments are written in English.**
