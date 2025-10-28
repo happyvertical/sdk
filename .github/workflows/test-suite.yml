@@ -117,17 +117,13 @@ jobs:
         shell: bash
         run: npx playwright install --with-deps chromium
 
-      - name: Cache build artifacts
+      - name: Setup Turborepo cache
         uses: actions/cache@v4
         with:
-          path: |
-            packages/**/dist
-            packages/**/.tsbuildinfo
-            node_modules/.vite
-          key: ${{ runner.os }}-build-${{ hashFiles('**/pnpm-lock.yaml') }}-${{ hashFiles('packages/**/src/**/*.ts', 'packages/**/tsconfig.json') }}
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-build-${{ hashFiles('**/pnpm-lock.yaml') }}-
-            ${{ runner.os }}-build-
+            ${{ runner.os }}-turbo-
 
       - name: Build packages
         run: pnpm run build
