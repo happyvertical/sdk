@@ -1211,6 +1211,34 @@ export async function getDatabase(
     const { sql, values } = parseTemplate(strings, ...vars);
     try {
       await connection.run(sql, values);
+
+      // Detect CREATE TABLE statements and auto-export empty tables
+      // This ensures SMRT system tables persist even when empty
+      if (writeStrategy !== 'none') {
+        const createTableMatch = sql.match(
+          /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)/i,
+        );
+        if (createTableMatch) {
+          const tableName = createTableMatch[1];
+          try {
+            // Only export if JSON file doesn't already exist
+            // This prevents overwriting existing data when tables are manually created
+            const { access } = await import('node:fs/promises');
+            const jsonFilePath = join(url, `${tableName}.json`);
+            try {
+              await access(jsonFilePath);
+              // File exists, don't overwrite
+            } catch {
+              // File doesn't exist, export empty table
+              await exportTableToJSON(connection, tableName, url);
+            }
+          } catch (error) {
+            console.warn(
+              `[json-adapter] Could not export newly created table ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
+        }
+      }
     } catch (e) {
       throw new DatabaseError('Failed to execute query', {
         sql,
