@@ -1,3 +1,16 @@
+# [0.50.0](https://github.com/happyvertical/sdk/compare/v0.49.1...v0.50.0) (2025-10-28)
+
+
+### Bug Fixes
+
+* **build:** correct docs package name in Turborepo filter ([3233a97](https://github.com/happyvertical/sdk/commit/3233a97b9b9c40a544731eb04c52c1938c0aed79))
+* **weather:** make timeout test non-flaky ([b8f6ced](https://github.com/happyvertical/sdk/commit/b8f6ced08cedc1ff745674b4357d99c9f1532ef6))
+
+
+### Features
+
+* **ci:** migrate monorepo to Turborepo ([40ac735](https://github.com/happyvertical/sdk/commit/40ac7353c6ff6d84b98ab31465ab689350302a87)), closes [#325](https://github.com/happyvertical/sdk/issues/325)
+
 ## [0.49.1](https://github.com/happyvertical/sdk/compare/v0.49.0...v0.49.1) (2025-10-27)
 
 
