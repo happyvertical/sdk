@@ -1,3 +1,10 @@
+## [0.50.1](https://github.com/happyvertical/sdk/compare/v0.50.0...v0.50.1) (2025-10-28)
+
+
+### Bug Fixes
+
+* **sql:** persist empty SMRT system tables in JSON adapter ([2acc934](https://github.com/happyvertical/sdk/commit/2acc934324ecc070852a460e2735a8e362d5d9f8)), closes [#328](https://github.com/happyvertical/sdk/issues/328)
+
 # [0.50.0](https://github.com/happyvertical/sdk/compare/v0.49.1...v0.50.0) (2025-10-28)
 
 
