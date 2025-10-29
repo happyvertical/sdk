@@ -1,3 +1,10 @@
+## [0.50.2](https://github.com/happyvertical/sdk/compare/v0.50.1...v0.50.2) (2025-10-29)
+
+
+### Bug Fixes
+
+* **sql:** ensure syncSchema() exports empty tables to JSON files ([aa09c1f](https://github.com/happyvertical/sdk/commit/aa09c1f530ab500ab1c369147f0aed4c7384bfb7)), closes [#328](https://github.com/happyvertical/sdk/issues/328) [#328](https://github.com/happyvertical/sdk/issues/328)
+
 ## [0.50.1](https://github.com/happyvertical/sdk/compare/v0.50.0...v0.50.1) (2025-10-28)
 
 
