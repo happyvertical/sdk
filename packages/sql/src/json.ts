@@ -937,7 +937,7 @@ export async function getDatabase(
 
       // Handle write-back strategy
       if (writeStrategy === 'immediate') {
-        await exportTableToJSON(connection, table, dataDir);
+        await exportTableToJSON(connection, table, url);
       }
 
       return { operation: 'delete', affected: 1 };
@@ -1325,6 +1325,34 @@ export async function getDatabase(
 
       try {
         await connection.run(command);
+
+        // Detect CREATE TABLE statements and auto-export empty tables
+        // This ensures tables persist even when empty
+        if (writeStrategy !== 'none') {
+          const createTableMatch = command.match(
+            /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)/i,
+          );
+          if (createTableMatch) {
+            const tableName = createTableMatch[1];
+            try {
+              // Only export if JSON file doesn't already exist
+              // This prevents overwriting existing data when tables are manually created
+              const { access } = await import('node:fs/promises');
+              const jsonFilePath = join(url, `${tableName}.json`);
+              try {
+                await access(jsonFilePath);
+                // File exists, don't overwrite
+              } catch {
+                // File doesn't exist, export empty table
+                await exportTableToJSON(connection, tableName, url);
+              }
+            } catch (error) {
+              console.warn(
+                `[json-adapter] Could not export newly created table ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            }
+          }
+        }
       } catch (e) {
         // Log but don't fail on schema sync errors
         console.error('Schema sync error:', e);

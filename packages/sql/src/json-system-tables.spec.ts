@@ -213,4 +213,95 @@ describe('JSON adapter system tables persistence', () => {
     const count = await db2.count('_smrt_contexts');
     expect(count).toBe(0);
   });
+
+  it('should persist tables created via syncSchema() (SMRT use case)', async () => {
+    // This tests the actual SMRT framework use case
+    // SMRT creates system tables via syncSchema(), not execute()
+
+    // Step 1: Create database
+    const db1 = await getDatabase({
+      type: 'json',
+      url: testDataDir,
+      writeStrategy: 'immediate',
+    });
+
+    // Step 2: Create system tables via syncSchema (like SMRT does)
+    const SYSTEM_TABLES_SCHEMA = `
+      CREATE TABLE _smrt_contexts (
+        id TEXT PRIMARY KEY,
+        object_id TEXT NOT NULL,
+        context TEXT NOT NULL
+      );
+
+      CREATE TABLE _smrt_migrations (
+        id TEXT PRIMARY KEY,
+        version TEXT NOT NULL
+      );
+
+      CREATE TABLE _smrt_registry (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL
+      );
+
+      CREATE TABLE _smrt_signals (
+        id TEXT PRIMARY KEY,
+        event_type TEXT NOT NULL,
+        payload TEXT
+      );
+    `;
+
+    await db1.syncSchema?.(SYSTEM_TABLES_SCHEMA);
+
+    // Verify tables exist in db1
+    const contextsExist1 = await db1.tableExists('_smrt_contexts');
+    const migrationsExist1 = await db1.tableExists('_smrt_migrations');
+    const registryExist1 = await db1.tableExists('_smrt_registry');
+    const signalsExist1 = await db1.tableExists('_smrt_signals');
+
+    expect(contextsExist1).toBe(true);
+    expect(migrationsExist1).toBe(true);
+    expect(registryExist1).toBe(true);
+    expect(signalsExist1).toBe(true);
+
+    // Check what files were created
+    const { readdirSync } = await import('node:fs');
+    const files = readdirSync(testDataDir);
+    console.log('Files after syncSchema():', files);
+
+    // Verify JSON files were created
+    expect(files).toContain('_smrt_contexts.json');
+    expect(files).toContain('_smrt_migrations.json');
+    expect(files).toContain('_smrt_registry.json');
+    expect(files).toContain('_smrt_signals.json');
+
+    // Step 3: Reopen database
+    const db2 = await getDatabase({
+      type: 'json',
+      url: testDataDir,
+      writeStrategy: 'immediate',
+    });
+
+    // Step 4: Verify tables still exist (this was failing before the fix)
+    const contextsExist2 = await db2.tableExists('_smrt_contexts');
+    const migrationsExist2 = await db2.tableExists('_smrt_migrations');
+    const registryExist2 = await db2.tableExists('_smrt_registry');
+    const signalsExist2 = await db2.tableExists('_smrt_signals');
+
+    expect(contextsExist2).toBe(true);
+    expect(migrationsExist2).toBe(true);
+    expect(registryExist2).toBe(true);
+    expect(signalsExist2).toBe(true);
+
+    // Verify we can query the empty tables
+    const contextsCount = await db2.count('_smrt_contexts');
+    const migrationsCount = await db2.count('_smrt_migrations');
+    const registryCount = await db2.count('_smrt_registry');
+    const signalsCount = await db2.count('_smrt_signals');
+
+    expect(contextsCount).toBe(0);
+    expect(migrationsCount).toBe(0);
+    expect(registryCount).toBe(0);
+    expect(signalsCount).toBe(0);
+  });
 });
