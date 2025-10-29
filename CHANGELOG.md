@@ -1,3 +1,10 @@
+## [0.51.1](https://github.com/happyvertical/sdk/compare/v0.51.0...v0.51.1) (2025-10-29)
+
+
+### Bug Fixes
+
+* **sql:** handle quoted table names in CREATE TABLE regex ([acec05a](https://github.com/happyvertical/sdk/commit/acec05affe95002accc7291840401c72a82bdac9))
+
 # [0.51.0](https://github.com/happyvertical/sdk/compare/v0.50.3...v0.51.0) (2025-10-29)
 
 
