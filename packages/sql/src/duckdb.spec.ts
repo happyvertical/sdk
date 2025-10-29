@@ -40,6 +40,31 @@ describe('DuckDB Adapter', () => {
       expect(productsExist).toBe(true);
     });
 
+    it('should infer TIMESTAMP columns from ISO date strings in JSON', async () => {
+      // Verify meetings table was auto-registered
+      const meetingsExist = await db.tableExists('meetings');
+      expect(meetingsExist).toBe(true);
+
+      // Query schema to verify TIMESTAMP type inference
+      const schemaInfo = await db.many`
+        SELECT column_name, data_type
+        FROM information_schema.columns
+        WHERE table_name = 'meetings'
+        AND column_name IN ('date', 'created_at', 'updated_at')
+        ORDER BY column_name
+      `;
+
+      expect(schemaInfo).toHaveLength(3);
+      expect(schemaInfo.every((col) => col.data_type === 'TIMESTAMP')).toBe(
+        true,
+      );
+
+      // Verify we can query timestamp data
+      const meetings = await db.many`SELECT * FROM meetings ORDER BY date`;
+      expect(meetings).toHaveLength(2);
+      expect(meetings[0].title).toBe('Council Meeting');
+    });
+
     it('should handle missing data directory gracefully', async () => {
       const dbNoData = await getDatabase({
         type: 'duckdb',

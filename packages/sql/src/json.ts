@@ -194,6 +194,19 @@ async function loadJSONTables(
                     type = Number.isInteger(value) ? 'INTEGER' : 'DOUBLE';
                   } else if (typeof value === 'boolean') {
                     type = 'BOOLEAN';
+                  } else if (typeof value === 'string') {
+                    // Detect ISO 8601 date/timestamp strings
+                    // Full timestamp: 2024-01-15T10:30:00.000Z or 2024-01-15T10:30:00Z
+                    // Date only: 2024-01-15
+                    const timestampRegex =
+                      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/;
+                    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+                    if (timestampRegex.test(value)) {
+                      type = 'TIMESTAMP';
+                    } else if (dateRegex.test(value)) {
+                      type = 'DATE';
+                    }
                   }
                   return `${key} ${type}`;
                 })
