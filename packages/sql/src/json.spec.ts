@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { getDatabase } from './index';
+import { clearConnectionCache, getDatabase } from './index';
 
 describe('JSON adapter tests', () => {
   let db: any;
@@ -33,6 +33,8 @@ describe('JSON adapter tests', () => {
   });
 
   afterEach(async () => {
+    // Clear connection cache to ensure test isolation
+    clearConnectionCache();
     // Clean up test data directory
     rmSync(testDataDir, { recursive: true, force: true });
   });
@@ -120,7 +122,8 @@ describe('JSON adapter tests', () => {
       ]),
     );
 
-    // Reload database to pick up new table
+    // Clear cache and reload database to pick up new table
+    clearConnectionCache();
     db = await getDatabase({
       type: 'json',
       url: testDataDir,
@@ -396,6 +399,9 @@ describe('JSON adapter tests', () => {
 
       // For this test, we'll just verify the auto-detection fallback works
       // In production, users would register SMRT objects before initializing the DB
+
+      // Clear cache to pick up new JSON file
+      clearConnectionCache();
       const testDb = await getDatabase({
         type: 'json',
         url: testDataDir,
@@ -543,6 +549,8 @@ describe('JSON adapter tests', () => {
       // - INSERT operations work correctly with proper typing
 
       // For this test, we reload to simulate the fixed behavior
+      // Clear cache to pick up new JSON file
+      clearConnectionCache();
       const testDb = await getDatabase({
         type: 'json',
         url: testDataDir,
@@ -971,7 +979,8 @@ describe('JSON adapter tests', () => {
       // Export to JSON (this is where DuckDB might convert to hugeint)
       await (db as any).exportTable('councils');
 
-      // Recreate database from JSON files (simulates app restart)
+      // Clear cache and recreate database from JSON files (simulates app restart)
+      clearConnectionCache();
       db = await getDatabase({
         type: 'json',
         url: testDataDir,
@@ -1002,6 +1011,185 @@ describe('JSON adapter tests', () => {
       expect(afterUpsert?.id).toBe(uuidId);
       expect(typeof afterUpsert?.id).toBe('string');
       expect(afterUpsert?.slug).toBe('town-of-bentley-updated');
+    });
+  });
+
+  describe('connection caching by data directory URL', () => {
+    it('should reuse connection when same URL is provided', async () => {
+      const testDir = './test-connection-cache-1';
+      mkdirSync(testDir, { recursive: true });
+
+      // Create first database
+      const db1 = await getDatabase({
+        type: 'json',
+        url: testDir,
+        autoRegister: false,
+      });
+
+      // Create table via db1
+      await db1.execute`
+        CREATE TABLE shared_table (
+          id TEXT PRIMARY KEY,
+          value TEXT
+        )
+      `;
+
+      await db1.insert('shared_table', { id: 'test1', value: 'value1' });
+
+      // Create second database with same URL
+      const db2 = await getDatabase({
+        type: 'json',
+        url: testDir,
+        autoRegister: false,
+      });
+
+      // db2 should see table created by db1 (same connection)
+      const result =
+        await db2.single`SELECT * FROM shared_table WHERE id = 'test1'`;
+      expect(result).toBeDefined();
+      expect(result?.value).toBe('value1');
+
+      // Verify they're the same connection instance
+      expect(db1).toBe(db2);
+
+      // Clean up
+      rmSync(testDir, { recursive: true, force: true });
+    });
+
+    it('should create separate connections for different URLs', async () => {
+      const testDir1 = './test-connection-cache-2a';
+      const testDir2 = './test-connection-cache-2b';
+      mkdirSync(testDir1, { recursive: true });
+      mkdirSync(testDir2, { recursive: true });
+
+      // Create two databases with different URLs
+      const db1 = await getDatabase({
+        type: 'json',
+        url: testDir1,
+        autoRegister: false,
+      });
+
+      const db2 = await getDatabase({
+        type: 'json',
+        url: testDir2,
+        autoRegister: false,
+      });
+
+      // They should be different instances
+      expect(db1).not.toBe(db2);
+
+      // Create table in db1
+      await db1.execute`
+        CREATE TABLE db1_table (
+          id TEXT PRIMARY KEY,
+          value TEXT
+        )
+      `;
+
+      // db2 should NOT see db1's table
+      const tableExists = await db2.tableExists('db1_table');
+      expect(tableExists).toBe(false);
+
+      // Clean up
+      rmSync(testDir1, { recursive: true, force: true });
+      rmSync(testDir2, { recursive: true, force: true });
+    });
+
+    it('should use explicit dbid to override URL-based caching', async () => {
+      const testDir = './test-connection-cache-3';
+      mkdirSync(testDir, { recursive: true });
+
+      // Create two databases with same URL but different dbids
+      const db1 = await getDatabase({
+        type: 'json',
+        url: testDir,
+        dbid: 'instance-1',
+        autoRegister: false,
+      });
+
+      const db2 = await getDatabase({
+        type: 'json',
+        url: testDir,
+        dbid: 'instance-2',
+        autoRegister: false,
+      });
+
+      // They should be different instances (different dbids)
+      expect(db1).not.toBe(db2);
+
+      // Create table in db1
+      await db1.execute`
+        CREATE TABLE db1_table (
+          id TEXT PRIMARY KEY,
+          value TEXT
+        )
+      `;
+
+      // db2 should NOT see db1's table (separate instance)
+      const tableExists = await db2.tableExists('db1_table');
+      expect(tableExists).toBe(false);
+
+      // Clean up
+      rmSync(testDir, { recursive: true, force: true });
+    });
+
+    it('should handle parallel calls with same URL', async () => {
+      const testDir = './test-connection-cache-4';
+      mkdirSync(testDir, { recursive: true });
+
+      // Create multiple connections in parallel with same URL
+      const [db1, db2, db3] = await Promise.all([
+        getDatabase({ type: 'json', url: testDir, autoRegister: false }),
+        getDatabase({ type: 'json', url: testDir, autoRegister: false }),
+        getDatabase({ type: 'json', url: testDir, autoRegister: false }),
+      ]);
+
+      // All should be the same instance
+      expect(db1).toBe(db2);
+      expect(db2).toBe(db3);
+
+      // Clean up
+      rmSync(testDir, { recursive: true, force: true });
+    });
+
+    it('should force fresh connection when clearCache is true', async () => {
+      const testDir = './test-connection-cache-5';
+      mkdirSync(testDir, { recursive: true });
+
+      // Create first database
+      const db1 = await getDatabase({
+        type: 'json',
+        url: testDir,
+        autoRegister: false,
+      });
+
+      // Create table via db1
+      await db1.execute`
+        CREATE TABLE test_table (
+          id TEXT PRIMARY KEY,
+          value TEXT
+        )
+      `;
+
+      await db1.insert('test_table', { id: 'test1', value: 'value1' });
+
+      // Create second database with same URL but clearCache: true
+      const db2 = await getDatabase({
+        type: 'json',
+        url: testDir,
+        autoRegister: false,
+        clearCache: true,
+      });
+
+      // db2 should be a different instance
+      expect(db1).not.toBe(db2);
+
+      // db2 should NOT have the table from db1 (fresh connection, no tables yet)
+      const tableExists = await db2.tableExists('test_table');
+      expect(tableExists).toBe(false);
+
+      // Clean up
+      rmSync(testDir, { recursive: true, force: true });
     });
   });
 });

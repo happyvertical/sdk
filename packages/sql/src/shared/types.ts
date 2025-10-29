@@ -121,6 +121,40 @@ export interface JSONOptions {
    * ```
    */
   schemas?: Record<string, SchemaProvider>;
+
+  /**
+   * Unique identifier for in-memory DuckDB instances to enable connection sharing
+   * When multiple getDatabase() calls use the same dbid, they receive
+   * the same database connection instance.
+   *
+   * Auto-generated if not provided, enabling connection sharing by default.
+   * This solves the issue where multiple collections create separate in-memory
+   * databases that can't see each other's tables.
+   */
+  dbid?: string;
+
+  /**
+   * Force a fresh database connection, bypassing the connection cache
+   *
+   * When true, clears any cached connection for this URL before creating a new one.
+   * Useful when you need to reload the database from disk after external changes.
+   *
+   * @default false
+   *
+   * @example
+   * // Initial connection - cached
+   * const db1 = await getDatabase({ type: 'json', url: './data' });
+   *
+   * // External process adds JSON files...
+   *
+   * // Force reload from disk
+   * const db2 = await getDatabase({
+   *   type: 'json',
+   *   url: './data',
+   *   clearCache: true
+   * });
+   */
+  clearCache?: boolean;
 }
 
 /**

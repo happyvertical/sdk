@@ -1,6 +1,6 @@
 import { mkdirSync, rmSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { getDatabase } from './index';
+import { clearConnectionCache, getDatabase } from './index';
 
 /**
  * Test for Issue #328: JSON adapter doesn't persist SMRT system tables
@@ -19,6 +19,8 @@ describe('JSON adapter system tables persistence', () => {
   });
 
   afterEach(() => {
+    // Clear connection cache to ensure test isolation
+    clearConnectionCache();
     // Clean up test data directory
     rmSync(testDataDir, { recursive: true, force: true });
   });
@@ -197,7 +199,8 @@ describe('JSON adapter system tables persistence', () => {
     const files1 = readdirSync(testDataDir);
     console.log('Files after CREATE TABLE (no inserts):', files1);
 
-    // Step 2: Reopen database
+    // Step 2: Clear cache and reopen database (simulates app restart)
+    clearConnectionCache();
     const db2 = await getDatabase({
       type: 'json',
       url: testDataDir,
@@ -275,7 +278,8 @@ describe('JSON adapter system tables persistence', () => {
     expect(files).toContain('_smrt_registry.json');
     expect(files).toContain('_smrt_signals.json');
 
-    // Step 3: Reopen database
+    // Step 3: Clear cache and reopen database (simulates app restart)
+    clearConnectionCache();
     const db2 = await getDatabase({
       type: 'json',
       url: testDataDir,
