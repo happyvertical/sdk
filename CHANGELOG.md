@@ -1,3 +1,10 @@
+## [0.50.3](https://github.com/happyvertical/sdk/compare/v0.50.2...v0.50.3) (2025-10-29)
+
+
+### Bug Fixes
+
+* **sql:** fix timestamp/date inference for DuckDB and JSON adapters ([37a8a0c](https://github.com/happyvertical/sdk/commit/37a8a0cb2fe089c6077cebbf816339b451b548b4)), closes [#330](https://github.com/happyvertical/sdk/issues/330) [#330](https://github.com/happyvertical/sdk/issues/330)
+
 ## [0.50.2](https://github.com/happyvertical/sdk/compare/v0.50.1...v0.50.2) (2025-10-29)
 
 
