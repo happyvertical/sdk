@@ -1293,7 +1293,7 @@ export async function getDatabase(
         // This ensures SMRT system tables persist even when empty
         if (writeStrategy !== 'none') {
           const createTableMatch = sql.match(
-            /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)/i,
+            /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["']?(\w+)["']?/i,
           );
           if (createTableMatch) {
             const tableName = createTableMatch[1];
@@ -1407,7 +1407,7 @@ export async function getDatabase(
           // This ensures tables persist even when empty
           if (writeStrategy !== 'none') {
             const createTableMatch = command.match(
-              /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)/i,
+              /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["']?(\w+)["']?/i,
             );
             if (createTableMatch) {
               const tableName = createTableMatch[1];
