@@ -1,3 +1,10 @@
+# [0.51.0](https://github.com/happyvertical/sdk/compare/v0.50.3...v0.51.0) (2025-10-29)
+
+
+### Features
+
+* **sql:** cache JSON adapter connections per data directory URL ([8cb144e](https://github.com/happyvertical/sdk/commit/8cb144eb7a9cd41aea8ed5261cb19d4f9a206f29)), closes [#332](https://github.com/happyvertical/sdk/issues/332) [#332](https://github.com/happyvertical/sdk/issues/332)
+
 ## [0.50.3](https://github.com/happyvertical/sdk/compare/v0.50.2...v0.50.3) (2025-10-29)
 
 
