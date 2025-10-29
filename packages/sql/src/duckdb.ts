@@ -165,9 +165,9 @@ async function registerJSONFiles(connection: any, dataDir: string) {
       const tableName = basename(file, '.json');
 
       // Create view that reads from JSON file
-      // DuckDB automatically infers schema
+      // DuckDB automatically infers schema with ISO date/timestamp parsing
       await connection.run(
-        `CREATE OR REPLACE VIEW ${tableName} AS SELECT * FROM read_json('${filePath}', auto_detect=true, format='auto')`,
+        `CREATE OR REPLACE VIEW ${tableName} AS SELECT * FROM read_json('${filePath}', auto_detect=true, format='auto', timestampformat='iso', dateformat='iso')`,
       );
     }
   } catch (error) {

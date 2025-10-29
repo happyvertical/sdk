@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getDatabase } from './index';
 
@@ -295,6 +296,77 @@ describe('JSON adapter tests', () => {
       id: 'doc-1',
       title: 'Test Document',
     });
+  });
+
+  it('should infer TIMESTAMP and DATE types from ISO 8601 strings', async () => {
+    const timestampDir = './test-timestamp-inference';
+    mkdirSync(timestampDir, { recursive: true });
+
+    // Create JSON file with ISO 8601 timestamps and dates
+    const testData = [
+      {
+        id: 'event-1',
+        title: 'Council Meeting',
+        date: '2024-01-15', // DATE format
+        timestamp: '2024-01-15T10:30:00.000Z', // TIMESTAMP with milliseconds
+        created_at: '2024-01-10T09:00:00Z', // TIMESTAMP without milliseconds
+        description: 'Regular text field',
+      },
+    ];
+
+    writeFileSync(
+      join(timestampDir, 'events.json'),
+      JSON.stringify(testData, null, 2),
+    );
+
+    // Create database with autoRegister
+    const timestampDb = await getDatabase({
+      type: 'json',
+      url: timestampDir,
+      writeStrategy: 'immediate',
+      autoRegister: true,
+    });
+
+    // Verify table was auto-registered
+    const tableExists = await timestampDb.tableExists('events');
+    expect(tableExists).toBe(true);
+
+    // Query schema to verify type inference
+    const schemaInfo = await timestampDb.many`
+      SELECT column_name, data_type
+      FROM information_schema.columns
+      WHERE table_name = 'events'
+      ORDER BY column_name
+    `;
+
+    // Verify date field is inferred as DATE
+    const dateColumn = schemaInfo.find((col) => col.column_name === 'date');
+    expect(dateColumn?.data_type).toBe('DATE');
+
+    // Verify timestamp fields are inferred as TIMESTAMP
+    const timestampColumn = schemaInfo.find(
+      (col) => col.column_name === 'timestamp',
+    );
+    expect(timestampColumn?.data_type).toBe('TIMESTAMP');
+
+    const createdAtColumn = schemaInfo.find(
+      (col) => col.column_name === 'created_at',
+    );
+    expect(createdAtColumn?.data_type).toBe('TIMESTAMP');
+
+    // Verify text field remains TEXT
+    const descColumn = schemaInfo.find(
+      (col) => col.column_name === 'description',
+    );
+    expect(descColumn?.data_type).toBe('VARCHAR');
+
+    // Verify we can query the data
+    const events = await timestampDb.many`SELECT * FROM events`;
+    expect(events).toHaveLength(1);
+    expect(events[0].title).toBe('Council Meeting');
+
+    // Clean up
+    rmSync(timestampDir, { recursive: true, force: true });
   });
 
   describe('SMRT integration', () => {
