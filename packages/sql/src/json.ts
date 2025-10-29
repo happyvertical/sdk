@@ -414,6 +414,50 @@ async function createTableFromSmrtSchema(
   // Get CREATE TABLE statement
   let createTableSQL = ddlLines.slice(0, createTableEnd + 1).join('\n');
 
+  // Fix Issue #334: FLOAT columns with DEFAULT '' should be TEXT
+  // SMRT framework sometimes generates FLOAT columns for string fields initialized as ''
+  // This is a bug in SMRT's type inference, but we can work around it here
+  // Pattern: FLOAT DEFAULT '' → TEXT DEFAULT CAST('' AS TEXT)
+  createTableSQL = createTableSQL.replace(
+    /\b(\w+)\s+FLOAT\s+DEFAULT\s+''/gi,
+    "$1 TEXT DEFAULT CAST('' AS TEXT)",
+  );
+
+  // Also fix FLOAT columns with DEFAULT NULL that should be TEXT
+  // This is harder to detect automatically, so we use common field name patterns
+  // Common string field names: name, title, description, author, url, email, etc.
+  const stringFieldPatterns = [
+    'name',
+    'title',
+    'description',
+    'author',
+    'url',
+    'email',
+    'slug',
+    'type',
+    'variant',
+    'status',
+    'category',
+    'tag',
+    'content',
+    'body',
+    'text',
+    'summary',
+    'label',
+  ];
+
+  for (const fieldPattern of stringFieldPatterns) {
+    // Match field names containing the pattern (e.g., user_name, author_name)
+    const regex = new RegExp(
+      `\\b(\\w*${fieldPattern}\\w*)\\s+FLOAT\\s+DEFAULT\\s+NULL`,
+      'gi',
+    );
+    createTableSQL = createTableSQL.replace(
+      regex,
+      '$1 TEXT DEFAULT CAST(NULL AS TEXT)',
+    );
+  }
+
   // Fix DEFAULT values for DuckDB type inference
   // DuckDB infers ANY type when DEFAULT is an empty string without explicit cast
   // Replace patterns like: DEFAULT '' with DEFAULT CAST('' AS TEXT)

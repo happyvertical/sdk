@@ -1193,3 +1193,195 @@ describe('JSON adapter tests', () => {
     });
   });
 });
+
+describe('Issue #334: String fields initialized to empty string typed as FLOAT', () => {
+  const testDir = './test-issue-334';
+
+  afterEach(() => {
+    clearConnectionCache();
+    rmSync(testDir, { recursive: true, force: true });
+  });
+
+  it('should correctly type string fields initialized with empty strings as TEXT not FLOAT', async () => {
+    mkdirSync(testDir, { recursive: true });
+
+    // Create JSON file with data that will be used with a SMRT schema
+    writeFileSync(
+      `${testDir}/contents.json`,
+      JSON.stringify([
+        {
+          id: 'content-1',
+          slug: 'my-article',
+          context: '/blog',
+          type: '', // Empty string - was being typed as FLOAT
+          author: '', // Empty string - was being typed as FLOAT
+          description: '', // Empty string - was being typed as FLOAT
+          url: '', // Empty string - was being typed as FLOAT
+          title: 'Test Article',
+          content: 'Test content',
+        },
+      ]),
+    );
+
+    // Create a SMRT-like schema definition that has the FLOAT bug
+    // This simulates what SMRT generates when fields are initialized as ''
+    const buggySchema = {
+      ddl: `CREATE TABLE contents (
+        id TEXT PRIMARY KEY,
+        slug TEXT NOT NULL,
+        context TEXT NOT NULL DEFAULT '',
+        type FLOAT DEFAULT '',
+        author FLOAT DEFAULT '',
+        description FLOAT DEFAULT '',
+        url FLOAT DEFAULT '',
+        title TEXT,
+        content TEXT,
+        UNIQUE(slug, context)
+      )`,
+      indexes: [],
+      tableName: 'contents',
+    };
+
+    // Initialize database with buggy schema
+    const db = await getDatabase({
+      type: 'json',
+      url: testDir,
+      writeStrategy: 'immediate',
+      schemas: {
+        contents: buggySchema,
+      },
+    });
+
+    // Verify table was created
+    const tableExists = await db.tableExists('contents');
+    expect(tableExists).toBe(true);
+
+    // Check the actual schema - should have been fixed to TEXT
+    const schema = await db.single`
+      SELECT sql FROM duckdb_tables() WHERE table_name = 'contents'
+    `;
+
+    console.log('Generated schema:', schema?.sql);
+
+    // The schema should NOT contain FLOAT for string columns
+    // (after fix is implemented)
+    // Note: DuckDB quotes column names that are keywords, e.g., "type"
+    expect(schema?.sql).not.toMatch(/["`]?type["`]?\s+FLOAT/i);
+    expect(schema?.sql).not.toMatch(/["`]?author["`]?\s+FLOAT/i);
+    expect(schema?.sql).not.toMatch(/["`]?description["`]?\s+FLOAT/i);
+    expect(schema?.sql).not.toMatch(/["`]?url["`]?\s+FLOAT/i);
+
+    // These columns should be TEXT/VARCHAR
+    expect(schema?.sql).toMatch(/["`]?type["`]?\s+(TEXT|VARCHAR)/i);
+    expect(schema?.sql).toMatch(/["`]?author["`]?\s+(TEXT|VARCHAR)/i);
+
+    // NOW test the critical operation - UPSERT with string values
+    // This was failing with "Could not convert string 'article' to FLOAT"
+    await db.upsert('contents', ['slug', 'context'], {
+      id: 'content-1',
+      slug: 'my-article',
+      context: '/blog',
+      type: 'article', // String value - was failing with FLOAT column
+      author: 'John Doe', // String value - was failing with FLOAT column
+      description: 'An article about testing',
+      url: 'https://example.com',
+      title: 'Updated Title',
+      content: 'Updated content',
+    });
+
+    // Verify the upsert worked
+    const result = await db.single`
+      SELECT * FROM contents WHERE id = 'content-1'
+    `;
+
+    expect(result).toMatchObject({
+      id: 'content-1',
+      type: 'article',
+      author: 'John Doe',
+      description: 'An article about testing',
+      url: 'https://example.com',
+    });
+  });
+
+  it('should handle mix of FLOAT columns (some intentional, some bugs)', async () => {
+    mkdirSync(testDir, { recursive: true });
+
+    writeFileSync(
+      `${testDir}/products.json`,
+      JSON.stringify([
+        {
+          id: 'prod-1',
+          name: '',
+          price: 0, // Intentionally numeric
+          rating: 0.0, // Intentionally numeric
+          description: '', // String but empty
+          sku: '', // String but empty
+        },
+      ]),
+    );
+
+    const mixedSchema = {
+      ddl: `CREATE TABLE products (
+        id TEXT PRIMARY KEY,
+        name FLOAT DEFAULT '',
+        price FLOAT DEFAULT 0,
+        rating FLOAT DEFAULT 0.0,
+        description FLOAT DEFAULT '',
+        sku FLOAT DEFAULT ''
+      )`,
+      indexes: [],
+      tableName: 'products',
+    };
+
+    const db = await getDatabase({
+      type: 'json',
+      url: testDir,
+      writeStrategy: 'immediate',
+      schemas: {
+        products: mixedSchema,
+      },
+    });
+
+    // After fix:
+    // - name, description, sku should be TEXT (DEFAULT '')
+    // - price, rating should stay FLOAT (DEFAULT 0 or 0.0)
+    const schema = await db.single`
+      SELECT sql FROM duckdb_tables() WHERE table_name = 'products'
+    `;
+
+    console.log('Mixed schema:', schema?.sql);
+
+    // String columns with DEFAULT '' should be TEXT
+    // Note: DuckDB may quote column names
+    expect(schema?.sql).toMatch(/["`]?name["`]?\s+(TEXT|VARCHAR)/i);
+    expect(schema?.sql).toMatch(/["`]?description["`]?\s+(TEXT|VARCHAR)/i);
+    expect(schema?.sql).toMatch(/["`]?sku["`]?\s+(TEXT|VARCHAR)/i);
+
+    // Numeric columns with DEFAULT 0 or 0.0 should stay FLOAT
+    expect(schema?.sql).toMatch(/["`]?price["`]?\s+FLOAT/i);
+    expect(schema?.sql).toMatch(/["`]?rating["`]?\s+FLOAT/i);
+
+    // Test upsert with string values
+    await db.upsert('products', ['id'], {
+      id: 'prod-1',
+      name: 'Test Product',
+      price: 99.99,
+      rating: 4.5,
+      description: 'A great product',
+      sku: 'SKU-12345',
+    });
+
+    const result = await db.single`
+      SELECT * FROM products WHERE id = 'prod-1'
+    `;
+
+    expect(result).toMatchObject({
+      id: 'prod-1',
+      name: 'Test Product',
+      description: 'A great product',
+      sku: 'SKU-12345',
+    });
+    expect(result?.price).toBeCloseTo(99.99);
+    expect(result?.rating).toBeCloseTo(4.5);
+  });
+});
