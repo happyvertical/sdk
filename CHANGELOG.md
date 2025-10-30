@@ -1,3 +1,10 @@
+## [0.51.3](https://github.com/happyvertical/sdk/compare/v0.51.2...v0.51.3) (2025-10-30)
+
+
+### Bug Fixes
+
+* **sql:** treat undefined values as NULL in DuckDB adapter ([c14f8e2](https://github.com/happyvertical/sdk/commit/c14f8e2e98ef337e4dd9ce885166ef15cc008d4d)), closes [happyvertical/smrt#89](https://github.com/happyvertical/smrt/issues/89)
+
 ## [0.51.2](https://github.com/happyvertical/sdk/compare/v0.51.1...v0.51.2) (2025-10-29)
 
 ## [0.51.1](https://github.com/happyvertical/sdk/compare/v0.51.0...v0.51.1) (2025-10-29)
