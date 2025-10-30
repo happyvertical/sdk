@@ -402,7 +402,8 @@ export async function getDatabase(
     let paramIdx = 1;
 
     for (const value of dataValues) {
-      if (value === null) {
+      if (value === null || value === undefined) {
+        // DuckDB requires explicit NULL for null/undefined values
         placeholders.push('NULL');
       } else if (value === '' && typeof value === 'string') {
         // CAST empty strings to TEXT to prevent DuckDB ANY type inference
@@ -430,7 +431,8 @@ export async function getDatabase(
       const key = keys[i];
       const value = dataValues[i];
 
-      if (value === null) {
+      if (value === null || value === undefined) {
+        // DuckDB requires explicit NULL for null/undefined values
         updateSetParts.push(`${key} = NULL`);
       } else if (value === '' && typeof value === 'string') {
         updateSetParts.push(`${key} = CAST($${paramIdx} AS TEXT)`);
