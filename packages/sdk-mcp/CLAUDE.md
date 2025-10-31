@@ -98,7 +98,7 @@ Add to `.mcp.json` or Claude Desktop config:
 ```json
 {
   "mcpServers": {
-    "sdk-dev": {
+    "happyvertical-sdk-mcp": {
       "type": "stdio",
       "command": "/absolute/path/to/sdk/scripts/mcp-servers/sdk-dev-server.sh",
       "env": {

@@ -21,7 +21,7 @@ class SDKMCPServer {
   constructor() {
     this.server = new Server(
       {
-        name: 'sdk-mcp',
+        name: 'happyvertical-sdk-mcp',
         version: '0.1.0',
       },
       {
@@ -140,7 +140,7 @@ class SDKMCPServer {
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error('SDK MCP Server running on stdio');
+    console.error('HappyVertical SDK MCP Server running on stdio');
   }
 }
 
