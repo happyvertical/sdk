@@ -1,3 +1,4 @@
 {
-  "extends": "../../.releaserc.packages.json"
+  "extends": "../../.releaserc.packages.json",
+  "tagFormat": "@happyvertical/sdk-mcp@${version}"
 }
