@@ -1,3 +1,10 @@
+# [0.52.0](https://github.com/happyvertical/sdk/compare/v0.51.4...v0.52.0) (2025-10-31)
+
+
+### Features
+
+* **release:** enable publishing to GitHub Packages with version protection ([ec4396f](https://github.com/happyvertical/sdk/commit/ec4396f6194f95b7a3616e8d7d15212bf217c45f))
+
 ## [0.51.4](https://github.com/happyvertical/sdk/compare/v0.51.3...v0.51.4) (2025-10-31)
 
 
