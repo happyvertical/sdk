@@ -1,4 +1,0 @@
-{
-  "extends": "../../.releaserc.packages.json",
-  "tagFormat": "@happyvertical/files@${version}"
-}
