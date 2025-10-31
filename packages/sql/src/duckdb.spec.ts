@@ -640,4 +640,88 @@ describe('DuckDB Adapter', () => {
       expect(result?.count).toBe(2);
     });
   });
+
+  describe('Date and Timestamp Handling', () => {
+    it('should convert { micros } objects to Date when reading', async () => {
+      // Create table with TIMESTAMP column
+      await db.execute`
+        CREATE TABLE IF NOT EXISTS test_timestamps (
+          id TEXT PRIMARY KEY,
+          created_at TIMESTAMP,
+          updated_at TIMESTAMP
+        )
+      `;
+
+      const now = new Date();
+
+      // Insert with Date objects (converted to ISO strings)
+      await db.insert('test_timestamps', {
+        id: 'test-1',
+        created_at: now,
+        updated_at: now,
+      });
+
+      // Query back - DuckDB may return { micros } objects
+      const record = await db.get('test_timestamps', { id: 'test-1' });
+
+      // Our fix should convert { micros } objects to Date
+      expect(record?.created_at).toBeInstanceOf(Date);
+      expect(record?.updated_at).toBeInstanceOf(Date);
+
+      // Verify the Date values are approximately correct
+      // (allowing for rounding in DuckDB's microsecond precision)
+      if (record?.created_at instanceof Date) {
+        const diff = Math.abs(record.created_at.getTime() - now.getTime());
+        expect(diff).toBeLessThan(1000); // Within 1 second
+      }
+    });
+
+    it('should handle null timestamp values', async () => {
+      await db.execute`
+        CREATE TABLE IF NOT EXISTS test_timestamps_null (
+          id TEXT PRIMARY KEY,
+          created_at TIMESTAMP,
+          updated_at TIMESTAMP
+        )
+      `;
+
+      await db.insert('test_timestamps_null', {
+        id: 'null-test',
+        created_at: null,
+        updated_at: null,
+      });
+
+      const record = await db.get('test_timestamps_null', { id: 'null-test' });
+
+      expect(record?.created_at).toBeNull();
+      expect(record?.updated_at).toBeNull();
+    });
+
+    it('should work with many() returning multiple timestamp records', async () => {
+      await db.execute`
+        CREATE TABLE IF NOT EXISTS test_timestamps_many (
+          id TEXT PRIMARY KEY,
+          event_time TIMESTAMP
+        )
+      `;
+
+      const date1 = new Date('2024-01-01T10:00:00Z');
+      const date2 = new Date('2024-01-02T10:00:00Z');
+      const date3 = new Date('2024-01-03T10:00:00Z');
+
+      await db.insert('test_timestamps_many', [
+        { id: 'event-1', event_time: date1 },
+        { id: 'event-2', event_time: date2 },
+        { id: 'event-3', event_time: date3 },
+      ]);
+
+      const records =
+        await db.many`SELECT * FROM test_timestamps_many ORDER BY event_time`;
+
+      expect(records).toHaveLength(3);
+      records.forEach((record) => {
+        expect(record.event_time).toBeInstanceOf(Date);
+      });
+    });
+  });
 });

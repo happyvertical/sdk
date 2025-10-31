@@ -182,14 +182,42 @@ async function registerJSONFiles(connection: any, dataDir: string) {
 }
 
 /**
- * Converts BigInt values to regular numbers in an object
+ * Converts DuckDB-specific type representations to JavaScript types
  *
- * @param obj - Object that may contain BigInt values
- * @returns Object with BigInts converted to numbers
+ * Handles two cases:
+ * 1. JavaScript BigInt values → converted to numbers
+ * 2. DuckDB timestamp objects ({ micros: number }) → converted to Date objects
+ *
+ * DuckDB represents TIMESTAMP values as objects with a single property
+ * called 'micros' containing microseconds since Unix epoch. This function
+ * converts them to JavaScript Date objects for proper serialization.
+ *
+ * @param obj - Object that may contain BigInt or timestamp values
+ * @returns Object with DuckDB types converted to JavaScript types
  */
 function convertBigInts(obj: any): any {
   if (obj === null || obj === undefined) return obj;
   if (typeof obj === 'bigint') return Number(obj);
+
+  // Handle DuckDB timestamp objects: { micros: number | bigint }
+  // Convert to JavaScript Date for proper serialization
+  // Fixes issue #314: DuckDB returns dates as { micros } objects
+  if (
+    typeof obj === 'object' &&
+    !Array.isArray(obj) &&
+    'micros' in obj &&
+    Object.keys(obj).length === 1 &&
+    (typeof obj.micros === 'number' || typeof obj.micros === 'bigint')
+  ) {
+    // Convert microseconds to milliseconds for Date constructor
+    // DuckDB stores timestamps as microseconds since Unix epoch
+    // Handle both number and bigint types (DuckDB can return either)
+    const micros =
+      typeof obj.micros === 'bigint' ? Number(obj.micros) : obj.micros;
+    const milliseconds = micros / 1000;
+    return new Date(milliseconds);
+  }
+
   if (Array.isArray(obj)) return obj.map(convertBigInts);
   if (typeof obj === 'object') {
     const result: any = {};
@@ -242,7 +270,12 @@ export async function getDatabase(
       .join(', ');
 
     const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES ${placeholders}`;
-    const values = records.flatMap((record) => Object.values(record));
+    // Convert Date objects to ISO strings for DuckDB compatibility
+    const values = records.flatMap((record) =>
+      Object.values(record).map((value) =>
+        value instanceof Date ? value.toISOString() : value,
+      ),
+    );
 
     try {
       await connection.run(sql, values);
