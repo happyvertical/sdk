@@ -71,6 +71,9 @@ jobs:
       - name: Build packages
         run: pnpm run build
 
+      - name: Validate version
+        run: node scripts/validate-version.js
+
       - name: Release packages
         id: semantic-release
         run: |

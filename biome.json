@@ -5,6 +5,7 @@
       "packages/*/src/**/*.{js,ts,tsx,jsx,svelte}",
       "docs/src/**/*.{js,ts,tsx,jsx}",
       ".github/**/*.{js,ts}",
+      "scripts/**/*.{js,ts}",
       "*.{js,ts,tsx,jsx}"
     ],
     "ignoreUnknown": true
@@ -188,7 +189,7 @@
       }
     },
     {
-      "includes": [".github/scripts/**/*.js"],
+      "includes": [".github/scripts/**/*.js", "scripts/**/*.{js,ts}"],
       "linter": {
         "rules": {
           "style": {
