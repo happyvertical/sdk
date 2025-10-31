@@ -1,3 +1,10 @@
+## [0.51.4](https://github.com/happyvertical/sdk/compare/v0.51.3...v0.51.4) (2025-10-31)
+
+
+### Bug Fixes
+
+* **sql:** convert DuckDB timestamp objects to Date in queries ([6d04f4e](https://github.com/happyvertical/sdk/commit/6d04f4eabd2c15add31b377d57f6e857f5149c28)), closes [#314](https://github.com/happyvertical/sdk/issues/314) [#315](https://github.com/happyvertical/sdk/issues/315) [#314](https://github.com/happyvertical/sdk/issues/314) [#315](https://github.com/happyvertical/sdk/issues/315)
+
 ## [0.51.3](https://github.com/happyvertical/sdk/compare/v0.51.2...v0.51.3) (2025-10-30)
 
 
