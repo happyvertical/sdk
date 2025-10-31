@@ -1,3 +1,10 @@
+# [0.53.0](https://github.com/happyvertical/sdk/compare/v0.52.0...v0.53.0) (2025-10-31)
+
+
+### Features
+
+* **release:** publish individual workspace packages to GitHub Packages ([def559a](https://github.com/happyvertical/sdk/commit/def559a9ae35ef9032413cdb77127675f2fa3e35))
+
 # [0.52.0](https://github.com/happyvertical/sdk/compare/v0.51.4...v0.52.0) (2025-10-31)
 
 
