@@ -1,3 +1,10 @@
+## [0.54.1](https://github.com/happyvertical/sdk/compare/v0.54.0...v0.54.1) (2025-10-31)
+
+
+### Bug Fixes
+
+* **release:** add package-specific tagFormat for monorepo releases ([8b28361](https://github.com/happyvertical/sdk/commit/8b28361cc4cdf7efdf94bc04f0dea5c7326bfdab)), closes [#342](https://github.com/happyvertical/sdk/issues/342)
+
 # [0.54.0](https://github.com/happyvertical/sdk/compare/v0.53.0...v0.54.0) (2025-10-31)
 
 
