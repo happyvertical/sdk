@@ -74,15 +74,29 @@ jobs:
       - name: Validate version
         run: node scripts/validate-version.js
 
-      - name: Release packages
-        id: semantic-release
+      - name: Release root package
+        id: semantic-release-root
         run: |
           if [ "${{ github.event.inputs.dry-run }}" = "true" ]; then
-            echo "Running in dry-run mode..."
+            echo "Running root release in dry-run mode..."
             pnpm run release:dry-run
           else
-            echo "Running semantic-release for all packages..."
+            echo "Running semantic-release for root package..."
             pnpm run release
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release workspace packages
+        id: semantic-release-packages
+        run: |
+          if [ "${{ github.event.inputs.dry-run }}" = "true" ]; then
+            echo "Running workspace packages release in dry-run mode..."
+            pnpm run release:packages:dry-run
+          else
+            echo "Running semantic-release for all workspace packages..."
+            pnpm run release:packages
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
