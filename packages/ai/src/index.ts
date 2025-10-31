@@ -16,3 +16,6 @@ export * from './shared/factory';
 export { AIMessage as AIMessageClass } from './shared/message';
 export * from './shared/thread';
 export * from './shared/types';
+
+/** @internal */
+export const PACKAGE_VERSION_INITIALIZED = true;

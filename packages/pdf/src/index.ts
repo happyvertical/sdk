@@ -72,3 +72,6 @@ import('./shared/factory.js').then(({ initializeProviders }) => {
 // Default export for convenience
 import * as factory from './shared/factory';
 export default factory;
+
+/** @internal */
+export const PACKAGE_VERSION_INITIALIZED = true;

@@ -98,3 +98,6 @@ import * as factory from './shared/factory';
  * @deprecated Use named imports instead for better tree-shaking
  */
 export default factory;
+
+/** @internal */
+export const PACKAGE_VERSION_INITIALIZED = true;

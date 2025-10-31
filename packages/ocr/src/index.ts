@@ -86,3 +86,6 @@ export * from './shared/types';
 
 // Default export for convenience
 export { getOCR as default } from './shared/factory';
+
+/** @internal */
+export const PACKAGE_VERSION_INITIALIZED = true;

@@ -143,3 +143,6 @@ export async function getCache(
   // This should never happen due to TypeScript's discriminated union
   throw new Error(`Unsupported provider: ${(config as any).provider}`);
 }
+
+/** @internal */
+export const PACKAGE_VERSION_INITIALIZED = true;

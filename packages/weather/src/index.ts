@@ -238,3 +238,6 @@ export async function getWeatherAdapter(
  * Default export
  */
 export default getWeatherAdapter;
+
+/** @internal */
+export const PACKAGE_VERSION_INITIALIZED = true;
