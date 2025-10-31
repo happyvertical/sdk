@@ -108,3 +108,6 @@ export function createLogger(config: LoggerConfig): Logger {
   const level = mergedConfig.level || 'info';
   return new ConsoleLogger(level);
 }
+
+/** @internal */
+export const PACKAGE_VERSION_INITIALIZED = true;

@@ -207,3 +207,6 @@ export { DatabaseSchemaManager } from './schema-manager';
 export * from './shared/types';
 
 export default { getDatabase, syncSchema, tableExists, buildWhere };
+
+/** @internal */
+export const PACKAGE_VERSION_INITIALIZED = true;

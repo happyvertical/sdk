@@ -91,3 +91,6 @@ export { getScraper } from './shared/scraper-factory';
 
 // Export all types
 export * from './shared/types';
+
+/** @internal */
+export const PACKAGE_VERSION_INITIALIZED = true;

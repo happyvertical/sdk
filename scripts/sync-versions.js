@@ -4,72 +4,72 @@
  * Synchronizes all package versions with the root package version
  * Run this after semantic-release updates the root version
  *
- * Scans packages/core/* and packages/modules/* for packages
+ * Scans packages/* for all workspace packages
  */
 
-import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
+import { join } from 'node:path';
 
 // Read the root package.json to get the new version from semantic-release
-const rootPkg = JSON.parse(readFileSync('package.json', 'utf-8'))
-const newVersion = rootPkg.version
+const rootPkg = JSON.parse(readFileSync('package.json', 'utf-8'));
+const newVersion = rootPkg.version;
 
-console.log(`Synchronizing all packages to version ${newVersion}...`)
+console.log(`Synchronizing all packages to version ${newVersion}...`);
 
 // Track how many packages we actually update
-let updated = 0
+let updated = 0;
 
 /**
  * Update package version at the given path
  */
 function updatePackage(pkgJsonPath, pkgName) {
   try {
-    const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'))
+    const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'));
 
     // Only update if the version is different
     if (pkgJson.version !== newVersion) {
-      console.log(`  ${pkgName}: ${pkgJson.version} → ${newVersion}`)
-      pkgJson.version = newVersion
+      console.log(`  ${pkgName}: ${pkgJson.version} → ${newVersion}`);
+      pkgJson.version = newVersion;
       // Write with proper formatting (2 spaces, trailing newline)
-      writeFileSync(pkgJsonPath, JSON.stringify(pkgJson, null, 2) + '\n')
-      updated++
+      writeFileSync(pkgJsonPath, JSON.stringify(pkgJson, null, 2) + '\n');
+      updated++;
     } else {
-      console.log(`  ${pkgName}: already at ${newVersion}`)
+      console.log(`  ${pkgName}: already at ${newVersion}`);
     }
   } catch (err) {
     // Skip packages that don't have a package.json (e.g., spec-only directories)
-    console.warn(`  ${pkgName}: skipped (${err.message})`)
+    console.warn(`  ${pkgName}: skipped (${err.message})`);
   }
 }
 
-/**
- * Scan a directory for packages
- */
-function scanDirectory(baseDir, subdirName) {
-  const fullPath = join(baseDir, subdirName)
+const packagesDir = 'packages';
 
-  if (!existsSync(fullPath)) {
-    console.warn(`Directory ${fullPath} does not exist, skipping`)
-    return
-  }
+if (!existsSync(packagesDir)) {
+  console.error(`Error: ${packagesDir} directory does not exist`);
+  process.exit(1);
+}
 
-  console.log(`\nScanning ${fullPath}...`)
-  const items = readdirSync(fullPath)
+console.log(`\nScanning ${packagesDir}...`);
+const items = readdirSync(packagesDir);
 
-  for (const item of items) {
-    const itemPath = join(fullPath, item)
-    const pkgJsonPath = join(itemPath, 'package.json')
+for (const item of items) {
+  const itemPath = join(packagesDir, item);
+  const pkgJsonPath = join(itemPath, 'package.json');
 
-    // Only process if it's a directory with package.json
-    if (existsSync(itemPath) && statSync(itemPath).isDirectory() && existsSync(pkgJsonPath)) {
-      const displayName = `${subdirName}/${item}`
-      updatePackage(pkgJsonPath, displayName)
-    }
+  // Only process if it's a directory with package.json
+  if (
+    existsSync(itemPath) &&
+    statSync(itemPath).isDirectory() &&
+    existsSync(pkgJsonPath)
+  ) {
+    updatePackage(pkgJsonPath, item);
   }
 }
 
-// Scan packages in new structure only
-scanDirectory('packages', 'core')
-scanDirectory('packages', 'modules')
-
-console.log(`\nSynchronized ${updated} package(s)`)
+console.log(`\nSynchronized ${updated} package(s)`);

@@ -188,3 +188,6 @@ export async function getTranslator(
 
   return new TranslatorWrapper(provider);
 }
+
+/** @internal */
+export const PACKAGE_VERSION_INITIALIZED = true;

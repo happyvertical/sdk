@@ -150,3 +150,6 @@ server.run().catch((error) => {
   console.error('Fatal error:', error);
   process.exit(1);
 });
+
+/** @internal */
+export const PACKAGE_VERSION_INITIALIZED = true;

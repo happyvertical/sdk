@@ -9,3 +9,6 @@
  */
 
 export * from './triage/index.js';
+
+/** @internal */
+export const PACKAGE_VERSION_INITIALIZED = true;

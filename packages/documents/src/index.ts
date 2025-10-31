@@ -50,3 +50,6 @@ export type {
 } from './types';
 // Utilities
 export { getTitleFromUrl } from './utils';
+
+/** @internal */
+export const PACKAGE_VERSION_INITIALIZED = true;
