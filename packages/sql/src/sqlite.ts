@@ -288,16 +288,20 @@ export async function getDatabase(
 
       if (Array.isArray(data)) {
         // Serialize all records in the array
-        const serializedData = data.map((record) => serializeRecord(record));
-        const keys = Object.keys(serializedData[0]);
-        const placeholders = serializedData
+        const serializedRecords: Array<Record<string, any>> = data.map(
+          (record) => serializeRecord(record),
+        );
+        const keys = Object.keys(serializedRecords[0]);
+        const placeholders = serializedRecords
           .map(() => `(${keys.map(() => '?').join(', ')})`)
           .join(', ');
         sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES ${placeholders}`;
-        values = serializedData.reduce(
-          (acc, row) => acc.concat(Object.values(row)),
-          [] as any[],
-        );
+        // Flatten all values into a single array for batch insert
+        const flattenedValues: any[] = [];
+        for (const record of serializedRecords) {
+          flattenedValues.push(...Object.values(record));
+        }
+        values = flattenedValues;
       } else {
         // Serialize the single record
         const serializedData = serializeRecord(data);
