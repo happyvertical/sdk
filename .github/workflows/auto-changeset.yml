@@ -1,4 +1,4 @@
-name: Auto Generate Changeset
+name: Validate Conventional Commits
 
 on:
   pull_request:
@@ -6,158 +6,112 @@ on:
     branches: [main]
 
 permissions:
-  contents: write
   pull-requests: write
 
 jobs:
-  auto-changeset:
-    name: Auto-generate changeset from commits
+  validate-commits:
+    name: Validate conventional commits
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-
-      - name: Check for existing changeset
-        id: check-changeset
+      - name: Validate commit messages
         run: |
-          if git diff --name-only origin/main..HEAD | grep -q "^\.changeset/.*\.md$"; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-            echo "✅ Changeset already exists in PR"
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-            echo "📝 No changeset found, will auto-generate"
-          fi
-
-      - name: Generate changeset from conventional commits
-        if: steps.check-changeset.outputs.exists == 'false'
-        run: |
-          # Get all commit messages since main
-          commits=$(git log origin/main..HEAD --pretty=format:"%s" | tee /tmp/commits.txt)
+          # Get all commit messages since main (excluding merge commits)
+          commits=$(git log origin/main..HEAD --no-merges --pretty=format:"%s")
 
           if [ -z "$commits" ]; then
-            echo "No commits found, skipping changeset generation"
+            echo "No commits found"
             exit 0
           fi
 
-          echo "📋 Commits found:"
-          cat /tmp/commits.txt
+          echo "📋 Validating commits:"
+          echo "$commits"
           echo ""
 
-          # Determine bump type from conventional commits
-          bump="patch"  # Default
+          # Check if commits follow conventional commit format
+          invalid_commits=""
+          while IFS= read -r commit; do
+            if ! echo "$commit" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore)(\(.+\))?!?: .+"; then
+              invalid_commits="$invalid_commits\n- $commit"
+            fi
+          done <<< "$commits"
 
-          if grep -qE "^(feat|feature)(\(.*\))?:" /tmp/commits.txt; then
+          if [ -n "$invalid_commits" ]; then
+            echo "❌ Found commits that don't follow conventional commit format:"
+            echo -e "$invalid_commits"
+            echo ""
+            echo "Please use one of: feat, fix, docs, style, refactor, perf, test, build, ci, chore"
+            exit 1
+          fi
+
+          echo "✅ All commits follow conventional commit format"
+
+      - name: Determine version bump
+        id: version
+        run: |
+          commits=$(git log origin/main..HEAD --no-merges --pretty=format:"%s")
+
+          bump="patch"
+          if echo "$commits" | grep -qE "^feat(\(.+\))?!?:"; then
             bump="minor"
-            echo "🆕 Detected feature commits → minor bump"
-          elif grep -qE "^(fix|perf|refactor|docs|style|test|build|ci|chore)(\(.*\))?:" /tmp/commits.txt; then
-            bump="patch"
-            echo "🔧 Detected fix/improvement commits → patch bump"
           fi
 
-          # Check for breaking changes (convert to minor to stay < 1.0)
-          if grep -qiE "(BREAKING CHANGE|breaking:)" /tmp/commits.txt; then
-            echo "⚠️  Breaking changes detected but converting to minor (staying < 1.0)"
-            bump="minor"
+          if echo "$commits" | grep -qiE "(BREAKING CHANGE|!:)"; then
+            bump="minor"  # Treat as minor until 1.0.0
           fi
 
-          # Detect changed packages by looking at file paths
-          changed_files=$(git diff --name-only origin/main..HEAD)
-          changed_packages=$(echo "$changed_files" | grep "^packages/" | cut -d'/' -f2 | sort -u)
-
-          if [ -z "$changed_packages" ]; then
-            echo "No package changes detected, skipping changeset"
-            exit 0
-          fi
-
-          echo "📦 Changed packages:"
-          echo "$changed_packages"
-          echo ""
-
-          # Create changeset file
-          timestamp=$(date +%s)
-          changeset_file=".changeset/auto-${timestamp}.md"
-
-          echo "---" > "$changeset_file"
-          for pkg in $changed_packages; do
-            echo "\"@happyvertical/$pkg\": $bump" >> "$changeset_file"
-          done
-          echo "---" >> "$changeset_file"
-          echo "" >> "$changeset_file"
-
-          # Add commit summary to changeset
-          echo "Auto-generated changeset from conventional commits:" >> "$changeset_file"
-          echo "" >> "$changeset_file"
-          cat /tmp/commits.txt >> "$changeset_file"
-
-          echo "✅ Generated changeset: $changeset_file"
-          echo ""
-          echo "📄 Changeset contents:"
-          cat "$changeset_file"
-
-          # Configure git
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Commit and push changeset
-          git add "$changeset_file"
-          git commit -m "chore: auto-generate changeset [skip ci]"
-          git push origin HEAD
-
-          echo "🚀 Changeset committed and pushed"
+          echo "bump=$bump" >> $GITHUB_OUTPUT
+          echo "📦 Will perform $bump version bump on merge"
 
       - name: Comment on PR
-        if: steps.check-changeset.outputs.exists == 'false'
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
+            const bump = '${{ steps.version.outputs.bump }}';
 
-            // Find the generated changeset file
-            const changesetFiles = fs.readdirSync('.changeset')
-              .filter(f => f.startsWith('auto-') && f.endsWith('.md'));
+            const comment = `## 📦 Version Bump Preview
 
-            if (changesetFiles.length === 0) {
-              console.log('No changeset was generated');
-              return;
-            }
+            When this PR is merged, packages will receive a **${bump}** version bump based on your conventional commits.
 
-            const changesetFile = `.changeset/${changesetFiles[changesetFiles.length - 1]}`;
-            const changesetContent = fs.readFileSync(changesetFile, 'utf8');
+            ### What happens on merge?
 
-            const comment = `## 🤖 Auto-generated Changeset
+            1. Tests run on main branch
+            2. Packages are built
+            3. Versions are bumped automatically
+            4. Packages are published to GitHub Packages
+            5. Git tags are created
 
-            A changeset has been automatically generated based on your conventional commits:
+            No manual intervention needed! 🎉`;
 
-            \`\`\`markdown
-            ${changesetContent}
-            \`\`\`
-
-            ### What happens next?
-
-            When this PR is merged to \`main\`, the versions will be bumped according to the changeset above.
-
-            ### Want to modify it?
-
-            You can edit the changeset file directly or create a new one:
-            \`\`\`bash
-            pnpm changeset
-            \`\`\`
-
-            **Note:** This changeset prevents major version bumps to keep all packages below 1.0.0.`;
-
-            await github.rest.issues.createComment({
+            // Check if we already commented
+            const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: comment
+              issue_number: context.issue.number
             });
+
+            const existingComment = comments.find(c =>
+              c.user.login === 'github-actions[bot]' &&
+              c.body.includes('Version Bump Preview')
+            );
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: comment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
