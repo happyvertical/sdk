@@ -1,0 +1,58 @@
+name: Planning Workflow
+
+on:
+  # Trigger when issue is moved to Planning column in project
+  # This requires a webhook or manual trigger since GitHub doesn't have
+  # a direct event for project column changes
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number to plan'
+        required: true
+        type: number
+      action:
+        description: 'Planning action'
+        required: true
+        type: choice
+        options:
+          - start
+          - complete
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  planning:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Execute Planning Workflow
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { startPlanning, completePlanning } = await import('@happyvertical/github-actions');
+
+            const context = {
+              token: process.env.GITHUB_TOKEN,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issueNumber: ${{ inputs.issue_number }},
+              issueTitle: '',  // Will be fetched by the module
+              issueBody: '',
+              issueAuthor: '',
+              config: {
+                repoDescription: '${{ vars.REPO_DESCRIPTION || github.repository }}',
+                packagePattern: '${{ vars.PACKAGE_PATTERN }}',
+                packageExamples: '${{ vars.PACKAGE_EXAMPLES }}'.split(',').filter(Boolean),
+                projectId: '${{ vars.PROJECT_ID }}',
+                statusFieldId: '${{ vars.STATUS_FIELD_ID }}',
+                statusOptions: ${{ toJSON(vars.STATUS_OPTIONS) }}
+              }
+            };
+
+            if ('${{ inputs.action }}' === 'start') {
+              await startPlanning(context);
+            } else if ('${{ inputs.action }}' === 'complete') {
+              await completePlanning(context);
+            }
