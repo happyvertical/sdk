@@ -1,13 +1,10 @@
 {
-  "name": "@happyvertical/github-actions",
-  "version": "0.55.0",
-  "description": "Reusable GitHub Actions utilities for issue triage, PR validation, and workflow automation",
+  "name": "@have/projects",
+  "version": "0.1.0",
+  "description": "Standardized project management interface for GitHub Projects, Jira, ZenHub, and Linear",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "bin": {
-    "github-actions": "./dist/cli.js"
-  },
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -23,8 +20,7 @@
     "dev": "npm run build:watch & npm run test:watch"
   },
   "dependencies": {
-    "@have/repos": "workspace:*",
-    "@have/projects": "workspace:*"
+    "@have/repos": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
@@ -45,11 +41,11 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/happyvertical/sdk.git",
-    "directory": "packages/github-actions"
+    "directory": "packages/projects"
   },
   "bugs": {
     "url": "https://github.com/happyvertical/sdk/issues"
   },
-  "homepage": "https://github.com/happyvertical/sdk/tree/main/packages/github-actions#readme",
+  "homepage": "https://github.com/happyvertical/sdk/tree/main/packages/projects#readme",
   "license": "MIT"
 }

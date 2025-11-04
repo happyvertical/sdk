@@ -1,5 +1,5 @@
 /**
- * Issue Triage Orchestration
+ * Issue Triage Orchestration (Refactored to use @have/repos and @have/projects)
  */
 
 import { analyzeIssue } from './analyze.js';
@@ -12,8 +12,8 @@ import {
   getSizeLabel,
   getTypeLabel,
   removeAgentLabel,
-} from './label.js';
-import { updateProjectStatus } from './project.js';
+} from './label-v2.js';
+import { updateProjectStatus } from './project-v2.js';
 import type { TriageContext, TriageResult } from './types.js';
 
 export { analyzeIssue } from './analyze.js';
@@ -26,8 +26,8 @@ export {
   getSizeLabel,
   getTypeLabel,
   removeAgentLabel,
-} from './label.js';
-export { updateProjectStatus } from './project.js';
+} from './label-v2.js';
+export { updateProjectStatus } from './project-v2.js';
 export * from './types.js';
 
 export async function triageIssue(

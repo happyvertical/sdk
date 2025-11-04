@@ -60,6 +60,8 @@
 
     // Developer tools
     { "path": "./packages/sdk-mcp" },
-    { "path": "./packages/github-actions" }
+    { "path": "./packages/github-actions" },
+    { "path": "./packages/repos" },
+    { "path": "./packages/projects" }
   ]
 }

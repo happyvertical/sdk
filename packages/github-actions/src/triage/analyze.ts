@@ -2,20 +2,25 @@
  * GitHub Models AI Analysis
  */
 
-import https from 'node:https';
+import { getAICompletion, parseAIJson } from '../shared/ai.js';
 import type { AIAnalysis, TriageContext } from './types.js';
 
 const VALID_TYPES = [
   'bug',
   'feature',
-  'enhancement',
-  'tech-debt',
-  'epic',
-  'documentation',
+  'docs',
+  'maintenance',
+  'research',
   'question',
 ] as const;
-const VALID_PRIORITIES = ['critical', 'high', 'medium', 'low'] as const;
-const VALID_URGENCIES = ['urgent', 'normal'] as const;
+const VALID_PRIORITIES = [
+  'critical',
+  'high',
+  'medium',
+  'low',
+  'icebox',
+] as const;
+const VALID_SIZES = ['xs', 's', 'm', 'l', 'xl'] as const;
 
 function validateAIAnalysis(parsed: unknown): AIAnalysis {
   if (!parsed || typeof parsed !== 'object') {
@@ -31,8 +36,8 @@ function validateAIAnalysis(parsed: unknown): AIAnalysis {
   if (!response.priority || typeof response.priority !== 'string') {
     throw new Error('AI response missing required field: priority');
   }
-  if (!response.urgency || typeof response.urgency !== 'string') {
-    throw new Error('AI response missing required field: urgency');
+  if (!response.size || typeof response.size !== 'string') {
+    throw new Error('AI response missing required field: size');
   }
   if (!response.reasoning || typeof response.reasoning !== 'string') {
     throw new Error('AI response missing required field: reasoning');
@@ -45,8 +50,8 @@ function validateAIAnalysis(parsed: unknown): AIAnalysis {
   if (!VALID_PRIORITIES.includes(response.priority as never)) {
     throw new Error(`Invalid priority: ${response.priority}`);
   }
-  if (!VALID_URGENCIES.includes(response.urgency as never)) {
-    throw new Error(`Invalid urgency: ${response.urgency}`);
+  if (!VALID_SIZES.includes(response.size as never)) {
+    throw new Error(`Invalid size: ${response.size}`);
   }
 
   // Validate optional affected_packages field
@@ -63,7 +68,7 @@ function validateAIAnalysis(parsed: unknown): AIAnalysis {
   return {
     type: response.type,
     priority: response.priority,
-    urgency: response.urgency,
+    size: response.size,
     reasoning: response.reasoning,
     ...(response.affected_packages && {
       affected_packages: response.affected_packages,
@@ -76,73 +81,26 @@ export async function analyzeIssue(
 ): Promise<AIAnalysis> {
   const prompt = buildAnalysisPrompt(context);
 
-  return new Promise((resolve, reject) => {
-    const data = JSON.stringify({
-      messages: [
-        {
-          role: 'system',
-          content:
-            'You are an expert GitHub issue triager. Analyze issues and provide structured triage information in JSON format.',
-        },
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      model: 'gpt-4o-mini',
-      temperature: 0.3,
-      response_format: { type: 'json_object' },
-    });
+  const response = await getAICompletion([
+    {
+      role: 'system',
+      content:
+        'You are an expert GitHub issue triager. Analyze issues and provide structured triage information in JSON format.',
+    },
+    {
+      role: 'user',
+      content: prompt,
+    },
+  ]);
 
-    const options = {
-      hostname: 'models.inference.ai.azure.com',
-      path: '/chat/completions',
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${context.token}`,
-        'Content-Type': 'application/json',
-        'Content-Length': data.length,
-      },
-    };
-
-    const req = https.request(options, (res) => {
-      let body = '';
-      res.on('data', (chunk) => (body += chunk));
-      res.on('end', () => {
-        if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
-          try {
-            const response = JSON.parse(body);
-            const content = response.choices[0].message.content;
-            const parsed = JSON.parse(content);
-            const validated = validateAIAnalysis(parsed);
-            resolve(validated);
-          } catch (error) {
-            reject(
-              new Error(
-                `Failed to parse or validate AI response: ${error instanceof Error ? error.message : String(error)}`,
-              ),
-            );
-          }
-        } else {
-          reject(
-            new Error(
-              `GitHub Models API error: ${res.statusCode || 'unknown'} ${body}`,
-            ),
-          );
-        }
-      });
-    });
-
-    req.on('error', reject);
-    req.write(data);
-    req.end();
-  });
+  const parsed = parseAIJson(response);
+  return validateAIAnalysis(parsed);
 }
 
 function buildAnalysisPrompt(context: TriageContext): string {
   const { config, issueNumber, issueTitle, issueBody, issueAuthor } = context;
 
-  let prompt = `Analyze this GitHub issue and provide triage information.
+  let prompt = `Analyze this GitHub issue and provide triage information for our kanban workflow.
 
 Repository: ${context.owner}/${context.repo} (${config.repoDescription})
 
@@ -152,9 +110,10 @@ Body: ${issueBody || '(empty)'}
 Author: ${issueAuthor}
 
 Determine:
-1. **type**: One of: bug, feature, enhancement, tech-debt, epic, documentation, question
-2. **priority**: critical, high, medium, low
-3. **urgency**: Should this go directly to "To Do" status? (only for security issues or critical bugs affecting production)`;
+1. **type**: One of: bug, feature, docs, maintenance, research, question
+2. **priority**: critical, high, medium, low, icebox
+   - Use "icebox" for low priority or future consideration items
+3. **size**: Estimated effort: xs (<2hr), s (2-4hr), m (~1day), l (2-3days), xl (>3days)`;
 
   if (config.packagePattern) {
     prompt += `
@@ -173,9 +132,9 @@ Determine:
 
 Return JSON in this exact format:
 {
-  "type": "bug|feature|enhancement|tech-debt|epic|documentation|question",
-  "priority": "critical|high|medium|low",
-  "urgency": "urgent|normal",`;
+  "type": "bug|feature|docs|maintenance|research|question",
+  "priority": "critical|high|medium|low|icebox",
+  "size": "xs|s|m|l|xl",`;
 
   if (config.packagePattern) {
     prompt += `

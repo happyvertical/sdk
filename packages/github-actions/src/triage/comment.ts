@@ -44,7 +44,7 @@ function buildTriageComment(
   let comment = `## 🤖 AI Triage\n\n`;
   comment += `**Type**: \`${analysis.type}\`\n`;
   comment += `**Priority**: \`${analysis.priority}\`\n`;
-  comment += `**Urgency**: \`${analysis.urgency}\`\n\n`;
+  comment += `**Size**: \`${analysis.size}\`\n\n`;
 
   if (analysis.affected_packages && analysis.affected_packages.length > 0) {
     const packages = analysis.affected_packages

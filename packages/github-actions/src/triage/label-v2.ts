@@ -1,8 +1,9 @@
 /**
- * Issue Labeling
+ * Issue Labeling (Refactored to use @have/repos)
  */
 
-import { addLabels, removeLabel } from '../shared/github.js';
+import type { IRepository } from '@have/repos';
+import { createRepository } from '../shared/adapters.js';
 import type { TriageContext } from './types.js';
 
 export async function applyLabels(
@@ -15,7 +16,12 @@ export async function applyLabels(
   }
 
   try {
-    await addLabels(context, context.issueNumber, labels);
+    const repo = await createRepository(
+      context.token,
+      context.owner,
+      context.repo,
+    );
+    await repo.addLabels(context.issueNumber, labels);
     console.log(`Applied labels: ${labels.join(', ')}`);
   } catch (error) {
     console.error('Error applying labels:', (error as Error).message);
@@ -29,7 +35,12 @@ export async function removeAgentLabel(
 ): Promise<void> {
   const label = `agent: ${agentType}`;
   try {
-    await removeLabel(context, context.issueNumber, label);
+    const repo = await createRepository(
+      context.token,
+      context.owner,
+      context.repo,
+    );
+    await repo.removeLabel(context.issueNumber, label);
     console.log(`Removed label: ${label}`);
   } catch (error) {
     // Ignore if label doesn't exist
