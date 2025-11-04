@@ -346,7 +346,8 @@ async function getSmrtSchemaForTable(
 ): Promise<SmrtSchemaDefinition | null> {
   try {
     // Try to import ObjectRegistry from @happyvertical/smrt
-    // Use @vite-ignore to prevent Vite from trying to resolve this at build time
+    // Use string literal and @ts-expect-error to prevent TypeScript from resolving at build time
+    // @ts-expect-error - Optional peer dependency, may not be installed
     const smrtPackage = await import(/* @vite-ignore */ '@happyvertical/smrt');
     const { ObjectRegistry } = smrtPackage;
 
