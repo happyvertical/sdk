@@ -19,7 +19,7 @@ jobs:
           script: |
             const { triageIssue } = await import('@happyvertical/github-actions');
 
-            const context = {
+            const triageContext = {
               token: process.env.GITHUB_TOKEN,
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -38,4 +38,4 @@ jobs:
               }
             };
 
-            await triageIssue(context);
+            await triageIssue(triageContext);

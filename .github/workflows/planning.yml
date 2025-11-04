@@ -33,7 +33,7 @@ jobs:
           script: |
             const { startPlanning, completePlanning } = await import('@happyvertical/github-actions');
 
-            const context = {
+            const planningContext = {
               token: process.env.GITHUB_TOKEN,
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -52,7 +52,7 @@ jobs:
             };
 
             if ('${{ inputs.action }}' === 'start') {
-              await startPlanning(context);
+              await startPlanning(planningContext);
             } else if ('${{ inputs.action }}' === 'complete') {
-              await completePlanning(context);
+              await completePlanning(planningContext);
             }
