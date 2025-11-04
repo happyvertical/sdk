@@ -22,12 +22,12 @@ export interface TriageConfig {
 }
 
 export interface AIAnalysis {
-  /** Issue type: bug, feature, enhancement, tech-debt, epic, documentation, question */
+  /** Issue type: bug, feature, docs, maintenance, research, question */
   type: string;
-  /** Priority: critical, high, medium, low */
+  /** Priority: critical, high, medium, low, icebox */
   priority: string;
-  /** Urgency: urgent, normal */
-  urgency: string;
+  /** Size/effort estimate: xs, s, m, l, xl */
+  size: string;
   /** Affected packages */
   affected_packages?: string[];
   /** Analysis reasoning */

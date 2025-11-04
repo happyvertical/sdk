@@ -18,6 +18,7 @@
 
 import { readFileSync } from 'node:fs';
 import { type TriageConfig, type TriageContext, triageIssue } from './index.js';
+import { applyStandardLabels } from './labels-cli.js';
 
 async function main() {
   const command = process.argv[2];
@@ -29,11 +30,50 @@ async function main() {
 
   if (command === 'triage') {
     await runTriage();
+  } else if (command === 'labels') {
+    await runLabels();
   } else {
     console.error(`Unknown command: ${command}`);
     showHelp();
     process.exit(1);
   }
+}
+
+async function runLabels() {
+  const args = process.argv.slice(3);
+  const token = args[args.indexOf('--token') + 1] || process.env.GITHUB_TOKEN;
+  const owner = args[args.indexOf('--owner') + 1];
+  const repo = args[args.indexOf('--repo') + 1];
+  const dryRun = args.includes('--dry-run');
+  const includeArea = args.includes('--include-area');
+
+  // Parse custom area labels
+  const areaLabels: string[] = [];
+  let i = 0;
+  while ((i = args.indexOf('--area', i)) !== -1) {
+    areaLabels.push(args[i + 1]);
+    i++;
+  }
+
+  if (!token) {
+    console.error('❌ Error: GitHub token is required');
+    console.error('   Use --token <token> or set GITHUB_TOKEN env var');
+    process.exit(1);
+  }
+
+  if (!owner || !repo) {
+    console.error('❌ Error: --owner and --repo are required');
+    process.exit(1);
+  }
+
+  await applyStandardLabels({
+    token,
+    owner,
+    repo,
+    dryRun,
+    includeArea,
+    areaLabels: areaLabels.length > 0 ? areaLabels : undefined,
+  });
 }
 
 async function runTriage() {
@@ -116,10 +156,11 @@ function showHelp() {
 @happyvertical/github-actions CLI
 
 Usage:
-  github-actions triage
+  github-actions <command> [options]
 
 Commands:
   triage    Run AI-powered issue triage
+  labels    Apply standard labels to repository
 
 Environment Variables:
   GITHUB_TOKEN       GitHub authentication token (required)

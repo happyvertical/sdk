@@ -39,6 +39,7 @@ export default defineConfig({
         'tls',
         // Internal packages
         /^@happyvertical\//,
+        /^@have\//,
       ],
     },
     minify: false,
