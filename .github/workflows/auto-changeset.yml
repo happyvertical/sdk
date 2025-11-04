@@ -21,8 +21,8 @@ jobs:
 
       - name: Validate commit messages
         run: |
-          # Get all commit messages since main
-          commits=$(git log origin/main..HEAD --pretty=format:"%s")
+          # Get all commit messages since main (excluding merge commits)
+          commits=$(git log origin/main..HEAD --no-merges --pretty=format:"%s")
 
           if [ -z "$commits" ]; then
             echo "No commits found"
@@ -54,7 +54,7 @@ jobs:
       - name: Determine version bump
         id: version
         run: |
-          commits=$(git log origin/main..HEAD --pretty=format:"%s")
+          commits=$(git log origin/main..HEAD --no-merges --pretty=format:"%s")
 
           bump="patch"
           if echo "$commits" | grep -qE "^feat(\(.+\))?!?:"; then
