@@ -2,7 +2,7 @@
  * Planning workflow comments
  */
 
-import type { IRepository } from '@have/repos';
+import type { IRepository } from '@happyvertical/repos';
 import { formatDefinitionOfReady } from './definition-of-ready.js';
 import type { DefinitionOfReady, ImplementationPlan } from './types.js';
 

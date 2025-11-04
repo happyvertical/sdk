@@ -2,7 +2,7 @@
  * Definition of Ready validation
  */
 
-import type { Issue } from '@have/repos';
+import type { Issue } from '@happyvertical/repos';
 import type { DefinitionOfReady } from './types.js';
 
 /**

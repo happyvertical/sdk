@@ -1,5 +1,5 @@
 /**
- * Issue Triage Orchestration (Refactored to use @have/repos and @have/projects)
+ * Issue Triage Orchestration (Refactored to use @happyvertical/repos and @happyvertical/projects)
  */
 
 import { analyzeIssue } from './analyze.js';

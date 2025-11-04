@@ -1,12 +1,12 @@
 /**
- * @have/repos - Standardized repository interface
+ * @happyvertical/repos - Standardized repository interface
  *
  * Provides a unified interface for repository operations across GitHub, GitLab,
  * Bitbucket, and Azure DevOps.
  *
  * @example
  * ```typescript
- * import { getRepository } from '@have/repos';
+ * import { getRepository } from '@happyvertical/repos';
  *
  * const repo = await getRepository({
  *   type: 'github',

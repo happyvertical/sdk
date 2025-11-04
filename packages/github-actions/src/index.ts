@@ -16,7 +16,7 @@ export * from './shared/adapters.js';
 export * from './shared/index.js';
 // Keep legacy exports for backward compatibility
 export * as legacy from './triage/index.js';
-// Triage module (v2 uses @have/repos and @have/projects)
+// Triage module (v2 uses @happyvertical/repos and @happyvertical/projects)
 export * from './triage/index-v2.js';
 
 /** @internal */

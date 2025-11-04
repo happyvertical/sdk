@@ -1,14 +1,14 @@
 /**
- * Adapters for @have/repos and @have/projects
+ * Adapters for @happyvertical/repos and @happyvertical/projects
  *
- * These functions adapt the standardized interfaces from @have/repos and @have/projects
+ * These functions adapt the standardized interfaces from @happyvertical/repos and @happyvertical/projects
  * to work with the triage context structure used in this package.
  */
 
-import type { IProject } from '@have/projects';
-import { getProject } from '@have/projects';
-import type { IRepository } from '@have/repos';
-import { getRepository } from '@have/repos';
+import type { IProject } from '@happyvertical/projects';
+import { getProject } from '@happyvertical/projects';
+import type { IRepository } from '@happyvertical/repos';
+import { getRepository } from '@happyvertical/repos';
 
 /**
  * Create a repository client from GitHub context

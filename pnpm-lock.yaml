@@ -296,10 +296,10 @@ importers:
 
   packages/github-actions:
     dependencies:
-      '@have/projects':
+      '@happyvertical/projects':
         specifier: workspace:*
         version: link:../projects
-      '@have/repos':
+      '@happyvertical/repos':
         specifier: workspace:*
         version: link:../repos
     devDependencies:
@@ -408,7 +408,7 @@ importers:
 
   packages/projects:
     dependencies:
-      '@have/repos':
+      '@happyvertical/repos':
         specifier: workspace:*
         version: link:../repos
     devDependencies:

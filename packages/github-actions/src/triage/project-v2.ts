@@ -1,5 +1,5 @@
 /**
- * GitHub Project Board Management (Refactored to use @have/projects)
+ * GitHub Project Board Management (Refactored to use @happyvertical/projects)
  */
 
 import { createProject, createRepository } from '../shared/adapters.js';
