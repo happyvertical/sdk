@@ -1,13 +1,13 @@
 /**
- * @have/projects - Standardized project management interface
+ * @happyvertical/projects - Standardized project management interface
  *
  * Provides a unified interface for project management operations across GitHub Projects,
  * Jira, ZenHub, and Linear.
  *
  * @example
  * ```typescript
- * import { getProject } from '@have/projects';
- * import { getRepository } from '@have/repos';
+ * import { getProject } from '@happyvertical/projects';
+ * import { getRepository } from '@happyvertical/repos';
  *
  * const repo = await getRepository({
  *   type: 'github',

@@ -1,8 +1,7 @@
 /**
- * Issue Labeling (Refactored to use @have/repos)
+ * Issue Labeling (Refactored to use @happyvertical/repos)
  */
 
-import type { IRepository } from '@have/repos';
 import { createRepository } from '../shared/adapters.js';
 import type { TriageContext } from './types.js';
 

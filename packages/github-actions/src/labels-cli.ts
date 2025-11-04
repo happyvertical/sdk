@@ -5,7 +5,7 @@
  * Apply standard labels across repositories
  */
 
-import { getRepository } from '@have/repos';
+import { getRepository } from '@happyvertical/repos';
 import {
   AREA_LABEL_TEMPLATE,
   getAllStandardLabels,

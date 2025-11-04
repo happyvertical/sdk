@@ -1,7 +1,7 @@
 /**
  * Project factory function
  *
- * Creates project instances following the pattern from @have/files and @have/sql
+ * Creates project instances following the pattern from @happyvertical/files and @happyvertical/sql
  */
 
 import { ProjectError, ProjectErrorCode } from './errors.js';
@@ -24,7 +24,7 @@ function isProjectInstance(value: unknown): value is IProject {
 /**
  * Get a project management client instance
  *
- * This is the main entry point following the pattern from @have/files and @have/sql.
+ * This is the main entry point following the pattern from @happyvertical/files and @happyvertical/sql.
  * It can accept either a configuration object or an existing project instance.
  *
  * @param options - Project configuration or existing project instance
@@ -32,7 +32,7 @@ function isProjectInstance(value: unknown): value is IProject {
  *
  * @example
  * ```typescript
- * import { getProject } from '@have/projects';
+ * import { getProject } from '@happyvertical/projects';
  *
  * // Create a GitHub Projects client
  * const project = await getProject({

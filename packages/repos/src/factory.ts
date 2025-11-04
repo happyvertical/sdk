@@ -1,7 +1,7 @@
 /**
  * Repository factory function
  *
- * Creates repository instances following the pattern from @have/files and @have/sql
+ * Creates repository instances following the pattern from @happyvertical/files and @happyvertical/sql
  */
 
 import { RepositoryError, RepositoryErrorCode } from './errors.js';
@@ -24,7 +24,7 @@ function isRepositoryInstance(value: unknown): value is IRepository {
 /**
  * Get a repository client instance
  *
- * This is the main entry point following the pattern from @have/files and @have/sql.
+ * This is the main entry point following the pattern from @happyvertical/files and @happyvertical/sql.
  * It can accept either a configuration object or an existing repository instance.
  *
  * @param options - Repository configuration or existing repository instance
@@ -32,7 +32,7 @@ function isRepositoryInstance(value: unknown): value is IRepository {
  *
  * @example
  * ```typescript
- * import { getRepository } from '@have/repos';
+ * import { getRepository } from '@happyvertical/repos';
  *
  * // Create a GitHub repository client
  * const repo = await getRepository({

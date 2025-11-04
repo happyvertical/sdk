@@ -1,5 +1,5 @@
 {
-  "name": "@have/projects",
+  "name": "@happyvertical/projects",
   "version": "0.1.0",
   "description": "Standardized project management interface for GitHub Projects, Jira, ZenHub, and Linear",
   "type": "module",
@@ -12,7 +12,7 @@
     }
   },
   "scripts": {
-    "test": "npx vitest run",
+    "test": "npx vitest run --passWithNoTests",
     "test:watch": "npx vitest",
     "build": "vite build",
     "build:watch": "vite build --watch",
@@ -20,7 +20,7 @@
     "dev": "npm run build:watch & npm run test:watch"
   },
   "dependencies": {
-    "@have/repos": "workspace:*"
+    "@happyvertical/repos": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
