@@ -105,8 +105,7 @@ Submit PR to SDK repo to add your project to `.github/cascade-config.json`:
 ### Step 4: Configure Secrets
 
 Ensure your repo has access to:
-- `secrets.GITHUB_TOKEN` (automatic)
-- `secrets.CASCADE_TOKEN` (for triggering other repos, optional)
+- `secrets.GH_TOKEN` (organization secret, already configured)
 
 ## Configuration Reference
 
@@ -394,24 +393,16 @@ jobs:
 
 ### Token Permissions
 
-The `CASCADE_TOKEN` secret needs:
+The `GH_TOKEN` organization secret is already configured with:
 - `repo` scope for triggering workflows
 - `packages:read` for installing private packages
+- Full access to all HappyVertical repositories
 
-Create a fine-grained token:
-1. Settings → Developer settings → Personal access tokens → Fine-grained tokens
-2. Select repositories: All HappyVertical repos
-3. Repository permissions:
-   - Actions: Read and write
-   - Contents: Read
-   - Metadata: Read
-   - Pull requests: Read and write
+No additional token setup is required!
 
 ### Secret Management
 
-Store `CASCADE_TOKEN` in:
-- Organization secrets (recommended)
-- Repository secrets (per-repo)
+`GH_TOKEN` is stored as an organization secret and is automatically available to all repositories in the HappyVertical organization.
 
 ### Rate Limits
 
