@@ -65,6 +65,43 @@ This means you can focus on your changes and let Turborepo handle the build orch
 - Description must start with a capital letter
 
 ## Pull Request Guidelines
+
+### Adding a Changeset
+
+Before merging your PR, you must add a changeset describing your changes:
+
+```bash
+npx changeset
+```
+
+This will prompt you to:
+1. **Select affected packages** - Choose which packages have changed
+2. **Select bump type** for each package:
+   - `patch` - Bug fixes, small changes (0.0.X)
+   - `minor` - New features, non-breaking changes (0.X.0)
+   - `major` - Breaking changes (treated as minor until 1.0.0)
+3. **Write a summary** - Describe the change for the CHANGELOG
+
+Example changeset file (`.changeset/random-words-abc.md`):
+```markdown
+---
+"@happyvertical/ai": minor
+"@happyvertical/sql": patch
+---
+
+Add Claude AI provider support and fix SQL connection pooling issue
+```
+
+### When to Skip Changesets
+
+Add the `skip-changeset` label to your PR if it doesn't require a version bump:
+- Documentation updates
+- Test changes
+- Workflow/CI changes
+- Internal refactoring with no API changes
+
+### PR Requirements
+
 - All pull requests must follow the template:
   ```md
   <!-- Please include a summary of the changes -->
@@ -73,9 +110,23 @@ This means you can focus on your changes and let Turborepo handle the build orch
 
   - [ ] Run `npm test`
   - [ ] Run `npm run lint`
+  - [ ] Add changeset (or add `skip-changeset` label)
   ```
 - Include a clear summary of the changes at the top of the pull request description
-- Reference any related issues using the format `#issue-number` 
+- Reference any related issues using the format `#issue-number`
+
+### Publishing Process
+
+Releases are managed through changesets:
+
+1. **PRs add changesets** - Contributors add `.changeset/*.md` files
+2. **Version Packages PR** - Changesets bot creates/updates a PR that:
+   - Bumps versions in `package.json`
+   - Updates `CHANGELOG.md` files
+   - Deletes changeset files
+3. **Merge to publish** - When the Version Packages PR merges, packages are automatically published to GitHub Packages
+
+This means releases are batched and controlled, not automatic on every merge. 
 
 ## Dependencies and Testing
 - Inject dependencies through a deps object parameter for testability
