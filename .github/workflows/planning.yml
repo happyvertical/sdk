@@ -21,6 +21,7 @@ on:
 permissions:
   issues: write
   contents: read
+  packages: read
 
 jobs:
   planning:
