@@ -36,7 +36,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const { triageIssue } = await import('@happyvertical/github-actions');
+            const { triageIssue } = require('@happyvertical/github-actions');
 
             const triageContext = {
               token: process.env.GITHUB_TOKEN,
