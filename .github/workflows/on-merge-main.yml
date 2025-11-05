@@ -44,8 +44,8 @@ jobs:
       - name: Get PR number from merge commit
         id: pr
         run: |
-          # Extract PR number from merge commit message
-          PR_NUMBER=$(git log -1 --pretty=%B | grep -oP '#\K\d+' || echo "")
+          # Extract PR number from merge commit message (first occurrence only)
+          PR_NUMBER=$(git log -1 --pretty=%B | grep -oP '#\K\d+' | head -1 || echo "")
           echo "pr_number=$PR_NUMBER" >> $GITHUB_OUTPUT
 
           if [ -n "$PR_NUMBER" ]; then
