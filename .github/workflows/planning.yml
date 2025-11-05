@@ -50,7 +50,7 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const { startPlanning, completePlanning } = require('@happyvertical/github-actions');
+            const { startPlanning, completePlanning } = await import('${{ github.workspace }}/node_modules/@happyvertical/github-actions/dist/index.js');
 
             const planningContext = {
               token: process.env.GITHUB_TOKEN,
