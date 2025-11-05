@@ -37,129 +37,16 @@ jobs:
       runner: 'ubuntu-latest'
       node-version: '24'
 
-  # Job 2: Build and release (only if tests pass)
-  build-and-release:
-    name: Build and Release
-    runs-on: ubuntu-latest
-    needs: [test]
-    if: needs.test.outputs.success == 'true'
-
-    outputs:
-      bump_type: ${{ steps.version.outputs.bump }}
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup Environment
-        uses: ./.github/actions/setup-environment
-        with:
-          node-version: '24'
-          registry-url: 'https://npm.pkg.github.com'
-
-      - name: Setup Turborepo cache
-        uses: actions/cache@v4
-        with:
-          path: .turbo
-          key: ${{ runner.os }}-turbo-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-turbo-
-
-      - name: Build packages
-        run: pnpm run build
-
-      - name: Determine version bump from commits
-        id: version
-        run: |
-          # Get commit messages from the most recent merge
-          commits=$(git log --merges --max-count=1 --pretty=format:"%b")
-
-          # Determine version bump type
-          bump="patch"
-          if echo "$commits" | grep -qE "^feat(\(.+\))?!?:"; then
-            bump="minor"
-          fi
-
-          if echo "$commits" | grep -qiE "(BREAKING CHANGE|!:)"; then
-            bump="minor"  # Treat as minor until 1.0.0
-          fi
-
-          echo "bump=$bump" >> $GITHUB_OUTPUT
-          echo "📦 Will perform $bump version bump"
-
-      - name: Bump versions in package.json files
-        run: |
-          # Find all package.json files in packages directory
-          for pkg_json in packages/*/package.json; do
-            if [ -f "$pkg_json" ]; then
-              pkg_dir=$(dirname "$pkg_json")
-              pkg_name=$(node -p "require('./$pkg_json').name")
-              current_version=$(node -p "require('./$pkg_json').version")
-
-              # Calculate new version
-              IFS='.' read -r major minor patch <<< "$current_version"
-              if [ "${{ steps.version.outputs.bump }}" = "minor" ]; then
-                minor=$((minor + 1))
-                patch=0
-              else
-                patch=$((patch + 1))
-              fi
-              new_version="$major.$minor.$patch"
-
-              echo "📦 $pkg_name: $current_version → $new_version"
-
-              # Update version in package.json
-              node -e "
-                const fs = require('fs');
-                const pkg = JSON.parse(fs.readFileSync('$pkg_json', 'utf8'));
-                pkg.version = '$new_version';
-                fs.writeFileSync('$pkg_json', JSON.stringify(pkg, null, 2) + '\n');
-              "
-            fi
-          done
-
-      - name: Commit version bumps
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add packages/*/package.json
-          git commit -m "chore: bump package versions [${{ steps.version.outputs.bump }}]" || echo "No changes to commit"
-          git push
-
-      - name: Publish packages
-        id: publish
-        run: pnpm run release
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create git tags
-        run: |
-          # Create tags for each published package
-          for pkg_json in packages/*/package.json; do
-            if [ -f "$pkg_json" ]; then
-              pkg_name=$(node -p "require('./$pkg_json').name")
-              pkg_version=$(node -p "require('./$pkg_json').version")
-              tag_name="${pkg_name}@${pkg_version}"
-
-              echo "🏷️  Creating tag: $tag_name"
-              git tag "$tag_name" || echo "Tag $tag_name already exists"
-            fi
-          done
-
-          git push --tags || echo "No new tags to push"
-
-  # Job 3: Deploy documentation (only if build succeeds)
+  # Job 2: Deploy documentation (only if tests pass)
   # Note: We deploy docs on every merge to main to ensure they stay in sync
   # Skip only if explicitly requested via workflow_dispatch
   deploy-docs:
     name: Deploy Documentation
     runs-on: ubuntu-latest
-    needs: [build-and-release]
+    needs: [test]
     if: |
       always() &&
-      needs.build-and-release.result == 'success' &&
+      needs.test.outputs.success == 'true' &&
       github.event.inputs.skip-docs != 'true'
 
     environment:
