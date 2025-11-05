@@ -1,0 +1,319 @@
+name: 'Dependency Cascade Handler'
+description: 'Handle upstream dependency updates and trigger downstream cascades'
+author: 'HappyVertical'
+
+inputs:
+  project_name:
+    description: 'Name of the current project (sdk, smrt, praeco, caelus, bentleyalberta)'
+    required: true
+  upstream_package:
+    description: 'The package that was updated (e.g., @happyvertical/ai, @happyvertical/smrt)'
+    required: false
+  upstream_version:
+    description: 'Version of the upstream package'
+    required: false
+  github_token:
+    description: 'GitHub token with permissions to create PRs and trigger workflows'
+    required: true
+  npm_token:
+    description: 'NPM token for GitHub Packages authentication'
+    required: false
+  auto_merge:
+    description: 'Automatically merge PR if tests pass'
+    required: false
+    default: 'true'
+  dry_run:
+    description: 'Dry run mode (no actual changes)'
+    required: false
+    default: 'false'
+
+outputs:
+  pr_number:
+    description: 'Pull request number if created'
+    value: ${{ steps.create-pr.outputs.pull-request-number }}
+  pr_url:
+    description: 'Pull request URL if created'
+    value: ${{ steps.create-pr.outputs.pull-request-url }}
+  updated:
+    description: 'Whether updates were made'
+    value: ${{ steps.check-updates.outputs.updated }}
+  triggered_downstream:
+    description: 'Downstream repositories that were triggered'
+    value: ${{ steps.trigger-downstream.outputs.repositories }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+        registry-url: 'https://npm.pkg.github.com'
+        scope: '@happyvertical'
+
+    - name: Configure NPM
+      shell: bash
+      env:
+        NPM_TOKEN: ${{ inputs.npm_token }}
+      run: |
+        echo "@happyvertical:registry=https://npm.pkg.github.com" >> .npmrc
+        echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> .npmrc
+
+    - name: Get cascade configuration
+      id: config
+      shell: bash
+      run: |
+        # Fetch cascade config from SDK repo
+        curl -s https://raw.githubusercontent.com/happyvertical/sdk/main/.github/cascade-config.json \
+          -o /tmp/cascade-config.json
+
+        # Extract downstream targets for this project
+        downstream=$(node -e "
+          const config = require('/tmp/cascade-config.json');
+          const project = config.cascade['${{ inputs.project_name }}'];
+          if (project && project.triggers) {
+            console.log(JSON.stringify(project.triggers));
+          } else {
+            console.log('[]');
+          }
+        ")
+
+        echo "downstream=$downstream" >> $GITHUB_OUTPUT
+        echo "📋 Downstream targets: $downstream"
+
+    - name: Update dependencies
+      id: update
+      shell: bash
+      run: |
+        echo "🔄 Updating dependencies..."
+
+        # Detect package manager
+        if [ -f "pnpm-lock.yaml" ]; then
+          PKG_MANAGER="pnpm"
+          npm install -g pnpm
+        elif [ -f "bun.lockb" ]; then
+          PKG_MANAGER="bun"
+        else
+          PKG_MANAGER="npm"
+        fi
+
+        echo "Using package manager: $PKG_MANAGER"
+
+        # Update HappyVertical packages
+        if [ "$PKG_MANAGER" = "pnpm" ]; then
+          pnpm update '@happyvertical/*' --latest
+        elif [ "$PKG_MANAGER" = "bun" ]; then
+          bun update '@happyvertical/*'
+        else
+          npm update '@happyvertical/*'
+        fi
+
+        # Check if package.json changed
+        if git diff --quiet package.json pnpm-lock.yaml 2>/dev/null; then
+          echo "updated=false" >> $GITHUB_OUTPUT
+          echo "⏭️  No updates needed"
+        else
+          echo "updated=true" >> $GITHUB_OUTPUT
+          echo "✅ Dependencies updated"
+        fi
+
+    - name: Check for updates
+      id: check-updates
+      shell: bash
+      run: |
+        if [ "${{ steps.update.outputs.updated }}" = "true" ]; then
+          echo "updated=true" >> $GITHUB_OUTPUT
+
+          # Get updated versions
+          git diff package.json | grep '^\+.*@happyvertical' | sed 's/^+//' > /tmp/updates.txt
+          echo "📦 Updated packages:"
+          cat /tmp/updates.txt
+        else
+          echo "updated=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Run tests
+      id: test
+      if: steps.check-updates.outputs.updated == 'true' && inputs.dry_run != 'true'
+      shell: bash
+      continue-on-error: true
+      run: |
+        echo "🧪 Running tests..."
+
+        # Detect test command
+        if grep -q '"test"' package.json; then
+          if [ -f "pnpm-lock.yaml" ]; then
+            pnpm test
+          elif [ -f "bun.lockb" ]; then
+            bun test
+          else
+            npm test
+          fi
+        else
+          echo "⚠️  No test script found, skipping tests"
+        fi
+
+    - name: Run build
+      id: build
+      if: steps.check-updates.outputs.updated == 'true' && inputs.dry_run != 'true'
+      shell: bash
+      continue-on-error: true
+      run: |
+        echo "🔨 Running build..."
+
+        # Detect build command
+        if grep -q '"build"' package.json; then
+          if [ -f "pnpm-lock.yaml" ]; then
+            pnpm build
+          elif [ -f "bun.lockb" ]; then
+            bun run build
+          else
+            npm run build
+          fi
+        else
+          echo "⚠️  No build script found, skipping build"
+        fi
+
+    - name: Create Pull Request
+      id: create-pr
+      if: steps.check-updates.outputs.updated == 'true' && inputs.dry_run != 'true'
+      uses: peter-evans/create-pull-request@v6
+      with:
+        token: ${{ inputs.github_token }}
+        commit-message: 'chore: update @happyvertical dependencies'
+        title: 'chore: update @happyvertical dependencies'
+        body: |
+          ## Automated Dependency Update 🤖
+
+          This PR was automatically created by the dependency cascade system.
+
+          ### Updates
+          ${{ steps.check-updates.outputs.updated == 'true' && '✅ Dependencies updated' || '⏭️ No updates' }}
+
+          ### Test Results
+          - Tests: ${{ steps.test.outcome == 'success' && '✅ Passed' || steps.test.outcome == 'failure' && '❌ Failed' || '⏭️ Skipped' }}
+          - Build: ${{ steps.build.outcome == 'success' && '✅ Passed' || steps.build.outcome == 'failure' && '❌ Failed' || '⏭️ Skipped' }}
+
+          ### Upstream Changes
+          ${{ inputs.upstream_package && format('- **Package:** {0}', inputs.upstream_package) || '' }}
+          ${{ inputs.upstream_version && format('- **Version:** {0}', inputs.upstream_version) || '' }}
+
+          ---
+          *This PR will ${{ inputs.auto_merge == 'true' && steps.test.outcome == 'success' && steps.build.outcome == 'success' && 'be automatically merged' || 'require manual review' }}*
+        branch: cascade/update-dependencies
+        delete-branch: true
+        labels: dependencies,automated
+
+    - name: Enable auto-merge
+      if: |
+        steps.create-pr.outputs.pull-request-number &&
+        inputs.auto_merge == 'true' &&
+        steps.test.outcome == 'success' &&
+        steps.build.outcome == 'success' &&
+        inputs.dry_run != 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+      run: |
+        echo "🔀 Enabling auto-merge for PR #${{ steps.create-pr.outputs.pull-request-number }}"
+        gh pr merge ${{ steps.create-pr.outputs.pull-request-number }} \
+          --auto --squash \
+          --delete-branch
+
+    - name: Trigger downstream updates
+      id: trigger-downstream
+      if: |
+        (steps.create-pr.outputs.pull-request-number && inputs.auto_merge == 'true') ||
+        inputs.dry_run == 'true'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+      run: |
+        downstream='${{ steps.config.outputs.downstream }}'
+
+        if [ "$downstream" = "[]" ] || [ -z "$downstream" ]; then
+          echo "⏭️  No downstream repositories to trigger"
+          echo "repositories=[]" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        echo "🚀 Triggering downstream updates..."
+
+        triggered=()
+        for target in $(echo $downstream | jq -r '.[]'); do
+          # Get repository name from config
+          repo=$(node -e "
+            const config = require('/tmp/cascade-config.json');
+            const project = config.cascade['$target'];
+            console.log(project.repository);
+          ")
+
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "🧪 Would trigger: $repo"
+            triggered+=("$repo")
+          else
+            echo "Triggering: $repo"
+
+            # Trigger repository_dispatch event
+            curl -X POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              "https://api.github.com/repos/$repo/dispatches" \
+              -d "{
+                \"event_type\": \"dependency-updated\",
+                \"client_payload\": {
+                  \"source\": \"${{ inputs.project_name }}\",
+                  \"package\": \"${{ inputs.upstream_package }}\",
+                  \"version\": \"${{ inputs.upstream_version }}\"
+                }
+              }"
+
+            if [ $? -eq 0 ]; then
+              triggered+=("$repo")
+              echo "✅ Triggered: $repo"
+            else
+              echo "❌ Failed to trigger: $repo"
+            fi
+          fi
+        done
+
+        # Output triggered repositories as JSON array
+        triggered_json=$(printf '%s\n' "${triggered[@]}" | jq -R . | jq -s .)
+        echo "repositories=$triggered_json" >> $GITHUB_OUTPUT
+
+    - name: Summary
+      shell: bash
+      run: |
+        echo "### Cascade Handler Results 🔄" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Project:** ${{ inputs.project_name }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if [ "${{ steps.check-updates.outputs.updated }}" = "true" ]; then
+          echo "✅ **Updates Applied**" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -n "${{ steps.create-pr.outputs.pull-request-url }}" ]; then
+            echo "📝 **Pull Request:** ${{ steps.create-pr.outputs.pull-request-url }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Test Results:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Tests: ${{ steps.test.outcome }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Build: ${{ steps.build.outcome }}" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⏭️ **No Updates Needed**" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        if [ -n "${{ steps.trigger-downstream.outputs.repositories }}" ]; then
+          echo "**Downstream Triggered:**" >> $GITHUB_STEP_SUMMARY
+          echo '${{ steps.trigger-downstream.outputs.repositories }}' | jq -r '.[]' | while read repo; do
+            echo "- $repo" >> $GITHUB_STEP_SUMMARY
+          done
+        fi
+
+branding:
+  icon: 'refresh-cw'
+  color: 'blue'
