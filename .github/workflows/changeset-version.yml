@@ -62,3 +62,21 @@ jobs:
           done
 
           git push --tags || echo "No new tags to push"
+
+      - name: Trigger dependency cascade
+        if: steps.changesets.outputs.published == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          echo "📢 Triggering dependency cascade for downstream repositories..."
+
+          # Trigger SMRT
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/happyvertical/smrt/dispatches \
+            -f event_type='dependency-updated' \
+            -f client_payload='{"repository":"happyvertical/sdk"}'
+
+          echo "✅ Triggered SMRT dependency cascade"
