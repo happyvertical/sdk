@@ -52,6 +52,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Enable auto-merge for version PR
+        if: steps.changesets.outputs.pullRequestNumber != ''
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          echo "🔀 Enabling auto-merge for version PR #${{ steps.changesets.outputs.pullRequestNumber }}"
+          gh pr merge ${{ steps.changesets.outputs.pullRequestNumber }} \
+            --auto --squash \
+            --delete-branch
+
       - name: Create git tags
         if: steps.changesets.outputs.published == 'true'
         run: |
