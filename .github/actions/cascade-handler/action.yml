@@ -56,8 +56,9 @@ runs:
       env:
         NPM_TOKEN: ${{ inputs.npm_token }}
       run: |
-        echo "@happyvertical:registry=https://npm.pkg.github.com" >> .npmrc
-        echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> .npmrc
+        # Write to user's .npmrc instead of repository .npmrc to avoid committing secrets
+        echo "@happyvertical:registry=https://npm.pkg.github.com" >> ~/.npmrc
+        echo "//npm.pkg.github.com/:_authToken=${NPM_TOKEN}" >> ~/.npmrc
 
     - name: Get cascade configuration
       id: config
