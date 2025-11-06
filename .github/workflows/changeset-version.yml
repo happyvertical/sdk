@@ -70,13 +70,18 @@ jobs:
         run: |
           echo "📢 Triggering dependency cascade for downstream repositories..."
 
-          # Trigger SMRT
+          # Extract published packages info
+          PUBLISHED_PACKAGES='${{ steps.changesets.outputs.publishedPackages }}'
+          echo "Published packages: $PUBLISHED_PACKAGES"
+
+          # Trigger SMRT with full package information
           gh api \
             --method POST \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             /repos/happyvertical/smrt/dispatches \
             -f event_type='dependency-updated' \
-            -f 'client_payload[repository]=happyvertical/sdk'
+            -f 'client_payload[repository]=happyvertical/sdk' \
+            -f "client_payload[packages]=$PUBLISHED_PACKAGES"
 
           echo "✅ Triggered SMRT dependency cascade"
