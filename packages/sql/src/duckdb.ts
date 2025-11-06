@@ -262,20 +262,48 @@ export async function getDatabase(
     }
 
     const keys = Object.keys(records[0]);
+    const values: any[] = [];
+    let paramIdx = 1;
+
+    // Build placeholders with proper type casting for DuckDB
     const placeholders = records
-      .map(
-        (_, idx) =>
-          `(${keys.map((__, colIdx) => `$${idx * keys.length + colIdx + 1}`).join(', ')})`,
-      )
+      .map((record) => {
+        const rowPlaceholders = keys.map((key) => {
+          const value = record[key];
+
+          if (value === null || value === undefined) {
+            return 'NULL';
+          } else if (value === '' && typeof value === 'string') {
+            // CAST empty strings to TEXT to prevent DuckDB ANY type inference
+            values.push(value);
+            return `CAST($${paramIdx++} AS TEXT)`;
+          } else if (value instanceof Date) {
+            // Convert Date objects to ISO strings for DuckDB
+            values.push(value.toISOString());
+            return `$${paramIdx++}`;
+          } else if (Array.isArray(value)) {
+            // CAST arrays to JSON to prevent DuckDB ANY type inference
+            values.push(JSON.stringify(value));
+            return `CAST($${paramIdx++} AS JSON)`;
+          } else if (
+            typeof value === 'object' &&
+            value !== null &&
+            Object.getPrototypeOf(value) === Object.prototype
+          ) {
+            // CAST plain objects to JSON to prevent DuckDB ANY type inference
+            values.push(JSON.stringify(value));
+            return `CAST($${paramIdx++} AS JSON)`;
+          } else {
+            // Direct parameter binding for other values
+            values.push(value);
+            return `$${paramIdx++}`;
+          }
+        });
+        return `(${rowPlaceholders.join(', ')})`;
+      })
       .join(', ');
 
     const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES ${placeholders}`;
-    // Convert Date objects to ISO strings for DuckDB compatibility
-    const values = records.flatMap((record) =>
-      Object.values(record).map((value) =>
-        value instanceof Date ? value.toISOString() : value,
-      ),
-    );
 
     try {
       await connection.run(sql, values);
@@ -448,6 +476,22 @@ export async function getDatabase(
         placeholders.push(`$${paramIdx}`);
         values.push(value.toISOString());
         paramIdx++;
+      } else if (Array.isArray(value)) {
+        // CAST arrays to JSON to prevent DuckDB ANY type inference
+        // DuckDB cannot infer array element types from empty arrays or mixed types
+        placeholders.push(`CAST($${paramIdx} AS JSON)`);
+        values.push(JSON.stringify(value));
+        paramIdx++;
+      } else if (
+        typeof value === 'object' &&
+        value !== null &&
+        Object.getPrototypeOf(value) === Object.prototype
+      ) {
+        // CAST plain objects to JSON to prevent DuckDB ANY type inference
+        // Only applies to plain objects (not class instances)
+        placeholders.push(`CAST($${paramIdx} AS JSON)`);
+        values.push(JSON.stringify(value));
+        paramIdx++;
       } else {
         // Direct parameter binding for other values
         placeholders.push(`$${paramIdx}`);
@@ -474,6 +518,20 @@ export async function getDatabase(
       } else if (value instanceof Date) {
         updateSetParts.push(`${key} = $${paramIdx}`);
         values.push(value.toISOString());
+        paramIdx++;
+      } else if (Array.isArray(value)) {
+        // CAST arrays to JSON to prevent DuckDB ANY type inference
+        updateSetParts.push(`${key} = CAST($${paramIdx} AS JSON)`);
+        values.push(JSON.stringify(value));
+        paramIdx++;
+      } else if (
+        typeof value === 'object' &&
+        value !== null &&
+        Object.getPrototypeOf(value) === Object.prototype
+      ) {
+        // CAST plain objects to JSON to prevent DuckDB ANY type inference
+        updateSetParts.push(`${key} = CAST($${paramIdx} AS JSON)`);
+        values.push(JSON.stringify(value));
         paramIdx++;
       } else {
         updateSetParts.push(`${key} = $${paramIdx}`);

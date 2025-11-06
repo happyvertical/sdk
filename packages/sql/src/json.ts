@@ -660,12 +660,30 @@ export async function getDatabase(
 
             if (value === null) {
               return 'NULL';
+            } else if (value === '' && typeof value === 'string') {
+              // CAST empty strings to TEXT to prevent DuckDB ANY type inference
+              values.push(value);
+              return `CAST($${paramIdx++} AS TEXT)`;
             } else if (value instanceof Date) {
               // Convert Date objects to ISO strings for DuckDB (issue #319)
               values.push(value.toISOString());
               return `$${paramIdx++}`;
+            } else if (Array.isArray(value)) {
+              // CAST arrays to JSON to prevent DuckDB ANY type inference
+              // DuckDB cannot infer array element types from empty arrays or mixed types
+              values.push(JSON.stringify(value));
+              return `CAST($${paramIdx++} AS JSON)`;
+            } else if (
+              typeof value === 'object' &&
+              value !== null &&
+              Object.getPrototypeOf(value) === Object.prototype
+            ) {
+              // CAST plain objects to JSON to prevent DuckDB ANY type inference
+              // Only applies to plain objects (not class instances)
+              values.push(JSON.stringify(value));
+              return `CAST($${paramIdx++} AS JSON)`;
             } else {
-              // Direct parameter binding - schema has NOT NULL DEFAULT '' to prevent ANY type
+              // Direct parameter binding for other values
               values.push(value);
               return `$${paramIdx++}`;
             }
@@ -876,6 +894,22 @@ export async function getDatabase(
           placeholders.push(`$${paramIdx}`);
           values.push(value.toISOString());
           paramIdx++;
+        } else if (Array.isArray(value)) {
+          // CAST arrays to JSON to prevent DuckDB ANY type inference
+          // DuckDB cannot infer array element types from empty arrays or mixed types
+          placeholders.push(`CAST($${paramIdx} AS JSON)`);
+          values.push(JSON.stringify(value));
+          paramIdx++;
+        } else if (
+          typeof value === 'object' &&
+          value !== null &&
+          Object.getPrototypeOf(value) === Object.prototype
+        ) {
+          // CAST plain objects to JSON to prevent DuckDB ANY type inference
+          // Only applies to plain objects (not class instances)
+          placeholders.push(`CAST($${paramIdx} AS JSON)`);
+          values.push(JSON.stringify(value));
+          paramIdx++;
         } else {
           // Direct parameter binding for other values
           placeholders.push(`$${paramIdx}`);
@@ -903,6 +937,20 @@ export async function getDatabase(
           // Convert Date objects to ISO strings for DuckDB
           updateSetParts.push(`${key} = $${paramIdx}`);
           values.push(value.toISOString());
+          paramIdx++;
+        } else if (Array.isArray(value)) {
+          // CAST arrays to JSON to prevent DuckDB ANY type inference
+          updateSetParts.push(`${key} = CAST($${paramIdx} AS JSON)`);
+          values.push(JSON.stringify(value));
+          paramIdx++;
+        } else if (
+          typeof value === 'object' &&
+          value !== null &&
+          Object.getPrototypeOf(value) === Object.prototype
+        ) {
+          // CAST plain objects to JSON to prevent DuckDB ANY type inference
+          updateSetParts.push(`${key} = CAST($${paramIdx} AS JSON)`);
+          values.push(JSON.stringify(value));
           paramIdx++;
         } else {
           // Direct parameter binding for other values

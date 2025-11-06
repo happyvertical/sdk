@@ -1,5 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { clearConnectionCache, getDatabase } from './index';
@@ -1190,6 +1198,238 @@ describe('JSON adapter tests', () => {
 
       // Clean up
       rmSync(testDir, { recursive: true, force: true });
+    });
+  });
+
+  describe('Array and Object Type Casting (Issue #378)', () => {
+    let testDb: DatabaseInterface;
+    let testDir: string;
+
+    beforeEach(async () => {
+      testDir = mkdtempSync(join(tmpdir(), 'json-test-issue-378-'));
+
+      testDb = await getDatabase({
+        type: 'json',
+        url: testDir,
+        writeStrategy: 'immediate',
+        autoRegister: false,
+      });
+
+      // Create test table with JSON columns
+      await testDb.execute`
+        CREATE TABLE test_objects (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          tags JSON,
+          metadata JSON,
+          created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+      `;
+    });
+
+    afterEach(() => {
+      rmSync(testDir, { recursive: true, force: true });
+    });
+
+    describe('INSERT operations', () => {
+      it('should insert record with empty array using JSON cast', async () => {
+        await testDb.insert('test_objects', {
+          id: 'test-1',
+          name: 'Test Object 1',
+          tags: [],
+          metadata: { version: 1 },
+        });
+
+        const record = await testDb.get('test_objects', { id: 'test-1' });
+        expect(record).toBeDefined();
+        expect(record?.name).toBe('Test Object 1');
+        expect(JSON.parse(record?.tags as string)).toEqual([]);
+        expect(JSON.parse(record?.metadata as string)).toEqual({ version: 1 });
+      });
+
+      it('should insert record with string array', async () => {
+        await testDb.insert('test_objects', {
+          id: 'test-2',
+          name: 'Test Object 2',
+          tags: ['tag1', 'tag2', 'tag3'],
+          metadata: { type: 'test', count: 3 },
+        });
+
+        const record = await testDb.get('test_objects', { id: 'test-2' });
+        expect(record).toBeDefined();
+        expect(JSON.parse(record?.tags as string)).toEqual([
+          'tag1',
+          'tag2',
+          'tag3',
+        ]);
+        expect(JSON.parse(record?.metadata as string)).toEqual({
+          type: 'test',
+          count: 3,
+        });
+      });
+
+      it('should insert record with number array', async () => {
+        await testDb.insert('test_objects', {
+          id: 'test-3',
+          name: 'Test Object 3',
+          tags: [1, 2, 3, 4, 5],
+          metadata: { numbers: true },
+        });
+
+        const record = await testDb.get('test_objects', { id: 'test-3' });
+        expect(record).toBeDefined();
+        expect(JSON.parse(record?.tags as string)).toEqual([1, 2, 3, 4, 5]);
+      });
+
+      it('should insert record with nested object structure', async () => {
+        await testDb.insert('test_objects', {
+          id: 'test-4',
+          name: 'Test Object 4',
+          tags: ['nested'],
+          metadata: {
+            user: { id: 'user-1', name: 'John' },
+            settings: { theme: 'dark', notifications: true },
+            history: [{ action: 'create', timestamp: '2024-01-01' }],
+          },
+        });
+
+        const record = await testDb.get('test_objects', { id: 'test-4' });
+        expect(record).toBeDefined();
+        const metadata = JSON.parse(record?.metadata as string);
+        expect(metadata.user).toEqual({ id: 'user-1', name: 'John' });
+        expect(metadata.settings).toEqual({
+          theme: 'dark',
+          notifications: true,
+        });
+        expect(metadata.history).toHaveLength(1);
+      });
+
+      it('should insert multiple records with arrays and objects', async () => {
+        await testDb.insert('test_objects', [
+          {
+            id: 'batch-1',
+            name: 'Batch 1',
+            tags: ['a', 'b'],
+            metadata: { batch: 1 },
+          },
+          {
+            id: 'batch-2',
+            name: 'Batch 2',
+            tags: ['c', 'd'],
+            metadata: { batch: 2 },
+          },
+          {
+            id: 'batch-3',
+            name: 'Batch 3',
+            tags: [],
+            metadata: {},
+          },
+        ]);
+
+        const records = await testDb.list('test_objects', {});
+        expect(records).toHaveLength(3);
+      });
+
+      it('should persist arrays and objects to JSON file', async () => {
+        await testDb.insert('test_objects', {
+          id: 'persist-1',
+          name: 'Persist Test',
+          tags: ['persisted', 'to', 'file'],
+          metadata: { file_check: true },
+        });
+
+        // Verify JSON file was written
+        const jsonPath = join(testDir, 'test_objects.json');
+        expect(existsSync(jsonPath)).toBe(true);
+
+        const jsonContent = JSON.parse(readFileSync(jsonPath, 'utf-8'));
+        expect(Array.isArray(jsonContent)).toBe(true);
+        expect(jsonContent).toHaveLength(1);
+      });
+    });
+
+    describe('UPSERT operations', () => {
+      beforeEach(async () => {
+        // Insert initial record
+        await testDb.insert('test_objects', {
+          id: 'upsert-1',
+          name: 'Original Name',
+          tags: ['original'],
+          metadata: { version: 1 },
+        });
+      });
+
+      it('should upsert record with updated array', async () => {
+        await testDb.upsert('test_objects', ['id'], {
+          id: 'upsert-1',
+          name: 'Updated Name',
+          tags: ['updated', 'new'],
+          metadata: { version: 2 },
+        });
+
+        const record = await testDb.get('test_objects', { id: 'upsert-1' });
+        expect(record?.name).toBe('Updated Name');
+        expect(JSON.parse(record?.tags as string)).toEqual(['updated', 'new']);
+        expect(JSON.parse(record?.metadata as string)).toEqual({ version: 2 });
+      });
+
+      it('should upsert record changing array to empty', async () => {
+        await testDb.upsert('test_objects', ['id'], {
+          id: 'upsert-1',
+          name: 'No Tags',
+          tags: [],
+          metadata: { cleared: true },
+        });
+
+        const record = await testDb.get('test_objects', { id: 'upsert-1' });
+        expect(record?.name).toBe('No Tags');
+        expect(JSON.parse(record?.tags as string)).toEqual([]);
+      });
+
+      it('should insert new record via upsert with arrays/objects', async () => {
+        await testDb.upsert('test_objects', ['id'], {
+          id: 'upsert-new',
+          name: 'New Record',
+          tags: ['fresh', 'data'],
+          metadata: { created_via: 'upsert' },
+        });
+
+        const record = await testDb.get('test_objects', { id: 'upsert-new' });
+        expect(record).toBeDefined();
+        expect(record?.name).toBe('New Record');
+        expect(JSON.parse(record?.tags as string)).toEqual(['fresh', 'data']);
+      });
+    });
+
+    describe('Mixed type handling', () => {
+      it('should handle records with mixed value types correctly', async () => {
+        await testDb.insert('test_objects', {
+          id: 'mixed-1',
+          name: 'Mixed Types',
+          tags: [1, 'two', 3, 'four'],
+          metadata: {
+            string: 'value',
+            number: 42,
+            boolean: true,
+            null_value: null,
+            nested_array: [1, 2, 3],
+            nested_object: { a: 1, b: 2 },
+          },
+        });
+
+        const record = await testDb.get('test_objects', { id: 'mixed-1' });
+        expect(record).toBeDefined();
+        const tags = JSON.parse(record?.tags as string);
+        const metadata = JSON.parse(record?.metadata as string);
+
+        expect(tags).toEqual([1, 'two', 3, 'four']);
+        expect(metadata.string).toBe('value');
+        expect(metadata.number).toBe(42);
+        expect(metadata.boolean).toBe(true);
+        expect(metadata.null_value).toBe(null);
+        expect(metadata.nested_array).toEqual([1, 2, 3]);
+        expect(metadata.nested_object).toEqual({ a: 1, b: 2 });
+      });
     });
   });
 });
