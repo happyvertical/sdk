@@ -1,5 +1,11 @@
 # @happyvertical/utils
 
+## 0.55.3
+
+### Patch Changes
+
+- 849eb94: Add test export to trigger version bump and dependency cascade workflow
+
 ## 0.55.0
 
 ### Minor Changes
