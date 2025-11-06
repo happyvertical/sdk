@@ -124,10 +124,14 @@ runs:
         if [ "${{ steps.update.outputs.updated }}" = "true" ]; then
           echo "updated=true" >> $GITHUB_OUTPUT
 
-          # Get updated versions
-          git diff package.json | grep '^\+.*@happyvertical' | sed 's/^+//' > /tmp/updates.txt
-          echo "📦 Updated packages:"
-          cat /tmp/updates.txt
+          # Get updated versions (|| true prevents failure if no matches found)
+          git diff package.json | grep '^\+.*@happyvertical' | sed 's/^+//' > /tmp/updates.txt || true
+          if [ -s /tmp/updates.txt ]; then
+            echo "📦 Updated packages:"
+            cat /tmp/updates.txt
+          else
+            echo "📦 Dependencies updated (lockfile changes only)"
+          fi
         else
           echo "updated=false" >> $GITHUB_OUTPUT
         fi
