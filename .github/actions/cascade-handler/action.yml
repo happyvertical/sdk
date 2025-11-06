@@ -96,10 +96,14 @@ runs:
         # Update HappyVertical packages
         if [ "$PKG_MANAGER" = "pnpm" ]; then
           pnpm update '@happyvertical/*' --latest
+          # Ensure all dependencies (including devDependencies) are installed after update
+          pnpm install
         elif [ "$PKG_MANAGER" = "bun" ]; then
           bun update '@happyvertical/*'
+          bun install
         else
           npm update '@happyvertical/*'
+          npm install
         fi
 
         # Check if package.json changed
