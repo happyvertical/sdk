@@ -1,0 +1,1784 @@
+
+> @happyvertical/sdk@0.54.1 test /Users/will/Work/happyvertical/repos/sdk
+> turbo run test
+
+• Packages in scope: @happyvertical/ai, @happyvertical/cache, @happyvertical/documents, @happyvertical/files, @happyvertical/geo, @happyvertical/github-actions, @happyvertical/logger, @happyvertical/ocr, @happyvertical/pdf, @happyvertical/sdk-mcp, @happyvertical/spider, @happyvertical/sql, @happyvertical/translator, @happyvertical/utils, @happyvertical/weather, @have/docs
+• Running test in 16 packages
+• Remote caching disabled
+@happyvertical/github-actions:build: cache hit, replaying logs 0e98557f575d4133
+@happyvertical/github-actions:build: 
+@happyvertical/github-actions:build: > @happyvertical/github-actions@0.55.0 build /Users/will/Work/happyvertical/repos/sdk/packages/github-actions
+@happyvertical/github-actions:build: > vite build
+@happyvertical/github-actions:build: 
+@happyvertical/github-actions:build: vite v7.1.7 building for production...
+@happyvertical/github-actions:build: transforming...
+@happyvertical/github-actions:build: ✓ 10 modules transformed.
+@happyvertical/github-actions:build: rendering chunks...
+@happyvertical/github-actions:build: 
+@happyvertical/github-actions:build: [vite:dts] Start generate declaration files...
+@happyvertical/github-actions:build: computing gzip size...
+@happyvertical/github-actions:build: dist/index.js            0.37 kB │ gzip: 0.26 kB │ map:  0.51 kB
+@happyvertical/github-actions:build: dist/cli.js              3.54 kB │ gzip: 1.29 kB │ map:  6.29 kB
+@happyvertical/github-actions:build: dist/index-Jk1iRpG_.js  12.63 kB │ gzip: 3.75 kB │ map: 23.91 kB
+@happyvertical/github-actions:build: [vite:dts] Declaration files built in 322ms.
+@happyvertical/github-actions:build: 
+@happyvertical/github-actions:build: ✓ built in 379ms
+@happyvertical/github-actions:test: cache hit, replaying logs e5b326fafb7c0cec
+@happyvertical/github-actions:test: 
+@happyvertical/github-actions:test: > @happyvertical/github-actions@0.55.0 test /Users/will/Work/happyvertical/repos/sdk/packages/github-actions
+@happyvertical/github-actions:test: > npx vitest run
+@happyvertical/github-actions:test: 
+@happyvertical/github-actions:test: 
+@happyvertical/github-actions:test:  RUN  v3.2.4 /Users/will/Work/happyvertical/repos/sdk/packages/github-actions
+@happyvertical/github-actions:test: 
+@happyvertical/github-actions:test:  ✓ src/cli.examples.test.ts (17 tests) 3ms
+@happyvertical/github-actions:test:  ✓ src/triage/analyze.test.ts (19 tests) 6ms
+@happyvertical/github-actions:test:  ✓ src/triage/label.test.ts (8 tests) 1ms
+@happyvertical/github-actions:test: 
+@happyvertical/github-actions:test:  Test Files  3 passed (3)
+@happyvertical/github-actions:test:       Tests  44 passed (44)
+@happyvertical/github-actions:test:    Start at  04:41:30
+@happyvertical/github-actions:test:    Duration  409ms (transform 119ms, setup 0ms, collect 136ms, tests 10ms, environment 0ms, prepare 414ms)
+@happyvertical/github-actions:test: 
+@happyvertical/utils:build: cache hit, replaying logs 57c1d48fd692b473
+@happyvertical/utils:build: 
+@happyvertical/utils:build: > @happyvertical/utils@0.55.0 build /Users/will/Work/happyvertical/repos/sdk/packages/utils
+@happyvertical/utils:build: > vite build
+@happyvertical/utils:build: 
+@happyvertical/utils:build: vite v7.1.3 building for production...
+@happyvertical/utils:build: transforming...
+@happyvertical/utils:build: ✓ 13 modules transformed.
+@happyvertical/utils:build: rendering chunks...
+@happyvertical/utils:build: 
+@happyvertical/utils:build: [vite:dts] Start generate declaration files...
+@happyvertical/utils:build: dist/index.js  32.57 kB │ map: 98.51 kB
+@happyvertical/utils:build: [vite:dts] Declaration files built in 367ms.
+@happyvertical/utils:build: 
+@happyvertical/utils:build: ✓ built in 433ms
+@happyvertical/utils:test: cache hit, replaying logs 91a1b435d411220e
+@happyvertical/utils:test: 
+@happyvertical/utils:test: > @happyvertical/utils@0.55.0 test /Users/will/Work/happyvertical/repos/sdk/packages/utils
+@happyvertical/utils:test: > npx vitest run
+@happyvertical/utils:test: 
+@happyvertical/utils:test: 
+@happyvertical/utils:test:  RUN  v3.2.4 /Users/will/Work/happyvertical/repos/sdk/packages/utils
+@happyvertical/utils:test: 
+@happyvertical/utils:test:  ✓ src/cli/parse-args.test.ts (36 tests) 4ms
+@happyvertical/utils:test:  ✓ src/config/env-config.test.ts (39 tests) 6ms
+@happyvertical/utils:test: stdout | src/shared/code/code.test.ts > Sandbox Execution > createSandbox > should allow console when enabled
+@happyvertical/utils:test: test
+@happyvertical/utils:test: 
+@happyvertical/utils:test: stdout | src/shared/code/code.test.ts > Integration Tests > should reject and prevent execution of dangerous code
+@happyvertical/utils:test: Blocked dangerous code: [
+@happyvertical/utils:test:   [32m'Code contains disallowed pattern: requires*('[39m,
+@happyvertical/utils:test:   [32m'Code contains disallowed pattern: fs.'[39m
+@happyvertical/utils:test: ]
+@happyvertical/utils:test: 
+@happyvertical/utils:test:  ✓ src/shared/code/code.test.ts (54 tests) 39ms
+@happyvertical/utils:test:  ✓ src/index.spec.ts (42 tests) 57ms
+@happyvertical/utils:test:  ✓ src/index.optional.test.ts (1 test) 5009ms
+@happyvertical/utils:test:    ✓ waitFor optional tests > should timeout when condition not met within time limit  5009ms
+@happyvertical/utils:test: 
+@happyvertical/utils:test:  Test Files  5 passed (5)
+@happyvertical/utils:test:       Tests  172 passed (172)
+@happyvertical/utils:test:    Start at  04:41:30
+@happyvertical/utils:test:    Duration  5.61s (transform 263ms, setup 0ms, collect 837ms, tests 5.11s, environment 0ms, prepare 320ms)
+@happyvertical/utils:test: 
+@happyvertical/logger:build: cache hit, replaying logs d707554c7333ce13
+@happyvertical/logger:build: 
+@happyvertical/logger:build: > @happyvertical/logger@0.55.0 build /Users/will/Work/happyvertical/repos/sdk/packages/logger
+@happyvertical/logger:build: > vite build
+@happyvertical/logger:build: 
+@happyvertical/logger:build: vite v5.4.20 building for production...
+@happyvertical/logger:build: transforming...
+@happyvertical/logger:build: ✓ 3 modules transformed.
+@happyvertical/logger:build: rendering chunks...
+@happyvertical/logger:build: 
+@happyvertical/logger:build: [vite:dts] Start generate declaration files...
+@happyvertical/logger:build: dist/index.js  3.84 kB │ map: 11.01 kB
+@happyvertical/logger:build: [vite:dts] Declaration files built in 407ms.
+@happyvertical/logger:build: 
+@happyvertical/logger:build: ✓ built in 471ms
+@happyvertical/weather:build: cache hit, replaying logs 806d7d27b27a137b
+@happyvertical/weather:build: 
+@happyvertical/weather:build: > @happyvertical/weather@0.55.0 build /Users/will/Work/happyvertical/repos/sdk/packages/weather
+@happyvertical/weather:build: > vite build
+@happyvertical/weather:build: 
+@happyvertical/weather:build: vite v7.1.7 building for production...
+@happyvertical/weather:build: transforming...
+@happyvertical/weather:build: ✓ 6 modules transformed.
+@happyvertical/weather:build: rendering chunks...
+@happyvertical/weather:build: 
+@happyvertical/weather:build: [vite:dts] Start generate declaration files...
+@happyvertical/weather:build: computing gzip size...
+@happyvertical/weather:build: dist/index.js  17.14 kB │ gzip: 4.13 kB
+@happyvertical/weather:build: [vite:dts] Start rollup declaration files...
+@happyvertical/weather:build: Analysis will use the bundled TypeScript version 5.8.2
+@happyvertical/weather:build: *** The target project appears to use TypeScript 5.9.2 which is newer than the bundled compiler engine; consider upgrading API Extractor.
+@happyvertical/weather:build: [vite:dts] Declaration files built in 1531ms.
+@happyvertical/weather:build: 
+@happyvertical/weather:build: ✓ built in 1.62s
+@happyvertical/logger:test: cache hit, replaying logs 82f8e55eb87522a3
+@happyvertical/logger:test: 
+@happyvertical/logger:test: > @happyvertical/logger@0.55.0 test /Users/will/Work/happyvertical/repos/sdk/packages/logger
+@happyvertical/logger:test: > vitest run
+@happyvertical/logger:test: 
+@happyvertical/logger:test: 
+@happyvertical/logger:test:  RUN  v2.1.9 /Users/will/Work/happyvertical/repos/sdk/packages/logger
+@happyvertical/logger:test: 
+@happyvertical/logger:test:  ✓ src/console.test.ts (7 tests) 5ms
+@happyvertical/logger:test:  ✓ src/index.test.ts (11 tests) 6ms
+@happyvertical/logger:test:  ✓ src/logger.examples.test.ts (11 tests) 181ms
+@happyvertical/logger:test: 
+@happyvertical/logger:test:  Test Files  3 passed (3)
+@happyvertical/logger:test:       Tests  29 passed (29)
+@happyvertical/logger:test:    Start at  04:41:31
+@happyvertical/logger:test:    Duration  544ms (transform 100ms, setup 0ms, collect 314ms, tests 192ms, environment 0ms, prepare 174ms)
+@happyvertical/logger:test: 
+@happyvertical/weather:test: cache hit, replaying logs fe5d3d7c835dc04b
+@happyvertical/weather:test: 
+@happyvertical/weather:test: > @happyvertical/weather@0.55.0 test /Users/will/Work/happyvertical/repos/sdk/packages/weather
+@happyvertical/weather:test: > vitest run
+@happyvertical/weather:test: 
+@happyvertical/weather:test: 
+@happyvertical/weather:test:  RUN  v3.2.4 /Users/will/Work/happyvertical/repos/sdk/packages/weather
+@happyvertical/weather:test: 
+@happyvertical/weather:test:  ✓ src/__tests__/openweathermap.spec.ts (10 tests) 444ms
+@happyvertical/weather:test:  ✓ src/__tests__/openweathermap-onecall.spec.ts (11 tests) 517ms
+@happyvertical/weather:test:  ✓ src/__tests__/environment-canada.spec.ts (9 tests) 692ms
+@happyvertical/weather:test:    ✓ Environment Canada Provider > should test connection successfully  322ms
+@happyvertical/weather:test: 
+@happyvertical/weather:test:  Test Files  3 passed (3)
+@happyvertical/weather:test:       Tests  30 passed (30)
+@happyvertical/weather:test:    Start at  04:41:32
+@happyvertical/weather:test:    Duration  1.20s (transform 237ms, setup 0ms, collect 821ms, tests 1.65s, environment 0ms, prepare 278ms)
+@happyvertical/weather:test: 
+@happyvertical/files:build: cache hit, replaying logs d4d35165be1bbc97
+@happyvertical/files:build: 
+@happyvertical/files:build: > @happyvertical/files@0.55.0 build /Users/will/Work/happyvertical/repos/sdk/packages/files
+@happyvertical/files:build: > vite build
+@happyvertical/files:build: 
+@happyvertical/files:build: vite v7.1.3 building for production...
+@happyvertical/files:build: transforming...
+@happyvertical/files:build: ✓ 8 modules transformed.
+@happyvertical/files:build: [plugin vite:reporter] 
+@happyvertical/files:build: (!) /Users/will/Work/happyvertical/repos/sdk/packages/files/src/node/local.ts is dynamically imported by /Users/will/Work/happyvertical/repos/sdk/packages/files/src/shared/factory.ts but also statically imported by /Users/will/Work/happyvertical/repos/sdk/packages/files/src/index.ts, dynamic import will not move module into another chunk.
+@happyvertical/files:build: 
+@happyvertical/files:build: rendering chunks...
+@happyvertical/files:build: [plugin vite:reporter] 
+@happyvertical/files:build: (!) /Users/will/Work/happyvertical/repos/sdk/packages/files/src/shared/factory.ts is dynamically imported by /Users/will/Work/happyvertical/repos/sdk/packages/files/src/index.ts but also statically imported by /Users/will/Work/happyvertical/repos/sdk/packages/files/src/index.ts, dynamic import will not move module into another chunk.
+@happyvertical/files:build: 
+@happyvertical/files:build: 
+@happyvertical/files:build: [vite:dts] Start generate declaration files...
+@happyvertical/files:build: dist/index.js  45.43 kB │ map: 111.16 kB
+@happyvertical/files:build: [vite:dts] Declaration files built in 539ms.
+@happyvertical/files:build: 
+@happyvertical/files:build: ✓ built in 672ms
+@happyvertical/files:test: cache hit, replaying logs ddf9d458bff49c78
+@happyvertical/files:test: 
+@happyvertical/files:test: > @happyvertical/files@0.55.0 test /Users/will/Work/happyvertical/repos/sdk/packages/files
+@happyvertical/files:test: > npx vitest run
+@happyvertical/files:test: 
+@happyvertical/files:test: 
+@happyvertical/files:test:  RUN  v3.2.4 /Users/will/Work/happyvertical/repos/sdk/packages/files
+@happyvertical/files:test: 
+@happyvertical/files:test: (node:60385) [DEP0147] DeprecationWarning: In future versions of Node.js, fs.rmdir(path, { recursive: true }) will be removed. Use fs.rm(path, { recursive: true }) instead
+@happyvertical/files:test: (Use `node --trace-deprecation ...` to show where the warning was created)
+@happyvertical/files:test: stdout | src/index.spec.ts > File utilities > ensureDirectoryExists > should create directory if it does not exist
+@happyvertical/files:test: Creating directory: /tmp/.have-sdk/file-utils-test/new-dir
+@happyvertical/files:test: 
+@happyvertical/files:test: stderr | src/index.spec.ts > File utilities > upload > should throw error on failed upload
+@happyvertical/files:test: Error uploading data to http://127.0.0.1:59081/nonexistent
+@happyvertical/files:test: Error: unexpected response Forbidden
+@happyvertical/files:test: 
+@happyvertical/files:test: stderr | src/index.spec.ts > File utilities > download > should throw error on failed download
+@happyvertical/files:test: Error downloading file: Error: Unexpected response Not Found
+@happyvertical/files:test:     at download [90m(/Users/will/Work/happyvertical/repos/sdk/packages/files/[39msrc/legacy.ts:188:13[90m)[39m
+@happyvertical/files:test: [90m    at processTicksAndRejections (node:internal/process/task_queues:105:5)[39m
+@happyvertical/files:test:     at [90m/Users/will/Work/happyvertical/repos/sdk/packages/files/[39msrc/index.spec.ts:181:7
+@happyvertical/files:test:     at file:///Users/will/Work/happyvertical/repos/sdk/node_modules/[4m.pnpm[24m/@vitest+runner@3.2.4/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:752:20
+@happyvertical/files:test: 
+@happyvertical/files:test: stdout | src/index.spec.ts > File utilities > downloadFileWithCache > should download and cache a text file
+@happyvertical/files:test: /tmp/.have-sdk/file-utils-test/test.txt
+@happyvertical/files:test: downloadPath /tmp/.have-sdk/file-utils-test/test.txt
+@happyvertical/files:test: 
+@happyvertical/files:test:  ✓ src/index.spec.ts (15 tests) 39ms
+@happyvertical/files:test:  ✓ src/filesystem.test.ts (36 tests) 269ms
+@happyvertical/files:test: 
+@happyvertical/files:test:  Test Files  2 passed (2)
+@happyvertical/files:test:       Tests  51 passed (51)
+@happyvertical/files:test:    Start at  04:41:31
+@happyvertical/files:test:    Duration  656ms (transform 93ms, setup 0ms, collect 332ms, tests 308ms, environment 0ms, prepare 63ms)
+@happyvertical/files:test: 
+@happyvertical/ocr:build: cache hit, replaying logs bf7623a76d2c8861
+@happyvertical/ocr:build: 
+@happyvertical/ocr:build: > @happyvertical/ocr@0.55.0 build /Users/will/Work/happyvertical/repos/sdk/packages/ocr
+@happyvertical/ocr:build: > vite build
+@happyvertical/ocr:build: 
+@happyvertical/ocr:build: vite v7.1.3 building for production...
+@happyvertical/ocr:build: transforming...
+@happyvertical/ocr:build: ✓ 6 modules transformed.
+@happyvertical/ocr:build: rendering chunks...
+@happyvertical/ocr:build: 
+@happyvertical/ocr:build: [vite:dts] Start generate declaration files...
+@happyvertical/ocr:build: dist/chunks/tesseract-D5t1PrBv.js     13.34 kB │ map: 24.39 kB
+@happyvertical/ocr:build: dist/chunks/onnx-gutenye-BqDfjWEd.js  13.74 kB │ map: 25.08 kB
+@happyvertical/ocr:build: dist/chunks/web-ocr-Dkpjv61E.js       13.95 kB │ map: 25.40 kB
+@happyvertical/ocr:build: dist/index.js                         20.45 kB │ map: 49.02 kB
+@happyvertical/ocr:build: [vite:dts] Declaration files built in 589ms.
+@happyvertical/ocr:build: 
+@happyvertical/ocr:build: ✓ built in 691ms
+@happyvertical/cache:build: cache hit, replaying logs 2daeff67e6df498e
+@happyvertical/cache:build: 
+@happyvertical/cache:build: > @happyvertical/cache@0.55.0 build /Users/will/Work/happyvertical/repos/sdk/packages/cache
+@happyvertical/cache:build: > vite build
+@happyvertical/cache:build: 
+@happyvertical/cache:build: vite v7.1.3 building for production...
+@happyvertical/cache:build: transforming...
+@happyvertical/cache:build: ✓ 6 modules transformed.
+@happyvertical/cache:build: rendering chunks...
+@happyvertical/cache:build: 
+@happyvertical/cache:build: [vite:dts] Start generate declaration files...
+@happyvertical/cache:build: dist/index.js                    4.21 kB │ map: 17.73 kB
+@happyvertical/cache:build: dist/chunks/memory-C6vfNZYg.js   7.31 kB │ map: 15.40 kB
+@happyvertical/cache:build: dist/chunks/redis-D-SNLXE_.js   10.77 kB │ map: 20.28 kB
+@happyvertical/cache:build: dist/chunks/file-DyC_7WDS.js    12.29 kB │ map: 23.82 kB
+@happyvertical/cache:build: [vite:dts] Declaration files built in 1544ms.
+@happyvertical/cache:build: 
+@happyvertical/cache:build: ✓ built in 1.76s
+@happyvertical/ocr:test: cache hit, replaying logs 1cc659c6eddf7b58
+@happyvertical/ocr:test: 
+@happyvertical/ocr:test: > @happyvertical/ocr@0.55.0 test /Users/will/Work/happyvertical/repos/sdk/packages/ocr
+@happyvertical/ocr:test: > npx vitest run --testTimeout 120000
+@happyvertical/ocr:test: 
+@happyvertical/ocr:test: 
+@happyvertical/ocr:test:  RUN  v3.2.4 /Users/will/Work/happyvertical/repos/sdk/packages/ocr
+@happyvertical/ocr:test: 
+@happyvertical/ocr:test: stderr | src/shared/factory.spec.ts > OCRFactory environment variable configuration > should handle invalid confidence threshold gracefully
+@happyvertical/ocr:test: Failed to convert HAVE_OCR_CONFIDENCE_THRESHOLD="not-a-number" to number: Cannot convert "not-a-number" to number: result is NaN
+@happyvertical/ocr:test: 
+@happyvertical/ocr:test: stderr | src/shared/factory.spec.ts > OCRFactory environment variable configuration > should handle invalid timeout gracefully
+@happyvertical/ocr:test: Failed to convert HAVE_OCR_TIMEOUT="invalid" to number: Cannot convert "invalid" to number: result is NaN
+@happyvertical/ocr:test: 
+@happyvertical/ocr:test:  ✓ src/shared/factory.spec.ts (17 tests) 5ms
+@happyvertical/ocr:test: stdout | src/index.spec.ts > @happyvertical/ocr > should perform OCR on test PNG image
+@happyvertical/ocr:test: Starting OCR with Tesseract.js...
+@happyvertical/ocr:test: 
+@happyvertical/ocr:test: stdout | src/index.spec.ts > @happyvertical/ocr > should perform OCR on test PNG image
+@happyvertical/ocr:test: OCR Result: When letting go, ignore all thoughts.
+@happyvertical/ocr:test: Focus on the feeling itself, not on the
+@happyvertical/ocr:test: thoughts.
+@happyvertical/ocr:test: Confidence: [33m95[39m
+@happyvertical/ocr:test: Provider used: tesseract
+@happyvertical/ocr:test: Found 6/6 expected words: [ [32m'letting'[39m, [32m'go'[39m, [32m'ignore'[39m, [32m'thoughts'[39m, [32m'focus'[39m, [32m'feeling'[39m ]
+@happyvertical/ocr:test: Normalized result: when letting go, ignore all thoughts. focus on the feeling itself, not on the thoughts.
+@happyvertical/ocr:test: 
+@happyvertical/ocr:test: stdout | src/index.spec.ts > @happyvertical/ocr > should perform OCR on test PNG image with ONNX
+@happyvertical/ocr:test: Starting OCR with ONNX (PaddleOCR)...
+@happyvertical/ocr:test: 
+@happyvertical/ocr:test: stdout | src/index.spec.ts > @happyvertical/ocr > should perform OCR on test PNG image with ONNX
+@happyvertical/ocr:test: Initializing @gutenye/ocr-node...
+@happyvertical/ocr:test: 
+@happyvertical/ocr:test: stdout | src/index.spec.ts > @happyvertical/ocr > should perform OCR on test PNG image with ONNX
+@happyvertical/ocr:test: @gutenye/ocr-node initialized successfully
+@happyvertical/ocr:test: 
+@happyvertical/ocr:test: stdout | src/index.spec.ts > @happyvertical/ocr > should perform OCR on test PNG image with ONNX
+@happyvertical/ocr:test: Attempting to decode image file...
+@happyvertical/ocr:test: Detected PNG format, decoding...
+@happyvertical/ocr:test: Successfully decoded image: 605x254
+@happyvertical/ocr:test: Converting RGB data 605x254 to JPEG
+@happyvertical/ocr:test: Processing with @gutenye/ocr-node...
+@happyvertical/ocr:test: 
+@happyvertical/ocr:test: stdout | src/index.spec.ts > @happyvertical/ocr > should perform OCR on test PNG image with ONNX
+@happyvertical/ocr:test: @gutenye/ocr-node result: [
+@happyvertical/ocr:test:   {
+@happyvertical/ocr:test:     mean: [33m0.9603019505739212[39m,
+@happyvertical/ocr:test:     text: [32m'When letting go, ignore all thoughts'[39m,
+@happyvertical/ocr:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/ocr:test:   },
+@happyvertical/ocr:test:   {
+@happyvertical/ocr:test:     mean: [33m0.9543908583490472[39m,
+@happyvertical/ocr:test:     text: [32m'Focus on thefeeling itself, not on the'[39m,
+@happyvertical/ocr:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/ocr:test:   },
+@happyvertical/ocr:test:   {
+@happyvertical/ocr:test:     mean: [33m0.9975225594308641[39m,
+@happyvertical/ocr:test:     text: [32m'thoughts.'[39m,
+@happyvertical/ocr:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/ocr:test:   }
+@happyvertical/ocr:test: ]
+@happyvertical/ocr:test: 
+@happyvertical/ocr:test: stdout | src/index.spec.ts > @happyvertical/ocr > should perform OCR on test PNG image with ONNX
+@happyvertical/ocr:test: ONNX OCR Result: When letting go, ignore all thoughts Focus on thefeeling itself, not on the thoughts.
+@happyvertical/ocr:test: Confidence: [33m97.07384561179443[39m
+@happyvertical/ocr:test: Provider used: onnx
+@happyvertical/ocr:test: Detection count: [33m3[39m
+@happyvertical/ocr:test: First detection: {
+@happyvertical/ocr:test:   text: [32m'When letting go, ignore all thoughts'[39m,
+@happyvertical/ocr:test:   confidence: [33m96.03019505739212[39m,
+@happyvertical/ocr:test:   boundingBox: { x: [33m50[39m, y: [33m34[39m, width: [33m508[39m, height: [33m35[39m }
+@happyvertical/ocr:test: }
+@happyvertical/ocr:test: ONNX found 6/6 expected words: [ [32m'letting'[39m, [32m'go'[39m, [32m'ignore'[39m, [32m'thoughts'[39m, [32m'focus'[39m, [32m'feeling'[39m ]
+@happyvertical/ocr:test: Normalized result: when letting go, ignore all thoughts focus on thefeeling itself, not on the thoughts.
+@happyvertical/ocr:test: 
+@happyvertical/ocr:test: stdout | src/index.spec.ts > @happyvertical/ocr > should extract actual text with ONNX provider (dedicated ONNX test)
+@happyvertical/ocr:test: Validating ONNX OCR functionality...
+@happyvertical/ocr:test: 
+@happyvertical/ocr:test: stdout | src/index.spec.ts > @happyvertical/ocr > should extract actual text with ONNX provider (dedicated ONNX test)
+@happyvertical/ocr:test: Initializing @gutenye/ocr-node...
+@happyvertical/ocr:test: 
+@happyvertical/ocr:test: stdout | src/index.spec.ts > @happyvertical/ocr > should extract actual text with ONNX provider (dedicated ONNX test)
+@happyvertical/ocr:test: @gutenye/ocr-node initialized successfully
+@happyvertical/ocr:test: 
+@happyvertical/ocr:test: stdout | src/index.spec.ts > @happyvertical/ocr > should extract actual text with ONNX provider (dedicated ONNX test)
+@happyvertical/ocr:test: Attempting to decode image file...
+@happyvertical/ocr:test: Detected PNG format, decoding...
+@happyvertical/ocr:test: Successfully decoded image: 605x254
+@happyvertical/ocr:test: Converting RGB data 605x254 to JPEG
+@happyvertical/ocr:test: Processing with @gutenye/ocr-node...
+@happyvertical/ocr:test: 
+@happyvertical/ocr:test: stdout | src/index.spec.ts > @happyvertical/ocr > should extract actual text with ONNX provider (dedicated ONNX test)
+@happyvertical/ocr:test: @gutenye/ocr-node result: [
+@happyvertical/ocr:test:   {
+@happyvertical/ocr:test:     mean: [33m0.9603019505739212[39m,
+@happyvertical/ocr:test:     text: [32m'When letting go, ignore all thoughts'[39m,
+@happyvertical/ocr:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/ocr:test:   },
+@happyvertical/sql:build: cache hit, replaying logs a28cff464599ec52
+@happyvertical/ocr:test:   {
+@happyvertical/ocr:test:     mean: [33m0.9543908583490472[39m,
+@happyvertical/ocr:test:     text: [32m'Focus on thefeeling itself, not on the'[39m,
+@happyvertical/ocr:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/ocr:test:   },
+@happyvertical/ocr:test:   {
+@happyvertical/ocr:test:     mean: [33m0.9975225594308641[39m,
+@happyvertical/ocr:test:     text: [32m'thoughts.'[39m,
+@happyvertical/ocr:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/ocr:test:   }
+@happyvertical/ocr:test: ]
+@happyvertical/ocr:test: 
+@happyvertical/ocr:test: stdout | src/index.spec.ts > @happyvertical/ocr > should extract actual text with ONNX provider (dedicated ONNX test)
+@happyvertical/ocr:test: ONNX validation - Text: When letting go, ignore all thoughts Focus on thefeeling itself, not on the thoughts.
+@happyvertical/sql:build: 
+@happyvertical/sql:build: > @happyvertical/sql@0.55.0 build /Users/will/Work/happyvertical/repos/sdk/packages/sql
+@happyvertical/sql:build: > vite build
+@happyvertical/sql:build: 
+@happyvertical/sql:build: vite v7.1.3 building for production...
+@happyvertical/sql:build: transforming...
+@happyvertical/sql:build: ✓ 10 modules transformed.
+@happyvertical/sql:build: rendering chunks...
+@happyvertical/sql:build: [plugin vite:reporter] 
+@happyvertical/sql:build: (!) /Users/will/Work/happyvertical/repos/sdk/packages/sql/src/json.ts is dynamically imported by /Users/will/Work/happyvertical/repos/sdk/packages/sql/src/index.ts but also statically imported by /Users/will/Work/happyvertical/repos/sdk/packages/sql/src/index.ts, dynamic import will not move module into another chunk.
+@happyvertical/sql:build: 
+@happyvertical/sql:build: 
+@happyvertical/sql:build: [vite:dts] Start generate declaration files...
+@happyvertical/sql:build: [96msrc/json.ts[0m:[93m350[0m:[93m57[0m - [91merror[0m[90m TS2307: [0mCannot find module '@happyvertical/smrt' or its corresponding type declarations.
+@happyvertical/sql:build: 
+@happyvertical/sql:build: [7m350[0m     const smrtPackage = await import(/* @vite-ignore */ '@happyvertical/smrt');
+@happyvertical/ocr:test: ONNX validation - Confidence: [33m97.07384561179443[39m
+@happyvertical/ocr:test: ONNX validation - Detection count: [33m3[39m
+@happyvertical/ocr:test: ONNX validation - First detection: {
+@happyvertical/ocr:test:   text: [32m'When letting go, ignore all thoughts'[39m,
+@happyvertical/ocr:test:   confidence: [33m96.03019505739212[39m,
+@happyvertical/ocr:test:   boundingBox: { x: [33m50[39m, y: [33m34[39m, width: [33m508[39m, height: [33m35[39m }
+@happyvertical/ocr:test: }
+@happyvertical/ocr:test: ✅ ONNX provider is working correctly and extracting text
+@happyvertical/ocr:test: 
+@happyvertical/ocr:test:  ✓ src/index.spec.ts (10 tests) 1410ms
+@happyvertical/ocr:test:    ✓ @happyvertical/ocr > should detect available providers  511ms
+@happyvertical/ocr:test:    ✓ @happyvertical/ocr > should perform OCR on test PNG image with ONNX  317ms
+@happyvertical/ocr:test: 
+@happyvertical/ocr:test:  Test Files  2 passed (2)
+@happyvertical/ocr:test:       Tests  27 passed (27)
+@happyvertical/ocr:test:    Start at  04:41:32
+@happyvertical/ocr:test:    Duration  1.99s (transform 530ms, setup 0ms, collect 727ms, tests 1.42s, environment 0ms, prepare 136ms)
+@happyvertical/ocr:test: 
+@happyvertical/sql:build: [7m   [0m [91m                                                        ~~~~~~~~~~~~~~~~~~~~~[0m
+@happyvertical/sql:build: [96msrc/sqlite.ts[0m:[93m297[0m:[93m9[0m - [91merror[0m[90m TS2740: [0mType 'Record<string, any>' is missing the following properties from type 'any[]': length, pop, push, concat, and 35 more.
+@happyvertical/sql:build: 
+@happyvertical/sql:build: [7m297[0m         values = serializedData.reduce(
+@happyvertical/sql:build: [7m   [0m [91m        ~~~~~~[0m
+@happyvertical/sql:build: 
+@happyvertical/sql:build: dist/chunks/alter-utils-DPxgAQfb.js   3.73 kB │ map:   9.61 kB
+@happyvertical/sql:build: dist/chunks/sqlite-C2r_QCJS.js       23.19 kB │ map:  52.30 kB
+@happyvertical/sql:build: dist/chunks/duckdb-Kl-23D44.js       23.72 kB │ map:  53.16 kB
+@happyvertical/sql:build: dist/chunks/postgres-CWOTpzv8.js     28.24 kB │ map:  60.06 kB
+@happyvertical/sql:build: dist/index.js                        45.92 kB │ map: 111.85 kB
+@happyvertical/sql:build: [vite:dts] Declaration files built in 677ms.
+@happyvertical/sql:build: 
+@happyvertical/sql:build: ✓ built in 1.15s
+@happyvertical/cache:test: cache hit, replaying logs 7854e90d4a663a5a
+@happyvertical/cache:test: 
+@happyvertical/cache:test: > @happyvertical/cache@0.55.0 test /Users/will/Work/happyvertical/repos/sdk/packages/cache
+@happyvertical/cache:test: > npx vitest run
+@happyvertical/cache:test: 
+@happyvertical/cache:test: 
+@happyvertical/cache:test:  RUN  v3.2.4 /Users/will/Work/happyvertical/repos/sdk/packages/cache
+@happyvertical/cache:test: 
+@happyvertical/cache:test:  ↓ src/redis.integration.test.ts (12 tests | 12 skipped)
+@happyvertical/cache:test:  ✓ src/env-config.integration.test.ts (18 tests | 2 skipped) 52ms
+@happyvertical/cache:test:  ✓ src/file.integration.test.ts (7 tests) 71ms
+@happyvertical/cache:test:  ✓ src/memory.integration.test.ts (19 tests) 2235ms
+@happyvertical/cache:test:    ✓ Memory Cache Provider Integration > TTL and expiration > should expire entries after TTL  1102ms
+@happyvertical/cache:test:    ✓ Memory Cache Provider Integration > TTL and expiration > should update TTL with touch  1102ms
+@happyvertical/cache:test: 
+@happyvertical/cache:test:  Test Files  3 passed | 1 skipped (4)
+@happyvertical/cache:test:       Tests  42 passed | 14 skipped (56)
+@happyvertical/cache:test:    Start at  04:41:34
+@happyvertical/cache:test:    Duration  2.61s (transform 122ms, setup 0ms, collect 495ms, tests 2.36s, environment 0ms, prepare 179ms)
+@happyvertical/cache:test: 
+@happyvertical/sql:test: cache hit, replaying logs d3c8751e13505b87
+@happyvertical/sql:test: 
+@happyvertical/sql:test: > @happyvertical/sql@0.55.0 test /Users/will/Work/happyvertical/repos/sdk/packages/sql
+@happyvertical/sql:test: > npx vitest run
+@happyvertical/sql:test: 
+@happyvertical/sql:test: 
+@happyvertical/sql:test:  RUN  v3.2.4 /Users/will/Work/happyvertical/repos/sdk/packages/sql
+@happyvertical/sql:test: 
+@happyvertical/sql:test:  ✓ src/shared/duckdb-schema-utils.test.ts (19 tests) 3ms
+@happyvertical/sql:test: stdout | src/postgres.spec.ts > postgres tests > should be able to perform a statement
+@happyvertical/sql:test: PostgreSQL not available, skipping test
+@happyvertical/sql:test: 
+@happyvertical/sql:test: stdout | src/postgres.spec.ts > postgres tests > should be able to insert data
+@happyvertical/sql:test: PostgreSQL not available, skipping test
+@happyvertical/sql:test: 
+@happyvertical/sql:test: stdout | src/postgres.spec.ts > postgres tests > should be able to insert multiple rows at a time
+@happyvertical/sql:test: PostgreSQL not available, skipping test
+@happyvertical/sql:test: 
+@happyvertical/sql:test: stdout | src/postgres.spec.ts > postgres tests > should be able to query data with a condition
+@happyvertical/sql:test: PostgreSQL not available, skipping test
+@happyvertical/sql:test: 
+@happyvertical/sql:test: stdout | src/postgres.spec.ts > postgres tests > should be able to get a single row
+@happyvertical/sql:test: PostgreSQL not available, skipping test
+@happyvertical/sql:test: 
+@happyvertical/sql:test: stdout | src/postgres.spec.ts > postgres tests > should be able to update a row
+@happyvertical/sql:test: PostgreSQL not available, skipping test
+@happyvertical/sql:test: 
+@happyvertical/sql:test: stdout | src/postgres.spec.ts > postgres tests > should support transactions with commit
+@happyvertical/sql:test: PostgreSQL not available, skipping test
+@happyvertical/sql:test: 
+@happyvertical/sql:test: stdout | src/postgres.spec.ts > postgres tests > should support transactions with rollback on error
+@happyvertical/sql:test: PostgreSQL not available, skipping test
+@happyvertical/sql:test: 
+@happyvertical/sql:test:  ✓ src/postgres.spec.ts (8 tests) 100ms
+@happyvertical/sql:test: stdout | src/index.spec.ts > should be able to sync a table schema
+@happyvertical/sql:test: [sqlite.syncSchema] Starting schema sync for dbid: memory-1762083693890-vrcbrl6
+@happyvertical/sql:test: [sqlite.syncSchema] Schema length: [33m113[39m chars
+@happyvertical/sql:test: [sqlite.syncSchema] Normalized schema: CREATE TABLE test ( id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT )
+@happyvertical/sql:test: [sqlite.syncSchema] Found [33m1[39m commands to process
+@happyvertical/sql:test: [sqlite.syncSchema] Executing: CREATE TABLE test ( id INTEGER PRIMARY KEY AUTOINC...
+@happyvertical/sql:test: 
+@happyvertical/sql:test: stdout | src/index.spec.ts > should be able to sync a table schema
+@happyvertical/sql:test: [sqlite.syncSchema] Successfully executed command
+@happyvertical/sql:test: 
+@happyvertical/sql:test:  ✓ src/index.spec.ts (18 tests | 4 skipped) 119ms
+@happyvertical/sql:test: stdout | src/json-upsert.spec.ts > JSON adapter UPSERT with UNIQUE constraints (Issue #316) > should handle UPSERT with composite UNIQUE constraint (slug, context)
+@happyvertical/sql:test: [json-adapter] Creating weather_forecasts with provided schema definition
+@happyvertical/sql:test: 
+@happyvertical/sql:test: stdout | src/json-upsert.spec.ts > JSON adapter UPSERT with UNIQUE constraints (Issue #316) > should handle UPSERT with composite UNIQUE constraint (slug, context)
+@happyvertical/sql:test: [json-adapter] Created weather_forecasts with schema: {
+@happyvertical/sql:test:   columns: [
+@happyvertical/sql:test:     { name: [32m'id'[39m, type: [32m'VARCHAR'[39m, null: [32m'NO'[39m },
+@happyvertical/sql:test:     { name: [32m'slug'[39m, type: [32m'VARCHAR'[39m, null: [32m'NO'[39m },
+@happyvertical/sql:test:     { name: [32m'context'[39m, type: [32m'VARCHAR'[39m, null: [32m'NO'[39m },
+@happyvertical/sql:test:     { name: [32m'name'[39m, type: [32m'VARCHAR'[39m, null: [32m'NO'[39m },
+@happyvertical/sql:test:     { name: [32m'temperature'[39m, type: [32m'FLOAT'[39m, null: [32m'NO'[39m },
+@happyvertical/sql:test:     { name: [32m'created_at'[39m, type: [32m'VARCHAR'[39m, null: [32m'YES'[39m },
+@happyvertical/sql:test:     { name: [32m'updated_at'[39m, type: [32m'VARCHAR'[39m, null: [32m'YES'[39m }
+@happyvertical/sql:test:   ]
+@happyvertical/sql:test: }
+@happyvertical/sql:test: 
+@happyvertical/sql:test:  ✓ src/sqlite.spec.ts (26 tests) 196ms
+@happyvertical/sql:test: stdout | src/json-system-tables.spec.ts > JSON adapter system tables persistence > should persist SMRT system tables to JSON files
+@happyvertical/sql:test: Files in data directory: [
+@happyvertical/sql:test:   [32m'_smrt_contexts.json'[39m,
+@happyvertical/sql:test:   [32m'_smrt_contexts.schema.sql'[39m,
+@happyvertical/sql:test:   [32m'_smrt_migrations.json'[39m,
+@happyvertical/sql:test:   [32m'_smrt_migrations.schema.sql'[39m,
+@happyvertical/sql:test:   [32m'_smrt_registry.json'[39m,
+@happyvertical/sql:test:   [32m'_smrt_registry.schema.sql'[39m,
+@happyvertical/sql:test:   [32m'_smrt_signals.json'[39m,
+@happyvertical/sql:test:   [32m'_smrt_signals.schema.sql'[39m
+@happyvertical/sql:test: ]
+@happyvertical/sql:test: 
+@happyvertical/sql:test: stdout | src/json-upsert.spec.ts > JSON adapter UPSERT with UNIQUE constraints (Issue #316) > should work with simple single-column UNIQUE constraint
+@happyvertical/sql:test: [json-adapter] Creating products with provided schema definition
+@happyvertical/sql:test: 
+@happyvertical/sql:test: stdout | src/json-upsert.spec.ts > JSON adapter UPSERT with UNIQUE constraints (Issue #316) > should work with simple single-column UNIQUE constraint
+@happyvertical/sql:test: [json-adapter] Created products with schema: {
+@happyvertical/sql:test:   columns: [
+@happyvertical/sql:test:     { name: [32m'id'[39m, type: [32m'VARCHAR'[39m, null: [32m'NO'[39m },
+@happyvertical/sql:test:     { name: [32m'sku'[39m, type: [32m'VARCHAR'[39m, null: [32m'NO'[39m },
+@happyvertical/sql:test:     { name: [32m'name'[39m, type: [32m'VARCHAR'[39m, null: [32m'NO'[39m },
+@happyvertical/sql:test:     { name: [32m'price'[39m, type: [32m'FLOAT'[39m, null: [32m'NO'[39m }
+@happyvertical/sql:test:   ]
+@happyvertical/sql:test: }
+@happyvertical/sql:test: 
+@happyvertical/sql:test: stdout | src/json-system-tables.spec.ts > JSON adapter system tables persistence > should persist empty system tables (created but no data inserted)
+@happyvertical/sql:test: Files after CREATE TABLE (no inserts): [ [32m'_smrt_contexts.json'[39m, [32m'_smrt_contexts.schema.sql'[39m ]
+@happyvertical/sql:test: 
+@happyvertical/sql:test:  ✓ src/json-upsert.spec.ts (4 tests) 308ms
+@happyvertical/sql:test: stdout | src/json-system-tables.spec.ts > JSON adapter system tables persistence > should persist tables created via syncSchema() (SMRT use case)
+@happyvertical/sql:test: Files after syncSchema(): [
+@happyvertical/sql:test:   [32m'_smrt_contexts.json'[39m,
+@happyvertical/sql:test:   [32m'_smrt_contexts.schema.sql'[39m,
+@happyvertical/sql:test:   [32m'_smrt_migrations.json'[39m,
+@happyvertical/sql:test:   [32m'_smrt_migrations.schema.sql'[39m,
+@happyvertical/sql:test:   [32m'_smrt_registry.json'[39m,
+@happyvertical/sql:test:   [32m'_smrt_registry.schema.sql'[39m,
+@happyvertical/sql:test:   [32m'_smrt_signals.json'[39m,
+@happyvertical/sql:test:   [32m'_smrt_signals.schema.sql'[39m
+@happyvertical/sql:test: ]
+@happyvertical/sql:test: 
+@happyvertical/sql:test:  ✓ src/json-date-serialization.spec.ts (4 tests) 360ms
+@happyvertical/sql:test:  ✓ src/json-system-tables.spec.ts (3 tests) 362ms
+@happyvertical/sql:test:  ✓ src/duckdb.spec.ts (49 tests) 715ms
+@happyvertical/sql:test: stdout | src/json.spec.ts > JSON adapter tests > SchemaProvider support > should create tables from provided schemas
+@happyvertical/sql:test: [json-adapter] Creating custom_table with provided schema definition
+@happyvertical/sql:test: 
+@happyvertical/sql:test: stdout | src/json.spec.ts > JSON adapter tests > SchemaProvider support > should create tables from provided schemas
+@happyvertical/sql:test: [json-adapter] Created custom_table with schema: {
+@happyvertical/sql:test:   columns: [
+@happyvertical/sql:test:     { name: [32m'id'[39m, type: [32m'VARCHAR'[39m, null: [32m'NO'[39m },
+@happyvertical/sql:test:     { name: [32m'name'[39m, type: [32m'VARCHAR'[39m, null: [32m'NO'[39m },
+@happyvertical/sql:test:     { name: [32m'value'[39m, type: [32m'INTEGER'[39m, null: [32m'YES'[39m },
+@happyvertical/sql:test:     { name: [32m'created_at'[39m, type: [32m'VARCHAR'[39m, null: [32m'YES'[39m }
+@happyvertical/sql:test:   ]
+@happyvertical/sql:test: }
+@happyvertical/sql:test: 
+@happyvertical/sql:test: stdout | src/json.spec.ts > JSON adapter tests > SchemaProvider support > should handle schemas without indexes
+@happyvertical/sql:test: [json-adapter] Creating simple with provided schema definition
+@happyvertical/sql:test: 
+@happyvertical/sql:test: stdout | src/json.spec.ts > JSON adapter tests > SchemaProvider support > should handle schemas without indexes
+@happyvertical/sql:test: [json-adapter] Created simple with schema: {
+@happyvertical/sql:test:   columns: [
+@happyvertical/sql:test:     { name: [32m'id'[39m, type: [32m'VARCHAR'[39m, null: [32m'NO'[39m },
+@happyvertical/sql:test:     { name: [32m'data'[39m, type: [32m'VARCHAR'[39m, null: [32m'YES'[39m }
+@happyvertical/sql:test:   ]
+@happyvertical/sql:test: }
+@happyvertical/sql:test: 
+@happyvertical/sql:test: stdout | src/json.spec.ts > JSON adapter tests > SchemaProvider support > should handle schemas with empty strings correctly
+@happyvertical/sql:test: [json-adapter] Creating typed_table with provided schema definition
+@happyvertical/sql:test: 
+@happyvertical/sql:test: stdout | src/json.spec.ts > JSON adapter tests > SchemaProvider support > should handle schemas with empty strings correctly
+@happyvertical/sql:test: [json-adapter] Created typed_table with schema: {
+@happyvertical/sql:test:   columns: [
+@happyvertical/sql:test:     { name: [32m'id'[39m, type: [32m'VARCHAR'[39m, null: [32m'NO'[39m },
+@happyvertical/sql:test:     { name: [32m'name'[39m, type: [32m'VARCHAR'[39m, null: [32m'NO'[39m },
+@happyvertical/sql:test:     { name: [32m'url'[39m, type: [32m'VARCHAR'[39m, null: [32m'YES'[39m },
+@happyvertical/sql:test:     { name: [32m'description'[39m, type: [32m'VARCHAR'[39m, null: [32m'YES'[39m }
+@happyvertical/sql:test:   ]
+@happyvertical/sql:test: }
+@happyvertical/sql:test: 
+@happyvertical/sql:test:  ✓ src/json.spec.ts (28 tests) 1217ms
+@happyvertical/sql:test: 
+@happyvertical/sql:test:  Test Files  9 passed (9)
+@happyvertical/sql:test:       Tests  155 passed | 4 skipped (159)
+@happyvertical/sql:test:    Start at  04:41:33
+@happyvertical/sql:test:    Duration  1.79s (transform 507ms, setup 0ms, collect 2.47s, tests 3.38s, environment 1ms, prepare 511ms)
+@happyvertical/sql:test: 
+@happyvertical/ai:build: cache hit, replaying logs e540c4dd2a8a03df
+@happyvertical/ai:build: 
+@happyvertical/ai:build: > @happyvertical/ai@0.55.0 build /Users/will/Work/happyvertical/repos/sdk/packages/ai
+@happyvertical/ai:build: > vite build
+@happyvertical/ai:build: 
+@happyvertical/ai:build: vite v7.1.3 building for production...
+@happyvertical/ai:build: transforming...
+@happyvertical/ai:build: ✓ 12 modules transformed.
+@happyvertical/ai:build: rendering chunks...
+@happyvertical/ai:build: [plugin vite:reporter] 
+@happyvertical/ai:build: (!) /Users/will/Work/happyvertical/repos/sdk/packages/ai/src/shared/factory.ts is dynamically imported by /Users/will/Work/happyvertical/repos/sdk/packages/ai/src/shared/client.ts, /Users/will/Work/happyvertical/repos/sdk/packages/ai/src/shared/client.ts but also statically imported by /Users/will/Work/happyvertical/repos/sdk/packages/ai/src/index.ts, dynamic import will not move module into another chunk.
+@happyvertical/ai:build: 
+@happyvertical/ai:build: 
+@happyvertical/ai:build: [vite:dts] Start generate declaration files...
+@happyvertical/ai:build: dist/chunks/huggingface-B2Zw260O.js   7.29 kB │ map: 14.06 kB
+@happyvertical/ai:build: dist/chunks/gemini-BHFsyVy8.js        8.06 kB │ map: 16.58 kB
+@happyvertical/ai:build: dist/chunks/bedrock-C4FYsLH7.js       9.07 kB │ map: 17.58 kB
+@happyvertical/ai:build: dist/chunks/anthropic-wKObwxfe.js    10.37 kB │ map: 20.29 kB
+@happyvertical/ai:build: dist/chunks/claude-cli-DibpfTJj.js   12.05 kB │ map: 22.96 kB
+@happyvertical/ai:build: dist/chunks/openai-CpwJar1k.js       13.30 kB │ map: 22.61 kB
+@happyvertical/ai:build: dist/index.js                        16.48 kB │ map: 51.07 kB
+@happyvertical/ai:build: [vite:dts] Declaration files built in 1002ms.
+@happyvertical/ai:build: 
+@happyvertical/ai:build: ✓ built in 1.11s
+@happyvertical/pdf:build: cache hit, replaying logs 3bb2fb40ebfd7b7e
+@happyvertical/pdf:build: 
+@happyvertical/pdf:build: > @happyvertical/pdf@0.55.0 build /Users/will/Work/happyvertical/repos/sdk/packages/pdf
+@happyvertical/pdf:build: > vite build
+@happyvertical/pdf:build: 
+@happyvertical/pdf:build: vite v7.1.3 building for production...
+@happyvertical/pdf:build: transforming...
+@happyvertical/pdf:build: ✓ 6 modules transformed.
+@happyvertical/pdf:build: rendering chunks...
+@happyvertical/pdf:build: [plugin vite:reporter] 
+@happyvertical/pdf:build: (!) /Users/will/Work/happyvertical/repos/sdk/packages/pdf/src/shared/factory.ts is dynamically imported by /Users/will/Work/happyvertical/repos/sdk/packages/pdf/src/index.ts but also statically imported by /Users/will/Work/happyvertical/repos/sdk/packages/pdf/src/index.ts, dynamic import will not move module into another chunk.
+@happyvertical/pdf:build: 
+@happyvertical/pdf:build: 
+@happyvertical/pdf:build: [vite:dts] Start generate declaration files...
+@happyvertical/pdf:build: dist/index.js                     13.38 kB │ map: 48.78 kB
+@happyvertical/pdf:build: dist/chunks/combined-DCYDY_hv.js  15.83 kB │ map: 30.98 kB
+@happyvertical/pdf:build: [vite:dts] Declaration files built in 686ms.
+@happyvertical/pdf:build: 
+@happyvertical/pdf:build: ✓ built in 776ms
+@happyvertical/ai:test: cache hit, replaying logs ef25b39d13f5e0ec
+@happyvertical/ai:test: 
+@happyvertical/ai:test: > @happyvertical/ai@0.55.0 test /Users/will/Work/happyvertical/repos/sdk/packages/ai
+@happyvertical/ai:test: > npx vitest run
+@happyvertical/ai:test: 
+@happyvertical/ai:test: 
+@happyvertical/ai:test:  RUN  v3.2.4 /Users/will/Work/happyvertical/repos/sdk/packages/ai
+@happyvertical/ai:test: 
+@happyvertical/ai:test:  ✓ src/types.test.ts (9 tests) 7ms
+@happyvertical/ai:test: stdout | src/integration.test.ts > Real API Integration > should work with Gemini API if token is provided
+@happyvertical/ai:test: Skipping Gemini API test - no GEMINI_API_KEY provided
+@happyvertical/ai:test: 
+@happyvertical/ai:test: stdout | src/integration.test.ts > Real API Integration > should work with Anthropic API if token is provided
+@happyvertical/ai:test: Skipping Anthropic API test - no ANTHROPIC_API_KEY provided
+@happyvertical/ai:test: 
+@happyvertical/ai:test: stdout | src/integration.test.ts > Tool Use Integration Tests > OpenAI Tool Use > should handle tool calls with OpenAI
+@happyvertical/ai:test: Skipping OpenAI tool use test - no API key provided
+@happyvertical/ai:test: 
+@happyvertical/ai:test: stdout | src/integration.test.ts > Tool Use Integration Tests > OpenAI Tool Use > should handle JSON mode with OpenAI
+@happyvertical/ai:test: Skipping OpenAI JSON mode test - no API key provided
+@happyvertical/ai:test: 
+@happyvertical/ai:test: stdout | src/integration.test.ts > Tool Use Integration Tests > Anthropic Tool Use > should handle tool calls with Anthropic
+@happyvertical/ai:test: Skipping Anthropic tool use test - no API key provided
+@happyvertical/ai:test: 
+@happyvertical/ai:test: stdout | src/integration.test.ts > Tool Use Integration Tests > Anthropic Tool Use > should handle JSON mode with Anthropic (prompt-based)
+@happyvertical/ai:test: Skipping Anthropic JSON mode test - no API key provided
+@happyvertical/ai:test: 
+@happyvertical/ai:test: stdout | src/integration.test.ts > Tool Use Integration Tests > Gemini Tool Use > should handle JSON mode with Gemini
+@happyvertical/ai:test: Skipping Gemini JSON mode test - no API key provided
+@happyvertical/ai:test: 
+@happyvertical/ai:test: stdout | src/integration.test.ts > Tool Use Integration Tests > Cross-Provider Tool Compatibility > should use same tool definition across OpenAI and Anthropic
+@happyvertical/ai:test: Skipping cross-provider test - need API keys (OPENAI_API_KEY, ANTHROPIC_API_KEY)
+@happyvertical/ai:test: 
+@happyvertical/ai:test: stderr | src/index.optional.test.ts > should create an AIClient and send it a message
+@happyvertical/ai:test: Skipping: OPENAI_API_KEY not set
+@happyvertical/ai:test: 
+@happyvertical/ai:test: stderr | src/index.optional.test.ts > should create an AIThread and ask it a question
+@happyvertical/ai:test: Skipping: OPENAI_API_KEY not set
+@happyvertical/ai:test: 
+@happyvertical/ai:test:  ✓ src/index.optional.test.ts (2 tests) 1ms
+@happyvertical/ai:test: stdout | src/claude-cli.integration.test.ts > Claude CLI Integration Tests > should count tokens (approximation)
+@happyvertical/ai:test: Token count for "Hello, this is a test message with several words.": 14
+@happyvertical/ai:test: 
+@happyvertical/ai:test: stdout | src/claude-cli.integration.test.ts > Claude CLI Integration Tests > should get models list
+@happyvertical/ai:test: Available models: [ [32m'sonnet'[39m, [32m'opus'[39m, [32m'haiku'[39m ]
+@happyvertical/ai:test: 
+@happyvertical/ai:test: stdout | src/claude-cli.integration.test.ts > Claude CLI Integration Tests > should get capabilities
+@happyvertical/ai:test: Capabilities: {
+@happyvertical/ai:test:   chat: [33mtrue[39m,
+@happyvertical/ai:test:   completion: [33mtrue[39m,
+@happyvertical/ai:test:   embeddings: [33mfalse[39m,
+@happyvertical/ai:test:   streaming: [33mtrue[39m,
+@happyvertical/ai:test:   functions: [33mfalse[39m,
+@happyvertical/ai:test:   vision: [33mfalse[39m,
+@happyvertical/ai:test:   fineTuning: [33mfalse[39m,
+@happyvertical/ai:test:   maxContextLength: [33m200000[39m,
+@happyvertical/ai:test:   supportedOperations: [ [32m'chat'[39m, [32m'completion'[39m, [32m'streaming'[39m ]
+@happyvertical/ai:test: }
+@happyvertical/ai:test: 
+@happyvertical/ai:test:  ✓ src/claude-cli.integration.test.ts (10 tests | 5 skipped) 7ms
+@happyvertical/ai:test:  ✓ src/integration.test.ts (22 tests | 1 skipped) 13ms
+@happyvertical/ai:test:  ✓ src/index.spec.ts (6 tests) 338ms
+@happyvertical/ai:test:  ✓ src/providers.test.ts (27 tests) 416ms
+@happyvertical/ai:test:    ✓ Environment Variable Configuration > should load provider type from HAVE_AI_PROVIDER  403ms
+@happyvertical/ai:test: 
+@happyvertical/ai:test:  Test Files  6 passed (6)
+@happyvertical/ai:test:       Tests  70 passed | 6 skipped (76)
+@happyvertical/ai:test:    Start at  04:41:32
+@happyvertical/ai:test:    Duration  995ms (transform 265ms, setup 0ms, collect 1.09s, tests 782ms, environment 0ms, prepare 272ms)
+@happyvertical/ai:test: 
+@happyvertical/translator:build: cache hit, replaying logs cba57d8560597c3b
+@happyvertical/translator:build: 
+@happyvertical/translator:build: > @happyvertical/translator@0.55.0 build /Users/will/Work/happyvertical/repos/sdk/packages/translator
+@happyvertical/translator:build: > vite build
+@happyvertical/translator:build: 
+@happyvertical/translator:build: vite v7.1.3 building for production...
+@happyvertical/translator:build: transforming...
+@happyvertical/translator:build: ✓ 6 modules transformed.
+@happyvertical/translator:build: rendering chunks...
+@happyvertical/translator:build: 
+@happyvertical/translator:build: [vite:dts] Start generate declaration files...
+@happyvertical/translator:build: dist/chunks/libretranslate-BeC38-0r.js  5.96 kB │ map: 11.20 kB
+@happyvertical/translator:build: dist/index.js                           6.14 kB │ map: 20.28 kB
+@happyvertical/translator:build: dist/chunks/deepl-CWEP0MSh.js           6.29 kB │ map: 11.98 kB
+@happyvertical/translator:build: dist/chunks/google-KGGP9X0w.js          6.42 kB │ map: 12.42 kB
+@happyvertical/translator:build: [vite:dts] Declaration files built in 764ms.
+@happyvertical/translator:build: 
+@happyvertical/translator:build: ✓ built in 843ms
+@happyvertical/geo:build: cache hit, replaying logs 1300c05b34bd7266
+@happyvertical/geo:build: 
+@happyvertical/geo:build: > @happyvertical/geo@0.55.0 build /Users/will/Work/happyvertical/repos/sdk/packages/geo
+@happyvertical/geo:build: > vite build
+@happyvertical/geo:build: 
+@happyvertical/geo:build: vite v7.1.3 building for production...
+@happyvertical/geo:build: transforming...
+@happyvertical/geo:build: ✓ 5 modules transformed.
+@happyvertical/geo:build: rendering chunks...
+@happyvertical/geo:build: 
+@happyvertical/geo:build: [vite:dts] Start generate declaration files...
+@happyvertical/geo:build: dist/index.js                          4.92 kB │ map: 15.00 kB
+@happyvertical/geo:build: dist/chunks/google-DvgcXKTa.js         6.09 kB │ map: 11.23 kB
+@happyvertical/geo:build: dist/chunks/openstreetmap-Cvj3j_VE.js  6.63 kB │ map: 13.08 kB
+@happyvertical/geo:build: [vite:dts] Declaration files built in 775ms.
+@happyvertical/geo:build: 
+@happyvertical/geo:build: ✓ built in 930ms
+@happyvertical/pdf:test: cache hit, replaying logs d487f5cae52e6331
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: > @happyvertical/pdf@0.55.0 test /Users/will/Work/happyvertical/repos/sdk/packages/pdf
+@happyvertical/pdf:test: > npx vitest run --testTimeout 60000
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test:  RUN  v3.2.4 /Users/will/Work/happyvertical/repos/sdk/packages/pdf
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/error-handling.test.ts > PDF Error Handling > should handle invalid inputs gracefully
+@happyvertical/pdf:test: No direct text found, attempting OCR fallback...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/error-handling.test.ts > PDF Error Handling > should handle invalid inputs gracefully
+@happyvertical/pdf:test: No direct text found, attempting OCR fallback...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/error-handling.test.ts > PDF Error Handling > should handle invalid inputs gracefully
+@happyvertical/pdf:test: No direct text found, attempting OCR fallback...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/error-handling.test.ts > PDF Error Handling > should handle invalid inputs gracefully
+@happyvertical/pdf:test: No direct text found, attempting OCR fallback...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stderr | src/error-handling.test.ts > PDF Error Handling > should handle non-existent files gracefully
+@happyvertical/pdf:test: unpdf text extraction failed: Error: Failed to read PDF file: ENOENT: no such file or directory, open '/non/existent/file.pdf'
+@happyvertical/pdf:test: stdout | src/error-handling.test.ts > PDF Error Handling > should handle non-existent files gracefully
+@happyvertical/pdf:test:     at UnpdfProvider.normalizeSource [90m(/Users/will/Work/happyvertical/repos/sdk/packages/pdf/[39msrc/node/unpdf.ts:55:15[90m)[39m
+@happyvertical/pdf:test: No direct text found, attempting OCR fallback...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test:     at UnpdfProvider.extractText [90m(/Users/will/Work/happyvertical/repos/sdk/packages/pdf/[39msrc/node/unpdf.ts:89:22[90m)[39m
+@happyvertical/pdf:test:     at CombinedNodeProvider.extractText [90m(/Users/will/Work/happyvertical/repos/sdk/packages/pdf/[39msrc/node/combined.ts:47:20[90m)[39m
+@happyvertical/pdf:test:     at [90m/Users/will/Work/happyvertical/repos/sdk/packages/pdf/[39msrc/error-handling.test.ts:21:18
+@happyvertical/pdf:test:     at file:///Users/will/Work/happyvertical/repos/sdk/node_modules/[4m.pnpm[24m/@vitest+runner@3.2.4/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:752:20
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stderr | src/error-handling.test.ts > PDF Error Handling > should handle non-existent files gracefully
+@happyvertical/pdf:test: unpdf image extraction failed: Error: Failed to read PDF file: ENOENT: no such file or directory, open '/non/existent/file.pdf'
+@happyvertical/pdf:test:     at UnpdfProvider.normalizeSource [90m(/Users/will/Work/happyvertical/repos/sdk/packages/pdf/[39msrc/node/unpdf.ts:55:15[90m)[39m
+@happyvertical/pdf:test:     at UnpdfProvider.extractImages [90m(/Users/will/Work/happyvertical/repos/sdk/packages/pdf/[39msrc/node/unpdf.ts:216:22[90m)[39m
+@happyvertical/pdf:test:     at CombinedNodeProvider.extractText [90m(/Users/will/Work/happyvertical/repos/sdk/packages/pdf/[39msrc/node/combined.ts:54:26[90m)[39m
+@happyvertical/pdf:test:     at [90m/Users/will/Work/happyvertical/repos/sdk/packages/pdf/[39msrc/error-handling.test.ts:21:18
+@happyvertical/pdf:test:     at file:///Users/will/Work/happyvertical/repos/sdk/node_modules/[4m.pnpm[24m/@vitest+runner@3.2.4/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:752:20
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stderr | src/error-handling.test.ts > PDF Error Handling > should handle corrupted PDF data gracefully
+@happyvertical/pdf:test: stdout | src/error-handling.test.ts > PDF Error Handling > should handle corrupted PDF data gracefully
+@happyvertical/pdf:test: No direct text found, attempting OCR fallback...
+@happyvertical/pdf:test: unpdf text extraction failed: Error: Invalid PDF data
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test:     at UnpdfProvider.extractText [90m(/Users/will/Work/happyvertical/repos/sdk/packages/pdf/[39msrc/node/unpdf.ts:92:15[90m)[39m
+@happyvertical/pdf:test: [90m    at processTicksAndRejections (node:internal/process/task_queues:105:5)[39m
+@happyvertical/pdf:test:     at CombinedNodeProvider.extractText [90m(/Users/will/Work/happyvertical/repos/sdk/packages/pdf/[39msrc/node/combined.ts:47:20[90m)[39m
+@happyvertical/pdf:test:     at [90m/Users/will/Work/happyvertical/repos/sdk/packages/pdf/[39msrc/error-handling.test.ts:27:18
+@happyvertical/pdf:test:     at file:///Users/will/Work/happyvertical/repos/sdk/node_modules/[4m.pnpm[24m/@vitest+runner@3.2.4/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:752:20
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stderr | src/error-handling.test.ts > PDF Error Handling > should handle corrupted PDF data gracefully
+@happyvertical/pdf:test: unpdf image extraction failed: Error: Invalid PDF data
+@happyvertical/pdf:test:     at UnpdfProvider.extractImages [90m(/Users/will/Work/happyvertical/repos/sdk/packages/pdf/[39msrc/node/unpdf.ts:219:15[90m)[39m
+@happyvertical/pdf:test: [90m    at processTicksAndRejections (node:internal/process/task_queues:105:5)[39m
+@happyvertical/pdf:test:     at CombinedNodeProvider.extractText [90m(/Users/will/Work/happyvertical/repos/sdk/packages/pdf/[39msrc/node/combined.ts:54:26[90m)[39m
+@happyvertical/pdf:test:     at [90m/Users/will/Work/happyvertical/repos/sdk/packages/pdf/[39msrc/error-handling.test.ts:27:18
+@happyvertical/pdf:test:     at file:///Users/will/Work/happyvertical/repos/sdk/node_modules/[4m.pnpm[24m/@vitest+runner@3.2.4/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:752:20
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test:  ✓ src/error-handling.test.ts (3 tests) 62ms
+@happyvertical/translator:test: cache hit, replaying logs 8beb013b5892828e
+@happyvertical/pdf:test: stdout | src/legacy.test.ts > Legacy Compatibility Functions > should extract text using legacy function
+@happyvertical/pdf:test: No direct text found, attempting OCR fallback...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stderr | src/metadata.test.ts > PDF Metadata Extraction > should handle metadata extraction from non-existent file
+@happyvertical/pdf:test: unpdf metadata extraction failed: Error: Failed to read PDF file: ENOENT: no such file or directory, open '/non/existent/file.pdf'
+@happyvertical/pdf:test: stdout | src/extraction.test.ts > PDF Content Extraction > should extract text from a real PDF file
+@happyvertical/pdf:test: No direct text found, attempting OCR fallback...
+@happyvertical/pdf:test:     at UnpdfProvider.normalizeSource [90m(/Users/will/Work/happyvertical/repos/sdk/packages/pdf/[39msrc/node/unpdf.ts:55:15[90m)[39m
+@happyvertical/pdf:test:     at UnpdfProvider.extractMetadata [90m(/Users/will/Work/happyvertical/repos/sdk/packages/pdf/[39msrc/node/unpdf.ts:145:22[90m)[39m
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test:     at [90m/Users/will/Work/happyvertical/repos/sdk/packages/pdf/[39msrc/metadata.test.ts:39:22
+@happyvertical/pdf:test:     at file:///Users/will/Work/happyvertical/repos/sdk/node_modules/[4m.pnpm[24m/@vitest+runner@3.2.4/node_modules/[4m@vitest/runner[24m/dist/chunk-hooks.js:752:20
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test:  ✓ src/metadata.test.ts (2 tests) 185ms
+@happyvertical/pdf:test:  ✓ src/capabilities.test.ts (6 tests) 503ms
+@happyvertical/pdf:test:    ✓ PDF Reader Capabilities and Dependencies > should check PDF reader capabilities  495ms
+@happyvertical/pdf:test: stderr | src/factory.test.ts > PDF Factory Tests > Environment Variable Configuration > should handle invalid number conversion gracefully
+@happyvertical/pdf:test: Failed to convert HAVE_PDF_TIMEOUT="not-a-number" to number: Cannot convert "not-a-number" to number: result is NaN
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test:  ✓ src/factory.test.ts (16 tests) 515ms
+@happyvertical/pdf:test:    ✓ PDF Factory Tests > should get provider information  465ms
+@happyvertical/pdf:test: stdout | src/ocr-integration.test.ts > OCR Integration with Real PDF > should extract text from real PDF using OCR when needed
+@happyvertical/pdf:test: PDF Analysis: {
+@happyvertical/pdf:test:   pageCount: [33m3[39m,
+@happyvertical/pdf:test:   hasEmbeddedText: [33mfalse[39m,
+@happyvertical/pdf:test:   recommendedStrategy: [32m'ocr'[39m,
+@happyvertical/pdf:test:   ocrRequired: [33mtrue[39m
+@happyvertical/pdf:test: }
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/index.spec.ts > PDF Package Integration > should extract text using legacy function
+@happyvertical/pdf:test: No direct text found, attempting OCR fallback...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/ocr-integration.test.ts > OCR Integration with Real PDF > should extract text from real PDF using OCR when needed
+@happyvertical/pdf:test: No direct text found, attempting OCR fallback...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/extraction.test.ts > PDF Content Extraction > should extract text from a real PDF file
+@happyvertical/pdf:test: Initializing @gutenye/ocr-node...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/legacy.test.ts > Legacy Compatibility Functions > should extract text using legacy function
+@happyvertical/pdf:test: Initializing @gutenye/ocr-node...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/extraction.test.ts > PDF Content Extraction > should extract text from a real PDF file
+@happyvertical/pdf:test: @gutenye/ocr-node initialized successfully
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/legacy.test.ts > Legacy Compatibility Functions > should extract text using legacy function
+@happyvertical/pdf:test: @gutenye/ocr-node initialized successfully
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/ocr-integration.test.ts > OCR Integration with Real PDF > should extract text from real PDF using OCR when needed
+@happyvertical/pdf:test: Initializing @gutenye/ocr-node...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/index.spec.ts > PDF Package Integration > should extract text using legacy function
+@happyvertical/pdf:test: Initializing @gutenye/ocr-node...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/extraction.test.ts > PDF Content Extraction > should extract text from a real PDF file
+@happyvertical/pdf:test: Processing RGB data 1275x1650
+@happyvertical/pdf:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/pdf:test: Processing with @gutenye/ocr-node...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/legacy.test.ts > Legacy Compatibility Functions > should extract text using legacy function
+@happyvertical/pdf:test: Processing RGB data 1275x1650
+@happyvertical/translator:test: 
+@happyvertical/translator:test: > @happyvertical/translator@0.55.0 test /Users/will/Work/happyvertical/repos/sdk/packages/translator
+@happyvertical/translator:test: > npx vitest run
+@happyvertical/translator:test: 
+@happyvertical/translator:test: 
+@happyvertical/translator:test:  RUN  v3.2.4 /Users/will/Work/happyvertical/repos/sdk/packages/translator
+@happyvertical/translator:test: 
+@happyvertical/translator:test:  ✓ src/libretranslate.integration.test.ts (5 tests | 4 skipped) 959ms
+@happyvertical/translator:test:    ✓ LibreTranslate Provider Integration > getSupportedLanguages > should return supported languages  958ms
+@happyvertical/translator:test:  ✓ src/env-config.test.ts (21 tests) 1322ms
+@happyvertical/translator:test:    ✓ Translator Environment Configuration > HAVE_TRANSLATOR_PROVIDER environment variable > should load provider from HAVE_TRANSLATOR_PROVIDER  978ms
+@happyvertical/translator:test: 
+@happyvertical/geo:test: cache hit, replaying logs 2ca53c730ad2fd2d
+@happyvertical/translator:test:  Test Files  2 passed (2)
+@happyvertical/translator:test:       Tests  22 passed | 4 skipped (26)
+@happyvertical/translator:test:    Start at  04:41:38
+@happyvertical/translator:test:    Duration  1.70s (transform 104ms, setup 0ms, collect 358ms, tests 2.28s, environment 0ms, prepare 81ms)
+@happyvertical/translator:test: 
+@happyvertical/geo:test: 
+@happyvertical/geo:test: > @happyvertical/geo@0.55.0 test /Users/will/Work/happyvertical/repos/sdk/packages/geo
+@happyvertical/geo:test: > npx vitest run
+@happyvertical/geo:test: 
+@happyvertical/geo:test: 
+@happyvertical/geo:test:  RUN  v3.2.4 /Users/will/Work/happyvertical/repos/sdk/packages/geo
+@happyvertical/geo:test: 
+@happyvertical/geo:test:  ↓ src/google.integration.test.ts (1 test | 1 skipped)
+@happyvertical/geo:test: stderr | src/env-config.test.ts > Geo Environment Configuration > Environment variable validation > should handle invalid number for timeout
+@happyvertical/geo:test: Failed to convert HAVE_GEO_TIMEOUT="not-a-number" to number: Cannot convert "not-a-number" to number: result is NaN
+@happyvertical/geo:test: 
+@happyvertical/pdf:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/pdf:test: Processing with @gutenye/ocr-node...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/index.spec.ts > PDF Package Integration > should extract text using legacy function
+@happyvertical/geo:test:  ✓ src/env-config.test.ts (18 tests) 113ms
+@happyvertical/geo:test:  ✓ src/openstreetmap.integration.test.ts (10 tests) 8577ms
+@happyvertical/geo:test:    ✓ OpenStreetMap Provider Integration > lookup > should find Eiffel Tower  413ms
+@happyvertical/geo:test:    ✓ OpenStreetMap Provider Integration > lookup > should find city by name  1301ms
+@happyvertical/geo:test:    ✓ OpenStreetMap Provider Integration > lookup > should find address  662ms
+@happyvertical/geo:test:    ✓ OpenStreetMap Provider Integration > lookup > should return empty array for invalid query  912ms
+@happyvertical/geo:test:    ✓ OpenStreetMap Provider Integration > reverseGeocode > should reverse geocode Eiffel Tower coordinates  1134ms
+@happyvertical/geo:test:    ✓ OpenStreetMap Provider Integration > reverseGeocode > should reverse geocode city center  1011ms
+@happyvertical/geo:test:    ✓ OpenStreetMap Provider Integration > Location structure > should return properly structured Location objects  1212ms
+@happyvertical/geo:test:    ✓ OpenStreetMap Provider Integration > Rate limiting > should enforce rate limiting between requests  1931ms
+@happyvertical/geo:test: 
+@happyvertical/geo:test:  Test Files  2 passed | 1 skipped (3)
+@happyvertical/geo:test:       Tests  28 passed | 1 skipped (29)
+@happyvertical/geo:test:    Start at  04:41:35
+@happyvertical/geo:test:    Duration  9.04s (transform 231ms, setup 0ms, collect 529ms, tests 8.69s, environment 0ms, prepare 417ms)
+@happyvertical/geo:test: 
+@happyvertical/pdf:test: @gutenye/ocr-node initialized successfully
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/ocr-integration.test.ts > OCR Integration with Real PDF > should extract text from real PDF using OCR when needed
+@happyvertical/pdf:test: @gutenye/ocr-node initialized successfully
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/index.spec.ts > PDF Package Integration > should extract text using legacy function
+@happyvertical/pdf:test: Processing RGB data 1275x1650
+@happyvertical/pdf:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/pdf:test: Processing with @gutenye/ocr-node...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/ocr-integration.test.ts > OCR Integration with Real PDF > should extract text from real PDF using OCR when needed
+@happyvertical/pdf:test: Processing RGB data 1275x1650
+@happyvertical/pdf:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/pdf:test: Processing with @gutenye/ocr-node...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/extraction.test.ts > PDF Content Extraction > should extract text from a real PDF file
+@happyvertical/pdf:test: @gutenye/ocr-node result: [
+@happyvertical/pdf:test:   {
+@happyvertical/pdf:test:     mean: [33m0.9008604202951703[39m,
+@happyvertical/pdf:test:     text: [32m'Bentley'[39m,
+@happyvertical/pdf:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/pdf:test:   }
+@happyvertical/pdf:test: ]
+@happyvertical/pdf:test: Processing RGB data 1275x1650
+@happyvertical/pdf:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/pdf:test: Processing with @gutenye/ocr-node...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/legacy.test.ts > Legacy Compatibility Functions > should extract text using legacy function
+@happyvertical/pdf:test: @gutenye/ocr-node result: [
+@happyvertical/pdf:test:   {
+@happyvertical/pdf:test:     mean: [33m0.9008604202951703[39m,
+@happyvertical/pdf:test:     text: [32m'Bentley'[39m,
+@happyvertical/pdf:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/pdf:test:   }
+@happyvertical/pdf:test: ]
+@happyvertical/pdf:test: Processing RGB data 1275x1650
+@happyvertical/pdf:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/pdf:test: Processing with @gutenye/ocr-node...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/ocr-integration.test.ts > OCR Integration with Real PDF > should extract text from real PDF using OCR when needed
+@happyvertical/pdf:test: @gutenye/ocr-node result: [
+@happyvertical/pdf:test:   {
+@happyvertical/pdf:test:     mean: [33m0.9008604202951703[39m,
+@happyvertical/pdf:test:     text: [32m'Bentley'[39m,
+@happyvertical/pdf:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/pdf:test:   }
+@happyvertical/pdf:test: ]
+@happyvertical/pdf:test: Processing RGB data 1275x1650
+@happyvertical/pdf:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/pdf:test: Processing with @gutenye/ocr-node...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/index.spec.ts > PDF Package Integration > should extract text using legacy function
+@happyvertical/pdf:test: @gutenye/ocr-node result: [
+@happyvertical/pdf:test:   {
+@happyvertical/pdf:test:     mean: [33m0.9008604202951703[39m,
+@happyvertical/pdf:test:     text: [32m'Bentley'[39m,
+@happyvertical/pdf:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/pdf:test:   }
+@happyvertical/pdf:test: ]
+@happyvertical/pdf:test: Processing RGB data 1275x1650
+@happyvertical/pdf:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/pdf:test: Processing with @gutenye/ocr-node...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/extraction.test.ts > PDF Content Extraction > should extract text from a real PDF file
+@happyvertical/pdf:test: @gutenye/ocr-node result: []
+@happyvertical/pdf:test: Processing RGB data 1275x1650
+@happyvertical/pdf:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/pdf:test: Processing with @gutenye/ocr-node...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/legacy.test.ts > Legacy Compatibility Functions > should extract text using legacy function
+@happyvertical/pdf:test: @gutenye/ocr-node result: []
+@happyvertical/pdf:test: Processing RGB data 1275x1650
+@happyvertical/pdf:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/pdf:test: Processing with @gutenye/ocr-node...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/extraction.test.ts > PDF Content Extraction > should extract text from a real PDF file
+@happyvertical/pdf:test: @gutenye/ocr-node result: [
+@happyvertical/pdf:test:   {
+@happyvertical/pdf:test:     mean: [33m0.5431639194488526[39m,
+@happyvertical/pdf:test:     text: [32m'GINAA'[39m,
+@happyvertical/pdf:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/pdf:test:   },
+@happyvertical/pdf:test:   {
+@happyvertical/pdf:test:     mean: [33m0.8951898664236069[39m,
+@happyvertical/pdf:test:     text: [32m'LeAO ofta'[39m,
+@happyvertical/pdf:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/pdf:test:   },
+@happyvertical/pdf:test:   {
+@happyvertical/pdf:test:     mean: [33m0.5846075912316641[39m,
+@happyvertical/pdf:test:     text: [32m'PEP'[39m,
+@happyvertical/pdf:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/pdf:test:   }
+@happyvertical/pdf:test: ]
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/index.spec.ts > PDF Package Integration > should extract text using legacy function
+@happyvertical/pdf:test: @gutenye/ocr-node result: []
+@happyvertical/pdf:test: Processing RGB data 1275x1650
+@happyvertical/pdf:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/pdf:test: Processing with @gutenye/ocr-node...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test:  ✓ src/extraction.test.ts (3 tests) 2523ms
+@happyvertical/pdf:test:    ✓ PDF Content Extraction > should extract text from a real PDF file  2383ms
+@happyvertical/pdf:test: stdout | src/legacy.test.ts > Legacy Compatibility Functions > should extract text using legacy function
+@happyvertical/pdf:test: @gutenye/ocr-node result: [
+@happyvertical/pdf:test:   {
+@happyvertical/pdf:test:     mean: [33m0.5431639194488526[39m,
+@happyvertical/pdf:test:     text: [32m'GINAA'[39m,
+@happyvertical/pdf:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/pdf:test:   },
+@happyvertical/pdf:test:   {
+@happyvertical/pdf:test:     mean: [33m0.8951898664236069[39m,
+@happyvertical/pdf:test:     text: [32m'LeAO ofta'[39m,
+@happyvertical/pdf:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/pdf:test:   },
+@happyvertical/pdf:test:   {
+@happyvertical/pdf:test:     mean: [33m0.5846075912316641[39m,
+@happyvertical/pdf:test:     text: [32m'PEP'[39m,
+@happyvertical/pdf:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/pdf:test:   }
+@happyvertical/pdf:test: ]
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/legacy.test.ts > Legacy Compatibility Functions > should handle OCR using legacy function
+@happyvertical/pdf:test: Initializing @gutenye/ocr-node...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/ocr-integration.test.ts > OCR Integration with Real PDF > should extract text from real PDF using OCR when needed
+@happyvertical/pdf:test: @gutenye/ocr-node result: []
+@happyvertical/pdf:test: Processing RGB data 1275x1650
+@happyvertical/pdf:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/pdf:test: Processing with @gutenye/ocr-node...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/index.spec.ts > PDF Package Integration > should extract text using legacy function
+@happyvertical/pdf:test: @gutenye/ocr-node result: [
+@happyvertical/pdf:test:   {
+@happyvertical/pdf:test:     mean: [33m0.5431639194488526[39m,
+@happyvertical/pdf:test:     text: [32m'GINAA'[39m,
+@happyvertical/pdf:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/pdf:test:   },
+@happyvertical/pdf:test:   {
+@happyvertical/pdf:test:     mean: [33m0.8951898664236069[39m,
+@happyvertical/pdf:test:     text: [32m'LeAO ofta'[39m,
+@happyvertical/pdf:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/pdf:test:   },
+@happyvertical/pdf:test:   {
+@happyvertical/pdf:test:     mean: [33m0.5846075912316641[39m,
+@happyvertical/pdf:test:     text: [32m'PEP'[39m,
+@happyvertical/pdf:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/pdf:test:   }
+@happyvertical/pdf:test: ]
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/legacy.test.ts > Legacy Compatibility Functions > should handle OCR using legacy function
+@happyvertical/pdf:test: @gutenye/ocr-node initialized successfully
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test:  ✓ src/index.spec.ts (4 tests) 2818ms
+@happyvertical/pdf:test:    ✓ PDF Package Integration > should create PDF reader and analyze document  645ms
+@happyvertical/pdf:test:    ✓ PDF Package Integration > should extract text using legacy function  2128ms
+@happyvertical/pdf:test: stdout | src/legacy.test.ts > Legacy Compatibility Functions > should handle OCR using legacy function
+@happyvertical/pdf:test: Processing RGB data 100x100
+@happyvertical/pdf:test: Converting RGB data 100x100 to JPEG
+@happyvertical/pdf:test: Processing with @gutenye/ocr-node...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/legacy.test.ts > Legacy Compatibility Functions > should handle OCR using legacy function
+@happyvertical/pdf:test: @gutenye/ocr-node result: []
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test:  ✓ src/legacy.test.ts (4 tests) 2837ms
+@happyvertical/pdf:test:    ✓ Legacy Compatibility Functions > should extract text using legacy function  2604ms
+@happyvertical/pdf:test: stdout | src/ocr-integration.test.ts > OCR Integration with Real PDF > should extract text from real PDF using OCR when needed
+@happyvertical/pdf:test: @gutenye/ocr-node result: [
+@happyvertical/pdf:test:   {
+@happyvertical/pdf:test:     mean: [33m0.5431639194488526[39m,
+@happyvertical/pdf:test:     text: [32m'GINAA'[39m,
+@happyvertical/pdf:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/pdf:test:   },
+@happyvertical/pdf:test:   {
+@happyvertical/pdf:test:     mean: [33m0.8951898664236069[39m,
+@happyvertical/pdf:test:     text: [32m'LeAO ofta'[39m,
+@happyvertical/pdf:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/pdf:test:   },
+@happyvertical/pdf:test:   {
+@happyvertical/pdf:test:     mean: [33m0.5846075912316641[39m,
+@happyvertical/pdf:test:     text: [32m'PEP'[39m,
+@happyvertical/pdf:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/pdf:test:   }
+@happyvertical/pdf:test: ]
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/ocr-integration.test.ts > OCR Integration with Real PDF > should extract text from real PDF using OCR when needed
+@happyvertical/pdf:test: ✅ OCR successfully extracted 27 characters
+@happyvertical/pdf:test: Preview: Bentley GINAA LeAO ofta PEP...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/ocr-integration.test.ts > OCR Integration with Real PDF > should handle OCR on extracted images
+@happyvertical/pdf:test: Extracted 3 images from PDF
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/ocr-integration.test.ts > OCR Integration with Real PDF > should handle OCR on extracted images
+@happyvertical/pdf:test: Processing RGB data 1275x1650
+@happyvertical/pdf:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/pdf:test: Processing with @gutenye/ocr-node...
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/ocr-integration.test.ts > OCR Integration with Real PDF > should handle OCR on extracted images
+@happyvertical/pdf:test: @gutenye/ocr-node result: [
+@happyvertical/pdf:test:   {
+@happyvertical/pdf:test:     mean: [33m0.9008604202951703[39m,
+@happyvertical/pdf:test:     text: [32m'Bentley'[39m,
+@happyvertical/pdf:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/pdf:test:   }
+@happyvertical/pdf:test: ]
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test: stdout | src/ocr-integration.test.ts > OCR Integration with Real PDF > should handle OCR on extracted images
+@happyvertical/pdf:test: ⚠️ OCR on image extracted minimal text: 7 chars, 90.08604202951703% confidence
+@happyvertical/pdf:test: This may be due to image format compatibility or image content
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test:  ✓ src/ocr-integration.test.ts (2 tests) 3639ms
+@happyvertical/pdf:test:    ✓ OCR Integration with Real PDF > should extract text from real PDF using OCR when needed  2659ms
+@happyvertical/pdf:test:    ✓ OCR Integration with Real PDF > should handle OCR on extracted images  464ms
+@happyvertical/pdf:test: 
+@happyvertical/pdf:test:  Test Files  8 passed (8)
+@happyvertical/pdf:test:       Tests  40 passed (40)
+@happyvertical/pdf:test:    Start at  04:41:35
+@happyvertical/pdf:test:    Duration  3.98s (transform 161ms, setup 0ms, collect 1.17s, tests 13.08s, environment 1ms, prepare 359ms)
+@happyvertical/pdf:test: 
+@happyvertical/spider:build: cache hit, replaying logs be50f578fc1bef1f
+@happyvertical/spider:build: 
+@happyvertical/spider:build: > @happyvertical/spider@0.55.0 build /Users/will/Work/happyvertical/repos/sdk/packages/spider
+@happyvertical/spider:build: > vite build
+@happyvertical/spider:build: 
+@happyvertical/spider:build: vite v7.1.3 building for production...
+@happyvertical/spider:build: transforming...
+@happyvertical/spider:build: ✓ 11 modules transformed.
+@happyvertical/spider:build: rendering chunks...
+@happyvertical/spider:build: 
+@happyvertical/spider:build: [vite:dts] Start generate declaration files...
+@happyvertical/spider:build: dist/chunks/basic-BFsLl3kq.js     1.93 kB │ map:  4.40 kB
+@happyvertical/spider:build: dist/chunks/simple-Dp0L95Qf.js    4.20 kB │ map:  7.91 kB
+@happyvertical/spider:build: dist/chunks/dom-DO78o2_B.js       4.88 kB │ map:  9.10 kB
+@happyvertical/spider:build: dist/chunks/crawlee-BIQN2xZ6.js   7.80 kB │ map: 15.24 kB
+@happyvertical/spider:build: dist/index.js                     9.00 kB │ map: 34.84 kB
+@happyvertical/spider:build: dist/chunks/tree-TV4LkVkq.js     10.56 kB │ map: 20.90 kB
+@happyvertical/spider:build: [vite:dts] Declaration files built in 1429ms.
+@happyvertical/spider:build: 
+@happyvertical/spider:build: ✓ built in 1.50s
+@happyvertical/spider:test: cache hit, replaying logs 1f35c4892b7b4f1c
+@happyvertical/spider:test: 
+@happyvertical/spider:test: > @happyvertical/spider@0.55.0 test /Users/will/Work/happyvertical/repos/sdk/packages/spider
+@happyvertical/spider:test: > npx vitest run
+@happyvertical/spider:test: 
+@happyvertical/spider:test: 
+@happyvertical/spider:test:  RUN  v3.2.4 /Users/will/Work/happyvertical/repos/sdk/packages/spider
+@happyvertical/spider:test: 
+@happyvertical/spider:test:  ↓ src/scrapers/scrapers.optional.test.ts (3 tests | 3 skipped)
+@happyvertical/spider:test:  ↓ src/scrapers/directory-tree.diagnostic.test.ts (1 test | 1 skipped)
+@happyvertical/spider:test:  ✓ src/scrapeDocument.test.ts (23 tests) 5ms
+@happyvertical/spider:test:  ↓ src/crawlee.optional.test.ts (3 tests | 3 skipped)
+@happyvertical/spider:test:  ✓ src/env-config.test.ts (11 tests) 1091ms
+@happyvertical/spider:test:    ✓ Spider Environment Variable Configuration > HAVE_SPIDER_TIMEOUT > should use timeout from environment variable  344ms
+@happyvertical/spider:test:    ✓ Spider Environment Variable Configuration > HAVE_SPIDER_USER_AGENT > should handle custom user agent in crawlee adapter  640ms
+@happyvertical/spider:test: stdout | src/index.spec.ts > CrawleeAdapter > should fetch a page with headless browser
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Starting the crawler.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should scrape a page with browser
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Starting the crawler.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/index.spec.ts > CrawleeAdapter > should fetch a page with headless browser
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m All requests from the queue have been processed, the crawler will shut down.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/index.spec.ts > CrawleeAdapter > should fetch a page with headless browser
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Final request statistics:[90m {"requestsFinished":1,"requestsFailed":0,"retryHistogram":[1],"requestAvgFailedDurationMillis":null,"requestAvgFinishedDurationMillis":1884,"requestsFinishedPerMinute":30,"requestsFailedPerMinute":0,"requestTotalDurationMillis":1884,"requestsTotal":1,"crawlerRuntimeMillis":2016}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/index.spec.ts > CrawleeAdapter > should fetch a page with headless browser
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Finished! Total 1 requests: 1 succeeded, 0 failed.[90m {"terminal":true}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/index.spec.ts > CrawleeAdapter > should extract links with browser and metadata
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Starting the crawler.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should scrape a page with browser
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m All requests from the queue have been processed, the crawler will shut down.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should scrape a page with browser
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Final request statistics:[90m {"requestsFinished":1,"requestsFailed":0,"retryHistogram":[1],"requestAvgFailedDurationMillis":null,"requestAvgFinishedDurationMillis":2156,"requestsFinishedPerMinute":26,"requestsFailedPerMinute":0,"requestTotalDurationMillis":2156,"requestsTotal":1,"crawlerRuntimeMillis":2283}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should scrape a page with browser
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Finished! Total 1 requests: 1 succeeded, 0 failed.[90m {"terminal":true}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/index.spec.ts > CrawleeAdapter > should extract links with browser and metadata
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m All requests from the queue have been processed, the crawler will shut down.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/index.spec.ts > CrawleeAdapter > should extract links with browser and metadata
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Final request statistics:[90m {"requestsFinished":1,"requestsFailed":0,"retryHistogram":[1],"requestAvgFailedDurationMillis":null,"requestAvgFinishedDurationMillis":1445,"requestsFinishedPerMinute":39,"requestsFailedPerMinute":0,"requestTotalDurationMillis":1445,"requestsTotal":1,"crawlerRuntimeMillis":1558}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/index.spec.ts > CrawleeAdapter > should extract links with browser and metadata
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Finished! Total 1 requests: 1 succeeded, 0 failed.[90m {"terminal":true}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should extract link metadata with browser
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Starting the crawler.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/index.spec.ts > CrawleeAdapter > should cache browser-fetched pages
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Starting the crawler.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/index.spec.ts > CrawleeAdapter > should cache browser-fetched pages
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m All requests from the queue have been processed, the crawler will shut down.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/index.spec.ts > CrawleeAdapter > should cache browser-fetched pages
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Final request statistics:[90m {"requestsFinished":1,"requestsFailed":0,"retryHistogram":[1],"requestAvgFailedDurationMillis":null,"requestAvgFinishedDurationMillis":1439,"requestsFinishedPerMinute":39,"requestsFailedPerMinute":0,"requestTotalDurationMillis":1439,"requestsTotal":1,"crawlerRuntimeMillis":1546}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/index.spec.ts > CrawleeAdapter > should cache browser-fetched pages
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Finished! Total 1 requests: 1 succeeded, 0 failed.[90m {"terminal":true}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/index.spec.ts > CrawleeAdapter > should handle custom user agent
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Starting the crawler.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should extract link metadata with browser
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m All requests from the queue have been processed, the crawler will shut down.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should extract link metadata with browser
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Final request statistics:[90m {"requestsFinished":1,"requestsFailed":0,"retryHistogram":[1],"requestAvgFailedDurationMillis":null,"requestAvgFinishedDurationMillis":1989,"requestsFinishedPerMinute":29,"requestsFailedPerMinute":0,"requestTotalDurationMillis":1989,"requestsTotal":1,"crawlerRuntimeMillis":2091}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should extract link metadata with browser
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Finished! Total 1 requests: 1 succeeded, 0 failed.[90m {"terminal":true}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should report interaction count
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Starting the crawler.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/index.spec.ts > CrawleeAdapter > should handle custom user agent
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m All requests from the queue have been processed, the crawler will shut down.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/index.spec.ts > CrawleeAdapter > should handle custom user agent
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Final request statistics:[90m {"requestsFinished":1,"requestsFailed":0,"retryHistogram":[1],"requestAvgFailedDurationMillis":null,"requestAvgFinishedDurationMillis":1560,"requestsFinishedPerMinute":36,"requestsFailedPerMinute":0,"requestTotalDurationMillis":1560,"requestsTotal":1,"crawlerRuntimeMillis":1668}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/index.spec.ts > CrawleeAdapter > should handle custom user agent
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Finished! Total 1 requests: 1 succeeded, 0 failed.[90m {"terminal":true}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test:  ✓ src/index.spec.ts (20 tests) 9220ms
+@happyvertical/spider:test:    ✓ getSpider factory > should create dom adapter  312ms
+@happyvertical/spider:test:    ✓ getSpider factory > should create crawlee adapter  352ms
+@happyvertical/spider:test:    ✓ SimpleAdapter > should extract links correctly with metadata  327ms
+@happyvertical/spider:test:    ✓ CrawleeAdapter > should fetch a page with headless browser  2180ms
+@happyvertical/spider:test:    ✓ CrawleeAdapter > should extract links with browser and metadata  1559ms
+@happyvertical/spider:test:    ✓ CrawleeAdapter > should cache browser-fetched pages  1548ms
+@happyvertical/spider:test:    ✓ CrawleeAdapter > should handle custom user agent  1669ms
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should report interaction count
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m All requests from the queue have been processed, the crawler will shut down.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should report interaction count
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Final request statistics:[90m {"requestsFinished":1,"requestsFailed":0,"retryHistogram":[1],"requestAvgFailedDurationMillis":null,"requestAvgFinishedDurationMillis":1991,"requestsFinishedPerMinute":28,"requestsFailedPerMinute":0,"requestTotalDurationMillis":1991,"requestsTotal":1,"crawlerRuntimeMillis":2115}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should report interaction count
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Finished! Total 1 requests: 1 succeeded, 0 failed.[90m {"terminal":true}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should respect cache options for tree scraper
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Starting the crawler.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should respect cache options for tree scraper
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m All requests from the queue have been processed, the crawler will shut down.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should respect cache options for tree scraper
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Final request statistics:[90m {"requestsFinished":1,"requestsFailed":0,"retryHistogram":[1],"requestAvgFailedDurationMillis":null,"requestAvgFinishedDurationMillis":1980,"requestsFinishedPerMinute":28,"requestsFailedPerMinute":0,"requestTotalDurationMillis":1980,"requestsTotal":1,"crawlerRuntimeMillis":2110}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should respect cache options for tree scraper
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Finished! Total 1 requests: 1 succeeded, 0 failed.[90m {"terminal":true}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should respect different cache keys for different maxIterations
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Starting the crawler.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should respect different cache keys for different maxIterations
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m All requests from the queue have been processed, the crawler will shut down.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should respect different cache keys for different maxIterations
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Final request statistics:[90m {"requestsFinished":1,"requestsFailed":0,"retryHistogram":[1],"requestAvgFailedDurationMillis":null,"requestAvgFinishedDurationMillis":2003,"requestsFinishedPerMinute":28,"requestsFailedPerMinute":0,"requestTotalDurationMillis":2003,"requestsTotal":1,"crawlerRuntimeMillis":2131}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should respect different cache keys for different maxIterations
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Finished! Total 1 requests: 1 succeeded, 0 failed.[90m {"terminal":true}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should respect different cache keys for different maxIterations
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Starting the crawler.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should respect different cache keys for different maxIterations
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m All requests from the queue have been processed, the crawler will shut down.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should respect different cache keys for different maxIterations
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Final request statistics:[90m {"requestsFinished":1,"requestsFailed":0,"retryHistogram":[1],"requestAvgFailedDurationMillis":null,"requestAvgFinishedDurationMillis":1979,"requestsFinishedPerMinute":28,"requestsFailedPerMinute":0,"requestTotalDurationMillis":1979,"requestsTotal":1,"crawlerRuntimeMillis":2106}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should respect different cache keys for different maxIterations
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Finished! Total 1 requests: 1 succeeded, 0 failed.[90m {"terminal":true}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should apply rate limiting delay
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Starting the crawler.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should apply rate limiting delay
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m All requests from the queue have been processed, the crawler will shut down.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should apply rate limiting delay
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Final request statistics:[90m {"requestsFinished":1,"requestsFailed":0,"retryHistogram":[1],"requestAvgFailedDurationMillis":null,"requestAvgFinishedDurationMillis":1943,"requestsFinishedPerMinute":29,"requestsFailedPerMinute":0,"requestTotalDurationMillis":1943,"requestsTotal":1,"crawlerRuntimeMillis":2055}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should apply rate limiting delay
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Finished! Total 1 requests: 1 succeeded, 0 failed.[90m {"terminal":true}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should allow disabling rate limiting
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Starting the crawler.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should allow disabling rate limiting
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m All requests from the queue have been processed, the crawler will shut down.
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should allow disabling rate limiting
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Final request statistics:[90m {"requestsFinished":1,"requestsFailed":0,"retryHistogram":[1],"requestAvgFailedDurationMillis":null,"requestAvgFinishedDurationMillis":1962,"requestsFinishedPerMinute":29,"requestsFailedPerMinute":0,"requestTotalDurationMillis":1962,"requestsTotal":1,"crawlerRuntimeMillis":2065}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test: stdout | src/scrapers/scrapers.spec.ts > TreeScraper > should allow disabling rate limiting
+@happyvertical/spider:test: [32mINFO[39m [33m PlaywrightCrawler:[39m Finished! Total 1 requests: 1 succeeded, 0 failed.[90m {"terminal":true}[39m
+@happyvertical/spider:test: 
+@happyvertical/spider:test:  ✓ src/scrapers/scrapers.spec.ts (15 tests) 26715ms
+@happyvertical/spider:test:    ✓ Scraper Factory > should create tree scraper  832ms
+@happyvertical/spider:test:    ✓ BasicScraper > should scrape a simple page  310ms
+@happyvertical/spider:test:    ✓ TreeScraper > should scrape a page with browser  3379ms
+@happyvertical/spider:test:    ✓ TreeScraper > should extract link metadata with browser  3091ms
+@happyvertical/spider:test:    ✓ TreeScraper > should report interaction count  3118ms
+@happyvertical/spider:test:    ✓ TreeScraper > should respect cache options for tree scraper  3115ms
+@happyvertical/spider:test:    ✓ TreeScraper > should respect different cache keys for different maxIterations  6244ms
+@happyvertical/spider:test:    ✓ TreeScraper > should apply rate limiting delay  4056ms
+@happyvertical/spider:test:    ✓ TreeScraper > should allow disabling rate limiting  2066ms
+@happyvertical/spider:test: 
+@happyvertical/spider:test:  Test Files  4 passed | 3 skipped (7)
+@happyvertical/spider:test:       Tests  69 passed | 7 skipped (76)
+@happyvertical/spider:test:    Start at  04:41:37
+@happyvertical/spider:test:    Duration  27.60s (transform 558ms, setup 0ms, collect 1.90s, tests 37.03s, environment 0ms, prepare 622ms)
+@happyvertical/spider:test: 
+@happyvertical/documents:build: cache hit, replaying logs 728565f114f24210
+@happyvertical/documents:build: 
+@happyvertical/documents:build: > @happyvertical/documents@0.55.0 build /Users/will/Work/happyvertical/repos/sdk/packages/documents
+@happyvertical/documents:build: > vite build
+@happyvertical/documents:build: 
+@happyvertical/documents:build: vite v6.3.6 building for production...
+@happyvertical/documents:build: transforming...
+@happyvertical/documents:build: ✓ 5 modules transformed.
+@happyvertical/documents:build: rendering chunks...
+@happyvertical/documents:build: 
+@happyvertical/documents:build: [vite:dts] Start generate declaration files...
+@happyvertical/documents:build: dist/index.js  7.47 kB │ map: 18.87 kB
+@happyvertical/documents:build: [vite:dts] Declaration files built in 575ms.
+@happyvertical/documents:build: 
+@happyvertical/documents:build: ✓ built in 764ms
+@happyvertical/documents:test: cache hit, replaying logs 19cf54c78f2d74a4
+@happyvertical/documents:test: 
+@happyvertical/documents:test: > @happyvertical/documents@0.55.0 test /Users/will/Work/happyvertical/repos/sdk/packages/documents
+@happyvertical/documents:test: > vitest run
+@happyvertical/documents:test: 
+@happyvertical/documents:test: 
+@happyvertical/documents:test:  RUN  v3.2.4 /Users/will/Work/happyvertical/repos/sdk/packages/documents
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should fetch and process a PDF document
+@happyvertical/documents:test: No direct text found, attempting OCR fallback...
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should fetch and process a PDF document
+@happyvertical/documents:test: Initializing @gutenye/ocr-node...
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should fetch and process a PDF document
+@happyvertical/documents:test: @gutenye/ocr-node initialized successfully
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should fetch and process a PDF document
+@happyvertical/documents:test: Processing RGB data 1275x1650
+@happyvertical/documents:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/documents:test: Processing with @gutenye/ocr-node...
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should fetch and process a PDF document
+@happyvertical/documents:test: @gutenye/ocr-node result: [
+@happyvertical/documents:test:   {
+@happyvertical/documents:test:     mean: [33m0.527226448059082[39m,
+@happyvertical/documents:test:     text: [32m'业'[39m,
+@happyvertical/documents:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/documents:test:   },
+@happyvertical/documents:test:   {
+@happyvertical/documents:test:     mean: [33m0.9286478502409798[39m,
+@happyvertical/documents:test:     text: [32m'Benitey'[39m,
+@happyvertical/documents:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/documents:test:   },
+@happyvertical/documents:test:   {
+@happyvertical/documents:test:     mean: [33m0.9849152803421021[39m,
+@happyvertical/documents:test:     text: [32m'rried'[39m,
+@happyvertical/documents:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/documents:test:   }
+@happyvertical/documents:test: ]
+@happyvertical/documents:test: Processing RGB data 1275x1650
+@happyvertical/documents:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/documents:test: Processing with @gutenye/ocr-node...
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should fetch and process a PDF document
+@happyvertical/documents:test: @gutenye/ocr-node result: [
+@happyvertical/documents:test:   {
+@happyvertical/documents:test:     mean: [33m0.9956207573413849[39m,
+@happyvertical/documents:test:     text: [32m'liquette'[39m,
+@happyvertical/documents:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/documents:test:   },
+@happyvertical/documents:test:   {
+@happyvertical/documents:test:     mean: [33m0.9975957444735936[39m,
+@happyvertical/documents:test:     text: [32m'rmation'[39m,
+@happyvertical/documents:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/documents:test:   }
+@happyvertical/documents:test: ]
+@happyvertical/documents:test: Processing RGB data 1275x1650
+@happyvertical/documents:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/documents:test: Processing with @gutenye/ocr-node...
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should fetch and process a PDF document
+@happyvertical/documents:test: @gutenye/ocr-node result: []
+@happyvertical/documents:test: Processing RGB data 1275x1650
+@happyvertical/documents:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/documents:test: Processing with @gutenye/ocr-node...
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should fetch and process a PDF document
+@happyvertical/documents:test: @gutenye/ocr-node result: []
+@happyvertical/documents:test: Processing RGB data 1275x1650
+@happyvertical/documents:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/documents:test: Processing with @gutenye/ocr-node...
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should fetch and process a PDF document
+@happyvertical/documents:test: @gutenye/ocr-node result: [
+@happyvertical/documents:test:   {
+@happyvertical/documents:test:     mean: [33m0.9942481418450674[39m,
+@happyvertical/documents:test:     text: [32m'Street'[39m,
+@happyvertical/documents:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/documents:test:   }
+@happyvertical/documents:test: ]
+@happyvertical/documents:test: Processing RGB data 1275x1650
+@happyvertical/documents:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/documents:test: Processing with @gutenye/ocr-node...
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should fetch and process a PDF document
+@happyvertical/documents:test: @gutenye/ocr-node result: []
+@happyvertical/documents:test: Processing RGB data 1275x1650
+@happyvertical/documents:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/documents:test: Processing with @gutenye/ocr-node...
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should fetch and process a PDF document
+@happyvertical/documents:test: @gutenye/ocr-node result: [
+@happyvertical/documents:test:   {
+@happyvertical/documents:test:     mean: [33m0.9907041040677873[39m,
+@happyvertical/documents:test:     text: [32m'Mayo CAO Fortais'[39m,
+@happyvertical/documents:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/documents:test:   }
+@happyvertical/documents:test: ]
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should handle large PDF documents
+@happyvertical/documents:test: Warning: TT: undefined function: 21
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should handle large PDF documents
+@happyvertical/documents:test: Warning: TT: undefined function: 21
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should handle large PDF documents
+@happyvertical/documents:test: Warning: TT: undefined function: 21
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should handle large PDF documents
+@happyvertical/documents:test: Warning: TT: undefined function: 21
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should handle large PDF documents
+@happyvertical/documents:test: Warning: TT: undefined function: 21
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should handle large PDF documents
+@happyvertical/documents:test: Warning: TT: undefined function: 21
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should handle large PDF documents
+@happyvertical/documents:test: Warning: TT: undefined function: 21
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should handle large PDF documents
+@happyvertical/documents:test: Warning: TT: undefined function: 21
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should handle large PDF documents
+@happyvertical/documents:test: Warning: TT: undefined function: 21
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should handle large PDF documents
+@happyvertical/documents:test: Warning: TT: undefined function: 21
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should handle large PDF documents
+@happyvertical/documents:test: Warning: TT: undefined function: 21
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should handle extractImages option
+@happyvertical/documents:test: No direct text found, attempting OCR fallback...
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should handle extractImages option
+@happyvertical/documents:test: Initializing @gutenye/ocr-node...
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should handle extractImages option
+@happyvertical/documents:test: @gutenye/ocr-node initialized successfully
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should handle extractImages option
+@happyvertical/documents:test: Processing RGB data 1275x1650
+@happyvertical/documents:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/documents:test: Processing with @gutenye/ocr-node...
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should handle extractImages option
+@happyvertical/documents:test: @gutenye/ocr-node result: [
+@happyvertical/documents:test:   {
+@happyvertical/documents:test:     mean: [33m0.527226448059082[39m,
+@happyvertical/documents:test:     text: [32m'业'[39m,
+@happyvertical/documents:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/documents:test:   },
+@happyvertical/documents:test:   {
+@happyvertical/documents:test:     mean: [33m0.9286478502409798[39m,
+@happyvertical/documents:test:     text: [32m'Benitey'[39m,
+@happyvertical/documents:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/documents:test:   },
+@happyvertical/documents:test:   {
+@happyvertical/documents:test:     mean: [33m0.9849152803421021[39m,
+@happyvertical/documents:test:     text: [32m'rried'[39m,
+@happyvertical/documents:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/documents:test:   }
+@happyvertical/documents:test: ]
+@happyvertical/documents:test: Processing RGB data 1275x1650
+@happyvertical/documents:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/documents:test: Processing with @gutenye/ocr-node...
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should handle extractImages option
+@happyvertical/documents:test: @gutenye/ocr-node result: [
+@happyvertical/documents:test:   {
+@happyvertical/documents:test:     mean: [33m0.9956207573413849[39m,
+@happyvertical/documents:test:     text: [32m'liquette'[39m,
+@happyvertical/documents:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/documents:test:   },
+@happyvertical/documents:test:   {
+@happyvertical/documents:test:     mean: [33m0.9975957444735936[39m,
+@happyvertical/documents:test:     text: [32m'rmation'[39m,
+@happyvertical/documents:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/documents:test:   }
+@happyvertical/documents:test: ]
+@happyvertical/documents:test: Processing RGB data 1275x1650
+@happyvertical/documents:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/documents:test: Processing with @gutenye/ocr-node...
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should handle extractImages option
+@happyvertical/documents:test: @gutenye/ocr-node result: []
+@happyvertical/documents:test: Processing RGB data 1275x1650
+@happyvertical/documents:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/documents:test: Processing with @gutenye/ocr-node...
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should handle extractImages option
+@happyvertical/documents:test: @gutenye/ocr-node result: []
+@happyvertical/documents:test: Processing RGB data 1275x1650
+@happyvertical/documents:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/documents:test: Processing with @gutenye/ocr-node...
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should handle extractImages option
+@happyvertical/documents:test: @gutenye/ocr-node result: [
+@happyvertical/documents:test:   {
+@happyvertical/documents:test:     mean: [33m0.9942481418450674[39m,
+@happyvertical/documents:test:     text: [32m'Street'[39m,
+@happyvertical/documents:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/documents:test:   }
+@happyvertical/documents:test: ]
+@happyvertical/documents:test: Processing RGB data 1275x1650
+@happyvertical/documents:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/documents:test: Processing with @gutenye/ocr-node...
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should handle extractImages option
+@happyvertical/documents:test: @gutenye/ocr-node result: []
+@happyvertical/documents:test: Processing RGB data 1275x1650
+@happyvertical/documents:test: Converting RGB data 1275x1650 to JPEG
+@happyvertical/documents:test: Processing with @gutenye/ocr-node...
+@happyvertical/documents:test: 
+@happyvertical/documents:test: stdout | src/index.test.ts > @happyvertical/documents > fetchDocument > should handle extractImages option
+@happyvertical/documents:test: @gutenye/ocr-node result: [
+@happyvertical/documents:test:   {
+@happyvertical/documents:test:     mean: [33m0.9907041040677873[39m,
+@happyvertical/documents:test:     text: [32m'Mayo CAO Fortais'[39m,
+@happyvertical/documents:test:     box: [ [36m[Array][39m, [36m[Array][39m, [36m[Array][39m, [36m[Array][39m ]
+@happyvertical/documents:test:   }
+@happyvertical/documents:test: ]
+@happyvertical/documents:test: 
+@happyvertical/documents:test:  ✓ src/index.test.ts (10 tests) 4553ms
+@happyvertical/documents:test:    ✓ @happyvertical/documents > fetchDocument > should fetch and process a PDF document  2428ms
+@happyvertical/documents:test:    ✓ @happyvertical/documents > fetchDocument > should handle extractImages option  1880ms
+@happyvertical/documents:test: 
+@happyvertical/documents:test:  Test Files  1 passed (1)
+@happyvertical/documents:test:       Tests  10 passed (10)
+@happyvertical/documents:test:    Start at  04:41:39
+@happyvertical/documents:test:    Duration  4.89s (transform 64ms, setup 0ms, collect 112ms, tests 4.55s, environment 0ms, prepare 41ms)
+@happyvertical/documents:test: 
+@happyvertical/sdk-mcp:build: cache hit, replaying logs 86fa5df597bc45e3
+@happyvertical/sdk-mcp:build: 
+@happyvertical/sdk-mcp:build: > @happyvertical/sdk-mcp@0.55.0 build /Users/will/Work/happyvertical/repos/sdk/packages/sdk-mcp
+@happyvertical/sdk-mcp:build: > vite build
+@happyvertical/sdk-mcp:build: 
+@happyvertical/sdk-mcp:build: vite v7.1.3 building SSR bundle for production...
+@happyvertical/sdk-mcp:build: transforming...
+@happyvertical/sdk-mcp:build: ✓ 1370 modules transformed.
+@happyvertical/sdk-mcp:build: rendering chunks...
+@happyvertical/sdk-mcp:build: 
+@happyvertical/sdk-mcp:build: [vite:dts] Start generate declaration files...
+@happyvertical/sdk-mcp:build: dist/package-DSTc5FA5.js                    0.09 kB
+@happyvertical/sdk-mcp:build: dist/noAuth-DjsddSW4.js                     0.14 kB
+@happyvertical/sdk-mcp:build: dist/index-lr_ZMsg9.js                      0.22 kB
+@happyvertical/sdk-mcp:build: dist/serde-json-B9b7yiWE.js                 0.41 kB
+@happyvertical/sdk-mcp:build: dist/externalDataInterceptor-DGA6qUZM.js    0.43 kB
+@happyvertical/sdk-mcp:build: dist/index-C9SL9djA.js                      2.40 kB
+@happyvertical/sdk-mcp:build: dist/index-BgwIfXAq.js                      2.97 kB
+@happyvertical/sdk-mcp:build: dist/date-utils-BPk2foB7.js                 4.00 kB
+@happyvertical/sdk-mcp:build: dist/fileFromPath-CtjrKUib.js               4.62 kB
+@happyvertical/sdk-mcp:build: dist/index-BrtguUTe.js                      6.82 kB
+@happyvertical/sdk-mcp:build: dist/huggingface-B2Zw260O-BJcAjcC4.js       7.26 kB
+@happyvertical/sdk-mcp:build: dist/gemini-BHFsyVy8-BtsRerOo.js            8.09 kB
+@happyvertical/sdk-mcp:build: dist/bedrock-C4FYsLH7-DPZFI6oc.js           9.07 kB
+@happyvertical/sdk-mcp:build: dist/index-DGESFcUE.js                      9.83 kB
+@happyvertical/sdk-mcp:build: dist/node-http-handler-DWhhUW-l.js          9.91 kB
+@happyvertical/sdk-mcp:build: dist/anthropic-wKObwxfe-M-TvNPox.js        10.39 kB
+@happyvertical/sdk-mcp:build: dist/index-D27AO_ZH.js                     11.77 kB
+@happyvertical/sdk-mcp:build: dist/claude-cli-DibpfTJj-D_Xw8fDs.js       12.02 kB
+@happyvertical/sdk-mcp:build: dist/index-CJ8YAyhe.js                     13.12 kB
+@happyvertical/sdk-mcp:build: dist/openai-CpwJar1k-BF9dboc-.js           13.27 kB
+@happyvertical/sdk-mcp:build: dist/loadSso-DPUm2ltW.js                   20.30 kB
+@happyvertical/sdk-mcp:build: dist/index-B2ZEN2gs.js                     28.32 kB
+@happyvertical/sdk-mcp:build: dist/index-CXAz3dYv.js                     90.65 kB
+@happyvertical/sdk-mcp:build: dist/index-BWddIeJO.js                    227.97 kB
+@happyvertical/sdk-mcp:build: dist/index-8DXxV_g3.js                    274.78 kB
+@happyvertical/sdk-mcp:build: dist/index.js                             287.78 kB
+@happyvertical/sdk-mcp:build: dist/index-CqhXdrsq.js                    356.50 kB
+@happyvertical/sdk-mcp:build: dist/index-BeM-r4Tt.js                    645.95 kB
+@happyvertical/sdk-mcp:build: [vite:dts] Start rollup declaration files...
+@happyvertical/sdk-mcp:build: Analysis will use the bundled TypeScript version 5.8.2
+@happyvertical/sdk-mcp:build: *** The target project appears to use TypeScript 5.9.2 which is newer than the bundled compiler engine; consider upgrading API Extractor.
+@happyvertical/sdk-mcp:build: [vite:dts] Declaration files built in 2278ms.
+@happyvertical/sdk-mcp:build: 
+@happyvertical/sdk-mcp:build: ✓ built in 4.37s
+@happyvertical/sdk-mcp:test: cache hit, replaying logs a6749d7aac34f0c6
+@happyvertical/sdk-mcp:test: 
+@happyvertical/sdk-mcp:test: > @happyvertical/sdk-mcp@0.55.0 test /Users/will/Work/happyvertical/repos/sdk/packages/sdk-mcp
+@happyvertical/sdk-mcp:test: > npx vitest run --passWithNoTests
+@happyvertical/sdk-mcp:test: 
+@happyvertical/sdk-mcp:test: 
+@happyvertical/sdk-mcp:test:  RUN  v3.2.4 /Users/will/Work/happyvertical/repos/sdk/packages/sdk-mcp
+@happyvertical/sdk-mcp:test: 
+@happyvertical/sdk-mcp:test: No test files found, exiting with code 0
+@happyvertical/sdk-mcp:test: 
+@happyvertical/sdk-mcp:test: include: **/*.{test,spec}.?(c|m)[jt]s?(x)
+@happyvertical/sdk-mcp:test: exclude:  **/node_modules/**, **/dist/**, **/cypress/**, **/.{idea,git,cache,output,temp}/**, **/{karma,rollup,webpack,vite,vitest,jest,ava,babel,nyc,cypress,tsup,build,eslint,prettier}.config.*
+@happyvertical/sdk-mcp:test: 
+@have/docs:build: cache hit, replaying logs 46e7369622b20c6f
+@have/docs:build: 
+@have/docs:build: > @have/docs@0.0.50 prebuild /Users/will/Work/happyvertical/repos/sdk/docs
+@have/docs:build: > npm run copy-readmes
+@have/docs:build: 
+@have/docs:build: 
+@have/docs:build: > @have/docs@0.0.50 copy-readmes
+@have/docs:build: > node scripts/copy-readmes.js
+@have/docs:build: 
+@have/docs:build: Copying package READMEs to docs/content...
+@have/docs:build: (node:59688) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///Users/will/Work/happyvertical/repos/sdk/docs/scripts/copy-readmes.js is not specified and it doesn't parse as CommonJS.
+@have/docs:build: Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
+@have/docs:build: To eliminate this warning, add "type": "module" to /Users/will/Work/happyvertical/repos/sdk/docs/package.json.
+@have/docs:build: (Use `node --trace-warnings ...` to show where the warning was created)
+@have/docs:build: ✓ Copied index.md
+@have/docs:build: ✓ Copied ai.md
+@have/docs:build: ✓ Copied cache.md
+@have/docs:build: ✓ Copied documents.md
+@have/docs:build: ✓ Copied files.md
+@have/docs:build: ✓ Copied geo.md
+@have/docs:build: ✓ Copied logger.md
+@have/docs:build: ✓ Copied ocr.md
+@have/docs:build: ✓ Copied pdf.md
+@have/docs:build: ✓ Copied spider.md
+@have/docs:build: ✓ Copied sql.md
+@have/docs:build: ✓ Copied translator.md
+@have/docs:build: ✓ Copied utils.md
+@have/docs:build: 
+@have/docs:build: All package READMEs copied successfully!
+@have/docs:build: 
+@have/docs:build: > @have/docs@0.0.50 build /Users/will/Work/happyvertical/repos/sdk/docs
+@have/docs:build: > docusaurus build
+@have/docs:build: 
+@have/docs:build: 
+@have/docs:build:  ------------------------------------------------------------------------------                                                                                                          Update available 3.8.1 → 3.9.2                                                                                                                 To upgrade Docusaurus packages with the latest version, run the                                       following command:                                     `npm i @docusaurus/core@latest @docusaurus/plugin-ideal-image@latest               @docusaurus/plugin-pwa@latest @docusaurus/preset-classic@latest             @docusaurus/theme-mermaid@latest @docusaurus/module-type-aliases@latest                  @docusaurus/tsconfig@latest @docusaurus/types@latest`                                                                                               ------------------------------------------------------------------------------ 
+@have/docs:build: 
+@have/docs:build: [INFO] [en] Creating an optimized production build...
+@have/docs:build: [WARNING] Cannot infer the update date for some files, as they are not tracked by git.
+@have/docs:build: [webpackbar] ℹ Compiling Client
+@have/docs:build: [webpackbar] ℹ Compiling Server
+@have/docs:build: [webpackbar] ✔ Server: Compiled successfully in 9.46s
+@have/docs:build: [webpackbar] ✔ Client: Compiled successfully in 9.95s
+@have/docs:build: [WARNING] Docusaurus found broken links!
+@have/docs:build: 
+@have/docs:build: Please check the pages of your site in the list below, and make sure you don't reference any path that does not exist.
+@have/docs:build: Note: it's possible to ignore broken links with the 'onBrokenLinks' Docusaurus configuration, and let the build pass.
+@have/docs:build: 
+@have/docs:build: It looks like some of the broken links we found appear in many pages of your site.
+@have/docs:build: Maybe those broken links appear on all pages through your site layout?
+@have/docs:build: We recommend that you check your theme configuration for such links (particularly, theme navbar and footer).
+@have/docs:build: Frequent broken links are linking to:
+@have/docs:build: - ../../LICENSE
+@have/docs:build: - _media/LICENSE
+@have/docs:build: 
+@have/docs:build: Exhaustive list of all broken links found:
+@have/docs:build: - Broken link on source page path = /sdk/ai:
+@have/docs:build:    -> linking to ../../LICENSE (resolved as: /LICENSE)
+@have/docs:build: - Broken link on source page path = /sdk/api/ai/:
+@have/docs:build:    -> linking to _media/LICENSE (resolved as: /sdk/api/ai/_media/LICENSE)
+@have/docs:build: - Broken link on source page path = /sdk/api/cache/:
+@have/docs:build:    -> linking to ../../../CONTRIBUTING.md (resolved as: /CONTRIBUTING.md)
+@have/docs:build:    -> linking to ../../../LICENSE (resolved as: /LICENSE)
+@have/docs:build: - Broken link on source page path = /sdk/api/files/:
+@have/docs:build:    -> linking to _media/LICENSE (resolved as: /sdk/api/files/_media/LICENSE)
+@have/docs:build: - Broken link on source page path = /sdk/api/files/globals:
+@have/docs:build:    -> linking to @happyvertical/namespaces/default.md (resolved as: /sdk/api/files/@happyvertical/namespaces/default.md)
+@have/docs:build: - Broken link on source page path = /sdk/api/logger/:
+@have/docs:build:    -> linking to ../../../CONTRIBUTING.md (resolved as: /CONTRIBUTING.md)
+@have/docs:build:    -> linking to ../../../LICENSE (resolved as: /LICENSE)
+@have/docs:build: - Broken link on source page path = /sdk/api/pdf/:
+@have/docs:build:    -> linking to _media/LICENSE (resolved as: /sdk/api/pdf/_media/LICENSE)
+@have/docs:build: - Broken link on source page path = /sdk/api/pdf/globals:
+@have/docs:build:    -> linking to @happyvertical/namespaces/default.md (resolved as: /sdk/api/pdf/@happyvertical/namespaces/default.md)
+@have/docs:build: - Broken link on source page path = /sdk/api/spider/:
+@have/docs:build:    -> linking to _media/LICENSE (resolved as: /sdk/api/spider/_media/LICENSE)
+@have/docs:build:    -> linking to _media/docs (resolved as: /sdk/api/spider/_media/docs)
+@have/docs:build: - Broken link on source page path = /sdk/api/sql/:
+@have/docs:build:    -> linking to ../../LICENSE (resolved as: /sdk/LICENSE)
+@have/docs:build: - Broken link on source page path = /sdk/api/utils/:
+@have/docs:build:    -> linking to _media/LICENSE (resolved as: /sdk/api/utils/_media/LICENSE)
+@have/docs:build: - Broken link on source page path = /sdk/cache:
+@have/docs:build:    -> linking to ../../../CONTRIBUTING.md (resolved as: /CONTRIBUTING.md)
+@have/docs:build:    -> linking to ../../../LICENSE (resolved as: /LICENSE)
+@have/docs:build: - Broken link on source page path = /sdk/files:
+@have/docs:build:    -> linking to ../../LICENSE (resolved as: /LICENSE)
+@have/docs:build: - Broken link on source page path = /sdk/logger:
+@have/docs:build:    -> linking to ../../../CONTRIBUTING.md (resolved as: /CONTRIBUTING.md)
+@have/docs:build:    -> linking to ../../../LICENSE (resolved as: /LICENSE)
+@have/docs:build: - Broken link on source page path = /sdk/pdf:
+@have/docs:build:    -> linking to ../../LICENSE (resolved as: /LICENSE)
+@have/docs:build: - Broken link on source page path = /sdk/spider:
+@have/docs:build:    -> linking to ../../LICENSE (resolved as: /LICENSE)
+@have/docs:build:    -> linking to ../../docs/ (resolved as: /docs/)
+@have/docs:build: - Broken link on source page path = /sdk/sql:
+@have/docs:build:    -> linking to ../../LICENSE (resolved as: /LICENSE)
+@have/docs:build: - Broken link on source page path = /sdk/utils:
+@have/docs:build:    -> linking to ../../LICENSE (resolved as: /LICENSE)
+@have/docs:build: - Broken link on source page path = /sdk/:
+@have/docs:build:    -> linking to /sdk/config
+@have/docs:build: 
+@have/docs:build: [WARNING] Docusaurus found broken anchors!
+@have/docs:build: 
+@have/docs:build: Please check the pages of your site in the list below, and make sure you don't reference any anchor that does not exist.
+@have/docs:build: Note: it's possible to ignore broken anchors with the 'onBrokenAnchors' Docusaurus configuration, and let the build pass.
+@have/docs:build: 
+@have/docs:build: Exhaustive list of all broken anchors found:
+@have/docs:build: - Broken anchor on source page path = /sdk/api/ai/globals:
+@have/docs:build:    -> linking to #aiclientoptions-1 (resolved as: /sdk/api/ai/globals#aiclientoptions-1)
+@have/docs:build:    -> linking to #aithreadoptions-1 (resolved as: /sdk/api/ai/globals#aithreadoptions-1)
+@have/docs:build:    -> linking to #openaiclientoptions-1 (resolved as: /sdk/api/ai/globals#openaiclientoptions-1)
+@have/docs:build: - Broken anchor on source page path = /sdk/api/cache/globals:
+@have/docs:build:    -> linking to #clear-2 (resolved as: /sdk/api/cache/globals#clear-2)
+@have/docs:build:    -> linking to #close-2 (resolved as: /sdk/api/cache/globals#close-2)
+@have/docs:build:    -> linking to #delete-2 (resolved as: /sdk/api/cache/globals#delete-2)
+@have/docs:build:    -> linking to #deletemany-2 (resolved as: /sdk/api/cache/globals#deletemany-2)
+@have/docs:build:    -> linking to #get-2 (resolved as: /sdk/api/cache/globals#get-2)
+@have/docs:build:    -> linking to #getmany-2 (resolved as: /sdk/api/cache/globals#getmany-2)
+@have/docs:build:    -> linking to #getstats-2 (resolved as: /sdk/api/cache/globals#getstats-2)
+@have/docs:build:    -> linking to #has-2 (resolved as: /sdk/api/cache/globals#has-2)
+@have/docs:build:    -> linking to #set-2 (resolved as: /sdk/api/cache/globals#set-2)
+@have/docs:build:    -> linking to #setmany-2 (resolved as: /sdk/api/cache/globals#setmany-2)
+@have/docs:build:    -> linking to #touch-2 (resolved as: /sdk/api/cache/globals#touch-2)
+@have/docs:build: - Broken anchor on source page path = /sdk/api/documents/globals:
+@have/docs:build:    -> linking to #documenttype-1 (resolved as: /sdk/api/documents/globals#documenttype-1)
+@have/docs:build:    -> linking to #process-2 (resolved as: /sdk/api/documents/globals#process-2)
+@have/docs:build:    -> linking to #supports-2 (resolved as: /sdk/api/documents/globals#supports-2)
+@have/docs:build: - Broken anchor on source page path = /sdk/api/files/globals:
+@have/docs:build:    -> linking to #filesystemadapteroptions-1 (resolved as: /sdk/api/files/globals#filesystemadapteroptions-1)
+@have/docs:build: - Broken anchor on source page path = /sdk/api/logger/globals:
+@have/docs:build:    -> linking to #debug-2 (resolved as: /sdk/api/logger/globals#debug-2)
+@have/docs:build:    -> linking to #info-2 (resolved as: /sdk/api/logger/globals#info-2)
+@have/docs:build:    -> linking to #warn-2 (resolved as: /sdk/api/logger/globals#warn-2)
+@have/docs:build:    -> linking to #handle-2 (resolved as: /sdk/api/logger/globals#handle-2)
+@have/docs:build:    -> linking to #signaltype-1 (resolved as: /sdk/api/logger/globals#signaltype-1)
+@have/docs:build: - Broken anchor on source page path = /sdk/api/pdf/globals:
+@have/docs:build:    -> linking to #basepdfreader (resolved as: /sdk/api/pdf/globals#basepdfreader)
+@have/docs:build:    -> linking to #checkcapabilities-4 (resolved as: /sdk/api/pdf/globals#checkcapabilities-4)
+@have/docs:build:    -> linking to #checkdependencies-4 (resolved as: /sdk/api/pdf/globals#checkdependencies-4)
+@have/docs:build:    -> linking to #extractimages-2 (resolved as: /sdk/api/pdf/globals#extractimages-2)
+@have/docs:build:    -> linking to #extractmetadata-2 (resolved as: /sdk/api/pdf/globals#extractmetadata-2)
+@have/docs:build:    -> linking to #extracttext-2 (resolved as: /sdk/api/pdf/globals#extracttext-2)
+@have/docs:build:    -> linking to #getinfo-2 (resolved as: /sdk/api/pdf/globals#getinfo-2)
+@have/docs:build:    -> linking to #performocr-4 (resolved as: /sdk/api/pdf/globals#performocr-4)
+@have/docs:build: - Broken anchor on source page path = /sdk/api/translator/globals:
+@have/docs:build:    -> linking to #capturestacktrace-6 (resolved as: /sdk/api/translator/globals#capturestacktrace-6)
+@have/docs:build:    -> linking to #preparestacktrace-6 (resolved as: /sdk/api/translator/globals#preparestacktrace-6)
+@have/docs:build: 
+@have/docs:build: [SUCCESS] Generated static files in "build".
+@have/docs:build: [INFO] Use `npm run serve` command to test your build locally.
+@have/docs:test: cache hit, replaying logs b7d54b330d99f20a
+@have/docs:test: 
+@have/docs:test: > @have/docs@0.0.50 test /Users/will/Work/happyvertical/repos/sdk/docs
+@have/docs:test: > echo 'No tests for documentation'
+@have/docs:test: 
+@have/docs:test: No tests for documentation
+
+ Tasks:    32 successful, 32 total
+Cached:    32 cached, 32 total
+  Time:    125ms >>> FULL TURBO
+

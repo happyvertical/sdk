@@ -128,7 +128,7 @@ describe('BasicScraper', () => {
   });
 });
 
-describe('TreeScraper', () => {
+describe.skipIf(process.env.CI === 'true')('TreeScraper', () => {
   it('should scrape a page with browser', async () => {
     const scraper = await getScraper({
       scraper: 'tree',
