@@ -15,9 +15,9 @@ export default defineConfig({
         '@modelcontextprotocol/sdk/server/index.js',
         '@modelcontextprotocol/sdk/server/stdio.js',
         '@modelcontextprotocol/sdk/types.js',
-        '@have/ai',
-        '@have/files',
-        '@have/utils',
+        '@happyvertical/ai',
+        '@happyvertical/files',
+        '@happyvertical/utils',
         /^node:.*/,  // Externalize all Node.js built-in modules
       ],
     },
