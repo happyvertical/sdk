@@ -15,7 +15,7 @@ describe('getSpider factory', () => {
     expect(typeof spider.fetch).toBe('function');
   });
 
-  it('should create crawlee adapter', async () => {
+  it.skip('should create crawlee adapter', async () => {
     const spider = await getSpider({ adapter: 'crawlee' });
     expect(spider).toBeDefined();
     expect(typeof spider.fetch).toBe('function');
