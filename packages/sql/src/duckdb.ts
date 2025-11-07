@@ -916,23 +916,58 @@ export async function getDatabase(
 
   /**
    * Synchronizes database schema with provided SQL DDL
-   * Note: DuckDB has different schema handling than SQLite
    *
-   * @param schema - SQL schema definition with CREATE TABLE statements
+   * DuckDB requires UNIQUE constraints to be defined **inline** in CREATE TABLE
+   * statements for ON CONFLICT clauses to work. This method automatically
+   * transforms UNIQUE indexes to inline constraints before executing the schema.
+   *
+   * @param schema - SQL schema definition with CREATE TABLE and CREATE INDEX statements
    * @returns Promise that resolves when schema is synchronized
    */
   const syncSchema = async (schema: string): Promise<void> => {
-    const commands = schema
+    const statements = schema
       .trim()
       .split(';')
-      .filter((command) => command.trim() !== '');
+      .filter((stmt) => stmt.trim() !== '');
 
-    for (const command of commands) {
+    const createTableStatements: string[] = [];
+    const indexStatements: string[] = [];
+
+    // Separate CREATE TABLE from CREATE INDEX statements
+    for (const stmt of statements) {
+      const trimmed = stmt.trim();
+      if (!trimmed) continue;
+
+      if (
+        trimmed.startsWith('CREATE INDEX') ||
+        trimmed.startsWith('CREATE UNIQUE INDEX')
+      ) {
+        indexStatements.push(trimmed);
+      } else if (trimmed.startsWith('CREATE TABLE')) {
+        createTableStatements.push(trimmed);
+      }
+    }
+
+    // Process each CREATE TABLE statement
+    for (const ddl of createTableStatements) {
+      // Transform UNIQUE indexes to inline constraints for DuckDB compatibility
+      const { ddl: transformedDDL, indexes: remainingIndexes } =
+        convertUniqueIndexesToInlineConstraints(ddl, indexStatements);
+
+      // Execute transformed DDL
       try {
-        await connection.run(command);
+        await connection.run(transformedDDL);
       } catch (e) {
-        // Log but don't fail on schema sync errors
-        console.error('Schema sync error:', e);
+        console.error('Schema sync error (CREATE TABLE):', e);
+      }
+
+      // Execute remaining (non-UNIQUE) indexes for this table
+      for (const indexSQL of remainingIndexes) {
+        try {
+          await connection.run(indexSQL);
+        } catch (e) {
+          console.error('Schema sync error (CREATE INDEX):', e);
+        }
       }
     }
   };

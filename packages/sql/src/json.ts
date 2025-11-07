@@ -154,7 +154,13 @@ async function loadJSONTables(
 
       if (schema || smrtSchema) {
         // Create table with provided schema or SMRT schema (proper typing)
-        const schemaToUse = smrtSchema || schema!;
+        const schemaToUse = smrtSchema || schema;
+        if (!schemaToUse) {
+          console.warn(
+            `[json-adapter] No schema available for ${tableName}, skipping creation`,
+          );
+          continue;
+        }
         console.log(
           `[json-adapter] Creating ${tableName} with ${schema ? 'provided' : 'SMRT'} schema definition`,
         );
@@ -1433,29 +1439,56 @@ export async function getDatabase(
      * @returns Promise that resolves when schema is synchronized
      */
     const syncSchema = async (schema: string): Promise<void> => {
-      const commands = schema
+      const statements = schema
         .trim()
         .split(';')
-        .filter((command) => command.trim() !== '');
+        .filter((stmt) => stmt.trim() !== '');
 
-      for (const command of commands) {
-        const trimmedCommand = command.trim().toUpperCase();
+      const createTableStatements: string[] = [];
+      const indexStatements: string[] = [];
+      const otherStatements: string[] = [];
+
+      // Separate CREATE TABLE, CREATE INDEX, and other statements
+      for (const stmt of statements) {
+        const trimmed = stmt.trim();
+        if (!trimmed) continue;
+
+        const upperTrimmed = trimmed.toUpperCase();
 
         // Skip trigger creation - not supported in JSON adapter
-        if (trimmedCommand.startsWith('CREATE TRIGGER')) {
+        if (upperTrimmed.startsWith('CREATE TRIGGER')) {
           console.warn(
             '[json-adapter] Skipping trigger creation - timestamps managed at application level',
           );
           continue;
         }
 
+        if (
+          upperTrimmed.startsWith('CREATE INDEX') ||
+          upperTrimmed.startsWith('CREATE UNIQUE INDEX')
+        ) {
+          indexStatements.push(trimmed);
+        } else if (upperTrimmed.startsWith('CREATE TABLE')) {
+          createTableStatements.push(trimmed);
+        } else {
+          otherStatements.push(trimmed);
+        }
+      }
+
+      // Process each CREATE TABLE statement
+      for (const ddl of createTableStatements) {
+        // Transform UNIQUE indexes to inline constraints for DuckDB compatibility
+        const { ddl: transformedDDL, indexes: remainingIndexes } =
+          convertUniqueIndexesToInlineConstraints(ddl, indexStatements);
+
+        // Execute transformed DDL
         try {
-          await connection.run(command);
+          await connection.run(transformedDDL);
 
           // Detect CREATE TABLE statements and auto-export empty tables
           // This ensures tables persist even when empty
           if (writeStrategy !== 'none') {
-            const createTableMatch = command.match(
+            const createTableMatch = transformedDDL.match(
               /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["']?(\w+)["']?/i,
             );
             if (createTableMatch) {
@@ -1480,7 +1513,24 @@ export async function getDatabase(
             }
           }
         } catch (e) {
-          // Log but don't fail on schema sync errors
+          console.error('Schema sync error (CREATE TABLE):', e);
+        }
+
+        // Execute remaining (non-UNIQUE) indexes for this table
+        for (const indexSQL of remainingIndexes) {
+          try {
+            await connection.run(indexSQL);
+          } catch (e) {
+            console.error('Schema sync error (CREATE INDEX):', e);
+          }
+        }
+      }
+
+      // Execute other statements
+      for (const stmt of otherStatements) {
+        try {
+          await connection.run(stmt);
+        } catch (e) {
           console.error('Schema sync error:', e);
         }
       }
