@@ -7,6 +7,8 @@ import { ConsoleLogger } from './console.js';
 
 describe('ConsoleLogger', () => {
   beforeEach(() => {
+    // Clear all mocks before each test
+    vi.clearAllMocks();
     // Spy on console methods
     vi.spyOn(console, 'debug').mockImplementation(() => {});
     vi.spyOn(console, 'info').mockImplementation(() => {});
