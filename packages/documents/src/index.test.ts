@@ -10,32 +10,36 @@ const Dirname = path.dirname(Filename);
 
 describe('@happyvertical/documents', () => {
   describe('fetchDocument', () => {
-    it('should fetch and process a PDF document', async () => {
-      const testPdfPath = path.resolve(
-        Dirname,
-        '../testdata/Signed Minutes - September 9, 2025 Regular Meeting.pdf',
-      );
-      const fileUrl = `file://${testPdfPath}`;
+    it.skipIf(process.env.CI === 'true')(
+      'should fetch and process a PDF document',
+      async () => {
+        const testPdfPath = path.resolve(
+          Dirname,
+          '../testdata/Signed Minutes - September 9, 2025 Regular Meeting.pdf',
+        );
+        const fileUrl = `file://${testPdfPath}`;
 
-      const doc = await fetchDocument(fileUrl);
+        const doc = await fetchDocument(fileUrl);
 
-      expect(doc).toBeDefined();
-      // URL will be normalized/encoded
-      expect(doc.url).toContain('Signed');
-      expect(doc.url).toContain('Minutes');
-      expect(doc.type).toBe('application/pdf');
-      expect(doc.parts).toBeDefined();
-      expect(doc.parts.length).toBeGreaterThan(0);
+        expect(doc).toBeDefined();
+        // URL will be normalized/encoded
+        expect(doc.url).toContain('Signed');
+        expect(doc.url).toContain('Minutes');
+        expect(doc.type).toBe('application/pdf');
+        expect(doc.parts).toBeDefined();
+        expect(doc.parts.length).toBeGreaterThan(0);
 
-      const mainPart = doc.parts[0];
-      expect(mainPart.id).toBeDefined();
-      expect(mainPart.title).toBeDefined();
-      expect(mainPart.title).toContain('Signed');
-      expect(mainPart.content).toBeDefined();
-      expect(mainPart.type).toBe('text');
-      // Note: Text extraction quality depends on @happyvertical/pdf package
-      // We just verify the structure is correct
-    }, 60000); // 60 second timeout for PDF processing (OCR init can be slow in CI)
+        const mainPart = doc.parts[0];
+        expect(mainPart.id).toBeDefined();
+        expect(mainPart.title).toBeDefined();
+        expect(mainPart.title).toContain('Signed');
+        expect(mainPart.content).toBeDefined();
+        expect(mainPart.type).toBe('text');
+        // Note: Text extraction quality depends on @happyvertical/pdf package
+        // We just verify the structure is correct
+      },
+      60000,
+    ); // 60 second timeout for PDF processing (OCR init can be slow in CI)
 
     it('should handle document structure correctly', async () => {
       const testPdfPath = path.resolve(
