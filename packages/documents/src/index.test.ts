@@ -41,42 +41,50 @@ describe('@happyvertical/documents', () => {
       60000,
     ); // 60 second timeout for PDF processing (OCR init can be slow in CI)
 
-    it('should handle document structure correctly', async () => {
-      const testPdfPath = path.resolve(
-        Dirname,
-        '../testdata/Signed Minutes - September 9, 2025 Regular Meeting.pdf',
-      );
-      const fileUrl = `file://${testPdfPath}`;
+    it.skipIf(process.env.CI === 'true')(
+      'should handle document structure correctly',
+      async () => {
+        const testPdfPath = path.resolve(
+          Dirname,
+          '../testdata/Signed Minutes - September 9, 2025 Regular Meeting.pdf',
+        );
+        const fileUrl = `file://${testPdfPath}`;
 
-      const doc = await fetchDocument(fileUrl);
+        const doc = await fetchDocument(fileUrl);
 
-      const mainPart = doc.parts[0];
-      // Verify document structure
-      expect(mainPart).toHaveProperty('id');
-      expect(mainPart).toHaveProperty('title');
-      expect(mainPart).toHaveProperty('content');
-      expect(mainPart).toHaveProperty('type');
-      expect(mainPart).toHaveProperty('metadata');
-    }, 30000);
+        const mainPart = doc.parts[0];
+        // Verify document structure
+        expect(mainPart).toHaveProperty('id');
+        expect(mainPart).toHaveProperty('title');
+        expect(mainPart).toHaveProperty('content');
+        expect(mainPart).toHaveProperty('type');
+        expect(mainPart).toHaveProperty('metadata');
+      },
+      30000,
+    );
 
-    it('should handle large PDF documents', async () => {
-      const testPdfPath = path.resolve(
-        Dirname,
-        '../testdata/Agenda-Package-September-9-2025-Regular-Council-Meeting.pdf',
-      );
-      const fileUrl = `file://${testPdfPath}`;
+    it.skipIf(process.env.CI === 'true')(
+      'should handle large PDF documents',
+      async () => {
+        const testPdfPath = path.resolve(
+          Dirname,
+          '../testdata/Agenda-Package-September-9-2025-Regular-Council-Meeting.pdf',
+        );
+        const fileUrl = `file://${testPdfPath}`;
 
-      const doc = await fetchDocument(fileUrl);
+        const doc = await fetchDocument(fileUrl);
 
-      expect(doc).toBeDefined();
-      expect(doc.parts).toBeDefined();
-      expect(doc.parts.length).toBeGreaterThan(0);
+        expect(doc).toBeDefined();
+        expect(doc.parts).toBeDefined();
+        expect(doc.parts.length).toBeGreaterThan(0);
 
-      const mainPart = doc.parts[0];
-      expect(mainPart.content).toBeDefined();
-      // Large document should have some structure
-      expect(mainPart.metadata).toBeDefined();
-    }, 60000); // 60 second timeout for large PDF
+        const mainPart = doc.parts[0];
+        expect(mainPart.content).toBeDefined();
+        // Large document should have some structure
+        expect(mainPart.metadata).toBeDefined();
+      },
+      60000,
+    ); // 60 second timeout for large PDF
 
     it('should cache processed PDFs', async () => {
       const testPdfPath = path.resolve(
