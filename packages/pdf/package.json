@@ -31,8 +31,8 @@
     }
   },
   "scripts": {
-    "test": "npx vitest run --testTimeout 60000",
-    "test:watch": "npx vitest --testTimeout 60000",
+    "test": "cd ../.. && npx vitest run --config vitest.config.ts packages/pdf",
+    "test:watch": "cd ../.. && npx vitest --config vitest.config.ts packages/pdf",
     "build": "vite build",
     "build:watch": "vite build --watch",
     "docs": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules",
