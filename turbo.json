@@ -4,10 +4,12 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "inputs": ["src/**", "package.json", "tsconfig.json", "vite.config.ts"],
       "outputs": ["dist/**", "build/**"]
     },
     "test": {
       "dependsOn": ["build"],
+      "inputs": ["src/**", "test/**", "**/*.test.ts", "**/*.spec.ts", "package.json"],
       "outputs": ["coverage/**"]
     },
     "test:watch": {
@@ -19,6 +21,7 @@
       "cache": false
     },
     "lint": {
+      "inputs": ["src/**", "test/**", "**/*.ts", "**/*.js", "biome.json"],
       "outputs": []
     },
     "format": {
@@ -27,10 +30,12 @@
     },
     "typecheck": {
       "dependsOn": ["^build"],
+      "inputs": ["src/**", "test/**", "**/*.ts", "tsconfig.json"],
       "outputs": []
     },
     "docs": {
       "dependsOn": ["build"],
+      "inputs": ["src/**", "README.md", "CLAUDE.md", "package.json"],
       "outputs": ["docs/**", "manual/**"]
     },
     "docs:watch": {

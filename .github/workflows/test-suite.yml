@@ -121,22 +121,29 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .turbo
-          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          key: ${{ runner.os }}-turbo-${{ hashFiles('**/package.json', '**/pnpm-lock.yaml', 'packages/*/src/**') }}-${{ github.run_id }}
           restore-keys: |
+            ${{ runner.os }}-turbo-${{ hashFiles('**/package.json', '**/pnpm-lock.yaml', 'packages/*/src/**') }}-
             ${{ runner.os }}-turbo-
+
+      - name: Cache build outputs
+        uses: actions/cache@v4
+        with:
+          path: |
+            packages/*/dist
+            .turbo
+          key: ${{ runner.os }}-build-${{ hashFiles('packages/*/src/**', 'packages/*/package.json', 'packages/*/tsconfig.json') }}
+          restore-keys: |
+            ${{ runner.os }}-build-
 
       - name: Build packages
         run: pnpm run build
 
-      - name: Type check
-        run: pnpm run typecheck
-
-      - name: Lint code
-        run: pnpm run lint
-
-      - name: Run tests
-        id: test-execution
-        run: pnpm test
+      - name: Run typecheck, lint, and tests in parallel
+        id: parallel-checks
+        run: |
+          # Run typecheck, lint, and test in parallel using Turborepo
+          pnpm turbo run typecheck lint test --parallel
         env:
           SQLOO_HOST: localhost
           SQLOO_USER: postgres
@@ -149,7 +156,7 @@ jobs:
         if: always()
         shell: bash
         run: |
-          if [ "${{ steps.test-execution.outcome }}" = "success" ]; then
+          if [ "${{ steps.parallel-checks.outcome }}" = "success" ]; then
             echo "success=true" >> $GITHUB_OUTPUT
           else
             echo "success=false" >> $GITHUB_OUTPUT
