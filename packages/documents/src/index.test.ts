@@ -35,7 +35,7 @@ describe('@happyvertical/documents', () => {
       expect(mainPart.type).toBe('text');
       // Note: Text extraction quality depends on @happyvertical/pdf package
       // We just verify the structure is correct
-    }, 30000); // 30 second timeout for PDF processing
+    }, 60000); // 60 second timeout for PDF processing (OCR init can be slow in CI)
 
     it('should handle document structure correctly', async () => {
       const testPdfPath = path.resolve(
