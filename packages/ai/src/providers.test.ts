@@ -303,7 +303,7 @@ describe('Environment Variable Configuration', () => {
     const client = await getAI({});
 
     expect(client).toBeInstanceOf(ClaudeCliProvider);
-  });
+  }, 15000); // Increased timeout for CLI process initialization
 
   it('should load provider type from HAVE_AI_TYPE', async () => {
     process.env.HAVE_AI_TYPE = 'claude-cli';

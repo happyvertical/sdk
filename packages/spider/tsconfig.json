@@ -8,5 +8,10 @@
     "types": ["node"]
   },
   "include": ["src/**/*"],
-  "exclude": ["**/*.test.ts", "**/*.spec.ts"]
+  "exclude": ["**/*.test.ts", "**/*.spec.ts"],
+  "references": [
+    { "path": "../cache" },
+    { "path": "../files" },
+    { "path": "../utils" }
+  ]
 }
