@@ -44,19 +44,19 @@
     "@happyvertical/cache": "workspace:*",
     "@happyvertical/files": "workspace:*",
     "@happyvertical/utils": "workspace:*",
-    "@mozilla/readability": "^0.5.0",
-    "cheerio": "^1.0.0",
-    "crawlee": "^3.15.1",
-    "happy-dom": "^18.0.1",
-    "jsdom": "26.1.0",
-    "playwright": "^1.55.1",
-    "undici": "^7.11.0"
+    "@mozilla/readability": "^0.6.0",
+    "cheerio": "^1.1.2",
+    "crawlee": "^3.15.2",
+    "happy-dom": "^20.0.10",
+    "jsdom": "27.1.0",
+    "playwright": "^1.56.1",
+    "undici": "^7.16.0"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
-    "typescript": "^5.7.3",
-    "vite": "7.1.3",
-    "vite-plugin-dts": "4.3.0",
-    "vitest": "^3.2.4"
+    "@types/node": "24.10.0",
+    "typescript": "^5.9.3",
+    "vite": "7.2.2",
+    "vite-plugin-dts": "4.5.4",
+    "vitest": "^4.0.8"
   }
 }

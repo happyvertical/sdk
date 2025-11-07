@@ -23,15 +23,15 @@
     "dev": "npm run build:watch & npm run test:watch"
   },
   "dependencies": {
-    "@happyvertical/repos": "workspace:*",
-    "@happyvertical/projects": "workspace:*"
+    "@happyvertical/projects": "workspace:*",
+    "@happyvertical/repos": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
-    "typescript": "^5.7.3",
-    "vite": "7.1.7",
+    "@types/node": "24.10.0",
+    "typescript": "^5.9.3",
+    "vite": "7.2.2",
     "vite-plugin-dts": "4.5.4",
-    "vitest": "3.2.4"
+    "vitest": "4.0.8"
   },
   "files": [
     "dist",
