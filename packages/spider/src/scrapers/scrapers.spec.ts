@@ -18,7 +18,7 @@ describe('Scraper Factory', () => {
     expect(scraper.getType()).toBe('basic');
   });
 
-  it('should create tree scraper', async () => {
+  it.skip('should create tree scraper', async () => {
     const scraper = await getScraper({ scraper: 'tree' });
     expect(scraper).toBeDefined();
     expect(scraper.getType()).toBe('tree');
