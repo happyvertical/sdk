@@ -121,9 +121,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .turbo
-          key: ${{ runner.os }}-turbo-${{ hashFiles('**/package.json', '**/pnpm-lock.yaml', 'packages/*/src/**') }}-${{ github.run_id }}
+          key: ${{ runner.os }}-turbo-${{ hashFiles('**/package.json', '**/pnpm-lock.yaml', 'packages/*/src/**', 'packages/*/test/**') }}-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-turbo-${{ hashFiles('**/package.json', '**/pnpm-lock.yaml', 'packages/*/src/**') }}-
+            ${{ runner.os }}-turbo-${{ hashFiles('**/package.json', '**/pnpm-lock.yaml', 'packages/*/src/**', 'packages/*/test/**') }}-
             ${{ runner.os }}-turbo-
 
       - name: Cache build outputs
@@ -132,7 +132,7 @@ jobs:
           path: |
             packages/*/dist
             .turbo
-          key: ${{ runner.os }}-build-${{ hashFiles('packages/*/src/**', 'packages/*/package.json', 'packages/*/tsconfig.json') }}
+          key: ${{ runner.os }}-build-${{ hashFiles('packages/*/src/**', 'packages/*/test/**', 'packages/*/package.json', 'packages/*/tsconfig.json') }}
           restore-keys: |
             ${{ runner.os }}-build-
 
