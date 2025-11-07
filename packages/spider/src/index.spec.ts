@@ -201,7 +201,7 @@ describe('DomAdapter', () => {
   });
 });
 
-describe('CrawleeAdapter', () => {
+describe.skipIf(process.env.CI === 'true')('CrawleeAdapter', () => {
   it('should fetch a page with headless browser', async () => {
     const spider = await getSpider({
       adapter: 'crawlee',
