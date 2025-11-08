@@ -280,8 +280,11 @@ runs:
         done
 
         # Output triggered repositories as JSON array
-        triggered_json=$(printf '%s\n' "${triggered[@]}" | jq -R . | jq -s .)
-        echo "repositories=$triggered_json" >> $GITHUB_OUTPUT
+        # Use GitHub Actions multiline output format to avoid quote escaping issues
+        triggered_json=$(printf '%s\n' "${triggered[@]}" | jq -R . | jq -s . -c)
+        echo "repositories<<EOF" >> $GITHUB_OUTPUT
+        echo "$triggered_json" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
 
     - name: Summary
       shell: bash
