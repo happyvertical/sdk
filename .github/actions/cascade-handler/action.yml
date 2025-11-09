@@ -1,5 +1,12 @@
-name: 'Dependency Cascade Handler'
-description: 'Handle upstream dependency updates and trigger downstream cascades'
+name: 'Dependency Cascade Handler (DEPRECATED)'
+description: |
+  ⚠️  DEPRECATED - Use consolidated on-merge-main pattern instead.
+
+  This action is deprecated in favor of consolidating cascade handling
+  directly into the on-merge-main workflow. See happyvertical/sdk#404
+
+  For migration instructions, see:
+  https://github.com/happyvertical/sdk/issues/404
 author: 'HappyVertical'
 
 inputs:

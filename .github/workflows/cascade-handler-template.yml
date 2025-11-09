@@ -1,11 +1,20 @@
-# This is a template workflow for downstream repositories
-# Copy this to .github/workflows/dependency-cascade.yml in:
-# - happyvertical/smrt
-# - happyvertical/praeco
-# - happyvertical/caelus
-# - blindmanpress/bentleyalberta.com
+# ⚠️  DEPRECATED - Use consolidated on-merge-main pattern instead
+#
+# This template is deprecated in favor of consolidating cascade handling
+# directly into the on-merge-main workflow. See happyvertical/sdk#404
+#
+# New pattern: Add repository_dispatch trigger and update-dependencies job
+# to your on-merge-main.yml instead of using a separate cascade handler.
+#
+# Benefits of new pattern:
+# - Tests run only once (not twice)
+# - Simpler architecture
+# - Reuses existing test/build/release infrastructure
+#
+# For migration instructions, see:
+# https://github.com/happyvertical/sdk/issues/404
 
-name: Dependency Cascade Handler
+name: Dependency Cascade Handler (DEPRECATED)
 
 on:
   # Triggered by upstream repositories
