@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
 
+  # Handle cascade events from upstream dependencies
+  repository_dispatch:
+    types: [dependency-updated, sdk-updated]
+
   workflow_dispatch:
     inputs:
       dry-run:
@@ -30,7 +34,94 @@ permissions:
   actions: write
 
 jobs:
-  # Job 0: Cancel in-progress PR validation runs
+  # Job 0: Update dependencies if triggered by cascade
+  update-dependencies:
+    name: Update Dependencies
+    runs-on: ubuntu-latest
+    if: github.event_name == 'repository_dispatch'
+
+    outputs:
+      pr_number: ${{ steps.create-pr.outputs.pull-request-number }}
+      pr_url: ${{ steps.create-pr.outputs.pull-request-url }}
+      updated: ${{ steps.check-updates.outputs.updated }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          node-version: '24'
+          registry-url: 'https://npm.pkg.github.com'
+
+      - name: Update @happyvertical dependencies
+        id: update
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "🔄 Updating @happyvertical dependencies..."
+          pnpm update '@happyvertical/*' --latest
+          pnpm install
+
+      - name: Check for updates
+        id: check-updates
+        run: |
+          if git diff --quiet package.json pnpm-lock.yaml 2>/dev/null; then
+            echo "updated=false" >> $GITHUB_OUTPUT
+            echo "⏭️  No updates needed"
+          else
+            echo "updated=true" >> $GITHUB_OUTPUT
+            echo "✅ Dependencies updated"
+
+            # Show updated packages
+            git diff package.json | grep '^\+.*@happyvertical' | sed 's/^+//' > /tmp/updates.txt || true
+            if [ -s /tmp/updates.txt ]; then
+              echo "📦 Updated packages:"
+              cat /tmp/updates.txt
+            fi
+          fi
+
+      - name: Create Pull Request
+        id: create-pr
+        if: steps.check-updates.outputs.updated == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GH_TOKEN }}
+          commit-message: 'chore: update @happyvertical dependencies'
+          title: 'chore: update @happyvertical dependencies'
+          body: |
+            ## Automated Dependency Update 🤖
+
+            This PR was automatically created by the dependency cascade system.
+
+            ### Upstream Changes
+            ${{ github.event.client_payload.package && format('- **Package:** {0}', github.event.client_payload.package) || '' }}
+            ${{ github.event.client_payload.version && format('- **Version:** {0}', github.event.client_payload.version) || '' }}
+            ${{ github.event.client_payload.repository && format('- **Source:** {0}', github.event.client_payload.repository) || '' }}
+
+            ### Next Steps
+            - ✅ Dependencies updated
+            - 🧪 Tests will run automatically
+            - 📦 Will auto-merge if tests pass
+
+            ---
+            *This PR will be automatically merged when all checks pass*
+          branch: cascade/update-dependencies
+          delete-branch: true
+          labels: dependencies,automated
+
+      - name: Enable auto-merge
+        if: steps.create-pr.outputs.pull-request-number
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          echo "🔀 Enabling auto-merge for PR #${{ steps.create-pr.outputs.pull-request-number }}"
+          gh pr merge ${{ steps.create-pr.outputs.pull-request-number }} \
+            --auto --squash \
+            --delete-branch
+
+  # Job 1: Cancel in-progress PR validation runs
   cancel-pr-validation:
     name: Cancel In-Progress PR Validation
     runs-on: ubuntu-latest
@@ -102,20 +193,30 @@ jobs:
 
           echo "✅ All in-progress validation runs cancelled for PR #${PR_NUMBER}"
 
-  # Job 1: Run test suite
+  # Job 2: Run test suite (only once!)
   test:
     name: Test Suite
+    needs: [update-dependencies]
+    # Run tests if:
+    # - Update dependencies succeeded (cascade event)
+    # - OR this is a normal push/workflow_dispatch (not cascade event)
+    if: |
+      always() &&
+      (needs.update-dependencies.result == 'success' || github.event_name != 'repository_dispatch')
     uses: ./.github/workflows/test-suite.yml
     with:
       runner: 'ubuntu-latest'
       node-version: '24'
 
-  # Job 2: Create version PR or publish packages
+  # Job 3: Create version PR or publish packages (only on push, not cascades)
   changesets:
     name: Create Version PR or Publish
     runs-on: ubuntu-latest
     needs: [test]
-    if: always() && needs.test.outputs.success == 'true'
+    if: |
+      always() &&
+      needs.test.outputs.success == 'true' &&
+      github.event_name == 'push'
 
     steps:
       - name: Checkout
@@ -193,7 +294,7 @@ jobs:
 
           echo "✅ Triggered SMRT dependency cascade"
 
-  # Job 3: Deploy documentation (only if tests pass)
+  # Job 4: Deploy documentation (only on push, not cascades)
   # Note: We deploy docs on every merge to main to ensure they stay in sync
   # Skip only if explicitly requested via workflow_dispatch
   deploy-docs:
@@ -203,6 +304,7 @@ jobs:
     if: |
       always() &&
       needs.test.outputs.success == 'true' &&
+      github.event_name == 'push' &&
       github.event.inputs.skip-docs != 'true'
 
     environment:
