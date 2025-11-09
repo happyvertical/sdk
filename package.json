@@ -59,7 +59,7 @@
     "@commitlint/cli": "^20.1.0",
     "@commitlint/config-conventional": "^20.0.0",
     "@jpisnice/shadcn-ui-mcp-server": "1.1.4",
-    "@playwright/mcp": "0.0.45",
+    "@playwright/mcp": "0.0.46",
     "@playwright/test": "^1.56.1",
     "chokidar": "^4.0.3",
     "concurrently": "9.2.1",
