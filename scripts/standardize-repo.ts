@@ -10,13 +10,7 @@
  */
 
 import { execSync } from 'node:child_process';
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 interface LabelDefinition {
@@ -274,7 +268,7 @@ function copyWorkflowFiles(options: StandardizeOptions): void {
 }
 
 function displaySummary(options: StandardizeOptions): void {
-  console.log('\n' + '='.repeat(60));
+  console.log(`\n${'='.repeat(60)}`);
   console.log('🎉 Repository standardization complete!');
   console.log('='.repeat(60));
   console.log(`\nRepository: ${options.repo}`);
