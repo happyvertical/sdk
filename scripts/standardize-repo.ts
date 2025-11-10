@@ -249,7 +249,12 @@ function copyWorkflowFiles(options: StandardizeOptions): void {
   const repoPath = options.repoPath || '.';
   const workflowsDir = join(repoPath, '.github', 'workflows');
   const happyverticalDir = join(workflowsDir, 'happyvertical');
-  const sdkWorkflowsDir = join(__dirname, '..', '.github', 'workflows');
+  const sdkTemplatesDir = join(
+    __dirname,
+    '..',
+    '.github',
+    'workflow-templates',
+  );
 
   // Ensure workflows directory exists
   if (!existsSync(workflowsDir)) {
@@ -272,7 +277,7 @@ function copyWorkflowFiles(options: StandardizeOptions): void {
   ];
 
   for (const template of templates) {
-    const srcPath = join(sdkWorkflowsDir, template);
+    const srcPath = join(sdkTemplatesDir, template);
     const destName = template.replace('-template', '');
     const destPath = join(happyverticalDir, destName);
 
@@ -315,7 +320,7 @@ Edit the repository-specific workflows in the parent directory:
 
 ## Source
 
-https://github.com/happyvertical/sdk/.github/workflows/
+https://github.com/happyvertical/sdk/.github/workflow-templates/
 `;
 
   writeFileSync(readmePath, readmeContent);
@@ -345,7 +350,7 @@ https://github.com/happyvertical/sdk/.github/workflows/
     const destPath = join(workflowsDir, scaffold.dest);
 
     if (!existsSync(destPath)) {
-      const srcPath = join(sdkWorkflowsDir, scaffold.template);
+      const srcPath = join(sdkTemplatesDir, scaffold.template);
 
       if (existsSync(srcPath)) {
         copyFileSync(srcPath, destPath);
