@@ -71,14 +71,31 @@ Each repository defines custom area labels based on its architecture:
 
 ## Automated Triage Workflow
 
-The triage workflow (`.github/workflows/triage.yml`) runs automatically when issues are created:
+The triage workflow uses a **reusable workflow** pattern for consistency across repositories:
 
+**Reusable Workflow**: `happyvertical/sdk/.github/workflows/triage-reusable.yml@main`
+- Contains all triage logic
+- Maintained centrally in SDK repository
+- Uses `@happyvertical/github-actions` package
+
+**Repository Workflow**: `.github/workflows/triage.yml`
+- Simple caller that references the reusable workflow
+- Passes issue details and repository context
+- Automatically copied by standardization script
+
+**Workflow Steps**:
 1. Issue is created
 2. Triage workflow triggers
 3. Issue is added to project board with "New" status
 4. `agent: triage` label is applied
 5. AI analyzes issue and suggests labels (requires 'models' permission)
 6. Issue moves through workflow lanes based on labels and activity
+
+**Benefits of Reusable Workflow**:
+- **Consistency**: All repositories use identical triage logic
+- **Maintainability**: Update logic once in SDK, applies everywhere
+- **Simplicity**: Repository workflows are just 25 lines
+- **Version Control**: Workflow updates are centralized
 
 ### Configuration
 
@@ -134,8 +151,13 @@ The standardization script:
 1. Creates/updates all standard labels in the repository
 2. Creates custom area labels
 3. Generates `.github/triage-config.json`
-4. Copies `.github/workflows/triage.yml`
+4. Copies `.github/workflows/triage.yml` (caller workflow that references reusable workflow)
 5. Prepares repository for automated workflow
+
+**Note**: The copied `triage.yml` is a simple caller that references the reusable workflow in the SDK repository (`happyvertical/sdk/.github/workflows/triage-reusable.yml@main`). This means:
+- All triage logic is centralized in the SDK
+- Updates to triage logic automatically apply to all repositories
+- Repository workflows remain simple and maintainable
 
 ### After Standardization
 
@@ -231,9 +253,23 @@ bun scripts/apply-labels.ts owner/repo
 
 ### Updating Workflows
 
-1. Update `.github/workflows/triage.yml` in SDK
-2. Run standardization script on target repos
-3. Commit and push changes
+The reusable workflow pattern makes updates simple:
+
+**To update triage logic**:
+1. Edit `.github/workflows/triage-reusable.yml` in SDK
+2. Commit and push to `main` branch
+3. All repositories automatically use the updated workflow on next trigger
+4. No need to update individual repositories
+
+**To update the caller workflow template**:
+1. Edit `.github/workflows/triage-template.yml` in SDK
+2. Run standardization script on target repos to copy new template
+3. Commit and push changes in each repository
+
+**To update the @happyvertical/github-actions package version**:
+1. Edit version in `.github/workflows/triage-reusable.yml`
+2. Commit and push to `main` branch
+3. All repositories automatically use the new version
 
 ### Syncing Configuration
 

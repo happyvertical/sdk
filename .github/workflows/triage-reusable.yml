@@ -1,0 +1,90 @@
+name: Reusable Issue Triage
+
+on:
+  workflow_call:
+    inputs:
+      issue_number:
+        description: 'Issue number to triage'
+        required: true
+        type: number
+      issue_title:
+        description: 'Issue title'
+        required: true
+        type: string
+      issue_body:
+        description: 'Issue body'
+        required: true
+        type: string
+      issue_author:
+        description: 'Issue author'
+        required: true
+        type: string
+      repo_owner:
+        description: 'Repository owner'
+        required: true
+        type: string
+      repo_name:
+        description: 'Repository name'
+        required: true
+        type: string
+    secrets:
+      GITHUB_TOKEN:
+        description: 'GitHub token for API access'
+        required: true
+
+permissions:
+  issues: write
+  contents: read
+  packages: read
+  id-token: write
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout calling repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo_owner }}/${{ inputs.repo_name }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@happyvertical'
+
+      - name: Install dependencies
+        run: |
+          echo "@happyvertical:registry=https://npm.pkg.github.com" >> .npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+          npm install @happyvertical/github-actions@0.55.0
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Triage Issue
+        uses: actions/github-script@v7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const { readFileSync } = require('fs');
+            const { triageIssue } = await import('${{ github.workspace }}/node_modules/@happyvertical/github-actions/dist/index.js');
+
+            // Read config from triage-config.json
+            const configPath = '${{ github.workspace }}/.github/triage-config.json';
+            const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+
+            const triageContext = {
+              token: process.env.GITHUB_TOKEN,
+              owner: '${{ inputs.repo_owner }}',
+              repo: '${{ inputs.repo_name }}',
+              issueNumber: ${{ inputs.issue_number }},
+              issueTitle: '${{ inputs.issue_title }}',
+              issueBody: `${{ inputs.issue_body }}`,
+              issueAuthor: '${{ inputs.issue_author }}',
+              config: config
+            };
+
+            await triageIssue(triageContext);

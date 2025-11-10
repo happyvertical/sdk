@@ -260,16 +260,16 @@ function copyWorkflowFiles(options: StandardizeOptions): void {
     mkdirSync(workflowsDir, { recursive: true });
   }
 
-  // Copy triage workflow from SDK
+  // Copy triage workflow template from SDK
   const sdkWorkflowsDir = join(__dirname, '..', '.github', 'workflows');
-  const triageWorkflow = join(sdkWorkflowsDir, 'triage.yml');
+  const triageTemplate = join(sdkWorkflowsDir, 'triage-template.yml');
 
-  if (existsSync(triageWorkflow)) {
+  if (existsSync(triageTemplate)) {
     const destPath = join(workflowsDir, 'triage.yml');
-    copyFileSync(triageWorkflow, destPath);
-    console.log(`  ✓ Copied triage.yml`);
+    copyFileSync(triageTemplate, destPath);
+    console.log(`  ✓ Copied triage.yml (calls reusable workflow)`);
   } else {
-    console.error('  ✗ triage.yml not found in SDK repository');
+    console.error('  ✗ triage-template.yml not found in SDK repository');
   }
 }
 
