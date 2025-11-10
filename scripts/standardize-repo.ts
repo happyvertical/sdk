@@ -244,26 +244,116 @@ function createTriageConfig(options: StandardizeOptions): void {
 }
 
 function copyWorkflowFiles(options: StandardizeOptions): void {
-  console.log('\n📄 Copying workflow files...');
+  console.log('\n📄 Deploying workflow files...');
 
   const repoPath = options.repoPath || '.';
   const workflowsDir = join(repoPath, '.github', 'workflows');
+  const happyverticalDir = join(workflowsDir, 'happyvertical');
+  const sdkWorkflowsDir = join(__dirname, '..', '.github', 'workflows');
 
   // Ensure workflows directory exists
   if (!existsSync(workflowsDir)) {
     mkdirSync(workflowsDir, { recursive: true });
   }
 
-  // Copy triage workflow template from SDK
-  const sdkWorkflowsDir = join(__dirname, '..', '.github', 'workflows');
-  const triageTemplate = join(sdkWorkflowsDir, 'triage-template.yml');
+  // Create happyvertical directory
+  if (!existsSync(happyverticalDir)) {
+    mkdirSync(happyverticalDir, { recursive: true });
+    console.log('  ✓ Created happyvertical/ directory');
+  }
 
-  if (existsSync(triageTemplate)) {
-    const destPath = join(workflowsDir, 'triage.yml');
-    copyFileSync(triageTemplate, destPath);
-    console.log(`  ✓ Copied triage.yml (calls reusable workflow)`);
-  } else {
-    console.error('  ✗ triage-template.yml not found in SDK repository');
+  // Copy standard workflow templates to happyvertical/
+  const templates = [
+    'on-issue-opened-template.yml',
+    'on-label-changed-template.yml',
+    'on-issue-closed-template.yml',
+    'on-pr-opened-template.yml',
+    'on-merge-main-template.yml',
+  ];
+
+  for (const template of templates) {
+    const srcPath = join(sdkWorkflowsDir, template);
+    const destName = template.replace('-template', '');
+    const destPath = join(happyverticalDir, destName);
+
+    if (existsSync(srcPath)) {
+      copyFileSync(srcPath, destPath);
+      console.log(`  ✓ Copied ${destName} to happyvertical/`);
+    } else {
+      console.error(`  ✗ ${template} not found in SDK`);
+    }
+  }
+
+  // Create happyvertical README
+  const readmePath = join(happyverticalDir, 'README.md');
+  const readmeContent = `# Standard Workflows - DO NOT EDIT
+
+This directory contains auto-generated workflow files managed by the HappyVertical
+standardization script. Manual changes will be overwritten on updates.
+
+## Workflows
+
+- **on-issue-opened.yml** - Automated triage when issues are created
+- **on-label-changed.yml** - Label enforcement and agent orchestration
+- **on-issue-closed.yml** - Cleanup when issues are closed
+- **on-pr-opened.yml** - Pull request automation
+- **on-merge-main.yml** - Build pipeline (test → build → publish)
+
+## To Update
+
+Run the standardization script:
+\`\`\`bash
+bun scripts/standardize-repo.ts --repo ${options.repo} --path ${repoPath}
+\`\`\`
+
+## To Customize
+
+Edit the repository-specific workflows in the parent directory:
+- \`../test.yml\` - Test execution
+- \`../build.yml\` - Build process
+- \`../publish.yml\` - Publishing
+
+## Source
+
+https://github.com/happyvertical/sdk/.github/workflows/
+`;
+
+  writeFileSync(readmePath, readmeContent);
+  console.log('  ✓ Created happyvertical/README.md');
+
+  // Create metadata file
+  const metadata = {
+    generated: new Date().toISOString(),
+    version: '1.0.0',
+    source: 'happyvertical/sdk',
+  };
+
+  writeFileSync(
+    join(happyverticalDir, '_metadata.json'),
+    JSON.stringify(metadata, null, 2),
+  );
+  console.log('  ✓ Created _metadata.json');
+
+  // Scaffold test/build/publish workflows if they don't exist
+  const scaffolds = [
+    { template: 'test-scaffold.yml', dest: 'test.yml' },
+    { template: 'build-scaffold.yml', dest: 'build.yml' },
+    { template: 'publish-scaffold.yml', dest: 'publish.yml' },
+  ];
+
+  for (const scaffold of scaffolds) {
+    const destPath = join(workflowsDir, scaffold.dest);
+
+    if (!existsSync(destPath)) {
+      const srcPath = join(sdkWorkflowsDir, scaffold.template);
+
+      if (existsSync(srcPath)) {
+        copyFileSync(srcPath, destPath);
+        console.log(`  ✓ Scaffolded ${scaffold.dest} (editable)`);
+      }
+    } else {
+      console.log(`  ℹ ${scaffold.dest} already exists (not overwriting)`);
+    }
   }
 }
 
