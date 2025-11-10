@@ -124,6 +124,11 @@ const STANDARD_LABELS: Record<string, LabelDefinition[]> = {
       color: 'bfdadc',
       description: 'AI code review in progress',
     },
+    {
+      name: 'agent: claude',
+      color: '0E8A16',
+      description: 'Claude Code is assigned to work on this issue',
+    },
   ],
 };
 
