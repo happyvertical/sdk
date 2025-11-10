@@ -114,9 +114,15 @@ npm run dev
 
 **Automated Publishing**:
 - Merges to `main` branch trigger the release workflow
-- semantic-release analyzes conventional commits to determine version bump
+- Changesets determine which packages get version bumps
 - Packages are built and published to GitHub Packages registry
 - CHANGELOG.md is automatically updated
+
+**Changesets**:
+All PRs require either a changeset or the `skip-changeset` label:
+- **For package changes**: Run `npx changeset` to create a changeset file describing the change and version bump type
+- **For non-package changes** (CI, docs, tests): Add `skip-changeset` label to the PR
+- The `changeset-check.yml` workflow enforces this requirement on all PRs
 
 **Installing Published Packages**:
 
