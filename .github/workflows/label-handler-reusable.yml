@@ -1,0 +1,138 @@
+name: Reusable Label Handler
+
+on:
+  workflow_call:
+    inputs:
+      issue_number:
+        description: 'Issue number'
+        required: true
+        type: number
+      label_name:
+        description: 'Label name that was added or removed'
+        required: true
+        type: string
+      action:
+        description: 'Action performed (labeled or unlabeled)'
+        required: true
+        type: string
+      repo_owner:
+        description: 'Repository owner'
+        required: true
+        type: string
+      repo_name:
+        description: 'Repository name'
+        required: true
+        type: string
+    secrets:
+      GITHUB_TOKEN:
+        description: 'GitHub token for API access'
+        required: true
+
+permissions:
+  issues: write
+  contents: read
+  packages: read
+  id-token: write
+
+jobs:
+  handle-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout calling repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo_owner }}/${{ inputs.repo_name }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@happyvertical'
+
+      - name: Install dependencies
+        run: |
+          echo "@happyvertical:registry=https://npm.pkg.github.com" >> .npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+          npm install @happyvertical/github-actions@0.55.0
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Process Label Change
+        uses: actions/github-script@v7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const labelName = '${{ inputs.label_name }}';
+            const action = '${{ inputs.action }}';
+            const issueNumber = ${{ inputs.issue_number }};
+
+            console.log(`Processing ${action} for label: ${labelName}`);
+
+            // Get issue details
+            const { data: issue } = await github.rest.issues.get({
+              owner: '${{ inputs.repo_owner }}',
+              repo: '${{ inputs.repo_name }}',
+              issue_number: issueNumber
+            });
+
+            // Extract label category
+            const category = labelName.split(':')[0];
+
+            // Handle label enforcement (one per category)
+            if (action === 'labeled' && ['type', 'priority', 'size'].includes(category)) {
+              console.log(`Enforcing single ${category} label...`);
+
+              // Get all labels on the issue
+              const labelsToRemove = issue.labels
+                .map(l => l.name)
+                .filter(name => name.startsWith(`${category}:`) && name !== labelName);
+
+              // Remove conflicting labels
+              for (const oldLabel of labelsToRemove) {
+                console.log(`Removing conflicting label: ${oldLabel}`);
+                await github.rest.issues.removeLabel({
+                  owner: '${{ inputs.repo_owner }}',
+                  repo: '${{ inputs.repo_name }}',
+                  issue_number: issueNumber,
+                  name: oldLabel
+                });
+              }
+            }
+
+            // Route to agent orchestrator for agent labels
+            if (category === 'agent' && labelName === 'agent: claude') {
+              console.log('Agent label detected - orchestration will be handled by agent-orchestrator workflow');
+            }
+
+            // Sync with project board if configured
+            const { readFileSync } = require('fs');
+            const configPath = '${{ github.workspace }}/.github/triage-config.json';
+
+            try {
+              const config = JSON.parse(readFileSync(configPath, 'utf-8'));
+
+              if (config.projectEnabled && config.projectId) {
+                console.log('Project board sync enabled');
+
+                // Map label changes to status updates
+                const statusMapping = {
+                  'agent: planning': 'Planning',
+                  'agent: implementation': 'In Progress',
+                  'agent: review': 'Review',
+                  'status: blocked': null // Add blocked indicator
+                };
+
+                const newStatus = statusMapping[labelName];
+                if (newStatus && action === 'labeled') {
+                  console.log(`Would update project status to: ${newStatus}`);
+                  // Project board update logic would go here
+                }
+              }
+            } catch (error) {
+              console.log('No triage config or project board not enabled');
+            }
+
+            console.log('Label processing complete');

@@ -1,0 +1,157 @@
+# =============================================================================
+# EDITABLE WORKFLOW - Customize for SDK
+# =============================================================================
+# This workflow is called by .github/workflows/happyvertical/on-merge-main.yml
+# when code is merged to the main branch, after tests and build pass.
+#
+# Customize the publish process for the SDK below.
+# =============================================================================
+
+name: Publish
+
+on:
+  workflow_call:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Run in dry-run mode (no actual release)'
+        required: false
+        default: 'false'
+        type: boolean
+      skip-docs:
+        description: 'Skip documentation deployment'
+        required: false
+        default: 'false'
+        type: boolean
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  pages: write
+
+jobs:
+  changesets:
+    name: Version and Publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          node-version: '24'
+          registry-url: 'https://npm.pkg.github.com'
+
+      - name: Setup Turborepo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-
+
+      - name: Create Version PR or Publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          version: pnpm run version-packages
+          publish: pnpm run release
+          commit: 'chore: version packages'
+          title: 'chore: version packages'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge for version PR
+        if: steps.changesets.outputs.pullRequestNumber != ''
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          echo "🔀 Enabling auto-merge for version PR #${{ steps.changesets.outputs.pullRequestNumber }}"
+          gh pr merge ${{ steps.changesets.outputs.pullRequestNumber }} \
+            --auto --squash \
+            --delete-branch
+
+      - name: Create git tags
+        if: steps.changesets.outputs.published == 'true'
+        run: |
+          # Create tags for each published package
+          echo '${{ steps.changesets.outputs.publishedPackages }}' | jq -r '.[] | "\(.name)@\(.version)"' | while read tag; do
+            echo "🏷️  Creating tag: $tag"
+            git tag "$tag" || echo "Tag $tag already exists"
+          done
+
+          git push --tags || echo "No new tags to push"
+
+      - name: Trigger dependency cascade
+        if: steps.changesets.outputs.published == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          echo "📢 Triggering dependency cascade for downstream repositories..."
+
+          # Extract published packages info
+          PUBLISHED_PACKAGES='${{ steps.changesets.outputs.publishedPackages }}'
+          echo "Published packages: $PUBLISHED_PACKAGES"
+
+          # Trigger SMRT with full package information
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/happyvertical/smrt/dispatches \
+            -f event_type='dependency-updated' \
+            -f 'client_payload[repository]=happyvertical/sdk' \
+            -f "client_payload[packages]=$PUBLISHED_PACKAGES"
+
+          echo "✅ Triggered SMRT dependency cascade"
+
+  deploy-docs:
+    name: Deploy Documentation
+    runs-on: ubuntu-latest
+    needs: [changesets]
+    if: github.event.inputs.skip-docs != 'true'
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          node-version: '24'
+
+      - name: Setup Turborepo cache
+        uses: actions/cache@v4
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-docs-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-docs-
+            ${{ runner.os }}-turbo-
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Build documentation site
+        run: pnpm run docs:site:build
+        env:
+          NODE_OPTIONS: --max_old_space_size=8192
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/build
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

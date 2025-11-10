@@ -1,8 +1,36 @@
-name: Issue Triage
+name: Reusable Issue Triage
 
 on:
-  issues:
-    types: [opened]
+  workflow_call:
+    inputs:
+      issue_number:
+        description: 'Issue number to triage'
+        required: true
+        type: number
+      issue_title:
+        description: 'Issue title'
+        required: true
+        type: string
+      issue_body:
+        description: 'Issue body'
+        required: true
+        type: string
+      issue_author:
+        description: 'Issue author'
+        required: true
+        type: string
+      repo_owner:
+        description: 'Repository owner'
+        required: true
+        type: string
+      repo_name:
+        description: 'Repository name'
+        required: true
+        type: string
+    secrets:
+      GITHUB_TOKEN:
+        description: 'GitHub token for API access'
+        required: true
 
 permissions:
   issues: write
@@ -14,8 +42,10 @@ jobs:
   triage:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout calling repository
         uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.repo_owner }}/${{ inputs.repo_name }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -48,12 +78,12 @@ jobs:
 
             const triageContext = {
               token: process.env.GITHUB_TOKEN,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issueNumber: context.issue.number,
-              issueTitle: context.payload.issue.title,
-              issueBody: context.payload.issue.body,
-              issueAuthor: context.payload.issue.user.login,
+              owner: '${{ inputs.repo_owner }}',
+              repo: '${{ inputs.repo_name }}',
+              issueNumber: ${{ inputs.issue_number }},
+              issueTitle: '${{ inputs.issue_title }}',
+              issueBody: `${{ inputs.issue_body }}`,
+              issueAuthor: '${{ inputs.issue_author }}',
               config: config
             };
 

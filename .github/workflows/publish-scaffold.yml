@@ -1,0 +1,38 @@
+# =============================================================================
+# EDITABLE WORKFLOW - Customize for this repository
+# =============================================================================
+# This workflow is called by .github/workflows/happyvertical/on-merge-main.yml
+# when code is merged to the main branch, after tests and build pass.
+#
+# Customize the publish process for this repository below.
+# =============================================================================
+
+name: Publish
+
+on:
+  workflow_call:  # Called by standard workflows
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://npm.pkg.github.com'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Publish packages
+        run: pnpm release
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
