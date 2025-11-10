@@ -1,0 +1,66 @@
+name: Reusable Issue Closer
+
+on:
+  workflow_call:
+    inputs:
+      issue_number:
+        description: 'Issue number'
+        required: true
+        type: number
+      repo_owner:
+        description: 'Repository owner'
+        required: true
+        type: string
+      repo_name:
+        description: 'Repository name'
+        required: true
+        type: string
+    secrets:
+      GITHUB_TOKEN:
+        description: 'GitHub token for API access'
+        required: true
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cleanup Issue
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const issueNumber = ${{ inputs.issue_number }};
+
+            console.log(`Cleaning up closed issue #${issueNumber}`);
+
+            // Get issue details
+            const { data: issue } = await github.rest.issues.get({
+              owner: '${{ inputs.repo_owner }}',
+              repo: '${{ inputs.repo_name }}',
+              issue_number: issueNumber
+            });
+
+            // Remove agent labels
+            const agentLabels = issue.labels
+              .map(l => l.name)
+              .filter(name => name.startsWith('agent:'));
+
+            for (const label of agentLabels) {
+              console.log(`Removing agent label: ${label}`);
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: '${{ inputs.repo_owner }}',
+                  repo: '${{ inputs.repo_name }}',
+                  issue_number: issueNumber,
+                  name: label
+                });
+              } catch (error) {
+                console.log(`Could not remove ${label}: ${error.message}`);
+              }
+            }
+
+            console.log('✅ Issue cleanup complete');

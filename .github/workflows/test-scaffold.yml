@@ -1,0 +1,32 @@
+# =============================================================================
+# EDITABLE WORKFLOW - Customize for this repository
+# =============================================================================
+# This workflow is called by .github/workflows/happyvertical/on-merge-main.yml
+# when code is merged to the main branch.
+#
+# Customize the test process for this repository below.
+# =============================================================================
+
+name: Test
+
+on:
+  workflow_call:  # Called by standard workflows
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Run tests
+        run: pnpm test

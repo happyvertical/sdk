@@ -1,0 +1,108 @@
+name: Reusable Agent Orchestrator
+
+on:
+  workflow_call:
+    inputs:
+      agent_name:
+        description: 'Agent name (claude, cursor, copilot)'
+        required: true
+        type: string
+      action:
+        description: 'Action performed (labeled or unlabeled)'
+        required: true
+        type: string
+      issue_number:
+        description: 'Issue number'
+        required: true
+        type: number
+      repo_owner:
+        description: 'Repository owner'
+        required: true
+        type: string
+      repo_name:
+        description: 'Repository name'
+        required: true
+        type: string
+    secrets:
+      GITHUB_TOKEN:
+        description: 'GitHub token for API access'
+        required: true
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  orchestrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Agent Assignment
+        if: inputs.action == 'labeled'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const agentName = '${{ inputs.agent_name }}';
+            const issueNumber = ${{ inputs.issue_number }};
+
+            console.log(`Assigning ${agentName} to issue #${issueNumber}`);
+
+            // Get issue details
+            const { data: issue } = await github.rest.issues.get({
+              owner: '${{ inputs.repo_owner }}',
+              repo: '${{ inputs.repo_name }}',
+              issue_number: issueNumber
+            });
+
+            // Validate issue is ready for work
+            const labels = issue.labels.map(l => l.name);
+            const hasType = labels.some(l => l.startsWith('type:'));
+            const hasPriority = labels.some(l => l.startsWith('priority:'));
+            const hasSize = labels.some(l => l.startsWith('size:'));
+
+            if (!hasType || !hasPriority || !hasSize) {
+              console.log('⚠️ Issue is not fully labeled');
+              await github.rest.issues.createComment({
+                owner: '${{ inputs.repo_owner }}',
+                repo: '${{ inputs.repo_name }}',
+                issue_number: issueNumber,
+                body: `⚠️ **${agentName.charAt(0).toUpperCase() + agentName.slice(1)} Code Assignment**\n\nThis issue is missing required labels. Please ensure it has:\n- A \`type:\` label\n- A \`priority:\` label\n- A \`size:\` label\n\nOnce properly labeled, ${agentName} can begin work.`
+              });
+              return;
+            }
+
+            // Add assignment comment
+            const agentEmoji = agentName === 'claude' ? '🤖' : '🔧';
+            const agentDisplay = agentName.charAt(0).toUpperCase() + agentName.slice(1) + ' Code';
+
+            await github.rest.issues.createComment({
+              owner: '${{ inputs.repo_owner }}',
+              repo: '${{ inputs.repo_name }}',
+              issue_number: issueNumber,
+              body: `${agentEmoji} **${agentDisplay} has been assigned to this issue**\n\nI'll start working on this shortly. You can monitor progress through this issue's comments and linked pull requests.`
+            });
+
+            console.log(`✅ ${agentDisplay} assigned successfully`);
+
+      - name: Agent Unassignment
+        if: inputs.action == 'unlabeled'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const agentName = '${{ inputs.agent_name }}';
+            const issueNumber = ${{ inputs.issue_number }}';
+
+            console.log(`Unassigning ${agentName} from issue #${issueNumber}`);
+
+            const agentEmoji = agentName === 'claude' ? '🤖' : '🔧';
+            const agentDisplay = agentName.charAt(0).toUpperCase() + agentName.slice(1) + ' Code';
+
+            await github.rest.issues.createComment({
+              owner: '${{ inputs.repo_owner }}',
+              repo: '${{ inputs.repo_name }}',
+              issue_number: issueNumber,
+              body: `${agentEmoji} **${agentDisplay} has been unassigned from this issue**\n\nWork has been stopped. The issue remains in its current state.`
+            });
+
+            console.log(`✅ ${agentDisplay} unassigned successfully`);

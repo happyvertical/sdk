@@ -1,0 +1,56 @@
+name: Reusable Merge Orchestrator
+
+on:
+  workflow_call:
+    inputs:
+      repo_owner:
+        description: 'Repository owner'
+        required: true
+        type: string
+      repo_name:
+        description: 'Repository name'
+        required: true
+        type: string
+      ref:
+        description: 'Git ref'
+        required: true
+        type: string
+    secrets:
+      GITHUB_TOKEN:
+        description: 'GitHub token for API access'
+        required: true
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  test:
+    if: hashFiles('.github/workflows/test.yml') != ''
+    uses: ./.github/workflows/test.yml
+    secrets: inherit
+
+  build:
+    needs: test
+    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped') && hashFiles('.github/workflows/build.yml') != ''
+    uses: ./.github/workflows/build.yml
+    secrets: inherit
+
+  publish:
+    needs: build
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && hashFiles('.github/workflows/publish.yml') != ''
+    uses: ./.github/workflows/publish.yml
+    secrets: inherit
+
+  summary:
+    needs: [test, build, publish]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Workflow Summary
+        run: |
+          echo "## Merge Orchestration Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Test**: ${{ needs.test.result || 'skipped (no test.yml)' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build**: ${{ needs.build.result || 'skipped (no build.yml)' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Publish**: ${{ needs.publish.result || 'skipped (no publish.yml)' }}" >> $GITHUB_STEP_SUMMARY
