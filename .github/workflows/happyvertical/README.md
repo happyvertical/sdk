@@ -27,4 +27,4 @@ Edit the repository-specific workflows in the parent directory:
 
 ## Source
 
-https://github.com/happyvertical/sdk/.github/workflows/
+https://github.com/happyvertical/sdk/.github/workflow-templates/
