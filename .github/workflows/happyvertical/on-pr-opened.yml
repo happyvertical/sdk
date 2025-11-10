@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   handle-pr:
-    uses: happyvertical/sdk/.github/workflows/pr-handler-reusable.yml@main
+    uses: happyvertical/sdk/.github/workflows/shared/pr-handler-reusable.yml@main
     with:
       pr_number: ${{ github.event.pull_request.number }}
       pr_title: ${{ github.event.pull_request.title }}

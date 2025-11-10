@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   orchestrate:
-    uses: happyvertical/sdk/.github/workflows/merge-orchestrator-reusable.yml@main
+    uses: happyvertical/sdk/.github/workflows/shared/merge-orchestrator-reusable.yml@main
     with:
       repo_owner: ${{ github.repository_owner }}
       repo_name: ${{ github.event.repository.name }}
