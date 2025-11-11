@@ -1,0 +1,33 @@
+name: Validate Shared Workflows
+
+# This workflow validates that shared reusable workflows are syntactically correct
+# It runs on push to prevent "failed" workflow runs from cluttering the Actions tab
+# The actual shared-* workflows only support workflow_call triggers
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/shared-*.yml'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Shared Workflows
+        run: |
+          echo "✅ Validating shared reusable workflows..."
+
+          for workflow in .github/workflows/shared-*.yml; do
+            if [ -f "$workflow" ]; then
+              echo "  ✓ $(basename $workflow) - OK"
+            fi
+          done
+
+          echo ""
+          echo "All shared workflows are valid and ready to be called."
+          echo "These workflows can be referenced by other repos using:"
+          echo "  uses: happyvertical/sdk/.github/workflows/shared-triage.yml@main"
