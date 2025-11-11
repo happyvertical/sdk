@@ -540,11 +540,20 @@ export async function getDatabase(
       }
     }
 
-    // Quote conflict columns to match DuckDB's requirement for ON CONFLICT
-    // When UNIQUE constraints use quoted names, ON CONFLICT must also use quoted names
+    // Quote ALL column names to match DuckDB's schema generation
+    // SchemaGenerator always quotes column names, so UPSERT must match
     const conflict = conflictColumns.map((col) => `"${col}"`).join(', ');
+    const quotedKeys = keys.map((key) => `"${key}"`).join(', ');
 
-    const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders.join(', ')}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSetParts.join(', ')}`;
+    // Quote column names in UPDATE SET clause to match schema and ON CONFLICT
+    // Extract the value expression from each updateSetPart (everything after '=')
+    const quotedUpdateSetParts = keys.map((key, i) => {
+      const part = updateSetParts[i];
+      const valueExpr = part.substring(part.indexOf('=') + 1).trim();
+      return `"${key}" = ${valueExpr}`;
+    });
+
+    const sql = `INSERT INTO ${table} (${quotedKeys}) VALUES (${placeholders.join(', ')}) ON CONFLICT(${conflict}) DO UPDATE SET ${quotedUpdateSetParts.join(', ')}`;
 
     try {
       await connection.run(sql, values);
