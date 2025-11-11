@@ -27,6 +27,7 @@ on:
 permissions:
   contents: write
   packages: write
+  pull-requests: write
   id-token: write
   pages: write
 
