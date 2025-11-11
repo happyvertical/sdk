@@ -1,0 +1,19 @@
+name: On Merge to Main
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  orchestrate:
+    uses: ./.github/workflows/shared-merge-orchestrator.yml
+    with:
+      repo_owner: ${{ github.repository_owner }}
+      repo_name: ${{ github.event.repository.name }}
+      ref: ${{ github.ref }}
+    secrets:
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
