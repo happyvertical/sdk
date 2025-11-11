@@ -1,5 +1,11 @@
 # @happyvertical/sql
 
+## 0.55.7
+
+### Patch Changes
+
+- 240a7ac: Fix column name quoting in DuckDB and JSON adapter UPSERT operations. All column names are now properly quoted in INSERT, ON CONFLICT, and UPDATE SET clauses to match DuckDB's schema generation requirements.
+
 ## 0.55.5
 
 ### Patch Changes

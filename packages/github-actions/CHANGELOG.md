@@ -1,5 +1,37 @@
 # @happyvertical/github-actions
 
+## 0.55.5
+
+### Patch Changes
+
+- c77c04c: Add pull-requests: write permission to allow version PR creation
+
+  The changesets action needs pull-requests: write permission to create version PRs. Without it, the workflow fails with "Resource not accessible by integration" when attempting to create the PR.
+
+- 94bac8e: Replace GITHUB_TOKEN with GH_TOKEN in shared workflows to avoid system reserved name collision and gain additional permissions
+- 0817e9d: Fix permissions in on-merge-main workflow to allow publishing
+
+  The on-merge-main workflow needs write permissions for contents, packages, pages, and id-token to allow the publish job to create version PRs and publish packages.
+
+- cd8605f: Fix permissions in shared-merge-orchestrator to allow publishing
+
+  The shared-merge-orchestrator workflow was restricting permissions to read-only, which prevented the publish workflow from creating version PRs and publishing packages. Reusable workflows override caller permissions, so the orchestrator needs write permissions.
+
+- 0a818f9: Fix workflow syntax errors in shared-merge-orchestrator.yml and claude.yml
+
+  - Remove hashFiles() calls from shared-merge-orchestrator.yml (not available in workflow_call context)
+  - Simplify claude.yml prompt expression to avoid format() function issues with curly braces
+
+- 3268874: Fix workflow validation failures by removing incompatible push triggers from shared workflows. GitHub Actions does not allow combining workflow_call with required inputs AND push triggers.
+- a7a2fe9: Restore on-merge-main.yml workflow to SDK repository
+
+  The on-merge-main workflow was accidentally removed when workflows were
+  converted to templates for other repositories. This caused version bumping
+  and package publishing to stop working for SDK merges to main.
+
+  This restores the workflow to call the local shared-merge-orchestrator which
+  orchestrates test -> build -> publish pipeline.
+
 ## 0.55.4
 
 ### Patch Changes
