@@ -16,7 +16,7 @@ on:
         required: true
         type: string
     secrets:
-      GITHUB_TOKEN:
+      GH_TOKEN:
         description: 'GitHub token for API access'
         required: true
 
@@ -31,7 +31,7 @@ jobs:
       - name: Cleanup Issue
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ secrets.GH_TOKEN }}
           script: |
             const issueNumber = ${{ inputs.issue_number }};
 
