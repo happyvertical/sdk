@@ -2,7 +2,7 @@ name: Changeset Check
 
 on:
   pull_request:
-    types: [opened, synchronize, labeled, unlabeled]
+    types: [opened, reopened, synchronize, labeled, unlabeled]
 
 permissions:
   pull-requests: read
