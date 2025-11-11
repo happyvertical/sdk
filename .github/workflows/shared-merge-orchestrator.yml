@@ -21,8 +21,10 @@ on:
         required: true
 
 permissions:
-  contents: read
-  packages: read
+  contents: write
+  packages: write
+  id-token: write
+  pages: write
 
 jobs:
   test:
