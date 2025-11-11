@@ -1,4 +1,4 @@
-name: Reusable Agent Orchestrator
+name: Shared Agent Orchestrator
 
 on:
   workflow_call:
@@ -27,13 +27,22 @@ on:
       GITHUB_TOKEN:
         description: 'GitHub token for API access'
         required: true
+  push:
+    branches: [main]
 
 permissions:
   issues: write
   contents: read
 
 jobs:
+  noop:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "✅ Reusable workflow - use workflow_call to invoke"
+
   orchestrate:
+    if: github.event_name == 'workflow_call'
     runs-on: ubuntu-latest
     steps:
       - name: Agent Assignment

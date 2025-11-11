@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   handle-label:
-    uses: happyvertical/sdk/.github/workflows/label-handler-reusable.yml@main
+    uses: happyvertical/sdk/.github/workflows/shared-label-handler.yml@main
     with:
       issue_number: ${{ github.event.issue.number }}
       label_name: ${{ github.event.label.name }}
@@ -36,7 +36,7 @@ jobs:
 
   orchestrate-agent:
     if: github.event.label.name == 'agent: claude'
-    uses: happyvertical/sdk/.github/workflows/agent-orchestrator-reusable.yml@main
+    uses: happyvertical/sdk/.github/workflows/shared-agent-orchestrator.yml@main
     with:
       agent_name: claude
       action: ${{ github.event.action }}

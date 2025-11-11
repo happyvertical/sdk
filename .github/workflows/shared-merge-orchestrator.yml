@@ -1,4 +1,4 @@
-name: Reusable Merge Orchestrator
+name: Shared Merge Orchestrator
 
 on:
   workflow_call:
@@ -19,32 +19,40 @@ on:
       GITHUB_TOKEN:
         description: 'GitHub token for API access'
         required: true
+  push:
+    branches: [main]
 
 permissions:
   contents: read
   packages: read
 
 jobs:
+  noop:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "✅ Reusable workflow - use workflow_call to invoke"
+
   test:
-    if: hashFiles('.github/workflows/test.yml') != ''
+    if: github.event_name == 'workflow_call' && hashFiles('.github/workflows/test.yml') != ''
     uses: ./.github/workflows/test.yml
     secrets: inherit
 
   build:
     needs: test
-    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped') && hashFiles('.github/workflows/build.yml') != ''
+    if: github.event_name == 'workflow_call' && always() && (needs.test.result == 'success' || needs.test.result == 'skipped') && hashFiles('.github/workflows/build.yml') != ''
     uses: ./.github/workflows/build.yml
     secrets: inherit
 
   publish:
     needs: build
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && hashFiles('.github/workflows/publish.yml') != ''
+    if: github.event_name == 'workflow_call' && always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && hashFiles('.github/workflows/publish.yml') != ''
     uses: ./.github/workflows/publish.yml
     secrets: inherit
 
   summary:
     needs: [test, build, publish]
-    if: always()
+    if: github.event_name == 'workflow_call' && always()
     runs-on: ubuntu-latest
     steps:
       - name: Workflow Summary

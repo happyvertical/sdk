@@ -1,4 +1,4 @@
-name: Reusable Label Handler
+name: Shared Label Handler
 
 on:
   workflow_call:
@@ -27,6 +27,8 @@ on:
       GITHUB_TOKEN:
         description: 'GitHub token for API access'
         required: true
+  push:
+    branches: [main]
 
 permissions:
   issues: write
@@ -35,7 +37,14 @@ permissions:
   id-token: write
 
 jobs:
+  noop:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "✅ Reusable workflow - use workflow_call to invoke"
+
   handle-label:
+    if: github.event_name == 'workflow_call'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout calling repository
