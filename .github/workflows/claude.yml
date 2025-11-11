@@ -46,7 +46,7 @@ jobs:
 
           # Custom prompt when triggered by "blocker" label
           # Otherwise Claude uses the @claude mention content
-          prompt: ${{ github.event.action == 'labeled' && github.event.label.name == 'blocker' && format('This issue has been marked as a blocker (high priority). Please analyze the issue, implement a solution, and create a PR to resolve it. Issue #{0}: {1}', github.event.issue.number, github.event.issue.title) || '' }}
+          prompt: ${{ github.event.action == 'labeled' && github.event.label.name == 'blocker' && 'This issue has been marked as a blocker (high priority). Please analyze the issue, implement a solution, and create a PR to resolve it.' || '' }}
 
           # Allow Claude to read CI results on PRs
           additional_permissions: |

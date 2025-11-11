@@ -26,19 +26,18 @@ permissions:
 
 jobs:
   test:
-    if: hashFiles('.github/workflows/test.yml') != ''
     uses: ./.github/workflows/test.yml
     secrets: inherit
 
   build:
     needs: test
-    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped') && hashFiles('.github/workflows/build.yml') != ''
+    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
     uses: ./.github/workflows/build.yml
     secrets: inherit
 
   publish:
     needs: build
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped') && hashFiles('.github/workflows/publish.yml') != ''
+    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
     uses: ./.github/workflows/publish.yml
     secrets: inherit
 
