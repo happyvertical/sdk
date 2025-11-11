@@ -262,4 +262,90 @@ describe('JSON adapter UPSERT with UNIQUE constraints (Issue #316)', () => {
     expect(updated?.name).toBe('Super Widget');
     expect(updated?.price).toBeCloseTo(19.99, 2); // Floating-point comparison
   });
+
+  it('should handle UPSERT with quoted column names (Issue #418)', async () => {
+    // Create separate test database for this test
+    const quotedTestDir = join(process.cwd(), '.test-json-quoted');
+    await mkdir(quotedTestDir, { recursive: true });
+    await writeFile(join(quotedTestDir, 'poly_events.json'), '[]', 'utf-8');
+
+    try {
+      const quotedDb = (await getDatabase({
+        type: 'json',
+        url: ':memory:',
+        dataDir: quotedTestDir,
+        writeStrategy: 'immediate',
+        autoRegister: false,
+      })) as DatabaseInterface & {
+        exportTable: (table: string) => Promise<void>;
+      };
+
+      // Create table with quoted column names like SMRT's SchemaGenerator
+      await quotedDb.execute`
+        CREATE TABLE IF NOT EXISTS "poly_events" (
+          "_meta_type" TEXT NOT NULL,
+          "slug" TEXT NOT NULL,
+          "context" TEXT NOT NULL,
+          "title" TEXT,
+          "count" INTEGER DEFAULT 0,
+          PRIMARY KEY ("_meta_type", "slug", "context")
+        )
+      `;
+
+      // First upsert (insert)
+      const data1 = {
+        _meta_type: 'Meeting',
+        slug: 'team-standup',
+        context: '/meetings',
+        title: 'Daily Standup',
+        count: 1,
+      };
+
+      await quotedDb.upsert(
+        'poly_events',
+        ['_meta_type', 'slug', 'context'],
+        data1,
+      );
+
+      const result1 = await quotedDb.single`
+        SELECT * FROM poly_events
+        WHERE "_meta_type" = ${data1._meta_type}
+        AND "slug" = ${data1.slug}
+        AND "context" = ${data1.context}
+      `;
+
+      expect(result1).toEqual(data1);
+
+      // Second upsert (update)
+      const data2 = {
+        _meta_type: 'Meeting',
+        slug: 'team-standup',
+        context: '/meetings',
+        title: 'Weekly Standup',
+        count: 5,
+      };
+
+      await quotedDb.upsert(
+        'poly_events',
+        ['_meta_type', 'slug', 'context'],
+        data2,
+      );
+
+      const result2 = await quotedDb.single`
+        SELECT * FROM poly_events
+        WHERE "_meta_type" = ${data2._meta_type}
+        AND "slug" = ${data2.slug}
+        AND "context" = ${data2.context}
+      `;
+
+      expect(result2).toEqual(data2);
+
+      // Verify only one record exists (update, not insert)
+      const allRecords = await quotedDb.many`SELECT * FROM poly_events`;
+      expect(allRecords).toHaveLength(1);
+    } finally {
+      // Clean up test directory
+      await rm(quotedTestDir, { recursive: true, force: true });
+    }
+  });
 });

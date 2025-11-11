@@ -639,6 +639,72 @@ describe('DuckDB Adapter', () => {
       expect(result?.name).toBe('Updated in TX');
       expect(result?.count).toBe(2);
     });
+
+    it('should handle upsert with quoted column names (issue #418)', async () => {
+      // Create table with quoted column names like SMRT's SchemaGenerator
+      await db.execute`
+        CREATE TABLE IF NOT EXISTS "test_quoted_upsert" (
+          "_meta_type" TEXT NOT NULL,
+          "slug" TEXT NOT NULL,
+          "context" TEXT NOT NULL,
+          "title" TEXT,
+          "count" INTEGER DEFAULT 0,
+          PRIMARY KEY ("_meta_type", "slug", "context")
+        )
+      `;
+
+      // First upsert (insert)
+      const data1 = {
+        _meta_type: 'Meeting',
+        slug: 'team-standup',
+        context: '/meetings',
+        title: 'Daily Standup',
+        count: 1,
+      };
+
+      await db.upsert(
+        'test_quoted_upsert',
+        ['_meta_type', 'slug', 'context'],
+        data1,
+      );
+
+      const result1 = await db.single`
+        SELECT * FROM test_quoted_upsert
+        WHERE "_meta_type" = ${data1._meta_type}
+        AND "slug" = ${data1.slug}
+        AND "context" = ${data1.context}
+      `;
+
+      expect(result1).toEqual(data1);
+
+      // Second upsert (update)
+      const data2 = {
+        _meta_type: 'Meeting',
+        slug: 'team-standup',
+        context: '/meetings',
+        title: 'Weekly Standup',
+        count: 5,
+      };
+
+      await db.upsert(
+        'test_quoted_upsert',
+        ['_meta_type', 'slug', 'context'],
+        data2,
+      );
+
+      const result2 = await db.single`
+        SELECT * FROM test_quoted_upsert
+        WHERE "_meta_type" = ${data2._meta_type}
+        AND "slug" = ${data2.slug}
+        AND "context" = ${data2.context}
+      `;
+
+      expect(result2).toEqual(data2);
+
+      // Verify only one record exists (update, not insert)
+      const allRecords = await db.many`SELECT * FROM test_quoted_upsert`;
+      expect(allRecords).toHaveLength(1);
+    });
   });
 
   describe('Date and Timestamp Handling', () => {
