@@ -108,6 +108,9 @@ export function createPackageConfig(packageName: string) {
           '@gutenye/ocr-node',
           'cosmiconfig',
           '@libsql/client',
+          'openpgp',
+          'tweetnacl',
+          'tweetnacl-util',
 
           // Internal @happyvertical/* packages - externalize to avoid cross-package bundling
           /^@happyvertical\//,
