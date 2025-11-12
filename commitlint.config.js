@@ -37,6 +37,7 @@ export default {
         'config',
         'content',
         'documents',
+        'encryption',
         'files',
         'geo',
         'gnode',
