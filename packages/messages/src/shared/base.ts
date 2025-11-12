@@ -40,7 +40,7 @@ export abstract class BaseMailbox implements Mailbox {
   constructor(config: MailboxConfig) {
     this.config = this.validateConfig(config);
     this.db = config.db;
-    this.logger = config.logger || createLogger('messages');
+    this.logger = config.logger || createLogger({ namespace: 'messages' });
   }
 
   // ========================================================================

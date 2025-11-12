@@ -1,3 +1,3 @@
-import { defineConfig } from '../../vite.config.base';
+import { createPackageConfig } from '../../vite.config.base.js';
 
-export default defineConfig();
+export default createPackageConfig('messages');
