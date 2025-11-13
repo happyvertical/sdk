@@ -81,14 +81,14 @@ describe.skipIf(shouldSkip)('Gmail Send & Receive Integration Test', () => {
     console.log(`✅ Email sent successfully (ID: ${sendResult.messageId})`);
 
     // Step 2: Wait for email to arrive (Gmail delivery can take a few seconds)
-    console.log('⏳ Waiting for email delivery (15 seconds)...');
-    await new Promise((resolve) => setTimeout(resolve, 15000));
+    console.log('⏳ Waiting for email delivery (20 seconds)...');
+    await new Promise((resolve) => setTimeout(resolve, 20000));
 
     // Step 3: Search for the sent email in INBOX
     console.log('🔍 Searching for sent email in INBOX...');
     let receivedMessage: EmailMessage | undefined;
     let attempts = 0;
-    const maxAttempts = 5;
+    const maxAttempts = 8; // Increased from 5
 
     // Try multiple times in case there's a delay
     while (!receivedMessage && attempts < maxAttempts) {
@@ -99,14 +99,26 @@ describe.skipIf(shouldSkip)('Gmail Send & Receive Integration Test', () => {
         subject: uniqueSubject,
       });
 
+      console.log(`   Found ${searchResults.length} messages matching subject`);
+
       if (searchResults.length > 0) {
         // Get the full message details
-        receivedMessage = await mailbox.getMessage(searchResults[0].id!);
-        break;
+        try {
+          receivedMessage = await mailbox.getMessage(searchResults[0].id!);
+          console.log(
+            `   Successfully retrieved message with ID: ${searchResults[0].id}`,
+          );
+        } catch (error) {
+          console.log(
+            `   Failed to get message: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+        if (receivedMessage) break;
       }
 
       if (attempts < maxAttempts) {
-        await new Promise((resolve) => setTimeout(resolve, 5000));
+        console.log('   Waiting 6 seconds before next attempt...');
+        await new Promise((resolve) => setTimeout(resolve, 6000)); // Increased from 5000
       }
     }
 

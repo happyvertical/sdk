@@ -143,13 +143,29 @@ export class GmailAdapter extends BaseMailbox {
       // Build query
       const query = this.buildGmailQuery(options);
 
+      // Handle folder option - convert to labelIds
+      let labelIds = options?.labelIds;
+      if (options?.folder && !labelIds) {
+        // If folder is provided, use it as labelId
+        labelIds = [options.folder];
+      }
+
       // List messages
-      const listResponse = await this.gmail?.users.messages.list({
-        userId: this.getUserId(),
-        q: query,
-        labelIds: options?.labelIds,
-        maxResults: options?.maxResults || options?.limit || 100,
-      });
+      let listResponse;
+      try {
+        listResponse = await this.gmail?.users.messages.list({
+          userId: this.getUserId(),
+          q: query,
+          labelIds,
+          maxResults: options?.maxResults || options?.limit || 100,
+        });
+      } catch (error) {
+        // Gmail throws error for invalid labels - return empty array instead
+        if (error instanceof Error && error.message.includes('Invalid label')) {
+          return [];
+        }
+        throw error;
+      }
 
       if (!listResponse) {
         return [];

@@ -369,9 +369,12 @@ describe('IMAP Adapter', () => {
 
       const message = await adapter.getMessage('<test@example.com>');
 
-      expect(mockClient.search).toHaveBeenCalledWith({
-        header: ['message-id', '<test@example.com>'],
-      });
+      expect(mockClient.search).toHaveBeenCalledWith(
+        {
+          header: ['message-id', '<test@example.com>'],
+        },
+        { uid: true },
+      );
       expect(message.messageId).toBe('<test@example.com>');
     });
 
@@ -497,9 +500,12 @@ describe('IMAP Adapter', () => {
 
       await adapter.markRead('<test@example.com>');
 
-      expect(mockClient.search).toHaveBeenCalledWith({
-        header: ['message-id', '<test@example.com>'],
-      });
+      expect(mockClient.search).toHaveBeenCalledWith(
+        {
+          header: ['message-id', '<test@example.com>'],
+        },
+        { uid: true },
+      );
       expect(mockClient.messageFlagsAdd).toHaveBeenCalledWith(1, ['\\Seen'], {
         uid: true,
       });
@@ -552,7 +558,6 @@ describe('IMAP Adapter', () => {
     it('should delete message', async () => {
       mockClient.search.mockResolvedValue([1]);
       mockClient.messageFlagsAdd.mockResolvedValue(undefined);
-      mockClient.expunge.mockResolvedValue(undefined);
 
       await adapter.delete('<test@example.com>');
 
@@ -561,18 +566,17 @@ describe('IMAP Adapter', () => {
         ['\\Deleted'],
         { uid: true },
       );
-      expect(mockClient.expunge).toHaveBeenCalled();
+      // Note: ImapFlow doesn't use expunge() - messages deleted via flags
     });
 
     it('should delete multiple messages', async () => {
       mockClient.search.mockResolvedValueOnce([1]).mockResolvedValueOnce([2]);
       mockClient.messageFlagsAdd.mockResolvedValue(undefined);
-      mockClient.expunge.mockResolvedValue(undefined);
 
       await adapter.delete(['<test1@example.com>', '<test2@example.com>']);
 
       expect(mockClient.messageFlagsAdd).toHaveBeenCalledTimes(2);
-      expect(mockClient.expunge).toHaveBeenCalledTimes(1);
+      // Note: ImapFlow doesn't use expunge() - messages deleted via flags
     });
   });
 
