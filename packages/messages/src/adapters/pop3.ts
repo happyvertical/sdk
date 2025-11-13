@@ -100,7 +100,14 @@ export class POP3Adapter extends BaseMailbox {
     try {
       // Get list of message UIDs
       const uidlResponse = await this.client?.UIDL();
-      const uidList = this.parseUidlResponse(uidlResponse[0]);
+      if (!uidlResponse || !uidlResponse[0]) {
+        return [];
+      }
+      const uidList = this.parseUidlResponse(
+        Array.isArray(uidlResponse[0])
+          ? uidlResponse[0].join('\n')
+          : uidlResponse[0],
+      );
 
       if (uidList.length === 0) {
         return [];
@@ -137,7 +144,9 @@ export class POP3Adapter extends BaseMailbox {
             }
           }
         } catch (error) {
-          this.logger.error(`Failed to fetch message ${msgNum}:`, error);
+          this.logger.error(`Failed to fetch message ${msgNum}:`, {
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       }
 
@@ -163,7 +172,14 @@ export class POP3Adapter extends BaseMailbox {
       // If not in cache, refresh UIDL
       if (!msgNum) {
         const uidlResponse = await this.client?.UIDL();
-        const uidList = this.parseUidlResponse(uidlResponse[0]);
+        if (!uidlResponse || !uidlResponse[0]) {
+          throw new MessageNotFoundError(messageId, 'pop3');
+        }
+        const uidList = this.parseUidlResponse(
+          Array.isArray(uidlResponse[0])
+            ? uidlResponse[0].join('\n')
+            : uidlResponse[0],
+        );
 
         this.messageCache.clear();
         for (const { msgNum: num, uid } of uidList) {
@@ -206,7 +222,14 @@ export class POP3Adapter extends BaseMailbox {
         if (!msgNum) {
           // Refresh UIDL
           const uidlResponse = await this.client?.UIDL();
-          const uidList = this.parseUidlResponse(uidlResponse[0]);
+          if (!uidlResponse || !uidlResponse[0]) {
+            throw new MessageNotFoundError(id, 'pop3');
+          }
+          const uidList = this.parseUidlResponse(
+            Array.isArray(uidlResponse[0])
+              ? uidlResponse[0].join('\n')
+              : uidlResponse[0],
+          );
 
           for (const { msgNum: num, uid } of uidList) {
             if (uid === id) {
@@ -352,8 +375,11 @@ export class POP3Adapter extends BaseMailbox {
 
   private async fetchMessage(msgNum: string): Promise<EmailMessage> {
     try {
-      // Retrieve full message
-      const response = await this.client?.RETR(msgNum);
+      // Retrieve full message (convert string to number for RETR)
+      const response = await this.client?.RETR(Number(msgNum));
+      if (!response || !response[0]) {
+        throw new Error(`Failed to retrieve message ${msgNum}`);
+      }
       const messageData = response[0];
 
       // Parse message
@@ -362,32 +388,41 @@ export class POP3Adapter extends BaseMailbox {
       // Get UID
       const uid = this.messageCache.get(msgNum);
 
+      // Helper to extract addresses from AddressObject
+      const extractAddresses = (
+        addressObj:
+          | import('mailparser').AddressObject
+          | import('mailparser').AddressObject[]
+          | undefined,
+      ) => {
+        if (!addressObj) return [];
+        // Handle array of AddressObjects
+        const addressArray = Array.isArray(addressObj)
+          ? addressObj
+          : [addressObj];
+        const addresses = addressArray.flatMap((obj) =>
+          Array.isArray(obj.value) ? obj.value : [obj.value],
+        );
+        return addresses.map((addr: { address?: string; name?: string }) => ({
+          address: addr.address || '',
+          name: addr.name,
+        }));
+      };
+
+      const fromAddresses = extractAddresses(parsed.from);
+      const toAddresses = extractAddresses(parsed.to);
+      const ccAddresses = extractAddresses(parsed.cc);
+      const bccAddresses = extractAddresses(parsed.bcc);
+      const replyToAddresses = extractAddresses(parsed.replyTo);
+
       return {
         id: uid || msgNum,
         messageId: parsed.messageId || uid || msgNum,
-        from: {
-          address: parsed.from?.value[0]?.address || '',
-          name: parsed.from?.value[0]?.name,
-        },
-        to:
-          parsed.to?.value.map((addr) => ({
-            address: addr.address || '',
-            name: addr.name,
-          })) || [],
-        cc: parsed.cc?.value.map((addr) => ({
-          address: addr.address || '',
-          name: addr.name,
-        })),
-        bcc: parsed.bcc?.value.map((addr) => ({
-          address: addr.address || '',
-          name: addr.name,
-        })),
-        replyTo: parsed.replyTo?.value[0]
-          ? {
-              address: parsed.replyTo.value[0].address || '',
-              name: parsed.replyTo.value[0].name,
-            }
-          : undefined,
+        from: fromAddresses[0] || { address: '', name: undefined },
+        to: toAddresses,
+        cc: ccAddresses.length > 0 ? ccAddresses : undefined,
+        bcc: bccAddresses.length > 0 ? bccAddresses : undefined,
+        replyTo: replyToAddresses[0],
         subject: parsed.subject || '',
         date: parsed.date,
         text: parsed.text,
@@ -472,7 +507,7 @@ export class POP3Adapter extends BaseMailbox {
 
     if (error instanceof Error) {
       const message = error.message.toLowerCase();
-      const errorObj = error as Record<string, unknown>;
+      const errorObj = error as unknown as Record<string, unknown>;
 
       // Timeout errors
       if (
