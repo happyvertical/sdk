@@ -111,6 +111,13 @@ export function createPackageConfig(packageName: string) {
           'openpgp',
           'tweetnacl',
           'tweetnacl-util',
+          'google-auth-library',
+          'googleapis',
+          /^googleapis\//,
+          'nodemailer',
+          'imapflow',
+          'node-pop3',
+          'mailparser',
 
           // Internal @happyvertical/* packages - externalize to avoid cross-package bundling
           /^@happyvertical\//,

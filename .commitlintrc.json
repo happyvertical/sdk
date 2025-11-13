@@ -33,6 +33,7 @@
         "git",
         "gnode",
         "logger",
+        "messages",
         "ocr",
         "pdf",
         "products",

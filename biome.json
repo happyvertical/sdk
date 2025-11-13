@@ -3,6 +3,7 @@
   "files": {
     "includes": [
       "packages/*/src/**/*.{js,ts,tsx,jsx,svelte}",
+      "packages/*/test/**/*.{js,ts,tsx,jsx}",
       "docs/src/**/*.{js,ts,tsx,jsx}",
       ".github/**/*.{js,ts}",
       "scripts/**/*.{js,ts}",
@@ -159,6 +160,20 @@
     },
     {
       "includes": ["packages/spider/src/**/*.ts"],
+      "linter": {
+        "rules": {
+          "style": {
+            "useNamingConvention": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "packages/messages/src/shared/base.ts",
+        "packages/messages/src/shared/schema.ts",
+        "packages/messages/src/adapters/gmail.ts"
+      ],
       "linter": {
         "rules": {
           "style": {

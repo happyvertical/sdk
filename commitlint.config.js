@@ -42,6 +42,7 @@ export default {
         'geo',
         'gnode',
         'logger',
+        'messages',
         'ocr',
         'pdf',
         'products',
