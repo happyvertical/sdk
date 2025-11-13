@@ -93,13 +93,13 @@ export async function getMailbox(options: GetMailboxOptions): Promise<Mailbox> {
   }
 
   if (isPOP3Options(opts)) {
-    // return new POP3Adapter(opts);
-    throw new Error('POP3 adapter not yet implemented');
+    const { POP3Adapter } = await import('../adapters/pop3.js');
+    return new POP3Adapter(opts);
   }
 
   if (isGmailOptions(opts)) {
-    // return new GmailAdapter(opts);
-    throw new Error('Gmail adapter not yet implemented');
+    const { GmailAdapter } = await import('../adapters/gmail.js');
+    return new GmailAdapter(opts);
   }
 
   throw new Error(`Unknown mailbox type: ${opts.type}`);

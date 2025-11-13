@@ -84,5 +84,23 @@ export { BaseMailbox } from './shared/base';
 // Adapters
 // ============================================================================
 
+export { GmailAdapter } from './adapters/gmail';
 export { IMAPAdapter } from './adapters/imap';
+export { POP3Adapter } from './adapters/pop3';
 export { SMTPAdapter } from './adapters/smtp';
+
+// ============================================================================
+// Encryption (optional integration)
+// ============================================================================
+
+export type {
+  DecryptEmailOptions,
+  DecryptedEmail,
+  EmailEncryption,
+  EncryptEmailOptions,
+  SignEmailOptions,
+  VerificationResult,
+  VerifyEmailOptions,
+} from './encryption/types';
+
+export { hasEncryption } from './encryption/types';

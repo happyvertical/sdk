@@ -213,7 +213,7 @@ describe('getMailbox Factory', () => {
       expect(mailbox.getAdapter()).toBe('imap');
     });
 
-    it('should throw error for POP3 (not yet implemented)', async () => {
+    it('should create POP3 adapter successfully', async () => {
       const options: POP3Options = {
         type: 'pop3',
         host: 'pop.example.com',
@@ -221,12 +221,13 @@ describe('getMailbox Factory', () => {
         auth: { user: 'user@example.com', pass: 'password' },
       };
 
-      await expect(getMailbox(options)).rejects.toThrow(
-        'POP3 adapter not yet implemented',
-      );
+      const mailbox = await getMailbox(options);
+
+      expect(mailbox).toBeDefined();
+      expect(mailbox.getAdapter()).toBe('pop3');
     });
 
-    it('should throw error for Gmail (not yet implemented)', async () => {
+    it('should create Gmail adapter successfully', async () => {
       const options: GmailOptions = {
         type: 'gmail',
         auth: {
@@ -236,9 +237,10 @@ describe('getMailbox Factory', () => {
         },
       };
 
-      await expect(getMailbox(options)).rejects.toThrow(
-        'Gmail adapter not yet implemented',
-      );
+      const mailbox = await getMailbox(options);
+
+      expect(mailbox).toBeDefined();
+      expect(mailbox.getAdapter()).toBe('gmail');
     });
 
     it('should throw error for unknown adapter type', async () => {
@@ -391,9 +393,9 @@ describe('getMailbox Factory', () => {
           auth: { user: '', pass: '' },
         };
 
-        await expect(getMailbox(options)).rejects.toThrow(
-          'POP3 adapter not yet implemented',
-        );
+        const mailbox = await getMailbox(options);
+        expect(mailbox).toBeDefined();
+        expect(mailbox.getAdapter()).toBe('pop3');
       });
 
       it('should use default POP3 port 995', async () => {
@@ -404,9 +406,9 @@ describe('getMailbox Factory', () => {
           auth: { user: 'user@example.com', pass: 'password' },
         };
 
-        await expect(getMailbox(options)).rejects.toThrow(
-          'POP3 adapter not yet implemented',
-        );
+        const mailbox = await getMailbox(options);
+        expect(mailbox).toBeDefined();
+        expect(mailbox.getAdapter()).toBe('pop3');
       });
     });
 
@@ -427,9 +429,9 @@ describe('getMailbox Factory', () => {
           },
         };
 
-        await expect(getMailbox(options)).rejects.toThrow(
-          'Gmail adapter not yet implemented',
-        );
+        const mailbox = await getMailbox(options);
+        expect(mailbox).toBeDefined();
+        expect(mailbox.getAdapter()).toBe('gmail');
       });
 
       it('should use default userId "me"', async () => {
@@ -442,9 +444,9 @@ describe('getMailbox Factory', () => {
           },
         };
 
-        await expect(getMailbox(options)).rejects.toThrow(
-          'Gmail adapter not yet implemented',
-        );
+        const mailbox = await getMailbox(options);
+        expect(mailbox).toBeDefined();
+        expect(mailbox.getAdapter()).toBe('gmail');
       });
     });
 
