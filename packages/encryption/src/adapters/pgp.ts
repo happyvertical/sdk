@@ -910,10 +910,13 @@ export class PGPEncryption extends BaseEncryption {
       };
 
       // Add verification if requested
-      if (options?.verify && options.publicKey) {
-        decryptConfig.verificationKeys = await openpgp.readKey({
-          armoredKey: options.publicKey,
-        });
+      if (options?.verify) {
+        const verificationKey = options.publicKey || this.options.publicKey;
+        if (verificationKey) {
+          decryptConfig.verificationKeys = await openpgp.readKey({
+            armoredKey: verificationKey,
+          });
+        }
       }
 
       const result = await openpgp.decrypt(decryptConfig);
@@ -921,28 +924,36 @@ export class PGPEncryption extends BaseEncryption {
 
       // Verify signature if requested
       let verified = false;
+      let verificationError: string | undefined;
       let signerKeyId: string | undefined;
       let signerFingerprint: string | undefined;
 
-      if (
-        options?.verify &&
-        result.signatures &&
-        result.signatures.length > 0
-      ) {
-        try {
-          await result.signatures[0].verified;
-          verified = true;
-          signerKeyId = result.signatures[0].keyID.toHex();
-          // Get fingerprint from verification key if available
-          if (options.publicKey) {
+      if (options?.verify) {
+        const verificationKey = options.publicKey || this.options.publicKey;
+
+        if (!verificationKey) {
+          verificationError = 'Public key required for signature verification';
+          this.log('Email signature verification skipped: no public key');
+        } else if (!result.signatures || result.signatures.length === 0) {
+          verificationError = 'No signature found in message';
+          this.log('Email signature verification skipped: no signatures');
+        } else {
+          try {
+            // Verify the signature
+            await result.signatures[0].verified;
+            verified = true;
+            signerKeyId = result.signatures[0].keyID.toHex();
+            // Get fingerprint from verification key
             const pubKey = await openpgp.readKey({
-              armoredKey: options.publicKey,
+              armoredKey: verificationKey,
             });
             signerFingerprint = pubKey.getFingerprint();
+            this.log('Email signature verified successfully');
+          } catch (error) {
+            verificationError =
+              error instanceof Error ? error.message : String(error);
+            this.log('Email signature verification failed', error);
           }
-          this.log('Email signature verified successfully');
-        } catch (error) {
-          this.log('Email signature verification failed', error);
         }
       }
 
@@ -959,6 +970,7 @@ export class PGPEncryption extends BaseEncryption {
         encrypted: true,
         signed: result.signatures && result.signatures.length > 0,
         verified: options?.verify ? verified : undefined,
+        verificationError,
         signerKeyId,
         signerFingerprint,
         encryptionAlgorithm: 'pgp',
@@ -1164,10 +1176,10 @@ export class PGPEncryption extends BaseEncryption {
       } else if (line === '--- Attachments ---') {
         break; // Stop at attachments
       } else if (currentSection === 'text' && line.trim()) {
-        text += line + '\n';
+        text += `${line}\n`;
       } else if (currentSection === 'html') {
         if (!html) html = '';
-        html += line + '\n';
+        html += `${line}\n`;
       }
     }
 

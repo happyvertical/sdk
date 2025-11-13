@@ -153,6 +153,7 @@ export interface DecryptedEmail extends EmailMessage {
   encrypted: boolean; // Was encrypted
   signed: boolean; // Was signed
   verified?: boolean; // Signature verification result
+  verificationError?: string; // Verification error message if verification failed
   signerKeyId?: string; // Signer's key ID
   signerFingerprint?: string; // Signer's key fingerprint
   encryptionAlgorithm?: string; // Algorithm used
