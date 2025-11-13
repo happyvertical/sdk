@@ -387,6 +387,9 @@ importers:
       '@happyvertical/utils':
         specifier: workspace:*
         version: link:../utils
+      google-auth-library:
+        specifier: ^10.5.0
+        version: 10.5.0
       googleapis:
         specifier: ^131.0.0
         version: 131.0.0

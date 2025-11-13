@@ -111,6 +111,7 @@ export function createPackageConfig(packageName: string) {
           'openpgp',
           'tweetnacl',
           'tweetnacl-util',
+          'google-auth-library',
           'googleapis',
           /^googleapis\//,
           'nodemailer',
