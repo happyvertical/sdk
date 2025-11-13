@@ -5,6 +5,11 @@
  * enabling users with Claude Max subscriptions to use their subscription instead of
  * paying for API usage. Supports chat completions and streaming responses.
  * Authentication is handled via existing Claude session or setup-token.
+ *
+ * **Authentication Priority:**
+ * 1. ANTHROPIC_API_KEY environment variable (uses Anthropic SDK, no keychain prompts)
+ * 2. Claude CLI with setup-token (for CI/CD, no keychain prompts)
+ * 3. Claude CLI with keychain (may prompt for password on macOS)
  */
 
 import { exec, spawn } from 'node:child_process';
@@ -35,10 +40,14 @@ const execAsync = promisify(exec);
  * Claude CLI provider implementation that shells out to the Claude Code CLI.
  * Supports chat completions, streaming, and leverages Claude Max subscription.
  * Does not support embeddings (use OpenAI or another provider for embeddings).
+ *
+ * If ANTHROPIC_API_KEY environment variable is set, automatically falls back to
+ * using the Anthropic provider to avoid macOS keychain password prompts.
  */
 export class ClaudeCliProvider implements AIInterface {
   private options: ClaudeCliOptions;
   private cliPath: string | null = null;
+  private anthropicFallback: AIInterface | null = null;
 
   /**
    * Creates a new Claude CLI provider instance
@@ -52,7 +61,43 @@ export class ClaudeCliProvider implements AIInterface {
   }
 
   /**
+   * Checks if ANTHROPIC_API_KEY is available and initializes fallback provider if needed
+   * @private
+   */
+  private async initializeFallback(): Promise<void> {
+    if (this.anthropicFallback !== null) {
+      return; // Already initialized
+    }
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return; // No API key, will use CLI
+    }
+
+    // Lazy load Anthropic provider to avoid circular dependency
+    const { AnthropicProvider } = await import('./anthropic.js');
+
+    // Map claude-cli model names to Anthropic model IDs
+    const modelMap: Record<string, string> = {
+      sonnet: 'claude-3-5-sonnet-20241022',
+      opus: 'claude-3-opus-20240229',
+      haiku: 'claude-3-haiku-20240307',
+    };
+
+    const defaultModel =
+      modelMap[this.options.defaultModel || 'sonnet'] ||
+      'claude-3-5-sonnet-20241022';
+
+    this.anthropicFallback = new AnthropicProvider({
+      type: 'anthropic',
+      apiKey,
+      defaultModel,
+    });
+  }
+
+  /**
    * Finds the Claude CLI binary in PATH or uses custom cliPath
+   * Does NOT execute the CLI during detection to avoid keychain prompts
    * @throws {AIError} When CLI cannot be found
    * @private
    */
@@ -61,15 +106,16 @@ export class ClaudeCliProvider implements AIInterface {
       return this.cliPath;
     }
 
-    // If custom path provided, verify it exists
+    // If custom path provided, check if it exists (don't execute it)
     if (this.options.cliPath) {
+      const fs = await import('node:fs/promises');
       try {
-        await execAsync(`"${this.options.cliPath}" --help`);
+        await fs.access(this.options.cliPath);
         this.cliPath = this.options.cliPath;
         return this.cliPath;
       } catch (_error) {
         throw new AIError(
-          `Claude CLI not found at specified path: ${this.options.cliPath}`,
+          `Claude CLI not found at specified path: ${this.options.cliPath}. Set ANTHROPIC_API_KEY environment variable to avoid CLI dependency.`,
           'CLI_NOT_FOUND',
           'claude-cli',
         );
@@ -83,9 +129,10 @@ export class ClaudeCliProvider implements AIInterface {
       '/opt/homebrew/bin/claude',
     ];
 
+    const fs = await import('node:fs/promises');
     for (const path of commonPaths) {
       try {
-        await execAsync(`"${path}" --help`);
+        await fs.access(path);
         this.cliPath = path;
         return this.cliPath;
       } catch (_error) {
@@ -93,29 +140,20 @@ export class ClaudeCliProvider implements AIInterface {
       }
     }
 
-    // Try to resolve via shell (handles aliases)
+    // Try to find in PATH with which (doesn't execute the binary)
     try {
-      const { stdout } = await execAsync('bash -c "type -p claude"');
+      const { stdout } = await execAsync('which claude');
       const path = stdout.trim();
       if (path) {
         this.cliPath = path;
         return this.cliPath;
       }
     } catch (_error) {
-      // Continue to try which
-    }
-
-    // Try to find in PATH with which
-    try {
-      const { stdout } = await execAsync('which claude');
-      this.cliPath = stdout.trim();
-      return this.cliPath;
-    } catch (_error) {
       // Not found
     }
 
     throw new AIError(
-      'Claude CLI not found. Please install Claude Code CLI or specify cliPath option. Visit https://docs.claude.com/en/docs/claude-code/ for installation instructions.',
+      'Claude CLI not found. Set ANTHROPIC_API_KEY environment variable to use Anthropic SDK instead, or install Claude Code CLI. Visit https://docs.claude.com/en/docs/claude-code/ for installation instructions.',
       'CLI_NOT_FOUND',
       'claude-cli',
     );
@@ -402,6 +440,12 @@ export class ClaudeCliProvider implements AIInterface {
     messages: AIMessage[],
     options: ChatOptions = {},
   ): Promise<AIResponse> {
+    // Check if ANTHROPIC_API_KEY is available and use fallback if so
+    await this.initializeFallback();
+    if (this.anthropicFallback) {
+      return this.anthropicFallback.chat(messages, options);
+    }
+
     let { prompt, systemPrompt } = this.mapMessagesToPrompt(messages);
 
     // Add JSON format instruction if requested
@@ -452,6 +496,12 @@ export class ClaudeCliProvider implements AIInterface {
     prompt: string,
     options: CompletionOptions = {},
   ): Promise<AIResponse> {
+    // Check if ANTHROPIC_API_KEY is available and use fallback if so
+    await this.initializeFallback();
+    if (this.anthropicFallback) {
+      return this.anthropicFallback.complete(prompt, options);
+    }
+
     return this.chat([{ role: 'user', content: prompt }], {
       model: options.model,
       maxTokens: options.maxTokens,
@@ -465,12 +515,13 @@ export class ClaudeCliProvider implements AIInterface {
   }
 
   /**
-   * Embeddings are not supported by Claude CLI
+   * Embeddings are not supported by Claude CLI or Anthropic
    */
   async embed(
     _text: string | string[],
     _options: EmbeddingOptions = {},
   ): Promise<EmbeddingResponse> {
+    // Note: Even with fallback, Anthropic doesn't support embeddings
     throw new AIError(
       'Claude CLI does not support embeddings. Use OpenAI or another provider for embeddings.',
       'NOT_SUPPORTED',
@@ -485,6 +536,13 @@ export class ClaudeCliProvider implements AIInterface {
     messages: AIMessage[],
     options: ChatOptions = {},
   ): AsyncIterable<string> {
+    // Check if ANTHROPIC_API_KEY is available and use fallback if so
+    await this.initializeFallback();
+    if (this.anthropicFallback) {
+      yield* this.anthropicFallback.stream(messages, options);
+      return;
+    }
+
     let { prompt, systemPrompt } = this.mapMessagesToPrompt(messages);
 
     // Add JSON format instruction if requested
@@ -507,6 +565,12 @@ export class ClaudeCliProvider implements AIInterface {
    * Count tokens in text (approximation)
    */
   async countTokens(text: string): Promise<number> {
+    // Check if ANTHROPIC_API_KEY is available and use fallback if so
+    await this.initializeFallback();
+    if (this.anthropicFallback) {
+      return this.anthropicFallback.countTokens(text);
+    }
+
     // Claude uses a different tokenizer, approximate similar to Anthropic
     return Math.ceil(text.length / 3.5);
   }
@@ -515,6 +579,12 @@ export class ClaudeCliProvider implements AIInterface {
    * Get available models (static list of Claude models)
    */
   async getModels(): Promise<AIModel[]> {
+    // Check if ANTHROPIC_API_KEY is available and use fallback if so
+    await this.initializeFallback();
+    if (this.anthropicFallback) {
+      return this.anthropicFallback.getModels();
+    }
+
     return [
       {
         id: 'sonnet',
@@ -550,6 +620,12 @@ export class ClaudeCliProvider implements AIInterface {
    * Get provider capabilities
    */
   async getCapabilities(): Promise<AICapabilities> {
+    // Check if ANTHROPIC_API_KEY is available and use fallback if so
+    await this.initializeFallback();
+    if (this.anthropicFallback) {
+      return this.anthropicFallback.getCapabilities();
+    }
+
     return {
       chat: true,
       completion: true,
