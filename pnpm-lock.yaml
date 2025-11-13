@@ -400,11 +400,14 @@ importers:
       '@happyvertical/encryption':
         specifier: workspace:*
         version: link:../encryption
+      '@types/mailparser':
+        specifier: ^3.4.6
+        version: 3.4.6
       '@types/node':
         specifier: 24.0.0
         version: 24.0.0
       '@types/nodemailer':
-        specifier: ^6.4.14
+        specifier: ^6.4.21
         version: 6.4.21
       mailparser-mit:
         specifier: ^1.0.0
@@ -4131,6 +4134,9 @@ packages:
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
+
+  '@types/mailparser@3.4.6':
+    resolution: {integrity: sha512-wVV3cnIKzxTffaPH8iRnddX1zahbYB1ZEoAxyhoBo3TBCBuK6nZ8M8JYO/RhsCuuBVOw/DEN/t/ENbruwlxn6Q==}
 
   '@types/mdast@4.0.4':
     resolution: {integrity: sha512-kGaNbPh1k7AFzgpud/gMdvIm5xuECykRR+JnWKQno9TAXVa6WIVCGTPvYGekIDL4uwCZQSYbUxNBSb1aUo79oA==}
@@ -16062,6 +16068,11 @@ snapshots:
       parse5: 7.3.0
 
   '@types/json-schema@7.0.15': {}
+
+  '@types/mailparser@3.4.6':
+    dependencies:
+      '@types/node': 24.0.0
+      iconv-lite: 0.6.3
 
   '@types/mdast@4.0.4':
     dependencies:

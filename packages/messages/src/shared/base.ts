@@ -3,7 +3,7 @@
  */
 
 import { createLogger, type Logger } from '@happyvertical/logger';
-import type { Database } from '@happyvertical/sql';
+import type { DatabaseInterface } from '@happyvertical/sql';
 import {
   EmailError,
   InvalidMessageError,
@@ -35,7 +35,7 @@ import type {
  */
 export abstract class BaseMailbox implements Mailbox {
   protected config: MailboxConfig;
-  protected db?: Database;
+  protected db?: DatabaseInterface;
   protected logger: Logger;
   protected connected = false;
 

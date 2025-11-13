@@ -2,8 +2,9 @@
  * Gmail adapter using Gmail API with OAuth2
  */
 
+import type { OAuth2Client } from 'google-auth-library';
 import type { gmail_v1 } from 'googleapis';
-import { google, type OAuth2Client } from 'googleapis';
+import { google } from 'googleapis';
 import { simpleParser } from 'mailparser';
 import { BaseMailbox } from '../shared/base';
 import {

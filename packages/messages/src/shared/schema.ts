@@ -2,12 +2,12 @@
  * Database schema for email message storage
  */
 
-import type { Database } from '@happyvertical/sql';
+import type { DatabaseInterface } from '@happyvertical/sql';
 
 /**
  * Initialize database schema for email messages
  */
-export async function initializeSchema(db: Database): Promise<void> {
+export async function initializeSchema(db: DatabaseInterface): Promise<void> {
   // Email accounts table
   await db.query(`
     CREATE TABLE IF NOT EXISTS email_accounts (

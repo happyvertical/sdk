@@ -3,7 +3,7 @@
  */
 
 import type { Logger } from '@happyvertical/logger';
-import type { Database } from '@happyvertical/sql';
+import type { DatabaseInterface } from '@happyvertical/sql';
 
 // ============================================================================
 // Email Message Types
@@ -332,7 +332,7 @@ export interface SMTPOptions {
   maxMessages?: number;
 
   // Database
-  db?: Database;
+  db?: DatabaseInterface;
 
   // Logging
   debug?: boolean;
@@ -373,7 +373,7 @@ export interface IMAPOptions {
   };
 
   // Database
-  db?: Database;
+  db?: DatabaseInterface;
 
   // Logging
   debug?: boolean;
@@ -403,7 +403,7 @@ export interface POP3Options {
   leaveOnServer?: boolean; // Don't delete messages after fetch
 
   // Database
-  db?: Database;
+  db?: DatabaseInterface;
 
   // Logging
   debug?: boolean;
@@ -424,7 +424,7 @@ export interface GmailOptions {
   userId?: string; // Default: 'me'
 
   // Database
-  db?: Database;
+  db?: DatabaseInterface;
 
   // Logging
   debug?: boolean;
