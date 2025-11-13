@@ -26,8 +26,10 @@
     "@happyvertical/logger": "workspace:*",
     "@happyvertical/sql": "workspace:*",
     "@happyvertical/utils": "workspace:*",
+    "googleapis": "^131.0.0",
     "imapflow": "^1.1.1",
     "mailparser": "^3.9.0",
+    "node-pop3": "^0.10.0",
     "nodemailer": "^6.9.8"
   },
   "peerDependencies": {
