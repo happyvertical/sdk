@@ -391,6 +391,7 @@ export abstract class BaseMailbox implements Mailbox {
         where: { message_id: row.id },
       });
 
+      // biome-ignore lint/suspicious/noExplicitAny: Database row type is dynamic
       attachments = attachmentRows.map((att: any) => ({
         filename: att.filename || undefined,
         contentType: att.content_type,

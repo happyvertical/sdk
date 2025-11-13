@@ -140,7 +140,7 @@ export async function initializeSchema(db: Database): Promise<void> {
         content_rowid='rowid'
       )
     `);
-  } catch (error) {
+  } catch (_error) {
     // Ignore FTS errors for non-SQLite databases
   }
 }

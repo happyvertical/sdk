@@ -169,6 +169,20 @@
     },
     {
       "includes": [
+        "packages/messages/src/shared/base.ts",
+        "packages/messages/src/shared/schema.ts",
+        "packages/messages/src/adapters/gmail.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "useNamingConvention": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
         "**/vite.config.ts",
         "**/vitest.config.ts",
         "**/rollup.config.js",

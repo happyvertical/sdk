@@ -397,6 +397,9 @@ importers:
         specifier: ^6.9.8
         version: 6.10.1
     devDependencies:
+      '@happyvertical/encryption':
+        specifier: workspace:*
+        version: link:../encryption
       '@types/node':
         specifier: 24.0.0
         version: 24.0.0

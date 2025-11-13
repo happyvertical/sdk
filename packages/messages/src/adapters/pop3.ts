@@ -99,7 +99,7 @@ export class POP3Adapter extends BaseMailbox {
 
     try {
       // Get list of message UIDs
-      const uidlResponse = await this.client!.UIDL();
+      const uidlResponse = await this.client?.UIDL();
       const uidList = this.parseUidlResponse(uidlResponse[0]);
 
       if (uidList.length === 0) {
@@ -162,7 +162,7 @@ export class POP3Adapter extends BaseMailbox {
 
       // If not in cache, refresh UIDL
       if (!msgNum) {
-        const uidlResponse = await this.client!.UIDL();
+        const uidlResponse = await this.client?.UIDL();
         const uidList = this.parseUidlResponse(uidlResponse[0]);
 
         this.messageCache.clear();
@@ -205,7 +205,7 @@ export class POP3Adapter extends BaseMailbox {
 
         if (!msgNum) {
           // Refresh UIDL
-          const uidlResponse = await this.client!.UIDL();
+          const uidlResponse = await this.client?.UIDL();
           const uidList = this.parseUidlResponse(uidlResponse[0]);
 
           for (const { msgNum: num, uid } of uidList) {
@@ -353,7 +353,7 @@ export class POP3Adapter extends BaseMailbox {
   private async fetchMessage(msgNum: string): Promise<EmailMessage> {
     try {
       // Retrieve full message
-      const response = await this.client!.RETR(msgNum);
+      const response = await this.client?.RETR(msgNum);
       const messageData = response[0];
 
       // Parse message
@@ -411,7 +411,7 @@ export class POP3Adapter extends BaseMailbox {
 
   private async deleteMessageByNum(msgNum: string): Promise<void> {
     try {
-      await this.client!.command(`DELE ${msgNum}`);
+      await this.client?.command(`DELE ${msgNum}`);
       this.messageCache.delete(msgNum);
       this.debug(`Deleted message ${msgNum}`);
     } catch (error) {
@@ -472,7 +472,7 @@ export class POP3Adapter extends BaseMailbox {
 
     if (error instanceof Error) {
       const message = error.message.toLowerCase();
-      const errorObj = error as any;
+      const errorObj = error as Record<string, unknown>;
 
       // Timeout errors
       if (

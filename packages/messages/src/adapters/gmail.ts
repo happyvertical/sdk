@@ -3,7 +3,7 @@
  */
 
 import type { gmail_v1 } from 'googleapis';
-import { google } from 'googleapis';
+import { google, type OAuth2Client } from 'googleapis';
 import { simpleParser } from 'mailparser';
 import { BaseMailbox } from '../shared/base';
 import {
@@ -41,7 +41,7 @@ import type {
 export class GmailAdapter extends BaseMailbox {
   private gmail: gmail_v1.Gmail | null = null;
   private options: GmailOptions;
-  private auth: any;
+  private auth: OAuth2Client | null = null;
 
   constructor(options: GmailOptions) {
     super(options);
@@ -104,7 +104,7 @@ export class GmailAdapter extends BaseMailbox {
         .replace(/=+$/, '');
 
       // Send message
-      const response = await this.gmail!.users.messages.send({
+      const response = await this.gmail?.users.messages.send({
         userId: this.getUserId(),
         requestBody: {
           raw: encodedEmail,
@@ -134,7 +134,7 @@ export class GmailAdapter extends BaseMailbox {
       const query = this.buildGmailQuery(options);
 
       // List messages
-      const listResponse = await this.gmail!.users.messages.list({
+      const listResponse = await this.gmail?.users.messages.list({
         userId: this.getUserId(),
         q: query,
         labelIds: options?.labelIds,
@@ -175,7 +175,7 @@ export class GmailAdapter extends BaseMailbox {
     this.ensureConnected();
 
     try {
-      const response = await this.gmail!.users.messages.get({
+      const response = await this.gmail?.users.messages.get({
         userId: this.getUserId(),
         id: messageId,
         format: 'raw',
@@ -262,7 +262,7 @@ export class GmailAdapter extends BaseMailbox {
     this.ensureConnected();
 
     try {
-      const response = await this.gmail!.users.labels.list({
+      const response = await this.gmail?.users.labels.list({
         userId: this.getUserId(),
       });
 
@@ -321,7 +321,7 @@ export class GmailAdapter extends BaseMailbox {
         throw new FolderExistsError(name, 'gmail');
       }
 
-      await this.gmail!.users.labels.create({
+      await this.gmail?.users.labels.create({
         userId: this.getUserId(),
         requestBody: {
           name,
@@ -358,7 +358,7 @@ export class GmailAdapter extends BaseMailbox {
         );
       }
 
-      await this.gmail!.users.labels.delete({
+      await this.gmail?.users.labels.delete({
         userId: this.getUserId(),
         id: label.path,
       });
@@ -381,7 +381,7 @@ export class GmailAdapter extends BaseMailbox {
 
     try {
       for (const id of ids) {
-        await this.gmail!.users.messages.modify({
+        await this.gmail?.users.messages.modify({
           userId: this.getUserId(),
           id,
           requestBody: {
@@ -401,7 +401,7 @@ export class GmailAdapter extends BaseMailbox {
 
     try {
       for (const id of ids) {
-        await this.gmail!.users.messages.modify({
+        await this.gmail?.users.messages.modify({
           userId: this.getUserId(),
           id,
           requestBody: {
@@ -429,7 +429,7 @@ export class GmailAdapter extends BaseMailbox {
       }
 
       for (const id of ids) {
-        await this.gmail!.users.messages.modify({
+        await this.gmail?.users.messages.modify({
           userId: this.getUserId(),
           id,
           requestBody: {
@@ -459,7 +459,7 @@ export class GmailAdapter extends BaseMailbox {
     try {
       for (const id of ids) {
         // Move to trash instead of permanent delete
-        await this.gmail!.users.messages.trash({
+        await this.gmail?.users.messages.trash({
           userId: this.getUserId(),
           id,
         });
@@ -673,7 +673,7 @@ export class GmailAdapter extends BaseMailbox {
 
     if (error instanceof Error) {
       const message = error.message.toLowerCase();
-      const errorObj = error as any;
+      const errorObj = error as Record<string, unknown>;
 
       // Timeout errors
       if (

@@ -42,7 +42,6 @@ import type {
 export class IMAPAdapter extends BaseMailbox {
   private client: ImapFlow | null = null;
   private options: IMAPOptions;
-  private currentFolder: string | null = null;
 
   constructor(options: IMAPOptions) {
     super({
@@ -221,7 +220,7 @@ export class IMAPAdapter extends BaseMailbox {
     this.ensureConnected();
 
     try {
-      const list = await this.client!.list();
+      const list = await this.client?.list();
 
       return list.map((folder) => ({
         name: folder.name,
@@ -242,7 +241,7 @@ export class IMAPAdapter extends BaseMailbox {
     this.ensureConnected();
 
     try {
-      const mailbox = await this.client!.mailboxOpen(name);
+      const mailbox = await this.client?.mailboxOpen(name);
       this.currentFolder = name;
 
       return {
@@ -273,7 +272,7 @@ export class IMAPAdapter extends BaseMailbox {
     this.ensureConnected();
 
     try {
-      await this.client!.mailboxCreate(name);
+      await this.client?.mailboxCreate(name);
       this.debug('Folder created', { name });
     } catch (error) {
       if (
@@ -293,7 +292,7 @@ export class IMAPAdapter extends BaseMailbox {
     this.ensureConnected();
 
     try {
-      await this.client!.mailboxDelete(name);
+      await this.client?.mailboxDelete(name);
       this.debug('Folder deleted', { name });
     } catch (error) {
       if (
@@ -316,11 +315,11 @@ export class IMAPAdapter extends BaseMailbox {
 
     try {
       for (const id of ids) {
-        const uids = await this.client!.search({
+        const uids = await this.client?.search({
           header: ['message-id', id],
         });
         if (uids.length > 0) {
-          await this.client!.messageFlagsAdd(uids[0], ['\\Seen'], {
+          await this.client?.messageFlagsAdd(uids[0], ['\\Seen'], {
             uid: true,
           });
         }
@@ -340,11 +339,11 @@ export class IMAPAdapter extends BaseMailbox {
 
     try {
       for (const id of ids) {
-        const uids = await this.client!.search({
+        const uids = await this.client?.search({
           header: ['message-id', id],
         });
         if (uids.length > 0) {
-          await this.client!.messageFlagsRemove(uids[0], ['\\Seen'], {
+          await this.client?.messageFlagsRemove(uids[0], ['\\Seen'], {
             uid: true,
           });
         }
@@ -364,11 +363,11 @@ export class IMAPAdapter extends BaseMailbox {
 
     try {
       for (const id of ids) {
-        const uids = await this.client!.search({
+        const uids = await this.client?.search({
           header: ['message-id', id],
         });
         if (uids.length > 0) {
-          await this.client!.messageMove(uids[0], folder, { uid: true });
+          await this.client?.messageMove(uids[0], folder, { uid: true });
         }
       }
     } catch (error) {
@@ -386,11 +385,11 @@ export class IMAPAdapter extends BaseMailbox {
 
     try {
       for (const id of ids) {
-        const uids = await this.client!.search({
+        const uids = await this.client?.search({
           header: ['message-id', id],
         });
         if (uids.length > 0) {
-          await this.client!.messageCopy(uids[0], folder, { uid: true });
+          await this.client?.messageCopy(uids[0], folder, { uid: true });
         }
       }
     } catch (error) {
@@ -408,17 +407,17 @@ export class IMAPAdapter extends BaseMailbox {
 
     try {
       for (const id of ids) {
-        const uids = await this.client!.search({
+        const uids = await this.client?.search({
           header: ['message-id', id],
         });
         if (uids.length > 0) {
-          await this.client!.messageFlagsAdd(uids[0], ['\\Deleted'], {
+          await this.client?.messageFlagsAdd(uids[0], ['\\Deleted'], {
             uid: true,
           });
         }
       }
       // Expunge to permanently delete
-      await this.client!.expunge();
+      await this.client?.expunge();
     } catch (error) {
       throw this.mapIMAPError(error);
     }
