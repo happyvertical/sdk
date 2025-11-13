@@ -96,7 +96,7 @@ export { SMTPAdapter } from './adapters/smtp';
 export type {
   DecryptEmailOptions,
   DecryptedEmail,
-  EmailEncryption,
+  // EmailEncryption, // Not yet available in @happyvertical/encryption
   EncryptEmailOptions,
   SignEmailOptions,
   VerificationResult,

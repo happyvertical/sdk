@@ -11,11 +11,14 @@
  *
  * These types are defined in the encryption package and provide
  * email-specific encryption capabilities.
+ *
+ * Note: Some types may not be available yet as the encryption package
+ * is still under development. Comment out unavailable exports.
  */
 export type {
   DecryptEmailOptions,
   DecryptedEmail,
-  EmailEncryption,
+  // EmailEncryption, // Not yet exported by @happyvertical/encryption
   EncryptEmailOptions,
   SignEmailOptions,
   VerificationResult,

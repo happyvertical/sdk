@@ -443,12 +443,13 @@ export type GetMailboxOptions =
 export interface MailboxConfig {
   type: AdapterType;
   debug?: boolean;
-  db?: Database;
+  db?: DatabaseInterface;
   logger?: Logger;
+  accountId?: string;
 }
 
 export interface MailboxOptions {
   type: AdapterType;
   debug?: boolean;
-  db?: Database;
+  db?: DatabaseInterface;
 }

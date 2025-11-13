@@ -42,7 +42,7 @@ export abstract class BaseMailbox implements Mailbox {
   constructor(config: MailboxConfig) {
     this.config = this.validateConfig(config);
     this.db = config.db;
-    this.logger = config.logger || createLogger({ namespace: 'messages' });
+    this.logger = config.logger || createLogger({ level: 'info' });
 
     // Initialize database schema if database is provided
     if (this.db) {
@@ -473,7 +473,7 @@ export abstract class BaseMailbox implements Mailbox {
 
   protected debug(message: string, data?: unknown): void {
     if (this.config.debug) {
-      this.logger.debug(message, data);
+      this.logger.debug(message, data as Record<string, unknown> | undefined);
     }
   }
 }

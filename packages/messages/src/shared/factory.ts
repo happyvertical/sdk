@@ -3,6 +3,7 @@
  */
 
 import type {
+  AdapterType,
   GetMailboxOptions,
   GmailOptions,
   IMAPOptions,
@@ -102,7 +103,7 @@ export async function getMailbox(options: GetMailboxOptions): Promise<Mailbox> {
     return new GmailAdapter(opts);
   }
 
-  throw new Error(`Unknown mailbox type: ${opts.type}`);
+  throw new Error(`Unknown mailbox type: ${(opts as { type: string }).type}`);
 }
 
 // ============================================================================
@@ -148,9 +149,9 @@ async function loadEnvironmentConfig(
   // If type is not provided, try to load from environment
   if (!options.type && process.env.HAVE_MESSAGES_TYPE) {
     options = {
-      ...options,
+      ...(options as object),
       type: process.env.HAVE_MESSAGES_TYPE as AdapterType,
-    };
+    } as GetMailboxOptions;
   }
 
   // Load type-specific environment variables
@@ -193,13 +194,15 @@ function loadSMTPEnvironmentConfig(options: SMTPOptions): SMTPOptions {
       options.secure ??
       (process.env.HAVE_MESSAGES_SMTP_SECURE ||
         process.env.HAVE_MESSAGES_SECURE) === 'true',
-    auth: options.auth || {
-      user:
-        process.env.HAVE_MESSAGES_USER || process.env.HAVE_MESSAGES_SMTP_USER,
-      pass:
-        process.env.HAVE_MESSAGES_PASSWORD ||
-        process.env.HAVE_MESSAGES_SMTP_PASSWORD,
-    },
+    auth:
+      options.auth ||
+      ({
+        user:
+          process.env.HAVE_MESSAGES_USER || process.env.HAVE_MESSAGES_SMTP_USER,
+        pass:
+          process.env.HAVE_MESSAGES_PASSWORD ||
+          process.env.HAVE_MESSAGES_SMTP_PASSWORD,
+      } as SMTPOptions['auth']),
     debug: options.debug ?? process.env.HAVE_MESSAGES_DEBUG === 'true',
   };
 }
