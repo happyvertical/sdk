@@ -57,6 +57,7 @@
     { "path": "./packages/pdf" },
     { "path": "./packages/documents" },
     { "path": "./packages/spider" },
+    { "path": "./packages/messages" },
 
     // Developer tools
     { "path": "./packages/sdk-mcp" },
