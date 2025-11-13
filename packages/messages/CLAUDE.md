@@ -1042,7 +1042,7 @@ const stats = await db.query(`
 
 ## Encryption Integration
 
-The email package integrates with `@happyvertical/encryption` when available for PGP/S/MIME support.
+The `@happyvertical/messages` package integrates with `@happyvertical/encryption` to provide PGP email encryption and digital signatures. Encryption is available as an optional peer dependency.
 
 ### Prerequisites
 
@@ -1052,7 +1052,7 @@ pnpm add @happyvertical/encryption
 
 ### Email-Specific Encryption
 
-The encryption package will provide `encryptEmail()` and `decryptEmail()` methods specifically designed for email:
+The encryption package provides `encryptEmail()` and `decryptEmail()` methods specifically designed for email:
 
 ```typescript
 import { getMailbox } from '@happyvertical/messages';
@@ -1100,11 +1100,11 @@ console.log(decrypted.text); // Original plain text
 console.log(decrypted.verified); // Signature valid
 ```
 
-### Encryption Requirements
+### Encryption Capabilities
 
-The `@happyvertical/encryption` package must provide:
+The `@happyvertical/encryption` package provides the following email encryption capabilities:
 
-1. **PGP Adapter** (via OpenPGP.js):
+1. **PGP Encryption** (via OpenPGP.js):
    - `encryptEmail(message, options)` - Encrypt email message
    - `decryptEmail(message, options)` - Decrypt email message
    - `signEmail(message, options)` - Sign email message
@@ -1112,19 +1112,25 @@ The `@happyvertical/encryption` package must provide:
    - Key management (generate, import, export)
 
 2. **Key Management**:
-   - Generate keypairs
+   - Generate RSA and ECC keypairs
    - Import/export keys (armored format)
    - Keyring management
    - Passphrase protection
 
-3. **S/MIME Support** (future):
-   - Certificate-based encryption
+3. **Additional Features**:
+   - Attachment encryption
+   - PGP/MIME format support
+   - Signature verification
+   - Multiple recipient encryption
+
+4. **Future Enhancements**:
+   - S/MIME support for certificate-based encryption
    - X.509 certificate management
 
-### Encryption Adapter Interface
+### Encryption API
 
 ```typescript
-// What encryption package should provide for email
+// Email encryption interface provided by @happyvertical/encryption
 interface EmailEncryption {
   encryptEmail(
     message: EmailMessage,
@@ -1181,6 +1187,196 @@ interface VerificationResult {
   keyFingerprint: string;
   timestamp: Date;
   message?: string;
+}
+```
+
+### Working Examples
+
+Based on integration tests demonstrating actual encryption functionality:
+
+#### Complete Encryption/Decryption Workflow
+
+```typescript
+import { getEncryption } from '@happyvertical/encryption';
+import { getMailbox } from '@happyvertical/messages';
+import type { EmailMessage } from '@happyvertical/messages';
+
+// Generate keypairs for sender and recipient
+const pgp = await getEncryption({ type: 'pgp' });
+
+const senderKeys = await pgp.generateKeyPair({
+  name: 'Alice Sender',
+  email: 'alice@example.com',
+  passphrase: 'sender-passphrase',
+  type: 'rsa',
+  keySize: 4096
+});
+
+const recipientKeys = await pgp.generateKeyPair({
+  name: 'Bob Recipient',
+  email: 'bob@example.com',
+  passphrase: 'recipient-passphrase',
+  type: 'rsa',
+  keySize: 4096
+});
+
+// Setup encryption for sender
+const senderEncryption = await getEncryption({
+  type: 'pgp',
+  publicKey: recipientKeys.publicKey,
+  privateKey: senderKeys.privateKey,
+  passphrase: 'sender-passphrase'
+});
+
+// Create message
+const message: EmailMessage = {
+  from: { address: 'alice@example.com', name: 'Alice Sender' },
+  to: [{ address: 'bob@example.com', name: 'Bob Recipient' }],
+  subject: 'Confidential Information',
+  text: 'This is secret data that should be encrypted',
+  html: '<p>This is <strong>secret data</strong> that should be encrypted</p>'
+};
+
+// Encrypt and sign the message
+const encrypted = await senderEncryption.encryptEmail(message, {
+  sign: true,
+  armor: true
+});
+
+// Verify encrypted content
+console.log(encrypted.text.includes('-----BEGIN PGP MESSAGE-----')); // true
+console.log(encrypted.text.includes('This is secret data')); // false
+
+// Send via SMTP
+const smtp = await getMailbox({
+  type: 'smtp',
+  host: 'smtp.example.com',
+  port: 587,
+  auth: { user: 'alice@example.com', pass: 'password' }
+});
+await smtp.send(encrypted);
+
+// --- On recipient side ---
+
+// Setup encryption for recipient
+const recipientEncryption = await getEncryption({
+  type: 'pgp',
+  publicKey: senderKeys.publicKey,
+  privateKey: recipientKeys.privateKey,
+  passphrase: 'recipient-passphrase'
+});
+
+// Receive via IMAP
+const imap = await getMailbox({
+  type: 'imap',
+  host: 'imap.example.com',
+  port: 993,
+  secure: true,
+  auth: { user: 'bob@example.com', pass: 'password' }
+});
+
+await imap.connect();
+const messages = await imap.fetch({ limit: 1 });
+await imap.disconnect();
+
+// Decrypt and verify
+const decrypted = await recipientEncryption.decryptEmail(messages[0], {
+  verify: true
+});
+
+// Access decrypted content
+console.log(decrypted.text); // "This is secret data that should be encrypted"
+console.log(decrypted.html); // "<p>This is <strong>secret data</strong>...</p>"
+console.log(decrypted.subject); // "Confidential Information"
+console.log(decrypted.encrypted); // true
+console.log(decrypted.signed); // true
+console.log(decrypted.verified); // true
+```
+
+#### Encrypting Messages with Attachments
+
+```typescript
+const message: EmailMessage = {
+  from: { address: 'sender@example.com' },
+  to: [{ address: 'recipient@example.com' }],
+  subject: 'Confidential Document',
+  text: 'Please review the attached document',
+  attachments: [
+    {
+      filename: 'confidential.pdf',
+      contentType: 'application/pdf',
+      size: 102400,
+      content: pdfBuffer
+    },
+    {
+      filename: 'report.xlsx',
+      contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      size: 51200,
+      content: xlsxBuffer
+    }
+  ]
+};
+
+// Encrypt message including attachments
+const encrypted = await encryption.encryptEmail(message, {
+  sign: true
+});
+
+// All attachments are encrypted
+console.log(encrypted.attachments); // Encrypted attachment data
+
+// After decryption, attachments are restored
+const decrypted = await recipientEncryption.decryptEmail(encrypted);
+console.log(decrypted.attachments[0].filename); // "confidential.pdf"
+console.log(decrypted.attachments[0].content); // Original PDF buffer
+```
+
+#### Detecting Invalid Signatures
+
+```typescript
+// Encrypt and sign with sender's keys
+const encrypted = await senderEncryption.encryptEmail(message, {
+  sign: true
+});
+
+// Try to verify with wrong public key
+const wrongKeys = await pgp.generateKeyPair({
+  name: 'Attacker',
+  email: 'attacker@example.com',
+  passphrase: 'wrong-pass',
+  type: 'rsa',
+  keySize: 2048
+});
+
+const maliciousEncryption = await getEncryption({
+  type: 'pgp',
+  publicKey: wrongKeys.publicKey,  // Wrong sender key
+  privateKey: recipientKeys.privateKey,
+  passphrase: 'recipient-passphrase'
+});
+
+const decrypted = await maliciousEncryption.decryptEmail(encrypted, {
+  verify: true
+});
+
+// Signature verification fails
+console.log(decrypted.verified); // false
+console.log(decrypted.verificationError); // Error message
+```
+
+#### Checking Encryption Availability
+
+```typescript
+import { hasEncryption } from '@happyvertical/messages/encryption';
+
+if (hasEncryption()) {
+  console.log('Encryption is available');
+  const { getEncryption } = await import('@happyvertical/encryption');
+  const encryption = await getEncryption({ type: 'pgp', ... });
+  // Use encryption features
+} else {
+  console.warn('Encryption package not installed');
+  // Fallback to unencrypted communication or show warning
 }
 ```
 
