@@ -24,6 +24,8 @@
   },
   "dependencies": {
     "nodemailer": "^6.9.8",
+    "imapflow": "^1.1.1",
+    "mailparser": "^3.9.0",
     "@happyvertical/utils": "workspace:*",
     "@happyvertical/logger": "workspace:*",
     "@happyvertical/sql": "workspace:*"

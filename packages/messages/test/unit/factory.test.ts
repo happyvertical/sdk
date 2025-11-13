@@ -199,7 +199,7 @@ describe('getMailbox Factory', () => {
       expect(mailbox.getAdapter()).toBe('smtp');
     });
 
-    it('should throw error for IMAP (not yet implemented)', async () => {
+    it('should create IMAP adapter successfully', async () => {
       const options: IMAPOptions = {
         type: 'imap',
         host: 'imap.example.com',
@@ -207,9 +207,10 @@ describe('getMailbox Factory', () => {
         auth: { user: 'user@example.com', pass: 'password' },
       };
 
-      await expect(getMailbox(options)).rejects.toThrow(
-        'IMAP adapter not yet implemented',
-      );
+      const mailbox = await getMailbox(options);
+
+      expect(mailbox).toBeDefined();
+      expect(mailbox.getAdapter()).toBe('imap');
     });
 
     it('should throw error for POP3 (not yet implemented)', async () => {
@@ -356,9 +357,9 @@ describe('getMailbox Factory', () => {
           auth: { user: '', pass: '' },
         };
 
-        await expect(getMailbox(options)).rejects.toThrow(
-          'IMAP adapter not yet implemented',
-        );
+        const mailbox = await getMailbox(options);
+        expect(mailbox).toBeDefined();
+        expect(mailbox.getAdapter()).toBe('imap');
       });
 
       it('should use default IMAP port 993', async () => {
@@ -369,9 +370,9 @@ describe('getMailbox Factory', () => {
           auth: { user: 'user@example.com', pass: 'password' },
         };
 
-        await expect(getMailbox(options)).rejects.toThrow(
-          'IMAP adapter not yet implemented',
-        );
+        const mailbox = await getMailbox(options);
+        expect(mailbox).toBeDefined();
+        expect(mailbox.getAdapter()).toBe('imap');
       });
     });
 

@@ -88,8 +88,8 @@ export async function getMailbox(options: GetMailboxOptions): Promise<Mailbox> {
   }
 
   if (isIMAPOptions(opts)) {
-    // return new IMAPAdapter(opts);
-    throw new Error('IMAP adapter not yet implemented');
+    const { IMAPAdapter } = await import('../adapters/imap.js');
+    return new IMAPAdapter(opts);
   }
 
   if (isPOP3Options(opts)) {

@@ -84,4 +84,5 @@ export { BaseMailbox } from './shared/base';
 // Adapters
 // ============================================================================
 
+export { IMAPAdapter } from './adapters/imap';
 export { SMTPAdapter } from './adapters/smtp';
