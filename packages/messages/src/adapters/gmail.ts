@@ -560,6 +560,8 @@ export class GmailAdapter extends BaseMailbox {
     options?: SendOptions,
   ): string {
     const lines: string[] = [];
+    const hasAttachments =
+      message.attachments && message.attachments.length > 0;
 
     // Headers
     lines.push(`From: ${this.formatEmailAddress(message.from)}`);
@@ -586,26 +588,93 @@ export class GmailAdapter extends BaseMailbox {
       lines.push(`Message-ID: <${options.messageId}>`);
     }
 
-    // Content type
-    if (message.html) {
-      lines.push('MIME-Version: 1.0');
-      lines.push('Content-Type: multipart/alternative; boundary="boundary"');
+    lines.push('MIME-Version: 1.0');
+
+    // If there are attachments, use multipart/mixed
+    if (hasAttachments) {
+      lines.push('Content-Type: multipart/mixed; boundary="mixed-boundary"');
       lines.push('');
-      lines.push('--boundary');
-      lines.push('Content-Type: text/plain; charset="UTF-8"');
+      lines.push('--mixed-boundary');
+
+      // Message body (text/html alternative)
+      if (message.html) {
+        lines.push(
+          'Content-Type: multipart/alternative; boundary="alt-boundary"',
+        );
+        lines.push('');
+        lines.push('--alt-boundary');
+        lines.push('Content-Type: text/plain; charset="UTF-8"');
+        lines.push('Content-Transfer-Encoding: 7bit');
+        lines.push('');
+        lines.push(message.text || '');
+        lines.push('');
+        lines.push('--alt-boundary');
+        lines.push('Content-Type: text/html; charset="UTF-8"');
+        lines.push('Content-Transfer-Encoding: 7bit');
+        lines.push('');
+        lines.push(message.html);
+        lines.push('');
+        lines.push('--alt-boundary--');
+      } else {
+        lines.push('Content-Type: text/plain; charset="UTF-8"');
+        lines.push('Content-Transfer-Encoding: 7bit');
+        lines.push('');
+        lines.push(message.text || '');
+      }
+
+      // Attachments
+      for (const attachment of message.attachments) {
+        lines.push('');
+        lines.push('--mixed-boundary');
+        lines.push(
+          `Content-Type: ${attachment.contentType}; name="${attachment.filename}"`,
+        );
+        lines.push('Content-Transfer-Encoding: base64');
+        lines.push(
+          `Content-Disposition: ${attachment.contentDisposition || 'attachment'}; filename="${attachment.filename}"`,
+        );
+        if (attachment.contentId) {
+          lines.push(`Content-ID: <${attachment.contentId}>`);
+        }
+        lines.push('');
+
+        // Encode attachment content as base64
+        const content = attachment.content || Buffer.from('');
+        const base64Content = content.toString('base64');
+
+        // Split base64 into 76-character lines (RFC 2045)
+        const base64Lines = base64Content.match(/.{1,76}/g) || [];
+        lines.push(...base64Lines);
+      }
+
       lines.push('');
-      lines.push(message.text || '');
-      lines.push('');
-      lines.push('--boundary');
-      lines.push('Content-Type: text/html; charset="UTF-8"');
-      lines.push('');
-      lines.push(message.html);
-      lines.push('');
-      lines.push('--boundary--');
+      lines.push('--mixed-boundary--');
     } else {
-      lines.push('Content-Type: text/plain; charset="UTF-8"');
-      lines.push('');
-      lines.push(message.text || '');
+      // No attachments - simple message
+      if (message.html) {
+        lines.push(
+          'Content-Type: multipart/alternative; boundary="alt-boundary"',
+        );
+        lines.push('');
+        lines.push('--alt-boundary');
+        lines.push('Content-Type: text/plain; charset="UTF-8"');
+        lines.push('Content-Transfer-Encoding: 7bit');
+        lines.push('');
+        lines.push(message.text || '');
+        lines.push('');
+        lines.push('--alt-boundary');
+        lines.push('Content-Type: text/html; charset="UTF-8"');
+        lines.push('Content-Transfer-Encoding: 7bit');
+        lines.push('');
+        lines.push(message.html);
+        lines.push('');
+        lines.push('--alt-boundary--');
+      } else {
+        lines.push('Content-Type: text/plain; charset="UTF-8"');
+        lines.push('Content-Transfer-Encoding: 7bit');
+        lines.push('');
+        lines.push(message.text || '');
+      }
     }
 
     return lines.join('\r\n');
