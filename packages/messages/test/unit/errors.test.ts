@@ -232,11 +232,7 @@ describe('SendError', () => {
   });
 
   it('should handle empty accepted list', () => {
-    const error = new SendError(
-      'All rejected',
-      [],
-      ['invalid1@', 'invalid2@'],
-    );
+    const error = new SendError('All rejected', [], ['invalid1@', 'invalid2@']);
 
     expect(error.accepted).toEqual([]);
     expect(error.rejected).toHaveLength(2);

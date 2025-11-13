@@ -4,7 +4,6 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { POP3Adapter } from '../../src/adapters/pop3';
-import type { POP3Options } from '../../src/shared/types';
 import {
   AuthenticationError,
   ConnectionError,
@@ -12,12 +11,16 @@ import {
   MessageNotFoundError,
   TimeoutError,
 } from '../../src/shared/errors';
+import type { POP3Options } from '../../src/shared/types';
 
 // Mock node-pop3
 const mockClient = {
   connect: vi.fn(),
+  // biome-ignore lint/style/useNamingConvention: POP3 protocol command
   QUIT: vi.fn(),
+  // biome-ignore lint/style/useNamingConvention: POP3 protocol command
   UIDL: vi.fn(),
+  // biome-ignore lint/style/useNamingConvention: POP3 protocol command
   RETR: vi.fn(),
   command: vi.fn(),
 };
@@ -25,6 +28,7 @@ const mockClient = {
 vi.mock('node-pop3', () => {
   class MockPop3Command {
     constructor() {
+      // biome-ignore lint/correctness/noConstructorReturn: Mock needs to return mockClient
       return mockClient as any;
     }
   }
@@ -297,10 +301,7 @@ describe('POP3Adapter', () => {
     beforeEach(async () => {
       await adapter.connect();
 
-      mockClient.UIDL.mockResolvedValue([
-        '+OK\n1 uid-001\n2 uid-002\n.',
-        null,
-      ]);
+      mockClient.UIDL.mockResolvedValue(['+OK\n1 uid-001\n2 uid-002\n.', null]);
       mockClient.RETR.mockResolvedValue([
         'From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: Test\r\n\r\nBody',
         null,
@@ -335,10 +336,7 @@ describe('POP3Adapter', () => {
     beforeEach(async () => {
       await adapter.connect();
 
-      mockClient.UIDL.mockResolvedValue([
-        '+OK\n1 uid-001\n2 uid-002\n.',
-        null,
-      ]);
+      mockClient.UIDL.mockResolvedValue(['+OK\n1 uid-001\n2 uid-002\n.', null]);
       mockClient.command.mockResolvedValue(['+OK', null]);
     });
 
@@ -350,10 +348,7 @@ describe('POP3Adapter', () => {
       });
       await adapterLeave.connect();
 
-      mockClient.UIDL.mockResolvedValue([
-        '+OK\n1 uid-001\n2 uid-002\n.',
-        null,
-      ]);
+      mockClient.UIDL.mockResolvedValue(['+OK\n1 uid-001\n2 uid-002\n.', null]);
       mockClient.RETR.mockResolvedValue([
         'From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: Test\r\n\r\nBody',
         null,
@@ -376,10 +371,7 @@ describe('POP3Adapter', () => {
       });
       await adapterLeave.connect();
 
-      mockClient.UIDL.mockResolvedValue([
-        '+OK\n1 uid-001\n2 uid-002\n.',
-        null,
-      ]);
+      mockClient.UIDL.mockResolvedValue(['+OK\n1 uid-001\n2 uid-002\n.', null]);
       mockClient.RETR.mockResolvedValue([
         'From: sender@example.com\r\nTo: recipient@example.com\r\nSubject: Test\r\n\r\nBody',
         null,
@@ -483,12 +475,12 @@ describe('POP3Adapter', () => {
     });
 
     it('should throw error for search', async () => {
-      await expect(adapter.search({ from: 'test@example.com' })).rejects.toThrow(
-        EmailError,
-      );
-      await expect(adapter.search({ from: 'test@example.com' })).rejects.toThrow(
-        'does not support server-side search',
-      );
+      await expect(
+        adapter.search({ from: 'test@example.com' }),
+      ).rejects.toThrow(EmailError);
+      await expect(
+        adapter.search({ from: 'test@example.com' }),
+      ).rejects.toThrow('does not support server-side search');
     });
   });
 
@@ -535,7 +527,9 @@ describe('POP3Adapter', () => {
     });
 
     it('should map authentication errors', async () => {
-      mockClient.UIDL.mockRejectedValue(new Error('-ERR Authentication failed'));
+      mockClient.UIDL.mockRejectedValue(
+        new Error('-ERR Authentication failed'),
+      );
 
       await expect(adapter.fetch()).rejects.toThrow(AuthenticationError);
     });

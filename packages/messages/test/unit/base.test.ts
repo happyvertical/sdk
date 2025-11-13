@@ -123,20 +123,18 @@ class TestMailbox extends BaseMailbox {
 
   // Expose protected methods for testing
   public testValidateEmail(email: EmailAddress): void {
-    return this.validateEmail(email);
+    this.validateEmail(email);
   }
 
   public testValidateMessage(message: EmailMessage): void {
-    return this.validateMessage(message);
+    this.validateMessage(message);
   }
 
   public testMapError(error: unknown): EmailError {
     return this.mapError(error);
   }
 
-  public testNormalizeMessageIds(
-    messageId: string | string[],
-  ): string[] {
+  public testNormalizeMessageIds(messageId: string | string[]): string[] {
     return this.normalizeMessageIds(messageId);
   }
 }
@@ -158,9 +156,7 @@ describe('BaseMailbox', () => {
       const config = {} as MailboxConfig;
 
       expect(() => new TestMailbox(config)).toThrow(EmailError);
-      expect(() => new TestMailbox(config)).toThrow(
-        'Mailbox type is required',
-      );
+      expect(() => new TestMailbox(config)).toThrow('Mailbox type is required');
     });
 
     it('should accept optional database', () => {

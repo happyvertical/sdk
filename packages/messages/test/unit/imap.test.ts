@@ -31,11 +31,13 @@ const mockClient = {
 vi.mock('imapflow', () => {
   class MockImapFlow {
     constructor() {
+      // biome-ignore lint/correctness/noConstructorReturn: Mock needs to return mockClient
       return mockClient as any;
     }
   }
 
   return {
+    // biome-ignore lint/style/useNamingConvention: External API naming convention
     ImapFlow: MockImapFlow,
   };
 });
@@ -159,9 +161,7 @@ describe('IMAP Adapter', () => {
     });
 
     it('should handle authentication failure', async () => {
-      mockClient.connect.mockRejectedValue(
-        new Error('Authentication failed'),
-      );
+      mockClient.connect.mockRejectedValue(new Error('Authentication failed'));
 
       await expect(adapter.connect()).rejects.toThrow(AuthenticationError);
     });
@@ -321,11 +321,9 @@ describe('IMAP Adapter', () => {
 
       await adapter.fetch({ markSeen: true });
 
-      expect(mockClient.messageFlagsAdd).toHaveBeenCalledWith(
-        1,
-        ['\\Seen'],
-        { uid: true },
-      );
+      expect(mockClient.messageFlagsAdd).toHaveBeenCalledWith(1, ['\\Seen'], {
+        uid: true,
+      });
     });
 
     it('should return empty array when no messages found', async () => {
@@ -502,17 +500,13 @@ describe('IMAP Adapter', () => {
       expect(mockClient.search).toHaveBeenCalledWith({
         header: ['message-id', '<test@example.com>'],
       });
-      expect(mockClient.messageFlagsAdd).toHaveBeenCalledWith(
-        1,
-        ['\\Seen'],
-        { uid: true },
-      );
+      expect(mockClient.messageFlagsAdd).toHaveBeenCalledWith(1, ['\\Seen'], {
+        uid: true,
+      });
     });
 
     it('should mark multiple messages as read', async () => {
-      mockClient.search
-        .mockResolvedValueOnce([1])
-        .mockResolvedValueOnce([2]);
+      mockClient.search.mockResolvedValueOnce([1]).mockResolvedValueOnce([2]);
       mockClient.messageFlagsAdd.mockResolvedValue(undefined);
 
       await adapter.markRead(['<test1@example.com>', '<test2@example.com>']);
@@ -571,9 +565,7 @@ describe('IMAP Adapter', () => {
     });
 
     it('should delete multiple messages', async () => {
-      mockClient.search
-        .mockResolvedValueOnce([1])
-        .mockResolvedValueOnce([2]);
+      mockClient.search.mockResolvedValueOnce([1]).mockResolvedValueOnce([2]);
       mockClient.messageFlagsAdd.mockResolvedValue(undefined);
       mockClient.expunge.mockResolvedValue(undefined);
 
@@ -786,9 +778,7 @@ describe('IMAP Adapter', () => {
         new Error('Operation timeout: ETIMEDOUT'),
       );
 
-      await expect(adapter.selectFolder('INBOX')).rejects.toThrow(
-        TimeoutError,
-      );
+      await expect(adapter.selectFolder('INBOX')).rejects.toThrow(TimeoutError);
     });
 
     it('should map generic IMAP errors', async () => {

@@ -100,10 +100,14 @@ describe('Database Sync Integration Tests', () => {
         id: 'default',
         name: 'Test Account',
         email: 'test@example.com',
+        // biome-ignore lint/style/useNamingConvention: Database column name
         provider_type: 'smtp',
         settings: '{}',
+        // biome-ignore lint/style/useNamingConvention: Database column name
         is_active: 1,
+        // biome-ignore lint/style/useNamingConvention: Database column name
         created_at: new Date().toISOString(),
+        // biome-ignore lint/style/useNamingConvention: Database column name
         updated_at: new Date().toISOString(),
       });
     } catch {
@@ -257,6 +261,7 @@ describe('Database Sync Integration Tests', () => {
 
       // Get attachments
       const attachments = await db.list('email_attachments', {
+        // biome-ignore lint/style/useNamingConvention: Database column name
         message_id: messages[0].id,
       });
 
@@ -330,6 +335,7 @@ describe('Database Sync Integration Tests', () => {
 
       // Query unread messages (is_read = 0 by default)
       const unread = await db.list('email_messages', {
+        // biome-ignore lint/style/useNamingConvention: Database column name
         is_read: 0,
       });
 
@@ -339,11 +345,13 @@ describe('Database Sync Integration Tests', () => {
       await db.update(
         'email_messages',
         { subject: 'Unread Test' },
+        // biome-ignore lint/style/useNamingConvention: Database column name
         { is_read: 1 },
       );
 
       // Query again
       const stillUnread = await db.list('email_messages', {
+        // biome-ignore lint/style/useNamingConvention: Database column name
         is_read: 0,
         subject: 'Unread Test',
       });
@@ -380,6 +388,7 @@ describe('Database Sync Integration Tests', () => {
 
       // Query messages from Alice
       const aliceMessages = await db.list('email_messages', {
+        // biome-ignore lint/style/useNamingConvention: Database column name
         from_address: 'alice@test.com',
       });
 

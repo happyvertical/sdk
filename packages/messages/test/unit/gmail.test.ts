@@ -4,7 +4,6 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GmailAdapter } from '../../src/adapters/gmail';
-import type { GmailOptions } from '../../src/shared/types';
 import {
   AuthenticationError,
   ConnectionError,
@@ -14,6 +13,7 @@ import {
   MessageNotFoundError,
   TimeoutError,
 } from '../../src/shared/errors';
+import type { GmailOptions } from '../../src/shared/types';
 
 // Mock googleapis
 vi.mock('googleapis', () => {
@@ -44,6 +44,7 @@ vi.mock('googleapis', () => {
   return {
     google: {
       auth: {
+        // biome-ignore lint/style/useNamingConvention: External API naming convention
         OAuth2: MockOAuth2,
       },
       gmail: vi.fn(() => mockGmail),
@@ -112,7 +113,9 @@ describe('GmailAdapter', () => {
       await adapter.connect();
 
       expect(mockSetCredentials).toHaveBeenCalledWith({
+        // biome-ignore lint/style/useNamingConvention: External API naming convention
         refresh_token: 'refresh-token',
+        // biome-ignore lint/style/useNamingConvention: External API naming convention
         access_token: 'access-token',
       });
       expect(mockGmail.users.getProfile).toHaveBeenCalledWith({
@@ -592,7 +595,9 @@ describe('GmailAdapter', () => {
 
       expect(mockGmail.users.messages.list).toHaveBeenCalledWith(
         expect.objectContaining({
-          q: expect.stringMatching(/after:\d{4}\/\d{2}\/\d{2} before:\d{4}\/\d{2}\/\d{2}/),
+          q: expect.stringMatching(
+            /after:\d{4}\/\d{2}\/\d{2} before:\d{4}\/\d{2}\/\d{2}/,
+          ),
         }),
       );
     });

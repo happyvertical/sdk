@@ -579,9 +579,7 @@ describe('SMTPAdapter', () => {
     });
 
     it('should handle connection failures', async () => {
-      mockTransporter.verify.mockRejectedValue(
-        new Error('Connection failed'),
-      );
+      mockTransporter.verify.mockRejectedValue(new Error('Connection failed'));
 
       await expect(adapter.connect()).rejects.toThrow(EmailError);
       expect(adapter.isConnected()).toBe(false);
@@ -721,9 +719,9 @@ describe('SMTPAdapter', () => {
     });
 
     it('should throw error for search', async () => {
-      await expect(adapter.search({ from: 'test@example.com' })).rejects.toThrow(
-        'SMTP does not support search operations',
-      );
+      await expect(
+        adapter.search({ from: 'test@example.com' }),
+      ).rejects.toThrow('SMTP does not support search operations');
     });
   });
 });

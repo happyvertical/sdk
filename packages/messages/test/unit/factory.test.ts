@@ -248,9 +248,7 @@ describe('getMailbox Factory', () => {
         type: 'unknown',
       } as never;
 
-      await expect(getMailbox(options)).rejects.toThrow(
-        'Unknown mailbox type',
-      );
+      await expect(getMailbox(options)).rejects.toThrow('Unknown mailbox type');
     });
   });
 

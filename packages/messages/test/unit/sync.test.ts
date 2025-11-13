@@ -25,10 +25,6 @@ import type {
 class TestMailbox extends BaseMailbox {
   private messages: EmailMessage[] = [];
 
-  constructor(config: MailboxConfig) {
-    super(config);
-  }
-
   setMessages(messages: EmailMessage[]): void {
     this.messages = messages;
   }
@@ -48,11 +44,15 @@ class TestMailbox extends BaseMailbox {
     }
 
     if (options?.since) {
-      result = result.filter((m) => m.date && m.date >= options.since!);
+      result = result.filter(
+        (m) => m.date && m.date >= (options.since ?? new Date(0)),
+      );
     }
 
     if (options?.before) {
-      result = result.filter((m) => m.date && m.date < options.before!);
+      result = result.filter(
+        (m) => m.date && m.date < (options.before ?? new Date()),
+      );
     }
 
     if (options?.unreadOnly) {
@@ -271,13 +271,17 @@ describe('Database Synchronization', () => {
       await mailbox.sync({ folders: ['INBOX'] });
 
       const saved = await db.get('email_messages', {
+        // biome-ignore lint/style/useNamingConvention: Database column name
         message_id: 'message-id-1',
       });
 
       expect(saved).toBeTruthy();
+      // biome-ignore lint/style/useNamingConvention: Database column names use snake_case
       expect(saved.from_address).toBe('sender@example.com');
+      // biome-ignore lint/style/useNamingConvention: Database column names use snake_case
       expect(saved.from_name).toBe('Sender');
       expect(saved.subject).toBe('Test message');
+      // biome-ignore lint/style/useNamingConvention: Database column names use snake_case
       expect(saved.text_body).toBe('Hello, world!');
     });
 
@@ -297,10 +301,12 @@ describe('Database Synchronization', () => {
       await mailbox.sync({ folders: ['INBOX'] });
 
       const saved = await db.get('email_messages', {
+        // biome-ignore lint/style/useNamingConvention: Database column name
         message_id: 'message-id-2',
       });
 
       expect(saved).toBeTruthy();
+      // biome-ignore lint/style/useNamingConvention: Database column names use snake_case
       expect(saved.html_body).toBe('<p>Hello, world!</p>');
     });
 
@@ -325,14 +331,17 @@ describe('Database Synchronization', () => {
       await mailbox.sync({ folders: ['INBOX'] });
 
       const saved = await db.get('email_messages', {
+        // biome-ignore lint/style/useNamingConvention: Database column name
         message_id: 'message-id-3',
       });
 
       expect(saved).toBeTruthy();
+      // biome-ignore lint/style/useNamingConvention: Database column names use snake_case
       expect(JSON.parse(saved.cc_addresses)).toEqual([
         { address: 'cc1@example.com' },
         { address: 'cc2@example.com', name: 'CC2' },
       ]);
+      // biome-ignore lint/style/useNamingConvention: Database column names use snake_case
       expect(JSON.parse(saved.bcc_addresses)).toEqual([
         { address: 'bcc@example.com' },
       ]);
@@ -355,6 +364,7 @@ describe('Database Synchronization', () => {
       await mailbox.sync({ folders: ['INBOX'] });
 
       const saved = await db.get('email_messages', {
+        // biome-ignore lint/style/useNamingConvention: Database column name
         message_id: 'message-id-4',
       });
 
@@ -364,8 +374,11 @@ describe('Database Synchronization', () => {
         '\\Flagged',
         '\\Answered',
       ]);
+      // biome-ignore lint/style/useNamingConvention: Database column names use snake_case
       expect(saved.is_read).toBe(1);
+      // biome-ignore lint/style/useNamingConvention: Database column names use snake_case
       expect(saved.is_flagged).toBe(1);
+      // biome-ignore lint/style/useNamingConvention: Database column names use snake_case
       expect(saved.is_answered).toBe(1);
     });
 
@@ -401,22 +414,28 @@ describe('Database Synchronization', () => {
       await mailbox.sync({ folders: ['INBOX'] });
 
       const saved = await db.get('email_messages', {
+        // biome-ignore lint/style/useNamingConvention: Database column name
         message_id: 'message-id-5',
       });
       expect(saved).toBeTruthy();
+      // biome-ignore lint/style/useNamingConvention: Database column names use snake_case
       expect(saved.has_attachments).toBe(1);
 
       const attachments = await db.list('email_attachments', {
+        // biome-ignore lint/style/useNamingConvention: Database column name
         message_id: saved.id,
       });
       expect(attachments).toHaveLength(2);
 
       expect(attachments[0].filename).toBe('document.pdf');
+      // biome-ignore lint/style/useNamingConvention: Database column names use snake_case
       expect(attachments[0].content_type).toBe('application/pdf');
       expect(attachments[0].size).toBe(1024);
 
       expect(attachments[1].filename).toBe('image.png');
+      // biome-ignore lint/style/useNamingConvention: Database column names use snake_case
       expect(attachments[1].content_id).toBe('img-123');
+      // biome-ignore lint/style/useNamingConvention: Database column names use snake_case
       expect(attachments[1].content_disposition).toBe('inline');
     });
 
@@ -437,11 +456,14 @@ describe('Database Synchronization', () => {
       await mailbox.sync({ folders: ['INBOX'] });
 
       const saved = await db.get('email_messages', {
+        // biome-ignore lint/style/useNamingConvention: Database column name
         message_id: 'message-id-6',
       });
 
       expect(saved).toBeTruthy();
+      // biome-ignore lint/style/useNamingConvention: Database column names use snake_case
       expect(saved.reply_to_address).toBe('reply@example.com');
+      // biome-ignore lint/style/useNamingConvention: Database column names use snake_case
       expect(saved.reply_to_name).toBe('Reply Handler');
     });
 
@@ -463,11 +485,14 @@ describe('Database Synchronization', () => {
       await mailbox.sync({ folders: ['INBOX'] });
 
       const saved = await db.get('email_messages', {
+        // biome-ignore lint/style/useNamingConvention: Database column name
         message_id: 'message-id-7',
       });
 
       expect(saved).toBeTruthy();
+      // biome-ignore lint/style/useNamingConvention: Database column names use snake_case
       expect(saved.thread_id).toBe('thread-123');
+      // biome-ignore lint/style/useNamingConvention: Database column names use snake_case
       expect(saved.in_reply_to).toBe('message-id-0');
     });
   });
