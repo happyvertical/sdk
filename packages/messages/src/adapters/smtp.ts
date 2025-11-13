@@ -45,7 +45,6 @@ export class SMTPAdapter extends BaseMailbox {
       type: 'smtp',
       debug: options.debug,
       db: options.db,
-      logger: options.logger,
     });
 
     this.options = options;
@@ -56,7 +55,9 @@ export class SMTPAdapter extends BaseMailbox {
    * Create Nodemailer transporter with configuration
    */
   private createTransporter(): Transporter {
-    const config: nodemailer.TransportOptions = {
+    // Cast to any to bypass nodemailer's complex overload types
+    // biome-ignore lint/suspicious/noExplicitAny: nodemailer transport config has complex overloads
+    const config: any = {
       host: this.options.host,
       port: this.options.port,
       secure: this.options.secure ?? false,
@@ -89,8 +90,9 @@ export class SMTPAdapter extends BaseMailbox {
     this.validateMessage(message);
 
     try {
-      // Build mail options
-      const mailOptions: nodemailer.SendMailOptions = {
+      // Build mail options - cast to any due to nodemailer's incomplete type definitions
+      // biome-ignore lint/suspicious/noExplicitAny: nodemailer SendMailOptions doesn't include all properties we use
+      const mailOptions: any = {
         from: this.formatEmailAddress(message.from),
         to: message.to.map((addr) => this.formatEmailAddress(addr)),
         cc: message.cc?.map((addr) => this.formatEmailAddress(addr)),
@@ -145,11 +147,19 @@ export class SMTPAdapter extends BaseMailbox {
         }
       }
 
+      // Type assertion for nodemailer SentMessageInfo which has accepted/rejected
+      const sendInfo = info as unknown as {
+        messageId: string;
+        accepted: string[];
+        rejected: string[];
+        response: string;
+      };
+
       return {
-        messageId: info.messageId,
-        accepted: info.accepted as string[],
-        rejected: info.rejected as string[],
-        response: info.response,
+        messageId: sendInfo.messageId,
+        accepted: sendInfo.accepted,
+        rejected: sendInfo.rejected,
+        response: sendInfo.response,
       };
     } catch (error) {
       throw this.mapSMTPError(error);
@@ -205,10 +215,14 @@ export class SMTPAdapter extends BaseMailbox {
 
       // Send errors (with recipient info if available)
       if ('accepted' in error && 'rejected' in error) {
+        const errorWithRecipients = error as unknown as {
+          accepted?: string[];
+          rejected?: string[];
+        };
         return new SendError(
           error.message,
-          (error as never).accepted || [],
-          (error as never).rejected || [],
+          errorWithRecipients.accepted || [],
+          errorWithRecipients.rejected || [],
           'smtp',
           error,
         );
