@@ -171,6 +171,11 @@ export class SMTPAdapter extends BaseMailbox {
         return new AuthenticationError(error.message, 'smtp', error);
       }
 
+      // Timeout errors (check before connection errors as timeout messages may contain "connection")
+      if (message.includes('timeout') || message.includes('etimedout')) {
+        return new TimeoutError(error.message, 'smtp', error);
+      }
+
       // Connection errors
       if (
         message.includes('econnrefused') ||
@@ -179,11 +184,6 @@ export class SMTPAdapter extends BaseMailbox {
         message.includes('ehostunreach')
       ) {
         return new ConnectionError(error.message, 'smtp', error);
-      }
-
-      // Timeout errors
-      if (message.includes('timeout') || message.includes('etimedout')) {
-        return new TimeoutError(error.message, 'smtp', error);
       }
 
       // Send errors (with recipient info if available)
