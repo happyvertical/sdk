@@ -390,8 +390,8 @@ export abstract class BaseMailbox implements Mailbox {
     }
 
     // Query message from database
-    const row = await this.db.selectOne('email_messages', {
-      where: { message_id: messageId },
+    const row = await this.db.get('email_messages', {
+      message_id: messageId,
     });
 
     if (!row) {
@@ -417,8 +417,8 @@ export abstract class BaseMailbox implements Mailbox {
     // Load attachments
     let attachments: Attachment[] | undefined;
     if (row.has_attachments) {
-      const attachmentRows = await this.db.select('email_attachments', {
-        where: { message_id: row.id },
+      const attachmentRows = await this.db.list('email_attachments', {
+        message_id: row.id,
       });
 
       // biome-ignore lint/suspicious/noExplicitAny: Database row type is dynamic
