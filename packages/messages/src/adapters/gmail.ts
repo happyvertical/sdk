@@ -56,17 +56,19 @@ export class GmailAdapter extends BaseMailbox {
   async connect(): Promise<void> {
     try {
       // Create OAuth2 client
-      this.auth = new google.auth.OAuth2(
+      const auth = new google.auth.OAuth2(
         this.options.auth.clientId,
         this.options.auth.clientSecret,
       );
-      this.auth.setCredentials({
+      auth.setCredentials({
         refresh_token: this.options.auth.refreshToken,
         access_token: this.options.auth.accessToken,
       });
 
+      this.auth = auth as unknown as OAuth2Client;
+
       // Create Gmail API client
-      this.gmail = google.gmail({ version: 'v1', auth: this.auth });
+      this.gmail = google.gmail({ version: 'v1', auth });
 
       // Test connection by getting profile
       await this.gmail.users.getProfile({ userId: this.getUserId() });
@@ -115,6 +117,10 @@ export class GmailAdapter extends BaseMailbox {
         },
       });
 
+      if (!response) {
+        throw new SendError('Failed to send message', [], [], 'gmail');
+      }
+
       return {
         messageId: response.data.id || '',
         accepted: message.to.map((addr) => addr.address),
@@ -145,6 +151,10 @@ export class GmailAdapter extends BaseMailbox {
         maxResults: options?.maxResults || options?.limit || 100,
       });
 
+      if (!listResponse) {
+        return [];
+      }
+
       const messageIds = listResponse.data.messages || [];
 
       if (messageIds.length === 0) {
@@ -165,7 +175,9 @@ export class GmailAdapter extends BaseMailbox {
             break;
           }
         } catch (error) {
-          this.logger.error(`Failed to fetch message ${msgId.id}:`, error);
+          this.logger.error(`Failed to fetch message ${msgId.id}:`, {
+            error: error instanceof Error ? error.message : String(error),
+          });
         }
       }
 
@@ -185,7 +197,7 @@ export class GmailAdapter extends BaseMailbox {
         format: 'raw',
       });
 
-      if (!response.data.raw) {
+      if (!response || !response.data.raw) {
         throw new MessageNotFoundError(messageId, 'gmail');
       }
 
@@ -200,39 +212,48 @@ export class GmailAdapter extends BaseMailbox {
       // Get labels
       const labels = response.data.labelIds || [];
 
+      // Helper to extract addresses from AddressObject
+      const extractAddresses = (
+        addressObj:
+          | import('mailparser').AddressObject
+          | import('mailparser').AddressObject[]
+          | undefined,
+      ) => {
+        if (!addressObj) return [];
+        // Handle array of AddressObjects
+        const addressArray = Array.isArray(addressObj)
+          ? addressObj
+          : [addressObj];
+        const addresses = addressArray.flatMap((obj) =>
+          Array.isArray(obj.value) ? obj.value : [obj.value],
+        );
+        return addresses.map((addr: { address?: string; name?: string }) => ({
+          address: addr.address || '',
+          name: addr.name,
+        }));
+      };
+
+      const fromAddresses = extractAddresses(parsed.from);
+      const toAddresses = extractAddresses(parsed.to);
+      const ccAddresses = extractAddresses(parsed.cc);
+      const bccAddresses = extractAddresses(parsed.bcc);
+      const replyToAddresses = extractAddresses(parsed.replyTo);
+
       return {
-        id: response.data.id,
-        messageId: parsed.messageId || response.data.id,
-        threadId: response.data.threadId,
+        id: response.data.id || undefined,
+        messageId: parsed.messageId || response.data.id || undefined,
+        threadId: response.data.threadId || undefined,
         inReplyTo: parsed.inReplyTo,
         references: parsed.references
           ? Array.isArray(parsed.references)
             ? parsed.references
             : [parsed.references]
           : undefined,
-        from: {
-          address: parsed.from?.value[0]?.address || '',
-          name: parsed.from?.value[0]?.name,
-        },
-        to:
-          parsed.to?.value.map((addr) => ({
-            address: addr.address || '',
-            name: addr.name,
-          })) || [],
-        cc: parsed.cc?.value.map((addr) => ({
-          address: addr.address || '',
-          name: addr.name,
-        })),
-        bcc: parsed.bcc?.value.map((addr) => ({
-          address: addr.address || '',
-          name: addr.name,
-        })),
-        replyTo: parsed.replyTo?.value[0]
-          ? {
-              address: parsed.replyTo.value[0].address || '',
-              name: parsed.replyTo.value[0].name,
-            }
-          : undefined,
+        from: fromAddresses[0] || { address: '', name: undefined },
+        to: toAddresses,
+        cc: ccAddresses.length > 0 ? ccAddresses : undefined,
+        bcc: bccAddresses.length > 0 ? bccAddresses : undefined,
+        replyTo: replyToAddresses[0],
         subject: parsed.subject || '',
         date: parsed.date,
         text: parsed.text,
@@ -270,6 +291,10 @@ export class GmailAdapter extends BaseMailbox {
         userId: this.getUserId(),
       });
 
+      if (!response) {
+        return [];
+      }
+
       const labels = response.data.labels || [];
 
       return labels.map((label) => ({
@@ -277,8 +302,8 @@ export class GmailAdapter extends BaseMailbox {
         path: label.id || '',
         delimiter: '/',
         specialUse: this.mapGmailLabelToSpecialUse(label.type),
-        messageCount: label.messagesTotal,
-        unreadCount: label.messagesUnread,
+        messageCount: label.messagesTotal || undefined,
+        unreadCount: label.messagesUnread || undefined,
       }));
     } catch (error) {
       throw this.mapGmailError(error);
@@ -624,28 +649,30 @@ export class GmailAdapter extends BaseMailbox {
       }
 
       // Attachments
-      for (const attachment of message.attachments) {
-        lines.push('');
-        lines.push('--mixed-boundary');
-        lines.push(
-          `Content-Type: ${attachment.contentType}; name="${attachment.filename}"`,
-        );
-        lines.push('Content-Transfer-Encoding: base64');
-        lines.push(
-          `Content-Disposition: ${attachment.contentDisposition || 'attachment'}; filename="${attachment.filename}"`,
-        );
-        if (attachment.contentId) {
-          lines.push(`Content-ID: <${attachment.contentId}>`);
+      if (message.attachments) {
+        for (const attachment of message.attachments) {
+          lines.push('');
+          lines.push('--mixed-boundary');
+          lines.push(
+            `Content-Type: ${attachment.contentType}; name="${attachment.filename}"`,
+          );
+          lines.push('Content-Transfer-Encoding: base64');
+          lines.push(
+            `Content-Disposition: ${attachment.contentDisposition || 'attachment'}; filename="${attachment.filename}"`,
+          );
+          if (attachment.contentId) {
+            lines.push(`Content-ID: <${attachment.contentId}>`);
+          }
+          lines.push('');
+
+          // Encode attachment content as base64
+          const content = attachment.content || Buffer.from('');
+          const base64Content = content.toString('base64');
+
+          // Split base64 into 76-character lines (RFC 2045)
+          const base64Lines = base64Content.match(/.{1,76}/g) || [];
+          lines.push(...base64Lines);
         }
-        lines.push('');
-
-        // Encode attachment content as base64
-        const content = attachment.content || Buffer.from('');
-        const base64Content = content.toString('base64');
-
-        // Split base64 into 76-character lines (RFC 2045)
-        const base64Lines = base64Content.match(/.{1,76}/g) || [];
-        lines.push(...base64Lines);
       }
 
       lines.push('');
@@ -746,7 +773,7 @@ export class GmailAdapter extends BaseMailbox {
 
     if (error instanceof Error) {
       const message = error.message.toLowerCase();
-      const errorObj = error as Record<string, unknown>;
+      const errorObj = error as unknown as Record<string, unknown>;
 
       // Timeout errors
       if (
