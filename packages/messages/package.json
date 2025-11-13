@@ -24,21 +24,9 @@
   },
   "dependencies": {
     "nodemailer": "^6.9.8",
-    "imapflow": "^1.0.156",
-    "mailpop3": "^1.0.1",
-    "mailparser": "^3.6.6",
-    "googleapis": "^131.0.0",
     "@happyvertical/utils": "workspace:*",
     "@happyvertical/logger": "workspace:*",
     "@happyvertical/sql": "workspace:*"
-  },
-  "peerDependencies": {
-    "@happyvertical/encryption": "*"
-  },
-  "peerDependenciesMeta": {
-    "@happyvertical/encryption": {
-      "optional": true
-    }
   },
   "devDependencies": {
     "@types/node": "^24.10.1",

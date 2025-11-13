@@ -184,8 +184,8 @@ describe('Type Guards', () => {
 });
 
 describe('getMailbox Factory', () => {
-  describe('Error Handling', () => {
-    it('should throw error for SMTP (not yet implemented)', async () => {
+  describe('Adapter Creation', () => {
+    it('should create SMTP adapter successfully', async () => {
       const options: SMTPOptions = {
         type: 'smtp',
         host: 'smtp.example.com',
@@ -193,9 +193,10 @@ describe('getMailbox Factory', () => {
         auth: { user: 'user@example.com', pass: 'password' },
       };
 
-      await expect(getMailbox(options)).rejects.toThrow(
-        'SMTP adapter not yet implemented',
-      );
+      const mailbox = await getMailbox(options);
+
+      expect(mailbox).toBeDefined();
+      expect(mailbox.getAdapter()).toBe('smtp');
     });
 
     it('should throw error for IMAP (not yet implemented)', async () => {
@@ -276,10 +277,9 @@ describe('getMailbox Factory', () => {
           port: 0,
         };
 
-        // Will fail because adapter not implemented, but we can check the error handling
-        await expect(getMailbox(options)).rejects.toThrow(
-          'SMTP adapter not yet implemented',
-        );
+        const mailbox = await getMailbox(options);
+        expect(mailbox).toBeDefined();
+        expect(mailbox.getAdapter()).toBe('smtp');
       });
 
       it('should fall back to generic environment variables', async () => {
@@ -294,9 +294,9 @@ describe('getMailbox Factory', () => {
           port: 0,
         };
 
-        await expect(getMailbox(options)).rejects.toThrow(
-          'SMTP adapter not yet implemented',
-        );
+        const mailbox = await getMailbox(options);
+        expect(mailbox).toBeDefined();
+        expect(mailbox.getAdapter()).toBe('smtp');
       });
 
       it('should prefer explicit options over environment variables', async () => {
@@ -309,9 +309,9 @@ describe('getMailbox Factory', () => {
           port: 587,
         };
 
-        await expect(getMailbox(options)).rejects.toThrow(
-          'SMTP adapter not yet implemented',
-        );
+        const mailbox = await getMailbox(options);
+        expect(mailbox).toBeDefined();
+        expect(mailbox.getAdapter()).toBe('smtp');
       });
 
       it('should use default port when not provided', async () => {
@@ -321,9 +321,9 @@ describe('getMailbox Factory', () => {
           port: 0,
         };
 
-        await expect(getMailbox(options)).rejects.toThrow(
-          'SMTP adapter not yet implemented',
-        );
+        const mailbox = await getMailbox(options);
+        expect(mailbox).toBeDefined();
+        expect(mailbox.getAdapter()).toBe('smtp');
       });
 
       it('should load debug flag from environment', async () => {
@@ -335,9 +335,9 @@ describe('getMailbox Factory', () => {
           port: 587,
         };
 
-        await expect(getMailbox(options)).rejects.toThrow(
-          'SMTP adapter not yet implemented',
-        );
+        const mailbox = await getMailbox(options);
+        expect(mailbox).toBeDefined();
+        expect(mailbox.getAdapter()).toBe('smtp');
       });
     });
 
@@ -455,9 +455,9 @@ describe('getMailbox Factory', () => {
 
         const options = {} as never;
 
-        await expect(getMailbox(options)).rejects.toThrow(
-          'SMTP adapter not yet implemented',
-        );
+        const mailbox = await getMailbox(options);
+        expect(mailbox).toBeDefined();
+        expect(mailbox.getAdapter()).toBe('smtp');
       });
     });
   });

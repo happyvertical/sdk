@@ -83,8 +83,8 @@ export async function getMailbox(options: GetMailboxOptions): Promise<Mailbox> {
 
   // Create adapter based on type
   if (isSMTPOptions(opts)) {
-    // return new SMTPAdapter(opts);
-    throw new Error('SMTP adapter not yet implemented');
+    const { SMTPAdapter } = await import('../adapters/smtp.js');
+    return new SMTPAdapter(opts);
   }
 
   if (isIMAPOptions(opts)) {
