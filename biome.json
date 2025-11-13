@@ -3,6 +3,7 @@
   "files": {
     "includes": [
       "packages/*/src/**/*.{js,ts,tsx,jsx,svelte}",
+      "packages/*/test/**/*.{js,ts,tsx,jsx}",
       "docs/src/**/*.{js,ts,tsx,jsx}",
       ".github/**/*.{js,ts}",
       "scripts/**/*.{js,ts}",

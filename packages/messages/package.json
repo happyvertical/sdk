@@ -23,12 +23,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "nodemailer": "^6.9.8",
+    "@happyvertical/logger": "workspace:*",
+    "@happyvertical/sql": "workspace:*",
+    "@happyvertical/utils": "workspace:*",
     "imapflow": "^1.1.1",
     "mailparser": "^3.9.0",
-    "@happyvertical/utils": "workspace:*",
-    "@happyvertical/logger": "workspace:*",
-    "@happyvertical/sql": "workspace:*"
+    "nodemailer": "^6.9.8"
   },
   "peerDependencies": {
     "@happyvertical/encryption": "*"
@@ -39,9 +39,11 @@
     }
   },
   "devDependencies": {
+    "@happyvertical/encryption": "workspace:*",
     "@types/node": "^24.10.1",
     "@types/nodemailer": "^6.4.14",
-    "@happyvertical/encryption": "workspace:*",
+    "mailparser-mit": "^1.0.0",
+    "smtp-server": "^3.16.1",
     "typescript": "^5.7.3",
     "vite": "^7.2.2",
     "vite-plugin-dts": "^4.5.4",
