@@ -9,7 +9,7 @@ import type { Database } from '@happyvertical/sql';
  */
 export async function initializeSchema(db: Database): Promise<void> {
   // Email accounts table
-  await db.execute(`
+  await db.query(`
     CREATE TABLE IF NOT EXISTS email_accounts (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
@@ -24,7 +24,7 @@ export async function initializeSchema(db: Database): Promise<void> {
   `);
 
   // Folders/Labels table
-  await db.execute(`
+  await db.query(`
     CREATE TABLE IF NOT EXISTS email_folders (
       id TEXT PRIMARY KEY,
       account_id TEXT NOT NULL,
@@ -43,7 +43,7 @@ export async function initializeSchema(db: Database): Promise<void> {
   `);
 
   // Messages table
-  await db.execute(`
+  await db.query(`
     CREATE TABLE IF NOT EXISTS email_messages (
       id TEXT PRIMARY KEY,
       account_id TEXT NOT NULL,
@@ -82,7 +82,7 @@ export async function initializeSchema(db: Database): Promise<void> {
   `);
 
   // Attachments table
-  await db.execute(`
+  await db.query(`
     CREATE TABLE IF NOT EXISTS email_attachments (
       id TEXT PRIMARY KEY,
       message_id TEXT NOT NULL,
@@ -99,39 +99,39 @@ export async function initializeSchema(db: Database): Promise<void> {
   `);
 
   // Indexes for performance
-  await db.execute(`
+  await db.query(`
     CREATE INDEX IF NOT EXISTS idx_messages_account_folder
       ON email_messages(account_id, folder_id)
   `);
 
-  await db.execute(`
+  await db.query(`
     CREATE INDEX IF NOT EXISTS idx_messages_date
       ON email_messages(date DESC)
   `);
 
-  await db.execute(`
+  await db.query(`
     CREATE INDEX IF NOT EXISTS idx_messages_read
       ON email_messages(is_read)
   `);
 
-  await db.execute(`
+  await db.query(`
     CREATE INDEX IF NOT EXISTS idx_messages_thread
       ON email_messages(thread_id)
   `);
 
-  await db.execute(`
+  await db.query(`
     CREATE INDEX IF NOT EXISTS idx_attachments_message
       ON email_attachments(message_id)
   `);
 
-  await db.execute(`
+  await db.query(`
     CREATE INDEX IF NOT EXISTS idx_folders_account
       ON email_folders(account_id)
   `);
 
   // Full-text search (SQLite only)
   try {
-    await db.execute(`
+    await db.query(`
       CREATE VIRTUAL TABLE IF NOT EXISTS email_messages_fts USING fts5(
         subject,
         text_body,

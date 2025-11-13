@@ -128,6 +128,23 @@ export class SMTPAdapter extends BaseMailbox {
       });
       const info = await this.transporter.sendMail(mailOptions);
 
+      // Save sent message to database if configured
+      if (this.db) {
+        try {
+          const messageToSave = {
+            ...message,
+            messageId: info.messageId,
+            date: message.date || new Date(),
+          };
+          await this.saveMessage(messageToSave);
+        } catch (error) {
+          // Log but don't fail the send operation
+          this.logger.warn('Failed to save sent message to database', {
+            error,
+          });
+        }
+      }
+
       return {
         messageId: info.messageId,
         accepted: info.accepted as string[],

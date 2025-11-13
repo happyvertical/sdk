@@ -9,6 +9,7 @@ import {
   InvalidMessageError,
   MessageNotFoundError,
 } from './errors';
+import { initializeSchema } from './schema';
 import type {
   AdapterType,
   Attachment,
@@ -42,6 +43,35 @@ export abstract class BaseMailbox implements Mailbox {
     this.config = this.validateConfig(config);
     this.db = config.db;
     this.logger = config.logger || createLogger({ namespace: 'messages' });
+
+    // Initialize database schema if database is provided
+    if (this.db) {
+      this.initializeDatabase().catch((error) => {
+        this.logger.error('Failed to initialize database schema', { error });
+      });
+    }
+  }
+
+  /**
+   * Initialize database schema
+   * Creates all necessary tables and indexes
+   */
+  private async initializeDatabase(): Promise<void> {
+    if (!this.db) {
+      return;
+    }
+
+    try {
+      await initializeSchema(this.db);
+      this.logger.debug('Database schema initialized');
+    } catch (error) {
+      throw new EmailError(
+        'Failed to initialize database schema',
+        'DB_INIT_ERROR',
+        this.getAdapter(),
+        error,
+      );
+    }
   }
 
   // ========================================================================
