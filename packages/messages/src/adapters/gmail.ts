@@ -55,7 +55,10 @@ export class GmailAdapter extends BaseMailbox {
   async connect(): Promise<void> {
     try {
       // Create OAuth2 client
-      this.auth = new google.auth.OAuth2();
+      this.auth = new google.auth.OAuth2(
+        this.options.auth.clientId,
+        this.options.auth.clientSecret,
+      );
       this.auth.setCredentials({
         refresh_token: this.options.auth.refreshToken,
         access_token: this.options.auth.accessToken,
