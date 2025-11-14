@@ -138,6 +138,11 @@ const claudeCliClient = await getAI({
   cliPath: '/custom/path/to/claude'
 });
 
+// Authentication Priority for claude-cli:
+// 1. ANTHROPIC_API_KEY environment variable (uses Anthropic SDK, no keychain prompts)
+// 2. Claude CLI with setup-token (for CI/CD, no keychain prompts)
+// 3. Claude CLI with keychain (may prompt for password on macOS)
+
 // Auto-detect provider from credentials
 const autoClient = await getAIAuto({
   apiKey: process.env.OPENAI_API_KEY, // Will auto-detect as OpenAI
@@ -1140,8 +1145,17 @@ Since AI provider SDKs change rapidly with new models and features, always check
 ### Claude CLI Provider
 The `claude-cli` provider is a unique implementation that shells out to the Claude Code CLI instead of using API keys. This enables users with Claude Max subscriptions to use their subscription for AI operations instead of paying separately for API usage.
 
+**Authentication Priority:**
+The provider checks authentication in the following order:
+1. **ANTHROPIC_API_KEY environment variable** - If set, automatically uses Anthropic SDK (no keychain prompts, ideal for CI/CD)
+2. **Claude CLI with setup-token** - For CI/CD environments without API keys
+3. **Claude CLI with keychain** - Local development (may prompt for password on macOS)
+
+This ensures automated workflows never encounter keychain password prompts while still supporting Claude Max subscription usage.
+
 **Key Implementation Details:**
-- **No External SDK Required**: Uses Node.js built-in `child_process` module to execute CLI commands
+- **Smart Fallback**: Automatically switches to Anthropic SDK when `ANTHROPIC_API_KEY` is present
+- **No External SDK Required**: Uses Node.js built-in `child_process` module for CLI execution
 - **CLI Detection**: Automatically finds `claude` binary in PATH or uses custom `cliPath` option
 - **Authentication**: Uses existing Claude session (local) or `setup-token` for CI/CD
 - **Output Formats**:
@@ -1149,7 +1163,7 @@ The `claude-cli` provider is a unique implementation that shells out to the Clau
   - Streaming: `--print --output-format stream-json`
 - **Error Mapping**: Parses stderr to map CLI errors to standard AIError types
 - **Model Mapping**: Supports short names (sonnet, opus, haiku) and full model IDs
-- **Limitations**: No embeddings, no function calling (CLI limitations)
+- **Limitations**: No embeddings, no function calling (CLI limitations, unless using API key fallback)
 
 **CLI Command Pattern:**
 ```bash
@@ -1159,14 +1173,20 @@ claude --print --output-format stream-json --model sonnet --system-prompt "syste
 
 **Authentication Setup:**
 - **Local Development**: Uses existing Claude Code session (already logged in)
-- **CI/CD Workflows**: Use `claude setup-token` to create long-lived authentication token
+- **CI/CD Workflows (Option 1 - API Key)**: Set `ANTHROPIC_API_KEY` environment variable
+  - Provider automatically switches to Anthropic SDK
+  - No keychain prompts, no setup-token needed
+  - Uses standard Anthropic API (not Claude Max subscription)
+- **CI/CD Workflows (Option 2 - Setup Token)**: Use `claude setup-token` to create long-lived authentication token
   - Store token in GitHub Secrets or equivalent
   - CLI automatically uses token when available
+  - Uses Claude Max subscription
 
 **Use Cases:**
 - Local development without API key management
 - Personal projects using Claude Max subscription
-- CI/CD workflows for automated content generation
+- CI/CD workflows with `ANTHROPIC_API_KEY` (no keychain prompts)
+- CI/CD workflows with setup-token (uses Max subscription)
 - Cost savings by leveraging existing Max subscription
 
 **File Location**: `packages/ai/src/shared/providers/claude-cli.ts`
