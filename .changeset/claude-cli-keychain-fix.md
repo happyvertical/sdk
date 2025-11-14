@@ -1,10 +1,14 @@
 ---
 "@happyvertical/ai": patch
+"@happyvertical/spider": patch
 ---
 
-Fix claude-cli provider keychain password prompts
+Fix macOS keychain password prompts in AI and Spider packages
 
-Prevent macOS keychain password prompts during build and runtime by:
+Prevent macOS keychain password prompts during build and runtime:
+
+## AI Package (@happyvertical/ai)
+
 1. Removing all CLI execution during detection (no more `claude --help` calls)
 2. Checking for ANTHROPIC_API_KEY environment variable and automatically falling back to Anthropic SDK
 
@@ -21,6 +25,15 @@ Prevent macOS keychain password prompts during build and runtime by:
 - Add comprehensive integration tests for fallback behavior
 - Update documentation to explain authentication options
 
-The provider will fail gracefully rather than prompting for keychain access.
+## Spider Package (@happyvertical/spider)
+
+Add `--use-mock-keychain` argument to Playwright launch options in Crawlee adapter and tree scraper. This prevents Chromium from accessing the macOS system keychain.
+
+**Changes:**
+- Add `args: ['--use-mock-keychain']` to Playwright launchOptions in Crawlee adapter
+- Add `args: ['--use-mock-keychain']` to Playwright launchOptions in tree scraper
+- No behavioral changes - only prevents keychain access
+
+Both packages will now run without prompting for keychain access on macOS.
 
 Fixes #403

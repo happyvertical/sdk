@@ -225,6 +225,8 @@ export class CrawleeAdapter implements SpiderAdapter {
           launchContext: {
             launchOptions: {
               headless: this.headless,
+              // Prevent macOS keychain password prompts
+              args: ['--use-mock-keychain'],
             },
           },
           requestHandlerTimeoutSecs: Math.floor(timeout / 1000),

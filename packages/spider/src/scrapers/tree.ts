@@ -308,6 +308,8 @@ export class TreeScraper implements Scraper {
           launchContext: {
             launchOptions: {
               headless: this.options.headless,
+              // Prevent macOS keychain password prompts
+              args: ['--use-mock-keychain'],
             },
           },
           requestHandlerTimeoutSecs: Math.floor(timeout / 1000),
