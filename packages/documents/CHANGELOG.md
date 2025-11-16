@@ -1,5 +1,12 @@
 # @happyvertical/documents
 
+## 0.55.5
+
+### Patch Changes
+
+- Updated dependencies [978c7c7]
+  - @happyvertical/spider@0.55.5
+
 ## 0.55.4
 
 ### Patch Changes
