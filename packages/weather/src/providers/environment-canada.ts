@@ -196,7 +196,7 @@ export class EnvironmentCanadaProvider implements IWeatherProvider {
         timestamp: new Date(currentConditions.timestamp?.en || new Date()),
         temperature: currentConditions.temperature?.value?.en || 0,
         humidity: currentConditions.relativeHumidity?.value?.en || 0,
-        windSpeed: currentConditions.wind?.speed?.value?.en || 0,
+        windSpeed: Number(currentConditions.wind?.speed?.value?.en) || 0,
         windDirection: currentConditions.wind?.bearing?.value?.en,
         pressure: (currentConditions.pressure?.value?.en || 0) * 10, // Convert kPa to hPa
         conditions: currentConditions.condition?.en || 'Unknown',
@@ -234,7 +234,8 @@ export class EnvironmentCanadaProvider implements IWeatherProvider {
           temperatureMax: highTemp?.value?.en,
           temperatureMin: lowTemp?.value?.en,
           humidity: periodForecast.relativeHumidity?.value?.en || 0,
-          windSpeed: periodForecast.winds?.periods?.[0]?.speed?.value?.en || 0,
+          windSpeed:
+            Number(periodForecast.winds?.periods?.[0]?.speed?.value?.en) || 0,
           windDirection: periodForecast.winds?.periods?.[0]?.bearing?.value?.en,
           conditions:
             periodForecast.cloudPrecip?.en ||
