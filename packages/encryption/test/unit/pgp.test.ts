@@ -1,14 +1,14 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { getEncryption } from '../../src/index.js';
-import type { Encryption, KeyPair } from '../../src/shared/types.js';
 import {
   DecryptError,
   EncryptError,
   InvalidKeyError,
   KeyError,
   PassphraseError,
-  SignatureError
+  SignatureError,
 } from '../../src/shared/errors.js';
+import type { Encryption, KeyPair } from '../../src/shared/types.js';
 
 describe('PGP Adapter', () => {
   describe('Key Generation', () => {
@@ -20,7 +20,7 @@ describe('PGP Adapter', () => {
         email: 'test@example.com',
         passphrase: 'test-passphrase',
         type: 'rsa',
-        keySize: 2048 // Smaller for faster tests
+        keySize: 2048, // Smaller for faster tests
       });
 
       expect(keypair.publicKey).toBeDefined();
@@ -31,8 +31,16 @@ describe('PGP Adapter', () => {
       // Verify keys are armored strings
       expect(typeof keypair.publicKey).toBe('string');
       expect(typeof keypair.privateKey).toBe('string');
-      expect((keypair.publicKey as string).startsWith('-----BEGIN PGP PUBLIC KEY BLOCK-----')).toBe(true);
-      expect((keypair.privateKey as string).startsWith('-----BEGIN PGP PRIVATE KEY BLOCK-----')).toBe(true);
+      expect(
+        (keypair.publicKey as string).startsWith(
+          '-----BEGIN PGP PUBLIC KEY BLOCK-----',
+        ),
+      ).toBe(true);
+      expect(
+        (keypair.privateKey as string).startsWith(
+          '-----BEGIN PGP PRIVATE KEY BLOCK-----',
+        ),
+      ).toBe(true);
     });
 
     it('should generate RSA key pair with 4096 bits', async () => {
@@ -43,14 +51,14 @@ describe('PGP Adapter', () => {
         email: 'test@example.com',
         passphrase: 'test-passphrase',
         type: 'rsa',
-        keySize: 4096
+        keySize: 4096,
       });
 
       expect(keypair.publicKey).toBeDefined();
       expect(keypair.privateKey).toBeDefined();
       expect(keypair.fingerprint).toBeDefined();
       expect(keypair.keyId).toBeDefined();
-    });
+    }, 15000); // Increase timeout to 15s for 4096-bit RSA key generation
 
     it('should generate ECC key pair with curve25519', async () => {
       const pgp = await getEncryption({ type: 'pgp' });
@@ -60,7 +68,7 @@ describe('PGP Adapter', () => {
         email: 'test@example.com',
         passphrase: 'test-passphrase',
         type: 'ecc',
-        curve: 'curve25519'
+        curve: 'curve25519',
       });
 
       expect(keypair.publicKey).toBeDefined();
@@ -77,7 +85,7 @@ describe('PGP Adapter', () => {
         email: 'test@example.com',
         passphrase: 'test-passphrase',
         type: 'ecc',
-        curve: 'p256'
+        curve: 'p256',
       });
 
       expect(keypair.publicKey).toBeDefined();
@@ -91,8 +99,8 @@ describe('PGP Adapter', () => {
         pgp.generateKeyPair({
           name: 'Test User',
           email: 'test@example.com',
-          type: 'dsa' as any
-        })
+          type: 'dsa' as any,
+        }),
       ).rejects.toThrow(KeyError);
     });
   });
@@ -108,7 +116,7 @@ describe('PGP Adapter', () => {
         email: 'test@example.com',
         passphrase: 'test-passphrase',
         type: 'rsa',
-        keySize: 2048
+        keySize: 2048,
       });
     });
 
@@ -117,11 +125,13 @@ describe('PGP Adapter', () => {
         type: 'pgp',
         publicKey: keypair.publicKey as string,
         privateKey: keypair.privateKey as string,
-        passphrase: 'test-passphrase'
+        passphrase: 'test-passphrase',
       });
 
       const plaintext = 'Secret message';
-      const encrypted = await pgpWithKeys.encryptText(plaintext, { armor: true });
+      const encrypted = await pgpWithKeys.encryptText(plaintext, {
+        armor: true,
+      });
       const decrypted = await pgpWithKeys.decryptText(encrypted);
 
       expect(encrypted).toBeDefined();
@@ -134,11 +144,13 @@ describe('PGP Adapter', () => {
         type: 'pgp',
         publicKey: keypair.publicKey as string,
         privateKey: keypair.privateKey as string,
-        passphrase: 'test-passphrase'
+        passphrase: 'test-passphrase',
       });
 
       const plaintext = 'Secret message';
-      const encrypted = await pgpWithKeys.encryptText(plaintext, { armor: false });
+      const encrypted = await pgpWithKeys.encryptText(plaintext, {
+        armor: false,
+      });
       const decrypted = await pgpWithKeys.decryptText(encrypted);
 
       expect(encrypted).toBeDefined();
@@ -151,13 +163,13 @@ describe('PGP Adapter', () => {
 
       const plaintext = 'Secret message';
       const encrypted = await pgp.encryptText(plaintext, {
-        publicKeys: [keypair.publicKey as string]
+        publicKeys: [keypair.publicKey as string],
       });
 
       const pgpWithPrivateKey = await getEncryption({
         type: 'pgp',
         privateKey: keypair.privateKey as string,
-        passphrase: 'test-passphrase'
+        passphrase: 'test-passphrase',
       });
 
       const decrypted = await pgpWithPrivateKey.decryptText(encrypted);
@@ -169,7 +181,7 @@ describe('PGP Adapter', () => {
         type: 'pgp',
         publicKey: keypair.publicKey as string,
         privateKey: keypair.privateKey as string,
-        passphrase: 'test-passphrase'
+        passphrase: 'test-passphrase',
       });
 
       const encrypted = await pgpWithKeys.encryptText('Secret message');
@@ -180,35 +192,41 @@ describe('PGP Adapter', () => {
         email: 'wrong@example.com',
         passphrase: 'wrong-passphrase',
         type: 'rsa',
-        keySize: 2048
+        keySize: 2048,
       });
 
       const pgpWithWrongKey = await getEncryption({
         type: 'pgp',
         privateKey: wrongKeypair.privateKey as string,
-        passphrase: 'wrong-passphrase'
+        passphrase: 'wrong-passphrase',
       });
 
-      await expect(pgpWithWrongKey.decryptText(encrypted)).rejects.toThrow(DecryptError);
+      await expect(pgpWithWrongKey.decryptText(encrypted)).rejects.toThrow(
+        DecryptError,
+      );
     });
 
     it('should throw error when encrypting without public key', async () => {
       const pgpWithoutKey = await getEncryption({ type: 'pgp' });
 
-      await expect(pgpWithoutKey.encryptText('Secret')).rejects.toThrow(EncryptError);
+      await expect(pgpWithoutKey.encryptText('Secret')).rejects.toThrow(
+        EncryptError,
+      );
     });
 
     it('should throw error when decrypting without private key', async () => {
       const pgpWithKeys = await getEncryption({
         type: 'pgp',
-        publicKey: keypair.publicKey as string
+        publicKey: keypair.publicKey as string,
       });
 
       const encrypted = await pgpWithKeys.encryptText('Secret', {
-        publicKeys: [keypair.publicKey as string]
+        publicKeys: [keypair.publicKey as string],
       });
 
-      await expect(pgpWithKeys.decryptText(encrypted)).rejects.toThrow(DecryptError);
+      await expect(pgpWithKeys.decryptText(encrypted)).rejects.toThrow(
+        DecryptError,
+      );
     });
   });
 
@@ -223,7 +241,7 @@ describe('PGP Adapter', () => {
         email: 'test@example.com',
         passphrase: 'test-passphrase',
         type: 'rsa',
-        keySize: 2048
+        keySize: 2048,
       });
     });
 
@@ -232,7 +250,7 @@ describe('PGP Adapter', () => {
         type: 'pgp',
         publicKey: keypair.publicKey as string,
         privateKey: keypair.privateKey as string,
-        passphrase: 'test-passphrase'
+        passphrase: 'test-passphrase',
       });
 
       const data = Buffer.from('Binary data content');
@@ -249,7 +267,7 @@ describe('PGP Adapter', () => {
         type: 'pgp',
         publicKey: keypair.publicKey as string,
         privateKey: keypair.privateKey as string,
-        passphrase: 'test-passphrase'
+        passphrase: 'test-passphrase',
       });
 
       const data = Buffer.from('Binary data content');
@@ -257,7 +275,9 @@ describe('PGP Adapter', () => {
       const decrypted = await pgpWithKeys.decryptBuffer(encrypted);
 
       expect(Buffer.isBuffer(encrypted)).toBe(true);
-      expect(encrypted.toString().startsWith('-----BEGIN PGP MESSAGE-----')).toBe(true);
+      expect(
+        encrypted.toString().startsWith('-----BEGIN PGP MESSAGE-----'),
+      ).toBe(true);
       expect(decrypted.toString()).toBe('Binary data content');
     });
   });
@@ -273,7 +293,7 @@ describe('PGP Adapter', () => {
         email: 'test@example.com',
         passphrase: 'test-passphrase',
         type: 'rsa',
-        keySize: 2048
+        keySize: 2048,
       });
     });
 
@@ -282,20 +302,20 @@ describe('PGP Adapter', () => {
         type: 'pgp',
         privateKey: keypair.privateKey as string,
         publicKey: keypair.publicKey as string,
-        passphrase: 'test-passphrase'
+        passphrase: 'test-passphrase',
       });
 
       const message = 'Message to sign';
       const signed = await pgpWithKeys.sign!(message, {
         detached: false,
-        armor: true
+        armor: true,
       });
 
       expect(signed).toBeDefined();
       expect(typeof signed).toBe('string');
 
       const valid = await pgpWithKeys.verify!(message, signed as string, {
-        publicKey: keypair.publicKey as string
+        publicKey: keypair.publicKey as string,
       });
 
       expect(valid).toBe(true);
@@ -306,20 +326,20 @@ describe('PGP Adapter', () => {
         type: 'pgp',
         privateKey: keypair.privateKey as string,
         publicKey: keypair.publicKey as string,
-        passphrase: 'test-passphrase'
+        passphrase: 'test-passphrase',
       });
 
       const data = Buffer.from('Data to sign');
       const signed = await pgpWithKeys.sign!(data, {
         detached: false,
-        armor: false
+        armor: false,
       });
 
       expect(signed).toBeDefined();
       expect(Buffer.isBuffer(signed)).toBe(true);
 
       const valid = await pgpWithKeys.verify!(data, signed as Buffer, {
-        publicKey: keypair.publicKey as string
+        publicKey: keypair.publicKey as string,
       });
 
       expect(valid).toBe(true);
@@ -330,21 +350,23 @@ describe('PGP Adapter', () => {
         type: 'pgp',
         privateKey: keypair.privateKey as string,
         publicKey: keypair.publicKey as string,
-        passphrase: 'test-passphrase'
+        passphrase: 'test-passphrase',
       });
 
       const message = 'Message to sign';
       const signature = await pgpWithKeys.sign!(message, {
         detached: true,
-        armor: true
+        armor: true,
       });
 
       expect(signature).toBeDefined();
       expect(typeof signature).toBe('string');
-      expect((signature as string).includes('-----BEGIN PGP SIGNATURE-----')).toBe(true);
+      expect(
+        (signature as string).includes('-----BEGIN PGP SIGNATURE-----'),
+      ).toBe(true);
 
       const valid = await pgpWithKeys.verify!(message, signature as string, {
-        publicKey: keypair.publicKey as string
+        publicKey: keypair.publicKey as string,
       });
 
       expect(valid).toBe(true);
@@ -355,19 +377,23 @@ describe('PGP Adapter', () => {
         type: 'pgp',
         privateKey: keypair.privateKey as string,
         publicKey: keypair.publicKey as string,
-        passphrase: 'test-passphrase'
+        passphrase: 'test-passphrase',
       });
 
       const message = 'Message to sign';
       const signature = await pgpWithKeys.sign!(message, {
         detached: true,
-        armor: true
+        armor: true,
       });
 
       const tamperedMessage = 'Tampered message';
-      const valid = await pgpWithKeys.verify!(tamperedMessage, signature as string, {
-        publicKey: keypair.publicKey as string
-      });
+      const valid = await pgpWithKeys.verify!(
+        tamperedMessage,
+        signature as string,
+        {
+          publicKey: keypair.publicKey as string,
+        },
+      );
 
       expect(valid).toBe(false);
     });
@@ -377,18 +403,18 @@ describe('PGP Adapter', () => {
         type: 'pgp',
         publicKey: keypair.publicKey as string,
         privateKey: keypair.privateKey as string,
-        passphrase: 'test-passphrase'
+        passphrase: 'test-passphrase',
       });
 
       const plaintext = 'Secret signed message';
       const encrypted = await pgpWithKeys.encryptText(plaintext, {
         sign: true,
-        privateKey: keypair.privateKey as string
+        privateKey: keypair.privateKey as string,
       });
 
       const decrypted = await pgpWithKeys.decryptText(encrypted, {
         verify: true,
-        publicKey: keypair.publicKey as string
+        publicKey: keypair.publicKey as string,
       });
 
       expect(decrypted).toBe(plaintext);
@@ -397,14 +423,16 @@ describe('PGP Adapter', () => {
     it('should throw error when signing without private key', async () => {
       const pgpWithoutKey = await getEncryption({ type: 'pgp' });
 
-      await expect(pgpWithoutKey.sign!('Message')).rejects.toThrow(SignatureError);
+      await expect(pgpWithoutKey.sign!('Message')).rejects.toThrow(
+        SignatureError,
+      );
     });
 
     it('should throw error when verifying without public key', async () => {
       const pgpWithKeys = await getEncryption({
         type: 'pgp',
         privateKey: keypair.privateKey as string,
-        passphrase: 'test-passphrase'
+        passphrase: 'test-passphrase',
       });
 
       const signature = await pgpWithKeys.sign!('Message', { detached: true });
@@ -412,7 +440,7 @@ describe('PGP Adapter', () => {
       const pgpWithoutKey = await getEncryption({ type: 'pgp' });
 
       await expect(
-        pgpWithoutKey.verify!('Message', signature as string, {})
+        pgpWithoutKey.verify!('Message', signature as string, {}),
       ).rejects.toThrow(KeyError);
     });
   });
@@ -431,7 +459,7 @@ describe('PGP Adapter', () => {
         email: 'recipient1@example.com',
         passphrase: 'pass1',
         type: 'rsa',
-        keySize: 2048
+        keySize: 2048,
       });
 
       recipient2 = await pgp.generateKeyPair({
@@ -439,7 +467,7 @@ describe('PGP Adapter', () => {
         email: 'recipient2@example.com',
         passphrase: 'pass2',
         type: 'rsa',
-        keySize: 2048
+        keySize: 2048,
       });
 
       recipient3 = await pgp.generateKeyPair({
@@ -447,7 +475,7 @@ describe('PGP Adapter', () => {
         email: 'recipient3@example.com',
         passphrase: 'pass3',
         type: 'rsa',
-        keySize: 2048
+        keySize: 2048,
       });
     });
 
@@ -458,15 +486,15 @@ describe('PGP Adapter', () => {
         publicKeys: [
           recipient1.publicKey as string,
           recipient2.publicKey as string,
-          recipient3.publicKey as string
-        ]
+          recipient3.publicKey as string,
+        ],
       });
 
       // All recipients should be able to decrypt
       const pgp1 = await getEncryption({
         type: 'pgp',
         privateKey: recipient1.privateKey as string,
-        passphrase: 'pass1'
+        passphrase: 'pass1',
       });
       const decrypted1 = await pgp1.decryptText(encrypted);
       expect(decrypted1).toBe(plaintext);
@@ -474,7 +502,7 @@ describe('PGP Adapter', () => {
       const pgp2 = await getEncryption({
         type: 'pgp',
         privateKey: recipient2.privateKey as string,
-        passphrase: 'pass2'
+        passphrase: 'pass2',
       });
       const decrypted2 = await pgp2.decryptText(encrypted);
       expect(decrypted2).toBe(plaintext);
@@ -482,7 +510,7 @@ describe('PGP Adapter', () => {
       const pgp3 = await getEncryption({
         type: 'pgp',
         privateKey: recipient3.privateKey as string,
-        passphrase: 'pass3'
+        passphrase: 'pass3',
       });
       const decrypted3 = await pgp3.decryptText(encrypted);
       expect(decrypted3).toBe(plaintext);
@@ -500,13 +528,13 @@ describe('PGP Adapter', () => {
         email: 'test@example.com',
         passphrase: 'test-passphrase',
         type: 'rsa',
-        keySize: 2048
+        keySize: 2048,
       });
     });
 
     it('should import public key', async () => {
       const imported = await pgp.importKey(keypair.publicKey as string, {
-        type: 'public'
+        type: 'public',
       });
 
       expect(imported.type).toBe('public');
@@ -522,7 +550,7 @@ describe('PGP Adapter', () => {
     it('should import private key', async () => {
       const imported = await pgp.importKey(keypair.privateKey as string, {
         type: 'private',
-        passphrase: 'test-passphrase'
+        passphrase: 'test-passphrase',
       });
 
       expect(imported.type).toBe('private');
@@ -535,25 +563,27 @@ describe('PGP Adapter', () => {
       await expect(
         pgp.importKey(keypair.privateKey as string, {
           type: 'private',
-          passphrase: 'wrong-passphrase'
-        })
+          passphrase: 'wrong-passphrase',
+        }),
       ).rejects.toThrow(PassphraseError);
     });
 
     it('should export public key', async () => {
       const imported = await pgp.importKey(keypair.publicKey as string, {
-        type: 'public'
+        type: 'public',
       });
 
       const exported = await pgp.exportKey(imported, { format: 'armored' });
 
       expect(typeof exported).toBe('string');
-      expect((exported as string).startsWith('-----BEGIN PGP PUBLIC KEY BLOCK-----')).toBe(true);
+      expect(
+        (exported as string).startsWith('-----BEGIN PGP PUBLIC KEY BLOCK-----'),
+      ).toBe(true);
     });
 
     it('should export key as buffer', async () => {
       const imported = await pgp.importKey(keypair.publicKey as string, {
-        type: 'public'
+        type: 'public',
       });
 
       const exported = await pgp.exportKey(imported, { format: 'binary' });
@@ -587,7 +617,7 @@ describe('PGP Adapter', () => {
       const pgp = await getEncryption({ type: 'pgp' });
 
       await expect(
-        pgp.importKey('not-a-valid-key', { type: 'public' })
+        pgp.importKey('not-a-valid-key', { type: 'public' }),
       ).rejects.toThrow(InvalidKeyError);
     });
 
@@ -605,17 +635,17 @@ describe('PGP Adapter', () => {
         email: 'test@example.com',
         passphrase: 'pass',
         type: 'rsa',
-        keySize: 2048
+        keySize: 2048,
       });
 
       const pgpWithKeys = await getEncryption({
         type: 'pgp',
         privateKey: keypair.privateKey as string,
-        passphrase: 'pass'
+        passphrase: 'pass',
       });
 
       await expect(
-        pgpWithKeys.decryptText('not-valid-encrypted-data')
+        pgpWithKeys.decryptText('not-valid-encrypted-data'),
       ).rejects.toThrow(DecryptError);
     });
   });
