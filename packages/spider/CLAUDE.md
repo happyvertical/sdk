@@ -45,6 +45,47 @@ console.log(page.content);  // HTML content
 console.log(page.links);    // Extracted links
 ```
 
+### WordPress Download Manager Detection
+
+The `scrapeDocument()` function automatically detects WordPress Download Manager pages and extracts the actual download URLs:
+
+```typescript
+import { scrapeDocument } from '@happyvertical/spider';
+
+// Automatically detects WordPress download pages
+const doc = await scrapeDocument('https://example.com/download/meeting-minutes/');
+
+if (doc.metadata.strategy === 'wordpress-pdf-link') {
+  console.log('WordPress download detected');
+  console.log('Download URL:', doc.url); // Extracted wpdmdl URL
+  console.log('Is PDF:', doc.metadata.isPdf); // true
+  console.log('Complete:', doc.metadata.complete); // false - needs separate fetch
+}
+```
+
+**Important Caching Behavior (Fix for sdk#440):**
+
+WordPress Download Manager URLs often return HTML tracking/analytics pages before redirecting to the actual file. The spider includes defensive checks to prevent infinite loops:
+
+1. **First Fetch**: HTML page with `/download/` in URL → Detects WordPress → Extracts `?wpdmdl=` link
+2. **Second Fetch**: URL with `?wpdmdl=` parameter → Skips WordPress detection (prevents loop)
+3. **Result**: If `?wpdmdl=` URL returns HTML, it's treated as HTML (not marked as PDF)
+
+**Debug Logging:**
+
+Enable debug logging to troubleshoot WordPress detection:
+
+```bash
+export HAVE_DEBUG=true
+# or
+export DEBUG=spider
+```
+
+This will log:
+- When WordPress pages are detected
+- When WordPress detection is skipped (wpdmdl URLs)
+- What download URLs are extracted
+
 ### Adapter Selection
 
 ```typescript

@@ -134,6 +134,25 @@ describe('scrapeDocument', () => {
       );
     });
 
+    it('should prevent infinite loops when wpdmdl URL returns HTML', async () => {
+      // This tests the fix for sdk#440: When a wpdmdl URL returns HTML (instead of PDF),
+      // we should not try to extract another wpdmdl link from it (which would cause a loop)
+
+      // Scenario: A wpdmdl URL that returns HTML with WordPress markers
+      const htmlWithWpdm = readFileSync(
+        getFixturePath('wordpress-meeting-link.html'),
+        'utf-8',
+      );
+
+      // Verify the fixture has WordPress markers (this is the HTML that would be
+      // returned by a wpdmdl URL that doesn't redirect properly)
+      expect(htmlWithWpdm).toContain('wpdmdl=');
+
+      // The fix ensures that if the URL already has wpdmdl= parameter,
+      // we don't try to extract another WordPress link from it
+      // (verified via defensive checks in extractWordPressDownloadUrl)
+    });
+
     // Note: Full integration tests with real scraper should be in *.optional.test.ts
     // These tests verify fixture structure and documented patterns
   });

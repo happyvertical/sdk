@@ -81,17 +81,34 @@ export interface DocumentResult {
  * - https://example.com/download/file-name/?wpdmdl=12345&refresh=hash
  * - https://example.com/download/file-name/
  *
+ * IMPORTANT: This function only detects WordPress DOWNLOAD PAGES (HTML pages that link to downloads).
+ * It does NOT guarantee the extracted URL will return a PDF - that URL might still return HTML
+ * (e.g., tracking page, authentication page, etc.). Callers should validate content type after fetching.
+ *
  * @param url - The URL to check
  * @param html - The HTML content of the page
  * @returns The actual download URL if detected, null otherwise
  */
 function extractWordPressDownloadUrl(url: string, html: string): string | null {
   // Check if this looks like a WordPress download manager page
+  // NOTE: We're conservative here - only detect pages that are clearly WordPress download pages
+  // Don't detect pages that already have wpdmdl in the URL (those might be cached responses)
+  const hasWpdmInUrl = url.includes('wpdmdl=');
   const isWpdmPage =
     url.includes('/download/') ||
-    html.includes('wpdmdl=') ||
     html.includes('wpdm-download-link') ||
     html.includes('wpdm_view_count');
+
+  // If the URL already has wpdmdl parameter, this is likely a download URL that returned HTML
+  // In this case, we should NOT treat it as a WordPress page to avoid infinite loops
+  if (hasWpdmInUrl) {
+    if (process.env.HAVE_DEBUG === 'true' || process.env.DEBUG === 'spider') {
+      console.warn(
+        `[spider] WordPress detection: URL already has wpdmdl parameter, skipping detection to avoid loop: ${url}`,
+      );
+    }
+    return null;
+  }
 
   if (!isWpdmPage) {
     return null;
@@ -113,8 +130,15 @@ function extractWordPressDownloadUrl(url: string, html: string): string | null {
     // Make absolute if relative
     if (downloadUrl.startsWith('/')) {
       const urlObj = new URL(url);
-      return `${urlObj.protocol}//${urlObj.host}${downloadUrl}`;
+      downloadUrl = `${urlObj.protocol}//${urlObj.host}${downloadUrl}`;
     }
+
+    if (process.env.HAVE_DEBUG === 'true' || process.env.DEBUG === 'spider') {
+      console.log(
+        `[spider] WordPress detection: Found wpdmdl link: ${downloadUrl}`,
+      );
+    }
+
     return downloadUrl;
   }
 
@@ -133,9 +157,22 @@ function extractWordPressDownloadUrl(url: string, html: string): string | null {
     // Make absolute if relative
     if (pdfUrl.startsWith('/')) {
       const urlObj = new URL(url);
-      return `${urlObj.protocol}//${urlObj.host}${pdfUrl}`;
+      pdfUrl = `${urlObj.protocol}//${urlObj.host}${pdfUrl}`;
     }
+
+    if (process.env.HAVE_DEBUG === 'true' || process.env.DEBUG === 'spider') {
+      console.log(
+        `[spider] WordPress detection: Found direct PDF link: ${pdfUrl}`,
+      );
+    }
+
     return pdfUrl;
+  }
+
+  if (process.env.HAVE_DEBUG === 'true' || process.env.DEBUG === 'spider') {
+    console.warn(
+      `[spider] WordPress detection: Page looks like WordPress but no download link found: ${url}`,
+    );
   }
 
   return null;
@@ -404,12 +441,29 @@ export async function scrapeDocument(
   const result = await scraper.scrape(url, options);
   const actualUrl = url;
 
+  // Defensive check: If result.content looks like HTML (starts with <!DOCTYPE, <html>, etc.),
+  // we should be very careful about marking it as a PDF
+  const looksLikeHtml =
+    result.content.trimStart().startsWith('<!DOCTYPE') ||
+    result.content.trimStart().startsWith('<html') ||
+    result.content.includes('<head>') ||
+    result.content.includes('<body>');
+
   // Check if this is a WordPress Download Manager page
   const wpDownloadUrl = extractWordPressDownloadUrl(url, result.content);
   if (wpDownloadUrl) {
-    // WordPress Download Manager URLs either have wpdmdl parameter or .pdf extension
-    // In both cases, they trigger file downloads, so we shouldn't re-scrape them
-    // Just return the URL for later processing with fetchDocument
+    // IMPORTANT: WordPress Download Manager URLs often return HTML tracking pages
+    // before redirecting to the actual PDF. We detect the download page but
+    // mark the result as incomplete so the caller knows to fetch the URL separately.
+    //
+    // If the current content is clearly HTML, we're on the download page (correct).
+    // The wpDownloadUrl should be fetched separately to get the actual PDF.
+    if (process.env.HAVE_DEBUG === 'true' || process.env.DEBUG === 'spider') {
+      console.log(
+        `[spider] WordPress download page detected. Content is ${looksLikeHtml ? 'HTML' : 'unknown'}, extracted URL: ${wpDownloadUrl}`,
+      );
+    }
+
     return {
       url: wpDownloadUrl,
       type: 'application/pdf',
