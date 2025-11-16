@@ -1,5 +1,33 @@
 # @happyvertical/weather
 
+## 0.56.0
+
+### Patch Changes
+
+- 46ac818: fix(weather): ensure windSpeed is always a number in Environment Canada provider
+
+  The Environment Canada API returns wind speed values as strings instead of numbers. This change wraps the wind speed values with Number() to ensure they are always returned as numbers, matching the WeatherForecast type interface.
+
+  Fixes test failure in environment-canada.spec.ts where windSpeed type assertion was failing.
+
+- c1b1111: Enable fixed versioning for all @happyvertical packages
+
+  All packages in the SDK monorepo now share the same version number. This simplifies version management and makes it easier to understand which packages work together.
+
+  **Changes:**
+
+  - Updated `.changeset/config.json` to enable fixed versioning for all `@happyvertical/*` packages
+  - All packages will now be bumped together to the same version
+  - Future changesets will automatically synchronize versions across all packages
+
+  **Migration:**
+
+  - All packages will be synchronized to the same version on the next release
+  - The root `package.json` version will be kept in sync with all packages
+
+- Updated dependencies [c1b1111]
+  - @happyvertical/utils@0.56.0
+
 ## 0.55.4
 
 ### Patch Changes

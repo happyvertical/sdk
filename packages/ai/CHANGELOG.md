@@ -1,5 +1,65 @@
 # @happyvertical/ai
 
+## 0.56.0
+
+### Patch Changes
+
+- 978c7c7: Fix macOS keychain password prompts in AI and Spider packages
+
+  Prevent macOS keychain password prompts during build and runtime:
+
+  ## AI Package (@happyvertical/ai)
+
+  1. Removing all CLI execution during detection (no more `claude --help` calls)
+  2. Checking for ANTHROPIC_API_KEY environment variable and automatically falling back to Anthropic SDK
+
+  **Authentication Priority:**
+
+  1. ANTHROPIC_API_KEY environment variable (uses Anthropic SDK, no keychain prompts)
+  2. Claude CLI with setup-token (for CI/CD, no keychain prompts)
+  3. Claude CLI with keychain (local development, will fail gracefully if not authenticated)
+
+  **Changes:**
+
+  - Remove `claude --help` verification calls in `findCli()` method
+  - Use `fs.access()` to check file existence instead of executing CLI
+  - Add automatic fallback to AnthropicProvider when ANTHROPIC_API_KEY is set
+  - Map claude-cli model names (sonnet, opus, haiku) to full Anthropic model IDs
+  - Add comprehensive integration tests for fallback behavior
+  - Update documentation to explain authentication options
+
+  ## Spider Package (@happyvertical/spider)
+
+  Add `--use-mock-keychain` argument to Playwright launch options in Crawlee adapter and tree scraper. This prevents Chromium from accessing the macOS system keychain.
+
+  **Changes:**
+
+  - Add `args: ['--use-mock-keychain']` to Playwright launchOptions in Crawlee adapter
+  - Add `args: ['--use-mock-keychain']` to Playwright launchOptions in tree scraper
+  - No behavioral changes - only prevents keychain access
+
+  Both packages will now run without prompting for keychain access on macOS.
+
+  Fixes #403
+
+- c1b1111: Enable fixed versioning for all @happyvertical packages
+
+  All packages in the SDK monorepo now share the same version number. This simplifies version management and makes it easier to understand which packages work together.
+
+  **Changes:**
+
+  - Updated `.changeset/config.json` to enable fixed versioning for all `@happyvertical/*` packages
+  - All packages will now be bumped together to the same version
+  - Future changesets will automatically synchronize versions across all packages
+
+  **Migration:**
+
+  - All packages will be synchronized to the same version on the next release
+  - The root `package.json` version will be kept in sync with all packages
+
+- Updated dependencies [c1b1111]
+  - @happyvertical/utils@0.56.0
+
 ## 0.55.4
 
 ### Patch Changes
