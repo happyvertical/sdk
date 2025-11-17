@@ -1,5 +1,12 @@
 # @happyvertical/weather
 
+## 0.56.2
+
+### Patch Changes
+
+- e097b34: Increase timeout for Environment Canada API integration tests to prevent failures on slow API responses
+  - @happyvertical/utils@0.56.2
+
 ## 0.56.1
 
 ### Patch Changes
