@@ -1,5 +1,19 @@
 # @happyvertical/spider
 
+## 0.56.3
+
+### Patch Changes
+
+- f249c40: Fix WordPress detection for URLs without trailing slashes (#454)
+
+  WordPress Download Manager detection now works consistently regardless of trailing slashes. URLs like `/download/meeting` and `/download/meeting/` are now both properly detected as WordPress download pages.
+
+  This fixes an issue where WordPress servers return different HTML content for URLs with and without trailing slashes, causing detection to fail for URLs without slashes.
+
+  - @happyvertical/cache@0.56.3
+  - @happyvertical/files@0.56.3
+  - @happyvertical/utils@0.56.3
+
 ## 0.56.2
 
 ### Patch Changes
