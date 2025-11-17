@@ -42,6 +42,32 @@ export interface ExtractTextOptions {
 export type { OCROptions } from '@happyvertical/ocr';
 
 /**
+ * Configuration options for rendering PDF pages as images
+ *
+ * @example
+ * ```typescript
+ * // Render at 2x scale for better OCR quality
+ * const options: RenderPagesOptions = {
+ *   scale: 2.0,
+ *   pages: [1, 2, 3],
+ *   outputFolder: '/tmp/rendered'
+ * };
+ *
+ * const renderedPages = await reader.renderPages('/path/to/doc.pdf', options);
+ * ```
+ */
+export interface RenderPagesOptions {
+  /** Scale factor for rendering (default: 2.0 for OCR quality) */
+  scale?: number;
+  /** Specific pages to render (1-based indexing). If not provided, renders all pages */
+  pages?: number[];
+  /** Temporary folder for storing rendered images */
+  outputFolder?: string;
+  /** Whether to clean up rendered image files after processing */
+  cleanupAfter?: boolean;
+}
+
+/**
  * Comprehensive metadata information extracted from PDF documents
  *
  * Contains both standard PDF metadata fields (title, author, etc.) and
@@ -154,6 +180,8 @@ export interface PDFReaderOptions {
   provider?: 'unpdf' | 'pdfjs' | 'auto';
   /** Whether to enable OCR fallback for image-based PDFs */
   enableOCR?: boolean;
+  /** OCR provider to use ('auto', 'tesseract', 'onnx') */
+  ocrProvider?: string;
   /** Default OCR options */
   defaultOCROptions?: OCROptions;
   /** Maximum file size to process (in bytes) */
@@ -303,6 +331,48 @@ export interface PDFReader {
    * ```
    */
   extractImages(source: string | ArrayBuffer | Uint8Array): Promise<PDFImage[]>;
+
+  /**
+   * Render PDF pages as rasterized images for OCR processing
+   *
+   * Converts each PDF page to a high-quality PNG image, capturing all text and graphics
+   * as pixels. This is essential for OCR on PDFs where text is rendered (not embedded),
+   * such as scanned documents or PDFs with complex layouts.
+   *
+   * Unlike extractImages() which extracts embedded images (logos, diagrams),
+   * renderPages() renders the entire page including all text as a rasterized image.
+   *
+   * @param source - PDF source: file path (Node.js only), ArrayBuffer, or Uint8Array
+   * @param options - Rendering options including scale factor and page selection
+   * @returns Promise resolving to array of rendered page images suitable for OCR
+   *
+   * @throws {PDFUnsupportedError} When provider doesn't support page rendering
+   * @throws {PDFError} When PDF data is invalid or corrupted
+   * @throws {PDFDependencyError} When required dependencies are missing
+   *
+   * @example
+   * ```typescript
+   * // Render all pages at 2x scale for better OCR quality
+   * const pages = await reader.renderPages('/path/to/doc.pdf', {
+   *   scale: 2.0,
+   *   outputFolder: '/tmp/rendered-pages'
+   * });
+   *
+   * // Render specific pages
+   * const pages = await reader.renderPages('/path/to/doc.pdf', {
+   *   scale: 2.0,
+   *   pages: [1, 2, 3]
+   * });
+   *
+   * // Use for OCR processing
+   * const ocrResult = await reader.performOCR(pages);
+   * console.log('Full document text:', ocrResult.text);
+   * ```
+   */
+  renderPages(
+    source: string | ArrayBuffer | Uint8Array,
+    options?: RenderPagesOptions,
+  ): Promise<PDFImage[]>;
 
   /**
    * Perform Optical Character Recognition (OCR) on extracted image data

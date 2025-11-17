@@ -74,6 +74,7 @@ export async function getPDFReader(
       enableOCR: 'boolean',
       timeout: 'number',
       provider: 'string',
+      ocrProvider: 'string',
       maxFileSize: 'number',
     },
   });
@@ -113,7 +114,9 @@ export async function getPDFReader(
 
       // Dynamic import to avoid bundling Node.js code in browser
       const { CombinedNodeProvider } = await import('../node/combined.js');
-      return new CombinedNodeProvider();
+      return new CombinedNodeProvider({
+        ocrProvider: readerOptions.ocrProvider as string | undefined,
+      });
     }
 
     case 'pdfjs': {

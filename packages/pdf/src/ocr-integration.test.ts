@@ -4,33 +4,33 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { checkOCRDependencies, getPDFReader } from './index';
 import type { PDFReader } from './shared/types';
 
-describe('OCR Integration with Real PDF', () => {
-  let reader: PDFReader;
-  let ocrAvailable = false;
+describe.skipIf(process.env.CI === 'true')(
+  'OCR Integration with Real PDF',
+  () => {
+    let reader: PDFReader;
+    let ocrAvailable = false;
 
-  beforeAll(async () => {
-    reader = await getPDFReader();
+    beforeAll(async () => {
+      reader = await getPDFReader();
 
-    // Check if OCR is available before running OCR tests
-    try {
-      const deps = await checkOCRDependencies();
-      ocrAvailable = deps.available;
+      // Check if OCR is available before running OCR tests
+      try {
+        const deps = await checkOCRDependencies();
+        ocrAvailable = deps.available;
 
-      if (!ocrAvailable) {
-        console.warn(
-          'OCR not available - OCR integration test will be skipped',
-        );
-        console.warn('OCR unavailable reason:', deps.error);
+        if (!ocrAvailable) {
+          console.warn(
+            'OCR not available - OCR integration test will be skipped',
+          );
+          console.warn('OCR unavailable reason:', deps.error);
+        }
+      } catch (error) {
+        console.warn('Failed to check OCR dependencies:', error);
+        ocrAvailable = false;
       }
-    } catch (error) {
-      console.warn('Failed to check OCR dependencies:', error);
-      ocrAvailable = false;
-    }
-  });
+    });
 
-  it.skipIf(process.env.CI === 'true')(
-    'should extract text from real PDF using OCR when needed',
-    async () => {
+    it('should extract text from real PDF using OCR when needed', async () => {
       const pdfPath = join(
         fileURLToPath(new URL('.', import.meta.url)),
         '..',
@@ -83,63 +83,62 @@ describe('OCR Integration with Real PDF', () => {
           );
         }
       }
-    },
-    45000,
-  ); // Allow up to 45 seconds for OCR processing
+    }, 45000); // Allow up to 45 seconds for OCR processing
 
-  it.skipIf(process.env.CI === 'true')(
-    'should handle OCR on extracted images',
-    async () => {
-      if (!ocrAvailable) {
-        console.log('⏭️ Skipping OCR image test - OCR not available');
-        return;
-      }
-
-      const pdfPath = join(
-        fileURLToPath(new URL('.', import.meta.url)),
-        '..',
-        'test',
-        'Signed-Meeting-Minutes-October-8-2024-Regular-Council-Meeting-1.pdf',
-      );
-
-      // Extract images from the PDF
-      const images = await reader.extractImages(pdfPath);
-      console.log(`Extracted ${images.length} images from PDF`);
-
-      if (images.length > 0) {
-        // Take just the first image to keep test fast
-        const firstImage = images.slice(0, 1);
-
-        // Perform OCR on the first image
-        const ocrResult = await reader.performOCR(firstImage, {
-          language: 'eng',
-          confidenceThreshold: 50,
-        });
-
-        expect(ocrResult).toBeDefined();
-        expect(typeof ocrResult.text).toBe('string');
-        expect(typeof ocrResult.confidence).toBe('number');
-        expect(Array.isArray(ocrResult.detections)).toBe(true);
-
-        if (ocrResult.text.length > 10) {
-          console.log(
-            `✅ OCR on image successful: ${ocrResult.text.length} chars, ${ocrResult.confidence}% confidence`,
-          );
-          console.log(
-            `OCR text preview: ${ocrResult.text.substring(0, 100).replace(/\s+/g, ' ').trim()}...`,
-          );
-        } else {
-          console.log(
-            `⚠️ OCR on image extracted minimal text: ${ocrResult.text.length} chars, ${ocrResult.confidence}% confidence`,
-          );
-          console.log(
-            'This may be due to image format compatibility or image content',
-          );
+    it.skipIf(process.env.CI === 'true')(
+      'should handle OCR on extracted images',
+      async () => {
+        if (!ocrAvailable) {
+          console.log('⏭️ Skipping OCR image test - OCR not available');
+          return;
         }
-      } else {
-        console.log('⚠️ No images found in PDF - OCR image test skipped');
-      }
-    },
-    45000,
-  );
-});
+
+        const pdfPath = join(
+          fileURLToPath(new URL('.', import.meta.url)),
+          '..',
+          'test',
+          'Signed-Meeting-Minutes-October-8-2024-Regular-Council-Meeting-1.pdf',
+        );
+
+        // Extract images from the PDF
+        const images = await reader.extractImages(pdfPath);
+        console.log(`Extracted ${images.length} images from PDF`);
+
+        if (images.length > 0) {
+          // Take just the first image to keep test fast
+          const firstImage = images.slice(0, 1);
+
+          // Perform OCR on the first image
+          const ocrResult = await reader.performOCR(firstImage, {
+            language: 'eng',
+            confidenceThreshold: 50,
+          });
+
+          expect(ocrResult).toBeDefined();
+          expect(typeof ocrResult.text).toBe('string');
+          expect(typeof ocrResult.confidence).toBe('number');
+          expect(Array.isArray(ocrResult.detections)).toBe(true);
+
+          if (ocrResult.text.length > 10) {
+            console.log(
+              `✅ OCR on image successful: ${ocrResult.text.length} chars, ${ocrResult.confidence}% confidence`,
+            );
+            console.log(
+              `OCR text preview: ${ocrResult.text.substring(0, 100).replace(/\s+/g, ' ').trim()}...`,
+            );
+          } else {
+            console.log(
+              `⚠️ OCR on image extracted minimal text: ${ocrResult.text.length} chars, ${ocrResult.confidence}% confidence`,
+            );
+            console.log(
+              'This may be due to image format compatibility or image content',
+            );
+          }
+        } else {
+          console.log('⚠️ No images found in PDF - OCR image test skipped');
+        }
+      },
+      45000,
+    );
+  },
+);

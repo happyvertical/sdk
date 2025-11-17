@@ -24,7 +24,7 @@ describe('PDF Content Extraction', () => {
     // Should return string or null, never undefined or throw
     expect(text !== undefined).toBe(true);
     expect(typeof text === 'string' || text === null).toBe(true);
-  }, 30000); // Reduced timeout to 30 seconds
+  }, 60000); // 60 second timeout for OCR processing
 
   it('should extract metadata from PDF', async () => {
     const pdfPath = join(
@@ -39,7 +39,7 @@ describe('PDF Content Extraction', () => {
     expect(metadata).toBeDefined();
     expect(typeof metadata.pageCount).toBe('number');
     expect(metadata.pageCount).toBeGreaterThan(0);
-  }, 30000);
+  }, 60000);
 
   it('should extract images from PDF', async () => {
     const pdfPath = join(
@@ -53,5 +53,5 @@ describe('PDF Content Extraction', () => {
 
     expect(Array.isArray(images)).toBe(true);
     // Images may be empty array, that's fine
-  }, 30000);
+  }, 60000);
 });

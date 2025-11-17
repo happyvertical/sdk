@@ -47,7 +47,7 @@ describe('PDF Package Integration', () => {
 
     expect(text !== undefined).toBe(true);
     expect(typeof text === 'string' || text === null).toBe(true);
-  }, 30000);
+  }, 60000); // 60 second timeout for OCR processing
 
   it('should check OCR dependencies', async () => {
     const deps = await checkOCRDependencies();

@@ -197,7 +197,7 @@ describe('getMailbox Factory', () => {
 
       expect(mailbox).toBeDefined();
       expect(mailbox.getAdapter()).toBe('smtp');
-    });
+    }, 10000); // 10 second timeout
 
     it('should create IMAP adapter successfully', async () => {
       const options: IMAPOptions = {

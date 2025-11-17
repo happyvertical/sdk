@@ -93,6 +93,24 @@ export abstract class BasePDFReader implements PDFReader {
   }
 
   /**
+   * Render PDF pages as rasterized images for OCR processing
+   *
+   * Default implementation throws PDFUnsupportedError. Concrete providers
+   * should override this method to provide page rendering functionality.
+   *
+   * @param source - PDF source data (file path, ArrayBuffer, or Uint8Array)
+   * @param options - Optional rendering configuration
+   * @returns Promise resolving to array of rendered page images
+   * @throws {PDFUnsupportedError} When provider doesn't support page rendering
+   */
+  async renderPages(
+    _source: PDFSource,
+    _options?: import('./types.js').RenderPagesOptions,
+  ): Promise<PDFImage[]> {
+    throw new PDFUnsupportedError(`renderPages (provider: ${this.name})`);
+  }
+
+  /**
    * Perform Optical Character Recognition on image data
    *
    * Default implementation throws PDFUnsupportedError. Concrete providers
