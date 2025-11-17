@@ -142,10 +142,63 @@ export interface FetchDocumentOptions {
   runOcr?: boolean;
 
   /**
-   * Spider adapter to use for HTML fetching
+   * Scraper type to use for content extraction
+   * - 'basic': Fast, static HTML scraping (default)
+   * - 'crawlee': Full browser with JavaScript execution
+   * @default 'basic'
+   */
+  scraper?: 'basic' | 'crawlee';
+
+  /**
+   * Spider adapter to use for fetching web pages
+   * - 'simple': Basic HTTP fetch
+   * - 'dom': HTML parsing with happy-dom
+   * - 'crawlee': Headless browser (requires scraper: 'crawlee')
+   * @default 'dom'
+   */
+  spider?: 'simple' | 'dom' | 'crawlee';
+
+  /**
+   * Spider adapter to use for HTML fetching (deprecated, use 'spider' instead)
    * @default 'simple'
+   * @deprecated Use 'spider' instead
    */
   spiderAdapter?: 'simple' | 'dom' | 'crawlee';
+
+  /**
+   * Whether to use cache for spider fetching
+   * @default true
+   */
+  cache?: boolean;
+
+  /**
+   * Cache expiry time in milliseconds for spider fetching
+   * @default 300000 (5 minutes)
+   */
+  cacheExpiry?: number;
+
+  /**
+   * Custom HTTP headers for spider requests
+   */
+  headers?: Record<string, string>;
+
+  /**
+   * Request timeout in milliseconds for spider fetching
+   * @default 30000 (30 seconds)
+   */
+  timeout?: number;
+
+  /**
+   * Maximum time to spend scraping in milliseconds
+   * Used by advanced scrapers (tree, pagination, etc.)
+   */
+  maxDuration?: number;
+
+  /**
+   * Maximum number of interactions to perform
+   * Used by advanced scrapers (clicking, scrolling, etc.)
+   */
+  maxInteractions?: number;
 
   /**
    * Override MIME type detection

@@ -1,4 +1,5 @@
 import { getMimeType } from '@happyvertical/files';
+import { scrapeDocument } from '@happyvertical/spider';
 import { PDFProcessor } from './processors/pdf';
 import type { Document, FetchDocumentOptions } from './types';
 
@@ -47,6 +48,46 @@ export async function fetchDocument(
   url: string,
   options: FetchDocumentOptions = {},
 ): Promise<Document> {
+  // For web URLs (http/https), use spider package to detect special cases
+  // (WordPress Download Manager, CivicWeb, DocuShare, etc.)
+  const isWebUrl = url.startsWith('http://') || url.startsWith('https://');
+
+  if (isWebUrl && !options.type) {
+    try {
+      // Use spider to detect WordPress, CivicWeb, DocuShare, and other document management systems
+      const scraped = await scrapeDocument(url, {
+        scraper: options.scraper || 'basic',
+        spider: options.spider || 'dom',
+        cache: options.cache,
+        cacheExpiry: options.cacheExpiry,
+        headers: options.headers,
+        timeout: options.timeout,
+        maxDuration: options.maxDuration,
+        maxInteractions: options.maxInteractions,
+      });
+
+      // Check if spider detected a document management system with PDF link
+      const hasDocLink =
+        scraped.metadata.strategy === 'wordpress-pdf-link' ||
+        scraped.metadata.strategy === 'civicweb-pdf-link' ||
+        scraped.metadata.strategy === 'docushare-pdf-link';
+
+      if (hasDocLink && scraped.metadata.isPdf && !scraped.metadata.complete) {
+        // Spider detected a document management page and extracted the PDF URL
+        // Use the extracted URL for PDF processing
+        url = scraped.url;
+        options.type = 'application/pdf';
+      }
+    } catch (error) {
+      // If spider fails, continue with direct download
+      // This ensures backward compatibility
+      console.warn(
+        `Spider detection failed for ${url}, falling back to direct download:`,
+        error,
+      );
+    }
+  }
+
   // Determine type - check URL extension first, then MIME type
   // This handles servers that return incorrect Content-Type headers (e.g., application/octet-stream for PDFs)
   let type = options.type;
