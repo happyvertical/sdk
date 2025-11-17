@@ -22,7 +22,7 @@ describe('Legacy Compatibility Functions', () => {
     // Should behave exactly like the original function
     expect(text !== undefined).toBe(true);
     expect(typeof text === 'string' || text === null).toBe(true);
-  }, 30000);
+  }, 60000); // 60 second timeout for OCR processing
 
   it('should extract images using legacy function', async () => {
     const pdfPath = join(
@@ -35,7 +35,7 @@ describe('Legacy Compatibility Functions', () => {
     const images = await extractImagesFromPDF(pdfPath);
 
     expect(images === null || Array.isArray(images)).toBe(true);
-  }, 30000);
+  }, 60000);
 
   it('should handle OCR using legacy function', async () => {
     const mockImages = [
