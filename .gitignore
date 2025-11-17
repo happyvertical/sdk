@@ -48,6 +48,12 @@ smrt/*/src/**/*.d.ts.map
 tests/**/*.d.ts
 tests/**/*.d.ts.map
 tests/**/*.js
+
+# Test scripts and temporary files
+/test-*.ts
+/test-*.js
+/tmp/
+packages/*/tmp/
 tests/**/*.js.map
 typedoc.html.json
 vitest.setup.d.ts
