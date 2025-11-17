@@ -68,14 +68,24 @@ export class PDFProcessor implements DocumentProcessor {
       }
     }
 
-    // Validate that the downloaded file is actually a PDF (issue #460)
+    // Validate that the downloaded file is actually a PDF (issue #460, #463)
     // WordPress Download Manager and some other servers may return HTML
     // with Content-Type: application/pdf, causing PDF extraction to fail
     const fileBuffer = await fs.readFile(baseDoc.localPath);
     const header = fileBuffer.subarray(0, 5).toString('utf-8');
 
     if (header !== '%PDF-') {
-      // File is not a valid PDF - check if it's HTML
+      // File is not a valid PDF - delete poisoned cache file (issue #463)
+      try {
+        await fs.unlink(baseDoc.localPath);
+      } catch (unlinkError) {
+        console.warn(
+          `Failed to delete poisoned cache file: ${baseDoc.localPath}`,
+          unlinkError,
+        );
+      }
+
+      // Check if it's HTML to provide helpful error message
       const content = fileBuffer.toString(
         'utf-8',
         0,
@@ -85,11 +95,13 @@ export class PDFProcessor implements DocumentProcessor {
         throw new Error(
           `Downloaded file is HTML, not PDF. The server returned HTML content for ${url}. ` +
             'This commonly occurs with WordPress Download Manager URLs that return tracking pages. ' +
-            `Expected PDF magic bytes (%PDF-) but got: ${header}`,
+            `Expected PDF magic bytes (%PDF-) but got: ${header}. ` +
+            'The poisoned cache file has been removed - please try again.',
         );
       } else {
         throw new Error(
-          `Downloaded file is not a valid PDF. Expected %PDF- magic bytes but got: ${header}`,
+          `Downloaded file is not a valid PDF. Expected %PDF- magic bytes but got: ${header}. ` +
+            'The invalid cache file has been removed - please try again.',
         );
       }
     }
