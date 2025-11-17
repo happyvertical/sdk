@@ -1,5 +1,19 @@
 # @happyvertical/documents
 
+## 0.56.5
+
+### Patch Changes
+
+- 0520171: fix(documents): prevent cache poisoning when HTML is downloaded as PDF
+
+  Fixes #463 - Delete poisoned cache files when PDF validation detects HTML or invalid content. This prevents WordPress Download Manager and similar document management systems from causing persistent failures due to cached HTML tracking pages.
+
+  - @happyvertical/files@0.56.5
+  - @happyvertical/ocr@0.56.5
+  - @happyvertical/pdf@0.56.5
+  - @happyvertical/spider@0.56.5
+  - @happyvertical/utils@0.56.5
+
 ## 0.56.4
 
 ### Patch Changes
