@@ -44,6 +44,7 @@
   "dependencies": {
     "@happyvertical/ocr": "workspace:*",
     "@happyvertical/utils": "workspace:*",
+    "pdf-to-png-converter": "^3.11.0",
     "unpdf": "^1.4.0"
   },
   "devDependencies": {

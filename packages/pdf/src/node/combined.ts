@@ -28,11 +28,12 @@ import { UnpdfProvider } from './unpdf';
 export class CombinedNodeProvider extends BasePDFReader {
   protected name = 'combined-node';
   private unpdfProvider: UnpdfProvider;
-  private ocrFactory = getOCR({ provider: 'auto' });
+  private ocrFactory: ReturnType<typeof getOCR>;
 
-  constructor() {
+  constructor(options: { ocrProvider?: string } = {}) {
     super();
     this.unpdfProvider = new UnpdfProvider();
+    this.ocrFactory = getOCR({ provider: options.ocrProvider || 'auto' });
   }
 
   /**
@@ -51,9 +52,15 @@ export class CombinedNodeProvider extends BasePDFReader {
         console.log('No direct text found, attempting OCR fallback...');
 
         try {
-          const images = await this.unpdfProvider.extractImages(source);
-          if (images && images.length > 0) {
-            const ocrResult = await this.ocrFactory.performOCR(images);
+          // Use renderPages() instead of extractImages() for full-page OCR
+          // This renders the PDF pages as images, capturing all text as pixels
+          const renderedPages = await this.unpdfProvider.renderPages(source, {
+            scale: 2.0, // 2x scale for better OCR quality
+            pages: options?.pages, // Respect page selection if provided
+          });
+
+          if (renderedPages && renderedPages.length > 0) {
+            const ocrResult = await this.ocrFactory.performOCR(renderedPages);
             return ocrResult.text || null;
           }
         } catch (ocrError) {
@@ -80,6 +87,16 @@ export class CombinedNodeProvider extends BasePDFReader {
    */
   async extractImages(source: PDFSource): Promise<PDFImage[]> {
     return this.unpdfProvider.extractImages(source);
+  }
+
+  /**
+   * Render PDF pages as rasterized images using unpdf
+   */
+  async renderPages(
+    source: PDFSource,
+    options?: import('../shared/types.js').RenderPagesOptions,
+  ): Promise<PDFImage[]> {
+    return this.unpdfProvider.renderPages(source, options);
   }
 
   /**

@@ -2,7 +2,11 @@
  * @happyvertical/pdf - unpdf provider for Node.js PDF processing
  */
 
+import { randomBytes } from 'node:crypto';
 import { promises as fs } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { pdfToPng } from 'pdf-to-png-converter';
 import { BasePDFReader } from '../shared/base';
 import type {
   DependencyCheckResult,
@@ -12,6 +16,7 @@ import type {
   PDFInfo,
   PDFMetadata,
   PDFSource,
+  RenderPagesOptions,
 } from '../shared/types';
 import { PDFDependencyError } from '../shared/types';
 
@@ -271,6 +276,96 @@ export class UnpdfProvider extends BasePDFReader {
       return allImages;
     } catch (error) {
       console.error('unpdf image extraction failed:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Render PDF pages as rasterized images for OCR processing
+   *
+   * Uses pdf-to-png-converter to render each PDF page as a high-quality PNG image.
+   * This is essential for OCR on PDFs where text is rendered (not embedded).
+   */
+  async renderPages(
+    source: PDFSource,
+    options?: RenderPagesOptions,
+  ): Promise<PDFImage[]> {
+    // Handle invalid inputs gracefully
+    if (
+      !source ||
+      (typeof source === 'string' && source.trim() === '') ||
+      (typeof source === 'object' &&
+        Object.keys(source).length === 0 &&
+        !(source instanceof Buffer) &&
+        !(source instanceof Uint8Array))
+    ) {
+      return [];
+    }
+
+    try {
+      const buffer = await this.normalizeSource(source);
+
+      if (!this.validatePDFData(buffer)) {
+        throw new Error('Invalid PDF data');
+      }
+
+      // pdf-to-png-converter needs a file path, so write buffer to temp file
+      const tempPdfPath = join(
+        tmpdir(),
+        `pdf-render-${randomBytes(8).toString('hex')}.pdf`,
+      );
+
+      let pdfPath: string;
+      if (typeof source === 'string') {
+        // Already have a file path
+        pdfPath = source;
+      } else {
+        // Write buffer to temp file
+        await fs.writeFile(tempPdfPath, buffer);
+        pdfPath = tempPdfPath;
+      }
+
+      try {
+        // Determine output folder
+        const outputFolder = options?.outputFolder || '/tmp/pdf-rendered-pages';
+
+        // Determine pages to render
+        let pagesToProcess: number[] | undefined;
+        if (options?.pages && options.pages.length > 0) {
+          pagesToProcess = options.pages;
+        }
+
+        // Render pages using pdf-to-png-converter
+        const pngPages = await pdfToPng(pdfPath, {
+          outputFolder,
+          viewportScale: options?.scale || 2.0, // Default 2x for OCR quality
+          pagesToProcess,
+          verbosityLevel: 0, // Quiet mode
+        });
+
+        // Convert to PDFImage format
+        const images: PDFImage[] = pngPages.map((page) => ({
+          data: Buffer.from(page.content as Uint8Array),
+          format: 'png',
+          pageNumber: page.pageNumber,
+          width: undefined, // Will be determined by OCR provider
+          height: undefined,
+          channels: undefined,
+        }));
+
+        return images;
+      } finally {
+        // Clean up temp file if we created one
+        if (typeof source !== 'string') {
+          try {
+            await fs.unlink(tempPdfPath);
+          } catch {
+            // Ignore cleanup errors
+          }
+        }
+      }
+    } catch (error) {
+      console.error('unpdf page rendering failed:', error);
       return [];
     }
   }
