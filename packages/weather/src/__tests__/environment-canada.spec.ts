@@ -84,7 +84,7 @@ describe('Environment Canada Provider', () => {
     expect(typeof forecast.conditions).toBe('string');
     expect(forecast.raw).toBeDefined();
     expect(forecast.raw.source).toBe('environment-canada-citypage');
-  });
+  }, 30000); // 30 second timeout
 
   it('should throw InvalidLocationError for non-Canadian location', async () => {
     adapter = await getWeatherAdapter({
@@ -123,7 +123,7 @@ describe('Environment Canada Provider', () => {
 
     expect(forecasts).toBeDefined();
     expect(forecasts.length).toBeLessThanOrEqual(3);
-  });
+  }, 30000); // 30 second timeout
 
   it('should handle timeout option', async () => {
     adapter = await getWeatherAdapter({
