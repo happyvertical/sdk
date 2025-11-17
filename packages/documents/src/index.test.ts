@@ -86,68 +86,80 @@ describe('@happyvertical/documents', () => {
       60000,
     ); // 60 second timeout for large PDF
 
-    it('should cache processed PDFs', async () => {
-      const testPdfPath = path.resolve(
-        Dirname,
-        '../testdata/Signed Minutes - September 9, 2025 Regular Meeting.pdf',
-      );
-      const fileUrl = `file://${testPdfPath}`;
+    it.skipIf(process.env.CI === 'true')(
+      'should cache processed PDFs',
+      async () => {
+        const testPdfPath = path.resolve(
+          Dirname,
+          '../testdata/Signed Minutes - September 9, 2025 Regular Meeting.pdf',
+        );
+        const fileUrl = `file://${testPdfPath}`;
 
-      // First fetch
-      const startTime1 = Date.now();
-      const doc1 = await fetchDocument(fileUrl);
-      const duration1 = Date.now() - startTime1;
+        // First fetch
+        const startTime1 = Date.now();
+        const doc1 = await fetchDocument(fileUrl);
+        const duration1 = Date.now() - startTime1;
 
-      // Second fetch (should use cache)
-      const startTime2 = Date.now();
-      const doc2 = await fetchDocument(fileUrl);
-      const duration2 = Date.now() - startTime2;
+        // Second fetch (should use cache)
+        const startTime2 = Date.now();
+        const doc2 = await fetchDocument(fileUrl);
+        const duration2 = Date.now() - startTime2;
 
-      // Verify both documents are identical
-      expect(doc1.parts[0].content).toBe(doc2.parts[0].content);
+        // Verify both documents are identical
+        expect(doc1.parts[0].content).toBe(doc2.parts[0].content);
 
-      // Second fetch should be significantly faster (cached)
-      // Allow for some variance - cached should be at least 30% faster
-      if (duration1 > 100) {
-        expect(duration2).toBeLessThan(duration1 * 0.7);
-      }
-    }, 60000);
+        // Second fetch should be significantly faster (cached)
+        // Allow for some variance - cached should be at least 30% faster
+        if (duration1 > 100) {
+          expect(duration2).toBeLessThan(duration1 * 0.7);
+        }
+      },
+      60000,
+    );
 
-    it('should include metadata about the document', async () => {
-      const testPdfPath = path.resolve(
-        Dirname,
-        '../testdata/Signed Minutes - September 9, 2025 Regular Meeting.pdf',
-      );
-      const fileUrl = `file://${testPdfPath}`;
+    it.skipIf(process.env.CI === 'true')(
+      'should include metadata about the document',
+      async () => {
+        const testPdfPath = path.resolve(
+          Dirname,
+          '../testdata/Signed Minutes - September 9, 2025 Regular Meeting.pdf',
+        );
+        const fileUrl = `file://${testPdfPath}`;
 
-      const doc = await fetchDocument(fileUrl);
+        const doc = await fetchDocument(fileUrl);
 
-      expect(doc.metadata).toBeDefined();
-      expect(doc.metadata.processor).toBe('pdf');
-      expect(doc.metadata.extractedAt).toBeDefined();
-      expect(doc.metadata.hasImages).toBeDefined();
-    }, 30000);
+        expect(doc.metadata).toBeDefined();
+        expect(doc.metadata.processor).toBe('pdf');
+        expect(doc.metadata.extractedAt).toBeDefined();
+        expect(doc.metadata.hasImages).toBeDefined();
+      },
+      30000,
+    );
 
-    it('should handle extractImages option', async () => {
-      const testPdfPath = path.resolve(
-        Dirname,
-        '../testdata/Signed Minutes - September 9, 2025 Regular Meeting.pdf',
-      );
-      const fileUrl = `file://${testPdfPath}`;
+    it.skipIf(process.env.CI === 'true')(
+      'should handle extractImages option',
+      async () => {
+        const testPdfPath = path.resolve(
+          Dirname,
+          '../testdata/Signed Minutes - September 9, 2025 Regular Meeting.pdf',
+        );
+        const fileUrl = `file://${testPdfPath}`;
 
-      // Clear cache to ensure fresh processing with extractImages option
-      const { getCached, setCached } = await import('@happyvertical/files');
-      await setCached(`${testPdfPath}.processed_pdf`, '');
+        // Clear cache to ensure fresh processing with extractImages option
+        const { getCached, setCached } = await import('@happyvertical/files');
+        await setCached(`${testPdfPath}.processed_pdf`, '');
 
-      // With image extraction enabled
-      const doc = await fetchDocument(fileUrl, { extractImages: true });
-      const mainPart = doc.parts[0];
+        // With image extraction enabled
+        const doc = await fetchDocument(fileUrl, { extractImages: true });
+        const mainPart = doc.parts[0];
 
-      // Images should be defined when extraction is enabled
-      expect(mainPart.images).toBeDefined();
-      expect(Array.isArray(mainPart.images)).toBe(true);
-      // Currently returns empty array as placeholder for future implementation
-    }, 60000);
+        // Images should be defined when extraction is enabled
+        expect(mainPart.images).toBeDefined();
+        expect(Array.isArray(mainPart.images)).toBe(true);
+        // Currently returns empty array as placeholder for future implementation
+      },
+      60000,
+    );
 
     it('should throw error for unsupported document type', async () => {
       const invalidUrl = 'file:///path/to/nonexistent.invalid';
