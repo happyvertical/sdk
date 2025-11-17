@@ -3,6 +3,8 @@ import { dirname, join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { PDFProcessor } from './pdf';
 
+const isCI = Boolean(process.env.CI);
+
 describe('PDFProcessor', () => {
   const processor = new PDFProcessor();
   let tempDir: string;
@@ -86,6 +88,21 @@ describe('PDFProcessor', () => {
       expect(processor.supports('text/html')).toBe(false);
       expect(processor.supports('application/json')).toBe(false);
       expect(processor.supports('.txt')).toBe(false);
+    });
+  });
+
+  // Integration tests that download actual files - skip in CI
+  describe.skipIf(isCI)('integration tests (network dependent)', () => {
+    it('should process real WordPress PDF URL', async () => {
+      // This test downloads an actual PDF from WordPress
+      const url =
+        'https://townofbentley.ca/download/regular-council-meeting-october-14-2025-agenda/';
+      const doc = await processor.process(url);
+
+      expect(doc.url).toBeTruthy();
+      expect(doc.type).toBe('application/pdf');
+      expect(doc.parts).toHaveLength(1);
+      expect(doc.parts[0].content.length).toBeGreaterThan(0);
     });
   });
 });
