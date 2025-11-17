@@ -1,3 +1,4 @@
+import { promises as fs } from 'node:fs';
 import { getCached, setCached } from '@happyvertical/files';
 import { getPDFReader } from '@happyvertical/pdf';
 import { v4 as uuidv4 } from 'uuid';
@@ -64,6 +65,32 @@ export class PDFProcessor implements DocumentProcessor {
       } catch (error) {
         // Cache corrupted, continue with fresh processing
         console.warn('Cached PDF data corrupted, reprocessing', error);
+      }
+    }
+
+    // Validate that the downloaded file is actually a PDF (issue #460)
+    // WordPress Download Manager and some other servers may return HTML
+    // with Content-Type: application/pdf, causing PDF extraction to fail
+    const fileBuffer = await fs.readFile(baseDoc.localPath);
+    const header = fileBuffer.subarray(0, 5).toString('utf-8');
+
+    if (header !== '%PDF-') {
+      // File is not a valid PDF - check if it's HTML
+      const content = fileBuffer.toString(
+        'utf-8',
+        0,
+        Math.min(1000, fileBuffer.length),
+      );
+      if (content.includes('<!DOCTYPE html>') || content.includes('<html')) {
+        throw new Error(
+          `Downloaded file is HTML, not PDF. The server returned HTML content for ${url}. ` +
+            'This commonly occurs with WordPress Download Manager URLs that return tracking pages. ' +
+            `Expected PDF magic bytes (%PDF-) but got: ${header}`,
+        );
+      } else {
+        throw new Error(
+          `Downloaded file is not a valid PDF. Expected %PDF- magic bytes but got: ${header}`,
+        );
       }
     }
 
