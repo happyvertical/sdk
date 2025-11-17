@@ -429,6 +429,14 @@ export async function scrapeDocument(
   url: string,
   options?: DocumentScrapeOptions,
 ): Promise<DocumentResult> {
+  // Normalize URL for WordPress detection: ensure /download/ paths have trailing slash
+  // This fixes issue #454 where WordPress detection fails without trailing slash
+  // WordPress servers return different content for URLs with/without trailing slashes
+  let normalizedUrl = url;
+  if (url.includes('/download/') && !url.includes('?') && !url.endsWith('/')) {
+    normalizedUrl = url + '/';
+  }
+
   // Use provided scraper config or defaults (basic + dom)
   const scraperType = options?.scraper || 'basic';
   const spiderType = options?.spider || 'dom';
@@ -438,8 +446,8 @@ export async function scrapeDocument(
     spider: spiderType,
   } as any);
 
-  const result = await scraper.scrape(url, options);
-  const actualUrl = url;
+  const result = await scraper.scrape(normalizedUrl, options);
+  const actualUrl = normalizedUrl;
 
   // Defensive check: If result.content looks like HTML (starts with <!DOCTYPE, <html>, etc.),
   // we should be very careful about marking it as a PDF
@@ -450,7 +458,10 @@ export async function scrapeDocument(
     result.content.includes('<body>');
 
   // Check if this is a WordPress Download Manager page
-  const wpDownloadUrl = extractWordPressDownloadUrl(url, result.content);
+  const wpDownloadUrl = extractWordPressDownloadUrl(
+    normalizedUrl,
+    result.content,
+  );
   if (wpDownloadUrl) {
     // IMPORTANT: WordPress Download Manager URLs often return HTML tracking pages
     // before redirecting to the actual PDF. We detect the download page but

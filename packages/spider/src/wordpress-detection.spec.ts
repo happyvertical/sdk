@@ -79,4 +79,42 @@ describe('WordPress Download Manager detection (issue #449)', () => {
     // Instead, it should be treated as basic HTML content
     expect(result.metadata.strategy).not.toBe('wordpress-pdf-link');
   }, 30000);
+
+  it('should detect WordPress without trailing slash (issue #454)', async () => {
+    // This test verifies the fix for sdk#454: WordPress detection should work
+    // consistently regardless of trailing slash
+    const urlWithoutSlash =
+      'https://townofbentley.ca/download/regular-council-meeting-october-14-2025-agenda';
+
+    const result = await scrapeDocument(urlWithoutSlash, {
+      scraper: 'basic',
+      cache: false,
+    });
+
+    // Should detect WordPress download page even without trailing slash
+    expect(result.metadata.strategy).toBe('wordpress-pdf-link');
+    expect(result.metadata.isPdf).toBe(true);
+    expect(result.url).toContain('wpdmdl=');
+  }, 30000);
+
+  it('should detect WordPress consistently with and without trailing slash', async () => {
+    // This test verifies that both URL forms return the same result
+    const baseUrl =
+      'https://townofbentley.ca/download/regular-council-meeting-october-14-2025-agenda';
+
+    const withSlash = await scrapeDocument(baseUrl + '/', {
+      scraper: 'basic',
+      cache: false,
+    });
+
+    const withoutSlash = await scrapeDocument(baseUrl, {
+      scraper: 'basic',
+      cache: false,
+    });
+
+    // Both should return the same strategy and PDF detection
+    expect(withSlash.metadata.strategy).toBe(withoutSlash.metadata.strategy);
+    expect(withSlash.metadata.isPdf).toBe(withoutSlash.metadata.isPdf);
+    expect(withSlash.metadata.strategy).toBe('wordpress-pdf-link');
+  }, 60000);
 });
