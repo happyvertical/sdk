@@ -1,10 +1,13 @@
 # =============================================================================
-# SHARED REUSABLE WORKFLOW - Direct Publish with Changesets
+# SHARED REUSABLE WORKFLOW - Direct Publish with semantic-release
 # =============================================================================
-# This is a reusable workflow that implements true direct publish for changesets
-# without creating intermediate "Version Packages" PRs.
+# This is a reusable workflow that implements automated versioning and publishing
+# using semantic-release based on conventional commits.
 #
-# Testing direct publish workflow
+# Version bump rules:
+# - Breaking changes (feat!, BREAKING CHANGE) → minor (0.x.0)
+# - Features, fixes, perf → patch (0.0.x)
+# - Other commits → no bump
 #
 # Usage in calling repository:
 #   jobs:
@@ -93,40 +96,10 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Check for changesets
-        id: check_changesets
+      - name: Validate version constraints
         run: |
-          # Check if any changeset files exist (excluding README.md)
-          if find .changeset -name '*.md' ! -name 'README.md' -type f | grep -q .; then
-            echo "has_changesets=true" >> $GITHUB_OUTPUT
-            echo "📦 Changesets found - will version and publish"
+          echo "🔍 Checking version constraints..."
 
-            # List changeset files
-            echo "Changeset files:"
-            find .changeset -name '*.md' ! -name 'README.md' -exec basename {} \;
-          else
-            echo "has_changesets=false" >> $GITHUB_OUTPUT
-            echo "ℹ️  No changesets found - skipping release"
-          fi
-
-      - name: Validate no major version bumps
-        if: steps.check_changesets.outputs.has_changesets == 'true'
-        run: |
-          echo "🔍 Checking for major version bumps in changesets..."
-
-          # Check if any changeset files contain major version bumps
-          if find .changeset -name '*.md' ! -name 'README.md' -type f -exec grep -l '"major"' {} + 2>/dev/null | grep -q .; then
-            echo "❌ ERROR: Major version bump detected in changeset files!"
-            echo ""
-            echo "Found major version bumps in:"
-            find .changeset -name '*.md' ! -name 'README.md' -type f -exec grep -l '"major"' {} + 2>/dev/null || true
-            echo ""
-            echo "Major version releases (1.0.0+) must be manually approved."
-            echo "Please remove the major bump from changesets or coordinate with maintainers."
-            exit 1
-          fi
-
-          # Also check for current version to prevent bumping to 1.0.0+
           current_version=$(node -p "require('./package.json').version")
           echo "Current version: $current_version"
 
@@ -139,107 +112,42 @@ jobs:
             exit 1
           fi
 
-          echo "✅ No major version bumps detected. Safe to proceed."
+          echo "✅ Version is 0.x.x - safe to proceed with automated releases"
 
-      - name: Version packages
-        if: steps.check_changesets.outputs.has_changesets == 'true'
-        id: version
-        run: |
-          echo "🔄 Running changeset version..."
-
-          # Run changeset version (updates package.json, CHANGELOG.md, removes changeset files)
-          pnpm run version-packages
-
-          # Check if any files were changed
-          if git diff --quiet; then
-            echo "changed=false" >> $GITHUB_OUTPUT
-            echo "ℹ️  No version changes (possibly pre-release or private packages)"
-          else
-            echo "changed=true" >> $GITHUB_OUTPUT
-            echo "✅ Package versions updated"
-
-            # Show what changed
-            echo ""
-            echo "Changed files:"
-            git status --short
-          fi
-
-      - name: Commit version changes
-        if: steps.check_changesets.outputs.has_changesets == 'true' && steps.version.outputs.changed == 'true'
-        run: |
-          echo "📝 Committing version changes..."
-
-          git add .
-          git commit -m "chore(release): version packages
-
-          [skip ci]"
-
-          echo "✅ Version changes committed"
-
-      - name: Push version commit to main
-        if: steps.check_changesets.outputs.has_changesets == 'true' && steps.version.outputs.changed == 'true'
-        run: |
-          echo "⬆️  Pushing version commit to main..."
-
-          # Push directly to main (requires GH_TOKEN with write permissions)
-          git push origin main
-
-          echo "✅ Version commit pushed to main"
-
-      - name: Build packages
-        if: steps.check_changesets.outputs.has_changesets == 'true' && steps.version.outputs.changed == 'true'
-        run: |
-          echo "🔨 Building packages..."
-          pnpm run build
-          echo "✅ Build complete"
-
-      - name: Publish packages
-        if: steps.check_changesets.outputs.has_changesets == 'true' && steps.version.outputs.changed == 'true'
-        id: publish
+      - name: Run semantic-release
+        id: semantic_release
         env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "📤 Publishing packages..."
+          echo "🚀 Running semantic-release..."
 
-          # Run the release script (changeset publish)
+          # Run semantic-release (analyzes commits, versions, updates changelog, publishes, creates tags)
           pnpm run release
 
-          echo "published=true" >> $GITHUB_OUTPUT
-          echo "✅ Packages published"
+          echo "✅ semantic-release complete"
 
-      - name: Get published version
-        if: steps.publish.outputs.published == 'true'
+      - name: Check if version was published
+        id: check_published
+        run: |
+          # Check if a new version tag was created
+          if git tag --points-at HEAD | grep -q "^v"; then
+            NEW_VERSION=$(git tag --points-at HEAD | grep "^v" | head -1)
+            echo "published=true" >> $GITHUB_OUTPUT
+            echo "version=${NEW_VERSION#v}" >> $GITHUB_OUTPUT
+            echo "✅ Published version: $NEW_VERSION"
+          else
+            echo "published=false" >> $GITHUB_OUTPUT
+            echo "ℹ️  No new version published (no releaseable commits)"
+          fi
+
+      - name: Set outputs
+        id: publish
+        run: |
+          echo "published=${{ steps.check_published.outputs.published }}" >> $GITHUB_OUTPUT
+
+      - name: Set version output
         id: get_version
         run: |
-          version=$(node -p "require('./package.json').version")
-          echo "version=$version" >> $GITHUB_OUTPUT
-          echo "📦 Published version: $version"
-
-      - name: Push git tags
-        if: steps.publish.outputs.published == 'true'
-        run: |
-          echo "🏷️  Pushing git tags..."
-
-          # Push all tags created by changeset publish
-          git push --tags
-
-          echo "✅ Git tags pushed"
-
-      - name: Create GitHub Release
-        if: steps.publish.outputs.published == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          version="${{ steps.get_version.outputs.version }}"
-
-          echo "📝 Creating GitHub release for v$version..."
-
-          # Create release with auto-generated notes
-          gh release create "v$version" \
-            --title "Release v$version" \
-            --generate-notes \
-            --latest \
-            || echo "⚠️  Release may already exist"
-
-          echo "✅ GitHub release created"
+          echo "version=${{ steps.check_published.outputs.version }}" >> $GITHUB_OUTPUT
