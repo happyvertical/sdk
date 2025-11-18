@@ -10,7 +10,10 @@ pre-commit:
       stage_fixed: true
 
 # Commit-msg hook: Validate commit message format
+# Skipped in CI to allow semantic-release commits
 commit-msg:
+  skip:
+    - env: CI
   commands:
     validate:
       run: npx --no-install commitlint --edit {1}
