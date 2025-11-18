@@ -148,7 +148,7 @@ jobs:
           echo "🔄 Running changeset version..."
 
           # Run changeset version (updates package.json, CHANGELOG.md, removes changeset files)
-          pnpm run version
+          pnpm run version-packages
 
           # Check if any files were changed
           if git diff --quiet; then
