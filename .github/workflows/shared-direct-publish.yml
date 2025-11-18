@@ -78,7 +78,8 @@ jobs:
           node-version: ${{ inputs.node-version }}
           install-deps: 'true'
           registry-url: ${{ inputs.registry-url }}
-          auth-token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Turborepo cache
         uses: actions/cache@v4
@@ -148,7 +149,7 @@ jobs:
           echo "🔄 Running changeset version..."
 
           # Run changeset version (updates package.json, CHANGELOG.md, removes changeset files)
-          pnpm run version
+          pnpm run version-packages
 
           # Check if any files were changed
           if git diff --quiet; then
