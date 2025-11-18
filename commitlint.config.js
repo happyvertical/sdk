@@ -83,5 +83,11 @@ export default {
 
     // Footer leading blank - disabled to allow flexible commit message formatting
     'footer-leading-blank': [0, 'always'],
+
+    // Body max length - disable for semantic-release commits with long changelogs
+    'body-max-length': [0],
+
+    // Body max line length - disable for semantic-release commits
+    'body-max-line-length': [0],
   },
 };
