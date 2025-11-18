@@ -13,7 +13,6 @@
 #         registry-url: 'https://npm.pkg.github.com'
 #       secrets:
 #         GH_TOKEN: ${{ secrets.GH_TOKEN }}
-#         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 # =============================================================================
 
 name: Shared Direct Publish
@@ -39,9 +38,6 @@ on:
     secrets:
       GH_TOKEN:
         description: 'GitHub token with write permissions (for pushing to protected main)'
-        required: true
-      GITHUB_TOKEN:
-        description: 'GitHub token for package publishing'
         required: true
     outputs:
       published:
