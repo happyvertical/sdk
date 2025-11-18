@@ -4,6 +4,8 @@
 # This is a reusable workflow that implements true direct publish for changesets
 # without creating intermediate "Version Packages" PRs.
 #
+# Testing direct publish workflow
+#
 # Usage in calling repository:
 #   jobs:
 #     release:
