@@ -1,5 +1,5 @@
 ---
-'@happyvertical/sdk': patch
+'@happyvertical/utils': patch
 ---
 
 feat(ci): implement direct publish on merge to main
