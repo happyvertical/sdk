@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.56.10
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - use GH_TOKEN organization secret for cascade job (#500) (ci)
+
 ## 0.56.9
 
 ### Patch Changes
