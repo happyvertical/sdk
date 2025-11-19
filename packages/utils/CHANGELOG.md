@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.56.6
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - use real package name instead of glob in auto-changesets (#492) (ci)
+
 ## 0.56.5
 
 ## 0.56.4
