@@ -16,8 +16,11 @@ on:
         required: true
         type: string
     secrets:
-      GH_TOKEN:
-        description: 'GitHub token for API access'
+      RELEASE_APP_ID:
+        description: 'GitHub App ID for release automation'
+        required: true
+      RELEASE_APP_PRIVATE_KEY:
+        description: 'GitHub App private key for release automation'
         required: true
 
 permissions:

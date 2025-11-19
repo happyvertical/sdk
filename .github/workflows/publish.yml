@@ -36,7 +36,8 @@ jobs:
       registry-url: 'https://npm.pkg.github.com'
       skip-docs: ${{ github.event.inputs.skip-docs == 'true' }}
     secrets:
-      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      RELEASE_APP_ID: ${{ secrets.HAVE_RELEASE_APP_ID }}
+      RELEASE_APP_PRIVATE_KEY: ${{ secrets.HAVE_RELEASE_APP_PRIVATE_KEY }}
 
   cascade:
     name: Trigger Dependency Cascade
