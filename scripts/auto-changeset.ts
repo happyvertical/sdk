@@ -107,6 +107,7 @@ function generateChangesetContent(
   const breaking = commits.filter((c) => c.breaking);
 
   let content = `---\n`;
+  content += `"@happyvertical/sdk": ${bump}\n`;
   content += `"@happyvertical/*": ${bump}\n`;
   content += `---\n\n`;
 
