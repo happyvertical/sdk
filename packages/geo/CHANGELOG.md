@@ -1,5 +1,13 @@
 # @happyvertical/geo
 
+## 0.56.9
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.56.9
+  - @happyvertical/cache@0.56.9
+
 ## 0.56.8
 
 ### Patch Changes

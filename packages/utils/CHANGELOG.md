@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.56.9
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - use GitHub App token for cross-repo dispatch (#498) (ci)
+
 ## 0.56.8
 
 ### Patch Changes
