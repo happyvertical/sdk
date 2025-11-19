@@ -16,10 +16,10 @@ on:
         required: true
         type: string
     secrets:
-      RELEASE_APP_ID:
+      HAVE_RELEASE_APP_ID:
         description: 'GitHub App ID for release automation'
         required: true
-      RELEASE_APP_PRIVATE_KEY:
+      HAVE_RELEASE_APP_PRIVATE_KEY:
         description: 'GitHub App private key for release automation'
         required: true
 
