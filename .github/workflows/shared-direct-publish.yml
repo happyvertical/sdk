@@ -169,9 +169,20 @@ jobs:
             # Publish packages
             pnpm run changeset:publish
 
-            # Create and push git tag
+            # Create and push git tag (explicit push since Changesets tags may prevent --follow-tags)
             git tag "v$AFTER_VERSION"
-            git push origin main --follow-tags
+            git push origin "v$AFTER_VERSION"
+            git push origin main
+
+            # Create GitHub Release
+            gh release create "v$AFTER_VERSION" \
+              --title "v$AFTER_VERSION" \
+              --notes "## Published Packages
+
+All packages published to GitHub Packages at version $AFTER_VERSION.
+
+Full Changelog: https://github.com/${{ github.repository }}/compare/v$BEFORE_VERSION...v$AFTER_VERSION" \
+              --latest
 
             echo "published=true" >> $GITHUB_OUTPUT
             echo "version=$AFTER_VERSION" >> $GITHUB_OUTPUT
