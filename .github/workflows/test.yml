@@ -58,15 +58,19 @@ jobs:
         id: playwright-version
         shell: bash
         run: |
-          PLAYWRIGHT_VERSION=$(npm list playwright --depth=0 --json 2>/dev/null | grep -oP '"playwright":\s*{\s*"version":\s*"\K[^"]+' || echo "1.54.2")
-          echo "version=$PLAYWRIGHT_VERSION" >> $GITHUB_OUTPUT
+          version=$(npm list playwright --depth=0 --json 2>/dev/null \
+            | jq -r '.dependencies.playwright.version // "1.54.2"')
+          echo "version=$version" >> $GITHUB_OUTPUT
 
       - name: Cache Playwright browsers
         uses: actions/cache@v4
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+          key: |
+            ${{ runner.os }}-playwright-${{
+              steps.playwright-version.outputs.version
+            }}
           restore-keys: |
             ${{ runner.os }}-playwright-
 
@@ -92,9 +96,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .turbo
-          key: ${{ runner.os }}-turbo-${{ hashFiles('**/package.json', '**/pnpm-lock.yaml', 'packages/*/src/**', 'packages/*/test/**') }}-${{ github.run_id }}
+          key: |
+            ${{ runner.os }}-turbo-${{ hashFiles(
+              '**/package.json',
+              '**/pnpm-lock.yaml',
+              'packages/*/src/**',
+              'packages/*/test/**'
+            ) }}
           restore-keys: |
-            ${{ runner.os }}-turbo-${{ hashFiles('**/package.json', '**/pnpm-lock.yaml', 'packages/*/src/**', 'packages/*/test/**') }}-
             ${{ runner.os }}-turbo-
 
       - name: Cache build outputs
@@ -103,7 +112,13 @@ jobs:
           path: |
             packages/*/dist
             .turbo
-          key: ${{ runner.os }}-build-${{ hashFiles('packages/*/src/**', 'packages/*/test/**', 'packages/*/package.json', 'packages/*/tsconfig.json') }}
+          key: |
+            ${{ runner.os }}-build-${{ hashFiles(
+              'packages/*/src/**',
+              'packages/*/test/**',
+              'packages/*/package.json',
+              'packages/*/tsconfig.json'
+            ) }}
           restore-keys: |
             ${{ runner.os }}-build-
 
