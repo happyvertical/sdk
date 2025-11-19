@@ -167,7 +167,7 @@ jobs:
       - name: Validate with act
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          if ! act --list > /tmp/act-output.txt 2>&1; then
+          if ! ./bin/act --list > /tmp/act-output.txt 2>&1; then
             echo "❌ act --list failed - workflow syntax issue"
             echo "Error output:"
             cat /tmp/act-output.txt
