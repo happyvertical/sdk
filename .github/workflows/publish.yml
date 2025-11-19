@@ -13,6 +13,12 @@ name: Publish
 on:
   workflow_call:
     secrets:
+      HAVE_RELEASE_APP_ID:
+        description: 'GitHub App ID for release automation'
+        required: true
+      HAVE_RELEASE_APP_PRIVATE_KEY:
+        description: 'GitHub App private key for release automation'
+        required: true
       GH_TOKEN:
         description: 'GitHub token for triggering cascades'
         required: false
