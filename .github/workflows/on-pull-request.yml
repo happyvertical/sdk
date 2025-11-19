@@ -129,12 +129,11 @@ jobs:
       - name: Install act
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          # Pin to specific commit for security
-          commit_sha="3d71542dc6d45759eedc3c0beeb8a5889c3f5f71"
-          url="https://raw.githubusercontent.com/nektos/act"
+          # Install specific version of act for security and stability
           mkdir -p bin
-          curl --proto '=https' --tlsv1.2 -sSf \
-            "$url/$commit_sha/install.sh" | sudo bash -s -- -b bin
+          curl --proto '=https' --tlsv1.2 -sSfL \
+            https://raw.githubusercontent.com/nektos/act/master/install.sh \
+            | sudo bash -s -- -b bin v0.2.82
 
       - name: Validate with act
         if: steps.changed-files.outputs.any_changed == 'true'
