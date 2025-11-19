@@ -55,6 +55,9 @@ on:
       version:
         description: 'The version that was published'
         value: ${{ jobs.release.outputs.version }}
+      app_token:
+        description: 'GitHub App token for cross-repo operations'
+        value: ${{ jobs.release.outputs.app_token }}
 
 permissions:
   contents: write
@@ -70,6 +73,7 @@ jobs:
     outputs:
       published: ${{ steps.publish.outputs.published }}
       version: ${{ steps.get_version.outputs.version }}
+      app_token: ${{ steps.generate_token.outputs.token }}
 
     steps:
       - name: Generate token from GitHub App
