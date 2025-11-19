@@ -132,8 +132,9 @@ jobs:
           # Pin to specific commit for security
           commit_sha="3d71542dc6d45759eedc3c0beeb8a5889c3f5f71"
           url="https://raw.githubusercontent.com/nektos/act"
+          mkdir -p bin
           curl --proto '=https' --tlsv1.2 -sSf \
-            "$url/$commit_sha/install.sh" | sudo bash
+            "$url/$commit_sha/install.sh" | sudo bash -s -- -b bin
 
       - name: Validate with act
         if: steps.changed-files.outputs.any_changed == 'true'
