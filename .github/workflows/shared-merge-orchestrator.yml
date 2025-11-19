@@ -70,6 +70,5 @@ jobs:
           echo "- **Test**: $test_result" >> $GITHUB_STEP_SUMMARY
           build_result="${{ needs.build.result || 'skipped (no build.yml)' }}"
           echo "- **Build**: $build_result" >> $GITHUB_STEP_SUMMARY
-          publish_result="${{ needs.publish.result || \
-            'skipped (no publish.yml)' }}"
-          echo "- **Publish**: $publish_result" >> $GITHUB_STEP_SUMMARY
+          result="${{ needs.publish.result || 'skipped (no publish.yml)' }}"
+          echo "- **Publish**: $result" >> $GITHUB_STEP_SUMMARY
