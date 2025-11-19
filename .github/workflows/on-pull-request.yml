@@ -121,6 +121,49 @@ jobs:
               });
             }
 
+  validate-workflows:
+    name: Validate Workflow Files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+
+      - name: Get changed workflow files
+        id: changed-files
+        uses: tj-actions/changed-files@v45
+        with:
+          files: .github/workflows/*.{yml,yaml}
+
+      - name: Validate workflow syntax
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "🔍 Validating workflow files..."
+          echo "Changed files: ${{ steps.changed-files.outputs.all_changed_files }}"
+
+          # Install yamllint
+          pip install yamllint
+
+          # Validate each changed workflow file
+          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+            echo "  Checking $file..."
+            yamllint "$file" || exit 1
+          done
+
+          echo "✅ YAML syntax validation passed"
+
+      - name: Validate with act
+        if: steps.changed-files.outputs.any_changed == 'true'
+        uses: nektos/act-action@v2
+        with:
+          args: --list
+
+      - name: Workflow validation summary
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "✅ All workflow validations passed:"
+          echo "  - YAML syntax validated with yamllint"
+          echo "  - Workflow parsing verified with act"
+
   test:
     name: Validate Changes
     uses: ./.github/workflows/test-suite.yml
