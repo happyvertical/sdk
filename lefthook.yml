@@ -9,6 +9,18 @@ pre-commit:
       run: pnpm biome check --write {staged_files}
       stage_fixed: true
 
+    validate-workflows:
+      glob: ".github/workflows/*.{yml,yaml}"
+      run: |
+        echo "🔍 Validating workflow files..."
+        for file in {staged_files}; do
+          echo "  Checking $file..."
+          yamllint "$file" || exit 1
+        done
+        echo "  Running act --list to verify workflow parsing..."
+        act --list > /dev/null 2>&1 || (echo "❌ act --list failed - workflow syntax issue" && exit 1)
+        echo "✅ All workflow files validated"
+
 # Commit-msg hook: Validate commit message format
 # Skipped in CI to allow semantic-release commits
 commit-msg:
