@@ -4,6 +4,11 @@
  *
  * Analyzes commits since last release and creates changeset files
  * based on conventional commit messages (feat:, fix:, etc.)
+ *
+ * Version bump rules for 0.x.x releases:
+ * - Breaking changes (feat!, BREAKING CHANGE) → minor bump (0.x.0)
+ * - Features, fixes, perf → patch bump (0.0.x)
+ * - Other commit types (chore, docs, etc.) → no bump
  */
 
 import { execSync } from 'node:child_process';
