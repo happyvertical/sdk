@@ -28,7 +28,7 @@ interface ParsedCommit {
 function exec(command: string): string {
   try {
     return execSync(command, { encoding: 'utf-8' }).trim();
-  } catch (error) {
+  } catch (_error) {
     return '';
   }
 }
