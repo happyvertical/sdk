@@ -1,8 +1,8 @@
 # =============================================================================
-# SHARED REUSABLE WORKFLOW - Direct Publish with semantic-release
+# SHARED REUSABLE WORKFLOW - Direct Publish with Changesets
 # =============================================================================
 # This is a reusable workflow that implements automated versioning and publishing
-# using semantic-release based on conventional commits.
+# using Changesets with auto-generated changesets from conventional commits.
 #
 # Version bump rules:
 # - Breaking changes (feat!, BREAKING CHANGE) → minor (0.x.0)
@@ -17,7 +17,8 @@
 #         node-version: '24'
 #         registry-url: 'https://npm.pkg.github.com'
 #       secrets:
-#         GH_TOKEN: ${{ secrets.GH_TOKEN }}
+#         HAVE_RELEASE_APP_ID: ${{ secrets.HAVE_RELEASE_APP_ID }}
+#         HAVE_RELEASE_APP_PRIVATE_KEY: ${{ secrets.HAVE_RELEASE_APP_PRIVATE_KEY }}
 # =============================================================================
 
 name: Shared Direct Publish
@@ -124,34 +125,61 @@ jobs:
 
           echo "✅ Version is 0.x.x - safe to proceed with automated releases"
 
-      - name: Run semantic-release
-        id: semantic_release
+      - name: Run Changesets release
+        id: changesets_release
         env:
           CI: true
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "🚀 Running semantic-release..."
+          echo "🚀 Running Changesets release..."
 
-          # Run semantic-release (analyzes commits, versions, updates changelog, publishes, creates tags)
-          pnpm run release
+          # Store current version before release
+          BEFORE_VERSION=$(node -p "require('./package.json').version")
+          echo "Version before release: $BEFORE_VERSION"
 
-          echo "✅ semantic-release complete"
+          # Auto-generate changeset from conventional commits (if no changesets exist)
+          pnpm run changeset:auto
+
+          # Version packages (updates package.json and CHANGELOGs)
+          pnpm run changeset:version
+
+          # Check if version changed
+          AFTER_VERSION=$(node -p "require('./package.json').version")
+          echo "Version after versioning: $AFTER_VERSION"
+
+          if [ "$BEFORE_VERSION" != "$AFTER_VERSION" ]; then
+            echo "📦 Version changed from $BEFORE_VERSION to $AFTER_VERSION"
+
+            # Commit version changes
+            git add .
+            git commit -m "chore(release): v$AFTER_VERSION [skip ci]"
+
+            # Build packages
+            pnpm run build
+
+            # Publish packages
+            pnpm run changeset:publish
+
+            # Create and push git tag
+            git tag "v$AFTER_VERSION"
+            git push origin main --follow-tags
+
+            echo "published=true" >> $GITHUB_OUTPUT
+            echo "version=$AFTER_VERSION" >> $GITHUB_OUTPUT
+            echo "✅ Published version: v$AFTER_VERSION"
+          else
+            echo "ℹ️  No version changes - no release needed"
+            echo "published=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Check if version was published
         id: check_published
         run: |
-          # Check if a new version tag was created
-          if git tag --points-at HEAD | grep -q "^v"; then
-            NEW_VERSION=$(git tag --points-at HEAD | grep "^v" | head -1)
-            echo "published=true" >> $GITHUB_OUTPUT
-            echo "version=${NEW_VERSION#v}" >> $GITHUB_OUTPUT
-            echo "✅ Published version: $NEW_VERSION"
-          else
-            echo "published=false" >> $GITHUB_OUTPUT
-            echo "ℹ️  No new version published (no releaseable commits)"
-          fi
+          # Pass through the published status from the release step
+          echo "published=${{ steps.changesets_release.outputs.published || 'false' }}" >> $GITHUB_OUTPUT
+          echo "version=${{ steps.changesets_release.outputs.version || '' }}" >> $GITHUB_OUTPUT
 
       - name: Set outputs
         id: publish
