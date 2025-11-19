@@ -115,7 +115,8 @@ function generateChangesetContent(
   const breaking = commits.filter((c) => c.breaking);
 
   let content = `---\n`;
-  content += `"@happyvertical/*": ${bump}\n`;
+  // Use @happyvertical/utils as representative package (all packages in fixed group will bump together)
+  content += `"@happyvertical/utils": ${bump}\n`;
   content += `---\n\n`;
 
   if (breaking.length > 0) {
