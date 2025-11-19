@@ -12,10 +12,10 @@ pre-commit:
 # Commit-msg hook: Validate commit message format
 # Skipped in CI to allow semantic-release commits
 commit-msg:
-  skip:
-    - env: CI
   commands:
     validate:
+      skip:
+        - run: "[ \"$CI\" = \"true\" ]"
       run: npx --no-install commitlint --edit {1}
 
 # Pre-push hook: Run checks before pushing
