@@ -41,6 +41,29 @@ jobs:
             exit 0
           fi
 
+          # Check if PR has conventional commits that will trigger auto-changeset
+          echo ""
+          echo "🔍 Checking for conventional commits..."
+
+          # Get commits in this PR
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+
+          # Check for releaseable conventional commits (feat, fix, perf, breaking changes)
+          RELEASEABLE_COMMITS=$(git log $BASE_SHA..$HEAD_SHA --pretty=format:"%s" --no-merges | \
+            grep -E '^(feat|fix|perf)(\(.+\))?!?:|BREAKING CHANGE' || true)
+
+          if [ -n "$RELEASEABLE_COMMITS" ]; then
+            echo "✅ Found conventional commits that will trigger auto-changeset on merge:"
+            echo "$RELEASEABLE_COMMITS"
+            echo ""
+            echo "Auto-changeset will generate changeset files automatically when this PR merges to main."
+            exit 0
+          fi
+
+          echo "ℹ️  No releaseable conventional commits found (feat, fix, perf, or breaking changes)"
+          echo ""
+
           # Check if changeset files exist (excluding README.md)
           changeset_count=$(find .changeset -name '*.md' ! -name 'README.md' 2>/dev/null | wc -l)
 
