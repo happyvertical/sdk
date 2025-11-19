@@ -151,11 +151,15 @@ jobs:
 
           echo "✅ YAML syntax validation passed"
 
+      - name: Install act
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
+
       - name: Validate with act
         if: steps.changed-files.outputs.any_changed == 'true'
-        uses: nektos/act-action@v2
-        with:
-          args: --list
+        run: |
+          act --list > /dev/null 2>&1 || (echo "❌ act --list failed - workflow syntax issue" && exit 1)
 
       - name: Workflow validation summary
         if: steps.changed-files.outputs.any_changed == 'true'
