@@ -1,5 +1,12 @@
 # @happyvertical/cache
 
+## 0.56.12
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.56.12
+
 ## 0.56.11
 
 ### Patch Changes

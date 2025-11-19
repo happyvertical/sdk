@@ -1,5 +1,11 @@
 # @happyvertical/projects
 
+## 0.56.12
+
+### Patch Changes
+
+- @happyvertical/repos@0.56.12
+
 ## 0.56.11
 
 ### Patch Changes

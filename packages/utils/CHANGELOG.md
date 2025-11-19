@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.56.12
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - declare required secrets in workflow_call for publish.yml (ci)
+
 ## 0.56.11
 
 ### Patch Changes
