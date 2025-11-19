@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.56.7
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - resolve YAML syntax error in release workflow (#496) (ci)
+
 ## 0.56.6
 
 ### Patch Changes
