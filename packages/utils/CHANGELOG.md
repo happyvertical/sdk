@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.56.11
+
+### Patch Changes
+
+- ### Features
+
+  - add workflow validation to PR checks (#499) (ci)
+
 ## 0.56.10
 
 ### Patch Changes
