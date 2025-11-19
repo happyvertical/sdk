@@ -70,7 +70,8 @@ runs:
       id: playwright-version
       shell: bash
       run: |
-        PLAYWRIGHT_VERSION=$(npm list playwright --depth=0 --json 2>/dev/null | grep -oP '"playwright":\s*{\s*"version":\s*"\K[^"]+' || echo "1.54.2")
+        # Use python json module instead of jq (python is always available)
+        PLAYWRIGHT_VERSION=$(npm list playwright --depth=0 --json 2>/dev/null | python3 -c "import sys, json; data = json.load(sys.stdin); print(data.get('dependencies', {}).get('playwright', {}).get('version', '1.54.2'))" 2>/dev/null || echo "1.54.2")
         echo "version=$PLAYWRIGHT_VERSION" >> $GITHUB_OUTPUT
 
     - name: Cache Playwright browsers

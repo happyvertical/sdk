@@ -54,47 +54,6 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
-
-      - name: Get Playwright version
-        id: playwright-version
-        shell: bash
-        run: |
-          version=$(npm list playwright --depth=0 --json 2>/dev/null \
-            | jq -r '.dependencies.playwright.version // "1.54.2"')
-          echo "version=$version" >> $GITHUB_OUTPUT
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: |
-            ${{ runner.os }}-playwright-${{
-              steps.playwright-version.outputs.version
-            }}
-          restore-keys: |
-            ${{ runner.os }}-playwright-
-
-      - name: Install system dependencies for ONNX Runtime
-        shell: bash
-        run: |
-          sudo apt-get update && sudo apt-get install -y \
-            libstdc++6 \
-            libc6-dev \
-            build-essential \
-            gcc \
-            g++ \
-            cmake \
-            libgomp1 \
-            libprotobuf-dev
-
-      - name: Install Playwright browsers
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        shell: bash
-        run: npx playwright install --with-deps chromium
-
       - name: Setup Turborepo cache
         uses: actions/cache@v4
         with:
