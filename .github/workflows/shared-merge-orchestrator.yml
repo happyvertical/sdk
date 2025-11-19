@@ -22,6 +22,9 @@ on:
       HAVE_RELEASE_APP_PRIVATE_KEY:
         description: 'GitHub App private key for release automation'
         required: true
+      GH_TOKEN:
+        description: 'GitHub token for triggering cascades'
+        required: false
 
 permissions:
   contents: write
@@ -37,15 +40,22 @@ jobs:
 
   build:
     needs: test
-    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
+    if: |
+      always() && (needs.test.result == 'success' ||
+      needs.test.result == 'skipped')
     uses: ./.github/workflows/build.yml
     secrets: inherit
 
   publish:
     needs: build
-    if: always() && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    if: |
+      always() && (needs.build.result == 'success' ||
+      needs.build.result == 'skipped')
     uses: ./.github/workflows/publish.yml
-    secrets: inherit
+    secrets:
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+      HAVE_RELEASE_APP_ID: ${{ secrets.HAVE_RELEASE_APP_ID }}
+      HAVE_RELEASE_APP_PRIVATE_KEY: ${{ secrets.HAVE_RELEASE_APP_PRIVATE_KEY }}
 
   summary:
     needs: [test, build, publish]
@@ -56,6 +66,10 @@ jobs:
         run: |
           echo "## Merge Orchestration Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **Test**: ${{ needs.test.result || 'skipped (no test.yml)' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Build**: ${{ needs.build.result || 'skipped (no build.yml)' }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Publish**: ${{ needs.publish.result || 'skipped (no publish.yml)' }}" >> $GITHUB_STEP_SUMMARY
+          test_result="${{ needs.test.result || 'skipped (no test.yml)' }}"
+          echo "- **Test**: $test_result" >> $GITHUB_STEP_SUMMARY
+          build_result="${{ needs.build.result || 'skipped (no build.yml)' }}"
+          echo "- **Build**: $build_result" >> $GITHUB_STEP_SUMMARY
+          publish_result="${{ needs.publish.result || \
+            'skipped (no publish.yml)' }}"
+          echo "- **Publish**: $publish_result" >> $GITHUB_STEP_SUMMARY
