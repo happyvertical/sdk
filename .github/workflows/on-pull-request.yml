@@ -2,7 +2,7 @@ name: Pull Request Validation
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 # Cancel in-progress runs when new commits are pushed
 concurrency:
@@ -40,17 +40,21 @@ jobs:
 
           # Check if commits follow conventional commit format
           invalid_commits=""
+          pattern="^(feat|fix|docs|style|refactor|perf|test|build"
+          pattern="${pattern}|ci|chore)(\(.+\))?!?: .+"
           while IFS= read -r commit; do
-            if ! echo "$commit" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore)(\(.+\))?!?: .+"; then
+            if ! echo "$commit" | grep -qE "$pattern"; then
               invalid_commits="$invalid_commits\n- $commit"
             fi
           done <<< "$commits"
 
           if [ -n "$invalid_commits" ]; then
-            echo "❌ Found commits that don't follow conventional commit format:"
+            msg="❌ Found commits that don't follow conventional"
+            echo "$msg commit format:"
             echo -e "$invalid_commits"
             echo ""
-            echo "Please use one of: feat, fix, docs, style, refactor, perf, test, build, ci, chore"
+            echo "Please use one of: feat, fix, docs, style, refactor,"
+            echo "perf, test, build, ci, chore"
             exit 1
           fi
 
@@ -81,7 +85,8 @@ jobs:
 
             const comment = `## 📦 Version Bump Preview
 
-            When this PR is merged, packages will receive a **${bump}** version bump based on your conventional commits.
+            When this PR is merged, packages will receive a **${bump}**
+            version bump based on your conventional commits.
 
             ### What happens on merge?
 
@@ -138,7 +143,8 @@ jobs:
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
           echo "🔍 Validating workflow files..."
-          echo "Changed files: ${{ steps.changed-files.outputs.all_changed_files }}"
+          files="${{ steps.changed-files.outputs.all_changed_files }}"
+          echo "Changed files: $files"
 
           # Install yamllint
           pip install yamllint
@@ -154,12 +160,17 @@ jobs:
       - name: Install act
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
+          url="https://raw.githubusercontent.com/nektos/act/master"
+          curl --proto '=https' --tlsv1.2 -sSf $url/install.sh \
+            | sudo bash
 
       - name: Validate with act
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          act --list > /dev/null 2>&1 || (echo "❌ act --list failed - workflow syntax issue" && exit 1)
+          act --list > /dev/null 2>&1 || {
+            echo "❌ act --list failed - workflow syntax issue"
+            exit 1
+          }
 
       - name: Workflow validation summary
         if: steps.changed-files.outputs.any_changed == 'true'
