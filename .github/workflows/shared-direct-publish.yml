@@ -41,8 +41,11 @@ on:
         type: boolean
         default: false
     secrets:
-      GH_TOKEN:
-        description: 'GitHub token with write permissions (for pushing to protected main)'
+      RELEASE_APP_ID:
+        description: 'GitHub App ID for release automation'
+        required: true
+      RELEASE_APP_PRIVATE_KEY:
+        description: 'GitHub App private key for release automation'
         required: true
     outputs:
       published:
@@ -68,12 +71,19 @@ jobs:
       version: ${{ steps.get_version.outputs.version }}
 
     steps:
+      - name: Generate token from GitHub App
+        id: generate_token
+        uses: tibdex/github-app-token@v2
+        with:
+          app_id: ${{ secrets.RELEASE_APP_ID }}
+          private_key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # Use GH_TOKEN to allow pushing to protected main branch
-          token: ${{ secrets.GH_TOKEN }}
+          # Use GitHub App token to allow pushing to protected main branch
+          token: ${{ steps.generate_token.outputs.token }}
 
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
@@ -118,7 +128,7 @@ jobs:
         id: semantic_release
         env:
           CI: true
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
