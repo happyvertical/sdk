@@ -175,16 +175,11 @@ jobs:
             git push origin main
 
             # Create GitHub Release
+            RELEASE_NOTES="## Published Packages"$'\n\n'"All packages published to GitHub Packages at version $AFTER_VERSION."$'\n\n'"Full Changelog: https://github.com/${GITHUB_REPOSITORY}/compare/v$BEFORE_VERSION...v$AFTER_VERSION"
+
             gh release create "v$AFTER_VERSION" \
               --title "v$AFTER_VERSION" \
-              --notes "$(cat <<'EOF'
-## Published Packages
-
-All packages published to GitHub Packages at version $AFTER_VERSION.
-
-Full Changelog: https://github.com/${GITHUB_REPOSITORY}/compare/v$BEFORE_VERSION...v$AFTER_VERSION
-EOF
-)" \
+              --notes "$RELEASE_NOTES" \
               --latest
 
             echo "published=true" >> $GITHUB_OUTPUT
