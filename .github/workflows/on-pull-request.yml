@@ -25,40 +25,9 @@ jobs:
           fetch-depth: 0
 
       - name: Validate commit messages
-        run: |
-          # Get all commit messages since main (excluding merge commits)
-          commits=$(git log origin/main..HEAD --no-merges --pretty=format:"%s")
-
-          if [ -z "$commits" ]; then
-            echo "No commits found"
-            exit 0
-          fi
-
-          echo "📋 Validating commits:"
-          echo "$commits"
-          echo ""
-
-          # Check if commits follow conventional commit format
-          invalid_commits=""
-          pattern="^(feat|fix|docs|style|refactor|perf|test|build"
-          pattern="${pattern}|ci|chore)(\(.+\))?!?: .+"
-          while IFS= read -r commit; do
-            if ! echo "$commit" | grep -qE "$pattern"; then
-              invalid_commits="$invalid_commits\n- $commit"
-            fi
-          done <<< "$commits"
-
-          if [ -n "$invalid_commits" ]; then
-            msg="❌ Found commits that don't follow conventional"
-            echo "$msg commit format:"
-            echo -e "$invalid_commits"
-            echo ""
-            echo "Please use one of: feat, fix, docs, style, refactor,"
-            echo "perf, test, build, ci, chore"
-            exit 1
-          fi
-
-          echo "✅ All commits follow conventional commit format"
+        uses: wagoid/commitlint-github-action@v6
+        with:
+          configFile: .commitlintrc.json
 
       - name: Determine version bump
         id: version
@@ -160,9 +129,11 @@ jobs:
       - name: Install act
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          url="https://raw.githubusercontent.com/nektos/act/master"
-          curl --proto '=https' --tlsv1.2 -sSf $url/install.sh \
-            | sudo bash
+          # Install specific version of act for security and stability
+          mkdir -p bin
+          curl --proto '=https' --tlsv1.2 -sSfL \
+            https://raw.githubusercontent.com/nektos/act/master/install.sh \
+            | sudo bash -s -- -b bin v0.2.82
 
       - name: Validate with act
         if: steps.changed-files.outputs.any_changed == 'true'
@@ -184,7 +155,4 @@ jobs:
 
   test:
     name: Validate Changes
-    uses: ./.github/workflows/test-suite.yml
-    with:
-      runner: 'ubuntu-latest'
-      node-version: '24'
+    uses: ./.github/workflows/test.yml
