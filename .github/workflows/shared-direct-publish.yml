@@ -145,6 +145,13 @@ jobs:
           # Version packages (updates package.json and CHANGELOGs)
           pnpm run changeset:version
 
+          # Sync root package.json version with workspace packages
+          WORKSPACE_VERSION=$(node -p "require('./packages/utils/package.json').version")
+          if [ -n "$WORKSPACE_VERSION" ] && [ "$WORKSPACE_VERSION" != "$(node -p "require('./package.json').version")" ]; then
+            echo "📝 Syncing root package version to match workspace: $WORKSPACE_VERSION"
+            node -e "const pkg = require('./package.json'); pkg.version = '$WORKSPACE_VERSION'; require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\n');"
+          fi
+
           # Check if version changed
           AFTER_VERSION=$(node -p "require('./package.json').version")
           echo "Version after versioning: $AFTER_VERSION"
