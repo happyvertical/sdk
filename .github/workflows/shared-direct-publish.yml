@@ -181,7 +181,7 @@ jobs:
 
 All packages published to GitHub Packages at version $AFTER_VERSION.
 
-Full Changelog: https://github.com/${{ github.repository }}/compare/v$BEFORE_VERSION...v$AFTER_VERSION" \
+Full Changelog: https://github.com/${GITHUB_REPOSITORY}/compare/v$BEFORE_VERSION...v$AFTER_VERSION" \
               --latest
 
             echo "published=true" >> $GITHUB_OUTPUT
