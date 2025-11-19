@@ -57,6 +57,14 @@ function getCommitsSinceLastRelease(): string[] {
 function parseConventionalCommit(commitLine: string): ParsedCommit | null {
   const [hash, subject, body] = commitLine.split('|||');
 
+  // Skip if subject is undefined or empty
+  if (!subject) {
+    console.log(
+      `Skipping commit with empty subject: ${hash?.substring(0, 7) || 'unknown'}`,
+    );
+    return null;
+  }
+
   // Match conventional commit format: type(scope)!: message
   const match = subject.match(/^(\w+)(?:\(([^)]+)\))?(!)?:\s*(.+)$/);
 
