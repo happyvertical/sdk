@@ -48,7 +48,7 @@ jobs:
     steps:
       - name: Trigger dependency cascade
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ needs.release.outputs.app_token }}
         run: |
           echo "📢 Triggering dependency cascade for downstream repositories..."
 
