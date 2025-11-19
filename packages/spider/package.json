@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/spider",
-  "version": "0.56.12",
+  "version": "0.56.13",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

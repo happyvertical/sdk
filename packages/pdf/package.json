@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/pdf",
-  "version": "0.56.12",
+  "version": "0.56.13",
   "description": "Modern PDF processing utilities with text extraction and OCR support using unpdf and @happyvertical/ocr",
   "type": "module",
   "main": "./dist/index.js",

@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.56.13
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - implement Gemini audit recommendations for workflows (#503) (ci)
+
 ## 0.56.12
 
 ### Patch Changes

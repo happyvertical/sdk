@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/messages",
-  "version": "0.56.12",
+  "version": "0.56.13",
   "description": "Unified messaging operations with adapter-based architecture",
   "type": "module",
   "main": "./dist/index.js",

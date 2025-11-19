@@ -1,5 +1,16 @@
 # @happyvertical/documents
 
+## 0.56.13
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.56.13
+  - @happyvertical/files@0.56.13
+  - @happyvertical/ocr@0.56.13
+  - @happyvertical/pdf@0.56.13
+  - @happyvertical/spider@0.56.13
+
 ## 0.56.12
 
 ### Patch Changes
