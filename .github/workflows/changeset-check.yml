@@ -19,29 +19,44 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          node-version: '24'
+          install-deps: 'true'
+
       - name: Check for changeset
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Skip if PR has 'skip-changeset' label
-          if gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name' | grep -q 'skip-changeset'; then
-            echo "✅ Skipping changeset check (skip-changeset label present)"
+          PR_NUM="${{ github.event.pull_request.number }}"
+          if gh pr view "$PR_NUM" --json labels \
+             --jq '.labels[].name' | grep -q 'skip-changeset'; then
+            echo "✅ Skipping changeset check" \
+              "(skip-changeset label present)"
             exit 0
           fi
 
-          # Skip if PR is from changeset-release branch (automated version packages PR)
-          if echo "${{ github.event.pull_request.head.ref }}" | grep -q '^changeset-release/'; then
-            echo "✅ Skipping changeset check (changesets release PR from ${{ github.event.pull_request.head.ref }})"
+          # Skip if PR is from changeset-release branch
+          # (automated version packages PR)
+          PR_BRANCH="${{ github.event.pull_request.head.ref }}"
+          if echo "$PR_BRANCH" | grep -q '^changeset-release/'; then
+            echo "✅ Skipping changeset check" \
+              "(changesets release PR from $PR_BRANCH)"
             exit 0
           fi
 
           # Skip if PR title starts with 'chore: version packages'
-          if echo "${{ github.event.pull_request.title }}" | grep -qi '^chore: version packages'; then
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          if echo "$PR_TITLE" | \
+             grep -qi '^chore: version packages'; then
             echo "✅ Skipping changeset check (version packages PR)"
             exit 0
           fi
 
-          # Check if PR has conventional commits that will trigger auto-changeset
+          # Check if PR has conventional commits that will
+          # trigger auto-changeset
           echo ""
           echo "🔍 Checking for conventional commits..."
 
@@ -49,23 +64,47 @@ jobs:
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
 
-          # Check for releaseable conventional commits (feat, fix, perf, breaking changes)
-          RELEASEABLE_COMMITS=$(git log $BASE_SHA..$HEAD_SHA --pretty=format:"%s" --no-merges | \
-            grep -E '^(feat|fix|perf)(\(.+\))?!?:|BREAKING CHANGE' || true)
+          # Check for releaseable conventional commits
+          # (feat, fix, perf, breaking changes)
+          RELEASEABLE_COMMITS=$(git log \
+            $BASE_SHA..$HEAD_SHA --pretty=format:"%s" --no-merges | \
+            grep -E '^(feat|fix|perf)(\(.+\))?!?:|BREAKING CHANGE' \
+            || true)
 
           if [ -n "$RELEASEABLE_COMMITS" ]; then
-            echo "✅ Found conventional commits that will trigger auto-changeset on merge:"
+            echo "✅ Found conventional commits that will" \
+              "trigger auto-changeset on merge:"
             echo "$RELEASEABLE_COMMITS"
             echo ""
-            echo "Auto-changeset will generate changeset files automatically when this PR merges to main."
-            exit 0
+            echo "🔍 Validating changeset:auto script can" \
+              "generate changesets..."
+
+            # Run changeset:auto to validate it works
+            # (don't commit the result)
+            if pnpm run changeset:auto; then
+              echo "✅ changeset:auto validation passed"
+              echo ""
+              echo "Generated changesets will be created" \
+                "automatically when this PR merges to main."
+              exit 0
+            else
+              echo "❌ ERROR: changeset:auto script failed"
+              echo ""
+              echo "The auto-changeset generation script" \
+                "encountered an error."
+              echo "Please check the script or add a" \
+                "manual changeset."
+              exit 1
+            fi
           fi
 
-          echo "ℹ️  No releaseable conventional commits found (feat, fix, perf, or breaking changes)"
+          echo "ℹ️  No releaseable conventional commits found"
+          echo "(feat, fix, perf, or breaking changes)"
           echo ""
 
           # Check if changeset files exist (excluding README.md)
-          changeset_count=$(find .changeset -name '*.md' ! -name 'README.md' 2>/dev/null | wc -l)
+          changeset_count=$(find .changeset -name '*.md' \
+            ! -name 'README.md' 2>/dev/null | wc -l)
 
           if [ "$changeset_count" -eq 0 ]; then
             echo "❌ No changeset found"
@@ -73,28 +112,39 @@ jobs:
             echo "Please add a changeset by running:"
             echo "  npx changeset"
             echo ""
-            echo "Or add the 'skip-changeset' label if this PR doesn't require a version bump"
-            echo "(e.g., documentation changes, test updates, workflow changes)"
+            echo "Or add the 'skip-changeset' label if this PR" \
+              "doesn't require a version bump"
+            echo "(e.g., documentation changes, test updates," \
+              "workflow changes)"
             exit 1
           fi
 
           echo "✅ Found $changeset_count changeset(s)"
-          find .changeset -name '*.md' ! -name 'README.md' -exec basename {} \;
+          find .changeset -name '*.md' ! -name 'README.md' \
+            -exec basename {} \;
 
           # Validate no major version bumps
           echo ""
           echo "🔍 Validating changeset types..."
 
-          if find .changeset -name '*.md' ! -name 'README.md' -type f -exec grep -l '"major"' {} + 2>/dev/null | grep -q .; then
-            echo "❌ ERROR: Major version bump detected in changeset!"
+          if find .changeset -name '*.md' ! -name 'README.md' \
+             -type f -exec grep -l '"major"' {} + 2>/dev/null | \
+             grep -q .; then
+            echo "❌ ERROR: Major version bump detected" \
+              "in changeset!"
             echo ""
             echo "Files with major bumps:"
-            find .changeset -name '*.md' ! -name 'README.md' -type f -exec grep -l '"major"' {} + 2>/dev/null || true
+            find .changeset -name '*.md' ! -name 'README.md' \
+              -type f -exec grep -l '"major"' {} + \
+              2>/dev/null || true
             echo ""
-            echo "Major version releases (1.0.0+) must be manually approved and coordinated."
-            echo "Please change the version bump type to 'minor' or 'patch'."
+            echo "Major version releases (1.0.0+) must be" \
+              "manually approved and coordinated."
+            echo "Please change the version bump type to" \
+              "'minor' or 'patch'."
             echo ""
-            echo "If you truly need a major version bump, coordinate with maintainers first."
+            echo "If you truly need a major version bump," \
+              "coordinate with maintainers first."
             exit 1
           fi
 
