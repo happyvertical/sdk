@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.56.14
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - validate changeset:auto during PR check instead of just checking commits (#505) (ci)
+
 ## 0.56.13
 
 ### Patch Changes
