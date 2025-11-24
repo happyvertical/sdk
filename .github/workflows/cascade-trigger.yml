@@ -3,7 +3,7 @@ name: Dependency Cascade Trigger
 on:
   # Trigger when packages are published
   workflow_run:
-    workflows: ["On Merge Main"]
+    workflows: ["On Merge to Main"]
     types: [completed]
     branches: [main]
 
@@ -28,7 +28,11 @@ jobs:
   trigger-smrt:
     name: Trigger SMRT Update
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    if: >-
+      ${{
+        github.event.workflow_run.conclusion == 'success' ||
+        github.event_name == 'workflow_dispatch'
+      }}
 
     steps:
       - name: Checkout
@@ -50,7 +54,10 @@ jobs:
           # Compare with previous commit
           current=$(node -p "require('./packages/ai/package.json').version")
           git checkout HEAD~1
-          previous=$(node -p "require('./packages/ai/package.json').version" 2>/dev/null || echo "0.0.0")
+          previous=$(
+            node -p "require('./packages/ai/package.json').version" \
+              2>/dev/null || echo "0.0.0"
+          )
 
           if [ "$current" != "$previous" ]; then
             echo "changed=true" >> $GITHUB_OUTPUT
@@ -67,13 +74,16 @@ jobs:
           downstream=$(node -e "
             const config = require('./.github/cascade-config.json');
             const sdk = config.cascade.sdk;
-            console.log(JSON.stringify(sdk.triggers.map(t => config.cascade[t].repository)));
+            const repos = sdk.triggers.map(t => config.cascade[t].repository);
+            console.log(JSON.stringify(repos));
           ")
           echo "repositories=$downstream" >> $GITHUB_OUTPUT
           echo "📋 Downstream targets: $downstream"
 
       - name: Trigger downstream repositories
-        if: steps.check.outputs.changed == 'true' && github.event.inputs.dry_run != 'true'
+        if: >-
+          steps.check.outputs.changed == 'true' &&
+          github.event.inputs.dry_run != 'true'
         run: |
           repositories='${{ steps.downstream.outputs.repositories }}'
 
@@ -113,7 +123,8 @@ jobs:
         run: |
           echo "### Cascade Triggered 🚀" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- **SDK Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          version="${{ steps.version.outputs.version }}"
+          echo "- **SDK Version:** $version" >> $GITHUB_STEP_SUMMARY
           echo "- **Target:** happyvertical/smrt" >> $GITHUB_STEP_SUMMARY
           echo "- **Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
