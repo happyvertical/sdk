@@ -1,5 +1,12 @@
 # @happyvertical/sql
 
+## 0.56.16
+
+### Patch Changes
+
+- 9ef2c67: docs: add note about table name quoting fix in JSON adapter (relates to #509)
+  - @happyvertical/utils@0.56.16
+
 ## 0.56.15
 
 ### Patch Changes

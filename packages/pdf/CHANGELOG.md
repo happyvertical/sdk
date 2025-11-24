@@ -1,5 +1,12 @@
 # @happyvertical/pdf
 
+## 0.56.16
+
+### Patch Changes
+
+- @happyvertical/ocr@0.56.16
+- @happyvertical/utils@0.56.16
+
 ## 0.56.15
 
 ### Patch Changes
