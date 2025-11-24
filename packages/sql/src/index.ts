@@ -47,6 +47,8 @@ function isDatabaseInstance(value: any): value is DatabaseInterface {
  *
  * User-provided options always take precedence over environment variables.
  *
+ * Note: As of v0.56.15, the JSON adapter properly quotes all table names in SQL operations (fixes #509)
+ *
  * @param options - Configuration options for the database connection or an existing database instance
  * @returns Promise resolving to a DatabaseInterface implementation
  * @throws Error if the database type is invalid
