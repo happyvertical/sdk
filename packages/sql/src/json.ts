@@ -698,7 +698,7 @@ export async function getDatabase(
         })
         .join(', ');
 
-      const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES ${placeholders}`;
+      const sql = `INSERT INTO "${table}" (${keys.join(', ')}) VALUES ${placeholders}`;
 
       try {
         await connection.run(sql, values);
@@ -735,7 +735,7 @@ export async function getDatabase(
       validateTableName(table);
 
       const { sql: whereClause, values } = buildWhere(where, 1);
-      const sql = `SELECT * FROM ${table} ${whereClause} LIMIT 1`;
+      const sql = `SELECT * FROM "${table}" ${whereClause} LIMIT 1`;
 
       try {
         const reader = await connection.runAndReadAll(sql, values);
@@ -766,7 +766,7 @@ export async function getDatabase(
       validateTableName(table);
 
       const { sql: whereClause, values } = buildWhere(where, 1);
-      const sql = `SELECT * FROM ${table} ${whereClause}`;
+      const sql = `SELECT * FROM "${table}" ${whereClause}`;
 
       try {
         const reader = await connection.runAndReadAll(sql, values);
@@ -819,7 +819,7 @@ export async function getDatabase(
         value instanceof Date ? value.toISOString() : value,
       );
 
-      const sql = `UPDATE ${table} SET ${setClause} ${whereClause}`;
+      const sql = `UPDATE "${table}" SET ${setClause} ${whereClause}`;
       const values = [...dataValues, ...whereValues];
 
       try {
@@ -979,7 +979,7 @@ export async function getDatabase(
         return `"${key}" = ${valueExpr}`;
       });
 
-      const sql = `INSERT INTO ${table} (${quotedKeys}) VALUES (${placeholders.join(', ')}) ON CONFLICT(${conflict}) DO UPDATE SET ${quotedUpdateSetParts.join(', ')}`;
+      const sql = `INSERT INTO "${table}" (${quotedKeys}) VALUES (${placeholders.join(', ')}) ON CONFLICT(${conflict}) DO UPDATE SET ${quotedUpdateSetParts.join(', ')}`;
 
       try {
         await connection.run(sql, values);
@@ -1072,7 +1072,7 @@ export async function getDatabase(
       }
 
       const { sql: whereClause, values } = buildWhere(where, 1);
-      const sql = `DELETE FROM ${table} ${whereClause}`;
+      const sql = `DELETE FROM "${table}" ${whereClause}`;
 
       try {
         await connection.run(sql, values);
@@ -1111,7 +1111,7 @@ export async function getDatabase(
         if (!where || Object.keys(where).length === 0) {
           // Count all records
           const result = await connection.runAndReadAll(
-            `SELECT COUNT(*) as count FROM ${table}`,
+            `SELECT COUNT(*) as count FROM "${table}"`,
           );
           const rows = result.getRowObjects();
           return Number(rows[0]?.count) || 0;
@@ -1119,7 +1119,7 @@ export async function getDatabase(
 
         // Count with conditions
         const { sql: whereClause, values } = buildWhere(where, 1);
-        const sql = `SELECT COUNT(*) as count FROM ${table} ${whereClause}`;
+        const sql = `SELECT COUNT(*) as count FROM "${table}" ${whereClause}`;
 
         const result = await connection.runAndReadAll(sql, values);
         const rows = result.getRowObjects();
@@ -1197,7 +1197,7 @@ export async function getDatabase(
       if (columns.length === 0) {
         // Fallback to SELECT * if we can't get column names
         await connection.run(
-          `COPY (SELECT * FROM ${table}) TO '${filePath}' (FORMAT JSON, ARRAY true)`,
+          `COPY (SELECT * FROM "${table}") TO '${filePath}' (FORMAT JSON, ARRAY true)`,
         );
         return;
       }
@@ -1206,7 +1206,7 @@ export async function getDatabase(
       const selectList = columns
         .map((col: string) => `CAST(${col} AS TEXT) AS ${col}`)
         .join(', ');
-      const sql = `COPY (SELECT ${selectList} FROM ${table}) TO '${filePath}' (FORMAT JSON, ARRAY true)`;
+      const sql = `COPY (SELECT ${selectList} FROM "${table}") TO '${filePath}' (FORMAT JSON, ARRAY true)`;
 
       await connection.run(sql);
     };
