@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.56.15
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - quote table names consistently in JSON adapter operations (#510) (sql)
+
 ## 0.56.14
 
 ### Patch Changes
