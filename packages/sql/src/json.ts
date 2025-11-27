@@ -365,11 +365,20 @@ async function getSmrtSchemaForTable(
       const schema = ObjectRegistry.getSchema(className);
 
       if (schema && schema.tableName === tableName) {
+        // Require schema.columns - includes all STI descendant fields
+        // If missing, schema generation didn't run or registry wasn't updated
+        // See: https://github.com/happyvertical/smrt/issues/427
+        if (!schema.columns) {
+          throw new Error(
+            `Schema for table '${tableName}' (class '${className}') is missing column definitions. ` +
+              `Ensure generateSchema() was called to populate schema.columns.`,
+          );
+        }
         return {
           ddl: schema.ddl,
           indexes: schema.indexes,
           tableName: schema.tableName,
-          fields: ObjectRegistry.getFields(className),
+          fields: schema.columns,
         };
       }
     }
