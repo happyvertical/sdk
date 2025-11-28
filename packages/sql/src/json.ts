@@ -35,16 +35,6 @@ export function clearConnectionCache(): void {
 }
 
 /**
- * Schema definition extracted from SMRT ObjectRegistry
- */
-interface SmrtSchemaDefinition {
-  ddl: string;
-  indexes?: string[];
-  tableName: string;
-  fields?: Map<string, any>;
-}
-
-/**
  * Creates a JSON database connection using DuckDB in-memory engine
  *
  * This adapter uses DuckDB as a query engine for JSON files, storing everything
@@ -55,12 +45,7 @@ interface SmrtSchemaDefinition {
  * @returns Promise resolving to a DuckDB connection
  */
 async function createJSONConnection(options: JSONOptions) {
-  const {
-    url,
-    autoRegister = true,
-    skipSmrtTables = false,
-    schemas = {},
-  } = options;
+  const { url, autoRegister = true, schemas = {} } = options;
 
   if (!url) {
     throw new DatabaseError('url is required for JSON adapter', {
@@ -86,7 +71,7 @@ async function createJSONConnection(options: JSONOptions) {
 
     // Load JSON files as in-memory tables
     if (autoRegister) {
-      await loadJSONTables(connection, url, skipSmrtTables, schemas);
+      await loadJSONTables(connection, url, schemas);
     }
 
     return connection;
@@ -110,18 +95,15 @@ async function createJSONConnection(options: JSONOptions) {
  *
  * Schema resolution priority:
  * 1. Explicit schemas provided via options.schemas
- * 2. SMRT ObjectRegistry lookup (if available)
- * 3. DuckDB auto-detection (fallback)
+ * 2. DuckDB auto-detection (fallback)
  *
  * @param connection - DuckDB connection
  * @param dataDir - Directory containing JSON files
- * @param skipSmrtTables - If true, skip auto-registration for tables with SMRT schemas (default: false)
  * @param providedSchemas - Explicit schema definitions provided by caller (optional)
  */
 async function loadJSONTables(
   connection: any,
   dataDir: string,
-  skipSmrtTables = false,
   providedSchemas: Record<string, import('./shared/types').SchemaProvider> = {},
 ) {
   try {
@@ -134,37 +116,15 @@ async function loadJSONTables(
       const filePath = join(dataDir, file);
       const tableName = basename(file, '.json');
 
-      // Priority 1: Check for explicitly provided schema
+      // Check for explicitly provided schema
       const schema = providedSchemas[tableName];
 
-      // Priority 2: Check if this table has a SMRT schema definition (if no schema provided)
-      let smrtSchema: SmrtSchemaDefinition | null = null;
-      if (!schema) {
-        smrtSchema = await getSmrtSchemaForTable(tableName);
-      }
-
-      // If schema is available (either provided or from SMRT) and skipSmrtTables is true, skip it
-      if ((schema || smrtSchema) && skipSmrtTables) {
-        // Skip tables with schemas - they will be created by framework
+      if (schema) {
+        // Create table with provided schema (proper typing)
         console.log(
-          `[json-adapter] Skipping ${tableName} - will be created by framework`,
+          `[json-adapter] Creating ${tableName} with provided schema definition`,
         );
-        continue;
-      }
-
-      if (schema || smrtSchema) {
-        // Create table with provided schema or SMRT schema (proper typing)
-        const schemaToUse = smrtSchema || schema;
-        if (!schemaToUse) {
-          console.warn(
-            `[json-adapter] No schema available for ${tableName}, skipping creation`,
-          );
-          continue;
-        }
-        console.log(
-          `[json-adapter] Creating ${tableName} with ${schema ? 'provided' : 'SMRT'} schema definition`,
-        );
-        await createTableFromSmrtSchema(connection, tableName, schemaToUse);
+        await createTableFromSchema(connection, tableName, schema);
 
         // Load JSON data into properly-typed table
         // IMPORTANT: Don't use read_json() with auto_detect because DuckDB will
@@ -342,83 +302,7 @@ function convertBigInts(obj: any): any {
 }
 
 /**
- * Attempts to get schema definition from SMRT ObjectRegistry for a table
- *
- * @param tableName - Name of the table to look up (snake_case plural form)
- * @returns Schema definition or null if not found in registry
- */
-async function getSmrtSchemaForTable(
-  tableName: string,
-): Promise<SmrtSchemaDefinition | null> {
-  try {
-    // Try to import ObjectRegistry from @happyvertical/smrt
-    // Use string literal and @ts-expect-error to prevent TypeScript from resolving at build time
-    // @ts-expect-error - Optional peer dependency, may not be installed
-    const smrtPackage = await import(/* @vite-ignore */ '@happyvertical/smrt');
-    const { ObjectRegistry } = smrtPackage;
-
-    // Get all registered classes
-    const allClasses = ObjectRegistry.getAllClasses();
-
-    // Search for a class whose table name matches
-    for (const [className, registered] of allClasses) {
-      const schema = ObjectRegistry.getSchema(className);
-
-      if (schema && schema.tableName === tableName) {
-        // If DDL is empty, schema generation hasn't run yet (external package)
-        // Trigger schema generation to populate ddl, indexes, and columns
-        if (!schema.ddl) {
-          try {
-            // Dynamic import to avoid bundling SMRT's Node.js-only code
-            // @ts-expect-error - Optional peer dependency
-            const { generateSchema } = await import(
-              /* @vite-ignore */ '@happyvertical/smrt/schema/utils'
-            );
-            // generateSchema() updates the registry's schema in-place
-            await generateSchema(registered.constructor);
-          } catch (genError) {
-            console.warn(
-              `[json-adapter] Could not generate schema for ${className}:`,
-              genError instanceof Error ? genError.message : String(genError),
-            );
-          }
-        }
-
-        // Re-fetch schema after potential generation
-        const updatedSchema = ObjectRegistry.getSchema(className);
-
-        // Prefer schema.columns (includes aggregated STI descendant fields)
-        // Fall back to getFields() for external packages where generateSchema()
-        // hasn't run yet - those only have manifest-registered fields.
-        //
-        // Why this matters for STI:
-        // - schema.columns: Generated by generateSTISchemaFromRegistry(), includes
-        //   ALL fields from base class and ALL descendants (the union)
-        // - getFields(): Only returns fields for THIS specific class, not descendants
-        //
-        // For non-STI or external packages, getFields() works fine.
-        // See: https://github.com/happyvertical/smrt/issues/427
-        const fields =
-          updatedSchema?.columns ?? ObjectRegistry.getFields(className);
-
-        return {
-          ddl: updatedSchema?.ddl || schema.ddl,
-          indexes: updatedSchema?.indexes || schema.indexes,
-          tableName: schema.tableName,
-          fields,
-        };
-      }
-    }
-
-    return null;
-  } catch (_error) {
-    // @happyvertical/smrt not available or ObjectRegistry not initialized
-    return null;
-  }
-}
-
-/**
- * Creates a table from SMRT schema definition with proper typing
+ * Creates a table from a schema definition with proper typing
  *
  * DuckDB has issues with type inference when DEFAULT values are empty strings.
  * This function explicitly casts all DEFAULT values to their column types to
@@ -430,12 +314,12 @@ async function getSmrtSchemaForTable(
  *
  * @param connection - DuckDB connection
  * @param tableName - Name of the table to create
- * @param schema - Schema definition from SMRT ObjectRegistry
+ * @param schema - Schema definition with DDL and indexes
  */
-async function createTableFromSmrtSchema(
+async function createTableFromSchema(
   connection: any,
   tableName: string,
-  schema: SmrtSchemaDefinition,
+  schema: import('./shared/types').SchemaProvider,
 ): Promise<void> {
   // Extract CREATE TABLE statement (without triggers which aren't supported)
   const ddlLines = schema.ddl.split('\n');
@@ -445,13 +329,10 @@ async function createTableFromSmrtSchema(
   });
 
   if (createTableEnd === -1) {
-    throw new DatabaseError(
-      'Invalid SMRT schema DDL - no closing parenthesis',
-      {
-        tableName,
-        ddl: schema.ddl,
-      },
-    );
+    throw new DatabaseError('Invalid schema DDL - no closing parenthesis', {
+      tableName,
+      ddl: schema.ddl,
+    });
   }
 
   // Get CREATE TABLE statement
@@ -483,12 +364,16 @@ async function createTableFromSmrtSchema(
   try {
     await connection.run(createTableSQL);
 
-    // Verify schema was created correctly (DuckDB uses DESCRIBE instead of PRAGMA)
+    // Get actual columns after table creation
+    let existingColumns: Set<string> = new Set();
     try {
       const schemaInfo = await connection.runAndReadAll(
         `DESCRIBE ${tableName}`,
       );
       const columns = schemaInfo.getRowObjects();
+      existingColumns = new Set(
+        columns.map((col: any) => col.column_name.toLowerCase()),
+      );
 
       console.log(`[json-adapter] Created ${tableName} with schema:`, {
         columns: columns.map((col: any) => ({
@@ -502,6 +387,35 @@ async function createTableFromSmrtSchema(
       console.warn(
         `[json-adapter] Could not verify schema for ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
       );
+    }
+
+    // Add columns from fields that aren't in the DDL (important for STI subclass fields)
+    if (schema.fields && existingColumns.size > 0) {
+      // Handle both Map and Record formats
+      const fieldEntries =
+        schema.fields instanceof Map
+          ? Array.from(schema.fields.entries())
+          : Object.entries(schema.fields);
+
+      for (const [fieldName, fieldDef] of fieldEntries) {
+        const columnName = fieldName.toLowerCase();
+        if (!existingColumns.has(columnName)) {
+          // Determine SQL type from field definition
+          const sqlType = fieldDef?.type || 'TEXT';
+          try {
+            await connection.run(
+              `ALTER TABLE ${tableName} ADD COLUMN "${fieldName}" ${sqlType}`,
+            );
+            console.log(
+              `[json-adapter] Added missing column '${fieldName}' (${sqlType}) to ${tableName}`,
+            );
+          } catch (alterError) {
+            console.warn(
+              `[json-adapter] Could not add column '${fieldName}' to ${tableName}: ${alterError instanceof Error ? alterError.message : String(alterError)}`,
+            );
+          }
+        }
+      }
     }
 
     // Create remaining indexes (non-UNIQUE indexes only)
@@ -519,7 +433,7 @@ async function createTableFromSmrtSchema(
       }
     }
   } catch (error) {
-    throw new DatabaseError('Failed to create table from SMRT schema', {
+    throw new DatabaseError('Failed to create table from schema', {
       tableName,
       sql: createTableSQL,
       originalError: error instanceof Error ? error.message : String(error),
@@ -582,17 +496,6 @@ async function insertRecordsWithCast(
 }
 
 /**
- * Checks if a table name corresponds to a registered SMRT object
- *
- * @param tableName - Name of the table to check
- * @returns True if the table matches a SMRT object's table name
- */
-async function _isSmrtTable(tableName: string): Promise<boolean> {
-  const schema = await getSmrtSchemaForTable(tableName);
-  return schema !== null;
-}
-
-/**
  * Validates that a table name is valid (alphanumeric + underscores only)
  *
  * @param table - Table name to validate
@@ -629,7 +532,7 @@ export async function getDatabase(
   if (!hasSchemas) {
     cacheKey =
       options.dbid ||
-      `${options.url}:${options.writeStrategy || 'immediate'}:${options.autoRegister !== false}:${options.skipSmrtTables || false}`;
+      `${options.url}:${options.writeStrategy || 'immediate'}:${options.autoRegister !== false}`;
   } else if (options.dbid) {
     // If explicit dbid provided with schemas, honor it
     cacheKey = options.dbid;

@@ -429,40 +429,6 @@ describe('JSON adapter tests', () => {
       });
     });
 
-    it('should skip SMRT tables when skipSmrtTables is true', async () => {
-      // Create JSON files for both SMRT and non-SMRT tables
-      writeFileSync(
-        `${testDataDir}/regular_table.json`,
-        JSON.stringify([{ id: '1', data: 'regular data' }]),
-      );
-
-      writeFileSync(
-        `${testDataDir}/smrt_table.json`,
-        JSON.stringify([{ id: '2', data: 'smrt data' }]),
-      );
-
-      // Initialize with skipSmrtTables=true
-      // Note: Without actual SMRT registration, all tables are treated as non-SMRT
-      const testDb = await getDatabase({
-        type: 'json',
-        url: testDataDir,
-        writeStrategy: 'immediate',
-        skipSmrtTables: true,
-      });
-
-      // Both tables should exist (since neither is registered as SMRT)
-      const regularExists = await testDb.tableExists('regular_table');
-      const smrtExists = await testDb.tableExists('smrt_table');
-
-      expect(regularExists).toBe(true);
-      expect(smrtExists).toBe(true);
-
-      // This test demonstrates the mechanism works
-      // In production with actual SMRT objects registered:
-      // - skipSmrtTables=false: JSON adapter creates SMRT tables with proper types
-      // - skipSmrtTables=true: JSON adapter skips SMRT tables, lets SMRT create them
-    });
-
     it('should handle upsert with properly-typed columns', async () => {
       // Create a table with proper types (simulating SMRT schema)
       await db.execute`
