@@ -183,8 +183,13 @@ async function createTablesFromSchemas(
         }
       }
     } catch (error) {
+      console.error(
+        `[sqlite] Error creating table ${tableName}:`,
+        error instanceof Error ? error.message : String(error),
+      );
+      console.error(`[sqlite] DDL was:`, schema.ddl?.substring(0, 200) + '...');
       throw new DatabaseError(
-        `Failed to create table ${tableName} from schema`,
+        `Failed to create table ${tableName} from schema: ${error instanceof Error ? error.message : String(error)}`,
         {
           tableName,
           schema,

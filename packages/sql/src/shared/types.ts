@@ -91,25 +91,16 @@ export interface JSONOptions {
   writeStrategy?: 'immediate' | 'manual' | 'none';
 
   /**
-   * Skip auto-registration for tables that match SMRT object schemas
-   * When true, tables with SMRT schemas will be skipped during autoRegister,
-   * allowing SMRT framework to create them with proper types first.
-   * @default false
-   */
-  skipSmrtTables?: boolean;
-
-  /**
    * Explicit schema definitions for tables
    *
-   * When provided, these schemas will be used instead of auto-detection
-   * or SMRT registry lookup. This allows frameworks like SMRT to provide
-   * explicit schemas without creating circular dependencies.
+   * When provided, these schemas will be used instead of auto-detection.
+   * This allows frameworks to provide explicit schemas via dependency injection.
    *
    * @example
    * ```typescript
    * const db = await getDatabase({
    *   type: 'json',
-   *   dataDir: './data',
+   *   url: './data',
    *   schemas: {
    *     users: {
    *       tableName: 'users',
@@ -212,7 +203,7 @@ export interface SchemaProvider {
 
   /**
    * Field metadata (optional, for advanced use cases)
-   * Used by some frameworks like SMRT for runtime type information
+   * Can be used by frameworks for runtime type information and validation
    */
   fields?: Map<string, any>;
 }
