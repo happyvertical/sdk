@@ -53,6 +53,9 @@ async function createJSONConnection(options: JSONOptions) {
     });
   }
 
+  // Track JSON files pending deferred loading (tableName → filePath)
+  const pendingJSONFiles = new Map<string, string>();
+
   try {
     // Dynamic import to avoid bundling
     const duckdbModule = '@duckdb/node-api';
@@ -69,12 +72,12 @@ async function createJSONConnection(options: JSONOptions) {
       // Directory might already exist, that's okay
     }
 
-    // Load JSON files as in-memory tables
+    // Scan JSON files - tables with schemas are created now, others are deferred
     if (autoRegister) {
-      await loadJSONTables(connection, url, schemas);
+      await loadJSONTables(connection, url, schemas, pendingJSONFiles);
     }
 
-    return connection;
+    return { connection, pendingJSONFiles };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     throw new DatabaseError(
@@ -88,29 +91,75 @@ async function createJSONConnection(options: JSONOptions) {
 }
 
 /**
- * Scans the data directory and loads JSON files as queryable in-memory tables
+ * Loads JSON data into an existing table
+ *
+ * This function only loads data - it assumes the table already exists with proper schema.
+ * Used after DDL creates the table to load persisted JSON data.
+ *
+ * @param connection - DuckDB connection
+ * @param tableName - Name of the table to load data into
+ * @param filePath - Path to the JSON file
+ */
+async function loadJSONData(
+  connection: any,
+  tableName: string,
+  filePath: string,
+): Promise<void> {
+  try {
+    const { readFile } = await import('node:fs/promises');
+    const jsonContent = await readFile(filePath, 'utf-8');
+    const records = JSON.parse(jsonContent);
+
+    if (Array.isArray(records) && records.length > 0) {
+      await insertRecordsWithCast(connection, tableName, records);
+      console.log(
+        `[json-adapter] Loaded ${records.length} records into ${tableName} from JSON`,
+      );
+    }
+  } catch (error) {
+    // If load fails (e.g., empty file, parse error), that's okay - table structure is what matters
+    console.warn(
+      `[json-adapter] Could not load data for ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+/**
+ * Scans the data directory and registers JSON files for deferred loading
  *
  * Unlike the DuckDB adapter which creates views, this creates actual tables
  * so that indexes can be added.
  *
  * Schema resolution priority:
- * 1. Explicit schemas provided via options.schemas
- * 2. DuckDB auto-detection (fallback)
+ * 1. Explicit schemas provided via options.schemas - table created immediately
+ * 2. DDL via ensureSchema() - table created when DDL executed, then JSON loaded
+ * 3. Schema file (.schema.sql) - table created with schema, then JSON loaded
+ *
+ * For tables without explicit schemas, JSON loading is DEFERRED until DDL creates
+ * the table. This allows SMRT's ensureSchema() to provide correct column types
+ * before data is loaded.
  *
  * @param connection - DuckDB connection
  * @param dataDir - Directory containing JSON files
  * @param providedSchemas - Explicit schema definitions provided by caller (optional)
+ * @param pendingJSONFiles - Map to store JSON files pending deferred loading
  */
 async function loadJSONTables(
   connection: any,
   dataDir: string,
   providedSchemas: Record<string, import('./shared/types').SchemaProvider> = {},
+  pendingJSONFiles: Map<string, string> = new Map(),
 ) {
   try {
     const files = await readdir(dataDir);
     const jsonFiles = files.filter(
       (file) => extname(file).toLowerCase() === '.json',
     );
+
+    // Determine if we're in "SMRT mode" (schemas provided) or "backward compat mode" (no schemas)
+    // When schemas are provided, we defer tables without explicit schemas to allow ensureSchema() to provide DDL
+    // When no schemas are provided, we auto-create all tables from JSON (backward compatibility)
+    const hasSchemasProvided = Object.keys(providedSchemas).length > 0;
 
     for (const file of jsonFiles) {
       const filePath = join(dataDir, file);
@@ -127,27 +176,9 @@ async function loadJSONTables(
         await createTableFromSchema(connection, tableName, schema);
 
         // Load JSON data into properly-typed table
-        // IMPORTANT: Don't use read_json() with auto_detect because DuckDB will
-        // re-infer types from the data, causing ANY type issues with empty strings.
-        // Instead, read JSON file and insert records using our CAST logic.
-        try {
-          const { readFile } = await import('node:fs/promises');
-          const jsonContent = await readFile(filePath, 'utf-8');
-          const records = JSON.parse(jsonContent);
-
-          if (Array.isArray(records) && records.length > 0) {
-            // Use a helper to insert records with proper CAST handling
-            await insertRecordsWithCast(connection, tableName, records);
-          }
-        } catch (error) {
-          // If INSERT fails (e.g., empty file, parse error), that's okay - table structure is what matters
-          console.warn(
-            `[json-adapter] Could not load data for ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
+        await loadJSONData(connection, tableName, filePath);
       } else {
-        // For non-SMRT tables, check for schema file first
-        // Schema files preserve constraints (PRIMARY KEY, UNIQUE, etc.)
+        // Check for schema file first (preserves constraints like PRIMARY KEY, UNIQUE, etc.)
         const schemaPath = join(dataDir, `${tableName}.schema.sql`);
         const { readFile, access } = await import('node:fs/promises');
         const { constants } = await import('node:fs');
@@ -160,63 +191,44 @@ async function loadJSONTables(
           schemaExists = false;
         }
 
-        try {
-          if (schemaExists) {
-            // Use schema file to create table with proper constraints
+        if (schemaExists) {
+          // Schema file exists - create table and load data now
+          try {
             const schemaDDL = await readFile(schemaPath, 'utf-8');
             await connection.run(schemaDDL);
-          } else {
-            // Fall back to manual schema inference from JSON
-            const jsonContent = await readFile(filePath, 'utf-8');
-            const records = JSON.parse(jsonContent);
-
-            if (Array.isArray(records) && records.length > 0) {
-              // Infer schema from first record
-              const sampleRecord = records[0];
-              const columns = Object.keys(sampleRecord)
-                .map((key) => {
-                  const value = sampleRecord[key];
-                  // Infer types conservatively - use TEXT for strings to preserve UUIDs
-                  let type = 'TEXT';
-                  if (typeof value === 'number') {
-                    type = Number.isInteger(value) ? 'INTEGER' : 'DOUBLE';
-                  } else if (typeof value === 'boolean') {
-                    type = 'BOOLEAN';
-                  } else if (typeof value === 'string') {
-                    // Detect ISO 8601 date/timestamp strings
-                    // Full timestamp: 2024-01-15T10:30:00.000Z or 2024-01-15T10:30:00Z
-                    // Date only: 2024-01-15
-                    const timestampRegex =
-                      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z?$/;
-                    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-
-                    if (timestampRegex.test(value)) {
-                      type = 'TIMESTAMP';
-                    } else if (dateRegex.test(value)) {
-                      type = 'DATE';
-                    }
-                  }
-                  return `${key} ${type}`;
-                })
-                .join(', ');
-
-              // Create table with inferred schema (no constraints)
-              await connection.run(`CREATE TABLE ${tableName} (${columns})`);
-            }
+            await loadJSONData(connection, tableName, filePath);
+          } catch (error) {
+            console.warn(
+              `[json-adapter] Could not load ${tableName} with schema file: ${error instanceof Error ? error.message : String(error)}`,
+            );
           }
-
-          // Load data into table (works for both schema file and inferred schema)
-          const jsonContent = await readFile(filePath, 'utf-8');
-          const records = JSON.parse(jsonContent);
-
-          if (Array.isArray(records) && records.length > 0) {
-            await insertRecordsWithCast(connection, tableName, records);
-          }
-        } catch (error) {
-          // If manual loading fails, log and skip this table
-          console.warn(
-            `[json-adapter] Could not load ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
+        } else if (hasSchemasProvided) {
+          // SMRT MODE: Schemas were provided but not for this table - DEFER loading
+          // This allows ensureSchema() to provide correct DDL before data is loaded
+          // The JSON data will be loaded after CREATE TABLE is executed
+          pendingJSONFiles.set(tableName, filePath);
+          console.log(
+            `[json-adapter] Deferring ${tableName} - will load after DDL creates table`,
           );
+        } else {
+          // BACKWARD COMPAT MODE: No schemas provided at all - auto-create from JSON
+          // This maintains backward compatibility for non-SMRT users who just want to query JSON files
+          try {
+            console.log(
+              `[json-adapter] Auto-creating ${tableName} from JSON (no schema provided)`,
+            );
+            // Use DuckDB's read_json_auto to infer types and create table
+            // Note: DuckDB's type inference is conservative - string columns containing
+            // ISO 8601 timestamps will remain as VARCHAR. For proper timestamp types,
+            // provide explicit schema via options.schemas parameter.
+            await connection.run(
+              `CREATE TABLE "${tableName}" AS SELECT * FROM read_json_auto('${filePath}')`,
+            );
+          } catch (error) {
+            console.warn(
+              `[json-adapter] Could not auto-create ${tableName} from JSON: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
         }
       }
     }
@@ -560,7 +572,8 @@ export async function getDatabase(
 
   // Create a new connection promise
   const connectionPromise = (async () => {
-    const connection = await createJSONConnection(options);
+    const { connection, pendingJSONFiles } =
+      await createJSONConnection(options);
     const writeStrategy = options.writeStrategy || 'immediate';
     const { url } = options;
 
@@ -1293,17 +1306,22 @@ export async function getDatabase(
       try {
         await connection.run(sql, values);
 
-        // Detect CREATE TABLE statements and auto-export empty tables
-        // This ensures SMRT system tables persist even when empty
-        if (writeStrategy !== 'none') {
-          const createTableMatch = sql.match(
-            /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["']?(\w+)["']?/i,
-          );
-          if (createTableMatch) {
-            const tableName = createTableMatch[1];
+        // Detect CREATE TABLE statements
+        const createTableMatch = sql.match(
+          /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["']?(\w+)["']?/i,
+        );
+        if (createTableMatch) {
+          const tableName = createTableMatch[1];
+
+          // Check if there's pending JSON data for this table (deferred loading)
+          const pendingFile = pendingJSONFiles.get(tableName);
+          if (pendingFile) {
+            // Table was just created by DDL - now load the JSON data
+            await loadJSONData(connection, tableName, pendingFile);
+            pendingJSONFiles.delete(tableName);
+          } else if (writeStrategy !== 'none') {
+            // No pending data - export empty table (preserves SMRT system tables)
             try {
-              // Only export if JSON file doesn't already exist
-              // This prevents overwriting existing data when tables are manually created
               const { access } = await import('node:fs/promises');
               const jsonFilePath = join(url, `${tableName}.json`);
               try {
@@ -1434,14 +1452,21 @@ export async function getDatabase(
         try {
           await connection.run(transformedDDL);
 
-          // Detect CREATE TABLE statements and auto-export empty tables
-          // This ensures tables persist even when empty
-          if (writeStrategy !== 'none') {
-            const createTableMatch = transformedDDL.match(
-              /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["']?(\w+)["']?/i,
-            );
-            if (createTableMatch) {
-              const tableName = createTableMatch[1];
+          // Detect CREATE TABLE statements
+          const createTableMatch = transformedDDL.match(
+            /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["']?(\w+)["']?/i,
+          );
+          if (createTableMatch) {
+            const tableName = createTableMatch[1];
+
+            // Check if there's pending JSON data for this table (deferred loading)
+            const pendingFile = pendingJSONFiles.get(tableName);
+            if (pendingFile) {
+              // Table was just created by DDL - now load the JSON data
+              await loadJSONData(connection, tableName, pendingFile);
+              pendingJSONFiles.delete(tableName);
+            } else if (writeStrategy !== 'none') {
+              // No pending data - export empty table (preserves SMRT system tables)
               try {
                 // Only export if JSON file doesn't already exist
                 // This prevents overwriting existing data when tables are manually created
