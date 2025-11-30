@@ -1,5 +1,13 @@
 # @happyvertical/encryption
 
+## 0.56.17
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.56.17
+  - @happyvertical/logger@0.56.17
+
 ## 0.56.16
 
 ### Patch Changes

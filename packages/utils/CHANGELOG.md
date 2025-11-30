@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.56.17
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - use schema.columns for STI field validation in JSON adapter (#517) (sql)
+
 ## 0.56.16
 
 ## 0.56.15
