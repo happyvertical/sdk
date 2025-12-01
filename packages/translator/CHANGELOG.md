@@ -1,5 +1,13 @@
 # @happyvertical/translator
 
+## 0.57.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.57.0
+  - @happyvertical/cache@0.57.0
+
 ## 0.56.18
 
 ### Patch Changes
