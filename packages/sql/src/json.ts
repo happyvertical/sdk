@@ -132,12 +132,15 @@ async function loadJSONData(
  *
  * Schema resolution priority:
  * 1. Explicit schemas provided via options.schemas - table created immediately
- * 2. DDL via ensureSchema() - table created when DDL executed, then JSON loaded
- * 3. Schema file (.schema.sql) - table created with schema, then JSON loaded
+ * 2. Schema file (.schema.sql) in data directory - table created with schema
+ * 3. All other tables - DEFERRED until syncSchema() provides DDL
  *
- * For tables without explicit schemas, JSON loading is DEFERRED until DDL creates
- * the table. This allows SMRT's ensureSchema() to provide correct column types
- * before data is loaded.
+ * IMPORTANT: Tables without explicit schemas are NOT auto-created from JSON.
+ * This ensures UNIQUE constraints from syncSchema() are in place before data
+ * is loaded, which is required for UPSERT operations to work correctly.
+ *
+ * For users who want auto-inference, use the inferSchemaFromJSON() method
+ * after database creation.
  *
  * @param connection - DuckDB connection
  * @param dataDir - Directory containing JSON files
@@ -155,11 +158,6 @@ async function loadJSONTables(
     const jsonFiles = files.filter(
       (file) => extname(file).toLowerCase() === '.json',
     );
-
-    // Determine if we're in "SMRT mode" (schemas provided) or "backward compat mode" (no schemas)
-    // When schemas are provided, we defer tables without explicit schemas to allow ensureSchema() to provide DDL
-    // When no schemas are provided, we auto-create all tables from JSON (backward compatibility)
-    const hasSchemasProvided = Object.keys(providedSchemas).length > 0;
 
     for (const file of jsonFiles) {
       const filePath = join(dataDir, file);
@@ -202,33 +200,14 @@ async function loadJSONTables(
               `[json-adapter] Could not load ${tableName} with schema file: ${error instanceof Error ? error.message : String(error)}`,
             );
           }
-        } else if (hasSchemasProvided) {
-          // SMRT MODE: Schemas were provided but not for this table - DEFER loading
-          // This allows ensureSchema() to provide correct DDL before data is loaded
-          // The JSON data will be loaded after CREATE TABLE is executed
+        } else {
+          // DEFER loading - wait for syncSchema() to provide correct DDL with constraints
+          // This ensures UNIQUE constraints are created before UPSERT operations
+          // JSON data will be loaded after CREATE TABLE is executed via syncSchema()
           pendingJSONFiles.set(tableName, filePath);
           console.log(
-            `[json-adapter] Deferring ${tableName} - will load after DDL creates table`,
+            `[json-adapter] Deferring ${tableName} - will load after syncSchema() creates table`,
           );
-        } else {
-          // BACKWARD COMPAT MODE: No schemas provided at all - auto-create from JSON
-          // This maintains backward compatibility for non-SMRT users who just want to query JSON files
-          try {
-            console.log(
-              `[json-adapter] Auto-creating ${tableName} from JSON (no schema provided)`,
-            );
-            // Use DuckDB's read_json_auto to infer types and create table
-            // Note: DuckDB's type inference is conservative - string columns containing
-            // ISO 8601 timestamps will remain as VARCHAR. For proper timestamp types,
-            // provide explicit schema via options.schemas parameter.
-            await connection.run(
-              `CREATE TABLE "${tableName}" AS SELECT * FROM read_json_auto('${filePath}')`,
-            );
-          } catch (error) {
-            console.warn(
-              `[json-adapter] Could not auto-create ${tableName} from JSON: ${error instanceof Error ? error.message : String(error)}`,
-            );
-          }
         }
       }
     }
@@ -1182,6 +1161,59 @@ export async function getDatabase(
     };
 
     /**
+     * Creates a table by inferring schema from a JSON file
+     *
+     * This utility is for users who want automatic schema inference from JSON.
+     * Note: Inferred schemas do NOT include UNIQUE constraints, so UPSERT
+     * operations will fail. Use syncSchema() with explicit DDL for UPSERT support.
+     *
+     * @param tableName - Name of the table to create
+     * @param jsonPath - Optional path to JSON file (defaults to {dataDir}/{tableName}.json)
+     * @returns Promise that resolves when table is created
+     * @throws Error if JSON file doesn't exist or table creation fails
+     */
+    const inferSchemaFromJSON = async (
+      tableName: string,
+      jsonPath?: string,
+    ): Promise<void> => {
+      validateTableName(tableName);
+
+      const filePath = jsonPath || join(url, `${tableName}.json`);
+
+      try {
+        // Check if file exists
+        const { access } = await import('node:fs/promises');
+        const { constants } = await import('node:fs');
+        await access(filePath, constants.F_OK);
+
+        // Use DuckDB's read_json_auto to infer types and create table
+        console.log(
+          `[json-adapter] Inferring schema for ${tableName} from JSON file`,
+        );
+        await connection.run(
+          `CREATE TABLE "${tableName}" AS SELECT * FROM read_json_auto('${filePath}')`,
+        );
+
+        // Remove from pending files if it was deferred
+        pendingJSONFiles.delete(tableName);
+
+        console.log(
+          `[json-adapter] Created ${tableName} with inferred schema (no UNIQUE constraints)`,
+        );
+      } catch (error) {
+        throw new DatabaseError(
+          `Failed to infer schema from JSON for table ${tableName}`,
+          {
+            tableName,
+            jsonPath: filePath,
+            originalError:
+              error instanceof Error ? error.message : String(error),
+          },
+        );
+      }
+    };
+
+    /**
      * Creates a table-specific interface for simplified table operations
      *
      * @param tableName - Table name
@@ -1623,9 +1655,16 @@ export async function getDatabase(
       syncSchema,
       initializeSchemas,
       transaction,
-      // JSON-specific export method
+      // JSON-specific methods
       exportTable,
-    } as DatabaseInterface & { exportTable: (table: string) => Promise<void> };
+      inferSchemaFromJSON,
+    } as DatabaseInterface & {
+      exportTable: (table: string) => Promise<void>;
+      inferSchemaFromJSON: (
+        tableName: string,
+        jsonPath?: string,
+      ) => Promise<void>;
+    };
   })();
 
   // Store the pending connection promise (if caching)
