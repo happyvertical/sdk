@@ -32,11 +32,22 @@ describe('JSON adapter tests', () => {
       ]),
     );
 
-    // Initialize JSON database
+    // Initialize JSON database with explicit schema
+    // (auto-inference was removed in issue #522 to fix UPSERT constraint issues)
     db = await getDatabase({
       type: 'json',
       url: testDataDir,
       writeStrategy: 'immediate',
+      schemas: {
+        contents: {
+          tableName: 'contents',
+          ddl: `CREATE TABLE contents (
+            id TEXT PRIMARY KEY,
+            title TEXT,
+            body TEXT
+          )`,
+        },
+      },
     });
   });
 
@@ -136,6 +147,24 @@ describe('JSON adapter tests', () => {
       type: 'json',
       url: testDataDir,
       writeStrategy: 'immediate',
+      schemas: {
+        contents: {
+          tableName: 'contents',
+          ddl: `CREATE TABLE contents (
+            id TEXT PRIMARY KEY,
+            title TEXT,
+            body TEXT
+          )`,
+        },
+        authors: {
+          tableName: 'authors',
+          ddl: `CREATE TABLE authors (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            email TEXT
+          )`,
+        },
+      },
     });
 
     // Add author_id to contents
@@ -206,6 +235,16 @@ describe('JSON adapter tests', () => {
       type: 'json',
       url: testDataDir,
       writeStrategy: 'none',
+      schemas: {
+        contents: {
+          tableName: 'contents',
+          ddl: `CREATE TABLE contents (
+            id TEXT PRIMARY KEY,
+            title TEXT,
+            body TEXT
+          )`,
+        },
+      },
     });
 
     // Reading should work
@@ -227,6 +266,16 @@ describe('JSON adapter tests', () => {
       type: 'json',
       url: testDataDir,
       writeStrategy: 'manual',
+      schemas: {
+        contents: {
+          tableName: 'contents',
+          ddl: `CREATE TABLE contents (
+            id TEXT PRIMARY KEY,
+            title TEXT,
+            body TEXT
+          )`,
+        },
+      },
     });
 
     const data = {
@@ -309,10 +358,11 @@ describe('JSON adapter tests', () => {
     });
   });
 
-  it('should preserve ISO 8601 strings and allow querying without explicit schema', async () => {
-    // Note: DuckDB's read_json_auto keeps ISO 8601 strings as VARCHAR by default.
+  it('should support inferSchemaFromJSON() for explicit auto-inference', async () => {
+    // Note: Auto-inference was removed in issue #522. Users who want auto-inference
+    // must now call inferSchemaFromJSON() explicitly.
+    // DuckDB's read_json_auto keeps ISO 8601 strings as VARCHAR by default.
     // For proper TIMESTAMP/DATE typing, provide explicit schema via options.schemas.
-    // This test verifies backward compatibility: JSON files are queryable without schema.
     const timestampDir = './test-timestamp-inference';
     mkdirSync(timestampDir, { recursive: true });
 
@@ -333,16 +383,22 @@ describe('JSON adapter tests', () => {
       JSON.stringify(testData, null, 2),
     );
 
-    // Create database with autoRegister (no explicit schema)
+    // Create database - table will be DEFERRED (not auto-created)
     const timestampDb = await getDatabase({
       type: 'json',
       url: timestampDir,
       writeStrategy: 'immediate',
-      autoRegister: true,
     });
 
-    // Verify table was auto-registered
-    const tableExists = await timestampDb.tableExists('events');
+    // Verify table was NOT auto-created (deferred)
+    let tableExists = await timestampDb.tableExists('events');
+    expect(tableExists).toBe(false);
+
+    // Now explicitly infer schema from JSON
+    await timestampDb.inferSchemaFromJSON('events');
+
+    // Verify table was created via inference
+    tableExists = await timestampDb.tableExists('events');
     expect(tableExists).toBe(true);
 
     // Query schema to verify type inference
@@ -386,15 +442,16 @@ describe('JSON adapter tests', () => {
     expect(events[0].created_at).toBeDefined(); // TIMESTAMP returned as object
 
     // Clean up
+    clearConnectionCache();
     rmSync(timestampDir, { recursive: true, force: true });
   });
 
   describe('SMRT integration', () => {
-    it('should create tables with SMRT schema when available', async () => {
-      // This test requires @happyvertical/smrt to be available
-      // It demonstrates that the JSON adapter will use SMRT schemas when found
+    it('should create tables with explicit schema (no auto-detection)', async () => {
+      // Issue #522: Auto-detection was removed to fix UPSERT constraint issues.
+      // Tables must now be created via explicit schemas or syncSchema().
 
-      // Create a JSON file with empty strings (would fail with auto-detection)
+      // Create a JSON file with empty strings
       writeFileSync(
         `${testDataDir}/test_objects.json`,
         JSON.stringify([
@@ -403,19 +460,13 @@ describe('JSON adapter tests', () => {
             slug: 'test-object',
             context: '',
             name: 'Test Object',
-            url: '', // Empty string - DuckDB can't infer type
-            meetings_url: '', // Empty string - would cause "ANY type" error
+            url: '', // Empty string
+            meetings_url: '', // Empty string
             location: '',
             timezone: '',
           },
         ]),
       );
-
-      // Note: Without SMRT registration, this would use auto-detection
-      // With SMRT registration, it would use the SMRT schema
-
-      // For this test, we'll just verify the auto-detection fallback works
-      // In production, users would register SMRT objects before initializing the DB
 
       // Clear cache to pick up new JSON file
       clearConnectionCache();
@@ -423,9 +474,26 @@ describe('JSON adapter tests', () => {
         type: 'json',
         url: testDataDir,
         writeStrategy: 'immediate',
+        // Explicit schema with proper types and UNIQUE constraint
+        schemas: {
+          test_objects: {
+            tableName: 'test_objects',
+            ddl: `CREATE TABLE test_objects (
+              id TEXT PRIMARY KEY,
+              slug TEXT NOT NULL,
+              context TEXT NOT NULL DEFAULT '',
+              name TEXT,
+              url TEXT,
+              meetings_url TEXT,
+              location TEXT,
+              timezone TEXT,
+              UNIQUE(slug, context)
+            )`,
+          },
+        },
       });
 
-      // Verify table was created (even with auto-detection)
+      // Verify table was created with explicit schema
       const tableExists = await testDb.tableExists('test_objects');
       expect(tableExists).toBe(true);
 
@@ -501,8 +569,9 @@ describe('JSON adapter tests', () => {
       expect(all[1].context).toBe('other');
     });
 
-    it('should demonstrate the problem solved by SMRT integration', async () => {
-      // This test demonstrates the actual problem from issue #228
+    it('should demonstrate syncSchema() creating table before JSON is loaded', async () => {
+      // Issue #522: Tables without explicit schemas are DEFERRED until syncSchema() is called.
+      // This ensures UNIQUE constraints are in place before data is loaded.
 
       // Scenario: JSON file with empty strings/nulls (typical initial state)
       writeFileSync(
@@ -513,25 +582,14 @@ describe('JSON adapter tests', () => {
             slug: 'town-of-bentley',
             context: '',
             name: 'town-of-bentley',
-            url: '', // Empty - DuckDB infers as ANY type
-            meetings_url: '', // Empty - DuckDB infers as ANY type
+            url: '', // Empty string
+            meetings_url: '', // Empty string
             location: '',
             timezone: '',
           },
         ]),
       );
 
-      // Without SMRT integration:
-      // - DuckDB auto-detects columns as ANY type
-      // - Subsequent UPSERT operations fail with "Cannot create values of type ANY"
-
-      // With SMRT integration:
-      // - getSmrtSchemaForTable() finds the registered SMRT object
-      // - createTableFromSmrtSchema() creates table with proper TEXT types
-      // - JSON data is loaded into properly-typed table
-      // - INSERT operations work correctly with proper typing
-
-      // For this test, we reload to simulate the fixed behavior
       // Clear cache to pick up new JSON file
       clearConnectionCache();
       const testDb = await getDatabase({
@@ -540,7 +598,35 @@ describe('JSON adapter tests', () => {
         writeStrategy: 'immediate',
       });
 
-      // This would fail without proper typing, but with auto-detection it works for INSERT
+      // Table is DEFERRED - doesn't exist yet
+      let tableExists = await testDb.tableExists('os');
+      expect(tableExists).toBe(false);
+
+      // Call syncSchema() to create table with proper types and constraints
+      await testDb.syncSchema(`
+        CREATE TABLE os (
+          id TEXT PRIMARY KEY,
+          slug TEXT NOT NULL,
+          context TEXT NOT NULL DEFAULT '',
+          name TEXT,
+          url TEXT,
+          meetings_url TEXT,
+          location TEXT,
+          timezone TEXT,
+          UNIQUE(slug, context)
+        )
+      `);
+
+      // Now table exists with proper schema AND JSON data is loaded
+      tableExists = await testDb.tableExists('os');
+      expect(tableExists).toBe(true);
+
+      // Verify existing JSON data was loaded
+      const existingData =
+        await testDb.many`SELECT * FROM os WHERE slug = 'town-of-bentley'`;
+      expect(existingData).toHaveLength(1);
+
+      // Now we can INSERT new data
       const newData = {
         id: randomUUID(),
         slug: 'another-org',
@@ -552,7 +638,6 @@ describe('JSON adapter tests', () => {
         timezone: 'America/Denver',
       };
 
-      // INSERT works with auto-detection (for this simple case)
       await testDb.insert('os', newData);
 
       // Verify the insert worked
@@ -562,10 +647,17 @@ describe('JSON adapter tests', () => {
       expect(result[0].slug).toBe('another-org');
       expect(result[0].url).toBe('https://example.com');
 
-      // The key benefit of SMRT integration is:
-      // 1. Proper type definitions prevent ANY type inference issues
-      // 2. UNIQUE constraints on (slug, context) enable UPSERT operations
-      // 3. Empty strings are handled correctly from the start
+      // And UPSERT works because UNIQUE constraint is in place
+      await testDb.upsert('os', ['slug', 'context'], {
+        ...newData,
+        name: 'Updated Name',
+      });
+
+      const updated = await testDb.get('os', {
+        slug: 'another-org',
+        context: '',
+      });
+      expect(updated?.name).toBe('Updated Name');
     });
 
     it('should fix DuckDB type inference with explicit DEFAULT casts', async () => {
