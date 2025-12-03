@@ -1,5 +1,17 @@
 # @happyvertical/utils
 
+## 0.57.0
+
+### Minor Changes
+
+- ### Breaking Changes
+
+  - remove automatic schema inference from JSON files (#523) (sql)
+
+  ### Bug Fixes
+
+  - remove automatic schema inference from JSON files (#523) (sql)
+
 ## 0.56.18
 
 ### Patch Changes
