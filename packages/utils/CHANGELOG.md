@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.57.1
+
+### Patch Changes
+
+- ### Features
+
+  - add S3 cache provider for CI persistence (#526) (cache,spider)
+
 ## 0.57.0
 
 ### Minor Changes
