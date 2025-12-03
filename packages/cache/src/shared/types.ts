@@ -80,7 +80,7 @@ export interface CacheStats {
    * Backend-specific statistics
    */
   backend?: {
-    type: 'memory' | 'file' | 'redis';
+    type: 'memory' | 'file' | 'redis' | 's3';
     [key: string]: any;
   };
 }
@@ -229,9 +229,35 @@ export interface RedisOptions {
 }
 
 /**
+ * S3 cache options
+ * Use this for CI environments where cache needs to persist between runs
+ */
+export interface S3Options {
+  provider: 's3';
+  /** S3 bucket name (required) */
+  bucket: string;
+  /** Key prefix for cache files (default: 'cache/') */
+  prefix?: string;
+  /** AWS region (default: from AWS_REGION env var or 'us-east-1') */
+  region?: string;
+  /** Optional namespace for key organization */
+  namespace?: string;
+  /** Default TTL in seconds */
+  defaultTTL?: number;
+  /** Enable gzip compression (default: true) */
+  compression?: boolean;
+  /** Only compress if value exceeds this size in bytes (default: 1024) */
+  compressionThreshold?: number;
+}
+
+/**
  * Discriminated union of all cache adapter options
  */
-export type CacheAdapterOptions = MemoryOptions | FileOptions | RedisOptions;
+export type CacheAdapterOptions =
+  | MemoryOptions
+  | FileOptions
+  | RedisOptions
+  | S3Options;
 
 /**
  * Base cache error class

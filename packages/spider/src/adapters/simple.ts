@@ -9,6 +9,7 @@ import {
 import * as cheerio from 'cheerio';
 import { request } from 'undici';
 import type {
+  CacheProviderConfig,
   FetchOptions,
   Link,
   Page,
@@ -23,20 +24,32 @@ import type {
 export class SimpleAdapter implements SpiderAdapter {
   private cache?: CacheAdapter;
   private cacheDir: string;
+  private cacheProviderConfig?: CacheProviderConfig;
 
   constructor(options: SimpleAdapterOptions) {
     this.cacheDir = options.cacheDir || '.cache/spider';
+    this.cacheProviderConfig = options.cacheProvider;
   }
 
   /**
    * Initialize the cache adapter if needed
+   * Uses S3 if cacheProvider is configured, otherwise falls back to file
    */
   private async initCache(): Promise<CacheAdapter> {
     if (!this.cache) {
-      this.cache = await getCache({
-        provider: 'file',
-        cacheDir: this.cacheDir,
-      });
+      if (this.cacheProviderConfig?.provider === 's3') {
+        this.cache = await getCache({
+          provider: 's3',
+          bucket: this.cacheProviderConfig.bucket!,
+          prefix: this.cacheProviderConfig.prefix || 'cache/',
+          region: this.cacheProviderConfig.region,
+        });
+      } else {
+        this.cache = await getCache({
+          provider: 'file',
+          cacheDir: this.cacheDir,
+        });
+      }
     }
     return this.cache;
   }

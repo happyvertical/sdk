@@ -8,6 +8,7 @@ import {
 } from '@happyvertical/utils';
 import { Configuration, PlaywrightCrawler } from 'crawlee';
 import type {
+  CacheProviderConfig,
   CrawleeAdapterOptions,
   FetchOptions,
   Link,
@@ -22,24 +23,36 @@ import type {
 export class CrawleeAdapter implements SpiderAdapter {
   private cache?: CacheAdapter;
   private cacheDir: string;
+  private cacheProviderConfig?: CacheProviderConfig;
   private headless: boolean;
   private userAgent?: string;
 
   constructor(options: CrawleeAdapterOptions) {
     this.cacheDir = options.cacheDir || '.cache/spider';
+    this.cacheProviderConfig = options.cacheProvider;
     this.headless = options.headless !== false; // Default to true
     this.userAgent = options.userAgent;
   }
 
   /**
    * Initialize the cache adapter if needed
+   * Uses S3 if cacheProvider is configured, otherwise falls back to file
    */
   private async initCache(): Promise<CacheAdapter> {
     if (!this.cache) {
-      this.cache = await getCache({
-        provider: 'file',
-        cacheDir: this.cacheDir,
-      });
+      if (this.cacheProviderConfig?.provider === 's3') {
+        this.cache = await getCache({
+          provider: 's3',
+          bucket: this.cacheProviderConfig.bucket!,
+          prefix: this.cacheProviderConfig.prefix || 'cache/',
+          region: this.cacheProviderConfig.region,
+        });
+      } else {
+        this.cache = await getCache({
+          provider: 'file',
+          cacheDir: this.cacheDir,
+        });
+      }
     }
     return this.cache;
   }

@@ -10,6 +10,7 @@ import type {
   FileOptions,
   MemoryOptions,
   RedisOptions,
+  S3Options,
 } from './shared/types';
 
 // Export all types
@@ -40,19 +41,29 @@ function isRedisOptions(options: CacheAdapterOptions): options is RedisOptions {
 }
 
 /**
+ * Type guard for S3 cache options
+ */
+function isS3Options(options: CacheAdapterOptions): options is S3Options {
+  return options.provider === 's3';
+}
+
+/**
  * Factory function to create a cache adapter instance
  *
  * Supports environment variable configuration using the HAVE_CACHE_* pattern:
- * - HAVE_CACHE_PROVIDER → provider ('memory'|'file'|'redis')
+ * - HAVE_CACHE_PROVIDER → provider ('memory'|'file'|'redis'|'s3')
  * - HAVE_CACHE_NAMESPACE → namespace (string)
  * - HAVE_CACHE_DEFAULT_TTL → defaultTTL (number: seconds)
  * - HAVE_CACHE_MAX_SIZE → maxSize (number: bytes)
  * - HAVE_CACHE_MAX_ENTRIES → maxEntries (number, memory only)
  * - HAVE_CACHE_EVICTION_POLICY → evictionPolicy ('lru'|'lfu'|'fifo', memory only)
  * - HAVE_CACHE_CACHE_DIR → cacheDir (string, file only)
- * - HAVE_CACHE_COMPRESSION → compression (boolean, file only)
+ * - HAVE_CACHE_COMPRESSION → compression (boolean, file/s3)
  * - HAVE_CACHE_HOST → host (string, redis only)
  * - HAVE_CACHE_PORT → port (number, redis only)
+ * - HAVE_CACHE_BUCKET → bucket (string, s3 only)
+ * - HAVE_CACHE_PREFIX → prefix (string, s3 only)
+ * - HAVE_CACHE_REGION → region (string, s3 only)
  *
  * User-provided options always take precedence over environment variables.
  *
@@ -88,6 +99,14 @@ function isRedisOptions(options: CacheAdapterOptions): options is RedisOptions {
  *   port: 6379
  * });
  *
+ * // Create S3 cache (for CI persistence)
+ * const s3Cache = await getCache({
+ *   provider: 's3',
+ *   bucket: 'my-cache-bucket',
+ *   prefix: 'cache/',
+ *   region: 'us-east-1'
+ * });
+ *
  * // Use the cache
  * await memoryCache.set('user:123', { name: 'John' });
  * const user = await memoryCache.get('user:123');
@@ -121,6 +140,10 @@ export async function getCache(
       compressionThreshold: 'number',
       connectTimeout: 'number',
       commandTimeout: 'number',
+      // S3 options
+      bucket: 'string',
+      prefix: 'string',
+      region: 'string',
     } as any,
     allowUnknown: false,
   }) as CacheAdapterOptions;
@@ -138,6 +161,11 @@ export async function getCache(
   if (isRedisOptions(config)) {
     const { RedisProvider } = await import('./providers/redis.js');
     return new RedisProvider(config);
+  }
+
+  if (isS3Options(config)) {
+    const { S3Provider } = await import('./providers/s3.js');
+    return new S3Provider(config);
   }
 
   // This should never happen due to TypeScript's discriminated union

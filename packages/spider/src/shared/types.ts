@@ -120,6 +120,21 @@ export interface SpiderAdapter {
 }
 
 /**
+ * Cache provider configuration
+ * Allows selecting between file cache (local dev) and S3 cache (CI)
+ */
+export interface CacheProviderConfig {
+  /** Provider type: 'file' for local, 's3' for cloud persistence */
+  provider: 'file' | 's3';
+  /** S3 bucket name (required if provider is 's3') */
+  bucket?: string;
+  /** S3 key prefix (default: 'cache/') */
+  prefix?: string;
+  /** AWS region (default: from AWS_REGION env var) */
+  region?: string;
+}
+
+/**
  * Options for simple HTTP adapter
  */
 export interface SimpleAdapterOptions {
@@ -129,6 +144,11 @@ export interface SimpleAdapterOptions {
    * @default '.cache/spider'
    */
   cacheDir?: string;
+  /**
+   * Cache provider configuration (optional, defaults to file)
+   * Use this to enable S3 caching in CI environments
+   */
+  cacheProvider?: CacheProviderConfig;
 }
 
 /**
@@ -141,6 +161,11 @@ export interface DomAdapterOptions {
    * @default '.cache/spider'
    */
   cacheDir?: string;
+  /**
+   * Cache provider configuration (optional, defaults to file)
+   * Use this to enable S3 caching in CI environments
+   */
+  cacheProvider?: CacheProviderConfig;
 }
 
 /**
@@ -153,6 +178,11 @@ export interface CrawleeAdapterOptions {
    * @default '.cache/spider'
    */
   cacheDir?: string;
+  /**
+   * Cache provider configuration (optional, defaults to file)
+   * Use this to enable S3 caching in CI environments
+   */
+  cacheProvider?: CacheProviderConfig;
   /**
    * Whether to run browser in headless mode
    * @default true
@@ -294,6 +324,9 @@ export interface BasicScraperOptions {
 
   /** Cache directory */
   cacheDir?: string;
+
+  /** Cache provider configuration (optional, defaults to file) */
+  cacheProvider?: CacheProviderConfig;
 }
 
 /**
@@ -304,6 +337,9 @@ export interface TreeScraperOptions {
 
   /** Cache directory */
   cacheDir?: string;
+
+  /** Cache provider configuration (optional, defaults to file) */
+  cacheProvider?: CacheProviderConfig;
 
   /** Max iterations for tree expansion */
   maxIterations?: number;
@@ -336,6 +372,9 @@ export interface AjaxScraperOptions {
   /** Cache directory */
   cacheDir?: string;
 
+  /** Cache provider configuration (optional, defaults to file) */
+  cacheProvider?: CacheProviderConfig;
+
   /** Max time to wait for content in ms */
   maxWaitTime?: number;
 
@@ -360,6 +399,9 @@ export interface ScrollScraperOptions {
 
   /** Cache directory */
   cacheDir?: string;
+
+  /** Cache provider configuration (optional, defaults to file) */
+  cacheProvider?: CacheProviderConfig;
 
   /** Max scrolls to perform */
   maxScrolls?: number;
@@ -388,6 +430,9 @@ export interface PaginationScraperOptions {
 
   /** Cache directory */
   cacheDir?: string;
+
+  /** Cache provider configuration (optional, defaults to file) */
+  cacheProvider?: CacheProviderConfig;
 
   /** Max pages to crawl */
   maxPages?: number;
