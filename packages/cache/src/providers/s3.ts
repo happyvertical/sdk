@@ -204,12 +204,12 @@ export class S3Provider implements CacheProvider {
       },
     };
 
-    let data = Buffer.from(serialize(entry), 'utf-8');
+    let data: Buffer = Buffer.from(serialize(entry), 'utf-8');
     let isCompressed = false;
 
     // Compress if enabled and data exceeds threshold
     if (this.compression && data.length > this.compressionThreshold) {
-      data = await gzipAsync(data);
+      data = (await gzipAsync(data)) as Buffer;
       isCompressed = true;
     }
 
