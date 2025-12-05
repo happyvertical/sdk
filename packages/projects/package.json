@@ -20,6 +20,7 @@
     "dev": "npm run build:watch & npm run test:watch"
   },
   "dependencies": {
+    "@happyvertical/graphql": "workspace:*",
     "@happyvertical/repos": "workspace:*"
   },
   "devDependencies": {

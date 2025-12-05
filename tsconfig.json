@@ -57,11 +57,12 @@
     { "path": "./packages/pdf" },
     { "path": "./packages/documents" },
     { "path": "./packages/spider" },
-    { "path": "./packages/messages" },
+    { "path": "./packages/email" },
 
     // Developer tools
     { "path": "./packages/sdk-mcp" },
     { "path": "./packages/github-actions" },
+    { "path": "./packages/graphql" },
     { "path": "./packages/repos" },
     { "path": "./packages/projects" }
   ]

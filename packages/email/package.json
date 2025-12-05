@@ -1,0 +1,69 @@
+{
+  "name": "@happyvertical/email",
+  "version": "0.58.0",
+  "description": "Low-level email protocol operations with adapter-based architecture",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@happyvertical/logger": "workspace:*",
+    "@happyvertical/utils": "workspace:*",
+    "google-auth-library": "^10.5.0",
+    "googleapis": "^131.0.0",
+    "imapflow": "^1.1.1",
+    "mailparser": "^3.9.0",
+    "node-pop3": "^0.10.0",
+    "nodemailer": "^6.9.8"
+  },
+  "devDependencies": {
+    "@types/mailparser": "^3.4.6",
+    "@types/node": "^24.10.1",
+    "@types/nodemailer": "^6.4.21",
+    "smtp-server": "^3.16.1",
+    "typescript": "^5.7.3",
+    "vite": "^7.2.2",
+    "vite-plugin-dts": "^4.5.4",
+    "vitest": "^4.0.8"
+  },
+  "keywords": [
+    "email",
+    "smtp",
+    "imap",
+    "pop3",
+    "gmail",
+    "protocol"
+  ],
+  "author": "HappyVertical",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/happyvertical/sdk.git",
+    "directory": "packages/email"
+  },
+  "bugs": {
+    "url": "https://github.com/happyvertical/sdk/issues"
+  },
+  "homepage": "https://github.com/happyvertical/sdk/tree/main/packages/email#readme"
+}
