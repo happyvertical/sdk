@@ -59,6 +59,12 @@ export interface Repository {
   isPrivate: boolean;
 }
 
+export interface Branch {
+  name: string;
+  sha: string;
+  protected: boolean;
+}
+
 export interface CreateIssueInput {
   title: string;
   body?: string;
@@ -144,4 +150,25 @@ export interface IRepository {
   // Node ID resolution (for Projects V2 API)
   getIssueNodeId(issueNumber: number): Promise<string>;
   getPRNodeId(prNumber: number): Promise<string>;
+
+  // Branches
+  createBranch(name: string, fromRef: string): Promise<Branch>;
+  deleteBranch(name: string): Promise<void>;
+  getBranch(name: string): Promise<Branch | null>;
+
+  // PR Draft/Review
+  markPRReady(prNumber: number): Promise<void>;
+  convertPRToDraft(prNumber: number): Promise<void>;
+  requestReview(prNumber: number, reviewers: string[]): Promise<void>;
+
+  // Workflow
+  triggerWorkflow(
+    workflowId: string,
+    ref: string,
+    inputs?: Record<string, string>,
+  ): Promise<void>;
+
+  // Linking
+  findPRsForIssue(issueNumber: number): Promise<PullRequest[]>;
+  findIssueForPR(prNumber: number): Promise<Issue | null>;
 }

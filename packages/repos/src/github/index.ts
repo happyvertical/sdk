@@ -2,7 +2,9 @@
  * GitHub repository implementation
  */
 
+import { GraphQLClient, type IGraphQLClient } from '@happyvertical/graphql';
 import type {
+  Branch,
   Comment,
   CreateIssueInput,
   CreatePRInput,
@@ -17,7 +19,6 @@ import type {
   UpdateIssueInput,
   User,
 } from '../types.js';
-import { GitHubGraphQL } from './graphql.js';
 import { GitHubRest } from './rest.js';
 
 /**
@@ -25,7 +26,7 @@ import { GitHubRest } from './rest.js';
  */
 export class GitHubRepository implements IRepository {
   private rest: GitHubRest;
-  private graphql: GitHubGraphQL;
+  private graphql: IGraphQLClient;
   private owner: string;
   private repo: string;
 
@@ -40,7 +41,12 @@ export class GitHubRepository implements IRepository {
       token: config.token,
       baseUrl: config.baseUrl,
     });
-    this.graphql = new GitHubGraphQL({ token: config.token });
+    this.graphql = new GraphQLClient({
+      endpoint: config.baseUrl
+        ? `${config.baseUrl}/graphql`
+        : 'https://api.github.com/graphql',
+      token: config.token,
+    });
   }
 
   // Repository Info
@@ -345,5 +351,151 @@ export class GitHubRepository implements IRepository {
   async getPRNodeId(prNumber: number): Promise<string> {
     const pr = await this.getPullRequest(prNumber);
     return pr.id;
+  }
+
+  // Branch Management
+  async createBranch(name: string, fromRef: string): Promise<Branch> {
+    // First get the SHA for the reference
+    const refData = (await this.rest.get(
+      `/repos/${this.owner}/${this.repo}/git/ref/heads/${fromRef}`,
+    )) as { object: { sha: string } };
+
+    // Create the new branch
+    await this.rest.post(`/repos/${this.owner}/${this.repo}/git/refs`, {
+      ref: `refs/heads/${name}`,
+      sha: refData.object.sha,
+    });
+
+    return {
+      name,
+      sha: refData.object.sha,
+      protected: false,
+    };
+  }
+
+  async deleteBranch(name: string): Promise<void> {
+    await this.rest.delete(
+      `/repos/${this.owner}/${this.repo}/git/refs/heads/${name}`,
+    );
+  }
+
+  async getBranch(name: string): Promise<Branch | null> {
+    try {
+      const data = (await this.rest.get(
+        `/repos/${this.owner}/${this.repo}/branches/${encodeURIComponent(name)}`,
+      )) as {
+        name: string;
+        commit: { sha: string };
+        protected: boolean;
+      };
+
+      return {
+        name: data.name,
+        sha: data.commit.sha,
+        protected: data.protected,
+      };
+    } catch (error) {
+      // Return null if branch not found (404)
+      if (
+        error instanceof Error &&
+        'code' in error &&
+        (error as { code: string }).code === 'NOT_FOUND'
+      ) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  // PR Draft/Review
+  async markPRReady(prNumber: number): Promise<void> {
+    const pr = await this.getPullRequest(prNumber);
+    const mutation = `
+      mutation($pullRequestId: ID!) {
+        markPullRequestReadyForReview(input: {
+          pullRequestId: $pullRequestId
+        }) {
+          pullRequest {
+            id
+          }
+        }
+      }
+    `;
+    await this.graphql.mutate(mutation, { pullRequestId: pr.id });
+  }
+
+  async convertPRToDraft(prNumber: number): Promise<void> {
+    const pr = await this.getPullRequest(prNumber);
+    const mutation = `
+      mutation($pullRequestId: ID!) {
+        convertPullRequestToDraft(input: {
+          pullRequestId: $pullRequestId
+        }) {
+          pullRequest {
+            id
+          }
+        }
+      }
+    `;
+    await this.graphql.mutate(mutation, { pullRequestId: pr.id });
+  }
+
+  async requestReview(prNumber: number, reviewers: string[]): Promise<void> {
+    await this.rest.post(
+      `/repos/${this.owner}/${this.repo}/pulls/${prNumber}/requested_reviewers`,
+      { reviewers },
+    );
+  }
+
+  // Workflow
+  async triggerWorkflow(
+    workflowId: string,
+    ref: string,
+    inputs?: Record<string, string>,
+  ): Promise<void> {
+    await this.rest.post(
+      `/repos/${this.owner}/${this.repo}/actions/workflows/${workflowId}/dispatches`,
+      { ref, inputs: inputs || {} },
+    );
+  }
+
+  // Linking
+  async findPRsForIssue(issueNumber: number): Promise<PullRequest[]> {
+    // Search for PRs that reference this issue with closing keywords
+    const keywords = ['closes', 'fixes', 'resolves'];
+    const searchTerms = keywords
+      .map((k) => `${k} #${issueNumber}`)
+      .join(' OR ');
+    const query = `is:pr repo:${this.owner}/${this.repo} ${searchTerms}`;
+
+    const data = (await this.rest.get(
+      `/search/issues?q=${encodeURIComponent(query)}`,
+    )) as {
+      items: Array<{ number: number }>;
+    };
+
+    return Promise.all(
+      data.items.map((item) => this.getPullRequest(item.number)),
+    );
+  }
+
+  async findIssueForPR(prNumber: number): Promise<Issue | null> {
+    const pr = await this.getPullRequest(prNumber);
+
+    // Look for closing keywords in PR body
+    const closingPattern = /(?:closes?|fixes?|resolves?)\s+#(\d+)/gi;
+    const matches = [...pr.body.matchAll(closingPattern)];
+
+    if (matches.length === 0) {
+      return null;
+    }
+
+    // Return the first linked issue
+    const issueNumber = Number.parseInt(matches[0][1], 10);
+    try {
+      return await this.getIssue(issueNumber);
+    } catch {
+      return null;
+    }
   }
 }
