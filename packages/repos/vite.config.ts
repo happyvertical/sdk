@@ -9,7 +9,7 @@ export default defineConfig({
       fileName: 'index',
     },
     rollupOptions: {
-      external: [],
+      external: ['@happyvertical/graphql', 'js-yaml', 'node:fs/promises'],
     },
     sourcemap: true,
     minify: false,

@@ -26,8 +26,17 @@ export {
 } from './errors.js';
 export { getRepository } from './factory.js';
 export { GitHubRepository } from './github/index.js';
-
+export type { IssueTemplate, TemplateField } from './parsing.js';
+export {
+  getIssueField,
+  loadIssueTemplate,
+  parseIssueBody,
+  parseIssueTemplate,
+  renderIssueBody,
+  updateIssueField,
+} from './parsing.js';
 export type {
+  Branch,
   Comment,
   CreateIssueInput,
   CreatePRInput,

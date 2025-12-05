@@ -2,6 +2,7 @@
  * GitHub Projects V2 implementation
  */
 
+import { GraphQLClient, type IGraphQLClient } from '@happyvertical/graphql';
 import { ProjectError, ProjectErrorCode } from '../errors.js';
 import type {
   Field,
@@ -17,7 +18,7 @@ import type {
  * GitHub Projects V2 implementation
  */
 export class GitHubProject implements IProject {
-  private token: string;
+  private graphql: IGraphQLClient;
   private projectId: string;
   private owner?: string;
   private repo?: string;
@@ -29,52 +30,15 @@ export class GitHubProject implements IProject {
       throw new Error('Invalid config type for GitHubProject');
     }
 
-    this.token = config.token;
+    this.graphql = new GraphQLClient({
+      endpoint: 'https://api.github.com/graphql',
+      token: config.token,
+    });
     this.projectId = config.projectId;
     this.owner = config.owner;
     this.repo = config.repo;
     this.statusFieldId = config.statusFieldId;
     this.statusOptions = config.statusOptions;
-  }
-
-  /**
-   * Execute GraphQL query
-   */
-  private async graphql(
-    query: string,
-    variables?: Record<string, unknown>,
-  ): Promise<unknown> {
-    const response = await fetch('https://api.github.com/graphql', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ query, variables }),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      throw ProjectError.fromHTTPStatus(
-        response.status,
-        `GitHub GraphQL error: ${response.statusText}\n${error}`,
-        error,
-      );
-    }
-
-    const result = (await response.json()) as {
-      data?: unknown;
-      errors?: { message: string }[];
-    };
-
-    if (result.errors) {
-      throw new ProjectError(
-        `GitHub GraphQL errors: ${result.errors.map((e) => e.message).join(', ')}`,
-        ProjectErrorCode.UNKNOWN,
-      );
-    }
-
-    return result.data;
   }
 
   // Project Info
@@ -120,7 +84,7 @@ export class GitHubProject implements IProject {
       }
     `;
 
-    const data = (await this.graphql(query, {
+    const data = (await this.graphql.query(query, {
       projectId: this.projectId,
     })) as {
       node: {
@@ -155,8 +119,8 @@ export class GitHubProject implements IProject {
       description: data.node.shortDescription,
       owner: data.node.owner.login,
       url: data.node.url,
-      statuses: statusField
-        ? statusField.options!.map((opt, index) => ({
+      statuses: statusField?.options
+        ? statusField.options.map((opt, index) => ({
             id: opt.id,
             name: opt.name,
             description: opt.description,
@@ -201,7 +165,7 @@ export class GitHubProject implements IProject {
       }
     `;
 
-    const data = (await this.graphql(mutation, {
+    const data = (await this.graphql.mutate(mutation, {
       projectId: this.projectId,
       contentId,
     })) as {
@@ -235,7 +199,7 @@ export class GitHubProject implements IProject {
       }
     `;
 
-    await this.graphql(mutation, {
+    await this.graphql.mutate(mutation, {
       projectId: this.projectId,
       itemId,
     });
@@ -260,7 +224,7 @@ export class GitHubProject implements IProject {
       }
     `;
 
-    const data = (await this.graphql(query, { itemId })) as {
+    const data = (await this.graphql.query(query, { itemId })) as {
       node: {
         id: string;
         content: {
@@ -308,7 +272,7 @@ export class GitHubProject implements IProject {
       }
     `;
 
-    const data = (await this.graphql(query, {
+    const data = (await this.graphql.query(query, {
       projectId: this.projectId,
       first: filters?.limit || 100,
       after: filters?.cursor,
@@ -379,7 +343,7 @@ export class GitHubProject implements IProject {
       }
     `;
 
-    await this.graphql(mutation, {
+    await this.graphql.mutate(mutation, {
       projectId: this.projectId,
       itemId,
       fieldId,

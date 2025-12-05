@@ -9,7 +9,7 @@ export default defineConfig({
       fileName: 'index',
     },
     rollupOptions: {
-      external: ['@happyvertical/graphql', '@happyvertical/repos'],
+      external: [],
     },
     sourcemap: true,
     minify: false,
