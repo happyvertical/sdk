@@ -1,5 +1,13 @@
 # @happyvertical/github-actions
 
+## 0.59.0
+
+### Patch Changes
+
+- Updated dependencies [c49482d]
+  - @happyvertical/repos@0.59.0
+  - @happyvertical/projects@0.59.0
+
 ## 0.57.1
 
 ### Patch Changes

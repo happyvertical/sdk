@@ -1,5 +1,15 @@
 # @happyvertical/documents
 
+## 0.59.0
+
+### Patch Changes
+
+- @happyvertical/files@0.59.0
+- @happyvertical/ocr@0.59.0
+- @happyvertical/pdf@0.59.0
+- @happyvertical/spider@0.59.0
+- @happyvertical/utils@0.59.0
+
 ## 0.57.1
 
 ### Patch Changes
