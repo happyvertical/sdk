@@ -1,5 +1,5 @@
 /**
- * Error classes for @happyvertical/messages package
+ * Error classes for @happyvertical/email package
  */
 
 // ============================================================================
@@ -144,24 +144,5 @@ export class AttachmentError extends EmailError {
     super(message, 'ATTACHMENT_ERROR', provider, cause);
     this.name = 'AttachmentError';
     this.filename = filename;
-  }
-}
-
-// ============================================================================
-// Sync Errors
-// ============================================================================
-
-export class SyncError extends EmailError {
-  folder?: string;
-
-  constructor(
-    message: string,
-    folder?: string,
-    provider?: string,
-    cause?: unknown,
-  ) {
-    super(message, 'SYNC_ERROR', provider, cause);
-    this.name = 'SyncError';
-    this.folder = folder;
   }
 }

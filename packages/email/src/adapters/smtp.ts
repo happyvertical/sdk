@@ -4,7 +4,7 @@
 
 import type { Transporter } from 'nodemailer';
 import nodemailer from 'nodemailer';
-import { BaseMailbox } from '../shared/base';
+import { BaseEmailClient } from '../shared/base';
 import {
   AuthenticationError,
   ConnectionError,
@@ -14,11 +14,11 @@ import {
 } from '../shared/errors';
 import type {
   AdapterType,
+  EmailClientCapabilities,
   EmailMessage,
   FetchOptions,
   Folder,
   FolderInfo,
-  MailboxCapabilities,
   SearchCriteria,
   SendOptions,
   SendResult,
@@ -36,7 +36,7 @@ import type {
  * - OAuth2 authentication
  * - TLS/SSL support
  */
-export class SMTPAdapter extends BaseMailbox {
+export class SMTPAdapter extends BaseEmailClient {
   private transporter: Transporter;
   private options: SMTPOptions;
 
@@ -44,7 +44,6 @@ export class SMTPAdapter extends BaseMailbox {
     super({
       type: 'smtp',
       debug: options.debug,
-      db: options.db,
     });
 
     this.options = options;
@@ -129,23 +128,6 @@ export class SMTPAdapter extends BaseMailbox {
         subject: message.subject,
       });
       const info = await this.transporter.sendMail(mailOptions);
-
-      // Save sent message to database if configured
-      if (this.db) {
-        try {
-          const messageToSave = {
-            ...message,
-            messageId: info.messageId,
-            date: message.date || new Date(),
-          };
-          await this.saveMessage(messageToSave);
-        } catch (error) {
-          // Log but don't fail the send operation
-          this.logger.warn('Failed to save sent message to database', {
-            error,
-          });
-        }
-      }
 
       // Type assertion for nodemailer SentMessageInfo which has accepted/rejected
       const sendInfo = info as unknown as {
@@ -261,7 +243,7 @@ export class SMTPAdapter extends BaseMailbox {
   /**
    * Get adapter capabilities
    */
-  async getCapabilities(): Promise<MailboxCapabilities> {
+  async getCapabilities(): Promise<EmailClientCapabilities> {
     return {
       send: true,
       receive: false, // SMTP is send-only
@@ -272,7 +254,6 @@ export class SMTPAdapter extends BaseMailbox {
       delete: false,
       threads: false,
       oauth: this.isOAuth2(),
-      encryption: false, // Will be true if encryption package available
     };
   }
 

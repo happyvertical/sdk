@@ -6,7 +6,7 @@ import type { OAuth2Client } from 'google-auth-library';
 import type { gmail_v1 } from 'googleapis';
 import { google } from 'googleapis';
 import { simpleParser } from 'mailparser';
-import { BaseMailbox } from '../shared/base';
+import { BaseEmailClient } from '../shared/base';
 import {
   AuthenticationError,
   ConnectionError,
@@ -19,12 +19,12 @@ import {
 } from '../shared/errors';
 import type {
   AdapterType,
+  EmailClientCapabilities,
   EmailMessage,
   FetchOptions,
   Folder,
   FolderInfo,
   GmailOptions,
-  MailboxCapabilities,
   SearchCriteria,
   SendOptions,
   SendResult,
@@ -39,13 +39,16 @@ import type {
  * - gmail.modify: Modify emails (mark read, delete, move)
  * - gmail.labels: Manage labels
  */
-export class GmailAdapter extends BaseMailbox {
+export class GmailAdapter extends BaseEmailClient {
   private gmail: gmail_v1.Gmail | null = null;
   private options: GmailOptions;
   private auth: OAuth2Client | null = null;
 
   constructor(options: GmailOptions) {
-    super(options);
+    super({
+      type: 'gmail',
+      debug: options.debug,
+    });
     this.options = options;
   }
 
@@ -561,7 +564,7 @@ export class GmailAdapter extends BaseMailbox {
   // Adapter info
   // ========================================================================
 
-  async getCapabilities(): Promise<MailboxCapabilities> {
+  async getCapabilities(): Promise<EmailClientCapabilities> {
     return {
       send: true,
       receive: true,
@@ -572,7 +575,6 @@ export class GmailAdapter extends BaseMailbox {
       delete: true,
       threads: true,
       oauth: true,
-      encryption: false,
     };
   }
 

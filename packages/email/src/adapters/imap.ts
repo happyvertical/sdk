@@ -5,7 +5,7 @@
 import type { ImapFlowOptions } from 'imapflow';
 import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
-import { BaseMailbox } from '../shared/base';
+import { BaseEmailClient } from '../shared/base';
 import {
   AuthenticationError,
   ConnectionError,
@@ -17,12 +17,12 @@ import {
 } from '../shared/errors';
 import type {
   AdapterType,
+  EmailClientCapabilities,
   EmailMessage,
   FetchOptions,
   Folder,
   FolderInfo,
   IMAPOptions,
-  MailboxCapabilities,
   SearchCriteria,
   SendOptions,
   SendResult,
@@ -39,7 +39,7 @@ import type {
  * - OAuth2 authentication
  * - IDLE push notifications (optional)
  */
-export class IMAPAdapter extends BaseMailbox {
+export class IMAPAdapter extends BaseEmailClient {
   private client: ImapFlow | null = null;
   private options: IMAPOptions;
   private currentFolder: string | null = null;
@@ -48,7 +48,6 @@ export class IMAPAdapter extends BaseMailbox {
     super({
       type: 'imap',
       debug: options.debug,
-      db: options.db,
     });
 
     this.options = options;
@@ -508,7 +507,7 @@ export class IMAPAdapter extends BaseMailbox {
   /**
    * Get adapter capabilities
    */
-  async getCapabilities(): Promise<MailboxCapabilities> {
+  async getCapabilities(): Promise<EmailClientCapabilities> {
     return {
       send: false, // IMAP is receive-only
       receive: true,
@@ -519,7 +518,6 @@ export class IMAPAdapter extends BaseMailbox {
       delete: true,
       threads: false, // Thread support not implemented yet
       oauth: this.isOAuth2(),
-      encryption: false,
     };
   }
 

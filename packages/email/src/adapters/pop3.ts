@@ -4,7 +4,7 @@
 
 import { simpleParser } from 'mailparser';
 import Pop3Command from 'node-pop3';
-import { BaseMailbox } from '../shared/base';
+import { BaseEmailClient } from '../shared/base';
 import {
   AuthenticationError,
   ConnectionError,
@@ -14,11 +14,11 @@ import {
 } from '../shared/errors';
 import type {
   AdapterType,
+  EmailClientCapabilities,
   EmailMessage,
   FetchOptions,
   Folder,
   FolderInfo,
-  MailboxCapabilities,
   POP3Options,
   SearchCriteria,
   SendOptions,
@@ -37,13 +37,16 @@ import type {
  * By default, POP3 deletes messages from the server after retrieval.
  * Use leaveOnServer: true to keep messages on the server.
  */
-export class POP3Adapter extends BaseMailbox {
+export class POP3Adapter extends BaseEmailClient {
   private client: Pop3Command | null = null;
   private options: POP3Options;
   private messageCache: Map<string, string> = new Map(); // msgNum -> UID
 
   constructor(options: POP3Options) {
-    super(options);
+    super({
+      type: 'pop3',
+      debug: options.debug,
+    });
     this.options = options;
   }
 
@@ -341,7 +344,7 @@ export class POP3Adapter extends BaseMailbox {
   // Adapter info
   // ========================================================================
 
-  async getCapabilities(): Promise<MailboxCapabilities> {
+  async getCapabilities(): Promise<EmailClientCapabilities> {
     return {
       send: false,
       receive: true,
@@ -352,7 +355,6 @@ export class POP3Adapter extends BaseMailbox {
       delete: true,
       threads: false,
       oauth: false,
-      encryption: false,
     };
   }
 

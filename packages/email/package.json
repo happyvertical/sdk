@@ -1,7 +1,7 @@
 {
-  "name": "@happyvertical/messages",
-  "version": "0.57.1",
-  "description": "Unified messaging operations with adapter-based architecture",
+  "name": "@happyvertical/email",
+  "version": "0.58.0",
+  "description": "Low-level email protocol operations with adapter-based architecture",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -15,16 +15,20 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
   "scripts": {
     "build": "vite build",
     "dev": "vite build --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
   },
   "dependencies": {
     "@happyvertical/logger": "workspace:*",
-    "@happyvertical/sql": "workspace:*",
     "@happyvertical/utils": "workspace:*",
     "google-auth-library": "^10.5.0",
     "googleapis": "^131.0.0",
@@ -33,20 +37,10 @@
     "node-pop3": "^0.10.0",
     "nodemailer": "^6.9.8"
   },
-  "peerDependencies": {
-    "@happyvertical/encryption": "*"
-  },
-  "peerDependenciesMeta": {
-    "@happyvertical/encryption": {
-      "optional": true
-    }
-  },
   "devDependencies": {
-    "@happyvertical/encryption": "workspace:*",
     "@types/mailparser": "^3.4.6",
     "@types/node": "^24.10.1",
     "@types/nodemailer": "^6.4.21",
-    "mailparser-mit": "^1.0.0",
     "smtp-server": "^3.16.1",
     "typescript": "^5.7.3",
     "vite": "^7.2.2",
@@ -59,14 +53,17 @@
     "imap",
     "pop3",
     "gmail",
-    "messaging",
-    "messages"
+    "protocol"
   ],
   "author": "HappyVertical",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/happyvertical/sdk.git",
-    "directory": "packages/messages"
-  }
+    "directory": "packages/email"
+  },
+  "bugs": {
+    "url": "https://github.com/happyvertical/sdk/issues"
+  },
+  "homepage": "https://github.com/happyvertical/sdk/tree/main/packages/email#readme"
 }

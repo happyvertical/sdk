@@ -1,9 +1,11 @@
 /**
- * Core types for @happyvertical/messages package
+ * Core types for @happyvertical/email package
+ *
+ * Low-level, framework-agnostic email protocol types.
+ * No database dependencies - use @happyvertical/smrt-messages for persistence.
  */
 
 import type { Logger } from '@happyvertical/logger';
-import type { DatabaseInterface } from '@happyvertical/sql';
 
 // ============================================================================
 // Email Message Types
@@ -186,49 +188,6 @@ export interface SearchCriteria {
   q?: string; // Raw Gmail search query
 }
 
-export interface SyncOptions {
-  // Folder selection
-  folders?: string[]; // Default: ['INBOX']
-
-  // Date range
-  since?: Date;
-  before?: Date;
-
-  // Sync behavior
-  fullSync?: boolean; // Sync all messages (vs incremental)
-  deleteRemoved?: boolean; // Delete local messages removed from server
-
-  // Content options
-  downloadAttachments?: boolean;
-  maxAttachmentSize?: number; // Skip large attachments
-
-  // Performance
-  batchSize?: number; // Messages per batch
-  maxConcurrency?: number; // Parallel operations
-
-  // Callbacks
-  onProgress?: (stats: SyncProgress) => void;
-  onError?: (error: Error, message?: EmailMessage) => void;
-}
-
-export interface SyncProgress {
-  folder: string;
-  processed: number;
-  total: number;
-  downloaded: number;
-  skipped: number;
-  errors: number;
-}
-
-export interface SyncResult {
-  folders: string[];
-  messagesProcessed: number;
-  messagesDownloaded: number;
-  messagesSkipped: number;
-  errors: Error[];
-  duration: number; // Milliseconds
-}
-
 export interface SendResult {
   messageId: string;
   accepted: string[]; // Accepted recipients
@@ -237,10 +196,16 @@ export interface SendResult {
 }
 
 // ============================================================================
-// Mailbox Interface
+// EmailClient Interface
 // ============================================================================
 
-export interface Mailbox {
+/**
+ * Core email client interface for protocol operations.
+ *
+ * This interface defines low-level email operations without database persistence.
+ * For database sync and AI features, use @happyvertical/smrt-messages.
+ */
+export interface EmailClient {
   // Send operations
   send(message: EmailMessage, options?: SendOptions): Promise<SendResult>;
 
@@ -264,20 +229,17 @@ export interface Mailbox {
   // Search
   search(criteria: SearchCriteria): Promise<EmailMessage[]>;
 
-  // Database synchronization
-  sync(options?: SyncOptions): Promise<SyncResult>;
-
   // Connection management
   connect(): Promise<void>;
   disconnect(): Promise<void>;
   isConnected(): boolean;
 
   // Adapter info
-  getCapabilities(): Promise<MailboxCapabilities>;
+  getCapabilities(): Promise<EmailClientCapabilities>;
   getAdapter(): AdapterType;
 }
 
-export interface MailboxCapabilities {
+export interface EmailClientCapabilities {
   send: boolean;
   receive: boolean;
   folders: boolean;
@@ -287,7 +249,6 @@ export interface MailboxCapabilities {
   delete: boolean;
   threads: boolean;
   oauth: boolean;
-  encryption: boolean; // If @happyvertical/encryption available
 }
 
 // ============================================================================
@@ -331,9 +292,6 @@ export interface SMTPOptions {
   maxConnections?: number;
   maxMessages?: number;
 
-  // Database
-  db?: DatabaseInterface;
-
   // Logging
   debug?: boolean;
 }
@@ -372,9 +330,6 @@ export interface IMAPOptions {
     markSeen?: boolean; // Mark as read when fetching
   };
 
-  // Database
-  db?: DatabaseInterface;
-
   // Logging
   debug?: boolean;
 }
@@ -402,9 +357,6 @@ export interface POP3Options {
   // POP3-specific
   leaveOnServer?: boolean; // Don't delete messages after fetch
 
-  // Database
-  db?: DatabaseInterface;
-
   // Logging
   debug?: boolean;
 }
@@ -423,14 +375,11 @@ export interface GmailOptions {
   // Options
   userId?: string; // Default: 'me'
 
-  // Database
-  db?: DatabaseInterface;
-
   // Logging
   debug?: boolean;
 }
 
-export type GetMailboxOptions =
+export type GetEmailClientOptions =
   | SMTPOptions
   | IMAPOptions
   | POP3Options
@@ -440,16 +389,13 @@ export type GetMailboxOptions =
 // Base Configuration
 // ============================================================================
 
-export interface MailboxConfig {
+export interface EmailClientConfig {
   type: AdapterType;
   debug?: boolean;
-  db?: DatabaseInterface;
   logger?: Logger;
-  accountId?: string;
 }
 
-export interface MailboxOptions {
+export interface EmailClientOptions {
   type: AdapterType;
   debug?: boolean;
-  db?: DatabaseInterface;
 }
