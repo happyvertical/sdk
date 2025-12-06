@@ -188,6 +188,90 @@ export interface EmbeddingOptions {
 }
 
 /**
+ * Options for simple message requests (convenience method)
+ * This provides a simpler interface than chat() for single-turn interactions
+ */
+export interface MessageOptions {
+  /**
+   * Model to use for completion
+   */
+  model?: string;
+
+  /**
+   * Role of the message sender (default: 'user')
+   */
+  role?: 'user' | 'assistant' | 'system';
+
+  /**
+   * Conversation history (previous messages)
+   */
+  history?: AIMessage[];
+
+  /**
+   * Maximum number of tokens to generate
+   */
+  maxTokens?: number;
+
+  /**
+   * Sampling temperature (0-2)
+   */
+  temperature?: number;
+
+  /**
+   * Top-p sampling parameter
+   */
+  topP?: number;
+
+  /**
+   * Sequences that stop generation
+   */
+  stop?: string | string[];
+
+  /**
+   * Whether to stream the response
+   */
+  stream?: boolean;
+
+  /**
+   * Penalty for frequency of tokens
+   */
+  frequencyPenalty?: number;
+
+  /**
+   * Penalty for presence of tokens
+   */
+  presencePenalty?: number;
+
+  /**
+   * Response format specification
+   */
+  responseFormat?: { type: 'text' | 'json_object' };
+
+  /**
+   * Random seed for deterministic results
+   */
+  seed?: number;
+
+  /**
+   * Available tools/functions
+   */
+  tools?: AITool[];
+
+  /**
+   * Tool choice behavior
+   */
+  toolChoice?:
+    | 'auto'
+    | 'none'
+    | { type: 'function'; function: { name: string } };
+
+  /**
+   * Callback for streaming responses
+   */
+  onProgress?: (chunk: string) => void;
+}
+
+/**
  * Tool/function definition for AI models
  */
 export interface AITool {
@@ -407,6 +491,43 @@ export interface AIInterface {
    * Generate text completion (for non-chat models)
    */
   complete(prompt: string, options?: CompletionOptions): Promise<AIResponse>;
+
+  /**
+   * Simple message interface for single-turn interactions
+   *
+   * This is a convenience method that wraps chat() for simpler use cases.
+   * It accepts a text string and optional configuration, returning just
+   * the response content as a string.
+   *
+   * Supports conversation history via the `history` option for multi-turn
+   * conversations while maintaining a simple API.
+   *
+   * @param text - The message text to send
+   * @param options - Configuration options including history, model, etc.
+   * @returns Promise resolving to the response content string
+   *
+   * @example
+   * ```typescript
+   * // Simple single-turn usage
+   * const response = await ai.message('Hello, how are you?');
+   *
+   * // With options
+   * const response = await ai.message('Analyze this data', {
+   *   model: 'gpt-4o',
+   *   responseFormat: { type: 'json_object' },
+   *   maxTokens: 1000
+   * });
+   *
+   * // With conversation history
+   * const response = await ai.message('What did I ask before?', {
+   *   history: [
+   *     { role: 'user', content: 'Hello' },
+   *     { role: 'assistant', content: 'Hi there!' }
+   *   ]
+   * });
+   * ```
+   */
+  message(text: string, options?: MessageOptions): Promise<string>;
 
   /**
    * Generate embeddings for text
