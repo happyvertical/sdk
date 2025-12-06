@@ -13,6 +13,7 @@ import type {
   EmbeddingOptions,
   EmbeddingResponse,
   HuggingFaceOptions,
+  MessageOptions,
 } from '../types';
 import {
   AIError,
@@ -106,6 +107,39 @@ export class HuggingFaceProvider implements AIInterface {
       stream: options.stream,
       onProgress: options.onProgress,
     });
+  }
+
+  /**
+   * Simple message interface for single-turn interactions with optional history
+   *
+   * @param text - The message text to send
+   * @param options - Configuration options including history, model, etc.
+   * @returns Promise resolving to the response content string
+   */
+  async message(text: string, options: MessageOptions = {}): Promise<string> {
+    // Build messages array from history + current message
+    const messages: AIMessage[] = [
+      ...(options.history || []),
+      { role: options.role || 'user', content: text },
+    ];
+
+    const response = await this.chat(messages, {
+      model: options.model,
+      maxTokens: options.maxTokens,
+      temperature: options.temperature,
+      topP: options.topP,
+      stop: options.stop,
+      stream: options.stream,
+      frequencyPenalty: options.frequencyPenalty,
+      presencePenalty: options.presencePenalty,
+      responseFormat: options.responseFormat,
+      seed: options.seed,
+      tools: options.tools,
+      toolChoice: options.toolChoice,
+      onProgress: options.onProgress,
+    });
+
+    return response.content;
   }
 
   async embed(

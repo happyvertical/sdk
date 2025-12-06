@@ -17,6 +17,7 @@ import type {
   CompletionOptions,
   EmbeddingOptions,
   EmbeddingResponse,
+  MessageOptions,
 } from '../types';
 import {
   AIError,
@@ -221,6 +222,53 @@ export class AnthropicProvider implements AIInterface {
       stream: options.stream,
       onProgress: options.onProgress,
     });
+  }
+
+  /**
+   * Simple message interface for single-turn interactions with optional history
+   *
+   * @param text - The message text to send
+   * @param options - Configuration options including history, model, etc.
+   * @returns Promise resolving to the response content string
+   *
+   * @example
+   * ```typescript
+   * // Simple usage
+   * const response = await provider.message('Hello!');
+   *
+   * // With history
+   * const response = await provider.message('What was my question?', {
+   *   history: [
+   *     { role: 'user', content: 'What is 2+2?' },
+   *     { role: 'assistant', content: '4' }
+   *   ]
+   * });
+   * ```
+   */
+  async message(text: string, options: MessageOptions = {}): Promise<string> {
+    // Build messages array from history + current message
+    const messages: AIMessage[] = [
+      ...(options.history || []),
+      { role: options.role || 'user', content: text },
+    ];
+
+    const response = await this.chat(messages, {
+      model: options.model,
+      maxTokens: options.maxTokens,
+      temperature: options.temperature,
+      topP: options.topP,
+      stop: options.stop,
+      stream: options.stream,
+      frequencyPenalty: options.frequencyPenalty,
+      presencePenalty: options.presencePenalty,
+      responseFormat: options.responseFormat,
+      seed: options.seed,
+      tools: options.tools,
+      toolChoice: options.toolChoice,
+      onProgress: options.onProgress,
+    });
+
+    return response.content;
   }
 
   async embed(
