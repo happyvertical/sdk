@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.59.1
+
+### Patch Changes
+
+- ### Features
+
+  - add message() method to AIInterface for simpler single-turn interactions (#532) (ai)
+
 ## 0.59.0
 
 ## 0.57.1
