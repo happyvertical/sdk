@@ -7,6 +7,7 @@
 
 import { readFile } from 'node:fs/promises';
 import yaml from 'js-yaml';
+import type { IRepository } from './types.js';
 
 /**
  * Template field definition - mirrors GitHub ISSUE_TEMPLATE YAML structure
@@ -266,4 +267,85 @@ export function updateIssueField(
   const fields = parseIssueBody(body, template);
   fields[fieldIdOrLabel] = value;
   return renderIssueBody(fields, template);
+}
+
+/**
+ * Fetch issue templates from a repository via GitHub API
+ *
+ * @param repo - Repository client implementing IRepository
+ * @returns Array of parsed issue templates
+ *
+ * @example
+ * ```typescript
+ * const repo = await getRepository({ type: 'github', owner: 'org', repo: 'name', token });
+ * const templates = await fetchIssueTemplates(repo);
+ * // [{ name: 'Bug Report', labels: ['bug'], body: [...] }, ...]
+ * ```
+ */
+export async function fetchIssueTemplates(
+  repo: IRepository,
+): Promise<IssueTemplate[]> {
+  const templatePath = '.github/ISSUE_TEMPLATE';
+  const files = await repo.listDirectoryFiles(templatePath);
+  const templates: IssueTemplate[] = [];
+
+  for (const file of files) {
+    if (file.endsWith('.yml') || file.endsWith('.yaml')) {
+      const content = await repo.getFileContent(`${templatePath}/${file}`);
+      if (content) {
+        try {
+          templates.push(parseIssueTemplate(content));
+        } catch (e) {
+          console.warn(`[repos] Failed to parse template ${file}:`, e);
+        }
+      }
+    }
+  }
+
+  return templates;
+}
+
+/**
+ * Detect which template an issue was created from based on labels
+ *
+ * Matches issue labels against template labels to find the best match.
+ * Returns the template with the most matching labels.
+ *
+ * @param labels - Issue labels
+ * @param templates - Available templates
+ * @returns Matching template or undefined if no match
+ *
+ * @example
+ * ```typescript
+ * const templates = await fetchIssueTemplates(repo);
+ * const template = detectTemplateFromLabels(['bug', 'critical'], templates);
+ * if (template) {
+ *   const fields = parseIssueBody(issue.body, template);
+ * }
+ * ```
+ */
+export function detectTemplateFromLabels(
+  labels: string[],
+  templates: IssueTemplate[],
+): IssueTemplate | undefined {
+  const labelSet = new Set(labels.map((l) => l.toLowerCase()));
+
+  let bestMatch: IssueTemplate | undefined;
+  let bestScore = 0;
+
+  for (const template of templates) {
+    if (!template.labels || template.labels.length === 0) continue;
+
+    const matchCount = template.labels.filter((l) =>
+      labelSet.has(l.toLowerCase()),
+    ).length;
+
+    // Require at least one matching label
+    if (matchCount > 0 && matchCount > bestScore) {
+      bestScore = matchCount;
+      bestMatch = template;
+    }
+  }
+
+  return bestMatch;
 }

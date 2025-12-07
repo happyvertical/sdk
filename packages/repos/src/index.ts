@@ -28,6 +28,8 @@ export { getRepository } from './factory.js';
 export { GitHubRepository } from './github/index.js';
 export type { IssueTemplate, TemplateField } from './parsing.js';
 export {
+  detectTemplateFromLabels,
+  fetchIssueTemplates,
   getIssueField,
   loadIssueTemplate,
   parseIssueBody,

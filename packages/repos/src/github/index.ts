@@ -498,4 +498,51 @@ export class GitHubRepository implements IRepository {
       return null;
     }
   }
+
+  // File Content
+  async getFileContent(path: string, ref?: string): Promise<string | null> {
+    try {
+      const url = `/repos/${this.owner}/${this.repo}/contents/${path}${ref ? `?ref=${ref}` : ''}`;
+      const data = (await this.rest.get(url)) as {
+        type: string;
+        content?: string;
+        encoding?: string;
+      };
+
+      if (data.type !== 'file' || !data.content) {
+        return null;
+      }
+
+      // GitHub returns base64-encoded content
+      if (data.encoding === 'base64') {
+        return Buffer.from(data.content, 'base64').toString('utf-8');
+      }
+
+      return data.content;
+    } catch {
+      // 404 means file doesn't exist
+      return null;
+    }
+  }
+
+  async listDirectoryFiles(path: string, ref?: string): Promise<string[]> {
+    try {
+      const url = `/repos/${this.owner}/${this.repo}/contents/${path}${ref ? `?ref=${ref}` : ''}`;
+      const data = (await this.rest.get(url)) as Array<{
+        name: string;
+        type: string;
+      }>;
+
+      if (!Array.isArray(data)) {
+        return [];
+      }
+
+      return data
+        .filter((item) => item.type === 'file')
+        .map((item) => item.name);
+    } catch {
+      // 404 means directory doesn't exist
+      return [];
+    }
+  }
 }
