@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.59.2
+
+### Patch Changes
+
+- ### Features
+
+  - add message() method and GitHub template fetching (#534) (ai,repos)
+
 ## 0.59.1
 
 ### Patch Changes
