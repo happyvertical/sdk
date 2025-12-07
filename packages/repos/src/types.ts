@@ -171,4 +171,8 @@ export interface IRepository {
   // Linking
   findPRsForIssue(issueNumber: number): Promise<PullRequest[]>;
   findIssueForPR(prNumber: number): Promise<Issue | null>;
+
+  // File Content
+  getFileContent(path: string, ref?: string): Promise<string | null>;
+  listDirectoryFiles(path: string, ref?: string): Promise<string[]>;
 }
