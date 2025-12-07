@@ -129,6 +129,108 @@ it('should handle IN clauses with arrays', () => {
   expect(result.values).toEqual(['admin', 'editor', true]);
 });
 
+// 2D Array WHERE tests (OR/AND compound logic)
+describe('buildWhere 2D array support', () => {
+  it('should handle 2D array with multiple OR groups', () => {
+    const result = buildWhere([
+      [{ status: 'active' }, { 'price >': 100 }],
+      [{ status: 'pending' }, { priority: 'high' }],
+    ]);
+
+    expect(result.sql).toBe(
+      'WHERE (status = $1 AND price > $2) OR (status = $3 AND priority = $4)',
+    );
+    expect(result.values).toEqual(['active', 100, 'pending', 'high']);
+  });
+
+  it('should handle single OR group', () => {
+    const result = buildWhere([[{ status: 'active' }, { 'price >': 100 }]]);
+
+    expect(result.sql).toBe('WHERE (status = $1 AND price > $2)');
+    expect(result.values).toEqual(['active', 100]);
+  });
+
+  it('should handle single condition per group', () => {
+    const result = buildWhere([
+      [{ status: 'active' }],
+      [{ status: 'pending' }],
+    ]);
+
+    expect(result.sql).toBe('WHERE (status = $1) OR (status = $2)');
+    expect(result.values).toEqual(['active', 'pending']);
+  });
+
+  it('should handle empty outer array', () => {
+    const result = buildWhere([]);
+
+    expect(result.sql).toBe('');
+    expect(result.values).toEqual([]);
+  });
+
+  it('should skip empty inner arrays', () => {
+    const result = buildWhere([[], [{ status: 'active' }], []]);
+
+    expect(result.sql).toBe('WHERE (status = $1)');
+    expect(result.values).toEqual(['active']);
+  });
+
+  it('should handle IN operator within 2D array', () => {
+    const result = buildWhere([
+      [{ 'category in': ['A', 'B'] }, { active: true }],
+      [{ 'category in': ['C', 'D'] }],
+    ]);
+
+    expect(result.sql).toBe(
+      'WHERE (category IN ($1, $2) AND active = $3) OR (category IN ($4, $5))',
+    );
+    expect(result.values).toEqual(['A', 'B', true, 'C', 'D']);
+  });
+
+  it('should handle NULL values within 2D array', () => {
+    const result = buildWhere([
+      [{ deleted_at: null }, { status: 'active' }],
+      [{ 'deleted_at !=': null }],
+    ]);
+
+    expect(result.sql).toBe(
+      'WHERE (deleted_at IS NULL AND status = $1) OR (deleted_at IS NOT NULL)',
+    );
+    expect(result.values).toEqual(['active']);
+  });
+
+  it('should handle LIKE operator within 2D array', () => {
+    const result = buildWhere([
+      [{ 'name like': '%john%' }],
+      [{ 'email like': '%@example.com' }],
+    ]);
+
+    expect(result.sql).toBe('WHERE (name LIKE $1) OR (email LIKE $2)');
+    expect(result.values).toEqual(['%john%', '%@example.com']);
+  });
+
+  it('should handle mixed operators within 2D array', () => {
+    const result = buildWhere([
+      [{ 'price >=': 100 }, { 'price <': 500 }, { category: 'electronics' }],
+      [{ 'price >=': 50 }, { 'rating >': 4 }],
+    ]);
+
+    expect(result.sql).toBe(
+      'WHERE (price >= $1 AND price < $2 AND category = $3) OR (price >= $4 AND rating > $5)',
+    );
+    expect(result.values).toEqual([100, 500, 'electronics', 50, 4]);
+  });
+
+  it('should handle startIndex parameter with 2D arrays', () => {
+    const result = buildWhere(
+      [[{ status: 'active' }], [{ status: 'pending' }]],
+      5,
+    );
+
+    expect(result.sql).toBe('WHERE (status = $5) OR (status = $6)');
+    expect(result.values).toEqual(['active', 'pending']);
+  });
+});
+
 describe('Environment variable configuration', () => {
   const originalEnv = { ...process.env };
 

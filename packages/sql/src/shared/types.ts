@@ -1,4 +1,32 @@
 /**
+ * WHERE clause input for database queries
+ *
+ * Supports two formats:
+ * 1. Object format (AND-only): `{ status: 'active', 'price >': 100 }`
+ *    - All conditions are AND-joined
+ *
+ * 2. 2D array format (OR/AND compound logic): `[[cond1, cond2], [cond3, cond4]]`
+ *    - Inner arrays are AND-joined: `(cond1 AND cond2)`
+ *    - Outer array is OR-joined: `(cond1 AND cond2) OR (cond3 AND cond4)`
+ *
+ * @example Object format (backward compatible)
+ * ```typescript
+ * // WHERE status = 'active' AND price > 100
+ * const where = { status: 'active', 'price >': 100 };
+ * ```
+ *
+ * @example 2D array format for OR/AND compound logic
+ * ```typescript
+ * // WHERE (status = 'active' AND price > 100) OR (status = 'pending' AND priority = 'high')
+ * const where = [
+ *   [{ status: 'active' }, { 'price >': 100 }],
+ *   [{ status: 'pending' }, { priority: 'high' }]
+ * ];
+ * ```
+ */
+export type WhereClause = Record<string, any> | Record<string, any>[][];
+
+/**
  * Common database connection options
  */
 export interface DatabaseOptions {
@@ -360,37 +388,34 @@ export interface DatabaseInterface {
    * Retrieves a single record matching the where criteria
    *
    * @param table - Table name
-   * @param where - Criteria to match records
+   * @param where - Criteria to match records (object for AND-only, 2D array for OR/AND)
    * @returns Promise resolving to matching record or null if not found
    */
   get: (
     table: string,
-    where: Record<string, any>,
+    where: WhereClause,
   ) => Promise<Record<string, any> | null>;
 
   /**
    * Retrieves multiple records matching the where criteria
    *
    * @param table - Table name
-   * @param where - Criteria to match records
+   * @param where - Criteria to match records (object for AND-only, 2D array for OR/AND)
    * @returns Promise resolving to array of matching records
    */
-  list: (
-    table: string,
-    where: Record<string, any>,
-  ) => Promise<Record<string, any>[]>;
+  list: (table: string, where: WhereClause) => Promise<Record<string, any>[]>;
 
   /**
    * Updates records matching the where criteria
    *
    * @param table - Table name
-   * @param where - Criteria to match records to update
+   * @param where - Criteria to match records to update (object for AND-only, 2D array for OR/AND)
    * @param data - New data to set
    * @returns Promise resolving to operation result
    */
   update: (
     table: string,
-    where: Record<string, any>,
+    where: WhereClause,
     data: Record<string, any>,
   ) => Promise<QueryResult>;
 
@@ -430,13 +455,13 @@ export interface DatabaseInterface {
    * Gets a record matching the where criteria or inserts it if not found
    *
    * @param table - Table name
-   * @param where - Criteria to match existing record
+   * @param where - Criteria to match existing record (object for AND-only, 2D array for OR/AND)
    * @param data - Data to insert if no record found
    * @returns Promise resolving to the record (either retrieved or newly inserted)
    */
   getOrInsert: (
     table: string,
-    where: Record<string, any>,
+    where: WhereClause,
     data: Record<string, any>,
   ) => Promise<Record<string, any>>;
 
@@ -444,7 +469,7 @@ export interface DatabaseInterface {
    * Deletes records from a table matching the where criteria
    *
    * @param table - Table name
-   * @param where - Criteria to match records for deletion
+   * @param where - Criteria to match records for deletion (object for AND-only, 2D array for OR/AND)
    * @returns Promise resolving to operation result with count of deleted rows
    *
    * @example
@@ -462,13 +487,13 @@ export interface DatabaseInterface {
    * });
    * ```
    */
-  delete: (table: string, where: Record<string, any>) => Promise<QueryResult>;
+  delete: (table: string, where: WhereClause) => Promise<QueryResult>;
 
   /**
    * Counts records in a table matching the where criteria
    *
    * @param table - Table name
-   * @param where - Criteria to match records (optional, counts all if omitted)
+   * @param where - Criteria to match records (optional, counts all if omitted; object for AND-only, 2D array for OR/AND)
    * @returns Promise resolving to count of matching records
    *
    * @example
@@ -486,7 +511,7 @@ export interface DatabaseInterface {
    * });
    * ```
    */
-  count: (table: string, where?: Record<string, any>) => Promise<number>;
+  count: (table: string, where?: WhereClause) => Promise<number>;
 
   /**
    * Creates a table-specific interface for simplified table operations
@@ -665,16 +690,16 @@ export interface TableInterface {
   /**
    * Retrieves a single record from the table matching the where criteria
    *
-   * @param where - Criteria to match records
+   * @param where - Criteria to match records (object for AND-only, 2D array for OR/AND)
    * @returns Promise resolving to matching record or null if not found
    */
-  get: (where: Record<string, any>) => Promise<Record<string, any> | null>;
+  get: (where: WhereClause) => Promise<Record<string, any> | null>;
 
   /**
    * Retrieves multiple records from the table matching the where criteria
    *
-   * @param where - Criteria to match records
+   * @param where - Criteria to match records (object for AND-only, 2D array for OR/AND)
    * @returns Promise resolving to array of matching records
    */
-  list: (where: Record<string, any>) => Promise<Record<string, any>[]>;
+  list: (where: WhereClause) => Promise<Record<string, any>[]>;
 }

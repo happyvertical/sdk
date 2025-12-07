@@ -766,7 +766,7 @@ ON CONFLICT(email) DO UPDATE SET
 ```typescript
 import { buildWhere } from '@happyvertical/sql';
 
-// Build complex WHERE clauses
+// Build complex WHERE clauses (object format - AND-only)
 const { sql, values } = buildWhere({
   status: 'active',                    // equals (default)
   'price >': 100,                     // greater than
@@ -779,6 +779,49 @@ const { sql, values } = buildWhere({
 
 // Use in queries
 const products = await db.many`SELECT * FROM products ${sql}`;
+```
+
+#### 2D Array Format for OR/AND Compound Logic
+
+For complex boolean logic with OR conditions, use 2D arrays where:
+- Inner arrays are AND-joined: `(cond1 AND cond2)`
+- Outer array is OR-joined: `(group1) OR (group2)`
+
+```typescript
+// WHERE (status = 'active' AND price > 100) OR (status = 'pending' AND priority = 'high')
+const where = [
+  [{ status: 'active' }, { 'price >': 100 }],
+  [{ status: 'pending' }, { priority: 'high' }]
+];
+
+const { sql, values } = buildWhere(where);
+// sql: 'WHERE (status = $1 AND price > $2) OR (status = $3 AND priority = $4)'
+// values: ['active', 100, 'pending', 'high']
+
+// Use in database methods
+const products = await db.list('products', where);
+```
+
+**Use Cases**:
+```typescript
+// Find public meetings OR high-priority private meetings
+const meetings = await db.list('meetings', [
+  [{ isPublic: true }],
+  [{ isPublic: false }, { 'priority >=': 5 }]
+]);
+
+// Search by name OR email
+const users = await db.list('users', [
+  [{ 'name like': '%john%' }],
+  [{ 'email like': '%@example.com' }]
+]);
+
+// Complex product filtering
+const products = await db.list('products', [
+  [{ category: 'electronics' }, { 'price <': 500 }, { in_stock: true }],
+  [{ category: 'books' }, { 'rating >=': 4 }],
+  [{ featured: true }]
+]);
 ```
 
 ### Table Interface
