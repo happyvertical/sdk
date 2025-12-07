@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.59.4
+
+### Patch Changes
+
+- ### Features
+
+  - add dependency graph generation with SKILL_TREE.md (#538)
+
 ## 0.59.3
 
 ### Patch Changes
