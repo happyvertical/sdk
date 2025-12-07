@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.59.3
+
+### Patch Changes
+
+- ### Features
+
+  - add 2D array support for OR/AND compound filters (#537) (sql)
+
 ## 0.59.2
 
 ### Patch Changes
