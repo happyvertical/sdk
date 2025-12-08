@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.59.5
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - enable cross-table queries in JSON adapter with eager loading (#540) (sql)
+
 ## 0.59.4
 
 ### Patch Changes

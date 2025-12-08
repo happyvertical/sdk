@@ -1,5 +1,14 @@
 # @happyvertical/spider
 
+## 0.59.5
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.59.5
+  - @happyvertical/cache@0.59.5
+  - @happyvertical/files@0.59.5
+
 ## 0.59.4
 
 ### Patch Changes
