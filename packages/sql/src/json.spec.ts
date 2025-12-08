@@ -384,10 +384,12 @@ describe('JSON adapter tests', () => {
     );
 
     // Create database - table will be DEFERRED (not auto-created)
+    // Use eagerLoadTables: false to test explicit inferSchemaFromJSON behavior
     const timestampDb = await getDatabase({
       type: 'json',
       url: timestampDir,
       writeStrategy: 'immediate',
+      eagerLoadTables: false,
     });
 
     // Verify table was NOT auto-created (deferred)
@@ -592,13 +594,15 @@ describe('JSON adapter tests', () => {
 
       // Clear cache to pick up new JSON file
       clearConnectionCache();
+      // Use eagerLoadTables: false to test deferred loading + syncSchema behavior
       const testDb = await getDatabase({
         type: 'json',
         url: testDataDir,
         writeStrategy: 'immediate',
+        eagerLoadTables: false,
       });
 
-      // Table is DEFERRED - doesn't exist yet
+      // Table is DEFERRED - doesn't exist yet (because eagerLoadTables: false)
       let tableExists = await testDb.tableExists('os');
       expect(tableExists).toBe(false);
 

@@ -153,6 +153,23 @@ export interface JSONOptions {
   dbid?: string;
 
   /**
+   * Eagerly load all JSON files as tables at connection time
+   *
+   * When true (default), creates tables with inferred schemas for all JSON files
+   * in the data directory, even those without explicit schemas or .schema.sql files.
+   * This enables cross-table queries (JOINs, NOT EXISTS subqueries) before
+   * syncSchema() is called.
+   *
+   * Note: Inferred schemas don't include UNIQUE constraints. UPSERT operations
+   * require syncSchema() to be called first to establish proper constraints.
+   * When syncSchema() is called, tables with inferred schemas are dropped and
+   * recreated with the proper schema.
+   *
+   * @default true
+   */
+  eagerLoadTables?: boolean;
+
+  /**
    * Force a fresh database connection, bypassing the connection cache
    *
    * When true, clears any cached connection for this URL before creating a new one.

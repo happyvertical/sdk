@@ -45,7 +45,12 @@ export function clearConnectionCache(): void {
  * @returns Promise resolving to a DuckDB connection
  */
 async function createJSONConnection(options: JSONOptions) {
-  const { url, autoRegister = true, schemas = {} } = options;
+  const {
+    url,
+    autoRegister = true,
+    schemas = {},
+    eagerLoadTables = true,
+  } = options;
 
   if (!url) {
     throw new DatabaseError('url is required for JSON adapter', {
@@ -55,6 +60,9 @@ async function createJSONConnection(options: JSONOptions) {
 
   // Track JSON files pending deferred loading (tableName → filePath)
   const pendingJSONFiles = new Map<string, string>();
+
+  // Track tables created with inferred schemas (need DROP before syncSchema())
+  const inferredSchemaTables = new Set<string>();
 
   try {
     // Dynamic import to avoid bundling
@@ -74,10 +82,17 @@ async function createJSONConnection(options: JSONOptions) {
 
     // Scan JSON files - tables with schemas are created now, others are deferred
     if (autoRegister) {
-      await loadJSONTables(connection, url, schemas, pendingJSONFiles);
+      await loadJSONTables(
+        connection,
+        url,
+        schemas,
+        pendingJSONFiles,
+        eagerLoadTables,
+        inferredSchemaTables,
+      );
     }
 
-    return { connection, pendingJSONFiles };
+    return { connection, pendingJSONFiles, inferredSchemaTables };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     throw new DatabaseError(
@@ -146,12 +161,16 @@ async function loadJSONData(
  * @param dataDir - Directory containing JSON files
  * @param providedSchemas - Explicit schema definitions provided by caller (optional)
  * @param pendingJSONFiles - Map to store JSON files pending deferred loading
+ * @param eagerLoadTables - Whether to eagerly create tables with inferred schemas
+ * @param inferredSchemaTables - Set to track tables created with inferred schemas
  */
 async function loadJSONTables(
   connection: any,
   dataDir: string,
   providedSchemas: Record<string, import('./shared/types').SchemaProvider> = {},
   pendingJSONFiles: Map<string, string> = new Map(),
+  eagerLoadTables: boolean = true,
+  inferredSchemaTables: Set<string> = new Set(),
 ) {
   try {
     const files = await readdir(dataDir);
@@ -201,13 +220,32 @@ async function loadJSONTables(
             );
           }
         } else {
-          // DEFER loading - wait for syncSchema() to provide correct DDL with constraints
-          // This ensures UNIQUE constraints are created before UPSERT operations
-          // JSON data will be loaded after CREATE TABLE is executed via syncSchema()
+          // No schema file - either eager load with inferred schema or defer
+          if (eagerLoadTables) {
+            // Eager load: create table with inferred schema from JSON
+            // This enables cross-table queries before syncSchema() is called
+            // Note: Inferred schemas don't have UNIQUE constraints, so UPSERT won't work
+            // until syncSchema() is called to upgrade the schema
+            try {
+              await connection.run(
+                `CREATE TABLE IF NOT EXISTS "${tableName}" AS SELECT * FROM read_json_auto('${filePath}')`,
+              );
+              inferredSchemaTables.add(tableName);
+              console.log(
+                `[json-adapter] Eagerly created ${tableName} with inferred schema (no UNIQUE constraints)`,
+              );
+            } catch (error) {
+              console.warn(
+                `[json-adapter] Could not eagerly load ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
+              );
+            }
+          } else {
+            console.log(
+              `[json-adapter] Deferring ${tableName} - will load after syncSchema() creates table`,
+            );
+          }
+          // Always track for later schema upgrade and data reload
           pendingJSONFiles.set(tableName, filePath);
-          console.log(
-            `[json-adapter] Deferring ${tableName} - will load after syncSchema() creates table`,
-          );
         }
       }
     }
@@ -551,7 +589,7 @@ export async function getDatabase(
 
   // Create a new connection promise
   const connectionPromise = (async () => {
-    const { connection, pendingJSONFiles } =
+    const { connection, pendingJSONFiles, inferredSchemaTables } =
       await createJSONConnection(options);
     const writeStrategy = options.writeStrategy || 'immediate';
     const { url } = options;
@@ -1480,17 +1518,33 @@ export async function getDatabase(
         const { ddl: transformedDDL, indexes: remainingIndexes } =
           convertUniqueIndexesToInlineConstraints(ddl, indexStatements);
 
+        // Extract table name from DDL before executing
+        const createTableMatch = transformedDDL.match(
+          /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["']?(\w+)["']?/i,
+        );
+        const tableName = createTableMatch ? createTableMatch[1] : null;
+
+        // If table was created with inferred schema, drop it first
+        // (proper schema with UNIQUE constraints takes precedence)
+        if (tableName && inferredSchemaTables.has(tableName)) {
+          try {
+            await connection.run(`DROP TABLE IF EXISTS "${tableName}"`);
+            inferredSchemaTables.delete(tableName);
+            console.log(
+              `[json-adapter] Dropped inferred-schema table ${tableName} for schema upgrade`,
+            );
+          } catch (error) {
+            console.warn(
+              `[json-adapter] Could not drop inferred-schema table ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
+        }
+
         // Execute transformed DDL
         try {
           await connection.run(transformedDDL);
 
-          // Detect CREATE TABLE statements
-          const createTableMatch = transformedDDL.match(
-            /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?["']?(\w+)["']?/i,
-          );
-          if (createTableMatch) {
-            const tableName = createTableMatch[1];
-
+          if (tableName) {
             // Check if there's pending JSON data for this table (deferred loading)
             const pendingFile = pendingJSONFiles.get(tableName);
             if (pendingFile) {
