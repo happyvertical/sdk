@@ -241,8 +241,11 @@ await globalAdapter.supportsLocation(40.7128, -74.0060); // true (global coverag
   - Current conditions
   - Hourly history (24 hours)
   - Weather alerts
+- **Pagination**: API paginates results (24 hours/page for hourly, 5 days/page for daily). The provider automatically follows `nextPageToken` to fetch all available data.
+  - Full 240-hour hourly forecast requires ~10 API calls
+  - Full 10-day daily forecast requires 2 API calls
 - **Rate Limits**: Plan-dependent
-- **Cost**: Paid (no free tier)
+- **Cost**: Paid (no free tier). Consider API call costs when requesting full forecast range.
 - **API Base**: `https://weather.googleapis.com`
 
 ### Coordinate Validation
@@ -602,12 +605,14 @@ Documentation is generated in both HTML and markdown formats:
 
 ### Google Weather
 - **Strengths**: Extensive forecast range (240 hours hourly, 10 days daily), weather alerts, historical data, global coverage
-- **Weaknesses**: No free tier, requires Google Cloud billing
+- **Weaknesses**: No free tier, requires Google Cloud billing, pagination increases API call count
 - **Best For**: Production applications needing long-range forecasts, weather alerts, or historical data
 - **Rate Limits**: Plan-dependent
-- **Cost**: Paid (no free tier)
+- **Cost**: Paid (no free tier). Full forecasts require multiple API calls due to pagination:
+  - 240-hour hourly: ~10 API calls (24 hours per page)
+  - 10-day daily: 2 API calls (5 days per page)
 - **Unique Features**:
-  - Up to 240 hours (10 days) of hourly forecasts
+  - Up to 240 hours (10 days) of hourly forecasts (automatically paginated)
   - Weather alerts via `fetchAlerts()`
   - 24-hour historical data via `fetchHourlyHistory()`
   - Current conditions via `fetchCurrentConditions()`

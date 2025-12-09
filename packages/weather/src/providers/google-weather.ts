@@ -278,6 +278,9 @@ export class GoogleWeatherProvider implements IWeatherProvider {
 
   /**
    * Fetch hourly forecast (up to 240 hours)
+   *
+   * Google Weather API paginates hourly results (24 hours per page).
+   * This method automatically fetches all pages to get the full forecast.
    */
   async fetchHourlyForecast(
     latitude: number,
@@ -287,28 +290,46 @@ export class GoogleWeatherProvider implements IWeatherProvider {
     ensureValidCoordinates(this.name, latitude, longitude);
 
     const hours = options?.hours || 240;
-    const url = this.buildUrl(
-      '/forecast/hours:lookup',
-      latitude,
-      longitude,
-      `&hours=${hours}`,
-    );
-    const data = await this.fetchWithTimeout<GoogleHourlyForecastResponse>(
-      url,
-      options?.timeout,
-    );
+    const allForecasts: GoogleHourlyForecast[] = [];
+    let pageToken: string | undefined;
 
-    if (!data.forecastHours || data.forecastHours.length === 0) {
+    do {
+      let url = this.buildUrl(
+        '/forecast/hours:lookup',
+        latitude,
+        longitude,
+        `&hours=${hours}`,
+      );
+      if (pageToken) {
+        url += `&pageToken=${encodeURIComponent(pageToken)}`;
+      }
+
+      const data = await this.fetchWithTimeout<GoogleHourlyForecastResponse>(
+        url,
+        options?.timeout,
+      );
+
+      if (data.forecastHours) {
+        allForecasts.push(...data.forecastHours);
+      }
+
+      pageToken = data.nextPageToken;
+    } while (pageToken && allForecasts.length < hours);
+
+    if (allForecasts.length === 0) {
       throw new NoResultsError(this.name, latitude, longitude);
     }
 
-    return data.forecastHours.map((hour) =>
-      this.transformHourlyForecast(hour, 'hourly'),
-    );
+    return allForecasts
+      .slice(0, hours)
+      .map((hour) => this.transformHourlyForecast(hour, 'hourly'));
   }
 
   /**
    * Fetch daily forecast (up to 10 days)
+   *
+   * Google Weather API paginates daily results (5 days per page).
+   * This method automatically fetches all pages to get the full forecast.
    */
   async fetchDailyForecast(
     latitude: number,
@@ -318,22 +339,39 @@ export class GoogleWeatherProvider implements IWeatherProvider {
     ensureValidCoordinates(this.name, latitude, longitude);
 
     const days = options?.days || 10;
-    const url = this.buildUrl(
-      '/forecast/days:lookup',
-      latitude,
-      longitude,
-      `&days=${days}`,
-    );
-    const data = await this.fetchWithTimeout<GoogleDailyForecastResponse>(
-      url,
-      options?.timeout,
-    );
+    const allForecasts: GoogleDailyForecast[] = [];
+    let pageToken: string | undefined;
 
-    if (!data.forecastDays || data.forecastDays.length === 0) {
+    do {
+      let url = this.buildUrl(
+        '/forecast/days:lookup',
+        latitude,
+        longitude,
+        `&days=${days}`,
+      );
+      if (pageToken) {
+        url += `&pageToken=${encodeURIComponent(pageToken)}`;
+      }
+
+      const data = await this.fetchWithTimeout<GoogleDailyForecastResponse>(
+        url,
+        options?.timeout,
+      );
+
+      if (data.forecastDays) {
+        allForecasts.push(...data.forecastDays);
+      }
+
+      pageToken = data.nextPageToken;
+    } while (pageToken && allForecasts.length < days);
+
+    if (allForecasts.length === 0) {
       throw new NoResultsError(this.name, latitude, longitude);
     }
 
-    return data.forecastDays.map((day) => this.transformDailyForecast(day));
+    return allForecasts
+      .slice(0, days)
+      .map((day) => this.transformDailyForecast(day));
   }
 
   /**

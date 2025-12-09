@@ -297,6 +297,55 @@ describe('Google Weather Provider', () => {
           expect(forecast.raw.source).toBe('google-weather-hourly');
         });
       }, 30000);
+
+      it('should paginate to fetch more than 24 hours (one page)', async () => {
+        const provider = new GoogleWeatherProvider({
+          apiKey: apiKey!,
+          timeout: 60000, // Longer timeout for multiple API calls
+        });
+
+        // Request 48 hours which requires 2 pages (24 hours per page)
+        const forecasts = await provider.fetchHourlyForecast(
+          mountainViewLat,
+          mountainViewLng,
+          { hours: 48 },
+        );
+
+        expect(forecasts).toBeDefined();
+        expect(Array.isArray(forecasts)).toBe(true);
+        // Should have more than 24 results (pagination working)
+        expect(forecasts.length).toBeGreaterThan(24);
+        expect(forecasts.length).toBeLessThanOrEqual(48);
+
+        forecasts.forEach((forecast) => {
+          expect(forecast.raw.source).toBe('google-weather-hourly');
+        });
+      }, 60000);
+
+      it('should fetch full 240 hours with pagination', async () => {
+        const provider = new GoogleWeatherProvider({
+          apiKey: apiKey!,
+          timeout: 120000, // Longer timeout for 10 API calls
+        });
+
+        // Request full 240 hours (requires 10 pages at 24 hours per page)
+        const forecasts = await provider.fetchHourlyForecast(
+          mountainViewLat,
+          mountainViewLng,
+          { hours: 240 },
+        );
+
+        expect(forecasts).toBeDefined();
+        expect(Array.isArray(forecasts)).toBe(true);
+        // Should have significantly more than 24 hours
+        expect(forecasts.length).toBeGreaterThan(100);
+        // May not get exactly 240 depending on API data availability
+        expect(forecasts.length).toBeLessThanOrEqual(240);
+
+        forecasts.forEach((forecast) => {
+          expect(forecast.raw.source).toBe('google-weather-hourly');
+        });
+      }, 120000);
     });
 
     describe('Daily Forecast', () => {
@@ -320,6 +369,30 @@ describe('Google Weather Provider', () => {
           expect(forecast.raw.source).toBe('google-weather-daily');
         });
       }, 30000);
+
+      it('should paginate to fetch more than 5 days (one page)', async () => {
+        const provider = new GoogleWeatherProvider({
+          apiKey: apiKey!,
+          timeout: 60000, // Longer timeout for multiple API calls
+        });
+
+        // Request 10 days which requires 2 pages (5 days per page)
+        const forecasts = await provider.fetchDailyForecast(
+          mountainViewLat,
+          mountainViewLng,
+          { days: 10 },
+        );
+
+        expect(forecasts).toBeDefined();
+        expect(Array.isArray(forecasts)).toBe(true);
+        // Should have more than 5 results (pagination working)
+        expect(forecasts.length).toBeGreaterThan(5);
+        expect(forecasts.length).toBeLessThanOrEqual(10);
+
+        forecasts.forEach((forecast) => {
+          expect(forecast.raw.source).toBe('google-weather-daily');
+        });
+      }, 60000);
     });
 
     describe('Hourly History', () => {
