@@ -679,7 +679,7 @@ importers:
         specifier: workspace:*
         version: link:../utils
       '@libsql/client':
-        specifier: ^0.15.15
+        specifier: 0.15.15
         version: 0.15.15
       pg:
         specifier: ^8.16.3
