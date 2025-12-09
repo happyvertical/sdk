@@ -317,8 +317,8 @@ importers:
         specifier: ^0.3.0
         version: 0.3.0(@types/node@24.0.0)(typescript@5.9.3)
       openpgp:
-        specifier: ^6.2.2
-        version: 6.2.2
+        specifier: ^6.3.0
+        version: 6.3.0
       tweetnacl:
         specifier: ^1.0.3
         version: 1.0.3
@@ -8221,8 +8221,8 @@ packages:
     resolution: {integrity: sha512-ur5UIdyw5Y7yEj9wLzhqXiy6GZ3Mwx0yGI+5sMn2r0N0v3cKJvUmFH5yPP+WXh9e0xfyzyJX95D8l088DNFj7A==}
     hasBin: true
 
-  openpgp@6.2.2:
-    resolution: {integrity: sha512-P/dyEqQ3gfwOCo+xsqffzXjmUhGn4AZTOJ1LCcN21S23vAk+EAvMJOQTsb/C8krL6GjOSBxqGYckhik7+hneNw==}
+  openpgp@6.3.0:
+    resolution: {integrity: sha512-pLzCU8IgyKXPSO11eeharQkQ4GzOKNWhXq79pQarIRZEMt1/ssyr+MIuWBv1mNoenJLg04gvPx+fi4gcKZ4bag==}
     engines: {node: '>= 18.0.0'}
 
   opts@2.0.2:
@@ -21261,7 +21261,7 @@ snapshots:
 
   opener@1.5.2: {}
 
-  openpgp@6.2.2: {}
+  openpgp@6.3.0: {}
 
   opts@2.0.2: {}
 
