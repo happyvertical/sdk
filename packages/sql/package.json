@@ -46,7 +46,7 @@
   "author": "willgriffin@gmail.com",
   "license": "ISC",
   "dependencies": {
-    "@duckdb/node-api": "1.4.1-r.4",
+    "@duckdb/node-api": "1.4.1-r.5",
     "@happyvertical/utils": "workspace:*",
     "@libsql/client": "^0.15.15",
     "pg": "^8.16.3",
