@@ -47,6 +47,14 @@ jobs:
             exit 0
           fi
 
+          # Skip if PR is from cascade/update-dependencies branch
+          # (automated dependency update PR)
+          if echo "$PR_BRANCH" | grep -q '^cascade/'; then
+            echo "✅ Skipping changeset check" \
+              "(cascade dependency update PR from $PR_BRANCH)"
+            exit 0
+          fi
+
           # Skip if PR title starts with 'chore: version packages'
           PR_TITLE="${{ github.event.pull_request.title }}"
           if echo "$PR_TITLE" | \

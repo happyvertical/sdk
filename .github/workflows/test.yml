@@ -91,7 +91,8 @@ jobs:
         id: parallel-checks
         run: |
           # Run typecheck, lint, and test in parallel using Turborepo
-          pnpm turbo run typecheck lint test --parallel
+          # Exclude @have/docs since docs build requires deps:all which needs dist files
+          pnpm turbo run typecheck lint test --parallel --filter='!@have/docs'
         env:
           SQLOO_HOST: localhost
           SQLOO_USER: postgres

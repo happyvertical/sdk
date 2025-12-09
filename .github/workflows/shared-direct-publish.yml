@@ -92,7 +92,6 @@ jobs:
           node-version: ${{ inputs.node-version }}
           install-deps: 'true'
           registry-url: ${{ inputs.registry-url }}
-          auth-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Turborepo cache
         uses: actions/cache@v4

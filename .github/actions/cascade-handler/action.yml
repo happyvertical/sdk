@@ -211,7 +211,7 @@ runs:
           *This PR will ${{ inputs.auto_merge == 'true' && steps.test.outcome == 'success' && steps.build.outcome == 'success' && 'be automatically merged' || 'require manual review' }}*
         branch: cascade/update-dependencies
         delete-branch: true
-        labels: dependencies,automated
+        labels: dependencies,automated,skip-changeset
 
     - name: Enable auto-merge
       if: |
