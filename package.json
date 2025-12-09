@@ -65,7 +65,7 @@
     "@jpisnice/shadcn-ui-mcp-server": "1.1.4",
     "@playwright/mcp": "0.0.46",
     "@playwright/test": "^1.56.1",
-    "chokidar": "^4.0.3",
+    "chokidar": "^5.0.0",
     "concurrently": "9.2.1",
     "dependency-cruiser": "^17.3.2",
     "express": "^5.1.0",
