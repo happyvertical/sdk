@@ -1,5 +1,15 @@
 # @happyvertical/weather
 
+## 0.60.0
+
+### Minor Changes
+
+- 8c67163: Add Google Weather API provider with support for current conditions, hourly forecasts (240h), daily forecasts (10 days), hourly history (24h), and weather alerts
+
+### Patch Changes
+
+- @happyvertical/utils@0.60.0
+
 ## 0.59.6
 
 ### Patch Changes
