@@ -24,7 +24,7 @@ importers:
         specifier: 2.3.4
         version: 2.3.4
       '@changesets/cli':
-        specifier: ^2.29.7
+        specifier: 2.29.8
         version: 2.29.8(@types/node@24.10.2)
       '@commitlint/cli':
         specifier: ^20.1.0
