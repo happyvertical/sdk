@@ -353,13 +353,13 @@ importers:
         version: 6.9.1
       '@testing-library/svelte':
         specifier: 5.2.8
-        version: 5.2.8(svelte@5.43.4)(vite@7.2.2(@types/node@24.0.0)(jiti@2.6.1)(terser@5.44.1)(yaml@2.8.1))(vitest@4.0.15(@opentelemetry/api@1.9.0)(@types/node@24.0.0)(happy-dom@20.0.10)(jiti@2.6.1)(jsdom@27.1.0(postcss@8.5.6))(terser@5.44.1)(yaml@2.8.1))
+        version: 5.2.8(svelte@5.43.4)(vite@7.2.2(@types/node@24.0.0)(jiti@2.6.1)(terser@5.44.1)(yaml@2.8.1))(vitest@4.0.15(@opentelemetry/api@1.9.0)(@types/node@24.0.0)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.1.0(postcss@8.5.6))(terser@5.44.1)(yaml@2.8.1))
       '@types/node':
         specifier: 24.0.0
         version: 24.0.0
       happy-dom:
-        specifier: 20.0.10
-        version: 20.0.10
+        specifier: 20.0.11
+        version: 20.0.11
       jsdom:
         specifier: 27.1.0
         version: 27.1.0(postcss@8.5.6)
@@ -374,7 +374,7 @@ importers:
         version: 4.5.4(@types/node@24.0.0)(rollup@4.52.0)(typescript@5.9.3)(vite@7.2.2(@types/node@24.0.0)(jiti@2.6.1)(terser@5.44.1)(yaml@2.8.1))
       vitest:
         specifier: ^4.0.8
-        version: 4.0.15(@opentelemetry/api@1.9.0)(@types/node@24.0.0)(happy-dom@20.0.10)(jiti@2.6.1)(jsdom@27.1.0(postcss@8.5.6))(terser@5.44.1)(yaml@2.8.1)
+        version: 4.0.15(@opentelemetry/api@1.9.0)(@types/node@24.0.0)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.1.0(postcss@8.5.6))(terser@5.44.1)(yaml@2.8.1)
 
   packages/geo:
     dependencies:
@@ -6581,10 +6581,6 @@ packages:
 
   handle-thing@2.0.1:
     resolution: {integrity: sha512-9Qn4yBxelxoh2Ow62nP+Ka/kMnOXRi8BXnRaUwezLNhqelnN49xKz4F/dPP8OYLxLxq6JDtZb2i9XznUQbNPTg==}
-
-  happy-dom@20.0.10:
-    resolution: {integrity: sha512-6umCCHcjQrhP5oXhrHQQvLB0bwb1UzHAHdsXy+FjtKoYjUhmNZsQL8NivwM1vDvNEChJabVrUYxUnp/ZdYmy2g==}
-    engines: {node: '>=20.0.0'}
 
   happy-dom@20.0.11:
     resolution: {integrity: sha512-QsCdAUHAmiDeKeaNojb1OHOPF7NjcWPBR7obdu3NwH2a/oyQaLg5d0aaCy/9My6CdPChYF07dvz5chaXBGaD4g==}
@@ -16143,13 +16139,13 @@ snapshots:
       picocolors: 1.1.1
       redent: 3.0.0
 
-  '@testing-library/svelte@5.2.8(svelte@5.43.4)(vite@7.2.2(@types/node@24.0.0)(jiti@2.6.1)(terser@5.44.1)(yaml@2.8.1))(vitest@4.0.15(@opentelemetry/api@1.9.0)(@types/node@24.0.0)(happy-dom@20.0.10)(jiti@2.6.1)(jsdom@27.1.0(postcss@8.5.6))(terser@5.44.1)(yaml@2.8.1))':
+  '@testing-library/svelte@5.2.8(svelte@5.43.4)(vite@7.2.2(@types/node@24.0.0)(jiti@2.6.1)(terser@5.44.1)(yaml@2.8.1))(vitest@4.0.15(@opentelemetry/api@1.9.0)(@types/node@24.0.0)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.1.0(postcss@8.5.6))(terser@5.44.1)(yaml@2.8.1))':
     dependencies:
       '@testing-library/dom': 10.4.1
       svelte: 5.43.4
     optionalDependencies:
       vite: 7.2.2(@types/node@24.0.0)(jiti@2.6.1)(terser@5.44.1)(yaml@2.8.1)
-      vitest: 4.0.15(@opentelemetry/api@1.9.0)(@types/node@24.0.0)(happy-dom@20.0.10)(jiti@2.6.1)(jsdom@27.1.0(postcss@8.5.6))(terser@5.44.1)(yaml@2.8.1)
+      vitest: 4.0.15(@opentelemetry/api@1.9.0)(@types/node@24.0.0)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.1.0(postcss@8.5.6))(terser@5.44.1)(yaml@2.8.1)
 
   '@tokenizer/inflate@0.2.7':
     dependencies:
@@ -19231,12 +19227,6 @@ snapshots:
   hachure-fill@0.5.2: {}
 
   handle-thing@2.0.1: {}
-
-  happy-dom@20.0.10:
-    dependencies:
-      '@types/node': 24.0.0
-      '@types/whatwg-mimetype': 3.0.2
-      whatwg-mimetype: 3.0.0
 
   happy-dom@20.0.11:
     dependencies:
@@ -23931,46 +23921,6 @@ snapshots:
   vitefu@1.1.1(vite@7.2.2(@types/node@24.0.0)(jiti@2.6.1)(terser@5.44.1)(yaml@2.8.1)):
     optionalDependencies:
       vite: 7.2.2(@types/node@24.0.0)(jiti@2.6.1)(terser@5.44.1)(yaml@2.8.1)
-
-  vitest@4.0.15(@opentelemetry/api@1.9.0)(@types/node@24.0.0)(happy-dom@20.0.10)(jiti@2.6.1)(jsdom@27.1.0(postcss@8.5.6))(terser@5.44.1)(yaml@2.8.1):
-    dependencies:
-      '@vitest/expect': 4.0.15
-      '@vitest/mocker': 4.0.15(vite@7.2.2(@types/node@24.0.0)(jiti@2.6.1)(terser@5.44.1)(yaml@2.8.1))
-      '@vitest/pretty-format': 4.0.15
-      '@vitest/runner': 4.0.15
-      '@vitest/snapshot': 4.0.15
-      '@vitest/spy': 4.0.15
-      '@vitest/utils': 4.0.15
-      es-module-lexer: 1.7.0
-      expect-type: 1.3.0
-      magic-string: 0.30.21
-      obug: 2.1.1
-      pathe: 2.0.3
-      picomatch: 4.0.3
-      std-env: 3.10.0
-      tinybench: 2.9.0
-      tinyexec: 1.0.2
-      tinyglobby: 0.2.15
-      tinyrainbow: 3.0.3
-      vite: 7.2.2(@types/node@24.0.0)(jiti@2.6.1)(terser@5.44.1)(yaml@2.8.1)
-      why-is-node-running: 2.3.0
-    optionalDependencies:
-      '@opentelemetry/api': 1.9.0
-      '@types/node': 24.0.0
-      happy-dom: 20.0.10
-      jsdom: 27.1.0(postcss@8.5.6)
-    transitivePeerDependencies:
-      - jiti
-      - less
-      - lightningcss
-      - msw
-      - sass
-      - sass-embedded
-      - stylus
-      - sugarss
-      - terser
-      - tsx
-      - yaml
 
   vitest@4.0.15(@opentelemetry/api@1.9.0)(@types/node@24.0.0)(happy-dom@20.0.11)(jiti@2.6.1)(jsdom@27.1.0(postcss@8.5.6))(terser@5.44.1)(yaml@2.8.1):
     dependencies:
