@@ -69,7 +69,7 @@ importers:
         specifier: ^1.56.1
         version: 1.57.0
       turbo:
-        specifier: ^2.6.0
+        specifier: 2.6.3
         version: 2.6.3
       typedoc:
         specifier: ^0.28.14
