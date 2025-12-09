@@ -136,10 +136,10 @@ importers:
         specifier: 24.0.0
         version: 24.0.0
       '@types/react':
-        specifier: ^19.2.2
+        specifier: 19.2.7
         version: 19.2.7
       '@types/react-dom':
-        specifier: ^19.2.2
+        specifier: 19.2.3
         version: 19.2.3(@types/react@19.2.7)
       docusaurus-plugin-typedoc:
         specifier: ^1.4.2
@@ -157,7 +157,7 @@ importers:
   packages/ai:
     dependencies:
       '@anthropic-ai/sdk':
-        specifier: ^0.68.0
+        specifier: 0.68.0
         version: 0.68.0(zod@4.1.12)
       '@aws-sdk/client-bedrock-runtime':
         specifier: ^3.926.0
