@@ -24,7 +24,7 @@ importers:
         specifier: 2.3.4
         version: 2.3.4
       '@changesets/cli':
-        specifier: ^2.29.7
+        specifier: 2.29.8
         version: 2.29.8(@types/node@24.10.2)
       '@commitlint/cli':
         specifier: ^20.1.0
@@ -157,13 +157,13 @@ importers:
   packages/ai:
     dependencies:
       '@anthropic-ai/sdk':
-        specifier: 0.68.0
+        specifier: ^0.68.0
         version: 0.68.0(zod@4.1.12)
       '@aws-sdk/client-bedrock-runtime':
         specifier: ^3.926.0
         version: 3.947.0
       '@google/genai':
-        specifier: ^1.29.0
+        specifier: 1.32.0
         version: 1.32.0(@modelcontextprotocol/sdk@1.24.3(zod@4.1.12))
       '@happyvertical/utils':
         specifier: workspace:*
