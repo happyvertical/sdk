@@ -4,7 +4,7 @@
 
 The `@happyvertical/weather` package provides a standardized interface for weather data retrieval, abstracting away provider-specific implementations. It is designed to:
 
-- **Unify Weather Provider APIs**: Provide a consistent interface across Environment Canada and OpenWeatherMap
+- **Unify Weather Provider APIs**: Provide a consistent interface across Environment Canada, OpenWeatherMap, and Google Weather
 - **Simplify Provider Switching**: Enable seamless switching between weather providers without code changes
 - **Handle Forecast Retrieval**: Fetch weather forecasts for any global location (provider-dependent)
 - **Manage Provider Configuration**: Handle authentication, timeouts, and provider-specific options
@@ -30,6 +30,7 @@ The package follows the same architecture pattern as `@happyvertical/ai`, `@happ
    - `environment-canada.ts` - Environment Canada weather service integration (Canada only, free)
    - `openweathermap.ts` - OpenWeatherMap 5-day/3-hour forecast API (global, free tier)
    - `openweathermap-onecall.ts` - OpenWeatherMap One Call API 3.0 (global, paid tier)
+   - `google-weather.ts` - Google Weather API (global, paid, 240h hourly + 10 day daily + alerts + history)
    - All providers map results to standardized `WeatherForecast` format
 
 3. **Type Definitions** (`shared/types.ts`)
@@ -93,6 +94,12 @@ const owmOneCallWeather = await getWeatherAdapter({
   apiKey: process.env.OPENWEATHER_API_KEY
 });
 
+// Create Google Weather adapter (paid, global)
+const googleWeather = await getWeatherAdapter({
+  provider: 'google-weather',
+  apiKey: process.env.GOOGLE_API_KEY
+});
+
 // Create adapter using environment variables
 // HAVE_WEATHER_PROVIDER=openweathermap
 // OPENWEATHER_API_KEY=your-api-key
@@ -113,8 +120,9 @@ The package supports configuration via environment variables using the `loadEnvC
 
 | Variable | Type | Description | Example |
 |----------|------|-------------|---------|
-| `HAVE_WEATHER_PROVIDER` | string | Provider to use | `environment-canada`, `openweathermap`, or `openweathermap-onecall` |
+| `HAVE_WEATHER_PROVIDER` | string | Provider to use | `environment-canada`, `openweathermap`, `openweathermap-onecall`, or `google-weather` |
 | `OPENWEATHER_API_KEY` | string | OpenWeatherMap API key | `your-api-key-here` |
+| `GOOGLE_API_KEY` | string | Google API key | `your-google-api-key` |
 | `HAVE_WEATHER_TIMEOUT` | number | Request timeout (ms) | `15000` |
 
 **Configuration Precedence:**
@@ -223,6 +231,23 @@ await globalAdapter.supportsLocation(40.7128, -74.0060); // true (global coverag
 - **Rate Limits**: Higher limits than free tier
 - **Features**: Best data coverage and frequency
 
+**Google Weather**:
+- **Coverage**: Global
+- **API Key**: Required (paid, uses `GOOGLE_API_KEY`)
+- **Update Frequency**: Hourly
+- **Forecast Periods**: Hourly (up to 240 hours) + Daily (up to 10 days)
+- **Data Points**: Temperature, humidity, wind, precipitation, UV index, visibility, etc.
+- **Additional Features**:
+  - Current conditions
+  - Hourly history (24 hours)
+  - Weather alerts
+- **Pagination**: API paginates results (24 hours/page for hourly, 5 days/page for daily). The provider automatically follows `nextPageToken` to fetch all available data.
+  - Full 240-hour hourly forecast requires ~10 API calls
+  - Full 10-day daily forecast requires 2 API calls
+- **Rate Limits**: Plan-dependent
+- **Cost**: Paid (no free tier). Consider API call costs when requesting full forecast range.
+- **API Base**: `https://weather.googleapis.com`
+
 ### Coordinate Validation
 
 All providers validate coordinates before making API calls:
@@ -242,6 +267,7 @@ export function validateCoordinates(latitude: number, longitude: number) {
 Providers also check location support:
 - Environment Canada: Verifies coordinates are within Canada's bounds
 - OpenWeatherMap providers: Accept any valid global coordinates
+- Google Weather: Accept any valid global coordinates
 
 ### Error Handling Strategy
 
@@ -410,6 +436,7 @@ OPENWEATHER_API_KEY=xxx npm test openweathermap
 - Integration tests use real API calls (marked as `.optional.test.ts`)
 - Unit tests mock API responses
 - OpenWeatherMap tests require API key in environment
+- Google Weather tests require `GOOGLE_API_KEY` in environment
 - Environment Canada tests don't require API key
 - Tests validate WeatherForecast structure compliance
 - Test error conditions (invalid coords, timeouts, auth failures)
@@ -470,10 +497,12 @@ export type {
   IWeatherAdapter,
   IWeatherProvider,
   WeatherForecast,
+  WeatherAlert,
   WeatherAdapterOptions,
   EnvironmentCanadaOptions,
   OpenWeatherMapOptions,
   OpenWeatherMapOneCallOptions,
+  GoogleWeatherOptions,
   FetchOptions,
 } from './shared/types';
 export {
@@ -573,6 +602,20 @@ Documentation is generated in both HTML and markdown formats:
 - **Best For**: Production applications needing hourly data, commercial projects
 - **Rate Limits**: Higher limits than free tier (plan-dependent)
 - **Cost**: Paid subscription required
+
+### Google Weather
+- **Strengths**: Extensive forecast range (240 hours hourly, 10 days daily), weather alerts, historical data, global coverage
+- **Weaknesses**: No free tier, requires Google Cloud billing, pagination increases API call count
+- **Best For**: Production applications needing long-range forecasts, weather alerts, or historical data
+- **Rate Limits**: Plan-dependent
+- **Cost**: Paid (no free tier). Full forecasts require multiple API calls due to pagination:
+  - 240-hour hourly: ~10 API calls (24 hours per page)
+  - 10-day daily: 2 API calls (5 days per page)
+- **Unique Features**:
+  - Up to 240 hours (10 days) of hourly forecasts (automatically paginated)
+  - Weather alerts via `fetchAlerts()`
+  - 24-hour historical data via `fetchHourlyHistory()`
+  - Current conditions via `fetchCurrentConditions()`
 
 ## Future Enhancements
 

@@ -5,6 +5,7 @@
  * - Environment Canada (free, Canada only)
  * - OpenWeatherMap (free tier, global, 3-hour forecasts)
  * - OpenWeatherMap One Call (paid tier, global, hourly + daily)
+ * - Google Weather (paid, global, 240h hourly + 10 day daily + alerts)
  *
  * @example
  * ```typescript
@@ -25,12 +26,19 @@
  *   provider: 'openweathermap-onecall',
  *   apiKey: process.env.OPENWEATHER_API_KEY
  * });
+ *
+ * // Google Weather (paid)
+ * const weather = await getWeatherAdapter({
+ *   provider: 'google-weather',
+ *   apiKey: process.env.GOOGLE_API_KEY
+ * });
  * ```
  */
 
 import { loadEnvConfig } from '@happyvertical/utils';
 // Provider imports
 import { EnvironmentCanadaProvider } from './providers/environment-canada';
+import { GoogleWeatherProvider } from './providers/google-weather';
 import { OpenWeatherMapProvider } from './providers/openweathermap';
 import { OpenWeatherMapOneCallProvider } from './providers/openweathermap-onecall';
 import type {
@@ -44,12 +52,14 @@ import { WeatherError } from './shared/types';
 export type {
   EnvironmentCanadaOptions,
   FetchOptions,
+  GoogleWeatherOptions,
   IWeatherAdapter,
   IWeatherProvider,
   OpenWeatherMapOneCallOptions,
   OpenWeatherMapOptions,
   PartialWeatherAdapterOptions,
   WeatherAdapterOptions,
+  WeatherAlert,
   WeatherForecast,
 } from './shared/types';
 
@@ -86,6 +96,9 @@ const ENV_CONFIG_KEYS = {
   // OpenWeatherMap API key
   apiKey: 'OPENWEATHER_API_KEY',
 
+  // Google API key
+  googleApiKey: 'GOOGLE_API_KEY',
+
   // Timeouts
   timeout: 'HAVE_WEATHER_TIMEOUT',
 } as const;
@@ -93,20 +106,27 @@ const ENV_CONFIG_KEYS = {
 /**
  * Load weather adapter configuration from environment variables
  */
-function loadWeatherEnvConfig(): PartialWeatherAdapterOptions {
+function loadWeatherEnvConfig(): PartialWeatherAdapterOptions & {
+  googleApiKey?: string;
+} {
   const rawConfig = loadEnvConfig(ENV_CONFIG_KEYS);
 
   // Build properly typed config
-  const config: PartialWeatherAdapterOptions = {};
+  const config: PartialWeatherAdapterOptions & { googleApiKey?: string } = {};
 
   // Provider
   if (rawConfig.provider) {
     config.provider = rawConfig.provider as any;
   }
 
-  // API Key
+  // API Key (OpenWeatherMap)
   if (rawConfig.apiKey) {
     config.apiKey = rawConfig.apiKey as any;
+  }
+
+  // Google API Key
+  if (rawConfig.googleApiKey) {
+    config.googleApiKey = rawConfig.googleApiKey as string;
   }
 
   // Timeout - convert to number
@@ -172,9 +192,28 @@ function mergeConfig(
         timeout: merged.timeout,
       };
 
+    case 'google-weather': {
+      // Support both explicit apiKey option and googleApiKey from env
+      // Only fall back to env if apiKey was not explicitly provided (undefined)
+      const googleKey =
+        merged.apiKey !== undefined ? merged.apiKey : envConfig.googleApiKey;
+      if (!googleKey) {
+        throw new WeatherError(
+          'Google Weather requires an API key. Set GOOGLE_API_KEY environment variable or pass apiKey option.',
+          'google-weather',
+          'MISSING_API_KEY',
+        );
+      }
+      return {
+        provider: 'google-weather',
+        apiKey: googleKey,
+        timeout: merged.timeout,
+      };
+    }
+
     default:
       throw new WeatherError(
-        `Unknown provider: ${provider}. Supported providers: environment-canada, openweathermap, openweathermap-onecall`,
+        `Unknown provider: ${provider}. Supported providers: environment-canada, openweathermap, openweathermap-onecall, google-weather`,
         'unknown',
         'INVALID_PROVIDER',
       );
@@ -220,6 +259,12 @@ export async function getWeatherAdapter(
 
     case 'openweathermap-onecall':
       return new OpenWeatherMapOneCallProvider({
+        apiKey: config.apiKey,
+        timeout: config.timeout,
+      });
+
+    case 'google-weather':
+      return new GoogleWeatherProvider({
         apiKey: config.apiKey,
         timeout: config.timeout,
       });
