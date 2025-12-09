@@ -19,9 +19,6 @@ on:
       HAVE_RELEASE_APP_PRIVATE_KEY:
         description: 'GitHub App private key for release automation'
         required: true
-      GH_TOKEN:
-        description: 'GitHub token for triggering cascades'
-        required: false
   workflow_dispatch:
     inputs:
       skip-docs:
@@ -49,33 +46,9 @@ jobs:
       HAVE_RELEASE_APP_ID: ${{ secrets.HAVE_RELEASE_APP_ID }}
       HAVE_RELEASE_APP_PRIVATE_KEY: ${{ secrets.HAVE_RELEASE_APP_PRIVATE_KEY }}
 
-  cascade:
-    name: Trigger Dependency Cascade
-    runs-on: ubuntu-latest
-    needs: [release]
-    if: needs.release.outputs.published == 'true'
-
-    steps:
-      - name: Trigger dependency cascade
-        env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
-        run: |
-          echo "📢 Triggering dependency cascade for downstream repositories..."
-
-          version="${{ needs.release.outputs.version }}"
-          echo "Published version: $version"
-
-          # Trigger SMRT with version information
-          gh api \
-            --method POST \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            /repos/happyvertical/smrt/dispatches \
-            -f event_type='dependency-updated' \
-            -f 'client_payload[repository]=happyvertical/sdk' \
-            -f "client_payload[version]=$version"
-
-          echo "✅ Triggered SMRT dependency cascade"
+  # NOTE: Dependency cascade is now handled by Renovate CE
+  # Downstream repositories (SMRT, praeco, caelus) will receive automatic
+  # PRs from Renovate when new SDK versions are published.
 
   deploy-docs:
     name: Deploy Documentation
