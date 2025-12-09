@@ -265,8 +265,8 @@ importers:
         specifier: ^10.5.0
         version: 10.5.0
       googleapis:
-        specifier: ^131.0.0
-        version: 131.0.0
+        specifier: ^137.0.0
+        version: 137.1.0
       imapflow:
         specifier: ^1.1.1
         version: 1.1.1
@@ -6534,8 +6534,8 @@ packages:
     resolution: {integrity: sha512-/fhDZEJZvOV3X5jmD+fKxMqma5q2Q9nZNSF3kn1F18tpxmA86BcTxAGBQdM0N89Z3bEaIs+HVznSmFJEAmMTjA==}
     engines: {node: '>=14.0.0'}
 
-  googleapis@131.0.0:
-    resolution: {integrity: sha512-fa4kdkY0VwHDw/04ItpQv2tlvlPIwbh6NjHDoWAVrV52GuaZbYCMOC5Y+hRmprp5HHIMRODmyb2YujlbZSRUbQ==}
+  googleapis@137.1.0:
+    resolution: {integrity: sha512-2L7SzN0FLHyQtFmyIxrcXhgust77067pkkduqkbIpDuj9JzVnByxsRrcRfUMFQam3rQkWW2B0f1i40IwKDWIVQ==}
     engines: {node: '>=14.0.0'}
 
   gopd@1.2.0:
@@ -19149,7 +19149,7 @@ snapshots:
       - encoding
       - supports-color
 
-  googleapis@131.0.0:
+  googleapis@137.1.0:
     dependencies:
       google-auth-library: 9.15.1
       googleapis-common: 7.2.0
