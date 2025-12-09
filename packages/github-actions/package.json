@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/github-actions",
-  "version": "0.59.5",
+  "version": "0.59.6",
   "description": "Reusable GitHub Actions utilities for issue triage, PR validation, and workflow automation",
   "type": "module",
   "main": "./dist/index.js",

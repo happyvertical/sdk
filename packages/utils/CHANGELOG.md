@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.59.6
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - resolve workflow failures and warnings (ci)
+
 ## 0.59.5
 
 ### Patch Changes
