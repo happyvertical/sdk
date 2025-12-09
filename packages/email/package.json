@@ -31,7 +31,7 @@
     "@happyvertical/logger": "workspace:*",
     "@happyvertical/utils": "workspace:*",
     "google-auth-library": "^10.5.0",
-    "googleapis": "^131.0.0",
+    "googleapis": "^152.0.0",
     "imapflow": "^1.1.1",
     "mailparser": "^3.9.0",
     "node-pop3": "^0.10.0",
