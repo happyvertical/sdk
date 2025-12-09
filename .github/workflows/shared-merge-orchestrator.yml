@@ -22,9 +22,6 @@ on:
       HAVE_RELEASE_APP_PRIVATE_KEY:
         description: 'GitHub App private key for release automation'
         required: true
-      GH_TOKEN:
-        description: 'GitHub token for triggering cascades'
-        required: false
 
 permissions:
   contents: write

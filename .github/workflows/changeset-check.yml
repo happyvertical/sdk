@@ -47,11 +47,11 @@ jobs:
             exit 0
           fi
 
-          # Skip if PR is from cascade/update-dependencies branch
+          # Skip if PR is from renovate bot
           # (automated dependency update PR)
-          if echo "$PR_BRANCH" | grep -q '^cascade/'; then
+          if echo "$PR_BRANCH" | grep -q '^renovate/'; then
             echo "✅ Skipping changeset check" \
-              "(cascade dependency update PR from $PR_BRANCH)"
+              "(Renovate dependency update PR from $PR_BRANCH)"
             exit 0
           fi
 

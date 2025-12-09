@@ -84,6 +84,15 @@ Each package has comprehensive documentation in its own `CLAUDE.md` file. Click 
 - Internal SDK packages use `workspace:*` to reference other SDK packages
 - External dependencies are kept to a minimum
 - Node.js 24+ or Bun 1.0+ required for development and runtime
+- **Automated updates via Renovate CE**: Self-hosted Renovate automatically creates PRs for dependency updates across all HappyVertical repositories
+
+**Cross-Repository Updates**:
+
+When SDK publishes new versions, downstream repositories (SMRT, praeco, caelus) automatically receive Renovate PRs:
+- Webhook triggers Renovate on SDK publish
+- PRs created within seconds of new version
+- Grouped updates with configurable automerge
+- Configuration managed in [renovate-config](https://github.com/happyvertical/renovate-config)
 
 ### Build Process
 
