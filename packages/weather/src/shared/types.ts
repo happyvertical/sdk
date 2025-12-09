@@ -155,12 +155,44 @@ export interface OpenWeatherMapOneCallOptions {
 }
 
 /**
+ * Google Weather API provider options
+ */
+export interface GoogleWeatherOptions {
+  provider: 'google-weather';
+  /** Google API key (required) */
+  apiKey: string;
+  /** Request timeout in milliseconds (default: 10000) */
+  timeout?: number;
+}
+
+/**
+ * Weather alert from Google Weather API
+ */
+export interface WeatherAlert {
+  /** Alert identifier */
+  id: string;
+  /** Alert headline */
+  headline: string;
+  /** Detailed description */
+  description: string;
+  /** Severity level */
+  severity: string;
+  /** Alert start time */
+  startTime: Date;
+  /** Alert end time */
+  endTime: Date;
+  /** Raw API response */
+  raw: any;
+}
+
+/**
  * Discriminated union of all provider options
  */
 export type WeatherAdapterOptions =
   | EnvironmentCanadaOptions
   | OpenWeatherMapOptions
-  | OpenWeatherMapOneCallOptions;
+  | OpenWeatherMapOneCallOptions
+  | GoogleWeatherOptions;
 
 /**
  * Partial provider options for environment variable configuration
@@ -169,11 +201,13 @@ export type PartialWeatherAdapterOptions = Partial<
   Omit<EnvironmentCanadaOptions, 'provider'>
 > &
   Partial<Omit<OpenWeatherMapOptions, 'provider'>> &
-  Partial<Omit<OpenWeatherMapOneCallOptions, 'provider'>> & {
+  Partial<Omit<OpenWeatherMapOneCallOptions, 'provider'>> &
+  Partial<Omit<GoogleWeatherOptions, 'provider'>> & {
     provider?:
       | 'environment-canada'
       | 'openweathermap'
-      | 'openweathermap-onecall';
+      | 'openweathermap-onecall'
+      | 'google-weather';
   };
 
 /**
