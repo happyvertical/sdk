@@ -50,7 +50,7 @@
     "@happyvertical/utils": "workspace:*",
     "@libsql/client": "0.15.15",
     "pg": "^8.16.3",
-    "sqlite-vss": "^0.1.2"
+    "sqlite-vss": "0.1.2"
   },
   "devDependencies": {
     "@types/node": "24.10.0",

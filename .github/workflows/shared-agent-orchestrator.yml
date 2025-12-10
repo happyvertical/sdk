@@ -38,7 +38,7 @@ jobs:
     steps:
       - name: Agent Assignment
         if: inputs.action == 'labeled'
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           github-token: ${{ secrets.GH_TOKEN }}
           script: |
@@ -86,7 +86,7 @@ jobs:
 
       - name: Agent Unassignment
         if: inputs.action == 'unlabeled'
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           github-token: ${{ secrets.GH_TOKEN }}
           script: |

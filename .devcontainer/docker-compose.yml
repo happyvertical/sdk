@@ -57,7 +57,7 @@ services:
 
   # Docker-in-Docker service
   dind:
-    image: docker:dind
+    image: docker:dind@sha256:40916fb078cdd27640d069bba401324a15a06d3ecbd8895048122c8d321f43f8
     privileged: true
     environment:
       - DOCKER_TLS_CERTDIR=/certs

@@ -50,7 +50,7 @@
   "author": "willgriffin@gmail.com",
   "license": "ISC",
   "dependencies": {
-    "@googlemaps/google-maps-services-js": "^3.4.2",
+    "@googlemaps/google-maps-services-js": "3.4.2",
     "@happyvertical/cache": "workspace:*",
     "@happyvertical/utils": "workspace:*"
   },
