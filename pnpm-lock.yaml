@@ -27,12 +27,6 @@ importers:
       '@jpisnice/shadcn-ui-mcp-server':
         specifier: 1.1.4
         version: 1.1.4
-      '@playwright/mcp':
-        specifier: 0.0.46
-        version: 0.0.46
-      '@playwright/test':
-        specifier: ^1.56.1
-        version: 1.57.0
       chokidar:
         specifier: ^4.0.3
         version: 4.0.3
@@ -54,9 +48,6 @@ importers:
       patch-package:
         specifier: ^8.0.0
         version: 8.0.1
-      playwright-core:
-        specifier: ^1.56.1
-        version: 1.57.0
       turbo:
         specifier: 2.6.3
         version: 2.6.3
@@ -3162,16 +3153,6 @@ packages:
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
-
-  '@playwright/mcp@0.0.46':
-    resolution: {integrity: sha512-AXV2GxA6GKfKm/elCd898XTsP6OutKoKs52lATrF1oIOw2nX32vNLst79mjWNYpwaxP5I1kd083M2shggsy8eQ==}
-    engines: {node: '>=18'}
-    hasBin: true
-
-  '@playwright/test@1.57.0':
-    resolution: {integrity: sha512-6TyEnHgd6SArQO8UO2OMTxshln3QMWBtPGrOCgs3wVEmQmwyuNtB10IZMfmYDE0riwNR1cu4q+pPcxMVtaG3TA==}
-    engines: {node: '>=18'}
-    hasBin: true
 
   '@pnpm/config.env-replace@1.1.0':
     resolution: {integrity: sha512-htyl8TWnKL7K/ESFa1oW2UB5lVDxuF5DpM7tBi6Hu2LNL3mWkIzNLG6N4zoCUP1lCKNxWy/3iu8mS8MvToGd6w==}
@@ -8319,18 +8300,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  playwright-core@1.57.0-alpha-2025-11-07:
-    resolution: {integrity: sha512-p61pk1XLuFBSia+37jfeuw62HbAi/KaXOGvjUoAiPdnDgO6AOj/DfodbWkZ1fqLZbW+q6Mja30YnzhD0CaePEQ==}
-    engines: {node: '>=18'}
-    hasBin: true
-
   playwright@1.57.0:
     resolution: {integrity: sha512-ilYQj1s8sr2ppEJ2YVadYBN0Mb3mdo9J0wQ+UuDhzYqURwSoW4n1Xs5vs7ORwgDGmyEh33tRMeS8KhdkMoLXQw==}
-    engines: {node: '>=18'}
-    hasBin: true
-
-  playwright@1.57.0-alpha-2025-11-07:
-    resolution: {integrity: sha512-E5fgekU+NuIfE16bjL9xIffhmag2cInC/KDfXwvVGkCka5TpZfiWhHvCYIRW6/hEGr+eJS3jPHR91cyPO3gQgA==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -15095,15 +15066,6 @@ snapshots:
   '@pkgjs/parseargs@0.11.0':
     optional: true
 
-  '@playwright/mcp@0.0.46':
-    dependencies:
-      playwright: 1.57.0-alpha-2025-11-07
-      playwright-core: 1.57.0-alpha-2025-11-07
-
-  '@playwright/test@1.57.0':
-    dependencies:
-      playwright: 1.57.0
-
   '@pnpm/config.env-replace@1.1.0': {}
 
   '@pnpm/network.ca-file@1.0.2':
@@ -21267,17 +21229,9 @@ snapshots:
 
   playwright-core@1.57.0: {}
 
-  playwright-core@1.57.0-alpha-2025-11-07: {}
-
   playwright@1.57.0:
     dependencies:
       playwright-core: 1.57.0
-    optionalDependencies:
-      fsevents: 2.3.2
-
-  playwright@1.57.0-alpha-2025-11-07:
-    dependencies:
-      playwright-core: 1.57.0-alpha-2025-11-07
     optionalDependencies:
       fsevents: 2.3.2
 

@@ -33,48 +33,6 @@ FRAMEWORK=vue ./scripts/mcp-servers/shadcn-ui.sh
 # Accessible as "shadcn-ui" MCP server in Claude
 ```
 
-### playwright.sh
-Provides browser automation capabilities via Playwright with isolated mode for multi-repo development.
-
-- **Isolated Mode**: Enabled by default to prevent conflicts between multiple repos
-- **Port Management**: Auto-assigns unique ports per project (58000-58999 range)
-- **Memory-Only Profiles**: Browser profiles kept in RAM to avoid disk conflicts
-- **Health Monitoring**: Automatic restart on failure with configurable attempts
-- **Binary**: Uses project dependency `@playwright/mcp` via bunx
-- **Nix Compatible**: Uses `/usr/bin/env bash` and checks for bun availability
-
-**Key Features**:
-- **Multi-Repo Safety**: Each repo gets unique port based on path hash
-- **No State Persistence**: Clean browser state for each session
-- **Automatic Cleanup**: Memory profiles cleaned up on exit
-- **Port Conflict Resolution**: Automatically finds available port if default is taken
-
-**Usage**:
-```bash
-# Direct usage (isolated mode enabled by default)
-./scripts/mcp-servers/playwright.sh
-
-# Specify custom port
-./scripts/mcp-servers/playwright.sh --port 58150
-
-# Disable isolated mode (not recommended for multi-repo)
-./scripts/mcp-servers/playwright.sh --no-isolated
-
-# Via environment variables
-PLAYWRIGHT_MCP_PORT=58175 ./scripts/mcp-servers/playwright.sh
-PLAYWRIGHT_MCP_ISOLATED=false ./scripts/mcp-servers/playwright.sh
-
-# Via Claude configuration (already configured)
-# Accessible as "playwright" MCP server in Claude
-```
-
-**Multi-Repo Considerations**:
-- Each project automatically gets a unique port based on its path
-- Isolated mode prevents browser profile conflicts
-- No cookies or session data persists between runs
-- ~50-100MB additional memory per instance
-- Ideal for running multiple development environments simultaneously
-
 ## Usage
 
 1. **Create a bridge script** following the template patterns

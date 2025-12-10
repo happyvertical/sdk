@@ -23,10 +23,6 @@ outputs:
     description: 'Whether pnpm cache was hit'
     value: ${{ steps.pnpm-cache.outputs.cache-hit }}
 
-  playwright-cache-hit:
-    description: 'Whether Playwright browser cache was hit'
-    value: ${{ steps.playwright-cache.outputs.cache-hit }}
-
   store-path:
     description: 'pnpm store path'
     value: ${{ steps.pnpm-store.outputs.path }}
@@ -66,15 +62,6 @@ runs:
         restore-keys: |
           ${{ runner.os }}-pnpm-store-
 
-    - name: Cache Playwright browsers
-      uses: actions/cache@v4
-      id: playwright-cache
-      with:
-        path: ~/.cache/ms-playwright
-        key: ${{ runner.os }}-playwright-${{ hashFiles('**/pnpm-lock.yaml') }}
-        restore-keys: |
-          ${{ runner.os }}-playwright-
-
     - name: Install system dependencies for ONNX Runtime
       shell: bash
       run: |
@@ -97,8 +84,3 @@ runs:
         ONNXRUNTIME_NODE_INSTALL_CUDA: 'skip'
         # GitHub Packages auth for @happyvertical/* packages
         NODE_AUTH_TOKEN: ${{ github.token }}
-
-    - name: Install Playwright browsers
-      if: inputs.install-deps == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
-      shell: bash
-      run: npx playwright install --with-deps chromium

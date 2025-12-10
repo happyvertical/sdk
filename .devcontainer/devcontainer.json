@@ -12,7 +12,6 @@
     "SQLOO_DATABASE": "testdb",
     "SQLOO_PORT": "5432",
     "DEVCONTAINER": "true",
-    "PLAYWRIGHT_BROWSERS_PATH": "/home/vscode/.cache/ms-playwright",
     "DOCKER_HOST": "tcp://dind:2376",
     "DOCKER_TLS_VERIFY": "1",
     "DOCKER_CERT_PATH": "/certs/client",
@@ -34,7 +33,7 @@
   "postCreateCommand": [
     "bash",
     "-c",
-    "pnpm install && pnpm run build && npx playwright install --with-deps chromium"
+    "pnpm install && pnpm run build"
   ],
 
   "customizations": {
