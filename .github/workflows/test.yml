@@ -28,7 +28,7 @@ jobs:
     # PostgreSQL service for database tests
     services:
       postgres:
-        image: postgres:16-alpine
+        image: postgres:17-alpine@sha256:7cd12b4b4bf00307d4ab00e98622290e589e5de767cb55a48b1cf0e71770ae24
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

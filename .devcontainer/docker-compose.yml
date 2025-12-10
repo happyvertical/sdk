@@ -36,7 +36,7 @@ services:
         condition: service_started
 
   db:
-    image: postgres:16-alpine
+    image: postgres:17-alpine@sha256:7cd12b4b4bf00307d4ab00e98622290e589e5de767cb55a48b1cf0e71770ae24
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
