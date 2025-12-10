@@ -1,5 +1,13 @@
 # @happyvertical/spider
 
+## 0.60.1
+
+### Patch Changes
+
+- @happyvertical/cache@0.60.1
+- @happyvertical/files@0.60.1
+- @happyvertical/utils@0.60.1
+
 ## 0.60.0
 
 ### Patch Changes
