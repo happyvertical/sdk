@@ -95,7 +95,7 @@
     "node": ">=24.0.0",
     "pnpm": ">=9.0.0"
   },
-  "packageManager": "pnpm@9.15.0",
+  "packageManager": "pnpm@10.25.0",
   "dependencies": {
     "@napi-rs/canvas": "^0.1.82",
     "pdf-to-png-converter": "^3.11.0"
