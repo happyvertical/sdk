@@ -19,6 +19,5 @@ jobs:
       repo_name: ${{ github.event.repository.name }}
       ref: ${{ github.ref }}
     secrets:
-      GH_TOKEN: ${{ secrets.GH_TOKEN }}
       HAVE_RELEASE_APP_ID: ${{ secrets.HAVE_RELEASE_APP_ID }}
       HAVE_RELEASE_APP_PRIVATE_KEY: ${{ secrets.HAVE_RELEASE_APP_PRIVATE_KEY }}
