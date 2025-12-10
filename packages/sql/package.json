@@ -49,12 +49,12 @@
     "@duckdb/node-api": "1.4.1-r.4",
     "@happyvertical/utils": "workspace:*",
     "@libsql/client": "0.15.15",
-    "pg": "^8.16.3",
+    "pg": "8.16.3",
     "sqlite-vss": "^0.1.2"
   },
   "devDependencies": {
     "@types/node": "24.10.0",
-    "@types/pg": "^8.15.6",
+    "@types/pg": "8.15.6",
     "typescript": "^5.9.3",
     "vite": "7.2.7",
     "vite-plugin-dts": "4.5.4",
