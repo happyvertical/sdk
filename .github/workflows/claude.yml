@@ -32,14 +32,14 @@ jobs:
       id-token: write        # Required for authentication
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           # Fetch full history for better context when creating PRs
           fetch-depth: 0
 
       - name: Run Claude Code
         id: claude
-        uses: anthropics/claude-code-action@v1
+        uses: anthropics/claude-code-action@f0c8eb29807907de7f5412d04afceb5e24817127 # v1
         with:
           # Use OAuth token for Claude Max plan subscription
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

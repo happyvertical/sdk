@@ -36,7 +36,7 @@ services:
         condition: service_started
 
   db:
-    image: postgres:16-alpine
+    image: postgres:16-alpine@sha256:a5074487380d4e686036ce61ed6f2d363939ae9a0c40123d1a9e3bb3a5f344b4
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
@@ -57,7 +57,7 @@ services:
 
   # Docker-in-Docker service
   dind:
-    image: docker:dind
+    image: docker:dind@sha256:40916fb078cdd27640d069bba401324a15a06d3ecbd8895048122c8d321f43f8
     privileged: true
     environment:
       - DOCKER_TLS_CERTDIR=/certs

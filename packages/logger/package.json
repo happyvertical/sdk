@@ -31,10 +31,10 @@
     "@happyvertical/utils": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "24.10.0",
+    "@types/node": "24.10.3",
     "typescript": "^5.9.3",
     "vite": "7.2.7",
-    "vitest": "^4.0.8"
+    "vitest": "^4.0.15"
   },
   "keywords": [
     "logging",
