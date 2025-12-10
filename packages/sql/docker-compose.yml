@@ -1,7 +1,7 @@
 version: "3.1"
 services:
   postgres:
-    image: postgres:latest
+    image: postgres:latest@sha256:0033c194dc640cc4dcc62ef7c3117e5791365cca5fc1a2998e5c1693254784bc
     environment:
       POSTGRES_USER: sqloo
       POSTGRES_PASSWORD: sqloo
