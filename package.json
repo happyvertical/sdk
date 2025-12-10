@@ -87,7 +87,7 @@
   },
   "pnpm": {
     "overrides": {
-      "rollup": "4.52.0",
+      "rollup": "4.53.3",
       "pdfjs-dist": "5.4.296"
     }
   },
