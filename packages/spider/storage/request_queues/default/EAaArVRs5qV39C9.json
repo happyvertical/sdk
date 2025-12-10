@@ -1,9 +1,0 @@
-{
-	"id": "EAaArVRs5qV39C9",
-	"json": "{\"id\":\"EAaArVRs5qV39C9\",\"url\":\"https://example.com\",\"uniqueKey\":\"https://example.com\",\"method\":\"GET\",\"noRetry\":false,\"retryCount\":0,\"errorMessages\":[],\"headers\":{},\"userData\":{}}",
-	"method": "GET",
-	"orderNo": 1760221572401,
-	"retryCount": 0,
-	"uniqueKey": "https://example.com",
-	"url": "https://example.com"
-}

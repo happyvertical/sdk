@@ -53,10 +53,7 @@
     { "path": "./packages/geo" },
     { "path": "./packages/translator" },
     { "path": "./packages/weather" },
-    { "path": "./packages/ocr" },
-    { "path": "./packages/pdf" },
     { "path": "./packages/documents" },
-    { "path": "./packages/spider" },
     { "path": "./packages/email" },
 
     // Developer tools
