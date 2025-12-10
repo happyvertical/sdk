@@ -83,7 +83,7 @@
     "vitest": "4.0.8"
   },
   "resolutions": {
-    "@types/node": "24.0.0"
+    "@types/node": "24.10.3"
   },
   "pnpm": {
     "overrides": {
