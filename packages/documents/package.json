@@ -43,7 +43,7 @@
     "@happyvertical/pdf": "workspace:*",
     "@happyvertical/spider": "workspace:*",
     "@happyvertical/utils": "workspace:*",
-    "uuid": "^13.0.0"
+    "uuid": "13.0.0"
   },
   "devDependencies": {
     "@types/node": "24.10.0",

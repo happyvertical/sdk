@@ -22,14 +22,14 @@
     "dev": "npm run build:watch & npm run test:watch"
   },
   "dependencies": {
-    "@paralleldrive/cuid2": "^3.0.4",
-    "date-fns": "^4.1.0",
-    "pluralize": "^8.0.0",
-    "uuid": "^13.0.0"
+    "@paralleldrive/cuid2": "3.0.4",
+    "date-fns": "4.1.0",
+    "pluralize": "8.0.0",
+    "uuid": "13.0.0"
   },
   "devDependencies": {
     "@types/node": "24.10.0",
-    "@types/pluralize": "^0.0.33",
+    "@types/pluralize": "0.0.33",
     "typescript": "^5.9.3",
     "vite": "7.2.7",
     "vite-plugin-dts": "4.5.4",

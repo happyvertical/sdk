@@ -60,18 +60,18 @@
   "devDependencies": {
     "@biomejs/biome": "2.3.4",
     "@changesets/cli": "2.29.8",
-    "@commitlint/cli": "^20.1.0",
-    "@commitlint/config-conventional": "^20.0.0",
+    "@commitlint/cli": "20.2.0",
+    "@commitlint/config-conventional": "20.2.0",
     "@jpisnice/shadcn-ui-mcp-server": "1.1.4",
     "@playwright/mcp": "0.0.46",
     "@playwright/test": "^1.56.1",
-    "chokidar": "^4.0.3",
+    "chokidar": "4.0.3",
     "concurrently": "9.2.1",
-    "dependency-cruiser": "^17.3.2",
-    "express": "^5.1.0",
-    "lefthook": "^2.0.2",
-    "livereload": "^0.10.3",
-    "patch-package": "^8.0.0",
+    "dependency-cruiser": "17.3.2",
+    "express": "5.2.1",
+    "lefthook": "2.0.9",
+    "livereload": "0.10.3",
+    "patch-package": "8.0.1",
     "pdfjs-dist": "5.4.296",
     "playwright-core": "^1.56.1",
     "turbo": "2.6.3",
@@ -92,12 +92,12 @@
     }
   },
   "engines": {
-    "node": ">=24.0.0",
-    "pnpm": ">=9.0.0"
+    "node": "v25.2.1",
+    "pnpm": "10.25.0"
   },
   "packageManager": "pnpm@9.15.0",
   "dependencies": {
-    "@napi-rs/canvas": "^0.1.82",
-    "pdf-to-png-converter": "^3.11.0"
+    "@napi-rs/canvas": "0.1.84",
+    "pdf-to-png-converter": "3.11.0"
   }
 }

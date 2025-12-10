@@ -44,13 +44,13 @@
     "@happyvertical/cache": "workspace:*",
     "@happyvertical/files": "workspace:*",
     "@happyvertical/utils": "workspace:*",
-    "@mozilla/readability": "^0.6.0",
-    "cheerio": "^1.1.2",
-    "crawlee": "^3.15.2",
-    "happy-dom": "^20.0.10",
+    "@mozilla/readability": "0.6.0",
+    "cheerio": "1.1.2",
+    "crawlee": "3.15.3",
+    "happy-dom": "20.0.11",
     "jsdom": "27.1.0",
     "playwright": "^1.56.1",
-    "undici": "^7.16.0"
+    "undici": "7.16.0"
   },
   "devDependencies": {
     "@types/node": "24.10.0",

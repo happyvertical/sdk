@@ -50,10 +50,10 @@
   "author": "willgriffin@gmail.com",
   "license": "ISC",
   "dependencies": {
-    "@google-cloud/translate": "^9.2.1",
+    "@google-cloud/translate": "9.3.0",
     "@happyvertical/cache": "workspace:*",
     "@happyvertical/utils": "workspace:*",
-    "deepl-node": "^1.21.0"
+    "deepl-node": "1.22.0"
   },
   "devDependencies": {
     "@types/node": "24.10.0",

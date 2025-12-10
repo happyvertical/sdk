@@ -55,7 +55,7 @@
     "@aws-sdk/client-s3": "3.947.0",
     "@aws-sdk/credential-providers": "3.947.0",
     "@happyvertical/utils": "workspace:*",
-    "redis": "^5.9.0"
+    "redis": "5.10.0"
   },
   "devDependencies": {
     "@types/node": "24.10.0",
