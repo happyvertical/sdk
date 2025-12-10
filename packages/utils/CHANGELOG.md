@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.60.2
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - remove undeclared GH_TOKEN from on-merge-main workflow (ci)
+
 ## 0.60.1
 
 ## 0.60.0
