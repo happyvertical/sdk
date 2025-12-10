@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.60.3
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - add NODE_AUTH_TOKEN to setup-environment action (ci)
+
 ## 0.60.2
 
 ### Patch Changes
