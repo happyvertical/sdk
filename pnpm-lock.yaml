@@ -7,7 +7,7 @@ settings:
 overrides:
   '@types/node': 24.0.0
   rollup: 4.52.0
-  pdfjs-dist: 5.4.296
+  pdfjs-dist: 5.4.449
 
 importers:
 
@@ -63,8 +63,8 @@ importers:
         specifier: ^8.0.0
         version: 8.0.1
       pdfjs-dist:
-        specifier: 5.4.296
-        version: 5.4.296
+        specifier: 5.4.449
+        version: 5.4.449
       playwright-core:
         specifier: ^1.56.1
         version: 1.57.0
@@ -8358,8 +8358,8 @@ packages:
     resolution: {integrity: sha512-9V4seNenywRMGKX2AQX2IHdxUxTBffqfGNtozQjx2RokePG/TjvwABGfr7tozmWkmc4oAsO2q2RL6lFp5Bqxhw==}
     engines: {node: '>=20'}
 
-  pdfjs-dist@5.4.296:
-    resolution: {integrity: sha512-DlOzet0HO7OEnmUmB6wWGJrrdvbyJKftI1bhMitK7O2N8W2gc757yyYBbINy9IDafXAV9wmKr9t7xsTaNKRG5Q==}
+  pdfjs-dist@5.4.449:
+    resolution: {integrity: sha512-CegnUaT0QwAyQMS+7o2POr4wWUNNe8VaKKlcuoRHeYo98cVnqPpwOXNSx6Trl6szH02JrRcsPgletV6GmF3LtQ==}
     engines: {node: '>=20.16.0 || >=22.3.0'}
 
   peberminta@0.9.0:
@@ -21265,9 +21265,9 @@ snapshots:
   pdf-to-png-converter@3.11.0:
     dependencies:
       '@napi-rs/canvas': 0.1.84
-      pdfjs-dist: 5.4.296
+      pdfjs-dist: 5.4.449
 
-  pdfjs-dist@5.4.296:
+  pdfjs-dist@5.4.449:
     optionalDependencies:
       '@napi-rs/canvas': 0.1.84
 
