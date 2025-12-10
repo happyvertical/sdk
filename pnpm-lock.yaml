@@ -682,7 +682,7 @@ importers:
         specifier: 0.15.15
         version: 0.15.15
       pg:
-        specifier: ^8.16.3
+        specifier: 8.16.3
         version: 8.16.3
       sqlite-vss:
         specifier: ^0.1.2
@@ -692,7 +692,7 @@ importers:
         specifier: 24.0.0
         version: 24.0.0
       '@types/pg':
-        specifier: ^8.15.6
+        specifier: 8.15.6
         version: 8.15.6
       typescript:
         specifier: ^5.9.3
