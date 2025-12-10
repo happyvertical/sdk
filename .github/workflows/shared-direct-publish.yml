@@ -80,7 +80,7 @@ jobs:
           private_key: ${{ secrets.HAVE_RELEASE_APP_PRIVATE_KEY }}
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
         with:
           fetch-depth: 0
           # Use GitHub App token to allow pushing to protected main branch
