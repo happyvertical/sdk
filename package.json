@@ -54,35 +54,35 @@
   "devDependencies": {
     "@biomejs/biome": "2.3.8",
     "@changesets/cli": "2.29.8",
-    "@commitlint/cli": "^20.1.0",
-    "@commitlint/config-conventional": "^20.0.0",
+    "@commitlint/cli": "^20.2.0",
+    "@commitlint/config-conventional": "^20.2.0",
     "@jpisnice/shadcn-ui-mcp-server": "1.1.4",
     "chokidar": "^4.0.3",
     "concurrently": "9.2.1",
     "dependency-cruiser": "^17.3.2",
-    "express": "^5.1.0",
-    "lefthook": "^2.0.2",
+    "express": "^5.2.1",
+    "lefthook": "^2.0.9",
     "livereload": "^0.10.3",
-    "patch-package": "^8.0.0",
+    "patch-package": "^8.0.1",
     "turbo": "2.6.3",
-    "typedoc": "^0.28.14",
+    "typedoc": "^0.28.15",
     "typedoc-plugin-markdown": "^4.9.0",
     "typescript": "^5.9.3",
     "vite": "7.2.7",
     "vite-plugin-dts": "4.5.4",
-    "vitest": "4.0.8"
+    "vitest": "4.0.15"
   },
   "resolutions": {
-    "@types/node": "24.0.0"
+    "@types/node": "24.10.3"
   },
   "pnpm": {
     "overrides": {
-      "rollup": "4.52.0"
+      "rollup": "4.53.3"
     }
   },
   "engines": {
     "node": ">=24",
     "pnpm": ">=9"
   },
-  "packageManager": "pnpm@9.15.0"
+  "packageManager": "pnpm@9.15.9"
 }
