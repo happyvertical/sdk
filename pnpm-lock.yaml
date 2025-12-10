@@ -78,7 +78,7 @@ importers:
         specifier: ^4.9.0
         version: 4.9.0(typedoc@0.28.15(typescript@5.9.3))
       typescript:
-        specifier: ^5.9.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 7.2.7
@@ -151,7 +151,7 @@ importers:
         specifier: ^4.9.0
         version: 4.9.0(typedoc@0.28.15(typescript@5.9.3))
       typescript:
-        specifier: ^5.9.3
+        specifier: 5.9.3
         version: 5.9.3
 
   packages/ai:
@@ -176,7 +176,7 @@ importers:
         specifier: 24.0.0
         version: 24.0.0
       typescript:
-        specifier: ^5.9.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 7.2.7
@@ -207,7 +207,7 @@ importers:
         specifier: 24.0.0
         version: 24.0.0
       typescript:
-        specifier: ^5.9.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 7.2.7
@@ -244,7 +244,7 @@ importers:
         specifier: 24.0.0
         version: 24.0.0
       typescript:
-        specifier: ^5.9.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 7.2.7
@@ -293,7 +293,7 @@ importers:
         specifier: ^3.16.1
         version: 3.16.1
       typescript:
-        specifier: ^5.7.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 7.2.7
@@ -330,7 +330,7 @@ importers:
         specifier: 24.0.0
         version: 24.0.0
       typescript:
-        specifier: ^5.7.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 7.2.7
@@ -364,7 +364,7 @@ importers:
         specifier: 27.1.0
         version: 27.1.0(postcss@8.5.6)
       typescript:
-        specifier: ^5.9.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 7.2.7
@@ -392,7 +392,7 @@ importers:
         specifier: 24.0.0
         version: 24.0.0
       typescript:
-        specifier: ^5.9.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 7.2.7
@@ -417,7 +417,7 @@ importers:
         specifier: 24.0.0
         version: 24.0.0
       typescript:
-        specifier: ^5.9.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 7.2.7
@@ -435,7 +435,7 @@ importers:
         specifier: 24.0.0
         version: 24.0.0
       typescript:
-        specifier: ^5.9.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 7.2.7
@@ -457,7 +457,7 @@ importers:
         specifier: 24.0.0
         version: 24.0.0
       typescript:
-        specifier: ^5.9.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 7.2.7
@@ -491,7 +491,7 @@ importers:
         specifier: 6.0.5
         version: 6.0.5
       typescript:
-        specifier: ^5.9.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 7.2.7
@@ -525,7 +525,7 @@ importers:
         specifier: 24.0.0
         version: 24.0.0
       typescript:
-        specifier: ^5.9.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 7.2.7
@@ -550,7 +550,7 @@ importers:
         specifier: 24.0.0
         version: 24.0.0
       typescript:
-        specifier: ^5.9.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 7.2.7
@@ -578,7 +578,7 @@ importers:
         specifier: 24.0.0
         version: 24.0.0
       typescript:
-        specifier: ^5.9.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 7.2.7
@@ -609,7 +609,7 @@ importers:
         specifier: 24.0.0
         version: 24.0.0
       typescript:
-        specifier: ^5.9.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 7.2.7
@@ -658,7 +658,7 @@ importers:
         specifier: 24.0.0
         version: 24.0.0
       typescript:
-        specifier: ^5.9.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 7.2.7
@@ -695,7 +695,7 @@ importers:
         specifier: ^8.15.6
         version: 8.15.6
       typescript:
-        specifier: ^5.9.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 7.2.7
@@ -726,7 +726,7 @@ importers:
         specifier: 24.0.0
         version: 24.0.0
       typescript:
-        specifier: ^5.9.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 7.2.7
@@ -760,7 +760,7 @@ importers:
         specifier: ^0.0.33
         version: 0.0.33
       typescript:
-        specifier: ^5.9.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 7.2.7
@@ -788,7 +788,7 @@ importers:
         specifier: ^4.9.0
         version: 4.9.0(typedoc@0.28.15(typescript@5.9.3))
       typescript:
-        specifier: ^5.9.3
+        specifier: 5.9.3
         version: 5.9.3
       vite:
         specifier: 7.2.7
