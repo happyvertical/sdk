@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -74,6 +76,44 @@ describe('DuckDB Adapter', () => {
       });
 
       expect(dbNoData).toBeDefined();
+    });
+
+    it('should redirect :memory:* URLs to temp directory (issue #544)', async () => {
+      // This pattern was causing file leakage in the working directory
+      const uniqueId = `${Date.now()}-${Math.random()}`;
+      const testUrl = `:memory:${uniqueId}`;
+
+      const testDb = await getDatabase({
+        type: 'duckdb',
+        url: testUrl,
+        autoRegisterJSON: false,
+      });
+
+      // Verify the database works
+      await testDb.execute`CREATE TABLE test (id TEXT PRIMARY KEY)`;
+      await testDb.insert('test', { id: 'test-1' });
+      const result = await testDb.get('test', { id: 'test-1' });
+      expect(result).toBeDefined();
+      expect(result?.id).toBe('test-1');
+
+      // Verify no file was created in the current working directory
+      const cwdFile = join(process.cwd(), testUrl);
+      expect(existsSync(cwdFile)).toBe(false);
+
+      // Verify the url property reflects the resolved path in tmpdir
+      const expectedTempPath = join(tmpdir(), `duckdb-memory-${uniqueId}.db`);
+      expect(testDb.url).toBe(expectedTempPath);
+    });
+
+    it('should use pure :memory: for exact :memory: URL', async () => {
+      const testDb = await getDatabase({
+        type: 'duckdb',
+        url: ':memory:',
+        autoRegisterJSON: false,
+      });
+
+      // The url property should remain :memory: for pure in-memory databases
+      expect(testDb.url).toBe(':memory:');
     });
   });
 

@@ -1,4 +1,5 @@
 import { readdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { basename, extname, join } from 'node:path';
 import { DatabaseError } from '@happyvertical/utils';
 import { DatabaseSchemaManager } from './schema-manager';
@@ -102,6 +103,38 @@ async function createTablesFromSchemas(
 }
 
 /**
+ * Resolves a DuckDB URL, handling :memory: variants to prevent file leakage.
+ *
+ * DuckDB interprets any string as a file path unless it's exactly ':memory:'.
+ * URLs like ':memory:12345' create files named ':memory:12345' in the working directory.
+ *
+ * This function:
+ * - Returns ':memory:' unchanged (pure in-memory database)
+ * - Converts ':memory:*' patterns to temp files in os.tmpdir()
+ * - Returns other URLs unchanged (file paths, etc.)
+ *
+ * @param url - The database URL to resolve
+ * @returns The resolved URL safe for DuckDB
+ */
+function resolveDuckDBUrl(url: string): string {
+  // Pure in-memory: use as-is
+  if (url === ':memory:') {
+    return url;
+  }
+
+  // Pattern: :memory: followed by anything (e.g., :memory:12345-0.5678)
+  // These would create files in CWD - redirect to temp directory instead
+  if (url.startsWith(':memory:')) {
+    const suffix = url.slice(':memory:'.length);
+    const tempPath = join(tmpdir(), `duckdb-memory-${suffix}.db`);
+    return tempPath;
+  }
+
+  // Other URLs (file paths, etc.): use as-is
+  return url;
+}
+
+/**
  * Creates a DuckDB connection instance
  *
  * @param options - DuckDB connection options
@@ -115,13 +148,16 @@ async function createDuckDBConnection(options: DuckDBOptions) {
     schemas = {},
   } = options;
 
+  // Resolve URL to prevent file leakage from :memory:* patterns
+  const resolvedUrl = resolveDuckDBUrl(url);
+
   try {
     // Dynamic import to avoid bundling
     const duckdbModule = '@duckdb/node-api';
     const { DuckDBInstance } = await import(/* @vite-ignore */ duckdbModule);
 
-    // Create DuckDB instance
-    const instance = await DuckDBInstance.create(url);
+    // Create DuckDB instance with resolved URL
+    const instance = await DuckDBInstance.create(resolvedUrl);
     const connection = await instance.connect();
 
     // Create tables from provided schemas first
@@ -241,7 +277,8 @@ export async function getDatabase(
   const connection = await createDuckDBConnection(options);
   const writeStrategy = options.writeStrategy || 'none';
   const dataDir = options.dataDir || './data';
-  const url = options.url || ':memory:';
+  // Use resolved URL to reflect actual database location
+  const url = resolveDuckDBUrl(options.url || ':memory:');
 
   /**
    * Inserts one or more records into a table
