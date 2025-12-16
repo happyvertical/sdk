@@ -12,6 +12,11 @@ jobs:
   check:
     name: Check for Changeset
     runs-on: ubuntu-latest
+    # Skip for automated PRs (Renovate, changeset-release)
+    # This prevents pnpm install from failing on dependency issues
+    if: |
+      !startsWith(github.event.pull_request.head.ref, 'renovate/') &&
+      !startsWith(github.event.pull_request.head.ref, 'changeset-release/')
 
     steps:
       - name: Checkout
@@ -19,13 +24,30 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check for skip conditions
+        id: skip-check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check for skip-changeset label
+          PR_NUM="${{ github.event.pull_request.number }}"
+          if gh pr view "$PR_NUM" --json labels \
+             --jq '.labels[].name' | grep -q 'skip-changeset'; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "✅ Will skip (skip-changeset label present)"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Setup Environment
+        if: steps.skip-check.outputs.skip != 'true'
         uses: ./.github/actions/setup-environment
         with:
           node-version: '24'
           install-deps: 'true'
 
       - name: Check for changeset
+        if: steps.skip-check.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
