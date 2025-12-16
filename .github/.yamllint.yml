@@ -1,0 +1,23 @@
+---
+# yamllint configuration for GitHub Actions workflows
+# Relaxes rules that conflict with common GitHub Actions patterns
+
+extends: default
+
+rules:
+  # GitHub Actions workflows commonly omit document-start
+  document-start: disable
+
+  # 'on:' is the standard trigger key in GitHub Actions
+  truthy:
+    allowed-values: ['true', 'false', 'on']
+
+  # SHA-pinned actions often have long lines with comments
+  line-length:
+    max: 120
+    allow-non-breakable-words: true
+    allow-non-breakable-inline-mappings: true
+
+  # Relaxed comment spacing for SHA comments
+  comments:
+    min-spaces-from-content: 1
