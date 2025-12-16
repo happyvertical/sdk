@@ -143,8 +143,8 @@ importers:
         specifier: 3.948.0
         version: 3.948.0
       '@google/genai':
-        specifier: 1.32.0
-        version: 1.32.0(@modelcontextprotocol/sdk@1.24.3(zod@4.1.12))
+        specifier: 1.33.0
+        version: 1.33.0(@modelcontextprotocol/sdk@1.24.3(zod@4.1.12))
       '@happyvertical/utils':
         specifier: workspace:*
         version: link:../utils
@@ -205,14 +205,14 @@ importers:
         specifier: workspace:*
         version: link:../files
       '@happyvertical/ocr':
-        specifier: ^0.60.2
-        version: 0.60.2
+        specifier: ^0.60.3
+        version: 0.60.4
       '@happyvertical/pdf':
-        specifier: ^0.60.2
-        version: 0.60.2(@napi-rs/canvas@0.1.84)
+        specifier: ^0.60.3
+        version: 0.60.4(@napi-rs/canvas@0.1.84)
       '@happyvertical/spider':
-        specifier: ^0.60.2
-        version: 0.60.2(@types/node@24.10.3)(postcss@8.5.6)
+        specifier: ^0.60.3
+        version: 0.60.4(@types/node@24.10.3)(postcss@8.5.6)
       '@happyvertical/utils':
         specifier: workspace:*
         version: link:../utils
@@ -2684,8 +2684,8 @@ packages:
     resolution: {integrity: sha512-OgZ2bCu3P0ZzMhEdYubwyCo/eFFlJMYalozmgOxlVcD51vCYelYUJeVnGlS+3cFQTJQX4RE84bYTKu7W0wqByw==}
     engines: {node: '>=18'}
 
-  '@google/genai@1.32.0':
-    resolution: {integrity: sha512-46vaEaHAThIBlqWFTti1fo3xYU6DwCOwnIIotLhYUbNha90wk5cZL79zdf+NoAfKVsx4DPmjCtXvbQNNVPl5ZQ==}
+  '@google/genai@1.33.0':
+    resolution: {integrity: sha512-ThUjFZ1N0DU88peFjnQkb8K198EWaW2RmmnDShFQ+O+xkIH9itjpRe358x3L/b4X/A7dimkvq63oz49Vbh7Cog==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       '@modelcontextprotocol/sdk': ^1.24.0
@@ -2729,14 +2729,17 @@ packages:
   '@happyvertical/files@0.60.2':
     resolution: {integrity: sha512-Et4SS/zJcYTQv7DcIHvtCB0rwerVoYQjx9tIMHyjGPAtuLSLC7lsCslVo0BrCd0EUxIGwikPPNkJDFlOQjQSDg==, tarball: https://npm.pkg.github.com/download/@happyvertical/files/0.60.2/211f914199b84ab2bb5bfa818481cdd85e98b47f}
 
-  '@happyvertical/ocr@0.60.2':
-    resolution: {integrity: sha512-YyS0CyuCKq5BK3rq386gR4dZ3ie79OesL65eZpBLmRZi3YL8XI+IAioguefLn9iukDpQYptmY9VXrEc9RtBpeQ==, tarball: https://npm.pkg.github.com/download/@happyvertical/ocr/0.60.2/e780bf3eb823ac67d50afbcf2cc8a0fea16fa2b1}
+  '@happyvertical/ocr@0.60.4':
+    resolution: {integrity: sha512-wokfS4JaMnzEPhLv4DfCHHfb/Le+gyLPsWSWumfOFK30sJm+2mbTbH8eKr5gq06eTI0sTNgGeeIpeO0SBBeKdg==, tarball: https://npm.pkg.github.com/download/@happyvertical/ocr/0.60.4/04e5a0a9ad56783515416f6d1ec32ac53543c83a}
+    engines: {node: '>=24', pnpm: '>=9'}
 
-  '@happyvertical/pdf@0.60.2':
-    resolution: {integrity: sha512-Ov+rcrcANRxn9Jx2ja3xTm0AftPULIL/r8aOTd3YZ92sNVs2A9oceVXgHIBml6N5of4Cwh+Sq1AvYk2LP0YyLQ==, tarball: https://npm.pkg.github.com/download/@happyvertical/pdf/0.60.2/a280c47b36634c90c29dc0b52ae9cb14b99a2932}
+  '@happyvertical/pdf@0.60.4':
+    resolution: {integrity: sha512-TvNKHWEEe3KIfceXcjKlHhdU3vzar73b9SgUMjUibWgOBG1Z2tQcVc/Y85PJSVIqchlUdrMYwUc4oS2JpDqlYA==, tarball: https://npm.pkg.github.com/download/@happyvertical/pdf/0.60.4/068d696e5ada0f4ee4f6437ee7994fc4e42c756a}
+    engines: {node: '>=24', pnpm: '>=9'}
 
-  '@happyvertical/spider@0.60.2':
-    resolution: {integrity: sha512-5jof3dKGHlOxEshsyANqHHYT+2WNyApDWIZXSig1aj5kRt3Z1mWwxdp19A0u1NojoH2tVUQkdq7VnAPlzM9shg==, tarball: https://npm.pkg.github.com/download/@happyvertical/spider/0.60.2/aa39d4bd490e7d75603c79287451dc3a20f1e603}
+  '@happyvertical/spider@0.60.4':
+    resolution: {integrity: sha512-0rQB5NxFprej4p+M4YPJvVwG1Sq/KNsvSypzY58idT0+8hRXZ6tIIPjXO4kxVJjemdrhC1DxMGtsyKbhiDchZg==, tarball: https://npm.pkg.github.com/download/@happyvertical/spider/0.60.4/2d6179621fb1c5d14b40e3adc35295dc6a37e86c}
+    engines: {node: '>=24', pnpm: '>=9'}
 
   '@happyvertical/utils@0.60.2':
     resolution: {integrity: sha512-O545bmkf++TAfCP/MbXV/U0ucx+6TRi4dsiOpOO92xnu6N8kNPBVsZ2Kt+M1XBwhRLuhE0Y0lBBpXFm021+18A==, tarball: https://npm.pkg.github.com/download/@happyvertical/utils/0.60.2/0e25ff142cbf8c3e24c7cfa014b0a1155896fe8f}
@@ -7051,15 +7054,6 @@ packages:
   jsdom@26.1.0:
     resolution: {integrity: sha512-Cvc9WUhxSMEo4McES3P7oK3QaXldCfNWp7pl2NNeiIFlCoLr3kfq9kb1fxftiwk1FLV7CvpvDfonxtzUDeSOPg==}
     engines: {node: '>=18'}
-    peerDependencies:
-      canvas: ^3.0.0
-    peerDependenciesMeta:
-      canvas:
-        optional: true
-
-  jsdom@27.1.0:
-    resolution: {integrity: sha512-Pcfm3eZ+eO4JdZCXthW9tCDT3nF4K+9dmeZ+5X39n+Kqz0DDIABRP5CAEOHRFZk8RGuC2efksTJxrjp8EXCunQ==}
-    engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0}
     peerDependencies:
       canvas: ^3.0.0
     peerDependenciesMeta:
@@ -14554,7 +14548,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@google/genai@1.32.0(@modelcontextprotocol/sdk@1.24.3(zod@4.1.12))':
+  '@google/genai@1.33.0(@modelcontextprotocol/sdk@1.24.3(zod@4.1.12))':
     dependencies:
       google-auth-library: 10.5.0
       ws: 8.18.3
@@ -14625,7 +14619,7 @@ snapshots:
     dependencies:
       '@happyvertical/utils': 0.60.2
 
-  '@happyvertical/ocr@0.60.2':
+  '@happyvertical/ocr@0.60.4':
     dependencies:
       '@gutenye/ocr-node': 1.4.8
       '@happyvertical/utils': 0.60.2
@@ -14635,9 +14629,9 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  '@happyvertical/pdf@0.60.2(@napi-rs/canvas@0.1.84)':
+  '@happyvertical/pdf@0.60.4(@napi-rs/canvas@0.1.84)':
     dependencies:
-      '@happyvertical/ocr': 0.60.2
+      '@happyvertical/ocr': 0.60.4
       '@happyvertical/utils': 0.60.2
       pdf-to-png-converter: 3.11.0
       unpdf: 1.4.0(@napi-rs/canvas@0.1.84)
@@ -14645,7 +14639,7 @@ snapshots:
       - '@napi-rs/canvas'
       - encoding
 
-  '@happyvertical/spider@0.60.2(@types/node@24.10.3)(postcss@8.5.6)':
+  '@happyvertical/spider@0.60.4(@types/node@24.10.3)(postcss@8.5.6)':
     dependencies:
       '@happyvertical/cache': 0.60.2
       '@happyvertical/files': 0.60.2
@@ -14654,7 +14648,7 @@ snapshots:
       cheerio: 1.1.2
       crawlee: 3.15.3(@types/node@24.10.3)(playwright@1.57.0)
       happy-dom: 20.0.11
-      jsdom: 27.1.0(postcss@8.5.6)
+      jsdom: 27.3.0(postcss@8.5.6)
       playwright: 1.57.0
       undici: 7.16.0
     transitivePeerDependencies:
@@ -19674,34 +19668,6 @@ snapshots:
       xml-name-validator: 5.0.0
     transitivePeerDependencies:
       - bufferutil
-      - supports-color
-      - utf-8-validate
-
-  jsdom@27.1.0(postcss@8.5.6):
-    dependencies:
-      '@acemir/cssom': 0.9.28
-      '@asamuzakjp/dom-selector': 6.7.6
-      cssstyle: 5.3.4(postcss@8.5.6)
-      data-urls: 6.0.0
-      decimal.js: 10.6.0
-      html-encoding-sniffer: 4.0.0
-      http-proxy-agent: 7.0.2
-      https-proxy-agent: 7.0.6
-      is-potential-custom-element-name: 1.0.1
-      parse5: 8.0.0
-      saxes: 6.0.0
-      symbol-tree: 3.2.4
-      tough-cookie: 6.0.0
-      w3c-xmlserializer: 5.0.0
-      webidl-conversions: 8.0.0
-      whatwg-encoding: 3.1.1
-      whatwg-mimetype: 4.0.0
-      whatwg-url: 15.1.0
-      ws: 8.18.3
-      xml-name-validator: 5.0.0
-    transitivePeerDependencies:
-      - bufferutil
-      - postcss
       - supports-color
       - utf-8-validate
 
