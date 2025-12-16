@@ -12,17 +12,28 @@ on:
 
 # Prevent multiple Claude runs on same issue/PR
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.issue.number || github.event.pull_request.number || github.event.comment.id }}
+  group: >-
+    ${{ github.workflow }}-${{
+    github.event.issue.number ||
+    github.event.pull_request.number ||
+    github.event.comment.id }}
   cancel-in-progress: true
 
 jobs:
   claude:
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'blocker') ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      (github.event_name == 'issue_comment' &&
+        contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review_comment' &&
+        contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' &&
+        contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'issues' &&
+        github.event.action == 'labeled' &&
+        github.event.label.name == 'blocker') ||
+      (github.event_name == 'issues' &&
+        (contains(github.event.issue.body, '@claude') ||
+        contains(github.event.issue.title, '@claude')))
     runs-on: ubuntu-latest
     permissions:
       contents: write        # Allow Claude to push commits and create branches
@@ -39,14 +50,19 @@ jobs:
 
       - name: Run Claude Code
         id: claude
-        uses: anthropics/claude-code-action@9acae263e77da97965c98d00cd907a992877e5e8 # v1
+        uses: anthropics/claude-code-action@d7b6d50442a89f005016e778bf825a72ef582525 # v1
         with:
           # Use OAuth token for Claude Max plan subscription
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 
           # Custom prompt when triggered by "blocker" label
           # Otherwise Claude uses the @claude mention content
-          prompt: ${{ github.event.action == 'labeled' && github.event.label.name == 'blocker' && 'This issue has been marked as a blocker (high priority). Please analyze the issue, implement a solution, and create a PR to resolve it.' || '' }}
+          prompt: >-
+            ${{ github.event.action == 'labeled' &&
+            github.event.label.name == 'blocker' &&
+            'This issue has been marked as a blocker (high priority).
+            Please analyze the issue, implement a solution,
+            and create a PR to resolve it.' || '' }}
 
           # Allow Claude to read CI results on PRs
           additional_permissions: |
@@ -87,4 +103,3 @@ jobs:
             "Bash(grep *:*)"
             --allowed-tools
             "Bash(find *:*)"
-
