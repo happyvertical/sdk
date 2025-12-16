@@ -146,9 +146,14 @@ jobs:
 
           # Sync root package.json version with workspace packages
           WORKSPACE_VERSION=$(node -p "require('./packages/utils/package.json').version")
-          if [ -n "$WORKSPACE_VERSION" ] && [ "$WORKSPACE_VERSION" != "$(node -p "require('./package.json').version")" ]; then
+          ROOT_VERSION=$(node -p "require('./package.json').version")
+          if [ -n "$WORKSPACE_VERSION" ] && [ "$WORKSPACE_VERSION" != "$ROOT_VERSION" ]; then
             echo "📝 Syncing root package version to match workspace: $WORKSPACE_VERSION"
-            node -e "const pkg = require('./package.json'); pkg.version = '$WORKSPACE_VERSION'; require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\n');"
+            node -e "
+              const pkg = require('./package.json');
+              pkg.version = '$WORKSPACE_VERSION';
+              require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\n');
+            "
           fi
 
           # Check if version changed
@@ -168,18 +173,26 @@ jobs:
             # Publish packages
             pnpm run changeset:publish
 
-            # Create and push git tag (explicit push since Changesets tags may prevent --follow-tags)
-            git tag "v$AFTER_VERSION"
-            git push origin "v$AFTER_VERSION"
+            # Create and push git tag (idempotent - skip if tag already exists)
+            if git rev-parse "v$AFTER_VERSION" >/dev/null 2>&1; then
+              echo "ℹ️  Tag v$AFTER_VERSION already exists, skipping tag creation"
+            else
+              git tag "v$AFTER_VERSION"
+              git push origin "v$AFTER_VERSION"
+            fi
             git push origin main
 
-            # Create GitHub Release
-            RELEASE_NOTES="## Published Packages"$'\n\n'"All packages published to GitHub Packages at version $AFTER_VERSION."$'\n\n'"Full Changelog: https://github.com/${GITHUB_REPOSITORY}/compare/v$BEFORE_VERSION...v$AFTER_VERSION"
+            # Create GitHub Release (idempotent - skip if release already exists)
+            if gh release view "v$AFTER_VERSION" >/dev/null 2>&1; then
+              echo "ℹ️  Release v$AFTER_VERSION already exists, skipping release creation"
+            else
+              RELEASE_NOTES="## Published Packages"$'\n\n'"All packages published to GitHub Packages at version $AFTER_VERSION."$'\n\n'"Full Changelog: https://github.com/${GITHUB_REPOSITORY}/compare/v$BEFORE_VERSION...v$AFTER_VERSION"
 
-            gh release create "v$AFTER_VERSION" \
-              --title "v$AFTER_VERSION" \
-              --notes "$RELEASE_NOTES" \
-              --latest
+              gh release create "v$AFTER_VERSION" \
+                --title "v$AFTER_VERSION" \
+                --notes "$RELEASE_NOTES" \
+                --latest
+            fi
 
             echo "published=true" >> $GITHUB_OUTPUT
             echo "version=$AFTER_VERSION" >> $GITHUB_OUTPUT

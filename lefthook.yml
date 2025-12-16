@@ -15,7 +15,7 @@ pre-commit:
         echo "🔍 Validating workflow files..."
         for file in {staged_files}; do
           echo "  Checking $file..."
-          yamllint "$file" || exit 1
+          yamllint -c .github/.yamllint.yml "$file" || exit 1
         done
         echo "  Running act --list to verify workflow parsing..."
         act --list > /dev/null 2>&1 || (echo "❌ act --list failed - workflow syntax issue" && exit 1)
