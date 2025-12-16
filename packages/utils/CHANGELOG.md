@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.60.4
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - make changeset publish idempotent for existing tags (#673) (ci)
+
 ## 0.60.3
 
 ### Patch Changes
