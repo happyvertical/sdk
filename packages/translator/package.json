@@ -53,10 +53,10 @@
     "@google-cloud/translate": "^9.3.0",
     "@happyvertical/cache": "workspace:*",
     "@happyvertical/utils": "workspace:*",
-    "deepl-node": "^1.22.0"
+    "deepl-node": "^1.24.0"
   },
   "devDependencies": {
-    "@types/node": "24.10.3",
+    "@types/node": "24.10.4",
     "typescript": "^5.9.3",
     "vite": "7.2.7",
     "vite-plugin-dts": "4.5.4",

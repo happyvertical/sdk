@@ -59,9 +59,9 @@
     "@jpisnice/shadcn-ui-mcp-server": "1.1.4",
     "chokidar": "^4.0.3",
     "concurrently": "9.2.1",
-    "dependency-cruiser": "^17.3.2",
+    "dependency-cruiser": "^17.3.4",
     "express": "^5.2.1",
-    "lefthook": "^2.0.9",
+    "lefthook": "^2.0.12",
     "livereload": "^0.10.3",
     "patch-package": "^8.0.1",
     "turbo": "2.6.3",
@@ -73,11 +73,11 @@
     "vitest": "4.0.15"
   },
   "resolutions": {
-    "@types/node": "24.10.3"
+    "@types/node": "24.10.4"
   },
   "pnpm": {
     "overrides": {
-      "rollup": "4.53.3"
+      "rollup": "4.53.5"
     }
   },
   "engines": {

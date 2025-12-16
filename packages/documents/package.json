@@ -40,13 +40,13 @@
   "dependencies": {
     "@happyvertical/files": "workspace:*",
     "@happyvertical/ocr": "^0.60.3",
-    "@happyvertical/pdf": "^0.60.3",
-    "@happyvertical/spider": "^0.60.3",
+    "@happyvertical/pdf": "^0.60.4",
+    "@happyvertical/spider": "^0.60.4",
     "@happyvertical/utils": "workspace:*",
     "uuid": "^13.0.0"
   },
   "devDependencies": {
-    "@types/node": "24.10.3",
+    "@types/node": "24.10.4",
     "typescript": "^5.9.3",
     "vite": "7.2.7",
     "vitest": "^4.0.15"
