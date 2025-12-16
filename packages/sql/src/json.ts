@@ -549,42 +549,34 @@ function validateTableName(table: string): void {
 export async function getDatabase(
   options: JSONOptions,
 ): Promise<DatabaseInterface> {
-  // Don't cache when explicit schemas are provided
-  // Each schema configuration should get its own connection
-  const hasSchemas = options.schemas && Object.keys(options.schemas).length > 0;
-
   // Generate cache key from URL and options that affect database behavior
-  // If dbid is explicitly provided, use it as the cache key
-  // Otherwise, create a cache key from URL and configuration options
-  let cacheKey: string | undefined;
-
-  if (!hasSchemas) {
-    cacheKey =
-      options.dbid ||
-      `${options.url}:${options.writeStrategy || 'immediate'}:${options.autoRegister !== false}`;
-  } else if (options.dbid) {
-    // If explicit dbid provided with schemas, honor it
-    cacheKey = options.dbid;
-  }
+  // FIX for issues #533/#534: Auto-generate dbid from URL when schemas provided
+  // This ensures connection caching ALWAYS happens for the same URL, preventing
+  // the lost update bug where multiple connections overwrite each other's data.
+  //
+  // Priority:
+  // 1. Explicit dbid from caller
+  // 2. Auto-generated from URL + writeStrategy (ensures caching)
+  const cacheKey =
+    options.dbid ||
+    `json:${options.url}:${options.writeStrategy || 'immediate'}:${options.autoRegister !== false}`;
 
   // If clearCache option is true, clear any cached connection for this key
-  if (options.clearCache && cacheKey) {
+  if (options.clearCache) {
     memoryConnectionCache.delete(cacheKey);
     pendingConnections.delete(cacheKey);
   }
 
   // Check if we have a cached connection for this cache key
-  if (cacheKey) {
-    const cached = memoryConnectionCache.get(cacheKey);
-    if (cached) {
-      return cached;
-    }
+  const cached = memoryConnectionCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
 
-    // Check if there's a pending connection for this cache key
-    const pending = pendingConnections.get(cacheKey);
-    if (pending) {
-      return pending;
-    }
+  // Check if there's a pending connection for this cache key
+  const pending = pendingConnections.get(cacheKey);
+  if (pending) {
+    return pending;
   }
 
   // Create a new connection promise
@@ -1721,25 +1713,19 @@ export async function getDatabase(
     };
   })();
 
-  // Store the pending connection promise (if caching)
-  if (cacheKey) {
-    pendingConnections.set(cacheKey, connectionPromise);
-  }
+  // Store the pending connection promise for concurrent requests
+  pendingConnections.set(cacheKey, connectionPromise);
 
   try {
     // Wait for the connection to be established
     const db = await connectionPromise;
 
-    // Cache the connection for reuse (if caching)
-    if (cacheKey) {
-      memoryConnectionCache.set(cacheKey, db);
-    }
+    // Cache the connection for reuse
+    memoryConnectionCache.set(cacheKey, db);
 
     return db;
   } finally {
-    // Clean up pending connection promise (if caching)
-    if (cacheKey) {
-      pendingConnections.delete(cacheKey);
-    }
+    // Clean up pending connection promise
+    pendingConnections.delete(cacheKey);
   }
 }
