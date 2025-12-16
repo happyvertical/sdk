@@ -12,6 +12,11 @@ jobs:
   check:
     name: Check for Changeset
     runs-on: ubuntu-latest
+    # Skip for automated PRs (Renovate, changeset-release)
+    # This prevents pnpm install from failing on dependency issues
+    if: |
+      !startsWith(github.event.pull_request.head.ref, 'renovate/') &&
+      !startsWith(github.event.pull_request.head.ref, 'changeset-release/')
 
     steps:
       - name: Checkout
