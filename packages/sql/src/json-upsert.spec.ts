@@ -13,7 +13,7 @@
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { getDatabase } from './index';
+import { clearConnectionCache, getDatabase } from './index';
 import type { DatabaseInterface } from './shared/types';
 
 describe('JSON adapter UPSERT with UNIQUE constraints (Issue #316)', () => {
@@ -212,6 +212,8 @@ describe('JSON adapter UPSERT with UNIQUE constraints (Issue #316)', () => {
   });
 
   it('should work with simple single-column UNIQUE constraint', async () => {
+    // Clear cache to get fresh connection for new schema
+    clearConnectionCache();
     // Create empty JSON file for products table
     await writeFile(join(testDataDir, 'products.json'), '[]', 'utf-8');
 
