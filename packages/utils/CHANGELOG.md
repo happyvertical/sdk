@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.60.4
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - prevent JSON adapter lost update bug with connection caching (#658) (sql)
+
 ## 0.60.3
 
 ### Patch Changes
