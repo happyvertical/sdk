@@ -44,10 +44,11 @@ jobs:
     secrets: inherit
 
   publish:
-    needs: build
+    needs: [test, build]
     if: |
-      always() && (needs.build.result == 'success' ||
-      needs.build.result == 'skipped')
+      always() &&
+      (needs.test.result == 'success' || needs.test.result == 'skipped') &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped')
     uses: ./.github/workflows/publish.yml
     secrets: inherit
 

@@ -1,6 +1,9 @@
 /**
  * Integration tests for OpenStreetMap provider
  * Uses public Nominatim API with rate limiting
+ *
+ * These tests hit external APIs and may timeout in CI environments.
+ * Skip by default - run with RUN_INTEGRATION_TESTS=true
  */
 
 import { describe, expect, it } from 'vitest';
@@ -8,7 +11,10 @@ import { getGeoAdapter } from './index';
 import type { Location } from './shared/types';
 import { InvalidQueryError } from './shared/types';
 
-describe('OpenStreetMap Provider Integration', () => {
+// Skip in CI unless explicitly enabled
+const SKIP_INTEGRATION = !process.env.RUN_INTEGRATION_TESTS;
+
+describe.skipIf(SKIP_INTEGRATION)('OpenStreetMap Provider Integration', () => {
   describe('lookup', () => {
     it('should find Eiffel Tower', async () => {
       const adapter = await getGeoAdapter({
