@@ -815,7 +815,8 @@ describe('JSON adapter tests', () => {
 
   describe('SchemaProvider support', () => {
     it('should create tables from provided schemas', async () => {
-      // Clean up existing db
+      // Clear cache to get fresh connection after modifying underlying files
+      clearConnectionCache();
       if (db) {
         rmSync(testDataDir, { recursive: true, force: true });
       }
@@ -879,7 +880,8 @@ describe('JSON adapter tests', () => {
     });
 
     it('should handle schemas without indexes', async () => {
-      // Clean up
+      // Clear cache to get fresh connection after modifying underlying files
+      clearConnectionCache();
       if (db) {
         rmSync(testDataDir, { recursive: true, force: true });
       }
@@ -915,6 +917,8 @@ describe('JSON adapter tests', () => {
 
     it('should handle schemas with empty strings correctly', async () => {
       // This test verifies the fix for Issue #228
+      // Clear cache to get fresh connection after modifying underlying files
+      clearConnectionCache();
       if (db) {
         rmSync(testDataDir, { recursive: true, force: true });
       }
@@ -970,6 +974,8 @@ describe('JSON adapter tests', () => {
     });
 
     it('should allow manual table creation when autoRegister is false', async () => {
+      // Clear cache to get fresh connection after modifying underlying files
+      clearConnectionCache();
       if (db) {
         rmSync(testDataDir, { recursive: true, force: true });
       }
