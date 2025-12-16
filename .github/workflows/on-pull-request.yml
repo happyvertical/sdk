@@ -12,6 +12,7 @@ concurrency:
 permissions:
   contents: read
   pull-requests: write
+  packages: read
 
 jobs:
   validate-commits:
@@ -121,7 +122,7 @@ jobs:
           # Validate each changed workflow file
           for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
             echo "  Checking $file..."
-            yamllint "$file" || exit 1
+            yamllint -c .github/.yamllint.yml "$file" || exit 1
           done
 
           echo "✅ YAML syntax validation passed"

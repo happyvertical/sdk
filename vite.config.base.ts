@@ -82,6 +82,9 @@ export function createPackageConfig(packageName: string) {
           '@google/generative-ai',
           '@google/genai',
           '@aws-sdk/client-bedrock-runtime',
+          '@aws-sdk/client-s3',
+          '@aws-sdk/credential-providers',
+          /^@aws-sdk\//, // Externalize all AWS SDK packages
           'date-fns',
           'pluralize',
           'uuid',
