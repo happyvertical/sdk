@@ -52,7 +52,7 @@
     "deps:all": "npm run deps:graph && npm run deps:modules"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.3.8",
+    "@biomejs/biome": "2.3.10",
     "@changesets/cli": "2.29.8",
     "@commitlint/cli": "^20.2.0",
     "@commitlint/config-conventional": "^20.2.0",
