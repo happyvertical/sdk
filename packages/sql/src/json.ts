@@ -13,17 +13,53 @@ import type {
 import { buildWhere } from './shared/utils';
 
 /**
+ * Extend globalThis to include our connection cache properties.
+ * Using globalThis ensures all module instances share the same cache,
+ * which is critical in monorepos where the same package can be loaded
+ * from different paths (e.g., pnpm store vs workspace symlink).
+ *
+ * @see https://github.com/happyvertical/sdk/issues/678
+ */
+declare global {
+  // eslint-disable-next-line no-var
+  var __haveSqlMemoryConnectionCache:
+    | Map<string, DatabaseInterface>
+    | undefined;
+  // eslint-disable-next-line no-var
+  var __haveSqlPendingConnections:
+    | Map<string, Promise<DatabaseInterface>>
+    | undefined;
+}
+
+/**
  * Connection cache for in-memory DuckDB instances keyed by data directory URL
  * Enables sharing of in-memory databases across multiple getDatabase() calls
- * with the same data directory
+ * with the same data directory.
+ *
+ * Uses globalThis to ensure cache is shared across all module instances,
+ * fixing the lost update bug in monorepos with workspace symlinks.
+ *
+ * @see https://github.com/happyvertical/sdk/issues/678
  */
-const memoryConnectionCache = new Map<string, DatabaseInterface>();
+globalThis.__haveSqlMemoryConnectionCache ??= new Map<
+  string,
+  DatabaseInterface
+>();
+const memoryConnectionCache = globalThis.__haveSqlMemoryConnectionCache;
 
 /**
  * Pending connection promises to handle concurrent getDatabase() calls
- * Prevents creating duplicate connections when parallel calls happen
+ * Prevents creating duplicate connections when parallel calls happen.
+ *
+ * Uses globalThis to ensure cache is shared across all module instances.
+ *
+ * @see https://github.com/happyvertical/sdk/issues/678
  */
-const pendingConnections = new Map<string, Promise<DatabaseInterface>>();
+globalThis.__haveSqlPendingConnections ??= new Map<
+  string,
+  Promise<DatabaseInterface>
+>();
+const pendingConnections = globalThis.__haveSqlPendingConnections;
 
 /**
  * Clears all cached connections
