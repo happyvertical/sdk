@@ -277,6 +277,126 @@ describe('JSON adapter STI column handling (Issue #518)', () => {
     });
   });
 
+  describe('_meta_data JSON serialization (Issue #542)', () => {
+    it('should serialize _meta_data as JSON object, not string', async () => {
+      // This test verifies the fix for issue #542:
+      // _meta_data should be serialized as {} not "{}" in JSON output
+      writeFileSync(`${testDataDir}/events.json`, JSON.stringify([]));
+
+      const schemas = {
+        events: {
+          tableName: 'events',
+          ddl: `CREATE TABLE events (
+            id TEXT PRIMARY KEY,
+            slug TEXT NOT NULL,
+            context TEXT NOT NULL DEFAULT '',
+            title TEXT,
+            _meta_type TEXT DEFAULT 'Event',
+            _meta_data JSON DEFAULT '{}',
+            UNIQUE(slug, context)
+          )`,
+          indexes: [],
+          fields: {
+            id: { type: 'TEXT', primaryKey: true, notNull: true },
+            slug: { type: 'TEXT', notNull: true },
+            context: { type: 'TEXT', notNull: true },
+            title: { type: 'TEXT' },
+            _meta_type: { type: 'TEXT' },
+            _meta_data: { type: 'JSON' },
+          },
+        },
+      };
+
+      db = await getDatabase({
+        type: 'json',
+        url: testDataDir,
+        writeStrategy: 'immediate',
+        schemas,
+      });
+
+      // Insert a record with _meta_data as an object
+      const eventId = randomUUID();
+      await db.upsert('events', ['slug', 'context'], {
+        id: eventId,
+        slug: 'test-meeting',
+        context: '',
+        title: 'Test Meeting',
+        _meta_type: 'Meeting',
+        _meta_data: { customField: 'value' },
+      });
+
+      // Read the JSON file directly to verify serialization
+      const { readFileSync } = await import('node:fs');
+      const jsonContent = readFileSync(`${testDataDir}/events.json`, 'utf-8');
+      const records = JSON.parse(jsonContent);
+
+      // _meta_data should be an object, not a string
+      expect(records[0]._meta_data).toBeDefined();
+      expect(typeof records[0]._meta_data).toBe('object');
+      expect(records[0]._meta_data).not.toBe('{}');
+      expect(records[0]._meta_data).not.toBe('{"customField":"value"}');
+
+      // The actual object structure should be preserved
+      if (typeof records[0]._meta_data === 'object') {
+        expect(records[0]._meta_data.customField).toBe('value');
+      }
+    });
+
+    it('should serialize empty _meta_data as {} not "{}"', async () => {
+      writeFileSync(`${testDataDir}/events.json`, JSON.stringify([]));
+
+      const schemas = {
+        events: {
+          tableName: 'events',
+          ddl: `CREATE TABLE events (
+            id TEXT PRIMARY KEY,
+            slug TEXT NOT NULL,
+            context TEXT NOT NULL DEFAULT '',
+            _meta_type TEXT DEFAULT 'Event',
+            _meta_data JSON DEFAULT '{}',
+            UNIQUE(slug, context)
+          )`,
+          indexes: [],
+          fields: {
+            id: { type: 'TEXT' },
+            slug: { type: 'TEXT' },
+            context: { type: 'TEXT' },
+            _meta_type: { type: 'TEXT' },
+            _meta_data: { type: 'JSON' },
+          },
+        },
+      };
+
+      db = await getDatabase({
+        type: 'json',
+        url: testDataDir,
+        writeStrategy: 'immediate',
+        schemas,
+      });
+
+      // Insert a record with empty _meta_data
+      const eventId = randomUUID();
+      await db.upsert('events', ['slug', 'context'], {
+        id: eventId,
+        slug: 'test-event',
+        context: '',
+        _meta_type: 'Event',
+        _meta_data: {},
+      });
+
+      // Read the JSON file directly
+      const { readFileSync } = await import('node:fs');
+      const jsonContent = readFileSync(`${testDataDir}/events.json`, 'utf-8');
+      const records = JSON.parse(jsonContent);
+
+      // _meta_data should be {} (object), not "{}" (string)
+      expect(records[0]._meta_data).toBeDefined();
+      expect(typeof records[0]._meta_data).toBe('object');
+      expect(records[0]._meta_data).toEqual({});
+      expect(records[0]._meta_data).not.toBe('{}');
+    });
+  });
+
   describe('Edge cases', () => {
     it('should handle fields as Map (in addition to Record)', async () => {
       // The SmrtSchemaDefinition interface allows Map<string, any> for fields
