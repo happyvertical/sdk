@@ -1151,8 +1151,12 @@ export async function getDatabase(
      * Exports a table to JSON and schema files
      *
      * Exports two files:
-     * 1. {table}.json - Table data with all columns cast to TEXT
+     * 1. {table}.json - Table data with columns cast appropriately
      * 2. {table}.schema.sql - CREATE TABLE statement to preserve constraints
+     *
+     * Note: JSON columns are NOT cast to TEXT to preserve object structure.
+     * Other columns are cast to TEXT to prevent DuckDB from converting UUIDs
+     * and other TEXT values to hugeint representation in JSON output.
      *
      * @param connection - DuckDB connection
      * @param table - Table name
@@ -1182,16 +1186,17 @@ export async function getDatabase(
         );
       }
 
-      // Get column list to cast all as TEXT
-      // This prevents DuckDB from converting UUIDs and other TEXT values to hugeint in JSON
+      // Get column names and types to handle JSON columns specially
+      // JSON columns should NOT be cast to TEXT to preserve object structure (fixes #542)
       const columnsResult = await connection.runAndReadAll(
-        `SELECT column_name FROM information_schema.columns WHERE table_name = '${table}' ORDER BY ordinal_position`,
+        `SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '${table}' ORDER BY ordinal_position`,
       );
-      const columns = columnsResult
-        .getRowObjects()
-        .map((row: any) => row.column_name);
+      const columnInfo = columnsResult.getRowObjects() as {
+        column_name: string;
+        data_type: string;
+      }[];
 
-      if (columns.length === 0) {
+      if (columnInfo.length === 0) {
         // Fallback to SELECT * if we can't get column names
         await connection.run(
           `COPY (SELECT * FROM "${table}") TO '${filePath}' (FORMAT JSON, ARRAY true)`,
@@ -1199,9 +1204,18 @@ export async function getDatabase(
         return;
       }
 
-      // Cast all columns to TEXT to preserve UUID and other TEXT values as strings
-      const selectList = columns
-        .map((col: string) => `CAST(${col} AS TEXT) AS ${col}`)
+      // Cast non-JSON columns to TEXT to preserve UUIDs and other TEXT values as strings
+      // Keep JSON columns as-is to preserve object structure (e.g., _meta_data: {} not "{}")
+      const selectList = columnInfo
+        .map(({ column_name, data_type }) => {
+          const upperType = data_type.toUpperCase();
+          // Don't cast JSON columns - they should remain as objects in output
+          if (upperType === 'JSON' || upperType.startsWith('STRUCT')) {
+            return `"${column_name}"`;
+          }
+          // Cast other columns to TEXT to prevent hugeint conversion
+          return `CAST("${column_name}" AS TEXT) AS "${column_name}"`;
+        })
         .join(', ');
       const sql = `COPY (SELECT ${selectList} FROM "${table}") TO '${filePath}' (FORMAT JSON, ARRAY true)`;
 
