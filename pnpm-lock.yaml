@@ -211,8 +211,8 @@ importers:
         specifier: ^0.60.4
         version: 0.60.4(@modelcontextprotocol/sdk@1.24.3(zod@4.1.12))(@napi-rs/canvas@0.1.84)(ws@8.18.3)(zod@4.1.12)
       '@happyvertical/spider':
-        specifier: ^0.60.4
-        version: 0.60.4(@types/node@24.10.4)(postcss@8.5.6)
+        specifier: ^0.60.5
+        version: 0.60.5(@types/node@24.10.4)(postcss@8.5.6)
       '@happyvertical/utils':
         specifier: workspace:*
         version: link:../utils
@@ -2929,8 +2929,8 @@ packages:
     resolution: {integrity: sha512-TvNKHWEEe3KIfceXcjKlHhdU3vzar73b9SgUMjUibWgOBG1Z2tQcVc/Y85PJSVIqchlUdrMYwUc4oS2JpDqlYA==, tarball: https://npm.pkg.github.com/download/@happyvertical/pdf/0.60.4/068d696e5ada0f4ee4f6437ee7994fc4e42c756a}
     engines: {node: '>=24', pnpm: '>=9'}
 
-  '@happyvertical/spider@0.60.4':
-    resolution: {integrity: sha512-0rQB5NxFprej4p+M4YPJvVwG1Sq/KNsvSypzY58idT0+8hRXZ6tIIPjXO4kxVJjemdrhC1DxMGtsyKbhiDchZg==, tarball: https://npm.pkg.github.com/download/@happyvertical/spider/0.60.4/2d6179621fb1c5d14b40e3adc35295dc6a37e86c}
+  '@happyvertical/spider@0.60.5':
+    resolution: {integrity: sha512-fJ47L/QGIR8wPFhgaaR4AxSjYDyChn++gl4OvCkfvW5FATXWVEB7CTdT9zVopaXFb7BjIttm4oV2qrmAs6iYRg==, tarball: https://npm.pkg.github.com/download/@happyvertical/spider/0.60.5/7c956023ae8655e24132d84653a8f5902de1eb5f}
     engines: {node: '>=24', pnpm: '>=9'}
 
   '@happyvertical/utils@0.60.2':
@@ -15531,7 +15531,7 @@ snapshots:
       - ws
       - zod
 
-  '@happyvertical/spider@0.60.4(@types/node@24.10.4)(postcss@8.5.6)':
+  '@happyvertical/spider@0.60.5(@types/node@24.10.4)(postcss@8.5.6)':
     dependencies:
       '@happyvertical/cache': 0.60.2
       '@happyvertical/files': 0.60.2
