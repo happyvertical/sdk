@@ -205,8 +205,8 @@ importers:
         specifier: workspace:*
         version: link:../files
       '@happyvertical/ocr':
-        specifier: ^0.60.5
-        version: 0.60.5(@modelcontextprotocol/sdk@1.24.3(zod@4.1.12))(ws@8.18.3)(zod@4.1.12)
+        specifier: ^0.60.6
+        version: 0.60.6(@modelcontextprotocol/sdk@1.24.3(zod@4.1.12))(ws@8.18.3)(zod@4.1.12)
       '@happyvertical/pdf':
         specifier: ^0.60.4
         version: 0.60.4(@modelcontextprotocol/sdk@1.24.3(zod@4.1.12))(@napi-rs/canvas@0.1.84)(ws@8.18.3)(zod@4.1.12)
@@ -2921,8 +2921,8 @@ packages:
   '@happyvertical/files@0.60.2':
     resolution: {integrity: sha512-Et4SS/zJcYTQv7DcIHvtCB0rwerVoYQjx9tIMHyjGPAtuLSLC7lsCslVo0BrCd0EUxIGwikPPNkJDFlOQjQSDg==, tarball: https://npm.pkg.github.com/download/@happyvertical/files/0.60.2/211f914199b84ab2bb5bfa818481cdd85e98b47f}
 
-  '@happyvertical/ocr@0.60.5':
-    resolution: {integrity: sha512-1+k30oE81d6N/0pCCnNZZ2tTVFUkV1AnG/2WDlkhrhptuFKkQnojVifbMiglpVxg9BQKOgUnA0+GgJ9oH3tkng==, tarball: https://npm.pkg.github.com/download/@happyvertical/ocr/0.60.5/afbdd4956bea88512ecf30e5e1ec386b25351db3}
+  '@happyvertical/ocr@0.60.6':
+    resolution: {integrity: sha512-OZ3HvBpqicSIdIMRq/2gVYgUHLHqtv44TIHfNAHaukEJHywcjWEBPrgi9n3PpSe+jzk3X74eAQNaBp8gjHXvOA==, tarball: https://npm.pkg.github.com/download/@happyvertical/ocr/0.60.6/c427c557a8b1e28a43cf471036b37dc0d706be35}
     engines: {node: '>=24', pnpm: '>=9'}
 
   '@happyvertical/pdf@0.60.4':
@@ -15496,7 +15496,7 @@ snapshots:
     dependencies:
       '@happyvertical/utils': 0.60.2
 
-  '@happyvertical/ocr@0.60.5(@modelcontextprotocol/sdk@1.24.3(zod@4.1.12))(ws@8.18.3)(zod@4.1.12)':
+  '@happyvertical/ocr@0.60.6(@modelcontextprotocol/sdk@1.24.3(zod@4.1.12))(ws@8.18.3)(zod@4.1.12)':
     dependencies:
       '@gutenye/ocr-node': 1.4.8
       '@happyvertical/ai': 0.60.5(@modelcontextprotocol/sdk@1.24.3(zod@4.1.12))(ws@8.18.3)(zod@4.1.12)
@@ -15516,7 +15516,7 @@ snapshots:
 
   '@happyvertical/pdf@0.60.4(@modelcontextprotocol/sdk@1.24.3(zod@4.1.12))(@napi-rs/canvas@0.1.84)(ws@8.18.3)(zod@4.1.12)':
     dependencies:
-      '@happyvertical/ocr': 0.60.5(@modelcontextprotocol/sdk@1.24.3(zod@4.1.12))(ws@8.18.3)(zod@4.1.12)
+      '@happyvertical/ocr': 0.60.6(@modelcontextprotocol/sdk@1.24.3(zod@4.1.12))(ws@8.18.3)(zod@4.1.12)
       '@happyvertical/utils': 0.60.5
       pdf-to-png-converter: 3.11.0
       unpdf: 1.4.0(@napi-rs/canvas@0.1.84)
