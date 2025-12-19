@@ -19,6 +19,7 @@ import {
   AIError,
   AuthenticationError,
   ContextLengthError,
+  extractTextContent,
   ModelNotFoundError,
   RateLimitError,
 } from '../types';
@@ -285,15 +286,16 @@ export class HuggingFaceProvider implements AIInterface {
     // Convert chat messages to a single prompt format
     return `${messages
       .map((message) => {
+        const textContent = extractTextContent(message.content);
         switch (message.role) {
           case 'system':
-            return `System: ${message.content}`;
+            return `System: ${textContent}`;
           case 'user':
-            return `Human: ${message.content}`;
+            return `Human: ${textContent}`;
           case 'assistant':
-            return `Assistant: ${message.content}`;
+            return `Assistant: ${textContent}`;
           default:
-            return message.content;
+            return textContent;
         }
       })
       .join('\n')}\nAssistant:`;

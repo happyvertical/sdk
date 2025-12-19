@@ -17,6 +17,7 @@ import type {
   AIResponse,
   ChatOptions,
   CompletionOptions,
+  ContentPart,
   EmbeddingOptions,
   EmbeddingResponse,
   MessageOptions,
@@ -414,10 +415,32 @@ export class OpenAIProvider implements AIInterface {
     messages: AIMessage[],
   ): OpenAI.Chat.ChatCompletionMessageParam[] {
     return messages.map((message) => {
+      // Handle content that can be string or ContentPart[]
+      let content: string | OpenAI.Chat.ChatCompletionContentPart[];
+
+      if (typeof message.content === 'string') {
+        content = message.content;
+      } else {
+        // Array of content parts - map to OpenAI format
+        content = message.content.map((part: ContentPart) => {
+          if (part.type === 'text') {
+            return { type: 'text' as const, text: part.text };
+          }
+          // Image content part
+          return {
+            type: 'image_url' as const,
+            image_url: {
+              url: part.image_url.url,
+              detail: part.image_url.detail,
+            },
+          };
+        });
+      }
+
       // Build message based on role and content
       const baseMessage = {
         role: message.role as OpenAI.Chat.ChatCompletionRole,
-        content: message.content,
+        content,
       };
 
       // Add optional fields based on role and availability

@@ -19,6 +19,7 @@ import {
   AIError,
   AuthenticationError,
   ContextLengthError,
+  extractTextContent,
   ModelNotFoundError,
   RateLimitError,
 } from '../types';
@@ -378,12 +379,13 @@ export class BedrockProvider implements AIInterface {
     }> = [];
 
     for (const message of messages) {
+      const textContent = extractTextContent(message.content);
       if (message.role === 'system') {
-        system = system ? `${system}\n\n${message.content}` : message.content;
+        system = system ? `${system}\n\n${textContent}` : textContent;
       } else {
         anthropicMessages.push({
           role: message.role === 'assistant' ? 'assistant' : 'user',
-          content: message.content,
+          content: textContent,
         });
       }
     }
