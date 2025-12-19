@@ -149,8 +149,8 @@ importers:
         specifier: workspace:*
         version: link:../utils
       openai:
-        specifier: 6.14.0
-        version: 6.14.0(ws@8.18.3)(zod@4.1.12)
+        specifier: 6.15.0
+        version: 6.15.0(ws@8.18.3)(zod@4.1.12)
     devDependencies:
       '@types/node':
         specifier: 24.10.4
@@ -8170,6 +8170,18 @@ packages:
 
   openai@6.14.0:
     resolution: {integrity: sha512-ZPD9MG5/sPpyGZ0idRoDK0P5MWEMuXe0Max/S55vuvoxqyEVkN94m9jSpE3YgNgz3WoESFvozs57dxWqAco31w==}
+    hasBin: true
+    peerDependencies:
+      ws: ^8.18.0
+      zod: ^3.25 || ^4.0
+    peerDependenciesMeta:
+      ws:
+        optional: true
+      zod:
+        optional: true
+
+  openai@6.15.0:
+    resolution: {integrity: sha512-F1Lvs5BoVvmZtzkUEVyh8mDQPPFolq4F+xdsx/DO8Hee8YF3IGAlZqUIsF+DVGhqf4aU0a3bTghsxB6OIsRy1g==}
     hasBin: true
     peerDependencies:
       ws: ^8.18.0
@@ -21744,6 +21756,11 @@ snapshots:
       is-wsl: 2.2.0
 
   openai@6.14.0(ws@8.18.3)(zod@4.1.12):
+    optionalDependencies:
+      ws: 8.18.3
+      zod: 4.1.12
+
+  openai@6.15.0(ws@8.18.3)(zod@4.1.12):
     optionalDependencies:
       ws: 8.18.3
       zod: 4.1.12
