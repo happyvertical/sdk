@@ -3,7 +3,75 @@
  */
 
 /**
+ * Text content part for multimodal messages
+ */
+export interface TextContentPart {
+  type: 'text';
+  text: string;
+}
+
+/**
+ * Image content part for vision-capable models
+ */
+export interface ImageContentPart {
+  type: 'image_url';
+  image_url: {
+    /** Image URL (http/https) or base64 data URL */
+    url: string;
+    /** Image detail level for processing */
+    detail?: 'auto' | 'low' | 'high';
+  };
+}
+
+/**
+ * Union type for all content parts in multimodal messages
+ */
+export type ContentPart = TextContentPart | ImageContentPart;
+
+/**
+ * Extract text content from a message content field.
+ *
+ * Handles both simple string content and multimodal content arrays,
+ * extracting only the text parts and concatenating them.
+ *
+ * @param content - The message content (string or ContentPart array)
+ * @returns The extracted text content
+ */
+export function extractTextContent(content: string | ContentPart[]): string {
+  if (typeof content === 'string') {
+    return content;
+  }
+  // Extract text from content parts
+  return content
+    .filter((part): part is TextContentPart => part.type === 'text')
+    .map((part) => part.text)
+    .join('\n');
+}
+
+/**
  * AI message structure for chat interactions
+ *
+ * Supports both simple string content and multimodal content arrays
+ * for vision-capable models.
+ *
+ * @example Simple text message
+ * ```typescript
+ * const message: AIMessage = {
+ *   role: 'user',
+ *   content: 'Hello, how are you?'
+ * };
+ * ```
+ *
+ * @example Multimodal message with image
+ * ```typescript
+ * const message: AIMessage = {
+ *   role: 'user',
+ *   content: [
+ *     { type: 'text', text: 'What is in this image?' },
+ *     { type: 'image_url', image_url: { url: 'data:image/png;base64,...' } }
+ *   ]
+ * };
+ * ```
  */
 export interface AIMessage {
   /**
@@ -12,9 +80,12 @@ export interface AIMessage {
   role: 'system' | 'user' | 'assistant' | 'function' | 'tool';
 
   /**
-   * Content of the message
+   * Content of the message.
+   *
+   * Can be a simple string for text-only messages, or an array of content parts
+   * for multimodal messages (e.g., text + images for vision models).
    */
-  content: string;
+  content: string | ContentPart[];
 
   /**
    * Optional name for the message sender

@@ -32,6 +32,7 @@ import {
   AIError,
   AuthenticationError,
   ContextLengthError,
+  extractTextContent,
   RateLimitError,
 } from '../types';
 
@@ -354,14 +355,15 @@ export class ClaudeCliProvider implements AIInterface {
     const conversationParts: string[] = [];
 
     for (const message of messages) {
+      const textContent = extractTextContent(message.content);
       if (message.role === 'system') {
         systemPrompt = systemPrompt
-          ? `${systemPrompt}\n\n${message.content}`
-          : message.content;
+          ? `${systemPrompt}\n\n${textContent}`
+          : textContent;
       } else if (message.role === 'user') {
-        conversationParts.push(`User: ${message.content}`);
+        conversationParts.push(`User: ${textContent}`);
       } else if (message.role === 'assistant') {
-        conversationParts.push(`Assistant: ${message.content}`);
+        conversationParts.push(`Assistant: ${textContent}`);
       }
     }
 

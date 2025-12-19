@@ -20,6 +20,7 @@ import type {
 import {
   AIError,
   AuthenticationError,
+  extractTextContent,
   ModelNotFoundError,
   RateLimitError,
 } from '../types';
@@ -376,15 +377,16 @@ export class GeminiProvider implements AIInterface {
     // The new SDK expects a string for the contents field
     return messages
       .map((message) => {
+        const textContent = extractTextContent(message.content);
         switch (message.role) {
           case 'system':
-            return `Instructions: ${message.content}`;
+            return `Instructions: ${textContent}`;
           case 'user':
-            return `Human: ${message.content}`;
+            return `Human: ${textContent}`;
           case 'assistant':
-            return `Assistant: ${message.content}`;
+            return `Assistant: ${textContent}`;
           default:
-            return message.content;
+            return textContent;
         }
       })
       .join('\n\n');
