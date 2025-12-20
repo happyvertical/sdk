@@ -545,6 +545,18 @@ async function insertRecordsWithCast(
           // Convert Date objects to ISO strings for DuckDB
           values.push(value.toISOString());
           return `$${paramIdx++}`;
+        } else if (Array.isArray(value)) {
+          // CAST arrays to JSON to prevent DuckDB ANY type inference
+          values.push(JSON.stringify(value));
+          return `CAST($${paramIdx++} AS JSON)`;
+        } else if (
+          typeof value === 'object' &&
+          value !== null &&
+          Object.getPrototypeOf(value) === Object.prototype
+        ) {
+          // CAST plain objects to JSON to prevent DuckDB ANY type inference
+          values.push(JSON.stringify(value));
+          return `CAST($${paramIdx++} AS JSON)`;
         } else {
           // Direct parameter binding for other values
           values.push(value);
