@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.60.7
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - handle JSON objects/arrays in insertRecordsWithCast (sql)
+
 ## 0.60.6
 
 ## 0.60.5
