@@ -1,5 +1,19 @@
 # @happyvertical/sql
 
+## 0.60.8
+
+### Patch Changes
+
+- 996fc5d: fix(sql): preserve numeric types in JSON adapter export
+
+  The JSON adapter's `exportTableToJSON` function was casting ALL non-JSON columns to TEXT, which caused numeric fields like `latitude` and `longitude` to be exported as strings instead of numbers.
+
+  Now only text-based columns are cast to TEXT (to prevent DuckDB's hugeint conversion for UUIDs), while numeric types (DOUBLE, REAL, FLOAT, INTEGER, BIGINT, etc.) and booleans are preserved as-is.
+
+  Fixes #694
+
+  - @happyvertical/utils@0.60.8
+
 ## 0.60.7
 
 ### Patch Changes
