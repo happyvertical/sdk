@@ -1216,16 +1216,44 @@ export async function getDatabase(
         return;
       }
 
-      // Cast non-JSON columns to TEXT to preserve UUIDs and other TEXT values as strings
-      // Keep JSON columns as-is to preserve object structure (e.g., _meta_data: {} not "{}")
+      // Preserve type-appropriate columns, only cast text-based columns to TEXT
+      // - JSON/STRUCT: preserve as-is for object structure (fixes #542)
+      // - Numeric types: preserve as-is so numbers export as numbers (fixes #694)
+      // - Boolean: preserve as-is
+      // - Text-based: cast to TEXT to prevent DuckDB hugeint conversion for UUIDs
       const selectList = columnInfo
         .map(({ column_name, data_type }) => {
           const upperType = data_type.toUpperCase();
-          // Don't cast JSON columns - they should remain as objects in output
+          // Preserve JSON/STRUCT as-is for object structure
           if (upperType === 'JSON' || upperType.startsWith('STRUCT')) {
             return `"${column_name}"`;
           }
-          // Cast other columns to TEXT to prevent hugeint conversion
+          // Preserve numeric types as-is so they export as numbers, not strings
+          if (
+            [
+              'DOUBLE',
+              'REAL',
+              'FLOAT',
+              'INTEGER',
+              'BIGINT',
+              'SMALLINT',
+              'TINYINT',
+              'DECIMAL',
+              'NUMERIC',
+              'HUGEINT',
+              'UBIGINT',
+              'UINTEGER',
+              'USMALLINT',
+              'UTINYINT',
+            ].some((t) => upperType.includes(t))
+          ) {
+            return `"${column_name}"`;
+          }
+          // Preserve boolean types as-is
+          if (upperType === 'BOOLEAN' || upperType === 'BOOL') {
+            return `"${column_name}"`;
+          }
+          // Cast text-based columns to TEXT to prevent hugeint conversion for UUIDs
           return `CAST("${column_name}" AS TEXT) AS "${column_name}"`;
         })
         .join(', ');
