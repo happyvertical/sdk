@@ -41,7 +41,7 @@
     "@happyvertical/files": "workspace:*",
     "@happyvertical/ocr": "^0.60.6",
     "@happyvertical/pdf": "^0.60.4",
-    "@happyvertical/spider": "^0.60.5",
+    "@happyvertical/spider": "^0.60.6",
     "@happyvertical/utils": "workspace:*",
     "uuid": "^13.0.0"
   },
