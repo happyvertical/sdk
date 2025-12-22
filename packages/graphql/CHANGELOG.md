@@ -1,5 +1,7 @@
 # @happyvertical/graphql
 
+## 0.60.9
+
 ## 0.60.8
 
 ## 0.60.7

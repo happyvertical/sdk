@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.60.9
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - cast Date parameters to TIMESTAMP for DuckDB (#698) (sql)
+
 ## 0.60.8
 
 ## 0.60.7
