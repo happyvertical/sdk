@@ -97,10 +97,14 @@ it('should handle date filtering with null check', () => {
     deleted_at: null,
   });
 
+  // Date objects are converted to ISO strings with CAST to TIMESTAMP (issue #540)
   expect(result.sql).toBe(
-    'WHERE created_at > $1 AND created_at <= $2 AND deleted_at IS NULL',
+    'WHERE created_at > CAST($1 AS TIMESTAMP) AND created_at <= CAST($2 AS TIMESTAMP) AND deleted_at IS NULL',
   );
-  expect(result.values).toEqual([startDate, endDate]);
+  expect(result.values).toEqual([
+    startDate.toISOString(),
+    endDate.toISOString(),
+  ]);
 });
 
 it('should handle LIKE operators for search', () => {
