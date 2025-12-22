@@ -40,6 +40,11 @@ const buildCondition = (
     const placeholders = value.map(() => `$${currIndex.value++}`).join(', ');
     sql = `${field} IN (${placeholders})`;
     values.push(...value);
+  } else if (value instanceof Date) {
+    // Convert Date objects to ISO strings and CAST to TIMESTAMP
+    // to prevent DuckDB ANY type inference (issue #540)
+    sql = `${field} ${sqlOperator} CAST($${currIndex.value++} AS TIMESTAMP)`;
+    values.push(value.toISOString());
   } else {
     sql = `${field} ${sqlOperator} $${currIndex.value++}`;
     values.push(value);

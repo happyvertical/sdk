@@ -543,8 +543,9 @@ async function insertRecordsWithCast(
           return `CAST($${paramIdx++} AS TEXT)`;
         } else if (value instanceof Date) {
           // Convert Date objects to ISO strings for DuckDB
+          // CAST to TIMESTAMP to prevent DuckDB ANY type inference (issue #540)
           values.push(value.toISOString());
-          return `$${paramIdx++}`;
+          return `CAST($${paramIdx++} AS TIMESTAMP)`;
         } else if (Array.isArray(value)) {
           // CAST arrays to JSON to prevent DuckDB ANY type inference
           values.push(JSON.stringify(value));
@@ -681,8 +682,9 @@ export async function getDatabase(
               return `CAST($${paramIdx++} AS TEXT)`;
             } else if (value instanceof Date) {
               // Convert Date objects to ISO strings for DuckDB (issue #319)
+              // CAST to TIMESTAMP to prevent DuckDB ANY type inference (issue #540)
               values.push(value.toISOString());
-              return `$${paramIdx++}`;
+              return `CAST($${paramIdx++} AS TIMESTAMP)`;
             } else if (Array.isArray(value)) {
               // CAST arrays to JSON to prevent DuckDB ANY type inference
               // DuckDB cannot infer array element types from empty arrays or mixed types
@@ -906,7 +908,8 @@ export async function getDatabase(
           paramIdx++;
         } else if (value instanceof Date) {
           // Convert Date objects to ISO strings for DuckDB
-          placeholders.push(`$${paramIdx}`);
+          // CAST to TIMESTAMP to prevent DuckDB ANY type inference (issue #540)
+          placeholders.push(`CAST($${paramIdx} AS TIMESTAMP)`);
           values.push(value.toISOString());
           paramIdx++;
         } else if (Array.isArray(value)) {
@@ -950,7 +953,8 @@ export async function getDatabase(
           paramIdx++;
         } else if (value instanceof Date) {
           // Convert Date objects to ISO strings for DuckDB
-          updateSetParts.push(`${key} = $${paramIdx}`);
+          // CAST to TIMESTAMP to prevent DuckDB ANY type inference (issue #540)
+          updateSetParts.push(`${key} = CAST($${paramIdx} AS TIMESTAMP)`);
           values.push(value.toISOString());
           paramIdx++;
         } else if (Array.isArray(value)) {
