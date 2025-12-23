@@ -15,6 +15,7 @@ import type {
   EmbeddingOptions,
   EmbeddingResponse,
   GeminiOptions,
+  GeminiThinkingLevel,
   MessageOptions,
 } from '../types';
 import {
@@ -47,7 +48,7 @@ export class GeminiProvider implements AIInterface {
       // Dynamic import in constructor - this will work if the package is installed
       import('@google/genai')
         .then(({ GoogleGenAI }) => {
-          this.client = new GoogleGenAI({ apiKey: this.options.apiKey });
+          this.client = new GoogleGenAI(this.buildClientConfig());
         })
         .catch(() => {
           // Client will be null and we'll handle it in methods
@@ -61,7 +62,7 @@ export class GeminiProvider implements AIInterface {
     if (!this.client) {
       try {
         const { GoogleGenAI } = await import('@google/genai');
-        this.client = new GoogleGenAI({ apiKey: this.options.apiKey });
+        this.client = new GoogleGenAI(this.buildClientConfig());
       } catch (_error) {
         throw new AIError(
           'Failed to initialize Gemini client. Make sure @google/genai is installed.',
@@ -70,6 +71,27 @@ export class GeminiProvider implements AIInterface {
         );
       }
     }
+  }
+
+  /**
+   * Build the GoogleGenAI client configuration based on provided options.
+   * Supports both Google AI Studio (apiKey only) and Vertex AI (projectId + location).
+   */
+  private buildClientConfig(): Record<string, any> {
+    // If projectId and location are provided, use Vertex AI mode
+    if (this.options.projectId && this.options.location) {
+      return {
+        vertexai: true,
+        project: this.options.projectId,
+        location: this.options.location,
+        apiKey: this.options.apiKey, // Optional for Vertex AI with ADC
+      };
+    }
+
+    // Default to Google AI Studio mode with API key
+    return {
+      apiKey: this.options.apiKey,
+    };
   }
 
   async chat(
@@ -119,6 +141,22 @@ export class GeminiProvider implements AIInterface {
         if (options.toolChoice) {
           requestConfig.toolConfig = this.mapToolChoice(options.toolChoice);
         }
+      }
+
+      // Add thinking config for Gemini 3 models
+      const thinkingLevel = options.thinkingLevel || this.options.thinkingLevel;
+      if (thinkingLevel || options.includeThoughts) {
+        requestConfig.config = {
+          ...requestConfig.config,
+          thinkingConfig: {
+            ...(thinkingLevel && {
+              thinkingLevel: this.mapThinkingLevel(thinkingLevel),
+            }),
+            ...(options.includeThoughts !== undefined && {
+              includeThoughts: options.includeThoughts,
+            }),
+          },
+        };
       }
 
       // Call new SDK API: ai.models.generateContent()
@@ -280,6 +318,16 @@ export class GeminiProvider implements AIInterface {
     // Return static list of known Gemini models
     return [
       {
+        id: 'gemini-3-flash-preview',
+        name: 'Gemini 3 Flash Preview',
+        description:
+          'Preview of Gemini 3 Flash model. Available on Vertex AI in us-central1 only.',
+        contextLength: 1000000,
+        capabilities: ['text', 'chat', 'vision', 'functions'],
+        supportsFunctions: true,
+        supportsVision: true,
+      },
+      {
         id: 'gemini-2.0-flash-001',
         name: 'Gemini 2.0 Flash',
         description:
@@ -354,6 +402,14 @@ export class GeminiProvider implements AIInterface {
     }
 
     return { functionCallingConfig: { mode: 'AUTO' } };
+  }
+
+  /**
+   * Map thinking level from our type to SDK's expected format
+   * The SDK expects uppercase values: MINIMAL, LOW, MEDIUM, HIGH
+   */
+  private mapThinkingLevel(level: GeminiThinkingLevel): string {
+    return level.toUpperCase();
   }
 
   private mapFinishReason(response: any): AIResponse['finishReason'] {

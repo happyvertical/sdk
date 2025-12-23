@@ -3,6 +3,12 @@
  */
 
 /**
+ * Thinking level options for Gemini 3 models
+ * Controls the amount of internal reasoning the model performs
+ */
+export type GeminiThinkingLevel = 'minimal' | 'low' | 'medium' | 'high';
+
+/**
  * Text content part for multimodal messages
  */
 export interface TextContentPart {
@@ -186,6 +192,24 @@ export interface ChatOptions {
    * Callback for streaming responses
    */
   onProgress?: (chunk: string) => void;
+
+  /**
+   * Thinking level for Gemini 3 models (gemini-3-flash-preview, gemini-3-pro)
+   * Controls internal reasoning depth:
+   * - 'minimal': No thinking for most queries (Gemini 3 Flash only)
+   * - 'low': Minimizes latency and cost, good for simple tasks
+   * - 'medium': Balanced thinking for most tasks (Gemini 3 Flash only)
+   * - 'high': Maximizes reasoning depth (default for Gemini 3)
+   *
+   * Note: Only works with Gemini 3 models.
+   */
+  thinkingLevel?: GeminiThinkingLevel;
+
+  /**
+   * Whether to include the model's internal thoughts in the response
+   * Only applicable for Gemini 3 models with thinking enabled
+   */
+  includeThoughts?: boolean;
 }
 
 /**
@@ -673,6 +697,17 @@ export interface GeminiOptions extends BaseAIOptions {
   baseUrl?: string;
   projectId?: string;
   location?: string;
+  /**
+   * Thinking level for Gemini 3 models (gemini-3-flash-preview, gemini-3-pro)
+   * Controls internal reasoning depth:
+   * - 'minimal': No thinking for most queries (Gemini 3 Flash only)
+   * - 'low': Minimizes latency and cost, good for simple tasks
+   * - 'medium': Balanced thinking for most tasks (Gemini 3 Flash only)
+   * - 'high': Maximizes reasoning depth (default for Gemini 3)
+   *
+   * Note: Only works with Gemini 3 models. Gemini 2.5 uses thinkingBudget instead.
+   */
+  thinkingLevel?: GeminiThinkingLevel;
 }
 
 /**
