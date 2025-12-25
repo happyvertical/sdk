@@ -27,6 +27,83 @@ import type {
 } from '../shared/types.js';
 
 /**
+ * Options for generating signed imgproxy URLs
+ */
+export interface SignedUrlOptions {
+  /**
+   * Width in pixels (0 for auto)
+   */
+  width?: number;
+
+  /**
+   * Height in pixels (0 for auto)
+   */
+  height?: number;
+
+  /**
+   * Resize mode
+   * - 'cover': Fill dimensions, crop excess
+   * - 'contain': Fit within dimensions, may have empty space
+   * - 'fill': Force exact dimensions (may distort)
+   */
+  fit?: 'cover' | 'contain' | 'fill' | 'inside' | 'outside';
+
+  /**
+   * Output quality (1-100)
+   */
+  quality?: number;
+
+  /**
+   * Output format (jpeg, png, webp, avif, etc.)
+   */
+  format?: string;
+}
+
+/**
+ * Generate a signed imgproxy URL
+ *
+ * Standalone function for generating signed URLs without creating an adapter instance.
+ * Useful for client-side usage or when you only need URL generation.
+ *
+ * @param source - Source image URL (must be http/https)
+ * @param config - imgproxy server configuration
+ * @param options - Processing options
+ * @returns Signed imgproxy URL
+ *
+ * @example
+ * ```typescript
+ * import { signImgproxyUrl } from '@happyvertical/images';
+ *
+ * const url = signImgproxyUrl(
+ *   'https://example.com/image.jpg',
+ *   {
+ *     baseUrl: 'https://imgproxy.example.com',
+ *     key: 'hex-encoded-key',
+ *     salt: 'hex-encoded-salt'
+ *   },
+ *   { width: 300, height: 200, format: 'webp' }
+ * );
+ * ```
+ */
+export function signImgproxyUrl(
+  source: string,
+  config: {
+    baseUrl: string;
+    key?: string;
+    salt?: string;
+  },
+  options: SignedUrlOptions = {},
+): string {
+  const adapter = new ImgproxyAdapter({
+    type: 'imgproxy',
+    baseUrl: config.baseUrl,
+    key: config.key,
+    salt: config.salt,
+  });
+  return adapter.getSignedUrl(source, options);
+}
+
+/**
  * imgproxy adapter for remote image processing
  *
  * Offloads image processing to a self-hosted imgproxy server.
@@ -71,6 +148,68 @@ export class ImgproxyAdapter implements ImageProcessorInterface {
       this.key = Buffer.from(options.key, 'hex');
       this.salt = Buffer.from(options.salt, 'hex');
     }
+  }
+
+  /**
+   * Generate a signed imgproxy URL without fetching the image
+   *
+   * This is useful for:
+   * - Client-side usage where you want to display images directly
+   * - Debugging URL signing issues
+   * - Pre-generating URLs for batch processing
+   *
+   * @param source - Source image URL (must be http/https)
+   * @param options - Processing options
+   * @returns Signed imgproxy URL
+   *
+   * @example
+   * ```typescript
+   * const adapter = new ImgproxyAdapter({
+   *   type: 'imgproxy',
+   *   baseUrl: 'https://imgproxy.example.com',
+   *   key: 'hex-key',
+   *   salt: 'hex-salt'
+   * });
+   *
+   * // Generate thumbnail URL
+   * const url = adapter.getSignedUrl('https://example.com/image.jpg', {
+   *   width: 300,
+   *   height: 200,
+   *   fit: 'cover',
+   *   format: 'webp'
+   * });
+   * // Returns: https://imgproxy.example.com/SIGNATURE/rs:fill:300:200/aHR0cHM6Ly9.../image.webp
+   * ```
+   */
+  getSignedUrl(
+    source: string,
+    options: {
+      width?: number;
+      height?: number;
+      fit?: 'cover' | 'contain' | 'fill' | 'inside' | 'outside';
+      quality?: number;
+      format?: string;
+    } = {},
+  ): string {
+    // Validate source URL
+    if (!source.startsWith('http://') && !source.startsWith('https://')) {
+      throw new ProcessingError(
+        'imgproxy requires HTTP/HTTPS URLs as source. ' +
+          `Got: ${source.substring(0, 50)}...`,
+        'imgproxy',
+      );
+    }
+
+    const resizeType = this.mapFitToResizeType(options.fit || 'cover');
+    const processing = this.buildProcessingString({
+      resize: resizeType,
+      width: options.width || 0,
+      height: options.height || 0,
+      quality: options.quality,
+      format: options.format,
+    });
+
+    return this.buildUrl(source, processing, options.format);
   }
 
   /**

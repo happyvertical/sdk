@@ -43,7 +43,11 @@
  * @packageDocumentation
  */
 
-export { ImgproxyAdapter } from './adapters/imgproxy.js';
+export {
+  ImgproxyAdapter,
+  type SignedUrlOptions,
+  signImgproxyUrl,
+} from './adapters/imgproxy.js';
 export { JimpAdapter } from './adapters/jimp.js';
 // Export adapters for direct use
 export { SharpAdapter } from './adapters/sharp.js';
