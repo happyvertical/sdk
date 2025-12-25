@@ -283,6 +283,134 @@ export interface EmbeddingOptions {
 }
 
 /**
+ * Options for image embedding generation
+ */
+export interface ImageEmbeddingOptions {
+  /**
+   * Model to use for image embeddings
+   * - Gemini: 'multimodalembedding@001' or similar
+   * - OpenAI: Uses describe-then-embed with text-embedding-3-small
+   */
+  model?: string;
+
+  /**
+   * Number of dimensions for the embedding output
+   */
+  dimensions?: number;
+
+  /**
+   * User identifier for monitoring
+   */
+  user?: string;
+}
+
+/**
+ * Options for image description generation
+ */
+export interface ImageDescriptionOptions {
+  /**
+   * Model to use for image description
+   * - OpenAI: defaults to 'gpt-4o'
+   * - Gemini: defaults to 'gemini-2.5-flash'
+   */
+  model?: string;
+
+  /**
+   * Maximum tokens for the description
+   */
+  maxTokens?: number;
+
+  /**
+   * Detail level for image processing (OpenAI-specific)
+   */
+  detail?: 'auto' | 'low' | 'high';
+}
+
+/**
+ * Options for image generation
+ */
+export interface ImageGenerationOptions {
+  /**
+   * Model to use for image generation
+   * - OpenAI: 'dall-e-3' (default), 'dall-e-2'
+   * - Gemini: 'imagen-3.0-generate-002' (default)
+   */
+  model?: string;
+
+  /**
+   * Input image for image-to-image workflows
+   * Can be a URL (http/https), base64 data URL, or Buffer
+   */
+  imageInput?: string | Buffer;
+
+  /**
+   * Aspect ratio for the generated image
+   * e.g., "16:9", "1:1", "4:3", "3:4", "9:16"
+   */
+  aspectRatio?: string;
+
+  /**
+   * Output format for the generated image
+   * - 'buffer': Returns raw image bytes (default)
+   * - 'base64': Returns base64-encoded string
+   * - 'url': Returns temporary URL (provider-dependent, may expire)
+   */
+  outputFormat?: 'buffer' | 'base64' | 'url';
+
+  /**
+   * Number of images to generate (provider-dependent)
+   * - DALL-E 3: Only 1 supported
+   * - Imagen 3: 1-4 supported
+   */
+  n?: number;
+
+  /**
+   * Image style (OpenAI DALL-E 3 specific)
+   */
+  style?: 'vivid' | 'natural';
+
+  /**
+   * Quality setting
+   * - OpenAI: 'standard' | 'hd'
+   */
+  quality?: string;
+
+  /**
+   * Size specification (for providers that use fixed sizes)
+   * - OpenAI DALL-E 3: '1024x1024' | '1792x1024' | '1024x1792'
+   */
+  size?: string;
+}
+
+/**
+ * Response from image generation
+ */
+export interface ImageGenerationResponse {
+  /**
+   * Generated image(s) - format depends on outputFormat option
+   */
+  images: Array<{
+    /**
+     * Image data - Buffer for 'buffer' format, string for 'base64' or 'url'
+     */
+    data: Buffer | string;
+    /**
+     * MIME type of the image (e.g., 'image/png', 'image/jpeg')
+     */
+    mimeType: string;
+    /**
+     * Revised prompt (if provider modified the original)
+     */
+    revisedPrompt?: string;
+  }>;
+
+  /**
+   * Model used for generation
+   */
+  model?: string;
+}
+
+/**
  * Options for simple message requests (convenience method)
  * This provides a simpler interface than chat() for single-turn interactions
  */
@@ -486,6 +614,16 @@ export interface AICapabilities {
   fineTuning: boolean;
 
   /**
+   * Whether the provider supports image embeddings
+   */
+  imageEmbeddings: boolean;
+
+  /**
+   * Whether the provider supports image generation
+   */
+  imageGeneration: boolean;
+
+  /**
    * Maximum context length supported
    */
   maxContextLength: number;
@@ -631,6 +769,95 @@ export interface AIInterface {
     text: string | string[],
     options?: EmbeddingOptions,
   ): Promise<EmbeddingResponse>;
+
+  /**
+   * Generate embeddings for an image
+   *
+   * Implementation varies by provider:
+   * - Gemini: Uses native multimodal embeddings
+   * - OpenAI: Uses describe-then-embed pattern (describeImage → embed)
+   * - Others: Throws NOT_IMPLEMENTED
+   *
+   * @param image - Image as URL, base64 data URL, or Buffer
+   * @param options - Optional configuration for image embeddings
+   * @returns Promise resolving to embeddings response
+   * @throws {AIError} When embeddings are not supported or request fails
+   *
+   * @example
+   * ```typescript
+   * // From URL
+   * const embedding = await ai.embedImage('https://example.com/image.jpg');
+   *
+   * // From Buffer
+   * const buffer = fs.readFileSync('image.png');
+   * const embedding = await ai.embedImage(buffer);
+   *
+   * // With options
+   * const embedding = await ai.embedImage(imageUrl, { dimensions: 768 });
+   * ```
+   */
+  embedImage(
+    image: string | Buffer,
+    options?: ImageEmbeddingOptions,
+  ): Promise<EmbeddingResponse>;
+
+  /**
+   * Generate a text description of an image
+   *
+   * @param image - Image as URL, base64 data URL, or Buffer
+   * @param prompt - Custom prompt for description (optional)
+   * @param options - Optional configuration
+   * @returns Promise resolving to the description string
+   * @throws {AIError} When vision is not supported or request fails
+   *
+   * @example
+   * ```typescript
+   * // Default description for search indexing
+   * const description = await ai.describeImage('https://example.com/image.jpg');
+   *
+   * // Custom prompt
+   * const description = await ai.describeImage(imageBuffer, 'What product is shown?');
+   *
+   * // With options
+   * const description = await ai.describeImage(imageUrl, undefined, {
+   *   model: 'gpt-4o',
+   *   maxTokens: 500,
+   *   detail: 'high'
+   * });
+   * ```
+   */
+  describeImage(
+    image: string | Buffer,
+    prompt?: string,
+    options?: ImageDescriptionOptions,
+  ): Promise<string>;
+
+  /**
+   * Generate an image from a text prompt
+   *
+   * @param prompt - Text description of the image to generate
+   * @param options - Optional configuration for image generation
+   * @returns Promise resolving to generated image(s)
+   * @throws {AIError} When image generation is not supported or request fails
+   *
+   * @example
+   * ```typescript
+   * // Basic generation (returns Buffer by default)
+   * const result = await ai.generateImage('A sunset over mountains');
+   * fs.writeFileSync('image.png', result.images[0].data);
+   *
+   * // With options
+   * const result = await ai.generateImage('A cat wearing a hat', {
+   *   outputFormat: 'base64',
+   *   size: '1024x1024',
+   *   style: 'vivid'
+   * });
+   * ```
+   */
+  generateImage(
+    prompt: string,
+    options?: ImageGenerationOptions,
+  ): Promise<ImageGenerationResponse>;
 
   /**
    * Stream chat completion

@@ -26,6 +26,10 @@ import type {
   CompletionOptions,
   EmbeddingOptions,
   EmbeddingResponse,
+  ImageDescriptionOptions,
+  ImageEmbeddingOptions,
+  ImageGenerationOptions,
+  ImageGenerationResponse,
   MessageOptions,
 } from '../types';
 import {
@@ -586,6 +590,50 @@ export class ClaudeCliProvider implements AIInterface {
   }
 
   /**
+   * Image embeddings are not supported by Claude CLI
+   */
+  async embedImage(
+    _image: string | Buffer,
+    _options: ImageEmbeddingOptions = {},
+  ): Promise<EmbeddingResponse> {
+    throw new AIError(
+      'Claude CLI does not support image embeddings. Use OpenAI or Gemini.',
+      'NOT_SUPPORTED',
+      'claude-cli',
+    );
+  }
+
+  /**
+   * Image description is not yet implemented for Claude CLI
+   * Note: Claude supports vision, but this would require significant implementation
+   */
+  async describeImage(
+    _image: string | Buffer,
+    _prompt?: string,
+    _options: ImageDescriptionOptions = {},
+  ): Promise<string> {
+    throw new AIError(
+      'Image description is not yet implemented for Claude CLI. Use OpenAI or Gemini.',
+      'NOT_IMPLEMENTED',
+      'claude-cli',
+    );
+  }
+
+  /**
+   * Image generation is not supported by Claude
+   */
+  async generateImage(
+    _prompt: string,
+    _options: ImageGenerationOptions = {},
+  ): Promise<ImageGenerationResponse> {
+    throw new AIError(
+      'Claude does not support image generation. Use OpenAI or Gemini.',
+      'NOT_SUPPORTED',
+      'claude-cli',
+    );
+  }
+
+  /**
    * Stream chat completion using Claude CLI
    */
   async *stream(
@@ -690,6 +738,8 @@ export class ClaudeCliProvider implements AIInterface {
       functions: false, // Not supported via CLI
       vision: false, // Not supported in current CLI version
       fineTuning: false,
+      imageEmbeddings: false,
+      imageGeneration: false,
       maxContextLength: 200000,
       supportedOperations: ['chat', 'completion', 'streaming'],
     };

@@ -13,6 +13,10 @@ import type {
   CompletionOptions,
   EmbeddingOptions,
   EmbeddingResponse,
+  ImageDescriptionOptions,
+  ImageEmbeddingOptions,
+  ImageGenerationOptions,
+  ImageGenerationResponse,
   MessageOptions,
 } from '../types';
 import {
@@ -177,6 +181,42 @@ export class BedrockProvider implements AIInterface {
     }
   }
 
+  async embedImage(
+    _image: string | Buffer,
+    _options: ImageEmbeddingOptions = {},
+  ): Promise<EmbeddingResponse> {
+    throw new AIError(
+      'AWS Bedrock does not support image embeddings. Use OpenAI or Gemini.',
+      'NOT_SUPPORTED',
+      'bedrock',
+    );
+  }
+
+  async describeImage(
+    _image: string | Buffer,
+    _prompt?: string,
+    _options: ImageDescriptionOptions = {},
+  ): Promise<string> {
+    // Note: Some Bedrock models (Claude) support vision, but we're keeping this as a stub
+    throw new AIError(
+      'Image description is not yet implemented for AWS Bedrock. Use OpenAI or Gemini.',
+      'NOT_IMPLEMENTED',
+      'bedrock',
+    );
+  }
+
+  async generateImage(
+    _prompt: string,
+    _options: ImageGenerationOptions = {},
+  ): Promise<ImageGenerationResponse> {
+    // Note: Bedrock has Titan Image Generator, but we're keeping this as a stub
+    throw new AIError(
+      'Image generation is not yet implemented for AWS Bedrock. Use OpenAI or Gemini.',
+      'NOT_IMPLEMENTED',
+      'bedrock',
+    );
+  }
+
   async *stream(
     _messages: AIMessage[],
     _options: ChatOptions = {},
@@ -270,6 +310,8 @@ export class BedrockProvider implements AIInterface {
       functions: true, // Some models support function calling
       vision: true, // Some models support vision
       fineTuning: true, // Via Bedrock fine-tuning
+      imageEmbeddings: false,
+      imageGeneration: false, // Titan Image Generator exists but not implemented
       maxContextLength: 200000,
       supportedOperations: [
         'chat',
