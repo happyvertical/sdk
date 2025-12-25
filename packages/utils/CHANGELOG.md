@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.61.2
+
+### Patch Changes
+
+- ### Features
+
+  - add @happyvertical/images package for image processing (#703) (images)
+
 ## 0.61.1
 
 ### Patch Changes
