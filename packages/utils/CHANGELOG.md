@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.61.1
+
+### Patch Changes
+
+- ### Features
+
+  - add image description, embedding, and generation methods (#702) (ai)
+
 ## 0.61.0
 
 ## 0.60.9
