@@ -13,6 +13,10 @@ import type {
   EmbeddingOptions,
   EmbeddingResponse,
   HuggingFaceOptions,
+  ImageDescriptionOptions,
+  ImageEmbeddingOptions,
+  ImageGenerationOptions,
+  ImageGenerationResponse,
   MessageOptions,
 } from '../types';
 import {
@@ -188,6 +192,41 @@ export class HuggingFaceProvider implements AIInterface {
     }
   }
 
+  async embedImage(
+    _image: string | Buffer,
+    _options: ImageEmbeddingOptions = {},
+  ): Promise<EmbeddingResponse> {
+    throw new AIError(
+      'Hugging Face image embeddings not implemented. Use OpenAI or Gemini.',
+      'NOT_IMPLEMENTED',
+      'huggingface',
+    );
+  }
+
+  async describeImage(
+    _image: string | Buffer,
+    _prompt?: string,
+    _options: ImageDescriptionOptions = {},
+  ): Promise<string> {
+    throw new AIError(
+      'Image description is not implemented for Hugging Face. Use OpenAI or Gemini.',
+      'NOT_IMPLEMENTED',
+      'huggingface',
+    );
+  }
+
+  async generateImage(
+    _prompt: string,
+    _options: ImageGenerationOptions = {},
+  ): Promise<ImageGenerationResponse> {
+    // Note: Hugging Face has image generation models (Stable Diffusion), but we're keeping this as a stub
+    throw new AIError(
+      'Image generation is not implemented for Hugging Face. Use OpenAI or Gemini.',
+      'NOT_IMPLEMENTED',
+      'huggingface',
+    );
+  }
+
   async *stream(
     messages: AIMessage[],
     options: ChatOptions = {},
@@ -277,6 +316,8 @@ export class HuggingFaceProvider implements AIInterface {
       functions: false, // Most HF models don't support function calling
       vision: false, // Limited vision model support
       fineTuning: true, // Via Hugging Face training API
+      imageEmbeddings: false,
+      imageGeneration: false, // Stable Diffusion exists but not implemented
       maxContextLength: 2048,
       supportedOperations: ['chat', 'completion', 'embedding'],
     };

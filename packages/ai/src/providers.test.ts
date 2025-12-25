@@ -48,6 +48,8 @@ describe('OpenAI Provider', () => {
       functions: true,
       vision: true,
       fineTuning: true,
+      imageEmbeddings: true,
+      imageGeneration: true,
       maxContextLength: 128000,
       supportedOperations: [
         'chat',
@@ -56,6 +58,8 @@ describe('OpenAI Provider', () => {
         'streaming',
         'functions',
         'vision',
+        'image_embedding',
+        'image_generation',
       ],
     });
   });
@@ -106,6 +110,8 @@ describe('Claude CLI Provider', () => {
       functions: false, // Not supported via CLI
       vision: false, // Not supported in current CLI version
       fineTuning: false,
+      imageEmbeddings: false,
+      imageGeneration: false,
       maxContextLength: 200000,
       supportedOperations: ['chat', 'completion', 'streaming'],
     });

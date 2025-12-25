@@ -16,6 +16,10 @@ import type {
   EmbeddingResponse,
   GeminiOptions,
   GeminiThinkingLevel,
+  ImageDescriptionOptions,
+  ImageEmbeddingOptions,
+  ImageGenerationOptions,
+  ImageGenerationResponse,
   MessageOptions,
 } from '../types';
 import {
@@ -269,18 +273,268 @@ export class GeminiProvider implements AIInterface {
     return response.content;
   }
 
+  /**
+   * Generate embeddings for text using Gemini embedding models
+   * @param text - Single text string or array of texts to embed
+   * @param options - Optional configuration for embeddings
+   * @returns Promise resolving to embeddings response
+   *
+   * @example
+   * ```typescript
+   * const embedding = await provider.embed('Hello world');
+   * const embeddings = await provider.embed(['Text 1', 'Text 2']);
+   * ```
+   */
   async embed(
-    _text: string | string[],
-    _options: EmbeddingOptions = {},
+    text: string | string[],
+    options: EmbeddingOptions = {},
   ): Promise<EmbeddingResponse> {
     try {
-      // TODO: Implement Gemini embeddings
-      // Note: Gemini may not support embeddings directly
-      throw new AIError(
-        'Gemini embeddings not implemented',
-        'NOT_IMPLEMENTED',
-        'gemini',
-      );
+      await this.ensureClient();
+
+      const model = options.model || 'text-embedding-004';
+      const input = Array.isArray(text) ? text : [text];
+
+      const embeddings: number[][] = [];
+      let totalTokens = 0;
+
+      for (const content of input) {
+        const config: Record<string, any> = {};
+        if (options.dimensions) {
+          config.outputDimensionality = options.dimensions;
+        }
+
+        const result = await this.client.models.embedContent({
+          model,
+          contents: content,
+          config: Object.keys(config).length > 0 ? config : undefined,
+        });
+
+        if (result.embeddings?.[0]?.values) {
+          embeddings.push(result.embeddings[0].values);
+        }
+        if (result.metadata?.tokenCount) {
+          totalTokens += result.metadata.tokenCount;
+        }
+      }
+
+      return {
+        embeddings,
+        model,
+        usage:
+          totalTokens > 0
+            ? {
+                promptTokens: totalTokens,
+                completionTokens: 0,
+                totalTokens,
+              }
+            : undefined,
+      };
+    } catch (error) {
+      throw this.mapError(error);
+    }
+  }
+
+  /**
+   * Convert an image to Gemini inline format
+   * @param image - Image as URL, base64 data URL, or Buffer
+   * @returns Gemini inline data format
+   * @private
+   */
+  private async imageToGeminiFormat(
+    image: string | Buffer,
+  ): Promise<{ inlineData: { mimeType: string; data: string } }> {
+    let mimeType = 'image/png';
+    let base64Data: string;
+
+    if (Buffer.isBuffer(image)) {
+      base64Data = image.toString('base64');
+    } else if (image.startsWith('data:')) {
+      // Parse data URL
+      const match = image.match(/^data:([^;]+);base64,(.+)$/);
+      if (match) {
+        mimeType = match[1];
+        base64Data = match[2];
+      } else {
+        throw new AIError(
+          'Invalid base64 data URL format',
+          'INVALID_INPUT',
+          'gemini',
+        );
+      }
+    } else {
+      // Fetch from URL
+      const response = await fetch(image);
+      if (!response.ok) {
+        throw new AIError(
+          `Failed to fetch image: ${response.status} ${response.statusText}`,
+          'IMAGE_FETCH_ERROR',
+          'gemini',
+        );
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      base64Data = Buffer.from(arrayBuffer).toString('base64');
+      mimeType = response.headers.get('content-type') || 'image/png';
+    }
+
+    return {
+      inlineData: { mimeType, data: base64Data },
+    };
+  }
+
+  /**
+   * Generate a text description of an image
+   * @param image - Image as URL, base64 data URL, or Buffer
+   * @param prompt - Custom prompt for description (optional)
+   * @param options - Optional configuration
+   * @returns Promise resolving to the description string
+   *
+   * @example
+   * ```typescript
+   * const description = await provider.describeImage('https://example.com/image.jpg');
+   * ```
+   */
+  async describeImage(
+    image: string | Buffer,
+    prompt?: string,
+    options: ImageDescriptionOptions = {},
+  ): Promise<string> {
+    try {
+      await this.ensureClient();
+
+      const defaultPrompt =
+        'Describe this image for a search index. Include objects, mood, lighting, and any visible text.';
+
+      const imageData = await this.imageToGeminiFormat(image);
+
+      const response = await this.client.models.generateContent({
+        model: options.model || this.options.defaultModel || 'gemini-2.5-flash',
+        contents: [{ text: prompt || defaultPrompt }, imageData],
+        generationConfig: {
+          maxOutputTokens: options.maxTokens || 500,
+        },
+      });
+
+      return response.text || '';
+    } catch (error) {
+      throw this.mapError(error);
+    }
+  }
+
+  /**
+   * Generate embeddings for an image using native multimodal embeddings
+   * @param image - Image as URL, base64 data URL, or Buffer
+   * @param options - Optional configuration for image embeddings
+   * @returns Promise resolving to embeddings response
+   *
+   * @example
+   * ```typescript
+   * const embedding = await provider.embedImage('https://example.com/image.jpg');
+   * ```
+   */
+  async embedImage(
+    image: string | Buffer,
+    options: ImageEmbeddingOptions = {},
+  ): Promise<EmbeddingResponse> {
+    try {
+      await this.ensureClient();
+
+      // Gemini uses multimodal embedding model
+      const model = options.model || 'multimodalembedding@001';
+      const imageData = await this.imageToGeminiFormat(image);
+
+      const config: Record<string, any> = {};
+      if (options.dimensions) {
+        config.outputDimensionality = options.dimensions;
+      }
+
+      const result = await this.client.models.embedContent({
+        model,
+        contents: [imageData],
+        config: Object.keys(config).length > 0 ? config : undefined,
+      });
+
+      return {
+        embeddings: result.embeddings?.[0]?.values
+          ? [result.embeddings[0].values]
+          : [],
+        model,
+      };
+    } catch (error) {
+      throw this.mapError(error);
+    }
+  }
+
+  /**
+   * Generate an image from a text prompt using Imagen 3
+   * @param prompt - Text description of the image to generate
+   * @param options - Optional configuration for image generation
+   * @returns Promise resolving to generated image(s)
+   *
+   * @example
+   * ```typescript
+   * const result = await provider.generateImage('A sunset over mountains');
+   * fs.writeFileSync('image.png', result.images[0].data);
+   * ```
+   */
+  async generateImage(
+    prompt: string,
+    options: ImageGenerationOptions = {},
+  ): Promise<ImageGenerationResponse> {
+    try {
+      await this.ensureClient();
+
+      const model = options.model || 'imagen-3.0-generate-002';
+
+      const config: Record<string, any> = {
+        numberOfImages: options.n || 1,
+      };
+
+      if (options.aspectRatio) {
+        config.aspectRatio = options.aspectRatio;
+      }
+
+      const response = await this.client.models.generateImages({
+        model,
+        prompt,
+        config,
+      });
+
+      const images = (response.generatedImages || []).map((img: any) => {
+        let data: Buffer | string;
+        const mimeType = 'image/png';
+        const imageBytes = img.image?.imageBytes;
+
+        if (options.outputFormat === 'base64') {
+          data =
+            typeof imageBytes === 'string'
+              ? imageBytes
+              : Buffer.from(imageBytes).toString('base64');
+        } else if (options.outputFormat === 'url') {
+          // Gemini Imagen doesn't provide URLs, return as base64 data URL
+          const b64 =
+            typeof imageBytes === 'string'
+              ? imageBytes
+              : Buffer.from(imageBytes).toString('base64');
+          data = `data:${mimeType};base64,${b64}`;
+        } else {
+          // Default: buffer
+          data =
+            typeof imageBytes === 'string'
+              ? Buffer.from(imageBytes, 'base64')
+              : Buffer.from(imageBytes);
+        }
+
+        return {
+          data,
+          mimeType,
+        };
+      });
+
+      return {
+        images,
+        model,
+      };
     } catch (error) {
       throw this.mapError(error);
     }
@@ -362,18 +616,23 @@ export class GeminiProvider implements AIInterface {
     return {
       chat: true,
       completion: true,
-      embeddings: false, // Gemini may not support embeddings directly
+      embeddings: true,
       streaming: true,
       functions: true,
       vision: true,
       fineTuning: false,
+      imageEmbeddings: true,
+      imageGeneration: true,
       maxContextLength: 2000000,
       supportedOperations: [
         'chat',
         'completion',
+        'embedding',
         'streaming',
         'functions',
         'vision',
+        'image_embedding',
+        'image_generation',
       ],
     };
   }

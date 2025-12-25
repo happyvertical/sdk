@@ -55,6 +55,9 @@ export class OpenAIProvider implements AIInterface {
   async chat(messages: AIMessage[], options?: ChatOptions): Promise<AIResponse>
   async complete(prompt: string, options?: CompletionOptions): Promise<AIResponse>
   async embed(text: string | string[], options?: EmbeddingOptions): Promise<EmbeddingResponse>
+  async embedImage(image: string | Buffer, options?: ImageEmbeddingOptions): Promise<EmbeddingResponse>
+  async describeImage(image: string | Buffer, prompt?: string, options?: ImageDescriptionOptions): Promise<string>
+  async generateImage(prompt: string, options?: ImageGenerationOptions): Promise<ImageGenerationResponse>
   async *stream(messages: AIMessage[], options?: ChatOptions): AsyncIterable<string>
   async countTokens(text: string): Promise<number>
   async getModels(): Promise<AIModel[]>
@@ -340,6 +343,157 @@ const embeddings = await client.embed([
 console.log(embeddings.embeddings); // Array of number arrays
 ```
 
+### Image Operations
+
+The package provides three image-related methods for working with visual content:
+
+#### Describe Image
+
+Get a text description of an image, useful for search indexing, accessibility, or content analysis:
+
+```typescript
+import { getAI } from '@happyvertical/ai';
+
+const client = await getAI({
+  type: 'openai',
+  apiKey: process.env.OPENAI_API_KEY!
+});
+
+// From file path (base64 encoded automatically)
+const description = await client.describeImage('/path/to/image.jpg');
+
+// From Buffer
+import { readFileSync } from 'fs';
+const imageBuffer = readFileSync('/path/to/image.png');
+const desc = await client.describeImage(imageBuffer);
+
+// From URL
+const urlDescription = await client.describeImage('https://example.com/photo.jpg');
+
+// From base64 data URL
+const base64Desc = await client.describeImage('data:image/jpeg;base64,/9j/4AAQ...');
+
+// With custom prompt
+const customDesc = await client.describeImage(imageBuffer,
+  'List all visible text in this image'
+);
+
+// With options
+const detailedDesc = await client.describeImage(imageBuffer, undefined, {
+  model: 'gpt-4o',           // Vision-capable model
+  maxTokens: 500,            // Limit response length
+  detail: 'high'             // 'auto' | 'low' | 'high' (OpenAI only)
+});
+```
+
+**Provider Support:**
+- **OpenAI**: Uses GPT-4o with vision (default)
+- **Gemini**: Uses gemini-2.5-flash
+- **Others**: Throws `NOT_IMPLEMENTED` error
+
+#### Embed Image
+
+Convert an image to a vector embedding for semantic search or similarity comparison:
+
+```typescript
+import { getAI } from '@happyvertical/ai';
+
+// OpenAI uses describe-then-embed pattern
+const openai = await getAI({ type: 'openai', apiKey: '...' });
+const embedding = await openai.embedImage('/path/to/image.jpg');
+console.log(embedding.embeddings[0].length); // e.g., 1536 dimensions
+
+// With options
+const customEmbed = await openai.embedImage(imageBuffer, {
+  model: 'text-embedding-3-large',  // Embedding model for the description
+  dimensions: 768                    // Reduce dimensions if needed
+});
+
+// Gemini uses native multimodal embeddings
+const gemini = await getAI({ type: 'gemini', apiKey: '...' });
+const nativeEmbed = await gemini.embedImage('/path/to/image.jpg', {
+  model: 'multimodalembedding@001'   // Native multimodal model
+});
+```
+
+**Provider Support:**
+- **OpenAI**: Describe-then-embed (uses describeImage + text embedding model)
+- **Gemini**: Native multimodal embeddings via `multimodalembedding@001`
+- **Others**: Throws `NOT_SUPPORTED` error
+
+#### Generate Image
+
+Generate images from text prompts:
+
+```typescript
+import { getAI } from '@happyvertical/ai';
+
+const client = await getAI({
+  type: 'openai',
+  apiKey: process.env.OPENAI_API_KEY!
+});
+
+// Basic generation - returns Buffer by default
+const result = await client.generateImage('A sunset over mountains');
+const imageBuffer = result.images[0].data as Buffer;
+
+// Write to file
+import { writeFileSync } from 'fs';
+writeFileSync('sunset.png', imageBuffer);
+
+// With options
+const customImage = await client.generateImage('A futuristic city', {
+  model: 'dall-e-3',              // OpenAI: 'dall-e-3' or 'dall-e-2'
+  size: '1024x1024',              // '1024x1024', '1792x1024', '1024x1792'
+  quality: 'hd',                  // 'standard' or 'hd' (DALL-E 3)
+  style: 'vivid',                 // 'vivid' or 'natural' (DALL-E 3)
+  n: 1,                           // Number of images (DALL-E 2 only supports >1)
+  outputFormat: 'buffer'          // 'buffer' | 'base64' | 'url'
+});
+
+// Get as base64
+const base64Result = await client.generateImage('A cute cat', {
+  outputFormat: 'base64'
+});
+const base64String = base64Result.images[0].data as string;
+
+// Get as URL (temporary, expires)
+const urlResult = await client.generateImage('A robot', {
+  outputFormat: 'url'
+});
+const imageUrl = urlResult.images[0].data as string;
+
+// Check revised prompt (DALL-E 3 may modify your prompt)
+if (result.images[0].revisedPrompt) {
+  console.log('Revised prompt:', result.images[0].revisedPrompt);
+}
+
+// Gemini (Imagen) usage
+const gemini = await getAI({ type: 'gemini', apiKey: '...' });
+const imagenResult = await gemini.generateImage('A tropical beach', {
+  model: 'imagen-3.0-generate-002',
+  aspectRatio: '16:9',            // Gemini supports aspect ratios
+  n: 2                            // Generate multiple images
+});
+```
+
+**Provider Support:**
+- **OpenAI**: DALL-E 3 (default) and DALL-E 2
+- **Gemini**: Imagen 3 via `imagen-3.0-generate-002`
+- **Others**: Throws `NOT_SUPPORTED` error
+
+**Response Format:**
+```typescript
+interface ImageGenerationResponse {
+  images: Array<{
+    data: Buffer | string;        // Buffer, base64 string, or URL
+    mimeType: string;             // e.g., 'image/png'
+    revisedPrompt?: string;       // DALL-E 3 may revise your prompt
+  }>;
+  model?: string;
+}
+```
+
 ### Streaming Responses
 
 ```typescript
@@ -422,6 +576,8 @@ console.log(capabilities);
 //   functions: true,
 //   vision: true,
 //   fineTuning: false,
+//   imageEmbeddings: true,      // OpenAI/Gemini only
+//   imageGeneration: true,      // OpenAI/Gemini only
 //   maxContextLength: 128000,
 //   supportedOperations: ['chat', 'completion', 'embedding', 'streaming']
 // }
@@ -702,9 +858,10 @@ The package includes legacy components for backward compatibility:
    - Consider truncation or summarization strategies
 
 5. **Embeddings**:
-   - Only OpenAI provider fully supports embeddings
-   - Default model: `text-embedding-3-small`
-   - Anthropic/Claude do not support embeddings
+   - **Text**: OpenAI and Gemini support text embeddings
+   - **Image**: OpenAI (describe-then-embed) and Gemini (native multimodal) support image embeddings
+   - Default models: OpenAI `text-embedding-3-small`, Gemini `text-embedding-004`
+   - Anthropic/Claude/Bedrock/HuggingFace do not support embeddings
 
 6. **Rate Limiting**:
    - `RateLimitError` includes retry-after when available
@@ -1255,6 +1412,9 @@ interface AIInterface {
   chat(messages: AIMessage[], options?: ChatOptions): Promise<AIResponse>
   complete(prompt: string, options?: CompletionOptions): Promise<AIResponse>
   embed(text: string | string[], options?: EmbeddingOptions): Promise<EmbeddingResponse>
+  embedImage(image: string | Buffer, options?: ImageEmbeddingOptions): Promise<EmbeddingResponse>
+  describeImage(image: string | Buffer, prompt?: string, options?: ImageDescriptionOptions): Promise<string>
+  generateImage(prompt: string, options?: ImageGenerationOptions): Promise<ImageGenerationResponse>
   stream(messages: AIMessage[], options?: ChatOptions): AsyncIterable<string>
   countTokens(text: string): Promise<number>
   getModels(): Promise<AIModel[]>
@@ -1342,6 +1502,11 @@ const response = await client.chat(messages, {
   tools: [{ type: 'function', function: { name: 'get_weather', ... } }],
   toolChoice: 'auto'
 });
+
+// Image operations (OpenAI/Gemini only)
+const description = await client.describeImage('/path/to/image.jpg');
+const imageEmbed = await client.embedImage('/path/to/image.jpg');
+const generated = await client.generateImage('A sunset over mountains');
 
 // Legacy AIThread for conversations
 import { AIThread } from '@happyvertical/ai';

@@ -20,6 +20,10 @@ import type {
   ContentPart,
   EmbeddingOptions,
   EmbeddingResponse,
+  ImageDescriptionOptions,
+  ImageEmbeddingOptions,
+  ImageGenerationOptions,
+  ImageGenerationResponse,
   MessageOptions,
   OpenAIOptions,
   TokenUsage,
@@ -269,6 +273,187 @@ export class OpenAIProvider implements AIInterface {
   }
 
   /**
+   * Convert an image to a base64 data URL
+   * @param image - Image as URL, base64 data URL, or Buffer
+   * @returns base64 data URL string
+   * @private
+   */
+  private async imageToBase64(image: string | Buffer): Promise<string> {
+    if (Buffer.isBuffer(image)) {
+      return `data:image/png;base64,${image.toString('base64')}`;
+    }
+    if (image.startsWith('data:')) {
+      return image; // Already base64 data URL
+    }
+    // It's a URL - fetch and convert
+    const response = await fetch(image);
+    if (!response.ok) {
+      throw new AIError(
+        `Failed to fetch image: ${response.status} ${response.statusText}`,
+        'IMAGE_FETCH_ERROR',
+        'openai',
+      );
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const contentType = response.headers.get('content-type') || 'image/png';
+    return `data:${contentType};base64,${buffer.toString('base64')}`;
+  }
+
+  /**
+   * Generate a text description of an image
+   * @param image - Image as URL, base64 data URL, or Buffer
+   * @param prompt - Custom prompt for description (optional)
+   * @param options - Optional configuration
+   * @returns Promise resolving to the description string
+   *
+   * @example
+   * ```typescript
+   * const description = await provider.describeImage('https://example.com/image.jpg');
+   * ```
+   */
+  async describeImage(
+    image: string | Buffer,
+    prompt?: string,
+    options: ImageDescriptionOptions = {},
+  ): Promise<string> {
+    try {
+      const defaultPrompt =
+        'Describe this image for a search index. Include objects, mood, lighting, and any visible text.';
+
+      const imageUrl = await this.imageToBase64(image);
+
+      const response = await this.chat(
+        [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt || defaultPrompt },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: imageUrl,
+                  detail: options.detail || 'auto',
+                },
+              },
+            ],
+          },
+        ],
+        {
+          model: options.model || 'gpt-4o',
+          maxTokens: options.maxTokens || 500,
+        },
+      );
+
+      return response.content;
+    } catch (error) {
+      throw this.mapError(error);
+    }
+  }
+
+  /**
+   * Generate embeddings for an image using describe-then-embed pattern
+   * @param image - Image as URL, base64 data URL, or Buffer
+   * @param options - Optional configuration for image embeddings
+   * @returns Promise resolving to embeddings response
+   *
+   * @example
+   * ```typescript
+   * const embedding = await provider.embedImage('https://example.com/image.jpg');
+   * ```
+   */
+  async embedImage(
+    image: string | Buffer,
+    options: ImageEmbeddingOptions = {},
+  ): Promise<EmbeddingResponse> {
+    try {
+      // OpenAI doesn't have native image embeddings - use describe-then-embed
+      const description = await this.describeImage(
+        image,
+        'Describe this image in detail for semantic embedding. Include all visible objects, colors, textures, composition, text, people, actions, and overall scene context.',
+      );
+
+      return this.embed(description, {
+        model: options.model || 'text-embedding-3-small',
+        dimensions: options.dimensions,
+        user: options.user,
+      });
+    } catch (error) {
+      throw this.mapError(error);
+    }
+  }
+
+  /**
+   * Generate an image from a text prompt using DALL-E
+   * @param prompt - Text description of the image to generate
+   * @param options - Optional configuration for image generation
+   * @returns Promise resolving to generated image(s)
+   *
+   * @example
+   * ```typescript
+   * const result = await provider.generateImage('A sunset over mountains');
+   * fs.writeFileSync('image.png', result.images[0].data);
+   * ```
+   */
+  async generateImage(
+    prompt: string,
+    options: ImageGenerationOptions = {},
+  ): Promise<ImageGenerationResponse> {
+    try {
+      const model = options.model || 'dall-e-3';
+
+      const requestParams: OpenAI.Images.ImageGenerateParams = {
+        model,
+        prompt,
+        n: model === 'dall-e-3' ? 1 : options.n || 1,
+        size:
+          (options.size as OpenAI.Images.ImageGenerateParams['size']) ||
+          '1024x1024',
+        response_format: options.outputFormat === 'url' ? 'url' : 'b64_json',
+      };
+
+      if (model === 'dall-e-3') {
+        if (options.style) {
+          requestParams.style = options.style;
+        }
+        if (options.quality) {
+          requestParams.quality =
+            options.quality as OpenAI.Images.ImageGenerateParams['quality'];
+        }
+      }
+
+      const response = await this.client.images.generate(requestParams);
+
+      const images = (response.data || []).map((item) => {
+        let data: Buffer | string;
+        const mimeType = 'image/png';
+
+        if (options.outputFormat === 'url') {
+          data = item.url || '';
+        } else if (options.outputFormat === 'base64') {
+          data = item.b64_json || '';
+        } else {
+          // Default: buffer
+          data = Buffer.from(item.b64_json || '', 'base64');
+        }
+
+        return {
+          data,
+          mimeType,
+          revisedPrompt: item.revised_prompt,
+        };
+      });
+
+      return {
+        images,
+        model,
+      };
+    } catch (error) {
+      throw this.mapError(error);
+    }
+  }
+
+  /**
    * Stream a chat completion response in real-time
    * @param messages - Array of conversation messages
    * @param options - Optional configuration for the chat completion
@@ -393,6 +578,8 @@ export class OpenAIProvider implements AIInterface {
       functions: true,
       vision: true,
       fineTuning: true,
+      imageEmbeddings: true,
+      imageGeneration: true,
       maxContextLength: 128000,
       supportedOperations: [
         'chat',
@@ -401,6 +588,8 @@ export class OpenAIProvider implements AIInterface {
         'streaming',
         'functions',
         'vision',
+        'image_embedding',
+        'image_generation',
       ],
     };
   }

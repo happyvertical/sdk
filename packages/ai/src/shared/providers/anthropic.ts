@@ -17,6 +17,10 @@ import type {
   CompletionOptions,
   EmbeddingOptions,
   EmbeddingResponse,
+  ImageDescriptionOptions,
+  ImageEmbeddingOptions,
+  ImageGenerationOptions,
+  ImageGenerationResponse,
   MessageOptions,
 } from '../types';
 import {
@@ -284,6 +288,42 @@ export class AnthropicProvider implements AIInterface {
     );
   }
 
+  async embedImage(
+    _image: string | Buffer,
+    _options: ImageEmbeddingOptions = {},
+  ): Promise<EmbeddingResponse> {
+    throw new AIError(
+      'Anthropic Claude does not support image embeddings. Use OpenAI or Gemini.',
+      'NOT_SUPPORTED',
+      'anthropic',
+    );
+  }
+
+  async describeImage(
+    _image: string | Buffer,
+    _prompt?: string,
+    _options: ImageDescriptionOptions = {},
+  ): Promise<string> {
+    // Note: Claude does support vision, but we're keeping this as a stub for now
+    // A full implementation could use the chat API with image content
+    throw new AIError(
+      'Image description is not yet implemented for Anthropic. Use OpenAI or Gemini.',
+      'NOT_IMPLEMENTED',
+      'anthropic',
+    );
+  }
+
+  async generateImage(
+    _prompt: string,
+    _options: ImageGenerationOptions = {},
+  ): Promise<ImageGenerationResponse> {
+    throw new AIError(
+      'Anthropic Claude does not support image generation. Use OpenAI or Gemini.',
+      'NOT_SUPPORTED',
+      'anthropic',
+    );
+  }
+
   async *stream(
     messages: AIMessage[],
     options: ChatOptions = {},
@@ -391,6 +431,8 @@ export class AnthropicProvider implements AIInterface {
       functions: true,
       vision: true,
       fineTuning: false,
+      imageEmbeddings: false,
+      imageGeneration: false,
       maxContextLength: 200000,
       supportedOperations: [
         'chat',
