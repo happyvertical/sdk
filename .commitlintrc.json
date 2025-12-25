@@ -33,6 +33,7 @@
         "git",
         "gnode",
         "graphql",
+        "images",
         "logger",
         "messages",
         "ocr",
