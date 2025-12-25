@@ -15,6 +15,19 @@ import type {
 export * from './shared/types';
 export * from './shared/utils';
 
+// Export static map generation
+export {
+  fetchStaticMap,
+  type GoogleMapType,
+  getOGMapUrl,
+  getStaticMapUrl,
+  type MapboxStyle,
+  type StaticMapMarker,
+  type StaticMapOptions,
+  type StaticMapProvider,
+  type StaticMapResult,
+} from './static-maps';
+
 /**
  * Type guard for Google Maps options
  */

@@ -41,6 +41,7 @@ export default {
         'files',
         'geo',
         'gnode',
+        'images',
         'logger',
         'messages',
         'ocr',

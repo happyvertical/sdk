@@ -51,6 +51,7 @@
     // Infrastructure packages
     { "path": "./packages/cache" },
     { "path": "./packages/geo" },
+    { "path": "./packages/images" },
     { "path": "./packages/translator" },
     { "path": "./packages/weather" },
     { "path": "./packages/documents" },
