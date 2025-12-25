@@ -21,7 +21,10 @@
     "clean": "rm -rf dist docs",
     "dev": "npm run build:watch & npm run test:watch"
   },
-  "dependencies": {},
+  "dependencies": {
+    "satori": "^0.12.2",
+    "@resvg/resvg-js": "^2.6.2"
+  },
   "peerDependencies": {
     "sharp": ">=0.33.0",
     "jimp": ">=1.0.0"

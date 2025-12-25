@@ -47,6 +47,14 @@ export { ImgproxyAdapter } from './adapters/imgproxy.js';
 export { JimpAdapter } from './adapters/jimp.js';
 // Export adapters for direct use
 export { SharpAdapter } from './adapters/sharp.js';
+// Export headline card generation
+export {
+  generateHeadlineCard,
+  type HeadlineCardOptions,
+  type HeadlineCardResult,
+  type HeadlineCardTemplate,
+  resetFontCache,
+} from './headline-card.js';
 // Export all errors
 export * from './shared/errors.js';
 // Export factory
