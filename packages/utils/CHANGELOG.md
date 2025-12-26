@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.61.4
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - use flex instead of inline-flex for Satori compatibility (images)
+
 ## 0.61.3
 
 ### Patch Changes
