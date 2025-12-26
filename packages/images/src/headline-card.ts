@@ -141,6 +141,9 @@ let cachedFontName: string | null = null;
 
 /**
  * Load font from Google Fonts
+ *
+ * Note: Satori requires TTF/OTF/WOFF format, NOT WOFF2.
+ * We use an old browser User-Agent to get WOFF format from Google Fonts.
  */
 async function loadGoogleFont(fontName: string): Promise<ArrayBuffer> {
   // Return cached font if same font
@@ -153,9 +156,9 @@ async function loadGoogleFont(fontName: string): Promise<ArrayBuffer> {
 
   const cssResponse = await fetch(fontUrl, {
     headers: {
-      // Use a modern user agent to get woff2 format
+      // Use an old user agent to get WOFF format (Satori doesn't support woff2)
       'User-Agent':
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        'Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; Trident/6.0)',
     },
   });
 
@@ -165,14 +168,27 @@ async function loadGoogleFont(fontName: string): Promise<ArrayBuffer> {
 
   const css = await cssResponse.text();
 
-  // Extract woff2 URL from CSS
-  const urlMatch = css.match(/src:\s*url\(([^)]+\.woff2)\)/);
+  // Extract font URL from CSS - look for format('woff') or format('truetype')
+  // Google Fonts URLs don't have file extensions, so match by format declaration
+  // Priority: truetype (TTF) > woff > any URL (avoid woff2)
+  let urlMatch = css.match(
+    /src:\s*url\(([^)]+)\)\s*format\(['"]truetype['"]\)/,
+  );
   if (!urlMatch) {
-    throw new Error(`Could not find woff2 URL in font CSS for ${fontName}`);
+    urlMatch = css.match(/src:\s*url\(([^)]+)\)\s*format\(['"]woff['"]\)/);
+  }
+  if (!urlMatch) {
+    // Fallback: just get any URL that's not followed by woff2
+    urlMatch = css.match(/src:\s*url\(([^)]+)\)(?!\s*format\(['"]woff2['"]\))/);
+  }
+  if (!urlMatch) {
+    throw new Error(
+      `Could not find compatible font URL in CSS for ${fontName}. CSS: ${css.slice(0, 300)}...`,
+    );
   }
 
-  const woff2Url = urlMatch[1];
-  const fontResponse = await fetch(woff2Url);
+  const fontFileUrl = urlMatch[1];
+  const fontResponse = await fetch(fontFileUrl);
 
   if (!fontResponse.ok) {
     throw new Error(`Failed to fetch font file: ${fontResponse.statusText}`);
