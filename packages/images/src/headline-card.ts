@@ -364,13 +364,14 @@ function renderNewsTemplate({ title, options }: TemplateProps): SatoriElement {
               padding: '60px',
             },
             children: [
-              // Category badge
+              // Category badge (using flex with alignSelf since Satori doesn't support inline-flex)
               subtitle
                 ? {
                     type: 'div',
                     props: {
                       style: {
-                        display: 'inline-flex',
+                        display: 'flex',
+                        alignSelf: 'flex-start',
                         backgroundColor: brandColor,
                         color: '#ffffff',
                         fontSize: '18px',
