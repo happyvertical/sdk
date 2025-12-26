@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.61.3
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - use WOFF format for Google Fonts (Satori compatibility) (images)
+
 ## 0.61.2
 
 ### Patch Changes
