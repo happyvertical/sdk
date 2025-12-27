@@ -23,6 +23,7 @@
       "always",
       [
         "ai",
+        "auth",
         "cache",
         "ci",
         "config",
