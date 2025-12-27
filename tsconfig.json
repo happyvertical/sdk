@@ -49,6 +49,7 @@
     { "path": "./packages/ai" },
 
     // Infrastructure packages
+    { "path": "./packages/auth" },
     { "path": "./packages/cache" },
     { "path": "./packages/geo" },
     { "path": "./packages/images" },

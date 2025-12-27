@@ -33,6 +33,7 @@ export default {
       'always',
       [
         'ai',
+        'auth',
         'cache',
         'config',
         'content',
