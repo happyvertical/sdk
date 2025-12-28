@@ -26,10 +26,10 @@
   },
   "devDependencies": {
     "@testing-library/jest-dom": "6.9.1",
-    "@testing-library/svelte": "5.2.9",
+    "@testing-library/svelte": "5.3.1",
     "@types/node": "24.10.4",
     "happy-dom": "20.0.11",
-    "jsdom": "27.3.0",
+    "jsdom": "27.4.0",
     "typescript": "^5.9.3",
     "vite": "7.3.0",
     "vite-plugin-dts": "4.5.4",
