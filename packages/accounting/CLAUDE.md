@@ -17,7 +17,7 @@ The `@happyvertical/accounting` package provides a unified interface for syncing
 ```
 SMRT (source of truth)              SDK (bridge)                 External
 ─────────────────────               ────────────                 ────────
-smrt-commerce                       @have/accounting             QuickBooks
+smrt-commerce                       @happyvertical/accounting    QuickBooks
   Customer, Vendor                    ↔ sync/audit ↔              QBO API
   Contract (Order, PO, etc.)
 smrt-ledgers

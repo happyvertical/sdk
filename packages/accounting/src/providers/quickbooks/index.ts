@@ -150,6 +150,9 @@ export class QuickBooksProvider implements AccountingProvider {
     this.accessToken = tokens.accessToken;
     this.tokenExpiresAt = tokens.expiresAt;
 
+    // Update stored refresh token so subsequent refreshes use the new token
+    this.options.refreshToken = tokens.refreshToken;
+
     // Notify callback if provided
     if (this.options.onTokenRefresh) {
       await this.options.onTokenRefresh(tokens);
@@ -251,6 +254,16 @@ export class QuickBooksProvider implements AccountingProvider {
         }
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
+
+        // Don't retry client errors (4xx except 429) - re-throw immediately
+        const errorMessage = lastError.message;
+        const statusMatch = errorMessage.match(/QBO API error \((\d+)\)/);
+        if (statusMatch) {
+          const status = Number.parseInt(statusMatch[1], 10);
+          if (status >= 400 && status < 500 && status !== 429) {
+            throw lastError;
+          }
+        }
 
         // Don't retry on abort (timeout) for the last attempt
         if (attempt < maxRetries) {
@@ -945,7 +958,14 @@ class QuickBooksWebhookOperations implements WebhookOperations {
   }
 
   parse(payload: string): WebhookEvent {
-    const data = JSON.parse(payload) as QBOWebhookPayload;
+    let data: QBOWebhookPayload;
+    try {
+      data = JSON.parse(payload) as QBOWebhookPayload;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Unknown JSON parse error';
+      throw new Error(`Invalid QuickBooks webhook payload: ${message}`);
+    }
 
     // QBO webhook payload structure
     const eventNotifications = data.eventNotifications || [];
