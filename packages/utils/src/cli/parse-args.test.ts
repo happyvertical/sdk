@@ -47,6 +47,26 @@ describe('parseCliArgs', () => {
         },
       },
     },
+    {
+      name: 'search',
+      description: 'Search with numeric options',
+      options: {
+        limit: {
+          type: 'number',
+          description: 'Max results to return',
+          default: 50,
+        },
+        offset: {
+          type: 'number',
+          description: 'Starting offset',
+        },
+        threshold: {
+          type: 'number',
+          description: 'Match threshold (0-1)',
+          short: 't',
+        },
+      },
+    },
   ];
 
   describe('Node/script path removal', () => {
@@ -305,6 +325,90 @@ describe('parseCliArgs', () => {
 
       const result = parseCliArgs(['help'], sampleCommands, builtInCommands);
       expect(result.command).toBe('help');
+    });
+  });
+
+  describe('Number option parsing', () => {
+    it('parses integer number option --limit=100', () => {
+      const result = parseCliArgs(['search', '--limit=100'], sampleCommands);
+      expect(result.command).toBe('search');
+      expect(result.options.limit).toBe(100);
+      expect(typeof result.options.limit).toBe('number');
+    });
+
+    it('parses integer number option --limit 100 (space-separated)', () => {
+      const result = parseCliArgs(['search', '--limit', '100'], sampleCommands);
+      expect(result.command).toBe('search');
+      expect(result.options.limit).toBe(100);
+      expect(typeof result.options.limit).toBe('number');
+    });
+
+    it('parses decimal number option --threshold=0.75', () => {
+      const result = parseCliArgs(
+        ['search', '--threshold=0.75'],
+        sampleCommands,
+      );
+      expect(result.command).toBe('search');
+      expect(result.options.threshold).toBe(0.75);
+      expect(typeof result.options.threshold).toBe('number');
+    });
+
+    it('parses negative number option --offset=-10', () => {
+      const result = parseCliArgs(['search', '--offset=-10'], sampleCommands);
+      expect(result.command).toBe('search');
+      expect(result.options.offset).toBe(-10);
+      expect(typeof result.options.offset).toBe('number');
+    });
+
+    it('parses number option with short flag -t 0.5', () => {
+      const result = parseCliArgs(['search', '-t', '0.5'], sampleCommands);
+      expect(result.command).toBe('search');
+      expect(result.options.threshold).toBe(0.5);
+      expect(typeof result.options.threshold).toBe('number');
+    });
+
+    it('applies default number option values', () => {
+      const result = parseCliArgs(['search'], sampleCommands);
+      expect(result.command).toBe('search');
+      expect(result.options.limit).toBe(50);
+      expect(typeof result.options.limit).toBe('number');
+    });
+
+    it('parses multiple number options', () => {
+      const result = parseCliArgs(
+        ['search', '--limit=25', '--offset=10', '--threshold=0.8'],
+        sampleCommands,
+      );
+      expect(result.command).toBe('search');
+      expect(result.options.limit).toBe(25);
+      expect(result.options.offset).toBe(10);
+      expect(result.options.threshold).toBe(0.8);
+    });
+
+    it('throws error for invalid number value', () => {
+      expect(() => {
+        parseCliArgs(['search', '--limit=abc'], sampleCommands);
+      }).toThrow('Invalid number for --limit: "abc"');
+    });
+
+    it('throws error for empty number value', () => {
+      expect(() => {
+        parseCliArgs(['search', '--offset='], sampleCommands);
+      }).toThrow('Invalid number for --offset: ""');
+    });
+
+    it('parses zero as a valid number', () => {
+      const result = parseCliArgs(['search', '--offset=0'], sampleCommands);
+      expect(result.command).toBe('search');
+      expect(result.options.offset).toBe(0);
+      expect(typeof result.options.offset).toBe('number');
+    });
+
+    it('parses scientific notation numbers', () => {
+      const result = parseCliArgs(['search', '--limit=1e3'], sampleCommands);
+      expect(result.command).toBe('search');
+      expect(result.options.limit).toBe(1000);
+      expect(typeof result.options.limit).toBe('number');
     });
   });
 

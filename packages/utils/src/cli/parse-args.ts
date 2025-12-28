@@ -12,7 +12,7 @@ import { parseArgs as nodeParseArgs } from 'node:util';
  * Command option configuration
  */
 export interface OptionConfig {
-  type: 'string' | 'boolean';
+  type: 'string' | 'boolean' | 'number';
   description: string;
   default?: any;
   short?: string;
@@ -156,12 +156,29 @@ export function parseCliArgs(
     allowPositionals: true, // Required for mixing positional args and options
   };
 
+  // Track which options are numbers for post-processing
+  const numberOptions: Set<string> = new Set();
+
   if (matchedCommand.options) {
     for (const [name, option] of Object.entries(matchedCommand.options)) {
+      // Node.js parseArgs only supports 'string' and 'boolean'
+      // Treat 'number' as 'string' and convert after parsing
+      const nodeType = option.type === 'boolean' ? 'boolean' : 'string';
+
+      if (option.type === 'number') {
+        numberOptions.add(name);
+      }
+
       parseConfig.options[name] = {
-        type: option.type === 'boolean' ? 'boolean' : 'string',
-        ...(option.default !== undefined && { default: option.default }),
+        type: nodeType,
       };
+
+      // Handle default value - convert number defaults to string for parseArgs
+      if (option.default !== undefined) {
+        parseConfig.options[name].default =
+          option.type === 'number' ? String(option.default) : option.default;
+      }
+
       if (option.short) {
         parseConfig.options[name].short = option.short;
       }
@@ -170,12 +187,34 @@ export function parseCliArgs(
 
   try {
     const parsed = nodeParseArgs(parseConfig);
+    const options = parsed.values || {};
+
+    // Post-process number options: convert strings to numbers
+    for (const name of numberOptions) {
+      if (name in options && options[name] !== undefined) {
+        const rawValue = options[name];
+        // Empty string should be treated as invalid, not as 0
+        if (rawValue === '') {
+          throw new Error(`Invalid number for --${name}: "${rawValue}"`);
+        }
+        const value = Number(rawValue);
+        if (Number.isNaN(value)) {
+          throw new Error(`Invalid number for --${name}: "${rawValue}"`);
+        }
+        options[name] = value;
+      }
+    }
+
     return {
       command: commandName,
       args: parsed.positionals || [],
-      options: parsed.values || {},
+      options,
     };
-  } catch (_error) {
+  } catch (error) {
+    // Re-throw validation errors (invalid number conversion)
+    if (error instanceof Error && error.message.startsWith('Invalid number')) {
+      throw error;
+    }
     // Fallback for parse errors - extract positional args manually
     return {
       command: commandName,
