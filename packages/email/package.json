@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/email",
-  "version": "0.63.0",
+  "version": "0.64.0",
   "description": "Low-level email protocol operations with adapter-based architecture",
   "type": "module",
   "main": "./dist/index.js",
