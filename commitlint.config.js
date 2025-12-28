@@ -32,6 +32,7 @@ export default {
       2,
       'always',
       [
+        'accounting',
         'ai',
         'auth',
         'cache',

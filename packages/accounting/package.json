@@ -1,0 +1,53 @@
+{
+  "name": "@happyvertical/accounting",
+  "version": "0.63.0",
+  "description": "Multi-provider accounting integration for AR/AP sync and audit with QuickBooks, Stripe, and more",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/happyvertical/sdk.git",
+    "directory": "packages/accounting"
+  },
+  "bugs": {
+    "url": "https://github.com/happyvertical/sdk/issues"
+  },
+  "homepage": "https://github.com/happyvertical/sdk/tree/main/packages/accounting#readme",
+  "license": "MIT",
+  "scripts": {
+    "test": "npx vitest run",
+    "test:watch": "npx vitest",
+    "build": "vite build",
+    "build:watch": "vite build --watch",
+    "docs": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules",
+    "clean": "rm -rf dist docs",
+    "dev": "npm run build:watch & npm run test:watch"
+  },
+  "dependencies": {
+    "@happyvertical/utils": "workspace:*",
+    "intuit-oauth": "^4.2.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.4",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.0",
+    "vite-plugin-dts": "^4.5.4",
+    "vitest": "^4.0.15"
+  }
+}
