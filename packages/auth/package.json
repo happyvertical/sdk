@@ -39,7 +39,7 @@
   },
   "dependencies": {
     "@happyvertical/utils": "workspace:*",
-    "jose": "^5.2.0"
+    "jose": "^6.1.3"
   },
   "optionalDependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.500.0",
