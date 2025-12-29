@@ -689,8 +689,8 @@ importers:
   packages/utils:
     dependencies:
       '@paralleldrive/cuid2':
-        specifier: ^3.0.4
-        version: 3.0.4
+        specifier: ^3.0.6
+        version: 3.0.6
       date-fns:
         specifier: ^4.1.0
         version: 4.1.0
@@ -3669,8 +3669,8 @@ packages:
     resolution: {integrity: sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg==}
     engines: {node: '>=8.0.0'}
 
-  '@paralleldrive/cuid2@3.0.4':
-    resolution: {integrity: sha512-sM6M2PWrByOEpN2QYAdulhEbSZmChwj0e52u4hpwB7u4PznFiNAavtE6m7O8tWUlzX+jT2eKKtc5/ZgX+IHrtg==}
+  '@paralleldrive/cuid2@3.0.6':
+    resolution: {integrity: sha512-ujtxTTvr4fwPrzuQT7o6VLKs5BzdWetR9+/zRQ0SyK9hVIwZQllEccxgcHYXN6I3Z429y1yg3F6+uiVxMDPrLQ==}
     hasBin: true
 
   '@pinojs/redact@0.4.0':
@@ -15894,7 +15894,7 @@ snapshots:
 
   '@happyvertical/utils@0.60.9':
     dependencies:
-      '@paralleldrive/cuid2': 3.0.4
+      '@paralleldrive/cuid2': 3.0.6
       date-fns: 4.1.0
       pluralize: 8.0.0
       uuid: 13.0.0
@@ -16669,7 +16669,7 @@ snapshots:
 
   '@opentelemetry/api@1.9.0': {}
 
-  '@paralleldrive/cuid2@3.0.4':
+  '@paralleldrive/cuid2@3.0.6':
     dependencies:
       '@noble/hashes': 2.0.1
       bignumber.js: 9.3.1
