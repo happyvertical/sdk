@@ -22,12 +22,12 @@
     "dev": "npm run build:watch & npm run test:watch"
   },
   "dependencies": {
-    "satori": "^0.12.2",
+    "satori": "^0.18.3",
     "@resvg/resvg-js": "^2.6.2"
   },
   "peerDependencies": {
-    "sharp": ">=0.33.0",
-    "jimp": ">=1.0.0"
+    "sharp": ">=0.34.5",
+    "jimp": ">=1.6.0"
   },
   "peerDependenciesMeta": {
     "sharp": {
@@ -39,7 +39,7 @@
   },
   "devDependencies": {
     "@types/node": "24.10.4",
-    "sharp": "^0.33.5",
+    "sharp": "^0.34.5",
     "jimp": "^1.6.0",
     "typescript": "^5.9.3",
     "vite": "7.3.0",
