@@ -34,7 +34,7 @@ permissions:
 
 jobs:
   orchestrate:
-    runs-on: ubuntu-latest
+    runs-on: arc-happyvertical
     steps:
       - name: Agent Assignment
         if: inputs.action == 'labeled'

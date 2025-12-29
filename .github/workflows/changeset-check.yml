@@ -11,7 +11,7 @@ permissions:
 jobs:
   check:
     name: Check for Changeset
-    runs-on: ubuntu-latest
+    runs-on: arc-happyvertical
     # Skip for automated PRs (Renovate, changeset-release)
     # This prevents pnpm install from failing on dependency issues
     if: |

@@ -34,7 +34,7 @@ jobs:
       (github.event_name == 'issues' &&
         (contains(github.event.issue.body, '@claude') ||
         contains(github.event.issue.title, '@claude')))
-    runs-on: ubuntu-latest
+    runs-on: arc-happyvertical
     permissions:
       contents: write        # Allow Claude to push commits and create branches
       pull-requests: write   # Allow Claude to create and update PRs

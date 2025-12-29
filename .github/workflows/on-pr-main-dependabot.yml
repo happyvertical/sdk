@@ -2,7 +2,7 @@ name: Dependabot Automation
 
 on:
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 # Only one dependabot run per PR at a time
 concurrency:
@@ -20,12 +20,12 @@ jobs:
     uses: ./.github/workflows/test-suite.yml
     if: ${{ github.actor == 'dependabot[bot]' }}
     with:
-      runner: 'ubuntu-latest'
+      runner: 'arc-happyvertical'
       node-version: '24'
 
   # Handle dependabot-specific automation after tests pass
   dependabot:
-    runs-on: ubuntu-latest
+    runs-on: arc-happyvertical
     needs: [test]
     if: |
       github.actor == 'dependabot[bot]' &&
@@ -57,7 +57,7 @@ jobs:
         uses: dependabot/fetch-metadata@08eff52bf64351f401fb50d4972fa95b9f2c2d1b # v2.4.0  # Pinned to specific version
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
-          
+
       - name: Security scan for dependency changes
         run: |
           echo "::notice::Checking for security vulnerabilities in dependencies"
@@ -78,22 +78,25 @@ jobs:
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
+
       - name: Enable auto-merge for minor and patch updates
-        if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-minor' || steps.metadata.outputs.update-type == 'version-update:semver-patch' }}
+        if: |
+          steps.metadata.outputs.update-type == 'version-update:semver-minor' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-patch'
         run: |
           echo "::notice::Enabling auto-merge for ${{ steps.metadata.outputs.update-type }} update"
           gh pr merge --auto --merge "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
+
       - name: Require manual review for major updates
-        if: ${{ steps.metadata.outputs.update-type == 'version-update:semver-major' }}
+        if: steps.metadata.outputs.update-type == 'version-update:semver-major'
         run: |
           echo "Major version update detected. Manual review required."
           echo "This PR will not be automatically approved or merged."
-          gh pr comment "$PR_URL" --body "⚠️ **Major version update detected**. Manual review is required before merging."
+          gh pr comment "$PR_URL" \
+            --body "Major version update detected. Manual review required."
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

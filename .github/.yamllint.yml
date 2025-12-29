@@ -12,11 +12,9 @@ rules:
   truthy:
     allowed-values: ['true', 'false', 'on']
 
-  # SHA-pinned actions often have long lines with comments
-  line-length:
-    max: 120
-    allow-non-breakable-words: true
-    allow-non-breakable-inline-mappings: true
+  # Disable line-length: GitHub Actions workflows often have long lines
+  # in script blocks, echo commands, and SHA-pinned action comments
+  line-length: disable
 
   # Relaxed comment spacing for SHA comments
   comments:
