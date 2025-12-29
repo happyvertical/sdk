@@ -391,9 +391,59 @@ export interface SessionStoreConfig {
 }
 
 /**
+ * Kanidm provider options.
+ */
+export interface KanidmOptions extends BaseAuthOptions {
+  type: 'kanidm';
+
+  /** Kanidm server URL (e.g., 'https://idp.example.com') */
+  serverUrl: string;
+
+  /** OAuth2 client ID */
+  clientId: string;
+
+  /** Client secret (for confidential clients) */
+  clientSecret?: string;
+
+  /** OAuth callback URL for this application */
+  redirectUri?: string;
+
+  /** Default scopes to request */
+  scopes?: string[];
+
+  /**
+   * Use PKCE for authorization code flow.
+   * @default true (required by Kanidm)
+   */
+  usePKCE?: boolean;
+
+  /**
+   * Verify SSL certificates.
+   * @default true
+   */
+  verifySsl?: boolean;
+
+  /**
+   * Admin username for Kanidm API operations.
+   * Required for user management operations.
+   */
+  adminUsername?: string;
+
+  /**
+   * Admin password for Kanidm API operations.
+   * Required for user management operations.
+   */
+  adminPassword?: string;
+}
+
+/**
  * Union type for all provider options.
  */
-export type GetAuthOptions = KeycloakOptions | CognitoOptions | NostrOptions;
+export type GetAuthOptions =
+  | KeycloakOptions
+  | CognitoOptions
+  | NostrOptions
+  | KanidmOptions;
 
 // =============================================================================
 // AUTHENTICATION FLOW TYPES

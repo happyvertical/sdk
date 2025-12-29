@@ -4,7 +4,7 @@
 
 The `@happyvertical/auth` package provides a unified authentication interface supporting multiple providers. It is designed to:
 
-- **Unify Auth Provider APIs**: Provide a consistent interface across Keycloak, AWS Cognito, and Nostr
+- **Unify Auth Provider APIs**: Provide a consistent interface across Keycloak, Kanidm, AWS Cognito, and Nostr
 - **Simplify Provider Switching**: Enable seamless switching between auth providers without code changes
 - **Handle OAuth2/OIDC Flows**: Authorization code, token exchange, refresh, and introspection
 - **Support Decentralized Identity**: Nostr public key authentication with NIP-98 tokens
@@ -19,6 +19,7 @@ The package uses a factory pattern with provider-specific implementations:
 ```
 getAuth(options) → AuthInterface
     ├── KeycloakProvider (OIDC/OAuth2)
+    ├── KanidmProvider (OIDC/OAuth2)
     ├── CognitoProvider (AWS OAuth2)
     └── NostrProvider (public key identity)
 ```
@@ -32,12 +33,12 @@ getAuth(options) → AuthInterface
 
 2. **Provider Implementations** (`shared/providers/`)
    - Each provider implements the `AuthInterface` interface
-   - Located in: `keycloak.ts`, `cognito.ts`, `nostr/index.ts`
+   - Located in: `keycloak.ts`, `kanidm.ts`, `cognito.ts`, `nostr/index.ts`
    - All providers handle error mapping to standardized error types
 
 3. **Type Definitions** (`shared/types.ts`)
    - `AuthInterface` - Core interface all providers must implement
-   - Provider options: `KeycloakOptions`, `CognitoOptions`, `NostrOptions`
+   - Provider options: `KeycloakOptions`, `KanidmOptions`, `CognitoOptions`, `NostrOptions`
    - Flow types: `AuthResult`, `TokenClaims`, `UserProfile`, `Session`
 
 4. **Error Classes** (`shared/errors.ts`)
@@ -60,6 +61,18 @@ const keycloak = await getAuth({
   clientId: 'my-app',
   clientSecret: 'secret', // Optional for confidential clients
   redirectUri: 'https://app.example.com/callback'
+});
+
+// Kanidm client
+const kanidm = await getAuth({
+  type: 'kanidm',
+  serverUrl: 'https://idp.example.com',
+  clientId: 'my-app',
+  clientSecret: 'secret', // Optional for confidential clients
+  redirectUri: 'https://app.example.com/callback',
+  // Optional: Admin API credentials for user management
+  adminUsername: 'idm_admin',
+  adminPassword: 'admin-password'
 });
 
 // AWS Cognito client
@@ -85,11 +98,13 @@ The package supports configuration via `HAVE_AUTH_*` environment variables:
 | Variable | Description | Provider |
 |----------|-------------|----------|
 | `HAVE_AUTH_TYPE` | Provider type | All |
-| `HAVE_AUTH_SERVER_URL` | Server URL | Keycloak |
+| `HAVE_AUTH_SERVER_URL` | Server URL | Keycloak, Kanidm |
 | `HAVE_AUTH_REALM` | Realm name | Keycloak |
-| `HAVE_AUTH_CLIENT_ID` | Client ID | Keycloak, Cognito |
-| `HAVE_AUTH_CLIENT_SECRET` | Client secret | Keycloak, Cognito |
-| `HAVE_AUTH_REDIRECT_URI` | OAuth callback | Keycloak, Cognito |
+| `HAVE_AUTH_CLIENT_ID` | Client ID | Keycloak, Kanidm, Cognito |
+| `HAVE_AUTH_CLIENT_SECRET` | Client secret | Keycloak, Kanidm, Cognito |
+| `HAVE_AUTH_REDIRECT_URI` | OAuth callback | Keycloak, Kanidm, Cognito |
+| `HAVE_AUTH_ADMIN_USERNAME` | Admin username | Kanidm |
+| `HAVE_AUTH_ADMIN_PASSWORD` | Admin password | Kanidm |
 | `HAVE_AUTH_REGION` | AWS region | Cognito |
 | `HAVE_AUTH_USER_POOL_ID` | User pool ID | Cognito |
 | `HAVE_AUTH_DOMAIN` | Hosted UI domain | Cognito |
@@ -334,23 +349,25 @@ await auth.refresh(...); // NIP-98 tokens are ephemeral
 
 ## Provider Capabilities
 
-| Capability | Keycloak | Cognito | Nostr |
-|------------|----------|---------|-------|
-| Authorization Code | Yes | Yes | No* |
-| Password Grant | Yes | Yes | No |
-| Token Refresh | Yes | Yes | No |
-| OIDC | Yes | Yes | No |
-| User Management | Yes | Yes | No** |
-| Session Management | Yes | Yes | No*** |
-| RBAC | Yes | Yes | Configurable |
-| Password Reset | Yes | Yes | No |
-| MFA | Yes | Yes | No |
-| Social Login | Yes | Yes | No |
-| Decentralized | No | No | Yes |
+| Capability | Keycloak | Kanidm | Cognito | Nostr |
+|------------|----------|--------|---------|-------|
+| Authorization Code | Yes | Yes | Yes | No* |
+| Password Grant | Yes | No | Yes | No |
+| Token Refresh | Yes | Yes | Yes | No |
+| OIDC | Yes | Yes | Yes | No |
+| User Management | Yes | Yes† | Yes | No** |
+| Session Management | Yes | No | Yes | No*** |
+| RBAC | Yes | Yes‡ | Yes | Configurable |
+| Password Reset | Yes | No | Yes | No |
+| MFA | Yes | Yes | Yes | No |
+| Social Login | Yes | No | Yes | No |
+| Decentralized | No | No | No | Yes |
 
 \* Uses challenge-response signing instead
 \** Users self-manage via keypairs
 \*** Client-side only
+† Via Kanidm's native /v1/ API
+‡ Via groups claim (role assignment requires CLI)
 
 ## Dependencies
 
@@ -374,6 +391,7 @@ packages/auth/
 │   │   ├── errors.ts               # Error classes
 │   │   └── providers/
 │   │       ├── keycloak.ts         # Keycloak provider
+│   │       ├── kanidm.ts           # Kanidm provider
 │   │       ├── cognito.ts          # Cognito provider
 │   │       └── nostr/
 │   │           ├── index.ts        # Nostr provider
@@ -395,22 +413,29 @@ packages/auth/
 - [x] Factory function
 - [x] Documentation
 
-### Phase 2: Keycloak Provider (Pending)
-- [ ] OIDC discovery
-- [ ] Authorization code flow with PKCE
-- [ ] Token validation (JWKS)
-- [ ] User management (Admin API)
-- [ ] Session management
-- [ ] Tests
+### Phase 2: Keycloak Provider (Complete)
+- [x] OIDC discovery
+- [x] Authorization code flow with PKCE
+- [x] Token validation (JWKS)
+- [x] User management (Admin API)
+- [x] Session management
+- [x] Tests
 
-### Phase 3: Cognito Provider (Pending)
+### Phase 3: Kanidm Provider (Complete)
+- [x] OIDC discovery (client-specific endpoints)
+- [x] Authorization code flow with PKCE
+- [x] Token validation (ES256/JWKS)
+- [x] User management (native /v1/ API)
+- [x] Integration tests
+
+### Phase 4: Cognito Provider (Pending)
 - [ ] Hosted UI flow
 - [ ] Cognito Identity Provider SDK
 - [ ] Token validation
 - [ ] User management
 - [ ] Tests
 
-### Phase 4: Nostr Provider (Pending)
+### Phase 5: Nostr Provider (Pending)
 - [ ] Signer abstractions (Extension, PrivateKey, Bunker)
 - [ ] NIP-98 token generation/validation
 - [ ] Profile fetching (kind:0)

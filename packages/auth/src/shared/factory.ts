@@ -11,6 +11,7 @@ import type {
   AuthInterface,
   CognitoOptions,
   GetAuthOptions,
+  KanidmOptions,
   KeycloakOptions,
   NostrOptions,
 } from './types';
@@ -40,6 +41,13 @@ function isCognitoOptions(options: GetAuthOptions): options is CognitoOptions {
  */
 function isNostrOptions(options: GetAuthOptions): options is NostrOptions {
   return options.type === 'nostr';
+}
+
+/**
+ * Checks if the options are for Kanidm provider.
+ */
+function isKanidmOptions(options: GetAuthOptions): options is KanidmOptions {
+  return options.type === 'kanidm';
 }
 
 // =============================================================================
@@ -121,6 +129,9 @@ export async function getAuth(options: GetAuthOptions): Promise<AuthInterface> {
         relayTimeout: 'number',
         timeout: 'number',
         maxRetries: 'number',
+        // Kanidm-specific
+        adminUsername: 'string',
+        adminPassword: 'string',
       },
       transform: {
         // Transform comma-separated strings to arrays
@@ -154,8 +165,13 @@ export async function getAuth(options: GetAuthOptions): Promise<AuthInterface> {
     return new NostrProvider(options);
   }
 
+  if (isKanidmOptions(options)) {
+    const { KanidmProvider } = await import('./providers/kanidm.js');
+    return new KanidmProvider(options);
+  }
+
   throw new ValidationError('Unsupported auth provider type', {
-    supportedTypes: ['keycloak', 'cognito', 'nostr'],
+    supportedTypes: ['keycloak', 'cognito', 'nostr', 'kanidm'],
     providedType: (options as Record<string, unknown>).type,
   });
 }
