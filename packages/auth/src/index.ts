@@ -4,6 +4,7 @@
  * Unified authentication interface supporting:
  * - Keycloak (OIDC/OAuth2)
  * - AWS Cognito (OAuth2)
+ * - Kanidm (OIDC/OAuth2)
  * - Nostr (public key identity)
  *
  * @example
@@ -15,6 +16,13 @@
  *   type: 'keycloak',
  *   serverUrl: 'https://auth.example.com',
  *   realm: 'my-realm',
+ *   clientId: 'my-app'
+ * });
+ *
+ * // Kanidm
+ * const kanidm = await getAuth({
+ *   type: 'kanidm',
+ *   serverUrl: 'https://idp.example.com',
  *   clientId: 'my-app'
  * });
  *
@@ -111,6 +119,7 @@ export type {
   CreateUserRequest,
   // Provider options
   GetAuthOptions,
+  KanidmOptions,
   KeycloakOptions,
   LogoutOptions,
   NostrOptions,
