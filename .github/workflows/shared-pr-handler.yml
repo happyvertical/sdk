@@ -35,7 +35,7 @@ permissions:
 
 jobs:
   handle-pr:
-    runs-on: ubuntu-latest
+    runs-on: arc-happyvertical
     steps:
       - name: Link PR to Issues
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7

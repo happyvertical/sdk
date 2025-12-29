@@ -25,7 +25,7 @@ permissions:
 
 jobs:
   planning:
-    runs-on: ubuntu-latest
+    runs-on: arc-happyvertical
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -50,7 +50,10 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const { startPlanning, completePlanning } = await import('${{ github.workspace }}/node_modules/@happyvertical/github-actions/dist/index.js');
+            const pkgPath = '${{ github.workspace }}/node_modules';
+            const { startPlanning, completePlanning } = await import(
+              `${pkgPath}/@happyvertical/github-actions/dist/index.js`
+            );
 
             const planningContext = {
               token: process.env.GITHUB_TOKEN,

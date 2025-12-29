@@ -65,7 +65,7 @@ permissions:
 jobs:
   release:
     name: Version and Publish
-    runs-on: ubuntu-latest
+    runs-on: arc-happyvertical
     timeout-minutes: 20
     outputs:
       published: ${{ steps.publish.outputs.published }}

@@ -55,7 +55,7 @@ jobs:
   summary:
     needs: [test, build, publish]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: arc-happyvertical
     steps:
       - name: Workflow Summary
         run: |
