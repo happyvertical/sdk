@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.65.1
+
+### Patch Changes
+
+- ### Features
+
+  - add Google and GitHub OAuth providers (#717) (auth)
+
 ## 0.65.0
 
 ## 0.64.0
