@@ -5,6 +5,8 @@
  * - Keycloak (OIDC/OAuth2)
  * - AWS Cognito (OAuth2)
  * - Kanidm (OIDC/OAuth2)
+ * - Google (OIDC)
+ * - GitHub (OAuth2)
  * - Nostr (public key identity)
  *
  * @example
@@ -119,6 +121,8 @@ export type {
   CreateUserRequest,
   // Provider options
   GetAuthOptions,
+  GitHubOptions,
+  GoogleOptions,
   KanidmOptions,
   KeycloakOptions,
   LogoutOptions,
