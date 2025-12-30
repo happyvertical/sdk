@@ -437,13 +437,65 @@ export interface KanidmOptions extends BaseAuthOptions {
 }
 
 /**
+ * Google provider options.
+ */
+export interface GoogleOptions extends BaseAuthOptions {
+  type: 'google';
+
+  /** OAuth2 client ID from Google Cloud Console */
+  clientId: string;
+
+  /** OAuth2 client secret from Google Cloud Console */
+  clientSecret: string;
+
+  /** OAuth callback URL for this application */
+  redirectUri?: string;
+
+  /**
+   * Default scopes to request.
+   * @default ['openid', 'profile', 'email']
+   */
+  scopes?: string[];
+
+  /**
+   * Use PKCE for authorization code flow.
+   * @default true
+   */
+  usePKCE?: boolean;
+}
+
+/**
+ * GitHub provider options.
+ */
+export interface GitHubOptions extends BaseAuthOptions {
+  type: 'github';
+
+  /** OAuth App client ID from GitHub Developer Settings */
+  clientId: string;
+
+  /** OAuth App client secret from GitHub Developer Settings */
+  clientSecret: string;
+
+  /** OAuth callback URL for this application */
+  redirectUri?: string;
+
+  /**
+   * Default scopes to request.
+   * @default ['user:email', 'read:user']
+   */
+  scopes?: string[];
+}
+
+/**
  * Union type for all provider options.
  */
 export type GetAuthOptions =
   | KeycloakOptions
   | CognitoOptions
   | NostrOptions
-  | KanidmOptions;
+  | KanidmOptions
+  | GoogleOptions
+  | GitHubOptions;
 
 // =============================================================================
 // AUTHENTICATION FLOW TYPES

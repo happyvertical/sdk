@@ -11,6 +11,8 @@ import type {
   AuthInterface,
   CognitoOptions,
   GetAuthOptions,
+  GitHubOptions,
+  GoogleOptions,
   KanidmOptions,
   KeycloakOptions,
   NostrOptions,
@@ -48,6 +50,20 @@ function isNostrOptions(options: GetAuthOptions): options is NostrOptions {
  */
 function isKanidmOptions(options: GetAuthOptions): options is KanidmOptions {
   return options.type === 'kanidm';
+}
+
+/**
+ * Checks if the options are for Google provider.
+ */
+function isGoogleOptions(options: GetAuthOptions): options is GoogleOptions {
+  return options.type === 'google';
+}
+
+/**
+ * Checks if the options are for GitHub provider.
+ */
+function isGitHubOptions(options: GetAuthOptions): options is GitHubOptions {
+  return options.type === 'github';
 }
 
 // =============================================================================
@@ -170,8 +186,25 @@ export async function getAuth(options: GetAuthOptions): Promise<AuthInterface> {
     return new KanidmProvider(options);
   }
 
+  if (isGoogleOptions(options)) {
+    const { GoogleProvider } = await import('./providers/google.js');
+    return new GoogleProvider(options);
+  }
+
+  if (isGitHubOptions(options)) {
+    const { GitHubProvider } = await import('./providers/github.js');
+    return new GitHubProvider(options);
+  }
+
   throw new ValidationError('Unsupported auth provider type', {
-    supportedTypes: ['keycloak', 'cognito', 'nostr', 'kanidm'],
+    supportedTypes: [
+      'keycloak',
+      'cognito',
+      'nostr',
+      'kanidm',
+      'google',
+      'github',
+    ],
     providedType: (options as Record<string, unknown>).type,
   });
 }
