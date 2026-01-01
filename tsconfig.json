@@ -48,6 +48,8 @@
     { "path": "./packages/sql" },
     { "path": "./packages/ai" },
 
+    { "path": "./packages/analytics" },
+
     // Infrastructure packages
     { "path": "./packages/accounting" },
     { "path": "./packages/auth" },

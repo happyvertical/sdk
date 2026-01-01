@@ -34,6 +34,7 @@ export default {
       [
         'accounting',
         'ai',
+        'analytics',
         'auth',
         'cache',
         'config',
