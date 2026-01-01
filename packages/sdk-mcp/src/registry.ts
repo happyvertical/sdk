@@ -111,6 +111,20 @@ export const PACKAGE_KEYWORDS: Record<string, string[]> = {
     'pull request',
     'triage',
   ],
+  analytics: [
+    'analytics',
+    'tracking',
+    'ga4',
+    'google analytics',
+    'plausible',
+    'metrics',
+    'dimensions',
+    'report',
+    'pageview',
+    'event',
+    'conversion',
+    'measurement protocol',
+  ],
 };
 
 /**
