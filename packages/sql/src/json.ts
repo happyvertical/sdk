@@ -9,6 +9,7 @@ import type {
   QueryResult,
   SchemaInitializationOptions,
   TableInterface,
+  TransactionHandle,
 } from './shared/types';
 import { buildWhere } from './shared/utils';
 
@@ -1770,6 +1771,70 @@ export async function getDatabase(
       }
     };
 
+    /**
+     * Begins a new transaction and returns a handle for manual control
+     *
+     * Unlike transaction(), this gives you explicit control over commit/rollback.
+     * Ideal for test isolation where you want to rollback after each test.
+     *
+     * @returns Promise resolving to a TransactionHandle
+     */
+    const beginTransaction = async (): Promise<TransactionHandle> => {
+      await connection.run('BEGIN TRANSACTION');
+
+      let active = true;
+
+      const commit = async (): Promise<void> => {
+        if (!active) {
+          throw new DatabaseError('Transaction already ended', {});
+        }
+        await connection.run('COMMIT');
+        active = false;
+      };
+
+      const rollback = async (): Promise<void> => {
+        if (!active) {
+          throw new DatabaseError('Transaction already ended', {});
+        }
+        await connection.run('ROLLBACK');
+        active = false;
+      };
+
+      const isActive = (): boolean => active;
+
+      // Create a transaction-scoped database interface with commit/rollback
+      const txHandle: TransactionHandle = {
+        url,
+        client: connection,
+        insert,
+        get,
+        list,
+        update,
+        upsert,
+        getOrInsert,
+        delete: deleteRecords,
+        count,
+        table,
+        many,
+        single,
+        pluck,
+        execute,
+        query,
+        oo,
+        oO,
+        ox,
+        xx,
+        tableExists,
+        syncSchema,
+        transaction,
+        commit,
+        rollback,
+        isActive,
+      };
+
+      return txHandle;
+    };
+
     return {
       url,
       client: connection,
@@ -1795,6 +1860,7 @@ export async function getDatabase(
       syncSchema,
       initializeSchemas,
       transaction,
+      beginTransaction,
       // JSON-specific methods
       exportTable,
       inferSchemaFromJSON,

@@ -17,6 +17,7 @@ import type {
   SchemaInitializationOptions,
   TableInterface,
   TableSchemaInfo,
+  TransactionHandle,
 } from './shared/types';
 import { buildWhere } from './shared/utils';
 
@@ -763,6 +764,70 @@ export async function getDatabase(
     };
 
     /**
+     * Begins a new transaction and returns a handle for manual control
+     *
+     * Unlike transaction(), this gives you explicit control over commit/rollback.
+     * Ideal for test isolation where you want to rollback after each test.
+     *
+     * @returns Promise resolving to a TransactionHandle
+     */
+    const beginTransaction = async (): Promise<TransactionHandle> => {
+      await client.execute({ sql: 'BEGIN TRANSACTION', args: [] });
+
+      let active = true;
+
+      const commit = async (): Promise<void> => {
+        if (!active) {
+          throw new DatabaseError('Transaction already ended', {});
+        }
+        await client.execute({ sql: 'COMMIT', args: [] });
+        active = false;
+      };
+
+      const rollback = async (): Promise<void> => {
+        if (!active) {
+          throw new DatabaseError('Transaction already ended', {});
+        }
+        await client.execute({ sql: 'ROLLBACK', args: [] });
+        active = false;
+      };
+
+      const isActive = (): boolean => active;
+
+      // Create a transaction-scoped database interface with commit/rollback
+      const txHandle: TransactionHandle = {
+        url,
+        client,
+        insert,
+        get,
+        list,
+        update,
+        upsert,
+        getOrInsert,
+        delete: deleteRecords,
+        count,
+        table,
+        many,
+        single,
+        pluck,
+        execute,
+        query,
+        oo: many,
+        oO: single,
+        ox: pluck,
+        xx: execute,
+        tableExists,
+        syncSchema,
+        transaction,
+        commit,
+        rollback,
+        isActive,
+      };
+
+      return txHandle;
+    };
+
+    /**
      * Creates a table-specific interface for simplified table operations
      *
      * @param tableName - Table name
@@ -1163,6 +1228,7 @@ export async function getDatabase(
       syncSchema,
       initializeSchemas,
       transaction,
+      beginTransaction,
       getTableSchema,
       alterTable,
     };
