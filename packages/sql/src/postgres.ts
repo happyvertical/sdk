@@ -17,6 +17,7 @@ import type {
   SchemaInitializationOptions,
   TableInterface,
   TableSchemaInfo,
+  TransactionHandle,
 } from './shared/types';
 import { buildWhere } from './shared/utils';
 
@@ -1007,6 +1008,225 @@ export async function getDatabase(
     }
   };
 
+  /**
+   * Begins a new transaction and returns a handle for manual control
+   *
+   * Unlike transaction(), this gives you explicit control over commit/rollback.
+   * Ideal for test isolation where you want to rollback after each test.
+   *
+   * @returns Promise resolving to a TransactionHandle
+   */
+  const beginTransaction = async (): Promise<TransactionHandle> => {
+    // Get a client from the pool for the transaction
+    const txClient = await client.connect();
+    await txClient.query('BEGIN');
+
+    let active = true;
+
+    const commit = async (): Promise<void> => {
+      if (!active) {
+        throw new DatabaseError('Transaction already ended', {});
+      }
+      await txClient.query('COMMIT');
+      active = false;
+      txClient.release();
+    };
+
+    const rollback = async (): Promise<void> => {
+      if (!active) {
+        throw new DatabaseError('Transaction already ended', {});
+      }
+      await txClient.query('ROLLBACK');
+      active = false;
+      txClient.release();
+    };
+
+    const isActive = (): boolean => active;
+
+    // Create a transaction-scoped database interface with commit/rollback
+    const txHandle: TransactionHandle = {
+      url,
+      client: txClient,
+      insert: async (table, data) => {
+        if (Array.isArray(data)) {
+          const keys = Object.keys(data[0]);
+          const placeholders = data
+            .map(
+              (_, i) =>
+                `(${keys.map((_, j) => `$${i * keys.length + j + 1}`).join(', ')})`,
+            )
+            .join(', ');
+          const query = `INSERT INTO ${table} (${keys.join(', ')}) VALUES ${placeholders}`;
+          const values = data.reduce(
+            (acc, row) => acc.concat(Object.values(row)),
+            [] as any[],
+          );
+          const result = await txClient.query(query, values);
+          return { operation: 'insert', affected: result.rowCount ?? 0 };
+        }
+        const keys = Object.keys(data);
+        const values = Object.values(data);
+        const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+        const query = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
+        const result = await txClient.query(query, values);
+        return { operation: 'insert', affected: result.rowCount ?? 0 };
+      },
+      get: async (table, where) => {
+        const keys = Object.keys(where);
+        const values = Object.values(where);
+        const whereClause = keys
+          .map((key, i) => `${key} = $${i + 1}`)
+          .join(' AND ');
+        const query = `SELECT * FROM ${table} WHERE ${whereClause}`;
+        const result = await txClient.query(query, values);
+        return result.rows[0] || null;
+      },
+      list: async (table, where) => {
+        const { sql: whereClause, values } = buildWhere(where, 1);
+        const query = `SELECT * FROM ${table} ${whereClause}`;
+        const result = await txClient.query(query, values);
+        return result.rows;
+      },
+      update: async (table, where, data) => {
+        const keys = Object.keys(data);
+        const values = Object.values(data);
+        const setClause = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
+        const whereKeys = Object.keys(where);
+        const whereValues = Object.values(where);
+        const whereClause = whereKeys
+          .map((key, i) => `${key} = $${i + 1 + values.length}`)
+          .join(' AND ');
+        const sql = `UPDATE ${table} SET ${setClause} WHERE ${whereClause}`;
+        const result = await txClient.query(sql, [...values, ...whereValues]);
+        return { operation: 'update', affected: result.rowCount ?? 0 };
+      },
+      upsert: async (table, conflictColumns, data) => {
+        const keys = Object.keys(data);
+        const values = Object.values(data);
+        const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+        const updateSet = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
+        const conflict = conflictColumns.join(', ');
+        const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
+        const result = await txClient.query(sql, values);
+        return { operation: 'upsert', affected: result.rowCount ?? 0 };
+      },
+      getOrInsert: async (table, where, data) => {
+        const result = await txHandle.get(table, where);
+        if (result) return result;
+        await txHandle.insert(table, data);
+        const inserted = await txHandle.get(table, where);
+        if (!inserted) {
+          throw new DatabaseError('Failed to insert and retrieve record', {
+            table,
+            where,
+            data,
+          });
+        }
+        return inserted;
+      },
+      delete: async (table, where) => {
+        validateTableName(table);
+        const keys = Object.keys(where);
+        if (keys.length === 0) {
+          throw new DatabaseError(
+            'DELETE requires at least one WHERE condition to prevent accidental deletion of all records',
+            { table },
+          );
+        }
+        const conditions = keys
+          .map((key, i) => `${key} = $${i + 1}`)
+          .join(' AND ');
+        const values = Object.values(where);
+        const result = await txClient.query(
+          `DELETE FROM ${table} WHERE ${conditions}`,
+          values,
+        );
+        return { operation: 'delete', affected: result.rowCount ?? 0 };
+      },
+      count: async (table, where) => {
+        validateTableName(table);
+        if (!where || Object.keys(where).length === 0) {
+          const result = await txClient.query(
+            `SELECT COUNT(*) as count FROM ${table}`,
+          );
+          return Number(result.rows[0]?.count) || 0;
+        }
+        const keys = Object.keys(where);
+        const conditions = keys
+          .map((key, i) => `${key} = $${i + 1}`)
+          .join(' AND ');
+        const values = Object.values(where);
+        const result = await txClient.query(
+          `SELECT COUNT(*) as count FROM ${table} WHERE ${conditions}`,
+          values,
+        );
+        return Number(result.rows[0]?.count) || 0;
+      },
+      table: (tableName) => ({
+        insert: (data) => txHandle.insert(tableName, data),
+        get: (data) => txHandle.get(tableName, data),
+        list: (data) => txHandle.list(tableName, data),
+      }),
+      many: async (strings, ...vars) => {
+        const { sql, values } = parseTemplate(strings, ...vars);
+        const result = await txClient.query(sql, values);
+        return result.rows;
+      },
+      single: async (strings, ...vars) => {
+        const { sql, values } = parseTemplate(strings, ...vars);
+        const result = await txClient.query(sql, values);
+        return result.rows[0] || null;
+      },
+      pluck: async (strings, ...vars) => {
+        const { sql, values } = parseTemplate(strings, ...vars);
+        const result = await txClient.query(sql, values);
+        const firstRow = result.rows[0];
+        if (!firstRow) return null;
+        return Object.values(firstRow)[0];
+      },
+      execute: async (strings, ...vars) => {
+        const { sql, values } = parseTemplate(strings, ...vars);
+        await txClient.query(sql, values);
+      },
+      query: async (sql, ...values) => {
+        const result = await txClient.query(sql, values);
+        return {
+          rows: result.rows,
+          rowCount: result.rowCount ?? 0,
+        };
+      },
+      oo: async (strings, ...vars) => {
+        const { sql, values } = parseTemplate(strings, ...vars);
+        const result = await txClient.query(sql, values);
+        return result.rows;
+      },
+      oO: async (strings, ...vars) => {
+        const { sql, values } = parseTemplate(strings, ...vars);
+        const result = await txClient.query(sql, values);
+        return result.rows[0] || null;
+      },
+      ox: async (strings, ...vars) => {
+        const { sql, values } = parseTemplate(strings, ...vars);
+        const result = await txClient.query(sql, values);
+        const firstRow = result.rows[0];
+        if (!firstRow) return null;
+        return Object.values(firstRow)[0];
+      },
+      xx: async (strings, ...vars) => {
+        const { sql, values } = parseTemplate(strings, ...vars);
+        await txClient.query(sql, values);
+      },
+      tableExists,
+      syncSchema,
+      transaction,
+      commit,
+      rollback,
+      isActive,
+    };
+
+    return txHandle;
+  };
+
   // Shorthand aliases for query methods
   const oo = many; // (o)bjective-(o)bjects: returns multiple rows
   const oO = single; // (o)bjective-(O)bject: returns a single row
@@ -1282,6 +1502,7 @@ export async function getDatabase(
     syncSchema,
     initializeSchemas,
     transaction,
+    beginTransaction,
     getTableSchema,
     alterTable,
   };

@@ -656,6 +656,36 @@ export interface DatabaseInterface {
   ) => Promise<T>;
 
   /**
+   * Begins a new transaction and returns a handle for manual control
+   *
+   * Unlike transaction(), this gives you explicit control over commit/rollback.
+   * Ideal for test isolation where you want to rollback after each test.
+   *
+   * @returns Promise resolving to a TransactionHandle
+   *
+   * @example Test isolation pattern
+   * ```typescript
+   * let tx: TransactionHandle;
+   *
+   * beforeEach(async () => {
+   *   tx = await db.beginTransaction();
+   * });
+   *
+   * afterEach(async () => {
+   *   await tx.rollback(); // Discard all test changes
+   * });
+   *
+   * it('creates user', async () => {
+   *   await tx.insert('users', { id: '1', name: 'Test' });
+   *   const user = await tx.get('users', { id: '1' });
+   *   expect(user).toBeDefined();
+   *   // Changes rolled back in afterEach
+   * });
+   * ```
+   */
+  beginTransaction?: () => Promise<TransactionHandle>;
+
+  /**
    * Retrieves the schema information for a table
    *
    * @param table - Table name
@@ -688,6 +718,64 @@ export interface DatabaseInterface {
      */
     addIndex: (table: string, index: IndexDefinition) => Promise<void>;
   };
+}
+
+/**
+ * Transaction handle for manual transaction control
+ *
+ * Extends DatabaseInterface with commit() and rollback() methods.
+ * Use beginTransaction() to obtain a handle, then explicitly
+ * commit or rollback when done.
+ *
+ * @example Test isolation with rollback
+ * ```typescript
+ * const tx = await db.beginTransaction();
+ * try {
+ *   // All operations happen in the transaction
+ *   await tx.insert('users', { id: '1', name: 'Test' });
+ *   const user = await tx.get('users', { id: '1' });
+ *
+ *   // Rollback discards all changes (useful for test isolation)
+ *   await tx.rollback();
+ * } catch (error) {
+ *   await tx.rollback();
+ *   throw error;
+ * }
+ * ```
+ *
+ * @example Manual commit
+ * ```typescript
+ * const tx = await db.beginTransaction();
+ * try {
+ *   await tx.insert('orders', { id: '1', total: 100 });
+ *   await tx.insert('order_items', { order_id: '1', product: 'Widget' });
+ *   await tx.commit(); // Persist changes
+ * } catch (error) {
+ *   await tx.rollback();
+ *   throw error;
+ * }
+ * ```
+ */
+export interface TransactionHandle extends DatabaseInterface {
+  /**
+   * Commits the transaction, persisting all changes
+   *
+   * After commit, the transaction handle should not be used.
+   */
+  commit: () => Promise<void>;
+
+  /**
+   * Rolls back the transaction, discarding all changes
+   *
+   * After rollback, the transaction handle should not be used.
+   * This is the key method for test isolation - rollback after each test.
+   */
+  rollback: () => Promise<void>;
+
+  /**
+   * Whether the transaction is still active (not committed or rolled back)
+   */
+  isActive: () => boolean;
 }
 
 /**
