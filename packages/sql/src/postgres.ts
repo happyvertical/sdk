@@ -692,7 +692,11 @@ export async function getDatabase(
     ...values: any[]
   ): Promise<{ rows: Record<string, any>[]; rowCount: number }> => {
     try {
-      const result = await client.query(sql, values);
+      // Convert ? placeholders to $1, $2, etc for PostgreSQL compatibility
+      let paramIndex = 0;
+      const pgSql = sql.replace(/\?/g, () => `$${++paramIndex}`);
+
+      const result = await client.query(pgSql, values);
       return {
         rows: result.rows,
         rowCount: result.rowCount ?? 0,
