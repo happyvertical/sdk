@@ -22,6 +22,7 @@ jobs:
       label_name: ${{ github.event.label.name }}
       project_id: 'PVT_kwDOB9Y8ns4A8-TY'
       status_field_id: 'PVTSSF_lADOB9Y8ns4A8-TYzgw0GaY'
+      status_planning_id: '7e1bd6b7'
       status_in_progress_id: 'c126de7e'
       status_review_id: '30a150bf'
     secrets:
