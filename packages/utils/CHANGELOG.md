@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.66.1
+
+### Patch Changes
+
+- ### Features
+
+  - integrate Claude Code Action via org workflows (#733)
+
 ## 0.66.0
 
 ## 0.65.1
