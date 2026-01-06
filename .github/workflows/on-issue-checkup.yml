@@ -1,0 +1,32 @@
+name: Issue Checkup
+
+on:
+  # Run weekly on Mondays at 9am UTC
+  schedule:
+    - cron: '0 9 * * 1'
+
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      max_issues:
+        description: 'Maximum number of issues to process'
+        required: false
+        default: '20'
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+  actions: read
+  id-token: write
+
+jobs:
+  checkup:
+    uses: happyvertical/.github/.github/workflows/org-issue-checkup.yml@main
+    with:
+      max_issues: ${{ github.event.inputs.max_issues && fromJSON(github.event.inputs.max_issues) || 20 }}
+      stale_days: 7
+      project_id: 'PVT_kwDOB9Y8ns4A8-TY'
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
