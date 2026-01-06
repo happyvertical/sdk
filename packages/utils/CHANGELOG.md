@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.66.2
+
+### Patch Changes
+
+- ### Features
+
+  - add issue checkup workflow (#734) (ci)
+
 ## 0.66.1
 
 ### Patch Changes
