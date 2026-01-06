@@ -1,0 +1,42 @@
+name: Label Changed
+
+on:
+  issues:
+    types: [labeled, unlabeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: read
+  id-token: write
+
+jobs:
+  # Trigger autopilot when agent: claude label is added
+  autopilot:
+    if: "github.event.label.name == 'agent: claude'"
+    uses: happyvertical/.github/.github/workflows/org-agent-autopilot.yml@main
+    with:
+      issue_number: ${{ github.event.issue.number }}
+      action: ${{ github.event.action }}
+      label_name: ${{ github.event.label.name }}
+      project_id: 'PVT_kwDOB9Y8ns4A8-TY'
+      status_field_id: 'PVTSSF_lADOB9Y8ns4A8-TYzgw0GaY'
+      status_in_progress_id: 'c126de7e'
+      status_review_id: '30a150bf'
+    secrets:
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Call existing label handler for other label logic
+  label-handler:
+    if: "github.event.label.name != 'agent: claude'"
+    uses: ./.github/workflows/shared-label-handler.yml
+    with:
+      label_name: ${{ github.event.label.name }}
+      action: ${{ github.event.action }}
+      issue_number: ${{ github.event.issue.number }}
+      repo_owner: ${{ github.repository_owner }}
+      repo_name: ${{ github.event.repository.name }}
+    secrets:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
