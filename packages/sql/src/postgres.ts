@@ -121,7 +121,21 @@ async function createTablesFromSchemas(
         }
       }
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
+      // pg errors often have additional properties (code, detail, hint)
+      const pgError = error as {
+        message?: string;
+        code?: string;
+        detail?: string;
+        hint?: string;
+        severity?: string;
+      };
+      const parts: string[] = [];
+      if (pgError.message) parts.push(pgError.message);
+      if (pgError.code) parts.push(`code=${pgError.code}`);
+      if (pgError.detail) parts.push(`detail=${pgError.detail}`);
+      if (pgError.hint) parts.push(`hint=${pgError.hint}`);
+      if (pgError.severity) parts.push(`severity=${pgError.severity}`);
+      const errMsg = parts.length > 0 ? parts.join(', ') : String(error);
       throw new DatabaseError(
         `Failed to create table ${tableName} from schema: ${errMsg}`,
         {
