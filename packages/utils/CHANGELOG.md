@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.66.3
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - include original error in postgres table creation error message (sql)
+
 ## 0.66.2
 
 ### Patch Changes
