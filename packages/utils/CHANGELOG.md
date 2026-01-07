@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.66.4
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - capture pg error details (code, detail, hint, severity) (sql)
+
 ## 0.66.3
 
 ### Patch Changes
