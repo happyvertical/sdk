@@ -121,12 +121,13 @@ async function createTablesFromSchemas(
         }
       }
     } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
       throw new DatabaseError(
-        `Failed to create table ${tableName} from schema`,
+        `Failed to create table ${tableName} from schema: ${errMsg}`,
         {
           tableName,
           schema,
-          originalError: error instanceof Error ? error.message : String(error),
+          originalError: errMsg,
         },
       );
     }
