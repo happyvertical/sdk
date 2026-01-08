@@ -168,8 +168,8 @@ importers:
         specifier: 3.962.0
         version: 3.962.0
       '@google/genai':
-        specifier: 1.34.0
-        version: 1.34.0(@modelcontextprotocol/sdk@1.25.2(hono@4.11.3)(zod@4.2.1))
+        specifier: 1.35.0
+        version: 1.35.0(@modelcontextprotocol/sdk@1.25.2(hono@4.11.3)(zod@4.2.1))
       '@happyvertical/utils':
         specifier: workspace:*
         version: link:../utils
@@ -2955,6 +2955,15 @@ packages:
 
   '@google/genai@1.34.0':
     resolution: {integrity: sha512-vu53UMPvjmb7PGzlYu6Tzxso8Dfhn+a7eQFaS2uNemVtDZKwzSpJ5+ikqBbXplF7RGB1STcVDqCkPvquiwb2sw==}
+    engines: {node: '>=20.0.0'}
+    peerDependencies:
+      '@modelcontextprotocol/sdk': ^1.24.0
+    peerDependenciesMeta:
+      '@modelcontextprotocol/sdk':
+        optional: true
+
+  '@google/genai@1.35.0':
+    resolution: {integrity: sha512-ZC1d0PSM5eS73BpbVIgL3ZsmXeMKLVJurxzww1Z9axy3B2eUB3ioEytbQt4Qu0Od6qPluKrTDew9pSi9kEuPaw==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       '@modelcontextprotocol/sdk': ^1.24.0
@@ -15855,6 +15864,17 @@ snapshots:
       - supports-color
 
   '@google/genai@1.34.0(@modelcontextprotocol/sdk@1.25.2(hono@4.11.3)(zod@4.2.1))':
+    dependencies:
+      google-auth-library: 10.5.0
+      ws: 8.18.3
+    optionalDependencies:
+      '@modelcontextprotocol/sdk': 1.25.2(hono@4.11.3)(zod@4.2.1)
+    transitivePeerDependencies:
+      - bufferutil
+      - supports-color
+      - utf-8-validate
+
+  '@google/genai@1.35.0(@modelcontextprotocol/sdk@1.25.2(hono@4.11.3)(zod@4.2.1))':
     dependencies:
       google-auth-library: 10.5.0
       ws: 8.18.3
