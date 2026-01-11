@@ -3,7 +3,7 @@
   "description": "HAppy VErtical SDK - A TypeScript monorepo for building vertical AI agents",
   "author": "Will Griffin <willgriffin@gmail.com>",
   "type": "module",
-  "version": "0.66.5",
+  "version": "0.66.6",
   "scripts": {
     "format": "turbo run format",
     "format:check": "turbo run format --dry-run",

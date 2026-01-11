@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.66.6
+
+### Patch Changes
+
+- ### Features
+
+  - add browser-safe entry point (#743) (utils)
+
 ## 0.66.5
 
 ### Patch Changes
