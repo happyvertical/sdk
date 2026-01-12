@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.66.7
+
+### Patch Changes
+
+- ### Features
+
+  - add @happyvertical/jobs package for background job processing (#748) (smrt)
+
 ## 0.66.6
 
 ### Patch Changes
