@@ -11,6 +11,13 @@ export default defineConfig({
         index: resolve(packageDir, 'src/index.ts'),
         'adapters/sqlite': resolve(packageDir, 'src/adapters/sqlite.ts'),
         'adapters/postgres': resolve(packageDir, 'src/adapters/postgres.ts'),
+        'adapters/bull': resolve(packageDir, 'src/adapters/bull.ts'),
+        'adapters/bullmq': resolve(packageDir, 'src/adapters/bullmq.ts'),
+        'adapters/sqs': resolve(packageDir, 'src/adapters/sqs.ts'),
+        'adapters/cloud-tasks': resolve(
+          packageDir,
+          'src/adapters/cloud-tasks.ts',
+        ),
       },
       formats: ['es'] as const,
     },
@@ -29,11 +36,15 @@ export default defineConfig({
         'events',
         'util',
 
-        // External dependencies
+        // External dependencies (built-in adapters)
         'pg',
         '@libsql/client',
-        'bullmq',
+
+        // External dependencies (optional adapters - peer dependencies)
         'bull',
+        'bullmq',
+        '@aws-sdk/client-sqs',
+        '@google-cloud/tasks',
 
         // Internal @happyvertical/* packages
         /^@happyvertical\//,

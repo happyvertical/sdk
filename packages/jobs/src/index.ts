@@ -4,15 +4,33 @@
  * @packageDocumentation
  */
 
+// External adapters (require peer dependencies)
+export {
+  BullJobStore,
+  type BullJobStoreConfig,
+  type RedisOptions,
+} from './adapters/bull.js';
+export {
+  BullMQJobStore,
+  type BullMQJobStoreConfig,
+} from './adapters/bullmq.js';
+export {
+  CloudTasksJobStore,
+  type CloudTasksJobStoreConfig,
+} from './adapters/cloud-tasks.js';
+// Built-in adapters (zero-config)
 export {
   PostgresJobStore,
   type PostgresJobStoreConfig,
 } from './adapters/postgres.js';
-// Re-export adapters for convenience (they can also be imported directly)
 export {
   SqliteJobStore,
   type SqliteJobStoreConfig,
 } from './adapters/sqlite.js';
+export {
+  SQSJobStore,
+  type SQSJobStoreConfig,
+} from './adapters/sqs.js';
 
 // Base store (for custom adapters)
 export { BaseJobStore, priorityToNumber } from './base-store.js';
