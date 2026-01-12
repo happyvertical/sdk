@@ -88,7 +88,7 @@
   },
   "peerDependencies": {
     "@aws-sdk/client-sqs": ">=3.0.0",
-    "@google-cloud/tasks": ">=4.0.0",
+    "@google-cloud/tasks": ">=6.2.1",
     "bull": ">=4.0.0",
     "bullmq": ">=5.0.0"
   },
