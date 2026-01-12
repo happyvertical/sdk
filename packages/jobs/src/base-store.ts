@@ -15,6 +15,30 @@ import type {
 } from './types.js';
 
 /**
+ * Valid table name pattern: alphanumeric and underscores, must start with letter or underscore
+ */
+const TABLE_NAME_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
+
+/**
+ * Validate table name to prevent SQL injection
+ * @throws Error if table name contains invalid characters
+ */
+export function validateTableName(tableName: string): string {
+  if (!tableName || tableName.length === 0) {
+    throw new Error('Table name cannot be empty');
+  }
+  if (tableName.length > 128) {
+    throw new Error('Table name cannot exceed 128 characters');
+  }
+  if (!TABLE_NAME_PATTERN.test(tableName)) {
+    throw new Error(
+      `Invalid table name "${tableName}": must contain only alphanumeric characters and underscores, and must start with a letter or underscore`,
+    );
+  }
+  return tableName;
+}
+
+/**
  * Convert priority string to number
  */
 export function priorityToNumber(

@@ -1,5 +1,5 @@
 import { type DatabaseInterface, getDatabase } from '@happyvertical/sql';
-import { BaseJobStore } from '../base-store.js';
+import { BaseJobStore, validateTableName } from '../base-store.js';
 import type {
   CleanupOptions,
   Job,
@@ -45,9 +45,11 @@ export class PostgresJobStore extends BaseJobStore {
     super();
     this.url = config.url ?? process.env.DATABASE_URL ?? '';
     this.externalDb = config.db ?? null;
-    this.tableName = config.tableName ?? '_jobs';
+    this.tableName = validateTableName(config.tableName ?? '_jobs');
     this.enableNotify = config.enableNotify ?? true;
-    this.notifyChannel = config.notifyChannel ?? 'job_events';
+    this.notifyChannel = validateTableName(
+      config.notifyChannel ?? 'job_events',
+    );
   }
 
   async initialize(): Promise<void> {

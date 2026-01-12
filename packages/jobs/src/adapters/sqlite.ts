@@ -3,7 +3,7 @@ import {
   getDatabase,
   syncSchema,
 } from '@happyvertical/sql';
-import { BaseJobStore } from '../base-store.js';
+import { BaseJobStore, validateTableName } from '../base-store.js';
 import type {
   CleanupOptions,
   Job,
@@ -40,7 +40,7 @@ export class SqliteJobStore extends BaseJobStore {
     super();
     this.url = config.url ?? ':memory:';
     this.externalDb = config.db ?? null;
-    this.tableName = config.tableName ?? '_jobs';
+    this.tableName = validateTableName(config.tableName ?? '_jobs');
   }
 
   async initialize(): Promise<void> {

@@ -71,7 +71,6 @@
   "author": "willgriffin@gmail.com",
   "license": "ISC",
   "dependencies": {
-    "@happyvertical/logger": "workspace:*",
     "@happyvertical/sql": "workspace:*",
     "@happyvertical/utils": "workspace:*"
   },

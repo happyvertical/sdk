@@ -180,10 +180,12 @@ export class JobWorker extends EventEmitter implements IWorker {
     this.activeJobs.set(job.id, job);
     this.emit('job:started', job);
 
+    let timeoutId: NodeJS.Timeout | null = null;
+
     try {
-      // Set up timeout
+      // Set up timeout with cleanup capability
       const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => {
+        timeoutId = setTimeout(() => {
           reject(new Error(`Job timeout after ${job.timeout}ms`));
         }, job.timeout);
       });
@@ -202,6 +204,10 @@ export class JobWorker extends EventEmitter implements IWorker {
     } catch (error) {
       await this.handleJobError(job, error as Error);
     } finally {
+      // Clean up timeout timer to prevent memory leak
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       this.activeJobs.delete(job.id);
     }
   }
@@ -247,7 +253,8 @@ export class JobWorker extends EventEmitter implements IWorker {
         try {
           await this.store.heartbeat(jobId, this.id);
         } catch (error) {
-          // Ignore heartbeat errors
+          // Log heartbeat errors but don't interrupt job processing
+          console.warn(`Heartbeat failed for job ${jobId}:`, error);
         }
       }
     }, this.config.heartbeatInterval);
