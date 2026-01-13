@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.66.8
+
+### Patch Changes
+
+- ### Features
+
+  - add @happyvertical/secrets package for envelope encryption (#753) (deps)
+
 ## 0.66.7
 
 ### Patch Changes
