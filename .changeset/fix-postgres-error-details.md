@@ -2,12 +2,17 @@
 "@happyvertical/sql": patch
 ---
 
-fix(sql): preserve PostgreSQL error details in CRUD operations
+fix(sql): preserve database error details across all adapters
 
-PostgreSQL errors include additional properties (code, detail, hint, severity) that provide crucial debugging information. Previously, only the error message was captured, losing these details.
+Database errors include additional properties beyond just `message` that provide crucial debugging information:
+- PostgreSQL: code, detail, hint, severity
+- SQLite/LibSQL: code, errno
+- DuckDB: code, detail
+
+Previously, only the error message was captured, losing these details. Users were seeing errors like "upsert failed" without knowing why.
 
 This change:
-- Adds a `formatPgError()` helper function to consistently extract all PG error details
-- Updates all CRUD operations (insert, update, upsert, delete, get, list, count) to use this helper
-- Ensures error messages include code (e.g., 23505 for unique violation), detail, hint, and severity
-
+- Adds a shared `formatDbError()` helper function in `shared/utils.ts`
+- Updates all CRUD operations across all adapters (postgres, sqlite, duckdb, json) to use this helper
+- Exports `formatDbError` for consumers who need to format database errors
+- Ensures error messages now include all available error properties
