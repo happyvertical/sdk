@@ -1,6 +1,32 @@
 import { DatabaseError, loadEnvConfig } from '@happyvertical/utils';
 import { Pool } from 'pg';
 import { DatabaseSchemaManager } from './schema-manager';
+
+/**
+ * Formats a PostgreSQL error to include all relevant details
+ * PostgreSQL errors include additional properties (code, detail, hint, severity)
+ * that are lost when only accessing error.message
+ *
+ * @param error - The caught error object
+ * @returns Formatted error string with all available PostgreSQL error details
+ */
+function formatPgError(error: unknown): string {
+  const pgError = error as {
+    message?: string;
+    code?: string;
+    detail?: string;
+    hint?: string;
+    severity?: string;
+  };
+  const parts: string[] = [];
+  if (pgError.message) parts.push(pgError.message);
+  if (pgError.code) parts.push(`code=${pgError.code}`);
+  if (pgError.detail) parts.push(`detail=${pgError.detail}`);
+  if (pgError.hint) parts.push(`hint=${pgError.hint}`);
+  if (pgError.severity) parts.push(`severity=${pgError.severity}`);
+  return parts.length > 0 ? parts.join(', ') : String(error);
+}
+
 import {
   generateAddColumnStatement,
   generateCreateIndexStatement,
@@ -121,21 +147,7 @@ async function createTablesFromSchemas(
         }
       }
     } catch (error) {
-      // pg errors often have additional properties (code, detail, hint)
-      const pgError = error as {
-        message?: string;
-        code?: string;
-        detail?: string;
-        hint?: string;
-        severity?: string;
-      };
-      const parts: string[] = [];
-      if (pgError.message) parts.push(pgError.message);
-      if (pgError.code) parts.push(`code=${pgError.code}`);
-      if (pgError.detail) parts.push(`detail=${pgError.detail}`);
-      if (pgError.hint) parts.push(`hint=${pgError.hint}`);
-      if (pgError.severity) parts.push(`severity=${pgError.severity}`);
-      const errMsg = parts.length > 0 ? parts.join(', ') : String(error);
+      const errMsg = formatPgError(error);
       throw new DatabaseError(
         `Failed to create table ${tableName} from schema: ${errMsg}`,
         {
@@ -318,7 +330,7 @@ export async function getDatabase(
         table,
         sql: query,
         values,
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatPgError(e),
       });
     }
   };
@@ -344,7 +356,7 @@ export async function getDatabase(
         table,
         sql: query,
         values,
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatPgError(e),
       });
     }
   };
@@ -380,7 +392,7 @@ export async function getDatabase(
         table,
         sql,
         values: [...values, ...whereValues],
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatPgError(e),
       });
     }
   };
@@ -429,7 +441,7 @@ export async function getDatabase(
         sql,
         values,
         conflictColumns,
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatPgError(e),
       });
     }
   };
@@ -497,7 +509,7 @@ export async function getDatabase(
       throw new DatabaseError('Failed to delete records from table', {
         table,
         where,
-        originalError: e,
+        originalError: formatPgError(e),
       });
     }
   };
@@ -542,7 +554,7 @@ export async function getDatabase(
       throw new DatabaseError('Failed to count records in table', {
         table,
         where,
-        originalError: e,
+        originalError: formatPgError(e),
       });
     }
   };
@@ -618,7 +630,7 @@ export async function getDatabase(
       throw new DatabaseError('Failed to execute pluck query', {
         sql,
         values,
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatPgError(e),
       });
     }
   };
@@ -642,7 +654,7 @@ export async function getDatabase(
       throw new DatabaseError('Failed to execute single query', {
         sql,
         values,
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatPgError(e),
       });
     }
   };
@@ -666,7 +678,7 @@ export async function getDatabase(
       throw new DatabaseError('Failed to execute many query', {
         sql,
         values,
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatPgError(e),
       });
     }
   };
@@ -689,7 +701,7 @@ export async function getDatabase(
       throw new DatabaseError('Failed to execute query', {
         sql,
         values,
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatPgError(e),
       });
     }
   };
@@ -715,7 +727,7 @@ export async function getDatabase(
       throw new DatabaseError('Failed to execute raw query', {
         sql,
         values,
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatPgError(e),
       });
     }
   };
@@ -1427,7 +1439,7 @@ export async function getDatabase(
     } catch (e) {
       throw new DatabaseError('Failed to retrieve table schema', {
         table,
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatPgError(e),
       });
     }
   };
@@ -1458,7 +1470,7 @@ export async function getDatabase(
         throw new DatabaseError('Failed to add column to table', {
           table,
           column: column.name,
-          originalError: e instanceof Error ? e.message : String(e),
+          originalError: formatPgError(e),
         });
       }
     },
@@ -1486,7 +1498,7 @@ export async function getDatabase(
         throw new DatabaseError('Failed to create index on table', {
           table,
           index: index.name,
-          originalError: e instanceof Error ? e.message : String(e),
+          originalError: formatPgError(e),
         });
       }
     },
