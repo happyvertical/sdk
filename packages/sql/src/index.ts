@@ -192,9 +192,9 @@ export function validateColumnName(column: string): string {
   return column;
 }
 
-// Import buildWhere from shared utils
-import { buildWhere } from './shared/utils';
-export { buildWhere };
+// Import utilities from shared utils
+import { buildWhere, formatDbError } from './shared/utils';
+export { buildWhere, formatDbError };
 
 // Import DuckDB schema transformation utilities
 import { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils';

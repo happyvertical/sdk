@@ -23,7 +23,7 @@ import type {
   TableSchemaInfo,
   TransactionHandle,
 } from './shared/types';
-import { buildWhere } from './shared/utils';
+import { buildWhere, formatDbError } from './shared/utils';
 
 /**
  * Creates tables from provided schema definitions
@@ -358,7 +358,7 @@ export async function getDatabase(
         table,
         sql,
         values,
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatDbError(e),
       });
     }
   };
@@ -387,7 +387,7 @@ export async function getDatabase(
         table,
         sql,
         values,
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatDbError(e),
       });
     }
   };
@@ -415,7 +415,7 @@ export async function getDatabase(
         table,
         sql,
         values,
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatDbError(e),
       });
     }
   };
@@ -459,7 +459,7 @@ export async function getDatabase(
         table,
         sql,
         values,
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatDbError(e),
       });
     }
   };
@@ -608,7 +608,7 @@ export async function getDatabase(
         sql,
         values,
         conflictColumns,
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatDbError(e),
       });
     }
   };
@@ -683,7 +683,7 @@ export async function getDatabase(
         table,
         sql,
         values,
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatDbError(e),
       });
     }
   };
@@ -724,7 +724,7 @@ export async function getDatabase(
       throw new DatabaseError('Failed to count records in table', {
         table,
         where,
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatDbError(e),
       });
     }
   };
@@ -828,7 +828,7 @@ export async function getDatabase(
       throw new DatabaseError('Failed to execute many query', {
         sql,
         values,
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatDbError(e),
       });
     }
   };
@@ -854,7 +854,7 @@ export async function getDatabase(
       throw new DatabaseError('Failed to execute single query', {
         sql,
         values,
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatDbError(e),
       });
     }
   };
@@ -883,7 +883,7 @@ export async function getDatabase(
       throw new DatabaseError('Failed to execute pluck query', {
         sql,
         values,
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatDbError(e),
       });
     }
   };
@@ -907,7 +907,7 @@ export async function getDatabase(
       throw new DatabaseError('Failed to execute query', {
         sql,
         values,
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatDbError(e),
       });
     }
   };
@@ -950,7 +950,7 @@ export async function getDatabase(
       throw new DatabaseError('Failed to execute raw query', {
         sql,
         args,
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatDbError(e),
       });
     }
   };
@@ -1200,7 +1200,7 @@ export async function getDatabase(
     } catch (e) {
       throw new DatabaseError('Failed to retrieve table schema', {
         table,
-        originalError: e instanceof Error ? e.message : String(e),
+        originalError: formatDbError(e),
       });
     }
   };
@@ -1231,7 +1231,7 @@ export async function getDatabase(
         throw new DatabaseError('Failed to add column to table', {
           table,
           column: column.name,
-          originalError: e instanceof Error ? e.message : String(e),
+          originalError: formatDbError(e),
         });
       }
     },
@@ -1259,7 +1259,7 @@ export async function getDatabase(
         throw new DatabaseError('Failed to create index on table', {
           table,
           index: index.name,
-          originalError: e instanceof Error ? e.message : String(e),
+          originalError: formatDbError(e),
         });
       }
     },

@@ -5,6 +5,43 @@
 import type { WhereClause } from './types.js';
 
 /**
+ * Formats a database error to include all relevant details
+ *
+ * Database drivers often include additional properties beyond just `message`:
+ * - PostgreSQL: code, detail, hint, severity
+ * - DuckDB: may include additional context
+ * - SQLite/LibSQL: may include errno, code
+ *
+ * This function extracts all available error properties to provide
+ * better debugging information.
+ *
+ * @param error - The caught error object
+ * @returns Formatted error string with all available error details
+ */
+export function formatDbError(error: unknown): string {
+  const dbError = error as {
+    message?: string;
+    code?: string;
+    detail?: string;
+    hint?: string;
+    severity?: string;
+    errno?: number;
+    cause?: unknown;
+  };
+
+  const parts: string[] = [];
+
+  if (dbError.message) parts.push(dbError.message);
+  if (dbError.code) parts.push(`code=${dbError.code}`);
+  if (dbError.detail) parts.push(`detail=${dbError.detail}`);
+  if (dbError.hint) parts.push(`hint=${dbError.hint}`);
+  if (dbError.severity) parts.push(`severity=${dbError.severity}`);
+  if (dbError.errno !== undefined) parts.push(`errno=${dbError.errno}`);
+
+  return parts.length > 0 ? parts.join(', ') : String(error);
+}
+
+/**
  * Map of valid SQL operators for use in WHERE clauses
  */
 const VALID_OPERATORS = {

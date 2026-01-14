@@ -11,7 +11,7 @@ import type {
   TableInterface,
   TransactionHandle,
 } from './shared/types';
-import { buildWhere } from './shared/utils';
+import { buildWhere, formatDbError } from './shared/utils';
 
 /**
  * Extend globalThis to include our connection cache properties.
@@ -727,7 +727,7 @@ export async function getDatabase(
           table,
           sql,
           values,
-          originalError: e instanceof Error ? e.message : String(e),
+          originalError: formatDbError(e),
         });
       }
     };
@@ -758,7 +758,7 @@ export async function getDatabase(
           table,
           sql,
           values,
-          originalError: e instanceof Error ? e.message : String(e),
+          originalError: formatDbError(e),
         });
       }
     };
@@ -788,7 +788,7 @@ export async function getDatabase(
           table,
           sql,
           values,
-          originalError: e instanceof Error ? e.message : String(e),
+          originalError: formatDbError(e),
         });
       }
     };
@@ -849,7 +849,7 @@ export async function getDatabase(
           table,
           sql,
           values,
-          originalError: e instanceof Error ? e.message : String(e),
+          originalError: formatDbError(e),
         });
       }
     };
@@ -1012,14 +1012,14 @@ export async function getDatabase(
           values,
           valueTypes: values.map((v) => `${typeof v} (${v})`),
           conflictColumns,
-          error: e instanceof Error ? e.message : String(e),
+          error: formatDbError(e),
         });
         throw new DatabaseError('Failed to upsert record into table', {
           table,
           sql,
           values,
           conflictColumns,
-          originalError: e instanceof Error ? e.message : String(e),
+          originalError: formatDbError(e),
         });
       }
     };
@@ -1102,7 +1102,7 @@ export async function getDatabase(
           table,
           sql,
           values,
-          originalError: e instanceof Error ? e.message : String(e),
+          originalError: formatDbError(e),
         });
       }
     };
@@ -1143,7 +1143,7 @@ export async function getDatabase(
         throw new DatabaseError('Failed to count records in table', {
           table,
           where,
-          originalError: e instanceof Error ? e.message : String(e),
+          originalError: formatDbError(e),
         });
       }
     };
@@ -1387,7 +1387,7 @@ export async function getDatabase(
         throw new DatabaseError('Failed to execute many query', {
           sql,
           values,
-          originalError: e instanceof Error ? e.message : String(e),
+          originalError: formatDbError(e),
         });
       }
     };
@@ -1413,7 +1413,7 @@ export async function getDatabase(
         throw new DatabaseError('Failed to execute single query', {
           sql,
           values,
-          originalError: e instanceof Error ? e.message : String(e),
+          originalError: formatDbError(e),
         });
       }
     };
@@ -1442,7 +1442,7 @@ export async function getDatabase(
         throw new DatabaseError('Failed to execute pluck query', {
           sql,
           values,
-          originalError: e instanceof Error ? e.message : String(e),
+          originalError: formatDbError(e),
         });
       }
     };
@@ -1499,7 +1499,7 @@ export async function getDatabase(
         throw new DatabaseError('Failed to execute query', {
           sql,
           values,
-          originalError: e instanceof Error ? e.message : String(e),
+          originalError: formatDbError(e),
         });
       }
     };
@@ -1542,7 +1542,7 @@ export async function getDatabase(
         throw new DatabaseError('Failed to execute raw query', {
           sql,
           args,
-          originalError: e instanceof Error ? e.message : String(e),
+          originalError: formatDbError(e),
         });
       }
     };
