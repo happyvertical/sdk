@@ -1,5 +1,13 @@
 # @happyvertical/email
 
+## 0.66.11
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.66.11
+  - @happyvertical/logger@0.66.11
+
 ## 0.66.10
 
 ### Patch Changes

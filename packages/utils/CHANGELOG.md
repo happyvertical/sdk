@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.66.11
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - pin @types/node to 24.10.9 for Node 24 LTS compatibility (#760)
+
 ## 0.66.10
 
 ### Patch Changes
