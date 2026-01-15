@@ -42,13 +42,13 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.71.2",
-    "@aws-sdk/client-bedrock-runtime": "3.962.0",
+    "@aws-sdk/client-bedrock-runtime": "3.969.0",
     "@google/genai": "1.36.0",
     "@happyvertical/utils": "workspace:*",
     "openai": "6.16.0"
   },
   "devDependencies": {
-    "@types/node": "24.10.4",
+    "@types/node": "25.0.9",
     "typescript": "^5.9.3",
     "vite": "7.3.1",
     "vite-plugin-dts": "4.5.4",
