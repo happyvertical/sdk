@@ -75,10 +75,10 @@
     "@happyvertical/utils": "workspace:*"
   },
   "devDependencies": {
-    "@aws-sdk/client-sqs": "^3.966.0",
+    "@aws-sdk/client-sqs": "^3.969.0",
     "@google-cloud/tasks": "^6.2.1",
     "@types/bull": "^4.10.4",
-    "@types/node": "24.10.4",
+    "@types/node": "24.10.8",
     "bull": "^4.16.5",
     "bullmq": "^5.66.5",
     "typescript": "^5.9.3",
@@ -87,10 +87,10 @@
     "vitest": "^4.0.17"
   },
   "peerDependencies": {
-    "@aws-sdk/client-sqs": ">=3.0.0",
-    "@google-cloud/tasks": ">=4.0.0",
-    "bull": ">=4.0.0",
-    "bullmq": ">=5.0.0"
+    "@aws-sdk/client-sqs": ">=3.969.0",
+    "@google-cloud/tasks": ">=4.1.0",
+    "bull": ">=4.16.5",
+    "bullmq": ">=5.66.5"
   },
   "peerDependenciesMeta": {
     "bull": {

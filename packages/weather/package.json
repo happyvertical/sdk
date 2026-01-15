@@ -50,7 +50,7 @@
     "@happyvertical/utils": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "24.10.4",
+    "@types/node": "24.10.8",
     "typedoc": "^0.28.16",
     "typedoc-plugin-markdown": "^4.9.0",
     "typescript": "^5.9.3",

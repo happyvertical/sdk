@@ -32,14 +32,14 @@
     "@happyvertical/utils": "workspace:*",
     "google-auth-library": "^10.5.0",
     "googleapis": "^159.0.0",
-    "imapflow": "^1.2.4",
+    "imapflow": "^1.2.6",
     "mailparser": "^3.9.1",
     "node-pop3": "^0.11.0",
     "nodemailer": "^6.10.1"
   },
   "devDependencies": {
     "@types/mailparser": "^3.4.6",
-    "@types/node": "^24.10.4",
+    "@types/node": "^24.10.8",
     "@types/nodemailer": "^6.4.21",
     "smtp-server": "^3.18.0",
     "typescript": "^5.9.3",
