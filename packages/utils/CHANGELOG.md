@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.66.10
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - convert ? placeholders to $1 style for postgres (#725) (sql)
+
 ## 0.66.9
 
 ## 0.66.8

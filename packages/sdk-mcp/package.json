@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/sdk-mcp",
-  "version": "0.66.9",
+  "version": "0.66.10",
   "description": "MCP server for HAVE SDK - Routes queries to package experts using CLAUDE.md files",
   "type": "module",
   "main": "./dist/index.js",
