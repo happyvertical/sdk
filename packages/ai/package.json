@@ -43,7 +43,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "0.71.2",
     "@aws-sdk/client-bedrock-runtime": "3.962.0",
-    "@google/genai": "1.35.0",
+    "@google/genai": "1.36.0",
     "@happyvertical/utils": "workspace:*",
     "openai": "6.16.0"
   },
