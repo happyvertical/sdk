@@ -43,10 +43,15 @@
     "vite-plugin-dts": "4.5.4",
     "vitest": "^4.0.17"
   },
+  "bin": {
+    "have-utils-context": "./dist/cli/claude-context.js"
+  },
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CLAUDE.md",
+    ".claude-meta.json"
   ],
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",

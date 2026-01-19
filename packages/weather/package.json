@@ -5,10 +5,15 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
+  "bin": {
+    "have-weather-context": "./dist/cli/claude-context.js"
+  },
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CLAUDE.md",
+    ".claude-meta.json"
   ],
   "exports": {
     ".": {

@@ -1,0 +1,17 @@
+{
+  "name": "@happyvertical/encryption",
+  "description": "Encryption utilities for secure data handling",
+  "keyExports": [
+    "encrypt",
+    "decrypt"
+  ],
+  "dependencies": {
+    "internal": [],
+    "external": []
+  },
+  "pitfalls": [
+    "Never store encryption keys in code",
+    "Use environment variables or key management services"
+  ],
+  "keywords": ["encryption", "security", "crypto"]
+}

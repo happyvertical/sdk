@@ -1,0 +1,32 @@
+{
+  "name": "@happyvertical/geo",
+  "description": "Geographical services with Google Maps and OpenStreetMap providers",
+  "keyExports": {
+    "functions": [
+      { "name": "getGeoAdapter", "signature": "(options: GeoAdapterOptions) => Promise<IGeoAdapter>" }
+    ],
+    "types": ["IGeoAdapter", "Location", "LocationType"],
+    "errors": ["GeoError", "RateLimitError", "InvalidQueryError", "AuthenticationError"]
+  },
+  "dependencies": {
+    "internal": ["@happyvertical/utils"],
+    "external": ["@googlemaps/google-maps-services-js"]
+  },
+  "patterns": [
+    { "name": "Lookup", "usage": "adapter.lookup('Eiffel Tower, Paris')" },
+    { "name": "Reverse Geocode", "usage": "adapter.reverseGeocode(latitude, longitude)" }
+  ],
+  "pitfalls": [
+    "OpenStreetMap has strict rate limits (1 req/second)",
+    "Google Maps requires API key",
+    "Empty results return empty array, not error",
+    "Coordinates validated: lat -90 to 90, lng -180 to 180"
+  ],
+  "envVars": [
+    "HAVE_GEO_PROVIDER",
+    "GOOGLE_MAPS_API_KEY",
+    "HAVE_GEO_TIMEOUT",
+    "HAVE_GEO_MAX_RESULTS"
+  ],
+  "keywords": ["geo", "geocoding", "location", "maps", "coordinates"]
+}

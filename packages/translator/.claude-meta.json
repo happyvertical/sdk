@@ -1,0 +1,17 @@
+{
+  "name": "@happyvertical/translator",
+  "description": "Translation services integration with multiple provider support",
+  "keyExports": [
+    "getTranslator",
+    "TranslatorInterface"
+  ],
+  "dependencies": {
+    "internal": [],
+    "external": []
+  },
+  "pitfalls": [
+    "API keys required for most translation providers",
+    "Consider caching frequently translated text"
+  ],
+  "keywords": ["translator", "translation", "i18n", "language"]
+}

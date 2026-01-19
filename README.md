@@ -76,6 +76,59 @@ pnpm add @happyvertical/utils @happyvertical/logger @happyvertical/files @happyv
 pnpm add @happyvertical/cache @happyvertical/geo @happyvertical/translator @happyvertical/ocr @happyvertical/pdf @happyvertical/spider @happyvertical/documents
 ```
 
+## Claude Code Context
+
+Each SDK package ships with Claude Code context files for AI-assisted development. Install them in your project to help Claude understand the SDK packages you're using.
+
+### Install Context for Individual Packages
+
+```bash
+# Install context for packages you use
+npx have-ai-context
+npx have-sql-context
+npx have-files-context
+```
+
+This copies the package's documentation and metadata to your project's `.claude/` directory:
+
+```
+.claude/
+├── have-ai.md           # Full documentation
+├── have-ai.meta.json    # Concise metadata (exports, patterns, pitfalls)
+├── have-sql.md
+├── have-sql.meta.json
+└── ...
+```
+
+### Automate with package.json
+
+Add a setup script to install context for all SDK packages your project uses:
+
+```json
+{
+  "scripts": {
+    "setup:claude": "npx have-ai-context && npx have-sql-context && npx have-files-context"
+  }
+}
+```
+
+### Available Context Commands
+
+| Package | Command |
+|---------|---------|
+| @happyvertical/ai | `npx have-ai-context` |
+| @happyvertical/sql | `npx have-sql-context` |
+| @happyvertical/files | `npx have-files-context` |
+| @happyvertical/utils | `npx have-utils-context` |
+| @happyvertical/cache | `npx have-cache-context` |
+| @happyvertical/documents | `npx have-documents-context` |
+| @happyvertical/geo | `npx have-geo-context` |
+| @happyvertical/spider | `npx have-spider-context` |
+| @happyvertical/pdf | `npx have-pdf-context` |
+| @happyvertical/translator | `npx have-translator-context` |
+
+All SDK packages include a context command following the pattern `have-{pkgname}-context`.
+
 ## Development
 
 ```bash

@@ -8,8 +8,13 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CLAUDE.md",
+    ".claude-meta.json"
   ],
+  "bin": {
+    "have-jobs-context": "./dist/cli/claude-context.js"
+  },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
     "access": "public"

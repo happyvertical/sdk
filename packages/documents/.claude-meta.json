@@ -1,0 +1,30 @@
+{
+  "name": "@happyvertical/documents",
+  "description": "High-level document processing combining PDF, web scraping, and OCR into unified interface",
+  "keyExports": {
+    "functions": [
+      { "name": "fetchDocument", "signature": "(source: string, options?: DocumentOptions) => Promise<Document>" }
+    ],
+    "types": ["Document", "DocumentPart", "DocumentSection", "DocumentImage"]
+  },
+  "dependencies": {
+    "internal": ["@happyvertical/files", "@happyvertical/pdf", "@happyvertical/spider", "@happyvertical/ocr", "@happyvertical/utils"],
+    "external": []
+  },
+  "architecture": {
+    "pattern": "Orchestrator",
+    "notes": "Detects format and delegates to appropriate package (pdf, spider)"
+  },
+  "patterns": [
+    { "name": "URL Processing", "usage": "fetchDocument('https://example.com')" },
+    { "name": "PDF Processing", "usage": "fetchDocument('/path/to/file.pdf')" },
+    { "name": "HTML Processing", "usage": "fetchDocument(html, { documentType: 'html' })" }
+  ],
+  "pitfalls": [
+    "Images are base64-encoded for portability",
+    "PDFs use OCR fallback for scanned documents",
+    "Format auto-detected from extension and content",
+    "Partial documents preferred over complete failure"
+  ],
+  "keywords": ["documents", "pdf", "html", "extraction", "parsing"]
+}

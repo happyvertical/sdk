@@ -12,8 +12,15 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "bin": {
+    "have-encryption-context": "./dist/cli/claude-context.js"
+  },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CLAUDE.md",
+    ".claude-meta.json"
   ],
   "scripts": {
     "build": "vite build",

@@ -11,6 +11,9 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "bin": {
+    "have-graphql-context": "./dist/cli/claude-context.js"
+  },
   "scripts": {
     "test": "npx vitest run --passWithNoTests",
     "test:watch": "npx vitest",
@@ -29,7 +32,9 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CLAUDE.md",
+    ".claude-meta.json"
   ],
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",

@@ -6,7 +6,8 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "sdk-mcp": "./dist/index.js"
+    "sdk-mcp": "./dist/index.js",
+    "have-sdk-mcp-context": "./dist/cli/claude-context.js"
   },
   "exports": {
     ".": {
@@ -17,7 +18,9 @@
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CLAUDE.md",
+    ".claude-meta.json"
   ],
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",

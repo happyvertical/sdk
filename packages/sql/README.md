@@ -43,6 +43,16 @@ yarn add @happyvertical/sql
 bun add @happyvertical/sql
 ```
 
+## Claude Code Context
+
+Install Claude Code context files for AI-assisted development:
+
+```bash
+npx have-sql-context
+```
+
+This copies the package's `CLAUDE.md` documentation and `.claude-meta.json` metadata to your project's `.claude/` directory, enabling Claude to provide better assistance when working with this package.
+
 ## Usage
 
 ### Connecting to a Database
