@@ -209,3 +209,317 @@ describe('postgres tests', () => {
     expect(result).toBeNull();
   });
 });
+
+describe('postgres JSON serialization', () => {
+  let db: Awaited<ReturnType<typeof getDatabase>>;
+  let postgresAvailable = false;
+
+  beforeEach(async () => {
+    postgresAvailable = await checkPostgreSQLConnection();
+    if (!postgresAvailable) {
+      console.log(
+        'PostgreSQL not available, skipping JSON serialization tests',
+      );
+      return;
+    }
+
+    db = await getDatabase({
+      type: 'postgres',
+      database: process.env.SQLOO_DATABASE || 'testdb',
+      host: process.env.SQLOO_HOST || 'localhost',
+      user: process.env.SQLOO_USER || 'postgres',
+      password: process.env.SQLOO_PASSWORD || 'postgres',
+      port: Number(process.env.SQLOO_PORT) || 5432,
+    });
+
+    await db.execute`
+      drop table if exists json_test;
+      create table json_test (
+        id uuid primary key not null,
+        tags json,
+        metadata json,
+        config json,
+        created_at timestamptz
+      )
+    `;
+  });
+
+  afterEach(async () => {
+    if (!postgresAvailable || !db) return;
+
+    await db.execute`drop table if exists json_test`;
+    await db.client.end();
+  });
+
+  it('should serialize arrays as JSON in insert', async () => {
+    if (!postgresAvailable) return;
+
+    const id = randomUUID();
+    const tags = ['javascript', 'typescript', 'postgres'];
+
+    await db.insert('json_test', {
+      id,
+      tags,
+    });
+
+    const result = await db.single`
+      select * from json_test where id = ${id}
+    `;
+
+    expect(result).toBeTruthy();
+    expect(result?.tags).toEqual(tags);
+  });
+
+  it('should serialize objects as JSON in insert', async () => {
+    if (!postgresAvailable) return;
+
+    const id = randomUUID();
+    const metadata = {
+      author: 'Test User',
+      version: 1,
+      published: true,
+    };
+
+    await db.insert('json_test', {
+      id,
+      metadata,
+    });
+
+    const result = await db.single`
+      select * from json_test where id = ${id}
+    `;
+
+    expect(result).toBeTruthy();
+    expect(result?.metadata).toEqual(metadata);
+  });
+
+  it('should serialize nested objects as JSON in insert', async () => {
+    if (!postgresAvailable) return;
+
+    const id = randomUUID();
+    const config = {
+      database: {
+        host: 'localhost',
+        port: 5432,
+        credentials: {
+          username: 'admin',
+          roles: ['read', 'write'],
+        },
+      },
+      cache: {
+        enabled: true,
+        ttl: 3600,
+      },
+    };
+
+    await db.insert('json_test', {
+      id,
+      config,
+    });
+
+    const result = await db.single`
+      select * from json_test where id = ${id}
+    `;
+
+    expect(result).toBeTruthy();
+    expect(result?.config).toEqual(config);
+  });
+
+  it('should serialize Date objects as ISO strings in insert', async () => {
+    if (!postgresAvailable) return;
+
+    const id = randomUUID();
+    const createdAt = new Date('2026-01-20T12:00:00Z');
+
+    await db.insert('json_test', {
+      id,
+      created_at: createdAt,
+    });
+
+    const result = await db.single`
+      select * from json_test where id = ${id}
+    `;
+
+    expect(result).toBeTruthy();
+    // Postgres returns timestamptz as Date object
+    expect(result?.created_at).toBeInstanceOf(Date);
+    expect(result?.created_at.toISOString()).toBe(createdAt.toISOString());
+  });
+
+  it('should serialize arrays as JSON in update', async () => {
+    if (!postgresAvailable) return;
+
+    const id = randomUUID();
+    await db.insert('json_test', { id, tags: [] });
+
+    const newTags = ['updated', 'tags', 'array'];
+    await db.update('json_test', { id }, { tags: newTags });
+
+    const result = await db.single`
+      select * from json_test where id = ${id}
+    `;
+
+    expect(result?.tags).toEqual(newTags);
+  });
+
+  it('should serialize objects as JSON in update', async () => {
+    if (!postgresAvailable) return;
+
+    const id = randomUUID();
+    await db.insert('json_test', { id, metadata: {} });
+
+    const newMetadata = {
+      updated: true,
+      timestamp: '2026-01-20T12:00:00Z',
+      count: 42,
+    };
+    await db.update('json_test', { id }, { metadata: newMetadata });
+
+    const result = await db.single`
+      select * from json_test where id = ${id}
+    `;
+
+    expect(result?.metadata).toEqual(newMetadata);
+  });
+
+  it('should serialize arrays as JSON in upsert', async () => {
+    if (!postgresAvailable) return;
+
+    const id = randomUUID();
+    const tags = ['upsert', 'test', 'array'];
+
+    await db.upsert('json_test', ['id'], {
+      id,
+      tags,
+    });
+
+    const result = await db.single`
+      select * from json_test where id = ${id}
+    `;
+
+    expect(result?.tags).toEqual(tags);
+
+    // Update via upsert
+    const updatedTags = ['updated', 'upsert', 'tags'];
+    await db.upsert('json_test', ['id'], {
+      id,
+      tags: updatedTags,
+    });
+
+    const updated = await db.single`
+      select * from json_test where id = ${id}
+    `;
+
+    expect(updated?.tags).toEqual(updatedTags);
+  });
+
+  it('should serialize objects as JSON in upsert', async () => {
+    if (!postgresAvailable) return;
+
+    const id = randomUUID();
+    const config = {
+      feature1: true,
+      feature2: false,
+      settings: { theme: 'dark' },
+    };
+
+    await db.upsert('json_test', ['id'], {
+      id,
+      config,
+    });
+
+    const result = await db.single`
+      select * from json_test where id = ${id}
+    `;
+
+    expect(result?.config).toEqual(config);
+
+    // Update via upsert
+    const updatedConfig = {
+      feature1: false,
+      feature2: true,
+      settings: { theme: 'light', fontSize: 14 },
+    };
+    await db.upsert('json_test', ['id'], {
+      id,
+      config: updatedConfig,
+    });
+
+    const updated = await db.single`
+      select * from json_test where id = ${id}
+    `;
+
+    expect(updated?.config).toEqual(updatedConfig);
+  });
+
+  it('should handle empty arrays and objects', async () => {
+    if (!postgresAvailable) return;
+
+    const id = randomUUID();
+
+    await db.insert('json_test', {
+      id,
+      tags: [],
+      metadata: {},
+    });
+
+    const result = await db.single`
+      select * from json_test where id = ${id}
+    `;
+
+    expect(result?.tags).toEqual([]);
+    expect(result?.metadata).toEqual({});
+  });
+
+  it('should handle null values correctly', async () => {
+    if (!postgresAvailable) return;
+
+    const id = randomUUID();
+
+    await db.insert('json_test', {
+      id,
+      tags: null,
+      metadata: null,
+    });
+
+    const result = await db.single`
+      select * from json_test where id = ${id}
+    `;
+
+    expect(result?.tags).toBeNull();
+    expect(result?.metadata).toBeNull();
+  });
+
+  it('should serialize multiple JSON columns in batch insert', async () => {
+    if (!postgresAvailable) return;
+
+    const records = [
+      {
+        id: randomUUID(),
+        tags: ['tag1', 'tag2'],
+        metadata: { index: 0 },
+        config: { enabled: true },
+      },
+      {
+        id: randomUUID(),
+        tags: ['tag3', 'tag4'],
+        metadata: { index: 1 },
+        config: { enabled: false },
+      },
+    ];
+
+    await db.insert('json_test', records);
+
+    const results = await db.many`
+      select * from json_test order by (metadata->>'index')::int
+    `;
+
+    expect(results).toHaveLength(2);
+    expect(results[0].tags).toEqual(['tag1', 'tag2']);
+    expect(results[0].metadata).toEqual({ index: 0 });
+    expect(results[0].config).toEqual({ enabled: true });
+    expect(results[1].tags).toEqual(['tag3', 'tag4']);
+    expect(results[1].metadata).toEqual({ index: 1 });
+    expect(results[1].config).toEqual({ enabled: false });
+  });
+});

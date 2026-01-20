@@ -222,6 +222,42 @@ export async function getDatabase(
   }
 
   /**
+   * Serializes a value for database storage
+   * Converts objects and arrays to JSON strings
+   * Converts Dates to ISO strings
+   * Passes through primitives unchanged
+   */
+  const serializeValue = (value: any): any => {
+    if (value === null || value === undefined) {
+      return value;
+    }
+    if (value instanceof Date) {
+      return value.toISOString();
+    }
+    if (typeof value === 'object') {
+      return JSON.stringify(value);
+    }
+    return value;
+  };
+
+  /**
+   * Serializes all values in an object for database storage
+   */
+  const serializeRecord = (
+    record: Record<string, any>,
+  ): Record<string, any> => {
+    const serialized: Record<string, any> = {};
+    for (const [key, value] of Object.entries(record)) {
+      // Skip undefined values - they cannot be passed to the database
+      if (value === undefined) {
+        continue;
+      }
+      serialized[key] = serializeValue(value);
+    }
+    return serialized;
+  };
+
+  /**
    * Inserts one or more records into a table
    *
    * @param table - Table name
@@ -251,8 +287,10 @@ export async function getDatabase(
   ): Promise<BaseQueryResult> => {
     // If data is an array, we need to handle multiple rows
     if (Array.isArray(data)) {
-      const keys = Object.keys(data[0]);
-      const placeholders = data
+      // Serialize all records in the array
+      const serializedRecords = data.map((record) => serializeRecord(record));
+      const keys = Object.keys(serializedRecords[0]);
+      const placeholders = serializedRecords
         .map(
           (_, i) =>
             `(${keys.map((_, j) => `$${i * keys.length + j + 1}`).join(', ')})`,
@@ -261,7 +299,7 @@ export async function getDatabase(
       const query = `INSERT INTO ${table} (${keys.join(
         ', ',
       )}) VALUES ${placeholders}`;
-      const values = data.reduce(
+      const values = serializedRecords.reduce(
         (acc, row) => acc.concat(Object.values(row)),
         [],
       );
@@ -269,8 +307,9 @@ export async function getDatabase(
       return { operation: 'insert', affected: result.rowCount ?? 0 };
     }
     // If data is an object, we handle a single row
-    const keys = Object.keys(data);
-    const values = Object.values(data);
+    const serializedData = serializeRecord(data);
+    const keys = Object.keys(serializedData);
+    const values = Object.values(serializedData);
     const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
     const query = `INSERT INTO ${table} (${keys.join(
       ', ',
@@ -348,8 +387,10 @@ export async function getDatabase(
     where: Record<string, any>,
     data: Record<string, any>,
   ): Promise<BaseQueryResult> => {
-    const keys = Object.keys(data);
-    const values = Object.values(data);
+    // Serialize the data to update
+    const serializedData = serializeRecord(data);
+    const keys = Object.keys(serializedData);
+    const values = Object.values(serializedData);
     const setClause = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
     const whereKeys = Object.keys(where);
     const whereValues = Object.values(where);
@@ -385,21 +426,26 @@ export async function getDatabase(
     conflictColumns: string[],
     data: Record<string, any>,
   ): Promise<BaseQueryResult> => {
+    // Serialize the data to convert objects/arrays to JSON strings
+    const serializedData = serializeRecord(data);
+
     // Validate that all conflict columns are present in the data
-    const missingColumns = conflictColumns.filter((col) => !(col in data));
+    const missingColumns = conflictColumns.filter(
+      (col) => !(col in serializedData),
+    );
 
     if (missingColumns.length > 0) {
       throw new DatabaseError('Conflict columns missing from data', {
         table,
         conflictColumns,
         missingColumns,
-        availableColumns: Object.keys(data),
+        availableColumns: Object.keys(serializedData),
         hint: 'All columns specified in ON CONFLICT must be present in the data being inserted. Undefined values should be replaced with null or an appropriate default.',
       });
     }
 
-    const keys = Object.keys(data);
-    const values = Object.values(data);
+    const keys = Object.keys(serializedData);
+    const values = Object.values(serializedData);
     const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
     const updateSet = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
     const conflict = conflictColumns.join(', ');
