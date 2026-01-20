@@ -10,6 +10,16 @@ npm install @happyvertical/secrets
 pnpm add @happyvertical/secrets
 ```
 
+## Claude Code Context
+
+Install Claude Code context files for AI-assisted development:
+
+```bash
+npx have-secrets-context
+```
+
+This copies the package's `CLAUDE.md` documentation and `.claude-meta.json` metadata to your project's `.claude/` directory, enabling Claude to provide better assistance when working with this package.
+
 ## Overview
 
 This package provides envelope encryption primitives for secure, per-tenant secret management. It uses a two-tier key hierarchy:

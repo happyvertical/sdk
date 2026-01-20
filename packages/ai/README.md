@@ -41,6 +41,16 @@ npm install @happyvertical/ai
 yarn add @happyvertical/ai
 ```
 
+## Claude Code Context
+
+Install Claude Code context files for AI-assisted development:
+
+```bash
+npx have-ai-context
+```
+
+This copies the package's `CLAUDE.md` documentation and `.claude-meta.json` metadata to your project's `.claude/` directory, enabling Claude to provide better assistance when working with this package.
+
 ## Quick Start
 
 ### Basic Usage (Auto-Detection)

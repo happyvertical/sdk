@@ -1,0 +1,39 @@
+{
+  "name": "@happyvertical/auth",
+  "description": "Unified authentication with Keycloak, Kanidm, AWS Cognito, and Nostr providers",
+  "purpose": [
+    "OAuth2/OIDC flows (authorization code, token exchange)",
+    "Nostr public key authentication",
+    "User and session management",
+    "Role-based access control"
+  ],
+  "keyExports": {
+    "functions": [
+      { "name": "getAuth", "signature": "(options: AuthOptions) => Promise<AuthInterface>" }
+    ],
+    "types": ["AuthInterface", "AuthResult", "TokenClaims", "UserProfile"],
+    "errors": ["AuthError", "InvalidCredentialsError", "TokenExpiredError", "AccessDeniedError"]
+  },
+  "dependencies": {
+    "internal": ["@happyvertical/utils"],
+    "external": ["jose", "@aws-sdk/client-cognito-identity-provider", "nostr-tools"]
+  },
+  "patterns": [
+    { "name": "OAuth Flow", "usage": "getAuthorizationUrl() → exchangeCode()" },
+    { "name": "Token Validation", "usage": "auth.validateToken(accessToken)" },
+    { "name": "Nostr Auth", "usage": "auth.authenticate({ method: 'extension' })" }
+  ],
+  "pitfalls": [
+    "Never expose private keys (especially Nostr)",
+    "Use PKCE for public clients",
+    "Nostr tokens are ephemeral (no refresh)",
+    "Some operations throw NotImplementedError for certain providers"
+  ],
+  "envVars": [
+    "HAVE_AUTH_TYPE",
+    "HAVE_AUTH_SERVER_URL",
+    "HAVE_AUTH_CLIENT_ID",
+    "HAVE_AUTH_CLIENT_SECRET"
+  ],
+  "keywords": ["auth", "oauth", "oidc", "keycloak", "cognito", "nostr", "jwt"]
+}

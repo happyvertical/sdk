@@ -11,10 +11,15 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "bin": {
+    "have-analytics-context": "./dist/cli/claude-context.js"
+  },
   "files": [
     "dist",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "CLAUDE.md",
+    ".claude-meta.json"
   ],
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",

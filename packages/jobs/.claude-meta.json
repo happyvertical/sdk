@@ -1,0 +1,41 @@
+{
+  "name": "@happyvertical/jobs",
+  "description": "Job queue abstraction with SQLite, PostgreSQL, Bull, BullMQ, SQS, and Cloud Tasks adapters",
+  "purpose": [
+    "Background job processing",
+    "Retry strategies with exponential/linear backoff",
+    "Priority queues",
+    "Worker management"
+  ],
+  "keyExports": {
+    "classes": [
+      "SqliteJobStore",
+      "PostgresJobStore",
+      "BullJobStore",
+      "BullMQJobStore",
+      "SQSJobStore",
+      "CloudTasksJobStore"
+    ],
+    "functions": [
+      { "name": "createWorker", "signature": "(store, config) => Worker" },
+      { "name": "exponential", "signature": "(options) => RetryStrategy" },
+      { "name": "linear", "signature": "(options) => RetryStrategy" }
+    ],
+    "types": ["Job", "JobStore", "Worker", "RetryStrategy"]
+  },
+  "dependencies": {
+    "internal": ["@happyvertical/sql", "@happyvertical/utils"],
+    "external": ["bull", "bullmq", "@aws-sdk/client-sqs", "@google-cloud/tasks"]
+  },
+  "patterns": [
+    { "name": "Add Job", "usage": "store.add({ data, priority, delay })" },
+    { "name": "Worker", "usage": "createWorker(store, { handler, concurrency })" },
+    { "name": "Events", "usage": "store.on('completed', callback)" }
+  ],
+  "pitfalls": [
+    "SQLite for dev, PostgreSQL/Redis for production",
+    "Always implement graceful worker shutdown",
+    "External adapters require peer dependencies"
+  ],
+  "keywords": ["jobs", "queue", "worker", "background", "redis", "bull"]
+}

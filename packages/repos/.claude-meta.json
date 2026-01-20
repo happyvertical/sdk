@@ -1,0 +1,25 @@
+{
+  "name": "@happyvertical/repos",
+  "description": "Standardized repository interface for GitHub, GitLab, Bitbucket, and Azure DevOps",
+  "keyExports": {
+    "functions": [
+      { "name": "getReposProvider", "signature": "(options) => Promise<ReposProvider>" }
+    ],
+    "types": ["ReposProvider", "Repository", "Issue", "Label"]
+  },
+  "dependencies": {
+    "internal": ["@happyvertical/graphql"],
+    "external": ["js-yaml"]
+  },
+  "patterns": [
+    { "name": "Get Repo", "usage": "provider.getRepository({ owner, repo })" },
+    { "name": "List Issues", "usage": "provider.listIssues({ owner, repo, state })" },
+    { "name": "Create Issue", "usage": "provider.createIssue({ owner, repo, title, body })" }
+  ],
+  "pitfalls": [
+    "GitHub rate limits: 5000 req/hour authenticated",
+    "Label colors without # prefix",
+    "Use pagination for large result sets"
+  ],
+  "keywords": ["repos", "github", "gitlab", "issues", "labels"]
+}

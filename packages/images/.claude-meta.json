@@ -1,0 +1,16 @@
+{
+  "name": "@happyvertical/images",
+  "description": "Image processing utilities",
+  "keyExports": [
+    "processImage",
+    "resizeImage"
+  ],
+  "dependencies": {
+    "internal": [],
+    "external": []
+  },
+  "pitfalls": [
+    "Large images can cause memory issues"
+  ],
+  "keywords": ["images", "processing", "resize"]
+}

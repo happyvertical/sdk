@@ -1,0 +1,37 @@
+{
+  "name": "@happyvertical/accounting",
+  "description": "Multi-provider accounting integration for QuickBooks, Stripe, PayPal",
+  "purpose": [
+    "Sync AR/AP data with external providers",
+    "Audit and reconciliation",
+    "OAuth token management",
+    "Webhook processing"
+  ],
+  "keyExports": {
+    "functions": [
+      { "name": "getAccountingProvider", "signature": "(options) => Promise<AccountingProvider>" }
+    ],
+    "types": ["AccountingProvider", "CustomerInput", "InvoiceInput", "SyncResult", "AuditReport"]
+  },
+  "dependencies": {
+    "internal": ["@happyvertical/utils"],
+    "external": ["intuit-oauth"]
+  },
+  "patterns": [
+    { "name": "Sync", "usage": "provider.customers.sync(customer)" },
+    { "name": "Audit", "usage": "provider.audit.reconcileInvoices(localInvoices)" },
+    { "name": "Webhooks", "usage": "provider.webhooks.verify(payload, signature)" }
+  ],
+  "pitfalls": [
+    "QuickBooks OAuth tokens expire - use onTokenRefresh callback",
+    "Store refreshed tokens securely",
+    "Not all providers support all operations"
+  ],
+  "envVars": [
+    "HAVE_ACCOUNTING_TYPE",
+    "HAVE_ACCOUNTING_CLIENT_ID",
+    "HAVE_ACCOUNTING_CLIENT_SECRET",
+    "HAVE_ACCOUNTING_REALM_ID"
+  ],
+  "keywords": ["accounting", "quickbooks", "stripe", "invoice", "sync", "ar", "ap"]
+}

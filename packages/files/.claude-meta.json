@@ -1,0 +1,43 @@
+{
+  "name": "@happyvertical/files",
+  "description": "File system interface with local and remote provider support, rate-limited fetch, and caching",
+  "purpose": [
+    "Unified API for local and remote file systems",
+    "Cross-platform file operations",
+    "Rate-limited HTTP fetch utilities",
+    "Temporary file management",
+    "File caching"
+  ],
+  "keyExports": {
+    "functions": [
+      { "name": "getFilesystem", "signature": "(options: FilesystemOptions) => Promise<FilesystemInterface>" },
+      { "name": "fetchText", "signature": "(url: string) => Promise<string>" },
+      { "name": "fetchJSON", "signature": "<T>(url: string) => Promise<T>" },
+      { "name": "fetchBuffer", "signature": "(url: string) => Promise<Buffer>" },
+      { "name": "fetchToFile", "signature": "(url: string, path: string) => Promise<void>" },
+      { "name": "addRateLimit", "signature": "(domain: string, limit: number, interval: number) => Promise<void>" }
+    ],
+    "types": ["FilesystemInterface", "FileInfo", "FileStats"],
+    "errors": ["FilesystemError", "FileNotFoundError", "PermissionError"]
+  },
+  "dependencies": {
+    "internal": ["@happyvertical/utils"],
+    "external": []
+  },
+  "architecture": {
+    "pattern": "Provider + Factory",
+    "notes": "LocalFilesystemProvider is default; S3, WebDAV, Google Drive planned"
+  },
+  "patterns": [
+    { "name": "File Operations", "usage": "fs.read(path), fs.write(path, content), fs.exists(path)" },
+    { "name": "Rate Limiting", "usage": "addRateLimit(domain, limit, interval) before fetch operations" },
+    { "name": "Temp Files", "usage": "Use getTempDirectory() from @happyvertical/utils" }
+  ],
+  "pitfalls": [
+    "Always use path.join() for cross-platform paths",
+    "Use streams for large files to avoid memory issues",
+    "Clean up temporary files in finally blocks",
+    "Rate limits are per-domain; configure before fetch calls"
+  ],
+  "keywords": ["files", "filesystem", "fetch", "download", "upload", "cache"]
+}

@@ -12,8 +12,15 @@
       "types": "./dist/index.d.ts"
     }
   },
+  "bin": {
+    "have-email-context": "./dist/cli/claude-context.js"
+  },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CLAUDE.md",
+    ".claude-meta.json"
   ],
   "publishConfig": {
     "registry": "https://npm.pkg.github.com",
