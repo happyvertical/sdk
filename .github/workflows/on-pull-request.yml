@@ -1,4 +1,4 @@
-name: Pull Request Validation
+name: on-pull-request
 
 on:
   pull_request:
