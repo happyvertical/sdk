@@ -21,19 +21,25 @@ concurrency:
 
 jobs:
   claude:
+    # Ignore comments from bots to prevent feedback loops where Claude's own
+    # error/status comments trigger new workflow runs that cancel the original
     if: |
-      (github.event_name == 'issue_comment' &&
-        contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review_comment' &&
-        contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' &&
-        contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' &&
-        github.event.action == 'labeled' &&
-        github.event.label.name == 'blocker') ||
-      (github.event_name == 'issues' &&
-        (contains(github.event.issue.body, '@claude') ||
-        contains(github.event.issue.title, '@claude')))
+      github.event.comment.user.login != 'github-actions[bot]' &&
+      github.event.sender.login != 'github-actions[bot]' &&
+      (
+        (github.event_name == 'issue_comment' &&
+          contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review_comment' &&
+          contains(github.event.comment.body, '@claude')) ||
+        (github.event_name == 'pull_request_review' &&
+          contains(github.event.review.body, '@claude')) ||
+        (github.event_name == 'issues' &&
+          github.event.action == 'labeled' &&
+          github.event.label.name == 'blocker') ||
+        (github.event_name == 'issues' &&
+          (contains(github.event.issue.body, '@claude') ||
+          contains(github.event.issue.title, '@claude')))
+      )
     runs-on: arc-happyvertical
     permissions:
       contents: write        # Allow Claude to push commits and create branches
