@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/geo",
-  "version": "0.66.11",
+  "version": "0.67.0",
   "description": "Standardized geographical information interface supporting Google Maps and OpenStreetMap",
   "type": "module",
   "main": "./dist/index.js",
