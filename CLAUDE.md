@@ -205,6 +205,12 @@ HAppy VErtical follows a standardized development workflow across all projects. 
 - [**Branching Strategy**](./notes/workflow/GIT_BRANCHING.md) - Feature branch workflow, never push to main
 - [**Conventional Commits**](./notes/workflow/CONVENTIONAL_COMMITS.md) - Commit message format and semantic versioning
 
+**Important**: Before adding commits to an existing branch, always check if the associated PR has been merged:
+```bash
+gh pr view <PR_NUMBER> --json state -q '.state'  # Should not be "MERGED"
+```
+If the PR is merged, create a new branch from `main` instead of adding to the merged branch.
+
 ### Communication & Collaboration
 
 - [**Communication Guidelines**](./notes/workflow/COMMUNICATION_GUIDELINES.md) - Using AskUserQuestion wizard
