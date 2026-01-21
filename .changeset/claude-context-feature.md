@@ -13,7 +13,6 @@
 "@happyvertical/graphql": minor
 "@happyvertical/images": minor
 "@happyvertical/jobs": minor
-"@happyvertical/languages": minor
 "@happyvertical/logger": minor
 "@happyvertical/projects": minor
 "@happyvertical/repos": minor
