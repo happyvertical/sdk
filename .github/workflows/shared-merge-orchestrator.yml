@@ -35,25 +35,18 @@ jobs:
     uses: ./.github/workflows/test.yml
     secrets: inherit
 
-  build:
+  # Build is combined with publish to avoid redundant builds
+  # The publish workflow handles building before publishing
+  publish:
     needs: test
     if: |
-      always() && (needs.test.result == 'success' ||
-      needs.test.result == 'skipped')
-    uses: ./.github/workflows/build.yml
-    secrets: inherit
-
-  publish:
-    needs: [test, build]
-    if: |
       always() &&
-      (needs.test.result == 'success' || needs.test.result == 'skipped') &&
-      (needs.build.result == 'success' || needs.build.result == 'skipped')
+      (needs.test.result == 'success' || needs.test.result == 'skipped')
     uses: ./.github/workflows/publish.yml
     secrets: inherit
 
   summary:
-    needs: [test, build, publish]
+    needs: [test, publish]
     if: always()
     runs-on: arc-happyvertical
     steps:
@@ -63,7 +56,5 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           test_result="${{ needs.test.result || 'skipped (no test.yml)' }}"
           echo "- **Test**: $test_result" >> $GITHUB_STEP_SUMMARY
-          build_result="${{ needs.build.result || 'skipped (no build.yml)' }}"
-          echo "- **Build**: $build_result" >> $GITHUB_STEP_SUMMARY
           result="${{ needs.publish.result || 'skipped (no publish.yml)' }}"
-          echo "- **Publish**: $result" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build + Publish**: $result" >> $GITHUB_STEP_SUMMARY
