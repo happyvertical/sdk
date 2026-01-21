@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.67.1
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - prevent bot comments from triggering Claude workflow (#769)
+
 ## 0.67.0
 
 ### Minor Changes
