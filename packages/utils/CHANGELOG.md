@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.67.2
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - add constructors to image adapters to accept options (#772)
+
 ## 0.67.1
 
 ### Patch Changes
