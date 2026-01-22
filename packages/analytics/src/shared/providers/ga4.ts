@@ -184,7 +184,7 @@ export class GA4Provider implements AnalyticsInterface {
     }
 
     try {
-      const response = await this.adminClient?.properties.create({
+      const response = await this.adminClient!.properties.create({
         requestBody: {
           displayName: options.displayName,
           timeZone: options.timeZone || 'America/Los_Angeles',
@@ -218,7 +218,7 @@ export class GA4Provider implements AnalyticsInterface {
     await this.ensureClients();
 
     try {
-      const response = await this.adminClient?.properties.list({
+      const response = await this.adminClient!.properties.list({
         filter: 'ancestor:accounts/-',
         showDeleted: false,
       });
@@ -247,7 +247,7 @@ export class GA4Provider implements AnalyticsInterface {
     await this.ensureClients();
 
     try {
-      const response = await this.adminClient?.properties.get({
+      const response = await this.adminClient!.properties.get({
         name: this.getPropertyName(propertyId),
       });
 
@@ -281,7 +281,7 @@ export class GA4Provider implements AnalyticsInterface {
     if (data.industryCategory) updateMask.push('industryCategory');
 
     try {
-      const response = await this.adminClient?.properties.patch({
+      const response = await this.adminClient!.properties.patch({
         name: this.getPropertyName(propertyId),
         updateMask: updateMask.join(','),
         requestBody: {
@@ -313,7 +313,7 @@ export class GA4Provider implements AnalyticsInterface {
     await this.ensureClients();
 
     try {
-      await this.adminClient?.properties.delete({
+      await this.adminClient!.properties.delete({
         name: this.getPropertyName(propertyId),
       });
     } catch (error) {
@@ -329,7 +329,7 @@ export class GA4Provider implements AnalyticsInterface {
     await this.ensureClients();
 
     try {
-      const response = await this.adminClient?.properties.dataStreams.list({
+      const response = await this.adminClient!.properties.dataStreams.list({
         parent: this.getPropertyName(propertyId),
       });
 
@@ -382,7 +382,7 @@ export class GA4Provider implements AnalyticsInterface {
         };
       }
 
-      const response = await this.adminClient?.properties.dataStreams.create({
+      const response = await this.adminClient!.properties.dataStreams.create({
         parent: this.getPropertyName(propertyId),
         requestBody,
       });
@@ -410,7 +410,7 @@ export class GA4Provider implements AnalyticsInterface {
     await this.ensureClients();
 
     try {
-      await this.adminClient?.properties.dataStreams.delete({
+      await this.adminClient!.properties.dataStreams.delete({
         name: `${this.getPropertyName(propertyId)}/dataStreams/${streamId}`,
       });
     } catch (error) {
@@ -426,7 +426,7 @@ export class GA4Provider implements AnalyticsInterface {
     await this.ensureClients();
 
     try {
-      const response = await this.adminClient?.properties.customDimensions.list(
+      const response = await this.adminClient!.properties.customDimensions.list(
         {
           parent: this.getPropertyName(propertyId),
         },
@@ -459,7 +459,7 @@ export class GA4Provider implements AnalyticsInterface {
 
     try {
       const response =
-        await this.adminClient?.properties.customDimensions.create({
+        await this.adminClient!.properties.customDimensions.create({
           parent: this.getPropertyName(propertyId),
           requestBody: {
             parameterName: options.parameterName,
@@ -492,7 +492,7 @@ export class GA4Provider implements AnalyticsInterface {
     await this.ensureClients();
 
     try {
-      await this.adminClient?.properties.customDimensions.archive({
+      await this.adminClient!.properties.customDimensions.archive({
         name: `${this.getPropertyName(propertyId)}/customDimensions/${dimensionId}`,
       });
     } catch (error) {
@@ -504,7 +504,7 @@ export class GA4Provider implements AnalyticsInterface {
     await this.ensureClients();
 
     try {
-      const response = await this.adminClient?.properties.customMetrics.list({
+      const response = await this.adminClient!.properties.customMetrics.list({
         parent: this.getPropertyName(propertyId),
       });
 
@@ -538,7 +538,7 @@ export class GA4Provider implements AnalyticsInterface {
     await this.ensureClients();
 
     try {
-      const response = await this.adminClient?.properties.customMetrics.create({
+      const response = await this.adminClient!.properties.customMetrics.create({
         parent: this.getPropertyName(propertyId),
         requestBody: {
           parameterName: options.parameterName,
@@ -578,7 +578,7 @@ export class GA4Provider implements AnalyticsInterface {
     await this.ensureClients();
 
     try {
-      await this.adminClient?.properties.customMetrics.archive({
+      await this.adminClient!.properties.customMetrics.archive({
         name: `${this.getPropertyName(propertyId)}/customMetrics/${metricId}`,
       });
     } catch (error) {
@@ -594,7 +594,7 @@ export class GA4Provider implements AnalyticsInterface {
     await this.ensureClients();
 
     try {
-      const response = await this.adminClient?.properties.keyEvents.list({
+      const response = await this.adminClient!.properties.keyEvents.list({
         parent: this.getPropertyName(propertyId),
       });
 
@@ -627,7 +627,7 @@ export class GA4Provider implements AnalyticsInterface {
     await this.ensureClients();
 
     try {
-      const response = await this.adminClient?.properties.keyEvents.create({
+      const response = await this.adminClient!.properties.keyEvents.create({
         parent: this.getPropertyName(propertyId),
         requestBody: {
           eventName: options.eventName,
@@ -659,7 +659,7 @@ export class GA4Provider implements AnalyticsInterface {
     await this.ensureClients();
 
     try {
-      await this.adminClient?.properties.keyEvents.delete({
+      await this.adminClient!.properties.keyEvents.delete({
         name: `${this.getPropertyName(propertyId)}/keyEvents/${eventId}`,
       });
     } catch (error) {
@@ -678,7 +678,7 @@ export class GA4Provider implements AnalyticsInterface {
     await this.ensureClients();
 
     try {
-      const response = await this.dataClient?.properties.runReport({
+      const response = await this.dataClient!.properties.runReport({
         property: this.getPropertyName(propertyId),
         requestBody: {
           dateRanges: options.dateRanges,
@@ -759,7 +759,7 @@ export class GA4Provider implements AnalyticsInterface {
     await this.ensureClients();
 
     try {
-      const response = await this.dataClient?.properties.runRealtimeReport({
+      const response = await this.dataClient!.properties.runRealtimeReport({
         property: this.getPropertyName(propertyId),
         requestBody: {
           dimensions: options?.dimensions,
@@ -807,7 +807,7 @@ export class GA4Provider implements AnalyticsInterface {
     await this.ensureClients();
 
     try {
-      const response = await this.dataClient?.properties.getMetadata({
+      const response = await this.dataClient!.properties.getMetadata({
         name: `${this.getPropertyName(propertyId)}/metadata`,
       });
 
@@ -833,7 +833,7 @@ export class GA4Provider implements AnalyticsInterface {
     await this.ensureClients();
 
     try {
-      const response = await this.dataClient?.properties.getMetadata({
+      const response = await this.dataClient!.properties.getMetadata({
         name: `${this.getPropertyName(propertyId)}/metadata`,
       });
 
