@@ -61,7 +61,7 @@
     "deepl-node": "^1.24.0"
   },
   "devDependencies": {
-    "@types/node": "25.0.9",
+    "@types/node": "25.0.10",
     "typescript": "^5.9.3",
     "vite": "7.3.1",
     "vite-plugin-dts": "4.5.4",

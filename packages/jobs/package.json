@@ -83,7 +83,7 @@
     "@aws-sdk/client-sqs": "^3.972.0",
     "@google-cloud/tasks": "^6.2.1",
     "@types/bull": "^4.10.4",
-    "@types/node": "25.0.9",
+    "@types/node": "25.0.10",
     "bull": "^4.16.5",
     "bullmq": "^5.66.5",
     "typescript": "^5.9.3",
