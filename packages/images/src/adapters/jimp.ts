@@ -17,6 +17,7 @@ import type {
   ImageInput,
   ImageMetadata,
   ImageProcessorInterface,
+  JimpOptions,
   ResizeOptions,
   ThumbnailOptions,
 } from '../shared/types.js';
@@ -71,6 +72,16 @@ interface JimpStatic {
  */
 export class JimpAdapter implements ImageProcessorInterface {
   private jimpStatic: JimpStatic | null = null;
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: Stored for API compatibility and future extensibility
+  private options: JimpOptions;
+
+  /**
+   * Create a new Jimp adapter
+   * @param options - Jimp adapter options
+   */
+  constructor(options: JimpOptions = { type: 'jimp' }) {
+    this.options = options;
+  }
 
   /**
    * Lazily load Jimp module

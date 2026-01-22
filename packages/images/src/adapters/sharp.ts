@@ -13,6 +13,7 @@ import type {
   ImageMetadata,
   ImageProcessorInterface,
   ResizeOptions,
+  SharpOptions,
   ThumbnailOptions,
 } from '../shared/types.js';
 
@@ -33,6 +34,16 @@ import type {
  */
 export class SharpAdapter implements ImageProcessorInterface {
   private sharp: typeof import('sharp') | null = null;
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: Stored for API compatibility and future extensibility
+  private options: SharpOptions;
+
+  /**
+   * Create a new Sharp adapter
+   * @param options - Sharp adapter options
+   */
+  constructor(options: SharpOptions = {}) {
+    this.options = options;
+  }
 
   /**
    * Lazily load sharp module
