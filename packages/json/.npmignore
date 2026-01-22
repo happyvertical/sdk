@@ -1,0 +1,21 @@
+# Source files
+src/
+*.rs
+Cargo.toml
+build.rs
+target/
+
+# Tests
+__tests__/
+*.test.ts
+*.spec.ts
+*.bench.ts
+
+# Development files
+.gitignore
+tsconfig.json
+vite.config.ts
+vitest.config.ts
+
+# Documentation source
+CLAUDE.md
