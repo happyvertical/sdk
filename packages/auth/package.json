@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/auth",
-  "version": "0.67.2",
+  "version": "0.67.3",
   "description": "Unified authentication interface supporting Keycloak, AWS Cognito, and Nostr with OAuth2/OIDC and public key identity",
   "type": "module",
   "main": "./dist/index.js",

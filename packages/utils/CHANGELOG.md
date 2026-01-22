@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.67.3
+
+### Patch Changes
+
+- ### Features
+
+  - add @happyvertical/json package with Rust SIMD acceleration (#773) (json)
+
 ## 0.67.2
 
 ### Patch Changes
