@@ -299,7 +299,7 @@ export async function getDatabase(
       const query = `INSERT INTO ${table} (${keys.join(
         ', ',
       )}) VALUES ${placeholders}`;
-      const values = serializedRecords.reduce(
+      const values = serializedRecords.reduce<any[]>(
         (acc, row) => acc.concat(Object.values(row)),
         [],
       );

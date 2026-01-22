@@ -187,7 +187,9 @@ export function parseCliArgs(
 
   try {
     const parsed = nodeParseArgs(parseConfig);
-    const options = parsed.values || {};
+    // Cast to Record<string, unknown> since we'll be adding number values
+    // during post-processing of 'number' type options
+    const options: Record<string, unknown> = parsed.values || {};
 
     // Post-process number options: convert strings to numbers
     for (const name of numberOptions) {
