@@ -1,0 +1,82 @@
+{
+  "name": "@happyvertical/json",
+  "version": "0.67.1",
+  "description": "High-performance JSON parsing and serialization with Rust SIMD acceleration and automatic fallback",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./adapters": {
+      "import": "./dist/adapters/index.js",
+      "types": "./dist/adapters/index.d.ts"
+    }
+  },
+  "scripts": {
+    "test": "npx vitest run",
+    "test:watch": "npx vitest",
+    "test:bench": "npx vitest bench",
+    "build": "vite build",
+    "build:rust": "napi build --platform --release || echo 'Rust build skipped (toolchain not available)'",
+    "build:rust:debug": "napi build --platform || echo 'Rust build skipped'",
+    "build:full": "npm run build:rust && npm run build",
+    "build:watch": "vite build --watch",
+    "clean": "rm -rf dist *.node target",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src/",
+    "prepublishOnly": "napi prepublish -t npm || true",
+    "artifacts": "napi artifacts",
+    "dev": "npm run build:watch & npm run test:watch"
+  },
+  "napi": {
+    "name": "json-native",
+    "triples": {
+      "defaults": true,
+      "additional": [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "aarch64-unknown-linux-musl",
+        "x86_64-unknown-linux-musl"
+      ]
+    }
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^3.0.0-alpha.74",
+    "@types/node": "25.0.9",
+    "typescript": "^5.9.3",
+    "vite": "7.3.1",
+    "vite-plugin-dts": "4.5.4",
+    "vitest": "^4.0.17"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/happyvertical/sdk.git",
+    "directory": "packages/json"
+  },
+  "bugs": {
+    "url": "https://github.com/happyvertical/sdk/issues"
+  },
+  "homepage": "https://github.com/happyvertical/sdk/tree/main/packages/json#readme",
+  "license": "MIT",
+  "keywords": [
+    "json",
+    "simd",
+    "fast",
+    "parse",
+    "stringify",
+    "rust",
+    "performance"
+  ]
+}

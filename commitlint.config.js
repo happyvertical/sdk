@@ -51,6 +51,7 @@ export default {
         'graphql',
         'images',
         'jobs',
+        'json',
         'logger',
         'messages',
         'ocr',

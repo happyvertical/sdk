@@ -1,0 +1,31 @@
+[package]
+name = "json-native"
+version = "0.67.1"
+edition = "2021"
+authors = ["HappyVertical <dev@happyvertical.com>"]
+description = "High-performance JSON parsing with SIMD acceleration"
+license = "MIT"
+repository = "https://github.com/happyvertical/sdk"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+napi = { version = "3", default-features = false, features = ["napi9", "serde-json"] }
+napi-derive = "3"
+sonic-rs = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+strip = "symbols"
+
+[profile.dev]
+opt-level = 0
+debug = true

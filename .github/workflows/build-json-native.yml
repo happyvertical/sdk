@@ -1,0 +1,220 @@
+# Build native JSON bindings for multiple platforms
+#
+# This workflow builds the Rust native bindings for @happyvertical/json
+# across all supported platforms and publishes them as platform-specific packages.
+#
+# Security note: This workflow only uses matrix variables defined in this file,
+# no untrusted user input is used in shell commands.
+
+name: Build JSON Native
+
+on:
+  workflow_call:
+    inputs:
+      dry-run:
+        description: 'Skip publishing (for testing)'
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Skip publishing (for testing)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS ARM64 (Apple Silicon)
+          - os: macos-14
+            target: aarch64-apple-darwin
+            package-suffix: darwin-arm64
+
+          # macOS x64 (Intel)
+          - os: macos-13
+            target: x86_64-apple-darwin
+            package-suffix: darwin-x64
+
+          # Linux x64 (GNU)
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            package-suffix: linux-x64-gnu
+
+          # Linux ARM64 (GNU)
+          - os: ubuntu-22.04
+            target: aarch64-unknown-linux-gnu
+            package-suffix: linux-arm64-gnu
+            use-cross: true
+
+          # Linux x64 (musl)
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-musl
+            package-suffix: linux-x64-musl
+            use-cross: true
+
+          # Linux ARM64 (musl)
+          - os: ubuntu-22.04
+            target: aarch64-unknown-linux-musl
+            package-suffix: linux-arm64-musl
+            use-cross: true
+
+          # Windows x64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            package-suffix: win32-x64-msvc
+
+    runs-on: ${{ matrix.os }}
+    name: Build ${{ matrix.package-suffix }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://npm.pkg.github.com'
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools
+        if: matrix.use-cross
+        run: |
+          cargo install cross --git https://github.com/cross-rs/cross
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        working-directory: packages/json
+        run: pnpm install
+
+      - name: Build native module
+        working-directory: packages/json
+        shell: bash
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+          USE_CROSS: ${{ matrix.use-cross }}
+        run: |
+          if [ "$USE_CROSS" = "true" ]; then
+            cross build --release --target "$BUILD_TARGET"
+          else
+            cargo build --release --target "$BUILD_TARGET"
+          fi
+
+      - name: Copy built binary
+        working-directory: packages/json
+        shell: bash
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+          PACKAGE_SUFFIX: ${{ matrix.package-suffix }}
+          RUNNER_OS: ${{ matrix.os }}
+        run: |
+          mkdir -p "npm/$PACKAGE_SUFFIX"
+
+          # Find the built binary
+          if [ "$RUNNER_OS" = "windows-latest" ]; then
+            cp "target/$BUILD_TARGET/release/json_native.dll" "npm/$PACKAGE_SUFFIX/json-native.node"
+          else
+            cp "target/$BUILD_TARGET/release/libjson_native.so" "npm/$PACKAGE_SUFFIX/json-native.node" 2>/dev/null || \
+            cp "target/$BUILD_TARGET/release/libjson_native.dylib" "npm/$PACKAGE_SUFFIX/json-native.node"
+          fi
+
+      - name: Create platform package.json
+        working-directory: packages/json
+        shell: bash
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+          PACKAGE_SUFFIX: ${{ matrix.package-suffix }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          # Determine OS and CPU from target
+          case "$BUILD_TARGET" in
+            *darwin*) PKG_OS="darwin" ;;
+            *linux*) PKG_OS="linux" ;;
+            *windows*) PKG_OS="win32" ;;
+          esac
+          case "$BUILD_TARGET" in
+            x86_64*) PKG_CPU="x64" ;;
+            aarch64*) PKG_CPU="arm64" ;;
+          esac
+
+          mkdir -p "npm/$PACKAGE_SUFFIX"
+          cat > "npm/$PACKAGE_SUFFIX/package.json" << EOF
+          {
+            "name": "@happyvertical/json-$PACKAGE_SUFFIX",
+            "version": "$VERSION",
+            "description": "Native bindings for @happyvertical/json ($PACKAGE_SUFFIX)",
+            "os": ["$PKG_OS"],
+            "cpu": ["$PKG_CPU"],
+            "main": "json-native.node",
+            "files": ["json-native.node"],
+            "publishConfig": {
+              "registry": "https://npm.pkg.github.com",
+              "access": "public"
+            },
+            "repository": {
+              "type": "git",
+              "url": "https://github.com/happyvertical/sdk.git",
+              "directory": "packages/json"
+            },
+            "license": "MIT"
+          }
+          EOF
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: json-native-${{ matrix.package-suffix }}
+          path: packages/json/npm/${{ matrix.package-suffix }}
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    if: ${{ !inputs.dry-run }}
+    name: Publish platform packages
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          registry-url: 'https://npm.pkg.github.com'
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: packages/json/npm
+          pattern: json-native-*
+          merge-multiple: false
+
+      - name: Publish platform packages
+        working-directory: packages/json
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for dir in npm/json-native-*/; do
+            if [ -d "$dir" ]; then
+              echo "Publishing $(basename "$dir")..."
+              cd "$dir"
+              npm publish --access public || echo "May already exist"
+              cd ../..
+            fi
+          done

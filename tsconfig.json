@@ -42,6 +42,7 @@
   ],
   "references": [
     // Core foundation packages
+    { "path": "./packages/json" },
     { "path": "./packages/utils" },
     { "path": "./packages/logger" },
     { "path": "./packages/files" },
