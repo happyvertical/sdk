@@ -1,3 +1,5 @@
 # @happyvertical/json
 
+## 0.67.4
+
 ## 0.67.3

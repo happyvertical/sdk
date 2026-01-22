@@ -1,5 +1,18 @@
 # @happyvertical/sql
 
+## 0.67.4
+
+### Patch Changes
+
+- db40a0a: Fix TypeScript errors from @types/node v25 stricter type checking
+
+  - analytics/ga4.ts: Use non-null assertions for adminClient/dataClient after ensureClients()
+  - utils/parse-args.ts: Cast options to Record<string, unknown> for number value post-processing
+  - sql/postgres.ts: Add type annotation to reduce() for batch insert values
+
+- Updated dependencies [db40a0a]
+  - @happyvertical/utils@0.67.4
+
 ## 0.67.3
 
 ### Patch Changes

@@ -1,5 +1,7 @@
 # @happyvertical/images
 
+## 0.67.4
+
 ## 0.67.3
 
 ## 0.67.2
