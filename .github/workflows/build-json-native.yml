@@ -199,7 +199,7 @@ jobs:
           registry-url: 'https://npm.pkg.github.com'
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           path: packages/json/npm
           pattern: json-native-*
