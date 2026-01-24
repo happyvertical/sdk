@@ -93,6 +93,8 @@ jobs:
             ${{ runner.os }}-playwright-
 
       - name: Install system dependencies for ONNX Runtime
+        # Skip on arc-runners where these are pre-installed
+        if: ${{ !startsWith(inputs.runner, 'arc-') }}
         shell: bash
         run: |
           sudo apt-get update && sudo apt-get install -y \
@@ -113,7 +115,8 @@ jobs:
           ONNXRUNTIME_NODE_INSTALL_CUDA: 'skip'
 
       - name: Install Playwright browsers
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        # Skip on arc-runners where Chromium is pre-installed, or if cache hit
+        if: ${{ steps.playwright-cache.outputs.cache-hit != 'true' && !startsWith(inputs.runner, 'arc-') }}
         shell: bash
         run: npx playwright install --with-deps chromium
 
