@@ -116,8 +116,7 @@ jobs:
           files="${{ steps.changed-files.outputs.all_changed_files }}"
           echo "Changed files: $files"
 
-          # Install yamllint
-          pip install yamllint
+          # yamllint is pre-installed in arc-runner image
 
           # Validate each changed workflow file
           for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
