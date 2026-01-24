@@ -168,8 +168,8 @@ importers:
         specifier: 3.972.0
         version: 3.972.0
       '@google/genai':
-        specifier: 1.37.0
-        version: 1.37.0(@modelcontextprotocol/sdk@1.25.3(hono@4.11.3)(zod@4.3.5))
+        specifier: 1.38.0
+        version: 1.38.0(@modelcontextprotocol/sdk@1.25.3(hono@4.11.3)(zod@4.3.5))
       '@happyvertical/utils':
         specifier: workspace:*
         version: link:../utils
@@ -3158,8 +3158,8 @@ packages:
       '@modelcontextprotocol/sdk':
         optional: true
 
-  '@google/genai@1.37.0':
-    resolution: {integrity: sha512-of85LwNqretPhBHHEljUY05OSsQVUPyw5n1RdNkUpKR36kgHq7CVVEGY4GplVbFaqbdT3DXfLSv5B/Avbe5vXw==}
+  '@google/genai@1.38.0':
+    resolution: {integrity: sha512-V/4CQVQGovvGHuS73lwJwHKR9x33kCij3zz/ReEQ4A7RJaV0U7m4k1mvYhFk55cGZdF5JLKu2S9BTaFuEs5xTA==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       '@modelcontextprotocol/sdk': ^1.25.2
@@ -17169,7 +17169,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@google/genai@1.37.0(@modelcontextprotocol/sdk@1.25.3(hono@4.11.3)(zod@4.3.5))':
+  '@google/genai@1.38.0(@modelcontextprotocol/sdk@1.25.3(hono@4.11.3)(zod@4.3.5))':
     dependencies:
       google-auth-library: 10.5.0
       protobufjs: 7.5.4
