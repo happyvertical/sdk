@@ -1,5 +1,16 @@
 # @happyvertical/documents
 
+## 0.67.5
+
+### Patch Changes
+
+- a3fef1d: Update @happyvertical/pdf to 0.61.0 for kreuzberg provider support
+
+  This enables memory-efficient PDF processing via kreuzberg when available.
+
+  - @happyvertical/files@0.67.5
+  - @happyvertical/utils@0.67.5
+
 ## 0.67.4
 
 ### Patch Changes
