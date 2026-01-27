@@ -15,6 +15,7 @@ import type {
   GetAIOptions,
   HuggingFaceOptions,
   OpenAIOptions,
+  Qwen3TTSOptions,
 } from './types';
 
 /**
@@ -85,6 +86,17 @@ function isClaudeCliOptions(
   options: GetAIOptions | AIClientOptions,
 ): options is ClaudeCliOptions {
   return options.type === 'claude-cli';
+}
+
+/**
+ * Checks if the options are for Qwen3-TTS provider
+ * @param options - The AI provider options to check
+ * @returns True if options are for Qwen3-TTS provider
+ */
+function isQwen3TTSOptions(
+  options: GetAIOptions | AIClientOptions,
+): options is Qwen3TTSOptions {
+  return options.type === 'qwen3-tts';
 }
 
 /**
@@ -191,6 +203,11 @@ export async function getAI(
     return new ClaudeCliProvider(options);
   }
 
+  if (isQwen3TTSOptions(options)) {
+    const { Qwen3TTSProvider } = await import('./providers/qwen-tts.js');
+    return new Qwen3TTSProvider(options);
+  }
+
   throw new ValidationError('Unsupported AI provider type', {
     supportedTypes: [
       'openai',
@@ -199,6 +216,7 @@ export async function getAI(
       'huggingface',
       'bedrock',
       'claude-cli',
+      'qwen3-tts',
     ],
     providedType: (options as any).type,
   });

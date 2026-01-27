@@ -31,6 +31,12 @@ import type {
   ImageGenerationOptions,
   ImageGenerationResponse,
   MessageOptions,
+  TTSOptions,
+  TTSResponse,
+  Voice,
+  VoiceCloneOptions,
+  VoiceDesignOptions,
+  VoiceListOptions,
 } from '../types';
 import {
   AIError,
@@ -740,8 +746,63 @@ export class ClaudeCliProvider implements AIInterface {
       fineTuning: false,
       imageEmbeddings: false,
       imageGeneration: false,
+      tts: false,
+      voiceCloning: false,
+      voiceDesign: false,
       maxContextLength: 200000,
       supportedOperations: ['chat', 'completion', 'streaming'],
     };
+  }
+
+  // ============================================================================
+  // TTS Methods (Not supported - use Qwen3-TTS provider)
+  // ============================================================================
+
+  async synthesizeSpeech(
+    _text: string,
+    _options?: TTSOptions,
+  ): Promise<TTSResponse> {
+    throw new AIError(
+      'TTS is not supported by Claude CLI provider. Use Qwen3-TTS provider.',
+      'NOT_IMPLEMENTED',
+      'claude-cli',
+    );
+  }
+
+  streamSpeech(_text: string, _options?: TTSOptions): AsyncIterable<Buffer> {
+    const error = new AIError(
+      'TTS streaming is not supported by Claude CLI provider. Use Qwen3-TTS provider.',
+      'NOT_IMPLEMENTED',
+      'claude-cli',
+    );
+    return {
+      [Symbol.asyncIterator]: () => ({
+        next: () => Promise.reject(error),
+      }),
+    };
+  }
+
+  async cloneVoice(_options: VoiceCloneOptions): Promise<Voice> {
+    throw new AIError(
+      'Voice cloning is not supported by Claude CLI provider. Use Qwen3-TTS provider.',
+      'NOT_IMPLEMENTED',
+      'claude-cli',
+    );
+  }
+
+  async designVoice(_options: VoiceDesignOptions): Promise<Voice> {
+    throw new AIError(
+      'Voice design is not supported by Claude CLI provider. Use Qwen3-TTS provider.',
+      'NOT_IMPLEMENTED',
+      'claude-cli',
+    );
+  }
+
+  async getVoices(_options?: VoiceListOptions): Promise<Voice[]> {
+    throw new AIError(
+      'Voice listing is not supported by Claude CLI provider. Use Qwen3-TTS provider.',
+      'NOT_IMPLEMENTED',
+      'claude-cli',
+    );
   }
 }

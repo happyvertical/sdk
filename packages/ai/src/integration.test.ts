@@ -75,6 +75,9 @@ describe('HuggingFace Provider Integration', () => {
       fineTuning: true,
       imageEmbeddings: false,
       imageGeneration: false,
+      tts: false,
+      voiceCloning: false,
+      voiceDesign: false,
       maxContextLength: 2048,
       supportedOperations: ['chat', 'completion', 'embedding'],
     });

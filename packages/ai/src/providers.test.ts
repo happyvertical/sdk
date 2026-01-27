@@ -50,6 +50,9 @@ describe('OpenAI Provider', () => {
       fineTuning: true,
       imageEmbeddings: true,
       imageGeneration: true,
+      tts: false,
+      voiceCloning: false,
+      voiceDesign: false,
       maxContextLength: 128000,
       supportedOperations: [
         'chat',
@@ -112,6 +115,9 @@ describe('Claude CLI Provider', () => {
       fineTuning: false,
       imageEmbeddings: false,
       imageGeneration: false,
+      tts: false,
+      voiceCloning: false,
+      voiceDesign: false,
       maxContextLength: 200000,
       supportedOperations: ['chat', 'completion', 'streaming'],
     });

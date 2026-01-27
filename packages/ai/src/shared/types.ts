@@ -624,6 +624,21 @@ export interface AICapabilities {
   imageGeneration: boolean;
 
   /**
+   * Whether the provider supports text-to-speech synthesis
+   */
+  tts: boolean;
+
+  /**
+   * Whether the provider supports voice cloning from samples
+   */
+  voiceCloning: boolean;
+
+  /**
+   * Whether the provider supports voice design via description
+   */
+  voiceDesign: boolean;
+
+  /**
    * Maximum context length supported
    */
   maxContextLength: number;
@@ -878,6 +893,128 @@ export interface AIInterface {
    * Get provider capabilities
    */
   getCapabilities(): Promise<AICapabilities>;
+
+  // ============================================================================
+  // Text-to-Speech Methods
+  // ============================================================================
+
+  /**
+   * Synthesize speech from text
+   *
+   * @param text - The text to synthesize into speech
+   * @param options - Optional configuration for TTS synthesis
+   * @returns Promise resolving to audio data with metadata
+   * @throws {AIError} When TTS is not supported or request fails
+   *
+   * @example
+   * ```typescript
+   * // Basic synthesis
+   * const result = await ai.synthesizeSpeech('Hello, world!');
+   * fs.writeFileSync('speech.wav', result.audio);
+   *
+   * // With options
+   * const result = await ai.synthesizeSpeech('News broadcast text', {
+   *   voice: 'news-anchor-1',
+   *   speed: 1.1,
+   *   includeWordTimings: true
+   * });
+   * console.log(`Duration: ${result.duration}s`);
+   * ```
+   */
+  synthesizeSpeech(text: string, options?: TTSOptions): Promise<TTSResponse>;
+
+  /**
+   * Stream speech synthesis for real-time playback
+   *
+   * @param text - The text to synthesize into speech
+   * @param options - Optional configuration for TTS synthesis
+   * @returns AsyncIterable of audio chunks
+   * @throws {AIError} When TTS streaming is not supported or request fails
+   *
+   * @example
+   * ```typescript
+   * const chunks: Buffer[] = [];
+   * for await (const chunk of ai.streamSpeech('Long text...')) {
+   *   chunks.push(chunk);
+   *   // Or stream directly to audio output
+   * }
+   * ```
+   */
+  streamSpeech(text: string, options?: TTSOptions): AsyncIterable<Buffer>;
+
+  /**
+   * Clone a voice from an audio sample
+   *
+   * Creates a new voice profile from a 3+ second audio sample.
+   * The cloned voice can be used in subsequent synthesizeSpeech calls.
+   *
+   * @param options - Voice cloning configuration including audio sample
+   * @returns Promise resolving to the cloned voice profile
+   * @throws {AIError} When voice cloning is not supported or request fails
+   *
+   * @example
+   * ```typescript
+   * const sample = fs.readFileSync('voice-sample.wav');
+   * const voice = await ai.cloneVoice({
+   *   sampleAudio: sample,
+   *   name: 'News Anchor Voice',
+   *   language: 'en-US'
+   * });
+   *
+   * // Use the cloned voice
+   * const speech = await ai.synthesizeSpeech('Breaking news...', {
+   *   voice: voice.id
+   * });
+   * ```
+   */
+  cloneVoice(options: VoiceCloneOptions): Promise<Voice>;
+
+  /**
+   * Design a voice using natural language description
+   *
+   * Creates a new voice profile from a text description of the desired voice.
+   * The designed voice can be used in subsequent synthesizeSpeech calls.
+   *
+   * @param options - Voice design configuration including description
+   * @returns Promise resolving to the designed voice profile
+   * @throws {AIError} When voice design is not supported or request fails
+   *
+   * @example
+   * ```typescript
+   * const voice = await ai.designVoice({
+   *   description: 'warm female voice, slight British accent, professional news anchor',
+   *   language: 'en-US',
+   *   gender: 'female'
+   * });
+   *
+   * // Use the designed voice
+   * const speech = await ai.synthesizeSpeech('Good evening...', {
+   *   voice: voice.id
+   * });
+   * ```
+   */
+  designVoice(options: VoiceDesignOptions): Promise<Voice>;
+
+  /**
+   * List available voices for TTS synthesis
+   *
+   * @param options - Optional filters for the voice list
+   * @returns Promise resolving to array of available voices
+   * @throws {AIError} When TTS is not supported or request fails
+   *
+   * @example
+   * ```typescript
+   * // List all voices
+   * const voices = await ai.getVoices();
+   *
+   * // Filter by language
+   * const englishVoices = await ai.getVoices({ language: 'en' });
+   *
+   * // Include cloned voices
+   * const allVoices = await ai.getVoices({ includeCloned: true });
+   * ```
+   */
+  getVoices(options?: VoiceListOptions): Promise<Voice[]>;
 }
 
 /**
@@ -987,6 +1124,54 @@ export interface ClaudeCliOptions extends BaseAIOptions {
 }
 
 /**
+ * Qwen3-TTS provider options
+ * Uses Qwen3-TTS for text-to-speech synthesis
+ *
+ * TTS is co-located with ComfyUI for GPU sharing efficiency.
+ */
+export interface Qwen3TTSOptions extends BaseAIOptions {
+  type: 'qwen3-tts';
+
+  /**
+   * TTS service endpoint URL
+   * e.g., 'http://localhost:8880' or 'http://qwen-tts:8000'
+   */
+  endpoint?: string;
+
+  /**
+   * Default model variant
+   * - 'qwen3-tts-1.7b': Higher quality (4.54GB VRAM)
+   * - 'qwen3-tts-0.6b': Faster, lower VRAM (2.52GB)
+   */
+  defaultModel?: 'qwen3-tts-1.7b' | 'qwen3-tts-0.6b';
+
+  /**
+   * Default voice ID to use for synthesis
+   */
+  defaultVoice?: string;
+
+  /**
+   * Default language for synthesis
+   */
+  defaultLanguage?: string;
+
+  /**
+   * Rate limiting configuration
+   */
+  rateLimit?: {
+    /**
+     * Maximum requests per minute
+     */
+    requestsPerMinute?: number;
+
+    /**
+     * Maximum concurrent requests
+     */
+    maxConcurrent?: number;
+  };
+}
+
+/**
  * Union type for all provider options
  */
 export type GetAIOptions =
@@ -995,7 +1180,8 @@ export type GetAIOptions =
   | AnthropicOptions
   | HuggingFaceOptions
   | BedrockOptions
-  | ClaudeCliOptions;
+  | ClaudeCliOptions
+  | Qwen3TTSOptions;
 
 /**
  * Error types for AI operations
@@ -1059,4 +1245,246 @@ export class ContentFilterError extends AIError {
     );
     this.name = 'ContentFilterError';
   }
+}
+
+// ============================================================================
+// Text-to-Speech (TTS) Types
+// ============================================================================
+
+/**
+ * Options for text-to-speech synthesis
+ */
+export interface TTSOptions {
+  /**
+   * TTS model to use (e.g., 'qwen3-tts-1.7b', 'qwen3-tts-0.6b')
+   */
+  model?: string;
+
+  /**
+   * Voice ID or profile reference to use for synthesis
+   */
+  voice?: string;
+
+  /**
+   * ISO language code (e.g., 'en-US', 'zh-CN')
+   * Supported: Chinese, English, Japanese, Korean, German, French, Russian, Portuguese, Spanish, Italian
+   */
+  language?: string;
+
+  /**
+   * Speech rate multiplier (0.5 - 2.0, default: 1.0)
+   */
+  speed?: number;
+
+  /**
+   * Pitch adjustment in semitones (-20 to 20, default: 0)
+   */
+  pitch?: number;
+
+  /**
+   * Output audio format
+   */
+  outputFormat?: 'wav' | 'mp3' | 'ogg';
+
+  /**
+   * Whether to stream the audio output
+   */
+  stream?: boolean;
+
+  /**
+   * Whether to include word-level timing information for lip-sync
+   */
+  includeWordTimings?: boolean;
+}
+
+/**
+ * Options for voice cloning from audio samples
+ */
+export interface VoiceCloneOptions {
+  /**
+   * Model to use for voice cloning
+   */
+  model?: string;
+
+  /**
+   * Audio sample for cloning (3+ seconds recommended)
+   * Can be a Buffer or base64-encoded string
+   */
+  sampleAudio: Buffer | string;
+
+  /**
+   * MIME type of the sample audio (e.g., 'audio/wav', 'audio/mp3')
+   */
+  sampleMimeType?: string;
+
+  /**
+   * Name for the cloned voice profile
+   */
+  name?: string;
+
+  /**
+   * Description of the voice
+   */
+  description?: string;
+
+  /**
+   * Language of the voice sample
+   */
+  language?: string;
+}
+
+/**
+ * Options for voice design via natural language description
+ */
+export interface VoiceDesignOptions {
+  /**
+   * Model to use for voice design
+   */
+  model?: string;
+
+  /**
+   * Natural language description of the desired voice
+   * e.g., "warm female voice with slight British accent, professional news anchor tone"
+   */
+  description: string;
+
+  /**
+   * Primary language for the voice
+   */
+  language?: string;
+
+  /**
+   * Target gender for the voice
+   */
+  gender?: 'male' | 'female' | 'neutral';
+}
+
+/**
+ * Word timing information for lip-sync alignment
+ */
+export interface WordTiming {
+  /**
+   * The word or phoneme
+   */
+  word: string;
+
+  /**
+   * Start time in seconds
+   */
+  start: number;
+
+  /**
+   * End time in seconds
+   */
+  end: number;
+}
+
+/**
+ * Response from text-to-speech synthesis
+ */
+export interface TTSResponse {
+  /**
+   * Generated audio data
+   */
+  audio: Buffer;
+
+  /**
+   * MIME type of the audio (e.g., 'audio/wav', 'audio/mp3')
+   */
+  mimeType: string;
+
+  /**
+   * Duration of the audio in seconds
+   */
+  duration: number;
+
+  /**
+   * Word-level timing information for lip-sync (if requested)
+   */
+  wordTimings?: WordTiming[];
+
+  /**
+   * Model used for generation
+   */
+  model?: string;
+
+  /**
+   * Sample rate in Hz (e.g., 22050, 44100)
+   */
+  sampleRate?: number;
+}
+
+/**
+ * Voice profile information
+ */
+export interface Voice {
+  /**
+   * Unique identifier for the voice
+   */
+  id: string;
+
+  /**
+   * Human-readable name for the voice
+   */
+  name: string;
+
+  /**
+   * Primary language of the voice (ISO code)
+   */
+  language: string;
+
+  /**
+   * Gender of the voice
+   */
+  gender?: 'male' | 'female' | 'neutral';
+
+  /**
+   * Description of the voice characteristics
+   */
+  description?: string;
+
+  /**
+   * Whether this is a cloned voice
+   */
+  isCloned?: boolean;
+
+  /**
+   * Whether this was designed via natural language
+   */
+  isDesigned?: boolean;
+
+  /**
+   * URL to a sample of this voice (if available)
+   */
+  sampleUrl?: string;
+
+  /**
+   * Provider-specific voice data/embedding
+   */
+  voiceData?: Record<string, any>;
+}
+
+/**
+ * Options for listing available voices
+ */
+export interface VoiceListOptions {
+  /**
+   * Filter by language
+   */
+  language?: string;
+
+  /**
+   * Filter by gender
+   */
+  gender?: 'male' | 'female' | 'neutral';
+
+  /**
+   * Include cloned voices
+   */
+  includeCloned?: boolean;
+
+  /**
+   * Include designed voices
+   */
+  includeDesigned?: boolean;
 }

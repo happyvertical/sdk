@@ -18,6 +18,12 @@ import type {
   ImageGenerationOptions,
   ImageGenerationResponse,
   MessageOptions,
+  TTSOptions,
+  TTSResponse,
+  Voice,
+  VoiceCloneOptions,
+  VoiceDesignOptions,
+  VoiceListOptions,
 } from '../types';
 import {
   AIError,
@@ -318,9 +324,64 @@ export class HuggingFaceProvider implements AIInterface {
       fineTuning: true, // Via Hugging Face training API
       imageEmbeddings: false,
       imageGeneration: false, // Stable Diffusion exists but not implemented
+      tts: false,
+      voiceCloning: false,
+      voiceDesign: false,
       maxContextLength: 2048,
       supportedOperations: ['chat', 'completion', 'embedding'],
     };
+  }
+
+  // ============================================================================
+  // TTS Methods (Not supported - use Qwen3-TTS provider)
+  // ============================================================================
+
+  async synthesizeSpeech(
+    _text: string,
+    _options?: TTSOptions,
+  ): Promise<TTSResponse> {
+    throw new AIError(
+      'TTS is not supported by HuggingFace provider. Use Qwen3-TTS provider.',
+      'NOT_IMPLEMENTED',
+      'huggingface',
+    );
+  }
+
+  streamSpeech(_text: string, _options?: TTSOptions): AsyncIterable<Buffer> {
+    const error = new AIError(
+      'TTS streaming is not supported by HuggingFace provider. Use Qwen3-TTS provider.',
+      'NOT_IMPLEMENTED',
+      'huggingface',
+    );
+    return {
+      [Symbol.asyncIterator]: () => ({
+        next: () => Promise.reject(error),
+      }),
+    };
+  }
+
+  async cloneVoice(_options: VoiceCloneOptions): Promise<Voice> {
+    throw new AIError(
+      'Voice cloning is not supported by HuggingFace provider. Use Qwen3-TTS provider.',
+      'NOT_IMPLEMENTED',
+      'huggingface',
+    );
+  }
+
+  async designVoice(_options: VoiceDesignOptions): Promise<Voice> {
+    throw new AIError(
+      'Voice design is not supported by HuggingFace provider. Use Qwen3-TTS provider.',
+      'NOT_IMPLEMENTED',
+      'huggingface',
+    );
+  }
+
+  async getVoices(_options?: VoiceListOptions): Promise<Voice[]> {
+    throw new AIError(
+      'Voice listing is not supported by HuggingFace provider. Use Qwen3-TTS provider.',
+      'NOT_IMPLEMENTED',
+      'huggingface',
+    );
   }
 
   private messagesToPrompt(messages: AIMessage[]): string {
