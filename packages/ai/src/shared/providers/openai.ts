@@ -27,6 +27,12 @@ import type {
   MessageOptions,
   OpenAIOptions,
   TokenUsage,
+  TTSOptions,
+  TTSResponse,
+  Voice,
+  VoiceCloneOptions,
+  VoiceDesignOptions,
+  VoiceListOptions,
 } from '../types';
 import {
   AIError,
@@ -580,6 +586,9 @@ export class OpenAIProvider implements AIInterface {
       fineTuning: true,
       imageEmbeddings: true,
       imageGeneration: true,
+      tts: false,
+      voiceCloning: false,
+      voiceDesign: false,
       maxContextLength: 128000,
       supportedOperations: [
         'chat',
@@ -592,6 +601,58 @@ export class OpenAIProvider implements AIInterface {
         'image_generation',
       ],
     };
+  }
+
+  // ============================================================================
+  // TTS Methods (Not supported - use Qwen3-TTS provider)
+  // ============================================================================
+
+  async synthesizeSpeech(
+    _text: string,
+    _options?: TTSOptions,
+  ): Promise<TTSResponse> {
+    throw new AIError(
+      'TTS is not supported by OpenAI provider. Use Qwen3-TTS provider.',
+      'NOT_IMPLEMENTED',
+      'openai',
+    );
+  }
+
+  streamSpeech(_text: string, _options?: TTSOptions): AsyncIterable<Buffer> {
+    const error = new AIError(
+      'TTS streaming is not supported by OpenAI provider. Use Qwen3-TTS provider.',
+      'NOT_IMPLEMENTED',
+      'openai',
+    );
+    return {
+      [Symbol.asyncIterator]: () => ({
+        next: () => Promise.reject(error),
+      }),
+    };
+  }
+
+  async cloneVoice(_options: VoiceCloneOptions): Promise<Voice> {
+    throw new AIError(
+      'Voice cloning is not supported by OpenAI provider. Use Qwen3-TTS provider.',
+      'NOT_IMPLEMENTED',
+      'openai',
+    );
+  }
+
+  async designVoice(_options: VoiceDesignOptions): Promise<Voice> {
+    throw new AIError(
+      'Voice design is not supported by OpenAI provider. Use Qwen3-TTS provider.',
+      'NOT_IMPLEMENTED',
+      'openai',
+    );
+  }
+
+  async getVoices(_options?: VoiceListOptions): Promise<Voice[]> {
+    throw new AIError(
+      'Voice listing is not supported by OpenAI provider. Use Qwen3-TTS provider.',
+      'NOT_IMPLEMENTED',
+      'openai',
+    );
   }
 
   /**

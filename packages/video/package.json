@@ -1,0 +1,54 @@
+{
+  "name": "@happyvertical/video",
+  "version": "0.0.1",
+  "description": "Video processing utilities with adapter pattern for composition and transcoding",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "test": "npx vitest run",
+    "test:watch": "npx vitest",
+    "build": "vite build",
+    "build:watch": "vite build --watch",
+    "clean": "rm -rf dist",
+    "dev": "npm run build:watch & npm run test:watch"
+  },
+  "dependencies": {
+    "@happyvertical/logger": "workspace:*",
+    "@happyvertical/utils": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "25.0.10",
+    "typescript": "^5.9.3",
+    "vite": "7.3.1",
+    "vite-plugin-dts": "4.5.4",
+    "vitest": "^4.0.18"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CLAUDE.md",
+    ".claude-meta.json"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/happyvertical/sdk.git",
+    "directory": "packages/video"
+  },
+  "bugs": {
+    "url": "https://github.com/happyvertical/sdk/issues"
+  },
+  "homepage": "https://github.com/happyvertical/sdk/tree/main/packages/video#readme",
+  "license": "MIT"
+}
