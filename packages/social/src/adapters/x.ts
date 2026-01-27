@@ -406,19 +406,26 @@ export class XAdapter implements SocialPlatform {
 
   /**
    * Set alt text for uploaded media
+   * Uses JSON body as required by metadata/create endpoint
    */
   private async setMediaAltText(
     mediaId: string,
     altText: string,
   ): Promise<void> {
-    await this.makeUploadRequest(
-      'POST',
-      `${X_UPLOAD_URL}/media/metadata/create.json`,
-      {
+    const url = `${X_UPLOAD_URL}/media/metadata/create.json`;
+    const authHeader = this.generateOAuthSignature('POST', url, {});
+
+    await fetch(url, {
+      method: 'POST',
+      headers: {
+        Authorization: authHeader,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
         media_id: mediaId,
         alt_text: { text: altText },
-      },
-    );
+      }),
+    });
   }
 
   /**
@@ -549,10 +556,18 @@ export class XAdapter implements SocialPlatform {
   private async makeUploadRequest(
     method: string,
     url: string,
-    params: Record<string, unknown>,
+    params: FormData | Record<string, unknown>,
     isFormData = false,
   ): Promise<Response> {
-    const queryParams = method === 'GET' ? params : {};
+    // For OAuth signature, we need string params (not FormData)
+    // Convert Record values to strings for OAuth and URLSearchParams
+    const stringParams: Record<string, string> =
+      params instanceof FormData
+        ? {}
+        : Object.fromEntries(
+            Object.entries(params).map(([k, v]) => [k, String(v)]),
+          );
+    const queryParams = method === 'GET' ? stringParams : {};
     const authHeader = this.generateOAuthSignature(method, url, queryParams);
 
     const options: RequestInit = {
@@ -563,16 +578,16 @@ export class XAdapter implements SocialPlatform {
     };
 
     if (method === 'GET') {
-      const queryString = new URLSearchParams(params).toString();
+      const queryString = new URLSearchParams(stringParams).toString();
       url = `${url}?${queryString}`;
-    } else if (isFormData) {
+    } else if (isFormData && params instanceof FormData) {
       options.body = params;
-    } else {
+    } else if (!(params instanceof FormData)) {
       options.headers = {
         ...options.headers,
         'Content-Type': 'application/x-www-form-urlencoded',
       };
-      options.body = new URLSearchParams(params).toString();
+      options.body = new URLSearchParams(stringParams).toString();
     }
 
     return fetch(url, options);
