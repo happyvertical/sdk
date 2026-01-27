@@ -4,7 +4,7 @@
  * Implements video processing using FFmpeg command-line tools.
  */
 
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -27,7 +27,7 @@ import type {
   VideoProcessorOptions,
 } from '../types.js';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 /**
  * FFmpeg-based video processor
@@ -109,12 +109,15 @@ export class FFmpegProcessor implements VideoProcessor {
 
   /**
    * Run FFmpeg command
+   * Uses execFile with array arguments to prevent command injection
    */
   private async runFFmpeg(args: string[], timeout?: number): Promise<void> {
-    const command = `${this.options.ffmpegPath} ${args.join(' ')}`;
-    this.logger.debug('Running FFmpeg', { command });
+    this.logger.debug('Running FFmpeg', {
+      path: this.options.ffmpegPath,
+      args,
+    });
 
-    await execAsync(command, {
+    await execFileAsync(this.options.ffmpegPath, args, {
       timeout: timeout ?? this.options.timeout,
       maxBuffer: 100 * 1024 * 1024, // 100MB buffer
     });
@@ -122,10 +125,21 @@ export class FFmpegProcessor implements VideoProcessor {
 
   /**
    * Run FFprobe command and parse JSON output
+   * Uses execFile with array arguments to prevent command injection
    */
   private async runFFprobe(input: string): Promise<any> {
-    const command = `${this.options.ffprobePath} -v quiet -print_format json -show_format -show_streams "${input}"`;
-    const { stdout } = await execAsync(command, { timeout: 30000 });
+    const args = [
+      '-v',
+      'quiet',
+      '-print_format',
+      'json',
+      '-show_format',
+      '-show_streams',
+      input,
+    ];
+    const { stdout } = await execFileAsync(this.options.ffprobePath, args, {
+      timeout: 30000,
+    });
     return JSON.parse(stdout);
   }
 
@@ -214,7 +228,7 @@ export class FFmpegProcessor implements VideoProcessor {
         '-ss',
         timestamp.toFixed(3),
         '-i',
-        `"${inputPath}"`,
+        inputPath,
         '-vframes',
         '1',
       ];
@@ -232,7 +246,7 @@ export class FFmpegProcessor implements VideoProcessor {
         args.push('-q:v', Math.round(((100 - quality) / 100) * 31).toString());
       }
 
-      args.push(`"${outputPath}"`);
+      args.push(outputPath);
 
       await this.runFFmpeg(args);
       return await readFile(outputPath);
@@ -254,7 +268,7 @@ export class FFmpegProcessor implements VideoProcessor {
       const inputPath = await this.getInputPath(video, 'mp4', tempDir);
       const outputPath = join(tempDir, `output.${options.format}`);
 
-      const args = ['-y', '-i', `"${inputPath}"`];
+      const args = ['-y', '-i', inputPath];
 
       // Time trimming
       if (options.startTime !== undefined) {
@@ -291,7 +305,7 @@ export class FFmpegProcessor implements VideoProcessor {
         args.push('-r', options.fps.toString());
       }
 
-      args.push(`"${outputPath}"`);
+      args.push(outputPath);
 
       await this.runFFmpeg(args);
       return await readFile(outputPath);
@@ -350,7 +364,7 @@ export class FFmpegProcessor implements VideoProcessor {
       const outputPath = join(tempDir, 'output.mp4');
 
       let filterComplex = '';
-      const inputs = ['-i', `"${inputPath}"`];
+      const inputs = ['-i', inputPath];
 
       if (overlay.type === 'image') {
         const imagePath = await this.getInputPath(
@@ -358,7 +372,7 @@ export class FFmpegProcessor implements VideoProcessor {
           'png',
           tempDir,
         );
-        inputs.push('-i', `"${imagePath}"`);
+        inputs.push('-i', imagePath);
 
         const pos = this.getOverlayPosition(overlay.position);
         filterComplex = `[1:v]${overlay.width ? `scale=${overlay.width}:-1,` : ''}format=rgba,colorchannelmixer=aa=${overlay.opacity ?? 1}[ovr];[0:v][ovr]overlay=${pos.x}:${pos.y}`;
@@ -400,10 +414,10 @@ export class FFmpegProcessor implements VideoProcessor {
         '-y',
         ...inputs,
         '-filter_complex',
-        `"${filterComplex}"`,
+        filterComplex,
         '-c:a',
         'copy',
-        `"${outputPath}"`,
+        outputPath,
       ];
 
       await this.runFFmpeg(args);
@@ -436,7 +450,6 @@ export class FFmpegProcessor implements VideoProcessor {
       const endTime = startTime + duration;
 
       const primaryColor = config.primaryColor ?? '0x1a1a1a';
-      const _accentColor = config.accentColor ?? '0x0066cc';
 
       // Build drawtext filter for lower-third
       const titleY = metadata.height - 100;
@@ -451,12 +464,12 @@ export class FFmpegProcessor implements VideoProcessor {
       const args = [
         '-y',
         '-i',
-        `"${inputPath}"`,
+        inputPath,
         '-vf',
-        `"${filter}"`,
+        filter,
         '-c:a',
         'copy',
-        `"${outputPath}"`,
+        outputPath,
       ];
 
       await this.runFFmpeg(args);
@@ -505,7 +518,7 @@ export class FFmpegProcessor implements VideoProcessor {
       const format = options.outputFormat ?? 'mp4';
       const outputPath = join(tempDir, `output.${format}`);
 
-      const args = ['-y', '-i', `"${currentVideo}"`];
+      const args = ['-y', '-i', currentVideo];
 
       // Scale if dimensions specified
       if (options.width || options.height) {
@@ -525,7 +538,7 @@ export class FFmpegProcessor implements VideoProcessor {
       args.push('-preset', 'medium');
       args.push('-c:a', 'aac', '-b:a', '128k');
 
-      args.push(`"${outputPath}"`);
+      args.push(outputPath);
 
       await this.runFFmpeg(args);
       return await readFile(outputPath);
@@ -562,10 +575,10 @@ export class FFmpegProcessor implements VideoProcessor {
         '-safe',
         '0',
         '-i',
-        `"${listPath}"`,
+        listPath,
         '-c',
         'copy',
-        `"${outputPath}"`,
+        outputPath,
       ];
 
       await this.runFFmpeg(args);
@@ -591,7 +604,7 @@ export class FFmpegProcessor implements VideoProcessor {
       const outputPath = join(tempDir, 'output.mp4');
 
       const mode = options.mode ?? 'replace';
-      const args = ['-y', '-i', `"${videoPath}"`, '-i', `"${audioPath}"`];
+      const args = ['-y', '-i', videoPath, '-i', audioPath];
 
       if (mode === 'replace') {
         // Replace audio entirely
@@ -619,7 +632,7 @@ export class FFmpegProcessor implements VideoProcessor {
         const newVol = options.newVolume ?? 1;
         args.push(
           '-filter_complex',
-          `"[0:a]volume=${origVol}[a0];[1:a]volume=${newVol}[a1];[a0][a1]amix=inputs=2:duration=first[a]"`,
+          `[0:a]volume=${origVol}[a0];[1:a]volume=${newVol}[a1];[a0][a1]amix=inputs=2:duration=first[a]`,
           '-map',
           '0:v',
           '-map',
@@ -627,7 +640,7 @@ export class FFmpegProcessor implements VideoProcessor {
         );
       }
 
-      args.push('-c:v', 'copy', '-shortest', `"${outputPath}"`);
+      args.push('-c:v', 'copy', '-shortest', outputPath);
 
       await this.runFFmpeg(args);
       return await readFile(outputPath);

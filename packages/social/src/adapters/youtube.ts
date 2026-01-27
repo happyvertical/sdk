@@ -34,6 +34,33 @@ const YOUTUBE_API_URL = 'https://www.googleapis.com/youtube/v3';
 const YOUTUBE_UPLOAD_URL = 'https://www.googleapis.com/upload/youtube/v3';
 
 /**
+ * YouTube video category IDs
+ * @see https://developers.google.com/youtube/v3/docs/videoCategories/list
+ */
+export const YOUTUBE_CATEGORIES = {
+  FILM_ANIMATION: '1',
+  AUTOS_VEHICLES: '2',
+  MUSIC: '10',
+  PETS_ANIMALS: '15',
+  SPORTS: '17',
+  TRAVEL_EVENTS: '19',
+  GAMING: '20',
+  PEOPLE_BLOGS: '22',
+  COMEDY: '23',
+  ENTERTAINMENT: '24',
+  NEWS_POLITICS: '25',
+  HOWTO_STYLE: '26',
+  EDUCATION: '27',
+  SCIENCE_TECH: '28',
+  NONPROFITS_ACTIVISM: '29',
+} as const;
+
+/**
+ * Default category for video uploads
+ */
+const DEFAULT_CATEGORY_ID = YOUTUBE_CATEGORIES.NEWS_POLITICS;
+
+/**
  * Default scopes for YouTube API
  */
 const DEFAULT_SCOPES = [
@@ -221,7 +248,7 @@ export class YouTubeAdapter implements SocialPlatform {
         title: video.title ?? 'Untitled',
         description: this.buildDescription(video),
         tags: video.tags,
-        categoryId: video.categoryId ?? '25', // News & Politics
+        categoryId: video.categoryId ?? DEFAULT_CATEGORY_ID,
       },
       status: {
         privacyStatus: video.visibility ?? 'public',
@@ -304,32 +331,49 @@ export class YouTubeAdapter implements SocialPlatform {
 
   /**
    * Upload custom thumbnail
+   * @returns true if upload succeeded, false otherwise
    */
   private async uploadThumbnail(
     videoId: string,
     thumbnail: Buffer | string,
     accessToken: string,
-  ): Promise<void> {
-    const thumbnailData = Buffer.isBuffer(thumbnail)
-      ? thumbnail
-      : await fetch(thumbnail)
-          .then((r) => r.arrayBuffer())
-          .then(Buffer.from);
+  ): Promise<boolean> {
+    try {
+      const thumbnailData = Buffer.isBuffer(thumbnail)
+        ? thumbnail
+        : await fetch(thumbnail)
+            .then((r) => r.arrayBuffer())
+            .then(Buffer.from);
 
-    const response = await fetch(
-      `${YOUTUBE_UPLOAD_URL}/thumbnails/set?videoId=${videoId}`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'image/png',
+      const response = await fetch(
+        `${YOUTUBE_UPLOAD_URL}/thumbnails/set?videoId=${videoId}`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'image/png',
+          },
+          body: new Uint8Array(thumbnailData),
         },
-        body: new Uint8Array(thumbnailData),
-      },
-    );
+      );
 
-    if (!response.ok) {
-      this.logger.warn('Failed to upload thumbnail', { videoId });
+      if (!response.ok) {
+        const errorText = await response.text();
+        this.logger.warn('Failed to upload thumbnail', {
+          videoId,
+          status: response.status,
+          error: errorText,
+        });
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      this.logger.warn('Thumbnail upload error', {
+        videoId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return false;
     }
   }
 

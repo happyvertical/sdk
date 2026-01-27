@@ -241,7 +241,7 @@ export class Qwen3TTSProvider implements AIInterface {
       if (!response.ok) {
         const errorText = await response.text();
         throw new AIError(
-          `TTS request failed: ${response.status} ${errorText}`,
+          `TTS request to ${url} failed: ${response.status} ${errorText}`,
           'TTS_REQUEST_FAILED',
           'qwen3-tts',
         );

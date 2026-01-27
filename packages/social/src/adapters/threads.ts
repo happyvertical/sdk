@@ -59,7 +59,12 @@ export class ThreadsAdapter implements SocialPlatform {
   async authenticate(): Promise<AuthResult> {
     // Verify token by getting user profile
     const response = await fetch(
-      `${THREADS_API_URL}/${this.config.userId}?fields=id,username&access_token=${this.config.accessToken}`,
+      `${THREADS_API_URL}/${this.config.userId}?fields=id,username`,
+      {
+        headers: {
+          Authorization: `Bearer ${this.config.accessToken}`,
+        },
+      },
     );
 
     if (!response.ok) {
@@ -102,12 +107,14 @@ export class ThreadsAdapter implements SocialPlatform {
       `${THREADS_API_URL}/${this.config.userId}/threads`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.config.accessToken}`,
+        },
         body: JSON.stringify({
           media_type: 'VIDEO',
           video_url: videoUrl,
           text,
-          access_token: this.config.accessToken,
         }),
       },
     );
@@ -143,12 +150,14 @@ export class ThreadsAdapter implements SocialPlatform {
       `${THREADS_API_URL}/${this.config.userId}/threads`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.config.accessToken}`,
+        },
         body: JSON.stringify({
           media_type: 'IMAGE',
           image_url: imageUrl,
           text,
-          access_token: this.config.accessToken,
         }),
       },
     );
@@ -174,7 +183,6 @@ export class ThreadsAdapter implements SocialPlatform {
     const body: Record<string, any> = {
       media_type: 'TEXT',
       text: postText,
-      access_token: this.config.accessToken,
     };
 
     // Handle reply
@@ -186,7 +194,10 @@ export class ThreadsAdapter implements SocialPlatform {
       `${THREADS_API_URL}/${this.config.userId}/threads`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.config.accessToken}`,
+        },
         body: JSON.stringify(body),
       },
     );
@@ -211,7 +222,12 @@ export class ThreadsAdapter implements SocialPlatform {
 
     while (checkCount < maxChecks) {
       const statusResponse = await fetch(
-        `${THREADS_API_URL}/${containerId}?fields=status&access_token=${this.config.accessToken}`,
+        `${THREADS_API_URL}/${containerId}?fields=status`,
+        {
+          headers: {
+            Authorization: `Bearer ${this.config.accessToken}`,
+          },
+        },
       );
 
       if (!statusResponse.ok) {
@@ -256,10 +272,12 @@ export class ThreadsAdapter implements SocialPlatform {
       `${THREADS_API_URL}/${this.config.userId}/threads_publish`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.config.accessToken}`,
+        },
         body: JSON.stringify({
           creation_id: containerId,
-          access_token: this.config.accessToken,
         }),
       },
     );
@@ -272,7 +290,12 @@ export class ThreadsAdapter implements SocialPlatform {
 
     // Get the published thread details
     const threadResponse = await fetch(
-      `${THREADS_API_URL}/${publishData.id}?fields=id,permalink&access_token=${this.config.accessToken}`,
+      `${THREADS_API_URL}/${publishData.id}?fields=id,permalink`,
+      {
+        headers: {
+          Authorization: `Bearer ${this.config.accessToken}`,
+        },
+      },
     );
 
     const threadData = await threadResponse.json();
@@ -306,7 +329,12 @@ export class ThreadsAdapter implements SocialPlatform {
 
   async getPost(postId: string): Promise<Post> {
     const response = await fetch(
-      `${THREADS_API_URL}/${postId}?fields=id,text,timestamp,media_type,permalink&access_token=${this.config.accessToken}`,
+      `${THREADS_API_URL}/${postId}?fields=id,text,timestamp,media_type,permalink`,
+      {
+        headers: {
+          Authorization: `Bearer ${this.config.accessToken}`,
+        },
+      },
     );
 
     if (!response.ok) {
@@ -319,7 +347,12 @@ export class ThreadsAdapter implements SocialPlatform {
     let analytics: PostAnalytics = {};
     try {
       const insightsResponse = await fetch(
-        `${THREADS_API_URL}/${postId}/insights?metric=views,likes,replies,reposts&access_token=${this.config.accessToken}`,
+        `${THREADS_API_URL}/${postId}/insights?metric=views,likes,replies,reposts`,
+        {
+          headers: {
+            Authorization: `Bearer ${this.config.accessToken}`,
+          },
+        },
       );
       if (insightsResponse.ok) {
         const insightsData = await insightsResponse.json();
@@ -352,7 +385,12 @@ export class ThreadsAdapter implements SocialPlatform {
 
   async getAnalytics(postId: string): Promise<PostAnalytics> {
     const response = await fetch(
-      `${THREADS_API_URL}/${postId}/insights?metric=views,likes,replies,reposts,quotes&access_token=${this.config.accessToken}`,
+      `${THREADS_API_URL}/${postId}/insights?metric=views,likes,replies,reposts,quotes`,
+      {
+        headers: {
+          Authorization: `Bearer ${this.config.accessToken}`,
+        },
+      },
     );
 
     if (!response.ok) {
