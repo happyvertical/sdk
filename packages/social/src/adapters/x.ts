@@ -54,6 +54,7 @@ const X_UPLOAD_URL = 'https://upload.twitter.com/1.1';
 export class XAdapter implements SocialPlatform {
   readonly platform = 'x' as const;
   private config: XConfig;
+  private logger: ReturnType<typeof createLogger>;
 
   constructor(config: XConfig) {
     this.config = config;

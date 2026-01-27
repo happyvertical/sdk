@@ -48,6 +48,7 @@ const DEFAULT_PDS = 'https://bsky.social';
 export class BlueskyAdapter implements SocialPlatform {
   readonly platform = 'bluesky' as const;
   private config: BlueskyConfig;
+  private logger: ReturnType<typeof createLogger>;
   private session?: {
     did: string;
     handle: string;

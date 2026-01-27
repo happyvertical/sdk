@@ -492,13 +492,17 @@ export class YouTubeAdapter implements SocialPlatform {
   }
 
   /**
-   * Generate PKCE code challenge from verifier
+   * Generate PKCE code challenge from verifier using S256
    */
   private generateCodeChallenge(verifier: string): string {
-    const encoder = new TextEncoder();
-    const _data = encoder.encode(verifier);
-    // Note: In a real implementation, use crypto.subtle.digest
-    // For simplicity, returning verifier (use S256 in production)
-    return verifier;
+    // Use Node.js crypto for synchronous SHA-256 hashing
+    const { createHash } = require('node:crypto');
+    const hash = createHash('sha256').update(verifier).digest();
+    // Base64url encode the hash
+    return Buffer.from(hash)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
   }
 }

@@ -49,6 +49,7 @@ const THREADS_API_URL = 'https://graph.threads.net/v1.0';
 export class ThreadsAdapter implements SocialPlatform {
   readonly platform = 'threads' as const;
   private config: ThreadsConfig;
+  private logger: ReturnType<typeof createLogger>;
 
   constructor(config: ThreadsConfig) {
     this.config = config;
