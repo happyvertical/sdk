@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/jobs",
-  "version": "0.67.5",
+  "version": "0.67.6",
   "description": "Job queue abstraction with multiple backend adapters (SQLite, PostgreSQL, Bull, SQS)",
   "type": "module",
   "main": "./dist/index.js",

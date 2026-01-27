@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.67.6
+
+### Patch Changes
+
+- ### Features
+
+  - add TTS support and new packages for video production (#787)
+
 ## 0.67.5
 
 ## 0.67.4
