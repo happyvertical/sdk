@@ -45,7 +45,7 @@
   },
   "dependencies": {
     "@happyvertical/utils": "workspace:*",
-    "googleapis": "^170.1.0"
+    "googleapis": "^171.0.0"
   },
   "devDependencies": {
     "@types/node": "25.0.10",
