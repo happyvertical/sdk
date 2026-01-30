@@ -25,8 +25,8 @@ importers:
         specifier: ^20.4.0
         version: 20.4.0
       '@jpisnice/shadcn-ui-mcp-server':
-        specifier: 1.1.4
-        version: 1.1.4
+        specifier: 2.0.0
+        version: 2.0.0
       chokidar:
         specifier: ^5.0.0
         version: 5.0.0
@@ -3760,8 +3760,8 @@ packages:
     resolution: {integrity: sha512-gqFTGEosKbOkYF/WFj26jMHOI5OH2jeP1MmC/zbK6BF6VJBf8rIC5898dPfSzZEbSA0wbbV5slbntWVc5PKLFA==}
     engines: {node: '>=18'}
 
-  '@jpisnice/shadcn-ui-mcp-server@1.1.4':
-    resolution: {integrity: sha512-T4ZZfGHmA/uuB2eoHzsEsmbmFawfa+pqrQtTe9in8Ew9n53Y556q78xYfhjs0tXK3305oXr4DG++al66N6/ykw==}
+  '@jpisnice/shadcn-ui-mcp-server@2.0.0':
+    resolution: {integrity: sha512-ml85nXlS+ZM0B/+JEXYTF6J3Epd8zFcSYJShPstat2IwK0+j2jhTt71RlwoFcLYkB7FoXrEuZX1ThwaYifU1YA==}
     engines: {node: '>=18.0.0'}
     hasBin: true
 
@@ -17626,7 +17626,7 @@ snapshots:
       '@jimp/types': 1.6.0
       tinycolor2: 1.6.0
 
-  '@jpisnice/shadcn-ui-mcp-server@1.1.4':
+  '@jpisnice/shadcn-ui-mcp-server@2.0.0':
     dependencies:
       '@modelcontextprotocol/sdk': 1.25.3(zod@3.25.76)
       axios: 1.13.2
