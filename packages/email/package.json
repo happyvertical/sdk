@@ -39,16 +39,16 @@
     "@happyvertical/utils": "workspace:*",
     "google-auth-library": "^10.5.0",
     "googleapis": "^170.1.0",
-    "imapflow": "^1.2.6",
-    "mailparser": "^3.9.1",
+    "imapflow": "^1.2.8",
+    "mailparser": "^3.9.3",
     "node-pop3": "^0.11.0",
-    "nodemailer": "^7.0.12"
+    "nodemailer": "^7.0.13"
   },
   "devDependencies": {
     "@types/mailparser": "^3.4.6",
     "@types/node": "25.0.10",
-    "@types/nodemailer": "^7.0.5",
-    "smtp-server": "^3.18.0",
+    "@types/nodemailer": "^7.0.9",
+    "smtp-server": "^3.18.1",
     "typescript": "^5.9.3",
     "vite": "7.3.1",
     "vite-plugin-dts": "4.5.4",

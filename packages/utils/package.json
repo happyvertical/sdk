@@ -30,7 +30,7 @@
     "dev": "npm run build:watch & npm run test:watch"
   },
   "dependencies": {
-    "@paralleldrive/cuid2": "^3.0.6",
+    "@paralleldrive/cuid2": "^3.3.0",
     "date-fns": "^4.1.0",
     "pluralize": "^8.0.0",
     "uuid": "^13.0.0"
