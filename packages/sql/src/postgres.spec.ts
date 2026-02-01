@@ -545,14 +545,14 @@ describe('postgres syncSchema with quoted identifiers (Issue #860)', () => {
       port: Number(process.env.SQLOO_PORT) || 5432,
     });
 
-    // Clean up any existing test table
-    await db.execute`DROP TABLE IF EXISTS ${db.identifier(testTableName)}`;
+    // Clean up any existing test table using raw query (identifier quoting not available)
+    await db.client.query(`DROP TABLE IF EXISTS "${testTableName}"`);
   });
 
   afterEach(async () => {
     if (!postgresAvailable || !db) return;
 
-    await db.execute`DROP TABLE IF EXISTS ${db.identifier(testTableName)}`;
+    await db.client.query(`DROP TABLE IF EXISTS "${testTableName}"`);
     await db.client.end();
   });
 
@@ -603,11 +603,11 @@ describe('postgres syncSchema with quoted identifiers (Issue #860)', () => {
     if (!postgresAvailable) return;
 
     // First create the table with initial columns
-    await db.execute`
-      CREATE TABLE ${db.identifier(testTableName)} (
+    await db.client.query(`
+      CREATE TABLE "${testTableName}" (
         id TEXT PRIMARY KEY NOT NULL
       )
-    `;
+    `);
 
     // Now sync schema with additional column using quoted identifiers
     const schema = `CREATE TABLE IF NOT EXISTS "${testTableName}" (
@@ -657,6 +657,6 @@ describe('postgres syncSchema with quoted identifiers (Issue #860)', () => {
     expect(result).toHaveLength(2);
 
     // Clean up second table
-    await db.execute`DROP TABLE IF EXISTS ${db.identifier(tableName2)}`;
+    await db.client.query(`DROP TABLE IF EXISTS "${tableName2}"`);
   });
 });
