@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.67.7
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - handle quoted identifiers in PostgreSQL syncSchema (#792) (sql)
+
 ## 0.67.6
 
 ### Patch Changes
