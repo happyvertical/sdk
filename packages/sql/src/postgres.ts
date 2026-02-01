@@ -784,8 +784,10 @@ export async function getDatabase(
       .filter((command) => command.trim() !== '');
 
     for (const command of commands) {
+      // Match CREATE TABLE with optional quotes around table name
+      // Supports: CREATE TABLE foo, CREATE TABLE "foo", CREATE TABLE IF NOT EXISTS "foo"
       const createTableRegex =
-        /CREATE TABLE (IF NOT EXISTS )?(\w+) \(([\s\S]+)\)/i;
+        /CREATE TABLE (IF NOT EXISTS )?"?(\w+)"? \(([\s\S]+)\)/i;
       const match = command.match(createTableRegex);
 
       if (match) {
@@ -802,7 +804,8 @@ export async function getDatabase(
           // Table exists, check for missing columns
           for (const column of columns) {
             const columnDef = column.trim();
-            const columnMatch = columnDef.match(/(\w+)\s+(\w+[^,]*)/);
+            // Match column name with optional quotes: "id" or id
+            const columnMatch = columnDef.match(/"?(\w+)"?\s+(\w+[^,]*)/);
 
             if (columnMatch) {
               const columnName = columnMatch[1];
@@ -832,7 +835,8 @@ export async function getDatabase(
 
                 if (!columnExists.rows[0].exists) {
                   // Column doesn't exist, add it
-                  const alterCommand = `ALTER TABLE ${tableName} ADD COLUMN ${columnDef}`;
+                  // Quote the table name for safety
+                  const alterCommand = `ALTER TABLE "${tableName}" ADD COLUMN ${columnDef}`;
                   await client.query(alterCommand);
                 }
               } catch (error) {
