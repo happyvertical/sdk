@@ -523,3 +523,140 @@ describe('postgres JSON serialization', () => {
     expect(results[1].config).toEqual({ enabled: false });
   });
 });
+
+describe('postgres syncSchema with quoted identifiers (Issue #860)', () => {
+  let db: Awaited<ReturnType<typeof getDatabase>>;
+  let postgresAvailable = false;
+  const testTableName = `sync_schema_test_${Date.now()}`;
+
+  beforeEach(async () => {
+    postgresAvailable = await checkPostgreSQLConnection();
+    if (!postgresAvailable) {
+      console.log('PostgreSQL not available, skipping syncSchema tests');
+      return;
+    }
+
+    db = await getDatabase({
+      type: 'postgres',
+      database: process.env.SQLOO_DATABASE || 'testdb',
+      host: process.env.SQLOO_HOST || 'localhost',
+      user: process.env.SQLOO_USER || 'postgres',
+      password: process.env.SQLOO_PASSWORD || 'postgres',
+      port: Number(process.env.SQLOO_PORT) || 5432,
+    });
+
+    // Clean up any existing test table using raw query (identifier quoting not available)
+    await db.client.query(`DROP TABLE IF EXISTS "${testTableName}"`);
+  });
+
+  afterEach(async () => {
+    if (!postgresAvailable || !db) return;
+
+    await db.client.query(`DROP TABLE IF EXISTS "${testTableName}"`);
+    await db.client.end();
+  });
+
+  it('should create table with quoted identifiers in DDL', async () => {
+    if (!postgresAvailable) return;
+
+    // DDL with quoted table name - this is the format SMRT generates
+    const schema = `CREATE TABLE IF NOT EXISTS "${testTableName}" (
+      "id" TEXT PRIMARY KEY NOT NULL,
+      "name" TEXT DEFAULT ''
+    );`;
+
+    await db.syncSchema(schema);
+
+    // Verify table exists and is functional
+    const result = await db.many`
+      SELECT table_name FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = ${testTableName}
+    `;
+    expect(result).toHaveLength(1);
+
+    // Insert and query to verify table is usable
+    await db.insert(testTableName, { id: 'test-1', name: 'Test Item' });
+    const item = await db.get(testTableName, { id: 'test-1' });
+    expect(item?.name).toBe('Test Item');
+  });
+
+  it('should create table with unquoted identifiers in DDL', async () => {
+    if (!postgresAvailable) return;
+
+    // DDL without quotes (also valid SQL)
+    const schema = `CREATE TABLE IF NOT EXISTS ${testTableName} (
+      id TEXT PRIMARY KEY NOT NULL,
+      name TEXT DEFAULT ''
+    );`;
+
+    await db.syncSchema(schema);
+
+    // Verify table exists
+    const result = await db.many`
+      SELECT table_name FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = ${testTableName}
+    `;
+    expect(result).toHaveLength(1);
+  });
+
+  it('should add columns to existing table with quoted identifiers', async () => {
+    if (!postgresAvailable) return;
+
+    // First create the table with initial columns
+    await db.client.query(`
+      CREATE TABLE "${testTableName}" (
+        id TEXT PRIMARY KEY NOT NULL
+      )
+    `);
+
+    // Now sync schema with additional column using quoted identifiers
+    const schema = `CREATE TABLE IF NOT EXISTS "${testTableName}" (
+      "id" TEXT PRIMARY KEY NOT NULL,
+      "description" TEXT DEFAULT ''
+    );`;
+
+    await db.syncSchema(schema);
+
+    // Verify column was added
+    const columns = await db.many`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = ${testTableName}
+      ORDER BY ordinal_position
+    `;
+    const columnNames = columns.map((c) => c.column_name);
+    expect(columnNames).toContain('id');
+    expect(columnNames).toContain('description');
+  });
+
+  it('should handle multiple CREATE TABLE statements with quoted identifiers', async () => {
+    if (!postgresAvailable) return;
+
+    const tableName2 = `${testTableName}_2`;
+
+    // Multiple tables in one schema string
+    const schema = `
+      CREATE TABLE IF NOT EXISTS "${testTableName}" (
+        "id" TEXT PRIMARY KEY NOT NULL,
+        "name" TEXT DEFAULT ''
+      );
+      CREATE TABLE IF NOT EXISTS "${tableName2}" (
+        "id" TEXT PRIMARY KEY NOT NULL,
+        "value" INTEGER DEFAULT 0
+      );
+    `;
+
+    await db.syncSchema(schema);
+
+    // Verify both tables exist
+    const result = await db.many`
+      SELECT table_name FROM information_schema.tables
+      WHERE table_schema = 'public'
+      AND table_name IN (${testTableName}, ${tableName2})
+      ORDER BY table_name
+    `;
+    expect(result).toHaveLength(2);
+
+    // Clean up second table
+    await db.client.query(`DROP TABLE IF EXISTS "${tableName2}"`);
+  });
+});
