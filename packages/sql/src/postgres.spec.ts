@@ -524,6 +524,197 @@ describe('postgres JSON serialization', () => {
   });
 });
 
+describe('postgres syncSchema with CREATE INDEX (Issue #867)', () => {
+  let db: Awaited<ReturnType<typeof getDatabase>>;
+  let postgresAvailable = false;
+  const testTableName = `index_test_${Date.now()}`;
+
+  beforeEach(async () => {
+    postgresAvailable = await checkPostgreSQLConnection();
+    if (!postgresAvailable) {
+      console.log('PostgreSQL not available, skipping CREATE INDEX tests');
+      return;
+    }
+
+    db = await getDatabase({
+      type: 'postgres',
+      database: process.env.SQLOO_DATABASE || 'testdb',
+      host: process.env.SQLOO_HOST || 'localhost',
+      user: process.env.SQLOO_USER || 'postgres',
+      password: process.env.SQLOO_PASSWORD || 'postgres',
+      port: Number(process.env.SQLOO_PORT) || 5432,
+    });
+
+    // Clean up any existing test tables/indexes
+    await db.client.query(`DROP TABLE IF EXISTS "${testTableName}" CASCADE`);
+  });
+
+  afterEach(async () => {
+    if (!postgresAvailable || !db) return;
+
+    await db.client.query(`DROP TABLE IF EXISTS "${testTableName}" CASCADE`);
+    await db.client.end();
+  });
+
+  it('should execute CREATE INDEX statements in syncSchema', async () => {
+    if (!postgresAvailable) return;
+
+    // Schema with both CREATE TABLE and CREATE INDEX
+    const schema = `
+      CREATE TABLE IF NOT EXISTS "${testTableName}" (
+        "id" TEXT PRIMARY KEY NOT NULL,
+        "slug" TEXT NOT NULL,
+        "context" TEXT DEFAULT '',
+        "name" TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "${testTableName}_slug_context_idx" ON "${testTableName}" ("slug", "context");
+    `;
+
+    await db.syncSchema(schema);
+
+    // Verify table exists
+    const tableResult = await db.many`
+      SELECT table_name FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = ${testTableName}
+    `;
+    expect(tableResult).toHaveLength(1);
+
+    // Verify index exists
+    const indexResult = await db.many`
+      SELECT indexname FROM pg_indexes
+      WHERE schemaname = 'public' AND indexname = ${`${testTableName}_slug_context_idx`}
+    `;
+    expect(indexResult).toHaveLength(1);
+  });
+
+  it('should create unique index that allows ON CONFLICT upsert', async () => {
+    if (!postgresAvailable) return;
+
+    // Schema with unique index for upsert support
+    const schema = `
+      CREATE TABLE IF NOT EXISTS "${testTableName}" (
+        "id" TEXT PRIMARY KEY NOT NULL,
+        "slug" TEXT NOT NULL,
+        "context" TEXT DEFAULT '',
+        "name" TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "${testTableName}_slug_context_idx" ON "${testTableName}" ("slug", "context");
+    `;
+
+    await db.syncSchema(schema);
+
+    // Insert initial record
+    await db.insert(testTableName, {
+      id: 'item-1',
+      slug: 'test-item',
+      context: '',
+      name: 'Original Name',
+    });
+
+    // Verify insert worked
+    const inserted = await db.get(testTableName, { id: 'item-1' });
+    expect(inserted?.name).toBe('Original Name');
+
+    // Now perform upsert using ON CONFLICT - this requires the unique index
+    await db.client.query(`
+      INSERT INTO "${testTableName}" (id, slug, context, name)
+      VALUES ('item-2', 'test-item', '', 'Updated Name')
+      ON CONFLICT (slug, context) DO UPDATE SET name = EXCLUDED.name
+    `);
+
+    // Verify upsert updated the existing record
+    const updated = await db.get(testTableName, {
+      slug: 'test-item',
+      context: '',
+    });
+    expect(updated?.name).toBe('Updated Name');
+
+    // Verify only 1 record exists (upsert updated, didn't insert)
+    const allItems = await db.list(testTableName, {});
+    expect(allItems).toHaveLength(1);
+  });
+
+  it('should handle multiple CREATE INDEX statements', async () => {
+    if (!postgresAvailable) return;
+
+    const schema = `
+      CREATE TABLE IF NOT EXISTS "${testTableName}" (
+        "id" TEXT PRIMARY KEY NOT NULL,
+        "slug" TEXT NOT NULL,
+        "context" TEXT DEFAULT '',
+        "sku" TEXT NOT NULL,
+        "name" TEXT NOT NULL
+      );
+      CREATE UNIQUE INDEX IF NOT EXISTS "${testTableName}_slug_context_idx" ON "${testTableName}" ("slug", "context");
+      CREATE UNIQUE INDEX IF NOT EXISTS "${testTableName}_sku_idx" ON "${testTableName}" ("sku");
+    `;
+
+    await db.syncSchema(schema);
+
+    // Verify both indexes exist
+    const indexes = await db.many`
+      SELECT indexname FROM pg_indexes
+      WHERE schemaname = 'public' AND tablename = ${testTableName}
+      AND indexname NOT LIKE '%_pkey'
+      ORDER BY indexname
+    `;
+    expect(indexes).toHaveLength(2);
+    expect(indexes.map((i) => i.indexname)).toContain(
+      `${testTableName}_slug_context_idx`,
+    );
+    expect(indexes.map((i) => i.indexname)).toContain(
+      `${testTableName}_sku_idx`,
+    );
+  });
+
+  it('should not fail if index already exists', async () => {
+    if (!postgresAvailable) return;
+
+    const schema = `
+      CREATE TABLE IF NOT EXISTS "${testTableName}" (
+        "id" TEXT PRIMARY KEY NOT NULL,
+        "slug" TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS "${testTableName}_slug_idx" ON "${testTableName}" ("slug");
+    `;
+
+    // Run syncSchema twice - should not throw on second run
+    await db.syncSchema(schema);
+    await db.syncSchema(schema); // Should not throw
+
+    // Verify index still exists
+    const indexes = await db.many`
+      SELECT indexname FROM pg_indexes
+      WHERE schemaname = 'public' AND indexname = ${`${testTableName}_slug_idx`}
+    `;
+    expect(indexes).toHaveLength(1);
+  });
+
+  it('should handle non-unique indexes', async () => {
+    if (!postgresAvailable) return;
+
+    const schema = `
+      CREATE TABLE IF NOT EXISTS "${testTableName}" (
+        "id" TEXT PRIMARY KEY NOT NULL,
+        "category" TEXT NOT NULL,
+        "name" TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS "${testTableName}_category_idx" ON "${testTableName}" ("category");
+    `;
+
+    await db.syncSchema(schema);
+
+    // Verify non-unique index exists
+    const indexes = await db.many`
+      SELECT indexname, indexdef FROM pg_indexes
+      WHERE schemaname = 'public' AND indexname = ${`${testTableName}_category_idx`}
+    `;
+    expect(indexes).toHaveLength(1);
+    // Non-unique index should NOT contain 'UNIQUE' in definition
+    expect(indexes[0].indexdef).not.toContain('UNIQUE');
+  });
+});
+
 describe('postgres syncSchema with quoted identifiers (Issue #860)', () => {
   let db: Awaited<ReturnType<typeof getDatabase>>;
   let postgresAvailable = false;
