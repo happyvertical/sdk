@@ -773,8 +773,9 @@ export async function getDatabase(
   /**
    * Synchronizes database schema with provided SQL DDL
    * Creates tables if they don't exist and adds missing columns
+   * Also executes CREATE INDEX statements
    *
-   * @param schema - SQL schema definition with CREATE TABLE statements
+   * @param schema - SQL schema definition with CREATE TABLE and CREATE INDEX statements
    * @returns Promise that resolves when schema is synchronized
    */
   const syncSchema = async (schema: string): Promise<void> => {
@@ -784,22 +785,24 @@ export async function getDatabase(
       .filter((command) => command.trim() !== '');
 
     for (const command of commands) {
+      const trimmedCommand = command.trim();
+
       // Match CREATE TABLE with optional quotes around table name
       // Supports: CREATE TABLE foo, CREATE TABLE "foo", CREATE TABLE IF NOT EXISTS "foo"
       const createTableRegex =
         /CREATE TABLE (IF NOT EXISTS )?"?(\w+)"? \(([\s\S]+)\)/i;
-      const match = command.match(createTableRegex);
+      const tableMatch = trimmedCommand.match(createTableRegex);
 
-      if (match) {
-        const tableName = match[2];
-        const columns = match[3].trim().split(',\n');
+      if (tableMatch) {
+        const tableName = tableMatch[2];
+        const columns = tableMatch[3].trim().split(',\n');
 
         // Check if table exists
         const exists = await tableExists(tableName);
 
         if (!exists) {
           // Table doesn't exist, create it
-          await client.query(command);
+          await client.query(trimmedCommand);
         } else {
           // Table exists, check for missing columns
           for (const column of columns) {
@@ -848,6 +851,59 @@ export async function getDatabase(
               }
             }
           }
+        }
+        continue;
+      }
+
+      // Match CREATE INDEX statements (Issue #867)
+      // Supports: CREATE INDEX, CREATE UNIQUE INDEX, with IF NOT EXISTS
+      const createIndexRegex =
+        /CREATE (UNIQUE )?INDEX (IF NOT EXISTS )?"?(\w+)"? ON "?(\w+)"?\s*\(([^)]+)\)/i;
+      const indexMatch = trimmedCommand.match(createIndexRegex);
+
+      if (indexMatch) {
+        const indexName = indexMatch[3];
+        const indexTableName = indexMatch[4];
+
+        try {
+          // Check if index already exists
+          const indexExists = await client.query(
+            `SELECT EXISTS (
+              SELECT 1 FROM pg_indexes
+              WHERE schemaname = 'public'
+              AND indexname = $1
+            )`,
+            [indexName],
+          );
+
+          if (!indexExists.rows[0].exists) {
+            // Index doesn't exist, create it
+            await client.query(trimmedCommand);
+          }
+        } catch (error) {
+          // Log error but continue - index creation failures shouldn't block schema sync
+          console.warn(
+            `Warning: Failed to create index ${indexName} on ${indexTableName}:`,
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+        continue;
+      }
+
+      // For any other DDL statements (like other CREATE commands), try to execute them
+      // This provides forward compatibility for future DDL types
+      if (
+        trimmedCommand.toUpperCase().startsWith('CREATE ') &&
+        !trimmedCommand.toUpperCase().includes('CREATE TABLE')
+      ) {
+        try {
+          await client.query(trimmedCommand);
+        } catch (error) {
+          // Log but don't fail - the statement may have already been executed
+          console.warn(
+            `Warning: DDL statement may have failed:`,
+            error instanceof Error ? error.message : String(error),
+          );
         }
       }
     }
