@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.67.8
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - execute CREATE INDEX statements in PostgreSQL syncSchema (#794) (sql)
+
 ## 0.67.7
 
 ### Patch Changes
