@@ -1,5 +1,15 @@
 # @happyvertical/files
 
+## 0.68.0
+
+### Minor Changes
+
+- 85385b0: feat(files): add Google Drive provider with OAuth2, service account, and access token auth
+
+### Patch Changes
+
+- @happyvertical/utils@0.68.0
+
 ## 0.67.9
 
 ### Patch Changes
