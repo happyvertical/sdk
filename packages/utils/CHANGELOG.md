@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.67.9
+
+### Patch Changes
+
+- ### Features
+
+  - add basic auth support to client (#796) (comfyui)
+
 ## 0.67.8
 
 ### Patch Changes
