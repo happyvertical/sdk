@@ -784,6 +784,33 @@ export async function getDatabase(
       .split(';')
       .filter((command) => command.trim() !== '');
 
+    // Match CREATE INDEX statements (Issue #867)
+    // Supports: CREATE INDEX, CREATE UNIQUE INDEX, with IF NOT EXISTS
+    const createIndexRegex =
+      /CREATE (UNIQUE )?INDEX (IF NOT EXISTS )?"?(\w+)"? ON "?(\w+)"?\s*\(([^)]+)\)/i;
+
+    // Pre-scan commands to collect all index names for batch existence check (Issue #798)
+    const indexNames: string[] = [];
+    for (const command of commands) {
+      const indexMatch = command.trim().match(createIndexRegex);
+      if (indexMatch) {
+        indexNames.push(indexMatch[3]);
+      }
+    }
+
+    // Batch query to check which indexes already exist
+    const existingIndexes = new Set<string>();
+    if (indexNames.length > 0) {
+      const result = await client.query(
+        `SELECT indexname FROM pg_indexes
+         WHERE schemaname = 'public' AND indexname = ANY($1::text[])`,
+        [indexNames],
+      );
+      for (const row of result.rows) {
+        existingIndexes.add(row.indexname);
+      }
+    }
+
     for (const command of commands) {
       const trimmedCommand = command.trim();
 
@@ -855,37 +882,25 @@ export async function getDatabase(
         continue;
       }
 
-      // Match CREATE INDEX statements (Issue #867)
-      // Supports: CREATE INDEX, CREATE UNIQUE INDEX, with IF NOT EXISTS
-      const createIndexRegex =
-        /CREATE (UNIQUE )?INDEX (IF NOT EXISTS )?"?(\w+)"? ON "?(\w+)"?\s*\(([^)]+)\)/i;
       const indexMatch = trimmedCommand.match(createIndexRegex);
 
       if (indexMatch) {
         const indexName = indexMatch[3];
         const indexTableName = indexMatch[4];
 
-        try {
-          // Check if index already exists
-          const indexExists = await client.query(
-            `SELECT EXISTS (
-              SELECT 1 FROM pg_indexes
-              WHERE schemaname = 'public'
-              AND indexname = $1
-            )`,
-            [indexName],
-          );
-
-          if (!indexExists.rows[0].exists) {
-            // Index doesn't exist, create it
+        // Use pre-fetched batch result instead of per-index query
+        if (!existingIndexes.has(indexName)) {
+          try {
             await client.query(trimmedCommand);
+            // Track newly created index for idempotency within this call
+            existingIndexes.add(indexName);
+          } catch (error) {
+            // Log error but continue - index creation failures shouldn't block schema sync
+            console.warn(
+              `Warning: Failed to create index ${indexName} on ${indexTableName}:`,
+              error instanceof Error ? error.message : String(error),
+            );
           }
-        } catch (error) {
-          // Log error but continue - index creation failures shouldn't block schema sync
-          console.warn(
-            `Warning: Failed to create index ${indexName} on ${indexTableName}:`,
-            error instanceof Error ? error.message : String(error),
-          );
         }
         continue;
       }
