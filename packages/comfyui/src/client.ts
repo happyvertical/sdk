@@ -61,6 +61,8 @@ export class ComfyUIClient {
     new Map();
   private reconnectAttempts = 0;
   private isConnecting = false;
+  private username?: string;
+  private password?: string;
 
   constructor(options: ComfyUIClientOptions = {}) {
     this.options = {
@@ -73,6 +75,13 @@ export class ComfyUIClient {
         delay: options.reconnect?.delay ?? 1000,
       },
     };
+
+    if (options.username && options.password) {
+      this.username = options.username;
+      this.password = options.password;
+      const credentials = btoa(`${options.username}:${options.password}`);
+      this.options.headers.Authorization = `Basic ${credentials}`;
+    }
 
     this.logger = createLogger({ level: 'info' });
     this.clientId = crypto.randomUUID();
@@ -93,6 +102,10 @@ export class ComfyUIClient {
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
     url.pathname = '/ws';
     url.searchParams.set('clientId', this.clientId);
+    if (this.username && this.password) {
+      url.username = this.username;
+      url.password = this.password;
+    }
     return url.toString();
   }
 
