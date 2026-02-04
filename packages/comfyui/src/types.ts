@@ -62,6 +62,16 @@ export interface ComfyUIClientOptions {
    * Reconnection options for WebSocket
    */
   reconnect?: Partial<ReconnectOptions>;
+
+  /**
+   * Username for HTTP Basic authentication
+   */
+  username?: string;
+
+  /**
+   * Password for HTTP Basic authentication
+   */
+  password?: string;
 }
 
 /**
