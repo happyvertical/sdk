@@ -43,6 +43,7 @@
 
 // Export provider classes for direct instantiation if needed
 export { LocalFilesystemProvider } from './node/local';
+export { GoogleDriveProvider } from './providers/gdrive';
 // Export main factory function and types
 export {
   getAvailableProviders,
@@ -54,7 +55,7 @@ export {
 } from './shared/factory';
 export * from './shared/types';
 
-// Note: S3, GoogleDrive, WebDAV providers will be available when external dependencies are added
+// Note: S3, WebDAV providers will be available when external dependencies are added
 
 // Re-export fetch utilities with rate limiting
 export {
