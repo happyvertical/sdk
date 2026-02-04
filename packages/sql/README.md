@@ -218,6 +218,24 @@ const { rows, rowCount } = await db.query(
 );
 ```
 
+#### How Template Literals Work Across Adapters
+
+Template literal queries automatically handle the differences between database engines. When you write:
+
+```typescript
+const user = await db.single`SELECT * FROM users WHERE id = ${userId} AND status = ${status}`;
+```
+
+The interpolated values (`userId`, `status`) are extracted from the template and converted into parameterized queries using the correct placeholder format for the active adapter:
+
+| Adapter    | Generated SQL                                              |
+|------------|------------------------------------------------------------|
+| SQLite     | `SELECT * FROM users WHERE id = ? AND status = ?`          |
+| PostgreSQL | `SELECT * FROM users WHERE id = $1 AND status = $2`        |
+| DuckDB     | `SELECT * FROM users WHERE id = ? AND status = ?`          |
+
+Values are always passed as separate parameters, never interpolated into the SQL string. This means you write your queries once and they work across all supported databases with proper parameterization and protection against SQL injection.
+
 ### Using CRUD Helper Functions
 
 ```typescript
