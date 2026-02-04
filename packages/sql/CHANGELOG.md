@@ -1,5 +1,17 @@
 # @happyvertical/sql
 
+## 0.68.1
+
+### Patch Changes
+
+- 34f0da0: perf(sql): batch index existence checks in PostgreSQL syncSchema
+
+  Pre-scan all CREATE INDEX commands and check existence with a single
+  `pg_indexes` query using `ANY($1::text[])` instead of one query per index.
+  Reduces ~869 queries per syncSchema call to 1.
+
+  - @happyvertical/utils@0.68.1
+
 ## 0.68.0
 
 ### Patch Changes
