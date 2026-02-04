@@ -16,19 +16,6 @@ const mockFilesUpdate = vi.fn();
 const mockFilesCopy = vi.fn();
 const mockFilesExport = vi.fn();
 
-const mockDrive = {
-  files: {
-    list: mockFilesList,
-    get: mockFilesGet,
-    create: mockFilesCreate,
-    update: mockFilesUpdate,
-    copy: mockFilesCopy,
-    export: mockFilesExport,
-  },
-};
-
-const mockSetCredentials = vi.fn();
-
 vi.mock('googleapis', () => {
   // Use a real function (not arrow) so it can be called with `new`
   function oAuth2() {

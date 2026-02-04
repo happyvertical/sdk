@@ -108,7 +108,7 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
   }
 
   /**
-   * Lazily initialise the Google Drive client on first use
+   * Lazily initialize the Google Drive client on first use
    */
   private async getDrive(): Promise<any> {
     if (this.drive) return this.drive;
@@ -221,12 +221,11 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
     const segments = normalized.split('/').filter(Boolean);
     const name = segments.pop()!;
     let parentId = this.rootFolderId;
+    let currentPath = '';
 
     for (const segment of segments) {
-      const partialPath = segments
-        .slice(0, segments.indexOf(segment) + 1)
-        .join('/');
-      const existingId = await this.resolvePathToId(partialPath);
+      currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+      const existingId = await this.resolvePathToId(currentPath);
       if (existingId) {
         parentId = existingId;
         continue;
@@ -247,10 +246,7 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
         path,
       );
       parentId = res.data.id!;
-      this.pathCache.set(
-        segments.slice(0, segments.indexOf(segment) + 1).join('/'),
-        { id: parentId, ts: Date.now() },
-      );
+      this.pathCache.set(currentPath, { id: parentId, ts: Date.now() });
     }
 
     return { parentId, name };
