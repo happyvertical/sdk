@@ -380,8 +380,7 @@ describe('Provider Registration', () => {
 
     const gdriveInfo = getProviderInfo('gdrive');
     expect(gdriveInfo.description).toContain('Google Drive');
-    expect(gdriveInfo.requiredOptions).toContain('clientId');
-    expect(gdriveInfo.requiredOptions).toContain('clientSecret');
-    expect(gdriveInfo.requiredOptions).toContain('refreshToken');
+    // gdrive supports multiple auth methods so has no universally required options
+    expect(gdriveInfo.requiredOptions).toEqual([]);
   });
 });

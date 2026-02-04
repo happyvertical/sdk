@@ -468,14 +468,32 @@ export interface S3Options extends BaseProviderOptions {
 
 /**
  * Google Drive provider options
+ *
+ * Supports three authentication modes:
+ * 1. OAuth2: clientId + clientSecret + refreshToken
+ * 2. Service account: serviceAccountKey (JSON string)
+ * 3. Access token: accessToken (short-lived, no auto-refresh)
  */
 export interface GoogleDriveOptions extends BaseProviderOptions {
   type: 'gdrive';
-  clientId: string;
-  clientSecret: string;
-  refreshToken: string;
+  /** OAuth2 client ID */
+  clientId?: string;
+  /** OAuth2 client secret */
+  clientSecret?: string;
+  /** OAuth2 refresh token */
+  refreshToken?: string;
+  /** Short-lived access token (no auto-refresh) */
+  accessToken?: string;
+  /** Service account key as JSON string */
+  serviceAccountKey?: string;
+  /** Root folder ID to scope operations (defaults to 'root') */
   folderId?: string;
+  /** OAuth2 scopes (defaults to drive.file) */
   scopes?: string[];
+  /** TTL for path-to-ID cache in ms (default 300000 / 5 min) */
+  pathCacheTTL?: number;
+  /** Page size for list pagination (default 100) */
+  pageSize?: number;
 }
 
 /**
