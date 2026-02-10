@@ -62,8 +62,6 @@ jobs:
       - name: Setup pnpm
         if: "github.event.action == 'labeled' && github.event.label.name == 'agent: claude'"
         uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - name: Install dependencies
         if: "github.event.action == 'labeled' && github.event.label.name == 'agent: claude'"
