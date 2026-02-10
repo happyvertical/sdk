@@ -541,7 +541,10 @@ export interface VideoProcessor {
    * Uses sharp to extract frames from animated WEBP (which ffmpeg can't decode),
    * then assembles them into an MP4 using ffmpeg.
    */
-  convertWebpToMp4(webp: Buffer, options?: WebpConvertOptions): Promise<Buffer>;
+  convertWebpToMp4?(
+    webp: Buffer,
+    options?: WebpConvertOptions,
+  ): Promise<Buffer>;
 }
 
 /**

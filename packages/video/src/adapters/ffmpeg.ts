@@ -682,7 +682,9 @@ export class FFmpegProcessor implements VideoProcessor {
 
       // Extract each frame as PNG using sharp's page option
       for (let i = 0; i < frameCount; i++) {
-        const frame = await sharp(webp, { page: i }).png().toBuffer();
+        const frame = await sharp(webp, { animated: true, page: i })
+          .png()
+          .toBuffer();
 
         const framePath = join(
           tempDir,
@@ -697,6 +699,8 @@ export class FFmpegProcessor implements VideoProcessor {
         '-y',
         '-framerate',
         fps.toString(),
+        '-start_number',
+        '1',
         '-i',
         join(tempDir, 'frame_%04d.png'),
       ];
