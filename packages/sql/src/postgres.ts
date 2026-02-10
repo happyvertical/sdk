@@ -78,6 +78,15 @@ const connectionCache = new Map<string, DatabaseInterface>();
 const pendingConnections = new Map<string, Promise<DatabaseInterface>>();
 
 /**
+ * Clears the PostgreSQL connection cache.
+ * Useful for test isolation and reconnection scenarios.
+ */
+export function clearPostgresConnectionCache(): void {
+  connectionCache.clear();
+  pendingConnections.clear();
+}
+
+/**
  * Creates tables from provided schema definitions
  *
  * @param pool - PostgreSQL connection pool
@@ -172,30 +181,51 @@ export async function getDatabase(
   options: PostgresOptions = {},
 ): Promise<DatabaseInterface> {
   // --- Connection cache: return existing pool for same dbid/URL ---
-  // Compute cache key early from explicit dbid or options that identify the connection.
-  // We resolve the full URL later, but for cache lookup we use what's available now
-  // so that callers passing the same options object hit the cache before any Pool is created.
-  const earlyCacheKey =
+  // Derive cache key from explicit dbid, options, or env vars so that
+  // env-only callers also benefit from caching/deduplication.
+  const envUrl = process.env.HAVE_SQL_URL || process.env.SQLOO_URL || null;
+  const envDatabase =
+    process.env.HAVE_SQL_DATABASE || process.env.SQLOO_DATABASE || null;
+  const envHost =
+    process.env.HAVE_SQL_HOST || process.env.SQLOO_HOST || 'localhost';
+  const envUser = process.env.HAVE_SQL_USER || process.env.SQLOO_USER || '';
+  const envPortRaw = process.env.HAVE_SQL_PORT || process.env.SQLOO_PORT;
+  const envPort = envPortRaw ? Number(envPortRaw) || 5432 : 5432;
+
+  const derivedHost = options.host || envHost;
+  const derivedPort = options.port || envPort;
+  const derivedDatabase = options.database || envDatabase;
+  const derivedUser = options.user || envUser;
+
+  const cacheKey =
     options.dbid ||
     options.url ||
-    (options.host && options.database
-      ? `pg:${options.host}:${options.port || 5432}/${options.database}`
-      : null);
+    (derivedDatabase
+      ? `pg:${derivedUser ? `${derivedUser}@` : ''}${derivedHost}:${derivedPort}/${derivedDatabase}`
+      : envUrl || null);
 
-  if (earlyCacheKey) {
-    const cached = connectionCache.get(earlyCacheKey);
-    if (cached) return cached;
+  if (cacheKey) {
+    const cached = connectionCache.get(cacheKey);
+    if (cached) {
+      // Apply schemas even on cache hit (review comment #3)
+      if (options.schemas && Object.keys(options.schemas).length > 0) {
+        await createTablesFromSchemas(cached.client as Pool, options.schemas);
+      }
+      return cached;
+    }
 
     // Deduplicate concurrent calls for the same key
-    const pending = pendingConnections.get(earlyCacheKey);
+    const pending = pendingConnections.get(cacheKey);
     if (pending) return pending;
   }
 
-  const connectionPromise = createDatabase(options, earlyCacheKey);
+  const connectionPromise = createDatabase(options, cacheKey);
 
-  if (earlyCacheKey) {
-    pendingConnections.set(earlyCacheKey, connectionPromise);
-    connectionPromise.finally(() => pendingConnections.delete(earlyCacheKey));
+  if (cacheKey) {
+    pendingConnections.set(cacheKey, connectionPromise);
+    connectionPromise.finally(() => {
+      if (cacheKey) pendingConnections.delete(cacheKey);
+    });
   }
 
   return connectionPromise;
@@ -206,7 +236,7 @@ export async function getDatabase(
  */
 async function createDatabase(
   options: PostgresOptions,
-  earlyCacheKey: string | null,
+  cacheKey: string | null,
 ): Promise<DatabaseInterface> {
   // Load HAVE_SQL_* environment variables first
   const config = loadEnvConfig(options, {
@@ -256,7 +286,7 @@ async function createDatabase(
     `postgresql://${user}${password ? `:${password}` : ''}@${host}:${port}/${database || 'postgres'}`;
 
   // Create a connection pool
-  const client = new Pool(
+  const pool = new Pool(
     config.url
       ? { connectionString: config.url as string }
       : {
@@ -267,6 +297,28 @@ async function createDatabase(
           database: database as string,
         },
   );
+
+  // Wrap pool.end() to evict from cache so stale pools are never returned.
+  // This fixes the "Cannot use a pool after calling end on the pool" error
+  // when tests or shutdown code calls db.client.end() and subsequent calls
+  // to getDatabase() would otherwise return the ended pool.
+  const originalEnd = pool.end.bind(pool);
+  const evictFromCache = () => {
+    for (const [key, cached] of connectionCache.entries()) {
+      if (cached.client === pool) {
+        connectionCache.delete(key);
+      }
+    }
+  };
+  (pool as any).end = (callback?: () => void) => {
+    evictFromCache();
+    if (callback) {
+      return originalEnd(callback);
+    }
+    return originalEnd();
+  };
+
+  const client = pool;
 
   // Initialize tables from provided schemas
   if (options.schemas && Object.keys(options.schemas).length > 0) {
@@ -1686,8 +1738,8 @@ async function createDatabase(
   };
 
   // Cache the connection for reuse by subsequent calls with the same dbid/URL
-  const cacheKey = earlyCacheKey || options.dbid || url;
-  connectionCache.set(cacheKey, db);
+  const finalCacheKey = cacheKey || url;
+  connectionCache.set(finalCacheKey, db);
 
   return db;
 }
