@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.68.3
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - add connection caching to PostgreSQL adapter (#803) (sql)
+
 ## 0.68.2
 
 ### Patch Changes
