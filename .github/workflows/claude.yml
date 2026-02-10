@@ -11,21 +11,21 @@ on:
     types: [submitted]
 
 # Prevent multiple Claude runs on same issue/PR
+# Uses issue/PR number so all triggers for the same issue share one group
 concurrency:
   group: >-
-    ${{ github.workflow }}-${{
+    claude-${{
     github.event.issue.number ||
-    github.event.pull_request.number ||
-    github.event.comment.id }}
+    github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
   claude:
-    # Ignore comments from bots to prevent feedback loops where Claude's own
+    # Filter out ALL bot senders to prevent feedback loops where Claude's own
     # error/status comments trigger new workflow runs that cancel the original
     if: |
-      github.event.comment.user.login != 'github-actions[bot]' &&
       github.event.sender.login != 'github-actions[bot]' &&
+      github.event.sender.login != 'claude[bot]' &&
       (
         (github.event_name == 'issue_comment' &&
           contains(github.event.comment.body, '@claude')) ||
@@ -35,7 +35,7 @@ jobs:
           contains(github.event.review.body, '@claude')) ||
         (github.event_name == 'issues' &&
           github.event.action == 'labeled' &&
-          github.event.label.name == 'blocker') ||
+          github.event.label.name == 'agent: claude') ||
         (github.event_name == 'issues' &&
           (contains(github.event.issue.body, '@claude') ||
           contains(github.event.issue.title, '@claude')))
@@ -51,31 +51,62 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          # Fetch full history for better context when creating PRs
           fetch-depth: 0
+
+      - name: Setup Node.js
+        if: "github.event.action == 'labeled' && github.event.label.name == 'agent: claude'"
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+
+      - name: Setup pnpm
+        if: "github.event.action == 'labeled' && github.event.label.name == 'agent: claude'"
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        if: "github.event.action == 'labeled' && github.event.label.name == 'agent: claude'"
+        run: pnpm install --frozen-lockfile
+        continue-on-error: true
 
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@01e756b34ef7a1447e9508f674143b07d20c2631 # v1
         with:
-          # Use OAuth token for Claude Max plan subscription
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          timeout_minutes: 55
 
-          # Custom prompt when triggered by "blocker" label
-          # Otherwise Claude uses the @claude mention content
+          # Full implementation prompt when triggered by "agent: claude" label
+          # For @claude mentions, Claude uses the mention content directly
           prompt: >-
             ${{ github.event.action == 'labeled' &&
-            github.event.label.name == 'blocker' &&
-            'This issue has been marked as a blocker (high priority).
-            Please analyze the issue, implement a solution,
-            and create a PR to resolve it.' || '' }}
+            github.event.label.name == 'agent: claude' &&
+            format('You are implementing issue #{0} autonomously.
 
-          # Allow Claude to read CI results on PRs
+            ## Workflow
+
+            1. Read the issue: `gh issue view {0}`
+            2. Read CLAUDE.md for repository guidelines
+            3. Create branch: `git checkout -b feat/issue-{0}-[description]`
+            4. Implement following existing patterns
+            5. Write/update tests
+            6. Quality checks: `pnpm typecheck && pnpm lint && pnpm test && pnpm build`
+            7. Commit with conventional commits referencing the issue
+            8. Push: `git push -u origin [branch]`
+            9. Create PR: `gh pr create --title "..." --body "...Closes #{0}"`
+
+            ## If Blocked
+
+            If you cannot complete (unclear requirements, need decisions):
+            1. Post a comment on the issue explaining what you need
+            2. Remove the `agent: claude` label
+            3. The human can clarify and re-apply the label when ready',
+            github.event.issue.number) || '' }}
+
           additional_permissions: |
             actions: read
 
-          # Configure allowed tools for security and functionality
-          # Allows: git operations, GitHub CLI, package management, and file operations
           claude_args: >-
             --allowed-tools
             "Bash(git *:*)"
@@ -109,3 +140,21 @@ jobs:
             "Bash(grep *:*)"
             --allowed-tools
             "Bash(find *:*)"
+
+      - name: Post Failure Comment
+        if: "failure() && github.event.action == 'labeled' && github.event.label.name == 'agent: claude'"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue comment "$ISSUE_NUMBER" --body "## Implementation Failed
+
+          Claude encountered an error while implementing this issue.
+
+          [View workflow run]($RUN_URL)
+
+          The \`agent: claude\` label remains — remove it to stop automated attempts, or re-apply to retry.
+
+          ---
+          *Automated implementation by Claude*"
