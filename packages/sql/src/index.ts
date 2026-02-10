@@ -200,8 +200,9 @@ export { buildWhere, formatDbError };
 import { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils';
 export { convertUniqueIndexesToInlineConstraints };
 
-// Export JSON adapter utilities (for testing)
+// Export adapter cache utilities (for testing)
 export { clearConnectionCache } from './json.js';
+export { clearPostgresConnectionCache } from './postgres.js';
 export type { SchemaInitializationResult } from './schema-manager';
 // Export schema management
 export { DatabaseSchemaManager } from './schema-manager';
