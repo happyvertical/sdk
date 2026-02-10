@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.68.2
+
+### Patch Changes
+
+- ### Features
+
+  - add convertWebpToMp4 to VideoProcessor (#802) (video)
+
 ## 0.68.1
 
 ## 0.68.0
