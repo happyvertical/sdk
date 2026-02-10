@@ -14,6 +14,8 @@ import { promisify } from 'node:util';
 import { createLogger, type Logger } from '@happyvertical/logger';
 import { ValidationError } from '@happyvertical/utils';
 
+import sharp from 'sharp';
+
 import type {
   AudioMixOptions,
   ComposeOptions,
@@ -25,6 +27,7 @@ import type {
   VideoMetadata,
   VideoProcessor,
   VideoProcessorOptions,
+  WebpConvertOptions,
 } from '../types.js';
 
 const execFileAsync = promisify(execFile);
@@ -641,6 +644,75 @@ export class FFmpegProcessor implements VideoProcessor {
       }
 
       args.push('-c:v', 'copy', '-shortest', outputPath);
+
+      await this.runFFmpeg(args);
+      return await readFile(outputPath);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  }
+
+  /**
+   * Convert animated WEBP to MP4
+   *
+   * Uses sharp to extract frames from animated WEBP (which ffmpeg can't decode
+   * natively), then assembles them into an MP4 using ffmpeg.
+   */
+  async convertWebpToMp4(
+    webp: Buffer,
+    options: WebpConvertOptions = {},
+  ): Promise<Buffer> {
+    const fps = options.fps ?? 16;
+    const tempDir = this.createTempDir();
+
+    try {
+      // Get frame count from animated WEBP metadata
+      const metadata = await sharp(webp, {
+        animated: true,
+        pages: -1,
+      }).metadata();
+      const pageHeight = metadata.pageHeight ?? metadata.height ?? 480;
+      const frameCount = metadata.pages ?? 1;
+
+      this.logger.debug('Extracting WEBP frames', {
+        frameCount,
+        width: metadata.width,
+        pageHeight,
+      });
+
+      // Extract each frame as PNG using sharp's page option
+      for (let i = 0; i < frameCount; i++) {
+        const frame = await sharp(webp, { animated: true, page: i })
+          .png()
+          .toBuffer();
+
+        const framePath = join(
+          tempDir,
+          `frame_${String(i + 1).padStart(4, '0')}.png`,
+        );
+        await writeFile(framePath, frame);
+      }
+
+      // Assemble frames into MP4 with ffmpeg
+      const outputPath = join(tempDir, 'output.mp4');
+      const args = [
+        '-y',
+        '-framerate',
+        fps.toString(),
+        '-start_number',
+        '1',
+        '-i',
+        join(tempDir, 'frame_%04d.png'),
+      ];
+
+      // Video codec
+      if (options.video) {
+        args.push(...this.getVideoCodecArgs(options.video));
+      } else {
+        args.push('-c:v', 'libx264', '-pix_fmt', 'yuv420p');
+      }
+
+      args.push(outputPath);
 
       await this.runFFmpeg(args);
       return await readFile(outputPath);

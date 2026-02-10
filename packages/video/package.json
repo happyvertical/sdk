@@ -21,7 +21,8 @@
   },
   "dependencies": {
     "@happyvertical/logger": "workspace:*",
-    "@happyvertical/utils": "workspace:*"
+    "@happyvertical/utils": "workspace:*",
+    "sharp": "^0.34.1"
   },
   "devDependencies": {
     "@types/node": "25.0.10",
