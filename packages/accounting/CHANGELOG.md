@@ -1,5 +1,12 @@
 # @happyvertical/accounting
 
+## 0.68.4
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.68.4
+
 ## 0.68.3
 
 ### Patch Changes

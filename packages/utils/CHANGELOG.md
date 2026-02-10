@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.68.4
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - remove explicit pnpm version from claude.yml (#805) (ci)
+
 ## 0.68.3
 
 ### Patch Changes
