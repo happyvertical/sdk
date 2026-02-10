@@ -56,11 +56,26 @@ export interface PostgresOptions {
   port?: number;
 
   /**
+   * Cache key for connection pooling.
+   * If provided, the same dbid returns the same cached connection.
+   * When omitted, a key is derived from the connection URL.
+   */
+  dbid?: string;
+
+  /**
    * Explicit schema definitions for tables
    * When provided, these schemas will be used for table creation
    */
   schemas?: Record<string, import('./shared/types').SchemaProvider>;
 }
+
+/**
+ * Module-level cache for PostgreSQL connections.
+ * Keyed by dbid (or derived from connection URL).
+ * Prevents creating multiple pg.Pool instances for the same database.
+ */
+const connectionCache = new Map<string, DatabaseInterface>();
+const pendingConnections = new Map<string, Promise<DatabaseInterface>>();
 
 /**
  * Creates tables from provided schema definitions
@@ -155,6 +170,43 @@ async function createTablesFromSchemas(
  */
 export async function getDatabase(
   options: PostgresOptions = {},
+): Promise<DatabaseInterface> {
+  // --- Connection cache: return existing pool for same dbid/URL ---
+  // Compute cache key early from explicit dbid or options that identify the connection.
+  // We resolve the full URL later, but for cache lookup we use what's available now
+  // so that callers passing the same options object hit the cache before any Pool is created.
+  const earlyCacheKey =
+    options.dbid ||
+    options.url ||
+    (options.host && options.database
+      ? `pg:${options.host}:${options.port || 5432}/${options.database}`
+      : null);
+
+  if (earlyCacheKey) {
+    const cached = connectionCache.get(earlyCacheKey);
+    if (cached) return cached;
+
+    // Deduplicate concurrent calls for the same key
+    const pending = pendingConnections.get(earlyCacheKey);
+    if (pending) return pending;
+  }
+
+  const connectionPromise = createDatabase(options, earlyCacheKey);
+
+  if (earlyCacheKey) {
+    pendingConnections.set(earlyCacheKey, connectionPromise);
+    connectionPromise.finally(() => pendingConnections.delete(earlyCacheKey));
+  }
+
+  return connectionPromise;
+}
+
+/**
+ * Internal: creates the actual database connection and caches it.
+ */
+async function createDatabase(
+  options: PostgresOptions,
+  earlyCacheKey: string | null,
 ): Promise<DatabaseInterface> {
   // Load HAVE_SQL_* environment variables first
   const config = loadEnvConfig(options, {
@@ -1603,7 +1655,7 @@ export async function getDatabase(
     },
   };
 
-  return {
+  const db: DatabaseInterface = {
     url,
     client,
     insert,
@@ -1632,4 +1684,10 @@ export async function getDatabase(
     getTableSchema,
     alterTable,
   };
+
+  // Cache the connection for reuse by subsequent calls with the same dbid/URL
+  const cacheKey = earlyCacheKey || options.dbid || url;
+  connectionCache.set(cacheKey, db);
+
+  return db;
 }
