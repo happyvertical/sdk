@@ -87,4 +87,5 @@ export type {
   VideoMetadata,
   VideoProcessor,
   VideoProcessorOptions,
+  WebpConvertOptions,
 } from './types.js';

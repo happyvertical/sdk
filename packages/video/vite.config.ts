@@ -9,7 +9,12 @@ export default defineConfig({
       fileName: () => 'index.js',
     },
     rollupOptions: {
-      external: [/^node:/, '@happyvertical/logger', '@happyvertical/utils'],
+      external: [
+        /^node:/,
+        '@happyvertical/logger',
+        '@happyvertical/utils',
+        'sharp',
+      ],
     },
     target: 'node20',
     minify: false,

@@ -895,6 +895,9 @@ importers:
       '@happyvertical/utils':
         specifier: workspace:*
         version: link:../utils
+      sharp:
+        specifier: ^0.34.1
+        version: 0.34.5
     devDependencies:
       '@types/node':
         specifier: 24.10.9

@@ -534,6 +534,30 @@ export interface VideoProcessor {
     audio: Buffer | string,
     options?: AudioMixOptions,
   ): Promise<Buffer>;
+
+  /**
+   * Convert animated WEBP to MP4
+   *
+   * Uses sharp to extract frames from animated WEBP (which ffmpeg can't decode),
+   * then assembles them into an MP4 using ffmpeg.
+   */
+  convertWebpToMp4(webp: Buffer, options?: WebpConvertOptions): Promise<Buffer>;
+}
+
+/**
+ * Options for converting animated WEBP to MP4
+ */
+export interface WebpConvertOptions {
+  /**
+   * Frame rate of the output MP4
+   * @default 16
+   */
+  fps?: number;
+
+  /**
+   * Video codec options for the output
+   */
+  video?: VideoCodecOptions;
 }
 
 /**
