@@ -46,12 +46,13 @@ function getCommitsSinceLastRelease(): string[] {
   }
 
   const commits = exec(
-    `git log ${range} --pretty=format:"%H|||%s|||%b" --no-merges`,
+    `git log ${range} --pretty=format:"%H|||%s|||%b%x00" --no-merges`,
   );
 
   if (!commits) return [];
 
-  return commits.split('\n').filter(Boolean);
+  // Split on null byte (not newline) to handle multi-line commit bodies
+  return commits.split('\x00').map((s) => s.trim()).filter(Boolean);
 }
 
 function parseConventionalCommit(commitLine: string): ParsedCommit | null {
@@ -93,15 +94,18 @@ function determineVersionBump(
 ): 'major' | 'minor' | 'patch' | null {
   // For 0.x.x versions, we use different rules:
   // - Breaking changes → minor (0.x.0)
-  // - Features, fixes, perf → patch (0.0.x)
+  // - Features, fixes, perf, dep updates → patch (0.0.x)
 
   const hasBreaking = commits.some((c) => c.breaking);
   if (hasBreaking) return 'minor'; // Breaking in 0.x → minor bump
 
   const hasFeature = commits.some((c) => c.type === 'feat');
   const hasFix = commits.some((c) => ['fix', 'perf'].includes(c.type));
+  const hasDeps = commits.some(
+    (c) => c.type === 'chore' && c.scope === 'deps',
+  );
 
-  if (hasFeature || hasFix) return 'patch';
+  if (hasFeature || hasFix || hasDeps) return 'patch';
 
   return null; // No releaseable commits
 }
@@ -113,6 +117,9 @@ function generateChangesetContent(
   const features = commits.filter((c) => c.type === 'feat');
   const fixes = commits.filter((c) => c.type === 'fix');
   const breaking = commits.filter((c) => c.breaking);
+  const deps = commits.filter(
+    (c) => c.type === 'chore' && c.scope === 'deps',
+  );
 
   let content = `---\n`;
   // Use @happyvertical/utils as representative package (all packages in fixed group will bump together)
@@ -139,6 +146,14 @@ function generateChangesetContent(
     content += `### Bug Fixes\n\n`;
     fixes.forEach((c) => {
       content += `- ${c.message}${c.scope ? ` (${c.scope})` : ''}\n`;
+    });
+    content += `\n`;
+  }
+
+  if (deps.length > 0) {
+    content += `### Dependencies\n\n`;
+    deps.forEach((c) => {
+      content += `- ${c.message}\n`;
     });
   }
 
