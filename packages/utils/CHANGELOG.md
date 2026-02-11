@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.68.5
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - make buildWhere TIMESTAMP CAST adapter-aware (#806) (sql)
+
 ## 0.68.4
 
 ### Patch Changes
