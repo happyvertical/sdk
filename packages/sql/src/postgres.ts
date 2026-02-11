@@ -63,6 +63,13 @@ export interface PostgresOptions {
   dbid?: string;
 
   /**
+   * Maximum number of connections in the pool.
+   * Defaults to 20. The pg library defaults to 10, which is too low
+   * for applications with many SMRT collections.
+   */
+  max?: number;
+
+  /**
    * Explicit schema definitions for tables
    * When provided, these schemas will be used for table creation
    */
@@ -78,12 +85,20 @@ const connectionCache = new Map<string, DatabaseInterface>();
 const pendingConnections = new Map<string, Promise<DatabaseInterface>>();
 
 /**
+ * Tracks which tables have already been verified/created for each cached connection.
+ * Prevents redundant `SELECT EXISTS` queries on every cache hit — the main cause
+ * of connection pool exhaustion under concurrent load.
+ */
+const syncedTables = new Map<string, Set<string>>();
+
+/**
  * Clears the PostgreSQL connection cache.
  * Useful for test isolation and reconnection scenarios.
  */
 export function clearPostgresConnectionCache(): void {
   connectionCache.clear();
   pendingConnections.clear();
+  syncedTables.clear();
 }
 
 /**
@@ -95,8 +110,12 @@ export function clearPostgresConnectionCache(): void {
 async function createTablesFromSchemas(
   pool: Pool,
   schemas: Record<string, import('./shared/types').SchemaProvider>,
+  alreadySynced?: Set<string>,
 ): Promise<void> {
   for (const [tableName, schema] of Object.entries(schemas)) {
+    // Fast path: skip tables already verified in this connection's lifetime
+    if (alreadySynced?.has(tableName)) continue;
+
     try {
       // Check if table already exists
       const result = await pool.query(
@@ -108,7 +127,7 @@ async function createTablesFromSchemas(
       );
 
       if (result.rows[0].exists) {
-        console.log(`[postgres] Table ${tableName} already exists, skipping`);
+        alreadySynced?.add(tableName);
         continue;
       }
 
@@ -144,6 +163,9 @@ async function createTablesFromSchemas(
           }
         }
       }
+
+      // Track as synced after successful creation
+      alreadySynced?.add(tableName);
     } catch (error) {
       const errMsg = formatDbError(error);
       throw new DatabaseError(
@@ -207,9 +229,20 @@ export async function getDatabase(
   if (cacheKey) {
     const cached = connectionCache.get(cacheKey);
     if (cached) {
-      // Apply schemas even on cache hit (review comment #3)
+      // Apply schemas on cache hit only for tables not yet synced.
+      // The syncedTables set prevents redundant SELECT EXISTS queries that
+      // were exhausting the connection pool under concurrent load.
       if (options.schemas && Object.keys(options.schemas).length > 0) {
-        await createTablesFromSchemas(cached.client as Pool, options.schemas);
+        let synced = syncedTables.get(cacheKey);
+        if (!synced) {
+          synced = new Set<string>();
+          syncedTables.set(cacheKey, synced);
+        }
+        await createTablesFromSchemas(
+          cached.client as Pool,
+          options.schemas,
+          synced,
+        );
       }
       return cached;
     }
@@ -285,16 +318,20 @@ async function createDatabase(
     (config.url as string) ||
     `postgresql://${user}${password ? `:${password}` : ''}@${host}:${port}/${database || 'postgres'}`;
 
-  // Create a connection pool
+  // Create a connection pool with explicit max to prevent exhaustion.
+  // pg defaults to 10 which is too low for SMRT apps that sync 30+ table
+  // schemas on startup. Default to 20 but allow callers to override.
+  const poolMax = options.max ?? 20;
   const pool = new Pool(
     config.url
-      ? { connectionString: config.url as string }
+      ? { connectionString: config.url as string, max: poolMax }
       : {
           host: host as string,
           user: user as string,
           password: password as string,
           port: port as number,
           database: database as string,
+          max: poolMax,
         },
   );
 
@@ -307,6 +344,7 @@ async function createDatabase(
     for (const [key, cached] of connectionCache.entries()) {
       if (cached.client === pool) {
         connectionCache.delete(key);
+        syncedTables.delete(key);
       }
     }
   };
@@ -320,9 +358,13 @@ async function createDatabase(
 
   const client = pool;
 
-  // Initialize tables from provided schemas
+  // Initialize tables from provided schemas, tracking what's synced
   if (options.schemas && Object.keys(options.schemas).length > 0) {
-    await createTablesFromSchemas(client, options.schemas);
+    const synced = new Set<string>();
+    await createTablesFromSchemas(client, options.schemas, synced);
+    // Store synced set so cache hits can skip these tables
+    const initCacheKey = cacheKey || url;
+    syncedTables.set(initCacheKey, synced);
   }
 
   /**
