@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.68.6
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - handle multi-line commit bodies in auto-changeset (#809) (ci)
+
 ## 0.68.5
 
 ### Patch Changes
