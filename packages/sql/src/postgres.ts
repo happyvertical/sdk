@@ -463,7 +463,7 @@ async function createDatabase(
     table: string,
     where: Record<string, any>,
   ): Promise<Record<string, any>[]> => {
-    const { sql: whereClause, values } = buildWhere(where, 1);
+    const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
     const query = `SELECT * FROM ${table} ${whereClause}`;
     try {
       const result = await client.query(query, values);
@@ -1084,7 +1084,7 @@ async function createDatabase(
           return result.rows[0] || null;
         },
         list: async (table, where) => {
-          const { sql: whereClause, values } = buildWhere(where, 1);
+          const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
           const query = `SELECT * FROM ${table} ${whereClause}`;
           const result = await txClient.query(query, values);
           return result.rows;

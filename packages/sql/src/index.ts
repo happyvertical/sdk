@@ -195,6 +195,7 @@ export function validateColumnName(column: string): string {
 // Import utilities from shared utils
 import { buildWhere, formatDbError } from './shared/utils';
 export { buildWhere, formatDbError };
+export type { SqlAdapterType } from './shared/utils';
 
 // Import DuckDB schema transformation utilities
 import { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils';
