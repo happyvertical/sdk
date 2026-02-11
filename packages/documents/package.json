@@ -44,9 +44,9 @@
   },
   "dependencies": {
     "@happyvertical/files": "workspace:*",
-    "@happyvertical/ocr": "^0.60.6",
-    "@happyvertical/pdf": "^0.61.0",
-    "@happyvertical/spider": "^0.60.6",
+    "@happyvertical/ocr": "catalog:",
+    "@happyvertical/pdf": "catalog:",
+    "@happyvertical/spider": "catalog:",
     "@happyvertical/utils": "workspace:*",
     "uuid": "^13.0.0"
   },

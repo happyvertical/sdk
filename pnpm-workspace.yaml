@@ -3,5 +3,10 @@ packages:
   - 'docs'
   - 'test-town-gnode'
 
-# pnpm workspace configuration for HAVE SDK monorepo
-# Infrastructure packages in packages/* (ai, cache, config, documents, etc.)
+# Centralized versions for external @happyvertical packages not in this monorepo.
+# These are separate repos (ocr, pdf, spider) whose transitive deps pull in
+# old SDK versions. The catalog + overrides below keep everything aligned.
+catalog:
+  '@happyvertical/ocr': ^0.60.6
+  '@happyvertical/pdf': ^0.62.0
+  '@happyvertical/spider': ^0.60.7
