@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.68.7
+
+### Patch Changes
+
+- ### Dependencies
+
+  - bump external package catalog versions (#810)
+
 ## 0.68.6
 
 ### Patch Changes
