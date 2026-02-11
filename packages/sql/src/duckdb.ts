@@ -375,7 +375,7 @@ export async function getDatabase(
     table: string,
     where: Record<string, any>,
   ): Promise<Record<string, any> | null> => {
-    const { sql: whereClause, values } = buildWhere(where, 1);
+    const { sql: whereClause, values } = buildWhere(where, 1, 'duckdb');
     const sql = `SELECT * FROM ${table} ${whereClause} LIMIT 1`;
 
     try {
@@ -404,7 +404,7 @@ export async function getDatabase(
     table: string,
     where: Record<string, any>,
   ): Promise<Record<string, any>[]> => {
-    const { sql: whereClause, values } = buildWhere(where, 1);
+    const { sql: whereClause, values } = buildWhere(where, 1, 'duckdb');
     const sql = `SELECT * FROM ${table} ${whereClause}`;
 
     try {
@@ -439,6 +439,7 @@ export async function getDatabase(
     const { sql: whereClause, values: whereValues } = buildWhere(
       where,
       keys.length + 1,
+      'duckdb',
     );
 
     const sql = `UPDATE ${table} SET ${setClause} ${whereClause}`;
@@ -666,7 +667,7 @@ export async function getDatabase(
       );
     }
 
-    const { sql: whereClause, values } = buildWhere(where, 1);
+    const { sql: whereClause, values } = buildWhere(where, 1, 'duckdb');
     const sql = `DELETE FROM ${table} ${whereClause}`;
 
     try {
@@ -713,7 +714,7 @@ export async function getDatabase(
       }
 
       // Count with conditions
-      const { sql: whereClause, values } = buildWhere(where, 1);
+      const { sql: whereClause, values } = buildWhere(where, 1, 'duckdb');
       const sql = `SELECT COUNT(*) as count FROM ${table} ${whereClause}`;
 
       const result = await connection.runAndReadAll(sql, values);

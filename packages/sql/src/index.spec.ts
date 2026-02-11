@@ -87,7 +87,7 @@ it('should handle price range conditions', () => {
   expect(result.values).toEqual([10, 100]);
 });
 
-it('should handle date filtering with null check', () => {
+it('should handle date filtering with null check (no adapter)', () => {
   const startDate = new Date('2024-01-01');
   const endDate = new Date('2024-12-31');
 
@@ -97,14 +97,45 @@ it('should handle date filtering with null check', () => {
     deleted_at: null,
   });
 
-  // Date objects are converted to ISO strings with CAST to TIMESTAMP (issue #540)
+  // Without adapter type, Date objects are ISO strings without CAST
   expect(result.sql).toBe(
-    'WHERE created_at > CAST($1 AS TIMESTAMP) AND created_at <= CAST($2 AS TIMESTAMP) AND deleted_at IS NULL',
+    'WHERE created_at > $1 AND created_at <= $2 AND deleted_at IS NULL',
   );
   expect(result.values).toEqual([
     startDate.toISOString(),
     endDate.toISOString(),
   ]);
+});
+
+it('should CAST dates to TIMESTAMP for DuckDB adapter', () => {
+  const startDate = new Date('2024-01-01');
+  const endDate = new Date('2024-12-31');
+
+  const result = buildWhere(
+    {
+      'created_at >': startDate,
+      'created_at <=': endDate,
+    },
+    1,
+    'duckdb',
+  );
+
+  expect(result.sql).toBe(
+    'WHERE created_at > CAST($1 AS TIMESTAMP) AND created_at <= CAST($2 AS TIMESTAMP)',
+  );
+  expect(result.values).toEqual([
+    startDate.toISOString(),
+    endDate.toISOString(),
+  ]);
+});
+
+it('should NOT CAST dates for SQLite adapter', () => {
+  const startDate = new Date('2024-01-01');
+
+  const result = buildWhere({ 'created_at >': startDate }, 1, 'sqlite');
+
+  expect(result.sql).toBe('WHERE created_at > $1');
+  expect(result.values).toEqual([startDate.toISOString()]);
 });
 
 it('should handle LIKE operators for search', () => {

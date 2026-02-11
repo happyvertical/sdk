@@ -370,7 +370,7 @@ export async function getDatabase(
       table: string,
       where: Record<string, any>,
     ): Promise<Record<string, any>[]> => {
-      const { sql: whereClause, values } = buildWhere(where);
+      const { sql: whereClause, values } = buildWhere(where, 1, 'sqlite');
       const sql = `SELECT * FROM ${table} ${whereClause}`;
       try {
         const result = await client.execute({ sql, args: values });

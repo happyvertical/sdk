@@ -56,6 +56,11 @@ const VALID_OPERATORS = {
 } as const;
 
 /**
+ * SQL adapter type for adapter-specific query generation
+ */
+export type SqlAdapterType = 'sqlite' | 'postgres' | 'duckdb' | 'json';
+
+/**
  * Builds a single condition for a WHERE clause
  * @internal
  */
@@ -63,6 +68,7 @@ const buildCondition = (
   fullKey: string,
   value: any,
   currIndex: { value: number },
+  adapterType?: SqlAdapterType,
 ): { sql: string; values: any[] } => {
   const [field, operator = '='] = fullKey.split(' ');
   const sqlOperator =
@@ -78,9 +84,14 @@ const buildCondition = (
     sql = `${field} IN (${placeholders})`;
     values.push(...value);
   } else if (value instanceof Date) {
-    // Convert Date objects to ISO strings and CAST to TIMESTAMP
-    // to prevent DuckDB ANY type inference (issue #540)
-    sql = `${field} ${sqlOperator} CAST($${currIndex.value++} AS TIMESTAMP)`;
+    // DuckDB/JSON need CAST to TIMESTAMP to prevent ANY type inference (issue #540)
+    // SQLite/PostgreSQL handle ISO strings natively without CAST
+    const needsCast = adapterType === 'duckdb' || adapterType === 'json';
+    if (needsCast) {
+      sql = `${field} ${sqlOperator} CAST($${currIndex.value++} AS TIMESTAMP)`;
+    } else {
+      sql = `${field} ${sqlOperator} $${currIndex.value++}`;
+    }
     values.push(value.toISOString());
   } else {
     sql = `${field} ${sqlOperator} $${currIndex.value++}`;
@@ -95,6 +106,11 @@ const buildCondition = (
  *
  * @param where - Conditions as object (AND-only) or 2D array (OR/AND compound)
  * @param startIndex - Starting index for parameter numbering (default: 1)
+ * @param adapterType - Database adapter type. Controls Date handling:
+ *   - `'duckdb'` / `'json'`: Wraps Date values in `CAST($N AS TIMESTAMP)` to
+ *     prevent DuckDB ANY-type inference issues.
+ *   - `'sqlite'` / `'postgres'` / `undefined`: Passes ISO strings directly
+ *     (these adapters handle ISO timestamp strings natively).
  * @returns Object containing the SQL clause and array of values
  *
  * @example Basic Usage (Object format - AND-only):
@@ -164,7 +180,11 @@ const buildCondition = (
  * - Object format: Multiple conditions combined with AND
  * - 2D array format: Inner arrays ANDed, outer array ORed
  */
-export const buildWhere = (where: WhereClause, startIndex = 1) => {
+export const buildWhere = (
+  where: WhereClause,
+  startIndex = 1,
+  adapterType?: SqlAdapterType,
+) => {
   let sql = '';
   const values: any[] = [];
   const currIndex = { value: startIndex };
@@ -186,7 +206,7 @@ export const buildWhere = (where: WhereClause, startIndex = 1) => {
 
       for (const conditionObj of andGroup) {
         for (const [fullKey, value] of Object.entries(conditionObj)) {
-          const result = buildCondition(fullKey, value, currIndex);
+          const result = buildCondition(fullKey, value, currIndex, adapterType);
           andConditions.push(result.sql);
           values.push(...result.values);
         }
@@ -209,7 +229,7 @@ export const buildWhere = (where: WhereClause, startIndex = 1) => {
   if (where && Object.keys(where).length > 0) {
     sql = 'WHERE ';
     for (const [fullKey, value] of Object.entries(where)) {
-      const result = buildCondition(fullKey, value, currIndex);
+      const result = buildCondition(fullKey, value, currIndex, adapterType);
 
       if (sql !== 'WHERE ') {
         sql += ' AND ';

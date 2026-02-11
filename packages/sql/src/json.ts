@@ -746,7 +746,7 @@ export async function getDatabase(
     ): Promise<Record<string, any> | null> => {
       validateTableName(table);
 
-      const { sql: whereClause, values } = buildWhere(where, 1);
+      const { sql: whereClause, values } = buildWhere(where, 1, 'json');
       const sql = `SELECT * FROM "${table}" ${whereClause} LIMIT 1`;
 
       try {
@@ -777,7 +777,7 @@ export async function getDatabase(
     ): Promise<Record<string, any>[]> => {
       validateTableName(table);
 
-      const { sql: whereClause, values } = buildWhere(where, 1);
+      const { sql: whereClause, values } = buildWhere(where, 1, 'json');
       const sql = `SELECT * FROM "${table}" ${whereClause}`;
 
       try {
@@ -824,6 +824,7 @@ export async function getDatabase(
       const { sql: whereClause, values: whereValues } = buildWhere(
         where,
         keys.length + 1,
+        'json',
       );
 
       // Convert Date objects to ISO strings for DuckDB (issue #319)
@@ -1085,7 +1086,7 @@ export async function getDatabase(
         );
       }
 
-      const { sql: whereClause, values } = buildWhere(where, 1);
+      const { sql: whereClause, values } = buildWhere(where, 1, 'json');
       const sql = `DELETE FROM "${table}" ${whereClause}`;
 
       try {
@@ -1132,7 +1133,7 @@ export async function getDatabase(
         }
 
         // Count with conditions
-        const { sql: whereClause, values } = buildWhere(where, 1);
+        const { sql: whereClause, values } = buildWhere(where, 1, 'json');
         const sql = `SELECT COUNT(*) as count FROM "${table}" ${whereClause}`;
 
         const result = await connection.runAndReadAll(sql, values);
