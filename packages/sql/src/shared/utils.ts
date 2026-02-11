@@ -106,6 +106,11 @@ const buildCondition = (
  *
  * @param where - Conditions as object (AND-only) or 2D array (OR/AND compound)
  * @param startIndex - Starting index for parameter numbering (default: 1)
+ * @param adapterType - Database adapter type. Controls Date handling:
+ *   - `'duckdb'` / `'json'`: Wraps Date values in `CAST($N AS TIMESTAMP)` to
+ *     prevent DuckDB ANY-type inference issues.
+ *   - `'sqlite'` / `'postgres'` / `undefined`: Passes ISO strings directly
+ *     (these adapters handle ISO timestamp strings natively).
  * @returns Object containing the SQL clause and array of values
  *
  * @example Basic Usage (Object format - AND-only):
