@@ -105,39 +105,8 @@ jobs:
           additional_permissions: |
             actions: read
 
-          claude_args: >-
-            --allowed-tools
-            "Bash(git *:*)"
-            --allowed-tools
-            "Bash(gh pr:*)"
-            --allowed-tools
-            "Bash(gh issue:*)"
-            --allowed-tools
-            "Bash(pnpm *:*)"
-            --allowed-tools
-            "Bash(npm *:*)"
-            --allowed-tools
-            "Bash(npx *:*)"
-            --allowed-tools
-            "Bash(node *:*)"
-            --allowed-tools
-            "Read"
-            --allowed-tools
-            "Write"
-            --allowed-tools
-            "Edit"
-            --allowed-tools
-            "Glob"
-            --allowed-tools
-            "Grep"
-            --allowed-tools
-            "Bash(ls *:*)"
-            --allowed-tools
-            "Bash(cat *:*)"
-            --allowed-tools
-            "Bash(grep *:*)"
-            --allowed-tools
-            "Bash(find *:*)"
+          claude_args: |
+            --allowedTools "Bash(git *:*),Bash(gh *:*),Bash(pnpm *:*),Bash(npm *:*),Bash(npx *:*),Bash(node *:*),Bash(ls *:*),Bash(cat *:*),Bash(grep *:*),Bash(find *:*),Bash(cd *:*)"
 
       - name: Post Failure Comment
         if: "failure() && github.event.action == 'labeled' && github.event.label.name == 'agent: claude'"
