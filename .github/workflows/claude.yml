@@ -21,11 +21,11 @@ concurrency:
 
 jobs:
   claude:
-    # Filter out ALL bot senders to prevent feedback loops where Claude's own
-    # error/status comments trigger new workflow runs that cancel the original
+    # Filter out bot senders to prevent feedback loops and unnecessary triggers
     if: |
       github.event.sender.login != 'github-actions[bot]' &&
       github.event.sender.login != 'claude[bot]' &&
+      github.event.sender.type != 'Bot' &&
       (
         (github.event_name == 'issue_comment' &&
           contains(github.event.comment.body, '@claude')) ||
