@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.68.8
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - resolve pnpm/action-setup version conflict with packageManager (#811) (ci)
+
 ## 0.68.7
 
 ### Patch Changes
