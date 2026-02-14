@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.68.9
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - add missing packages:read permission and fix script injection in label handler (#812) (ci)
+
 ## 0.68.8
 
 ### Patch Changes
