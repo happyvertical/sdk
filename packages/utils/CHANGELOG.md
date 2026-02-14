@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.68.10
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - filter all bot senders from Claude Code workflow (#813) (ci)
+
 ## 0.68.9
 
 ### Patch Changes
