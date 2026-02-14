@@ -62,19 +62,27 @@ jobs:
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         env:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          INPUT_LABEL_NAME: ${{ inputs.label_name }}
+          INPUT_ACTION: ${{ inputs.action }}
+          INPUT_ISSUE_NUMBER: ${{ inputs.issue_number }}
+          INPUT_REPO_OWNER: ${{ inputs.repo_owner }}
+          INPUT_REPO_NAME: ${{ inputs.repo_name }}
+          WORKSPACE: ${{ github.workspace }}
         with:
           github-token: ${{ secrets.GH_TOKEN }}
           script: |
-            const labelName = '${{ inputs.label_name }}';
-            const action = '${{ inputs.action }}';
-            const issueNumber = ${{ inputs.issue_number }};
+            const labelName = process.env.INPUT_LABEL_NAME;
+            const action = process.env.INPUT_ACTION;
+            const issueNumber = parseInt(process.env.INPUT_ISSUE_NUMBER, 10);
+            const repoOwner = process.env.INPUT_REPO_OWNER;
+            const repoName = process.env.INPUT_REPO_NAME;
 
             console.log(`Processing ${action} for label: ${labelName}`);
 
             // Get issue details
             const { data: issue } = await github.rest.issues.get({
-              owner: '${{ inputs.repo_owner }}',
-              repo: '${{ inputs.repo_name }}',
+              owner: repoOwner,
+              repo: repoName,
               issue_number: issueNumber
             });
 
@@ -94,8 +102,8 @@ jobs:
               for (const oldLabel of labelsToRemove) {
                 console.log(`Removing conflicting label: ${oldLabel}`);
                 await github.rest.issues.removeLabel({
-                  owner: '${{ inputs.repo_owner }}',
-                  repo: '${{ inputs.repo_name }}',
+                  owner: repoOwner,
+                  repo: repoName,
                   issue_number: issueNumber,
                   name: oldLabel
                 });
@@ -109,7 +117,7 @@ jobs:
 
             // Sync with project board if configured
             const { readFileSync } = require('fs');
-            const configPath = '${{ github.workspace }}/.github/triage-config.json';
+            const configPath = `${process.env.WORKSPACE}/.github/triage-config.json`;
 
             try {
               const config = JSON.parse(readFileSync(configPath, 'utf-8'));
