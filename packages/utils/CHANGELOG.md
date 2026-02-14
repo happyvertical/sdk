@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.68.11
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - use correct allowedTools format for Claude Code action (#814) (ci)
+
 ## 0.68.10
 
 ### Patch Changes

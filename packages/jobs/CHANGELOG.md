@@ -1,5 +1,13 @@
 # @happyvertical/jobs
 
+## 0.68.11
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.68.11
+  - @happyvertical/sql@0.68.11
+
 ## 0.68.10
 
 ### Patch Changes
