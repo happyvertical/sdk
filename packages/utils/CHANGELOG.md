@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.68.12
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - add GitHub Packages auth and remove invalid input from Claude workflow (#815) (ci)
+
 ## 0.68.11
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/cache",
-  "version": "0.68.11",
+  "version": "0.68.12",
   "description": "Standardized caching interface supporting Memory, File, and Redis backends",
   "type": "module",
   "main": "./dist/index.js",
