@@ -46,6 +46,7 @@ jobs:
       pull-requests: write   # Allow Claude to create and update PRs
       issues: write          # Allow Claude to comment and update issues
       actions: read          # Allow Claude to read CI results on PRs
+      packages: read         # Allow reading @happyvertical packages from GitHub Packages
       id-token: write        # Required for authentication
     steps:
       - name: Checkout repository
@@ -58,6 +59,8 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@happyvertical'
 
       - name: Setup pnpm
         if: "github.event.action == 'labeled' && github.event.label.name == 'agent: claude'"
@@ -67,13 +70,14 @@ jobs:
         if: "github.event.action == 'labeled' && github.event.label.name == 'agent: claude'"
         run: pnpm install --frozen-lockfile
         continue-on-error: true
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@01e756b34ef7a1447e9508f674143b07d20c2631 # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          timeout_minutes: 55
 
           # Full implementation prompt when triggered by "agent: claude" label
           # For @claude mentions, Claude uses the mention content directly
