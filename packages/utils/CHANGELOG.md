@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.68.13
+
+### Patch Changes
+
+- ### Features
+
+  - add unified multi-channel messaging package (#816) (messages)
+
 ## 0.68.12
 
 ### Patch Changes
