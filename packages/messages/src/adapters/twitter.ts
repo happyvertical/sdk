@@ -283,10 +283,17 @@ export class TwitterAdapter extends BaseMessageClient {
     url: string,
     body?: unknown,
   ): Promise<Response> {
+    const urlObj = new URL(url);
+    const baseUrl = `${urlObj.origin}${urlObj.pathname}`;
+    const queryParams: Record<string, string> = {};
+    urlObj.searchParams.forEach((value, key) => {
+      queryParams[key] = value;
+    });
+
     const authHeader = this.generateOAuthSignature(
       method,
-      url.split('?')[0],
-      {},
+      baseUrl,
+      queryParams,
     );
 
     const options: RequestInit = {

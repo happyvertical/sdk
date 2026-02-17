@@ -82,8 +82,8 @@ export class EmailBridgeAdapter extends BaseMessageClient {
     try {
       const email = await client.getMessage(messageId);
       return this.fromEmailMessage(email);
-    } catch {
-      throw new MessageNotFoundError(messageId, 'email');
+    } catch (error) {
+      throw new MessageNotFoundError(messageId, 'email', error);
     }
   }
 

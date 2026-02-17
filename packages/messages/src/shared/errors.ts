@@ -65,8 +65,13 @@ export class SendError extends MessagingError {
 export class MessageNotFoundError extends MessagingError {
   messageId: string;
 
-  constructor(messageId: string, provider?: string) {
-    super(`Message not found: ${messageId}`, 'MESSAGE_NOT_FOUND', provider);
+  constructor(messageId: string, provider?: string, cause?: unknown) {
+    super(
+      `Message not found: ${messageId}`,
+      'MESSAGE_NOT_FOUND',
+      provider,
+      cause,
+    );
     this.name = 'MessageNotFoundError';
     this.messageId = messageId;
   }
