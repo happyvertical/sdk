@@ -1,0 +1,66 @@
+{
+  "name": "@happyvertical/messages",
+  "version": "0.68.12",
+  "description": "Unified multi-channel messaging with adapter-based architecture (Slack, Twitter, Email)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CLAUDE.md",
+    ".claude-meta.json"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@happyvertical/email": "workspace:*",
+    "@happyvertical/logger": "workspace:*",
+    "@happyvertical/utils": "workspace:*",
+    "@slack/web-api": "^7.9.1"
+  },
+  "devDependencies": {
+    "@types/node": "25.0.10",
+    "typescript": "^5.9.3",
+    "vite": "7.3.1",
+    "vite-plugin-dts": "4.5.4",
+    "vitest": "^4.0.18"
+  },
+  "keywords": [
+    "messaging",
+    "slack",
+    "twitter",
+    "email",
+    "unified",
+    "adapter"
+  ],
+  "author": "HappyVertical",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/happyvertical/sdk.git",
+    "directory": "packages/messages"
+  },
+  "bugs": {
+    "url": "https://github.com/happyvertical/sdk/issues"
+  },
+  "homepage": "https://github.com/happyvertical/sdk/tree/main/packages/messages#readme"
+}
