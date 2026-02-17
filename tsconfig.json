@@ -61,6 +61,7 @@
     { "path": "./packages/weather" },
     { "path": "./packages/documents" },
     { "path": "./packages/email" },
+    { "path": "./packages/messages" },
 
     // Developer tools
     { "path": "./packages/sdk-mcp" },
