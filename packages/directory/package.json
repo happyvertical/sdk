@@ -1,0 +1,70 @@
+{
+  "name": "@happyvertical/directory",
+  "version": "0.68.13",
+  "description": "Unified directory services with adapter-based architecture (Kanidm, Stalwart, PostgreSQL, AWS)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CLAUDE.md",
+    ".claude-meta.json"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@happyvertical/utils": "workspace:*",
+    "@aws-sdk/client-iam": "^3.978.0",
+    "@aws-sdk/client-organizations": "^3.978.0",
+    "pg": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "25.0.10",
+    "@types/pg": "^8.15.4",
+    "typescript": "^5.9.3",
+    "vite": "7.3.1",
+    "vite-plugin-dts": "4.5.4",
+    "vitest": "^4.0.18"
+  },
+  "keywords": [
+    "directory",
+    "identity",
+    "provisioning",
+    "kanidm",
+    "stalwart",
+    "postgres",
+    "aws",
+    "iam",
+    "adapter"
+  ],
+  "author": "HappyVertical",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/happyvertical/sdk.git",
+    "directory": "packages/directory"
+  },
+  "bugs": {
+    "url": "https://github.com/happyvertical/sdk/issues"
+  },
+  "homepage": "https://github.com/happyvertical/sdk/tree/main/packages/directory#readme"
+}
