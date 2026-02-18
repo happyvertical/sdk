@@ -198,6 +198,20 @@
     },
     {
       "includes": [
+        "packages/directory/src/adapters/**/*.ts",
+        "packages/directory/src/shared/types.ts",
+        "packages/directory/src/__tests__/**/*.ts"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "useNamingConvention": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
         "**/vite.config.ts",
         "**/vitest.config.ts",
         "**/rollup.config.js",

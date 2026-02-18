@@ -1,0 +1,20 @@
+{
+  "name": "directory",
+  "description": "Unified directory services for identity, mail, database, and cloud provisioning",
+  "keywords": [
+    "directory",
+    "identity",
+    "provisioning",
+    "kanidm",
+    "stalwart",
+    "postgres",
+    "aws",
+    "iam",
+    "user",
+    "group",
+    "oauth",
+    "mail",
+    "database",
+    "role"
+  ]
+}
