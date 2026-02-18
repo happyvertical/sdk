@@ -404,7 +404,7 @@ export interface PostgresOptions {
   adminUser: string;
   adminPassword: string;
   database?: string;
-  ssl?: boolean;
+  ssl?: boolean | Record<string, unknown>;
 }
 
 export interface AwsOptions {

@@ -398,7 +398,9 @@ export class StalwartAdapter implements StalwartDirectoryAdapter {
   // ==========================================================================
 
   async createMailbox(input: CreateMailboxInput): Promise<Mailbox> {
-    const localPart = input.email.split('@')[0];
+    const atIndex = input.email.indexOf('@');
+    const localPart =
+      atIndex >= 0 ? input.email.slice(0, atIndex) : input.email;
     const principal: StalwartPrincipal = {
       name: localPart,
       type: 'individual',

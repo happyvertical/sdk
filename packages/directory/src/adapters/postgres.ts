@@ -96,7 +96,11 @@ export class PostgresAdapter implements PostgresDirectoryAdapter {
         user: this.options.adminUser,
         password: this.options.adminPassword,
         database: this.options.database ?? 'postgres',
-        ssl: this.options.ssl ? { rejectUnauthorized: false } : undefined,
+        ssl: this.options.ssl
+          ? typeof this.options.ssl === 'object'
+            ? this.options.ssl
+            : { rejectUnauthorized: false }
+          : undefined,
       });
 
       await this.client.connect();
