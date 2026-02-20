@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getDatabase } from './index';
 import type { DatabaseInterface } from './shared/types';
 
-async function checkPostgreSQLConnection(): Promise<boolean> {
+async function checkPgvectorAvailable(): Promise<boolean> {
   try {
     const testDb = await getDatabase({
       type: 'postgres',
@@ -13,7 +13,8 @@ async function checkPostgreSQLConnection(): Promise<boolean> {
       port: Number(process.env.SQLOO_PORT) || 5432,
     });
 
-    await testDb.execute`SELECT 1`;
+    // Check both postgres connectivity and pgvector availability
+    await testDb.execute`CREATE EXTENSION IF NOT EXISTS vector`;
     await testDb.client.end();
     return true;
   } catch (_error) {
@@ -27,9 +28,11 @@ describe('postgres vector capabilities (pgvector)', () => {
   const testTable = `vector_test_${Date.now()}`;
 
   beforeEach(async () => {
-    postgresAvailable = await checkPostgreSQLConnection();
+    postgresAvailable = await checkPgvectorAvailable();
     if (!postgresAvailable) {
-      console.log('PostgreSQL not available, skipping vector tests');
+      console.log(
+        'PostgreSQL with pgvector not available, skipping vector tests',
+      );
       return;
     }
 
@@ -43,7 +46,6 @@ describe('postgres vector capabilities (pgvector)', () => {
     });
 
     // Create a test table with an id and text column
-    await db.execute`CREATE EXTENSION IF NOT EXISTS vector`;
     await db.client.query(`DROP TABLE IF EXISTS "${testTable}"`);
     await db.client.query(`
       CREATE TABLE "${testTable}" (
