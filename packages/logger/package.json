@@ -9,6 +9,18 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./sentry": {
+      "import": "./dist/sentry.js",
+      "types": "./dist/sentry.d.ts"
+    }
+  },
+  "peerDependencies": {
+    "@sentry/node": ">=9.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@sentry/node": {
+      "optional": true
     }
   },
   "bin": {
@@ -36,6 +48,7 @@
     "@happyvertical/utils": "workspace:*"
   },
   "devDependencies": {
+    "@sentry/node": "^10.39.0",
     "@types/node": "25.0.10",
     "typescript": "^5.9.3",
     "vite": "7.3.1",
