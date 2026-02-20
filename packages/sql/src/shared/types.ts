@@ -371,6 +371,109 @@ export interface TableSchemaInfo {
 }
 
 /**
+ * Options for vector similarity search
+ */
+export interface VectorSearchOptions {
+  /** Maximum number of results to return */
+  limit?: number;
+  /** Distance metric for similarity comparison @default 'cosine' */
+  metric?: 'cosine' | 'l2' | 'ip';
+  /** Additional SQL WHERE clause */
+  where?: string;
+  /** Parameters for the WHERE clause */
+  params?: any[];
+}
+
+/**
+ * Result of a vector similarity search
+ */
+export interface VectorSearchResult {
+  /** Row primary key */
+  id: string;
+  /** Distance from query vector (lower = more similar for cosine distance) */
+  distance: number;
+  /** Additional columns from the row */
+  [key: string]: any;
+}
+
+/**
+ * Options for creating a vector index
+ */
+export interface VectorIndexOptions {
+  /** Number of dimensions in the vector */
+  dimensions: number;
+  /** Distance metric @default 'cosine' */
+  metric?: 'cosine' | 'l2' | 'ip';
+  /** Index type @default 'hnsw' */
+  type?: 'hnsw' | 'ivfflat';
+}
+
+/**
+ * Vector operations capability for database adapters
+ *
+ * Provides native vector similarity search, storage, and indexing.
+ * Currently implemented by the PostgreSQL adapter via pgvector.
+ */
+export interface VectorCapabilities {
+  /**
+   * Search for similar vectors
+   *
+   * @param table - Table containing vector column
+   * @param column - Name of the vector column
+   * @param embedding - Query vector
+   * @param options - Search options
+   * @returns Ranked results by similarity
+   */
+  search(
+    table: string,
+    column: string,
+    embedding: number[],
+    options?: VectorSearchOptions,
+  ): Promise<VectorSearchResult[]>;
+
+  /**
+   * Ensure a vector column exists on a table
+   *
+   * @param table - Table name
+   * @param column - Column name
+   * @param dimensions - Number of vector dimensions
+   */
+  ensureColumn(
+    table: string,
+    column: string,
+    dimensions: number,
+  ): Promise<void>;
+
+  /**
+   * Ensure a vector index exists on a column
+   *
+   * @param table - Table name
+   * @param column - Column name
+   * @param options - Index options
+   */
+  ensureIndex(
+    table: string,
+    column: string,
+    options?: VectorIndexOptions,
+  ): Promise<void>;
+
+  /**
+   * Store or update a vector in a specific row
+   *
+   * @param table - Table name
+   * @param where - Conditions to identify the row
+   * @param column - Vector column name
+   * @param embedding - Vector data
+   */
+  upsertVector(
+    table: string,
+    where: Record<string, any>,
+    column: string,
+    embedding: number[],
+  ): Promise<void>;
+}
+
+/**
  * Common interface for database adapters
  * Provides a unified API for different database backends
  */
@@ -692,6 +795,14 @@ export interface DatabaseInterface {
    * @returns Promise resolving to table schema info or null if table doesn't exist
    */
   getTableSchema?: (table: string) => Promise<TableSchemaInfo | null>;
+
+  /**
+   * Vector operations for native similarity search
+   *
+   * When available, enables database-level vector operations (e.g., pgvector).
+   * Consumers should check for this capability rather than checking the database type.
+   */
+  vector?: VectorCapabilities;
 
   /**
    * ALTER TABLE operations for schema evolution

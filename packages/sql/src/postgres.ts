@@ -18,6 +18,10 @@ import type {
   TableInterface,
   TableSchemaInfo,
   TransactionHandle,
+  VectorCapabilities,
+  VectorIndexOptions,
+  VectorSearchOptions,
+  VectorSearchResult,
 } from './shared/types';
 import { buildWhere, formatDbError } from './shared/utils';
 
@@ -178,6 +182,138 @@ async function createTablesFromSchemas(
       );
     }
   }
+}
+
+/**
+ * Operator for the given distance metric in pgvector
+ */
+function vectorOperator(metric: 'cosine' | 'l2' | 'ip'): string {
+  switch (metric) {
+    case 'cosine':
+      return '<=>';
+    case 'l2':
+      return '<->';
+    case 'ip':
+      return '<#>';
+    default:
+      return '<=>';
+  }
+}
+
+/**
+ * pgvector index operator class for CREATE INDEX
+ */
+function vectorOpsClass(metric: 'cosine' | 'l2' | 'ip'): string {
+  switch (metric) {
+    case 'cosine':
+      return 'vector_cosine_ops';
+    case 'l2':
+      return 'vector_l2_ops';
+    case 'ip':
+      return 'vector_ip_ops';
+    default:
+      return 'vector_cosine_ops';
+  }
+}
+
+/**
+ * Convert a number[] to a pgvector literal string: '[0.1,0.2,0.3]'
+ */
+function toVectorLiteral(embedding: number[]): string {
+  return `[${embedding.join(',')}]`;
+}
+
+/**
+ * Creates vector capabilities backed by pgvector for a PostgreSQL pool.
+ *
+ * @param pool - PostgreSQL connection pool
+ * @returns VectorCapabilities implementation
+ */
+function createVectorCapabilities(pool: Pool): VectorCapabilities {
+  return {
+    async ensureColumn(
+      table: string,
+      column: string,
+      dimensions: number,
+    ): Promise<void> {
+      await pool.query('CREATE EXTENSION IF NOT EXISTS vector');
+      await pool.query(
+        `ALTER TABLE "${table}" ADD COLUMN IF NOT EXISTS "${column}" vector(${dimensions})`,
+      );
+    },
+
+    async ensureIndex(
+      table: string,
+      column: string,
+      options?: VectorIndexOptions,
+    ): Promise<void> {
+      const metric = options?.metric || 'cosine';
+      const indexType = options?.type || 'hnsw';
+      const opsClass = vectorOpsClass(metric);
+      const indexName = `idx_${table}_${column}_${indexType}`;
+
+      await pool.query(
+        `CREATE INDEX IF NOT EXISTS "${indexName}" ON "${table}" USING ${indexType} ("${column}" ${opsClass})`,
+      );
+    },
+
+    async upsertVector(
+      table: string,
+      where: Record<string, any>,
+      column: string,
+      embedding: number[],
+    ): Promise<void> {
+      const keys = Object.keys(where);
+      const values = Object.values(where);
+      const conditions = keys
+        .map((key, i) => `"${key}" = $${i + 1}`)
+        .join(' AND ');
+      const vectorParam = `$${values.length + 1}`;
+
+      await pool.query(
+        `UPDATE "${table}" SET "${column}" = ${vectorParam}::vector WHERE ${conditions}`,
+        [...values, toVectorLiteral(embedding)],
+      );
+    },
+
+    async search(
+      table: string,
+      column: string,
+      embedding: number[],
+      options?: VectorSearchOptions,
+    ): Promise<VectorSearchResult[]> {
+      const metric = options?.metric || 'cosine';
+      const limit = options?.limit || 10;
+      const op = vectorOperator(metric);
+
+      let paramIndex = 1;
+      const queryParams: any[] = [toVectorLiteral(embedding)];
+
+      let whereClause = `"${column}" IS NOT NULL`;
+      if (options?.where) {
+        whereClause += ` AND (${options.where})`;
+        if (options.params) {
+          for (const p of options.params) {
+            paramIndex++;
+            queryParams.push(p);
+          }
+        }
+      }
+
+      const limitParam = `$${queryParams.length + 1}`;
+      queryParams.push(limit);
+
+      const sql = `SELECT *, ("${column}" ${op} $1::vector) AS distance FROM "${table}" WHERE ${whereClause} ORDER BY "${column}" ${op} $1::vector LIMIT ${limitParam}`;
+
+      const result = await pool.query(sql, queryParams);
+
+      return result.rows.map((row: Record<string, any>) => ({
+        ...row,
+        id: row.id as string,
+        distance: Number.parseFloat(row.distance),
+      }));
+    },
+  };
 }
 
 /**
@@ -1777,6 +1913,7 @@ async function createDatabase(
     beginTransaction,
     getTableSchema,
     alterTable,
+    vector: createVectorCapabilities(pool),
   };
 
   // Cache the connection for reuse by subsequent calls with the same dbid/URL
