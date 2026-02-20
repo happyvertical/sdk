@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.69.1
+
+### Patch Changes
+
+- ### Features
+
+  - add pgvector support to PostgreSQL adapter (#820) (sql)
+
 ## 0.69.0
 
 ## 0.68.13
