@@ -54,6 +54,7 @@ export class SentryAdapter implements SignalAdapter {
       start: 'debug',
       step: 'debug',
       end: 'info',
+      error: 'error',
     };
 
     let message: string;

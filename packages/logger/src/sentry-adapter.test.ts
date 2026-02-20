@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Signal } from './signal-types.js';
 
 // Mock @sentry/node before importing the adapter
@@ -23,7 +23,7 @@ function makeSignal(overrides: Partial<Signal> = {}): Signal {
     objectId: 'obj-1',
     className: 'Product',
     method: 'save',
-    timestamp: new Date('2026-01-01'),
+    timestamp: new Date('2020-01-01'),
     ...overrides,
   };
 }
