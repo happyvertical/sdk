@@ -141,6 +141,33 @@ describe('postgres vector capabilities (pgvector)', () => {
       `;
       expect(indexes).toHaveLength(1);
     });
+
+    it('should create an IVFFlat index', async () => {
+      if (!postgresAvailable) return;
+
+      await db.vector!.ensureColumn(testTable, 'embedding', 3);
+
+      // Insert some data first (IVFFlat benefits from existing data)
+      await db.insert(testTable, { id: 'x', content: 'test' });
+      await db.vector!.upsertVector(
+        testTable,
+        { id: 'x' },
+        'embedding',
+        [0.1, 0.2, 0.3],
+      );
+
+      await db.vector!.ensureIndex(testTable, 'embedding', {
+        metric: 'cosine',
+        type: 'ivfflat',
+      });
+
+      const indexes = await db.many`
+        SELECT indexname FROM pg_indexes
+        WHERE tablename = ${testTable}
+        AND indexname LIKE '%ivfflat%'
+      `;
+      expect(indexes).toHaveLength(1);
+    });
   });
 
   describe('upsertVector', () => {
@@ -327,6 +354,21 @@ describe('postgres vector capabilities (pgvector)', () => {
 
       expect(results).toHaveLength(3);
       // 'a' should still be closest
+      expect(results[0].id).toBe('a');
+    });
+
+    it('should support inner product distance metric', async () => {
+      if (!postgresAvailable) return;
+
+      const results = await db.vector!.search(
+        testTable,
+        'embedding',
+        [1, 0, 0],
+        { limit: 3, metric: 'ip' },
+      );
+
+      expect(results).toHaveLength(3);
+      // 'a' should still be closest (highest inner product = lowest negative IP distance)
       expect(results[0].id).toBe('a');
     });
   });

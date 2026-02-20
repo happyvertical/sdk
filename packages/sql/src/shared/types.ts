@@ -378,9 +378,13 @@ export interface VectorSearchOptions {
   limit?: number;
   /** Distance metric for similarity comparison @default 'cosine' */
   metric?: 'cosine' | 'l2' | 'ip';
-  /** Additional SQL WHERE clause */
+  /**
+   * Additional SQL WHERE clause.
+   * Use $2, $3, etc. for parameter placeholders ($1 is reserved for the query vector).
+   * @example `category = $2`
+   */
   where?: string;
-  /** Parameters for the WHERE clause */
+  /** Parameters for the WHERE clause, bound to $2, $3, etc. */
   params?: any[];
 }
 
@@ -390,7 +394,10 @@ export interface VectorSearchOptions {
 export interface VectorSearchResult {
   /** Row primary key */
   id: string;
-  /** Distance from query vector (lower = more similar for cosine distance) */
+  /**
+   * Distance from query vector (lower = more similar).
+   * Range varies by metric: cosine [0, 2], L2 [0, Infinity), ip (-Infinity, Infinity).
+   */
   distance: number;
   /** Additional columns from the row */
   [key: string]: any;
@@ -400,8 +407,8 @@ export interface VectorSearchResult {
  * Options for creating a vector index
  */
 export interface VectorIndexOptions {
-  /** Number of dimensions in the vector */
-  dimensions: number;
+  /** Number of dimensions (informational only, dimensions are set via ensureColumn) */
+  dimensions?: number;
   /** Distance metric @default 'cosine' */
   metric?: 'cosine' | 'l2' | 'ip';
   /** Index type @default 'hnsw' */
