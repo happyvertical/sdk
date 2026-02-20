@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.69.2
+
+### Patch Changes
+
+- ### Features
+
+  - add Sentry/GlitchTip signal adapter (#821) (logger)
+
 ## 0.69.1
 
 ### Patch Changes
