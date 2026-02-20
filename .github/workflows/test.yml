@@ -74,7 +74,6 @@ jobs:
         with:
           path: |
             packages/*/dist
-            .turbo
           key: |
             ${{ runner.os }}-build-${{ hashFiles(
               'packages/*/src/**',
