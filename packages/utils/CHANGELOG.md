@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.69.4
+
+### Patch Changes
+
+- ### Dependencies
+
+  - update @happyvertical/pdf to ^0.62.6 (#823)
+
 ## 0.69.3
 
 ### Patch Changes
