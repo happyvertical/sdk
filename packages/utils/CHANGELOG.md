@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.69.6
+
+### Patch Changes
+
+- ### Dependencies
+
+  - update @anthropic-ai/sdk to v0.78.0 (#826)
+
 ## 0.69.5
 
 ### Patch Changes
