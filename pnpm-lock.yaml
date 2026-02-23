@@ -335,14 +335,14 @@ importers:
         specifier: workspace:*
         version: link:../utils
       pg:
-        specifier: ^8.16.0
+        specifier: ^8.18.0
         version: 8.18.0
     devDependencies:
       '@types/node':
         specifier: 24.10.9
         version: 24.10.9
       '@types/pg':
-        specifier: ^8.15.4
+        specifier: ^8.16.0
         version: 8.16.0
       typescript:
         specifier: ^5.9.3
@@ -882,7 +882,7 @@ importers:
         specifier: 0.17.0
         version: 0.17.0
       pg:
-        specifier: ^8.17.2
+        specifier: ^8.18.0
         version: 8.18.0
       sqlite-vss:
         specifier: ^0.1.2
