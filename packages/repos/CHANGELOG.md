@@ -1,5 +1,11 @@
 # @happyvertical/repos
 
+## 0.69.5
+
+### Patch Changes
+
+- @happyvertical/graphql@0.69.5
+
 ## 0.69.4
 
 ### Patch Changes
