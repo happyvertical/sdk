@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.69.7
+
+### Patch Changes
+
+- ### Features
+
+  - lazy schemas — adapters resolve only when needed (#828) (sql)
+
 ## 0.69.6
 
 ### Patch Changes
