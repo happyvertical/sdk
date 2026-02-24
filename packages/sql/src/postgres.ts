@@ -106,35 +106,47 @@ export function clearPostgresConnectionCache(): void {
 }
 
 /**
- * Creates tables from provided schema definitions
+ * Creates tables from provided schema definitions.
+ *
+ * Uses a single batch query to check which tables already exist,
+ * then only creates the missing ones. This avoids N sequential
+ * round-trips for N schemas (critical for remote/high-latency DBs).
  *
  * @param pool - PostgreSQL connection pool
  * @param schemas - Schema definitions to create
+ * @param alreadySynced - Set of table names already verified this session
  */
 async function createTablesFromSchemas(
   pool: Pool,
   schemas: Record<string, import('./shared/types').SchemaProvider>,
   alreadySynced?: Set<string>,
 ): Promise<void> {
-  for (const [tableName, schema] of Object.entries(schemas)) {
-    // Fast path: skip tables already verified in this connection's lifetime
-    if (alreadySynced?.has(tableName)) continue;
+  // Filter to only unchecked tables
+  const unchecked = Object.entries(schemas).filter(
+    ([name]) => !alreadySynced?.has(name),
+  );
+  if (unchecked.length === 0) return;
+
+  // Batch check: single query for all table names
+  const tableNames = unchecked.map(([name]) => name);
+  const result = await pool.query(
+    `SELECT tablename FROM pg_tables WHERE tablename = ANY($1)`,
+    [tableNames],
+  );
+  const existingTables = new Set(
+    result.rows.map((r: { tablename: string }) => r.tablename),
+  );
+
+  // Mark all existing tables as synced
+  for (const name of existingTables) {
+    alreadySynced?.add(name);
+  }
+
+  // Create only the missing tables
+  for (const [tableName, schema] of unchecked) {
+    if (existingTables.has(tableName)) continue;
 
     try {
-      // Check if table already exists
-      const result = await pool.query(
-        `SELECT EXISTS (
-          SELECT FROM pg_tables
-          WHERE tablename = $1
-        )`,
-        [tableName],
-      );
-
-      if (result.rows[0].exists) {
-        alreadySynced?.add(tableName);
-        continue;
-      }
-
       console.log(
         `[postgres] Creating table ${tableName} from provided schema`,
       );
