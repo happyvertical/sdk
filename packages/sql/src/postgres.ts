@@ -74,10 +74,14 @@ export interface PostgresOptions {
   max?: number;
 
   /**
-   * Explicit schema definitions for tables
-   * When provided, these schemas will be used for table creation
+   * Schema definitions for tables.
+   * Accepts a record or a lazy function (see SchemasOption).
+   *
+   * **Postgres ignores this option** — tables are managed by migrations.
+   * The option exists so callers can pass schemas uniformly to all adapters
+   * without knowing the adapter type. Only JSON/DuckDB adapters resolve it.
    */
-  schemas?: Record<string, import('./shared/types').SchemaProvider>;
+  schemas?: import('./shared/types').SchemasOption;
 }
 
 /**
@@ -89,99 +93,12 @@ const connectionCache = new Map<string, DatabaseInterface>();
 const pendingConnections = new Map<string, Promise<DatabaseInterface>>();
 
 /**
- * Tracks which tables have already been verified/created for each cached connection.
- * Prevents redundant `SELECT EXISTS` queries on every cache hit — the main cause
- * of connection pool exhaustion under concurrent load.
- */
-const syncedTables = new Map<string, Set<string>>();
-
-/**
  * Clears the PostgreSQL connection cache.
  * Useful for test isolation and reconnection scenarios.
  */
 export function clearPostgresConnectionCache(): void {
   connectionCache.clear();
   pendingConnections.clear();
-  syncedTables.clear();
-}
-
-/**
- * Creates tables from provided schema definitions
- *
- * @param pool - PostgreSQL connection pool
- * @param schemas - Schema definitions to create
- */
-async function createTablesFromSchemas(
-  pool: Pool,
-  schemas: Record<string, import('./shared/types').SchemaProvider>,
-  alreadySynced?: Set<string>,
-): Promise<void> {
-  for (const [tableName, schema] of Object.entries(schemas)) {
-    // Fast path: skip tables already verified in this connection's lifetime
-    if (alreadySynced?.has(tableName)) continue;
-
-    try {
-      // Check if table already exists
-      const result = await pool.query(
-        `SELECT EXISTS (
-          SELECT FROM pg_tables
-          WHERE tablename = $1
-        )`,
-        [tableName],
-      );
-
-      if (result.rows[0].exists) {
-        alreadySynced?.add(tableName);
-        continue;
-      }
-
-      console.log(
-        `[postgres] Creating table ${tableName} from provided schema`,
-      );
-
-      // Create table from DDL
-      await pool.query(schema.ddl);
-
-      // Create indexes
-      if (schema.indexes && schema.indexes.length > 0) {
-        for (const indexSQL of schema.indexes) {
-          try {
-            await pool.query(indexSQL);
-          } catch (error) {
-            console.warn(
-              `[postgres] Failed to create index for ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
-            );
-          }
-        }
-      }
-
-      // Create triggers (if supported)
-      if (schema.triggers && schema.triggers.length > 0) {
-        for (const triggerSQL of schema.triggers) {
-          try {
-            await pool.query(triggerSQL);
-          } catch (error) {
-            console.warn(
-              `[postgres] Failed to create trigger for ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
-            );
-          }
-        }
-      }
-
-      // Track as synced after successful creation
-      alreadySynced?.add(tableName);
-    } catch (error) {
-      const errMsg = formatDbError(error);
-      throw new DatabaseError(
-        `Failed to create table ${tableName} from schema: ${errMsg}`,
-        {
-          tableName,
-          schema,
-          originalError: errMsg,
-        },
-      );
-    }
-  }
 }
 
 /**
@@ -416,21 +333,6 @@ export async function getDatabase(
   if (cacheKey) {
     const cached = connectionCache.get(cacheKey);
     if (cached) {
-      // Apply schemas on cache hit only for tables not yet synced.
-      // The syncedTables set prevents redundant SELECT EXISTS queries that
-      // were exhausting the connection pool under concurrent load.
-      if (options.schemas && Object.keys(options.schemas).length > 0) {
-        let synced = syncedTables.get(cacheKey);
-        if (!synced) {
-          synced = new Set<string>();
-          syncedTables.set(cacheKey, synced);
-        }
-        await createTablesFromSchemas(
-          cached.client as Pool,
-          options.schemas,
-          synced,
-        );
-      }
       return cached;
     }
 
@@ -531,7 +433,6 @@ async function createDatabase(
     for (const [key, cached] of connectionCache.entries()) {
       if (cached.client === pool) {
         connectionCache.delete(key);
-        syncedTables.delete(key);
       }
     }
   };
@@ -544,15 +445,6 @@ async function createDatabase(
   };
 
   const client = pool;
-
-  // Initialize tables from provided schemas, tracking what's synced
-  if (options.schemas && Object.keys(options.schemas).length > 0) {
-    const synced = new Set<string>();
-    await createTablesFromSchemas(client, options.schemas, synced);
-    // Store synced set so cache hits can skip these tables
-    const initCacheKey = cacheKey || url;
-    syncedTables.set(initCacheKey, synced);
-  }
 
   /**
    * Serializes a value for database storage

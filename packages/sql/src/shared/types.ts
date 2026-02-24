@@ -82,7 +82,7 @@ export interface DuckDBOptions extends DatabaseOptions {
    * Explicit schema definitions for tables
    * When provided, these schemas will be used for table creation
    */
-  schemas?: Record<string, SchemaProvider>;
+  schemas?: SchemasOption;
 }
 
 /**
@@ -139,7 +139,7 @@ export interface JSONOptions {
    * });
    * ```
    */
-  schemas?: Record<string, SchemaProvider>;
+  schemas?: SchemasOption;
 
   /**
    * Unique identifier for in-memory DuckDB instances to enable connection sharing
@@ -251,6 +251,51 @@ export interface SchemaProvider {
    * Can be used by frameworks for runtime type information and validation
    */
   fields?: Map<string, any>;
+}
+
+/**
+ * Schema definitions for getDatabase(), either eagerly built or lazy.
+ *
+ * Callers can pass schemas as a lazy function so that building the schema
+ * map (potentially 200+ objects from ObjectRegistry) is deferred until an
+ * adapter actually needs it. Adapters that manage tables via migrations
+ * (Postgres, SQLite) never call the function, making the cost zero.
+ *
+ * @example Lazy — only resolved by JSON/DuckDB adapters
+ * ```typescript
+ * await getDatabase({
+ *   type: 'postgres',
+ *   url: '...',
+ *   schemas: () => ObjectRegistry.getAllSchemas(), // never called
+ * });
+ * ```
+ *
+ * @example Eager — built upfront (fine for JSON/DuckDB)
+ * ```typescript
+ * await getDatabase({
+ *   type: 'json',
+ *   url: './data',
+ *   schemas: { users: { tableName: 'users', ddl: '...' } },
+ * });
+ * ```
+ */
+export type SchemasOption =
+  | Record<string, SchemaProvider>
+  | (() => Record<string, SchemaProvider>);
+
+/**
+ * Resolves a SchemasOption to its concrete value.
+ *
+ * Adapters that need schemas (JSON, DuckDB) call this to unwrap the
+ * lazy function. Adapters that don't (Postgres, SQLite) simply ignore
+ * the `schemas` option without calling this.
+ */
+export function resolveSchemas(
+  schemas: SchemasOption | undefined,
+): Record<string, SchemaProvider> | undefined {
+  if (!schemas) return undefined;
+  if (typeof schemas === 'function') return schemas();
+  return schemas;
 }
 
 /**

@@ -47,7 +47,21 @@ function isDatabaseInstance(value: any): value is DatabaseInterface {
  *
  * User-provided options always take precedence over environment variables.
  *
- * Note: As of v0.56.15, the JSON adapter properly quotes all table names in SQL operations (fixes #509)
+ * ## Lazy schemas
+ *
+ * The `schemas` option accepts either an eagerly-built record or a lazy
+ * function (`() => Record<string, SchemaProvider>`).  Adapters that manage
+ * tables via migrations (Postgres, SQLite) never resolve the function, so
+ * there is zero cost for callers that pass schemas uniformly regardless of
+ * adapter type.  Only JSON and DuckDB adapters call the function.
+ *
+ * ```typescript
+ * // Caller doesn't need to know the adapter type:
+ * await getDatabase({
+ *   ...config,
+ *   schemas: () => ObjectRegistry.getAllSchemas(),
+ * });
+ * ```
  *
  * @param options - Configuration options for the database connection or an existing database instance
  * @returns Promise resolving to a DatabaseInterface implementation
@@ -210,7 +224,12 @@ export { DatabaseSchemaManager } from './schema-manager';
 
 export * from './shared/types';
 
-export default { getDatabase, syncSchema, tableExists, buildWhere };
+export default {
+  getDatabase,
+  syncSchema,
+  tableExists,
+  buildWhere,
+};
 
 /** @internal */
 export const PACKAGE_VERSION_INITIALIZED = true;

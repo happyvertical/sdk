@@ -19,6 +19,7 @@ import type {
   TableSchemaInfo,
   TransactionHandle,
 } from './shared/types';
+import { resolveSchemas } from './shared/types';
 import { buildWhere, formatDbError } from './shared/utils';
 
 /**
@@ -124,10 +125,13 @@ export interface SqliteOptions {
   dbid?: string;
 
   /**
-   * Explicit schema definitions for tables
-   * When provided, these schemas will be used for table creation
+   * Schema definitions for tables.
+   * Accepts a record or a lazy function (see SchemasOption).
+   *
+   * When provided, these schemas will be used for table creation.
+   * Accepts a lazy function to defer schema building until needed.
    */
-  schemas?: Record<string, import('./shared/types').SchemaProvider>;
+  schemas?: import('./shared/types').SchemasOption;
 }
 
 /**
@@ -236,9 +240,10 @@ export async function getDatabase(
   const connectionPromise = (async () => {
     const client = await createLibSQLClient(options);
 
-    // Initialize tables from provided schemas
-    if (options.schemas && Object.keys(options.schemas).length > 0) {
-      await createTablesFromSchemas(client, options.schemas);
+    // Initialize tables from provided schemas (resolves lazy function if needed)
+    const resolvedSchemas = resolveSchemas(options.schemas);
+    if (resolvedSchemas && Object.keys(resolvedSchemas).length > 0) {
+      await createTablesFromSchemas(client, resolvedSchemas);
     }
 
     /**
