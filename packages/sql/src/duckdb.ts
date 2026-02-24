@@ -23,6 +23,7 @@ import type {
   TableSchemaInfo,
   TransactionHandle,
 } from './shared/types';
+import { resolveSchemas } from './shared/types';
 import { buildWhere, formatDbError } from './shared/utils';
 
 /**
@@ -146,8 +147,8 @@ async function createDuckDBConnection(options: DuckDBOptions) {
     url = ':memory:',
     dataDir = './data',
     autoRegisterJSON = true,
-    schemas = {},
   } = options;
+  const schemas = resolveSchemas(options.schemas) ?? {};
 
   // Resolve URL to prevent file leakage from :memory:* patterns
   const resolvedUrl = resolveDuckDBUrl(url);

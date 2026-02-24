@@ -17,44 +17,6 @@ type GetDatabaseOptions =
   | JSONOptions;
 
 /**
- * Returns whether the given database config requires schema definitions
- * to be passed to getDatabase() for auto-creating tables.
- *
- * JSON and DuckDB adapters need schemas to create tables with correct
- * column types (otherwise DuckDB infers ANY from empty/null values).
- * Postgres and SQLite use migrations, so schemas are unnecessary.
- *
- * Call this before getDatabase() to avoid building and passing schemas
- * when they won't be used — especially important for high-latency
- * connections where schema sync adds round-trips.
- *
- * @param options - Database configuration (same as getDatabase options)
- * @returns true if the adapter will use schemas, false otherwise
- */
-export function needsSchemaSync(
-  options: GetDatabaseOptions | DatabaseInterface,
-): boolean {
-  if (isDatabaseInstance(options)) return false;
-  const type = resolveAdapterType(options);
-  return type === 'json' || type === 'duckdb';
-}
-
-/**
- * Resolves the adapter type from options, applying the same heuristics
- * as getDatabase() (env vars, URL prefix detection).
- */
-function resolveAdapterType(options: GetDatabaseOptions): string | undefined {
-  if (options.type) return options.type;
-  if (options.url?.startsWith('file:') || options.url === ':memory:') {
-    return 'sqlite';
-  }
-  // Check env vars
-  const envType = process.env.HAVE_SQL_TYPE || process.env.SQLOO_TYPE;
-  if (envType) return envType;
-  return undefined;
-}
-
-/**
  * Checks if the provided value is a database instance rather than configuration options
  *
  * @param value - Value to check
@@ -85,7 +47,21 @@ function isDatabaseInstance(value: any): value is DatabaseInterface {
  *
  * User-provided options always take precedence over environment variables.
  *
- * Note: As of v0.56.15, the JSON adapter properly quotes all table names in SQL operations (fixes #509)
+ * ## Lazy schemas
+ *
+ * The `schemas` option accepts either an eagerly-built record or a lazy
+ * function (`() => Record<string, SchemaProvider>`).  Adapters that manage
+ * tables via migrations (Postgres, SQLite) never resolve the function, so
+ * there is zero cost for callers that pass schemas uniformly regardless of
+ * adapter type.  Only JSON and DuckDB adapters call the function.
+ *
+ * ```typescript
+ * // Caller doesn't need to know the adapter type:
+ * await getDatabase({
+ *   ...config,
+ *   schemas: () => ObjectRegistry.getAllSchemas(),
+ * });
+ * ```
  *
  * @param options - Configuration options for the database connection or an existing database instance
  * @returns Promise resolving to a DatabaseInterface implementation
@@ -250,7 +226,6 @@ export * from './shared/types';
 
 export default {
   getDatabase,
-  needsSchemaSync,
   syncSchema,
   tableExists,
   buildWhere,

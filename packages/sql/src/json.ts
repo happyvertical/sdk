@@ -11,6 +11,7 @@ import type {
   TableInterface,
   TransactionHandle,
 } from './shared/types';
+import { resolveSchemas } from './shared/types';
 import { buildWhere, formatDbError } from './shared/utils';
 
 /**
@@ -82,12 +83,8 @@ export function clearConnectionCache(): void {
  * @returns Promise resolving to a DuckDB connection
  */
 async function createJSONConnection(options: JSONOptions) {
-  const {
-    url,
-    autoRegister = true,
-    schemas = {},
-    eagerLoadTables = true,
-  } = options;
+  const { url, autoRegister = true, eagerLoadTables = true } = options;
+  const schemas = resolveSchemas(options.schemas) ?? {};
 
   if (!url) {
     throw new DatabaseError('url is required for JSON adapter', {
