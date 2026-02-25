@@ -54,14 +54,14 @@
   "devDependencies": {
     "@biomejs/biome": "2.3.13",
     "@changesets/cli": "2.29.8",
-    "@commitlint/cli": "^20.4.0",
-    "@commitlint/config-conventional": "^20.4.0",
+    "@commitlint/cli": "^20.4.2",
+    "@commitlint/config-conventional": "^20.4.2",
     "@jpisnice/shadcn-ui-mcp-server": "1.1.4",
     "chokidar": "^5.0.0",
     "concurrently": "9.2.1",
-    "dependency-cruiser": "^17.3.7",
+    "dependency-cruiser": "^17.3.8",
     "express": "^5.2.1",
-    "lefthook": "^2.0.16",
+    "lefthook": "^2.1.1",
     "livereload": "^0.10.3",
     "patch-package": "^8.0.1",
     "turbo": "2.8.0",
@@ -73,11 +73,11 @@
     "vitest": "4.0.18"
   },
   "resolutions": {
-    "@types/node": "24.10.9"
+    "@types/node": "24.10.13"
   },
   "pnpm": {
     "overrides": {
-      "rollup": "4.57.1",
+      "rollup": "4.59.0",
       "@happyvertical/ai": "workspace:*",
       "@happyvertical/cache": "workspace:*",
       "@happyvertical/files": "workspace:*",
