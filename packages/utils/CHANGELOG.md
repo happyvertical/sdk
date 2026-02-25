@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.69.8
+
+### Patch Changes
+
+- ### Dependencies
+
+  - update all dependencies (#829)
+
 ## 0.69.7
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/directory",
-  "version": "0.69.7",
+  "version": "0.69.8",
   "description": "Unified directory services with adapter-based architecture (Kanidm, Stalwart, PostgreSQL, AWS)",
   "type": "module",
   "main": "./dist/index.js",
