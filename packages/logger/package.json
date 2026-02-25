@@ -16,7 +16,7 @@
     }
   },
   "peerDependencies": {
-    "@sentry/node": ">=9.47.1"
+    "@sentry/node": ">=10.40.0"
   },
   "peerDependenciesMeta": {
     "@sentry/node": {
