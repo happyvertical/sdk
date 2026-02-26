@@ -8,6 +8,7 @@ import {
   AuthenticationError,
   ConflictError,
   NotFoundError,
+  ValidationError,
 } from '../shared/errors.js';
 import type { KanidmOptions } from '../shared/types.js';
 
@@ -337,6 +338,87 @@ describe('KanidmAdapter', () => {
 
       await expect(adapter.getUser('alice')).rejects.toThrow(
         AuthenticationError,
+      );
+    });
+  });
+
+  describe('API token auth', () => {
+    it('should use apiToken directly without 3-step auth flow', async () => {
+      const tokenAdapter = new KanidmAdapter({
+        type: 'kanidm',
+        baseUrl: 'https://idm.example.com',
+        apiToken: 'my-service-token',
+        timeout: 5000,
+      });
+
+      mockOkResponse({
+        attrs: {
+          name: ['alice'],
+          displayname: ['Alice'],
+          uuid: ['uuid-alice'],
+        },
+      });
+
+      const user = await tokenAdapter.getUser('alice');
+      expect(user.username).toBe('alice');
+
+      // Only 1 fetch call (the actual request), no auth flow
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://idm.example.com/v1/person/alice',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: 'Bearer my-service-token',
+          }),
+        }),
+      );
+    });
+
+    it('should throw ValidationError when neither auth method provided', () => {
+      expect(
+        () =>
+          // @ts-expect-error — discriminated union rejects this at compile time; testing runtime guard
+          new KanidmAdapter({
+            type: 'kanidm',
+            baseUrl: 'https://idm.example.com',
+          }),
+      ).toThrow(ValidationError);
+    });
+  });
+
+  describe('credential reset', () => {
+    it('should create credential reset intent with correct endpoint and result', async () => {
+      mockAuthFlow();
+      mockOkResponse('reset-token-xyz');
+
+      const result = await adapter.createCredentialResetIntent('alice', {
+        ttl: 7200,
+      });
+
+      expect(result.token).toBe('reset-token-xyz');
+      expect(result.url).toBe(
+        'https://idm.example.com/ui/reset?token=reset-token-xyz',
+      );
+      expect(result.ttl).toBe(7200);
+
+      // Verify correct endpoint called (4th call after 3-step auth)
+      const lastCall = mockFetch.mock.calls[3];
+      expect(lastCall[0]).toBe(
+        'https://idm.example.com/v1/person/alice/_credential/_update_intent/7200',
+      );
+      expect(lastCall[1].method).toBe('GET');
+    });
+
+    it('should default TTL to 3600 seconds', async () => {
+      mockAuthFlow();
+      mockOkResponse('reset-token-abc');
+
+      const result = await adapter.createCredentialResetIntent('bob');
+
+      expect(result.ttl).toBe(3600);
+      const lastCall = mockFetch.mock.calls[3];
+      expect(lastCall[0]).toBe(
+        'https://idm.example.com/v1/person/bob/_credential/_update_intent/3600',
       );
     });
   });

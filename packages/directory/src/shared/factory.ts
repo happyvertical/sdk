@@ -99,7 +99,7 @@ export async function getKanidmAdapter(
   options: Omit<KanidmOptions, 'type'>,
 ): Promise<KanidmDirectoryAdapter> {
   const { KanidmAdapter } = await import('../adapters/kanidm.js');
-  return new KanidmAdapter({ type: 'kanidm', ...options });
+  return new KanidmAdapter({ type: 'kanidm', ...options } as KanidmOptions);
 }
 
 /**

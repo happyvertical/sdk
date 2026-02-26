@@ -129,6 +129,12 @@ export interface KanidmDirectoryAdapter extends DirectoryAdapter {
 
   // Secret management
   getOAuth2ClientSecret(id: string): Promise<string>;
+
+  // Credential management
+  createCredentialResetIntent(
+    userId: string,
+    options?: { ttl?: number },
+  ): Promise<CredentialResetIntent>;
 }
 
 // ============================================================================
@@ -381,13 +387,29 @@ export interface DirectoryOrchestrator {
 
 export type DirectoryAdapterType = 'kanidm' | 'stalwart' | 'postgres' | 'aws';
 
-export interface KanidmOptions {
-  type: 'kanidm';
-  baseUrl: string;
-  adminUsername: string;
-  adminPassword: string;
-  timeout?: number;
+export interface CredentialResetIntent {
+  token: string;
+  url: string;
+  ttl: number;
 }
+
+export type KanidmOptions =
+  | {
+      type: 'kanidm';
+      baseUrl: string;
+      adminUsername: string;
+      adminPassword: string;
+      apiToken?: never;
+      timeout?: number;
+    }
+  | {
+      type: 'kanidm';
+      baseUrl: string;
+      apiToken: string;
+      adminUsername?: never;
+      adminPassword?: never;
+      timeout?: number;
+    };
 
 export interface StalwartOptions {
   type: 'stalwart';
