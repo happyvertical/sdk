@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.69.9
+
+### Patch Changes
+
+- ### Features
+
+  - Kanidm API token auth + credential reset intents (#831) (directory)
+
 ## 0.69.8
 
 ### Patch Changes

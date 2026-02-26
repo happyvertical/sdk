@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/graphql",
-  "version": "0.69.8",
+  "version": "0.69.9",
   "description": "GitHub GraphQL client for SDK packages",
   "type": "module",
   "main": "./dist/index.js",
