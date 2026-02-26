@@ -55,6 +55,7 @@ export type {
   CreatePgDatabaseInput,
   CreatePgRoleInput,
   CreateUserInput,
+  CredentialResetIntent,
   DirectoryAdapter,
   DirectoryAdapterType,
   DirectoryGroup,

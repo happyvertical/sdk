@@ -12,11 +12,13 @@ import {
   ConnectionError,
   DirectoryError,
   NotFoundError,
+  ValidationError,
 } from '../shared/errors.js';
 import type {
   CreateGroupInput,
   CreateOAuth2ClientInput,
   CreateUserInput,
+  CredentialResetIntent,
   DirectoryGroup,
   DirectoryUser,
   KanidmDirectoryAdapter,
@@ -51,6 +53,15 @@ export class KanidmAdapter implements KanidmDirectoryAdapter {
   private adminTokenExpiry = 0;
 
   constructor(private readonly options: KanidmOptions) {
+    if (
+      !options.apiToken &&
+      (!options.adminUsername || !options.adminPassword)
+    ) {
+      throw new ValidationError(
+        'KanidmAdapter requires either apiToken or both adminUsername and adminPassword',
+        'kanidm',
+      );
+    }
     this.baseUrl = options.baseUrl.replace(/\/+$/, '');
     this.timeout = options.timeout ?? 30_000;
   }
@@ -60,6 +71,10 @@ export class KanidmAdapter implements KanidmDirectoryAdapter {
   // ==========================================================================
 
   private async getAdminToken(): Promise<string> {
+    if (this.options.apiToken) {
+      return this.options.apiToken;
+    }
+
     if (this.adminToken && Date.now() < this.adminTokenExpiry) {
       return this.adminToken;
     }
@@ -519,5 +534,25 @@ export class KanidmAdapter implements KanidmDirectoryAdapter {
       `/v1/oauth2/${encodeURIComponent(id)}/_basic_secret`,
     );
     return data;
+  }
+
+  // ==========================================================================
+  // Credential Management
+  // ==========================================================================
+
+  async createCredentialResetIntent(
+    userId: string,
+    options?: { ttl?: number },
+  ): Promise<CredentialResetIntent> {
+    const ttl = options?.ttl ?? 3600;
+    const token = await this.request<string>(
+      'GET',
+      `/v1/person/${encodeURIComponent(userId)}/_credential/_update_intent/${ttl}`,
+    );
+    return {
+      token,
+      url: `${this.baseUrl}/ui/reset?token=${encodeURIComponent(token)}`,
+      ttl,
+    };
   }
 }
