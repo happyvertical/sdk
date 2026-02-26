@@ -393,14 +393,23 @@ export interface CredentialResetIntent {
   ttl: number;
 }
 
-export interface KanidmOptions {
-  type: 'kanidm';
-  baseUrl: string;
-  adminUsername?: string;
-  adminPassword?: string;
-  apiToken?: string;
-  timeout?: number;
-}
+export type KanidmOptions =
+  | {
+      type: 'kanidm';
+      baseUrl: string;
+      adminUsername: string;
+      adminPassword: string;
+      apiToken?: never;
+      timeout?: number;
+    }
+  | {
+      type: 'kanidm';
+      baseUrl: string;
+      apiToken: string;
+      adminUsername?: never;
+      adminPassword?: never;
+      timeout?: number;
+    };
 
 export interface StalwartOptions {
   type: 'stalwart';

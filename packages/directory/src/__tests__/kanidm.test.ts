@@ -377,6 +377,7 @@ describe('KanidmAdapter', () => {
     it('should throw ValidationError when neither auth method provided', () => {
       expect(
         () =>
+          // @ts-expect-error — discriminated union rejects this at compile time; testing runtime guard
           new KanidmAdapter({
             type: 'kanidm',
             baseUrl: 'https://idm.example.com',
