@@ -1,5 +1,20 @@
 # @happyvertical/sql
 
+## 0.70.0
+
+### Minor Changes
+
+- 919efea: Add `requiresSchemaCheck` flag to DatabaseInterface
+
+  Adapters that auto-create tables at runtime (JSON, DuckDB) now set
+  `requiresSchemaCheck: true`. Migration-managed adapters (Postgres, SQLite)
+  leave it unset, allowing frameworks to skip redundant `tableExists()` calls
+  during collection initialization.
+
+### Patch Changes
+
+- @happyvertical/utils@0.70.0
+
 ## 0.69.9
 
 ### Patch Changes
