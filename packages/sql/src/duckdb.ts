@@ -1382,6 +1382,7 @@ export async function getDatabase(
 
   return {
     url,
+    requiresSchemaCheck: true,
     client: connection,
     query,
     insert,

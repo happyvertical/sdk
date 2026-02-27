@@ -702,6 +702,22 @@ export interface DatabaseInterface {
   tableExists: (table: string) => Promise<boolean>;
 
   /**
+   * Whether this adapter requires schema existence checks at runtime.
+   *
+   * Set to `true` on adapters where tables may not exist yet and need
+   * to be verified before use (e.g. JSON/DuckDB with auto-created tables).
+   *
+   * When absent or `false`, frameworks skip `tableExists()` calls during
+   * collection initialization — tables are assumed to exist because
+   * schema is managed by migrations (e.g. `smrt db:migrate`).
+   *
+   * - Postgres adapter: not set (migration-managed)
+   * - SQLite adapter: not set (migration-managed)
+   * - JSON/DuckDB adapter: `true` (tables may be auto-created)
+   */
+  requiresSchemaCheck?: boolean;
+
+  /**
    * Executes a SQL query using template literals and returns multiple rows
    *
    * @param strings - Template strings
