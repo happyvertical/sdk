@@ -1,5 +1,14 @@
 # @happyvertical/sdk-mcp
 
+## 0.70.1
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.70.1
+  - @happyvertical/ai@0.70.1
+  - @happyvertical/files@0.70.1
+
 ## 0.70.0
 
 ### Patch Changes

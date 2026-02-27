@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.70.1
+
+### Patch Changes
+
+- ### Dependencies
+
+  - Lock file maintenance (#822)
+
 ## 0.70.0
 
 ## 0.69.9
