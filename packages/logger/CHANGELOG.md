@@ -1,5 +1,12 @@
 # @happyvertical/logger
 
+## 0.70.4
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.70.4
+
 ## 0.70.3
 
 ### Patch Changes

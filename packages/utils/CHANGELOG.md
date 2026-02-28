@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.70.4
+
+### Patch Changes
+
+- ### Dependencies
+
+  - update @google/genai to v1.43.0 (#835)
+
 ## 0.70.3
 
 ### Patch Changes
