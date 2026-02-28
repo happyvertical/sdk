@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.70.2
+
+### Patch Changes
+
+- ### Dependencies
+
+  - update TypeDoc (#833)
+
 ## 0.70.1
 
 ### Patch Changes
