@@ -705,6 +705,21 @@ export const formatDate = (
   return format(dateObj, formatStr);
 };
 
+/**
+ * Parses a date string into a Date object
+ *
+ * When a format string is provided, uses date-fns `parse` with that format.
+ * Otherwise falls back to `parseISO` for ISO 8601 strings.
+ *
+ * @param dateStr - The date string to parse
+ * @param formatStr - Optional format pattern (e.g., 'MM/dd/yyyy', 'dd-MMM-yyyy')
+ * @returns Parsed Date object
+ * @example
+ * ```typescript
+ * parseDate('2023-01-15');                // ISO parse
+ * parseDate('01/15/2023', 'MM/dd/yyyy');  // Custom format parse
+ * ```
+ */
 export const parseDate = (dateStr: string, formatStr?: string): Date => {
   if (formatStr) {
     return parse(dateStr, formatStr, new Date());

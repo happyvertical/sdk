@@ -7,38 +7,16 @@ sidebar_position: 12
 
 # @happyvertical/utils
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-
-Foundation utilities for ID generation, date parsing, URL handling, string conversion, error handling, and logging used across the HAVE SDK.
-
-## Overview
-
-The `@happyvertical/utils` package provides core utilities that serve as the foundation for all other HAVE SDK packages. It offers essential functionality with minimal dependencies, focusing on pure, testable functions that work reliably across different environments.
-
-## Features
-
-- **ID Generation**: CUID2 and UUID generation with validation
-- **URL Utilities**: Filename extraction and path manipulation
-- **String Conversion**: Case conversion (camelCase, snake_case) with object key transformation
-- **Date Utilities**: Amazon date parsing, filename date extraction, and formatting
-- **Type Guards**: Safe type checking for arrays, objects, and URLs
-- **Async Utilities**: Polling with timeout and sleep functions
-- **Error Handling**: Structured error classes with context
-- **Logging**: Configurable logging system with console and no-op implementations
-- **General Utilities**: Progress indicators and domain string conversion
+Foundation utilities for the HAVE SDK: ID generation, date parsing, URL handling, string conversion, error classes, logging, code extraction/validation/sandboxing, CLI argument parsing, and environment config loading.
 
 ## Installation
 
 ```bash
-# Install with bun (recommended)
-bun add @happyvertical/utils
-
-# Or with npm
-npm install @happyvertical/utils
-
-# Or with yarn
-yarn add @happyvertical/utils
+pnpm add @happyvertical/utils
+# Published to GitHub Packages — requires .npmrc with @happyvertical registry
 ```
+
+A browser-safe entry point is available at `@happyvertical/utils/browser` (excludes Node.js-specific code like `node:vm` sandbox and `node:crypto` hashing).
 
 ## Usage
 
@@ -47,179 +25,85 @@ yarn add @happyvertical/utils
 ```typescript
 import { makeId, createId, isCuid } from '@happyvertical/utils';
 
-// Generate CUID2 (default, more secure than UUID)
-const id = makeId(); // "ckx5f8h3z0000qzrmn831i7rn"
-
-// Generate UUID when needed for RFC4122 compliance
-const uuid = makeId('uuid'); // "f47ac10b-58cc-4372-a567-0e02b2c3d479"
-
-// Direct CUID2 generation
-const cuid = createId(); // "ckx5f8h3z0000qzrmn831i7rn"
-
-// Validate CUID2
-if (isCuid(id)) {
-  console.log('Valid CUID2 format');
-}
+const id = makeId();         // CUID2 (default)
+const uuid = makeId('uuid'); // UUID via crypto.randomUUID()
+const cuid = createId();     // CUID2 directly
+isCuid(id);                  // true
 ```
 
-### URL Utilities
+### String & URL Utilities
 
 ```typescript
-import { urlFilename, urlPath, makeSlug, isUrl } from '@happyvertical/utils';
+import { camelCase, snakeCase, keysToCamel, keysToSnake, makeSlug, urlFilename, isUrl } from '@happyvertical/utils';
 
-// Extract filename from URL
-const filename = urlFilename("https://example.com/path/file.pdf"); // "file.pdf"
-
-// Convert URL to file path
-const path = urlPath("https://example.com/path/to/resource");
-// "example.com/path/to/resource"
-
-// Create URL-friendly slugs
-const slug = makeSlug("My Example Title & Co."); // "my-example-title-38-co"
-
-// Validate URLs
-if (isUrl(userInput)) {
-  const url = new URL(userInput); // Safe to use
-}
-```
-
-### String Case Conversion
-
-```typescript
-import {
-  camelCase,
-  snakeCase,
-  keysToCamel,
-  keysToSnake,
-  domainToCamel
-} from '@happyvertical/utils';
-
-// Convert individual strings
-const camelString = camelCase("hello-world"); // "helloWorld"
-const snakeString = snakeCase("helloWorld"); // "hello_world"
-
-// Transform object keys recursively
-const apiResponse = {
-  user_name: "john",
-  user_details: { first_name: "John", last_name: "Doe" }
-};
-
-const camelCaseObj = keysToCamel(apiResponse);
-// { userName: "john", userDetails: { firstName: "John", lastName: "Doe" } }
-
-const snakeCaseObj = keysToSnake(camelCaseObj);
-// Back to original snake_case structure
-
-// Convert domain strings
-const domain = domainToCamel("api-service"); // "apiService"
+camelCase('hello-world');      // "helloWorld"
+snakeCase('helloWorld');       // "hello_world"
+keysToCamel({ user_name: 'j' }); // { userName: 'j' } (recursive)
+makeSlug('My Title & Co.');   // "my-title-38-co"
+urlFilename('https://example.com/path/file.pdf'); // "file.pdf"
+isUrl('https://example.com'); // true
 ```
 
 ### Date Utilities
 
 ```typescript
-import {
-  dateInString,
-  prettyDate,
-  parseAmazonDateString,
-  formatDate,
-  parseDate,
-  addInterval
-} from '@happyvertical/utils';
+import { dateInString, formatDate, parseDate, parseAmazonDateString, addInterval } from '@happyvertical/utils';
 
-// Extract dates from filenames
-const date = dateInString("Report_January_15_2023.pdf");
-// Returns Date object for January 15, 2023
-
-// Human-readable formatting
-const formatted = prettyDate("2023-01-15T12:00:00Z");
-// "January 15, 2023" (localized)
-
-// Parse Amazon date format
-const awsDate = parseAmazonDateString('20220223T215409Z');
-// Date object for February 23, 2022, 21:54:09 UTC
-
-// Enhanced date formatting and manipulation (using date-fns)
-const today = new Date();
-const formatted2 = formatDate(today, 'yyyy-MM-dd'); // "2023-01-15"
-const parsed = parseDate('2023-01-15'); // Date object
-const nextWeek = addInterval(today, { days: 7 }); // Date 7 days from now
+dateInString('Report_January_15_2023.pdf'); // Date(2023, 0, 15)
+formatDate(new Date(), 'yyyy-MM-dd');       // "2023-01-15"
+parseDate('2023-01-15');                    // Date object (ISO)
+parseDate('01/15/2023', 'MM/dd/yyyy');      // Date object (custom format)
+parseAmazonDateString('20220223T215409Z');   // Date object
+addInterval(new Date(), { days: 7 });       // Date 7 days from now
 ```
 
-### Type Guards
+### Error Classes
+
+All extend `BaseError` with `code`, `context`, and `timestamp` fields, plus `toJSON()`:
 
 ```typescript
-import { isArray, isPlainObject } from '@happyvertical/utils';
+import { ValidationError, ApiError, NetworkError, TimeoutError, ParsingError, FileError, DatabaseError } from '@happyvertical/utils';
 
-function processData(data: unknown) {
-  if (isArray(data)) {
-    // TypeScript knows data is unknown[]
-    data.forEach(item => console.log(item));
-  }
+throw new ValidationError('Invalid email', { field: 'email', value: input });
+```
 
-  if (isPlainObject(data)) {
-    // TypeScript knows data is Record<string, unknown>
-    Object.keys(data).forEach(key => console.log(key, data[key]));
-  }
+### Code Extraction & Sandbox
+
+Extract code blocks from markdown/AI responses, validate, and execute in isolated `node:vm` contexts:
+
+```typescript
+import { extractCodeBlock, extractJSON, validateCode, executeInSandbox } from '@happyvertical/utils';
+
+const code = extractCodeBlock(markdownText, 'javascript');
+const data = extractJSON<{ name: string }>(aiResponse);
+
+const result = validateCode(code, { maxLength: 10000 });
+if (result.valid) {
+  const output = executeInSandbox(code, { globals: { data }, timeout: 5000 });
 }
 ```
 
-### Async Utilities
+### CLI Argument Parsing
 
 ```typescript
-import { waitFor, sleep } from '@happyvertical/utils';
+import { parseCliArgs } from '@happyvertical/utils';
 
-// Wait for a condition with timeout
-const result = await waitFor(
-  async () => {
-    const ready = await checkSomeCondition();
-    return ready ? ready : undefined; // Return undefined to keep polling
-  },
-  { timeout: 10000, delay: 500 }
-);
-
-// Simple sleep utility
-await sleep(1000); // Wait 1 second
+const parsed = parseCliArgs(process.argv, [
+  { name: 'build', description: 'Build project', options: { output: { type: 'string', description: 'Output dir' } } }
+]);
+// { command: 'build', args: [], options: { output: './dist' } }
 ```
 
-### Error Handling
+### Environment Config
 
 ```typescript
-import {
-  ValidationError,
-  NetworkError,
-  TimeoutError,
-  ParsingError,
-  FileError,
-  ApiError,
-  DatabaseError
-} from '@happyvertical/utils';
+import { loadEnvConfig } from '@happyvertical/utils';
 
-// Structured errors with context
-function validateEmail(email: string) {
-  if (!email.includes('@')) {
-    throw new ValidationError('Invalid email format', {
-      email,
-      field: 'userEmail',
-      validationRule: 'must contain @'
-    });
-  }
-}
-
-// Network operations with context
-try {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new NetworkError('HTTP error', {
-      status: response.status,
-      statusText: response.statusText,
-      url
-    });
-  }
-} catch (error) {
-  if (error instanceof NetworkError) {
-    console.error('Network issue:', error.toJSON());
-  }
-}
+// Loads HAVE_AI_* env vars, merged with user options (user options take precedence)
+const config = loadEnvConfig({ provider: 'openai' }, {
+  packageName: 'ai',
+  schema: { provider: 'string', model: 'string', timeout: 'number' }
+});
 ```
 
 ### Logging
@@ -227,138 +111,41 @@ try {
 ```typescript
 import { getLogger, setLogger, disableLogging } from '@happyvertical/utils';
 
-// Use default console logger
 const logger = getLogger();
-logger.info('Process started', { userId: 123 });
-logger.error('Process failed', { error: 'timeout', attempt: 3 });
-
-// Disable logging in production
-if (process.env.NODE_ENV === 'production') {
-  disableLogging();
-}
-
-// Custom logger implementation
-class CustomLogger implements Logger {
-  info(message: string, context?: Record<string, unknown>) {
-    // Send to external logging service
-    logService.send({ level: 'info', message, context });
-  }
-  // ... implement other methods
-}
-
-setLogger(new CustomLogger());
-```
-
-### Text Pluralization
-
-```typescript
-import { pluralizeWord, singularize, isPlural, isSingular } from '@happyvertical/utils';
-
-// Pluralize English words
-pluralizeWord("cat"); // "cats"
-pluralizeWord("mouse"); // "mice"
-singularize("cats"); // "cat"
-
-// Check word forms
-isPlural("cats"); // true
-isSingular("cat"); // true
-```
-
-### Utility Functions
-
-```typescript
-import { logTicker, getTempDirectory } from '@happyvertical/utils';
-
-// Visual progress indicator
-let tick = null;
-setInterval(() => {
-  tick = logTicker(tick);
-  process.stdout.write(`\\rProcessing ${tick}`);
-}, 500);
-// Outputs: "Processing ." → "Processing .." → "Processing ..." → repeats
-
-// Cross-platform temp directory
-const tempDir = getTempDirectory("my-cache");
-// "/tmp/.have-sdk/my-cache" or platform equivalent
+logger.info('Started', { userId: 123 });
+disableLogging(); // Switch to no-op logger
 ```
 
 ## API Reference
 
-### Functions
+**IDs** — `makeId(type?)`, `createId()`, `isCuid(id)`
 
-**ID Generation**
-- `makeId(type?: 'cuid2' | 'uuid')` - Generate CUID2 or UUID
-- `createId()` - Generate CUID2 directly
-- `isCuid(id: string)` - Validate CUID2 format
+**Strings** — `camelCase(str)`, `snakeCase(str)`, `keysToCamel(obj)`, `keysToSnake(obj)`, `domainToCamel(str)`, `makeSlug(str)`
 
-**URL Utilities**
-- `urlFilename(url: string)` - Extract filename from URL
-- `urlPath(url: string)` - Convert URL to file path
-- `makeSlug(str: string)` - Create URL-friendly slug
-- `isUrl(str: string)` - Validate URL format
+**URLs** — `urlFilename(url)`, `urlPath(url)`, `isUrl(str)`, `normalizeUrl(url)`, `generateScopeFromUrl(url)`, `hashPageContent(html)`
 
-**String Conversion**
-- `camelCase(str: string)` - Convert to camelCase
-- `snakeCase(str: string)` - Convert to snake_case
-- `keysToCamel(obj: unknown)` - Transform object keys to camelCase
-- `keysToSnake(obj: unknown)` - Transform object keys to snake_case
-- `domainToCamel(domain: string)` - Convert domain string to camelCase
+**Dates** — `dateInString(str)`, `prettyDate(str)`, `parseAmazonDateString(str)`, `formatDate(date, format?)`, `parseDate(str, format?)`, `isValidDate(date)`, `addInterval(date, duration)`
 
-**Date Utilities**
-- `dateInString(str: string)` - Extract date from filename/string
-- `prettyDate(dateString: string)` - Human-readable date format
-- `parseAmazonDateString(dateStr: string)` - Parse AWS date format
-- `formatDate(date: Date | string, format?: string)` - Format date with pattern
-- `parseDate(dateStr: string, format?: string)` - Parse date string
-- `addInterval(date: Date, duration: Duration)` - Add time interval to date
+**Pluralization** — `pluralizeWord(word)`, `singularize(word)`, `isPlural(word)`, `isSingular(word)`
 
-**Type Guards**
-- `isArray(obj: unknown)` - Check if value is array
-- `isPlainObject(obj: unknown)` - Check if value is plain object
+**Type Guards** — `isArray(obj)`, `isPlainObject(obj)`
 
-**Async Utilities**
-- `waitFor(fn: () => Promise<any>, options?)` - Poll until condition met
-- `sleep(duration: number)` - Promise-based delay
+**Async** — `waitFor(fn, options?)`, `sleep(ms)`
 
-**Logging**
-- `getLogger()` - Get current logger instance
-- `setLogger(logger: Logger)` - Set custom logger
-- `disableLogging()` - Disable all logging
-- `enableLogging()` - Re-enable console logging
+**Code** — `extractCodeBlock(text, lang?)`, `extractAllCodeBlocks(text, lang?)`, `extractJSON<T>(text)`, `extractFunctionDefinition(code, name)`, `validateCode(code, options?)`, `isSafeCode(code)`, `createSandbox(options?)`, `executeCode(code, sandbox, options?)`, `executeCodeAsync(code, sandbox, options?)`, `executeInSandbox(code, options?)`, `executeInSandboxAsync(code, options?)`
 
-**Text Processing**
-- `pluralizeWord(word: string)` - Pluralize English word
-- `singularize(word: string)` - Convert to singular form
-- `isPlural(word: string)` - Check if word is plural
-- `isSingular(word: string)` - Check if word is singular
+**CLI** — `parseCliArgs(argv, commands, builtInCommands?)`
 
-**Utilities**
-- `logTicker(tick: string | null, options?)` - Progress indicator
-- `getTempDirectory(subfolder?: string)` - Cross-platform temp path
+**Config** — `loadEnvConfig<T>(userOptions?, options?)`, `toCamelCase(str)`, `toScreamingSnakeCase(str)`, `convertType(value, type)`
 
-### Error Classes
+**Logging** — `getLogger()`, `setLogger(logger)`, `disableLogging()`, `enableLogging()`
 
-All error classes extend `BaseError` and include context and timestamps:
+**Misc** — `logTicker(tick, options?)`, `getTempDirectory(subfolder?)`
 
-- `ValidationError` - Input validation failures
-- `ApiError` - API request/response errors
-- `FileError` - File system operation errors
-- `NetworkError` - Network connectivity errors
-- `DatabaseError` - Database operation errors
-- `ParsingError` - Data parsing errors
-- `TimeoutError` - Operation timeout errors
+**Error Classes** — `BaseError`, `ValidationError`, `ApiError`, `FileError`, `NetworkError`, `DatabaseError`, `ParsingError`, `TimeoutError`
 
-### Interfaces
-
-- `Logger` - Logging interface (debug, info, warn, error methods)
-
-## Dependencies
-
-- `@paralleldrive/cuid2` - Secure, collision-resistant ID generation
-- `date-fns` - Modern JavaScript date utility library
-- `pluralize` - English word pluralization
-- `uuid` - RFC4122 UUID generation (fallback)
+**Types** — `Logger`, `ErrorCode`, `Command`, `OptionConfig`, `ParsedArgs`, `ConfigOptions<T>`, `ValidationOptions`, `ValidationResult`, `SandboxOptions`, `ExecuteOptions`
 
 ## License
 
-This package is part of the HAVE SDK and is licensed under the MIT License - see the [LICENSE](../../LICENSE) file for details.
+MIT

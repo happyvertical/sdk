@@ -7,15 +7,13 @@
  * @example
  * ```typescript
  * import { createLogger, LoggerAdapter } from '@happyvertical/logger';
- * import { SignalBus } from '@happyvertical/smrt';
  *
  * // Create logger
- * const logger = createLogger('info');
+ * const logger = createLogger({ level: 'info' });
  * logger.info('Application started');
  *
  * // Integrate with signals
- * const signalBus = new SignalBus();
- * signalBus.register(new LoggerAdapter(logger));
+ * const adapter = new LoggerAdapter(logger);
  * ```
  */
 

@@ -11,6 +11,13 @@ import type {
   TriggerDefinition,
 } from './shared/types.js';
 
+/**
+ * Result returned by DatabaseSchemaManager.initializeSchemas()
+ *
+ * Contains the list of schemas that were successfully initialized,
+ * any that were skipped (already up to date), errors encountered,
+ * and the total execution time in milliseconds.
+ */
 export interface SchemaInitializationResult {
   initialized: string[];
   skipped: string[];
@@ -18,13 +25,28 @@ export interface SchemaInitializationResult {
   executionTime: number;
 }
 
+/**
+ * Manages schema initialization from JSON manifests with dependency resolution
+ *
+ * Handles topological sorting of schema dependencies, table creation,
+ * index and trigger setup, and version tracking to avoid redundant re-initialization.
+ */
 export class DatabaseSchemaManager {
   private static initializationLock = new Map<string, Promise<void>>();
   private initializedSchemas = new Set<string>();
   private schemaVersions = new Map<string, string>();
 
   /**
-   * Initialize schemas with dependency resolution
+   * Initializes database schemas from a JSON manifest with dependency resolution
+   *
+   * Schemas are topologically sorted by their declared dependencies and
+   * initialized in order. Supports legacy raw-SQL schemas via the `schema` option,
+   * JSON manifests via the `manifest` option, and schema overrides for extending
+   * base schemas.
+   *
+   * @param db - Database interface to execute DDL against
+   * @param options - Schema initialization options (manifest, overrides, force, debug)
+   * @returns Result with lists of initialized/skipped schemas, errors, and execution time
    */
   async initializeSchemas(
     db: DatabaseInterface,
