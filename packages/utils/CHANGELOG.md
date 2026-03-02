@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.70.7
+
+### Patch Changes
+
+- ### Dependencies
+
+  - update PostgreSQL (#841)
+
 ## 0.70.6
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/messages",
-  "version": "0.70.6",
+  "version": "0.70.7",
   "description": "Unified multi-channel messaging with adapter-based architecture (Slack, Twitter, Email)",
   "type": "module",
   "main": "./dist/index.js",
