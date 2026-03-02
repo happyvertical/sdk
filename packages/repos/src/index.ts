@@ -40,6 +40,7 @@ export {
 export type {
   Branch,
   Comment,
+  CreateFromTemplateOptions,
   CreateIssueInput,
   CreatePRInput,
   IRepository,
