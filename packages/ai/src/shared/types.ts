@@ -731,12 +731,24 @@ export interface EmbeddingResponse {
  */
 export interface AIInterface {
   /**
-   * Generate chat completion
+   * Generate a chat completion from a sequence of messages.
+   *
+   * @param messages - Conversation messages (system, user, assistant, tool roles)
+   * @param options - Chat options including model, temperature, tools, etc.
+   * @returns Promise resolving to the model's response with content and usage info
+   * @throws {AIError} When the request fails
+   * @throws {AuthenticationError} When credentials are invalid
+   * @throws {RateLimitError} When the provider's rate limit is exceeded
    */
   chat(messages: AIMessage[], options?: ChatOptions): Promise<AIResponse>;
 
   /**
-   * Generate text completion (for non-chat models)
+   * Generate a text completion from a prompt string (non-chat interface).
+   *
+   * @param prompt - The text prompt to complete
+   * @param options - Completion options including model, temperature, etc.
+   * @returns Promise resolving to the model's response
+   * @throws {AIError} When the request fails
    */
   complete(prompt: string, options?: CompletionOptions): Promise<AIResponse>;
 
@@ -778,7 +790,12 @@ export interface AIInterface {
   message(text: string, options?: MessageOptions): Promise<string>;
 
   /**
-   * Generate embeddings for text
+   * Generate vector embeddings for one or more text inputs.
+   *
+   * @param text - A single string or array of strings to embed
+   * @param options - Embedding options including model and dimensions
+   * @returns Promise resolving to embedding vectors and usage info
+   * @throws {AIError} When embeddings are not supported by this provider or request fails
    */
   embed(
     text: string | string[],
@@ -875,22 +892,34 @@ export interface AIInterface {
   ): Promise<ImageGenerationResponse>;
 
   /**
-   * Stream chat completion
+   * Stream a chat completion, yielding text chunks as they arrive.
+   *
+   * @param messages - Conversation messages
+   * @param options - Chat options including model, temperature, etc.
+   * @returns Async iterable of string chunks
+   * @throws {AIError} When the request fails
    */
   stream(messages: AIMessage[], options?: ChatOptions): AsyncIterable<string>;
 
   /**
-   * Count tokens in text
+   * Estimate or calculate the token count for a text string.
+   *
+   * @param text - The text to tokenize
+   * @returns Promise resolving to the token count
    */
   countTokens(text: string): Promise<number>;
 
   /**
-   * Get available models
+   * List models available from this provider.
+   *
+   * @returns Promise resolving to an array of model descriptors
    */
   getModels(): Promise<AIModel[]>;
 
   /**
-   * Get provider capabilities
+   * Query the capabilities supported by this provider (chat, embeddings, vision, TTS, etc.).
+   *
+   * @returns Promise resolving to a capabilities descriptor
    */
   getCapabilities(): Promise<AICapabilities>;
 
@@ -1184,7 +1213,13 @@ export type GetAIOptions =
   | Qwen3TTSOptions;
 
 /**
- * Error types for AI operations
+ * Base error class for all AI operations.
+ * Provider-specific errors are mapped to subclasses for structured error handling.
+ *
+ * @param message - Human-readable error description
+ * @param code - Machine-readable error code (e.g., 'AUTH_ERROR', 'RATE_LIMIT')
+ * @param provider - Provider that raised the error (e.g., 'openai', 'anthropic')
+ * @param model - Model involved in the error, if applicable
  */
 export class AIError extends Error {
   constructor(
@@ -1198,6 +1233,11 @@ export class AIError extends Error {
   }
 }
 
+/**
+ * Thrown when API key or credentials are invalid or missing.
+ *
+ * @param provider - Provider that rejected authentication
+ */
 export class AuthenticationError extends AIError {
   constructor(provider?: string) {
     super('Authentication failed', 'AUTH_ERROR', provider);
@@ -1205,6 +1245,12 @@ export class AuthenticationError extends AIError {
   }
 }
 
+/**
+ * Thrown when the provider's rate limit has been exceeded.
+ *
+ * @param provider - Provider that enforced the rate limit
+ * @param retryAfter - Seconds to wait before retrying, if provided by the API
+ */
 export class RateLimitError extends AIError {
   constructor(provider?: string, retryAfter?: number) {
     super(
@@ -1216,6 +1262,12 @@ export class RateLimitError extends AIError {
   }
 }
 
+/**
+ * Thrown when the requested model does not exist or is not available.
+ *
+ * @param model - The model identifier that was not found
+ * @param provider - Provider that was queried
+ */
 export class ModelNotFoundError extends AIError {
   constructor(model: string, provider?: string) {
     super(`Model not found: ${model}`, 'MODEL_NOT_FOUND', provider, model);
@@ -1223,6 +1275,12 @@ export class ModelNotFoundError extends AIError {
   }
 }
 
+/**
+ * Thrown when the input exceeds the model's maximum context window.
+ *
+ * @param provider - Provider that reported the error
+ * @param model - Model whose context limit was exceeded
+ */
 export class ContextLengthError extends AIError {
   constructor(provider?: string, model?: string) {
     super(
@@ -1235,6 +1293,12 @@ export class ContextLengthError extends AIError {
   }
 }
 
+/**
+ * Thrown when content is blocked by the provider's safety/content filters.
+ *
+ * @param provider - Provider that filtered the content
+ * @param model - Model that triggered the filter
+ */
 export class ContentFilterError extends AIError {
   constructor(provider?: string, model?: string) {
     super(

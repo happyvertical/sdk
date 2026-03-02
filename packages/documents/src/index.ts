@@ -1,34 +1,21 @@
 /**
  * @happyvertical/documents - Document processing with multi-part structure
  *
- * This package provides unified document processing for PDFs, HTML,
- * and Markdown documents with support for:
+ * Provides document processing for PDFs with support for:
  * - Hierarchical document parts
- * - Image extraction with OCR
- * - Automatic format detection
- * - Caching for performance
+ * - Automatic format detection from URL or MIME type
+ * - Document management system detection (WordPress, CivicWeb, DocuShare)
+ * - File caching for performance
  *
  * @example
  * ```typescript
  * import { fetchDocument } from '@happyvertical/documents';
  *
- * // Fetch and process a PDF
- * const doc = await fetchDocument('https://example.com/report.pdf', {
- *   extractImages: true,
- *   runOcr: true
- * });
+ * const doc = await fetchDocument('https://example.com/report.pdf');
  *
- * // Access structured content
  * for (const part of doc.parts) {
  *   console.log(part.title);
  *   console.log(part.content);
- *
- *   // Check for images with OCR text
- *   if (part.images) {
- *     for (const image of part.images) {
- *       console.log(image.ocrText);
- *     }
- *   }
  * }
  * ```
  */

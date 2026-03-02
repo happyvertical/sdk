@@ -314,11 +314,17 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
   // FilesystemInterface implementation
   // ---------------------------------------------------------------------------
 
+  /** Checks whether a non-trashed file or folder exists at the given path. */
   async exists(path: string): Promise<boolean> {
     const id = await this.resolvePathToId(path);
     return id !== null;
   }
 
+  /**
+   * Read a file from Google Drive. Google Docs native types (Document,
+   * Spreadsheet, Presentation, Drawing) are automatically exported to a
+   * portable format (plain text, CSV, PDF, PNG respectively).
+   */
   async read(
     path: string,
     options: ReadOptions = {},
@@ -366,6 +372,7 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
     return data.toString(options.encoding || 'utf8');
   }
 
+  /** Write content to Drive. Updates the file in-place if it already exists, otherwise creates it. */
   async write(
     path: string,
     content: string | Buffer,
@@ -431,6 +438,7 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
     this.invalidateCache(path);
   }
 
+  /** Moves the file to the Drive trash rather than permanently deleting it. */
   async delete(path: string): Promise<void> {
     const fileId = await this.requireId(path);
     const drive = await this.getDrive();
@@ -470,6 +478,7 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
     this.invalidateCache(destPath);
   }
 
+  /** Moves a file by updating its parent references (single API call, not copy+delete). */
   async move(sourcePath: string, destPath: string): Promise<void> {
     const sourceId = await this.requireId(sourcePath);
     const drive = await this.getDrive();
@@ -564,6 +573,7 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
     }
   }
 
+  /** Lists non-trashed children of a folder, with optional pagination via {@link GoogleDriveOptions.pageSize}. */
   async list(path: string, options: ListOptions = {}): Promise<FileInfo[]> {
     const folderId =
       !path || path === '.' || path === '/'
@@ -639,6 +649,7 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
     return results;
   }
 
+  /** Returns file metadata. Mode is synthetic (0o755 for folders, 0o644 for files); uid/gid are always 0. */
   async getStats(path: string): Promise<FileStats> {
     const fileId = await this.requireId(path);
     const drive = await this.getDrive();
@@ -685,6 +696,7 @@ export class GoogleDriveProvider extends BaseFilesystemProvider {
     await this.write(remotePath, content);
   }
 
+  /** Downloads a file from Drive to the local filesystem, defaulting to the provider's cache directory. */
   async download(
     remotePath: string,
     localPath?: string,

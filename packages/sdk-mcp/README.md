@@ -1,15 +1,6 @@
 # @happyvertical/sdk-mcp
 
-MCP server for the HAVE SDK that acts as an orchestrator, routing developer queries to appropriate package experts using CLAUDE.md files.
-
-## Overview
-
-The SDK MCP Server implements a RAG (Retrieval-Augmented Generation) pattern where each SDK package's CLAUDE.md file serves as domain expertise. When you ask a question, the server:
-
-1. Routes your query to relevant packages based on keyword matching
-2. Loads the CLAUDE.md documentation for those packages
-3. Uses AI to synthesize a response based on the expert documentation
-4. Returns an answer with package references
+MCP server for the HAVE SDK that routes developer queries to package documentation. It scans each package's `CLAUDE.md` file at startup, builds a keyword-indexed registry, and exposes three MCP tools: `ask` (AI-powered Q&A), `list-packages`, and `get-docs`.
 
 ## Installation
 
@@ -17,66 +8,63 @@ The SDK MCP Server implements a RAG (Retrieval-Augmented Generation) pattern whe
 pnpm install @happyvertical/sdk-mcp
 ```
 
-## Claude Code Context
-
-Install Claude Code context files for AI-assisted development:
-
-```bash
-npx have-sdk-mcp-context
-```
-
-This copies the package's `CLAUDE.md` documentation and `.claude-meta.json` metadata to your project's `.claude/` directory, enabling Claude to provide better assistance when working with this package.
+> Published to GitHub Packages (`npm.pkg.github.com`). Configure your `.npmrc` accordingly.
 
 ## Usage
 
 ### As an MCP Server
 
-The server is designed to be run as an MCP server via the bridge script:
+The package provides a stdio-based MCP server. Run it directly:
 
 ```bash
-./scripts/mcp-servers/sdk-dev-server.sh
+npx sdk-mcp
+```
+
+Or configure it in your MCP client (e.g., Claude Desktop) to launch as a subprocess.
+
+### Claude Code Context CLI
+
+Copy CLAUDE.md and metadata into your project's `.claude/` directory for AI-assisted development:
+
+```bash
+npx have-sdk-mcp-context
 ```
 
 ### Environment Variables
 
-The `ask` tool requires an AI provider to be configured. Set one of:
+The `ask` tool requires an AI provider. Set one of:
 
-- `HAVE_AI_API_KEY` - Fallback API key for any provider
-- `HAVE_AI_TYPE` - Provider type ('openai', 'anthropic', 'gemini')
-- `OPENAI_API_KEY` - OpenAI API key
-- `ANTHROPIC_API_KEY` - Anthropic API key
-- `GEMINI_API_KEY` - Google Gemini API key
+- `HAVE_AI_API_KEY` — Fallback API key for any provider
+- `HAVE_AI_TYPE` — Provider type (`openai`, `anthropic`, `gemini`)
+- `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `GEMINI_API_KEY`
 
-Other tools (`list-packages`, `get-docs`) work without AI configuration.
+The `list-packages` and `get-docs` tools work without AI configuration.
 
-## Available Tools
+## MCP Tools
 
 ### ask
 
-Ask a question about the SDK. Automatically routes to relevant packages and synthesizes a response.
+Ask a question about the SDK. Routes to relevant packages via keyword matching and synthesizes a response using AI (top 3 matches).
 
-```typescript
+```json
 {
-  "query": "How do I crawl a website and save results to SQLite?",
-  "packages": ["spider", "sql"]  // Optional: specify packages explicitly
+  "query": "How do I send an email with an attachment?",
+  "packages": ["email", "messages"]
 }
 ```
+
+- `query` (required) — The question to ask
+- `packages` (optional) — Explicit package names to consult instead of auto-routing
 
 ### list-packages
 
-List all available SDK packages with descriptions and keywords.
-
-```typescript
-{
-  // No parameters required
-}
-```
+List all discovered SDK packages with descriptions and keywords. No parameters.
 
 ### get-docs
 
-Get the full CLAUDE.md documentation for a specific package.
+Get the full CLAUDE.md content for a specific package.
 
-```typescript
+```json
 {
   "packageName": "ai"
 }
@@ -84,76 +72,62 @@ Get the full CLAUDE.md documentation for a specific package.
 
 ## How It Works
 
-### Package Registry
+1. **Registry** — On first call, scans `packages/*/CLAUDE.md` and builds a `Map<string, PackageMetadata>` keyed by package name. Each entry includes the description (extracted from CLAUDE.md), keywords (from a static mapping in `registry.ts`), and the full documentation content.
 
-The registry scans `packages/*/CLAUDE.md` files at startup and builds a catalog of available packages with:
-- Package name
-- Description (extracted from CLAUDE.md)
-- Keywords for routing
-- Full documentation content
+2. **Routing** — Splits the user query into tokens and scores each package by keyword overlap (exact match = 10 pts, partial = 5 pts, name bonus = 15 pts). Packages below a minimum score threshold are excluded.
 
-### Query Routing
+3. **Synthesis** — The `ask` tool loads CLAUDE.md for the top 3 matched packages, builds a system prompt with that context, and calls `@happyvertical/ai` to generate a response.
 
-When you ask a question, the router:
-1. Extracts keywords from your query
-2. Matches against package keyword lists
-3. Scores packages by relevance
-4. Returns top matches
+## Adding a New Package
 
-### AI Synthesis
+1. Create a `CLAUDE.md` in the new package directory
+2. Add a keyword entry in `src/registry.ts` (`PACKAGE_KEYWORDS`)
+3. Rebuild: `pnpm run build`
 
-The `ask` tool:
-1. Loads CLAUDE.md for relevant packages (top 3 matches)
-2. Builds context from documentation
-3. Uses AI (via `@happyvertical/ai`) to generate response
-4. Includes package references in response
+The package will be discovered automatically on the next server startup.
 
-## Package Keywords
+## API
 
-Each package has associated keywords for routing. See `src/registry.ts` for the complete mapping.
+### Registry (`registry.ts`)
 
-Example keywords:
-- **ai**: ai, llm, gpt, claude, openai, anthropic, completion
-- **sql**: database, sql, sqlite, postgres, query, table, schema
-- **spider**: crawl, scrape, web, html, website, page, link
+| Export | Description |
+|--------|-------------|
+| `PackageMetadata` | Interface: `name`, `path`, `description`, `claudeMd`, `keywords` |
+| `PACKAGE_KEYWORDS` | Static keyword-to-package mapping used for routing |
+| `buildPackageRegistry()` | Scans packages directory and returns cached `Map<string, PackageMetadata>` |
+| `getPackage(name)` | Get metadata for a single package |
+| `getAllPackages()` | Get all package metadata as an array |
+| `getPackageDocs(name)` | Get raw CLAUDE.md content for a package |
+| `clearCache()` | Clear the in-memory registry cache |
+
+### Router (`router.ts`)
+
+| Export | Description |
+|--------|-------------|
+| `PackageMatch` | Interface: `package`, `score`, `matchedKeywords` |
+| `routeQuery(query, minScore?)` | Score and rank packages against a query string |
+| `getPackagesByNames(names)` | Look up packages by explicit name list |
+| `getTopPackages(query, limit?)` | Shorthand for `routeQuery` + slice |
+
+### Tools (`tools/`)
+
+| Export | Description |
+|--------|-------------|
+| `ask(input)` | AI-powered Q&A tool |
+| `listPackages()` | List all packages |
+| `getDocs(packageName)` | Get package documentation |
+
+## Dependencies
+
+- `@happyvertical/ai` — AI provider for the `ask` tool
+- `@modelcontextprotocol/sdk` — MCP protocol implementation
 
 ## Development
 
 ```bash
-# Build the package
-pnpm run build
-
-# Run tests
-pnpm test
-
-# Watch mode
-pnpm run dev
-```
-
-## Adding New Packages
-
-When you add a new package to the SDK:
-
-1. Create a `CLAUDE.md` file documenting the package
-2. Update `src/registry.ts` to add keywords for the new package
-3. Rebuild: `pnpm run build`
-
-The package will be automatically discovered and included in the registry.
-
-## Architecture
-
-```
-Developer Query → MCP Server (Orchestrator)
-                      ↓
-    ┌─────────────────┼─────────────────┐
-    ↓                 ↓                 ↓
-Package Expert    Package Expert    Package Expert
-(@happyvertical/ai)        (@happyvertical/spider)    (@happyvertical/sql)
-CLAUDE.md         CLAUDE.md         CLAUDE.md
-    ↓                 ↓                 ↓
-    └─────────────────┴─────────────────┘
-                      ↓
-            Synthesized Response
+pnpm run build       # Build
+pnpm test            # Run tests
+pnpm run dev         # Watch mode (build + test)
 ```
 
 ## License

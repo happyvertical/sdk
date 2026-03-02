@@ -5,6 +5,12 @@
 import { createRepository } from '../shared/adapters.js';
 import type { TriageContext } from './types.js';
 
+/**
+ * Apply labels to an issue using `@happyvertical/repos`.
+ *
+ * @param context - Triage context with token and repo info
+ * @param labels - Label names to apply
+ */
 export async function applyLabels(
   context: TriageContext,
   labels: string[],
@@ -28,6 +34,12 @@ export async function applyLabels(
   }
 }
 
+/**
+ * Remove an `agent: <type>` label from an issue. Silently ignores 404 errors.
+ *
+ * @param context - Triage context with token and repo info
+ * @param agentType - Agent type suffix (e.g., "triage", "planning")
+ */
 export async function removeAgentLabel(
   context: TriageContext,
   agentType: string,

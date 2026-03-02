@@ -76,6 +76,15 @@ function validateAIAnalysis(parsed: unknown): AIAnalysis {
   } as AIAnalysis;
 }
 
+/**
+ * Analyze a GitHub issue using AI to determine type, priority, size, and affected packages.
+ *
+ * Sends the issue details to the configured AI provider and validates the structured response.
+ *
+ * @param context - Triage context with issue details and repository config
+ * @returns Validated AI analysis with type, priority, size, and reasoning
+ * @throws If the AI response cannot be parsed or fails validation
+ */
 export async function analyzeIssue(
   context: TriageContext,
 ): Promise<AIAnalysis> {

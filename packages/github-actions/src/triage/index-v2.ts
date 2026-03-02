@@ -30,6 +30,16 @@ export {
 export { updateProjectStatus } from './project-v2.js';
 export * from './types.js';
 
+/**
+ * Run the full issue triage workflow using `@happyvertical/repos`.
+ *
+ * Applies an agent label, runs AI analysis, searches for duplicates,
+ * applies type/priority/size labels, posts a triage comment, and
+ * optionally updates the project board status.
+ *
+ * @param context - Triage context including token, repo info, issue details, and config
+ * @returns Result indicating success/failure with analysis and duplicate data
+ */
 export async function triageIssue(
   context: TriageContext,
 ): Promise<TriageResult> {

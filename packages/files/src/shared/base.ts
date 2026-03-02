@@ -16,7 +16,12 @@ import {
 } from './types';
 
 /**
- * Base class for all filesystem providers
+ * Abstract base class for filesystem providers.
+ *
+ * Implements {@link FilesystemInterface} with shared logic for path normalization,
+ * validation, caching, and legacy method adapters. Concrete providers (e.g.
+ * {@link LocalFilesystemProvider}, {@link GoogleDriveProvider}) extend this class
+ * and implement the abstract methods for their specific storage backend.
  */
 export abstract class BaseFilesystemProvider implements FilesystemInterface {
   protected basePath: string;

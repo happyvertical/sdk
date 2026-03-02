@@ -1,41 +1,23 @@
 /**
- * @happyvertical/files - Standardized filesystem interface with multi-provider support
+ * @happyvertical/files - Unified filesystem interface with provider pattern
  *
- * This package provides a unified interface for file operations across different
- * storage backends including local filesystem, S3-compatible services, Google Drive,
- * WebDAV servers (Nextcloud/ownCloud), and browser storage.
+ * Provides a consistent API for file operations across storage backends.
+ * Each provider implements {@link FilesystemInterface}, allowing code to work
+ * with files regardless of the underlying storage system.
  *
- * The package follows a provider pattern where different storage backends implement
- * the same FilesystemInterface, allowing applications to work with files consistently
- * regardless of the underlying storage system.
+ * Implemented providers:
+ * - **Local**: Node.js filesystem via `fs/promises`
+ * - **Google Drive**: Google Drive API v3 (OAuth2, service account, access token)
  *
- * ## Key Features
- * - Unified API across multiple storage providers
- * - Async/await support for all operations
- * - Comprehensive error handling with typed exceptions
- * - Built-in caching and rate limiting
- * - Legacy compatibility with existing @happyvertical/files APIs
- * - TypeScript support with full type definitions
- * - Cross-platform path handling and security
- *
- * ## Supported Providers
- * - **Local**: Node.js filesystem (fs/promises)
- * - **S3**: AWS S3 and S3-compatible services (MinIO, DigitalOcean Spaces)
- * - **Google Drive**: Google Drive API v3
- * - **WebDAV**: Nextcloud, ownCloud, Apache mod_dav
- * - **Browser Storage**: IndexedDB for web applications
+ * Also exports rate-limited fetch utilities and legacy compatibility functions.
  *
  * @example
  * ```typescript
  * import { getFilesystem } from '@happyvertical/files';
  *
- * // Create a local filesystem instance
  * const fs = await getFilesystem({ type: 'local', basePath: '/app/data' });
- *
- * // Use the unified API
  * await fs.write('config.json', JSON.stringify({ key: 'value' }));
  * const content = await fs.read('config.json');
- * const files = await fs.list('.', { filter: /\.json$/ });
  * ```
  *
  * @packageDocumentation
