@@ -1,5 +1,13 @@
 # @happyvertical/projects
 
+## 0.71.0
+
+### Patch Changes
+
+- Updated dependencies [dac9026]
+  - @happyvertical/repos@0.71.0
+  - @happyvertical/graphql@0.71.0
+
 ## 0.70.7
 
 ### Patch Changes

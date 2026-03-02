@@ -1,5 +1,23 @@
 # @happyvertical/repos
 
+## 0.71.0
+
+### Minor Changes
+
+- dac9026: Add `requiresSchemaCheck` flag to DatabaseInterface
+
+  Adapters that auto-create tables at runtime (JSON, DuckDB) now set
+  `requiresSchemaCheck: true`. Migration-managed adapters (Postgres, SQLite)
+  leave it unset, allowing frameworks to skip redundant `tableExists()` calls
+  during collection initialization.
+
+  Add `createRepositoryFromTemplate()` to `GitHubRepository` for creating
+  new repositories from a template via `POST /repos/{owner}/{repo}/generate`.
+
+### Patch Changes
+
+- @happyvertical/graphql@0.71.0
+
 ## 0.70.7
 
 ### Patch Changes

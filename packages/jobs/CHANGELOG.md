@@ -1,5 +1,13 @@
 # @happyvertical/jobs
 
+## 0.71.0
+
+### Patch Changes
+
+- Updated dependencies [dac9026]
+  - @happyvertical/sql@0.71.0
+  - @happyvertical/utils@0.71.0
+
 ## 0.70.7
 
 ### Patch Changes
