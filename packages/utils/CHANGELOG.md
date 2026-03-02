@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.71.1
+
+### Patch Changes
+
+- ### Dependencies
+
+  - update actions/download-artifact action to v8 (#842)
+
 ## 0.71.0
 
 ## 0.70.7

@@ -1,5 +1,12 @@
 # @happyvertical/sql
 
+## 0.71.1
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.71.1
+
 ## 0.71.0
 
 ### Minor Changes
