@@ -1,83 +1,17 @@
 # @happyvertical/directory
 
-Unified directory services with adapter-based architecture. Provides programmatic provisioning for identity (Kanidm), mail (Stalwart), database (PostgreSQL), and cloud (AWS) via a standardized adapter interface.
+Directory services. Factory: `getDirectoryAdapter(options)` plus typed helpers `getKanidmAdapter()`, `getStalwartAdapter()`, `getPostgresAdapter()`, `getAwsAdapter()`.
 
-## Architecture
+## Adapters (all fully implemented)
 
-```
-getDirectoryAdapter({ type: 'kanidm', baseUrl: '...', adminUsername: '...', adminPassword: '...' })
-  -> KanidmAdapter (Kanidm REST API)
+- **Kanidm** — Identity (users, groups, OAuth2 clients, credential resets). Supports username/password or apiToken auth.
+- **Stalwart** — Mail (domains, DKIM, DNS records, mailboxes). Uses unified "principals" API where users/groups/domains are all principal types.
+- **PostgreSQL** — Database roles. Maps users to LOGIN roles, groups to NOLOGIN roles. Filters `pg_*` and `postgres` from lists.
+- **AWS** — Organizations/IAM (OUs, accounts, IAM users, policies, access keys).
 
-getDirectoryAdapter({ type: 'stalwart', baseUrl: '...', username: '...', password: '...' })
-  -> StalwartAdapter (Stalwart REST API)
+## Gotchas
 
-getDirectoryAdapter({ type: 'postgres', host: '...', adminUser: '...', adminPassword: '...' })
-  -> PostgresAdapter (pg client)
-
-getDirectoryAdapter({ type: 'aws', region: '...', credentials: { ... } })
-  -> AwsAdapter (AWS SDK)
-```
-
-## Quick Start
-
-```typescript
-import { getDirectoryAdapter, getKanidmAdapter } from '@happyvertical/directory';
-
-// Generic factory (returns DirectoryAdapter)
-const dir = await getDirectoryAdapter({
-  type: 'kanidm',
-  baseUrl: 'https://idm.example.com',
-  adminUsername: 'admin',
-  adminPassword: 'secret',
-});
-await dir.testConnection();
-await dir.createUser({ username: 'alice', displayName: 'Alice' });
-
-// Typed convenience (returns KanidmDirectoryAdapter with OAuth2 methods)
-const kanidm = await getKanidmAdapter({ ... });
-await kanidm.createOAuth2Client({ name: 'myapp', redirectUris: ['https://app/callback'] });
-```
-
-## Interfaces
-
-| Interface | Service | Extends | Service-Specific |
-|-----------|---------|---------|------------------|
-| `DirectoryAdapter` | (base) | - | User/Group CRUD, membership, testConnection |
-| `KanidmDirectoryAdapter` | Kanidm | DirectoryAdapter | OAuth2 client CRUD, secret management |
-| `StalwartDirectoryAdapter` | Stalwart | DirectoryAdapter | Domain CRUD, DKIM, DNS records, mailbox CRUD |
-| `PostgresDirectoryAdapter` | PostgreSQL | DirectoryAdapter | Database/role provisioning, GRANT/REVOKE |
-| `AwsDirectoryAdapter` | AWS | DirectoryAdapter | OUs, accounts, IAM users, policies, access keys |
-
-## Error Hierarchy
-
-```
-DirectoryError (base, code + provider)
-  ConnectionError
-  AuthenticationError
-  NotFoundError
-  ConflictError
-  ValidationError
-  RateLimitError
-```
-
-## Adapters
-
-| Adapter | Protocol | External Dep |
-|---------|----------|-------------|
-| `KanidmAdapter` | Kanidm REST API v1 | None (native fetch) |
-| `StalwartAdapter` | Stalwart REST API | None (native fetch) |
-| `PostgresAdapter` | PostgreSQL wire protocol | `pg` |
-| `AwsAdapter` | AWS SDK v3 | `@aws-sdk/client-organizations`, `@aws-sdk/client-iam` |
-
-## Dependencies
-
-- **Internal**: `@happyvertical/utils`
-- **External**: `pg`, `@aws-sdk/client-organizations`, `@aws-sdk/client-iam`
-
-## Development Guidelines
-
-- All adapters implement the complete `DirectoryAdapter` base interface
-- Service-specific adapters extend with additional operations
-- Factory uses dynamic imports to avoid loading unused adapters
-- Errors include `provider` field for multi-adapter debugging
-- HTTP adapters use native `fetch` with `AbortSignal.timeout()`
+- AWS account creation is async — returns status ID, must poll `getAccountCreationStatus()`
+- AWS accounts can't be deleted, only closed/suspended
+- Kanidm OAuth2 uses specific attribute names (`oauth2_rs_origin`, `oauth2_rs_scope_map`)
+- All adapters use native `fetch` with `AbortSignal.timeout()` — no external HTTP lib
