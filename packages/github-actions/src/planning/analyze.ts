@@ -4,6 +4,16 @@
 
 import type { ImplementationPlan, PlanningContext } from './types.js';
 
+/**
+ * Generate an AI-powered implementation plan for a GitHub issue.
+ *
+ * Builds a prompt from the issue context and repository description, then
+ * calls the AI service to produce a structured plan with tasks, complexity,
+ * and technical considerations.
+ *
+ * @param context - Planning context with issue details and repository config
+ * @returns Structured implementation plan
+ */
 export async function analyzePlanning(
   context: PlanningContext,
 ): Promise<ImplementationPlan> {

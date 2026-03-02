@@ -5,6 +5,10 @@
 import { addLabels, removeLabel } from '../shared/github.js';
 import type { TriageContext } from './types.js';
 
+/**
+ * Apply labels to an issue using the raw GitHub API.
+ * @deprecated Use the v2 export which uses `@happyvertical/repos`.
+ */
 export async function applyLabels(
   context: TriageContext,
   labels: string[],
@@ -23,6 +27,10 @@ export async function applyLabels(
   }
 }
 
+/**
+ * Remove an `agent: <type>` label from an issue. Silently ignores 404 errors.
+ * @deprecated Use the v2 export which uses `@happyvertical/repos`.
+ */
 export async function removeAgentLabel(
   context: TriageContext,
   agentType: string,

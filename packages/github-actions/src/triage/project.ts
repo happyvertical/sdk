@@ -5,6 +5,10 @@
 import { githubAPI } from './github.js';
 import type { TriageContext } from './types.js';
 
+/**
+ * Update an issue's status on the GitHub Projects V2 board via raw GraphQL.
+ * @deprecated Use the v2 export which uses `@happyvertical/projects`.
+ */
 export async function updateProjectStatus(
   context: TriageContext,
   statusName: string,

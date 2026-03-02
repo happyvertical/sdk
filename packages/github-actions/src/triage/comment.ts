@@ -5,6 +5,13 @@
 import { githubAPI } from './github.js';
 import type { AIAnalysis, DuplicateIssue, TriageContext } from './types.js';
 
+/**
+ * Post a structured triage comment on the issue with AI analysis results and duplicate links.
+ *
+ * @param context - Triage context with repo info and issue number
+ * @param analysis - AI analysis results (type, priority, size, reasoning)
+ * @param duplicates - Array of potential duplicate issues to include in the comment
+ */
 export async function postTriageComment(
   context: TriageContext,
   analysis: AIAnalysis,
@@ -22,6 +29,12 @@ export async function postTriageComment(
   }
 }
 
+/**
+ * Post a comment indicating that automated triage failed, prompting manual triage.
+ *
+ * @param context - Triage context with repo info and issue number
+ * @param error - The error that caused triage to fail
+ */
 export async function postErrorComment(
   context: TriageContext,
   error: Error,

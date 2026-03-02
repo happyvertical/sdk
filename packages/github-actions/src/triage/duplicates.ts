@@ -5,6 +5,15 @@
 import { githubAPI } from './github.js';
 import type { DuplicateIssue, TriageContext } from './types.js';
 
+/**
+ * Search for potential duplicate issues using GitHub Search API.
+ *
+ * Extracts keywords from the issue title and searches the repository for similar issues.
+ * The current issue is excluded from results.
+ *
+ * @param context - Triage context with issue details and repo info
+ * @returns Array of potentially duplicate issues (up to 4)
+ */
 export async function searchDuplicates(
   context: TriageContext,
 ): Promise<DuplicateIssue[]> {

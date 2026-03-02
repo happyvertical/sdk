@@ -5,6 +5,15 @@
 import { createProject, createRepository } from '../shared/adapters.js';
 import type { TriageContext } from './types.js';
 
+/**
+ * Update an issue's status on the GitHub Projects V2 board using `@happyvertical/projects`.
+ *
+ * Adds the issue to the project if not already present, then sets the status field.
+ * No-ops if project integration is disabled or the status name is not configured.
+ *
+ * @param context - Triage context with project config
+ * @param statusName - Target status name (must exist in `config.statusOptions`)
+ */
 export async function updateProjectStatus(
   context: TriageContext,
   statusName: string,

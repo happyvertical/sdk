@@ -30,6 +30,10 @@ export {
 export { updateProjectStatus } from './project.js';
 export * from './types.js';
 
+/**
+ * @deprecated Use the default export from `@happyvertical/github-actions` instead.
+ * Legacy triage orchestrator using raw GitHub API calls.
+ */
 export async function triageIssue(
   context: TriageContext,
 ): Promise<TriageResult> {
