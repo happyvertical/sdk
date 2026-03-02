@@ -578,7 +578,7 @@ export class GitHubRepository implements IRepository {
     return {
       owner: data.owner.login,
       name: data.name,
-      description: data.description,
+      description: data.description || '',
       defaultBranch: data.default_branch,
       url: data.html_url,
       isPrivate: data.private,

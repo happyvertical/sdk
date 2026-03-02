@@ -108,7 +108,7 @@ export interface CreateFromTemplateOptions {
   name: string;
   /** A short description of the new repository */
   description?: string;
-  /** Whether the new repository should be private */
+  /** Whether the new repository should be private (default: true) */
   isPrivate?: boolean;
   /** Whether to include all branches from the template (default: false, only default branch) */
   includeAllBranches?: boolean;
