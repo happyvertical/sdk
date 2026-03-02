@@ -225,6 +225,10 @@ export type TranslatorOptions =
 
 /**
  * Base error class for translation operations
+ *
+ * @param message - Human-readable error description
+ * @param code - Machine-readable error code (e.g., 'QUOTA_EXCEEDED', 'AUTH_ERROR', 'TIMEOUT')
+ * @param provider - The provider that produced the error (e.g., 'google', 'deepl', 'libretranslate')
  */
 export class TranslationError extends Error {
   constructor(
@@ -238,7 +242,10 @@ export class TranslationError extends Error {
 }
 
 /**
- * Unsupported language error
+ * Thrown when a requested language code is not supported by the provider
+ *
+ * @param language - The unsupported ISO 639-1 language code
+ * @param provider - The provider that rejected the language
  */
 export class UnsupportedLanguageError extends TranslationError {
   constructor(language: string, provider?: string) {
@@ -252,7 +259,9 @@ export class UnsupportedLanguageError extends TranslationError {
 }
 
 /**
- * Quota exceeded error
+ * Thrown when the provider's translation quota or rate limit has been exceeded
+ *
+ * @param provider - The provider that reported the quota limit
  */
 export class QuotaExceededError extends TranslationError {
   constructor(provider?: string) {
@@ -262,7 +271,9 @@ export class QuotaExceededError extends TranslationError {
 }
 
 /**
- * API authentication error
+ * Thrown when the provider rejects the API key or credentials
+ *
+ * @param provider - The provider that rejected authentication
  */
 export class AuthenticationError extends TranslationError {
   constructor(provider?: string) {
@@ -272,7 +283,10 @@ export class AuthenticationError extends TranslationError {
 }
 
 /**
- * Invalid text error
+ * Thrown when the input text is empty or otherwise invalid for translation
+ *
+ * @param reason - Description of why the text is invalid
+ * @param provider - The provider that rejected the text
  */
 export class InvalidTextError extends TranslationError {
   constructor(reason: string, provider?: string) {
