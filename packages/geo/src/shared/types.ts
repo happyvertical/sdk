@@ -152,9 +152,16 @@ export interface OpenStreetMapOptions extends BaseGeoOptions {
 export type GeoAdapterOptions = GoogleMapsOptions | OpenStreetMapOptions;
 
 /**
- * Base error class for geo operations
+ * Base error class for geo operations.
+ * All geo-specific errors extend this class and include a machine-readable `code`
+ * and the `provider` name that produced the error.
  */
 export class GeoError extends Error {
+  /**
+   * @param message - Human-readable error description
+   * @param code - Machine-readable error code (e.g. 'RATE_LIMIT', 'AUTH_ERROR')
+   * @param provider - Provider that raised the error ('google' | 'openstreetmap')
+   */
   constructor(
     message: string,
     public code: string,
@@ -166,9 +173,13 @@ export class GeoError extends Error {
 }
 
 /**
- * Rate limit exceeded error
+ * Thrown when the provider's rate limit has been exceeded.
  */
 export class RateLimitError extends GeoError {
+  /**
+   * @param provider - Provider that raised the error
+   * @param retryAfter - Seconds to wait before retrying (if known)
+   */
   constructor(provider?: string, retryAfter?: number) {
     super(
       `Rate limit exceeded${retryAfter ? `, retry after ${retryAfter}s` : ''}`,
@@ -180,9 +191,13 @@ export class RateLimitError extends GeoError {
 }
 
 /**
- * Invalid query error
+ * Thrown when the geocoding query is empty or malformed.
  */
 export class InvalidQueryError extends GeoError {
+  /**
+   * @param query - The invalid query string
+   * @param provider - Provider that raised the error
+   */
   constructor(query: string, provider?: string) {
     super(`Invalid query: ${query}`, 'INVALID_QUERY', provider);
     this.name = 'InvalidQueryError';
@@ -190,9 +205,12 @@ export class InvalidQueryError extends GeoError {
 }
 
 /**
- * API authentication error
+ * Thrown when the provider rejects the API key or credentials.
  */
 export class AuthenticationError extends GeoError {
+  /**
+   * @param provider - Provider that raised the error
+   */
   constructor(provider?: string) {
     super('Authentication failed', 'AUTH_ERROR', provider);
     this.name = 'AuthenticationError';
@@ -200,9 +218,13 @@ export class AuthenticationError extends GeoError {
 }
 
 /**
- * No results found error
+ * Thrown when a geocoding query returns zero results.
  */
 export class NoResultsError extends GeoError {
+  /**
+   * @param query - The query that produced no results
+   * @param provider - Provider that raised the error
+   */
   constructor(query: string, provider?: string) {
     super(`No results found for query: ${query}`, 'NO_RESULTS', provider);
     this.name = 'NoResultsError';
