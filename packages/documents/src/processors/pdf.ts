@@ -16,14 +16,19 @@ import { getTitleFromUrl } from '../utils';
  * PDF Document Processor
  *
  * Handles PDF documents with support for:
- * - Text extraction from PDF content
- * - Image extraction from PDF pages
- * - OCR processing for scanned pages
- * - Multi-page document structuring
+ * - Text extraction from PDF content via `@happyvertical/pdf`
+ * - PDF header validation (detects HTML cache poisoning from document management systems)
+ * - Processed document caching via `@happyvertical/files`
+ *
+ * Image extraction and OCR are stubbed for future implementation.
  */
 export class PDFProcessor implements DocumentProcessor {
   /**
-   * Check if this processor supports the given type
+   * Check if this processor supports the given MIME type or extension.
+   * Accepts `'application/pdf'`, `'.pdf'`, or `'pdf'` (case-insensitive).
+   *
+   * @param type - MIME type or file extension to check
+   * @returns `true` if this processor can handle the given type
    */
   supports(type: string): boolean {
     return (

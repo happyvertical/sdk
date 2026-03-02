@@ -1,173 +1,119 @@
----
-id: documents
-title: "@happyvertical/documents: Document Processing"
-sidebar_label: "@happyvertical/documents"
-sidebar_position: 3
----
-
 # @happyvertical/documents
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Document processing for PDFs, HTML, and Markdown with hierarchical structure.
-
-## Overview
-
-`@happyvertical/documents` provides unified document processing with support for multiple formats. Documents are parsed into hierarchical parts with automatic image extraction and OCR capabilities.
-
-## Features
-
-- **Multi-format support**: Process PDFs, HTML, and Markdown documents
-- **Hierarchical document parts**: Navigate structured content with nested sections
-- **Image extraction with OCR**: Extract images and run OCR on scanned content
-- **Automatic format detection**: Detects document type from URL or MIME type
-- **Caching for performance**: Downloaded files are cached for faster reprocessing
+Document processing with hierarchical structure. Currently supports PDF documents with text extraction, automatic document management system detection (WordPress Download Manager, CivicWeb, DocuShare), and file caching. Uses `@happyvertical/spider` for web page analysis and `@happyvertical/pdf` for PDF text extraction.
 
 ## Installation
 
 ```bash
 npm install @happyvertical/documents
-```
-
-```bash
+# or
 pnpm add @happyvertical/documents
 ```
 
-```bash
-yarn add @happyvertical/documents
-```
-
-## Claude Code Context
-
-Install Claude Code context files for AI-assisted development:
-
-```bash
-npx have-documents-context
-```
-
-This copies the package's `CLAUDE.md` documentation and `.claude-meta.json` metadata to your project's `.claude/` directory, enabling Claude to provide better assistance when working with this package.
+> Published to GitHub Packages (`npm.pkg.github.com`). Requires `@happyvertical/files`, `@happyvertical/pdf`, `@happyvertical/spider`, and `@happyvertical/utils` as workspace dependencies.
 
 ## Quick Start
 
 ```typescript
 import { fetchDocument } from '@happyvertical/documents';
 
-// Fetch and process a PDF
-const doc = await fetchDocument('https://example.com/report.pdf', {
-  extractImages: true,
-  runOcr: true
-});
+// Process a local PDF
+const doc = await fetchDocument('file:///path/to/report.pdf');
 
-// Access structured content
 for (const part of doc.parts) {
   console.log(part.title);
   console.log(part.content);
 }
+
+// Fetch a remote PDF (auto-detected from URL extension)
+const remote = await fetchDocument('https://example.com/report.pdf');
+console.log(remote.parts[0].content);
 ```
 
-## Usage Examples
+## Usage
 
-### Process PDF with Images
+### Document Management System Detection
+
+When fetching web URLs, the package uses `@happyvertical/spider` to detect document management systems and extract direct PDF links:
 
 ```typescript
-import { fetchDocument } from '@happyvertical/documents';
+// WordPress Download Manager URL — spider detects the PDF link automatically
+const doc = await fetchDocument(
+  'https://example.com/download/meeting-minutes/',
+  { scraper: 'basic', spider: 'dom' }
+);
+```
 
-const doc = await fetchDocument('https://example.com/annual-report.pdf', {
-  extractImages: true,
-  runOcr: true,
-  cacheDir: './cache'
+### Override MIME Type
+
+```typescript
+const doc = await fetchDocument('https://example.com/download?id=123', {
+  type: 'application/pdf',
 });
-
-console.log(`Document type: ${doc.type}`);
-console.log(`Parts: ${doc.parts.length}`);
 ```
 
-### Extract Structured Content
+### Cache Control
 
 ```typescript
-import { fetchDocument } from '@happyvertical/documents';
-
-const doc = await fetchDocument('https://example.com/document.pdf');
-
-// Iterate through hierarchical parts
-for (const part of doc.parts) {
-  console.log(`Section: ${part.title}`);
-  console.log(`Content: ${part.content}`);
-  console.log(`Type: ${part.type}`);
-
-  // Check for nested parts
-  if (part.parts) {
-    for (const subPart of part.parts) {
-      console.log(`  Subsection: ${subPart.title}`);
-    }
-  }
-}
-```
-
-### Access Document Parts and Images
-
-```typescript
-import { fetchDocument } from '@happyvertical/documents';
-
-const doc = await fetchDocument('https://example.com/scan.pdf', {
-  extractImages: true,
-  runOcr: true
+const doc = await fetchDocument('https://example.com/report.pdf', {
+  cacheDir: './my-cache',
+  cache: true,
+  cacheExpiry: 600_000, // 10 minutes
 });
-
-// Process each part
-for (const part of doc.parts) {
-  console.log(part.title);
-
-  // Check for images with OCR text
-  if (part.images) {
-    for (const image of part.images) {
-      console.log(`Image: ${image.url}`);
-      console.log(`Alt text: ${image.altText}`);
-      console.log(`OCR text: ${image.ocrText}`);
-
-      if (image.metadata) {
-        console.log(`Dimensions: ${image.metadata.width}x${image.metadata.height}`);
-      }
-    }
-  }
-}
 ```
 
 ## API Reference
 
 ### `fetchDocument(url, options?)`
 
-Main factory function for fetching and processing documents.
+Main factory function. Detects document format, selects the appropriate processor, and returns structured content.
 
-**Parameters:**
-- `url` (string): Document URL or file path (file://, http://, https://)
-- `options` (FetchDocumentOptions): Processing options
+- **url** `string` — Document URL or file path (`file://`, `http://`, `https://`)
+- **options** `FetchDocumentOptions` — See below
+- **Returns** `Promise<Document>`
+- **Throws** if no processor is available for the detected MIME type
 
-**Returns:** `Promise<Document>`
+### `FetchDocumentOptions`
 
-**Options:**
-- `cacheDir?: string` - Directory for caching files (default: OS temp dir)
-- `extractImages?: boolean` - Extract images from document (default: true)
-- `runOcr?: boolean` - Run OCR on images (default: true for PDFs)
-- `spiderAdapter?: 'simple' | 'dom' | 'crawlee'` - HTML fetching adapter (default: 'simple')
-- `type?: string` - Override MIME type detection
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `type` | `string` | auto-detected | Override MIME type detection |
+| `extractImages` | `boolean` | `true` | Extract images from document (stub — currently returns `[]`) |
+| `runOcr` | `boolean` | `true` for PDFs | Run OCR on extracted images (stub) |
+| `cacheDir` | `string` | OS temp dir | Directory for caching downloaded files |
+| `cache` | `boolean` | `true` | Enable/disable spider fetch caching |
+| `cacheExpiry` | `number` | `300000` | Cache expiry in milliseconds |
+| `scraper` | `'basic' \| 'crawlee'` | `'basic'` | Scraper type for content extraction |
+| `spider` | `'simple' \| 'dom' \| 'crawlee'` | `'dom'` | Spider adapter for fetching web pages |
+| `headers` | `Record<string, string>` | — | Custom HTTP headers for spider requests |
+| `timeout` | `number` | `30000` | Request timeout in milliseconds |
+| `maxDuration` | `number` | — | Max scraping time in milliseconds |
+| `maxInteractions` | `number` | — | Max interactions for advanced scrapers |
+
+### `Document` (class)
+
+Base document handler. Manages downloading, caching, and local file path resolution. Used internally by processors; can also be used directly via `Document.create(url, options)`.
+
+### `PDFProcessor`
+
+Implements `DocumentProcessor`. Extracts text from PDF files, validates PDF headers (detects HTML cache poisoning), and caches processed results.
+
+### `getTitleFromUrl(url, defaultTitle?)`
+
+Extracts a human-readable title from a URL by parsing the filename, removing extensions, and decoding URL-encoded characters.
 
 ### Types
 
-#### `Document`
-
 ```typescript
 interface Document {
-  url: string;              // Source URL
-  type: string;             // MIME type
-  parts: DocumentPart[];    // Hierarchical parts
+  url: string;
+  type: string;
+  parts: DocumentPart[];
   metadata?: Record<string, any>;
 }
-```
 
-#### `DocumentPart`
-
-```typescript
 interface DocumentPart {
   id: string;
   title: string;
@@ -175,25 +121,22 @@ interface DocumentPart {
   type: 'text' | 'html' | 'markdown';
   images?: DocumentImage[];
   metadata?: Record<string, any>;
-  parts?: DocumentPart[];   // Nested parts
+  parts?: DocumentPart[];
 }
-```
 
-#### `DocumentImage`
-
-```typescript
 interface DocumentImage {
   id: string;
   url: string;
   localPath?: string;
   altText?: string;
-  ocrText?: string;         // Text from OCR
+  ocrText?: string;
   position?: number;
-  metadata?: {
-    width?: number;
-    height?: number;
-    format?: string;
-  };
+  metadata?: { width?: number; height?: number; format?: string };
+}
+
+interface DocumentProcessor {
+  process(url: string, options?: FetchDocumentOptions): Promise<Document>;
+  supports(type: string): boolean;
 }
 ```
 
