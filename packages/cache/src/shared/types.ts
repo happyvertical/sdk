@@ -188,10 +188,14 @@ export interface CacheAdapter extends CacheProvider {}
 export interface MemoryOptions {
   provider: 'memory';
   namespace?: string;
+  /** Default time-to-live in seconds for entries without an explicit TTL */
   defaultTTL?: number;
+  /** Maximum total cache size in bytes (default: 100 MB) */
   maxSize?: number;
+  /** Maximum number of entries (default: 10 000) */
   maxEntries?: number;
   evictionPolicy?: 'lru' | 'lfu' | 'fifo';
+  /** Interval in milliseconds between expired-entry sweeps (default: 60 000) */
   checkPeriod?: number;
 }
 
@@ -200,12 +204,18 @@ export interface MemoryOptions {
  */
 export interface FileOptions {
   provider: 'file';
+  /** Directory where cache files are stored (required) */
   cacheDir: string;
   namespace?: string;
+  /** Default time-to-live in seconds for entries without an explicit TTL */
   defaultTTL?: number;
+  /** Maximum total cache size in bytes (default: 500 MB) */
   maxSize?: number;
+  /** Enable gzip compression for stored files (default: false) */
   compression?: boolean;
+  /** File suffix for cache files (default: '.cache') */
   fileExtension?: string;
+  /** Interval in milliseconds between expired-file cleanup sweeps (default: 300 000) */
   checkPeriod?: number;
 }
 
@@ -214,16 +224,25 @@ export interface FileOptions {
  */
 export interface RedisOptions {
   provider: 'redis';
+  /** Redis server hostname (default: 'localhost') */
   host?: string;
+  /** Redis server port (default: 6379) */
   port?: number;
   password?: string;
+  /** Redis database index 0-15 (default: 0) */
   db?: number;
   namespace?: string;
+  /** Alternative to namespace — used as the key prefix */
   keyPrefix?: string;
+  /** Default time-to-live in seconds for entries without an explicit TTL */
   defaultTTL?: number;
+  /** Enable gzip compression for values exceeding compressionThreshold (default: false) */
   enableCompression?: boolean;
+  /** Minimum value size in bytes before compression applies (default: 1024) */
   compressionThreshold?: number;
+  /** Socket connect timeout in milliseconds (default: 5000) */
   connectTimeout?: number;
+  /** Per-command timeout in milliseconds */
   commandTimeout?: number;
   retryStrategy?: (times: number) => number | null;
 }
