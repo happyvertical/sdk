@@ -96,8 +96,11 @@ export async function routeQuery(
 }
 
 /**
- * Get packages by names
- * Useful when user explicitly specifies packages
+ * Look up packages by explicit name list.
+ * Useful when the user specifies packages directly rather than relying on keyword routing.
+ *
+ * @param names - Array of short package names (e.g. `["ai", "sql"]`)
+ * @returns Array of matched package metadata (unmatched names are silently excluded)
  */
 export async function getPackagesByNames(
   names: string[],
@@ -109,7 +112,11 @@ export async function getPackagesByNames(
 }
 
 /**
- * Get top N packages for a query
+ * Get the top N packages for a query, ranked by keyword relevance.
+ *
+ * @param query - User query string
+ * @param limit - Maximum number of results (default: 3)
+ * @returns Top matching packages sorted by score descending
  */
 export async function getTopPackages(
   query: string,

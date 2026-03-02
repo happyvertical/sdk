@@ -197,7 +197,11 @@ function extractDescription(content: string): string {
 }
 
 /**
- * Scan packages directory for CLAUDE.md files and build registry
+ * Scan packages directory for CLAUDE.md files and build registry.
+ * Results are cached after the first call.
+ *
+ * @returns Cached map of package name to metadata
+ * @throws If the packages directory cannot be read
  */
 export async function buildPackageRegistry(): Promise<
   Map<string, PackageMetadata>
@@ -242,7 +246,10 @@ export async function buildPackageRegistry(): Promise<
 }
 
 /**
- * Get package metadata by name
+ * Get package metadata by name.
+ *
+ * @param name - Short package name (e.g. `"ai"`, `"sql"`)
+ * @returns Package metadata, or `undefined` if not found
  */
 export async function getPackage(
   name: string,
@@ -252,7 +259,9 @@ export async function getPackage(
 }
 
 /**
- * Get all packages
+ * Get all registered packages as an array.
+ *
+ * @returns Array of all discovered package metadata
  */
 export async function getAllPackages(): Promise<PackageMetadata[]> {
   const registry = await buildPackageRegistry();
@@ -260,7 +269,10 @@ export async function getAllPackages(): Promise<PackageMetadata[]> {
 }
 
 /**
- * Get package CLAUDE.md content
+ * Get the raw CLAUDE.md content for a package.
+ *
+ * @param name - Short package name (e.g. `"ai"`, `"sql"`)
+ * @returns CLAUDE.md content string, or `undefined` if the package is not found
  */
 export async function getPackageDocs(
   name: string,
