@@ -43,6 +43,16 @@ yarn add @happyvertical/sql
 bun add @happyvertical/sql
 ```
 
+## Claude Code Context
+
+Install Claude Code context files for AI-assisted development:
+
+```bash
+npx have-sql-context
+```
+
+This copies the package's `CLAUDE.md` documentation and `.claude-meta.json` metadata to your project's `.claude/` directory, enabling Claude to provide better assistance when working with this package.
+
 ## Usage
 
 ### Connecting to a Database
@@ -207,6 +217,24 @@ const { rows, rowCount } = await db.query(
   ['published', '2024-01-01']
 );
 ```
+
+#### How Template Literals Work Across Adapters
+
+Template literal queries automatically handle the differences between database engines. When you write:
+
+```typescript
+const user = await db.single`SELECT * FROM users WHERE id = ${userId} AND status = ${status}`;
+```
+
+The interpolated values (`userId`, `status`) are extracted from the template and converted into parameterized queries using the correct placeholder format for the active adapter:
+
+| Adapter    | Generated SQL                                              |
+|------------|------------------------------------------------------------|
+| SQLite     | `SELECT * FROM users WHERE id = ? AND status = ?`          |
+| PostgreSQL | `SELECT * FROM users WHERE id = $1 AND status = $2`        |
+| DuckDB     | `SELECT * FROM users WHERE id = ? AND status = ?`          |
+
+Values are always passed as separate parameters, never interpolated into the SQL string. This means you write your queries once and they work across all supported databases with proper parameterization and protection against SQL injection.
 
 ### Using CRUD Helper Functions
 
