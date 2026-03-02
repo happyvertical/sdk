@@ -6,6 +6,7 @@ import { GraphQLClient, type IGraphQLClient } from '@happyvertical/graphql';
 import type {
   Branch,
   Comment,
+  CreateFromTemplateOptions,
   CreateIssueInput,
   CreatePRInput,
   IRepository,
@@ -17,7 +18,6 @@ import type {
   RepositoryConfig,
   SearchFilters,
   UpdateIssueInput,
-  User,
 } from '../types.js';
 import { GitHubRest } from './rest.js';
 
@@ -544,5 +544,44 @@ export class GitHubRepository implements IRepository {
       // 404 means directory doesn't exist
       return [];
     }
+  }
+
+  // Repository Creation from Template
+
+  /**
+   * Create a new repository from this repository as a template.
+   *
+   * Uses the GitHub "Generate" API: POST /repos/{template_owner}/{template_repo}/generate
+   * The current repository (this.owner/this.repo) is used as the template.
+   */
+  async createRepositoryFromTemplate(
+    options: CreateFromTemplateOptions,
+  ): Promise<Repository> {
+    const data = (await this.rest.post(
+      `/repos/${this.owner}/${this.repo}/generate`,
+      {
+        owner: options.owner,
+        name: options.name,
+        description: options.description || '',
+        private: options.isPrivate ?? true,
+        include_all_branches: options.includeAllBranches ?? false,
+      },
+    )) as {
+      name: string;
+      owner: { login: string };
+      description: string;
+      default_branch: string;
+      html_url: string;
+      private: boolean;
+    };
+
+    return {
+      owner: data.owner.login,
+      name: data.name,
+      description: data.description,
+      defaultBranch: data.default_branch,
+      url: data.html_url,
+      isPrivate: data.private,
+    };
   }
 }

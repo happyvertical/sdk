@@ -99,6 +99,22 @@ export interface SearchFilters {
 export type MergeMethod = 'merge' | 'squash' | 'rebase';
 
 /**
+ * Options for creating a repository from a template
+ */
+export interface CreateFromTemplateOptions {
+  /** The organization or user who will own the new repository */
+  owner: string;
+  /** The name for the new repository */
+  name: string;
+  /** A short description of the new repository */
+  description?: string;
+  /** Whether the new repository should be private */
+  isPrivate?: boolean;
+  /** Whether to include all branches from the template (default: false, only default branch) */
+  includeAllBranches?: boolean;
+}
+
+/**
  * Repository configuration
  */
 export interface RepositoryConfig {
