@@ -1,11 +1,11 @@
-# @have/projects
+# @happyvertical/projects
 
 Standardized project management interface for GitHub Projects, Jira, ZenHub, and Linear.
 
 ## Installation
 
 ```bash
-pnpm add @have/projects @have/repos
+pnpm add @happyvertical/projects @happyvertical/repos
 ```
 
 ## Claude Code Context
@@ -23,8 +23,8 @@ This copies the package's `CLAUDE.md` documentation and `.claude-meta.json` meta
 ### Basic Example
 
 ```typescript
-import { getProject } from '@have/projects';
-import { getRepository } from '@have/repos';
+import { getProject } from '@happyvertical/projects';
+import { getRepository } from '@happyvertical/repos';
 
 // Get repository to retrieve issue node IDs
 const repo = await getRepository({
@@ -131,7 +131,7 @@ Get project details including fields and statuses.
 Add an issue or pull request to the project.
 
 **Parameters:**
-- `contentId: string` - Node ID of the issue or PR (from @have/repos)
+- `contentId: string` - Node ID of the issue or PR (from @happyvertical/repos)
 
 **Returns:** Created project item
 
@@ -271,7 +271,7 @@ const project = await getProject({
 The package exports standard kanban status names:
 
 ```typescript
-import { KANBAN_STATUSES } from '@have/projects';
+import { KANBAN_STATUSES } from '@happyvertical/projects';
 
 // ['New', 'Backlog', 'Planning', 'Ready', 'In Progress', 'Review', 'Done']
 ```
@@ -279,7 +279,7 @@ import { KANBAN_STATUSES } from '@have/projects';
 ## Error Handling
 
 ```typescript
-import { ProjectError, ProjectErrorCode } from '@have/projects';
+import { ProjectError, ProjectErrorCode } from '@happyvertical/projects';
 
 try {
   await project.updateItemStatus(itemId, 'Invalid Status');
@@ -300,13 +300,13 @@ try {
 }
 ```
 
-## Integration with @have/repos
+## Integration with @happyvertical/repos
 
 Projects work seamlessly with repositories:
 
 ```typescript
-import { getRepository } from '@have/repos';
-import { getProject } from '@have/projects';
+import { getRepository } from '@happyvertical/repos';
+import { getProject } from '@happyvertical/projects';
 
 const repo = await getRepository({
   type: 'github',
