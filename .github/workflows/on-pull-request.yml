@@ -162,9 +162,6 @@ jobs:
   docs-build:
     name: Validate Documentation Build
     runs-on: arc-happyvertical
-    # Pre-existing Docusaurus SSR issue (require.resolveWeak) — non-blocking
-    # until upstream fix lands. See: https://github.com/facebook/docusaurus/issues
-    continue-on-error: true
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -182,11 +179,14 @@ jobs:
         if: steps.changed-files.outputs.any_changed == 'true'
         uses: ./.github/actions/setup-environment
         with:
-          # Docusaurus 3.x SSR uses require.resolveWeak which is broken on Node 24
           node-version: '22'
 
       - name: Build documentation site
+        id: build
         if: steps.changed-files.outputs.any_changed == 'true'
+        # Pre-existing Docusaurus SSR issue (require.resolveWeak) — non-blocking
+        # until upstream fix lands
+        continue-on-error: true
         run: |
           cd docs
           npm run build
@@ -195,4 +195,9 @@ jobs:
 
       - name: Documentation build summary
         if: steps.changed-files.outputs.any_changed == 'true'
-        run: echo "Documentation site built successfully with no broken links."
+        run: |
+          if [ "${{ steps.build.outcome }}" = "failure" ]; then
+            echo "::warning::Documentation build failed (pre-existing Docusaurus SSR issue). This does not block the PR."
+          else
+            echo "Documentation site built successfully with no broken links."
+          fi
