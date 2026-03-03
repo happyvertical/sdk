@@ -65,7 +65,7 @@ runs:
       run: |
         echo "Triaging issue #$ISSUE_NUMBER: $ISSUE_TITLE"
         # Configure npm for GitHub Packages
-        echo "@have:registry=https://npm.pkg.github.com" >> ~/.npmrc
+        echo "@happyvertical:registry=https://npm.pkg.github.com" >> ~/.npmrc
         echo "//npm.pkg.github.com/:_authToken=$GITHUB_TOKEN" >> ~/.npmrc
         # Install and run
         npx --yes @happyvertical/github-actions@latest triage
