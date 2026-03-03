@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/docs",
-  "version": "0.0.51",
+  "version": "0.71.2",
   "private": true,
   "type": "module",
   "main": "docusaurus.config.ts",

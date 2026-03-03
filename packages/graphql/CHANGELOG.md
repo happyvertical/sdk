@@ -1,5 +1,11 @@
 # @happyvertical/graphql
 
+## 0.71.2
+
+### Patch Changes
+
+- 8202b19: Add CLAUDE.md agentic instructions and fix stale scope references in package documentation
+
 ## 0.71.1
 
 ## 0.71.0

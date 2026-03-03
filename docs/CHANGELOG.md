@@ -1,5 +1,7 @@
 # @have/docs
 
+## 0.71.2
+
 ## 0.0.51
 
 ### Patch Changes

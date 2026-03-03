@@ -1,5 +1,14 @@
 # @happyvertical/social
 
+## 0.71.2
+
+### Patch Changes
+
+- 8202b19: Add CLAUDE.md agentic instructions and fix stale scope references in package documentation
+- Updated dependencies [8202b19]
+  - @happyvertical/logger@0.71.2
+  - @happyvertical/utils@0.71.2
+
 ## 0.71.1
 
 ### Patch Changes
