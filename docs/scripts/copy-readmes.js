@@ -10,12 +10,12 @@ import { copyFile, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const Filename = fileURLToPath(import.meta.url);
-const Dirname = dirname(Filename);
+const currentFile = fileURLToPath(import.meta.url);
+const currentDir = dirname(currentFile);
 
 // Paths
-const repoRoot = join(Dirname, '../..');
-const docsRoot = join(Dirname, '..');
+const repoRoot = join(currentDir, '../..');
+const docsRoot = join(currentDir, '..');
 const contentDir = join(docsRoot, 'content');
 const packagesDir = join(repoRoot, 'packages');
 

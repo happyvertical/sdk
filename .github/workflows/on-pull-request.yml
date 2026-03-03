@@ -179,7 +179,8 @@ jobs:
         if: steps.changed-files.outputs.any_changed == 'true'
         uses: ./.github/actions/setup-environment
         with:
-          node-version: '24'
+          # Docusaurus 3.x SSR uses require.resolveWeak which is broken on Node 24
+          node-version: '22'
 
       - name: Build documentation site
         if: steps.changed-files.outputs.any_changed == 'true'

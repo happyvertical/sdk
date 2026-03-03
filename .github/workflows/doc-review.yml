@@ -77,23 +77,23 @@ jobs:
             sed -n 's|.*packages/\([^/]*\)/.*|\1|p' | \
             sort -u)
 
-          missing_docs=""
+          missing=false
           for pkg in $packages; do
             echo "Checking package: $pkg"
 
             # Check if README.md exists
             if [ ! -f "packages/$pkg/README.md" ]; then
-              missing_docs="$missing_docs\n- packages/$pkg/README.md"
+              echo "::warning file=packages/$pkg::Missing packages/$pkg/README.md"
+              missing=true
             fi
 
             # Check if CLAUDE.md exists
             if [ ! -f "packages/$pkg/CLAUDE.md" ]; then
-              missing_docs="$missing_docs\n- packages/$pkg/CLAUDE.md"
+              echo "::warning file=packages/$pkg::Missing packages/$pkg/CLAUDE.md"
+              missing=true
             fi
           done
 
-          if [ -n "$missing_docs" ]; then
-            echo "::warning::The following documentation files are missing for packages with code changes:$missing_docs"
-          else
+          if [ "$missing" = false ]; then
             echo "All changed packages have README.md and CLAUDE.md files."
           fi

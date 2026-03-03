@@ -8,22 +8,22 @@ This directory contains specialized expert agents for each package in the HAVE S
 
 | Agent | Package | Expertise |
 |-------|---------|-----------|
-| [utils-expert](./utils-expert.md) | `@happyvertical/utils` | cuid2, date-fns, pluralize, uuid |
-| [files-expert](./files-expert.md) | `@happyvertical/files` | Node.js fs/promises, path utilities |
-| [sql-expert](./sql-expert.md) | `@happyvertical/sql` | @libsql/client, sqlite-vss, pg |
-| [ai-expert](./ai-expert.md) | `@happyvertical/ai` | openai, @google/generative-ai, @anthropic-ai/sdk, @aws-sdk/client-bedrock-runtime |
-| [spider-expert](./spider-expert.md) | `@happyvertical/spider` | @mozilla/readability, cheerio, happy-dom, undici |
-| [pdf-expert](./pdf-expert.md) | `@happyvertical/pdf` | unpdf, @gutenye/ocr-node |
-| [smrt-expert](./smrt-expert.md) | `@happyvertical/smrt` | All above packages + @langchain/community, yaml |
+| [utils-expert](./utils.md) | `@happyvertical/utils` | cuid2, date-fns, pluralize, uuid |
+| [files-expert](./files.md) | `@happyvertical/files` | Node.js fs/promises, path utilities |
+| [sql-expert](./sql.md) | `@happyvertical/sql` | @libsql/client, sqlite-vss, pg |
+| [ai-expert](./ai.md) | `@happyvertical/ai` | openai, @google/generative-ai, @anthropic-ai/sdk, @aws-sdk/client-bedrock-runtime |
+| [spider-expert](./spider.md) | `@happyvertical/spider` | @mozilla/readability, cheerio, happy-dom, undici |
+| [pdf-expert](./pdf.md) | `@happyvertical/pdf` | unpdf, @gutenye/ocr-node |
+| [smrt-expert](./smrt.md) | `@happyvertical/smrt` | All above packages + @langchain/community, yaml |
 
 ### Application Agents
 
 | Agent | Package | Expertise |
 |-------|---------|-----------|
-| [api-expert](./api-expert.md) | `@happyvertical/smrt-api` | express, swagger-ui-express |
-| [mcp-expert](./mcp-expert.md) | `@happyvertical/smrt-mcp` | Model Context Protocol (MCP) |
-| [cli-expert](./cli-expert.md) | `@happyvertical/smrt-cli` | commander, chalk, ora, inquirer |
-| [template-expert](./template-expert.md) | `@happyvertical/smrt-template` | Code generation, scaffolding |
+| [api-expert](./api.md) | `@happyvertical/smrt-api` | express, swagger-ui-express |
+| [mcp-expert](./mcp.md) | `@happyvertical/smrt-mcp` | Model Context Protocol (MCP) |
+| [cli-expert](./cli.md) | `@happyvertical/smrt-cli` | commander, chalk, ora, inquirer |
+| [template-expert](./template.md) | `@happyvertical/smrt-template` | Code generation, scaffolding |
 
 ## Agent Capabilities
 

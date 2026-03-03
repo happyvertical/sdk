@@ -12,4 +12,4 @@
 "@happyvertical/video": patch
 ---
 
-Add CLAUDE.md agentic instructions and fix @have/ → @happyvertical/ scope in package documentation
+Add CLAUDE.md agentic instructions and fix stale scope references in package documentation
