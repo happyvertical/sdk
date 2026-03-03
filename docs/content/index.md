@@ -60,29 +60,6 @@ await cache.set('session:abc', sessionData, 3600); // Expires in 1 hour
 
 ---
 
-## @happyvertical/config
-
-Centralized configuration management for SMRT modules with support for multiple configuration sources.
-
-```typescript
-import { loadConfig } from '@happyvertical/config';
-
-// Auto-discover configuration
-const config = await loadConfig('myapp');
-
-// Config will be loaded from (in order of precedence):
-// - package.json "myapp" property
-// - .myapprc (JSON or YAML)
-// - myapp.config.js
-// - myapp.config.ts
-
-console.log(config);
-```
-
-[Full documentation →](/config)
-
----
-
 ## @happyvertical/documents
 
 Multi-part document processing with support for PDF, HTML, and Markdown formats.
@@ -188,84 +165,6 @@ logger.info('User action', {
 ```
 
 [Full documentation →](/logger)
-
----
-
-## @happyvertical/ocr
-
-Standardized OCR interface with support for multiple providers including Tesseract.js and ONNX (PaddleOCR).
-
-```typescript
-import { getOCR } from '@happyvertical/ocr';
-
-// Create OCR factory with automatic provider selection
-const ocrFactory = getOCR();
-
-// Process images
-const images = [
-  {
-    data: imageBuffer,        // Buffer or Uint8Array
-    format: 'png'            // Optional format hint
-  }
-];
-
-const result = await ocrFactory.performOCR(images, {
-  language: 'eng',           // Language code
-  confidenceThreshold: 70,   // Filter low-confidence results
-  outputFormat: 'text'       // 'text' or 'json'
-});
-
-console.log('Extracted text:', result.text);
-console.log('Confidence:', result.confidence);
-```
-
-[Full documentation →](/ocr)
-
----
-
-## @happyvertical/pdf
-
-PDF parsing and text extraction.
-
-```typescript
-import { getPDFReader } from '@happyvertical/pdf';
-
-// Get a PDF reader instance
-const reader = await getPDFReader();
-
-// Extract text from PDF
-const text = await reader.extractText('/path/to/document.pdf');
-
-// Get PDF metadata
-const metadata = await reader.extractMetadata('/path/to/document.pdf');
-console.log('Title:', metadata.title);
-console.log('Pages:', metadata.pageCount);
-console.log('Author:', metadata.author);
-```
-
-[Full documentation →](/pdf)
-
----
-
-## @happyvertical/spider
-
-Web crawling and content extraction from websites.
-
-```typescript
-import { scrapeDocument, scrapeIndex } from '@happyvertical/spider';
-
-// Scrape content from a single page
-const page = await scrapeDocument('https://example.com');
-console.log('Title:', page.title);
-console.log('Content:', page.content);
-console.log('Links:', page.links);
-
-// Scrape an index page to get links
-const index = await scrapeIndex('https://blog.example.com/articles');
-console.log('Found links:', index.links.length);
-```
-
-[Full documentation →](/spider)
 
 ---
 

@@ -5,7 +5,9 @@
       "packages/*/src/**/*.{js,ts,tsx,jsx,svelte}",
       "packages/*/test/**/*.{js,ts,tsx,jsx}",
       "packages/*/*.{js,ts}",
+      "docs/*.{js,ts,tsx,jsx}",
       "docs/src/**/*.{js,ts,tsx,jsx}",
+      "docs/scripts/**/*.{js,ts}",
       ".github/**/*.{js,ts}",
       "scripts/**/*.{js,ts}",
       "*.{js,ts,tsx,jsx}"

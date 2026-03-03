@@ -15,7 +15,7 @@ const config: Config = {
   organizationName: 'happyvertical',
   projectName: 'sdk',
 
-  onBrokenLinks: 'warn',
+  onBrokenLinks: 'throw',
 
   // Markdown configuration
   // Use 'detect' to allow CommonMark for TypeDoc-generated API docs
@@ -51,7 +51,7 @@ const config: Config = {
           blogSidebarTitle: 'All posts',
           feedOptions: {
             type: 'all',
-            copyright: `Copyright © ${new Date().getFullYear()} HAppy VErtical`,
+            copyright: `Copyright © ${new Date().getFullYear()} Happy Vertical`,
           },
         },
         theme: {
@@ -122,7 +122,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} HAppy VErtical. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Happy Vertical. Built with Docusaurus.`,
     },
 
     prism: {
@@ -135,12 +135,13 @@ const config: Config = {
       theme: { light: 'neutral', dark: 'dark' },
     },
 
-    algolia: {
-      appId: 'YOUR_APP_ID',
-      apiKey: 'YOUR_API_KEY',
-      indexName: 'smrt-docs',
-      contextualSearch: true,
-    },
+    // algolia: configure when search is set up
+    // algolia: {
+    //   appId: 'YOUR_APP_ID',
+    //   apiKey: 'YOUR_API_KEY',
+    //   indexName: 'happyvertical-docs',
+    //   contextualSearch: true,
+    // },
 
     colorMode: {
       defaultMode: 'light',
