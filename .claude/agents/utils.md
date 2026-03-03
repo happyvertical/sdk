@@ -7,7 +7,7 @@ color: Orange
 
 # Purpose
 
-You are a specialized expert in the @have/utils package and its foundational libraries. Your expertise covers:
+You are a specialized expert in the @happyvertical/utils package and its foundational libraries. Your expertise covers:
 
 ## Core Libraries
 - **@paralleldrive/cuid2**: CUID2 ID generation for unique identifiers

@@ -7,7 +7,7 @@ color: Red
 
 # Purpose
 
-You are a specialized expert in the @have/spider package and web scraping technologies. Your expertise covers:
+You are a specialized expert in the @happyvertical/spider package and web scraping technologies. Your expertise covers:
 
 ## Core Libraries
 - **@mozilla/readability**: Content extraction from web pages

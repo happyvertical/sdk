@@ -253,7 +253,7 @@ export const createMockProduct = (overrides = {}) => ({
 ### 3. Mock Strategies
 ```typescript
 // Mock external dependencies
-vi.mock('@have/smrt', () => ({
+vi.mock('@happyvertical/smrt', () => ({
   BaseObject: vi.fn(),
   createSmrtBinding: vi.fn()
 }));

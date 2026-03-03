@@ -2,7 +2,7 @@
   "agents": {
     "utils": {
       "name": "Utils Expert",
-      "package": "@have/utils",
+      "package": "@happyvertical/utils",
       "description": "Expert in utility functions, ID generation, string manipulation, and date handling",
       "file": "utils.md",
       "foundationalLibraries": [
@@ -35,7 +35,7 @@
     },
     "files": {
       "name": "Files Expert",
-      "package": "@have/files",
+      "package": "@happyvertical/files",
       "description": "Expert in file system operations, path handling, and temporary file management",
       "file": "files.md",
       "foundationalLibraries": ["fs/promises", "path"],
@@ -61,7 +61,7 @@
     },
     "sql": {
       "name": "SQL Expert",
-      "package": "@have/sql",
+      "package": "@happyvertical/sql",
       "description": "Expert in database operations, query building, and vector search",
       "file": "sql.md",
       "foundationalLibraries": ["@libsql/client", "sqlite-vss", "pg"],
@@ -85,7 +85,7 @@
     },
     "ai": {
       "name": "AI Expert",
-      "package": "@have/ai",
+      "package": "@happyvertical/ai",
       "description": "Expert in AI model integrations across multiple providers",
       "file": "ai.md",
       "foundationalLibraries": [
@@ -114,7 +114,7 @@
         "claude",
         "bedrock",
         "ai package",
-        "@have/ai",
+        "@happyvertical/ai",
         "AI package",
         "AIMessage",
         "ai provider",
@@ -125,7 +125,7 @@
     },
     "spider": {
       "name": "Spider Expert",
-      "package": "@have/spider",
+      "package": "@happyvertical/spider",
       "description": "Expert in web scraping, content extraction, and browser automation",
       "file": "spider.md",
       "foundationalLibraries": [
@@ -155,7 +155,7 @@
     },
     "pdf": {
       "name": "PDF Expert",
-      "package": "@have/pdf",
+      "package": "@happyvertical/pdf",
       "description": "Expert in PDF processing, text extraction, and OCR operations",
       "file": "pdf.md",
       "foundationalLibraries": ["unpdf", "@gutenye/ocr-node"],
@@ -179,7 +179,7 @@
     },
     "smrt": {
       "name": "SMRT Expert",
-      "package": "@have/smrt",
+      "package": "@happyvertical/smrt",
       "description": "Expert in the AI agent framework, object-relational mapping, and cross-package integration",
       "file": "smrt.md",
       "foundationalLibraries": ["@langchain/community", "cheerio", "yaml"],
@@ -205,7 +205,7 @@
     },
     "api": {
       "name": "API Expert",
-      "package": "@have/smrt-api",
+      "package": "@happyvertical/smrt-api",
       "description": "Expert in REST API generation, Express.js, and OpenAPI documentation",
       "file": "api.md",
       "foundationalLibraries": ["express", "swagger-ui-express"],
@@ -230,7 +230,7 @@
     },
     "mcp": {
       "name": "MCP Expert",
-      "package": "@have/smrt-mcp",
+      "package": "@happyvertical/smrt-mcp",
       "description": "Expert in Model Context Protocol server generation and AI tool integration",
       "file": "mcp.md",
       "foundationalLibraries": ["Model Context Protocol"],
@@ -254,7 +254,7 @@
     },
     "cli": {
       "name": "CLI Expert",
-      "package": "@have/smrt-cli",
+      "package": "@happyvertical/smrt-cli",
       "description": "Expert in command-line interface development and interactive prompts",
       "file": "cli.md",
       "foundationalLibraries": ["commander", "chalk", "ora", "inquirer"],
@@ -280,7 +280,7 @@
     },
     "template": {
       "name": "Template Expert",
-      "package": "@have/smrt-template",
+      "package": "@happyvertical/smrt-template",
       "description": "Expert in code generation, project scaffolding, and template systems",
       "file": "template.md",
       "foundationalLibraries": ["Handlebars", "Template engines"],
@@ -397,7 +397,7 @@
     },
     "svelte": {
       "name": "Svelte Expert",
-      "package": "@have/svelte",
+      "package": "@happyvertical/svelte",
       "description": "Expert in Svelte 5 runes, shadcn-svelte, SvelteKit, and SMRT library integration",
       "file": "svelte.md",
       "foundationalLibraries": [
@@ -464,7 +464,7 @@
     },
     "repo": {
       "name": "Repo Expert",
-      "package": "@have/sdk",
+      "package": "@happyvertical/sdk",
       "description": "Consultant for monorepo architecture, workspace dependencies, TypeScript project references, build orchestration, and package management. Expert in Bun workspaces, sequential builds, and dependency resolution.",
       "file": "repo.md",
       "foundationalLibraries": [
@@ -492,7 +492,7 @@
         "tsconfig",
         "project references",
         "bun workspace",
-        "@have/sdk",
+        "@happyvertical/sdk",
         "build fails",
         "workspace dependency",
         "Cannot find module",
