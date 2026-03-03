@@ -1,37 +1,47 @@
 #!/usr/bin/env node
+
 /**
  * Script to copy package READMEs to docs/content directory
  * This maintains a single source of truth for documentation.
  */
 
-import { copyFile, mkdir } from 'fs/promises';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-import { existsSync } from 'fs';
+import { existsSync } from 'node:fs';
+import { copyFile, mkdir } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+const Filename = fileURLToPath(import.meta.url);
+const Dirname = dirname(Filename);
 
 // Paths
-const repoRoot = join(__dirname, '../..');
-const docsRoot = join(__dirname, '..');
+const repoRoot = join(Dirname, '../..');
+const docsRoot = join(Dirname, '..');
 const contentDir = join(docsRoot, 'content');
 const packagesDir = join(repoRoot, 'packages');
 
 // Package names to copy
 const packages = [
   'ai',
+  'auth',
   'cache',
+  'comfyui',
   'documents',
+  'encryption',
   'files',
   'geo',
+  'github-actions',
+  'json',
   'logger',
-  'ocr',
-  'pdf',
-  'spider',
+  'projects',
+  'repos',
+  'sdk-mcp',
+  'secrets',
+  'social',
   'sql',
   'translator',
   'utils',
+  'video',
+  'weather',
 ];
 
 async function copyPackageReadmes() {
