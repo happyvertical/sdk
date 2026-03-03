@@ -12,7 +12,7 @@ Standardized repository interface for issue, PR, label, and branch operations. F
 ## Key patterns
 
 - `IRepository` interface covers issues, PRs, labels, comments, branches, workflows, and file content
-- Issue template parsing via `parseIssueBody` / `renderIssueBody` (YAML front-matter)
+- Issue template parsing via `parseIssueBody` / `renderIssueBody` (markdown heading sections)
 - Node ID resolution for GitHub Projects V2 integration
 - Factory accepts an existing `IRepository` instance (passthrough) or a `RepositoryConfig`
 
