@@ -92,7 +92,7 @@ utils → files → spider → sql → pdf → ai → smrt
 **Required package.json Structure**:
 ```json
 {
-  "name": "@have/[package]",
+  "name": "@happyvertical/[package]",
   "version": "0.0.50", // Synchronized across all packages
   "type": "module",    // ESM only architecture
   "main": "dist/index.js",
@@ -110,7 +110,7 @@ utils → files → spider → sql → pdf → ai → smrt
 ```
 
 **Workspace Dependency Patterns**:
-- Internal dependencies: `"@have/utils": "workspace:*"`
+- Internal dependencies: `"@happyvertical/utils": "workspace:*"`
 - External dependencies: Specific versions for stability
 - DevDependencies: Shared versions via root resolutions
 
@@ -216,7 +216,7 @@ bun build → changeset version → changeset publish
 - Validate TypeScript composite build setup
 
 **Workspace Dependency Failures**:
-- Diagnose `Cannot find module '@have/package'` errors
+- Diagnose `Cannot find module '@happyvertical/package'` errors
 - Verify workspace resolution configuration
 - Check dist/ artifact generation
 

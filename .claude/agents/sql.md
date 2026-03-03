@@ -7,7 +7,7 @@ color: Green
 
 # Purpose
 
-You are a specialized expert in the @have/sql package and database operations. Your expertise covers:
+You are a specialized expert in the @happyvertical/sql package and database operations. Your expertise covers:
 
 ## Core Libraries
 - **@libsql/client**: LibSQL client for SQLite compatibility with extensions
