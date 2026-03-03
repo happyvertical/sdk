@@ -1,0 +1,88 @@
+name: Documentation Review
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packages/*/src/**'
+      - 'packages/*/README.md'
+      - 'packages/*/CLAUDE.md'
+      - 'docs/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  check-naming:
+    name: Check for stale @have/ references
+    runs-on: arc-happyvertical
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Check for @have/ naming regressions
+        run: |
+          echo "Checking for stale @have/ references in markdown files..."
+
+          # Find @have/ references that are NOT env vars (HAVE_*)
+          if grep -rn '@have/' --include='*.md' \
+            --exclude-dir=node_modules \
+            --exclude-dir=.git \
+            --exclude='CHANGELOG.md' \
+            --exclude='**/CHANGELOG.md' \
+            . 2>/dev/null; then
+            echo ""
+            echo "::error::Found stale @have/ references in markdown files. These should be @happyvertical/."
+            exit 1
+          fi
+
+          echo "No stale @have/ references found."
+
+  doc-coverage:
+    name: Check documentation coverage
+    runs-on: arc-happyvertical
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@48d8f15b2aaa3d255ca5af3eba4870f807ce6b3c # v45
+        with:
+          files: |
+            packages/*/src/**
+
+      - name: Check doc coverage for changed packages
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "Checking documentation coverage for changed packages..."
+
+          # Extract unique package names from changed files
+          packages=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | \
+            tr ' ' '\n' | \
+            grep -oP 'packages/\K[^/]+' | \
+            sort -u)
+
+          missing_docs=""
+          for pkg in $packages; do
+            echo "Checking package: $pkg"
+
+            # Check if README.md exists
+            if [ ! -f "packages/$pkg/README.md" ]; then
+              missing_docs="$missing_docs\n- packages/$pkg/README.md"
+            fi
+
+            # Check if CLAUDE.md exists
+            if [ ! -f "packages/$pkg/CLAUDE.md" ]; then
+              missing_docs="$missing_docs\n- packages/$pkg/CLAUDE.md"
+            fi
+          done
+
+          if [ -n "$missing_docs" ]; then
+            echo "::warning::The following documentation files are missing for packages with code changes:$missing_docs"
+          else
+            echo "All changed packages have README.md and CLAUDE.md files."
+          fi
