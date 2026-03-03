@@ -13,6 +13,10 @@ permissions:
   contents: read
   pull-requests: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   check-naming:
     name: Check for stale @have/ references
@@ -21,23 +25,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Check for @have/ naming regressions
-        run: |
-          echo "Checking for stale @have/ references in markdown files..."
+      - name: Get changed markdown files
+        id: changed-md
+        uses: tj-actions/changed-files@48d8f15b2aaa3d255ca5af3eba4870f807ce6b3c # v45
+        with:
+          files: '**/*.md'
 
-          # Find @have/ references that are NOT env vars (HAVE_*)
-          if grep -rn '@have/' --include='*.md' \
-            --exclude-dir=node_modules \
-            --exclude-dir=.git \
-            --exclude='CHANGELOG.md' \
-            --exclude='**/CHANGELOG.md' \
-            . 2>/dev/null; then
-            echo ""
-            echo "::error::Found stale @have/ references in markdown files. These should be @happyvertical/."
+      - name: Check for @have/ naming regressions in changed files
+        if: steps.changed-md.outputs.any_changed == 'true'
+        run: |
+          echo "Checking changed markdown files for stale @have/ references..."
+
+          found=false
+          for file in ${{ steps.changed-md.outputs.all_changed_files }}; do
+            if grep -n '@have/' "$file" 2>/dev/null; then
+              echo "::error file=$file::Found stale @have/ reference. Should be @happyvertical/."
+              found=true
+            fi
+          done
+
+          if [ "$found" = true ]; then
             exit 1
           fi
 
-          echo "No stale @have/ references found."
+          echo "No stale @have/ references found in changed files."
 
   doc-coverage:
     name: Check documentation coverage
@@ -63,7 +74,7 @@ jobs:
           # Extract unique package names from changed files
           packages=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | \
             tr ' ' '\n' | \
-            grep -oP 'packages/\K[^/]+' | \
+            sed -n 's|.*packages/\([^/]*\)/.*|\1|p' | \
             sort -u)
 
           missing_docs=""
