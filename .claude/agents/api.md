@@ -7,7 +7,7 @@ color: Teal
 
 # Purpose
 
-You are a specialized expert in the @have/smrt-api package and REST API generation. Your expertise covers:
+You are a specialized expert in the @happyvertical/smrt-api package and REST API generation. Your expertise covers:
 
 ## Core Libraries
 - **express**: Fast, unopinionated web framework for Node.js

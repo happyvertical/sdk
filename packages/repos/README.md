@@ -1,11 +1,11 @@
-# @have/repos
+# @happyvertical/repos
 
 Standardized repository interface for GitHub, GitLab, Bitbucket, and Azure DevOps.
 
 ## Installation
 
 ```bash
-npm install @have/repos
+pnpm add @happyvertical/repos
 ```
 
 ## Claude Code Context
@@ -21,7 +21,7 @@ This copies the package's `CLAUDE.md` documentation and `.claude-meta.json` meta
 ## Usage
 
 ```typescript
-import { getRepository } from '@have/repos';
+import { getRepository } from '@happyvertical/repos';
 
 // Create a GitHub repository client
 const repo = await getRepository({

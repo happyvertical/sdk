@@ -7,7 +7,7 @@ color: Blue
 
 # Purpose
 
-You are a specialized expert in the @have/files package and file system operations. Your expertise covers:
+You are a specialized expert in the @happyvertical/files package and file system operations. Your expertise covers:
 
 ## Core Technologies
 - **Node.js fs/promises**: Async file system operations

@@ -212,7 +212,7 @@ When generating components, support these "from" parameter patterns:
 ```typescript
 // Create reactive stores for SMRT objects
 import { writable } from 'svelte/store';
-import { SmartObject } from '@have/smrt';
+import { SmartObject } from '@happyvertical/smrt';
 
 function createSmartStore<T>(obj: SmartObject<T>) {
   const store = writable(obj.data);

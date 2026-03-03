@@ -17,9 +17,6 @@ TypeScript SDK for building AI-powered applications.
 - **[@happyvertical/cache](./packages/cache/README.md)** - Caching interface with builtin adapters for Memory, File, Redis
 - **[@happyvertical/geo](./packages/geo/README.md)** - Geographic utilities and services
 - **[@happyvertical/translator](./packages/translator/README.md)** - Translation services integration
-- **[@happyvertical/ocr](./packages/ocr/README.md)** - OCR interface with builtin adapters for Tesseract, ONNX, Web OCR
-- **[@happyvertical/pdf](./packages/pdf/README.md)** - PDF parsing and text extraction
-- **[@happyvertical/spider](./packages/spider/README.md)** - Web crawling with builtin adapters for Simple, DOM, Crawlee
 - **[@happyvertical/documents](./packages/documents/README.md)** - Document processing for PDFs, HTML, and Markdown
 
 ### Developer Tools
@@ -34,7 +31,7 @@ TypeScript SDK for building AI-powered applications.
 
 ### Installing from GitHub Packages
 
-All SDK packages are published to GitHub Packages. To install them, you need to configure npm to use GitHub Packages for the `@have` scope.
+All SDK packages are published to GitHub Packages. To install them, you need to configure npm to use GitHub Packages for the `@happyvertical` scope.
 
 #### 1. Create a GitHub Personal Access Token
 
@@ -47,14 +44,14 @@ All SDK packages are published to GitHub Packages. To install them, you need to 
 Create or update `.npmrc` in your project root:
 
 ```bash
-@have:registry=https://npm.pkg.github.com
+@happyvertical:registry=https://npm.pkg.github.com
 //npm.pkg.github.com/:_authToken=YOUR_GITHUB_TOKEN
 ```
 
 Or set the token via environment variable:
 
 ```bash
-echo "@have:registry=https://npm.pkg.github.com" >> .npmrc
+echo "@happyvertical:registry=https://npm.pkg.github.com" >> .npmrc
 echo "//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}" >> .npmrc
 ```
 
@@ -73,7 +70,7 @@ All SDK packages are available:
 pnpm add @happyvertical/utils @happyvertical/logger @happyvertical/files @happyvertical/sql @happyvertical/ai
 
 # Infrastructure packages
-pnpm add @happyvertical/cache @happyvertical/geo @happyvertical/translator @happyvertical/ocr @happyvertical/pdf @happyvertical/spider @happyvertical/documents
+pnpm add @happyvertical/cache @happyvertical/geo @happyvertical/translator @happyvertical/documents
 ```
 
 ## Claude Code Context
@@ -123,8 +120,6 @@ Add a setup script to install context for all SDK packages your project uses:
 | @happyvertical/cache | `npx have-cache-context` |
 | @happyvertical/documents | `npx have-documents-context` |
 | @happyvertical/geo | `npx have-geo-context` |
-| @happyvertical/spider | `npx have-spider-context` |
-| @happyvertical/pdf | `npx have-pdf-context` |
 | @happyvertical/translator | `npx have-translator-context` |
 
 All SDK packages include a context command following the pattern `have-{pkgname}-context`.
