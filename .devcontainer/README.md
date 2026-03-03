@@ -173,7 +173,7 @@ This ensures a reproducible environment that matches production requirements whi
 
 ## Claude Code Integration
 
-The devcontainer includes Claude Code AI assistant pre-installed and configured for seamless development. Claude has full access to the containerized environment, including PostgreSQL database for testing the @have/sql package.
+The devcontainer includes Claude Code AI assistant pre-installed and configured for seamless development. Claude has full access to the containerized environment, including PostgreSQL database for testing the @happyvertical/sql package.
 
 ### Two Usage Patterns
 
@@ -235,17 +235,17 @@ SQLOO_PORT=65432  # External port mapping
 
 ### Database Testing with Claude
 
-The PostgreSQL database is automatically configured for testing the @have/sql package:
+The PostgreSQL database is automatically configured for testing the @happyvertical/sql package:
 
 ```bash
 # Test database connections
 ./.devcontainer/scripts/test-postgres-connection.sh
 
-# Run @have/sql tests
+# Run @happyvertical/sql tests
 ./.devcontainer/scripts/run-sql-tests.sh
 
 # Claude can now help with database operations:
-claude "Test the PostgreSQL implementation in @have/sql"
+claude "Test the PostgreSQL implementation in @happyvertical/sql"
 claude "Run the database migration tests"
 ```
 
@@ -254,7 +254,7 @@ claude "Run the database migration tests"
 - **`scripts/setup-claude-container.sh`** - Configure Claude inside container
 - **`scripts/setup-claude-host.sh`** - Configure host environment for external Claude
 - **`scripts/test-postgres-connection.sh`** - Test database connectivity
-- **`scripts/run-sql-tests.sh`** - Run @have/sql package tests
+- **`scripts/run-sql-tests.sh`** - Run @happyvertical/sql package tests
 
 ### Claude Credentials
 

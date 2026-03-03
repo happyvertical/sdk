@@ -102,7 +102,7 @@ act --shell -j test --step "Build packages"
 # Inside the container:
 ls -la /home/runner/work/sdk/sdk/packages/sql/dist/
 cat /home/runner/work/sdk/sdk/packages/sql/dist/index.d.ts
-node -e "console.log(require('@have/sql'))"
+node -e "console.log(require('@happyvertical/sql'))"
 ```
 
 ## Configuration Files

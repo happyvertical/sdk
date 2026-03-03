@@ -43,7 +43,7 @@ echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
 
 **After**:
 ```yaml
-echo "@have:registry=https://npm.pkg.github.com" > .npmrc
+echo "@happyvertical:registry=https://npm.pkg.github.com" > .npmrc
 # Token is passed via environment variables instead
 env:
   NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -9,9 +9,9 @@ The HappyVertical Kanban system provides automated issue management across all o
 The system is built on three foundational packages:
 
 ```
-@have/repos (Repository abstraction)
+@happyvertical/repos (Repository abstraction)
     ↓
-@have/projects (Project management abstraction)
+@happyvertical/projects (Project management abstraction)
     ↓
 @happyvertical/github-actions (Workflow automation)
 ```
@@ -629,8 +629,8 @@ If migrating from 8-lane or other workflow:
 ## Package Documentation
 
 For detailed API documentation:
-- [@have/repos](../../packages/repos/README.md) - Repository abstraction
-- [@have/projects](../../packages/projects/README.md) - Project management abstraction
+- [@happyvertical/repos](../../packages/repos/README.md) - Repository abstraction
+- [@happyvertical/projects](../../packages/projects/README.md) - Project management abstraction
 - [@happyvertical/github-actions](../../packages/github-actions/README.md) - Workflow automation
 
 ## References
