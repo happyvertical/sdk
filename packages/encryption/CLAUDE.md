@@ -11,7 +11,7 @@ pgp (OpenPGP.js), nacl (TweetNaCl), node (Node.js crypto). All in `src/adapters/
 - Unified interface for text, file, buffer, and stream encrypt/decrypt
 - PGP adapter supports email encryption/decryption/signing/verification
 - NaCl supports both symmetric (secretbox) and asymmetric (box) encryption
-- Node adapter supports AES-256-GCM, AES-256-CBC, RSA, ECDH, ECDSA
+- Node adapter supports AES (128/256, GCM/CBC), RSA (OAEP, PSS), ECDH, ECDSA
 - Adapters are lazy-loaded to reduce bundle size
 - Key management: `generateKeyPair()`, `importKey()`, `exportKey()`
 - `getCapabilities()` reports what each adapter supports

@@ -9,7 +9,7 @@ Generic GraphQL client for any endpoint. Factory: `getGraphQLClient(options): Pr
 - Token-based auth via `Authorization: Bearer` header
 - Custom headers supported for API-key or other auth schemes
 - Factory accepts existing `IGraphQLClient` instance (passthrough pattern)
-- Typed error codes: `UNAUTHORIZED`, `NOT_FOUND`, `RATE_LIMITED`, `NETWORK_ERROR`, `VALIDATION_ERROR`
+- Typed error codes: `UNAUTHORIZED`, `NOT_FOUND`, `RATE_LIMITED`, `NETWORK_ERROR`, `VALIDATION_ERROR`, `UNKNOWN`
 - `GraphQLError.isRetryable()` returns true for rate-limit and network errors
 
 ## Gotchas
