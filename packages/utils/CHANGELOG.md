@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.71.5
+
+### Patch Changes
+
+- ### Dependencies
+
+  - update actions/upload-artifact action to v7 (#881)
+
 ## 0.71.4
 
 ### Patch Changes
