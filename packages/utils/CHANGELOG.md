@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.71.3
+
+### Patch Changes
+
+- ### Dependencies
+
+  - update @biomejs/biome to v2.4.5 (#879)
+
 ## 0.71.2
 
 ### Patch Changes
