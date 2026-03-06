@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.71.6
+
+### Patch Changes
+
+- ### Dependencies
+
+  - update @changesets/cli to v2.30.0 (#886)
+
 ## 0.71.5
 
 ### Patch Changes
