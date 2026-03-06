@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.71.8
+
+### Patch Changes
+
+- ### Dependencies
+
+  - update turbo to v2.8.14 (#885)
+
 ## 0.71.7
 
 ### Patch Changes
