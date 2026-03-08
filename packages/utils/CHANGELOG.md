@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.71.11
+
+### Patch Changes
+
+- ### Dependencies
+
+  - update openai to v6.27.0 (#891)
+
 ## 0.71.10
 
 ### Patch Changes
