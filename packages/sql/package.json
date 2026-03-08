@@ -54,7 +54,7 @@
     "@duckdb/node-api": "1.4.3-r.3",
     "@happyvertical/utils": "workspace:*",
     "@libsql/client": "0.17.0",
-    "pg": "^8.19.0",
+    "pg": "^8.20.0",
     "sqlite-vss": "^0.1.2"
   },
   "devDependencies": {
