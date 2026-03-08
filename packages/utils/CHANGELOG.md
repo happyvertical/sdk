@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.71.12
+
+### Patch Changes
+
+- ### Dependencies
+
+  - update pg to ^8.20.0 (#892)
+
 ## 0.71.11
 
 ### Patch Changes
