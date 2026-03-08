@@ -35,7 +35,7 @@
     "@happyvertical/utils": "workspace:*",
     "@aws-sdk/client-iam": "^3.997.0",
     "@aws-sdk/client-organizations": "^3.997.0",
-    "pg": "^8.19.0"
+    "pg": "^8.20.0"
   },
   "devDependencies": {
     "@types/node": "25.0.10",
