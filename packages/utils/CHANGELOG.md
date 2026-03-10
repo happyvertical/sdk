@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.71.13
+
+### Patch Changes
+
+- ### Dependencies
+
+  - update @happyvertical/ocr to ^0.60.23 (#893)
+
 ## 0.71.12
 
 ### Patch Changes
