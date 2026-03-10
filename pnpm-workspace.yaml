@@ -8,5 +8,5 @@ packages:
 # old SDK versions. The catalog + overrides below keep everything aligned.
 catalog:
   '@happyvertical/ocr': ^0.60.23
-  '@happyvertical/pdf': ^0.62.11
+  '@happyvertical/pdf': ^0.62.13
   '@happyvertical/spider': ^0.60.9
