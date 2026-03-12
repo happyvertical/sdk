@@ -31,8 +31,10 @@ import type {
   ImageGenerationOptions,
   ImageGenerationResponse,
   MessageOptions,
+  TokenUsage,
   TTSOptions,
   TTSResponse,
+  UsageEvent,
   Voice,
   VoiceCloneOptions,
   VoiceDesignOptions,
@@ -104,6 +106,7 @@ export class ClaudeCliProvider implements AIInterface {
       type: 'anthropic',
       apiKey,
       defaultModel,
+      onUsage: this.options.onUsage,
     });
   }
 
@@ -398,6 +401,36 @@ export class ClaudeCliProvider implements AIInterface {
    * Maps CLI errors to standardized error types
    * @private
    */
+  /**
+   * Emits a usage event to the onUsage callback if configured.
+   * @private
+   */
+  private emitUsage(
+    operation: UsageEvent['operation'],
+    model: string,
+    usage: TokenUsage | undefined,
+    startTime: number,
+    callTags?: Record<string, string>,
+  ): void {
+    if (!this.options.onUsage) return;
+    const globalTags = this.options.usageTags;
+    const tags =
+      globalTags || callTags ? { ...globalTags, ...callTags } : undefined;
+    try {
+      this.options.onUsage({
+        provider: 'claude-cli',
+        model,
+        operation,
+        usage,
+        duration: Date.now() - startTime,
+        timestamp: new Date(),
+        tags,
+      });
+    } catch {
+      // Silently swallow consumer errors
+    }
+  }
+
   private mapCliError(stderr: string, exitCode?: number): AIError {
     const errorText = stderr.toLowerCase();
 
@@ -459,11 +492,10 @@ export class ClaudeCliProvider implements AIInterface {
       return this.anthropicFallback.chat(messages, options);
     }
 
+    const startTime = Date.now();
     let { prompt, systemPrompt } = this.mapMessagesToPrompt(messages);
 
     // Add JSON format instruction if requested
-    // NOTE: Claude CLI doesn't have native JSON mode like OpenAI. This is a prompt-based
-    // approach that instructs the model to output JSON, similar to Anthropic provider.
     if (options.responseFormat?.type === 'json_object') {
       const jsonInstruction =
         '\n\nIMPORTANT: You must respond with valid JSON only. Do not include any explanatory text outside the JSON object.';
@@ -479,26 +511,29 @@ export class ClaudeCliProvider implements AIInterface {
       maxTokens: options.maxTokens,
     });
 
+    const model = options.model || this.options.defaultModel;
+    const usage: TokenUsage | undefined = result.usage
+      ? {
+          promptTokens: result.usage.input_tokens || 0,
+          completionTokens: result.usage.output_tokens || 0,
+          totalTokens:
+            (result.usage.input_tokens || 0) +
+            (result.usage.output_tokens || 0),
+        }
+      : undefined;
+
+    this.emitUsage('chat', model!, usage, startTime, options.usageTags);
+
     // Parse Claude CLI JSON output
-    // CLI returns format: { type: 'result', result: '...', usage: {...}, ... }
     return {
       content:
         result.result ||
         result.content ||
         result.text ||
         JSON.stringify(result),
-      model: options.model || this.options.defaultModel,
+      model,
       finishReason: result.is_error ? 'stop' : 'stop',
-      // Extract usage from CLI response if available
-      usage: result.usage
-        ? {
-            promptTokens: result.usage.input_tokens || 0,
-            completionTokens: result.usage.output_tokens || 0,
-            totalTokens:
-              (result.usage.input_tokens || 0) +
-              (result.usage.output_tokens || 0),
-          }
-        : undefined,
+      usage,
     };
   }
 
@@ -653,6 +688,7 @@ export class ClaudeCliProvider implements AIInterface {
       return;
     }
 
+    const startTime = Date.now();
     let { prompt, systemPrompt } = this.mapMessagesToPrompt(messages);
 
     // Add JSON format instruction if requested
@@ -669,6 +705,9 @@ export class ClaudeCliProvider implements AIInterface {
       systemPrompt,
       onProgress: options.onProgress,
     });
+
+    const model = options.model || this.options.defaultModel;
+    this.emitUsage('stream', model!, undefined, startTime, options.usageTags);
   }
 
   /**

@@ -21,8 +21,10 @@ import type {
   ImageGenerationOptions,
   ImageGenerationResponse,
   MessageOptions,
+  TokenUsage,
   TTSOptions,
   TTSResponse,
+  UsageEvent,
   Voice,
   VoiceCloneOptions,
   VoiceDesignOptions,
@@ -108,6 +110,7 @@ export class GeminiProvider implements AIInterface {
     messages: AIMessage[],
     options: ChatOptions = {},
   ): Promise<AIResponse> {
+    const startTime = Date.now();
     try {
       await this.ensureClient();
 
@@ -173,9 +176,6 @@ export class GeminiProvider implements AIInterface {
       const result = await this.client.models.generateContent(requestConfig);
 
       // Extract tool calls from response
-      // NOTE: Gemini 2.5 doesn't seem to reliably return functionCall objects
-      // even when tools are provided. The model often describes tool calls in text
-      // instead of using the structured function calling API.
       let toolCalls: AIResponse['toolCalls'];
       const firstCandidate = result.candidates?.[0];
       if (firstCandidate?.content?.parts) {
@@ -200,15 +200,18 @@ export class GeminiProvider implements AIInterface {
         content = this.stripMarkdownCodeBlock(content);
       }
 
+      const usage: TokenUsage = {
+        promptTokens: result.usageMetadata?.promptTokenCount || 0,
+        completionTokens: result.usageMetadata?.candidatesTokenCount || 0,
+        totalTokens: result.usageMetadata?.totalTokenCount || 0,
+      };
+      this.emitUsage('chat', model!, usage, startTime, options.usageTags);
+
       return {
         content,
         model,
         finishReason: this.mapFinishReason(result),
-        usage: {
-          promptTokens: result.usageMetadata?.promptTokenCount || 0,
-          completionTokens: result.usageMetadata?.candidatesTokenCount || 0,
-          totalTokens: result.usageMetadata?.totalTokenCount || 0,
-        },
+        usage,
         toolCalls: toolCalls && toolCalls.length > 0 ? toolCalls : undefined,
       };
     } catch (error) {
@@ -295,6 +298,7 @@ export class GeminiProvider implements AIInterface {
     text: string | string[],
     options: EmbeddingOptions = {},
   ): Promise<EmbeddingResponse> {
+    const startTime = Date.now();
     try {
       await this.ensureClient();
 
@@ -324,17 +328,20 @@ export class GeminiProvider implements AIInterface {
         }
       }
 
+      const usage: TokenUsage | undefined =
+        totalTokens > 0
+          ? {
+              promptTokens: totalTokens,
+              completionTokens: 0,
+              totalTokens,
+            }
+          : undefined;
+      this.emitUsage('embed', model, usage, startTime, options.usageTags);
+
       return {
         embeddings,
         model,
-        usage:
-          totalTokens > 0
-            ? {
-                promptTokens: totalTokens,
-                completionTokens: 0,
-                totalTokens,
-              }
-            : undefined,
+        usage,
       };
     } catch (error) {
       throw this.mapError(error);
@@ -774,6 +781,36 @@ export class GeminiProvider implements AIInterface {
       /^```(?:json|javascript|typescript)?\s*\n?([\s\S]*?)\n?```\s*$/;
     const match = text.match(codeBlockRegex);
     return match ? match[1].trim() : text.trim();
+  }
+
+  /**
+   * Emits a usage event to the onUsage callback if configured.
+   * @private
+   */
+  private emitUsage(
+    operation: UsageEvent['operation'],
+    model: string,
+    usage: TokenUsage | undefined,
+    startTime: number,
+    callTags?: Record<string, string>,
+  ): void {
+    if (!this.options.onUsage) return;
+    const globalTags = this.options.usageTags;
+    const tags =
+      globalTags || callTags ? { ...globalTags, ...callTags } : undefined;
+    try {
+      this.options.onUsage({
+        provider: 'gemini',
+        model,
+        operation,
+        usage,
+        duration: Date.now() - startTime,
+        timestamp: new Date(),
+        tags,
+      });
+    } catch {
+      // Silently swallow consumer errors
+    }
   }
 
   private mapError(error: unknown): AIError {

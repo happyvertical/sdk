@@ -18,8 +18,10 @@ import type {
   ImageGenerationOptions,
   ImageGenerationResponse,
   MessageOptions,
+  TokenUsage,
   TTSOptions,
   TTSResponse,
+  UsageEvent,
   Voice,
   VoiceCloneOptions,
   VoiceDesignOptions,
@@ -54,42 +56,42 @@ export class HuggingFaceProvider implements AIInterface {
     messages: AIMessage[],
     options: ChatOptions = {},
   ): Promise<AIResponse> {
+    const startTime = Date.now();
     try {
       // Convert messages to a single prompt for text generation models
       const prompt = this.messagesToPrompt(messages);
+      const model =
+        options.model || this.options.model || this.options.defaultModel;
 
-      const response = await this.makeRequest(
-        `/models/${options.model || this.options.model || this.options.defaultModel}`,
-        {
-          inputs: prompt,
-          parameters: {
-            max_new_tokens: options.maxTokens || 512,
-            temperature: options.temperature || 1.0,
-            top_p: options.topP || 1.0,
-            do_sample:
-              (options.temperature && options.temperature > 0) || false,
-            stop_sequences: Array.isArray(options.stop)
-              ? options.stop
-              : options.stop
-                ? [options.stop]
-                : undefined,
-          },
-          options: {
-            use_cache: this.options.useCache,
-            wait_for_model: this.options.waitForModel,
-          },
+      const response = await this.makeRequest(`/models/${model}`, {
+        inputs: prompt,
+        parameters: {
+          max_new_tokens: options.maxTokens || 512,
+          temperature: options.temperature || 1.0,
+          top_p: options.topP || 1.0,
+          do_sample: (options.temperature && options.temperature > 0) || false,
+          stop_sequences: Array.isArray(options.stop)
+            ? options.stop
+            : options.stop
+              ? [options.stop]
+              : undefined,
         },
-      );
+        options: {
+          use_cache: this.options.useCache,
+          wait_for_model: this.options.waitForModel,
+        },
+      });
 
       if (Array.isArray(response) && response[0]?.generated_text) {
         const generatedText = response[0].generated_text;
         // Remove the input prompt from the response
         const content = generatedText.replace(prompt, '').trim();
 
+        this.emitUsage('chat', model!, undefined, startTime, options.usageTags);
+
         return {
           content,
-          model:
-            options.model || this.options.model || this.options.defaultModel,
+          model,
           finishReason: 'stop',
         };
       }
@@ -157,6 +159,7 @@ export class HuggingFaceProvider implements AIInterface {
     text: string | string[],
     options: EmbeddingOptions = {},
   ): Promise<EmbeddingResponse> {
+    const startTime = Date.now();
     try {
       const input = Array.isArray(text) ? text : [text];
       const model = options.model || 'sentence-transformers/all-MiniLM-L6-v2';
@@ -188,6 +191,8 @@ export class HuggingFaceProvider implements AIInterface {
           'huggingface',
         );
       }
+
+      this.emitUsage('embed', model, undefined, startTime, options.usageTags);
 
       return {
         embeddings,
@@ -422,6 +427,36 @@ export class HuggingFaceProvider implements AIInterface {
     }
 
     return response.json();
+  }
+
+  /**
+   * Emits a usage event to the onUsage callback if configured.
+   * @private
+   */
+  private emitUsage(
+    operation: UsageEvent['operation'],
+    model: string,
+    usage: TokenUsage | undefined,
+    startTime: number,
+    callTags?: Record<string, string>,
+  ): void {
+    if (!this.options.onUsage) return;
+    const globalTags = this.options.usageTags;
+    const tags =
+      globalTags || callTags ? { ...globalTags, ...callTags } : undefined;
+    try {
+      this.options.onUsage({
+        provider: 'huggingface',
+        model,
+        operation,
+        usage,
+        duration: Date.now() - startTime,
+        timestamp: new Date(),
+        tags,
+      });
+    } catch {
+      // Silently swallow consumer errors
+    }
   }
 
   private mapError(error: unknown): AIError {

@@ -210,6 +210,12 @@ export interface ChatOptions {
    * Only applicable for Gemini 3 models with thinking enabled
    */
   includeThoughts?: boolean;
+
+  /**
+   * Custom tags to attach to the usage event for this call.
+   * Merged over any global `usageTags` from provider options.
+   */
+  usageTags?: Record<string, string>;
 }
 
 /**
@@ -255,6 +261,12 @@ export interface CompletionOptions {
    * Callback for streaming responses
    */
   onProgress?: (chunk: string) => void;
+
+  /**
+   * Custom tags to attach to the usage event for this call.
+   * Merged over any global `usageTags` from provider options.
+   */
+  usageTags?: Record<string, string>;
 }
 
 /**
@@ -280,6 +292,12 @@ export interface EmbeddingOptions {
    * Number of dimensions for the embedding
    */
   dimensions?: number;
+
+  /**
+   * Custom tags to attach to the usage event for this call.
+   * Merged over any global `usageTags` from provider options.
+   */
+  usageTags?: Record<string, string>;
 }
 
 /**
@@ -492,6 +510,12 @@ export interface MessageOptions {
    * Callback for streaming responses
    */
   onProgress?: (chunk: string) => void;
+
+  /**
+   * Custom tags to attach to the usage event for this call.
+   * Merged over any global `usageTags` from provider options.
+   */
+  usageTags?: Record<string, string>;
 }
 
 /**
@@ -667,6 +691,52 @@ export interface TokenUsage {
    * Total tokens used
    */
   totalTokens: number;
+}
+
+/**
+ * Usage event emitted via the `onUsage` callback after each API call.
+ * Provides token usage, timing, and context for tracking and analytics.
+ *
+ * @example
+ * ```typescript
+ * const ai = await getAI({
+ *   type: 'openai',
+ *   apiKey: '...',
+ *   onUsage: (event) => {
+ *     console.log(`[${event.provider}/${event.model}] ${event.operation}: ${event.usage?.totalTokens} tokens in ${event.duration}ms`);
+ *   },
+ * });
+ * ```
+ */
+export interface UsageEvent {
+  /** Provider that handled the request (e.g. 'openai', 'anthropic', 'gemini') */
+  provider: string;
+
+  /** Model that was used (e.g. 'gpt-4o', 'claude-3-5-sonnet-20241022') */
+  model: string;
+
+  /** Operation type that generated this usage */
+  operation:
+    | 'chat'
+    | 'complete'
+    | 'message'
+    | 'embed'
+    | 'embedImage'
+    | 'describeImage'
+    | 'generateImage'
+    | 'stream';
+
+  /** Token usage breakdown, if available from the provider */
+  usage?: TokenUsage;
+
+  /** Wall-clock duration of the API call in milliseconds */
+  duration: number;
+
+  /** Timestamp when the call completed */
+  timestamp: Date;
+
+  /** Custom tags from global `usageTags` and per-call `usageTags`, merged */
+  tags?: Record<string, string>;
 }
 
 /**
@@ -1069,6 +1139,24 @@ export interface BaseAIOptions {
    * Default model to use
    */
   defaultModel?: string;
+
+  /**
+   * Callback invoked after each API call with usage details.
+   * Use this to track token consumption, costs, and performance across providers.
+   *
+   * Errors thrown inside this callback are silently caught and will not
+   * affect the API call result.
+   *
+   * @param event - Usage event with provider, model, operation, tokens, and timing
+   */
+  onUsage?: (event: UsageEvent) => void;
+
+  /**
+   * Global tags to include in every usage event.
+   * Per-call `usageTags` on `ChatOptions` / `EmbeddingOptions` / etc.
+   * will be merged on top of these.
+   */
+  usageTags?: Record<string, string>;
 }
 
 /**

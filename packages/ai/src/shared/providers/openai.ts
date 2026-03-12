@@ -29,6 +29,7 @@ import type {
   TokenUsage,
   TTSOptions,
   TTSResponse,
+  UsageEvent,
   Voice,
   VoiceCloneOptions,
   VoiceDesignOptions,
@@ -95,9 +96,11 @@ export class OpenAIProvider implements AIInterface {
     messages: AIMessage[],
     options: ChatOptions = {},
   ): Promise<AIResponse> {
+    const startTime = Date.now();
     try {
+      const model = options.model || this.options.defaultModel || 'gpt-4o';
       const response = await this.client.chat.completions.create({
-        model: options.model || this.options.defaultModel || 'gpt-4o',
+        model,
         messages: this.mapMessagesToOpenAI(messages),
         max_tokens: options.maxTokens,
         temperature: options.temperature,
@@ -130,9 +133,18 @@ export class OpenAIProvider implements AIInterface {
         );
       }
 
+      const usage = this.mapUsage(response.usage);
+      this.emitUsage(
+        'chat',
+        response.model || model,
+        usage,
+        startTime,
+        options.usageTags,
+      );
+
       return {
         content: choice.message.content || '',
-        usage: this.mapUsage(response.usage),
+        usage,
         model: response.model,
         finishReason: this.mapFinishReason(choice.finish_reason),
         toolCalls: choice.message.tool_calls
@@ -258,19 +270,30 @@ export class OpenAIProvider implements AIInterface {
     text: string | string[],
     options: EmbeddingOptions = {},
   ): Promise<EmbeddingResponse> {
+    const startTime = Date.now();
     try {
+      const model = options.model || 'text-embedding-3-small';
       const input = Array.isArray(text) ? text : [text];
       const response = await this.client.embeddings.create({
-        model: options.model || 'text-embedding-3-small',
+        model,
         input,
         encoding_format: options.encodingFormat,
         dimensions: options.dimensions,
         user: options.user,
       });
 
+      const usage = this.mapUsage(response.usage);
+      this.emitUsage(
+        'embed',
+        response.model || model,
+        usage,
+        startTime,
+        options.usageTags,
+      );
+
       return {
         embeddings: response.data.map((item) => item.embedding),
-        usage: this.mapUsage(response.usage),
+        usage,
         model: response.model,
       };
     } catch (error) {
@@ -479,9 +502,11 @@ export class OpenAIProvider implements AIInterface {
     messages: AIMessage[],
     options: ChatOptions = {},
   ): AsyncIterable<string> {
+    const startTime = Date.now();
     try {
+      const model = options.model || this.options.defaultModel || 'gpt-4o';
       const stream = await this.client.chat.completions.create({
-        model: options.model || this.options.defaultModel || 'gpt-4o',
+        model,
         messages: this.mapMessagesToOpenAI(messages),
         max_tokens: options.maxTokens,
         temperature: options.temperature,
@@ -502,6 +527,8 @@ export class OpenAIProvider implements AIInterface {
           yield content;
         }
       }
+
+      this.emitUsage('stream', model, undefined, startTime, options.usageTags);
     } catch (error) {
       throw this.mapError(error);
     }
@@ -812,6 +839,37 @@ export class OpenAIProvider implements AIInterface {
    * @returns Appropriate internal AI error instance
    * @private
    */
+  /**
+   * Emits a usage event to the onUsage callback if configured.
+   * Errors in the callback are silently caught.
+   * @private
+   */
+  private emitUsage(
+    operation: UsageEvent['operation'],
+    model: string,
+    usage: TokenUsage | undefined,
+    startTime: number,
+    callTags?: Record<string, string>,
+  ): void {
+    if (!this.options.onUsage) return;
+    const globalTags = this.options.usageTags;
+    const tags =
+      globalTags || callTags ? { ...globalTags, ...callTags } : undefined;
+    try {
+      this.options.onUsage({
+        provider: 'openai',
+        model,
+        operation,
+        usage,
+        duration: Date.now() - startTime,
+        timestamp: new Date(),
+        tags,
+      });
+    } catch {
+      // Silently swallow consumer errors
+    }
+  }
+
   private mapError(error: unknown): AIError {
     if (error instanceof OpenAI.APIError) {
       switch (error.status) {
