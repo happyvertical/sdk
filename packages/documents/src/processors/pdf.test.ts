@@ -93,7 +93,7 @@ describe('PDFProcessor', () => {
 
   // Integration tests that download actual files - skip in CI
   describe.skipIf(isCI)('integration tests (network dependent)', () => {
-    it('should process real WordPress PDF URL', async () => {
+    it.skip('should process real WordPress PDF URL', async () => {
       // This test downloads an actual PDF from WordPress
       const url =
         'https://townofbentley.ca/download/regular-council-meeting-october-14-2025-agenda/';
