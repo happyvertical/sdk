@@ -1,5 +1,21 @@
 # @happyvertical/utils
 
+## 0.71.16
+
+### Patch Changes
+
+- ### Features
+
+  - bootstrap .agents configuration for core packages (#878) (config)
+
+## 0.71.15
+
+### Patch Changes
+
+- ### Dependencies
+
+  - update @happyvertical/ocr to ^0.60.24 (#895)
+
 ## 0.71.14
 
 ### Patch Changes
