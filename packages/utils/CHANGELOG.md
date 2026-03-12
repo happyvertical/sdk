@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.71.17
+
+### Patch Changes
+
+- ### Features
+
+  - add onUsage callback and usageTags for usage tracking (#898) (ai)
+
 ## 0.71.16
 
 ### Patch Changes
