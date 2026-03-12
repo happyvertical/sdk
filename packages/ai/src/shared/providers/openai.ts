@@ -29,7 +29,6 @@ import type {
   TokenUsage,
   TTSOptions,
   TTSResponse,
-  UsageEvent,
   Voice,
   VoiceCloneOptions,
   VoiceDesignOptions,
@@ -43,6 +42,7 @@ import {
   ModelNotFoundError,
   RateLimitError,
 } from '../types';
+import { emitUsage } from './usage';
 
 /**
  * OpenAI provider implementation that handles all interactions with OpenAI's API.
@@ -134,7 +134,9 @@ export class OpenAIProvider implements AIInterface {
       }
 
       const usage = this.mapUsage(response.usage);
-      this.emitUsage(
+      emitUsage(
+        this.options,
+        'openai',
         'chat',
         response.model || model,
         usage,
@@ -285,7 +287,9 @@ export class OpenAIProvider implements AIInterface {
       });
 
       const usage = this.mapUsage(response.usage);
-      this.emitUsage(
+      emitUsage(
+        this.options,
+        'openai',
         'embed',
         response.model || model,
         usage,
@@ -530,7 +534,15 @@ export class OpenAIProvider implements AIInterface {
         }
       }
 
-      this.emitUsage('stream', model, undefined, startTime, options.usageTags);
+      emitUsage(
+        this.options,
+        'openai',
+        'stream',
+        model,
+        undefined,
+        startTime,
+        options.usageTags,
+      );
     } catch (error) {
       throw this.mapError(error);
     }
@@ -841,36 +853,6 @@ export class OpenAIProvider implements AIInterface {
    * @returns Appropriate internal AI error instance
    * @private
    */
-  /**
-   * Emits a usage event to the onUsage callback if configured.
-   * Errors in the callback are silently caught.
-   * @private
-   */
-  private emitUsage(
-    operation: UsageEvent['operation'],
-    model: string,
-    usage: TokenUsage | undefined,
-    startTime: number,
-    callTags?: Record<string, string>,
-  ): void {
-    if (!this.options.onUsage) return;
-    const globalTags = this.options.usageTags;
-    const tags =
-      globalTags || callTags ? { ...globalTags, ...callTags } : undefined;
-    try {
-      this.options.onUsage({
-        provider: 'openai',
-        model,
-        operation,
-        usage,
-        duration: Date.now() - startTime,
-        timestamp: new Date(),
-        tags,
-      });
-    } catch {
-      // Silently swallow consumer errors
-    }
-  }
 
   private mapError(error: unknown): AIError {
     if (error instanceof OpenAI.APIError) {

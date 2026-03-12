@@ -34,7 +34,6 @@ import type {
   TokenUsage,
   TTSOptions,
   TTSResponse,
-  UsageEvent,
   Voice,
   VoiceCloneOptions,
   VoiceDesignOptions,
@@ -47,6 +46,7 @@ import {
   extractTextContent,
   RateLimitError,
 } from '../types';
+import { emitUsage } from './usage';
 
 const execAsync = promisify(exec);
 
@@ -402,35 +402,6 @@ export class ClaudeCliProvider implements AIInterface {
    * Maps CLI errors to standardized error types
    * @private
    */
-  /**
-   * Emits a usage event to the onUsage callback if configured.
-   * @private
-   */
-  private emitUsage(
-    operation: UsageEvent['operation'],
-    model: string,
-    usage: TokenUsage | undefined,
-    startTime: number,
-    callTags?: Record<string, string>,
-  ): void {
-    if (!this.options.onUsage) return;
-    const globalTags = this.options.usageTags;
-    const tags =
-      globalTags || callTags ? { ...globalTags, ...callTags } : undefined;
-    try {
-      this.options.onUsage({
-        provider: 'claude-cli',
-        model,
-        operation,
-        usage,
-        duration: Date.now() - startTime,
-        timestamp: new Date(),
-        tags,
-      });
-    } catch {
-      // Silently swallow consumer errors
-    }
-  }
 
   private mapCliError(stderr: string, exitCode?: number): AIError {
     const errorText = stderr.toLowerCase();
@@ -523,7 +494,15 @@ export class ClaudeCliProvider implements AIInterface {
         }
       : undefined;
 
-    this.emitUsage('chat', model!, usage, startTime, options.usageTags);
+    emitUsage(
+      this.options,
+      'claude-cli',
+      'chat',
+      model!,
+      usage,
+      startTime,
+      options.usageTags,
+    );
 
     // Parse Claude CLI JSON output
     return {
@@ -710,7 +689,15 @@ export class ClaudeCliProvider implements AIInterface {
     });
 
     const model = options.model || this.options.defaultModel;
-    this.emitUsage('stream', model!, undefined, startTime, options.usageTags);
+    emitUsage(
+      this.options,
+      'claude-cli',
+      'stream',
+      model!,
+      undefined,
+      startTime,
+      options.usageTags,
+    );
   }
 
   /**

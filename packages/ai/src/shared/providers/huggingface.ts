@@ -21,7 +21,6 @@ import type {
   TokenUsage,
   TTSOptions,
   TTSResponse,
-  UsageEvent,
   Voice,
   VoiceCloneOptions,
   VoiceDesignOptions,
@@ -35,6 +34,7 @@ import {
   ModelNotFoundError,
   RateLimitError,
 } from '../types';
+import { emitUsage } from './usage';
 
 export class HuggingFaceProvider implements AIInterface {
   private options: HuggingFaceOptions;
@@ -87,7 +87,15 @@ export class HuggingFaceProvider implements AIInterface {
         // Remove the input prompt from the response
         const content = generatedText.replace(prompt, '').trim();
 
-        this.emitUsage('chat', model!, undefined, startTime, options.usageTags);
+        emitUsage(
+          this.options,
+          'huggingface',
+          'chat',
+          model!,
+          undefined,
+          startTime,
+          options.usageTags,
+        );
 
         return {
           content,
@@ -194,7 +202,15 @@ export class HuggingFaceProvider implements AIInterface {
         );
       }
 
-      this.emitUsage('embed', model, undefined, startTime, options.usageTags);
+      emitUsage(
+        this.options,
+        'huggingface',
+        'embed',
+        model,
+        undefined,
+        startTime,
+        options.usageTags,
+      );
 
       return {
         embeddings,
@@ -246,7 +262,11 @@ export class HuggingFaceProvider implements AIInterface {
   ): AsyncIterable<string> {
     // Hugging Face Inference API doesn't support streaming for most models
     // Fall back to regular completion and yield the result
-    const response = await this.chat(messages, options);
+    const startTime = Date.now();
+    const response = await this.chat(messages, {
+      ...options,
+      _skipUsage: true,
+    } as any);
 
     // Simulate streaming by yielding chunks
     const content = response.content;
@@ -262,6 +282,17 @@ export class HuggingFaceProvider implements AIInterface {
       // Add small delay to simulate streaming
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
+
+    const model = options.model || this.options.defaultModel || 'gpt2';
+    emitUsage(
+      this.options,
+      'huggingface',
+      'stream',
+      model,
+      undefined,
+      startTime,
+      options.usageTags,
+    );
   }
 
   async countTokens(text: string): Promise<number> {
@@ -429,36 +460,6 @@ export class HuggingFaceProvider implements AIInterface {
     }
 
     return response.json();
-  }
-
-  /**
-   * Emits a usage event to the onUsage callback if configured.
-   * @private
-   */
-  private emitUsage(
-    operation: UsageEvent['operation'],
-    model: string,
-    usage: TokenUsage | undefined,
-    startTime: number,
-    callTags?: Record<string, string>,
-  ): void {
-    if (!this.options.onUsage) return;
-    const globalTags = this.options.usageTags;
-    const tags =
-      globalTags || callTags ? { ...globalTags, ...callTags } : undefined;
-    try {
-      this.options.onUsage({
-        provider: 'huggingface',
-        model,
-        operation,
-        usage,
-        duration: Date.now() - startTime,
-        timestamp: new Date(),
-        tags,
-      });
-    } catch {
-      // Silently swallow consumer errors
-    }
   }
 
   private mapError(error: unknown): AIError {

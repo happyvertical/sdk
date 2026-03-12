@@ -21,7 +21,6 @@ import type {
   TokenUsage,
   TTSOptions,
   TTSResponse,
-  UsageEvent,
   Voice,
   VoiceCloneOptions,
   VoiceDesignOptions,
@@ -35,6 +34,7 @@ import {
   ModelNotFoundError,
   RateLimitError,
 } from '../types';
+import { emitUsage } from './usage';
 
 // Note: This implementation will require @aws-sdk/client-bedrock-runtime package
 // For now, this is a placeholder that defines the interface
@@ -117,7 +117,9 @@ export class BedrockProvider implements AIInterface {
         response = await this.chatWithClaude(messages, options);
       }
 
-      this.emitUsage(
+      emitUsage(
+        this.options,
+        'bedrock',
         'chat',
         response.model || modelId || 'unknown',
         response.usage,
@@ -522,36 +524,6 @@ export class BedrockProvider implements AIInterface {
         return 'tool_calls';
       default:
         return 'stop';
-    }
-  }
-
-  /**
-   * Emits a usage event to the onUsage callback if configured.
-   * @private
-   */
-  private emitUsage(
-    operation: UsageEvent['operation'],
-    model: string,
-    usage: TokenUsage | undefined,
-    startTime: number,
-    callTags?: Record<string, string>,
-  ): void {
-    if (!this.options.onUsage) return;
-    const globalTags = this.options.usageTags;
-    const tags =
-      globalTags || callTags ? { ...globalTags, ...callTags } : undefined;
-    try {
-      this.options.onUsage({
-        provider: 'bedrock',
-        model,
-        operation,
-        usage,
-        duration: Date.now() - startTime,
-        timestamp: new Date(),
-        tags,
-      });
-    } catch {
-      // Silently swallow consumer errors
     }
   }
 

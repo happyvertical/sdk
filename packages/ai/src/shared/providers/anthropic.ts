@@ -25,7 +25,6 @@ import type {
   TokenUsage,
   TTSOptions,
   TTSResponse,
-  UsageEvent,
   Voice,
   VoiceCloneOptions,
   VoiceDesignOptions,
@@ -39,6 +38,7 @@ import {
   ModelNotFoundError,
   RateLimitError,
 } from '../types';
+import { emitUsage } from './usage';
 
 // Note: This implementation will require @anthropic-ai/sdk package
 // For now, this is a placeholder that defines the interface
@@ -209,7 +209,9 @@ export class AnthropicProvider implements AIInterface {
         completionTokens: response.usage.output_tokens,
         totalTokens: response.usage.input_tokens + response.usage.output_tokens,
       };
-      this.emitUsage(
+      emitUsage(
+        this.options,
+        'anthropic',
         'chat',
         response.model || model,
         usage,
@@ -382,7 +384,15 @@ export class AnthropicProvider implements AIInterface {
         }
       }
 
-      this.emitUsage('stream', model!, undefined, startTime, options.usageTags);
+      emitUsage(
+        this.options,
+        'anthropic',
+        'stream',
+        model!,
+        undefined,
+        startTime,
+        options.usageTags,
+      );
     } catch (error) {
       throw this.mapError(error);
     }
@@ -585,36 +595,6 @@ export class AnthropicProvider implements AIInterface {
         return 'tool_calls';
       default:
         return 'stop';
-    }
-  }
-
-  /**
-   * Emits a usage event to the onUsage callback if configured.
-   * @private
-   */
-  private emitUsage(
-    operation: UsageEvent['operation'],
-    model: string,
-    usage: TokenUsage | undefined,
-    startTime: number,
-    callTags?: Record<string, string>,
-  ): void {
-    if (!this.options.onUsage) return;
-    const globalTags = this.options.usageTags;
-    const tags =
-      globalTags || callTags ? { ...globalTags, ...callTags } : undefined;
-    try {
-      this.options.onUsage({
-        provider: 'anthropic',
-        model,
-        operation,
-        usage,
-        duration: Date.now() - startTime,
-        timestamp: new Date(),
-        tags,
-      });
-    } catch {
-      // Silently swallow consumer errors
     }
   }
 

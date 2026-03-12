@@ -1,13 +1,14 @@
 /**
- * Tests for the onUsage callback feature
+ * Tests for the onUsage callback and shared emitUsage helper
  *
- * These tests verify that the onUsage callback is properly wired into providers
- * and emits correctly shaped UsageEvent objects.
+ * These tests verify that the shared emitUsage function correctly emits
+ * UsageEvent objects and that providers wire it properly via options.
  */
 
 import { describe, expect, it, vi } from 'vitest';
 import { HuggingFaceProvider } from './shared/providers/huggingface';
 import { OpenAIProvider } from './shared/providers/openai';
+import { emitUsage } from './shared/providers/usage';
 import type { UsageEvent } from './shared/types';
 
 describe('onUsage callback', () => {
@@ -21,17 +22,33 @@ describe('onUsage callback', () => {
 
       expect((provider as any).options.onUsage).toBe(onUsage);
     });
+  });
 
-    it('should call emitUsage with correct shape', () => {
+  describe('HuggingFaceProvider', () => {
+    it('should store onUsage in options', () => {
       const onUsage = vi.fn();
-      const provider = new OpenAIProvider({
-        apiKey: 'test-key',
+      const provider = new HuggingFaceProvider({
+        type: 'huggingface',
+        apiToken: 'test-token',
         onUsage,
       });
 
-      // Call the private emitUsage directly to verify the shape
+      expect((provider as any).options.onUsage).toBe(onUsage);
+    });
+  });
+
+  describe('emitUsage shared helper', () => {
+    it('should call onUsage with correct shape', () => {
+      const onUsage = vi.fn();
+      const options = {
+        apiKey: 'test-key',
+        onUsage,
+      };
+
       const startTime = Date.now() - 100;
-      (provider as any).emitUsage(
+      emitUsage(
+        options,
+        'openai',
         'chat',
         'gpt-4o',
         { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
@@ -54,13 +71,10 @@ describe('onUsage callback', () => {
     });
 
     it('should not throw when onUsage is not provided', () => {
-      const provider = new OpenAIProvider({
-        apiKey: 'test-key',
-      });
+      const options = { apiKey: 'test-key' };
 
-      // Should not throw
       expect(() => {
-        (provider as any).emitUsage('chat', 'gpt-4o', undefined, Date.now());
+        emitUsage(options, 'openai', 'chat', 'gpt-4o', undefined, Date.now());
       }).not.toThrow();
     });
 
@@ -69,14 +83,15 @@ describe('onUsage callback', () => {
         throw new Error('Consumer error');
       });
 
-      const provider = new OpenAIProvider({
+      const options = {
         apiKey: 'test-key',
         onUsage,
-      });
+      };
 
-      // Should not throw even though the callback throws
       expect(() => {
-        (provider as any).emitUsage(
+        emitUsage(
+          options,
+          'openai',
           'chat',
           'gpt-4o',
           { promptTokens: 1, completionTokens: 2, totalTokens: 3 },
@@ -84,18 +99,14 @@ describe('onUsage callback', () => {
         );
       }).not.toThrow();
 
-      // But the callback was still called
       expect(onUsage).toHaveBeenCalledTimes(1);
     });
 
     it('should emit undefined usage when no token data available', () => {
       const onUsage = vi.fn();
-      const provider = new OpenAIProvider({
-        apiKey: 'test-key',
-        onUsage,
-      });
+      const options = { apiKey: 'test-key', onUsage };
 
-      (provider as any).emitUsage('stream', 'gpt-4o', undefined, Date.now());
+      emitUsage(options, 'openai', 'stream', 'gpt-4o', undefined, Date.now());
 
       expect(onUsage).toHaveBeenCalledTimes(1);
       const event: UsageEvent = onUsage.mock.calls[0][0];
@@ -105,13 +116,12 @@ describe('onUsage callback', () => {
 
     it('should calculate positive duration', () => {
       const onUsage = vi.fn();
-      const provider = new OpenAIProvider({
-        apiKey: 'test-key',
-        onUsage,
-      });
+      const options = { apiKey: 'test-key', onUsage };
 
-      const startTime = Date.now() - 50; // 50ms ago
-      (provider as any).emitUsage(
+      const startTime = Date.now() - 50;
+      emitUsage(
+        options,
+        'openai',
         'embed',
         'text-embedding-3-small',
         undefined,
@@ -121,46 +131,26 @@ describe('onUsage callback', () => {
       const event: UsageEvent = onUsage.mock.calls[0][0];
       expect(event.duration).toBeGreaterThanOrEqual(0);
     });
-  });
 
-  describe('HuggingFaceProvider', () => {
-    it('should store onUsage in options', () => {
+    it('should use correct provider name for different providers', () => {
       const onUsage = vi.fn();
-      const provider = new HuggingFaceProvider({
-        type: 'huggingface',
-        apiToken: 'test-token',
-        onUsage,
-      });
+      const options = { apiKey: 'test-key', onUsage };
 
-      expect((provider as any).options.onUsage).toBe(onUsage);
-    });
-
-    it('should emit usage events with correct provider name', () => {
-      const onUsage = vi.fn();
-      const provider = new HuggingFaceProvider({
-        type: 'huggingface',
-        apiToken: 'test-token',
-        onUsage,
-      });
-
-      (provider as any).emitUsage('chat', 'gpt2', undefined, Date.now());
+      emitUsage(options, 'huggingface', 'chat', 'gpt2', undefined, Date.now());
 
       expect(onUsage).toHaveBeenCalledTimes(1);
       const event: UsageEvent = onUsage.mock.calls[0][0];
       expect(event.provider).toBe('huggingface');
       expect(event.model).toBe('gpt2');
     });
-  });
 
-  describe('UsageEvent shape validation', () => {
     it('should have all required fields', () => {
       const onUsage = vi.fn();
-      const provider = new OpenAIProvider({
-        apiKey: 'test-key',
-        onUsage,
-      });
+      const options = { apiKey: 'test-key', onUsage };
 
-      (provider as any).emitUsage(
+      emitUsage(
+        options,
+        'openai',
         'chat',
         'gpt-4o',
         { promptTokens: 5, completionTokens: 10, totalTokens: 15 },
@@ -169,14 +159,12 @@ describe('onUsage callback', () => {
 
       const event: UsageEvent = onUsage.mock.calls[0][0];
 
-      // Verify all required fields exist
       expect(event).toHaveProperty('provider');
       expect(event).toHaveProperty('model');
       expect(event).toHaveProperty('operation');
       expect(event).toHaveProperty('duration');
       expect(event).toHaveProperty('timestamp');
 
-      // Verify types
       expect(typeof event.provider).toBe('string');
       expect(typeof event.model).toBe('string');
       expect(typeof event.operation).toBe('string');
@@ -186,15 +174,12 @@ describe('onUsage callback', () => {
 
     it('should support all operation types', () => {
       const onUsage = vi.fn();
-      const provider = new OpenAIProvider({
-        apiKey: 'test-key',
-        onUsage,
-      });
+      const options = { apiKey: 'test-key', onUsage };
 
       const operations: UsageEvent['operation'][] = ['chat', 'embed', 'stream'];
 
       for (const op of operations) {
-        (provider as any).emitUsage(op, 'gpt-4o', undefined, Date.now());
+        emitUsage(options, 'openai', op, 'gpt-4o', undefined, Date.now());
       }
 
       expect(onUsage).toHaveBeenCalledTimes(operations.length);
@@ -208,13 +193,13 @@ describe('onUsage callback', () => {
   describe('usageTags', () => {
     it('should include global tags when no per-call tags provided', () => {
       const onUsage = vi.fn();
-      const provider = new OpenAIProvider({
+      const options = {
         apiKey: 'test-key',
         usageTags: { app: 'indagator', team: 'news' },
         onUsage,
-      });
+      };
 
-      (provider as any).emitUsage('chat', 'gpt-4o', undefined, Date.now());
+      emitUsage(options, 'openai', 'chat', 'gpt-4o', undefined, Date.now());
 
       const event: UsageEvent = onUsage.mock.calls[0][0];
       expect(event.tags).toEqual({ app: 'indagator', team: 'news' });
@@ -222,12 +207,12 @@ describe('onUsage callback', () => {
 
     it('should include per-call tags when no global tags set', () => {
       const onUsage = vi.fn();
-      const provider = new OpenAIProvider({
+      const options = {
         apiKey: 'test-key',
         onUsage,
-      });
+      };
 
-      (provider as any).emitUsage('chat', 'gpt-4o', undefined, Date.now(), {
+      emitUsage(options, 'openai', 'chat', 'gpt-4o', undefined, Date.now(), {
         feature: 'summarize',
       });
 
@@ -237,13 +222,13 @@ describe('onUsage callback', () => {
 
     it('should merge per-call tags over global tags', () => {
       const onUsage = vi.fn();
-      const provider = new OpenAIProvider({
+      const options = {
         apiKey: 'test-key',
         usageTags: { app: 'indagator', env: 'prod' },
         onUsage,
-      });
+      };
 
-      (provider as any).emitUsage('chat', 'gpt-4o', undefined, Date.now(), {
+      emitUsage(options, 'openai', 'chat', 'gpt-4o', undefined, Date.now(), {
         feature: 'entity-discovery',
         env: 'staging',
       });
@@ -258,12 +243,12 @@ describe('onUsage callback', () => {
 
     it('should omit tags when neither global nor per-call tags are set', () => {
       const onUsage = vi.fn();
-      const provider = new OpenAIProvider({
+      const options = {
         apiKey: 'test-key',
         onUsage,
-      });
+      };
 
-      (provider as any).emitUsage('chat', 'gpt-4o', undefined, Date.now());
+      emitUsage(options, 'openai', 'chat', 'gpt-4o', undefined, Date.now());
 
       const event: UsageEvent = onUsage.mock.calls[0][0];
       expect(event.tags).toBeUndefined();

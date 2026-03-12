@@ -24,7 +24,6 @@ import type {
   TokenUsage,
   TTSOptions,
   TTSResponse,
-  UsageEvent,
   Voice,
   VoiceCloneOptions,
   VoiceDesignOptions,
@@ -37,6 +36,7 @@ import {
   ModelNotFoundError,
   RateLimitError,
 } from '../types';
+import { emitUsage } from './usage';
 
 // Note: This implementation uses the new @google/genai package
 // @google/generative-ai is deprecated - migrated to @google/genai
@@ -205,7 +205,15 @@ export class GeminiProvider implements AIInterface {
         completionTokens: result.usageMetadata?.candidatesTokenCount || 0,
         totalTokens: result.usageMetadata?.totalTokenCount || 0,
       };
-      this.emitUsage('chat', model!, usage, startTime, options.usageTags);
+      emitUsage(
+        this.options,
+        'gemini',
+        'chat',
+        model!,
+        usage,
+        startTime,
+        options.usageTags,
+      );
 
       return {
         content,
@@ -338,7 +346,15 @@ export class GeminiProvider implements AIInterface {
               totalTokens,
             }
           : undefined;
-      this.emitUsage('embed', model, usage, startTime, options.usageTags);
+      emitUsage(
+        this.options,
+        'gemini',
+        'embed',
+        model,
+        usage,
+        startTime,
+        options.usageTags,
+      );
 
       return {
         embeddings,
@@ -783,36 +799,6 @@ export class GeminiProvider implements AIInterface {
       /^```(?:json|javascript|typescript)?\s*\n?([\s\S]*?)\n?```\s*$/;
     const match = text.match(codeBlockRegex);
     return match ? match[1].trim() : text.trim();
-  }
-
-  /**
-   * Emits a usage event to the onUsage callback if configured.
-   * @private
-   */
-  private emitUsage(
-    operation: UsageEvent['operation'],
-    model: string,
-    usage: TokenUsage | undefined,
-    startTime: number,
-    callTags?: Record<string, string>,
-  ): void {
-    if (!this.options.onUsage) return;
-    const globalTags = this.options.usageTags;
-    const tags =
-      globalTags || callTags ? { ...globalTags, ...callTags } : undefined;
-    try {
-      this.options.onUsage({
-        provider: 'gemini',
-        model,
-        operation,
-        usage,
-        duration: Date.now() - startTime,
-        timestamp: new Date(),
-        tags,
-      });
-    } catch {
-      // Silently swallow consumer errors
-    }
   }
 
   private mapError(error: unknown): AIError {
