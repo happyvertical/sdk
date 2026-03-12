@@ -18,6 +18,7 @@ import type {
   ImageGenerationOptions,
   ImageGenerationResponse,
   MessageOptions,
+  TokenUsage,
   TTSOptions,
   TTSResponse,
   Voice,
@@ -33,6 +34,7 @@ import {
   ModelNotFoundError,
   RateLimitError,
 } from '../types';
+import { emitUsage } from './usage';
 
 // Note: This implementation will require @aws-sdk/client-bedrock-runtime package
 // For now, this is a placeholder that defines the interface
@@ -95,26 +97,36 @@ export class BedrockProvider implements AIInterface {
     messages: AIMessage[],
     options: ChatOptions = {},
   ): Promise<AIResponse> {
+    const startTime = Date.now();
     try {
       await this.ensureClient();
 
       const modelId = options.model || this.options.defaultModel;
+      let response: AIResponse;
 
       if (modelId?.includes('anthropic.claude')) {
-        return this.chatWithClaude(messages, options);
-      }
-      if (modelId?.includes('amazon.titan')) {
-        return this.chatWithTitan(messages, options);
-      }
-      if (modelId?.includes('cohere.command')) {
-        return this.chatWithCohere(messages, options);
-      }
-      if (modelId?.includes('meta.llama')) {
-        return this.chatWithLlama(messages, options);
+        response = await this.chatWithClaude(messages, options);
+      } else if (modelId?.includes('amazon.titan')) {
+        response = await this.chatWithTitan(messages, options);
+      } else if (modelId?.includes('cohere.command')) {
+        response = await this.chatWithCohere(messages, options);
+      } else if (modelId?.includes('meta.llama')) {
+        response = await this.chatWithLlama(messages, options);
+      } else {
+        // Default to Claude format for unknown models
+        response = await this.chatWithClaude(messages, options);
       }
 
-      // Default to Claude format for unknown models
-      return this.chatWithClaude(messages, options);
+      emitUsage(
+        this.options,
+        'bedrock',
+        'chat',
+        response.model || modelId || 'unknown',
+        response.usage,
+        startTime,
+        options.usageTags,
+      );
+      return response;
     } catch (error) {
       throw this.mapError(error);
     }
@@ -133,6 +145,7 @@ export class BedrockProvider implements AIInterface {
       stop: options.stop,
       stream: options.stream,
       onProgress: options.onProgress,
+      usageTags: options.usageTags,
     });
   }
 
@@ -164,6 +177,7 @@ export class BedrockProvider implements AIInterface {
       tools: options.tools,
       toolChoice: options.toolChoice,
       onProgress: options.onProgress,
+      usageTags: options.usageTags,
     });
 
     return response.content;

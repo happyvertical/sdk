@@ -42,6 +42,7 @@ import {
   ModelNotFoundError,
   RateLimitError,
 } from '../types';
+import { emitUsage } from './usage';
 
 /**
  * OpenAI provider implementation that handles all interactions with OpenAI's API.
@@ -95,9 +96,11 @@ export class OpenAIProvider implements AIInterface {
     messages: AIMessage[],
     options: ChatOptions = {},
   ): Promise<AIResponse> {
+    const startTime = Date.now();
     try {
+      const model = options.model || this.options.defaultModel || 'gpt-4o';
       const response = await this.client.chat.completions.create({
-        model: options.model || this.options.defaultModel || 'gpt-4o',
+        model,
         messages: this.mapMessagesToOpenAI(messages),
         max_tokens: options.maxTokens,
         temperature: options.temperature,
@@ -130,9 +133,20 @@ export class OpenAIProvider implements AIInterface {
         );
       }
 
+      const usage = this.mapUsage(response.usage);
+      emitUsage(
+        this.options,
+        'openai',
+        'chat',
+        response.model || model,
+        usage,
+        startTime,
+        options.usageTags,
+      );
+
       return {
         content: choice.message.content || '',
-        usage: this.mapUsage(response.usage),
+        usage,
         model: response.model,
         finishReason: this.mapFinishReason(choice.finish_reason),
         toolCalls: choice.message.tool_calls
@@ -180,6 +194,7 @@ export class OpenAIProvider implements AIInterface {
       stop: options.stop,
       stream: options.stream,
       onProgress: options.onProgress,
+      usageTags: options.usageTags,
     });
   }
 
@@ -231,6 +246,7 @@ export class OpenAIProvider implements AIInterface {
       tools: options.tools,
       toolChoice: options.toolChoice,
       onProgress: options.onProgress,
+      usageTags: options.usageTags,
     });
 
     return response.content;
@@ -258,19 +274,32 @@ export class OpenAIProvider implements AIInterface {
     text: string | string[],
     options: EmbeddingOptions = {},
   ): Promise<EmbeddingResponse> {
+    const startTime = Date.now();
     try {
+      const model = options.model || 'text-embedding-3-small';
       const input = Array.isArray(text) ? text : [text];
       const response = await this.client.embeddings.create({
-        model: options.model || 'text-embedding-3-small',
+        model,
         input,
         encoding_format: options.encodingFormat,
         dimensions: options.dimensions,
         user: options.user,
       });
 
+      const usage = this.mapUsage(response.usage);
+      emitUsage(
+        this.options,
+        'openai',
+        'embed',
+        response.model || model,
+        usage,
+        startTime,
+        options.usageTags,
+      );
+
       return {
         embeddings: response.data.map((item) => item.embedding),
-        usage: this.mapUsage(response.usage),
+        usage,
         model: response.model,
       };
     } catch (error) {
@@ -479,9 +508,11 @@ export class OpenAIProvider implements AIInterface {
     messages: AIMessage[],
     options: ChatOptions = {},
   ): AsyncIterable<string> {
+    const startTime = Date.now();
     try {
+      const model = options.model || this.options.defaultModel || 'gpt-4o';
       const stream = await this.client.chat.completions.create({
-        model: options.model || this.options.defaultModel || 'gpt-4o',
+        model,
         messages: this.mapMessagesToOpenAI(messages),
         max_tokens: options.maxTokens,
         temperature: options.temperature,
@@ -502,6 +533,16 @@ export class OpenAIProvider implements AIInterface {
           yield content;
         }
       }
+
+      emitUsage(
+        this.options,
+        'openai',
+        'stream',
+        model,
+        undefined,
+        startTime,
+        options.usageTags,
+      );
     } catch (error) {
       throw this.mapError(error);
     }
@@ -812,6 +853,7 @@ export class OpenAIProvider implements AIInterface {
    * @returns Appropriate internal AI error instance
    * @private
    */
+
   private mapError(error: unknown): AIError {
     if (error instanceof OpenAI.APIError) {
       switch (error.status) {

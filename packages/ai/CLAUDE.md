@@ -13,6 +13,8 @@ openai, anthropic, gemini, huggingface, bedrock, claude-cli, qwen3-tts. All in `
 - Multimodal: `content` accepts `string | ContentPart[]` (text + images)
 - Image ops: `describeImage()`, `embedImage()`, `generateImage()` (not all providers)
 - Embeddings only on OpenAI and Gemini
+- Usage tracking: `onUsage` callback on `BaseAIOptions` emits `UsageEvent` after each call with token counts, duration, and timing
+- Usage tagging: `usageTags` on provider options (global) and per-call options (merged) — appears as `event.tags`
 
 ## Gotchas
 

@@ -31,6 +31,7 @@ import type {
   ImageGenerationOptions,
   ImageGenerationResponse,
   MessageOptions,
+  TokenUsage,
   TTSOptions,
   TTSResponse,
   Voice,
@@ -45,6 +46,7 @@ import {
   extractTextContent,
   RateLimitError,
 } from '../types';
+import { emitUsage } from './usage';
 
 const execAsync = promisify(exec);
 
@@ -104,6 +106,8 @@ export class ClaudeCliProvider implements AIInterface {
       type: 'anthropic',
       apiKey,
       defaultModel,
+      onUsage: this.options.onUsage,
+      usageTags: this.options.usageTags,
     });
   }
 
@@ -398,6 +402,7 @@ export class ClaudeCliProvider implements AIInterface {
    * Maps CLI errors to standardized error types
    * @private
    */
+
   private mapCliError(stderr: string, exitCode?: number): AIError {
     const errorText = stderr.toLowerCase();
 
@@ -459,11 +464,10 @@ export class ClaudeCliProvider implements AIInterface {
       return this.anthropicFallback.chat(messages, options);
     }
 
+    const startTime = Date.now();
     let { prompt, systemPrompt } = this.mapMessagesToPrompt(messages);
 
     // Add JSON format instruction if requested
-    // NOTE: Claude CLI doesn't have native JSON mode like OpenAI. This is a prompt-based
-    // approach that instructs the model to output JSON, similar to Anthropic provider.
     if (options.responseFormat?.type === 'json_object') {
       const jsonInstruction =
         '\n\nIMPORTANT: You must respond with valid JSON only. Do not include any explanatory text outside the JSON object.';
@@ -479,26 +483,37 @@ export class ClaudeCliProvider implements AIInterface {
       maxTokens: options.maxTokens,
     });
 
+    const model = options.model || this.options.defaultModel;
+    const usage: TokenUsage | undefined = result.usage
+      ? {
+          promptTokens: result.usage.input_tokens || 0,
+          completionTokens: result.usage.output_tokens || 0,
+          totalTokens:
+            (result.usage.input_tokens || 0) +
+            (result.usage.output_tokens || 0),
+        }
+      : undefined;
+
+    emitUsage(
+      this.options,
+      'claude-cli',
+      'chat',
+      model!,
+      usage,
+      startTime,
+      options.usageTags,
+    );
+
     // Parse Claude CLI JSON output
-    // CLI returns format: { type: 'result', result: '...', usage: {...}, ... }
     return {
       content:
         result.result ||
         result.content ||
         result.text ||
         JSON.stringify(result),
-      model: options.model || this.options.defaultModel,
+      model,
       finishReason: result.is_error ? 'stop' : 'stop',
-      // Extract usage from CLI response if available
-      usage: result.usage
-        ? {
-            promptTokens: result.usage.input_tokens || 0,
-            completionTokens: result.usage.output_tokens || 0,
-            totalTokens:
-              (result.usage.input_tokens || 0) +
-              (result.usage.output_tokens || 0),
-          }
-        : undefined,
+      usage,
     };
   }
 
@@ -524,6 +539,7 @@ export class ClaudeCliProvider implements AIInterface {
       stop: options.stop,
       stream: options.stream,
       onProgress: options.onProgress,
+      usageTags: options.usageTags,
     });
   }
 
@@ -575,6 +591,7 @@ export class ClaudeCliProvider implements AIInterface {
       tools: options.tools,
       toolChoice: options.toolChoice,
       onProgress: options.onProgress,
+      usageTags: options.usageTags,
     });
 
     return response.content;
@@ -653,6 +670,7 @@ export class ClaudeCliProvider implements AIInterface {
       return;
     }
 
+    const startTime = Date.now();
     let { prompt, systemPrompt } = this.mapMessagesToPrompt(messages);
 
     // Add JSON format instruction if requested
@@ -669,6 +687,17 @@ export class ClaudeCliProvider implements AIInterface {
       systemPrompt,
       onProgress: options.onProgress,
     });
+
+    const model = options.model || this.options.defaultModel;
+    emitUsage(
+      this.options,
+      'claude-cli',
+      'stream',
+      model!,
+      undefined,
+      startTime,
+      options.usageTags,
+    );
   }
 
   /**

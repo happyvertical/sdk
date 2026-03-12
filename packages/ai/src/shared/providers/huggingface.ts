@@ -18,6 +18,7 @@ import type {
   ImageGenerationOptions,
   ImageGenerationResponse,
   MessageOptions,
+  TokenUsage,
   TTSOptions,
   TTSResponse,
   Voice,
@@ -33,6 +34,7 @@ import {
   ModelNotFoundError,
   RateLimitError,
 } from '../types';
+import { emitUsage } from './usage';
 
 export class HuggingFaceProvider implements AIInterface {
   private options: HuggingFaceOptions;
@@ -54,42 +56,50 @@ export class HuggingFaceProvider implements AIInterface {
     messages: AIMessage[],
     options: ChatOptions = {},
   ): Promise<AIResponse> {
+    const startTime = Date.now();
     try {
       // Convert messages to a single prompt for text generation models
       const prompt = this.messagesToPrompt(messages);
+      const model =
+        options.model || this.options.model || this.options.defaultModel;
 
-      const response = await this.makeRequest(
-        `/models/${options.model || this.options.model || this.options.defaultModel}`,
-        {
-          inputs: prompt,
-          parameters: {
-            max_new_tokens: options.maxTokens || 512,
-            temperature: options.temperature || 1.0,
-            top_p: options.topP || 1.0,
-            do_sample:
-              (options.temperature && options.temperature > 0) || false,
-            stop_sequences: Array.isArray(options.stop)
-              ? options.stop
-              : options.stop
-                ? [options.stop]
-                : undefined,
-          },
-          options: {
-            use_cache: this.options.useCache,
-            wait_for_model: this.options.waitForModel,
-          },
+      const response = await this.makeRequest(`/models/${model}`, {
+        inputs: prompt,
+        parameters: {
+          max_new_tokens: options.maxTokens || 512,
+          temperature: options.temperature || 1.0,
+          top_p: options.topP || 1.0,
+          do_sample: (options.temperature && options.temperature > 0) || false,
+          stop_sequences: Array.isArray(options.stop)
+            ? options.stop
+            : options.stop
+              ? [options.stop]
+              : undefined,
         },
-      );
+        options: {
+          use_cache: this.options.useCache,
+          wait_for_model: this.options.waitForModel,
+        },
+      });
 
       if (Array.isArray(response) && response[0]?.generated_text) {
         const generatedText = response[0].generated_text;
         // Remove the input prompt from the response
         const content = generatedText.replace(prompt, '').trim();
 
+        emitUsage(
+          this.options,
+          'huggingface',
+          'chat',
+          model!,
+          undefined,
+          startTime,
+          options.usageTags,
+        );
+
         return {
           content,
-          model:
-            options.model || this.options.model || this.options.defaultModel,
+          model,
           finishReason: 'stop',
         };
       }
@@ -117,6 +127,7 @@ export class HuggingFaceProvider implements AIInterface {
       stop: options.stop,
       stream: options.stream,
       onProgress: options.onProgress,
+      usageTags: options.usageTags,
     });
   }
 
@@ -148,6 +159,7 @@ export class HuggingFaceProvider implements AIInterface {
       tools: options.tools,
       toolChoice: options.toolChoice,
       onProgress: options.onProgress,
+      usageTags: options.usageTags,
     });
 
     return response.content;
@@ -157,6 +169,7 @@ export class HuggingFaceProvider implements AIInterface {
     text: string | string[],
     options: EmbeddingOptions = {},
   ): Promise<EmbeddingResponse> {
+    const startTime = Date.now();
     try {
       const input = Array.isArray(text) ? text : [text];
       const model = options.model || 'sentence-transformers/all-MiniLM-L6-v2';
@@ -188,6 +201,16 @@ export class HuggingFaceProvider implements AIInterface {
           'huggingface',
         );
       }
+
+      emitUsage(
+        this.options,
+        'huggingface',
+        'embed',
+        model,
+        undefined,
+        startTime,
+        options.usageTags,
+      );
 
       return {
         embeddings,
@@ -239,7 +262,11 @@ export class HuggingFaceProvider implements AIInterface {
   ): AsyncIterable<string> {
     // Hugging Face Inference API doesn't support streaming for most models
     // Fall back to regular completion and yield the result
-    const response = await this.chat(messages, options);
+    const startTime = Date.now();
+    const response = await this.chat(messages, {
+      ...options,
+      _skipUsage: true,
+    } as any);
 
     // Simulate streaming by yielding chunks
     const content = response.content;
@@ -255,6 +282,17 @@ export class HuggingFaceProvider implements AIInterface {
       // Add small delay to simulate streaming
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
+
+    const model = options.model || this.options.defaultModel || 'gpt2';
+    emitUsage(
+      this.options,
+      'huggingface',
+      'stream',
+      model,
+      undefined,
+      startTime,
+      options.usageTags,
+    );
   }
 
   async countTokens(text: string): Promise<number> {

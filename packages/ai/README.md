@@ -144,6 +144,58 @@ if (response.toolCalls) {
 }
 ```
 
+## Usage Tracking
+
+Track token usage, costs, and performance across all providers with the `onUsage` callback:
+
+```typescript
+const ai = await getAI({
+  type: 'openai',
+  apiKey: process.env.OPENAI_API_KEY!,
+  onUsage: (event) => {
+    console.log(`[${event.provider}/${event.model}] ${event.operation}: ${event.usage?.totalTokens} tokens in ${event.duration}ms`);
+    // Or: save to database, send to analytics, aggregate in-memory, etc.
+  },
+});
+```
+
+The `UsageEvent` payload:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `provider` | `string` | Provider name (`'openai'`, `'anthropic'`, `'gemini'`, etc.) |
+| `model` | `string` | Model used (e.g. `'gpt-4o'`, `'claude-3-5-sonnet-20241022'`) |
+| `operation` | `string` | `'chat'` \| `'complete'` \| `'message'` \| `'embed'` \| `'stream'` \| ... |
+| `usage?` | `TokenUsage` | `{ promptTokens, completionTokens, totalTokens }` (if available) |
+| `duration` | `number` | Wall-clock time in milliseconds |
+| `timestamp` | `Date` | When the call completed |
+| `tags?` | `Record<string, string>` | Merged from global + per-call `usageTags` |
+
+- Works with all providers and methods (`chat`, `complete`, `message`, `embed`, `stream`)
+- `complete()` and `message()` report through their underlying `chat()` call
+- Errors thrown inside `onUsage` are silently caught and will not affect API results
+
+### Tagging Usage Events
+
+Attach custom tags to correlate usage with features, users, or workflows:
+
+```typescript
+// Global tags applied to every call
+const ai = await getAI({
+  type: 'openai',
+  apiKey: process.env.OPENAI_API_KEY!,
+  usageTags: { app: 'indagator', team: 'news' },
+  onUsage: (event) => {
+    console.log(event.tags); // { app: 'indagator', team: 'news', feature: 'summarize' }
+  },
+});
+
+// Per-call tags merge over global tags
+await ai.chat(messages, {
+  usageTags: { feature: 'summarize', userId: 'u_123' },
+});
+```
+
 ## Claude Code Context
 
 Install context files for AI-assisted development:

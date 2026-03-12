@@ -21,6 +21,7 @@ import type {
   ImageGenerationOptions,
   ImageGenerationResponse,
   MessageOptions,
+  TokenUsage,
   TTSOptions,
   TTSResponse,
   Voice,
@@ -35,6 +36,7 @@ import {
   ModelNotFoundError,
   RateLimitError,
 } from '../types';
+import { emitUsage } from './usage';
 
 // Note: This implementation uses the new @google/genai package
 // @google/generative-ai is deprecated - migrated to @google/genai
@@ -108,6 +110,7 @@ export class GeminiProvider implements AIInterface {
     messages: AIMessage[],
     options: ChatOptions = {},
   ): Promise<AIResponse> {
+    const startTime = Date.now();
     try {
       await this.ensureClient();
 
@@ -173,9 +176,6 @@ export class GeminiProvider implements AIInterface {
       const result = await this.client.models.generateContent(requestConfig);
 
       // Extract tool calls from response
-      // NOTE: Gemini 2.5 doesn't seem to reliably return functionCall objects
-      // even when tools are provided. The model often describes tool calls in text
-      // instead of using the structured function calling API.
       let toolCalls: AIResponse['toolCalls'];
       const firstCandidate = result.candidates?.[0];
       if (firstCandidate?.content?.parts) {
@@ -200,15 +200,26 @@ export class GeminiProvider implements AIInterface {
         content = this.stripMarkdownCodeBlock(content);
       }
 
+      const usage: TokenUsage = {
+        promptTokens: result.usageMetadata?.promptTokenCount || 0,
+        completionTokens: result.usageMetadata?.candidatesTokenCount || 0,
+        totalTokens: result.usageMetadata?.totalTokenCount || 0,
+      };
+      emitUsage(
+        this.options,
+        'gemini',
+        'chat',
+        model!,
+        usage,
+        startTime,
+        options.usageTags,
+      );
+
       return {
         content,
         model,
         finishReason: this.mapFinishReason(result),
-        usage: {
-          promptTokens: result.usageMetadata?.promptTokenCount || 0,
-          completionTokens: result.usageMetadata?.candidatesTokenCount || 0,
-          totalTokens: result.usageMetadata?.totalTokenCount || 0,
-        },
+        usage,
         toolCalls: toolCalls && toolCalls.length > 0 ? toolCalls : undefined,
       };
     } catch (error) {
@@ -229,6 +240,7 @@ export class GeminiProvider implements AIInterface {
       stop: options.stop,
       stream: options.stream,
       onProgress: options.onProgress,
+      usageTags: options.usageTags,
     });
   }
 
@@ -274,6 +286,7 @@ export class GeminiProvider implements AIInterface {
       tools: options.tools,
       toolChoice: options.toolChoice,
       onProgress: options.onProgress,
+      usageTags: options.usageTags,
     });
 
     return response.content;
@@ -295,6 +308,7 @@ export class GeminiProvider implements AIInterface {
     text: string | string[],
     options: EmbeddingOptions = {},
   ): Promise<EmbeddingResponse> {
+    const startTime = Date.now();
     try {
       await this.ensureClient();
 
@@ -324,17 +338,28 @@ export class GeminiProvider implements AIInterface {
         }
       }
 
+      const usage: TokenUsage | undefined =
+        totalTokens > 0
+          ? {
+              promptTokens: totalTokens,
+              completionTokens: 0,
+              totalTokens,
+            }
+          : undefined;
+      emitUsage(
+        this.options,
+        'gemini',
+        'embed',
+        model,
+        usage,
+        startTime,
+        options.usageTags,
+      );
+
       return {
         embeddings,
         model,
-        usage:
-          totalTokens > 0
-            ? {
-                promptTokens: totalTokens,
-                completionTokens: 0,
-                totalTokens,
-              }
-            : undefined,
+        usage,
       };
     } catch (error) {
       throw this.mapError(error);

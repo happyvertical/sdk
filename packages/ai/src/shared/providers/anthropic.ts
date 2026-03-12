@@ -22,6 +22,7 @@ import type {
   ImageGenerationOptions,
   ImageGenerationResponse,
   MessageOptions,
+  TokenUsage,
   TTSOptions,
   TTSResponse,
   Voice,
@@ -37,6 +38,7 @@ import {
   ModelNotFoundError,
   RateLimitError,
 } from '../types';
+import { emitUsage } from './usage';
 
 // Note: This implementation will require @anthropic-ai/sdk package
 // For now, this is a placeholder that defines the interface
@@ -140,15 +142,18 @@ export class AnthropicProvider implements AIInterface {
     messages: AIMessage[],
     options: ChatOptions = {},
   ): Promise<AIResponse> {
+    const startTime = Date.now();
     try {
       await this.ensureClient();
 
       const { system, anthropicMessages } =
         this.mapMessagesToAnthropic(messages);
 
+      const model = options.model || this.options.defaultModel;
+
       // Build request parameters
       const requestParams: Record<string, any> = {
-        model: options.model || this.options.defaultModel,
+        model,
         messages: anthropicMessages,
         max_tokens: options.maxTokens || 4096,
         temperature: options.temperature,
@@ -172,9 +177,6 @@ export class AnthropicProvider implements AIInterface {
       };
 
       // Add response format if specified
-      // NOTE: Anthropic doesn't have native JSON mode like OpenAI. This is a prompt-based
-      // approach that instructs the model to output JSON, but doesn't guarantee valid JSON.
-      // For critical use cases, validate and parse the response with error handling.
       if (options.responseFormat?.type === 'json_object') {
         const jsonInstruction =
           '\n\nIMPORTANT: You must respond with valid JSON only. Do not include any explanatory text outside the JSON object.';
@@ -202,16 +204,26 @@ export class AnthropicProvider implements AIInterface {
           },
         }));
 
+      const usage: TokenUsage = {
+        promptTokens: response.usage.input_tokens,
+        completionTokens: response.usage.output_tokens,
+        totalTokens: response.usage.input_tokens + response.usage.output_tokens,
+      };
+      emitUsage(
+        this.options,
+        'anthropic',
+        'chat',
+        response.model || model,
+        usage,
+        startTime,
+        options.usageTags,
+      );
+
       return {
         content: textContent,
         model: response.model,
         finishReason: this.mapFinishReason(response.stop_reason),
-        usage: {
-          promptTokens: response.usage.input_tokens,
-          completionTokens: response.usage.output_tokens,
-          totalTokens:
-            response.usage.input_tokens + response.usage.output_tokens,
-        },
+        usage,
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       };
     } catch (error) {
@@ -232,6 +244,7 @@ export class AnthropicProvider implements AIInterface {
       stop: options.stop,
       stream: options.stream,
       onProgress: options.onProgress,
+      usageTags: options.usageTags,
     });
   }
 
@@ -277,6 +290,7 @@ export class AnthropicProvider implements AIInterface {
       tools: options.tools,
       toolChoice: options.toolChoice,
       onProgress: options.onProgress,
+      usageTags: options.usageTags,
     });
 
     return response.content;
@@ -334,14 +348,17 @@ export class AnthropicProvider implements AIInterface {
     messages: AIMessage[],
     options: ChatOptions = {},
   ): AsyncIterable<string> {
+    const startTime = Date.now();
     try {
       await this.ensureClient();
 
       const { system, anthropicMessages } =
         this.mapMessagesToAnthropic(messages);
 
+      const model = options.model || this.options.defaultModel;
+
       const stream = await this.client.messages.create({
-        model: options.model || this.options.defaultModel,
+        model,
         messages: anthropicMessages,
         max_tokens: options.maxTokens || 4096,
         temperature: options.temperature,
@@ -366,6 +383,16 @@ export class AnthropicProvider implements AIInterface {
           yield chunk.delta.text;
         }
       }
+
+      emitUsage(
+        this.options,
+        'anthropic',
+        'stream',
+        model!,
+        undefined,
+        startTime,
+        options.usageTags,
+      );
     } catch (error) {
       throw this.mapError(error);
     }
