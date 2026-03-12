@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.71.16
+
+### Patch Changes
+
+- ### Features
+
+  - bootstrap .agents configuration for core packages (#878) (config)
+
 ## 0.71.15
 
 ### Patch Changes

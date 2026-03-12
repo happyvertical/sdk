@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/sql",
-  "version": "0.71.15",
+  "version": "0.71.16",
   "description": "Database interface with support for SQLite, PostgreSQL, and DuckDB",
   "type": "module",
   "main": "./dist/index.js",
