@@ -29,6 +29,7 @@ import type {
   GA4Options,
   KeyEvent,
   KeyEventOptions,
+  ListPropertiesOptions,
   MetricMetadata,
   PageviewEvent,
   Property,
@@ -214,29 +215,48 @@ export class GA4Provider implements AnalyticsInterface {
     }
   }
 
-  async listProperties(): Promise<Property[]> {
+  async listProperties(options?: ListPropertiesOptions): Promise<Property[]> {
     await this.ensureClients();
 
     try {
-      const response = await this.adminClient!.properties.list({
-        filter: 'ancestor:accounts/-',
-        showDeleted: false,
-      });
+      const properties = new Map<string, Property>();
+      let pageToken: string | undefined;
 
-      return (response.data.properties || []).map(
-        (
-          p: analyticsadmin_v1beta.Schema$GoogleAnalyticsAdminV1betaProperty,
-        ) => ({
-          id: p.name?.replace('properties/', '') || '',
-          name: p.name || '',
-          displayName: p.displayName || '',
-          createTime: p.createTime || '',
-          updateTime: p.updateTime ?? undefined,
-          timeZone: p.timeZone ?? undefined,
-          currencyCode: p.currencyCode ?? undefined,
-          industryCategory: p.industryCategory ?? undefined,
-          serviceLevel: p.serviceLevel as 'STANDARD' | 'PREMIUM' | undefined,
-        }),
+      do {
+        const response = await this.adminClient!.accountSummaries.list({
+          pageSize: 200,
+          pageToken,
+        });
+
+        for (const accountSummary of response.data.accountSummaries || []) {
+          for (const propertySummary of accountSummary.propertySummaries ||
+            []) {
+            const propertyName = propertySummary.property || '';
+
+            if (!propertyName || properties.has(propertyName)) {
+              continue;
+            }
+
+            properties.set(propertyName, {
+              id: propertyName.replace('properties/', ''),
+              name: propertyName,
+              displayName: propertySummary.displayName || '',
+              createTime: '',
+            });
+          }
+        }
+
+        pageToken = response.data.nextPageToken ?? undefined;
+      } while (pageToken);
+
+      const listedProperties = [...properties.values()];
+
+      if (!options?.hydrate) {
+        return listedProperties;
+      }
+
+      return Promise.all(
+        listedProperties.map((property) => this.getProperty(property.id)),
       );
     } catch (error) {
       throw this.mapError(error);

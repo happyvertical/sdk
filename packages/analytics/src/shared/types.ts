@@ -118,6 +118,19 @@ export interface Property {
 }
 
 /**
+ * Options for listing properties
+ */
+export interface ListPropertiesOptions {
+  /**
+   * When true, fetch full metadata for each discovered property.
+   *
+   * This may require an additional API request per property for providers
+   * that only expose lightweight discovery endpoints.
+   */
+  hydrate?: boolean;
+}
+
+/**
  * Options for creating a new property
  */
 export interface CreatePropertyOptions {
@@ -776,7 +789,7 @@ export interface AnalyticsInterface {
   /**
    * List all properties accessible to this account
    */
-  listProperties(): Promise<Property[]>;
+  listProperties(options?: ListPropertiesOptions): Promise<Property[]>;
 
   /**
    * Get a specific property by ID

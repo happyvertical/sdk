@@ -71,6 +71,7 @@ export type {
   InListFilter,
   KeyEvent,
   KeyEventOptions,
+  ListPropertiesOptions,
   MeasurementUnit,
   Metric,
   MetricMetadata,
