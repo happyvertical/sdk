@@ -16,7 +16,7 @@ Install Claude Code context files for AI-assisted development:
 npx have-repos-context
 ```
 
-This copies the package's `CLAUDE.md` documentation and `.claude-meta.json` metadata to your project's `.claude/` directory, enabling Claude to provide better assistance when working with this package.
+This copies the package's `AGENT.md` documentation and `metadata.json` metadata to your project's `.claude/` directory, enabling Claude to provide better assistance when working with this package.
 
 ## Usage
 

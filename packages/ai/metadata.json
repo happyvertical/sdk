@@ -1,0 +1,35 @@
+{
+  "name": "@happyvertical/ai",
+  "path": "packages/ai",
+  "position": {
+    "index": 2,
+    "count": 29
+  },
+  "description": "Standardized AI interface supporting OpenAI, Anthropic, Google Gemini, AWS Bedrock, and Hugging Face with unified API",
+  "provides": [
+    "Standardized AI interface supporting OpenAI, Anthropic, Google Gemini, AWS Bedrock, and Hugging Face with unified API"
+  ],
+  "implements": [],
+  "requires": {
+    "workspace": [
+      "@happyvertical/utils"
+    ],
+    "externalHappyVertical": [],
+    "external": [
+      "@anthropic-ai/sdk",
+      "@aws-sdk/client-bedrock-runtime",
+      "@google/genai",
+      "openai"
+    ]
+  },
+  "dependents": [
+    "@happyvertical/sdk-mcp"
+  ],
+  "stability": {
+    "level": "stable",
+    "reason": "Primary package surface is described as implemented and production-oriented."
+  },
+  "keywords": [
+    "ai"
+  ]
+}

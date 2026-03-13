@@ -6,7 +6,9 @@ on:
     paths:
       - 'packages/*/src/**'
       - 'packages/*/README.md'
-      - 'packages/*/CLAUDE.md'
+      - 'packages/*/AGENT.md'
+      - 'packages/*/metadata.json'
+      - 'ecosystem-manifest.json'
       - 'docs/**'
 
 permissions:
@@ -87,13 +89,23 @@ jobs:
               missing=true
             fi
 
-            # Check if CLAUDE.md exists
-            if [ ! -f "packages/$pkg/CLAUDE.md" ]; then
-              echo "::warning file=packages/$pkg::Missing packages/$pkg/CLAUDE.md"
+            # Check if AGENT.md exists
+            if [ ! -f "packages/$pkg/AGENT.md" ]; then
+              echo "::warning file=packages/$pkg::Missing packages/$pkg/AGENT.md"
+              missing=true
+            fi
+
+            # Check if metadata.json exists
+            if [ ! -f "packages/$pkg/metadata.json" ]; then
+              echo "::warning file=packages/$pkg::Missing packages/$pkg/metadata.json"
               missing=true
             fi
           done
 
           if [ "$missing" = false ]; then
-            echo "All changed packages have README.md and CLAUDE.md files."
+            echo "All changed packages have README.md, AGENT.md, and metadata.json files."
           fi
+
+      - name: Check ecosystem manifest freshness
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: pnpm run agent:check

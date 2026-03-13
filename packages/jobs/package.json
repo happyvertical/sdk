@@ -9,8 +9,8 @@
     "dist",
     "README.md",
     "LICENSE",
-    "CLAUDE.md",
-    ".claude-meta.json"
+    "AGENT.md",
+    "metadata.json"
   ],
   "bin": {
     "have-jobs-context": "./dist/cli/claude-context.js"

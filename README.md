@@ -24,7 +24,7 @@ Key design constraints:
 - **Environment-variable driven.** Packages read from `HAVE_<PACKAGE>_*` prefixes. Configuration works exactly the same whether it's sitting in a local `.env` or injected by a secrets manager.
 - **Modern runtimes only.** ESM is mandatory. Node.js 24+ is expected. There are no CommonJS polyfills here.
 - **Pay for what you use.** Third-party vendor SDKs are optional peer dependencies. 
-- **LLM-readable.** Each package includes a `CLAUDE.md` to feed context to an LLM, maximizing the probability that it writes correct code on the first attempt.
+- **LLM-readable.** Each package includes an `AGENT.md` to feed context to an LLM, maximizing the probability that it writes correct code on the first attempt.
 
 ### A Practical Example
 
@@ -136,7 +136,7 @@ pnpm add @happyvertical/utils @happyvertical/logger
 
 ## AI-Assisted Development
 
-Every package ships a `CLAUDE.md` with full API documentation, common patterns, and known pitfalls — optimized for AI coding assistants. Install context for the packages you're using:
+Every package ships an `AGENT.md` with full API documentation, common patterns, and known pitfalls — optimized for AI coding assistants. Install context for the packages you're using:
 
 ```bash
 npx have-ai-context       # @happyvertical/ai

@@ -1,6 +1,6 @@
 # @happyvertical/sdk-mcp
 
-MCP server for the HAVE SDK that routes developer queries to package documentation. It scans each package's `CLAUDE.md` file at startup, builds a keyword-indexed registry, and exposes three MCP tools: `ask` (AI-powered Q&A), `list-packages`, and `get-docs`.
+MCP server for the HAVE SDK that routes developer queries to package documentation. It scans each package's `AGENT.md` file at startup, builds a keyword-indexed registry, and exposes three MCP tools: `ask` (AI-powered Q&A), `list-packages`, and `get-docs`.
 
 ## Installation
 
@@ -24,7 +24,7 @@ Or configure it in your MCP client (e.g., Claude Desktop) to launch as a subproc
 
 ### Claude Code Context CLI
 
-Copy CLAUDE.md and metadata into your project's `.claude/` directory for AI-assisted development:
+Copy AGENT.md and metadata into your project's `.claude/` directory for AI-assisted development:
 
 ```bash
 npx have-sdk-mcp-context
@@ -62,7 +62,7 @@ List all discovered SDK packages with descriptions and keywords. No parameters.
 
 ### get-docs
 
-Get the full CLAUDE.md content for a specific package.
+Get the full AGENT.md content for a specific package.
 
 ```json
 {
@@ -72,15 +72,15 @@ Get the full CLAUDE.md content for a specific package.
 
 ## How It Works
 
-1. **Registry** — On first call, scans `packages/*/CLAUDE.md` and builds a `Map<string, PackageMetadata>` keyed by package name. Each entry includes the description (extracted from CLAUDE.md), keywords (from a static mapping in `registry.ts`), and the full documentation content.
+1. **Registry** — On first call, scans `packages/*/AGENT.md` and builds a `Map<string, PackageMetadata>` keyed by package name. Each entry includes the description (extracted from AGENT.md), keywords (from a static mapping in `registry.ts`), and the full documentation content.
 
 2. **Routing** — Splits the user query into tokens and scores each package by keyword overlap (exact match = 10 pts, partial = 5 pts, name bonus = 15 pts). Packages below a minimum score threshold are excluded.
 
-3. **Synthesis** — The `ask` tool loads CLAUDE.md for the top 3 matched packages, builds a system prompt with that context, and calls `@happyvertical/ai` to generate a response.
+3. **Synthesis** — The `ask` tool loads AGENT.md for the top 3 matched packages, builds a system prompt with that context, and calls `@happyvertical/ai` to generate a response.
 
 ## Adding a New Package
 
-1. Create a `CLAUDE.md` in the new package directory
+1. Create an `AGENT.md` in the new package directory
 2. Add a keyword entry in `src/registry.ts` (`PACKAGE_KEYWORDS`)
 3. Rebuild: `pnpm run build`
 
@@ -97,7 +97,7 @@ The package will be discovered automatically on the next server startup.
 | `buildPackageRegistry()` | Scans packages directory and returns cached `Map<string, PackageMetadata>` |
 | `getPackage(name)` | Get metadata for a single package |
 | `getAllPackages()` | Get all package metadata as an array |
-| `getPackageDocs(name)` | Get raw CLAUDE.md content for a package |
+| `getPackageDocs(name)` | Get raw AGENT.md content for a package |
 | `clearCache()` | Clear the in-memory registry cache |
 
 ### Router (`router.ts`)

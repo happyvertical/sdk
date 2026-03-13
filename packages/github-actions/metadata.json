@@ -1,0 +1,30 @@
+{
+  "name": "@happyvertical/github-actions",
+  "path": "packages/github-actions",
+  "position": {
+    "index": 13,
+    "count": 29
+  },
+  "description": "Reusable GitHub Actions utilities for issue triage, PR validation, and workflow automation",
+  "provides": [
+    "Reusable GitHub Actions utilities for issue triage, PR validation, and workflow automation"
+  ],
+  "implements": [],
+  "requires": {
+    "workspace": [
+      "@happyvertical/projects",
+      "@happyvertical/repos"
+    ],
+    "externalHappyVertical": [],
+    "external": []
+  },
+  "dependents": [],
+  "stability": {
+    "level": "stable",
+    "reason": "Primary package surface is described as implemented and production-oriented."
+  },
+  "keywords": [
+    "github",
+    "actions"
+  ]
+}

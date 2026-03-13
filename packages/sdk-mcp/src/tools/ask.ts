@@ -26,7 +26,7 @@ async function getAIClient() {
 }
 
 /**
- * Build context from package CLAUDE.md files
+ * Build context from package AGENT.md files
  */
 function buildContext(packages: PackageMetadata[]): string {
   if (packages.length === 0) {
@@ -37,7 +37,7 @@ function buildContext(packages: PackageMetadata[]): string {
 
   for (const pkg of packages) {
     contextParts.push(
-      `## Package: @happyvertical/${pkg.name}\n\n${pkg.claudeMd}\n\n---\n`,
+      `## Package: @happyvertical/${pkg.name}\n\n${pkg.agentMd}\n\n---\n`,
     );
   }
 
@@ -92,7 +92,7 @@ export async function ask(input: AskInput) {
       packages = matches.slice(0, 3).map((m) => m.package);
     }
 
-    // Build context from CLAUDE.md files
+    // Build context from AGENT.md files
     const context = buildContext(packages);
 
     // Get AI client
@@ -100,7 +100,7 @@ export async function ask(input: AskInput) {
 
     // Generate response using AI with expert context
     const systemPrompt = `You are an expert SDK documentation assistant for the HAppy VErtical (HAVE) SDK.
-You have access to the full documentation (CLAUDE.md files) for the following packages: ${packages.map((p) => `@happyvertical/${p.name}`).join(', ')}.
+You have access to the full documentation (AGENT.md files) for the following packages: ${packages.map((p) => `@happyvertical/${p.name}`).join(', ')}.
 
 Your role is to:
 1. Answer questions about the SDK using the provided package documentation

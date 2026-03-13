@@ -42,6 +42,8 @@
     "validate-build": "node scripts/validate-build.js",
     "dev": "turbo run dev --parallel",
     "dev:shell": "docker compose -f .devcontainer/docker-compose.yml up -d && docker compose -f .devcontainer/docker-compose.yml exec app bash -c '/workspaces/sdk/.devcontainer/scripts/setup-claude-container.sh && exec bash'",
+    "agent:sync": "node scripts/sync-agent-context.js",
+    "agent:check": "node scripts/sync-agent-context.js --check",
     "changeset:auto": "npx tsx scripts/auto-changeset.ts",
     "changeset:version": "changeset version",
     "changeset:publish": "changeset publish",

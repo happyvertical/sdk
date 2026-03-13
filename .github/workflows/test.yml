@@ -87,6 +87,9 @@ jobs:
       - name: Build packages
         run: pnpm run build
 
+      - name: Validate agent context graph
+        run: pnpm run agent:check
+
       - name: Run typecheck, lint, and tests in parallel
         id: parallel-checks
         run: |

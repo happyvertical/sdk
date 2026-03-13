@@ -1,0 +1,34 @@
+{
+  "name": "@happyvertical/encryption",
+  "path": "packages/encryption",
+  "position": {
+    "index": 10,
+    "count": 29
+  },
+  "description": "Unified encryption and cryptography operations with adapter-based architecture",
+  "provides": [
+    "Unified encryption and cryptography operations with adapter-based architecture"
+  ],
+  "implements": [],
+  "requires": {
+    "workspace": [
+      "@happyvertical/logger",
+      "@happyvertical/utils"
+    ],
+    "externalHappyVertical": [],
+    "external": [
+      "@openpgp/web-stream-tools",
+      "openpgp",
+      "tweetnacl",
+      "tweetnacl-util"
+    ]
+  },
+  "dependents": [],
+  "stability": {
+    "level": "stable",
+    "reason": "Primary package surface is described as implemented and production-oriented."
+  },
+  "keywords": [
+    "encryption"
+  ]
+}

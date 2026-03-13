@@ -1,0 +1,29 @@
+{
+  "name": "@happyvertical/graphql",
+  "path": "packages/graphql",
+  "position": {
+    "index": 14,
+    "count": 29
+  },
+  "description": "GitHub GraphQL client for SDK packages",
+  "provides": [
+    "GitHub GraphQL client for SDK packages"
+  ],
+  "implements": [],
+  "requires": {
+    "workspace": [],
+    "externalHappyVertical": [],
+    "external": []
+  },
+  "dependents": [
+    "@happyvertical/projects",
+    "@happyvertical/repos"
+  ],
+  "stability": {
+    "level": "stable",
+    "reason": "Primary package surface is described as implemented and production-oriented."
+  },
+  "keywords": [
+    "graphql"
+  ]
+}
