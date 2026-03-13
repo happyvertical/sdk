@@ -104,6 +104,15 @@ export interface JSONOptions {
   url: string;
 
   /**
+   * Optional directory for JSON file storage when the connection URL is an
+   * in-memory identifier such as ':memory:' or ':memory:events'.
+   *
+   * When omitted for memory-like URLs, the adapter stays fully in memory and
+   * skips writing JSON files to disk.
+   */
+  dataDir?: string;
+
+  /**
    * Automatically load all JSON files in dataDir as tables
    * @default true
    */

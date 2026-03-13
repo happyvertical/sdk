@@ -1276,6 +1276,63 @@ describe('JSON adapter tests', () => {
       // Clean up
       rmSync(testDir, { recursive: true, force: true });
     });
+
+    it('should not create a :memory: directory for named in-memory URLs', async () => {
+      const leakedDir = join(process.cwd(), ':memory:quoted-events');
+      rmSync(leakedDir, { recursive: true, force: true });
+
+      const memoryDb = await getDatabase({
+        type: 'json',
+        url: ':memory:quoted-events',
+        writeStrategy: 'immediate',
+        autoRegister: false,
+        clearCache: true,
+      });
+
+      await memoryDb.execute`
+        CREATE TABLE quoted_events (
+          id TEXT PRIMARY KEY,
+          title TEXT
+        )
+      `;
+      await memoryDb.insert('quoted_events', {
+        id: 'evt-1',
+        title: 'Kept in memory',
+      });
+
+      expect(existsSync(leakedDir)).toBe(false);
+    });
+
+    it('should use dataDir for named in-memory JSON databases when provided', async () => {
+      const testDir = mkdtempSync(join(tmpdir(), 'json-memory-dir-'));
+
+      try {
+        const db = await getDatabase({
+          type: 'json',
+          url: ':memory:quoted-events',
+          dataDir: testDir,
+          writeStrategy: 'immediate',
+          autoRegister: false,
+          clearCache: true,
+        });
+
+        await db.execute`
+          CREATE TABLE poly_events (
+            id TEXT PRIMARY KEY,
+            title TEXT
+          )
+        `;
+        await db.insert('poly_events', {
+          id: 'evt-1',
+          title: 'Persisted to explicit dataDir',
+        });
+
+        expect(existsSync(join(testDir, 'poly_events.json'))).toBe(true);
+        expect(existsSync(join(testDir, 'poly_events.schema.sql'))).toBe(true);
+      } finally {
+        rmSync(testDir, { recursive: true, force: true });
+      }
+    });
   });
 
   describe('Array and Object Type Casting (Issue #378)', () => {

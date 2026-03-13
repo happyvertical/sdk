@@ -1,5 +1,6 @@
 import { loadEnvConfig } from '@happyvertical/utils';
 import type { PostgresOptions } from './postgres';
+import { isMemoryLikeUrl } from './shared/memory-url';
 import type {
   DatabaseInterface,
   DuckDBOptions,
@@ -96,7 +97,7 @@ export async function getDatabase(
   // if no type but url starts with file:, set to sqlite
   if (
     !options.type &&
-    (options.url?.startsWith('file:') || options.url === ':memory:')
+    (options.url?.startsWith('file:') || isMemoryLikeUrl(options.url))
   ) {
     options.type = 'sqlite';
   }

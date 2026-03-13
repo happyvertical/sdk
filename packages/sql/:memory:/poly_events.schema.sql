@@ -1,1 +1,0 @@
-CREATE TABLE poly_events(_meta_type VARCHAR, slug VARCHAR, context VARCHAR, title VARCHAR, count INTEGER DEFAULT(0), PRIMARY KEY(_meta_type, slug, context));

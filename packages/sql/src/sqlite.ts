@@ -8,6 +8,11 @@ import {
   validateIndexName,
   validateTableName,
 } from './shared/alter-utils';
+import {
+  getMemoryUrlId,
+  isMemoryLikeUrl,
+  normalizeMemoryUrl,
+} from './shared/memory-url';
 import type {
   ColumnDefinition,
   ColumnDefinitionWithName,
@@ -50,7 +55,9 @@ function generateDbId(): string {
  * @returns Promise resolving to a LibSQL client instance
  */
 async function createLibSQLClient(options: SqliteOptions): Promise<Client> {
-  const { url = ':memory:', authToken, encryptionKey } = options;
+  const { authToken, encryptionKey } = options;
+  const originalUrl = options.url || ':memory:';
+  const url = normalizeMemoryUrl(originalUrl) || ':memory:';
 
   // Normalize URLs: add file:// prefix for local paths
   let libsqlUrl = url;
@@ -214,12 +221,17 @@ async function createTablesFromSchemas(
 export async function getDatabase(
   options: SqliteOptions = {},
 ): Promise<DatabaseInterface> {
-  const url = options.url || ':memory:';
+  const originalUrl = options.url || ':memory:';
+  const url = normalizeMemoryUrl(originalUrl) || ':memory:';
 
-  // Auto-generate dbid for :memory: databases if not provided
-  // Mutate options object to ensure child objects reuse the same connection
-  if (url === ':memory:' && !options.dbid) {
-    options.dbid = generateDbId();
+  if (url !== originalUrl) {
+    options.url = url;
+  }
+
+  // Auto-generate or derive dbid for in-memory databases if not provided.
+  // Mutate options object to ensure child objects reuse the same connection.
+  if (isMemoryLikeUrl(originalUrl) && !options.dbid) {
+    options.dbid = getMemoryUrlId(originalUrl) || generateDbId();
   }
 
   // Check if we have a cached connection for this dbid

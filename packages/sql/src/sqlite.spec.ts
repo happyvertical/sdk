@@ -1,4 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import { existsSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getDatabase } from './index';
 
@@ -102,6 +104,41 @@ describe('sqlite tests', () => {
       id: 'test-1',
       data: 'memory database test',
     });
+  });
+
+  it('should reuse named in-memory URLs without creating local files', async () => {
+    const namedUrl = ':memory:sqlite-named-memory';
+    const leakedPath = join(process.cwd(), namedUrl);
+
+    rmSync(leakedPath, { force: true, recursive: true });
+
+    const db1 = await getDatabase({
+      type: 'sqlite',
+      url: namedUrl,
+    });
+
+    await db1.execute`
+      CREATE TABLE shared_named_memory (
+        id TEXT PRIMARY KEY,
+        data TEXT
+      )
+    `;
+    await db1.insert('shared_named_memory', {
+      id: 'named-1',
+      data: 'shared through named memory url',
+    });
+
+    const db2 = await getDatabase({
+      type: 'sqlite',
+      url: namedUrl,
+    });
+
+    expect(db2).toBe(db1);
+    expect(await db2.get('shared_named_memory', { id: 'named-1' })).toEqual({
+      id: 'named-1',
+      data: 'shared through named memory url',
+    });
+    expect(existsSync(leakedPath)).toBe(false);
   });
 
   describe('upsert functionality', () => {

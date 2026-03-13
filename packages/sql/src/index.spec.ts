@@ -314,6 +314,13 @@ describe('Environment variable configuration', () => {
     expect(db.client).toBeDefined();
   });
 
+  it('should auto-detect SQLite from named :memory: URL', async () => {
+    process.env.HAVE_SQL_URL = ':memory:test-named-memory';
+
+    const db = await getDatabase({});
+    expect(db.client).toBeDefined();
+  });
+
   it('should auto-detect SQLite from file: URL', async () => {
     process.env.HAVE_SQL_URL = 'file::memory:';
 

@@ -3,6 +3,7 @@ import { basename, extname, join } from 'node:path';
 import { DatabaseError } from '@happyvertical/utils';
 import { DatabaseSchemaManager } from './schema-manager';
 import { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils';
+import { getMemoryUrlId, isMemoryLikeUrl } from './shared/memory-url';
 import type {
   DatabaseInterface,
   JSONOptions,
@@ -72,6 +73,21 @@ export function clearConnectionCache(): void {
   pendingConnections.clear();
 }
 
+function resolveJSONDataDir(options: JSONOptions): string | undefined {
+  if (options.dataDir) {
+    return options.dataDir;
+  }
+
+  return isMemoryLikeUrl(options.url) ? undefined : options.url;
+}
+
+function resolveJSONCacheKey(options: JSONOptions): string {
+  const identity = options.dbid || getMemoryUrlId(options.url) || options.url;
+  const storageDir = resolveJSONDataDir(options) || '';
+
+  return `json:${identity}:${storageDir}:${options.writeStrategy || 'immediate'}:${options.autoRegister !== false}`;
+}
+
 /**
  * Creates a JSON database connection using DuckDB in-memory engine
  *
@@ -85,6 +101,7 @@ export function clearConnectionCache(): void {
 async function createJSONConnection(options: JSONOptions) {
   const { url, autoRegister = true, eagerLoadTables = true } = options;
   const schemas = resolveSchemas(options.schemas) ?? {};
+  const dataDir = resolveJSONDataDir(options);
 
   if (!url) {
     throw new DatabaseError('url is required for JSON adapter', {
@@ -107,23 +124,25 @@ async function createJSONConnection(options: JSONOptions) {
     const instance = await DuckDBInstance.create(':memory:');
     const connection = await instance.connect();
 
-    // Ensure data directory exists
-    try {
-      await mkdir(url, { recursive: true });
-    } catch (_error) {
-      // Directory might already exist, that's okay
-    }
+    if (dataDir) {
+      // Ensure data directory exists
+      try {
+        await mkdir(dataDir, { recursive: true });
+      } catch (_error) {
+        // Directory might already exist, that's okay
+      }
 
-    // Scan JSON files - tables with schemas are created now, others are deferred
-    if (autoRegister) {
-      await loadJSONTables(
-        connection,
-        url,
-        schemas,
-        pendingJSONFiles,
-        eagerLoadTables,
-        inferredSchemaTables,
-      );
+      // Scan JSON files - tables with schemas are created now, others are deferred
+      if (autoRegister) {
+        await loadJSONTables(
+          connection,
+          dataDir,
+          schemas,
+          pendingJSONFiles,
+          eagerLoadTables,
+          inferredSchemaTables,
+        );
+      }
     }
 
     return { connection, pendingJSONFiles, inferredSchemaTables };
@@ -596,6 +615,13 @@ function validateTableName(table: string): void {
 export async function getDatabase(
   options: JSONOptions,
 ): Promise<DatabaseInterface> {
+  if (!options.dbid) {
+    const derivedDbid = getMemoryUrlId(options.url);
+    if (derivedDbid) {
+      options.dbid = derivedDbid;
+    }
+  }
+
   // Generate cache key from URL and options that affect database behavior
   // FIX for issues #533/#534: Auto-generate dbid from URL when schemas provided
   // This ensures connection caching ALWAYS happens for the same URL, preventing
@@ -604,9 +630,7 @@ export async function getDatabase(
   // Priority:
   // 1. Explicit dbid from caller
   // 2. Auto-generated from URL + writeStrategy (ensures caching)
-  const cacheKey =
-    options.dbid ||
-    `json:${options.url}:${options.writeStrategy || 'immediate'}:${options.autoRegister !== false}`;
+  const cacheKey = resolveJSONCacheKey(options);
 
   // If clearCache option is true, clear any cached connection for this key
   if (options.clearCache) {
@@ -632,6 +656,7 @@ export async function getDatabase(
       await createJSONConnection(options);
     const writeStrategy = options.writeStrategy || 'immediate';
     const { url } = options;
+    const dataDir = resolveJSONDataDir(options);
 
     /**
      * Inserts one or more records into a table
@@ -714,8 +739,8 @@ export async function getDatabase(
         const affected = records.length;
 
         // Handle write-back strategy
-        if (writeStrategy === 'immediate') {
-          await exportTableToJSON(connection, table, url);
+        if (writeStrategy === 'immediate' && dataDir) {
+          await exportTableToJSON(connection, table, dataDir);
         }
 
         return { operation: 'insert', affected };
@@ -836,8 +861,8 @@ export async function getDatabase(
         await connection.run(sql, values);
 
         // Handle write-back strategy
-        if (writeStrategy === 'immediate') {
-          await exportTableToJSON(connection, table, url);
+        if (writeStrategy === 'immediate' && dataDir) {
+          await exportTableToJSON(connection, table, dataDir);
         }
 
         // DuckDB doesn't return rowsAffected in the same way, estimate from where clause
@@ -997,8 +1022,8 @@ export async function getDatabase(
         await connection.run(sql, values);
 
         // Handle write-back strategy
-        if (writeStrategy === 'immediate') {
-          await exportTableToJSON(connection, table, url);
+        if (writeStrategy === 'immediate' && dataDir) {
+          await exportTableToJSON(connection, table, dataDir);
         }
 
         return { operation: 'upsert', affected: 1 };
@@ -1090,8 +1115,8 @@ export async function getDatabase(
         await connection.run(sql, values);
 
         // Handle write-back strategy
-        if (writeStrategy === 'immediate') {
-          await exportTableToJSON(connection, table, url);
+        if (writeStrategy === 'immediate' && dataDir) {
+          await exportTableToJSON(connection, table, dataDir);
         }
 
         return { operation: 'delete', affected: 1 };
@@ -1280,7 +1305,13 @@ export async function getDatabase(
           { table, writeStrategy },
         );
       }
-      await exportTableToJSON(connection, table, url);
+      if (!dataDir) {
+        throw new DatabaseError(
+          'Cannot export table: no dataDir configured for in-memory JSON database',
+          { table, url },
+        );
+      }
+      await exportTableToJSON(connection, table, dataDir);
     };
 
     /**
@@ -1301,7 +1332,14 @@ export async function getDatabase(
     ): Promise<void> => {
       validateTableName(tableName);
 
-      const filePath = jsonPath || join(url, `${tableName}.json`);
+      if (!jsonPath && !dataDir) {
+        throw new DatabaseError(
+          'Cannot infer schema without a JSON file path or dataDir',
+          { tableName, url },
+        );
+      }
+
+      const filePath = jsonPath || join(dataDir!, `${tableName}.json`);
 
       try {
         // Check if file exists
@@ -1477,14 +1515,18 @@ export async function getDatabase(
           } else if (writeStrategy !== 'none') {
             // No pending data - export empty table (preserves SMRT system tables)
             try {
+              if (!dataDir) {
+                return;
+              }
+
               const { access } = await import('node:fs/promises');
-              const jsonFilePath = join(url, `${tableName}.json`);
+              const jsonFilePath = join(dataDir, `${tableName}.json`);
               try {
                 await access(jsonFilePath);
                 // File exists, don't overwrite
               } catch {
                 // File doesn't exist, export empty table
-                await exportTableToJSON(connection, tableName, url);
+                await exportTableToJSON(connection, tableName, dataDir);
               }
             } catch (error) {
               console.warn(
@@ -1639,16 +1681,20 @@ export async function getDatabase(
             } else if (writeStrategy !== 'none') {
               // No pending data - export empty table (preserves SMRT system tables)
               try {
+                if (!dataDir) {
+                  return;
+                }
+
                 // Only export if JSON file doesn't already exist
                 // This prevents overwriting existing data when tables are manually created
                 const { access } = await import('node:fs/promises');
-                const jsonFilePath = join(url, `${tableName}.json`);
+                const jsonFilePath = join(dataDir, `${tableName}.json`);
                 try {
                   await access(jsonFilePath);
                   // File exists, don't overwrite
                 } catch {
                   // File doesn't exist, export empty table
-                  await exportTableToJSON(connection, tableName, url);
+                  await exportTableToJSON(connection, tableName, dataDir);
                 }
               } catch (error) {
                 console.warn(
