@@ -21,6 +21,7 @@ import type {
   DimensionMetadata,
   KeyEvent,
   KeyEventOptions,
+  ListPropertiesOptions,
   MetricMetadata,
   PageviewEvent,
   PlausibleOptions,
@@ -160,7 +161,7 @@ export class PlausibleProvider implements AnalyticsInterface {
     };
   }
 
-  async listProperties(): Promise<Property[]> {
+  async listProperties(_options?: ListPropertiesOptions): Promise<Property[]> {
     // Plausible doesn't have a list sites endpoint in the public API
     // This will need to be implemented when they add it
     throw new NotSupportedError('listProperties', 'plausible');

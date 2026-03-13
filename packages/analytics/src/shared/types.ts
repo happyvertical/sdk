@@ -118,6 +118,22 @@ export interface Property {
 }
 
 /**
+ * Options for listing properties
+ */
+export interface ListPropertiesOptions {
+  /**
+   * Controls whether the provider should hydrate discovered properties with
+   * full metadata.
+   *
+   * Providers that support hydration should default this to `true` to
+   * preserve the existing `listProperties()` behavior. Set this to `false`
+   * to use discovery-only metadata, which may omit fields like `createTime`,
+   * `updateTime`, `timeZone`, and `currencyCode`.
+   */
+  hydrate?: boolean;
+}
+
+/**
  * Options for creating a new property
  */
 export interface CreatePropertyOptions {
@@ -776,7 +792,7 @@ export interface AnalyticsInterface {
   /**
    * List all properties accessible to this account
    */
-  listProperties(): Promise<Property[]>;
+  listProperties(options?: ListPropertiesOptions): Promise<Property[]>;
 
   /**
    * Get a specific property by ID
