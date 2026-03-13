@@ -262,7 +262,7 @@ For **all work**:
 - Follow the plan established in Step 5
 - Update TodoWrite task list as you progress
 - Mark tasks as in_progress → completed as you work
-- Follow standard coding conventions from CLAUDE.md
+- Follow standard coding conventions from AGENT.md
 - Follow testing standards from TESTING_STANDARD.md:
   - Use real resources (in-memory DBs, temp files) over mocks
   - Write tests that read like documentation

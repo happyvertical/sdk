@@ -1,0 +1,29 @@
+{
+  "name": "@happyvertical/social",
+  "path": "packages/social",
+  "position": {
+    "index": 24,
+    "count": 29
+  },
+  "description": "Social platform adapters for publishing to YouTube, Threads, X, and Bluesky",
+  "provides": [
+    "Social platform adapters for publishing to YouTube, Threads, X, and Bluesky"
+  ],
+  "implements": [],
+  "requires": {
+    "workspace": [
+      "@happyvertical/logger",
+      "@happyvertical/utils"
+    ],
+    "externalHappyVertical": [],
+    "external": []
+  },
+  "dependents": [],
+  "stability": {
+    "level": "stable",
+    "reason": "Primary package surface is described as implemented and production-oriented."
+  },
+  "keywords": [
+    "social"
+  ]
+}

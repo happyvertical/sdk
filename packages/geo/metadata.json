@@ -1,0 +1,31 @@
+{
+  "name": "@happyvertical/geo",
+  "path": "packages/geo",
+  "position": {
+    "index": 12,
+    "count": 29
+  },
+  "description": "Standardized geographical information interface supporting Google Maps and OpenStreetMap",
+  "provides": [
+    "Standardized geographical information interface supporting Google Maps and OpenStreetMap"
+  ],
+  "implements": [],
+  "requires": {
+    "workspace": [
+      "@happyvertical/cache",
+      "@happyvertical/utils"
+    ],
+    "externalHappyVertical": [],
+    "external": [
+      "@googlemaps/google-maps-services-js"
+    ]
+  },
+  "dependents": [],
+  "stability": {
+    "level": "stable",
+    "reason": "Primary package surface is described as implemented and production-oriented."
+  },
+  "keywords": [
+    "geo"
+  ]
+}

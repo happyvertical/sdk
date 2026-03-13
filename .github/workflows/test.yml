@@ -87,12 +87,15 @@ jobs:
       - name: Build packages
         run: pnpm run build
 
-      - name: Run typecheck, lint, and tests in parallel
+      - name: Validate agent context graph
+        run: pnpm run agent:check
+
+      - name: Run typecheck, lint, and tests
         id: parallel-checks
         run: |
-          # Run typecheck, lint, and test in parallel using Turborepo
+          # Run typecheck, lint, and test using Turborepo dependency graph
           # Exclude @happyvertical/docs: docs build requires deps:all
-          pnpm turbo run typecheck lint test --parallel --filter='!@happyvertical/docs'
+          pnpm turbo run typecheck lint test --filter='!@happyvertical/docs'
         env:
           SQLOO_HOST: localhost
           SQLOO_USER: postgres

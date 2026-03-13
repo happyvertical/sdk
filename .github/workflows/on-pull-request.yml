@@ -173,7 +173,9 @@ jobs:
           files: |
             docs/**
             packages/*/README.md
-            packages/*/CLAUDE.md
+            packages/*/AGENT.md
+            packages/*/metadata.json
+            ecosystem-manifest.json
 
       - name: Setup Environment
         if: steps.changed-files.outputs.any_changed == 'true'

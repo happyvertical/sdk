@@ -1,0 +1,31 @@
+{
+  "name": "@happyvertical/projects",
+  "path": "packages/projects",
+  "position": {
+    "index": 20,
+    "count": 29
+  },
+  "description": "Standardized project management interface for GitHub Projects, Jira, ZenHub, and Linear",
+  "provides": [
+    "Standardized project management interface for GitHub Projects, Jira, ZenHub, and Linear"
+  ],
+  "implements": [],
+  "requires": {
+    "workspace": [
+      "@happyvertical/graphql",
+      "@happyvertical/repos"
+    ],
+    "externalHappyVertical": [],
+    "external": []
+  },
+  "dependents": [
+    "@happyvertical/github-actions"
+  ],
+  "stability": {
+    "level": "stable",
+    "reason": "Primary package surface is described as implemented and production-oriented."
+  },
+  "keywords": [
+    "projects"
+  ]
+}

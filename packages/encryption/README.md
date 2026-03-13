@@ -35,7 +35,7 @@ Install Claude Code context files for AI-assisted development:
 npx have-encryption-context
 ```
 
-This copies the package's `CLAUDE.md` documentation and `.claude-meta.json` metadata to your project's `.claude/` directory, enabling Claude to provide better assistance when working with this package.
+This copies the package's `AGENT.md` documentation and `metadata.json` metadata to your project's `.claude/` directory, enabling Claude to provide better assistance when working with this package.
 
 ## Quick Start
 
@@ -419,7 +419,7 @@ Approximate performance for 100KB data:
 
 ## Documentation
 
-- **[CLAUDE.md](./CLAUDE.md)** - Comprehensive developer guide with detailed API reference, architecture, and implementation phases
+- **[AGENT.md](./AGENT.md)** - Comprehensive developer guide with detailed API reference, architecture, and implementation phases
 - **[API Types](./src/shared/types.ts)** - TypeScript type definitions
 - **[Error Handling](./src/shared/errors.ts)** - Custom error classes
 
@@ -470,7 +470,7 @@ MIT License - see [LICENSE](../../LICENSE) for details.
 ## Support
 
 - **Issues**: [GitHub Issues](https://github.com/happyvertical/sdk/issues)
-- **Documentation**: [CLAUDE.md](./CLAUDE.md)
+- **Documentation**: [AGENT.md](./AGENT.md)
 - **Examples**: [test/unit/](./test/unit/)
 
 ---

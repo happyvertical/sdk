@@ -13,7 +13,7 @@ import { listPackages } from './tools/list-packages.js';
 
 /**
  * SDK MCP Server
- * Routes developer queries to appropriate package experts using CLAUDE.md files
+ * Routes developer queries to appropriate package experts using AGENT.md files
  */
 class SDKMCPServer {
   private server: Server;
@@ -42,7 +42,7 @@ class SDKMCPServer {
         {
           name: 'ask',
           description:
-            'Ask a question about the HAVE SDK. Automatically routes your query to relevant package experts (CLAUDE.md files) and synthesizes a response using AI.',
+            'Ask a question about the HAVE SDK. Automatically routes your query to relevant package experts (AGENT.md files) and synthesizes a response using AI.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -72,7 +72,7 @@ class SDKMCPServer {
         {
           name: 'get-docs',
           description:
-            'Get the full CLAUDE.md documentation for a specific package',
+            'Get the full AGENT.md documentation for a specific package',
           inputSchema: {
             type: 'object',
             properties: {

@@ -1,0 +1,38 @@
+{
+  "name": "@happyvertical/email",
+  "path": "packages/email",
+  "position": {
+    "index": 9,
+    "count": 29
+  },
+  "description": "Low-level email protocol operations with adapter-based architecture",
+  "provides": [
+    "Low-level email protocol operations with adapter-based architecture"
+  ],
+  "implements": [],
+  "requires": {
+    "workspace": [
+      "@happyvertical/logger",
+      "@happyvertical/utils"
+    ],
+    "externalHappyVertical": [],
+    "external": [
+      "google-auth-library",
+      "googleapis",
+      "imapflow",
+      "mailparser",
+      "node-pop3",
+      "nodemailer"
+    ]
+  },
+  "dependents": [
+    "@happyvertical/messages"
+  ],
+  "stability": {
+    "level": "stable",
+    "reason": "Primary package surface is described as implemented and production-oriented."
+  },
+  "keywords": [
+    "email"
+  ]
+}

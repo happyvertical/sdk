@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * CLI script to install Claude Code context for @happyvertical/encryption
- * Run: npx @happyvertical/encryption claude-context
+ * CLI script to install agent context for @happyvertical/encryption
+ * Run the published context installer binary for this package.
  */
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -16,11 +16,15 @@ if (!existsSync(targetDir)) {
 }
 
 const pkgName = 'encryption';
-const claudeMdSrc = join(pkgRoot, 'CLAUDE.md');
-const metaSrc = join(pkgRoot, '.claude-meta.json');
+const agentMdSrc = existsSync(join(pkgRoot, 'AGENT.md'))
+  ? join(pkgRoot, 'AGENT.md')
+  : join(pkgRoot, 'CLAUDE.md');
+const metaSrc = existsSync(join(pkgRoot, 'metadata.json'))
+  ? join(pkgRoot, 'metadata.json')
+  : join(pkgRoot, '.claude-meta.json');
 
-if (existsSync(claudeMdSrc)) {
-  copyFileSync(claudeMdSrc, join(targetDir, `have-${pkgName}.md`));
+if (existsSync(agentMdSrc)) {
+  copyFileSync(agentMdSrc, join(targetDir, `have-${pkgName}.md`));
 }
 
 if (existsSync(metaSrc)) {

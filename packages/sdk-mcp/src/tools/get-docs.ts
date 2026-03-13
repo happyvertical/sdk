@@ -1,7 +1,7 @@
 import { getPackageDocs } from '../registry.js';
 
 /**
- * Get full CLAUDE.md documentation for a specific package
+ * Get full AGENT.md documentation for a specific package
  *
  * @param packageName - Name of the package (e.g., 'ai', 'sql', 'spider')
  * @returns Package documentation content

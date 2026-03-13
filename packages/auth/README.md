@@ -22,7 +22,7 @@ Install Claude Code context files for AI-assisted development:
 npx have-auth-context
 ```
 
-This copies the package's `CLAUDE.md` documentation and `.claude-meta.json` metadata to your project's `.claude/` directory, enabling Claude to provide better assistance when working with this package.
+This copies the package's `AGENT.md` documentation and `metadata.json` metadata to your project's `.claude/` directory, enabling Claude to provide better assistance when working with this package.
 
 ## Quick Start
 
@@ -66,7 +66,7 @@ if (await auth.hasRole(token, 'admin')) {
 
 ## Documentation
 
-See [CLAUDE.md](./CLAUDE.md) for complete API documentation.
+See [AGENT.md](./AGENT.md) for complete API documentation.
 
 ## License
 

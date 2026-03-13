@@ -1,0 +1,33 @@
+{
+  "name": "@happyvertical/sdk-mcp",
+  "path": "packages/sdk-mcp",
+  "position": {
+    "index": 22,
+    "count": 29
+  },
+  "description": "MCP server for HAVE SDK - Routes queries to package experts using AGENT.md files",
+  "provides": [
+    "MCP server for HAVE SDK - Routes queries to package experts using AGENT.md files"
+  ],
+  "implements": [],
+  "requires": {
+    "workspace": [
+      "@happyvertical/ai",
+      "@happyvertical/files",
+      "@happyvertical/utils"
+    ],
+    "externalHappyVertical": [],
+    "external": [
+      "@modelcontextprotocol/sdk"
+    ]
+  },
+  "dependents": [],
+  "stability": {
+    "level": "stable",
+    "reason": "Primary package surface is described as implemented and production-oriented."
+  },
+  "keywords": [
+    "sdk",
+    "mcp"
+  ]
+}

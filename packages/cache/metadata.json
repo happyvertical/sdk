@@ -1,0 +1,35 @@
+{
+  "name": "@happyvertical/cache",
+  "path": "packages/cache",
+  "position": {
+    "index": 5,
+    "count": 29
+  },
+  "description": "Standardized caching interface supporting Memory, File, and Redis backends",
+  "provides": [
+    "Standardized caching interface supporting Memory, File, and Redis backends"
+  ],
+  "implements": [],
+  "requires": {
+    "workspace": [
+      "@happyvertical/utils"
+    ],
+    "externalHappyVertical": [],
+    "external": [
+      "@aws-sdk/client-s3",
+      "@aws-sdk/credential-providers",
+      "redis"
+    ]
+  },
+  "dependents": [
+    "@happyvertical/geo",
+    "@happyvertical/translator"
+  ],
+  "stability": {
+    "level": "stable",
+    "reason": "Primary package surface is described as implemented and production-oriented."
+  },
+  "keywords": [
+    "cache"
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "name": "@happyvertical/sql",
+  "path": "packages/sql",
+  "position": {
+    "index": 25,
+    "count": 29
+  },
+  "description": "Database interface with support for SQLite, PostgreSQL, and DuckDB",
+  "provides": [
+    "Database interface with support for SQLite, PostgreSQL, and DuckDB"
+  ],
+  "implements": [],
+  "requires": {
+    "workspace": [
+      "@happyvertical/utils"
+    ],
+    "externalHappyVertical": [],
+    "external": [
+      "@duckdb/node-api",
+      "@libsql/client",
+      "pg",
+      "sqlite-vss"
+    ]
+  },
+  "dependents": [
+    "@happyvertical/jobs",
+    "@happyvertical/secrets"
+  ],
+  "stability": {
+    "level": "stable",
+    "reason": "Primary package surface is described as implemented and production-oriented."
+  },
+  "keywords": [
+    "sql"
+  ]
+}

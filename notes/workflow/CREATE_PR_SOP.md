@@ -110,7 +110,7 @@ Invoke the code-reviewer agent to verify quality standards BEFORE creating the f
 
 **Code Reviewer Checks**:
 1. Testing standards (TESTING_STANDARD.md)
-2. Coding standards (CLAUDE.md)
+2. Coding standards (AGENT.md)
 3. Definition of Done (docs/workflow/DEFINITION_OF_DONE.md)
 4. Gemini code review (non-trivial files only, via Gemini MCP)
 
@@ -256,7 +256,7 @@ Following [Organization-Wide Testing Standard](../../TESTING_STANDARD.md):
 
 **Standards Verified**:
 - ✅ Testing standards (TESTING_STANDARD.md)
-- ✅ Coding standards (CLAUDE.md)
+- ✅ Coding standards (AGENT.md)
 - ✅ Definition of Done
 
 **Auto-Fixes Applied**:

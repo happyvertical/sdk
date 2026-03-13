@@ -6,13 +6,13 @@ const Filename = fileURLToPath(import.meta.url);
 const Dirname = dirname(Filename);
 
 /**
- * Package metadata extracted from CLAUDE.md files
+ * Package metadata extracted from AGENT.md files
  */
 export interface PackageMetadata {
   name: string;
   path: string;
   description: string;
-  claudeMd: string;
+  agentMd: string;
   keywords: string[];
 }
 
@@ -146,7 +146,7 @@ export const PACKAGE_KEYWORDS: Record<string, string[]> = {
 };
 
 /**
- * Cache for loaded CLAUDE.md files
+ * Cache for loaded AGENT.md files
  */
 const packageCache = new Map<string, PackageMetadata>();
 
@@ -159,7 +159,7 @@ function getSDKRoot(): string {
 }
 
 /**
- * Extract description from CLAUDE.md content
+ * Extract description from AGENT.md content
  * Looks for "Purpose and Responsibilities" or first paragraph
  */
 function extractDescription(content: string): string {
@@ -197,7 +197,8 @@ function extractDescription(content: string): string {
 }
 
 /**
- * Scan packages directory for CLAUDE.md files and build registry.
+ * Scan packages directory for AGENT.md files and build registry.
+ * Falls back to legacy CLAUDE.md files for compatibility.
  * Results are cached after the first call.
  *
  * @returns Cached map of package name to metadata
@@ -220,18 +221,26 @@ export async function buildPackageRegistry(): Promise<
       if (!entry.isDirectory()) continue;
 
       const packageName = entry.name;
-      const claudeMdPath = join(packagesDir, packageName, 'CLAUDE.md');
+      const agentMdPath = join(packagesDir, packageName, 'AGENT.md');
+      const legacyClaudePath = join(packagesDir, packageName, 'CLAUDE.md');
 
       try {
-        const claudeMd = await readFile(claudeMdPath, 'utf-8');
-        const description = extractDescription(claudeMd);
+        let agentMd: string | undefined;
+
+        try {
+          agentMd = await readFile(agentMdPath, 'utf-8');
+        } catch {
+          agentMd = await readFile(legacyClaudePath, 'utf-8');
+        }
+
+        const description = extractDescription(agentMd);
         const keywords = PACKAGE_KEYWORDS[packageName] || [];
 
         packageCache.set(packageName, {
           name: packageName,
           path: join(packagesDir, packageName),
           description,
-          claudeMd,
+          agentMd,
           keywords,
         });
       } catch (_error) {}
@@ -269,16 +278,16 @@ export async function getAllPackages(): Promise<PackageMetadata[]> {
 }
 
 /**
- * Get the raw CLAUDE.md content for a package.
+ * Get the raw AGENT.md content for a package.
  *
  * @param name - Short package name (e.g. `"ai"`, `"sql"`)
- * @returns CLAUDE.md content string, or `undefined` if the package is not found
+ * @returns AGENT.md content string, or `undefined` if the package is not found
  */
 export async function getPackageDocs(
   name: string,
 ): Promise<string | undefined> {
   const pkg = await getPackage(name);
-  return pkg?.claudeMd;
+  return pkg?.agentMd;
 }
 
 /**

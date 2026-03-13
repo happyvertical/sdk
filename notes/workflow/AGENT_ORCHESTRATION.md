@@ -43,7 +43,7 @@ The SDK includes specialized agents for specific workflows.
 
 **Responsibilities**:
 - Verify testing standards (TESTING_STANDARD.md)
-- Verify coding standards (CLAUDE.md)
+- Verify coding standards (AGENT.md)
 - Check Definition of Done
 - Coordinate Gemini code review (via MCP)
 - Auto-fix issues when possible

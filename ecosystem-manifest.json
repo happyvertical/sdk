@@ -1,0 +1,1787 @@
+{
+  "schemaVersion": 1,
+  "workspace": {
+    "name": "@happyvertical/sdk",
+    "path": ".",
+    "packageCount": 29,
+    "localPackageOrder": [
+      "accounting",
+      "ai",
+      "analytics",
+      "auth",
+      "cache",
+      "comfyui",
+      "directory",
+      "documents",
+      "email",
+      "encryption",
+      "files",
+      "geo",
+      "github-actions",
+      "graphql",
+      "images",
+      "jobs",
+      "json",
+      "logger",
+      "messages",
+      "projects",
+      "repos",
+      "sdk-mcp",
+      "secrets",
+      "social",
+      "sql",
+      "translator",
+      "utils",
+      "video",
+      "weather"
+    ],
+    "externalCatalogPackages": [
+      "@happyvertical/ocr",
+      "@happyvertical/pdf",
+      "@happyvertical/spider"
+    ]
+  },
+  "packages": [
+    {
+      "name": "@happyvertical/accounting",
+      "shortName": "accounting",
+      "path": "packages/accounting",
+      "docs": {
+        "agent": "packages/accounting/AGENT.md",
+        "metadata": "packages/accounting/metadata.json"
+      },
+      "position": {
+        "index": 1,
+        "count": 29
+      },
+      "description": "Multi-provider accounting integration for AR/AP sync and audit with QuickBooks, Stripe, and more",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/accounting build",
+        "test": "pnpm --filter @happyvertical/accounting test",
+        "clean": "pnpm --filter @happyvertical/accounting clean"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/accounting build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/accounting clean` followed by `pnpm --filter @happyvertical/accounting build` and `pnpm --filter @happyvertical/accounting test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Multi-provider accounting integration for AR/AP sync and audit with QuickBooks, Stripe, and more"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/utils"
+        ],
+        "externalHappyVertical": [],
+        "external": [
+          "intuit-oauth"
+        ]
+      },
+      "dependents": [],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "accounting"
+      ]
+    },
+    {
+      "name": "@happyvertical/ai",
+      "shortName": "ai",
+      "path": "packages/ai",
+      "docs": {
+        "agent": "packages/ai/AGENT.md",
+        "metadata": "packages/ai/metadata.json"
+      },
+      "position": {
+        "index": 2,
+        "count": 29
+      },
+      "description": "Standardized AI interface supporting OpenAI, Anthropic, Google Gemini, AWS Bedrock, and Hugging Face with unified API",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/ai build",
+        "test": "pnpm --filter @happyvertical/ai test",
+        "clean": "pnpm --filter @happyvertical/ai clean"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/ai build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/ai clean` followed by `pnpm --filter @happyvertical/ai build` and `pnpm --filter @happyvertical/ai test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Standardized AI interface supporting OpenAI, Anthropic, Google Gemini, AWS Bedrock, and Hugging Face with unified API"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/utils"
+        ],
+        "externalHappyVertical": [],
+        "external": [
+          "@anthropic-ai/sdk",
+          "@aws-sdk/client-bedrock-runtime",
+          "@google/genai",
+          "openai"
+        ]
+      },
+      "dependents": [
+        "@happyvertical/sdk-mcp"
+      ],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "ai"
+      ]
+    },
+    {
+      "name": "@happyvertical/analytics",
+      "shortName": "analytics",
+      "path": "packages/analytics",
+      "docs": {
+        "agent": "packages/analytics/AGENT.md",
+        "metadata": "packages/analytics/metadata.json"
+      },
+      "position": {
+        "index": 3,
+        "count": 29
+      },
+      "description": "Unified analytics interface for Google Analytics 4, Plausible, and more",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/analytics build",
+        "test": "pnpm --filter @happyvertical/analytics test",
+        "clean": "pnpm --filter @happyvertical/analytics clean"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/analytics build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/analytics clean` followed by `pnpm --filter @happyvertical/analytics build` and `pnpm --filter @happyvertical/analytics test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Unified analytics interface for Google Analytics 4, Plausible, and more"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/utils"
+        ],
+        "externalHappyVertical": [],
+        "external": [
+          "googleapis"
+        ]
+      },
+      "dependents": [],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "analytics"
+      ]
+    },
+    {
+      "name": "@happyvertical/auth",
+      "shortName": "auth",
+      "path": "packages/auth",
+      "docs": {
+        "agent": "packages/auth/AGENT.md",
+        "metadata": "packages/auth/metadata.json"
+      },
+      "position": {
+        "index": 4,
+        "count": 29
+      },
+      "description": "Unified authentication interface supporting Keycloak, AWS Cognito, and Nostr with OAuth2/OIDC and public key identity",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/auth build",
+        "test": "pnpm --filter @happyvertical/auth test",
+        "clean": "pnpm --filter @happyvertical/auth clean"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/auth build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/auth clean` followed by `pnpm --filter @happyvertical/auth build` and `pnpm --filter @happyvertical/auth test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Unified authentication interface supporting Keycloak, AWS Cognito, and Nostr with OAuth2/OIDC and public key identity"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/utils"
+        ],
+        "externalHappyVertical": [],
+        "external": [
+          "@aws-sdk/client-cognito-identity-provider",
+          "jose",
+          "nostr-tools"
+        ]
+      },
+      "dependents": [],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "auth"
+      ]
+    },
+    {
+      "name": "@happyvertical/cache",
+      "shortName": "cache",
+      "path": "packages/cache",
+      "docs": {
+        "agent": "packages/cache/AGENT.md",
+        "metadata": "packages/cache/metadata.json"
+      },
+      "position": {
+        "index": 5,
+        "count": 29
+      },
+      "description": "Standardized caching interface supporting Memory, File, and Redis backends",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/cache build",
+        "test": "pnpm --filter @happyvertical/cache test",
+        "clean": "pnpm --filter @happyvertical/cache clean"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/cache build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/cache clean` followed by `pnpm --filter @happyvertical/cache build` and `pnpm --filter @happyvertical/cache test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Standardized caching interface supporting Memory, File, and Redis backends"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/utils"
+        ],
+        "externalHappyVertical": [],
+        "external": [
+          "@aws-sdk/client-s3",
+          "@aws-sdk/credential-providers",
+          "redis"
+        ]
+      },
+      "dependents": [
+        "@happyvertical/geo",
+        "@happyvertical/translator"
+      ],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "cache"
+      ]
+    },
+    {
+      "name": "@happyvertical/comfyui",
+      "shortName": "comfyui",
+      "path": "packages/comfyui",
+      "docs": {
+        "agent": "packages/comfyui/AGENT.md",
+        "metadata": "packages/comfyui/metadata.json"
+      },
+      "position": {
+        "index": 6,
+        "count": 29
+      },
+      "description": "ComfyUI API client for workflow orchestration and video generation",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/comfyui build",
+        "test": "pnpm --filter @happyvertical/comfyui test",
+        "clean": "pnpm --filter @happyvertical/comfyui clean"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/logger build`, `pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/comfyui build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/comfyui clean` followed by `pnpm --filter @happyvertical/comfyui build` and `pnpm --filter @happyvertical/comfyui test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "ComfyUI API client for workflow orchestration and video generation"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/logger",
+          "@happyvertical/utils"
+        ],
+        "externalHappyVertical": [],
+        "external": []
+      },
+      "dependents": [],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "comfyui"
+      ]
+    },
+    {
+      "name": "@happyvertical/directory",
+      "shortName": "directory",
+      "path": "packages/directory",
+      "docs": {
+        "agent": "packages/directory/AGENT.md",
+        "metadata": "packages/directory/metadata.json"
+      },
+      "position": {
+        "index": 7,
+        "count": 29
+      },
+      "description": "Unified directory services with adapter-based architecture (Kanidm, Stalwart, PostgreSQL, AWS)",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/directory build",
+        "test": "pnpm --filter @happyvertical/directory test",
+        "typecheck": "pnpm --filter @happyvertical/directory typecheck",
+        "clean": "pnpm --filter @happyvertical/directory clean"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/directory build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/directory clean` followed by `pnpm --filter @happyvertical/directory build` and `pnpm --filter @happyvertical/directory test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Unified directory services with adapter-based architecture (Kanidm, Stalwart, PostgreSQL, AWS)"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/utils"
+        ],
+        "externalHappyVertical": [],
+        "external": [
+          "@aws-sdk/client-iam",
+          "@aws-sdk/client-organizations",
+          "pg"
+        ]
+      },
+      "dependents": [],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "directory"
+      ]
+    },
+    {
+      "name": "@happyvertical/documents",
+      "shortName": "documents",
+      "path": "packages/documents",
+      "docs": {
+        "agent": "packages/documents/AGENT.md",
+        "metadata": "packages/documents/metadata.json"
+      },
+      "position": {
+        "index": 8,
+        "count": 29
+      },
+      "description": "Multi-part document processing with support for PDF, HTML, and Markdown",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/documents build",
+        "test": "pnpm --filter @happyvertical/documents test"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/files build`, `pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/documents build`.",
+        "If a change only affects runtime behavior, rerun `pnpm --filter @happyvertical/documents test` after rebuilding the package to confirm the failure is local.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Multi-part document processing with support for PDF, HTML, and Markdown"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/files",
+          "@happyvertical/utils"
+        ],
+        "externalHappyVertical": [
+          "@happyvertical/ocr",
+          "@happyvertical/pdf",
+          "@happyvertical/spider"
+        ],
+        "external": [
+          "uuid"
+        ]
+      },
+      "dependents": [],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "documents"
+      ]
+    },
+    {
+      "name": "@happyvertical/email",
+      "shortName": "email",
+      "path": "packages/email",
+      "docs": {
+        "agent": "packages/email/AGENT.md",
+        "metadata": "packages/email/metadata.json"
+      },
+      "position": {
+        "index": 9,
+        "count": 29
+      },
+      "description": "Low-level email protocol operations with adapter-based architecture",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/email build",
+        "test": "pnpm --filter @happyvertical/email test",
+        "typecheck": "pnpm --filter @happyvertical/email typecheck",
+        "clean": "pnpm --filter @happyvertical/email clean"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/logger build`, `pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/email build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/email clean` followed by `pnpm --filter @happyvertical/email build` and `pnpm --filter @happyvertical/email test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Low-level email protocol operations with adapter-based architecture"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/logger",
+          "@happyvertical/utils"
+        ],
+        "externalHappyVertical": [],
+        "external": [
+          "google-auth-library",
+          "googleapis",
+          "imapflow",
+          "mailparser",
+          "node-pop3",
+          "nodemailer"
+        ]
+      },
+      "dependents": [
+        "@happyvertical/messages"
+      ],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "email"
+      ]
+    },
+    {
+      "name": "@happyvertical/encryption",
+      "shortName": "encryption",
+      "path": "packages/encryption",
+      "docs": {
+        "agent": "packages/encryption/AGENT.md",
+        "metadata": "packages/encryption/metadata.json"
+      },
+      "position": {
+        "index": 10,
+        "count": 29
+      },
+      "description": "Unified encryption and cryptography operations with adapter-based architecture",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/encryption build",
+        "test": "pnpm --filter @happyvertical/encryption test",
+        "typecheck": "pnpm --filter @happyvertical/encryption typecheck"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/logger build`, `pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/encryption build`.",
+        "If you hit type-only regressions, run `pnpm --filter @happyvertical/encryption typecheck` before rerunning the package build or tests to isolate the failing surface.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Unified encryption and cryptography operations with adapter-based architecture"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/logger",
+          "@happyvertical/utils"
+        ],
+        "externalHappyVertical": [],
+        "external": [
+          "@openpgp/web-stream-tools",
+          "openpgp",
+          "tweetnacl",
+          "tweetnacl-util"
+        ]
+      },
+      "dependents": [],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "encryption"
+      ]
+    },
+    {
+      "name": "@happyvertical/files",
+      "shortName": "files",
+      "path": "packages/files",
+      "docs": {
+        "agent": "packages/files/AGENT.md",
+        "metadata": "packages/files/metadata.json"
+      },
+      "position": {
+        "index": 11,
+        "count": 29
+      },
+      "description": "File system utilities for local and remote file operations",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/files build",
+        "test": "pnpm --filter @happyvertical/files test",
+        "clean": "pnpm --filter @happyvertical/files clean"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/files build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/files clean` followed by `pnpm --filter @happyvertical/files build` and `pnpm --filter @happyvertical/files test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "File system utilities for local and remote file operations"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/utils"
+        ],
+        "externalHappyVertical": [],
+        "external": [
+          "google-auth-library",
+          "googleapis"
+        ]
+      },
+      "dependents": [
+        "@happyvertical/documents",
+        "@happyvertical/sdk-mcp"
+      ],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "files"
+      ]
+    },
+    {
+      "name": "@happyvertical/geo",
+      "shortName": "geo",
+      "path": "packages/geo",
+      "docs": {
+        "agent": "packages/geo/AGENT.md",
+        "metadata": "packages/geo/metadata.json"
+      },
+      "position": {
+        "index": 12,
+        "count": 29
+      },
+      "description": "Standardized geographical information interface supporting Google Maps and OpenStreetMap",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/geo build",
+        "test": "pnpm --filter @happyvertical/geo test",
+        "clean": "pnpm --filter @happyvertical/geo clean"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/cache build`, `pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/geo build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/geo clean` followed by `pnpm --filter @happyvertical/geo build` and `pnpm --filter @happyvertical/geo test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Standardized geographical information interface supporting Google Maps and OpenStreetMap"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/cache",
+          "@happyvertical/utils"
+        ],
+        "externalHappyVertical": [],
+        "external": [
+          "@googlemaps/google-maps-services-js"
+        ]
+      },
+      "dependents": [],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "geo"
+      ]
+    },
+    {
+      "name": "@happyvertical/github-actions",
+      "shortName": "github-actions",
+      "path": "packages/github-actions",
+      "docs": {
+        "agent": "packages/github-actions/AGENT.md",
+        "metadata": "packages/github-actions/metadata.json"
+      },
+      "position": {
+        "index": 13,
+        "count": 29
+      },
+      "description": "Reusable GitHub Actions utilities for issue triage, PR validation, and workflow automation",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/github-actions build",
+        "test": "pnpm --filter @happyvertical/github-actions test",
+        "clean": "pnpm --filter @happyvertical/github-actions clean"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/projects build`, `pnpm --filter @happyvertical/repos build`) and then rerun `pnpm --filter @happyvertical/github-actions build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/github-actions clean` followed by `pnpm --filter @happyvertical/github-actions build` and `pnpm --filter @happyvertical/github-actions test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Reusable GitHub Actions utilities for issue triage, PR validation, and workflow automation"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/projects",
+          "@happyvertical/repos"
+        ],
+        "externalHappyVertical": [],
+        "external": []
+      },
+      "dependents": [],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "github",
+        "actions"
+      ]
+    },
+    {
+      "name": "@happyvertical/graphql",
+      "shortName": "graphql",
+      "path": "packages/graphql",
+      "docs": {
+        "agent": "packages/graphql/AGENT.md",
+        "metadata": "packages/graphql/metadata.json"
+      },
+      "position": {
+        "index": 14,
+        "count": 29
+      },
+      "description": "GitHub GraphQL client for SDK packages",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/graphql build",
+        "test": "pnpm --filter @happyvertical/graphql test",
+        "clean": "pnpm --filter @happyvertical/graphql clean"
+      },
+      "correctionLoops": [
+        "If Vite or TypeScript reports missing packages, run `pnpm install` at the repo root and rerun `pnpm --filter @happyvertical/graphql build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/graphql clean` followed by `pnpm --filter @happyvertical/graphql build` and `pnpm --filter @happyvertical/graphql test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "GitHub GraphQL client for SDK packages"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [],
+        "externalHappyVertical": [],
+        "external": []
+      },
+      "dependents": [
+        "@happyvertical/projects",
+        "@happyvertical/repos"
+      ],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "graphql"
+      ]
+    },
+    {
+      "name": "@happyvertical/images",
+      "shortName": "images",
+      "path": "packages/images",
+      "docs": {
+        "agent": "packages/images/AGENT.md",
+        "metadata": "packages/images/metadata.json"
+      },
+      "position": {
+        "index": 15,
+        "count": 29
+      },
+      "description": "Image processing utilities with adapter pattern for scaling from static to enterprise",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/images build",
+        "test": "pnpm --filter @happyvertical/images test",
+        "clean": "pnpm --filter @happyvertical/images clean"
+      },
+      "correctionLoops": [
+        "If Vite or TypeScript reports missing packages, run `pnpm install` at the repo root and rerun `pnpm --filter @happyvertical/images build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/images clean` followed by `pnpm --filter @happyvertical/images build` and `pnpm --filter @happyvertical/images test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Image processing utilities with adapter pattern for scaling from static to enterprise"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [],
+        "externalHappyVertical": [],
+        "external": [
+          "@resvg/resvg-js",
+          "jimp",
+          "satori",
+          "sharp"
+        ]
+      },
+      "dependents": [],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "images"
+      ]
+    },
+    {
+      "name": "@happyvertical/jobs",
+      "shortName": "jobs",
+      "path": "packages/jobs",
+      "docs": {
+        "agent": "packages/jobs/AGENT.md",
+        "metadata": "packages/jobs/metadata.json"
+      },
+      "position": {
+        "index": 16,
+        "count": 29
+      },
+      "description": "Job queue abstraction with multiple backend adapters (SQLite, PostgreSQL, Bull, SQS)",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/jobs build",
+        "test": "pnpm --filter @happyvertical/jobs test",
+        "clean": "pnpm --filter @happyvertical/jobs clean"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/sql build`, `pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/jobs build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/jobs clean` followed by `pnpm --filter @happyvertical/jobs build` and `pnpm --filter @happyvertical/jobs test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Job queue abstraction with multiple backend adapters (SQLite, PostgreSQL, Bull, SQS)"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/sql",
+          "@happyvertical/utils"
+        ],
+        "externalHappyVertical": [],
+        "external": [
+          "@aws-sdk/client-sqs",
+          "@google-cloud/tasks",
+          "bull",
+          "bullmq"
+        ]
+      },
+      "dependents": [],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "jobs"
+      ]
+    },
+    {
+      "name": "@happyvertical/json",
+      "shortName": "json",
+      "path": "packages/json",
+      "docs": {
+        "agent": "packages/json/AGENT.md",
+        "metadata": "packages/json/metadata.json"
+      },
+      "position": {
+        "index": 17,
+        "count": 29
+      },
+      "description": "High-performance JSON parsing and serialization with Rust SIMD acceleration and automatic fallback",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/json build",
+        "test": "pnpm --filter @happyvertical/json test",
+        "typecheck": "pnpm --filter @happyvertical/json typecheck",
+        "lint": "pnpm --filter @happyvertical/json lint",
+        "clean": "pnpm --filter @happyvertical/json clean"
+      },
+      "correctionLoops": [
+        "If Vite or TypeScript reports missing packages, run `pnpm install` at the repo root and rerun `pnpm --filter @happyvertical/json build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/json clean` followed by `pnpm --filter @happyvertical/json build` and `pnpm --filter @happyvertical/json test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "High-performance JSON parsing and serialization with Rust SIMD acceleration and automatic fallback"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [],
+        "externalHappyVertical": [],
+        "external": []
+      },
+      "dependents": [],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "json"
+      ]
+    },
+    {
+      "name": "@happyvertical/logger",
+      "shortName": "logger",
+      "path": "packages/logger",
+      "docs": {
+        "agent": "packages/logger/AGENT.md",
+        "metadata": "packages/logger/metadata.json"
+      },
+      "position": {
+        "index": 18,
+        "count": 29
+      },
+      "description": "Structured logging for HAVE SDK with signal adapter",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/logger build",
+        "test": "pnpm --filter @happyvertical/logger test",
+        "typecheck": "pnpm --filter @happyvertical/logger typecheck"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/logger build`.",
+        "If you hit type-only regressions, run `pnpm --filter @happyvertical/logger typecheck` before rerunning the package build or tests to isolate the failing surface.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Structured logging for HAVE SDK with signal adapter"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/utils"
+        ],
+        "externalHappyVertical": [],
+        "external": [
+          "@sentry/node"
+        ]
+      },
+      "dependents": [
+        "@happyvertical/comfyui",
+        "@happyvertical/email",
+        "@happyvertical/encryption",
+        "@happyvertical/messages",
+        "@happyvertical/social",
+        "@happyvertical/video"
+      ],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "logger"
+      ]
+    },
+    {
+      "name": "@happyvertical/messages",
+      "shortName": "messages",
+      "path": "packages/messages",
+      "docs": {
+        "agent": "packages/messages/AGENT.md",
+        "metadata": "packages/messages/metadata.json"
+      },
+      "position": {
+        "index": 19,
+        "count": 29
+      },
+      "description": "Unified multi-channel messaging with adapter-based architecture (Slack, Twitter, Email)",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/messages build",
+        "test": "pnpm --filter @happyvertical/messages test",
+        "typecheck": "pnpm --filter @happyvertical/messages typecheck",
+        "clean": "pnpm --filter @happyvertical/messages clean"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/email build`, `pnpm --filter @happyvertical/logger build`, `pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/messages build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/messages clean` followed by `pnpm --filter @happyvertical/messages build` and `pnpm --filter @happyvertical/messages test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Unified multi-channel messaging with adapter-based architecture (Slack, Twitter, Email)"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/email",
+          "@happyvertical/logger",
+          "@happyvertical/utils"
+        ],
+        "externalHappyVertical": [],
+        "external": [
+          "@slack/web-api"
+        ]
+      },
+      "dependents": [],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "messages"
+      ]
+    },
+    {
+      "name": "@happyvertical/projects",
+      "shortName": "projects",
+      "path": "packages/projects",
+      "docs": {
+        "agent": "packages/projects/AGENT.md",
+        "metadata": "packages/projects/metadata.json"
+      },
+      "position": {
+        "index": 20,
+        "count": 29
+      },
+      "description": "Standardized project management interface for GitHub Projects, Jira, ZenHub, and Linear",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/projects build",
+        "test": "pnpm --filter @happyvertical/projects test",
+        "clean": "pnpm --filter @happyvertical/projects clean"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/graphql build`, `pnpm --filter @happyvertical/repos build`) and then rerun `pnpm --filter @happyvertical/projects build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/projects clean` followed by `pnpm --filter @happyvertical/projects build` and `pnpm --filter @happyvertical/projects test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Standardized project management interface for GitHub Projects, Jira, ZenHub, and Linear"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/graphql",
+          "@happyvertical/repos"
+        ],
+        "externalHappyVertical": [],
+        "external": []
+      },
+      "dependents": [
+        "@happyvertical/github-actions"
+      ],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "projects"
+      ]
+    },
+    {
+      "name": "@happyvertical/repos",
+      "shortName": "repos",
+      "path": "packages/repos",
+      "docs": {
+        "agent": "packages/repos/AGENT.md",
+        "metadata": "packages/repos/metadata.json"
+      },
+      "position": {
+        "index": 21,
+        "count": 29
+      },
+      "description": "Standardized repository interface for GitHub, GitLab, Bitbucket, and Azure DevOps",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/repos build",
+        "test": "pnpm --filter @happyvertical/repos test",
+        "clean": "pnpm --filter @happyvertical/repos clean"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/graphql build`) and then rerun `pnpm --filter @happyvertical/repos build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/repos clean` followed by `pnpm --filter @happyvertical/repos build` and `pnpm --filter @happyvertical/repos test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Standardized repository interface for GitHub, GitLab, Bitbucket, and Azure DevOps"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/graphql"
+        ],
+        "externalHappyVertical": [],
+        "external": [
+          "js-yaml"
+        ]
+      },
+      "dependents": [
+        "@happyvertical/github-actions",
+        "@happyvertical/projects"
+      ],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "repos"
+      ]
+    },
+    {
+      "name": "@happyvertical/sdk-mcp",
+      "shortName": "sdk-mcp",
+      "path": "packages/sdk-mcp",
+      "docs": {
+        "agent": "packages/sdk-mcp/AGENT.md",
+        "metadata": "packages/sdk-mcp/metadata.json"
+      },
+      "position": {
+        "index": 22,
+        "count": 29
+      },
+      "description": "MCP server for HAVE SDK - Routes queries to package experts using AGENT.md files",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/sdk-mcp build",
+        "test": "pnpm --filter @happyvertical/sdk-mcp test",
+        "clean": "pnpm --filter @happyvertical/sdk-mcp clean"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/ai build`, `pnpm --filter @happyvertical/files build`, `pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/sdk-mcp build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/sdk-mcp clean` followed by `pnpm --filter @happyvertical/sdk-mcp build` and `pnpm --filter @happyvertical/sdk-mcp test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "MCP server for HAVE SDK - Routes queries to package experts using AGENT.md files"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/ai",
+          "@happyvertical/files",
+          "@happyvertical/utils"
+        ],
+        "externalHappyVertical": [],
+        "external": [
+          "@modelcontextprotocol/sdk"
+        ]
+      },
+      "dependents": [],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "sdk",
+        "mcp"
+      ]
+    },
+    {
+      "name": "@happyvertical/secrets",
+      "shortName": "secrets",
+      "path": "packages/secrets",
+      "docs": {
+        "agent": "packages/secrets/AGENT.md",
+        "metadata": "packages/secrets/metadata.json"
+      },
+      "position": {
+        "index": 23,
+        "count": 29
+      },
+      "description": "Envelope encryption for per-tenant secret management with pluggable backends",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/secrets build",
+        "test": "pnpm --filter @happyvertical/secrets test",
+        "typecheck": "pnpm --filter @happyvertical/secrets typecheck"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/sql build`, `pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/secrets build`.",
+        "If you hit type-only regressions, run `pnpm --filter @happyvertical/secrets typecheck` before rerunning the package build or tests to isolate the failing surface.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Envelope encryption for per-tenant secret management with pluggable backends"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/sql",
+          "@happyvertical/utils"
+        ],
+        "externalHappyVertical": [],
+        "external": []
+      },
+      "dependents": [],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "secrets"
+      ]
+    },
+    {
+      "name": "@happyvertical/social",
+      "shortName": "social",
+      "path": "packages/social",
+      "docs": {
+        "agent": "packages/social/AGENT.md",
+        "metadata": "packages/social/metadata.json"
+      },
+      "position": {
+        "index": 24,
+        "count": 29
+      },
+      "description": "Social platform adapters for publishing to YouTube, Threads, X, and Bluesky",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/social build",
+        "test": "pnpm --filter @happyvertical/social test",
+        "clean": "pnpm --filter @happyvertical/social clean"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/logger build`, `pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/social build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/social clean` followed by `pnpm --filter @happyvertical/social build` and `pnpm --filter @happyvertical/social test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Social platform adapters for publishing to YouTube, Threads, X, and Bluesky"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/logger",
+          "@happyvertical/utils"
+        ],
+        "externalHappyVertical": [],
+        "external": []
+      },
+      "dependents": [],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "social"
+      ]
+    },
+    {
+      "name": "@happyvertical/sql",
+      "shortName": "sql",
+      "path": "packages/sql",
+      "docs": {
+        "agent": "packages/sql/AGENT.md",
+        "metadata": "packages/sql/metadata.json"
+      },
+      "position": {
+        "index": 25,
+        "count": 29
+      },
+      "description": "Database interface with support for SQLite, PostgreSQL, and DuckDB",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/sql build",
+        "test": "pnpm --filter @happyvertical/sql test",
+        "clean": "pnpm --filter @happyvertical/sql clean"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/sql build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/sql clean` followed by `pnpm --filter @happyvertical/sql build` and `pnpm --filter @happyvertical/sql test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Database interface with support for SQLite, PostgreSQL, and DuckDB"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/utils"
+        ],
+        "externalHappyVertical": [],
+        "external": [
+          "@duckdb/node-api",
+          "@libsql/client",
+          "pg",
+          "sqlite-vss"
+        ]
+      },
+      "dependents": [
+        "@happyvertical/jobs",
+        "@happyvertical/secrets"
+      ],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "sql"
+      ]
+    },
+    {
+      "name": "@happyvertical/translator",
+      "shortName": "translator",
+      "path": "packages/translator",
+      "docs": {
+        "agent": "packages/translator/AGENT.md",
+        "metadata": "packages/translator/metadata.json"
+      },
+      "position": {
+        "index": 26,
+        "count": 29
+      },
+      "description": "Standardized translation interface supporting Google Translate, DeepL, and LibreTranslate",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/translator build",
+        "test": "pnpm --filter @happyvertical/translator test",
+        "clean": "pnpm --filter @happyvertical/translator clean"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/cache build`, `pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/translator build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/translator clean` followed by `pnpm --filter @happyvertical/translator build` and `pnpm --filter @happyvertical/translator test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Standardized translation interface supporting Google Translate, DeepL, and LibreTranslate"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/cache",
+          "@happyvertical/utils"
+        ],
+        "externalHappyVertical": [],
+        "external": [
+          "@google-cloud/translate",
+          "deepl-node"
+        ]
+      },
+      "dependents": [],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "translator"
+      ]
+    },
+    {
+      "name": "@happyvertical/utils",
+      "shortName": "utils",
+      "path": "packages/utils",
+      "docs": {
+        "agent": "packages/utils/AGENT.md",
+        "metadata": "packages/utils/metadata.json"
+      },
+      "position": {
+        "index": 27,
+        "count": 29
+      },
+      "description": "Foundation utilities for ID generation, date parsing, URL handling, string conversion, error handling, and logging",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/utils build",
+        "test": "pnpm --filter @happyvertical/utils test",
+        "clean": "pnpm --filter @happyvertical/utils clean"
+      },
+      "correctionLoops": [
+        "If Vite or TypeScript reports missing packages, run `pnpm install` at the repo root and rerun `pnpm --filter @happyvertical/utils build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/utils clean` followed by `pnpm --filter @happyvertical/utils build` and `pnpm --filter @happyvertical/utils test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Foundation utilities for ID generation, date parsing, URL handling, string conversion, error handling, and logging"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [],
+        "externalHappyVertical": [],
+        "external": [
+          "@paralleldrive/cuid2",
+          "date-fns",
+          "pluralize",
+          "uuid"
+        ]
+      },
+      "dependents": [
+        "@happyvertical/accounting",
+        "@happyvertical/ai",
+        "@happyvertical/analytics",
+        "@happyvertical/auth",
+        "@happyvertical/cache",
+        "@happyvertical/comfyui",
+        "@happyvertical/directory",
+        "@happyvertical/documents",
+        "@happyvertical/email",
+        "@happyvertical/encryption",
+        "@happyvertical/files",
+        "@happyvertical/geo",
+        "@happyvertical/jobs",
+        "@happyvertical/logger",
+        "@happyvertical/messages",
+        "@happyvertical/sdk-mcp",
+        "@happyvertical/secrets",
+        "@happyvertical/social",
+        "@happyvertical/sql",
+        "@happyvertical/translator",
+        "@happyvertical/video",
+        "@happyvertical/weather"
+      ],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "utils"
+      ]
+    },
+    {
+      "name": "@happyvertical/video",
+      "shortName": "video",
+      "path": "packages/video",
+      "docs": {
+        "agent": "packages/video/AGENT.md",
+        "metadata": "packages/video/metadata.json"
+      },
+      "position": {
+        "index": 28,
+        "count": 29
+      },
+      "description": "Video processing utilities with adapter pattern for composition and transcoding",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/video build",
+        "test": "pnpm --filter @happyvertical/video test",
+        "clean": "pnpm --filter @happyvertical/video clean"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/logger build`, `pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/video build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/video clean` followed by `pnpm --filter @happyvertical/video build` and `pnpm --filter @happyvertical/video test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Video processing utilities with adapter pattern for composition and transcoding"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/logger",
+          "@happyvertical/utils"
+        ],
+        "externalHappyVertical": [],
+        "external": [
+          "sharp"
+        ]
+      },
+      "dependents": [],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "video"
+      ]
+    },
+    {
+      "name": "@happyvertical/weather",
+      "shortName": "weather",
+      "path": "packages/weather",
+      "docs": {
+        "agent": "packages/weather/AGENT.md",
+        "metadata": "packages/weather/metadata.json"
+      },
+      "position": {
+        "index": 29,
+        "count": 29
+      },
+      "description": "Weather data provider abstraction for HAppyVertical SDK",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/weather build",
+        "test": "pnpm --filter @happyvertical/weather test",
+        "clean": "pnpm --filter @happyvertical/weather clean"
+      },
+      "correctionLoops": [
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/weather build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/weather clean` followed by `pnpm --filter @happyvertical/weather build` and `pnpm --filter @happyvertical/weather test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Weather data provider abstraction for HAppyVertical SDK"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [
+          "@happyvertical/utils"
+        ],
+        "externalHappyVertical": [],
+        "external": []
+      },
+      "dependents": [],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "weather"
+      ]
+    }
+  ],
+  "relationships": [
+    {
+      "type": "requires",
+      "from": "@happyvertical/accounting",
+      "to": "@happyvertical/utils"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/accounting",
+      "to": "Multi-provider accounting integration for AR/AP sync and audit with QuickBooks, Stripe, and more"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/ai",
+      "to": "@happyvertical/utils"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/ai",
+      "to": "Standardized AI interface supporting OpenAI, Anthropic, Google Gemini, AWS Bedrock, and Hugging Face with unified API"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/analytics",
+      "to": "@happyvertical/utils"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/analytics",
+      "to": "Unified analytics interface for Google Analytics 4, Plausible, and more"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/auth",
+      "to": "@happyvertical/utils"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/auth",
+      "to": "Unified authentication interface supporting Keycloak, AWS Cognito, and Nostr with OAuth2/OIDC and public key identity"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/cache",
+      "to": "@happyvertical/utils"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/cache",
+      "to": "Standardized caching interface supporting Memory, File, and Redis backends"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/comfyui",
+      "to": "@happyvertical/logger"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/comfyui",
+      "to": "@happyvertical/utils"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/comfyui",
+      "to": "ComfyUI API client for workflow orchestration and video generation"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/directory",
+      "to": "@happyvertical/utils"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/directory",
+      "to": "Unified directory services with adapter-based architecture (Kanidm, Stalwart, PostgreSQL, AWS)"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/documents",
+      "to": "@happyvertical/files"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/documents",
+      "to": "@happyvertical/utils"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/documents",
+      "to": "Multi-part document processing with support for PDF, HTML, and Markdown"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/email",
+      "to": "@happyvertical/logger"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/email",
+      "to": "@happyvertical/utils"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/email",
+      "to": "Low-level email protocol operations with adapter-based architecture"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/encryption",
+      "to": "@happyvertical/logger"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/encryption",
+      "to": "@happyvertical/utils"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/encryption",
+      "to": "Unified encryption and cryptography operations with adapter-based architecture"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/files",
+      "to": "@happyvertical/utils"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/files",
+      "to": "File system utilities for local and remote file operations"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/geo",
+      "to": "@happyvertical/cache"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/geo",
+      "to": "@happyvertical/utils"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/geo",
+      "to": "Standardized geographical information interface supporting Google Maps and OpenStreetMap"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/github-actions",
+      "to": "@happyvertical/projects"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/github-actions",
+      "to": "@happyvertical/repos"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/github-actions",
+      "to": "Reusable GitHub Actions utilities for issue triage, PR validation, and workflow automation"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/graphql",
+      "to": "GitHub GraphQL client for SDK packages"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/images",
+      "to": "Image processing utilities with adapter pattern for scaling from static to enterprise"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/jobs",
+      "to": "@happyvertical/sql"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/jobs",
+      "to": "@happyvertical/utils"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/jobs",
+      "to": "Job queue abstraction with multiple backend adapters (SQLite, PostgreSQL, Bull, SQS)"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/json",
+      "to": "High-performance JSON parsing and serialization with Rust SIMD acceleration and automatic fallback"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/logger",
+      "to": "@happyvertical/utils"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/logger",
+      "to": "Structured logging for HAVE SDK with signal adapter"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/messages",
+      "to": "@happyvertical/email"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/messages",
+      "to": "@happyvertical/logger"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/messages",
+      "to": "@happyvertical/utils"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/messages",
+      "to": "Unified multi-channel messaging with adapter-based architecture (Slack, Twitter, Email)"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/projects",
+      "to": "@happyvertical/graphql"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/projects",
+      "to": "@happyvertical/repos"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/projects",
+      "to": "Standardized project management interface for GitHub Projects, Jira, ZenHub, and Linear"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/repos",
+      "to": "@happyvertical/graphql"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/repos",
+      "to": "Standardized repository interface for GitHub, GitLab, Bitbucket, and Azure DevOps"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/sdk-mcp",
+      "to": "@happyvertical/ai"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/sdk-mcp",
+      "to": "@happyvertical/files"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/sdk-mcp",
+      "to": "@happyvertical/utils"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/sdk-mcp",
+      "to": "MCP server for HAVE SDK - Routes queries to package experts using AGENT.md files"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/secrets",
+      "to": "@happyvertical/sql"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/secrets",
+      "to": "@happyvertical/utils"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/secrets",
+      "to": "Envelope encryption for per-tenant secret management with pluggable backends"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/social",
+      "to": "@happyvertical/logger"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/social",
+      "to": "@happyvertical/utils"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/social",
+      "to": "Social platform adapters for publishing to YouTube, Threads, X, and Bluesky"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/sql",
+      "to": "@happyvertical/utils"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/sql",
+      "to": "Database interface with support for SQLite, PostgreSQL, and DuckDB"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/translator",
+      "to": "@happyvertical/cache"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/translator",
+      "to": "@happyvertical/utils"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/translator",
+      "to": "Standardized translation interface supporting Google Translate, DeepL, and LibreTranslate"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/utils",
+      "to": "Foundation utilities for ID generation, date parsing, URL handling, string conversion, error handling, and logging"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/video",
+      "to": "@happyvertical/logger"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/video",
+      "to": "@happyvertical/utils"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/video",
+      "to": "Video processing utilities with adapter pattern for composition and transcoding"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/weather",
+      "to": "@happyvertical/utils"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/weather",
+      "to": "Weather data provider abstraction for HAppyVertical SDK"
+    }
+  ]
+}

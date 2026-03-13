@@ -35,7 +35,7 @@
     },
     "docs": {
       "dependsOn": ["build"],
-      "inputs": ["src/**", "README.md", "CLAUDE.md", "package.json"],
+      "inputs": ["src/**", "README.md", "AGENT.md", "package.json"],
       "outputs": ["docs/**", "manual/**"]
     },
     "docs:watch": {
