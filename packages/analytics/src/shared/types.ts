@@ -122,10 +122,13 @@ export interface Property {
  */
 export interface ListPropertiesOptions {
   /**
-   * When true, fetch full metadata for each discovered property.
+   * Controls whether the provider should hydrate discovered properties with
+   * full metadata.
    *
-   * This may require an additional API request per property for providers
-   * that only expose lightweight discovery endpoints.
+   * Providers that support hydration should default this to `true` to
+   * preserve the existing `listProperties()` behavior. Set this to `false`
+   * to use discovery-only metadata, which may omit fields like `createTime`,
+   * `updateTime`, `timeZone`, and `currencyCode`.
    */
   hydrate?: boolean;
 }

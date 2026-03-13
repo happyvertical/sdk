@@ -54,6 +54,7 @@ import {
  * Measurement Protocol endpoint
  */
 const MEASUREMENT_PROTOCOL_URL = 'https://www.google-analytics.com/mp/collect';
+const PROPERTY_HYDRATION_CONCURRENCY = 5;
 
 /**
  * Convert null to undefined for optional fields
@@ -143,6 +144,56 @@ export class GA4Provider implements AnalyticsInterface {
   }
 
   /**
+   * Map a Google Analytics property resource to the public Property shape
+   */
+  private mapProperty(
+    property: analyticsadmin_v1beta.Schema$GoogleAnalyticsAdminV1betaProperty,
+  ): Property {
+    return {
+      id: property.name?.replace('properties/', '') || '',
+      name: property.name || '',
+      displayName: property.displayName || '',
+      createTime: property.createTime || '',
+      updateTime: property.updateTime ?? undefined,
+      timeZone: property.timeZone ?? undefined,
+      currencyCode: property.currencyCode ?? undefined,
+      industryCategory: property.industryCategory ?? undefined,
+      serviceLevel: property.serviceLevel as 'STANDARD' | 'PREMIUM' | undefined,
+    };
+  }
+
+  /**
+   * Hydrate discovered properties without firing unbounded concurrent requests
+   */
+  private async hydrateProperties(properties: Property[]): Promise<Property[]> {
+    const hydrated: Property[] = [];
+
+    for (
+      let index = 0;
+      index < properties.length;
+      index += PROPERTY_HYDRATION_CONCURRENCY
+    ) {
+      const batch = properties.slice(
+        index,
+        index + PROPERTY_HYDRATION_CONCURRENCY,
+      );
+      const hydratedBatch = await Promise.all(
+        batch.map(async (property) => {
+          const response = await this.adminClient!.properties.get({
+            name: property.name,
+          });
+
+          return this.mapProperty(response.data);
+        }),
+      );
+
+      hydrated.push(...hydratedBatch);
+    }
+
+    return hydrated;
+  }
+
+  /**
    * Map Google API errors to our error types
    */
   private mapError(error: unknown): AnalyticsError {
@@ -195,21 +246,13 @@ export class GA4Provider implements AnalyticsInterface {
         },
       });
 
-      const property = response.data;
-      return {
-        id: property.name?.replace('properties/', '') || '',
-        name: property.name || '',
-        displayName: property.displayName || '',
-        createTime: property.createTime || new Date().toISOString(),
-        updateTime: property.updateTime ?? undefined,
-        timeZone: property.timeZone ?? undefined,
-        currencyCode: property.currencyCode ?? undefined,
-        industryCategory: property.industryCategory ?? undefined,
-        serviceLevel: property.serviceLevel as
-          | 'STANDARD'
-          | 'PREMIUM'
-          | undefined,
-      };
+      const property = this.mapProperty(response.data);
+
+      if (!property.createTime) {
+        property.createTime = new Date().toISOString();
+      }
+
+      return property;
     } catch (error) {
       throw this.mapError(error);
     }
@@ -251,13 +294,11 @@ export class GA4Provider implements AnalyticsInterface {
 
       const listedProperties = [...properties.values()];
 
-      if (!options?.hydrate) {
+      if (options?.hydrate === false) {
         return listedProperties;
       }
 
-      return Promise.all(
-        listedProperties.map((property) => this.getProperty(property.id)),
-      );
+      return this.hydrateProperties(listedProperties);
     } catch (error) {
       throw this.mapError(error);
     }
@@ -271,18 +312,7 @@ export class GA4Provider implements AnalyticsInterface {
         name: this.getPropertyName(propertyId),
       });
 
-      const p = response.data;
-      return {
-        id: p.name?.replace('properties/', '') || '',
-        name: p.name || '',
-        displayName: p.displayName || '',
-        createTime: p.createTime || '',
-        updateTime: p.updateTime ?? undefined,
-        timeZone: p.timeZone ?? undefined,
-        currencyCode: p.currencyCode ?? undefined,
-        industryCategory: p.industryCategory ?? undefined,
-        serviceLevel: p.serviceLevel as 'STANDARD' | 'PREMIUM' | undefined,
-      };
+      return this.mapProperty(response.data);
     } catch (error) {
       throw this.mapError(error);
     }
@@ -312,18 +342,7 @@ export class GA4Provider implements AnalyticsInterface {
         },
       });
 
-      const p = response.data;
-      return {
-        id: p.name?.replace('properties/', '') || '',
-        name: p.name || '',
-        displayName: p.displayName || '',
-        createTime: p.createTime || '',
-        updateTime: p.updateTime ?? undefined,
-        timeZone: p.timeZone ?? undefined,
-        currencyCode: p.currencyCode ?? undefined,
-        industryCategory: p.industryCategory ?? undefined,
-        serviceLevel: p.serviceLevel as 'STANDARD' | 'PREMIUM' | undefined,
-      };
+      return this.mapProperty(response.data);
     } catch (error) {
       throw this.mapError(error);
     }

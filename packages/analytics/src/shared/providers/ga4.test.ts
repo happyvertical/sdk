@@ -31,6 +31,21 @@ vi.mock('googleapis', () => ({
 import { AuthenticationError } from '../types';
 import { GA4Provider } from './ga4';
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((innerResolve, innerReject) => {
+    resolve = innerResolve;
+    reject = innerReject;
+  });
+
+  return {
+    promise,
+    resolve,
+    reject,
+  };
+}
+
 describe('GA4Provider.listProperties', () => {
   beforeEach(() => {
     mockAccountSummariesList.mockReset();
@@ -38,7 +53,7 @@ describe('GA4Provider.listProperties', () => {
     mockPropertiesGet.mockReset();
   });
 
-  it('lists accessible properties via account summaries pagination', async () => {
+  it('lists accessible properties via account summaries pagination when hydration is disabled', async () => {
     mockAccountSummariesList
       .mockResolvedValueOnce({
         data: {
@@ -95,7 +110,7 @@ describe('GA4Provider.listProperties', () => {
       },
     });
 
-    await expect(provider.listProperties()).resolves.toEqual([
+    await expect(provider.listProperties({ hydrate: false })).resolves.toEqual([
       {
         id: '111',
         name: 'properties/111',
@@ -119,6 +134,7 @@ describe('GA4Provider.listProperties', () => {
       pageSize: 200,
       pageToken: 'page-2',
     });
+    expect(mockPropertiesGet).not.toHaveBeenCalled();
   });
 
   it('maps admin API auth failures to AuthenticationError', async () => {
@@ -151,7 +167,7 @@ describe('GA4Provider.listProperties', () => {
     );
   });
 
-  it('hydrates discovered properties when requested', async () => {
+  it('hydrates discovered properties by default', async () => {
     mockAccountSummariesList.mockResolvedValueOnce({
       data: {
         accountSummaries: [
@@ -217,7 +233,7 @@ describe('GA4Provider.listProperties', () => {
       },
     });
 
-    await expect(provider.listProperties({ hydrate: true })).resolves.toEqual([
+    await expect(provider.listProperties()).resolves.toEqual([
       {
         id: '111',
         name: 'properties/111',
@@ -249,5 +265,93 @@ describe('GA4Provider.listProperties', () => {
     expect(mockPropertiesGet).toHaveBeenNthCalledWith(2, {
       name: 'properties/222',
     });
+  });
+
+  it('hydrates properties in bounded batches to avoid unbounded concurrency', async () => {
+    mockAccountSummariesList.mockResolvedValueOnce({
+      data: {
+        accountSummaries: [
+          {
+            account: 'accounts/100',
+            propertySummaries: Array.from({ length: 6 }, (_, index) => ({
+              property: `properties/${index + 1}`,
+              displayName: `Property ${index + 1}`,
+            })),
+          },
+        ],
+      },
+    });
+
+    const firstBatch = Array.from({ length: 5 }, (_, index) =>
+      createDeferred<{
+        data: { name: string; displayName: string; createTime: string };
+      }>(),
+    );
+    const secondBatch = createDeferred<{
+      data: { name: string; displayName: string; createTime: string };
+    }>();
+
+    mockPropertiesGet.mockImplementation(({ name }: { name: string }) => {
+      const propertyIndex = Number.parseInt(
+        name.replace('properties/', ''),
+        10,
+      );
+
+      if (propertyIndex <= 5) {
+        return firstBatch[propertyIndex - 1].promise;
+      }
+
+      return secondBatch.promise;
+    });
+
+    const provider = new GA4Provider({
+      type: 'ga4',
+      serviceAccountKey: {
+        type: 'service_account',
+        project_id: 'project-id',
+        private_key_id: 'private-key-id',
+        private_key:
+          '-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\n',
+        client_email: 'analytics@example.com',
+        client_id: 'client-id',
+        auth_uri: 'https://accounts.google.com/o/oauth2/auth',
+        token_uri: 'https://oauth2.googleapis.com/token',
+        auth_provider_x509_cert_url:
+          'https://www.googleapis.com/oauth2/v1/certs',
+        client_x509_cert_url:
+          'https://www.googleapis.com/robot/v1/metadata/x509/analytics%40example.com',
+      },
+    });
+
+    const pendingList = provider.listProperties({ hydrate: true });
+    await vi.waitFor(() => {
+      expect(mockPropertiesGet).toHaveBeenCalledTimes(5);
+    });
+
+    firstBatch.forEach((deferred, index) => {
+      deferred.resolve({
+        data: {
+          name: `properties/${index + 1}`,
+          displayName: `Property ${index + 1}`,
+          createTime: `2026-01-0${index + 1}T00:00:00Z`,
+        },
+      });
+    });
+
+    await vi.waitFor(() => {
+      expect(mockPropertiesGet).toHaveBeenCalledTimes(6);
+      expect(mockPropertiesGet).toHaveBeenLastCalledWith({
+        name: 'properties/6',
+      });
+    });
+    secondBatch.resolve({
+      data: {
+        name: 'properties/6',
+        displayName: 'Property 6',
+        createTime: '2026-01-06T00:00:00Z',
+      },
+    });
+
+    await expect(pendingList).resolves.toHaveLength(6);
   });
 });
