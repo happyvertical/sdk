@@ -179,19 +179,14 @@ jobs:
         if: steps.changed-files.outputs.any_changed == 'true'
         uses: ./.github/actions/setup-environment
         with:
-          node-version: '22'
+          node-version: '24'
 
       - name: Build documentation site
         id: build
         if: steps.changed-files.outputs.any_changed == 'true'
-        # Pre-existing Docusaurus SSR issue (require.resolveWeak) — non-blocking
-        # until upstream fix lands
-        continue-on-error: true
-        run: |
-          cd docs
-          npm run build
+        run: pnpm run docs:site:build
         env:
-          NODE_OPTIONS: '--max-old-space-size=4096'
+          NODE_OPTIONS: '--max-old-space-size=8192'
 
       - name: Documentation build summary
         if: steps.changed-files.outputs.any_changed == 'true'
