@@ -1,5 +1,14 @@
 # @happyvertical/sdk-mcp
 
+## 0.71.17
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.71.17
+  - @happyvertical/ai@0.71.17
+  - @happyvertical/files@0.71.17
+
 ## 0.71.16
 
 ### Patch Changes
@@ -1143,7 +1152,7 @@
 
 - ea37688: fix(sdk-mcp): correct package names in vite external config
 
-  Changed @have/_ to @happyvertical/_ in rollup external configuration to match actual package imports. This fixes build failures where vite could not resolve openai import from ai package dist folder.
+  Changed @happyvertical/_ imports in rollup external configuration to match actual package names. This fixes build failures where vite could not resolve openai import from ai package dist folder.
 
 ## 0.55.3
 

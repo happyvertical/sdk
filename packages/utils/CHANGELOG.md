@@ -1,5 +1,21 @@
 # @happyvertical/utils
 
+## 0.71.17
+
+### Patch Changes
+
+- ### Features
+
+  - migrate agent context to AGENT.md (#902) (config)
+  - add onUsage callback and usageTags for usage tracking (#898) (ai)
+
+  ### Bug Fixes
+
+  - harden squash-merge release detection (#905) (ci)
+  - repair GA4 property discovery (analytics)
+  - bound GA4 hydration requests (analytics)
+  - unblock documentation builds (#899)
+
 ## 0.71.16
 
 ### Patch Changes
