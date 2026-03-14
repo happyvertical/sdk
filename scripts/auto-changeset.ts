@@ -25,6 +25,8 @@ interface ParsedCommit {
   hash: string;
 }
 
+const CONVENTIONAL_COMMIT_REGEX = /^(\w+)(?:\(([^)]+)\))?(!)?:\s*(.+)$/;
+
 function exec(command: string): string {
   try {
     return execSync(command, { encoding: 'utf-8' }).trim();
@@ -52,25 +54,20 @@ function getCommitsSinceLastRelease(): string[] {
   if (!commits) return [];
 
   // Split on null byte (not newline) to handle multi-line commit bodies
-  return commits.split('\x00').map((s) => s.trim()).filter(Boolean);
+  return commits
+    .split('\x00')
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
-function parseConventionalCommit(commitLine: string): ParsedCommit | null {
-  const [hash, subject, body] = commitLine.split('|||');
-
-  // Skip if subject is undefined or empty
-  if (!subject) {
-    console.log(
-      `Skipping commit with empty subject: ${hash?.substring(0, 7) || 'unknown'}`,
-    );
-    return null;
-  }
-
-  // Match conventional commit format: type(scope)!: message
-  const match = subject.match(/^(\w+)(?:\(([^)]+)\))?(!)?:\s*(.+)$/);
+function parseConventionalSubject(
+  subject: string,
+  body: string | undefined,
+  hash: string,
+): ParsedCommit | null {
+  const match = subject.match(CONVENTIONAL_COMMIT_REGEX);
 
   if (!match) {
-    console.log(`Skipping non-conventional commit: ${subject}`);
     return null;
   }
 
@@ -89,6 +86,54 @@ function parseConventionalCommit(commitLine: string): ParsedCommit | null {
   };
 }
 
+function parseConventionalCommitsFromBody(
+  hash: string,
+  body: string | undefined,
+): ParsedCommit[] {
+  if (!body) {
+    return [];
+  }
+
+  const parsedCommits = body
+    .split('\n')
+    .map((line) => line.replaceAll(String.fromCharCode(0), '').trim())
+    .filter(Boolean)
+    .map((line) => line.replace(/^[-*]\s+/, ''))
+    .map((line, index) =>
+      parseConventionalSubject(line, undefined, `${hash}-${index}`),
+    )
+    .filter((commit): commit is ParsedCommit => commit !== null);
+
+  if (parsedCommits.length > 0) {
+    console.log(
+      `Using ${parsedCommits.length} conventional commit(s) from squash body: ${hash.substring(0, 7)}`,
+    );
+  }
+
+  return parsedCommits;
+}
+
+function parseConventionalCommit(commitLine: string): ParsedCommit[] {
+  const [hash, subject, body] = commitLine.split('|||');
+
+  // Skip if subject is undefined or empty
+  if (!subject) {
+    console.log(
+      `Skipping commit with empty subject: ${hash?.substring(0, 7) || 'unknown'}`,
+    );
+    return [];
+  }
+
+  const parsedSubject = parseConventionalSubject(subject, body, hash);
+
+  if (parsedSubject) {
+    return [parsedSubject];
+  }
+
+  console.log(`Skipping non-conventional commit subject: ${subject}`);
+  return parseConventionalCommitsFromBody(hash, body);
+}
+
 function determineVersionBump(
   commits: ParsedCommit[],
 ): 'major' | 'minor' | 'patch' | null {
@@ -101,9 +146,7 @@ function determineVersionBump(
 
   const hasFeature = commits.some((c) => c.type === 'feat');
   const hasFix = commits.some((c) => ['fix', 'perf'].includes(c.type));
-  const hasDeps = commits.some(
-    (c) => c.type === 'chore' && c.scope === 'deps',
-  );
+  const hasDeps = commits.some((c) => c.type === 'chore' && c.scope === 'deps');
 
   if (hasFeature || hasFix || hasDeps) return 'patch';
 
@@ -117,9 +160,7 @@ function generateChangesetContent(
   const features = commits.filter((c) => c.type === 'feat');
   const fixes = commits.filter((c) => c.type === 'fix');
   const breaking = commits.filter((c) => c.breaking);
-  const deps = commits.filter(
-    (c) => c.type === 'chore' && c.scope === 'deps',
-  );
+  const deps = commits.filter((c) => c.type === 'chore' && c.scope === 'deps');
 
   let content = `---\n`;
   // Use @happyvertical/utils as representative package (all packages in fixed group will bump together)
@@ -157,7 +198,7 @@ function generateChangesetContent(
     });
   }
 
-  return content.trim() + '\n';
+  return `${content.trim()}\n`;
 }
 
 function hasExistingChangesets(): boolean {
@@ -188,9 +229,7 @@ function main() {
 
   console.log(`📝 Analyzing ${commitLines.length} commits...`);
 
-  const parsedCommits = commitLines
-    .map(parseConventionalCommit)
-    .filter((c): c is ParsedCommit => c !== null);
+  const parsedCommits = commitLines.flatMap(parseConventionalCommit);
 
   if (parsedCommits.length === 0) {
     console.log('ℹ️  No conventional commits found');
@@ -235,4 +274,12 @@ function main() {
   console.log('---');
 }
 
-main();
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main();
+}
+
+export {
+  determineVersionBump,
+  generateChangesetContent,
+  parseConventionalCommit,
+};
