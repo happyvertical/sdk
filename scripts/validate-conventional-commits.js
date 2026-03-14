@@ -7,40 +7,26 @@
  * and can be used in pre-commit hooks or CI/CD pipelines.
  */
 
-import { execSync } from 'child_process';
+import { execSync } from 'node:child_process';
 
 const CONVENTIONAL_COMMIT_TYPES = [
-  'feat',     // New feature
-  'fix',      // Bug fix
-  'docs',     // Documentation changes
-  'style',    // Code style changes (formatting, missing semi-colons, etc)
+  'feat', // New feature
+  'fix', // Bug fix
+  'docs', // Documentation changes
+  'style', // Code style changes (formatting, missing semi-colons, etc)
   'refactor', // Code refactoring
-  'perf',     // Performance improvements
-  'test',     // Adding or modifying tests
-  'build',    // Changes to build system or external dependencies
-  'ci',       // Changes to CI configuration files and scripts
-  'chore',    // Other changes that don't modify src or test files
-  'revert',   // Reverts a previous commit
+  'perf', // Performance improvements
+  'test', // Adding or modifying tests
+  'build', // Changes to build system or external dependencies
+  'ci', // Changes to CI configuration files and scripts
+  'chore', // Other changes that don't modify src or test files
+  'revert', // Reverts a previous commit
 ];
 
-const CONVENTIONAL_COMMIT_REGEX = /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?(!)?: .{1,50}/;
+const CONVENTIONAL_COMMIT_REGEX =
+  /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?(!)?: .{1,50}/;
 
-function getCommits(range = 'HEAD~1..HEAD') {
-  try {
-    const output = execSync(`git log --pretty=format:"%H|%s" ${range}`, { encoding: 'utf8' });
-    return output.trim().split('\n').map(line => {
-      const [hash, message] = line.split('|');
-      return { hash, message };
-    }).filter(commit => commit.hash && commit.message);
-  } catch (error) {
-    console.error('Error getting commits:', error.message);
-    return [];
-  }
-}
-
-function validateCommit(commit) {
-  const { hash, message } = commit;
-
+function validateMessage(message) {
   // Skip merge commits
   if (message.startsWith('Merge ')) {
     return { valid: true, type: 'merge', message: 'Merge commit (skipped)' };
@@ -53,23 +39,68 @@ function validateCommit(commit) {
     return {
       valid: false,
       type: 'invalid',
-      message: `Invalid conventional commit format: "${message}"`
+      message: `Invalid conventional commit format: "${message}"`,
     };
   }
 
   const [, type, scope, breaking] = match;
+  const normalizedScope = scope ? scope.slice(1, -1) : null;
 
   return {
     valid: true,
     type,
-    scope: scope ? scope.slice(1, -1) : null, // Remove parentheses
+    scope: normalizedScope,
     breaking: !!breaking,
-    message: `Valid ${type} commit${scope ? ` (${scope})` : ''}${breaking ? ' [BREAKING]' : ''}`
+    message: `Valid ${type} commit${normalizedScope ? ` (${normalizedScope})` : ''}${breaking ? ' [BREAKING]' : ''}`,
   };
+}
+
+function getCommits(range = 'HEAD~1..HEAD') {
+  try {
+    const output = execSync(`git log --pretty=format:"%H|%s" ${range}`, {
+      encoding: 'utf8',
+    });
+    return output
+      .trim()
+      .split('\n')
+      .map((line) => {
+        const [hash, message] = line.split('|');
+        return { hash, message };
+      })
+      .filter((commit) => commit.hash && commit.message);
+  } catch (error) {
+    console.error('Error getting commits:', error.message);
+    return [];
+  }
+}
+
+function validateCommit(commit) {
+  return validateMessage(commit.message);
 }
 
 function main() {
   const args = process.argv.slice(2);
+  const messageFlagIndex = args.indexOf('--message');
+
+  if (messageFlagIndex !== -1) {
+    const message = args[messageFlagIndex + 1];
+
+    if (!message) {
+      console.error('Missing value for --message');
+      process.exit(1);
+    }
+
+    const validation = validateMessage(message);
+
+    if (!validation.valid) {
+      console.error(`❌ ${validation.message}`);
+      process.exit(1);
+    }
+
+    console.log(`✅ ${validation.message}`);
+    return;
+  }
+
   const range = args[0] || 'HEAD~1..HEAD';
 
   console.log(`Validating commits in range: ${range}`);
@@ -89,7 +120,9 @@ function main() {
     const validation = validateCommit(commit);
 
     const status = validation.valid ? '✅' : '❌';
-    console.log(`${status} ${commit.hash.substring(0, 8)}: ${validation.message}`);
+    console.log(
+      `${status} ${commit.hash.substring(0, 8)}: ${validation.message}`,
+    );
 
     if (!validation.valid) {
       invalidCommits++;
@@ -100,7 +133,9 @@ function main() {
   }
 
   console.log('='.repeat(50));
-  console.log(`Summary: ${validCommits} valid, ${invalidCommits} invalid commits`);
+  console.log(
+    `Summary: ${validCommits} valid, ${invalidCommits} invalid commits`,
+  );
 
   if (invalidCommits > 0) {
     console.log('\nConventional Commit Format:');

@@ -30,6 +30,12 @@ jobs:
         with:
           configFile: .commitlintrc.json
 
+      - name: Validate PR title for squash merge
+        run: |
+          title="${{ github.event.pull_request.title }}"
+          echo "Validating PR title: $title"
+          node scripts/validate-conventional-commits.js --message "$title"
+
       - name: Determine version bump
         id: version
         run: |
