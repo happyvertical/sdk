@@ -1,5 +1,12 @@
 # @happyvertical/encryption
 
+## 0.71.18
+
+### Patch Changes
+
+- @happyvertical/logger@0.71.18
+- @happyvertical/utils@0.71.18
+
 ## 0.71.17
 
 ### Patch Changes
