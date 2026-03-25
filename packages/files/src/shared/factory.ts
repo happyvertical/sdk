@@ -297,6 +297,11 @@ export async function initializeProviders(): Promise<void> {
     return LocalFilesystemProvider;
   });
 
+  registerProvider('s3', async () => {
+    const { S3FilesystemProvider } = await import('../providers/s3.js');
+    return S3FilesystemProvider;
+  });
+
   // Register Google Drive provider
   registerProvider('gdrive', async () => {
     const { GoogleDriveProvider } = await import('../providers/gdrive.js');

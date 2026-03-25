@@ -7,6 +7,7 @@
  *
  * Implemented providers:
  * - **Local**: Node.js filesystem via `fs/promises`
+ * - **S3**: AWS S3 and S3-compatible services such as MinIO
  * - **Google Drive**: Google Drive API v3 (OAuth2, service account, access token)
  *
  * Also exports rate-limited fetch utilities and legacy compatibility functions.
@@ -22,22 +23,6 @@
  *
  * @packageDocumentation
  */
-
-// Export provider classes for direct instantiation if needed
-export { LocalFilesystemProvider } from './node/local';
-export { GoogleDriveProvider } from './providers/gdrive';
-// Export main factory function and types
-export {
-  getAvailableProviders,
-  getFilesystem,
-  getProviderInfo,
-  initializeProviders,
-  isProviderAvailable,
-  registerProvider,
-} from './shared/factory';
-export * from './shared/types';
-
-// Note: S3, WebDAV providers will be available when external dependencies are added
 
 // Re-export fetch utilities with rate limiting
 export {
@@ -63,6 +48,20 @@ export {
   setCached,
   upload,
 } from './legacy';
+// Export provider classes for direct instantiation if needed
+export { LocalFilesystemProvider } from './node/local';
+export { GoogleDriveProvider } from './providers/gdrive';
+export { S3FilesystemProvider } from './providers/s3';
+// Export main factory function and types
+export {
+  getAvailableProviders,
+  getFilesystem,
+  getProviderInfo,
+  initializeProviders,
+  isProviderAvailable,
+  registerProvider,
+} from './shared/factory';
+export * from './shared/types';
 
 // Initialize providers on module load
 // This ensures providers are available immediately after import

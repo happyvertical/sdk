@@ -173,39 +173,15 @@ export async function initializeProviders(): Promise<void> {
     return LocalFilesystemProvider;
   });
 
-  // Note: S3, Google Drive, and WebDAV providers are currently backed up
-  // due to external dependency issues during context-aware transformation.
-  // They can be restored when dependencies are properly handled.
+  registerProvider('s3', async () => {
+    const { S3FilesystemProvider } = await import('./providers/s3.js');
+    return S3FilesystemProvider;
+  });
 
-  // Register S3 provider if dependencies are available
-  // try {
-  //   registerProvider('s3', async () => {
-  //     const { S3FilesystemProvider } = await import('./shared/s3.js');
-  //     return S3FilesystemProvider;
-  //   });
-  // } catch (error) {
-  //   // S3 provider not available, skip silently
-  // }
-
-  // Register Google Drive provider if dependencies are available
-  // try {
-  //   registerProvider('gdrive', async () => {
-  //     const { GoogleDriveFilesystemProvider } = await import('./shared/gdrive.js');
-  //     return GoogleDriveFilesystemProvider;
-  //   });
-  // } catch (error) {
-  //   // Google Drive provider not available, skip silently
-  // }
-
-  // Register WebDAV provider if dependencies are available
-  // try {
-  //   registerProvider('webdav', async () => {
-  //     const { WebDAVFilesystemProvider } = await import('./shared/webdav.js');
-  //     return WebDAVFilesystemProvider;
-  //   });
-  // } catch (error) {
-  //   // WebDAV provider not available, skip silently
-  // }
+  registerProvider('gdrive', async () => {
+    const { GoogleDriveProvider } = await import('./providers/gdrive.js');
+    return GoogleDriveProvider;
+  });
 }
 
 /**
