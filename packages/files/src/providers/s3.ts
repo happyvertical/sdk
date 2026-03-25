@@ -74,11 +74,68 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
     });
   }
 
-  private normalizeS3Path(path: string): string {
-    if (path === '.' || path === '/') {
-      return this.basePath.replace(/^\/+|\/+$/g, '');
+  private normalizeS3Path(
+    path: string,
+    options: { preserveTrailingSlash?: boolean } = {},
+  ): string {
+    const normalized =
+      path === '.' || path === '/'
+        ? this.basePath.replace(/^\/+|\/+$/g, '')
+        : this.normalizePath(path).replace(/^\/+|\/+$/g, '');
+
+    if (!normalized) {
+      return '';
     }
-    return this.normalizePath(path).replace(/^\/+|\/+$/g, '');
+
+    if (
+      options.preserveTrailingSlash &&
+      path !== '.' &&
+      path !== '/' &&
+      /\/+$/.test(path)
+    ) {
+      return `${normalized}/`;
+    }
+
+    return normalized;
+  }
+
+  private toDirectoryKey(path: string): string {
+    const directoryPath = path.endsWith('/') ? path : `${path}/`;
+    return this.normalizeS3Path(directoryPath, {
+      preserveTrailingSlash: true,
+    });
+  }
+
+  private toDirectoryStats(lastModified?: Date): FileStats {
+    const timestamp = toDate(lastModified);
+    return {
+      size: 0,
+      isDirectory: true,
+      isFile: false,
+      birthtime: timestamp,
+      atime: timestamp,
+      mtime: timestamp,
+      ctime: timestamp,
+      mode: 0,
+      uid: 0,
+      gid: 0,
+    };
+  }
+
+  private async headDirectoryMarker(path: string) {
+    const directoryKey = this.toDirectoryKey(path);
+    if (!directoryKey) {
+      return null;
+    }
+
+    try {
+      return await this.head(directoryKey);
+    } catch (error) {
+      if (error instanceof FileNotFoundError) {
+        return null;
+      }
+      throw error;
+    }
   }
 
   private async bodyToBuffer(body: unknown): Promise<Buffer> {
@@ -169,7 +226,9 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
   }
 
   async exists(path: string): Promise<boolean> {
-    const key = this.normalizeS3Path(path);
+    const key = this.normalizeS3Path(path, {
+      preserveTrailingSlash: path.endsWith('/'),
+    });
     if (!key) {
       return true;
     }
@@ -179,6 +238,11 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
       return true;
     } catch (error) {
       if (error instanceof FileNotFoundError) {
+        const directoryMarker = await this.headDirectoryMarker(path);
+        if (directoryMarker) {
+          return true;
+        }
+
         const listing = await this.client.send(
           new ListObjectsV2Command({
             Bucket: this.bucket,
@@ -196,7 +260,9 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
     path: string,
     options: ReadOptions = {},
   ): Promise<string | Buffer> {
-    const key = this.normalizeS3Path(path);
+    const key = this.normalizeS3Path(path, {
+      preserveTrailingSlash: path.endsWith('/'),
+    });
 
     try {
       const response = await this.client.send(
@@ -234,7 +300,9 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
     content: string | Buffer,
     options: WriteOptions = {},
   ): Promise<void> {
-    const key = this.normalizeS3Path(path);
+    const key = this.normalizeS3Path(path, {
+      preserveTrailingSlash: path.endsWith('/'),
+    });
     const body =
       typeof content === 'string'
         ? Buffer.from(content, options.encoding || 'utf8')
@@ -265,8 +333,23 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
   }
 
   async delete(path: string): Promise<void> {
-    const key = this.normalizeS3Path(path);
+    let key = this.normalizeS3Path(path, {
+      preserveTrailingSlash: path.endsWith('/'),
+    });
     try {
+      if (key) {
+        try {
+          const stats = await this.getStats(path);
+          if (stats.isDirectory) {
+            key = this.toDirectoryKey(path);
+          }
+        } catch (error) {
+          if (!(error instanceof FileNotFoundError)) {
+            throw error;
+          }
+        }
+      }
+
       await this.client.send(
         new DeleteObjectCommand({
           Bucket: this.bucket,
@@ -284,8 +367,12 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
   }
 
   async copy(sourcePath: string, destPath: string): Promise<void> {
-    const sourceKey = this.normalizeS3Path(sourcePath);
-    const destKey = this.normalizeS3Path(destPath);
+    const sourceKey = this.normalizeS3Path(sourcePath, {
+      preserveTrailingSlash: sourcePath.endsWith('/'),
+    });
+    const destKey = this.normalizeS3Path(destPath, {
+      preserveTrailingSlash: destPath.endsWith('/'),
+    });
     try {
       await this.client.send(
         new CopyObjectCommand({
@@ -313,15 +400,17 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
     path: string,
     _options: CreateDirOptions = {},
   ): Promise<void> {
-    const key = this.normalizeS3Path(path).replace(/\/?$/, '/');
-    if (!key) {
+    if (!this.toDirectoryKey(path)) {
       return;
     }
-    await this.write(key, Buffer.alloc(0));
+    const directoryPath = path.endsWith('/') ? path : `${path}/`;
+    await this.write(directoryPath, Buffer.alloc(0));
   }
 
   async list(path: string, options: ListOptions = {}): Promise<FileInfo[]> {
-    const prefix = this.normalizeS3Path(path);
+    const prefix = this.normalizeS3Path(path, {
+      preserveTrailingSlash: path.endsWith('/'),
+    });
     const prefixWithSlash = prefix ? `${prefix.replace(/\/+$/, '')}/` : '';
     const response = await this.client.send(
       new ListObjectsV2Command({
@@ -333,6 +422,23 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
 
     const items: FileInfo[] = [];
     const seenDirectories = new Set<string>();
+    const addDirectory = (key: string, lastModified?: Date) => {
+      const directoryKey = key.endsWith('/') ? key : `${key}/`;
+      const normalized = directoryKey.replace(/\/$/, '');
+      if (!normalized || seenDirectories.has(normalized)) {
+        return;
+      }
+      seenDirectories.add(normalized);
+      items.push(
+        this.toFileInfo(directoryKey, { LastModified: lastModified }, true),
+      );
+    };
+
+    for (const prefixEntry of response.CommonPrefixes || []) {
+      if (prefixEntry.Prefix) {
+        addDirectory(prefixEntry.Prefix);
+      }
+    }
 
     for (const entry of response.Contents || []) {
       if (!entry.Key || entry.Key === prefixWithSlash) continue;
@@ -340,18 +446,14 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
         ? entry.Key.slice(prefixWithSlash.length)
         : entry.Key;
 
+      if (entry.Key.endsWith('/')) {
+        addDirectory(entry.Key, entry.LastModified);
+        continue;
+      }
+
       if (!options.recursive && relative.includes('/')) {
         const directory = relative.split('/')[0];
-        if (!seenDirectories.has(directory)) {
-          seenDirectories.add(directory);
-          items.push(
-            this.toFileInfo(
-              `${prefixWithSlash}${directory}/`,
-              { LastModified: entry.LastModified },
-              true,
-            ),
-          );
-        }
+        addDirectory(`${prefixWithSlash}${directory}`, entry.LastModified);
         continue;
       }
 
@@ -369,7 +471,12 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
   }
 
   async getStats(path: string): Promise<FileStats> {
-    const key = this.normalizeS3Path(path);
+    const key = this.normalizeS3Path(path, {
+      preserveTrailingSlash: path.endsWith('/'),
+    });
+    if (!key) {
+      return this.toDirectoryStats();
+    }
 
     try {
       const response = await this.head(key);
@@ -387,6 +494,11 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
       };
     } catch (error) {
       if (error instanceof FileNotFoundError) {
+        const directoryMarker = await this.headDirectoryMarker(path);
+        if (directoryMarker) {
+          return this.toDirectoryStats(directoryMarker.LastModified);
+        }
+
         const listing = await this.client.send(
           new ListObjectsV2Command({
             Bucket: this.bucket,
@@ -395,18 +507,8 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
           }),
         );
         if ((listing.Contents || []).length) {
-          return {
-            size: 0,
-            isDirectory: true,
-            isFile: false,
-            birthtime: new Date(),
-            atime: new Date(),
-            mtime: new Date(),
-            ctime: new Date(),
-            mode: 0,
-            uid: 0,
-            gid: 0,
-          };
+          const [firstEntry] = listing.Contents || [];
+          return this.toDirectoryStats(firstEntry?.LastModified);
         }
       }
       throw error;
@@ -414,7 +516,9 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
   }
 
   async getMimeType(path: string): Promise<string> {
-    const key = this.normalizeS3Path(path);
+    const key = this.normalizeS3Path(path, {
+      preserveTrailingSlash: path.endsWith('/'),
+    });
     try {
       const response = await this.head(key);
       return (
@@ -449,7 +553,13 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
     const buffer = (await this.read(remotePath, { raw: true })) as Buffer;
     const target =
       localPath ||
-      join(tmpdir(), 'happyvertical-files', this.normalizeS3Path(remotePath));
+      join(
+        tmpdir(),
+        'happyvertical-files',
+        this.normalizeS3Path(remotePath, {
+          preserveTrailingSlash: remotePath.endsWith('/'),
+        }),
+      );
     await mkdir(dirname(target), { recursive: true });
     await writeFile(target, buffer);
     return target;
