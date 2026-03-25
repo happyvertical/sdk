@@ -27,7 +27,7 @@ pnpm --filter @happyvertical/files clean
 ## Ecosystem Relationships
 - Provides: File system utilities for local and remote file operations
 - Implements: none
-- Requires: @happyvertical/utils, google-auth-library, googleapis
+- Requires: @happyvertical/utils, @aws-sdk/client-s3, google-auth-library, googleapis
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
 

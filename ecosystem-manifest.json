@@ -556,6 +556,7 @@
         ],
         "externalHappyVertical": [],
         "external": [
+          "@aws-sdk/client-s3",
           "google-auth-library",
           "googleapis"
         ]

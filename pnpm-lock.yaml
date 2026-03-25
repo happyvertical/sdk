@@ -482,6 +482,9 @@ importers:
 
   packages/files:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.940.0
+        version: 3.997.0
       '@happyvertical/utils':
         specifier: workspace:*
         version: link:../utils
