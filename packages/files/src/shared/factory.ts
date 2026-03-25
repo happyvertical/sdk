@@ -170,7 +170,8 @@ function detectProviderType(options: GetFilesystemOptions): string {
 
   if (
     ('clientId' in options && 'clientSecret' in options) ||
-    'serviceAccountKey' in options
+    'serviceAccountKey' in options ||
+    'accessToken' in options
   ) {
     return 'gdrive';
   }

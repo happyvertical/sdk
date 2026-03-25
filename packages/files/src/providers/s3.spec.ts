@@ -5,7 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getFilesystem, getProviderInfo, isProviderAvailable } from '../index';
 import { initializeProviders } from '../shared/factory';
 import type { S3Options } from '../shared/types';
-import { FileNotFoundError, PermissionError } from '../shared/types';
+import {
+  DirectoryNotEmptyError,
+  FileNotFoundError,
+  InvalidPathError,
+  PermissionError,
+} from '../shared/types';
 
 const awsSdkMock = vi.hoisted(() => {
   const mockSend = vi.fn();
@@ -149,6 +154,14 @@ describe('S3FilesystemProvider', () => {
   });
 
   describe('exists', () => {
+    it('treats root paths as existing even when basePath is configured', async () => {
+      const provider = createProvider({ basePath: 'tenant-a' });
+
+      await expect(provider.exists('.')).resolves.toBe(true);
+      await expect(provider.exists('/')).resolves.toBe(true);
+      expect(mockSend).not.toHaveBeenCalled();
+    });
+
     it('checks directories via prefix listing when no exact object key exists', async () => {
       const provider = createProvider();
       mockSend
@@ -322,9 +335,80 @@ describe('S3FilesystemProvider', () => {
         }),
       ]);
     });
+
+    it('follows continuation tokens until all listing pages have been merged', async () => {
+      const provider = createProvider();
+      const modified = new Date('2026-03-25T00:00:00Z');
+      mockSend
+        .mockResolvedValueOnce({
+          IsTruncated: true,
+          NextContinuationToken: 'page-2',
+          CommonPrefixes: [{ Prefix: 'docs/guides/' }],
+          Contents: [{ Key: 'docs/root.txt', LastModified: modified, Size: 4 }],
+        })
+        .mockResolvedValueOnce({
+          IsTruncated: false,
+          CommonPrefixes: [{ Prefix: 'docs/api/' }],
+          Contents: [
+            {
+              Key: 'docs/tutorials/part-1.txt',
+              LastModified: modified,
+              Size: 12,
+            },
+          ],
+        });
+
+      const items = await provider.list('docs');
+
+      expect(mockSend).toHaveBeenCalledTimes(2);
+      expect(getCommandInput(1)).toMatchObject({
+        Bucket: 'imago',
+        Prefix: 'docs/',
+        Delimiter: '/',
+        ContinuationToken: 'page-2',
+      });
+      expect(items).toHaveLength(4);
+      expect(items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            name: 'guides',
+            path: 'docs/guides',
+            isDirectory: true,
+          }),
+          expect.objectContaining({
+            name: 'api',
+            path: 'docs/api',
+            isDirectory: true,
+          }),
+          expect.objectContaining({
+            name: 'tutorials',
+            path: 'docs/tutorials',
+            isDirectory: true,
+          }),
+          expect.objectContaining({
+            name: 'root.txt',
+            path: 'docs/root.txt',
+            isDirectory: false,
+          }),
+        ]),
+      );
+    });
   });
 
   describe('metadata operations', () => {
+    it('returns directory stats for the provider root without probing S3', async () => {
+      const provider = createProvider({ basePath: 'tenant-a' });
+
+      const stats = await provider.getStats('.');
+
+      expect(stats).toMatchObject({
+        size: 0,
+        isFile: false,
+        isDirectory: true,
+      });
+      expect(mockSend).not.toHaveBeenCalled();
+    });
+
     it('returns file stats from HeadObject responses', async () => {
       const provider = createProvider();
       const modified = new Date('2026-03-25T00:00:00Z');
@@ -402,9 +486,37 @@ describe('S3FilesystemProvider', () => {
 
       await provider.delete('docs/reports');
 
-      expect(getCommandInput(2)).toMatchObject({
+      expect(getCommandInput(3)).toMatchObject({
         Bucket: 'imago',
         Key: 'docs/reports/',
+      });
+    });
+
+    it('rejects deleting non-empty directories', async () => {
+      const provider = createProvider();
+      const modified = new Date('2026-03-25T00:00:00Z');
+      mockSend
+        .mockRejectedValueOnce(createS3Error(404, 'NotFound'))
+        .mockRejectedValueOnce(createS3Error(404, 'NotFound'))
+        .mockResolvedValueOnce({
+          Contents: [
+            { Key: 'docs/reports/summary.txt', LastModified: modified },
+          ],
+        })
+        .mockResolvedValueOnce({
+          Contents: [
+            { Key: 'docs/reports/summary.txt', LastModified: modified },
+          ],
+        });
+
+      await expect(provider.delete('docs/reports')).rejects.toThrow(
+        DirectoryNotEmptyError,
+      );
+      expect(mockSend).toHaveBeenCalledTimes(4);
+      expect(getCommandInput(3)).toMatchObject({
+        Bucket: 'imago',
+        Prefix: 'docs/reports/',
+        MaxKeys: 2,
       });
     });
 
@@ -449,6 +561,40 @@ describe('S3FilesystemProvider', () => {
 
       expect(result).toBe(localPath);
       await expect(readFile(localPath, 'utf8')).resolves.toBe('downloaded');
+    });
+
+    it('downloads remote files into the provider cache directory by default', async () => {
+      const dir = await createTempDir();
+      const provider = createProvider({
+        basePath: 'tenant-a',
+        cacheDir: dir,
+      });
+      mockSend.mockResolvedValueOnce({ Body: Buffer.from('downloaded') });
+
+      const result = await provider.download('docs/readme.txt');
+
+      expect(result).toBe(join(dir, 'tenant-a', 'docs', 'readme.txt'));
+      await expect(readFile(result, 'utf8')).resolves.toBe('downloaded');
+    });
+
+    it('rejects unsafe default download targets', async () => {
+      const dir = await createTempDir();
+      const provider = createProvider({ cacheDir: dir });
+      mockSend.mockResolvedValueOnce({ Body: Buffer.from('downloaded') });
+
+      await expect(provider.download('../outside.txt')).rejects.toThrow(
+        InvalidPathError,
+      );
+    });
+  });
+
+  describe('capabilities', () => {
+    it('reports buffered semantics instead of streaming support', async () => {
+      const provider = createProvider();
+
+      await expect(provider.getCapabilities()).resolves.toMatchObject({
+        streaming: false,
+      });
     });
   });
 });

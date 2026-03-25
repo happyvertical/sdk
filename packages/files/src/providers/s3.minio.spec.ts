@@ -9,6 +9,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { DirectoryNotEmptyError } from '../shared/types';
 import { S3FilesystemProvider } from './s3';
 
 const execFileAsync = promisify(execFile);
@@ -207,6 +208,19 @@ describeIfDocker('S3FilesystemProvider (MinIO)', () => {
 
     await provider.delete('staging');
     await expect(provider.exists('staging')).resolves.toBe(false);
+  });
+
+  it('rejects deleting non-empty directories against a real MinIO server', async () => {
+    const provider = createProvider('integration/non-empty-delete');
+
+    await provider.write('reports/2026/summary.json', '{"ok":true}');
+
+    await expect(provider.delete('reports')).rejects.toThrow(
+      DirectoryNotEmptyError,
+    );
+    await expect(provider.exists('reports/2026/summary.json')).resolves.toBe(
+      true,
+    );
   });
 
   it('uploads from disk and downloads back to disk through MinIO', async () => {

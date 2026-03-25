@@ -1,6 +1,5 @@
 import { mkdir, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { dirname, extname, join } from 'node:path';
+import { dirname, extname, relative, resolve, sep } from 'node:path';
 import {
   type _Object,
   CopyObjectCommand,
@@ -14,12 +13,14 @@ import {
 import { BaseFilesystemProvider } from '../shared/base';
 import {
   type CreateDirOptions,
+  DirectoryNotEmptyError,
   type DownloadOptions,
   type FileInfo,
   FileNotFoundError,
   type FileStats,
   type FilesystemCapabilities,
   FilesystemError,
+  InvalidPathError,
   type ListOptions,
   PermissionError,
   type ReadOptions,
@@ -106,6 +107,10 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
     });
   }
 
+  private isRootPath(path: string): boolean {
+    return path === '.' || path === '/';
+  }
+
   private toDirectoryStats(lastModified?: Date): FileStats {
     const timestamp = toDate(lastModified);
     return {
@@ -136,6 +141,57 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
       }
       throw error;
     }
+  }
+
+  private async directoryHasChildren(directoryKey: string): Promise<boolean> {
+    const listing = await this.client.send(
+      new ListObjectsV2Command({
+        Bucket: this.bucket,
+        Prefix: directoryKey,
+        MaxKeys: 2,
+      }),
+    );
+
+    return (listing.Contents || []).some(
+      (entry) => entry.Key && entry.Key !== directoryKey,
+    );
+  }
+
+  private getDefaultDownloadTarget(remotePath: string): string {
+    const normalizedRemotePath = this.normalizeS3Path(remotePath, {
+      preserveTrailingSlash: remotePath.endsWith('/'),
+    });
+    const segments = normalizedRemotePath.split('/').filter(Boolean);
+
+    if (!segments.length) {
+      throw new InvalidPathError(remotePath, 's3');
+    }
+
+    if (
+      segments.some(
+        (segment) =>
+          segment === '..' ||
+          segment === '~' ||
+          segment.startsWith('~') ||
+          /^[A-Za-z]:/.test(segment),
+      )
+    ) {
+      throw new InvalidPathError(remotePath, 's3');
+    }
+
+    const baseDir = resolve(this.cacheDir);
+    const target = resolve(baseDir, ...segments);
+    const targetRelativePath = relative(baseDir, target);
+
+    if (
+      !targetRelativePath ||
+      targetRelativePath === '..' ||
+      targetRelativePath.startsWith(`..${sep}`)
+    ) {
+      throw new InvalidPathError(remotePath, 's3');
+    }
+
+    return target;
   }
 
   private async bodyToBuffer(body: unknown): Promise<Buffer> {
@@ -226,6 +282,10 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
   }
 
   async exists(path: string): Promise<boolean> {
+    if (this.isRootPath(path)) {
+      return true;
+    }
+
     const key = this.normalizeS3Path(path, {
       preserveTrailingSlash: path.endsWith('/'),
     });
@@ -342,6 +402,9 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
           const stats = await this.getStats(path);
           if (stats.isDirectory) {
             key = this.toDirectoryKey(path);
+            if (key && (await this.directoryHasChildren(key))) {
+              throw new DirectoryNotEmptyError(path, 's3');
+            }
           }
         } catch (error) {
           if (!(error instanceof FileNotFoundError)) {
@@ -357,6 +420,9 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
         }),
       );
     } catch (error: any) {
+      if (error instanceof FilesystemError) {
+        throw error;
+      }
       throw new FilesystemError(
         `Failed to delete S3 object: ${error instanceof Error ? error.message : String(error)}`,
         error?.name || 'UNKNOWN',
@@ -412,13 +478,6 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
       preserveTrailingSlash: path.endsWith('/'),
     });
     const prefixWithSlash = prefix ? `${prefix.replace(/\/+$/, '')}/` : '';
-    const response = await this.client.send(
-      new ListObjectsV2Command({
-        Bucket: this.bucket,
-        Prefix: prefixWithSlash,
-        Delimiter: options.recursive ? undefined : '/',
-      }),
-    );
 
     const items: FileInfo[] = [];
     const seenDirectories = new Set<string>();
@@ -434,31 +493,48 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
       );
     };
 
-    for (const prefixEntry of response.CommonPrefixes || []) {
-      if (prefixEntry.Prefix) {
-        addDirectory(prefixEntry.Prefix);
-      }
-    }
+    let continuationToken: string | undefined;
 
-    for (const entry of response.Contents || []) {
-      if (!entry.Key || entry.Key === prefixWithSlash) continue;
-      const relative = prefixWithSlash
-        ? entry.Key.slice(prefixWithSlash.length)
-        : entry.Key;
+    do {
+      const response = await this.client.send(
+        new ListObjectsV2Command({
+          Bucket: this.bucket,
+          Prefix: prefixWithSlash,
+          Delimiter: options.recursive ? undefined : '/',
+          ContinuationToken: continuationToken,
+        }),
+      );
 
-      if (entry.Key.endsWith('/')) {
-        addDirectory(entry.Key, entry.LastModified);
-        continue;
-      }
-
-      if (!options.recursive && relative.includes('/')) {
-        const directory = relative.split('/')[0];
-        addDirectory(`${prefixWithSlash}${directory}`, entry.LastModified);
-        continue;
+      for (const prefixEntry of response.CommonPrefixes || []) {
+        if (prefixEntry.Prefix) {
+          addDirectory(prefixEntry.Prefix);
+        }
       }
 
-      items.push(this.toFileInfo(entry.Key, entry));
-    }
+      for (const entry of response.Contents || []) {
+        if (!entry.Key || entry.Key === prefixWithSlash) continue;
+        const relative = prefixWithSlash
+          ? entry.Key.slice(prefixWithSlash.length)
+          : entry.Key;
+
+        if (entry.Key.endsWith('/')) {
+          addDirectory(entry.Key, entry.LastModified);
+          continue;
+        }
+
+        if (!options.recursive && relative.includes('/')) {
+          const directory = relative.split('/')[0];
+          addDirectory(`${prefixWithSlash}${directory}`, entry.LastModified);
+          continue;
+        }
+
+        items.push(this.toFileInfo(entry.Key, entry));
+      }
+
+      continuationToken = response.IsTruncated
+        ? response.NextContinuationToken
+        : undefined;
+    } while (continuationToken);
 
     return items.filter((item) => {
       if (!options.filter) return true;
@@ -471,6 +547,10 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
   }
 
   async getStats(path: string): Promise<FileStats> {
+    if (this.isRootPath(path)) {
+      return this.toDirectoryStats();
+    }
+
     const key = this.normalizeS3Path(path, {
       preserveTrailingSlash: path.endsWith('/'),
     });
@@ -551,15 +631,7 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
     _options: DownloadOptions = {},
   ): Promise<string> {
     const buffer = (await this.read(remotePath, { raw: true })) as Buffer;
-    const target =
-      localPath ||
-      join(
-        tmpdir(),
-        'happyvertical-files',
-        this.normalizeS3Path(remotePath, {
-          preserveTrailingSlash: remotePath.endsWith('/'),
-        }),
-      );
+    const target = localPath || this.getDefaultDownloadTarget(remotePath);
     await mkdir(dirname(target), { recursive: true });
     await writeFile(target, buffer);
     return target;
@@ -567,7 +639,7 @@ export class S3FilesystemProvider extends BaseFilesystemProvider {
 
   async getCapabilities(): Promise<FilesystemCapabilities> {
     return {
-      streaming: true,
+      streaming: false,
       atomicOperations: false,
       versioning: false,
       sharing: false,

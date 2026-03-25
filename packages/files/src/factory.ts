@@ -57,21 +57,16 @@ function validateOptions(options: GetFilesystemOptions): void {
 
     case 'gdrive': {
       const gdriveOpts = options as GoogleDriveOptions;
-      if (!gdriveOpts.clientId) {
+      const hasOAuth2 =
+        gdriveOpts.clientId &&
+        gdriveOpts.clientSecret &&
+        gdriveOpts.refreshToken;
+      const hasServiceAccount = !!gdriveOpts.serviceAccountKey;
+      const hasAccessToken = !!gdriveOpts.accessToken;
+
+      if (!hasOAuth2 && !hasServiceAccount && !hasAccessToken) {
         throw new FilesystemError(
-          'Google Drive provider requires clientId',
-          'EINVAL',
-        );
-      }
-      if (!gdriveOpts.clientSecret) {
-        throw new FilesystemError(
-          'Google Drive provider requires clientSecret',
-          'EINVAL',
-        );
-      }
-      if (!gdriveOpts.refreshToken) {
-        throw new FilesystemError(
-          'Google Drive provider requires refreshToken',
+          'Google Drive provider requires OAuth2 credentials (clientId + clientSecret + refreshToken), a serviceAccountKey, or an accessToken',
           'EINVAL',
         );
       }
@@ -116,7 +111,11 @@ function detectProviderType(options: GetFilesystemOptions): string {
     return 's3';
   }
 
-  if ('clientId' in options && 'clientSecret' in options) {
+  if (
+    ('clientId' in options && 'clientSecret' in options) ||
+    'serviceAccountKey' in options ||
+    'accessToken' in options
+  ) {
     return 'gdrive';
   }
 
@@ -210,7 +209,7 @@ export function getProviderInfo(type: string): {
   const requiredOptions = {
     local: [],
     s3: ['region', 'bucket'],
-    gdrive: ['clientId', 'clientSecret', 'refreshToken'],
+    gdrive: [],
     webdav: ['baseUrl', 'username', 'password'],
   };
 
