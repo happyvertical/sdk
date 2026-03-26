@@ -1,19 +1,26 @@
 /**
- * OpenWeatherMap One Call Provider Integration Tests
+ * Optional OpenWeatherMap One Call provider integration tests
  *
- * Tests the OpenWeatherMap One Call API provider with real API calls.
- * Requires OPENWEATHER_API_KEY environment variable (paid tier).
+ * These tests hit the real OpenWeatherMap One Call API and are excluded from
+ * normal CI. Run them with `pnpm --filter @happyvertical/weather test:optional`.
  */
 
 import { describe, expect, it } from 'vitest';
 import { getWeatherAdapter } from '../index';
 import type { IWeatherAdapter } from '../shared/types';
-import { AuthenticationError, WeatherError } from '../shared/types';
+import { WeatherError } from '../shared/types';
 
-describe('OpenWeatherMap One Call Provider', () => {
+const apiKey = process.env.OPENWEATHER_API_KEY;
+const requireApiKey = () => {
+  if (!apiKey) {
+    throw new Error('OPENWEATHER_API_KEY is required for optional tests');
+  }
+
+  return apiKey;
+};
+
+describe.skipIf(!apiKey)('OpenWeatherMap One Call Provider', () => {
   let adapter: IWeatherAdapter;
-  const apiKey =
-    process.env.OPENWEATHER_API_KEY || 'ef11b75af0e7d96644e30156a6e286c8';
 
   // Calgary, AB coordinates
   const calgaryLat = 51.0447;
@@ -26,7 +33,7 @@ describe('OpenWeatherMap One Call Provider', () => {
   it('should create adapter with API key', async () => {
     adapter = await getWeatherAdapter({
       provider: 'openweathermap-onecall',
-      apiKey,
+      apiKey: requireApiKey(),
     });
 
     expect(adapter).toBeDefined();
@@ -46,7 +53,7 @@ describe('OpenWeatherMap One Call Provider', () => {
   it('should test connection successfully', async () => {
     adapter = await getWeatherAdapter({
       provider: 'openweathermap-onecall',
-      apiKey,
+      apiKey: requireApiKey(),
     });
 
     const isConnected = await adapter.testConnection();
@@ -56,7 +63,7 @@ describe('OpenWeatherMap One Call Provider', () => {
   it('should support global locations', async () => {
     adapter = await getWeatherAdapter({
       provider: 'openweathermap-onecall',
-      apiKey,
+      apiKey: requireApiKey(),
     });
 
     // Test Canadian location
@@ -77,7 +84,7 @@ describe('OpenWeatherMap One Call Provider', () => {
   it('should fetch weather forecasts for Calgary', async () => {
     adapter = await getWeatherAdapter({
       provider: 'openweathermap-onecall',
-      apiKey,
+      apiKey: requireApiKey(),
       timeout: 15000, // 15 second timeout for API call
     });
 
@@ -124,7 +131,7 @@ describe('OpenWeatherMap One Call Provider', () => {
   it('should fetch weather forecasts for New York', async () => {
     adapter = await getWeatherAdapter({
       provider: 'openweathermap-onecall',
-      apiKey,
+      apiKey: requireApiKey(),
       timeout: 15000,
     });
 
@@ -138,7 +145,7 @@ describe('OpenWeatherMap One Call Provider', () => {
   it('should throw error for invalid coordinates', async () => {
     adapter = await getWeatherAdapter({
       provider: 'openweathermap-onecall',
-      apiKey,
+      apiKey: requireApiKey(),
     });
 
     // Invalid latitude (> 90)
@@ -155,7 +162,7 @@ describe('OpenWeatherMap One Call Provider', () => {
   it('should respect limit option', async () => {
     adapter = await getWeatherAdapter({
       provider: 'openweathermap-onecall',
-      apiKey,
+      apiKey: requireApiKey(),
     });
 
     const forecasts = await adapter.fetchForLocation(calgaryLat, calgaryLng, {
@@ -172,7 +179,7 @@ describe('OpenWeatherMap One Call Provider', () => {
     // but the real validation is that the timeout mechanism works at all.
     adapter = await getWeatherAdapter({
       provider: 'openweathermap-onecall',
-      apiKey,
+      apiKey: requireApiKey(),
       timeout: 100, // Short but realistic timeout
     });
 
@@ -190,7 +197,7 @@ describe('OpenWeatherMap One Call Provider', () => {
   it('should return hourly and daily forecasts', async () => {
     adapter = await getWeatherAdapter({
       provider: 'openweathermap-onecall',
-      apiKey,
+      apiKey: requireApiKey(),
     });
 
     const forecasts = await adapter.fetchForLocation(calgaryLat, calgaryLng);
@@ -219,7 +226,7 @@ describe('OpenWeatherMap One Call Provider', () => {
   it('should have temperatureMin and temperatureMax in daily forecasts', async () => {
     adapter = await getWeatherAdapter({
       provider: 'openweathermap-onecall',
-      apiKey,
+      apiKey: requireApiKey(),
     });
 
     const forecasts = await adapter.fetchForLocation(calgaryLat, calgaryLng);
