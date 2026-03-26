@@ -3,13 +3,6 @@ name: Documentation Review
 on:
   pull_request:
     branches: [main]
-    paths:
-      - 'packages/*/src/**'
-      - 'packages/*/README.md'
-      - 'packages/*/AGENT.md'
-      - 'packages/*/metadata.json'
-      - 'ecosystem-manifest.json'
-      - 'docs/**'
 
 permissions:
   contents: read
