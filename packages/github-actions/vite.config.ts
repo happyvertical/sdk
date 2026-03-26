@@ -1,16 +1,21 @@
-import { resolve, dirname } from 'node:path';
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const Dirname = dirname(fileURLToPath(import.meta.url));
+const agentContextEntry = resolve(Dirname, 'src/cli/claude-context.ts');
 
 export default defineConfig({
   build: {
     lib: {
       entry: {
-        index: resolve(__dirname, 'src/index.ts'),
-        cli: resolve(__dirname, 'src/cli.ts'),
+        index: resolve(Dirname, 'src/index.ts'),
+        cli: resolve(Dirname, 'src/cli.ts'),
+        ...(existsSync(agentContextEntry)
+          ? { 'cli/claude-context': agentContextEntry }
+          : {}),
       },
       formats: ['es'] as const,
       fileName: (format, entryName) => `${entryName}.js`,
@@ -48,12 +53,12 @@ export default defineConfig({
   },
   plugins: [
     dts({
-      outDir: resolve(__dirname, 'dist'),
-      include: [resolve(__dirname, 'src/**/*.ts')],
+      outDir: resolve(Dirname, 'dist'),
+      include: [resolve(Dirname, 'src/**/*.ts')],
       exclude: ['**/*.test.ts', '**/*.spec.ts'],
       insertTypesEntry: false,
       rollupTypes: false,
-      tsconfigPath: resolve(__dirname, 'tsconfig.json'),
+      tsconfigPath: resolve(Dirname, 'tsconfig.json'),
     }),
   ],
 });

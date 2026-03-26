@@ -47,7 +47,7 @@
     "changeset:auto": "npx tsx scripts/auto-changeset.ts",
     "changeset:version": "changeset version",
     "changeset:publish": "changeset publish",
-    "release": "pnpm run changeset:auto && pnpm run changeset:version && pnpm run build && pnpm run changeset:publish",
+    "release": "pnpm run changeset:auto && pnpm run changeset:version && pnpm run build && pnpm run validate-build && pnpm run changeset:publish",
     "gnode:create": "pnpm --filter @happyvertical/gnode cli:create",
     "deps:graph": "npx depcruise packages/*/src --config .dependency-cruiser.cjs --output-type mermaid --include-only '^packages' --collapse '^packages/[^/]+' > SKILL_TREE.md",
     "deps:modules": "for pkg in packages/*; do [ -d \"$pkg/src\" ] && (cd \"$pkg\" && npx depcruise src --config ../../.dependency-cruiser.cjs --output-type mermaid --include-only '^src' > SKILL_TREE.md); done",

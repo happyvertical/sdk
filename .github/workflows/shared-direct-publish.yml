@@ -55,6 +55,9 @@ on:
       version:
         description: 'The version that was published'
         value: ${{ jobs.release.outputs.version }}
+      reason:
+        description: 'Why publish ran, skipped, or produced no version change'
+        value: ${{ jobs.release.outputs.reason }}
 
 permissions:
   contents: write
@@ -70,6 +73,7 @@ jobs:
     outputs:
       published: ${{ steps.publish.outputs.published }}
       version: ${{ steps.get_version.outputs.version }}
+      reason: ${{ steps.get_reason.outputs.reason }}
 
     steps:
       - name: Generate token from GitHub App
@@ -150,6 +154,7 @@ jobs:
             echo "ℹ️  Release sync PR #$EXISTING_SYNC_PR is still open"
             echo "Skipping direct publish until that PR merges."
             echo "published=false" >> $GITHUB_OUTPUT
+            echo "reason=release_sync_pr_open:$EXISTING_SYNC_PR" >> $GITHUB_OUTPUT
             exit 0
           fi
 
@@ -189,6 +194,9 @@ jobs:
 
             # Build packages
             pnpm run build
+
+            # Validate publishable artifacts before pushing packages
+            pnpm run validate-build
 
             # Publish packages
             pnpm run changeset:publish
@@ -260,10 +268,12 @@ jobs:
 
             echo "published=true" >> $GITHUB_OUTPUT
             echo "version=$AFTER_VERSION" >> $GITHUB_OUTPUT
+            echo "reason=published" >> $GITHUB_OUTPUT
             echo "✅ Published version: v$AFTER_VERSION"
           else
             echo "ℹ️  No version changes - no release needed"
             echo "published=false" >> $GITHUB_OUTPUT
+            echo "reason=no_version_changes" >> $GITHUB_OUTPUT
           fi
 
       - name: Check if version was published
@@ -272,6 +282,7 @@ jobs:
           # Pass through the published status from the release step
           echo "published=${{ steps.changesets_release.outputs.published || 'false' }}" >> $GITHUB_OUTPUT
           echo "version=${{ steps.changesets_release.outputs.version || '' }}" >> $GITHUB_OUTPUT
+          echo "reason=${{ steps.changesets_release.outputs.reason || '' }}" >> $GITHUB_OUTPUT
 
       - name: Set outputs
         id: publish
@@ -282,3 +293,8 @@ jobs:
         id: get_version
         run: |
           echo "version=${{ steps.check_published.outputs.version }}" >> $GITHUB_OUTPUT
+
+      - name: Set reason output
+        id: get_reason
+        run: |
+          echo "reason=${{ steps.check_published.outputs.reason }}" >> $GITHUB_OUTPUT
