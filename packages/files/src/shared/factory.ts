@@ -170,7 +170,8 @@ function detectProviderType(options: GetFilesystemOptions): string {
 
   if (
     ('clientId' in options && 'clientSecret' in options) ||
-    'serviceAccountKey' in options
+    'serviceAccountKey' in options ||
+    'accessToken' in options
   ) {
     return 'gdrive';
   }
@@ -295,6 +296,11 @@ export async function initializeProviders(): Promise<void> {
   registerProvider('local', async () => {
     const { LocalFilesystemProvider } = await import('../node/local.js');
     return LocalFilesystemProvider;
+  });
+
+  registerProvider('s3', async () => {
+    const { S3FilesystemProvider } = await import('../providers/s3.js');
+    return S3FilesystemProvider;
   });
 
   // Register Google Drive provider
