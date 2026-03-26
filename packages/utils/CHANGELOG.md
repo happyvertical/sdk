@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.71.19
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - publish context bins and validate artifacts (ci)
+
 ## 0.71.18
 
 ## 0.71.17
