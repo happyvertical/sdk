@@ -10,8 +10,8 @@ catalogs:
       specifier: ^0.60.24
       version: 0.60.24
     '@happyvertical/pdf':
-      specifier: ^0.62.13
-      version: 0.62.13
+      specifier: ^0.62.20
+      version: 0.62.20
     '@happyvertical/spider':
       specifier: ^0.60.9
       version: 0.60.9
@@ -367,7 +367,7 @@ importers:
         version: 0.60.24
       '@happyvertical/pdf':
         specifier: 'catalog:'
-        version: 0.62.13(@napi-rs/canvas@0.1.95)
+        version: 0.62.20(@napi-rs/canvas@0.1.95)
       '@happyvertical/spider':
         specifier: 'catalog:'
         version: 0.60.9(@noble/hashes@2.0.1)(@types/node@24.10.13)
@@ -3112,8 +3112,8 @@ packages:
     resolution: {integrity: sha512-ii2x5cr2FODIdhyDC64LaoQ896h+dDPiRBJ5tse4pNo2zS+FAvbhB0ZwH4sfCB1RKvuYmLKpTR5USHNN2/Rbiw==, tarball: https://npm.pkg.github.com/download/@happyvertical/ocr/0.60.24/cf48251b76d223428ac93bd6208b41134490ba33}
     engines: {node: '>=24', pnpm: '>=9'}
 
-  '@happyvertical/pdf@0.62.13':
-    resolution: {integrity: sha512-3Bu/dAPRbNnJk5Hv2Vbyofy62YclM22B/g3Y4NjFyYvJHLjdVVjkjNZg06et5c8SLNvXpb7AxU6fjriwhqY36Q==, tarball: https://npm.pkg.github.com/download/@happyvertical/pdf/0.62.13/5fdbd40ee02e3a600208bdc1a0a72c3e9be1667c}
+  '@happyvertical/pdf@0.62.20':
+    resolution: {integrity: sha512-F9Yj5zDa5nU4S+IK9tLRfrGsLg81oz/QxFfIbN+GP+zPzezgPVC4EBa+njLEXGgrsEBTkjhI33qgRGpnHy9Qww==, tarball: https://npm.pkg.github.com/download/@happyvertical/pdf/0.62.20/4154b584e1d4b4b95b4832f24b4b97c69bf7a567}
     engines: {node: '>=24', pnpm: '>=9'}
 
   '@happyvertical/spider@0.60.9':
@@ -16607,7 +16607,7 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  '@happyvertical/pdf@0.62.13(@napi-rs/canvas@0.1.95)':
+  '@happyvertical/pdf@0.62.20(@napi-rs/canvas@0.1.95)':
     dependencies:
       '@happyvertical/ocr': 0.60.24
       '@happyvertical/utils': link:packages/utils
