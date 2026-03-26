@@ -9,4 +9,4 @@ packages:
 catalog:
   '@happyvertical/ocr': ^0.60.24
   '@happyvertical/pdf': ^0.62.20
-  '@happyvertical/spider': ^0.60.9
+  '@happyvertical/spider': ^0.60.10
