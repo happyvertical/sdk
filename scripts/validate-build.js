@@ -10,11 +10,20 @@ import path from 'node:path';
  */
 
 function addArtifact(artifacts, label, relativePath, type = 'file') {
-  if (typeof relativePath !== 'string' || !relativePath.startsWith('./')) {
+  if (typeof relativePath !== 'string') {
     return;
   }
 
-  artifacts.push({ label, relativePath, type });
+  if (path.isAbsolute(relativePath)) {
+    return;
+  }
+
+  const normalizedPath =
+    relativePath.startsWith('./') || relativePath.startsWith('../')
+      ? relativePath
+      : `./${relativePath}`;
+
+  artifacts.push({ label, relativePath: normalizedPath, type });
 }
 
 function collectRelativePaths(value, label, artifacts) {

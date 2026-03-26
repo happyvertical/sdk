@@ -12,6 +12,16 @@ name: Publish
 
 on:
   workflow_call:
+    outputs:
+      published:
+        description: 'Whether packages were published'
+        value: ${{ jobs.release.outputs.published }}
+      version:
+        description: 'The version that was published'
+        value: ${{ jobs.release.outputs.version }}
+      reason:
+        description: 'Why publish ran, skipped, or produced no version change'
+        value: ${{ jobs.release.outputs.reason }}
     secrets:
       HAVE_RELEASE_APP_ID:
         description: 'GitHub App ID for release automation'
