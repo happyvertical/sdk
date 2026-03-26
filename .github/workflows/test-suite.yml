@@ -62,6 +62,13 @@ jobs:
         with:
           run_install: false
 
+      - name: Configure pnpm store directory
+        shell: bash
+        run: |
+          store_root="${PNPM_STORE_DIR:-/home/runner/.local/share/pnpm/store}"
+          mkdir -p "$store_root"
+          pnpm config set store-dir "$store_root" --location=user
+
       - name: Get pnpm store directory
         id: pnpm-store
         shell: bash

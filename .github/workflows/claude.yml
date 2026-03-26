@@ -66,6 +66,14 @@ jobs:
         if: "github.event.action == 'labeled' && github.event.label.name == 'agent: claude'"
         uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
 
+      - name: Configure pnpm store directory
+        if: "github.event.action == 'labeled' && github.event.label.name == 'agent: claude'"
+        shell: bash
+        run: |
+          store_root="${PNPM_STORE_DIR:-/home/runner/.local/share/pnpm/store}"
+          mkdir -p "$store_root"
+          pnpm config set store-dir "$store_root" --location=user
+
       - name: Install dependencies
         if: "github.event.action == 'labeled' && github.event.label.name == 'agent: claude'"
         run: pnpm install --frozen-lockfile
