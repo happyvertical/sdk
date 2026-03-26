@@ -1,101 +1,160 @@
 #!/usr/bin/env node
 
+import { existsSync, statSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
 /**
- * Validates that all packages referenced in the build script actually exist
+ * Validates that built workspace packages contain the files they advertise
+ * through main/types/exports/bin metadata before CI or publish proceeds.
  */
-async function validateBuild() {
-  try {
-    // Read package.json
-    const packageJsonPath = path.join(process.cwd(), 'package.json');
-    const packageJsonContent = await fs.readFile(packageJsonPath, 'utf8');
-    const packageJson = JSON.parse(packageJsonContent);
 
-    // Extract build script
-    const buildScript = packageJson.scripts?.build;
-    if (!buildScript) {
-      console.error('❌ No build script found in package.json');
-      process.exit(1);
+function addArtifact(artifacts, label, relativePath, type = 'file') {
+  if (typeof relativePath !== 'string') {
+    return;
+  }
+
+  if (path.isAbsolute(relativePath)) {
+    return;
+  }
+
+  const normalizedPath =
+    relativePath.startsWith('./') || relativePath.startsWith('../')
+      ? relativePath
+      : `./${relativePath}`;
+
+  artifacts.push({ label, relativePath: normalizedPath, type });
+}
+
+function collectRelativePaths(value, label, artifacts) {
+  if (typeof value === 'string') {
+    addArtifact(artifacts, label, value);
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    for (const [index, item] of value.entries()) {
+      collectRelativePaths(item, `${label}[${index}]`, artifacts);
     }
+    return;
+  }
 
-    // Extract package names from build script using regex
-    const packageMatches = buildScript.match(/--filter @have\/\w+/g) || [];
-    const referencedPackages = packageMatches.map((match) =>
-      match.replace('--filter @have/', ''),
-    );
+  if (!value || typeof value !== 'object') {
+    return;
+  }
 
-    console.log('📦 Packages referenced in build script:', referencedPackages);
-
-    // Check if packages directory exists
-    const packagesDir = path.join(process.cwd(), 'packages');
-    try {
-      await fs.access(packagesDir);
-    } catch {
-      console.error('❌ packages directory not found');
-      process.exit(1);
-    }
-
-    // Get actual package directories
-    const packageDirs = await fs.readdir(packagesDir, { withFileTypes: true });
-    const existingPackages = packageDirs
-      .filter((dirent) => dirent.isDirectory())
-      .map((dirent) => dirent.name);
-
-    console.log('📁 Existing packages:', existingPackages);
-
-    // Check for missing packages
-    const missingPackages = referencedPackages.filter(
-      (pkg) => !existingPackages.includes(pkg),
-    );
-
-    if (missingPackages.length > 0) {
-      console.error(
-        '❌ Missing packages referenced in build script:',
-        missingPackages,
-      );
-      console.error(
-        '   Either create these packages or remove them from the build script',
-      );
-      process.exit(1);
-    }
-
-    // Check for extra packages not in build script
-    const extraPackages = existingPackages.filter(
-      (pkg) => !referencedPackages.includes(pkg),
-    );
-
-    if (extraPackages.length > 0) {
-      console.warn('⚠️  Packages exist but not in build script:', extraPackages);
-      console.warn(
-        '   Consider adding them to the build script if they need building',
-      );
-
-      // Validate that each package has a package.json
-      for (const pkg of extraPackages) {
-        const pkgJsonPath = path.join(packagesDir, pkg, 'package.json');
-        try {
-          await fs.access(pkgJsonPath);
-          const pkgContent = await fs.readFile(pkgJsonPath, 'utf8');
-          const pkgJson = JSON.parse(pkgContent);
-          if (pkgJson.scripts?.build) {
-            console.warn(
-              `   📦 ${pkg} has a build script but is not in the main build`,
-            );
-          }
-        } catch {
-          console.warn(`   ❌ ${pkg} missing package.json`);
-        }
-      }
-    }
-
-    console.log('✅ Build validation passed - all referenced packages exist');
-    return true;
-  } catch (error) {
-    console.error('❌ Error during build validation:', error.message);
-    process.exit(1);
+  for (const [key, nestedValue] of Object.entries(value)) {
+    collectRelativePaths(nestedValue, `${label}.${key}`, artifacts);
   }
 }
 
-validateBuild();
+function collectDeclaredArtifacts(packageJson) {
+  const artifacts = [];
+
+  addArtifact(artifacts, 'main', packageJson.main);
+  addArtifact(artifacts, 'module', packageJson.module);
+  addArtifact(artifacts, 'types', packageJson.types);
+  addArtifact(artifacts, 'typings', packageJson.typings);
+
+  if (typeof packageJson.bin === 'string') {
+    addArtifact(artifacts, 'bin', packageJson.bin);
+  } else if (packageJson.bin && typeof packageJson.bin === 'object') {
+    for (const [binName, binPath] of Object.entries(packageJson.bin)) {
+      addArtifact(artifacts, `bin.${binName}`, binPath);
+    }
+  }
+
+  if (packageJson.exports) {
+    collectRelativePaths(packageJson.exports, 'exports', artifacts);
+  }
+
+  if (packageJson.scripts?.build && packageJson.files?.includes('dist')) {
+    artifacts.push({
+      label: 'files.dist',
+      relativePath: './dist',
+      type: 'dir',
+    });
+  }
+
+  return Array.from(
+    new Map(
+      artifacts.map((artifact) => [
+        `${artifact.label}:${artifact.relativePath}:${artifact.type}`,
+        artifact,
+      ]),
+    ).values(),
+  );
+}
+
+function validateArtifact(packageDir, artifact) {
+  const absolutePath = path.resolve(packageDir, artifact.relativePath);
+
+  if (!existsSync(absolutePath)) {
+    return `${artifact.label} -> ${artifact.relativePath} is missing`;
+  }
+
+  const stats = statSync(absolutePath);
+
+  if (artifact.type === 'dir' && !stats.isDirectory()) {
+    return `${artifact.label} -> ${artifact.relativePath} should be a directory`;
+  }
+
+  if (artifact.type === 'file' && !stats.isFile()) {
+    return `${artifact.label} -> ${artifact.relativePath} should be a file`;
+  }
+
+  return null;
+}
+
+async function validateBuild() {
+  const packagesDir = path.join(process.cwd(), 'packages');
+  const packageDirs = await fs.readdir(packagesDir, { withFileTypes: true });
+  const failures = [];
+  let checkedPackages = 0;
+
+  for (const dirent of packageDirs) {
+    if (!dirent.isDirectory()) {
+      continue;
+    }
+
+    const packageDir = path.join(packagesDir, dirent.name);
+    const packageJsonPath = path.join(packageDir, 'package.json');
+
+    if (!existsSync(packageJsonPath)) {
+      continue;
+    }
+
+    const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'));
+    const artifacts = collectDeclaredArtifacts(packageJson);
+
+    if (artifacts.length === 0) {
+      continue;
+    }
+
+    checkedPackages += 1;
+
+    for (const artifact of artifacts) {
+      const failure = validateArtifact(packageDir, artifact);
+      if (failure) {
+        failures.push(`${packageJson.name}: ${failure}`);
+      }
+    }
+  }
+
+  if (failures.length > 0) {
+    console.error('❌ Build artifact validation failed:\n');
+    for (const failure of failures) {
+      console.error(`- ${failure}`);
+    }
+    process.exit(1);
+  }
+
+  console.log(
+    `✅ Build artifact validation passed for ${checkedPackages} package(s)`,
+  );
+}
+
+validateBuild().catch((error) => {
+  console.error('❌ Error during build validation:', error.message);
+  process.exit(1);
+});

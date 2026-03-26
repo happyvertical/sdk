@@ -1,8 +1,10 @@
+import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
 
 const packageDir = __dirname;
+const agentContextEntry = resolve(packageDir, 'src/cli/claude-context.ts');
 
 /**
  * Custom Vite configuration for utils package with dual entry points:
@@ -15,6 +17,9 @@ export default defineConfig({
       entry: {
         index: resolve(packageDir, 'src/index.ts'),
         browser: resolve(packageDir, 'src/browser.ts'),
+        ...(existsSync(agentContextEntry)
+          ? { 'cli/claude-context': agentContextEntry }
+          : {}),
       },
       formats: ['es'] as const,
       fileName: (format, entryName) => `${entryName}.js`,

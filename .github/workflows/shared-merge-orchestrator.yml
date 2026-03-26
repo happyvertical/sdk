@@ -56,5 +56,19 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           test_result="${{ needs.test.result || 'skipped (no test.yml)' }}"
           echo "- **Test**: $test_result" >> $GITHUB_STEP_SUMMARY
-          result="${{ needs.publish.result || 'skipped (no publish.yml)' }}"
-          echo "- **Build + Publish**: $result" >> $GITHUB_STEP_SUMMARY
+          publish_result="${{ needs.publish.result || 'skipped (no publish.yml)' }}"
+          publish_reason="${{ needs.publish.outputs.reason || '' }}"
+          publish_version="${{ needs.publish.outputs.version || '' }}"
+
+          if [ "$publish_result" != "success" ]; then
+            echo "- **Build + Publish**: $publish_result" >> $GITHUB_STEP_SUMMARY
+          elif [ -n "$publish_version" ]; then
+            echo "- **Build + Publish**: success (published v$publish_version)" >> $GITHUB_STEP_SUMMARY
+          elif [ "${publish_reason#release_sync_pr_open:}" != "$publish_reason" ]; then
+            sync_pr_number="${publish_reason#release_sync_pr_open:}"
+            echo "- **Build + Publish**: success (publish skipped: release sync PR #$sync_pr_number is still open)" >> $GITHUB_STEP_SUMMARY
+          elif [ "$publish_reason" = "no_version_changes" ]; then
+            echo "- **Build + Publish**: success (no version changes detected)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **Build + Publish**: success" >> $GITHUB_STEP_SUMMARY
+          fi

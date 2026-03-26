@@ -1,15 +1,27 @@
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
-import { resolve } from 'node:path';
+
+const packageDir = resolve(__dirname);
+const agentContextEntry = resolve(packageDir, 'src/cli/claude-context.ts');
 
 export default defineConfig({
   build: {
     lib: {
-      entry: resolve(__dirname, 'src/index.ts'),
+      entry: {
+        index: resolve(packageDir, 'src/index.ts'),
+        ...(existsSync(agentContextEntry)
+          ? { 'cli/claude-context': agentContextEntry }
+          : {}),
+      },
       formats: ['es'],
-      fileName: 'index',
+      fileName: (_format, entryName) => `${entryName}.js`,
     },
     rollupOptions: {
+      output: {
+        entryFileNames: '[name].js',
+      },
       external: [
         '@modelcontextprotocol/sdk',
         '@modelcontextprotocol/sdk/server/index.js',
@@ -18,13 +30,13 @@ export default defineConfig({
         '@happyvertical/ai',
         '@happyvertical/files',
         '@happyvertical/utils',
-        /^node:.*/,  // Externalize all Node.js built-in modules
+        /^node:.*/, // Externalize all Node.js built-in modules
       ],
     },
     target: 'node24',
     outDir: 'dist',
     emptyOutDir: true,
-    ssr: true,  // Enable SSR mode for Node.js builds
+    ssr: true, // Enable SSR mode for Node.js builds
   },
   plugins: [
     dts({

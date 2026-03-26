@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
@@ -8,15 +9,32 @@ import dts from 'vite-plugin-dts';
  * Creates a standardized build configuration for Node.js-only packages
  * with TypeScript declaration generation.
  */
-export function createPackageConfig(packageName: string) {
+export function createPackageConfig(
+  packageName: string,
+  additionalEntries: Record<string, string> = {},
+) {
   const packageDir = resolve(__dirname, 'packages', packageName);
+  const packageEntries: Record<string, string> = {
+    index: resolve(packageDir, 'src/index.ts'),
+    ...Object.fromEntries(
+      Object.entries(additionalEntries).map(([entryName, entryPath]) => [
+        entryName,
+        resolve(packageDir, entryPath),
+      ]),
+    ),
+  };
+  const agentContextEntry = resolve(packageDir, 'src/cli/claude-context.ts');
+
+  if (existsSync(agentContextEntry)) {
+    packageEntries['cli/claude-context'] = agentContextEntry;
+  }
 
   return defineConfig({
     build: {
       lib: {
-        entry: resolve(packageDir, 'src/index.ts'),
+        entry: packageEntries,
         formats: ['es'] as const,
-        fileName: () => 'index.js',
+        fileName: (_format, entryName) => `${entryName}.js`,
       },
       rollupOptions: {
         output: {
