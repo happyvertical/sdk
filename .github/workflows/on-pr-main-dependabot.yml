@@ -52,9 +52,9 @@ jobs:
       - name: Configure pnpm store directory
         shell: bash
         run: |
-          store_root="${PNPM_STORE_DIR:-/home/runner/.local/share/pnpm/store}"
+          store_root="${PNPM_STORE_DIR:-$HOME/.local/share/pnpm/store}"
           mkdir -p "$store_root"
-          pnpm config set store-dir "$store_root" --location=user
+          pnpm config set store-dir "$store_root" --location=global
 
       - name: Install dependencies for security audit
         run: pnpm install --frozen-lockfile
