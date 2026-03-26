@@ -4,8 +4,14 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
-    include: ['src/**/*.{test,spec}.ts'],
-    exclude: ['src/**/*.optional.test.ts'],
+    include:
+      process.env.VITEST_INCLUDE_OPTIONAL === 'true'
+        ? ['src/**/*.optional.test.ts']
+        : ['src/**/*.{test,spec}.ts'],
+    exclude:
+      process.env.VITEST_INCLUDE_OPTIONAL === 'true'
+        ? []
+        : ['src/**/*.optional.test.ts'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

@@ -27,7 +27,7 @@
     "dev": "vite build --watch",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:optional": "vitest run --testNamePattern=\"\\.optional\\.test\\.ts\"",
+    "test:optional": "VITEST_INCLUDE_OPTIONAL=true vitest run",
     "clean": "rm -rf dist",
     "docs": "typedoc",
     "docs:watch": "typedoc --watch"
