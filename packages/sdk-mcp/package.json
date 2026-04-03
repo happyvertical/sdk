@@ -48,7 +48,7 @@
     "@happyvertical/ai": "workspace:*",
     "@happyvertical/files": "workspace:*",
     "@happyvertical/utils": "workspace:*",
-    "@modelcontextprotocol/sdk": "1.27.1"
+    "@modelcontextprotocol/sdk": "1.29.0"
   },
   "devDependencies": {
     "@types/node": "25.0.10",
