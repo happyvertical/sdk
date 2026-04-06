@@ -1117,6 +1117,54 @@ export interface AIInterface {
 }
 
 /**
+ * Shared rate-limit configuration for AI providers.
+ *
+ * The pacing wrapper activates only when one of the pacing fields
+ * (`enabled`, `key`, `cooldownMs`, `initialDelayMs`, `maxAttempts`) is set.
+ *
+ * `qwen3-tts` also uses `requestsPerMinute` and `maxConcurrent` from this
+ * object for its local token bucket limiter.
+ */
+export interface AIRateLimitOptions {
+  /**
+   * Enable shared in-process request pacing for this client.
+   */
+  enabled?: boolean;
+
+  /**
+   * Shared budget key used to coordinate pacing across multiple clients.
+   * If omitted, a provider-scoped key is derived from the configured credentials.
+   */
+  key?: string;
+
+  /**
+   * Minimum delay in milliseconds between successful calls sharing the same key.
+   */
+  cooldownMs?: number;
+
+  /**
+   * Fallback delay in milliseconds before retrying a rate-limited call when
+   * the provider does not return a `Retry-After` hint.
+   */
+  initialDelayMs?: number;
+
+  /**
+   * Maximum attempts for retryable rate-limit failures, including the first call.
+   */
+  maxAttempts?: number;
+
+  /**
+   * Qwen3-TTS only: maximum requests per minute for its local token bucket.
+   */
+  requestsPerMinute?: number;
+
+  /**
+   * Qwen3-TTS only: maximum concurrent requests allowed by its local limiter.
+   */
+  maxConcurrent?: number;
+}
+
+/**
  * Base configuration options for all providers
  */
 export interface BaseAIOptions {
@@ -1157,6 +1205,11 @@ export interface BaseAIOptions {
    * will be merged on top of these.
    */
   usageTags?: Record<string, string>;
+
+  /**
+   * Optional shared pacing / retry configuration.
+   */
+  rateLimit?: AIRateLimitOptions;
 }
 
 /**
@@ -1273,19 +1326,10 @@ export interface Qwen3TTSOptions extends BaseAIOptions {
   defaultLanguage?: string;
 
   /**
-   * Rate limiting configuration
+   * Rate limiting configuration for the local TTS adapter.
+   * Reuses `BaseAIOptions.rateLimit` and reads `requestsPerMinute` / `maxConcurrent`.
    */
-  rateLimit?: {
-    /**
-     * Maximum requests per minute
-     */
-    requestsPerMinute?: number;
-
-    /**
-     * Maximum concurrent requests
-     */
-    maxConcurrent?: number;
-  };
+  rateLimit?: AIRateLimitOptions;
 }
 
 /**
@@ -1315,6 +1359,7 @@ export class AIError extends Error {
     public code: string,
     public provider?: string,
     public model?: string,
+    public retryable: boolean = false,
   ) {
     super(message);
     this.name = 'AIError';
@@ -1328,7 +1373,7 @@ export class AIError extends Error {
  */
 export class AuthenticationError extends AIError {
   constructor(provider?: string) {
-    super('Authentication failed', 'AUTH_ERROR', provider);
+    super('Authentication failed', 'AUTH_ERROR', provider, undefined, false);
     this.name = 'AuthenticationError';
   }
 }
@@ -1340,13 +1385,18 @@ export class AuthenticationError extends AIError {
  * @param retryAfter - Seconds to wait before retrying, if provided by the API
  */
 export class RateLimitError extends AIError {
+  public retryAfter?: number;
+
   constructor(provider?: string, retryAfter?: number) {
     super(
       `Rate limit exceeded${retryAfter ? `, retry after ${retryAfter}s` : ''}`,
       'RATE_LIMIT',
       provider,
+      undefined,
+      true,
     );
     this.name = 'RateLimitError';
+    this.retryAfter = retryAfter;
   }
 }
 
@@ -1358,7 +1408,13 @@ export class RateLimitError extends AIError {
  */
 export class ModelNotFoundError extends AIError {
   constructor(model: string, provider?: string) {
-    super(`Model not found: ${model}`, 'MODEL_NOT_FOUND', provider, model);
+    super(
+      `Model not found: ${model}`,
+      'MODEL_NOT_FOUND',
+      provider,
+      model,
+      false,
+    );
     this.name = 'ModelNotFoundError';
   }
 }
@@ -1376,6 +1432,7 @@ export class ContextLengthError extends AIError {
       'CONTEXT_LENGTH_EXCEEDED',
       provider,
       model,
+      false,
     );
     this.name = 'ContextLengthError';
   }
@@ -1394,6 +1451,7 @@ export class ContentFilterError extends AIError {
       'CONTENT_FILTERED',
       provider,
       model,
+      false,
     );
     this.name = 'ContentFilterError';
   }

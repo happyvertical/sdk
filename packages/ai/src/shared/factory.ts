@@ -6,6 +6,7 @@
 import { loadEnvConfig, ValidationError } from '@happyvertical/utils';
 
 import type { AIClientOptions } from './client';
+import { createRateLimitedAI } from './rate-limit';
 import type {
   AIInterface,
   AnthropicOptions,
@@ -173,53 +174,45 @@ export async function getAI(
     (options as any).defaultModel = (options as any).model;
   }
 
+  let client: AIInterface;
+
   if (isOpenAIOptions(options)) {
     const { OpenAIProvider } = await import('./providers/openai.js');
-    return new OpenAIProvider(options);
-  }
-
-  if (isGeminiOptions(options)) {
+    client = new OpenAIProvider(options);
+  } else if (isGeminiOptions(options)) {
     const { GeminiProvider } = await import('./providers/gemini.js');
-    return new GeminiProvider(options);
-  }
-
-  if (isAnthropicOptions(options)) {
+    client = new GeminiProvider(options);
+  } else if (isAnthropicOptions(options)) {
     const { AnthropicProvider } = await import('./providers/anthropic.js');
-    return new AnthropicProvider(options);
-  }
-
-  if (isHuggingFaceOptions(options)) {
+    client = new AnthropicProvider(options);
+  } else if (isHuggingFaceOptions(options)) {
     const { HuggingFaceProvider } = await import('./providers/huggingface.js');
-    return new HuggingFaceProvider(options);
-  }
-
-  if (isBedrockOptions(options)) {
+    client = new HuggingFaceProvider(options);
+  } else if (isBedrockOptions(options)) {
     const { BedrockProvider } = await import('./providers/bedrock.js');
-    return new BedrockProvider(options);
-  }
-
-  if (isClaudeCliOptions(options)) {
+    client = new BedrockProvider(options);
+  } else if (isClaudeCliOptions(options)) {
     const { ClaudeCliProvider } = await import('./providers/claude-cli.js');
-    return new ClaudeCliProvider(options);
-  }
-
-  if (isQwen3TTSOptions(options)) {
+    client = new ClaudeCliProvider(options);
+  } else if (isQwen3TTSOptions(options)) {
     const { Qwen3TTSProvider } = await import('./providers/qwen-tts.js');
-    return new Qwen3TTSProvider(options);
+    client = new Qwen3TTSProvider(options);
+  } else {
+    throw new ValidationError('Unsupported AI provider type', {
+      supportedTypes: [
+        'openai',
+        'gemini',
+        'anthropic',
+        'huggingface',
+        'bedrock',
+        'claude-cli',
+        'qwen3-tts',
+      ],
+      providedType: (options as any).type,
+    });
   }
 
-  throw new ValidationError('Unsupported AI provider type', {
-    supportedTypes: [
-      'openai',
-      'gemini',
-      'anthropic',
-      'huggingface',
-      'bedrock',
-      'claude-cli',
-      'qwen3-tts',
-    ],
-    providedType: (options as any).type,
-  });
+  return createRateLimitedAI(client, options);
 }
 
 /**

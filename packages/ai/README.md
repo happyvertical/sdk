@@ -68,6 +68,78 @@ const cli = await getAI({ type: 'claude-cli', defaultModel: 'sonnet' });
 const tts = await getAI({ type: 'qwen3-tts', endpoint: 'http://localhost:8880' });
 ```
 
+## Opt-In Rate-Limit Pacing
+
+Use `rateLimit` when multiple calls share the same provider budget and you want
+`getAI()` to serialize requests, honor `Retry-After` hints, and retry only
+rate-limit failures.
+
+Pacing is enabled when:
+- you set `enabled: true`, or
+- you omit `enabled` and set any pacing field such as `key`, `cooldownMs`, `initialDelayMs`, or `maxAttempts`
+
+```typescript
+const ai = await getAI({
+  type: 'gemini',
+  apiKey: process.env.GEMINI_API_KEY!,
+  defaultModel: 'gemini-2.5-flash',
+  rateLimit: {
+    enabled: true,
+    key: 'gemini:shared-batch-key',
+    cooldownMs: 2000,
+    initialDelayMs: 15000,
+    maxAttempts: 3,
+  },
+});
+```
+
+- `key` coordinates pacing across multiple clients in the same process
+- `cooldownMs` spaces successful calls that share the same budget
+- `initialDelayMs` is the fallback retry delay when the provider omits `Retry-After`
+- `maxAttempts` counts the first call plus any rate-limit retries
+
+When `rateLimit` is omitted, or `enabled: false` is set explicitly, `getAI()`
+behaves exactly as it did before.
+
+### `rateLimit` Options
+
+| Field | Type | Default | Notes |
+|------|------|---------|------|
+| `enabled` | `boolean` | unset | Set to `true` for explicit opt-in, or `false` to force pacing off even if other pacing fields are present |
+| `key` | `string` | derived | Shared budget key; clients with the same key coordinate with each other |
+| `cooldownMs` | `number` | `0` | Minimum delay after a successful call before the next call with the same key |
+| `initialDelayMs` | `number` | `5000` | Fallback retry delay when the provider does not return `Retry-After` |
+| `maxAttempts` | `number` | `3` | Total attempts, including the initial call |
+| `requestsPerMinute` | `number` | provider-specific | Used by `qwen3-tts` local token-bucket limiting |
+| `maxConcurrent` | `number` | provider-specific | Used by `qwen3-tts` local concurrency limiting |
+
+- If `key` is omitted, `@happyvertical/ai` derives a provider-scoped key from the configured credentials
+- Setting any of `key`, `cooldownMs`, `initialDelayMs`, or `maxAttempts` also opts in when `enabled` is omitted
+- Only normalized rate-limit failures are retried
+- `stream()` is left unchanged; pacing is applied to the promise-returning request methods
+
+Example quota-sensitive batch workload:
+
+```typescript
+const ai = await getAI({
+  type: 'gemini',
+  apiKey: process.env.GEMINI_API_KEY!,
+  defaultModel: 'gemini-2.5-flash',
+  rateLimit: {
+    enabled: true,
+    key: 'praeco:multi-site-analysis',
+    cooldownMs: 2000,
+    initialDelayMs: 15000,
+    maxAttempts: 3,
+  },
+});
+
+for (const site of sites) {
+  const summary = await ai.message(`Summarize anomalies for ${site.name}`);
+  console.log(site.name, summary);
+}
+```
+
 ## Environment Variables
 
 Configuration via `HAVE_AI_*` prefix. Options passed to `getAI()` take precedence over env vars, which take precedence over provider-specific env vars (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.).
@@ -114,6 +186,19 @@ All providers implement `AIInterface`:
 ### Error Types
 
 All extend `AIError`: `AuthenticationError`, `RateLimitError`, `ModelNotFoundError`, `ContextLengthError`, `ContentFilterError`.
+
+- `AIError.retryable` distinguishes retryable failures from terminal ones
+- `RateLimitError.retryAfter` exposes provider retry hints in seconds when available
+
+```typescript
+try {
+  await ai.chat(messages);
+} catch (error) {
+  if (error instanceof RateLimitError && error.retryable) {
+    console.log('retry after seconds:', error.retryAfter);
+  }
+}
+```
 
 ### Legacy Classes
 
