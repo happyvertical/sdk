@@ -219,9 +219,13 @@ function getRetryDelayMs(
   const hintedDelayMs =
     typeof error.retryAfter === 'number' && Number.isFinite(error.retryAfter)
       ? Math.max(0, Math.ceil(error.retryAfter * 1000))
-      : 0;
+      : undefined;
 
-  return Math.max(config.cooldownMs, config.initialDelayMs, hintedDelayMs);
+  if (hintedDelayMs !== undefined) {
+    return Math.max(config.cooldownMs, hintedDelayMs);
+  }
+
+  return Math.max(config.cooldownMs, config.initialDelayMs);
 }
 
 async function invokeWithPacing<T>(

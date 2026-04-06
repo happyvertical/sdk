@@ -99,6 +99,46 @@ describe('shared AI rate limiting', () => {
     expect(callTimes).toEqual([0, 2000]);
   });
 
+  it('honors shorter provider retry hints before the fallback delay', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+
+    const callTimes: number[] = [];
+    const provider = createTestAI({
+      chat: vi.fn(async () => {
+        callTimes.push(Date.now());
+
+        if (callTimes.length === 1) {
+          throw new RateLimitError('openai', 1);
+        }
+
+        return { content: 'recovered' };
+      }),
+    });
+
+    const ai = createRateLimitedAI(provider, {
+      apiKey: 'test-key',
+      rateLimit: {
+        enabled: true,
+        key: 'openai:test-key',
+        initialDelayMs: 5000,
+        maxAttempts: 2,
+      },
+    });
+
+    const responsePromise = ai.chat([{ role: 'user', content: 'hello' }]);
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(callTimes).toEqual([0]);
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(callTimes).toEqual([0]);
+
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(responsePromise).resolves.toEqual({ content: 'recovered' });
+    expect(callTimes).toEqual([0, 1000]);
+  });
+
   it('does not retry non-retryable failures', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
