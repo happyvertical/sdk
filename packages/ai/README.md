@@ -74,6 +74,10 @@ Use `rateLimit` when multiple calls share the same provider budget and you want
 `getAI()` to serialize requests, honor `Retry-After` hints, and retry only
 rate-limit failures.
 
+Pacing is enabled when:
+- you set `enabled: true`, or
+- you omit `enabled` and set any pacing field such as `key`, `cooldownMs`, `initialDelayMs`, or `maxAttempts`
+
 ```typescript
 const ai = await getAI({
   type: 'gemini',
@@ -94,14 +98,14 @@ const ai = await getAI({
 - `initialDelayMs` is the fallback retry delay when the provider omits `Retry-After`
 - `maxAttempts` counts the first call plus any rate-limit retries
 
-When `rateLimit` is omitted or `enabled: false`, `getAI()` behaves exactly as it
-did before.
+When `rateLimit` is omitted, or `enabled: false` is set explicitly, `getAI()`
+behaves exactly as it did before.
 
 ### `rateLimit` Options
 
 | Field | Type | Default | Notes |
 |------|------|---------|------|
-| `enabled` | `boolean` | `false` | Turns on shared in-process pacing |
+| `enabled` | `boolean` | unset | Set to `true` for explicit opt-in, or `false` to force pacing off even if other pacing fields are present |
 | `key` | `string` | derived | Shared budget key; clients with the same key coordinate with each other |
 | `cooldownMs` | `number` | `0` | Minimum delay after a successful call before the next call with the same key |
 | `initialDelayMs` | `number` | `5000` | Fallback retry delay when the provider does not return `Retry-After` |
@@ -110,6 +114,7 @@ did before.
 | `maxConcurrent` | `number` | provider-specific | Used by `qwen3-tts` local concurrency limiting |
 
 - If `key` is omitted, `@happyvertical/ai` derives a provider-scoped key from the configured credentials
+- Setting any of `key`, `cooldownMs`, `initialDelayMs`, or `maxAttempts` also opts in when `enabled` is omitted
 - Only normalized rate-limit failures are retried
 - `stream()` is left unchanged; pacing is applied to the promise-returning request methods
 

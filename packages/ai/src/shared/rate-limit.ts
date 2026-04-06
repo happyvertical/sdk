@@ -17,6 +17,9 @@ const RATE_LIMITED_METHODS = new Set<keyof AIInterface>([
   'getVoices',
 ]);
 
+const MAX_BUDGET_COORDINATORS = 128;
+const BUDGET_COORDINATOR_TTL_MS = 15 * 60 * 1000;
+
 interface NormalizedRateLimitConfig {
   cooldownMs: number;
   initialDelayMs: number;
@@ -26,18 +29,32 @@ interface NormalizedRateLimitConfig {
 
 class BudgetCoordinator {
   private nextAvailableAt = 0;
+  private pendingSchedules = 0;
   private tail: Promise<void> = Promise.resolve();
+  private lastUsedAt = Date.now();
+
+  touch(): void {
+    this.lastUsedAt = Date.now();
+  }
 
   schedule<T>(work: () => Promise<T>): Promise<T> {
+    this.pendingSchedules += 1;
+    this.touch();
+
     const run = this.tail.then(work, work);
     this.tail = run.then(
       () => undefined,
       () => undefined,
     );
-    return run;
+
+    return run.finally(() => {
+      this.pendingSchedules = Math.max(0, this.pendingSchedules - 1);
+      this.touch();
+    });
   }
 
   async waitUntilReady(): Promise<void> {
+    this.touch();
     const delayMs = this.nextAvailableAt - Date.now();
     if (delayMs > 0) {
       await sleep(delayMs);
@@ -45,11 +62,27 @@ class BudgetCoordinator {
   }
 
   delayFor(delayMs: number): void {
+    this.touch();
     if (delayMs <= 0) {
       return;
     }
 
     this.nextAvailableAt = Math.max(this.nextAvailableAt, Date.now() + delayMs);
+  }
+
+  isEvictable(now: number): boolean {
+    return this.pendingSchedules === 0 && now >= this.nextAvailableAt;
+  }
+
+  isExpired(now: number): boolean {
+    return (
+      this.isEvictable(now) &&
+      now - this.lastUsedAt >= BUDGET_COORDINATOR_TTL_MS
+    );
+  }
+
+  getLastUsedAt(): number {
+    return this.lastUsedAt;
   }
 }
 
@@ -61,12 +94,42 @@ function sleep(delayMs: number): Promise<void> {
   });
 }
 
+function pruneBudgetCoordinators(): void {
+  const now = Date.now();
+
+  for (const [key, coordinator] of budgetCoordinators.entries()) {
+    if (coordinator.isExpired(now)) {
+      budgetCoordinators.delete(key);
+    }
+  }
+
+  while (budgetCoordinators.size > MAX_BUDGET_COORDINATORS) {
+    const evictableEntries = [...budgetCoordinators.entries()]
+      .filter(([, coordinator]) => coordinator.isEvictable(now))
+      .sort(
+        ([, leftCoordinator], [, rightCoordinator]) =>
+          leftCoordinator.getLastUsedAt() - rightCoordinator.getLastUsedAt(),
+      );
+
+    if (evictableEntries.length === 0) {
+      break;
+    }
+
+    budgetCoordinators.delete(evictableEntries[0][0]);
+  }
+}
+
 function getBudgetCoordinator(key: string): BudgetCoordinator {
+  pruneBudgetCoordinators();
+
   let coordinator = budgetCoordinators.get(key);
   if (!coordinator) {
     coordinator = new BudgetCoordinator();
     budgetCoordinators.set(key, coordinator);
+    pruneBudgetCoordinators();
   }
+
+  coordinator.touch();
   return coordinator;
 }
 
@@ -107,11 +170,8 @@ function hashKey(value: string): string {
 }
 
 function deriveBudgetKey(options: GetAIOptions | AIClientOptions): string {
-  const provider =
-    typeof (options as { type?: string }).type === 'string' &&
-    (options as { type?: string }).type
-      ? (options as { type?: string }).type!
-      : 'openai';
+  const type = (options as { type?: string }).type;
+  const provider = typeof type === 'string' && type ? type : 'openai';
 
   const credentialLikeValues = [
     'apiKey' in options ? options.apiKey : undefined,
@@ -284,7 +344,6 @@ export function createRateLimitedAI<T extends AIInterface>(
     return client;
   }
 
-  const coordinator = getBudgetCoordinator(config.key);
   const wrappedMethods = new Map<PropertyKey, unknown>();
 
   return new Proxy(client, {
@@ -296,19 +355,24 @@ export function createRateLimitedAI<T extends AIInterface>(
       }
 
       if (!RATE_LIMITED_METHODS.has(property as keyof AIInterface)) {
-        return value.bind(target);
+        if (!wrappedMethods.has(property)) {
+          wrappedMethods.set(property, value.bind(target));
+        }
+
+        return wrappedMethods.get(property);
       }
 
       if (!wrappedMethods.has(property)) {
-        wrappedMethods.set(property, (...args: unknown[]) =>
-          coordinator.schedule(() =>
+        wrappedMethods.set(property, (...args: unknown[]) => {
+          const coordinator = getBudgetCoordinator(config.key);
+          return coordinator.schedule(() =>
             invokeWithPacing(
               () => Reflect.apply(value, target, args) as Promise<unknown>,
               coordinator,
               config,
             ),
-          ),
-        );
+          );
+        });
       }
 
       return wrappedMethods.get(property);
@@ -318,6 +382,18 @@ export function createRateLimitedAI<T extends AIInterface>(
 
 export function __resetAIRateLimitStateForTests(): void {
   budgetCoordinators.clear();
+}
+
+export function __getAIRateLimitStateForTests(): {
+  count: number;
+  maxBudgetCoordinators: number;
+  ttlMs: number;
+} {
+  return {
+    count: budgetCoordinators.size,
+    maxBudgetCoordinators: MAX_BUDGET_COORDINATORS,
+    ttlMs: BUDGET_COORDINATOR_TTL_MS,
+  };
 }
 
 export function isRetryableAIError(error: unknown): error is AIError {

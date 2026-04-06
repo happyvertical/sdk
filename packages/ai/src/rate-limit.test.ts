@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  __getAIRateLimitStateForTests,
   __resetAIRateLimitStateForTests,
   createRateLimitedAI,
 } from './shared/rate-limit';
@@ -116,10 +117,9 @@ describe('shared AI rate limiting', () => {
       },
     });
 
-    const responsePromise = ai.chat([{ role: 'user', content: 'hello' }]);
-
-    await vi.advanceTimersByTimeAsync(0);
-    await expect(responsePromise).rejects.toBeInstanceOf(AuthenticationError);
+    await expect(
+      ai.chat([{ role: 'user', content: 'hello' }]),
+    ).rejects.toBeInstanceOf(AuthenticationError);
     expect(chat).toHaveBeenCalledTimes(1);
   });
 
@@ -183,5 +183,68 @@ describe('shared AI rate limiting', () => {
       { at: 0, id: 'one' },
       { at: 1000, id: 'two' },
     ]);
+  });
+
+  it('reuses bound method references for non-paced methods', () => {
+    const ai = createRateLimitedAI(createTestAI(), {
+      type: 'gemini',
+      apiKey: 'test-key',
+      rateLimit: {
+        enabled: true,
+        key: 'shared-budget',
+      },
+    });
+
+    expect(ai.stream).toBe(ai.stream);
+    expect(ai.countTokens).toBe(ai.countTokens);
+  });
+
+  it('prunes stale idle coordinators when new keys are created', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+
+    const { ttlMs } = __getAIRateLimitStateForTests();
+
+    const first = createRateLimitedAI(createTestAI(), {
+      type: 'gemini',
+      apiKey: 'key-one',
+      rateLimit: {
+        key: 'budget-one',
+      },
+    });
+
+    await first.chat([{ role: 'user', content: 'first' }]);
+    expect(__getAIRateLimitStateForTests().count).toBe(1);
+
+    vi.setSystemTime(ttlMs + 1);
+
+    const second = createRateLimitedAI(createTestAI(), {
+      type: 'gemini',
+      apiKey: 'key-two',
+      rateLimit: {
+        key: 'budget-two',
+      },
+    });
+
+    await second.chat([{ role: 'user', content: 'second' }]);
+    expect(__getAIRateLimitStateForTests().count).toBe(1);
+  });
+
+  it('keeps the coordinator cache bounded for idle entries', async () => {
+    const { maxBudgetCoordinators } = __getAIRateLimitStateForTests();
+
+    for (let index = 0; index < maxBudgetCoordinators + 5; index += 1) {
+      const ai = createRateLimitedAI(createTestAI(), {
+        type: 'gemini',
+        apiKey: `key-${index}`,
+        rateLimit: {
+          key: `budget-${index}`,
+        },
+      });
+
+      await ai.chat([{ role: 'user', content: `message-${index}` }]);
+    }
+
+    expect(__getAIRateLimitStateForTests().count).toBe(maxBudgetCoordinators);
   });
 });
