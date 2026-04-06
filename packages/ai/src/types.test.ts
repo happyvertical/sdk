@@ -27,6 +27,7 @@ describe('AI Error Classes', () => {
       expect(error.code).toBe('TEST_CODE');
       expect(error.provider).toBe('test-provider');
       expect(error.model).toBe('test-model');
+      expect(error.retryable).toBe(false);
       expect(error instanceof Error).toBe(true);
       expect(error instanceof AIError).toBe(true);
     });
@@ -39,6 +40,7 @@ describe('AI Error Classes', () => {
       expect(error.code).toBe('MIN_CODE');
       expect(error.provider).toBeUndefined();
       expect(error.model).toBeUndefined();
+      expect(error.retryable).toBe(false);
     });
   });
 
@@ -50,6 +52,7 @@ describe('AI Error Classes', () => {
       expect(error.message).toBe('Authentication failed');
       expect(error.code).toBe('AUTH_ERROR');
       expect(error.provider).toBe('openai');
+      expect(error.retryable).toBe(false);
       expect(error instanceof AIError).toBe(true);
       expect(error instanceof AuthenticationError).toBe(true);
     });
@@ -61,6 +64,7 @@ describe('AI Error Classes', () => {
       expect(error.message).toBe('Authentication failed');
       expect(error.code).toBe('AUTH_ERROR');
       expect(error.provider).toBeUndefined();
+      expect(error.retryable).toBe(false);
     });
   });
 
@@ -72,6 +76,8 @@ describe('AI Error Classes', () => {
       expect(error.message).toBe('Rate limit exceeded, retry after 60s');
       expect(error.code).toBe('RATE_LIMIT');
       expect(error.provider).toBe('anthropic');
+      expect(error.retryAfter).toBe(60);
+      expect(error.retryable).toBe(true);
       expect(error instanceof AIError).toBe(true);
       expect(error instanceof RateLimitError).toBe(true);
     });
@@ -83,6 +89,8 @@ describe('AI Error Classes', () => {
       expect(error.message).toBe('Rate limit exceeded');
       expect(error.code).toBe('RATE_LIMIT');
       expect(error.provider).toBe('gemini');
+      expect(error.retryAfter).toBeUndefined();
+      expect(error.retryable).toBe(true);
     });
   });
 
@@ -95,6 +103,7 @@ describe('AI Error Classes', () => {
       expect(error.code).toBe('MODEL_NOT_FOUND');
       expect(error.provider).toBe('openai');
       expect(error.model).toBe('gpt-5');
+      expect(error.retryable).toBe(false);
       expect(error instanceof AIError).toBe(true);
       expect(error instanceof ModelNotFoundError).toBe(true);
     });
@@ -109,6 +118,7 @@ describe('AI Error Classes', () => {
       expect(error.code).toBe('CONTEXT_LENGTH_EXCEEDED');
       expect(error.provider).toBe('huggingface');
       expect(error.model).toBe('gpt2');
+      expect(error.retryable).toBe(false);
       expect(error instanceof AIError).toBe(true);
       expect(error instanceof ContextLengthError).toBe(true);
     });
@@ -123,6 +133,7 @@ describe('AI Error Classes', () => {
       expect(error.code).toBe('CONTENT_FILTERED');
       expect(error.provider).toBe('bedrock');
       expect(error.model).toBe('claude-3');
+      expect(error.retryable).toBe(false);
       expect(error instanceof AIError).toBe(true);
       expect(error instanceof ContentFilterError).toBe(true);
     });
