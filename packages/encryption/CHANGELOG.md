@@ -1,5 +1,14 @@
 # @happyvertical/encryption
 
+## 0.71.20
+
+### Patch Changes
+
+- 6dadd53: Republish the context installer bins so `have-encryption-context` and
+  `have-weather-context` point at built CLI files in published packages.
+  - @happyvertical/logger@0.71.20
+  - @happyvertical/utils@0.71.20
+
 ## 0.71.19
 
 ### Patch Changes
