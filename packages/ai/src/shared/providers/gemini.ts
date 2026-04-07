@@ -3,7 +3,7 @@
  */
 
 import crypto from 'node:crypto';
-
+import { extractRetryAfterSeconds } from '../rate-limit';
 import type {
   AICapabilities,
   AIInterface,
@@ -815,7 +815,7 @@ export class GeminiProvider implements AIInterface {
     }
 
     if (message.includes('QUOTA_EXCEEDED') || message.includes('429')) {
-      return new RateLimitError('gemini');
+      return new RateLimitError('gemini', extractRetryAfterSeconds(error));
     }
 
     if (message.includes('MODEL_NOT_FOUND') || message.includes('404')) {

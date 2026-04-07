@@ -2,6 +2,7 @@ import { ApiError, ValidationError } from '@happyvertical/utils';
 import OpenAI from 'openai';
 
 import type { AIMessageOptions } from './message';
+import type { AIRateLimitOptions } from './types';
 
 /**
  * Common options for AI client configuration
@@ -26,6 +27,11 @@ export interface AIClientOptions {
    * Base URL for API requests
    */
   baseUrl?: string;
+
+  /**
+   * Optional shared pacing / retry configuration for getAI().
+   */
+  rateLimit?: AIRateLimitOptions;
 }
 
 /**

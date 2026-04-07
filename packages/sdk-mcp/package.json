@@ -48,13 +48,13 @@
     "@happyvertical/ai": "workspace:*",
     "@happyvertical/files": "workspace:*",
     "@happyvertical/utils": "workspace:*",
-    "@modelcontextprotocol/sdk": "1.27.1"
+    "@modelcontextprotocol/sdk": "1.29.0"
   },
   "devDependencies": {
     "@types/node": "25.0.10",
     "typescript": "^5.9.3",
     "vite": "7.3.1",
     "vite-plugin-dts": "4.5.4",
-    "vitest": "^4.0.18"
+    "vitest": "^4.1.2"
   }
 }

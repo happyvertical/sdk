@@ -8,7 +8,7 @@
  */
 
 import OpenAI from 'openai';
-
+import { extractRetryAfterSeconds } from '../rate-limit';
 import type {
   AICapabilities,
   AIInterface,
@@ -860,12 +860,7 @@ export class OpenAIProvider implements AIInterface {
         case 401:
           return new AuthenticationError('openai');
         case 429: {
-          // Try to extract retry-after from headers
-          const retryAfter = error.headers?.['retry-after'];
-          const retryAfterSeconds = retryAfter
-            ? Number.parseInt(retryAfter, 10)
-            : undefined;
-          return new RateLimitError('openai', retryAfterSeconds);
+          return new RateLimitError('openai', extractRetryAfterSeconds(error));
         }
         case 404:
           return new ModelNotFoundError(error.message, 'openai');
