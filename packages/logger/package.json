@@ -51,7 +51,7 @@
     "@sentry/node": "^10.40.0",
     "@types/node": "25.0.10",
     "typescript": "^5.9.3",
-    "vite": "7.3.1",
+    "vite": "7.3.2",
     "vitest": "^4.1.2"
   },
   "keywords": [
