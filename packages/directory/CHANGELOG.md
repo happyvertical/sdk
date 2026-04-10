@@ -1,5 +1,11 @@
 # @happyvertical/directory
 
+## 0.71.21
+
+### Patch Changes
+
+- @happyvertical/utils@0.71.21
+
 ## 0.71.20
 
 ### Patch Changes
