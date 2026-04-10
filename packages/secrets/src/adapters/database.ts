@@ -516,10 +516,10 @@ export class DatabaseSecretStore implements SecretStore {
 
     const { rows } = await this.db.query(
       `SELECT * FROM "${this.keysTable}" WHERE tenant_id = ? ORDER BY version DESC`,
-      [tenantId],
+      tenantId,
     );
 
-    return rows.map((row) => this.parseKeyRow(row as Record<string, unknown>));
+    return rows.map((row: Record<string, unknown>) => this.parseKeyRow(row));
   }
 
   /**

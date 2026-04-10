@@ -1,5 +1,5 @@
 import { type DatabaseInterface, getDatabase } from '@happyvertical/sql';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DatabaseSecretStore } from '../adapters/database.js';
 import { EnvelopeEncryption } from '../shared/envelope.js';
 import {
@@ -260,6 +260,17 @@ describe('DatabaseSecretStore', () => {
     it('returns empty array for non-existent tenant', async () => {
       const versions = await store.listKeyVersions('non-existent');
       expect(versions).toEqual([]);
+    });
+
+    it('passes the tenant id directly to the raw query adapter', async () => {
+      const querySpy = vi.spyOn(db, 'query');
+
+      await store.listKeyVersions(testTenantId);
+
+      expect(querySpy).toHaveBeenCalledWith(
+        expect.stringContaining('WHERE tenant_id = ? ORDER BY version DESC'),
+        testTenantId,
+      );
     });
   });
 
