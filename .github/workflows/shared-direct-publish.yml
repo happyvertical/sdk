@@ -87,7 +87,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           fetch-depth: 0
-          # Use the release app token for tags, releases, and sync PRs
+          # Use the release app token for tags, releases, and main-branch sync
           token: ${{ steps.generate_token.outputs.token }}
 
       - name: Setup Environment
@@ -140,24 +140,6 @@ jobs:
 
           echo "🚀 Running Changesets release..."
 
-          RELEASE_SYNC_BRANCH="changeset-release/main"
-          RELEASE_SYNC_PR_TITLE="chore: version packages"
-
-          EXISTING_SYNC_PR=$(gh pr list \
-            --repo "$GITHUB_REPOSITORY" \
-            --state open \
-            --head "$RELEASE_SYNC_BRANCH" \
-            --json number \
-            --jq '.[0].number // empty')
-
-          if [ -n "$EXISTING_SYNC_PR" ]; then
-            echo "ℹ️  Release sync PR #$EXISTING_SYNC_PR is still open"
-            echo "Skipping direct publish until that PR merges."
-            echo "published=false" >> $GITHUB_OUTPUT
-            echo "reason=release_sync_pr_open:$EXISTING_SYNC_PR" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
           # Store current version before release
           BEFORE_VERSION=$(node -p "require('./package.json').version")
           echo "Version before release: $BEFORE_VERSION"
@@ -190,7 +172,6 @@ jobs:
             # Commit version changes
             git add .
             git commit -m "chore(release): v$AFTER_VERSION [skip ci]"
-            RELEASE_COMMIT_SHA=$(git rev-parse HEAD)
 
             # Build packages
             pnpm run build
@@ -221,50 +202,10 @@ jobs:
                 --latest
             fi
 
-            if git push origin main; then
-              echo "✅ Synced release commit to main"
-            else
-              echo "⚠️  Direct push to protected main was rejected"
-              echo "Creating or updating a release sync PR instead..."
-
-              git push --force origin \
-                "$RELEASE_COMMIT_SHA:refs/heads/$RELEASE_SYNC_BRANCH"
-
-              SYNC_PR_BODY=$(printf '%s\n' \
-                "## Version Sync" \
-                "" \
-                "This PR syncs the already-published release commit for \`v$AFTER_VERSION\` back to \`main\`." \
-                "" \
-                "- Published packages: \`v$AFTER_VERSION\`" \
-                "- Release tag: \`v$AFTER_VERSION\`" \
-                "- Source workflow: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-                "" \
-                "Merge this PR to bring package versions and changelogs back onto \`main\`." \
-              )
-
-              EXISTING_SYNC_PR=$(gh pr list \
-                --repo "$GITHUB_REPOSITORY" \
-                --state open \
-                --head "$RELEASE_SYNC_BRANCH" \
-                --json number \
-                --jq '.[0].number // empty')
-
-              if [ -n "$EXISTING_SYNC_PR" ]; then
-                gh pr edit "$EXISTING_SYNC_PR" \
-                  --repo "$GITHUB_REPOSITORY" \
-                  --title "$RELEASE_SYNC_PR_TITLE" \
-                  --body "$SYNC_PR_BODY"
-                echo "✅ Updated release sync PR #$EXISTING_SYNC_PR"
-              else
-                gh pr create \
-                  --repo "$GITHUB_REPOSITORY" \
-                  --base main \
-                  --head "$RELEASE_SYNC_BRANCH" \
-                  --title "$RELEASE_SYNC_PR_TITLE" \
-                  --body "$SYNC_PR_BODY"
-                echo "✅ Created release sync PR from $RELEASE_SYNC_BRANCH"
-              fi
-            fi
+            # Direct publish depends on branch rules allowing the release app
+            # to bypass pull-request-only enforcement on main.
+            git push origin main
+            echo "✅ Synced release commit to main"
 
             echo "published=true" >> $GITHUB_OUTPUT
             echo "version=$AFTER_VERSION" >> $GITHUB_OUTPUT

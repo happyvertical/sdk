@@ -133,21 +133,16 @@ jobs:
           echo "(feat, fix, perf, or breaking changes)"
           echo ""
 
-          # Check if changeset files exist (excluding README.md)
+          # Check if explicit changeset files exist (excluding README.md)
           changeset_count=$(find .changeset -name '*.md' \
             ! -name 'README.md' 2>/dev/null | wc -l)
 
           if [ "$changeset_count" -eq 0 ]; then
-            echo "❌ No changeset found"
+            echo "✅ No explicit changeset required for this PR"
             echo ""
-            echo "Please add a changeset by running:"
-            echo "  npx changeset"
-            echo ""
-            echo "Or add the 'skip-changeset' label if this PR" \
-              "doesn't require a version bump"
-            echo "(e.g., documentation changes, test updates," \
-              "workflow changes)"
-            exit 1
+            echo "This PR will merge without a version bump unless the" \
+              "final merge commit triggers the on-main auto changeset rules."
+            exit 0
           fi
 
           echo "✅ Found $changeset_count changeset(s)"
