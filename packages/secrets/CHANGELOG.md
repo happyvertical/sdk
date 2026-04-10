@@ -4,8 +4,9 @@
 
 ### Patch Changes
 
-- @happyvertical/sql@0.71.20
-- @happyvertical/utils@0.71.20
+- 3419d1b: Pass tenant key version queries through the raw SQL adapter with scalar parameters so PostgreSQL resolves tenant key versions correctly.
+  - @happyvertical/sql@0.71.20
+  - @happyvertical/utils@0.71.20
 
 ## 0.71.19
 
