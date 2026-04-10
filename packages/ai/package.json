@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/ai",
-  "version": "0.71.19",
+  "version": "0.71.20",
   "description": "Standardized AI interface supporting OpenAI, Anthropic, Google Gemini, AWS Bedrock, and Hugging Face with unified API",
   "type": "module",
   "main": "./dist/index.js",
