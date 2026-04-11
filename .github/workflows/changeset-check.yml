@@ -96,10 +96,10 @@ jobs:
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
 
           # Check for releaseable conventional commits
-          # (feat, fix, perf, breaking changes)
+          # (feat, fix, perf, chore(deps), breaking changes)
           RELEASEABLE_COMMITS=$(git log \
             $BASE_SHA..$HEAD_SHA --pretty=format:"%s" --no-merges | \
-            grep -E '^(feat|fix|perf)(\(.+\))?!?:|BREAKING CHANGE' \
+            grep -E '^(feat|fix|perf)(\(.+\))?!?:|^chore\(deps\)!?:|BREAKING CHANGE' \
             || true)
 
           if [ -n "$RELEASEABLE_COMMITS" ]; then
@@ -130,24 +130,20 @@ jobs:
           fi
 
           echo "ℹ️  No releaseable conventional commits found"
-          echo "(feat, fix, perf, or breaking changes)"
+          echo "(feat, fix, perf, chore(deps), or breaking changes)"
           echo ""
 
-          # Check if changeset files exist (excluding README.md)
+          # Check if explicit changeset files exist (excluding README.md)
           changeset_count=$(find .changeset -name '*.md' \
             ! -name 'README.md' 2>/dev/null | wc -l)
 
           if [ "$changeset_count" -eq 0 ]; then
-            echo "❌ No changeset found"
+            echo "✅ No explicit changeset required for this PR"
             echo ""
-            echo "Please add a changeset by running:"
-            echo "  npx changeset"
-            echo ""
-            echo "Or add the 'skip-changeset' label if this PR" \
-              "doesn't require a version bump"
-            echo "(e.g., documentation changes, test updates," \
-              "workflow changes)"
-            exit 1
+            echo "This PR will merge without a version bump unless" \
+              "non-merge commits on main (including squash/rebase commits)" \
+              "match the on-main auto changeset rules."
+            exit 0
           fi
 
           echo "✅ Found $changeset_count changeset(s)"
