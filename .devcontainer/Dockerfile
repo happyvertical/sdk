@@ -1,5 +1,5 @@
 # Use Debian base image for Bun-only environment
-FROM mcr.microsoft.com/devcontainers/base:bookworm@sha256:15143a8c806afb8db57ae2c92876c112d7a6a1ced31cd7aa8b414201782757a4
+FROM mcr.microsoft.com/devcontainers/base:bookworm@sha256:4d49e42a3eda8a8fd8437ecd8830d50a9113dc0f3623226db5e5c10a2b156f1e
 
 # Set environment variables
 ENV DEBIAN_FRONTEND=noninteractive

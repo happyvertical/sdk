@@ -94,7 +94,7 @@ jobs:
           cargo install cross --git https://github.com/cross-rs/cross
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
 
       - name: Install dependencies
         working-directory: packages/json
@@ -174,7 +174,7 @@ jobs:
           EOF
 
       - name: Upload artifact
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: json-native-${{ matrix.package-suffix }}
           path: packages/json/npm/${{ matrix.package-suffix }}
@@ -197,7 +197,7 @@ jobs:
           registry-url: 'https://npm.pkg.github.com'
 
       - name: Download all artifacts
-        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           path: packages/json/npm
           pattern: json-native-*

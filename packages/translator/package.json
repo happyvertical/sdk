@@ -58,7 +58,7 @@
     "@google-cloud/translate": "^9.3.0",
     "@happyvertical/cache": "workspace:*",
     "@happyvertical/utils": "workspace:*",
-    "deepl-node": "^1.24.0"
+    "deepl-node": "^1.26.0"
   },
   "devDependencies": {
     "@types/node": "25.0.10",

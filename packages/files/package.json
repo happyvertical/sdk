@@ -22,7 +22,7 @@
     "dev": "npm run build:watch & npm run test:watch"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.940.0",
+    "@aws-sdk/client-s3": "^3.1029.0",
     "@happyvertical/utils": "workspace:*",
     "google-auth-library": "^9.15.1",
     "googleapis": "^144.0.0"
