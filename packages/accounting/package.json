@@ -46,7 +46,7 @@
   },
   "dependencies": {
     "@happyvertical/utils": "workspace:*",
-    "intuit-oauth": "^4.2.2"
+    "intuit-oauth": "^4.2.3"
   },
   "devDependencies": {
     "@types/node": "25.0.10",
