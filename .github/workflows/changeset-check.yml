@@ -96,10 +96,10 @@ jobs:
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
 
           # Check for releaseable conventional commits
-          # (feat, fix, perf, breaking changes)
+          # (feat, fix, perf, chore(deps), breaking changes)
           RELEASEABLE_COMMITS=$(git log \
             $BASE_SHA..$HEAD_SHA --pretty=format:"%s" --no-merges | \
-            grep -E '^(feat|fix|perf)(\(.+\))?!?:|BREAKING CHANGE' \
+            grep -E '^(feat|fix|perf)(\(.+\))?!?:|^chore\(deps\)!?:|BREAKING CHANGE' \
             || true)
 
           if [ -n "$RELEASEABLE_COMMITS" ]; then
@@ -130,7 +130,7 @@ jobs:
           fi
 
           echo "ℹ️  No releaseable conventional commits found"
-          echo "(feat, fix, perf, or breaking changes)"
+          echo "(feat, fix, perf, chore(deps), or breaking changes)"
           echo ""
 
           # Check if explicit changeset files exist (excluding README.md)
@@ -140,8 +140,9 @@ jobs:
           if [ "$changeset_count" -eq 0 ]; then
             echo "✅ No explicit changeset required for this PR"
             echo ""
-            echo "This PR will merge without a version bump unless the" \
-              "final merge commit triggers the on-main auto changeset rules."
+            echo "This PR will merge without a version bump unless" \
+              "non-merge commits on main (including squash/rebase commits)" \
+              "match the on-main auto changeset rules."
             exit 0
           fi
 

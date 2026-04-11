@@ -179,6 +179,46 @@ jobs:
             # Validate publishable artifacts before pushing packages
             pnpm run validate-build
 
+            sync_target="HEAD:main"
+            sync_rebuild_required=0
+
+            sync_release_commit() {
+              local attempt=1
+              while [ "$attempt" -le 3 ]; do
+                if git push origin "$sync_target"; then
+                  echo "✅ Synced release commit to main"
+                  return 0
+                fi
+
+                echo "⚠️  Main sync failed (attempt $attempt/3)"
+
+                git fetch origin main --quiet || true
+                if git rebase origin/main; then
+                  sync_rebuild_required=1
+                  echo "🔁 Rebased release commit onto latest main"
+                else
+                  echo "❌ Release commit could not be rebased onto latest main"
+                  exit 1
+                fi
+
+                sleep $((attempt * 5))
+                attempt=$((attempt + 1))
+              done
+
+              echo "❌ Failed to sync release commit to main before publish"
+              exit 1
+            }
+
+            # Sync the release commit before publishing so main stays aligned
+            # with the version/changelog state we are about to publish.
+            sync_release_commit
+
+            if [ "$sync_rebuild_required" -eq 1 ]; then
+              echo "🔁 Rebuilding release artifacts after rebasing onto latest main"
+              pnpm run build
+              pnpm run validate-build
+            fi
+
             # Publish packages
             pnpm run changeset:publish
 
@@ -201,11 +241,6 @@ jobs:
                 --notes "$RELEASE_NOTES" \
                 --latest
             fi
-
-            # Direct publish depends on branch rules allowing the release app
-            # to bypass pull-request-only enforcement on main.
-            git push origin main
-            echo "✅ Synced release commit to main"
 
             echo "published=true" >> $GITHUB_OUTPUT
             echo "version=$AFTER_VERSION" >> $GITHUB_OUTPUT
