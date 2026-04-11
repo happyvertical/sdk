@@ -7,8 +7,8 @@ settings:
 catalogs:
   default:
     '@happyvertical/ocr':
-      specifier: ^0.60.33
-      version: 0.60.33
+      specifier: ^0.60.34
+      version: 0.60.34
     '@happyvertical/pdf':
       specifier: ^0.62.21
       version: 0.62.21
@@ -364,7 +364,7 @@ importers:
         version: link:../files
       '@happyvertical/ocr':
         specifier: 'catalog:'
-        version: 0.60.33
+        version: 0.60.34
       '@happyvertical/pdf':
         specifier: 'catalog:'
         version: 0.62.21(@napi-rs/canvas@0.1.95)
@@ -3108,8 +3108,8 @@ packages:
   '@hapi/topo@5.1.0':
     resolution: {integrity: sha512-foQZKJig7Ob0BMAYBfcJk8d77QtOe7Wo4ox7ff1lQYoNNAb6jwcY1ncdoy2e9wQZzvNy7ODZCYJkK8kzmcAnAg==}
 
-  '@happyvertical/ocr@0.60.33':
-    resolution: {integrity: sha512-uMXObBBKcN8D8E/XTi6dS/R4EtuBHxK/35cmEyG874x2umg5vyXo+Ss+tSJlOryFw9f1Y0LDPXtqckMxJ6ecrQ==, tarball: https://npm.pkg.github.com/download/@happyvertical/ocr/0.60.33/dd3de5edd1ff28cb222b0564df0f8f80f8768a1a}
+  '@happyvertical/ocr@0.60.34':
+    resolution: {integrity: sha512-8b0s6yFDlmQiGVZjsyYCqtGpP+EmseWRE+Opv2YACgCVYd72fvHIsRLEnrVTjnFO3yjA8/lN+kBlGCqcZKqQ9g==, tarball: https://npm.pkg.github.com/download/@happyvertical/ocr/0.60.34/27fa94c424832233a5dbccd3a3cc7045b0514373}
     engines: {node: '>=24', pnpm: '>=9'}
 
   '@happyvertical/pdf@0.62.21':
@@ -16597,7 +16597,7 @@ snapshots:
     dependencies:
       '@hapi/hoek': 9.3.0
 
-  '@happyvertical/ocr@0.60.33':
+  '@happyvertical/ocr@0.60.34':
     dependencies:
       '@gutenye/ocr-node': 1.4.8
       '@happyvertical/ai': link:packages/ai
@@ -16610,7 +16610,7 @@ snapshots:
 
   '@happyvertical/pdf@0.62.21(@napi-rs/canvas@0.1.95)':
     dependencies:
-      '@happyvertical/ocr': 0.60.33
+      '@happyvertical/ocr': 0.60.34
       '@happyvertical/utils': link:packages/utils
       pdf-to-png-converter: 3.11.0
       unpdf: 1.4.0(@napi-rs/canvas@0.1.95)
