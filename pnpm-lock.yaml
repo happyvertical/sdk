@@ -185,8 +185,8 @@ importers:
         specifier: 3.997.0
         version: 3.997.0
       '@google/genai':
-        specifier: 1.48.0
-        version: 1.48.0(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))
+        specifier: 1.49.0
+        version: 1.49.0(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))
       '@happyvertical/utils':
         specifier: workspace:*
         version: link:../utils
@@ -3069,8 +3069,8 @@ packages:
     resolution: {integrity: sha512-OgZ2bCu3P0ZzMhEdYubwyCo/eFFlJMYalozmgOxlVcD51vCYelYUJeVnGlS+3cFQTJQX4RE84bYTKu7W0wqByw==}
     engines: {node: '>=18'}
 
-  '@google/genai@1.48.0':
-    resolution: {integrity: sha512-plonYK4ML2PrxsRD9SeqmFt76eREWkQdPCglOA6aYDzL1AAbE+7PUnT54SvpWGfws13L0AZEqGSpL7+1IPnTxQ==}
+  '@google/genai@1.49.0':
+    resolution: {integrity: sha512-hO69Zl0H3x+L0KL4stl1pLYgnqnwHoLqtKy6MRlNnW8TAxjqMdOUVafomKd4z1BePkzoxJWbYILny9a2Zk43VQ==}
     engines: {node: '>=20.0.0'}
     peerDependencies:
       '@modelcontextprotocol/sdk': ^1.25.2
@@ -16536,7 +16536,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@google/genai@1.48.0(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))':
+  '@google/genai@1.49.0(@modelcontextprotocol/sdk@1.29.0(zod@3.25.76))':
     dependencies:
       google-auth-library: 10.6.1
       p-retry: 4.6.2
