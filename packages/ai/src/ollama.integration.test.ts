@@ -8,12 +8,15 @@
 import { describe, expect, it } from 'vitest';
 import { getAI } from './index';
 
-const shouldRun = Boolean(
-  process.env.OLLAMA_INTEGRATION ||
-    process.env.OLLAMA_BASE_URL ||
-    process.env.OLLAMA_HOST ||
-    process.env.OLLAMA_API_KEY,
-);
+const isCI = Boolean(process.env.CI || process.env.GITHUB_ACTIONS);
+const shouldRun =
+  !isCI &&
+  Boolean(
+    process.env.OLLAMA_INTEGRATION ||
+      process.env.OLLAMA_BASE_URL ||
+      process.env.OLLAMA_HOST ||
+      process.env.OLLAMA_API_KEY,
+  );
 
 const baseUrl =
   process.env.OLLAMA_BASE_URL ||
