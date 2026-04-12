@@ -115,62 +115,11 @@ export class GeminiProvider implements AIInterface {
       await this.ensureClient();
 
       const model = options.model || this.options.defaultModel;
-      const generationConfig: Record<string, any> = {
-        maxOutputTokens: options.maxTokens,
-        temperature: options.temperature,
-        topP: options.topP,
-        stopSequences: Array.isArray(options.stop)
-          ? options.stop
-          : options.stop
-            ? [options.stop]
-            : undefined,
-        // Add response MIME type for JSON output
-        responseMimeType:
-          options.responseFormat?.type === 'json_object'
-            ? 'application/json'
-            : undefined,
-      };
-
-      // Build request config
       const requestConfig: Record<string, any> = {
         model,
         contents: this.messagesToGeminiFormat(messages),
-        generationConfig,
+        config: this.buildGenerateContentConfig(options),
       };
-
-      // Add tools if provided
-      if (options.tools && options.tools.length > 0) {
-        requestConfig.tools = [
-          {
-            functionDeclarations: options.tools.map((tool) => ({
-              name: tool.function.name,
-              description: tool.function.description || '',
-              parameters: tool.function.parameters || { type: 'object' },
-            })),
-          },
-        ];
-
-        // Map tool choice
-        if (options.toolChoice) {
-          requestConfig.toolConfig = this.mapToolChoice(options.toolChoice);
-        }
-      }
-
-      // Add thinking config for Gemini 3 models
-      const thinkingLevel = options.thinkingLevel || this.options.thinkingLevel;
-      if (thinkingLevel || options.includeThoughts) {
-        requestConfig.config = {
-          ...requestConfig.config,
-          thinkingConfig: {
-            ...(thinkingLevel && {
-              thinkingLevel: this.mapThinkingLevel(thinkingLevel),
-            }),
-            ...(options.includeThoughts !== undefined && {
-              includeThoughts: options.includeThoughts,
-            }),
-          },
-        };
-      }
 
       // Call new SDK API: ai.models.generateContent()
       const result = await this.client.models.generateContent(requestConfig);
@@ -441,7 +390,7 @@ export class GeminiProvider implements AIInterface {
       const response = await this.client.models.generateContent({
         model: options.model || this.options.defaultModel || 'gemini-2.5-flash',
         contents: [{ text: prompt || defaultPrompt }, imageData],
-        generationConfig: {
+        config: {
           maxOutputTokens: options.maxTokens || 500,
         },
       });
@@ -572,28 +521,67 @@ export class GeminiProvider implements AIInterface {
   }
 
   async *stream(
-    _messages: AIMessage[],
-    _options: ChatOptions = {},
+    messages: AIMessage[],
+    options: ChatOptions = {},
   ): AsyncIterable<string> {
-    // TODO: Implement Gemini streaming
-    // For now, yield an empty stream and then throw
-    yield* [];
-    throw new AIError(
-      'Gemini streaming not implemented',
-      'NOT_IMPLEMENTED',
-      'gemini',
-    );
+    const startTime = Date.now();
+    try {
+      await this.ensureClient();
+
+      const model = options.model || this.options.defaultModel;
+      const stream = await this.client.models.generateContentStream({
+        model,
+        contents: this.messagesToGeminiFormat(messages),
+        config: this.buildGenerateContentConfig(options),
+      });
+
+      let usage: TokenUsage | undefined;
+
+      for await (const chunk of stream) {
+        if (chunk.usageMetadata) {
+          usage = {
+            promptTokens: chunk.usageMetadata.promptTokenCount || 0,
+            completionTokens: chunk.usageMetadata.candidatesTokenCount || 0,
+            totalTokens: chunk.usageMetadata.totalTokenCount || 0,
+          };
+        }
+
+        const text = chunk.text || '';
+        if (!text) {
+          continue;
+        }
+
+        if (options.onProgress) {
+          options.onProgress(text);
+        }
+        yield text;
+      }
+
+      emitUsage(
+        this.options,
+        'gemini',
+        'stream',
+        model!,
+        usage,
+        startTime,
+        options.usageTags,
+      );
+    } catch (error) {
+      throw this.mapError(error);
+    }
   }
 
   async countTokens(text: string): Promise<number> {
     try {
-      // TODO: Implement Gemini token counting
-      // const model = this.client.getGenerativeModel({ model: 'gemini-1.5-pro' });
-      // const { totalTokens } = await model.countTokens(text);
-      // return totalTokens;
+      await this.ensureClient();
 
-      // Approximation for now
-      return Math.ceil(text.length / 4);
+      const model = this.options.defaultModel || 'gemini-2.5-flash';
+      const response = await this.client.models.countTokens({
+        model,
+        contents: text,
+      });
+
+      return response.totalTokens || Math.ceil(text.length / 4);
     } catch (error) {
       throw this.mapError(error);
     }
@@ -755,6 +743,57 @@ export class GeminiProvider implements AIInterface {
    */
   private mapThinkingLevel(level: GeminiThinkingLevel): string {
     return level.toUpperCase();
+  }
+
+  private buildGenerateContentConfig(
+    options: ChatOptions,
+  ): Record<string, any> {
+    const config: Record<string, any> = {
+      maxOutputTokens: options.maxTokens,
+      temperature: options.temperature,
+      topP: options.topP,
+      stopSequences: Array.isArray(options.stop)
+        ? options.stop
+        : options.stop
+          ? [options.stop]
+          : undefined,
+      responseMimeType:
+        options.responseFormat?.type === 'json_object'
+          ? 'application/json'
+          : undefined,
+      frequencyPenalty: options.frequencyPenalty,
+      presencePenalty: options.presencePenalty,
+      seed: options.seed,
+    };
+
+    if (options.tools && options.tools.length > 0) {
+      config.tools = [
+        {
+          functionDeclarations: options.tools.map((tool) => ({
+            name: tool.function.name,
+            description: tool.function.description || '',
+            parameters: tool.function.parameters || { type: 'object' },
+          })),
+        },
+      ];
+      config.toolConfig = this.mapToolChoice(options.toolChoice);
+    }
+
+    const thinkingLevel = options.thinkingLevel || this.options.thinkingLevel;
+    if (thinkingLevel || options.includeThoughts !== undefined) {
+      config.thinkingConfig = {
+        ...(thinkingLevel && {
+          thinkingLevel: this.mapThinkingLevel(thinkingLevel),
+        }),
+        ...(options.includeThoughts !== undefined && {
+          includeThoughts: options.includeThoughts,
+        }),
+      };
+    }
+
+    return Object.fromEntries(
+      Object.entries(config).filter(([, value]) => value !== undefined),
+    );
   }
 
   private mapFinishReason(response: any): AIResponse['finishReason'] {

@@ -8,11 +8,17 @@ import { getAI as getAIUniversal } from '../shared/factory';
 
 import type {
   AIInterface,
+  AIProviderType,
+  AnthropicOptions,
   BedrockOptions,
+  GeminiOptions,
   GetAIOptions,
   HuggingFaceOptions,
+  LiteLLMOptions,
+  OllamaOptions,
   OpenAIOptions,
 } from '../shared/types';
+import { AI_PROVIDER_TYPES } from '../shared/types';
 
 /**
  * Re-export the universal getAI function
@@ -26,6 +32,8 @@ export { getAI } from '../shared/factory';
  * Supports both HAVE_AI_* environment variables and provider-specific variables:
  * - HAVE_AI_PROVIDER / HAVE_AI_TYPE → provider type
  * - HAVE_AI_API_KEY → fallback API key
+ * - LITELLM_BASE_URL / LITELLM_API_KEY → LiteLLM-specific gateway config
+ * - OLLAMA_HOST / OLLAMA_BASE_URL / OLLAMA_API_KEY → Ollama host/auth config
  * - OPENAI_API_KEY → OpenAI-specific key
  * - ANTHROPIC_API_KEY → Anthropic-specific key
  * - GEMINI_API_KEY / GOOGLE_API_KEY → Gemini-specific key
@@ -74,6 +82,32 @@ export async function getAIAuto(
   }
 
   // Auto-detect provider based on available credentials including environment variables
+  if ((config.baseUrl || process.env.LITELLM_BASE_URL) && !config.type) {
+    return getAIUniversal({
+      ...config,
+      type: 'litellm',
+      baseUrl: config.baseUrl || process.env.LITELLM_BASE_URL,
+      apiKey: config.apiKey || process.env.LITELLM_API_KEY,
+    } as LiteLLMOptions);
+  }
+
+  if (
+    (process.env.OLLAMA_HOST ||
+      process.env.OLLAMA_BASE_URL ||
+      (process.env.OLLAMA_API_KEY && !process.env.OPENAI_API_KEY)) &&
+    !config.type
+  ) {
+    return getAIUniversal({
+      ...config,
+      type: 'ollama',
+      baseUrl:
+        config.baseUrl ||
+        process.env.OLLAMA_BASE_URL ||
+        process.env.OLLAMA_HOST,
+      apiKey: (config as any).apiKey || process.env.OLLAMA_API_KEY,
+    } as OllamaOptions);
+  }
+
   if ((config.apiKey || process.env.OPENAI_API_KEY) && !config.type) {
     // Default to OpenAI if apiKey is provided without explicit type
     return getAIUniversal({
@@ -81,6 +115,22 @@ export async function getAIAuto(
       type: 'openai',
       apiKey: config.apiKey || process.env.OPENAI_API_KEY,
     } as OpenAIOptions);
+  }
+
+  if (process.env.ANTHROPIC_API_KEY) {
+    return getAIUniversal({
+      ...config,
+      type: 'anthropic',
+      apiKey: process.env.ANTHROPIC_API_KEY,
+    } as AnthropicOptions);
+  }
+
+  if (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) {
+    return getAIUniversal({
+      ...config,
+      type: 'gemini',
+      apiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY,
+    } as GeminiOptions);
   }
 
   if ((config as any).apiToken || process.env.HF_TOKEN) {
@@ -122,22 +172,21 @@ export async function getAIAuto(
     'Could not auto-detect AI provider from options or environment',
     {
       hint: 'Please specify a "type" field in options or provide provider-specific credentials/environment variables',
-      supportedTypes: [
-        'openai',
-        'gemini',
-        'anthropic',
-        'huggingface',
-        'bedrock',
-        'claude-cli',
-      ],
+      supportedTypes: [...AI_PROVIDER_TYPES] as AIProviderType[],
       providedOptions: Object.keys(config),
       checkedEnvVars: [
         'HAVE_AI_PROVIDER',
         'HAVE_AI_TYPE',
         'HAVE_AI_API_KEY',
+        'LITELLM_BASE_URL',
+        'LITELLM_API_KEY',
+        'OLLAMA_HOST',
+        'OLLAMA_BASE_URL',
+        'OLLAMA_API_KEY',
         'OPENAI_API_KEY',
         'ANTHROPIC_API_KEY',
         'GEMINI_API_KEY',
+        'GOOGLE_API_KEY',
         'HF_TOKEN',
         'AWS_ACCESS_KEY_ID',
         'AWS_DEFAULT_REGION',

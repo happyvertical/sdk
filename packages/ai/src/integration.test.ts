@@ -7,7 +7,13 @@ import { ValidationError } from '@happyvertical/utils';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { getAI, getAIAuto } from './shared/factory';
 import { HuggingFaceProvider } from './shared/providers/huggingface';
+import { LiteLLMProvider } from './shared/providers/litellm';
+import { OllamaProvider } from './shared/providers/ollama';
 import { AIError } from './shared/types';
+
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
 describe('AI Factory Integration', () => {
   it('should create HuggingFace provider', async () => {
@@ -32,6 +38,33 @@ describe('AI Factory Integration', () => {
     });
 
     expect(provider).toBeInstanceOf(HuggingFaceProvider);
+  });
+
+  it('should auto-detect Ollama from a local baseUrl', async () => {
+    const provider = await getAIAuto({
+      baseUrl: 'http://localhost:11434',
+      apiKey: 'ollama',
+    });
+
+    expect(provider).toBeInstanceOf(OllamaProvider);
+  });
+
+  it('should create LiteLLM provider', async () => {
+    const provider = await getAI({
+      type: 'litellm',
+      apiKey: 'fake-token',
+      baseUrl: 'https://llm.example.com/v1',
+    });
+
+    expect(provider).toBeInstanceOf(LiteLLMProvider);
+  });
+
+  it('should create Ollama provider', async () => {
+    const provider = await getAI({
+      type: 'ollama',
+    });
+
+    expect(provider).toBeInstanceOf(OllamaProvider);
   });
 
   it('should throw ValidationError for unsupported provider', async () => {
@@ -69,7 +102,7 @@ describe('HuggingFace Provider Integration', () => {
       chat: true,
       completion: true,
       embeddings: true,
-      streaming: false,
+      streaming: true,
       functions: false,
       vision: false,
       fineTuning: true,
@@ -79,7 +112,7 @@ describe('HuggingFace Provider Integration', () => {
       voiceCloning: false,
       voiceDesign: false,
       maxContextLength: 2048,
-      supportedOperations: ['chat', 'completion', 'embedding'],
+      supportedOperations: ['chat', 'completion', 'embedding', 'streaming'],
     });
   });
 
@@ -177,51 +210,41 @@ describe('Error Classes Integration', () => {
 });
 
 describe('Real API Integration', () => {
-  it('should work with Gemini API if token is provided', async () => {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      console.log('Skipping Gemini API test - no GEMINI_API_KEY provided');
-      return;
-    }
+  it.skipIf(!GEMINI_API_KEY)(
+    'should work with Gemini API if token is provided',
+    async () => {
+      const provider = await getAI({
+        type: 'gemini',
+        apiKey: GEMINI_API_KEY,
+      });
 
-    const provider = await getAI({
-      type: 'gemini',
-      apiKey,
-    });
+      // Test basic chat
+      const response = await provider.chat([
+        { role: 'user', content: 'Say "Hello from Gemini" and nothing else' },
+      ]);
 
-    // Test basic chat
-    const response = await provider.chat([
-      { role: 'user', content: 'Say "Hello from Gemini" and nothing else' },
-    ]);
+      expect(response.content).toBeTruthy();
+      expect(typeof response.content).toBe('string');
+    },
+  );
 
-    expect(response.content).toBeTruthy();
-    expect(typeof response.content).toBe('string');
-    console.log('Gemini response:', response.content);
-  });
+  it.skipIf(!ANTHROPIC_API_KEY)(
+    'should work with Anthropic API if token is provided',
+    async () => {
+      const provider = await getAI({
+        type: 'anthropic',
+        apiKey: ANTHROPIC_API_KEY,
+      });
 
-  it('should work with Anthropic API if token is provided', async () => {
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      console.log(
-        'Skipping Anthropic API test - no ANTHROPIC_API_KEY provided',
-      );
-      return;
-    }
+      // Test basic chat
+      const response = await provider.chat([
+        { role: 'user', content: 'Say "Hello from Claude" and nothing else' },
+      ]);
 
-    const provider = await getAI({
-      type: 'anthropic',
-      apiKey,
-    });
-
-    // Test basic chat
-    const response = await provider.chat([
-      { role: 'user', content: 'Say "Hello from Claude" and nothing else' },
-    ]);
-
-    expect(response.content).toBeTruthy();
-    expect(typeof response.content).toBe('string');
-    console.log('Anthropic response:', response.content);
-  });
+      expect(response.content).toBeTruthy();
+      expect(typeof response.content).toBe('string');
+    },
+  );
 });
 
 describe('Provider Interface Compliance', () => {
@@ -302,162 +325,145 @@ describe('Tool Use Integration Tests', () => {
   };
 
   describe('OpenAI Tool Use', () => {
-    it('should handle tool calls with OpenAI', async () => {
-      const apiKey = process.env.OPENAI_API_KEY;
-      if (!apiKey) {
-        console.log('Skipping OpenAI tool use test - no API key provided');
-        return;
-      }
+    it.skipIf(!OPENAI_API_KEY)(
+      'should handle tool calls with OpenAI',
+      async () => {
+        const provider = await getAI({
+          type: 'openai',
+          apiKey: OPENAI_API_KEY,
+        });
 
-      const provider = await getAI({ type: 'openai', apiKey });
-
-      const response = await provider.chat(
-        [
+        const response = await provider.chat(
+          [
+            {
+              role: 'user',
+              content:
+                'What is the weather like in Tokyo? Use the weather tool.',
+            },
+          ],
           {
-            role: 'user',
-            content: 'What is the weather like in Tokyo? Use the weather tool.',
+            tools: [weatherTool],
+            toolChoice: 'auto',
           },
-        ],
-        {
-          tools: [weatherTool],
-          toolChoice: 'auto',
-        },
-      );
+        );
 
-      expect(response).toBeDefined();
-      expect(response.toolCalls).toBeDefined();
-      expect(response.toolCalls?.length).toBeGreaterThan(0);
+        expect(response).toBeDefined();
+        expect(response.toolCalls).toBeDefined();
+        expect(response.toolCalls?.length).toBeGreaterThan(0);
 
-      const toolCall = response.toolCalls?.[0];
-      expect(toolCall.type).toBe('function');
-      expect(toolCall.function.name).toBe('get_weather');
-      expect(toolCall.id).toBeTruthy();
+        const toolCall = response.toolCalls?.[0];
+        expect(toolCall.type).toBe('function');
+        expect(toolCall.function.name).toBe('get_weather');
+        expect(toolCall.id).toBeTruthy();
 
-      const args = JSON.parse(toolCall.function.arguments);
-      expect(args.location).toBeTruthy();
+        const args = JSON.parse(toolCall.function.arguments);
+        expect(args.location).toBeTruthy();
+      },
+    );
 
-      console.log('OpenAI tool call:', {
-        name: toolCall.function.name,
-        args,
-      });
-    });
+    it.skipIf(!OPENAI_API_KEY)(
+      'should handle JSON mode with OpenAI',
+      async () => {
+        const provider = await getAI({
+          type: 'openai',
+          apiKey: OPENAI_API_KEY,
+        });
 
-    it('should handle JSON mode with OpenAI', async () => {
-      const apiKey = process.env.OPENAI_API_KEY;
-      if (!apiKey) {
-        console.log('Skipping OpenAI JSON mode test - no API key provided');
-        return;
-      }
-
-      const provider = await getAI({ type: 'openai', apiKey });
-
-      const response = await provider.chat(
-        [
+        const response = await provider.chat(
+          [
+            {
+              role: 'user',
+              content:
+                'Return a JSON object with fields: city (Tokyo), temperature (22), unit (celsius)',
+            },
+          ],
           {
-            role: 'user',
-            content:
-              'Return a JSON object with fields: city (Tokyo), temperature (22), unit (celsius)',
+            responseFormat: { type: 'json_object' },
           },
-        ],
-        {
-          responseFormat: { type: 'json_object' },
-        },
-      );
+        );
 
-      expect(response.content).toBeTruthy();
-      const parsed = JSON.parse(response.content);
-      expect(parsed).toHaveProperty('city');
-      expect(parsed).toHaveProperty('temperature');
-      expect(parsed).toHaveProperty('unit');
-
-      console.log('OpenAI JSON response:', parsed);
-    });
-  });
-
-  describe('Anthropic Tool Use', () => {
-    it('should handle tool calls with Anthropic', async () => {
-      const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (!apiKey) {
-        console.log('Skipping Anthropic tool use test - no API key provided');
-        return;
-      }
-
-      const provider = await getAI({ type: 'anthropic', apiKey });
-
-      const response = await provider.chat(
-        [
-          {
-            role: 'user',
-            content:
-              'What is the weather like in San Francisco, CA? Use the get_weather tool to find out.',
-          },
-        ],
-        {
-          tools: [weatherTool],
-          toolChoice: 'auto',
-          maxTokens: 1024,
-        },
-      );
-
-      expect(response).toBeDefined();
-      expect(response.toolCalls).toBeDefined();
-      expect(response.toolCalls?.length).toBeGreaterThan(0);
-
-      const toolCall = response.toolCalls?.[0];
-      expect(toolCall.type).toBe('function');
-      expect(toolCall.function.name).toBe('get_weather');
-      expect(toolCall.id).toBeTruthy();
-
-      const args = JSON.parse(toolCall.function.arguments);
-      expect(args.location).toBeTruthy();
-
-      console.log('Anthropic tool call:', {
-        name: toolCall.function.name,
-        args,
-      });
-    });
-
-    it('should handle JSON mode with Anthropic (prompt-based)', async () => {
-      const apiKey = process.env.ANTHROPIC_API_KEY;
-      if (!apiKey) {
-        console.log('Skipping Anthropic JSON mode test - no API key provided');
-        return;
-      }
-
-      const provider = await getAI({ type: 'anthropic', apiKey });
-
-      const response = await provider.chat(
-        [
-          {
-            role: 'user',
-            content:
-              'Return a JSON object with fields: city (London), temperature (15), unit (celsius)',
-          },
-        ],
-        {
-          responseFormat: { type: 'json_object' },
-          maxTokens: 1024,
-        },
-      );
-
-      expect(response.content).toBeTruthy();
-
-      // Anthropic's JSON mode is prompt-based, so validate it's parseable
-      try {
+        expect(response.content).toBeTruthy();
         const parsed = JSON.parse(response.content);
         expect(parsed).toHaveProperty('city');
         expect(parsed).toHaveProperty('temperature');
         expect(parsed).toHaveProperty('unit');
+      },
+    );
+  });
 
-        console.log('Anthropic JSON response:', parsed);
-      } catch (error) {
-        console.warn(
-          'Anthropic JSON mode is prompt-based and may not always return valid JSON',
+  describe('Anthropic Tool Use', () => {
+    it.skipIf(!ANTHROPIC_API_KEY)(
+      'should handle tool calls with Anthropic',
+      async () => {
+        const provider = await getAI({
+          type: 'anthropic',
+          apiKey: ANTHROPIC_API_KEY,
+        });
+
+        const response = await provider.chat(
+          [
+            {
+              role: 'user',
+              content:
+                'What is the weather like in San Francisco, CA? Use the get_weather tool to find out.',
+            },
+          ],
+          {
+            tools: [weatherTool],
+            toolChoice: 'auto',
+            maxTokens: 1024,
+          },
         );
-        console.warn('Response:', response.content);
-        // Don't fail the test - this is expected behavior for prompt-based JSON mode
-      }
-    });
+
+        expect(response).toBeDefined();
+        expect(response.toolCalls).toBeDefined();
+        expect(response.toolCalls?.length).toBeGreaterThan(0);
+
+        const toolCall = response.toolCalls?.[0];
+        expect(toolCall.type).toBe('function');
+        expect(toolCall.function.name).toBe('get_weather');
+        expect(toolCall.id).toBeTruthy();
+
+        const args = JSON.parse(toolCall.function.arguments);
+        expect(args.location).toBeTruthy();
+      },
+    );
+
+    it.skipIf(!ANTHROPIC_API_KEY)(
+      'should handle JSON mode with Anthropic (prompt-based)',
+      async () => {
+        const provider = await getAI({
+          type: 'anthropic',
+          apiKey: ANTHROPIC_API_KEY,
+        });
+
+        const response = await provider.chat(
+          [
+            {
+              role: 'user',
+              content:
+                'Return a JSON object with fields: city (London), temperature (15), unit (celsius)',
+            },
+          ],
+          {
+            responseFormat: { type: 'json_object' },
+            maxTokens: 1024,
+          },
+        );
+
+        expect(response.content).toBeTruthy();
+
+        // Anthropic's JSON mode is prompt-based, so validate it's parseable
+        try {
+          const parsed = JSON.parse(response.content);
+          expect(parsed).toHaveProperty('city');
+          expect(parsed).toHaveProperty('temperature');
+          expect(parsed).toHaveProperty('unit');
+        } catch {
+          // Prompt-based JSON mode may still return non-JSON text.
+        }
+      },
+    );
   });
 
   describe('Gemini Tool Use', () => {
@@ -468,13 +474,7 @@ describe('Tool Use Integration Tests', () => {
       // a limitation of the current @google/genai SDK or Gemini 2.5 model behavior.
       // Test skipped until Google improves function calling support.
 
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        console.log('Skipping Gemini tool use test - no API key provided');
-        return;
-      }
-
-      const provider = await getAI({ type: 'gemini', apiKey });
+      const provider = await getAI({ type: 'gemini', apiKey: GEMINI_API_KEY! });
 
       const response = await provider.chat(
         [
@@ -502,101 +502,84 @@ describe('Tool Use Integration Tests', () => {
 
       const args = JSON.parse(toolCall.function.arguments);
       expect(args.location).toBeTruthy();
-
-      console.log('Gemini tool call:', {
-        name: toolCall.function.name,
-        args,
-      });
     });
 
-    it('should handle JSON mode with Gemini', async () => {
-      const apiKey = process.env.GEMINI_API_KEY;
-      if (!apiKey) {
-        console.log('Skipping Gemini JSON mode test - no API key provided');
-        return;
-      }
+    it.skipIf(!GEMINI_API_KEY)(
+      'should handle JSON mode with Gemini',
+      async () => {
+        const provider = await getAI({
+          type: 'gemini',
+          apiKey: GEMINI_API_KEY,
+        });
 
-      const provider = await getAI({ type: 'gemini', apiKey });
-
-      const response = await provider.chat(
-        [
+        const response = await provider.chat(
+          [
+            {
+              role: 'user',
+              content:
+                'Return a JSON object with fields: city (Berlin), temperature (18), unit (celsius)',
+            },
+          ],
           {
-            role: 'user',
-            content:
-              'Return a JSON object with fields: city (Berlin), temperature (18), unit (celsius)',
+            responseFormat: { type: 'json_object' },
           },
-        ],
-        {
-          responseFormat: { type: 'json_object' },
-        },
-      );
+        );
 
-      expect(response.content).toBeTruthy();
-      const parsed = JSON.parse(response.content);
-      expect(parsed).toHaveProperty('city');
-      expect(parsed).toHaveProperty('temperature');
-      expect(parsed).toHaveProperty('unit');
-
-      console.log('Gemini JSON response:', parsed);
-    });
+        expect(response.content).toBeTruthy();
+        const parsed = JSON.parse(response.content);
+        expect(parsed).toHaveProperty('city');
+        expect(parsed).toHaveProperty('temperature');
+        expect(parsed).toHaveProperty('unit');
+      },
+    );
   });
 
   describe('Cross-Provider Tool Compatibility', () => {
-    it('should use same tool definition across OpenAI and Anthropic', async () => {
-      // NOTE: Gemini is excluded from this test due to SDK limitations with function calling
-      // See the skipped Gemini tool use test for more details
-      const openaiKey = process.env.OPENAI_API_KEY;
-      const anthropicKey = process.env.ANTHROPIC_API_KEY;
+    it.skipIf(!OPENAI_API_KEY || !ANTHROPIC_API_KEY)(
+      'should use same tool definition across OpenAI and Anthropic',
+      async () => {
+        // NOTE: Gemini is excluded from this test due to SDK limitations with function calling
+        // See the skipped Gemini tool use test for more details
+        const providers = await Promise.all([
+          getAI({ type: 'openai', apiKey: OPENAI_API_KEY }),
+          getAI({ type: 'anthropic', apiKey: ANTHROPIC_API_KEY }),
+        ]);
 
-      if (!openaiKey || !anthropicKey) {
-        console.log(
-          'Skipping cross-provider test - need API keys (OPENAI_API_KEY, ANTHROPIC_API_KEY)',
-        );
-        return;
-      }
+        const results = [];
 
-      const providers = await Promise.all([
-        getAI({ type: 'openai', apiKey: openaiKey }),
-        getAI({ type: 'anthropic', apiKey: anthropicKey }),
-      ]);
-
-      const results = [];
-
-      for (const provider of providers) {
-        try {
-          const response = await provider.chat(
-            [
+        for (const provider of providers) {
+          try {
+            const response = await provider.chat(
+              [
+                {
+                  role: 'user',
+                  content:
+                    'What is the weather in Seattle? Use the weather tool.',
+                },
+              ],
               {
-                role: 'user',
-                content:
-                  'What is the weather in Seattle? Use the weather tool.',
+                tools: [weatherTool],
+                toolChoice: 'auto',
+                maxTokens: 1024, // For Anthropic
               },
-            ],
-            {
-              tools: [weatherTool],
-              toolChoice: 'auto',
-              maxTokens: 1024, // For Anthropic
-            },
-          );
+            );
 
-          results.push({
-            provider: (provider as any).constructor.name,
-            success: !!response.toolCalls,
-            toolCallCount: response.toolCalls?.length || 0,
-          });
-        } catch (error) {
-          results.push({
-            provider: (provider as any).constructor.name,
-            success: false,
-            error: (error as Error).message,
-          });
+            results.push({
+              provider: (provider as any).constructor.name,
+              success: !!response.toolCalls,
+              toolCallCount: response.toolCalls?.length || 0,
+            });
+          } catch (error) {
+            results.push({
+              provider: (provider as any).constructor.name,
+              success: false,
+              error: (error as Error).message,
+            });
+          }
         }
-      }
-
-      console.log('Cross-provider tool use results:', results);
-
-      // All providers should successfully make tool calls
-      expect(results.every((r) => r.success)).toBe(true);
-    });
+        // All providers should successfully make tool calls
+        expect(results.every((r) => r.success)).toBe(true);
+      },
+    );
   });
 });
