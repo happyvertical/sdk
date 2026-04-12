@@ -50,7 +50,7 @@
     "@aws-sdk/client-bedrock-runtime": "3.1029.0",
     "@google/genai": "1.49.0",
     "@happyvertical/utils": "workspace:*",
-    "openai": "6.33.0"
+    "openai": "6.34.0"
   },
   "devDependencies": {
     "@types/node": "25.0.10",
