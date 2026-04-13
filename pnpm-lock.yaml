@@ -650,8 +650,8 @@ importers:
         specifier: ^4.16.5
         version: 4.16.5
       bullmq:
-        specifier: ^5.73.4
-        version: 5.73.4
+        specifier: ^5.73.5
+        version: 5.73.5
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -6505,8 +6505,8 @@ packages:
     resolution: {integrity: sha512-lDsx2BzkKe7gkCYiT5Acj02DpTwDznl/VNN7Psn7M3USPG7Vs/BaClZJJTAG+ufAR9++N1/NiUTdaFBWDIl5TQ==}
     engines: {node: '>=12'}
 
-  bullmq@5.73.4:
-    resolution: {integrity: sha512-Q+NeFLtdKSD3GDPYSX4pH+Mc9E4OZVKimXwrnZ5WmndNy31COMy4vQV9zfhgfHGSUFrlpsBicfKYbSjx9FbO+A==}
+  bullmq@5.73.5:
+    resolution: {integrity: sha512-bZu3t1c/1smbA8Jk46OrLA4JRHPTv4uLbqUP0uaviV7S4c/rSl/qKmg3twgKKz+3aB4E0NL0jcjQW5eHwGyQOw==}
 
   bundle-name@4.1.0:
     resolution: {integrity: sha512-tjwM5exMg6BGRI+kNmTntNsvdZS1X8BFYS6tnJ2hdH0kVxM6/eVZ2xy+FqStSWvYmtfFMDLIxurorHwDKfDz5Q==}
@@ -20327,7 +20327,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  bullmq@5.73.4:
+  bullmq@5.73.5:
     dependencies:
       cron-parser: 4.9.0
       ioredis: 5.10.1
