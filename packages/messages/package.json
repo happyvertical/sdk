@@ -35,7 +35,7 @@
     "@happyvertical/email": "workspace:*",
     "@happyvertical/logger": "workspace:*",
     "@happyvertical/utils": "workspace:*",
-    "@slack/web-api": "^7.15.0"
+    "@slack/web-api": "^7.15.1"
   },
   "devDependencies": {
     "@types/node": "25.0.10",
