@@ -7,6 +7,6 @@ packages:
 # These are separate repos (ocr, pdf, spider) whose transitive deps pull in
 # old SDK versions. The catalog + overrides below keep everything aligned.
 catalog:
-  '@happyvertical/ocr': ^0.60.36
+  '@happyvertical/ocr': ^0.60.37
   '@happyvertical/pdf': ^0.62.23
   '@happyvertical/spider': ^0.60.10
