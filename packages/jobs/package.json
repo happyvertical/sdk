@@ -85,7 +85,7 @@
     "@types/bull": "^4.10.4",
     "@types/node": "25.0.10",
     "bull": "^4.16.5",
-    "bullmq": "^5.73.5",
+    "bullmq": "^5.74.1",
     "typescript": "^5.9.3",
     "vite": "7.3.2",
     "vite-plugin-dts": "4.5.4",
@@ -95,7 +95,7 @@
     "@aws-sdk/client-sqs": ">=3.1030.0",
     "@google-cloud/tasks": ">=4.1.0",
     "bull": ">=4.16.5",
-    "bullmq": ">=5.73.5"
+    "bullmq": ">=5.74.1"
   },
   "peerDependenciesMeta": {
     "bull": {
