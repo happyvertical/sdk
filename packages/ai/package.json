@@ -46,7 +46,7 @@
     "dev": "npm run build:watch & npm run test:watch"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "0.88.0",
+    "@anthropic-ai/sdk": "0.89.0",
     "@aws-sdk/client-bedrock-runtime": "3.1030.0",
     "@google/genai": "1.50.1",
     "@happyvertical/utils": "workspace:*",
