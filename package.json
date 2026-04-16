@@ -63,7 +63,7 @@
     "concurrently": "9.2.1",
     "dependency-cruiser": "^17.3.10",
     "express": "^5.2.1",
-    "lefthook": "^2.1.5",
+    "lefthook": "^2.1.6",
     "livereload": "^0.10.3",
     "patch-package": "^8.0.1",
     "turbo": "2.9.6",
