@@ -80,7 +80,7 @@
     "@happyvertical/utils": "workspace:*"
   },
   "devDependencies": {
-    "@aws-sdk/client-sqs": "^3.1030.0",
+    "@aws-sdk/client-sqs": "^3.1031.0",
     "@google-cloud/tasks": "^6.2.1",
     "@types/bull": "^4.10.4",
     "@types/node": "25.0.10",
@@ -92,7 +92,7 @@
     "vitest": "^4.1.4"
   },
   "peerDependencies": {
-    "@aws-sdk/client-sqs": ">=3.1030.0",
+    "@aws-sdk/client-sqs": ">=3.1031.0",
     "@google-cloud/tasks": ">=4.1.0",
     "bull": ">=4.16.5",
     "bullmq": ">=5.74.1"
