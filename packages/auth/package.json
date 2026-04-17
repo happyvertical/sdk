@@ -47,7 +47,7 @@
     "jose": "^6.2.2"
   },
   "optionalDependencies": {
-    "@aws-sdk/client-cognito-identity-provider": "^3.1031.0",
+    "@aws-sdk/client-cognito-identity-provider": "^3.1032.0",
     "nostr-tools": "^2.23.3"
   },
   "devDependencies": {
