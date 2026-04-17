@@ -55,7 +55,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.12",
-    "@changesets/cli": "2.30.0",
+    "@changesets/cli": "2.31.0",
     "@commitlint/cli": "^20.5.0",
     "@commitlint/config-conventional": "^20.5.0",
     "@jpisnice/shadcn-ui-mcp-server": "1.1.4",
