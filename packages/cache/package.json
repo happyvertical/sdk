@@ -57,8 +57,8 @@
   "author": "willgriffin@gmail.com",
   "license": "ISC",
   "dependencies": {
-    "@aws-sdk/client-s3": "3.1031.0",
-    "@aws-sdk/credential-providers": "3.1031.0",
+    "@aws-sdk/client-s3": "3.1032.0",
+    "@aws-sdk/credential-providers": "3.1032.0",
     "@happyvertical/utils": "workspace:*",
     "redis": "^5.12.1"
   },
