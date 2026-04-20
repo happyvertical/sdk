@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/json",
-  "version": "0.71.20",
+  "version": "0.71.22",
   "description": "High-performance JSON parsing and serialization with Rust SIMD acceleration and automatic fallback",
   "type": "module",
   "main": "./dist/index.js",
