@@ -22,6 +22,11 @@ export interface FetchToFileOptions extends RequestInit {
   maxBytes?: number;
 }
 
+export interface WriteResponseToFileOptions {
+  /** Optional transport ceiling in bytes */
+  maxBytes?: number;
+}
+
 function createTempFilePath(filepath: string): string {
   return join(
     dirname(filepath),
@@ -430,8 +435,6 @@ export async function fetchToFile(
   options: FetchToFileOptions = {},
 ): Promise<void> {
   const { timeout, maxBytes, signal, ...requestInit } = options;
-  const destinationPath = await resolveDestinationPath(filepath);
-  const tempFilepath = createTempFilePath(destinationPath);
   const response = await rateLimitedFetch(url, {
     ...requestInit,
     signal: buildFetchSignal(timeout, signal),
@@ -439,30 +442,51 @@ export async function fetchToFile(
 
   assertOkResponse(response, url);
 
-  try {
-    if (!response.body) {
-      const buffer = Buffer.from(await response.arrayBuffer());
+  await writeResponseToFile(response, filepath, { maxBytes });
+}
 
-      if (maxBytes != null && buffer.byteLength > maxBytes) {
-        throw new Error(
-          `Downloaded content exceeded maxBytes (${buffer.byteLength} > ${maxBytes})`,
-        );
-      }
+async function writeResponseBodyToTempFile(
+  response: Response,
+  tempFilepath: string,
+  options: WriteResponseToFileOptions = {},
+): Promise<void> {
+  const { maxBytes } = options;
 
-      await writeFile(tempFilepath, buffer);
-    } else {
-      const source = Readable.fromWeb(
-        response.body as unknown as NodeReadableStream<Uint8Array>,
+  if (!response.body) {
+    const buffer = Buffer.from(await response.arrayBuffer());
+
+    if (maxBytes != null && buffer.byteLength > maxBytes) {
+      throw new Error(
+        `Downloaded content exceeded maxBytes (${buffer.byteLength} > ${maxBytes})`,
       );
-      const destination = createWriteStream(tempFilepath);
-
-      if (maxBytes != null) {
-        await pipeline(source, new MaxBytesTransform(maxBytes), destination);
-      } else {
-        await pipeline(source, destination);
-      }
     }
 
+    await writeFile(tempFilepath, buffer);
+    return;
+  }
+
+  const source = Readable.fromWeb(
+    response.body as unknown as NodeReadableStream<Uint8Array>,
+  );
+  const destination = createWriteStream(tempFilepath);
+
+  if (maxBytes != null) {
+    await pipeline(source, new MaxBytesTransform(maxBytes), destination);
+  } else {
+    await pipeline(source, destination);
+  }
+}
+
+export async function writeResponseToFile(
+  response: Response,
+  filepath: string,
+  options: WriteResponseToFileOptions = {},
+): Promise<void> {
+  const destinationPath = await resolveDestinationPath(filepath);
+  const tempFilepath = createTempFilePath(destinationPath);
+
+  try {
+    await writeResponseBodyToTempFile(response, tempFilepath, options);
     await preserveExistingDestinationMetadata(destinationPath, tempFilepath);
     await rename(tempFilepath, destinationPath);
   } catch (error) {

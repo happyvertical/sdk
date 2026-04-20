@@ -12,7 +12,12 @@ import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { fetchJSON, fetchText, fetchToFile } from './fetch';
+import {
+  fetchJSON,
+  fetchText,
+  fetchToFile,
+  writeResponseToFile,
+} from './fetch';
 
 describe('fetchToFile', () => {
   let server: Server;
@@ -203,5 +208,68 @@ describe('fetch response helpers', () => {
 
   it('throws for non-ok JSON responses', async () => {
     await expect(fetchJSON(serverUrl)).rejects.toThrow('Failed to fetch');
+  });
+});
+
+describe('writeResponseToFile', () => {
+  let server: Server;
+  let serverUrl: string;
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), 'files-response-'));
+
+    server = createServer((req, res) => {
+      if (req.url === '/large') {
+        res.writeHead(200, { 'Content-Type': 'application/pdf' });
+        res.write(Buffer.alloc(1024, 'a'));
+        res.write(Buffer.alloc(1024, 'b'));
+        res.end(Buffer.alloc(1024, 'c'));
+        return;
+      }
+
+      res.writeHead(200, { 'Content-Type': 'application/pdf' });
+      res.end('response body');
+    });
+
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', () => {
+        const address = server.address();
+        if (!address || typeof address === 'string') {
+          throw new Error('Failed to start test server');
+        }
+        serverUrl = `http://127.0.0.1:${address.port}`;
+        resolve();
+      });
+    });
+  });
+
+  afterEach(async () => {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  it('writes an existing streamed response to disk', async () => {
+    const response = await fetch(`${serverUrl}/large`);
+    const targetPath = join(tempDir, 'response.pdf');
+
+    await writeResponseToFile(response, targetPath);
+
+    const buffer = await readFile(targetPath);
+    expect(buffer.byteLength).toBe(3072);
+  });
+
+  it('preserves an existing file when response streaming exceeds maxBytes', async () => {
+    const response = await fetch(`${serverUrl}/large`);
+    const targetPath = join(tempDir, 'existing.pdf');
+    await writeFile(targetPath, 'existing content');
+
+    await expect(
+      writeResponseToFile(response, targetPath, { maxBytes: 1500 }),
+    ).rejects.toThrow('Downloaded content exceeded maxBytes');
+
+    await expect(readFile(targetPath, 'utf8')).resolves.toBe(
+      'existing content',
+    );
   });
 });
