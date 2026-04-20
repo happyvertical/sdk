@@ -1,4 +1,106 @@
-import { writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { createWriteStream } from 'node:fs';
+import {
+  chmod,
+  chown,
+  lstat,
+  realpath,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
+import { Readable, Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
+
+export interface FetchToFileOptions extends RequestInit {
+  /** Optional timeout in milliseconds */
+  timeout?: number;
+  /** Optional transport ceiling in bytes */
+  maxBytes?: number;
+}
+
+function createTempFilePath(filepath: string): string {
+  return join(
+    dirname(filepath),
+    `.${basename(filepath)}.${randomUUID()}.download`,
+  );
+}
+
+function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error;
+}
+
+async function resolveDestinationPath(filepath: string): Promise<string> {
+  try {
+    const destinationStats = await lstat(filepath);
+    if (!destinationStats.isSymbolicLink()) {
+      return filepath;
+    }
+
+    return await realpath(filepath);
+  } catch (error) {
+    if (isErrnoException(error) && error.code === 'ENOENT') {
+      return filepath;
+    }
+
+    throw error;
+  }
+}
+
+async function preserveExistingDestinationMetadata(
+  sourcePath: string,
+  tempFilepath: string,
+): Promise<void> {
+  try {
+    const sourceStats = await stat(sourcePath);
+    await chmod(tempFilepath, sourceStats.mode);
+
+    try {
+      await chown(tempFilepath, sourceStats.uid, sourceStats.gid);
+    } catch (error) {
+      if (
+        !isErrnoException(error) ||
+        !['EPERM', 'EINVAL', 'ENOSYS', 'EROFS'].includes(error.code ?? '')
+      ) {
+        throw error;
+      }
+    }
+  } catch (error) {
+    if (!(isErrnoException(error) && error.code === 'ENOENT')) {
+      throw error;
+    }
+  }
+}
+
+class MaxBytesTransform extends Transform {
+  private totalBytes = 0;
+
+  constructor(private readonly maxBytes: number) {
+    super();
+  }
+
+  override _transform(
+    chunk: Buffer,
+    _encoding: BufferEncoding,
+    callback: (error?: Error | null, data?: Buffer) => void,
+  ): void {
+    this.totalBytes += chunk.byteLength;
+
+    if (this.totalBytes > this.maxBytes) {
+      callback(
+        new Error(
+          `Downloaded content exceeded maxBytes (${this.totalBytes} > ${this.maxBytes})`,
+        ),
+      );
+      return;
+    }
+
+    callback(null, chunk);
+  }
+}
 
 /**
  * Rate limiter for controlling fetch request frequency by domain
@@ -204,6 +306,30 @@ async function rateLimitedFetch(
   return fetch(url, options);
 }
 
+function buildFetchSignal(
+  timeout: number | undefined,
+  signal: AbortSignal | null | undefined,
+): AbortSignal | undefined {
+  if (timeout == null) {
+    return signal ?? undefined;
+  }
+
+  const timeoutSignal = AbortSignal.timeout(timeout);
+  if (!signal) {
+    return timeoutSignal;
+  }
+
+  return AbortSignal.any([signal, timeoutSignal]);
+}
+
+function assertOkResponse(response: Response, url: string): void {
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch ${url}: ${response.status} ${response.statusText}`,
+    );
+  }
+}
+
 /**
  * Fetches a URL and returns the response as text with automatic rate limiting
  *
@@ -225,6 +351,7 @@ async function rateLimitedFetch(
  */
 export async function fetchText(url: string): Promise<string> {
   const response = await rateLimitedFetch(url);
+  assertOkResponse(response, url);
   return response.text();
 }
 
@@ -248,6 +375,7 @@ export async function fetchText(url: string): Promise<string> {
  */
 export async function fetchJSON(url: string): Promise<any> {
   const response = await rateLimitedFetch(url);
+  assertOkResponse(response, url);
   return response.json();
 }
 
@@ -272,6 +400,7 @@ export async function fetchJSON(url: string): Promise<any> {
  */
 export async function fetchBuffer(url: string): Promise<Buffer> {
   const response = await rateLimitedFetch(url);
+  assertOkResponse(response, url);
   return Buffer.from(await response.arrayBuffer());
 }
 
@@ -298,8 +427,46 @@ export async function fetchBuffer(url: string): Promise<Buffer> {
 export async function fetchToFile(
   url: string,
   filepath: string,
+  options: FetchToFileOptions = {},
 ): Promise<void> {
-  const response = await rateLimitedFetch(url);
-  const buffer = await response.arrayBuffer();
-  await writeFile(filepath, Buffer.from(buffer));
+  const { timeout, maxBytes, signal, ...requestInit } = options;
+  const destinationPath = await resolveDestinationPath(filepath);
+  const tempFilepath = createTempFilePath(destinationPath);
+  const response = await rateLimitedFetch(url, {
+    ...requestInit,
+    signal: buildFetchSignal(timeout, signal),
+  });
+
+  assertOkResponse(response, url);
+
+  try {
+    if (!response.body) {
+      const buffer = Buffer.from(await response.arrayBuffer());
+
+      if (maxBytes != null && buffer.byteLength > maxBytes) {
+        throw new Error(
+          `Downloaded content exceeded maxBytes (${buffer.byteLength} > ${maxBytes})`,
+        );
+      }
+
+      await writeFile(tempFilepath, buffer);
+    } else {
+      const source = Readable.fromWeb(
+        response.body as unknown as NodeReadableStream<Uint8Array>,
+      );
+      const destination = createWriteStream(tempFilepath);
+
+      if (maxBytes != null) {
+        await pipeline(source, new MaxBytesTransform(maxBytes), destination);
+      } else {
+        await pipeline(source, destination);
+      }
+    }
+
+    await preserveExistingDestinationMetadata(destinationPath, tempFilepath);
+    await rename(tempFilepath, destinationPath);
+  } catch (error) {
+    await rm(tempFilepath, { force: true }).catch(() => {});
+    throw error;
+  }
 }
