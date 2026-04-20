@@ -22,6 +22,11 @@ export interface FetchToFileOptions extends RequestInit {
   maxBytes?: number;
 }
 
+export interface WriteResponseToFileOptions {
+  /** Optional transport ceiling in bytes */
+  maxBytes?: number;
+}
+
 function createTempFilePath(filepath: string): string {
   return join(
     dirname(filepath),
@@ -139,6 +144,15 @@ class RateLimiter {
    */
   private defaultInterval = 500;
 
+  private getDefaultDomainConfig() {
+    const config = this.domains.get('default');
+    if (!config) {
+      throw new Error('Default domain rate limit configuration is missing');
+    }
+
+    return config;
+  }
+
   /**
    * Creates a new RateLimiter with default settings
    * Initializes with a 'default' domain configuration used as fallback
@@ -185,7 +199,7 @@ class RateLimiter {
     const now = Date.now();
 
     const domainConfig =
-      this.domains.get(domain) || this.domains.get('default')!;
+      this.domains.get(domain) || this.getDefaultDomainConfig();
 
     // Wait if we're over the limit
     if (domainConfig.queue >= domainConfig.limit) {
@@ -226,7 +240,7 @@ class RateLimiter {
    * @returns Rate limit configuration
    */
   getDomainLimit(domain: string) {
-    return this.domains.get(domain) || this.domains.get('default')!;
+    return this.domains.get(domain) || this.getDefaultDomainConfig();
   }
 }
 
@@ -431,7 +445,6 @@ export async function fetchToFile(
 ): Promise<void> {
   const { timeout, maxBytes, signal, ...requestInit } = options;
   const destinationPath = await resolveDestinationPath(filepath);
-  const tempFilepath = createTempFilePath(destinationPath);
   const response = await rateLimitedFetch(url, {
     ...requestInit,
     signal: buildFetchSignal(timeout, signal),
@@ -439,34 +452,74 @@ export async function fetchToFile(
 
   assertOkResponse(response, url);
 
-  try {
-    if (!response.body) {
-      const buffer = Buffer.from(await response.arrayBuffer());
+  await writeResponseToResolvedPath(response, destinationPath, { maxBytes });
+}
 
-      if (maxBytes != null && buffer.byteLength > maxBytes) {
-        throw new Error(
-          `Downloaded content exceeded maxBytes (${buffer.byteLength} > ${maxBytes})`,
-        );
-      }
+async function writeResponseBodyToTempFile(
+  response: Response,
+  tempFilepath: string,
+  options: WriteResponseToFileOptions = {},
+): Promise<void> {
+  const { maxBytes } = options;
 
-      await writeFile(tempFilepath, buffer);
-    } else {
-      const source = Readable.fromWeb(
-        response.body as unknown as NodeReadableStream<Uint8Array>,
+  if (!response.body) {
+    const buffer = Buffer.from(await response.arrayBuffer());
+
+    if (maxBytes != null && buffer.byteLength > maxBytes) {
+      throw new Error(
+        `Downloaded content exceeded maxBytes (${buffer.byteLength} > ${maxBytes})`,
       );
-      const destination = createWriteStream(tempFilepath);
-
-      if (maxBytes != null) {
-        await pipeline(source, new MaxBytesTransform(maxBytes), destination);
-      } else {
-        await pipeline(source, destination);
-      }
     }
 
+    await writeFile(tempFilepath, buffer);
+    return;
+  }
+
+  const source = Readable.fromWeb(
+    response.body as unknown as NodeReadableStream<Uint8Array>,
+  );
+  const destination = createWriteStream(tempFilepath);
+
+  if (maxBytes != null) {
+    await pipeline(source, new MaxBytesTransform(maxBytes), destination);
+  } else {
+    await pipeline(source, destination);
+  }
+}
+
+async function writeResponseToResolvedPath(
+  response: Response,
+  destinationPath: string,
+  options: WriteResponseToFileOptions = {},
+): Promise<void> {
+  const tempFilepath = createTempFilePath(destinationPath);
+
+  try {
+    await writeResponseBodyToTempFile(response, tempFilepath, options);
     await preserveExistingDestinationMetadata(destinationPath, tempFilepath);
     await rename(tempFilepath, destinationPath);
   } catch (error) {
     await rm(tempFilepath, { force: true }).catch(() => {});
     throw error;
   }
+}
+
+/**
+ * Streams an existing fetch `Response` to disk.
+ *
+ * The response body is written to a temp file in the destination directory,
+ * optional `maxBytes` enforcement is applied while streaming, existing file
+ * permissions/ownership are preserved when possible, and the temp file is then
+ * atomically renamed into place on success.
+ *
+ * This helper is transport-only: callers are responsible for validating
+ * `response.ok`, headers, and content before persisting it.
+ */
+export async function writeResponseToFile(
+  response: Response,
+  filepath: string,
+  options: WriteResponseToFileOptions = {},
+): Promise<void> {
+  const destinationPath = await resolveDestinationPath(filepath);
+  await writeResponseToResolvedPath(response, destinationPath, options);
 }
