@@ -1,6 +1,15 @@
 import { randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
-import { rename, rm, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  chown,
+  lstat,
+  realpath,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -18,6 +27,52 @@ function createTempFilePath(filepath: string): string {
     dirname(filepath),
     `.${basename(filepath)}.${randomUUID()}.download`,
   );
+}
+
+function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error;
+}
+
+async function resolveDestinationPath(filepath: string): Promise<string> {
+  try {
+    const destinationStats = await lstat(filepath);
+    if (!destinationStats.isSymbolicLink()) {
+      return filepath;
+    }
+
+    return await realpath(filepath);
+  } catch (error) {
+    if (isErrnoException(error) && error.code === 'ENOENT') {
+      return filepath;
+    }
+
+    throw error;
+  }
+}
+
+async function preserveExistingDestinationMetadata(
+  sourcePath: string,
+  tempFilepath: string,
+): Promise<void> {
+  try {
+    const sourceStats = await stat(sourcePath);
+    await chmod(tempFilepath, sourceStats.mode);
+
+    try {
+      await chown(tempFilepath, sourceStats.uid, sourceStats.gid);
+    } catch (error) {
+      if (
+        !isErrnoException(error) ||
+        !['EPERM', 'EINVAL', 'ENOSYS', 'EROFS'].includes(error.code ?? '')
+      ) {
+        throw error;
+      }
+    }
+  } catch (error) {
+    if (!(isErrnoException(error) && error.code === 'ENOENT')) {
+      throw error;
+    }
+  }
 }
 
 class MaxBytesTransform extends Transform {
@@ -296,6 +351,7 @@ function assertOkResponse(response: Response, url: string): void {
  */
 export async function fetchText(url: string): Promise<string> {
   const response = await rateLimitedFetch(url);
+  assertOkResponse(response, url);
   return response.text();
 }
 
@@ -319,6 +375,7 @@ export async function fetchText(url: string): Promise<string> {
  */
 export async function fetchJSON(url: string): Promise<any> {
   const response = await rateLimitedFetch(url);
+  assertOkResponse(response, url);
   return response.json();
 }
 
@@ -373,7 +430,8 @@ export async function fetchToFile(
   options: FetchToFileOptions = {},
 ): Promise<void> {
   const { timeout, maxBytes, signal, ...requestInit } = options;
-  const tempFilepath = createTempFilePath(filepath);
+  const destinationPath = await resolveDestinationPath(filepath);
+  const tempFilepath = createTempFilePath(destinationPath);
   const response = await rateLimitedFetch(url, {
     ...requestInit,
     signal: buildFetchSignal(timeout, signal),
@@ -405,7 +463,8 @@ export async function fetchToFile(
       }
     }
 
-    await rename(tempFilepath, filepath);
+    await preserveExistingDestinationMetadata(destinationPath, tempFilepath);
+    await rename(tempFilepath, destinationPath);
   } catch (error) {
     await rm(tempFilepath, { force: true }).catch(() => {});
     throw error;
