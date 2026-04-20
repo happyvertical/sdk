@@ -477,6 +477,13 @@ async function writeResponseBodyToTempFile(
   }
 }
 
+/**
+ * Streams an existing fetch `Response` to disk using the same temp-file and
+ * metadata-preserving semantics as {@link fetchToFile}.
+ *
+ * This helper is transport-only: callers are responsible for validating the
+ * response status, headers, and content before persisting it.
+ */
 export async function writeResponseToFile(
   response: Response,
   filepath: string,

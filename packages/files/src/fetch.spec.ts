@@ -272,4 +272,37 @@ describe('writeResponseToFile', () => {
       'existing content',
     );
   });
+
+  it.skipIf(process.platform === 'win32')(
+    'preserves existing destination permissions when writing a response directly',
+    async () => {
+      const response = await fetch(`${serverUrl}/large`);
+      const targetPath = join(tempDir, 'secure.pdf');
+      await writeFile(targetPath, 'existing content');
+      await chmod(targetPath, 0o600);
+
+      await writeResponseToFile(response, targetPath);
+
+      const targetStats = await stat(targetPath);
+      expect(targetStats.mode & 0o777).toBe(0o600);
+    },
+  );
+
+  it.skipIf(process.platform === 'win32')(
+    'writes through symlink destinations without replacing the symlink',
+    async () => {
+      const response = await fetch(`${serverUrl}/large`);
+      const targetPath = join(tempDir, 'target.pdf');
+      const symlinkPath = join(tempDir, 'linked.pdf');
+
+      await writeFile(targetPath, 'existing content');
+      await symlink(targetPath, symlinkPath);
+
+      await writeResponseToFile(response, symlinkPath);
+
+      await expect(readFile(targetPath)).resolves.toHaveLength(3072);
+      const linkStats = await lstat(symlinkPath);
+      expect(linkStats.isSymbolicLink()).toBe(true);
+    },
+  );
 });

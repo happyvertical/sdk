@@ -24,6 +24,10 @@
  * @packageDocumentation
  */
 
+export type {
+  FetchToFileOptions,
+  WriteResponseToFileOptions,
+} from './fetch';
 // Re-export fetch utilities with rate limiting
 export {
   addRateLimit,
