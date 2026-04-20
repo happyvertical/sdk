@@ -1,4 +1,50 @@
-import { writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
+import { createWriteStream } from 'node:fs';
+import { rename, rm, writeFile } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
+import { Readable, Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
+
+export interface FetchToFileOptions extends RequestInit {
+  /** Optional timeout in milliseconds */
+  timeout?: number;
+  /** Optional transport ceiling in bytes */
+  maxBytes?: number;
+}
+
+function createTempFilePath(filepath: string): string {
+  return join(
+    dirname(filepath),
+    `.${basename(filepath)}.${randomUUID()}.download`,
+  );
+}
+
+class MaxBytesTransform extends Transform {
+  private totalBytes = 0;
+
+  constructor(private readonly maxBytes: number) {
+    super();
+  }
+
+  override _transform(
+    chunk: Buffer,
+    _encoding: BufferEncoding,
+    callback: (error?: Error | null, data?: Buffer) => void,
+  ): void {
+    this.totalBytes += chunk.byteLength;
+
+    if (this.totalBytes > this.maxBytes) {
+      callback(
+        new Error(
+          `Downloaded content exceeded maxBytes (${this.totalBytes} > ${this.maxBytes})`,
+        ),
+      );
+      return;
+    }
+
+    callback(null, chunk);
+  }
+}
 
 /**
  * Rate limiter for controlling fetch request frequency by domain
@@ -204,6 +250,30 @@ async function rateLimitedFetch(
   return fetch(url, options);
 }
 
+function buildFetchSignal(
+  timeout: number | undefined,
+  signal: AbortSignal | null | undefined,
+): AbortSignal | undefined {
+  if (timeout == null) {
+    return signal ?? undefined;
+  }
+
+  const timeoutSignal = AbortSignal.timeout(timeout);
+  if (!signal) {
+    return timeoutSignal;
+  }
+
+  return AbortSignal.any([signal, timeoutSignal]);
+}
+
+function assertOkResponse(response: Response, url: string): void {
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch ${url}: ${response.status} ${response.statusText}`,
+    );
+  }
+}
+
 /**
  * Fetches a URL and returns the response as text with automatic rate limiting
  *
@@ -272,6 +342,7 @@ export async function fetchJSON(url: string): Promise<any> {
  */
 export async function fetchBuffer(url: string): Promise<Buffer> {
   const response = await rateLimitedFetch(url);
+  assertOkResponse(response, url);
   return Buffer.from(await response.arrayBuffer());
 }
 
@@ -298,8 +369,51 @@ export async function fetchBuffer(url: string): Promise<Buffer> {
 export async function fetchToFile(
   url: string,
   filepath: string,
+  options: FetchToFileOptions = {},
 ): Promise<void> {
-  const response = await rateLimitedFetch(url);
-  const buffer = await response.arrayBuffer();
-  await writeFile(filepath, Buffer.from(buffer));
+  const { timeout, maxBytes, signal, ...requestInit } = options;
+  const tempFilepath = createTempFilePath(filepath);
+  const response = await rateLimitedFetch(url, {
+    ...requestInit,
+    signal: buildFetchSignal(timeout, signal),
+  });
+
+  assertOkResponse(response, url);
+
+  try {
+    if (!response.body) {
+      const buffer = Buffer.from(await response.arrayBuffer());
+
+      if (maxBytes != null && buffer.byteLength > maxBytes) {
+        throw new Error(
+          `Downloaded content exceeded maxBytes (${buffer.byteLength} > ${maxBytes})`,
+        );
+      }
+
+      await writeFile(tempFilepath, buffer);
+    } else {
+      const streams: [
+        Readable,
+        ...Transform[],
+        ReturnType<typeof createWriteStream>,
+      ] =
+        maxBytes != null
+          ? [
+              Readable.fromWeb(response.body as globalThis.ReadableStream),
+              new MaxBytesTransform(maxBytes),
+              createWriteStream(tempFilepath),
+            ]
+          : [
+              Readable.fromWeb(response.body as globalThis.ReadableStream),
+              createWriteStream(tempFilepath),
+            ];
+
+      await pipeline(...streams);
+    }
+
+    await rename(tempFilepath, filepath);
+  } catch (error) {
+    await rm(tempFilepath, { force: true }).catch(() => {});
+    throw error;
+  }
 }
