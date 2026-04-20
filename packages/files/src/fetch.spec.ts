@@ -19,10 +19,18 @@ import {
   writeResponseToFile,
 } from './fetch';
 
+function requireString(value: string | undefined, label: string): string {
+  if (!value) {
+    throw new Error(`${label} was not initialized`);
+  }
+
+  return value;
+}
+
 describe('fetchToFile', () => {
-  let server: Server;
+  let server: Server | undefined;
   let serverUrl: string;
-  let tempDir: string;
+  let tempDir: string | undefined;
 
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), 'files-fetch-'));
@@ -73,8 +81,13 @@ describe('fetchToFile', () => {
   });
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true }).catch(() => {});
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    if (tempDir) {
+      await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    }
+    if (server) {
+      const activeServer = server;
+      await new Promise<void>((resolve) => activeServer.close(() => resolve()));
+    }
   });
 
   it('streams to disk with custom headers', async () => {
@@ -174,6 +187,35 @@ describe('fetchToFile', () => {
       expect(linkStats.isSymbolicLink()).toBe(true);
     },
   );
+
+  it.skipIf(process.platform === 'win32')(
+    'resolves the destination symlink before the network fetch begins',
+    async () => {
+      const activeTempDir = requireString(tempDir, 'tempDir');
+      const originalTargetPath = join(activeTempDir, 'original.pdf');
+      const alternateTargetPath = join(activeTempDir, 'alternate.pdf');
+      const symlinkPath = join(activeTempDir, 'linked.pdf');
+
+      await writeFile(originalTargetPath, 'original content');
+      await writeFile(alternateTargetPath, 'alternate content');
+      await symlink(originalTargetPath, symlinkPath);
+
+      const downloadPromise = fetchToFile(`${serverUrl}/slow`, symlinkPath);
+
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      await rm(symlinkPath);
+      await symlink(alternateTargetPath, symlinkPath);
+
+      await downloadPromise;
+
+      await expect(readFile(originalTargetPath, 'utf8')).resolves.toBe(
+        'slow response',
+      );
+      await expect(readFile(alternateTargetPath, 'utf8')).resolves.toBe(
+        'alternate content',
+      );
+    },
+  );
 });
 
 describe('fetch response helpers', () => {
@@ -212,9 +254,9 @@ describe('fetch response helpers', () => {
 });
 
 describe('writeResponseToFile', () => {
-  let server: Server;
+  let server: Server | undefined;
   let serverUrl: string;
-  let tempDir: string;
+  let tempDir: string | undefined;
 
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), 'files-response-'));
@@ -245,13 +287,18 @@ describe('writeResponseToFile', () => {
   });
 
   afterEach(async () => {
-    await rm(tempDir, { recursive: true, force: true }).catch(() => {});
-    await new Promise<void>((resolve) => server.close(() => resolve()));
+    if (tempDir) {
+      await rm(tempDir, { recursive: true, force: true }).catch(() => {});
+    }
+    if (server) {
+      const activeServer = server;
+      await new Promise<void>((resolve) => activeServer.close(() => resolve()));
+    }
   });
 
   it('writes an existing streamed response to disk', async () => {
     const response = await fetch(`${serverUrl}/large`);
-    const targetPath = join(tempDir, 'response.pdf');
+    const targetPath = join(requireString(tempDir, 'tempDir'), 'response.pdf');
 
     await writeResponseToFile(response, targetPath);
 
@@ -261,7 +308,7 @@ describe('writeResponseToFile', () => {
 
   it('preserves an existing file when response streaming exceeds maxBytes', async () => {
     const response = await fetch(`${serverUrl}/large`);
-    const targetPath = join(tempDir, 'existing.pdf');
+    const targetPath = join(requireString(tempDir, 'tempDir'), 'existing.pdf');
     await writeFile(targetPath, 'existing content');
 
     await expect(
@@ -277,7 +324,7 @@ describe('writeResponseToFile', () => {
     'preserves existing destination permissions when writing a response directly',
     async () => {
       const response = await fetch(`${serverUrl}/large`);
-      const targetPath = join(tempDir, 'secure.pdf');
+      const targetPath = join(requireString(tempDir, 'tempDir'), 'secure.pdf');
       await writeFile(targetPath, 'existing content');
       await chmod(targetPath, 0o600);
 
@@ -292,8 +339,9 @@ describe('writeResponseToFile', () => {
     'writes through symlink destinations without replacing the symlink',
     async () => {
       const response = await fetch(`${serverUrl}/large`);
-      const targetPath = join(tempDir, 'target.pdf');
-      const symlinkPath = join(tempDir, 'linked.pdf');
+      const activeTempDir = requireString(tempDir, 'tempDir');
+      const targetPath = join(activeTempDir, 'target.pdf');
+      const symlinkPath = join(activeTempDir, 'linked.pdf');
 
       await writeFile(targetPath, 'existing content');
       await symlink(targetPath, symlinkPath);
