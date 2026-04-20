@@ -140,6 +140,45 @@ jobs:
 
           echo "🚀 Running Changesets release..."
 
+          publish_release_artifacts() {
+            local version="$1"
+            local previous_version="$2"
+            local release_notes=""
+
+            # Build packages
+            pnpm run build
+
+            # Validate publishable artifacts before pushing packages
+            pnpm run validate-build
+
+            # Publish packages
+            pnpm run changeset:publish
+
+            # Create and push git tag (idempotent - skip if tag already exists)
+            if git rev-parse "v$version" >/dev/null 2>&1; then
+              echo "ℹ️  Tag v$version already exists, skipping tag creation"
+            else
+              git tag "v$version"
+              git push origin "v$version"
+            fi
+
+            # Create GitHub Release (idempotent - skip if release already exists)
+            if gh release view "v$version" >/dev/null 2>&1; then
+              echo "ℹ️  Release v$version already exists, skipping release creation"
+            else
+              if [ -n "$previous_version" ] && [ "$previous_version" != "$version" ]; then
+                release_notes="## Published Packages"$'\n\n'"All packages published to GitHub Packages at version $version."$'\n\n'"Full Changelog: https://github.com/${GITHUB_REPOSITORY}/compare/v$previous_version...v$version"
+              else
+                release_notes="## Published Packages"$'\n\n'"All packages published to GitHub Packages at version $version from committed release state on \`main\`."
+              fi
+
+              gh release create "v$version" \
+                --title "v$version" \
+                --notes "$release_notes" \
+                --latest
+            fi
+          }
+
           RELEASE_SYNC_BRANCH="changeset-release/main"
           RELEASE_SYNC_PR_TITLE="chore: version packages"
 
@@ -192,34 +231,7 @@ jobs:
             git commit -m "chore(release): v$AFTER_VERSION [skip ci]"
             RELEASE_COMMIT_SHA=$(git rev-parse HEAD)
 
-            # Build packages
-            pnpm run build
-
-            # Validate publishable artifacts before pushing packages
-            pnpm run validate-build
-
-            # Publish packages
-            pnpm run changeset:publish
-
-            # Create and push git tag (idempotent - skip if tag already exists)
-            if git rev-parse "v$AFTER_VERSION" >/dev/null 2>&1; then
-              echo "ℹ️  Tag v$AFTER_VERSION already exists, skipping tag creation"
-            else
-              git tag "v$AFTER_VERSION"
-              git push origin "v$AFTER_VERSION"
-            fi
-
-            # Create GitHub Release (idempotent - skip if release already exists)
-            if gh release view "v$AFTER_VERSION" >/dev/null 2>&1; then
-              echo "ℹ️  Release v$AFTER_VERSION already exists, skipping release creation"
-            else
-              RELEASE_NOTES="## Published Packages"$'\n\n'"All packages published to GitHub Packages at version $AFTER_VERSION."$'\n\n'"Full Changelog: https://github.com/${GITHUB_REPOSITORY}/compare/v$BEFORE_VERSION...v$AFTER_VERSION"
-
-              gh release create "v$AFTER_VERSION" \
-                --title "v$AFTER_VERSION" \
-                --notes "$RELEASE_NOTES" \
-                --latest
-            fi
+            publish_release_artifacts "$AFTER_VERSION" "$BEFORE_VERSION"
 
             if git push origin main; then
               echo "✅ Synced release commit to main"
@@ -271,9 +283,21 @@ jobs:
             echo "reason=published" >> $GITHUB_OUTPUT
             echo "✅ Published version: v$AFTER_VERSION"
           else
-            echo "ℹ️  No version changes - no release needed"
-            echo "published=false" >> $GITHUB_OUTPUT
-            echo "reason=no_version_changes" >> $GITHUB_OUTPUT
+            if git rev-parse "v$AFTER_VERSION" >/dev/null 2>&1; then
+              echo "ℹ️  No version changes - no release needed"
+              echo "published=false" >> $GITHUB_OUTPUT
+              echo "reason=no_version_changes" >> $GITHUB_OUTPUT
+            else
+              echo "📦 Current repository is already versioned at v$AFTER_VERSION but has not been tagged yet"
+              echo "Publishing committed release state from main..."
+
+              publish_release_artifacts "$AFTER_VERSION" ""
+
+              echo "published=true" >> $GITHUB_OUTPUT
+              echo "version=$AFTER_VERSION" >> $GITHUB_OUTPUT
+              echo "reason=published" >> $GITHUB_OUTPUT
+              echo "✅ Published committed release state: v$AFTER_VERSION"
+            fi
           fi
 
       - name: Check if version was published
