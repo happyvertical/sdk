@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.71.23
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - publish merged sync versions (release)
+
 ## 0.71.22
 
 ## 0.71.20
