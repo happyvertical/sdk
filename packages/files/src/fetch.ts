@@ -4,6 +4,7 @@ import { rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
 
 export interface FetchToFileOptions extends RequestInit {
   /** Optional timeout in milliseconds */
@@ -392,23 +393,16 @@ export async function fetchToFile(
 
       await writeFile(tempFilepath, buffer);
     } else {
-      const streams: [
-        Readable,
-        ...Transform[],
-        ReturnType<typeof createWriteStream>,
-      ] =
-        maxBytes != null
-          ? [
-              Readable.fromWeb(response.body as globalThis.ReadableStream),
-              new MaxBytesTransform(maxBytes),
-              createWriteStream(tempFilepath),
-            ]
-          : [
-              Readable.fromWeb(response.body as globalThis.ReadableStream),
-              createWriteStream(tempFilepath),
-            ];
+      const source = Readable.fromWeb(
+        response.body as unknown as NodeReadableStream<Uint8Array>,
+      );
+      const destination = createWriteStream(tempFilepath);
 
-      await pipeline(...streams);
+      if (maxBytes != null) {
+        await pipeline(source, new MaxBytesTransform(maxBytes), destination);
+      } else {
+        await pipeline(source, destination);
+      }
     }
 
     await rename(tempFilepath, filepath);
