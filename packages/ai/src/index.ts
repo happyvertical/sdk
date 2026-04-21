@@ -2,7 +2,8 @@
  * @happyvertical/ai - A standardized interface for AI model interactions
  *
  * This package provides a unified interface for interacting with various AI models.
- * Supports multiple providers: OpenAI, Gemini, Anthropic, Hugging Face, AWS Bedrock, and Claude CLI.
+ * Supports multiple providers: OpenAI, LiteLLM, Ollama, Gemini, Anthropic,
+ * Hugging Face, AWS Bedrock, Claude CLI, and Qwen3-TTS.
  *
  * Key components:
  * - getAI() - Factory function for creating AI provider instances

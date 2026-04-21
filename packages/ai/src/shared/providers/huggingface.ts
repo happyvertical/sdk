@@ -356,7 +356,7 @@ export class HuggingFaceProvider implements AIInterface {
       chat: true,
       completion: true,
       embeddings: true,
-      streaming: false, // Limited streaming support
+      streaming: true,
       functions: false, // Most HF models don't support function calling
       vision: false, // Limited vision model support
       fineTuning: true, // Via Hugging Face training API
@@ -366,7 +366,7 @@ export class HuggingFaceProvider implements AIInterface {
       voiceCloning: false,
       voiceDesign: false,
       maxContextLength: 2048,
-      supportedOperations: ['chat', 'completion', 'embedding'],
+      supportedOperations: ['chat', 'completion', 'embedding', 'streaming'],
     };
   }
 

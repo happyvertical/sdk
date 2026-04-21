@@ -1,6 +1,6 @@
 # @happyvertical/ai
 
-Unified interface for AI model interactions across multiple providers. Supports OpenAI, Anthropic Claude, Google Gemini, AWS Bedrock, Hugging Face, Claude CLI, and Qwen3-TTS with a consistent API for chat, completions, embeddings, streaming, function calling, image operations, and text-to-speech.
+Unified interface for AI model interactions across multiple providers. Supports OpenAI, LiteLLM, Ollama, Anthropic Claude, Google Gemini, AWS Bedrock, Hugging Face, Claude CLI, and Qwen3-TTS with a consistent API for chat, completions, embeddings, streaming, function calling, image operations, and text-to-speech.
 
 ## Installation
 
@@ -44,6 +44,28 @@ for await (const chunk of ai.stream([
 ```typescript
 // OpenAI (default when type is omitted)
 const openai = await getAI({ apiKey: 'sk-...' });
+
+// LiteLLM (OpenAI-compatible gateway)
+const litellm = await getAI({
+  type: 'litellm',
+  apiKey: process.env.LITELLM_API_KEY!,
+  baseUrl: process.env.LITELLM_BASE_URL || 'https://llm.happyvertical.com/v1',
+  defaultModel: process.env.LITELLM_MODEL, // Use a model id returned by /v1/models
+});
+
+// Ollama (local by default)
+const ollama = await getAI({
+  type: 'ollama',
+  baseUrl: process.env.OLLAMA_BASE_URL || process.env.OLLAMA_HOST || 'http://localhost:11434',
+  apiKey: process.env.OLLAMA_API_KEY, // Optional, only needed for remote/cloud hosts
+  defaultModel: process.env.OLLAMA_MODEL, // Optional; otherwise the first compatible local model is selected
+});
+
+// Bare host:port values are also accepted and normalized to http://
+const ollamaNode = await getAI({
+  type: 'ollama',
+  baseUrl: 'warthog:11434',
+});
 
 // Anthropic Claude
 const claude = await getAI({ type: 'anthropic', apiKey: process.env.ANTHROPIC_API_KEY! });
@@ -142,7 +164,7 @@ for (const site of sites) {
 
 ## Environment Variables
 
-Configuration via `HAVE_AI_*` prefix. Options passed to `getAI()` take precedence over env vars, which take precedence over provider-specific env vars (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.).
+`getAI()` reads `HAVE_AI_*` variables. Explicit options passed to `getAI()` take precedence over those env vars.
 
 | Variable | Purpose |
 |----------|---------|
@@ -152,6 +174,18 @@ Configuration via `HAVE_AI_*` prefix. Options passed to `getAI()` take precedenc
 | `HAVE_AI_BASE_URL` | Custom base URL |
 | `HAVE_AI_TIMEOUT` | Request timeout (ms) |
 | `HAVE_AI_MAX_RETRIES` | Max retry attempts |
+
+### Node Auto-Detection Env Vars
+
+`getAIAuto()` also checks provider-specific Node.js environment variables:
+
+- `LITELLM_BASE_URL`, `LITELLM_API_KEY`
+- `OLLAMA_HOST`, `OLLAMA_BASE_URL`, `OLLAMA_API_KEY`
+- `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY`
+- `GEMINI_API_KEY`, `GOOGLE_API_KEY`
+- `HF_TOKEN`
+- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`
 
 ## API Overview
 
@@ -171,9 +205,9 @@ All providers implement `AIInterface`:
 | `complete(prompt, options?)` | Text completion |
 | `stream(messages, options?)` | Streaming chat (async iterable) |
 | `embed(text, options?)` | Text embeddings |
-| `embedImage(image, options?)` | Image embeddings (Gemini native, OpenAI via describe-then-embed) |
+| `embedImage(image, options?)` | Image embeddings (Gemini and Bedrock native, OpenAI and Ollama via describe-then-embed) |
 | `describeImage(image, prompt?, options?)` | Image description via vision models |
-| `generateImage(prompt, options?)` | Image generation (DALL-E, Imagen) |
+| `generateImage(prompt, options?)` | Image generation (DALL-E, Imagen, Titan Image Generator, Ollama-compatible image models) |
 | `countTokens(text)` | Token count estimation |
 | `getModels()` | List available models |
 | `getCapabilities()` | Query provider capabilities |

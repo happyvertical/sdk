@@ -15,6 +15,7 @@ import type {
   AIMessage,
   AIModel,
   AIResponse,
+  BaseAIOptions,
   ChatOptions,
   CompletionOptions,
   ContentPart,
@@ -25,7 +26,6 @@ import type {
   ImageGenerationOptions,
   ImageGenerationResponse,
   MessageOptions,
-  OpenAIOptions,
   TokenUsage,
   TTSOptions,
   TTSResponse,
@@ -45,20 +45,119 @@ import {
 import { emitUsage } from './usage';
 
 /**
+ * Shared profile for OpenAI-compatible providers
+ */
+export interface OpenAICompatibleProfile {
+  providerLabel: string;
+  providerName: string;
+  defaultModel: string;
+  capabilities: AICapabilities;
+  describeModel(modelId: string): string;
+  getContextLength(modelId: string): number;
+  getModelCapabilities(modelId: string): string[];
+  shouldIncludeModel(modelId: string): boolean;
+  supportsFunctions(modelId: string): boolean;
+  supportsVision(modelId: string): boolean;
+}
+
+const OPENAI_PROFILE: OpenAICompatibleProfile = {
+  providerLabel: 'OpenAI',
+  providerName: 'openai',
+  defaultModel: 'gpt-4o',
+  capabilities: {
+    chat: true,
+    completion: true,
+    embeddings: true,
+    streaming: true,
+    functions: true,
+    vision: true,
+    fineTuning: true,
+    imageEmbeddings: true,
+    imageGeneration: true,
+    tts: false,
+    voiceCloning: false,
+    voiceDesign: false,
+    maxContextLength: 128000,
+    supportedOperations: [
+      'chat',
+      'completion',
+      'embedding',
+      'streaming',
+      'functions',
+      'vision',
+      'image_embedding',
+      'image_generation',
+    ],
+  },
+  describeModel: (modelId) => `OpenAI model: ${modelId}`,
+  getContextLength(modelId) {
+    if (modelId.includes('gpt-4o')) return 128000;
+    if (modelId.includes('gpt-4.1')) return 128000;
+    if (modelId.includes('gpt-4-turbo')) return 128000;
+    if (modelId.includes('gpt-4')) return 8192;
+    if (modelId.includes('gpt-3.5-turbo')) return 16385;
+    if (modelId.includes('text-embedding')) return 8192;
+    return 4096;
+  },
+  getModelCapabilities(modelId) {
+    const capabilities = ['text'];
+    if (modelId.includes('gpt')) {
+      capabilities.push('chat', 'functions');
+    }
+    if (
+      modelId.includes('vision') ||
+      modelId === 'gpt-4o' ||
+      modelId.includes('gpt-4.1')
+    ) {
+      capabilities.push('vision');
+    }
+    if (modelId.includes('embedding')) {
+      capabilities.push('embeddings');
+    }
+    return capabilities;
+  },
+  shouldIncludeModel(modelId) {
+    return modelId.includes('gpt') || modelId.includes('text-embedding');
+  },
+  supportsFunctions(modelId) {
+    return modelId.includes('gpt-4') || modelId.includes('gpt-3.5');
+  },
+  supportsVision(modelId) {
+    return (
+      modelId.includes('vision') ||
+      modelId === 'gpt-4o' ||
+      modelId.includes('gpt-4.1')
+    );
+  },
+};
+
+export interface OpenAICompatibleOptions extends BaseAIOptions {
+  type?: string;
+  apiKey?: string;
+  baseUrl?: string;
+  organization?: string;
+}
+
+/**
  * OpenAI provider implementation that handles all interactions with OpenAI's API.
  * Supports GPT models, embeddings, function calling, streaming, and vision capabilities.
  */
 export class OpenAIProvider implements AIInterface {
   private client: OpenAI;
-  private options: OpenAIOptions;
+  private options: OpenAICompatibleOptions;
+  private readonly profile: OpenAICompatibleProfile;
 
   /**
    * Creates a new OpenAI provider instance
    * @param options - Configuration options for the OpenAI provider
    */
-  constructor(options: OpenAIOptions) {
+  constructor(
+    options: OpenAICompatibleOptions,
+    profile: OpenAICompatibleProfile = OPENAI_PROFILE,
+  ) {
+    this.profile = profile;
     this.options = {
-      defaultModel: 'gpt-4o',
+      defaultModel: this.profile.defaultModel,
       ...options,
     };
 
@@ -98,7 +197,8 @@ export class OpenAIProvider implements AIInterface {
   ): Promise<AIResponse> {
     const startTime = Date.now();
     try {
-      const model = options.model || this.options.defaultModel || 'gpt-4o';
+      const model =
+        options.model || this.options.defaultModel || this.profile.defaultModel;
       const response = await this.client.chat.completions.create({
         model,
         messages: this.mapMessagesToOpenAI(messages),
@@ -127,16 +227,16 @@ export class OpenAIProvider implements AIInterface {
       const choice = response.choices[0];
       if (!choice) {
         throw new AIError(
-          'No choices returned from OpenAI',
+          `No choices returned from ${this.profile.providerLabel}`,
           'NO_CHOICES',
-          'openai',
+          this.profile.providerName,
         );
       }
 
       const usage = this.mapUsage(response.usage);
       emitUsage(
         this.options,
-        'openai',
+        this.profile.providerName,
         'chat',
         response.model || model,
         usage,
@@ -289,7 +389,7 @@ export class OpenAIProvider implements AIInterface {
       const usage = this.mapUsage(response.usage);
       emitUsage(
         this.options,
-        'openai',
+        this.profile.providerName,
         'embed',
         response.model || model,
         usage,
@@ -326,7 +426,7 @@ export class OpenAIProvider implements AIInterface {
       throw new AIError(
         `Failed to fetch image: ${response.status} ${response.statusText}`,
         'IMAGE_FETCH_ERROR',
-        'openai',
+        this.profile.providerName,
       );
     }
     const arrayBuffer = await response.arrayBuffer();
@@ -375,7 +475,10 @@ export class OpenAIProvider implements AIInterface {
           },
         ],
         {
-          model: options.model || 'gpt-4o',
+          model:
+            options.model ||
+            this.options.defaultModel ||
+            this.profile.defaultModel,
           maxTokens: options.maxTokens || 500,
         },
       );
@@ -510,7 +613,8 @@ export class OpenAIProvider implements AIInterface {
   ): AsyncIterable<string> {
     const startTime = Date.now();
     try {
-      const model = options.model || this.options.defaultModel || 'gpt-4o';
+      const model =
+        options.model || this.options.defaultModel || this.profile.defaultModel;
       const stream = await this.client.chat.completions.create({
         model,
         messages: this.mapMessagesToOpenAI(messages),
@@ -536,7 +640,7 @@ export class OpenAIProvider implements AIInterface {
 
       emitUsage(
         this.options,
-        'openai',
+        this.profile.providerName,
         'stream',
         model,
         undefined,
@@ -585,19 +689,15 @@ export class OpenAIProvider implements AIInterface {
     try {
       const response = await this.client.models.list();
       return response.data
-        .filter(
-          (model) =>
-            model.id.includes('gpt') || model.id.includes('text-embedding'),
-        )
+        .filter((model) => this.profile.shouldIncludeModel(model.id))
         .map((model) => ({
           id: model.id,
           name: model.id,
-          description: `OpenAI model: ${model.id}`,
-          contextLength: this.getContextLength(model.id),
-          capabilities: this.getModelCapabilities(model.id),
-          supportsFunctions:
-            model.id.includes('gpt-4') || model.id.includes('gpt-3.5'),
-          supportsVision: model.id.includes('vision') || model.id === 'gpt-4o',
+          description: this.profile.describeModel(model.id),
+          contextLength: this.profile.getContextLength(model.id),
+          capabilities: this.profile.getModelCapabilities(model.id),
+          supportsFunctions: this.profile.supportsFunctions(model.id),
+          supportsVision: this.profile.supportsVision(model.id),
         }));
     } catch (error) {
       throw this.mapError(error);
@@ -617,31 +717,7 @@ export class OpenAIProvider implements AIInterface {
    * ```
    */
   async getCapabilities(): Promise<AICapabilities> {
-    return {
-      chat: true,
-      completion: true,
-      embeddings: true,
-      streaming: true,
-      functions: true,
-      vision: true,
-      fineTuning: true,
-      imageEmbeddings: true,
-      imageGeneration: true,
-      tts: false,
-      voiceCloning: false,
-      voiceDesign: false,
-      maxContextLength: 128000,
-      supportedOperations: [
-        'chat',
-        'completion',
-        'embedding',
-        'streaming',
-        'functions',
-        'vision',
-        'image_embedding',
-        'image_generation',
-      ],
-    };
+    return { ...this.profile.capabilities };
   }
 
   // ============================================================================
@@ -653,17 +729,17 @@ export class OpenAIProvider implements AIInterface {
     _options?: TTSOptions,
   ): Promise<TTSResponse> {
     throw new AIError(
-      'TTS is not supported by OpenAI provider. Use Qwen3-TTS provider.',
+      `TTS is not supported by ${this.profile.providerLabel} provider. Use Qwen3-TTS provider.`,
       'NOT_IMPLEMENTED',
-      'openai',
+      this.profile.providerName,
     );
   }
 
   streamSpeech(_text: string, _options?: TTSOptions): AsyncIterable<Buffer> {
     const error = new AIError(
-      'TTS streaming is not supported by OpenAI provider. Use Qwen3-TTS provider.',
+      `TTS streaming is not supported by ${this.profile.providerLabel} provider. Use Qwen3-TTS provider.`,
       'NOT_IMPLEMENTED',
-      'openai',
+      this.profile.providerName,
     );
     return {
       [Symbol.asyncIterator]: () => ({
@@ -674,25 +750,25 @@ export class OpenAIProvider implements AIInterface {
 
   async cloneVoice(_options: VoiceCloneOptions): Promise<Voice> {
     throw new AIError(
-      'Voice cloning is not supported by OpenAI provider. Use Qwen3-TTS provider.',
+      `Voice cloning is not supported by ${this.profile.providerLabel} provider. Use Qwen3-TTS provider.`,
       'NOT_IMPLEMENTED',
-      'openai',
+      this.profile.providerName,
     );
   }
 
   async designVoice(_options: VoiceDesignOptions): Promise<Voice> {
     throw new AIError(
-      'Voice design is not supported by OpenAI provider. Use Qwen3-TTS provider.',
+      `Voice design is not supported by ${this.profile.providerLabel} provider. Use Qwen3-TTS provider.`,
       'NOT_IMPLEMENTED',
-      'openai',
+      this.profile.providerName,
     );
   }
 
   async getVoices(_options?: VoiceListOptions): Promise<Voice[]> {
     throw new AIError(
-      'Voice listing is not supported by OpenAI provider. Use Qwen3-TTS provider.',
+      `Voice listing is not supported by ${this.profile.providerLabel} provider. Use Qwen3-TTS provider.`,
       'NOT_IMPLEMENTED',
-      'openai',
+      this.profile.providerName,
     );
   }
 
@@ -819,34 +895,6 @@ export class OpenAIProvider implements AIInterface {
    * @returns Maximum context length in tokens
    * @private
    */
-  private getContextLength(modelId: string): number {
-    if (modelId.includes('gpt-4o')) return 128000;
-    if (modelId.includes('gpt-4-turbo')) return 128000;
-    if (modelId.includes('gpt-4')) return 8192;
-    if (modelId.includes('gpt-3.5-turbo')) return 16385;
-    return 4096;
-  }
-
-  /**
-   * Gets the capabilities for a given OpenAI model
-   * @param modelId - The OpenAI model identifier
-   * @returns Array of capability strings
-   * @private
-   */
-  private getModelCapabilities(modelId: string): string[] {
-    const capabilities = ['text'];
-    if (modelId.includes('gpt')) {
-      capabilities.push('chat', 'functions');
-    }
-    if (modelId.includes('vision') || modelId === 'gpt-4o') {
-      capabilities.push('vision');
-    }
-    if (modelId.includes('embedding')) {
-      capabilities.push('embeddings');
-    }
-    return capabilities;
-  }
-
   /**
    * Maps OpenAI API errors to internal AI error types
    * @param error - The error object from OpenAI API
@@ -858,19 +906,29 @@ export class OpenAIProvider implements AIInterface {
     if (error instanceof OpenAI.APIError) {
       switch (error.status) {
         case 401:
-          return new AuthenticationError('openai');
+          return new AuthenticationError(this.profile.providerName);
         case 429: {
-          return new RateLimitError('openai', extractRetryAfterSeconds(error));
+          return new RateLimitError(
+            this.profile.providerName,
+            extractRetryAfterSeconds(error),
+          );
         }
         case 404:
-          return new ModelNotFoundError(error.message, 'openai');
+          return new ModelNotFoundError(
+            error.message,
+            this.profile.providerName,
+          );
         case 413:
-          return new ContextLengthError('openai');
+          return new ContextLengthError(this.profile.providerName);
         default:
           if (error.message.includes('content_filter')) {
-            return new ContentFilterError('openai');
+            return new ContentFilterError(this.profile.providerName);
           }
-          return new AIError(error.message, 'API_ERROR', 'openai');
+          return new AIError(
+            error.message,
+            'API_ERROR',
+            this.profile.providerName,
+          );
       }
     }
 
@@ -880,6 +938,10 @@ export class OpenAIProvider implements AIInterface {
 
     const errorMessage =
       error instanceof Error ? error.message : 'Unknown error occurred';
-    return new AIError(errorMessage, 'UNKNOWN_ERROR', 'openai');
+    return new AIError(
+      errorMessage,
+      'UNKNOWN_ERROR',
+      this.profile.providerName,
+    );
   }
 }

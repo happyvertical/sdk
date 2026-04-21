@@ -99,7 +99,7 @@
         "index": 2,
         "count": 29
       },
-      "description": "Standardized AI interface supporting OpenAI, Anthropic, Google Gemini, AWS Bedrock, and Hugging Face with unified API",
+      "description": "Standardized AI interface supporting OpenAI, LiteLLM, Ollama, Anthropic, Gemini, Bedrock, Hugging Face, Claude CLI, and Qwen3-TTS",
       "commands": {
         "build": "pnpm --filter @happyvertical/ai build",
         "test": "pnpm --filter @happyvertical/ai test",
@@ -111,7 +111,7 @@
         "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
       ],
       "provides": [
-        "Standardized AI interface supporting OpenAI, Anthropic, Google Gemini, AWS Bedrock, and Hugging Face with unified API"
+        "Standardized AI interface supporting OpenAI, LiteLLM, Ollama, Anthropic, Gemini, Bedrock, Hugging Face, Claude CLI, and Qwen3-TTS"
       ],
       "implements": [],
       "requires": {
@@ -1452,7 +1452,7 @@
     {
       "type": "provides",
       "from": "@happyvertical/ai",
-      "to": "Standardized AI interface supporting OpenAI, Anthropic, Google Gemini, AWS Bedrock, and Hugging Face with unified API"
+      "to": "Standardized AI interface supporting OpenAI, LiteLLM, Ollama, Anthropic, Gemini, Bedrock, Hugging Face, Claude CLI, and Qwen3-TTS"
     },
     {
       "type": "requires",
