@@ -24,6 +24,10 @@
  * @packageDocumentation
  */
 
+export type {
+  FetchToFileOptions,
+  WriteResponseToFileOptions,
+} from './fetch';
 // Re-export fetch utilities with rate limiting
 export {
   addRateLimit,
@@ -32,6 +36,7 @@ export {
   fetchText,
   fetchToFile,
   getRateLimit,
+  writeResponseToFile,
 } from './fetch';
 // Re-export existing filesystem adapter classes for compatibility
 export * from './filesystem';

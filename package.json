@@ -79,7 +79,7 @@
   },
   "pnpm": {
     "overrides": {
-      "rollup": "4.60.1",
+      "rollup": "4.60.2",
       "@happyvertical/ai": "workspace:*",
       "@happyvertical/cache": "workspace:*",
       "@happyvertical/files": "workspace:*",
