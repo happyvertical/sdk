@@ -30,3 +30,4 @@ pnpm --filter @happyvertical/ai clean
 - Requires: @happyvertical/utils, @anthropic-ai/sdk, @aws-sdk/client-bedrock-runtime, @google/genai, openai
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
+
