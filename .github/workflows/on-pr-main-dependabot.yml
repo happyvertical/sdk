@@ -45,7 +45,7 @@ jobs:
           echo "::notice::Processing dependabot PR with enhanced security checks"
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
         with:
           run_install: false
 
@@ -61,7 +61,7 @@ jobs:
 
       - name: Dependabot metadata
         id: metadata
-        uses: dependabot/fetch-metadata@21025c705c08248db411dc16f3619e6b5f9ea21a # v2.5.0  # Pinned to specific version
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0  # Pinned to specific version
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 

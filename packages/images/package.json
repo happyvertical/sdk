@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/images",
-  "version": "0.71.20",
+  "version": "0.71.23",
   "description": "Image processing utilities with adapter pattern for scaling from static to enterprise",
   "type": "module",
   "main": "./dist/index.js",
@@ -23,10 +23,10 @@
   },
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2",
-    "satori": "^0.19.2"
+    "satori": "^0.26.0"
   },
   "peerDependencies": {
-    "jimp": ">=1.6.0",
+    "jimp": ">=1.6.1",
     "sharp": ">=0.34.5"
   },
   "peerDependenciesMeta": {
@@ -39,7 +39,7 @@
   },
   "devDependencies": {
     "@types/node": "25.0.10",
-    "jimp": "^1.6.0",
+    "jimp": "^1.6.1",
     "sharp": "^0.34.5",
     "typescript": "^5.9.3",
     "vite": "7.3.2",

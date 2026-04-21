@@ -49,6 +49,14 @@ describe('AI Factory Integration', () => {
     expect(provider).toBeInstanceOf(OllamaProvider);
   });
 
+  it('should auto-detect Ollama when keepAlive is set to 0', async () => {
+    const provider = await getAIAuto({
+      keepAlive: 0,
+    });
+
+    expect(provider).toBeInstanceOf(OllamaProvider);
+  });
+
   it('should create LiteLLM provider', async () => {
     const provider = await getAI({
       type: 'litellm',

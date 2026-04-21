@@ -275,13 +275,15 @@ export async function getAIAuto(
   options: Record<string, any>,
 ): Promise<AIInterface> {
   const baseUrl = String((options as any).baseUrl || '');
+  const hasKeepAliveOption =
+    'keepAlive' in options && (options as any).keepAlive !== undefined;
 
   // Auto-detect provider based on available credentials
   if (
     /((?:localhost|127\.0\.0\.1)(?::11434)?(?:\/(?:api|v1))?|ollama(?:\.com)?(?:\/(?:api|v1))?)\/?$/i.test(
       baseUrl,
     ) ||
-    (options as any).keepAlive
+    hasKeepAliveOption
   ) {
     return getAI({ ...options, type: 'ollama' } as OllamaOptions);
   }

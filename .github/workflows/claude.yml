@@ -64,7 +64,7 @@ jobs:
 
       - name: Setup pnpm
         if: "github.event.action == 'labeled' && github.event.label.name == 'agent: claude'"
-        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5
 
       - name: Configure pnpm store directory
         if: "github.event.action == 'labeled' && github.event.label.name == 'agent: claude'"
@@ -83,7 +83,7 @@ jobs:
 
       - name: Run Claude Code
         id: claude
-        uses: anthropics/claude-code-action@48fe7dd592a95d1620f0194d0c3d741a6211408f # v1
+        uses: anthropics/claude-code-action@38ec876110f9fbf8b950c79f534430740c3ac009 # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
 

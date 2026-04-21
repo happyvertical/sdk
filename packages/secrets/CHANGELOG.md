@@ -1,5 +1,21 @@
 # @happyvertical/secrets
 
+## 0.71.23
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.71.23
+  - @happyvertical/sql@0.71.23
+
+## 0.71.22
+
+### Patch Changes
+
+- 299216f: Republish the tenant key version lookup fix in a fresh package release now that the `0.71.20` release sync has landed on `main`.
+  - @happyvertical/sql@0.71.22
+  - @happyvertical/utils@0.71.22
+
 ## 0.71.20
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/files",
-  "version": "0.71.20",
+  "version": "0.71.23",
   "description": "File system utilities for local and remote file operations",
   "type": "module",
   "main": "./dist/index.js",
@@ -22,7 +22,7 @@
     "dev": "npm run build:watch & npm run test:watch"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.940.0",
+    "@aws-sdk/client-s3": "^3.1033.0",
     "@happyvertical/utils": "workspace:*",
     "google-auth-library": "^9.15.1",
     "googleapis": "^144.0.0"
@@ -31,7 +31,7 @@
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/svelte": "5.3.1",
     "@types/node": "25.0.10",
-    "happy-dom": "20.8.9",
+    "happy-dom": "20.9.0",
     "jsdom": "27.4.0",
     "typescript": "^5.9.3",
     "vite": "7.3.2",

@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/messages",
-  "version": "0.71.20",
+  "version": "0.71.23",
   "description": "Unified multi-channel messaging with adapter-based architecture (Slack, Twitter, Email)",
   "type": "module",
   "main": "./dist/index.js",
@@ -35,7 +35,7 @@
     "@happyvertical/email": "workspace:*",
     "@happyvertical/logger": "workspace:*",
     "@happyvertical/utils": "workspace:*",
-    "@slack/web-api": "^7.14.1"
+    "@slack/web-api": "^7.15.1"
   },
   "devDependencies": {
     "@types/node": "25.0.10",

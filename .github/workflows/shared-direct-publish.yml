@@ -98,7 +98,7 @@ jobs:
           registry-url: ${{ inputs.registry-url }}
 
       - name: Setup Turborepo cache
-        uses: actions/cache@cdf6c1fa76f9f475f3d7449005a359c84ca0f306 # v5
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: .turbo
           key: ${{ runner.os }}-turbo-${{ github.sha }}
@@ -140,6 +140,63 @@ jobs:
 
           echo "🚀 Running Changesets release..."
 
+          publish_release_artifacts() {
+            local version="$1"
+            local previous_version="$2"
+            local release_notes=""
+
+            # Build packages
+            pnpm run build
+
+            # Validate publishable artifacts before pushing packages
+            pnpm run validate-build
+
+            # Publish packages
+            pnpm run changeset:publish
+
+            # Create and push git tag (idempotent - skip if tag already exists)
+            if git rev-parse "v$version" >/dev/null 2>&1; then
+              echo "ℹ️  Tag v$version already exists, skipping tag creation"
+            else
+              git tag "v$version"
+              git push origin "v$version"
+            fi
+
+            # Create GitHub Release (idempotent - skip if release already exists)
+            if gh release view "v$version" >/dev/null 2>&1; then
+              echo "ℹ️  Release v$version already exists, skipping release creation"
+            else
+              if [ -n "$previous_version" ] && [ "$previous_version" != "$version" ]; then
+                release_notes="## Published Packages"$'\n\n'"All packages published to GitHub Packages at version $version."$'\n\n'"Full Changelog: https://github.com/${GITHUB_REPOSITORY}/compare/v$previous_version...v$version"
+              else
+                release_notes="## Published Packages"$'\n\n'"All packages published to GitHub Packages at version $version from committed release state on \`main\`."
+              fi
+
+              gh release create "v$version" \
+                --title "v$version" \
+                --notes "$release_notes" \
+                --latest
+            fi
+          }
+
+          RELEASE_SYNC_BRANCH="changeset-release/main"
+          RELEASE_SYNC_PR_TITLE="chore: version packages"
+
+          EXISTING_SYNC_PR=$(gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --state open \
+            --head "$RELEASE_SYNC_BRANCH" \
+            --json number \
+            --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING_SYNC_PR" ]; then
+            echo "ℹ️  Release sync PR #$EXISTING_SYNC_PR is still open"
+            echo "Skipping direct publish until that PR merges."
+            echo "published=false" >> $GITHUB_OUTPUT
+            echo "reason=awaiting_release_sync_pr" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
           # Store current version before release
           BEFORE_VERSION=$(node -p "require('./package.json').version")
           echo "Version before release: $BEFORE_VERSION"
@@ -172,74 +229,53 @@ jobs:
             # Commit version changes
             git add .
             git commit -m "chore(release): v$AFTER_VERSION [skip ci]"
+            RELEASE_COMMIT_SHA=$(git rev-parse HEAD)
 
-            # Build packages
-            pnpm run build
+            publish_release_artifacts "$AFTER_VERSION" "$BEFORE_VERSION"
 
-            # Validate publishable artifacts before pushing packages
-            pnpm run validate-build
-
-            sync_target="HEAD:main"
-            sync_rebuild_required=0
-
-            sync_release_commit() {
-              local attempt=1
-              while [ "$attempt" -le 3 ]; do
-                if git push origin "$sync_target"; then
-                  echo "✅ Synced release commit to main"
-                  return 0
-                fi
-
-                echo "⚠️  Main sync failed (attempt $attempt/3)"
-
-                git fetch origin main --quiet || true
-                if git rebase origin/main; then
-                  sync_rebuild_required=1
-                  echo "🔁 Rebased release commit onto latest main"
-                else
-                  echo "❌ Release commit could not be rebased onto latest main"
-                  exit 1
-                fi
-
-                sleep $((attempt * 5))
-                attempt=$((attempt + 1))
-              done
-
-              echo "❌ Failed to sync release commit to main before publish"
-              exit 1
-            }
-
-            # Sync the release commit before publishing so main stays aligned
-            # with the version/changelog state we are about to publish.
-            sync_release_commit
-
-            if [ "$sync_rebuild_required" -eq 1 ]; then
-              echo "🔁 Rebuilding release artifacts after rebasing onto latest main"
-              pnpm run build
-              pnpm run validate-build
-            fi
-
-            # Publish packages
-            pnpm run changeset:publish
-
-            # Create and push git tag (idempotent - skip if tag already exists)
-            if git rev-parse "v$AFTER_VERSION" >/dev/null 2>&1; then
-              echo "ℹ️  Tag v$AFTER_VERSION already exists, skipping tag creation"
+            if git push origin main; then
+              echo "✅ Synced release commit to main"
             else
-              git tag "v$AFTER_VERSION"
-              git push origin "v$AFTER_VERSION"
-            fi
+              echo "⚠️  Direct push to protected main was rejected"
+              echo "Creating or updating a release sync PR instead..."
 
-            # Create GitHub Release (idempotent - skip if release already exists)
-            if gh release view "v$AFTER_VERSION" >/dev/null 2>&1; then
-              echo "ℹ️  Release v$AFTER_VERSION already exists, skipping release creation"
-            else
-              RELEASE_NOTES="## Published Packages"$'\n\n'"All packages published to GitHub Packages at version $AFTER_VERSION."$'\n\n'"Full Changelog: https://github.com/${GITHUB_REPOSITORY}/compare/v$BEFORE_VERSION...v$AFTER_VERSION"
+              git push --force origin \
+                "$RELEASE_COMMIT_SHA:refs/heads/$RELEASE_SYNC_BRANCH"
 
-              gh release create "v$AFTER_VERSION" \
-                --title "v$AFTER_VERSION" \
-                --notes "$RELEASE_NOTES" \
-                --latest
+              SYNC_PR_BODY=$(printf '%s\n' \
+                "## Version Sync" \
+                "" \
+                "This PR syncs the already-published release commit for \`v$AFTER_VERSION\` back to \`main\`." \
+                "" \
+                "- Published packages: \`v$AFTER_VERSION\`" \
+                "- Release tag: \`v$AFTER_VERSION\`" \
+                "- Source workflow: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+                "" \
+                "Merge this PR to bring package versions and changelogs back onto \`main\`." \
+              )
+
+              EXISTING_SYNC_PR=$(gh pr list \
+                --repo "$GITHUB_REPOSITORY" \
+                --state open \
+                --head "$RELEASE_SYNC_BRANCH" \
+                --json number \
+                --jq '.[0].number // empty')
+
+              if [ -n "$EXISTING_SYNC_PR" ]; then
+                gh pr edit "$EXISTING_SYNC_PR" \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --title "$RELEASE_SYNC_PR_TITLE" \
+                  --body "$SYNC_PR_BODY"
+                echo "✅ Updated release sync PR #$EXISTING_SYNC_PR"
+              else
+                gh pr create \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --base main \
+                  --head "$RELEASE_SYNC_BRANCH" \
+                  --title "$RELEASE_SYNC_PR_TITLE" \
+                  --body "$SYNC_PR_BODY"
+                echo "✅ Created release sync PR from $RELEASE_SYNC_BRANCH"
+              fi
             fi
 
             echo "published=true" >> $GITHUB_OUTPUT
@@ -247,9 +283,21 @@ jobs:
             echo "reason=published" >> $GITHUB_OUTPUT
             echo "✅ Published version: v$AFTER_VERSION"
           else
-            echo "ℹ️  No version changes - no release needed"
-            echo "published=false" >> $GITHUB_OUTPUT
-            echo "reason=no_version_changes" >> $GITHUB_OUTPUT
+            if git rev-parse "v$AFTER_VERSION" >/dev/null 2>&1; then
+              echo "ℹ️  No version changes - no release needed"
+              echo "published=false" >> $GITHUB_OUTPUT
+              echo "reason=no_version_changes" >> $GITHUB_OUTPUT
+            else
+              echo "📦 Current repository is already versioned at v$AFTER_VERSION but has not been tagged yet"
+              echo "Publishing committed release state from main..."
+
+              publish_release_artifacts "$AFTER_VERSION" ""
+
+              echo "published=true" >> $GITHUB_OUTPUT
+              echo "version=$AFTER_VERSION" >> $GITHUB_OUTPUT
+              echo "reason=published" >> $GITHUB_OUTPUT
+              echo "✅ Published committed release state: v$AFTER_VERSION"
+            fi
           fi
 
       - name: Check if version was published

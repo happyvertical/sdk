@@ -1536,6 +1536,22 @@ describe('Environment Variable Configuration', () => {
     expect((client as any).options.apiKey).toBe('ollama-key');
   });
 
+  it('should not treat a custom baseUrl as LiteLLM when Ollama env signals are present', async () => {
+    delete process.env.LITELLM_BASE_URL;
+    delete process.env.LITELLM_API_KEY;
+    delete process.env.OPENAI_API_KEY;
+    process.env.OLLAMA_API_KEY = 'ollama-key';
+
+    const { getAIAuto } = await import('./node/factory');
+    const client = await getAIAuto({
+      baseUrl: 'https://ollama.example.com/api',
+    });
+
+    expect(client).toBeInstanceOf(OllamaProvider);
+    expect((client as any).options.baseUrl).toBe('https://ollama.example.com');
+    expect((client as any).options.apiKey).toBe('ollama-key');
+  });
+
   it('should auto-detect Anthropic from ANTHROPIC_API_KEY', async () => {
     delete process.env.LITELLM_BASE_URL;
     delete process.env.LITELLM_API_KEY;

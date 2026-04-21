@@ -82,7 +82,11 @@ export async function getAIAuto(
   }
 
   // Auto-detect provider based on available credentials including environment variables
-  if ((config.baseUrl || process.env.LITELLM_BASE_URL) && !config.type) {
+  const hasLiteLLMSignal = Boolean(
+    process.env.LITELLM_BASE_URL || process.env.LITELLM_API_KEY,
+  );
+
+  if (hasLiteLLMSignal && !config.type) {
     return getAIUniversal({
       ...config,
       type: 'litellm',
