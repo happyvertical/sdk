@@ -191,4 +191,64 @@ describe.skipIf(SKIP_INTEGRATION)('OpenStreetMap Provider Integration', () => {
       expect(duration).toBeGreaterThanOrEqual(1000);
     }, 20000);
   });
+
+  describe('findPoisNear (Overpass)', () => {
+    it('should return POIs near downtown Edmonton', async () => {
+      const adapter = await getGeoAdapter({
+        provider: 'openstreetmap',
+        rateLimitDelay: 1000,
+      });
+      expect(typeof adapter.findPoisNear).toBe('function');
+
+      const results = await adapter.findPoisNear!(53.5461, -113.4938, 250, {
+        limit: 10,
+      });
+      expect(results).toBeDefined();
+      expect(results.length).toBeGreaterThan(0);
+
+      const poi = results[0];
+      expect(poi.type).toBe('point_of_interest');
+      expect(typeof poi.name).toBe('string');
+      expect(poi.latitude).toBeGreaterThan(53);
+      expect(poi.latitude).toBeLessThan(54);
+      expect(poi.longitude).toBeGreaterThan(-114);
+      expect(poi.longitude).toBeLessThan(-113);
+      // Overpass ids are stable enough to assert the prefix shape.
+      expect(poi.id.startsWith('osm-')).toBe(true);
+    }, 30000);
+
+    it('should filter by type when provided', async () => {
+      const adapter = await getGeoAdapter({
+        provider: 'openstreetmap',
+        rateLimitDelay: 1000,
+      });
+
+      // Query specifically for cafes; expect at least one result in Paris.
+      const results = await adapter.findPoisNear!(48.8566, 2.3522, 500, {
+        types: ['cafe'],
+        limit: 5,
+      });
+      expect(results.length).toBeGreaterThan(0);
+      // Every returned element's raw tags should mention "cafe" somewhere in
+      // the amenity/shop/tourism/craft space — we just check that our
+      // filter was respected, not that Overpass categorizes perfectly.
+      for (const result of results) {
+        const tags =
+          (result.raw as { tags?: Record<string, string> })?.tags ?? {};
+        const values = Object.values(tags).join('|').toLowerCase();
+        expect(values.includes('cafe')).toBe(true);
+      }
+    }, 30000);
+
+    it('should reject invalid coordinates', async () => {
+      const adapter = await getGeoAdapter({
+        provider: 'openstreetmap',
+        rateLimitDelay: 1000,
+      });
+
+      await expect(adapter.findPoisNear!(999, 0, 100)).rejects.toThrow(
+        InvalidQueryError,
+      );
+    });
+  });
 });

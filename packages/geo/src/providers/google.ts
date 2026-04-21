@@ -5,7 +5,12 @@
 import { Client } from '@googlemaps/google-maps-services-js';
 import type { CacheAdapter } from '@happyvertical/cache';
 import { getCache } from '@happyvertical/cache';
-import type { GeoProvider, GoogleMapsOptions, Location } from '../shared/types';
+import type {
+  GeoProvider,
+  GoogleMapsOptions,
+  Location,
+  PoiSearchOptions,
+} from '../shared/types';
 import {
   AuthenticationError,
   GeoError,
@@ -214,6 +219,134 @@ export class GoogleMapsProvider implements GeoProvider {
         'google',
       );
     }
+  }
+
+  /**
+   * Find POIs near a coordinate using the Places API Nearby Search endpoint.
+   *
+   * Maps to `placesNearby` on the Google Maps Services SDK. Note that Places
+   * Nearby Search is a separate product line from Geocoding: it requires the
+   * Places API to be enabled for the supplied API key and is billed per
+   * request. Results are deduped across multi-type requests by `place_id`.
+   */
+  async findPoisNear(
+    latitude: number,
+    longitude: number,
+    radiusMeters: number,
+    options: PoiSearchOptions = {},
+  ): Promise<Location[]> {
+    const validation = validateCoordinates(latitude, longitude);
+    if (!validation.valid) {
+      throw new InvalidQueryError(
+        `${latitude}, ${longitude}: ${validation.error}`,
+        'google',
+      );
+    }
+    if (!(radiusMeters > 0) || radiusMeters > 50_000) {
+      throw new InvalidQueryError(
+        `radius ${radiusMeters}m must be in (0, 50000]`,
+        'google',
+      );
+    }
+
+    const limit = options.limit ?? this.maxResults;
+    const types =
+      options.types && options.types.length > 0 ? options.types : [undefined];
+
+    const cacheKey = this.getCacheKey(
+      'pois',
+      String(latitude),
+      String(longitude),
+      String(radiusMeters),
+      (options.types ?? []).join(','),
+      options.keyword ?? '',
+      options.language ?? '',
+      String(limit),
+    );
+    if (this.cache) {
+      const cached = await this.cache.get<Location[]>(cacheKey);
+      if (cached) return cached;
+    }
+
+    try {
+      const merged = new Map<string, Location>();
+      for (const type of types) {
+        const response = await this.client.placesNearby({
+          params: {
+            location: { lat: latitude, lng: longitude },
+            radius: radiusMeters,
+            ...(type ? { type } : {}),
+            ...(options.keyword ? { keyword: options.keyword } : {}),
+            ...(options.language ? { language: options.language as any } : {}),
+            key: this.apiKey,
+          },
+          timeout: this.timeout,
+        });
+
+        if (response.data.status === 'ZERO_RESULTS') continue;
+        if (response.data.status === 'REQUEST_DENIED') {
+          throw new AuthenticationError('google');
+        }
+        if (response.data.status === 'OVER_QUERY_LIMIT') {
+          throw new RateLimitError('google');
+        }
+        if (response.data.status !== 'OK') {
+          throw new GeoError(
+            `Google Places API error: ${response.data.status}`,
+            'API_ERROR',
+            'google',
+          );
+        }
+
+        for (const result of response.data.results) {
+          const location = this.mapGooglePoiToLocation(result);
+          if (!merged.has(location.id)) {
+            merged.set(location.id, location);
+          }
+          if (merged.size >= limit) break;
+        }
+        if (merged.size >= limit) break;
+      }
+
+      const locations = [...merged.values()];
+      if (this.cache) await this.cache.set(cacheKey, locations);
+      return locations;
+    } catch (error) {
+      if (error instanceof GeoError) throw error;
+      throw new GeoError(
+        `Failed to find POIs: ${(error as Error).message}`,
+        'POI_SEARCH_FAILED',
+        'google',
+      );
+    }
+  }
+
+  /**
+   * Map Google Places Nearby Search result to standardized Location. The
+   * Places schema is a superset of Geocoding (adds `name`, `vicinity`,
+   * `types[]` semantics slightly different from geocoding `types`) so this
+   * is a separate mapper from `mapGoogleResultToLocation`.
+   */
+  private mapGooglePoiToLocation(result: any): Location {
+    const loc = result.geometry?.location;
+    const latitude = loc?.lat ?? 0;
+    const longitude = loc?.lng ?? 0;
+    const name = result.name
+      ? result.vicinity
+        ? `${result.name}, ${result.vicinity}`
+        : result.name
+      : result.vicinity || 'Unknown place';
+
+    return {
+      id: result.place_id,
+      type: 'point_of_interest',
+      name,
+      latitude,
+      longitude,
+      addressComponents: {},
+      countryCode: 'XX',
+      raw: result,
+    };
   }
 
   /**

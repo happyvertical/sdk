@@ -8,6 +8,7 @@ import type {
   GeoProvider,
   Location,
   OpenStreetMapOptions,
+  PoiSearchOptions,
 } from '../shared/types';
 import { GeoError, InvalidQueryError, RateLimitError } from '../shared/types';
 import {
@@ -45,10 +46,43 @@ interface NominatimResult {
 }
 
 /**
+ * Overpass API response element (node or way within the result set).
+ */
+interface OverpassElement {
+  type: 'node' | 'way' | 'relation';
+  id: number;
+  lat?: number;
+  lon?: number;
+  center?: { lat: number; lon: number };
+  tags?: Record<string, string>;
+}
+
+/**
+ * Tag keys Overpass treats as POI-like. Used when the caller doesn't
+ * specify `types` — broad enough to cover businesses, landmarks, and
+ * amenities without pulling back every single residential address.
+ */
+const POI_TAG_KEYS = [
+  'amenity',
+  'shop',
+  'tourism',
+  'leisure',
+  'office',
+  'historic',
+  'craft',
+];
+
+/**
  * OpenStreetMap provider using Nominatim API with in-memory caching
  */
 export class OpenStreetMapProvider implements GeoProvider {
   private baseUrl = 'https://nominatim.openstreetmap.org';
+  /**
+   * Overpass endpoint for POI search. The public instance has a community
+   * use-policy similar to Nominatim's — be polite, cache aggressively, and
+   * consider a self-hosted instance if you'd hit it hard.
+   */
+  private overpassUrl = 'https://overpass-api.de/api/interpreter';
   private userAgent: string;
   private rateLimitDelay: number;
   private lastRequestTime = 0;
@@ -275,6 +309,210 @@ export class OpenStreetMapProvider implements GeoProvider {
         'openstreetmap',
       );
     }
+  }
+
+  /**
+   * Find POIs near a coordinate using the public Overpass API. Nominatim
+   * only does address-level reverse geocoding — Overpass is the right tool
+   * when you want "every café within 200m" kind of queries.
+   */
+  async findPoisNear(
+    latitude: number,
+    longitude: number,
+    radiusMeters: number,
+    options: PoiSearchOptions = {},
+  ): Promise<Location[]> {
+    const validation = validateCoordinates(latitude, longitude);
+    if (!validation.valid) {
+      throw new InvalidQueryError(
+        `${latitude}, ${longitude}: ${validation.error}`,
+        'openstreetmap',
+      );
+    }
+    if (!(radiusMeters > 0)) {
+      throw new InvalidQueryError(
+        `radius ${radiusMeters}m must be > 0`,
+        'openstreetmap',
+      );
+    }
+
+    const limit = options.limit ?? this.maxResults;
+    const cacheKey = this.getCacheKey(
+      'pois',
+      String(latitude),
+      String(longitude),
+      String(radiusMeters),
+      (options.types ?? []).join(','),
+      options.keyword ?? '',
+      String(limit),
+    );
+    if (this.cache) {
+      const cached = await this.cache.get<Location[]>(cacheKey);
+      if (cached) return cached;
+    }
+
+    await this.enforceRateLimit();
+
+    const query = this.buildOverpassQuery(
+      latitude,
+      longitude,
+      radiusMeters,
+      options,
+    );
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
+    try {
+      const response = await fetch(this.overpassUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'User-Agent': this.userAgent,
+          Accept: 'application/json',
+        },
+        body: `data=${encodeURIComponent(query)}`,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (response.status === 429) {
+        throw new RateLimitError('openstreetmap');
+      }
+      if (!response.ok) {
+        throw new GeoError(
+          `Overpass API error: ${response.status} ${response.statusText}`,
+          'API_ERROR',
+          'openstreetmap',
+        );
+      }
+
+      const data = (await response.json()) as { elements?: OverpassElement[] };
+      const elements = Array.isArray(data.elements) ? data.elements : [];
+
+      // Overpass returns each POI once per matched tag key, but when we
+      // union multiple keys in the query elements can repeat — dedupe by
+      // `(type, id)` so "node/42" only appears once regardless of how many
+      // tag clauses matched.
+      const seen = new Set<string>();
+      const locations: Location[] = [];
+      for (const element of elements) {
+        const key = `${element.type}/${element.id}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const location = this.mapOverpassElementToLocation(element);
+        if (!location) continue;
+        locations.push(location);
+        if (locations.length >= limit) break;
+      }
+
+      if (this.cache) await this.cache.set(cacheKey, locations);
+      return locations;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof GeoError) throw error;
+      if ((error as Error).name === 'AbortError') {
+        throw new GeoError('Request timeout', 'TIMEOUT', 'openstreetmap');
+      }
+      throw new GeoError(
+        `Failed to find POIs: ${(error as Error).message}`,
+        'POI_SEARCH_FAILED',
+        'openstreetmap',
+      );
+    }
+  }
+
+  /**
+   * Build an Overpass QL query that collects nodes + ways with POI-shaped
+   * tags within `radiusMeters` of the center point. `out center tags`
+   * coerces ways/relations into point geometries so downstream mapping
+   * doesn't have to deal with geometry types.
+   */
+  private buildOverpassQuery(
+    latitude: number,
+    longitude: number,
+    radiusMeters: number,
+    options: PoiSearchOptions,
+  ): string {
+    const around = `around:${radiusMeters},${latitude},${longitude}`;
+    const keywordFilter = options.keyword
+      ? `[name~"${options.keyword.replace(/"/g, '\\"')}",i]`
+      : '';
+    const clauses: string[] = [];
+
+    if (options.types && options.types.length > 0) {
+      // Types filter: try each value against each POI tag key. We don't know
+      // which key the caller intends (e.g. 'cafe' is an amenity; 'bakery'
+      // could be either amenity or shop) so we fan out conservatively.
+      for (const value of options.types) {
+        const safe = value.replace(/"/g, '\\"');
+        for (const key of POI_TAG_KEYS) {
+          clauses.push(
+            `  node(${around})["${key}"="${safe}"]${keywordFilter};`,
+          );
+          clauses.push(`  way(${around})["${key}"="${safe}"]${keywordFilter};`);
+        }
+      }
+    } else {
+      for (const key of POI_TAG_KEYS) {
+        clauses.push(`  node(${around})["${key}"]${keywordFilter};`);
+        clauses.push(`  way(${around})["${key}"]${keywordFilter};`);
+      }
+    }
+
+    return `[out:json][timeout:25];\n(\n${clauses.join('\n')}\n);\nout center tags;`;
+  }
+
+  /**
+   * Map an Overpass element to a standardized Location. Returns null for
+   * tagless elements or ways without a `center` (which can happen when the
+   * server falls back to geometry-less output under load).
+   */
+  private mapOverpassElementToLocation(
+    element: OverpassElement,
+  ): Location | null {
+    const lat = element.lat ?? element.center?.lat;
+    const lon = element.lon ?? element.center?.lon;
+    if (lat == null || lon == null) return null;
+
+    const tags = element.tags ?? {};
+    const name =
+      tags.name ||
+      tags['name:en'] ||
+      tags.brand ||
+      tags.operator ||
+      this.derivePoiLabelFromTags(tags) ||
+      'Unnamed place';
+
+    return {
+      id: `osm-${element.type}-${element.id}`,
+      type: 'point_of_interest',
+      name,
+      latitude: lat,
+      longitude: lon,
+      addressComponents: {
+        streetNumber: tags['addr:housenumber'],
+        streetName: tags['addr:street'],
+        city: tags['addr:city'],
+        region: tags['addr:state'] || tags['addr:province'],
+        country: tags['addr:country'],
+        postalCode: tags['addr:postcode'],
+      },
+      countryCode: normalizeCountryCode(tags['addr:country']),
+      raw: element,
+    };
+  }
+
+  /**
+   * Produce a readable label from a tag-only element (e.g. a shop with no
+   * `name`). Picks the first POI-shaped tag value as a fallback so the
+   * caller still gets something meaningful to show operators.
+   */
+  private derivePoiLabelFromTags(tags: Record<string, string>): string | null {
+    for (const key of POI_TAG_KEYS) {
+      const value = tags[key];
+      if (value) return value.replace(/_/g, ' ');
+    }
+    return null;
   }
 
   /**

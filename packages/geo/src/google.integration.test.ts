@@ -195,4 +195,57 @@ describe('Google Maps Provider Integration', () => {
       ]).toContain(location.type);
     }, 10000);
   });
+
+  describe('findPoisNear (Places Nearby)', () => {
+    it('should return POIs near downtown Edmonton', async () => {
+      const adapter = await getGeoAdapter({
+        provider: 'google',
+        apiKey: apiKey!,
+      });
+      expect(typeof adapter.findPoisNear).toBe('function');
+
+      const results = await adapter.findPoisNear!(53.5461, -113.4938, 200, {
+        limit: 10,
+      });
+      expect(results.length).toBeGreaterThan(0);
+
+      const poi = results[0];
+      expect(poi.type).toBe('point_of_interest');
+      expect(typeof poi.id).toBe('string');
+      expect(typeof poi.name).toBe('string');
+      expect(poi.latitude).toBeGreaterThan(53);
+      expect(poi.latitude).toBeLessThan(54);
+      expect(poi.longitude).toBeGreaterThan(-114);
+      expect(poi.longitude).toBeLessThan(-113);
+    }, 15000);
+
+    it('should narrow results with a type filter', async () => {
+      const adapter = await getGeoAdapter({
+        provider: 'google',
+        apiKey: apiKey!,
+      });
+
+      const results = await adapter.findPoisNear!(48.8566, 2.3522, 500, {
+        types: ['cafe'],
+        limit: 5,
+      });
+      // Google returns POIs whose `types` include the requested category,
+      // though the specific category string isn't always first.
+      for (const result of results) {
+        const types = (result.raw as { types?: string[] })?.types ?? [];
+        expect(types.includes('cafe') || types.includes('food')).toBe(true);
+      }
+    }, 15000);
+
+    it('should reject out-of-range radius', async () => {
+      const adapter = await getGeoAdapter({
+        provider: 'google',
+        apiKey: apiKey!,
+      });
+
+      await expect(
+        adapter.findPoisNear!(48.8566, 2.3522, 100_000),
+      ).rejects.toThrow(InvalidQueryError);
+    });
+  });
 });
