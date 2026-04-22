@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.71.30
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - validate workspace version consistency (ci)
+
 ## 0.71.29
 
 ### Patch Changes
