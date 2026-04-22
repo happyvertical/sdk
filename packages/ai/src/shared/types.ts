@@ -9,6 +9,26 @@
 export type GeminiThinkingLevel = 'minimal' | 'low' | 'medium' | 'high';
 
 /**
+ * Supported AI provider types
+ */
+export const AI_PROVIDER_TYPES = [
+  'openai',
+  'litellm',
+  'ollama',
+  'gemini',
+  'anthropic',
+  'huggingface',
+  'bedrock',
+  'claude-cli',
+  'qwen3-tts',
+] as const;
+
+/**
+ * Supported AI provider type union
+ */
+export type AIProviderType = (typeof AI_PROVIDER_TYPES)[number];
+
+/**
  * Text content part for multimodal messages
  */
 export interface TextContentPart {
@@ -194,16 +214,17 @@ export interface ChatOptions {
   onProgress?: (chunk: string) => void;
 
   /**
-   * Thinking level for Gemini 3 models (gemini-3-flash-preview, gemini-3-pro)
-   * Controls internal reasoning depth:
+   * Thinking level for providers that expose reasoning controls.
+   * Gemini 3 models use named levels:
    * - 'minimal': No thinking for most queries (Gemini 3 Flash only)
    * - 'low': Minimizes latency and cost, good for simple tasks
    * - 'medium': Balanced thinking for most tasks (Gemini 3 Flash only)
    * - 'high': Maximizes reasoning depth (default for Gemini 3)
    *
-   * Note: Only works with Gemini 3 models.
+   * Ollama also accepts `false` to explicitly disable visible/internal thinking
+   * for models that support it.
    */
-  thinkingLevel?: GeminiThinkingLevel;
+  thinkingLevel?: GeminiThinkingLevel | false;
 
   /**
    * Whether to include the model's internal thoughts in the response
@@ -1223,6 +1244,36 @@ export interface OpenAIOptions extends BaseAIOptions {
 }
 
 /**
+ * LiteLLM provider options
+ *
+ * LiteLLM exposes an OpenAI-compatible API surface and requires a custom
+ * base URL such as `https://llm.happyvertical.com/v1`.
+ */
+export interface LiteLLMOptions extends BaseAIOptions {
+  type: 'litellm';
+  apiKey?: string;
+  baseUrl?: string;
+  organization?: string;
+}
+
+/**
+ * Ollama provider options
+ *
+ * Ollama defaults to the local host at `http://localhost:11434` and can also
+ * target remote hosts such as `https://ollama.com/api` when paired with an
+ * API key.
+ */
+export interface OllamaOptions extends BaseAIOptions {
+  type: 'ollama';
+  apiKey?: string;
+  baseUrl?: string;
+  /**
+   * Default keep-alive duration for model requests, for example `5m` or `0`.
+   */
+  keepAlive?: string | number;
+}
+
+/**
  * Gemini provider options
  */
 export interface GeminiOptions extends BaseAIOptions {
@@ -1337,6 +1388,8 @@ export interface Qwen3TTSOptions extends BaseAIOptions {
  */
 export type GetAIOptions =
   | OpenAIOptions
+  | LiteLLMOptions
+  | OllamaOptions
   | GeminiOptions
   | AnthropicOptions
   | HuggingFaceOptions

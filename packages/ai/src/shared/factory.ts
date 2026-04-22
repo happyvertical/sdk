@@ -9,15 +9,19 @@ import type { AIClientOptions } from './client';
 import { createRateLimitedAI } from './rate-limit';
 import type {
   AIInterface,
+  AIProviderType,
   AnthropicOptions,
   BedrockOptions,
   ClaudeCliOptions,
   GeminiOptions,
   GetAIOptions,
   HuggingFaceOptions,
+  LiteLLMOptions,
+  OllamaOptions,
   OpenAIOptions,
   Qwen3TTSOptions,
 } from './types';
+import { AI_PROVIDER_TYPES } from './types';
 
 /**
  * Type guards for provider options
@@ -32,6 +36,28 @@ function isOpenAIOptions(
   options: GetAIOptions | AIClientOptions,
 ): options is OpenAIOptions {
   return !options.type || options.type === 'openai';
+}
+
+/**
+ * Checks if the options are for LiteLLM provider
+ * @param options - The AI provider options to check
+ * @returns True if options are for LiteLLM provider
+ */
+function isLiteLLMOptions(
+  options: GetAIOptions | AIClientOptions,
+): options is LiteLLMOptions {
+  return options.type === 'litellm';
+}
+
+/**
+ * Checks if the options are for Ollama provider
+ * @param options - The AI provider options to check
+ * @returns True if options are for Ollama provider
+ */
+function isOllamaOptions(
+  options: GetAIOptions | AIClientOptions,
+): options is OllamaOptions {
+  return options.type === 'ollama';
 }
 
 /**
@@ -179,6 +205,12 @@ export async function getAI(
   if (isOpenAIOptions(options)) {
     const { OpenAIProvider } = await import('./providers/openai.js');
     client = new OpenAIProvider(options);
+  } else if (isLiteLLMOptions(options)) {
+    const { LiteLLMProvider } = await import('./providers/litellm.js');
+    client = new LiteLLMProvider(options);
+  } else if (isOllamaOptions(options)) {
+    const { OllamaProvider } = await import('./providers/ollama.js');
+    client = new OllamaProvider(options);
   } else if (isGeminiOptions(options)) {
     const { GeminiProvider } = await import('./providers/gemini.js');
     client = new GeminiProvider(options);
@@ -199,15 +231,7 @@ export async function getAI(
     client = new Qwen3TTSProvider(options);
   } else {
     throw new ValidationError('Unsupported AI provider type', {
-      supportedTypes: [
-        'openai',
-        'gemini',
-        'anthropic',
-        'huggingface',
-        'bedrock',
-        'claude-cli',
-        'qwen3-tts',
-      ],
+      supportedTypes: [...AI_PROVIDER_TYPES],
       providedType: (options as any).type,
     });
   }
@@ -250,7 +274,20 @@ export async function getAI(
 export async function getAIAuto(
   options: Record<string, any>,
 ): Promise<AIInterface> {
+  const baseUrl = String((options as any).baseUrl || '');
+  const hasKeepAliveOption =
+    'keepAlive' in options && (options as any).keepAlive !== undefined;
+
   // Auto-detect provider based on available credentials
+  if (
+    /((?:localhost|127\.0\.0\.1)(?::11434)?(?:\/(?:api|v1))?|ollama(?:\.com)?(?:\/(?:api|v1))?)\/?$/i.test(
+      baseUrl,
+    ) ||
+    hasKeepAliveOption
+  ) {
+    return getAI({ ...options, type: 'ollama' } as OllamaOptions);
+  }
+
   if (options.apiKey && !options.type) {
     // Default to OpenAI if apiKey is provided without explicit type
     return getAI({ ...options, type: 'openai' } as OpenAIOptions);
@@ -278,7 +315,7 @@ export async function getAIAuto(
 
   throw new ValidationError('Could not auto-detect AI provider from options', {
     hint: 'Please specify a "type" field in options or provide provider-specific credentials',
-    supportedTypes: ['openai', 'gemini', 'anthropic', 'huggingface', 'bedrock'],
+    supportedTypes: [...AI_PROVIDER_TYPES] as AIProviderType[],
     providedOptions: Object.keys(options),
   });
 }

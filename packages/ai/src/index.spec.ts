@@ -5,6 +5,7 @@ import type {
   BedrockOptions,
   GeminiOptions,
   HuggingFaceOptions,
+  OllamaOptions,
 } from './shared/types';
 
 it('should support creating Anthropic client via AIClient.create', async () => {
@@ -52,6 +53,15 @@ it('should support creating HuggingFace client via AIClient.create', async () =>
   expect(client.options.type).toBe('huggingface');
 });
 
+it('should support creating Ollama client via AIClient.create', async () => {
+  const options: OllamaOptions = {
+    type: 'ollama',
+  };
+  const client = await AIClient.create(options);
+  expect(client).toBeDefined();
+  expect(client.options.type).toBe('ollama');
+});
+
 it('should throw helpful error for unsupported provider type', async () => {
   await expect(
     // @ts-expect-error - Testing invalid provider type
@@ -74,9 +84,13 @@ it('should list all supported providers in error message', async () => {
   } catch (error: unknown) {
     const err = error as { context: { supportedTypes: string[] } };
     expect(err.context.supportedTypes).toContain('openai');
+    expect(err.context.supportedTypes).toContain('litellm');
+    expect(err.context.supportedTypes).toContain('ollama');
     expect(err.context.supportedTypes).toContain('anthropic');
     expect(err.context.supportedTypes).toContain('gemini');
     expect(err.context.supportedTypes).toContain('bedrock');
     expect(err.context.supportedTypes).toContain('huggingface');
+    expect(err.context.supportedTypes).toContain('claude-cli');
+    expect(err.context.supportedTypes).toContain('qwen3-tts');
   }
 });

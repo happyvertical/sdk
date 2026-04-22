@@ -2,7 +2,8 @@ import { ApiError, ValidationError } from '@happyvertical/utils';
 import OpenAI from 'openai';
 
 import type { AIMessageOptions } from './message';
-import type { AIRateLimitOptions } from './types';
+import type { AIProviderType, AIRateLimitOptions } from './types';
+import { AI_PROVIDER_TYPES } from './types';
 
 /**
  * Common options for AI client configuration
@@ -11,7 +12,7 @@ export interface AIClientOptions {
   /**
    * Type of AI client (e.g., 'openai')
    */
-  type?: string;
+  type?: AIProviderType | string;
 
   /**
    * Response format for AI completions
@@ -270,13 +271,7 @@ export class AIClient {
       throw new ValidationError(
         'OpenAI API key is required but missing or empty',
         {
-          supportedTypes: [
-            'openai',
-            'anthropic',
-            'gemini',
-            'bedrock',
-            'huggingface',
-          ],
+          supportedTypes: [...AI_PROVIDER_TYPES],
           providedType,
           hint: 'Set OPENAI_API_KEY environment variable or pass apiKey in options',
         },
@@ -284,13 +279,7 @@ export class AIClient {
     }
 
     throw new ValidationError('Invalid client type specified', {
-      supportedTypes: [
-        'openai',
-        'anthropic',
-        'gemini',
-        'bedrock',
-        'huggingface',
-      ],
+      supportedTypes: [...AI_PROVIDER_TYPES],
       providedType,
     });
   }
@@ -640,7 +629,7 @@ export class OpenAIClient extends AIClient {
  * Options for getting an AI client with type information
  */
 type GetAIClientOptions = AIClientOptions & {
-  type?: 'openai' | 'anthropic' | 'gemini' | 'bedrock' | 'huggingface';
+  type?: AIProviderType;
 };
 
 /**

@@ -13,11 +13,11 @@ A standardized interface for AI model interactions across multiple providers in 
 
 ## Overview
 
-The `@happyvertical/ai` package provides a unified interface for interacting with various AI models, making it easy to switch between providers without changing your application code. Supports **OpenAI**, **Anthropic Claude**, **Google Gemini**, **AWS Bedrock**, and **Hugging Face** with a consistent API.
+The `@happyvertical/ai` package provides a unified interface for interacting with various AI models, making it easy to switch between providers without changing your application code. Supports **OpenAI**, **LiteLLM**, **Ollama**, **Anthropic Claude**, **Google Gemini**, **AWS Bedrock**, **Hugging Face**, **Claude CLI**, and **Qwen3-TTS** with a consistent API.
 
 ## Features
 
-- **Multi-Provider Support**: OpenAI, Anthropic, Google Gemini, AWS Bedrock, Hugging Face, and Claude CLI
+- **Multi-Provider Support**: OpenAI, LiteLLM, Ollama, Anthropic, Google Gemini, AWS Bedrock, Hugging Face, Claude CLI, and Qwen3-TTS
 - **Unified Interface**: Consistent API across all providers
 - **Type-Safe**: Full TypeScript support with comprehensive type definitions
 - **Streaming Responses**: Real-time content streaming for all providers
@@ -84,6 +84,28 @@ const openai = await getAI({
   type: 'openai',
   apiKey: process.env.OPENAI_API_KEY!,
   defaultModel: 'gpt-4o'
+});
+
+// LiteLLM
+const litellm = await getAI({
+  type: 'litellm',
+  apiKey: process.env.LITELLM_API_KEY!,
+  baseUrl: process.env.LITELLM_BASE_URL || 'https://llm.happyvertical.com/v1',
+  defaultModel: process.env.LITELLM_MODEL, // Use a model id returned by /v1/models
+});
+
+// Ollama
+const ollama = await getAI({
+  type: 'ollama',
+  baseUrl: process.env.OLLAMA_BASE_URL || process.env.OLLAMA_HOST || 'http://localhost:11434',
+  apiKey: process.env.OLLAMA_API_KEY, // Optional, only needed for remote/cloud hosts
+  defaultModel: process.env.OLLAMA_MODEL, // Optional; otherwise the first compatible local model is selected
+});
+
+// Bare host:port values are also accepted and normalized to http://
+const ollamaNode = await getAI({
+  type: 'ollama',
+  baseUrl: 'warthog:11434',
 });
 
 // Anthropic Claude
@@ -224,19 +246,31 @@ console.log('Available models:', models.map(m => m.id));
 - **Features**: Chat, completions, embeddings, function calling, vision
 - **Strengths**: Best function calling, JSON mode, wide model selection
 
+### LiteLLM
+- **Models**: Whatever your gateway exposes via `/v1/models`
+- **Features**: OpenAI-compatible chat, embeddings, streaming, function calling, and model discovery
+- **Strengths**: Centralized routing, unified auth/policy, model aliases across multiple upstream providers
+- **Notes**: Requires an explicit `baseUrl` such as `https://llm.happyvertical.com/v1`; when you set `defaultModel`, prefer an exact model id returned by `/v1/models`
+
+### Ollama
+- **Models**: Whatever is available from your local or remote Ollama host via `/api/tags`
+- **Features**: Native chat, completions, streaming, embeddings, model discovery, vision, describe-then-embed image embeddings, and experimental image generation compatibility
+- **Strengths**: Local-first workflow, native Ollama tool calling, simple host-based deployment
+- **Notes**: Defaults to `http://localhost:11434`; for direct cloud access use `https://ollama.com/api` with `OLLAMA_API_KEY`
+
 ### Anthropic Claude
 - **Models**: Claude 3.5 Sonnet, Claude 3.5 Haiku, Claude 3 Opus
 - **Features**: Chat, completions, streaming, vision (no embeddings)
 - **Strengths**: Large context (200k tokens), safety-focused
 
 ### Google Gemini
-- **Models**: Gemini 1.5 Pro, Gemini 1.5 Flash
-- **Features**: Chat, completions, streaming, multimodal
+- **Models**: Gemini 2.5 Flash, Gemini 2.0 Flash, Gemini 1.5 Pro, Gemini 3 Flash Preview
+- **Features**: Chat, completions, streaming, multimodal, embeddings, image generation
 - **Strengths**: Multimodal capabilities, cost-effective
 
 ### AWS Bedrock
 - **Models**: Claude, Llama, Titan models available through AWS
-- **Features**: Enterprise-grade security, region-specific deployment
+- **Features**: Enterprise-grade security, region-specific deployment, Converse streaming, Titan embeddings, Titan image generation
 - **Strengths**: AWS integration, compliance, scalability
 
 ### Hugging Face
@@ -296,7 +330,7 @@ HAVE_AI_BASE_URL=https://custom.proxy.com/v1
 
 ### Supported Environment Variables
 
-- `HAVE_AI_PROVIDER` or `HAVE_AI_TYPE` → Provider type ('openai', 'anthropic', 'gemini', 'huggingface', 'bedrock', 'claude-cli')
+- `HAVE_AI_PROVIDER` or `HAVE_AI_TYPE` → Provider type ('openai', 'litellm', 'ollama', 'anthropic', 'gemini', 'huggingface', 'bedrock', 'claude-cli', 'qwen3-tts')
 - `HAVE_AI_MODEL` or `HAVE_AI_DEFAULT_MODEL` → Default model name
 - `HAVE_AI_TIMEOUT` → Request timeout in milliseconds (number)
 - `HAVE_AI_MAX_RETRIES` → Maximum retry attempts (number)
@@ -330,10 +364,12 @@ const client3 = await getAI({});
 const client4 = await getAI({});
 ```
 
-### Provider-Specific Environment Variables
+### Node Auto-Detection Environment Variables
 
-In addition to `HAVE_AI_*` variables, the package also checks:
+When using the Node.js `getAIAuto()` entry point, the package also checks:
 
+- `LITELLM_BASE_URL`, `LITELLM_API_KEY` → LiteLLM gateway
+- `OLLAMA_HOST`, `OLLAMA_BASE_URL`, `OLLAMA_API_KEY` → Ollama host/cloud access
 - `OPENAI_API_KEY` → OpenAI API key
 - `ANTHROPIC_API_KEY` → Anthropic API key
 - `GEMINI_API_KEY` / `GOOGLE_API_KEY` → Google Gemini API key
@@ -344,7 +380,7 @@ In addition to `HAVE_AI_*` variables, the package also checks:
 
 1. **Explicit options** passed to `getAI()` (highest priority)
 2. **HAVE_AI_* environment variables**
-3. **Provider-specific environment variables** (lowest priority)
+3. **Node auto-detection environment variables** for `getAIAuto()` (lowest priority)
 
 ### Best Practices
 
@@ -363,6 +399,8 @@ import { getAIAuto } from '@happyvertical/ai';
 // Automatically detects provider from credentials
 const client = await getAIAuto({
   apiKey: 'sk-...',  // Detected as OpenAI
+  // baseUrl: 'https://llm.happyvertical.com/v1', // With LITELLM_BASE_URL/LITELLM_API_KEY → LiteLLM
+  // baseUrl: 'http://localhost:11434', // With OLLAMA_HOST / OLLAMA_BASE_URL → Ollama
   // apiToken: 'hf_...', // Would detect as Hugging Face
   // region: 'us-east-1', credentials: {...} // Would detect as Bedrock
 });
