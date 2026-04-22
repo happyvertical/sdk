@@ -85,7 +85,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: 4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   docs:
     dependencies:
@@ -174,7 +174,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/ai:
     dependencies:
@@ -208,7 +208,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/analytics:
     dependencies:
@@ -233,7 +233,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/auth:
     dependencies:
@@ -265,7 +265,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/cache:
     dependencies:
@@ -296,7 +296,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/comfyui:
     dependencies:
@@ -321,7 +321,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/directory:
     dependencies:
@@ -355,7 +355,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/documents:
     dependencies:
@@ -389,7 +389,7 @@ importers:
         version: 7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3)
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/email:
     dependencies:
@@ -441,7 +441,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/encryption:
     dependencies:
@@ -478,7 +478,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/files:
     dependencies:
@@ -500,7 +500,7 @@ importers:
         version: 6.9.1
       '@testing-library/svelte':
         specifier: 5.3.1
-        version: 5.3.1(svelte@5.53.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))(vitest@4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3)))
+        version: 5.3.1(svelte@5.53.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))(vitest@4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3)))
       '@types/node':
         specifier: 24.12.2
         version: 24.12.2
@@ -508,8 +508,8 @@ importers:
         specifier: 20.9.0
         version: 20.9.0
       jsdom:
-        specifier: 27.4.0
-        version: 27.4.0(@noble/hashes@2.0.1)
+        specifier: 28.1.0
+        version: 28.1.0(@noble/hashes@2.0.1)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -521,7 +521,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/geo:
     dependencies:
@@ -549,7 +549,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/github-actions:
     dependencies:
@@ -574,7 +574,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: 4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/graphql:
     devDependencies:
@@ -592,7 +592,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: 4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/images:
     dependencies:
@@ -623,7 +623,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/jobs:
     dependencies:
@@ -663,7 +663,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/json:
     devDependencies:
@@ -684,7 +684,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/logger:
     dependencies:
@@ -706,7 +706,7 @@ importers:
         version: 7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3)
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/messages:
     dependencies:
@@ -737,7 +737,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/projects:
     dependencies:
@@ -762,7 +762,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: 4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/repos:
     dependencies:
@@ -790,7 +790,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: 4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/sdk-mcp:
     dependencies:
@@ -821,7 +821,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/secrets:
     dependencies:
@@ -846,7 +846,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/social:
     dependencies:
@@ -871,7 +871,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/sql:
     dependencies:
@@ -908,7 +908,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/translator:
     dependencies:
@@ -939,7 +939,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/utils:
     dependencies:
@@ -973,7 +973,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/video:
     dependencies:
@@ -1001,7 +1001,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   packages/weather:
     dependencies:
@@ -1029,7 +1029,7 @@ importers:
         version: 4.5.4(@types/node@24.12.2)(rollup@4.60.2)(typescript@5.9.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
       vitest:
         specifier: ^4.1.5
-        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
 packages:
 
@@ -1159,8 +1159,16 @@ packages:
   '@asamuzakjp/css-color@4.1.2':
     resolution: {integrity: sha512-NfBUvBaYgKIuq6E/RBLY1m0IohzNHAYyaJGuTK79Z23uNwmz2jl1mPsC5ZxCCxylinKhT1Amn5oNTlx1wN8cQg==}
 
+  '@asamuzakjp/css-color@5.1.11':
+    resolution: {integrity: sha512-KVw6qIiCTUQhByfTd78h2yD1/00waTmm9uy/R7Ck/ctUyAPj+AEDLkQIdJW0T8+qGgj3j5bpNKK7Q3G+LedJWg==}
+    engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0}
+
   '@asamuzakjp/dom-selector@6.8.1':
     resolution: {integrity: sha512-MvRz1nCqW0fsy8Qz4dnLIvhOlMzqDVBabZx6lH+YywFDdjXhMY37SmpV1XFX3JzG5GWHn63j6HX6QPr3lZXHvQ==}
+
+  '@asamuzakjp/generational-cache@1.0.1':
+    resolution: {integrity: sha512-wajfB8KqzMCN2KGNFdLkReeHncd0AslUSrvHVvvYWuU8ghncRJoA50kT3zP9MVL0+9g4/67H+cdvBskj9THPzg==}
+    engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0}
 
   '@asamuzakjp/nwsapi@2.3.9':
     resolution: {integrity: sha512-n8GuYSrI9bF7FFZ/SjhwevlHc8xaVlb/7HmHelnc/PZXBD2ZR49NnN9sMMuDdEGPeeRQ5d0hqlSlEpgCX3Wl0Q==}
@@ -2001,6 +2009,10 @@ packages:
   '@braintree/sanitize-url@7.1.2':
     resolution: {integrity: sha512-jigsZK+sMF/cuiB7sERuo9V7N9jx+dhmHHnQyDSVdpZwVutaBu7WvNYqMDLSgFgfB30n452TP3vjDAvFC973mA==}
 
+  '@bramus/specificity@2.4.2':
+    resolution: {integrity: sha512-ctxtJ/eA+t+6q2++vj5j7FYX3nRu311q1wfYH3xjlLOsczhlhxAg2FWNUXhpGvAw3BWo1xBcvOV6/YLc2r5FJw==}
+    hasBin: true
+
   '@changesets/apply-release-plan@7.1.1':
     resolution: {integrity: sha512-9qPCm/rLx/xoOFXIHGB229+4GOL76S4MC+7tyOuTsR6+1jYlfFDQORdvwR5hDA6y4FL2BPt3qpbcQIS+dW85LA==}
 
@@ -2275,8 +2287,8 @@ packages:
       '@csstools/css-parser-algorithms': ^3.0.5
       '@csstools/css-tokenizer': ^3.0.4
 
-  '@csstools/css-calc@3.1.1':
-    resolution: {integrity: sha512-HJ26Z/vmsZQqs/o3a6bgKslXGFAungXGbinULZO3eMsOyNJHeBBZfup5FiZInOghgoM4Hwnmw+OgbJCNg1wwUQ==}
+  '@csstools/css-calc@3.2.0':
+    resolution: {integrity: sha512-bR9e6o2BDB12jzN/gIbjHa5wLJ4UjD1CB9pM7ehlc0ddk6EBz+yYS1EV2MF55/HUxrHcB/hehAyt5vhsA3hx7w==}
     engines: {node: '>=20.19.0'}
     peerDependencies:
       '@csstools/css-parser-algorithms': ^4.0.0
@@ -2289,8 +2301,8 @@ packages:
       '@csstools/css-parser-algorithms': ^3.0.5
       '@csstools/css-tokenizer': ^3.0.4
 
-  '@csstools/css-color-parser@4.0.2':
-    resolution: {integrity: sha512-0GEfbBLmTFf0dJlpsNU7zwxRIH0/BGEMuXLTCvFYxuL1tNhqzTbtnFICyJLTNK4a+RechKP75e7w42ClXSnJQw==}
+  '@csstools/css-color-parser@4.1.0':
+    resolution: {integrity: sha512-U0KhLYmy2GVj6q4T3WaAe6NPuFYCPQoE3b0dRGxejWDgcPp8TP7S5rVdM5ZrFaqu4N67X8YaPBw14dQSYx3IyQ==}
     engines: {node: '>=20.19.0'}
     peerDependencies:
       '@csstools/css-parser-algorithms': ^4.0.0
@@ -7122,6 +7134,10 @@ packages:
     resolution: {integrity: sha512-7D2EPVltRrsTkhpQmksIu+LxeWAIEk6wRDMJ1qljlv+CKHJM+cJLlfhWIzNA44eAsHXSNe3+vO6DW1yCYx8SuQ==}
     engines: {node: '>=20'}
 
+  cssstyle@6.2.0:
+    resolution: {integrity: sha512-Fm5NvhYathRnXNVndkUsCCuR63DCLVVwGOOwQw782coXFi5HhkXdu289l59HlXZBawsyNccXfWRYvLzcDCdDig==}
+    engines: {node: '>=20'}
+
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
 
@@ -7295,6 +7311,10 @@ packages:
   data-urls@6.0.1:
     resolution: {integrity: sha512-euIQENZg6x8mj3fO6o9+fOW8MimUI4PpD/fZBhJfeioZVy9TUpM4UY7KjQNVZFlqwJ0UdzRDzkycB997HEq1BQ==}
     engines: {node: '>=20'}
+
+  data-urls@7.0.0:
+    resolution: {integrity: sha512-23XHcCF+coGYevirZceTVD7NdJOqVn+49IHyxgszm+JIiHLoB2TkmPtsYkNWT1pvRSGkc35L6NHs0yHkN2SumA==}
+    engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0}
 
   data-view-buffer@1.0.2:
     resolution: {integrity: sha512-EmKO5V3OLXh1rtK2wgXRansaK1/mtVdTUEiEI0W8RkvgT05kfxaH29PliLnpLP73yYO6142Q72QNa8Wx/A5CqQ==}
@@ -9020,6 +9040,15 @@ packages:
 
   jsdom@27.4.0:
     resolution: {integrity: sha512-mjzqwWRD9Y1J1KUi7W97Gja1bwOOM5Ug0EZ6UDK3xS7j7mndrkwozHtSblfomlzyB4NepioNt+B2sOSzczVgtQ==}
+    engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0}
+    peerDependencies:
+      canvas: ^3.0.0
+    peerDependenciesMeta:
+      canvas:
+        optional: true
+
+  jsdom@28.1.0:
+    resolution: {integrity: sha512-0+MoQNYyr2rBHqO1xilltfDjV9G7ymYGlAUazgcDLQaUf8JDHbuGwsxN6U9qWaElZ4w1B2r7yEGIL3GdeW3Rug==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0}
     peerDependencies:
       canvas: ^3.0.0
@@ -12562,6 +12591,10 @@ packages:
     resolution: {integrity: sha512-2ytDk0kiEj/yu90JOAp44PVPUkO9+jVhyf+SybKlRHSDlvOOZhdPIrr7xTH64l4WixO2cP+wQIcgujkGBPPz6g==}
     engines: {node: '>=20'}
 
+  whatwg-url@16.0.1:
+    resolution: {integrity: sha512-1to4zXBxmXHV3IiSSEInrreIlu02vUOvrhxJJH5vcxYTBDAx51cqZiKdyTxlecdKNSjj8EcxGBxNf6Vg+945gw==}
+    engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0}
+
   whatwg-url@5.0.0:
     resolution: {integrity: sha512-saE57nupxk6v3HY35+jzBwYa0rKSy0XR8JSxZPwgLr7ys0IBzhGviA1/TUGJLmSVqs8pb9AnvICXEuOHLprYTw==}
 
@@ -12963,11 +12996,19 @@ snapshots:
 
   '@asamuzakjp/css-color@4.1.2':
     dependencies:
-      '@csstools/css-calc': 3.1.1(@csstools/css-parser-algorithms@4.0.0(@csstools/css-tokenizer@4.0.0))(@csstools/css-tokenizer@4.0.0)
-      '@csstools/css-color-parser': 4.0.2(@csstools/css-parser-algorithms@4.0.0(@csstools/css-tokenizer@4.0.0))(@csstools/css-tokenizer@4.0.0)
+      '@csstools/css-calc': 3.2.0(@csstools/css-parser-algorithms@4.0.0(@csstools/css-tokenizer@4.0.0))(@csstools/css-tokenizer@4.0.0)
+      '@csstools/css-color-parser': 4.1.0(@csstools/css-parser-algorithms@4.0.0(@csstools/css-tokenizer@4.0.0))(@csstools/css-tokenizer@4.0.0)
       '@csstools/css-parser-algorithms': 4.0.0(@csstools/css-tokenizer@4.0.0)
       '@csstools/css-tokenizer': 4.0.0
       lru-cache: 11.2.6
+
+  '@asamuzakjp/css-color@5.1.11':
+    dependencies:
+      '@asamuzakjp/generational-cache': 1.0.1
+      '@csstools/css-calc': 3.2.0(@csstools/css-parser-algorithms@4.0.0(@csstools/css-tokenizer@4.0.0))(@csstools/css-tokenizer@4.0.0)
+      '@csstools/css-color-parser': 4.1.0(@csstools/css-parser-algorithms@4.0.0(@csstools/css-tokenizer@4.0.0))(@csstools/css-tokenizer@4.0.0)
+      '@csstools/css-parser-algorithms': 4.0.0(@csstools/css-tokenizer@4.0.0)
+      '@csstools/css-tokenizer': 4.0.0
 
   '@asamuzakjp/dom-selector@6.8.1':
     dependencies:
@@ -12976,6 +13017,8 @@ snapshots:
       css-tree: 3.1.0
       is-potential-custom-element-name: 1.0.1
       lru-cache: 11.2.6
+
+  '@asamuzakjp/generational-cache@1.0.1': {}
 
   '@asamuzakjp/nwsapi@2.3.9': {}
 
@@ -14569,6 +14612,10 @@ snapshots:
 
   '@braintree/sanitize-url@7.1.2': {}
 
+  '@bramus/specificity@2.4.2':
+    dependencies:
+      css-tree: 3.1.0
+
   '@changesets/apply-release-plan@7.1.1':
     dependencies:
       '@changesets/config': 3.1.4
@@ -15109,7 +15156,7 @@ snapshots:
       '@csstools/css-parser-algorithms': 3.0.5(@csstools/css-tokenizer@3.0.4)
       '@csstools/css-tokenizer': 3.0.4
 
-  '@csstools/css-calc@3.1.1(@csstools/css-parser-algorithms@4.0.0(@csstools/css-tokenizer@4.0.0))(@csstools/css-tokenizer@4.0.0)':
+  '@csstools/css-calc@3.2.0(@csstools/css-parser-algorithms@4.0.0(@csstools/css-tokenizer@4.0.0))(@csstools/css-tokenizer@4.0.0)':
     dependencies:
       '@csstools/css-parser-algorithms': 4.0.0(@csstools/css-tokenizer@4.0.0)
       '@csstools/css-tokenizer': 4.0.0
@@ -15121,10 +15168,10 @@ snapshots:
       '@csstools/css-parser-algorithms': 3.0.5(@csstools/css-tokenizer@3.0.4)
       '@csstools/css-tokenizer': 3.0.4
 
-  '@csstools/css-color-parser@4.0.2(@csstools/css-parser-algorithms@4.0.0(@csstools/css-tokenizer@4.0.0))(@csstools/css-tokenizer@4.0.0)':
+  '@csstools/css-color-parser@4.1.0(@csstools/css-parser-algorithms@4.0.0(@csstools/css-tokenizer@4.0.0))(@csstools/css-tokenizer@4.0.0)':
     dependencies:
       '@csstools/color-helpers': 6.0.2
-      '@csstools/css-calc': 3.1.1(@csstools/css-parser-algorithms@4.0.0(@csstools/css-tokenizer@4.0.0))(@csstools/css-tokenizer@4.0.0)
+      '@csstools/css-calc': 3.2.0(@csstools/css-parser-algorithms@4.0.0(@csstools/css-tokenizer@4.0.0))(@csstools/css-tokenizer@4.0.0)
       '@csstools/css-parser-algorithms': 4.0.0(@csstools/css-tokenizer@4.0.0)
       '@csstools/css-tokenizer': 4.0.0
 
@@ -19240,14 +19287,14 @@ snapshots:
     dependencies:
       svelte: 5.53.3
 
-  '@testing-library/svelte@5.3.1(svelte@5.53.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))(vitest@4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3)))':
+  '@testing-library/svelte@5.3.1(svelte@5.53.3)(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))(vitest@4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3)))':
     dependencies:
       '@testing-library/dom': 10.4.1
       '@testing-library/svelte-core': 1.0.0(svelte@5.53.3)
       svelte: 5.53.3
     optionalDependencies:
       vite: 7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3)
-      vitest: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
+      vitest: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
 
   '@tokenizer/inflate@0.2.7':
     dependencies:
@@ -20976,6 +21023,13 @@ snapshots:
       css-tree: 3.1.0
       lru-cache: 11.2.6
 
+  cssstyle@6.2.0:
+    dependencies:
+      '@asamuzakjp/css-color': 5.1.11
+      '@csstools/css-syntax-patches-for-csstree': 1.0.28
+      css-tree: 3.1.0
+      lru-cache: 11.2.6
+
   csstype@3.2.3: {}
 
   csv-stringify@6.6.0: {}
@@ -21175,6 +21229,13 @@ snapshots:
     dependencies:
       whatwg-mimetype: 5.0.0
       whatwg-url: 15.1.0
+
+  data-urls@7.0.0(@noble/hashes@2.0.1):
+    dependencies:
+      whatwg-mimetype: 5.0.0
+      whatwg-url: 16.0.1(@noble/hashes@2.0.1)
+    transitivePeerDependencies:
+      - '@noble/hashes'
 
   data-view-buffer@1.0.2:
     dependencies:
@@ -23334,6 +23395,33 @@ snapshots:
       - bufferutil
       - supports-color
       - utf-8-validate
+
+  jsdom@28.1.0(@noble/hashes@2.0.1):
+    dependencies:
+      '@acemir/cssom': 0.9.31
+      '@asamuzakjp/dom-selector': 6.8.1
+      '@bramus/specificity': 2.4.2
+      '@exodus/bytes': 1.14.1(@noble/hashes@2.0.1)
+      cssstyle: 6.2.0
+      data-urls: 7.0.0(@noble/hashes@2.0.1)
+      decimal.js: 10.6.0
+      html-encoding-sniffer: 6.0.0(@noble/hashes@2.0.1)
+      http-proxy-agent: 7.0.2
+      https-proxy-agent: 7.0.6
+      is-potential-custom-element-name: 1.0.1
+      parse5: 8.0.0
+      saxes: 6.0.0
+      symbol-tree: 3.2.4
+      tough-cookie: 6.0.0
+      undici: 7.22.0
+      w3c-xmlserializer: 5.0.0
+      webidl-conversions: 8.0.1
+      whatwg-mimetype: 5.0.0
+      whatwg-url: 16.0.1(@noble/hashes@2.0.1)
+      xml-name-validator: 5.0.0
+    transitivePeerDependencies:
+      - '@noble/hashes'
+      - supports-color
 
   jsesc@3.1.0: {}
 
@@ -27297,7 +27385,7 @@ snapshots:
       terser: 5.46.0
       yaml: 2.8.3
 
-  vitest@4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@27.4.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3)):
+  vitest@4.1.5(@opentelemetry/api@1.9.1)(@types/node@24.12.2)(happy-dom@20.9.0)(jsdom@28.1.0(@noble/hashes@2.0.1))(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3)):
     dependencies:
       '@vitest/expect': 4.1.5
       '@vitest/mocker': 4.1.5(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.0)(yaml@2.8.3))
@@ -27323,7 +27411,7 @@ snapshots:
       '@opentelemetry/api': 1.9.1
       '@types/node': 24.12.2
       happy-dom: 20.9.0
-      jsdom: 27.4.0(@noble/hashes@2.0.1)
+      jsdom: 28.1.0(@noble/hashes@2.0.1)
     transitivePeerDependencies:
       - msw
 
@@ -27532,6 +27620,14 @@ snapshots:
     dependencies:
       tr46: 6.0.0
       webidl-conversions: 8.0.1
+
+  whatwg-url@16.0.1(@noble/hashes@2.0.1):
+    dependencies:
+      '@exodus/bytes': 1.14.1(@noble/hashes@2.0.1)
+      tr46: 6.0.0
+      webidl-conversions: 8.0.1
+    transitivePeerDependencies:
+      - '@noble/hashes'
 
   whatwg-url@5.0.0:
     dependencies:
