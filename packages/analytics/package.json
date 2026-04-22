@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/analytics",
-  "version": "0.71.24",
+  "version": "0.71.25",
   "description": "Unified analytics interface for Google Analytics 4, Plausible, and more",
   "type": "module",
   "main": "./dist/index.js",
