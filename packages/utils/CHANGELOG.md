@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.71.25
+
+### Patch Changes
+
+- ### Dependencies
+
+  - update bullmq to v5.76.0 (#999)
+
 ## 0.71.24
 
 ## 0.71.23
