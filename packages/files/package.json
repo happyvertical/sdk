@@ -25,7 +25,7 @@
     "@aws-sdk/client-s3": "^3.1034.0",
     "@happyvertical/utils": "workspace:*",
     "google-auth-library": "^9.15.1",
-    "googleapis": "^144.0.0"
+    "googleapis": "^159.0.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "6.9.1",
