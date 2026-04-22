@@ -2,7 +2,7 @@ name: Pull Request Validation
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, dependency-updates]
 
 # Cancel superseded runs when new commits are pushed.
 concurrency:
@@ -86,7 +86,7 @@ jobs:
             if pnpm run changeset:auto; then
               echo "✅ changeset:auto validation passed"
               echo ""
-              echo "Generated changesets will be created automatically when this PR merges to main."
+              echo "Generated changesets will be created automatically when this change reaches main."
               exit 0
             else
               echo "❌ ERROR: changeset:auto script failed"
@@ -107,8 +107,9 @@ jobs:
           if [ "$changeset_count" -eq 0 ]; then
             echo "✅ No explicit changeset required for this PR"
             echo ""
-            echo "This PR will merge without a version bump unless non-merge commits on main"
-            echo "(including squash/rebase commits) match the on-main auto changeset rules."
+            echo "This PR can merge without a version bump until its changes reach main,"
+            echo "where non-merge commits (including squash/rebase commits) are"
+            echo "evaluated by the on-main auto changeset rules."
             exit 0
           fi
 
@@ -160,7 +161,10 @@ jobs:
       - name: Determine version bump
         id: version
         run: |
-          commits=$(git log origin/main..HEAD --no-merges --pretty=format:"%s")
+          base_ref="${{ github.event.pull_request.base.ref }}"
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          head_sha="${{ github.event.pull_request.head.sha }}"
+          commits=$(git log "$base_sha..$head_sha" --no-merges --pretty=format:"%s")
 
           bump="patch"
           if echo "$commits" | grep -qE "^feat(\(.+\))?!?:"; then
@@ -171,28 +175,48 @@ jobs:
             bump="minor"  # Treat as minor until 1.0.0
           fi
 
+          echo "base_ref=$base_ref" >> $GITHUB_OUTPUT
           echo "bump=$bump" >> $GITHUB_OUTPUT
-          echo "📦 Will perform $bump version bump on merge"
+          if [ "$base_ref" = "main" ]; then
+            echo "📦 Merging to main will perform a $bump version bump"
+          else
+            echo "📦 This PR contributes a $bump release signal when $base_ref later reaches main"
+          fi
 
       - name: Comment on PR
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             const bump = '${{ steps.version.outputs.bump }}';
+            const baseRef = '${{ steps.version.outputs.base_ref }}';
+            const directToMain = baseRef === 'main';
+            const intro = directToMain
+              ? `When this PR is merged into \`main\`, packages will receive a **${bump}** version bump based on your conventional commits.`
+              : `When this PR is merged into \`${baseRef}\`, it will contribute a **${bump}** release signal. Packages are versioned and published later, when \`${baseRef}\` is merged into \`main\`.`;
+            const steps = directToMain
+              ? [
+                  '1. Tests run on the main branch',
+                  '2. Packages are built',
+                  '3. Versions are bumped automatically',
+                  '4. The release commit is pushed back to `main`',
+                  '5. Packages are published to GitHub Packages',
+                  '6. Git tags are created'
+                ]
+              : [
+                  '1. Tests run on the integration branch',
+                  `2. This change accumulates on \`${baseRef}\``,
+                  `3. When \`${baseRef}\` is later merged into \`main\`, release automation versions and publishes the accumulated dependency updates`
+                ];
 
-            const comment = `## 📦 Version Bump Preview
-
-            When this PR is merged, packages will receive a **${bump}**
-            version bump based on your conventional commits.
-
-            ### What happens on merge?
-
-            1. Tests run on main branch
-            2. Packages are built
-            3. Versions are bumped automatically
-            4. The release commit is pushed back to \`main\`
-            5. Packages are published to GitHub Packages
-            6. Git tags are created`;
+            const comment = [
+              '## 📦 Version Bump Preview',
+              '',
+              intro,
+              '',
+              '### What happens on merge?',
+              '',
+              ...steps
+            ].join('\n');
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
