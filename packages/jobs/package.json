@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/jobs",
-  "version": "0.71.23",
+  "version": "0.71.24",
   "description": "Job queue abstraction with multiple backend adapters (SQLite, PostgreSQL, Bull, SQS)",
   "type": "module",
   "main": "./dist/index.js",
@@ -85,7 +85,7 @@
     "@types/bull": "^4.10.4",
     "@types/node": "25.0.10",
     "bull": "^4.16.5",
-    "bullmq": "^5.75.2",
+    "bullmq": "^5.76.0",
     "typescript": "^5.9.3",
     "vite": "7.3.2",
     "vite-plugin-dts": "4.5.4",
@@ -95,7 +95,7 @@
     "@aws-sdk/client-sqs": ">=3.1034.0",
     "@google-cloud/tasks": ">=4.1.0",
     "bull": ">=4.16.5",
-    "bullmq": ">=5.75.2"
+    "bullmq": ">=5.76.0"
   },
   "peerDependenciesMeta": {
     "bull": {

@@ -1,5 +1,12 @@
 # @happyvertical/files
 
+## 0.71.24
+
+### Patch Changes
+
+- fee9e6d: Add a shared `writeResponseToFile()` helper for streaming an existing fetch `Response` to disk with the same temp-file, metadata-preserving, and `maxBytes` safeguards used by `fetchToFile()`.
+  - @happyvertical/utils@0.71.24
+
 ## 0.71.23
 
 ### Patch Changes
