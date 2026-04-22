@@ -32,7 +32,7 @@
   "dependencies": {
     "@happyvertical/logger": "workspace:*",
     "@happyvertical/utils": "workspace:*",
-    "@openpgp/web-stream-tools": "^0.3.0",
+    "@openpgp/web-stream-tools": "^0.3.1",
     "openpgp": "^6.3.0",
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1"
