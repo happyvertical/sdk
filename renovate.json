@@ -1,12 +1,65 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["local>happyvertical/renovate-config:sdk"],
+  "timezone": "America/Edmonton",
+  "baseBranchPatterns": ["dependency-updates"],
+  "prConcurrentLimit": 5,
   "packageRules": [
     {
-      "description": "Automerge minor and patch updates on green PRs",
+      "description": "Group and automerge weekly non-major runtime dependency updates on green PRs",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["dependencies", "optionalDependencies", "peerDependencies"],
       "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "runtime dependency updates",
+      "schedule": ["* 21-23 * * 0"],
       "automerge": true,
       "automergeType": "pr"
+    },
+    {
+      "description": "Group and automerge weekly non-major development dependency updates on green PRs",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "development dependency updates",
+      "schedule": ["* 21-23 * * 0"],
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Group and automerge weekly GitHub Actions updates on green PRs",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "github actions updates",
+      "schedule": ["* 21-23 * * 0"],
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Open development toolchain major updates automatically on a monthly cadence",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "development toolchain major updates",
+      "schedule": ["* 21-23 1 * *"],
+      "dependencyDashboardApproval": false,
+      "automerge": false
+    },
+    {
+      "description": "Open major runtime dependency updates automatically on the integration branch",
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["dependencies", "optionalDependencies", "peerDependencies"],
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": false,
+      "automerge": false
+    },
+    {
+      "description": "Open major GitHub Actions updates automatically on a monthly cadence",
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["major"],
+      "groupName": "github actions major updates",
+      "schedule": ["* 21-23 1 * *"],
+      "dependencyDashboardApproval": false,
+      "automerge": false
     }
   ]
 }
