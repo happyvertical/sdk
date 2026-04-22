@@ -5,7 +5,9 @@ on:
     branches: [main]
 
 concurrency:
-  group: on-merge-main
+  # Keep release-generated pushes from cancelling the original merge-to-main run
+  # that created them. Those follow-up runs are intentionally skipped below.
+  group: "${{ startsWith(github.event.head_commit.message, 'chore(release): v') && format('on-merge-main-release-{0}', github.sha) || 'on-merge-main' }}"
   cancel-in-progress: true
 
 permissions:
@@ -17,6 +19,8 @@ permissions:
 
 jobs:
   orchestrate:
+    # Skip the release commit that the publish workflow pushes back to main.
+    if: "${{ !startsWith(github.event.head_commit.message, 'chore(release): v') }}"
     uses: ./.github/workflows/shared-merge-orchestrator.yml
     with:
       repo_owner: ${{ github.repository_owner }}
