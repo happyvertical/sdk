@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.71.28
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - remove release sync PR fallback (ci)
+
 ## 0.71.27
 
 ### Patch Changes
