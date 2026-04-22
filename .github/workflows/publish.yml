@@ -88,16 +88,10 @@ jobs:
           node-version: '24'
           registry-url: 'https://npm.pkg.github.com'
 
-      - name: Determine SMRT pnpm version
-        id: smrt_pnpm
-        run: |
-          version=$(node -p "require('./smrt/package.json').packageManager.split('@')[1]")
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
       - name: Setup pnpm
         uses: pnpm/action-setup@903f9c1a6ebcba6cf41d87230be49611ac97822e # v6
         with:
-          version: ${{ steps.smrt_pnpm.outputs.version }}
+          package_json_file: smrt/package.json
           run_install: false
 
       - name: Update SMRT SDK dependency pins
