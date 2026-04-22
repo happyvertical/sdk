@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.71.31
+
+### Patch Changes
+
+- ### Features
+
+  - sync smrt after sdk releases (ci)
+
 ## 0.71.30
 
 ### Patch Changes
