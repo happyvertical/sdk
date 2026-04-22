@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/files",
-  "version": "0.71.25",
+  "version": "0.71.26",
   "description": "File system utilities for local and remote file operations",
   "type": "module",
   "main": "./dist/index.js",

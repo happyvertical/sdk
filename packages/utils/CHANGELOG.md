@@ -1,5 +1,18 @@
 # @happyvertical/utils
 
+## 0.71.26
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - avoid label-only PR reruns (ci)
+  - simplify primary workflows (ci)
+
+  ### Dependencies
+
+  - update @openpgp/web-stream-tools to ^0.3.1 (#1002)
+
 ## 0.71.25
 
 ### Patch Changes
