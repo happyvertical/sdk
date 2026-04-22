@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.71.27
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - skip release commit retriggers (ci)
+
 ## 0.71.26
 
 ### Patch Changes

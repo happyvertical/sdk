@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/utils",
-  "version": "0.71.26",
+  "version": "0.71.27",
   "description": "Foundation utilities for ID generation, date parsing, URL handling, string conversion, error handling, and logging",
   "type": "module",
   "main": "./dist/index.js",
