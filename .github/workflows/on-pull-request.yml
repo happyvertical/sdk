@@ -3,10 +3,16 @@ name: Pull Request Validation
 on:
   pull_request:
     branches: [main]
+    types: [opened, reopened, synchronize, labeled, unlabeled]
 
-# Cancel in-progress runs when new commits are pushed
+# Cancel superseded runs while keeping label-only reruns from interrupting
+# in-flight test runs for the same pull request.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: >-
+    ${{ github.workflow }}-${{ github.event.pull_request.number }}-${{
+      (github.event.action == 'labeled' || github.event.action == 'unlabeled') &&
+      'labels' || 'code'
+    }}
   cancel-in-progress: true
 
 permissions:
@@ -15,9 +21,143 @@ permissions:
   packages: read
 
 jobs:
+  changeset-check:
+    name: Check for Changeset
+    runs-on: arc-happyvertical
+    if: |
+      !startsWith(github.event.pull_request.head.ref, 'renovate/') &&
+      !startsWith(github.event.pull_request.head.ref, 'changeset-release/')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for skip conditions
+        id: skip-check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUM="${{ github.event.pull_request.number }}"
+          if gh pr view "$PR_NUM" --json labels \
+             --jq '.labels[].name' | grep -q 'skip-changeset'; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "✅ Will skip (skip-changeset label present)"
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup Environment
+        if: steps.skip-check.outputs.skip != 'true'
+        uses: ./.github/actions/setup-environment
+        with:
+          node-version: '24'
+          install-deps: 'true'
+
+      - name: Check for changeset
+        if: steps.skip-check.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR_NUM="${{ github.event.pull_request.number }}"
+          if gh pr view "$PR_NUM" --json labels \
+             --jq '.labels[].name' | grep -q 'skip-changeset'; then
+            echo "✅ Skipping changeset check (skip-changeset label present)"
+            exit 0
+          fi
+
+          PR_BRANCH="${{ github.event.pull_request.head.ref }}"
+          if echo "$PR_BRANCH" | grep -q '^changeset-release/'; then
+            echo "✅ Skipping changeset check (changesets release PR from $PR_BRANCH)"
+            exit 0
+          fi
+
+          if echo "$PR_BRANCH" | grep -q '^renovate/'; then
+            echo "✅ Skipping changeset check (Renovate dependency update PR from $PR_BRANCH)"
+            exit 0
+          fi
+
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          if echo "$PR_TITLE" | grep -qi '^chore: version packages'; then
+            echo "✅ Skipping changeset check (version packages PR)"
+            exit 0
+          fi
+
+          echo ""
+          echo "🔍 Checking for conventional commits..."
+
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+
+          RELEASEABLE_COMMITS=$(git log \
+            $BASE_SHA..$HEAD_SHA --pretty=format:"%s" --no-merges | \
+            grep -E '^(feat|fix|perf)(\(.+\))?!?:|^chore\(deps\)!?:|BREAKING CHANGE' \
+            || true)
+
+          if [ -n "$RELEASEABLE_COMMITS" ]; then
+            echo "✅ Found conventional commits that will trigger auto-changeset on merge:"
+            echo "$RELEASEABLE_COMMITS"
+            echo ""
+            echo "🔍 Validating changeset:auto script can generate changesets..."
+
+            if pnpm run changeset:auto; then
+              echo "✅ changeset:auto validation passed"
+              echo ""
+              echo "Generated changesets will be created automatically when this PR merges to main."
+              exit 0
+            else
+              echo "❌ ERROR: changeset:auto script failed"
+              echo ""
+              echo "The auto-changeset generation script encountered an error."
+              echo "Please check the script or add a manual changeset."
+              exit 1
+            fi
+          fi
+
+          echo "ℹ️  No releaseable conventional commits found"
+          echo "(feat, fix, perf, chore(deps), or breaking changes)"
+          echo ""
+
+          changeset_count=$(find .changeset -name '*.md' \
+            ! -name 'README.md' 2>/dev/null | wc -l)
+
+          if [ "$changeset_count" -eq 0 ]; then
+            echo "✅ No explicit changeset required for this PR"
+            echo ""
+            echo "This PR will merge without a version bump unless non-merge commits on main"
+            echo "(including squash/rebase commits) match the on-main auto changeset rules."
+            exit 0
+          fi
+
+          echo "✅ Found $changeset_count changeset(s)"
+          find .changeset -name '*.md' ! -name 'README.md' -exec basename {} \;
+
+          echo ""
+          echo "🔍 Validating changeset types..."
+
+          if find .changeset -name '*.md' ! -name 'README.md' \
+             -type f -exec grep -l '"major"' {} + 2>/dev/null | \
+             grep -q .; then
+            echo "❌ ERROR: Major version bump detected in changeset!"
+            echo ""
+            echo "Files with major bumps:"
+            find .changeset -name '*.md' ! -name 'README.md' \
+              -type f -exec grep -l '"major"' {} + 2>/dev/null || true
+            echo ""
+            echo "Major version releases (1.0.0+) must be manually approved and coordinated."
+            echo "Please change the version bump type to 'minor' or 'patch'."
+            echo ""
+            echo "If you truly need a major version bump, coordinate with maintainers first."
+            exit 1
+          fi
+
+          echo "✅ No major version bumps detected"
+
   validate-commits:
     name: Validate Conventional Commits
     runs-on: arc-happyvertical
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
 
     steps:
       - name: Checkout PR branch
@@ -72,9 +212,10 @@ jobs:
             4. Packages are published to GitHub Packages
             5. Git tags are created
 
-            No manual intervention needed! 🎉`;
+            If branch rules block the final version-sync push, the release
+            workflow may open a short-lived sync PR for the generated
+            changelog and version files.`;
 
-            // Check if we already commented
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -105,11 +246,11 @@ jobs:
   validate-workflows:
     name: Validate Workflow Files
     runs-on: arc-happyvertical
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
+
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          persist-credentials: true
 
       - name: Get changed workflow files
         id: changed-files
@@ -124,9 +265,6 @@ jobs:
           files="${{ steps.changed-files.outputs.all_changed_files }}"
           echo "Changed files: $files"
 
-          # yamllint is pre-installed in arc-runner image
-
-          # Validate each changed workflow file
           for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
             echo "  Checking $file..."
             yamllint -c .github/.yamllint.yml "$file" || exit 1
@@ -137,7 +275,6 @@ jobs:
       - name: Install act
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          # Install specific version of act for security and stability
           mkdir -p bin
           curl --proto '=https' --tlsv1.2 -sSfL \
             https://raw.githubusercontent.com/nektos/act/master/install.sh \
@@ -161,13 +298,106 @@ jobs:
           echo "  - YAML syntax validated with yamllint"
           echo "  - Workflow parsing verified with act"
 
+  check-naming:
+    name: Check for stale @have/ references
+    runs-on: arc-happyvertical
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Get changed markdown files
+        id: changed-md
+        uses: tj-actions/changed-files@48d8f15b2aaa3d255ca5af3eba4870f807ce6b3c # v45
+        with:
+          files: '**/*.md'
+
+      - name: Check for @have/ naming regressions in changed files
+        if: steps.changed-md.outputs.any_changed == 'true'
+        run: |
+          echo "Checking changed markdown files for stale @have/ references..."
+
+          found=false
+          for file in ${{ steps.changed-md.outputs.all_changed_files }}; do
+            if grep -n '@have/' "$file" 2>/dev/null; then
+              echo "::error file=$file::Found stale @have/ reference. Should be @happyvertical/."
+              found=true
+            fi
+          done
+
+          if [ "$found" = true ]; then
+            exit 1
+          fi
+
+          echo "No stale @have/ references found in changed files."
+
+  doc-coverage:
+    name: Check documentation coverage
+    runs-on: arc-happyvertical
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@48d8f15b2aaa3d255ca5af3eba4870f807ce6b3c # v45
+        with:
+          files: |
+            packages/*/src/**
+
+      - name: Check doc coverage for changed packages
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          echo "Checking documentation coverage for changed packages..."
+
+          packages=$(echo "${{ steps.changed-files.outputs.all_changed_files }}" | \
+            tr ' ' '\n' | \
+            sed -n 's|.*packages/\([^/]*\)/.*|\1|p' | \
+            sort -u)
+
+          missing=false
+          for pkg in $packages; do
+            echo "Checking package: $pkg"
+
+            if [ ! -f "packages/$pkg/README.md" ]; then
+              echo "::warning file=packages/$pkg::Missing packages/$pkg/README.md"
+              missing=true
+            fi
+
+            if [ ! -f "packages/$pkg/AGENT.md" ]; then
+              echo "::warning file=packages/$pkg::Missing packages/$pkg/AGENT.md"
+              missing=true
+            fi
+
+            if [ ! -f "packages/$pkg/metadata.json" ]; then
+              echo "::warning file=packages/$pkg::Missing packages/$pkg/metadata.json"
+              missing=true
+            fi
+          done
+
+          if [ "$missing" = false ]; then
+            echo "All changed packages have README.md, AGENT.md, and metadata.json files."
+          fi
+
+      - name: Check ecosystem manifest freshness
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: pnpm run agent:check
+
   test:
     name: Validate Changes
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
     uses: ./.github/workflows/test.yml
 
   docs-build:
     name: Validate Documentation Build
     runs-on: arc-happyvertical
+    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
+
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -204,3 +434,83 @@ jobs:
           else
             echo "Documentation site built successfully with no broken links."
           fi
+
+  dependabot:
+    name: Dependabot Automation
+    runs-on: arc-happyvertical
+    needs: [test]
+    if: |
+      github.actor == 'dependabot[bot]' &&
+      github.event.action != 'labeled' &&
+      github.event.action != 'unlabeled' &&
+      needs.test.outputs.success == 'true'
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Validate security requirements
+        run: |
+          if [ -z "${{ secrets.GITHUB_TOKEN }}" ]; then
+            echo "::error::GITHUB_TOKEN is not available"
+            exit 1
+          fi
+          echo "✅ Security requirements validated"
+          echo "::notice::Processing dependabot PR with enhanced security checks"
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          node-version: '24'
+
+      - name: Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Security scan for dependency changes
+        run: |
+          echo "::notice::Checking for security vulnerabilities in dependencies"
+          echo "Dependency update type: ${{ steps.metadata.outputs.update-type }}"
+          echo "Package ecosystem: ${{ steps.metadata.outputs.package-ecosystem }}"
+          echo "Package name: ${{ steps.metadata.outputs.dependency-names }}"
+          pnpm audit || {
+            echo "::error::Security vulnerabilities found in dependencies"
+            exit 1
+          }
+          echo "✅ No security vulnerabilities detected"
+
+      - name: Approve PR with security validation
+        if: ${{ steps.metadata.outputs.update-type != 'version-update:semver-major' }}
+        run: |
+          echo "::notice::Approving dependabot PR after security validation"
+          gh pr review --approve "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge for minor and patch updates
+        if: |
+          steps.metadata.outputs.update-type == 'version-update:semver-minor' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        run: |
+          echo "::notice::Enabling auto-merge for ${{ steps.metadata.outputs.update-type }} update"
+          gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Require manual review for major updates
+        if: steps.metadata.outputs.update-type == 'version-update:semver-major'
+        run: |
+          echo "Major version update detected. Manual review required."
+          echo "This PR will not be automatically approved or merged."
+          gh pr comment "$PR_URL" \
+            --body "Major version update detected. Manual review required."
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

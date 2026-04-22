@@ -228,7 +228,7 @@ jobs:
 
             # Commit version changes
             git add .
-            git commit -m "chore(release): v$AFTER_VERSION [skip ci]"
+            git commit -m "chore(release): v$AFTER_VERSION"
             RELEASE_COMMIT_SHA=$(git rev-parse HEAD)
 
             publish_release_artifacts "$AFTER_VERSION" "$BEFORE_VERSION"

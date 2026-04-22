@@ -2,7 +2,7 @@ name: CI Failure Auto-Fix
 
 on:
   workflow_run:
-    workflows: ["Test Suite", "Test", "on-pull-request"]
+    workflows: ["Pull Request Validation", "On Merge to Main"]
     types: [completed]
 
 permissions:

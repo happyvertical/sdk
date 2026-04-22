@@ -2,7 +2,7 @@ name: Test Failure Analysis
 
 on:
   workflow_run:
-    workflows: ["Test Suite", "Test"]
+    workflows: ["Pull Request Validation", "On Merge to Main"]
     types: [completed]
 
 permissions:
