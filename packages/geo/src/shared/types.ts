@@ -66,7 +66,41 @@ export interface Location {
 }
 
 /**
- * Geo provider interface - all providers must implement this
+ * Options for POI (point-of-interest) searches.
+ *
+ * `types` and `keyword` are both forwarded to the backing provider but each
+ * provider interprets them slightly differently:
+ *
+ * - **Google**: `types[0]` becomes the request's `type` filter (Places API
+ *   accepts a single type per request; additional entries are ignored).
+ *   `keyword` is a free-text match across name/type/address/reviews.
+ * - **OpenStreetMap (Overpass)**: `types` are matched against
+ *   `amenity`, `shop`, and `tourism` tag values (e.g. `'cafe'`,
+ *   `'supermarket'`, `'museum'`). When omitted, the provider searches across
+ *   a broad set of POI-ish tag keys (`amenity`, `shop`, `tourism`,
+ *   `leisure`, `office`, `historic`). `keyword` is appended as a substring
+ *   filter on the `name` tag.
+ */
+export interface PoiSearchOptions {
+  /** Filter results to POIs matching these category values. See notes above. */
+  types?: string[];
+  /** Free-text keyword to narrow the search. */
+  keyword?: string;
+  /** Max results to return. Default 20. */
+  limit?: number;
+  /** Preferred language for place names (Google only). */
+  language?: string;
+}
+
+/**
+ * Geo provider interface - all providers must implement lookup and
+ * reverseGeocode. `findPoisNear` is optional — providers implement it when
+ * they support POI discovery beyond reverse geocoding. Callers that need to
+ * know whether a given instance supports POI search should feature-detect:
+ *
+ * ```ts
+ * if (typeof adapter.findPoisNear === 'function') { ... }
+ * ```
  */
 export interface GeoProvider {
   /**
@@ -83,6 +117,25 @@ export interface GeoProvider {
    * @returns Promise resolving to array of matching Location objects
    */
   reverseGeocode(latitude: number, longitude: number): Promise<Location[]>;
+
+  /**
+   * Find POIs (point-of-interest places — businesses, landmarks, amenities)
+   * within a radius of a coordinate. Returns locations with
+   * `type: 'point_of_interest'` whose coords lie inside the requested
+   * radius, sorted by the provider's relevance ranking.
+   *
+   * @param latitude - Center latitude
+   * @param longitude - Center longitude
+   * @param radiusMeters - Search radius in meters
+   * @param options - Optional filters
+   * @returns Promise resolving to array of matching Location objects
+   */
+  findPoisNear?(
+    latitude: number,
+    longitude: number,
+    radiusMeters: number,
+    options?: PoiSearchOptions,
+  ): Promise<Location[]>;
 }
 
 /**
@@ -103,6 +156,16 @@ export interface GeoAdapter {
    * @returns Promise resolving to array of matching Location objects
    */
   reverseGeocode(latitude: number, longitude: number): Promise<Location[]>;
+
+  /**
+   * Find POIs near a coordinate. Optional — see `GeoProvider.findPoisNear`.
+   */
+  findPoisNear?(
+    latitude: number,
+    longitude: number,
+    radiusMeters: number,
+    options?: PoiSearchOptions,
+  ): Promise<Location[]>;
 }
 
 /**

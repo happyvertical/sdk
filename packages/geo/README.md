@@ -49,6 +49,40 @@ const adapter = await getGeoAdapter({
 const results = await adapter.lookup('Big Ben, London');
 ```
 
+### POI (Point-of-Interest) search
+
+Both providers implement `findPoisNear(lat, lon, radiusMeters, options?)`
+for discovering businesses, landmarks, and amenities around a coordinate.
+It's an optional method on the adapter — feature-detect before calling:
+
+```typescript
+if (typeof adapter.findPoisNear === 'function') {
+  const cafes = await adapter.findPoisNear(48.8566, 2.3522, 300, {
+    types: ['cafe'],
+    limit: 10,
+  });
+  for (const cafe of cafes) {
+    console.log(cafe.name, '@', cafe.latitude, cafe.longitude);
+  }
+}
+```
+
+**Google** routes the request through the Places API (Nearby Search) so the
+API key needs the Places API enabled in Google Cloud in addition to
+Geocoding. The first entry of `options.types` becomes the request's `type`
+filter; additional entries fan out across separate requests and the results
+are deduped by `place_id`. Max radius 50 000 m per Places API.
+
+**OpenStreetMap** uses the public [Overpass API][overpass]. No key, but
+the same community use-policy as Nominatim applies — cache aggressively
+and reuse a `rateLimitDelay` that matches your traffic. When `types` is
+omitted, the query looks across `amenity`, `shop`, `tourism`, `leisure`,
+`office`, `historic`, and `craft` tag keys. When supplied, values are
+matched against each of those keys so you can pass `['cafe']` or
+`['supermarket']` without knowing the exact tag.
+
+[overpass]: https://wiki.openstreetmap.org/wiki/Overpass_API
+
 ### Environment Variable Configuration
 
 Set `HAVE_GEO_PROVIDER`, `HAVE_GEO_TIMEOUT`, `HAVE_GEO_MAX_RESULTS`, `HAVE_GEO_RATE_LIMIT_DELAY`, `HAVE_GEO_USER_AGENT`, and `GOOGLE_MAPS_API_KEY` to configure without passing options:
