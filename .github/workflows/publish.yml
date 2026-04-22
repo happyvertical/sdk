@@ -55,9 +55,134 @@ jobs:
       HAVE_RELEASE_APP_ID: ${{ secrets.HAVE_RELEASE_APP_ID }}
       HAVE_RELEASE_APP_PRIVATE_KEY: ${{ secrets.HAVE_RELEASE_APP_PRIVATE_KEY }}
 
-  # NOTE: Dependency cascade is now handled by Renovate CE
-  # Downstream repositories (SMRT, praeco, caelus) will receive automatic
-  # PRs from Renovate when new SDK versions are published.
+  sync-smrt:
+    name: Sync SMRT SDK Dependencies
+    runs-on: arc-happyvertical
+    needs: [release]
+    if: needs.release.outputs.published == 'true'
+    permissions:
+      contents: write
+      pull-requests: write
+      packages: read
+    steps:
+      - name: Generate token from GitHub App
+        id: generate_token
+        uses: tibdex/github-app-token@3beb63f4bd073e61482598c45c71c1019b59b73a # v2
+        with:
+          app_id: ${{ secrets.HAVE_RELEASE_APP_ID }}
+          private_key: ${{ secrets.HAVE_RELEASE_APP_PRIVATE_KEY }}
+
+      - name: Checkout SDK repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Checkout SMRT repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: happyvertical/smrt
+          path: smrt
+          token: ${{ steps.generate_token.outputs.token }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+          registry-url: 'https://npm.pkg.github.com'
+
+      - name: Determine SMRT pnpm version
+        id: smrt_pnpm
+        run: |
+          version=$(node -p "require('./smrt/package.json').packageManager.split('@')[1]")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@903f9c1a6ebcba6cf41d87230be49611ac97822e # v6
+        with:
+          version: ${{ steps.smrt_pnpm.outputs.version }}
+          run_install: false
+
+      - name: Update SMRT SDK dependency pins
+        run: |
+          node scripts/update-smrt-sdk-version.js \
+            "$GITHUB_WORKSPACE/smrt" \
+            "${{ needs.release.outputs.version }}"
+
+          cd smrt
+          bash scripts/check-sdk-versions.sh
+          pnpm install --lockfile-only --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check for SMRT changes
+        id: changes
+        run: |
+          cd smrt
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No SMRT SDK dependency changes needed."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Configure Git
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          cd smrt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Commit and push SMRT update branch
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          SDK_VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          cd smrt
+          branch="sdk-release/v$SDK_VERSION"
+          git checkout -B "$branch"
+          git add pnpm-workspace.yaml package.json pnpm-lock.yaml
+          git commit -m "chore(deps): sync sdk packages to v$SDK_VERSION"
+          git push --force-with-lease origin "$branch"
+          echo "SMRT_BRANCH=$branch" >> "$GITHUB_ENV"
+
+      - name: Open or update SMRT pull request
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ steps.generate_token.outputs.token }}
+          SDK_VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          existing_pr=$(gh pr list \
+            --repo happyvertical/smrt \
+            --state open \
+            --head "$SMRT_BRANCH" \
+            --json number \
+            --jq '.[0].number // empty')
+
+          pr_body=$(cat <<EOF
+          ## Summary
+          - update SMRT's centralized SDK dependency pins to \`^$SDK_VERSION\`
+          - refresh the lockfile immediately after the SDK release
+
+          ## Source
+          - SDK release: \`v$SDK_VERSION\`
+          - Triggered from: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          EOF
+          )
+
+          if [ -n "$existing_pr" ]; then
+            gh pr edit "$existing_pr" \
+              --repo happyvertical/smrt \
+              --title "chore(deps): sync sdk packages to v$SDK_VERSION" \
+              --body "$pr_body"
+          else
+            gh pr create \
+              --repo happyvertical/smrt \
+              --base main \
+              --head "$SMRT_BRANCH" \
+              --title "chore(deps): sync sdk packages to v$SDK_VERSION" \
+              --body "$pr_body"
+          fi
+
+  # NOTE: SMRT now receives an immediate dependency-sync PR on each SDK release.
+  # Other downstream repositories continue to receive Renovate-driven updates.
 
   deploy-docs:
     name: Deploy Documentation
