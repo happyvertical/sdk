@@ -50,7 +50,7 @@
     "@types/nodemailer": "^7.0.11",
     "smtp-server": "^3.18.4",
     "typescript": "^5.9.3",
-    "vite": "7.3.2",
+    "vite": "8.0.9",
     "vite-plugin-dts": "4.5.4",
     "vitest": "^4.1.5"
   },
