@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.71.32
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - use smrt package manager metadata (ci)
+
 ## 0.71.31
 
 ### Patch Changes
