@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.71.29
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - add renovate integration branch (ci)
+
 ## 0.71.28
 
 ### Patch Changes
