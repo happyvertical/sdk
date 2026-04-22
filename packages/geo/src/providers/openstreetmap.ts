@@ -58,6 +58,18 @@ interface OverpassElement {
 }
 
 /**
+ * Escape a literal string for safe interpolation into an Overpass
+ * `name~"..."` regex match. Overpass uses POSIX extended regular
+ * expressions; we escape the ERE metacharacters plus the enclosing
+ * double-quote and backslash so callers can pass arbitrary user-entered
+ * keywords without worrying about regex injection or accidental pattern
+ * matching.
+ */
+function escapeOverpassRegex(value: string): string {
+  return value.replace(/["\\.*+?^${}()|[\]]/g, '\\$&');
+}
+
+/**
  * Tag keys Overpass treats as POI-like. Used when the caller doesn't
  * specify `types` — broad enough to cover businesses, landmarks, and
  * amenities without pulling back every single residential address.
@@ -337,6 +349,12 @@ export class OpenStreetMapProvider implements GeoProvider {
     }
 
     const limit = options.limit ?? this.maxResults;
+    if (!Number.isInteger(limit) || limit < 1) {
+      throw new InvalidQueryError(
+        `limit ${limit} must be a positive integer`,
+        'openstreetmap',
+      );
+    }
     const cacheKey = this.getCacheKey(
       'pois',
       String(latitude),
@@ -434,8 +452,13 @@ export class OpenStreetMapProvider implements GeoProvider {
     options: PoiSearchOptions,
   ): string {
     const around = `around:${radiusMeters},${latitude},${longitude}`;
+    // `keyword` is documented as a free-text substring filter, but Overpass
+    // interprets the right-hand side of `name~"..."` as a POSIX ERE. Escape
+    // regex metacharacters so inputs like `C++`, `A.*`, or `Joes [Bar]`
+    // match literally instead of silently changing the regex semantics or
+    // producing an invalid query.
     const keywordFilter = options.keyword
-      ? `[name~"${options.keyword.replace(/"/g, '\\"')}",i]`
+      ? `[name~"${escapeOverpassRegex(options.keyword)}",i]`
       : '';
     const clauses: string[] = [];
 

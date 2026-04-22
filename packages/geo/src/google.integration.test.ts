@@ -247,5 +247,40 @@ describe('Google Maps Provider Integration', () => {
         adapter.findPoisNear!(48.8566, 2.3522, 100_000),
       ).rejects.toThrow(InvalidQueryError);
     });
+
+    it('should reject non-positive limits', async () => {
+      const adapter = await getGeoAdapter({
+        provider: 'google',
+        apiKey: apiKey!,
+      });
+
+      await expect(
+        adapter.findPoisNear!(48.8566, 2.3522, 200, { limit: 0 }),
+      ).rejects.toThrow(InvalidQueryError);
+      await expect(
+        adapter.findPoisNear!(48.8566, 2.3522, 200, { limit: -5 }),
+      ).rejects.toThrow(InvalidQueryError);
+    });
+
+    it('should paginate beyond 20 results when limit exceeds one page', async () => {
+      const adapter = await getGeoAdapter({
+        provider: 'google',
+        apiKey: apiKey!,
+      });
+
+      // Central Paris is dense enough that a 300m bar/restaurant query
+      // easily exceeds 20 POIs. Ask for 35 — the only way to satisfy
+      // this is to follow `next_page_token` past the first page.
+      const results = await adapter.findPoisNear!(48.8566, 2.3522, 300, {
+        types: ['restaurant'],
+        limit: 35,
+      });
+      expect(results.length).toBeGreaterThan(20);
+      expect(results.length).toBeLessThanOrEqual(35);
+      // Unique ids — the merge should dedupe by place_id even across
+      // overlapping pages.
+      const ids = new Set(results.map((result) => result.id));
+      expect(ids.size).toBe(results.length);
+    }, 30000);
   });
 });

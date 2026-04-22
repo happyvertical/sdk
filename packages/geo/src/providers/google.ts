@@ -250,6 +250,12 @@ export class GoogleMapsProvider implements GeoProvider {
     }
 
     const limit = options.limit ?? this.maxResults;
+    if (!Number.isInteger(limit) || limit < 1) {
+      throw new InvalidQueryError(
+        `limit ${limit} must be a positive integer`,
+        'google',
+      );
+    }
     const types =
       options.types && options.types.length > 0 ? options.types : [undefined];
 
@@ -271,40 +277,75 @@ export class GoogleMapsProvider implements GeoProvider {
     try {
       const merged = new Map<string, Location>();
       for (const type of types) {
-        const response = await this.client.placesNearby({
-          params: {
-            location: { lat: latitude, lng: longitude },
-            radius: radiusMeters,
-            ...(type ? { type } : {}),
-            ...(options.keyword ? { keyword: options.keyword } : {}),
-            ...(options.language ? { language: options.language as any } : {}),
-            key: this.apiKey,
-          },
-          timeout: this.timeout,
-        });
+        // Places Nearby returns up to 20 results per call and up to 60 total
+        // via `next_page_token`, with Google requiring a short activation
+        // delay after each token is issued. Keep paging per-type until we
+        // either satisfy the caller's `limit`, hit the 3-page ceiling, or
+        // run out of tokens.
+        let pageToken: string | undefined;
+        let pagesFetched = 0;
+        const maxPagesPerType = 3;
 
-        if (response.data.status === 'ZERO_RESULTS') continue;
-        if (response.data.status === 'REQUEST_DENIED') {
-          throw new AuthenticationError('google');
-        }
-        if (response.data.status === 'OVER_QUERY_LIMIT') {
-          throw new RateLimitError('google');
-        }
-        if (response.data.status !== 'OK') {
-          throw new GeoError(
-            `Google Places API error: ${response.data.status}`,
-            'API_ERROR',
-            'google',
-          );
-        }
+        while (pagesFetched < maxPagesPerType) {
+          const params = pageToken
+            ? { pagetoken: pageToken, key: this.apiKey }
+            : {
+                location: { lat: latitude, lng: longitude },
+                radius: radiusMeters,
+                ...(type ? { type } : {}),
+                ...(options.keyword ? { keyword: options.keyword } : {}),
+                ...(options.language
+                  ? { language: options.language as any }
+                  : {}),
+                key: this.apiKey,
+              };
 
-        for (const result of response.data.results) {
-          const location = this.mapGooglePoiToLocation(result);
-          if (!merged.has(location.id)) {
-            merged.set(location.id, location);
+          const response = await this.client.placesNearby({
+            params,
+            timeout: this.timeout,
+          });
+
+          if (response.data.status === 'ZERO_RESULTS') break;
+          if (response.data.status === 'REQUEST_DENIED') {
+            throw new AuthenticationError('google');
           }
+          if (response.data.status === 'OVER_QUERY_LIMIT') {
+            throw new RateLimitError('google');
+          }
+          if (response.data.status === 'INVALID_REQUEST' && pageToken) {
+            // Google returns INVALID_REQUEST if the page token is polled
+            // before it has activated (typically ≤2s). Back off and retry
+            // one more time rather than aborting the whole call.
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            continue;
+          }
+          if (response.data.status !== 'OK') {
+            throw new GeoError(
+              `Google Places API error: ${response.data.status}`,
+              'API_ERROR',
+              'google',
+            );
+          }
+
+          for (const result of response.data.results) {
+            const location = this.mapGooglePoiToLocation(result);
+            if (!merged.has(location.id)) {
+              merged.set(location.id, location);
+            }
+            if (merged.size >= limit) break;
+          }
+
+          pagesFetched += 1;
           if (merged.size >= limit) break;
+
+          pageToken = response.data.next_page_token;
+          if (!pageToken) break;
+          // `pagetoken` isn't activated instantly; Google's docs say to
+          // wait a short moment before using it. 2s is the commonly-cited
+          // activation window.
+          await new Promise((resolve) => setTimeout(resolve, 2000));
         }
+
         if (merged.size >= limit) break;
       }
 

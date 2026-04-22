@@ -250,5 +250,37 @@ describe.skipIf(SKIP_INTEGRATION)('OpenStreetMap Provider Integration', () => {
         InvalidQueryError,
       );
     });
+
+    it('should reject non-positive limits', async () => {
+      const adapter = await getGeoAdapter({
+        provider: 'openstreetmap',
+        rateLimitDelay: 1000,
+      });
+
+      await expect(
+        adapter.findPoisNear!(53.5461, -113.4938, 100, { limit: 0 }),
+      ).rejects.toThrow(InvalidQueryError);
+      await expect(
+        adapter.findPoisNear!(53.5461, -113.4938, 100, { limit: -5 }),
+      ).rejects.toThrow(InvalidQueryError);
+    });
+
+    it('should treat keyword metacharacters literally, not as regex', async () => {
+      // Keyword with characters that are regex-meaningful in Overpass ERE.
+      // Pre-fix this blew up the query; post-fix the escape helper treats
+      // them as literals and the query returns cleanly (0 or more results
+      // — we just assert it doesn't throw).
+      const adapter = await getGeoAdapter({
+        provider: 'openstreetmap',
+        rateLimitDelay: 1000,
+      });
+
+      await expect(
+        adapter.findPoisNear!(53.5461, -113.4938, 200, {
+          keyword: 'C++ [coffee] (bar).',
+          limit: 3,
+        }),
+      ).resolves.toBeDefined();
+    }, 30000);
   });
 });
