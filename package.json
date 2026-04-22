@@ -39,7 +39,7 @@
     "docs:site": "npm run --prefix docs start",
     "docs:site:build": "npm run --prefix docs build",
     "docs:site:dev": "npm run --prefix docs dev",
-    "validate-build": "node scripts/validate-build.js",
+    "validate-build": "node scripts/validate-build.js && node scripts/validate-workspace-consistency.js",
     "dev": "turbo run dev --parallel",
     "dev:shell": "docker compose -f .devcontainer/docker-compose.yml up -d && docker compose -f .devcontainer/docker-compose.yml exec app bash -c '/workspaces/sdk/.devcontainer/scripts/setup-claude-container.sh && exec bash'",
     "agent:sync": "node scripts/sync-agent-context.js",
