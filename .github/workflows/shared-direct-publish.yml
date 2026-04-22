@@ -62,7 +62,6 @@ on:
 permissions:
   contents: write
   packages: write
-  pull-requests: write
   id-token: write
 
 jobs:
@@ -179,24 +178,6 @@ jobs:
             fi
           }
 
-          RELEASE_SYNC_BRANCH="changeset-release/main"
-          RELEASE_SYNC_PR_TITLE="chore: version packages"
-
-          EXISTING_SYNC_PR=$(gh pr list \
-            --repo "$GITHUB_REPOSITORY" \
-            --state open \
-            --head "$RELEASE_SYNC_BRANCH" \
-            --json number \
-            --jq '.[0].number // empty')
-
-          if [ -n "$EXISTING_SYNC_PR" ]; then
-            echo "ℹ️  Release sync PR #$EXISTING_SYNC_PR is still open"
-            echo "Skipping direct publish until that PR merges."
-            echo "published=false" >> $GITHUB_OUTPUT
-            echo "reason=awaiting_release_sync_pr" >> $GITHUB_OUTPUT
-            exit 0
-          fi
-
           # Store current version before release
           BEFORE_VERSION=$(node -p "require('./package.json').version")
           echo "Version before release: $BEFORE_VERSION"
@@ -229,54 +210,15 @@ jobs:
             # Commit version changes
             git add .
             git commit -m "chore(release): v$AFTER_VERSION"
-            RELEASE_COMMIT_SHA=$(git rev-parse HEAD)
-
-            publish_release_artifacts "$AFTER_VERSION" "$BEFORE_VERSION"
-
-            if git push origin main; then
+            if git push origin HEAD:main; then
               echo "✅ Synced release commit to main"
             else
-              echo "⚠️  Direct push to protected main was rejected"
-              echo "Creating or updating a release sync PR instead..."
-
-              git push --force origin \
-                "$RELEASE_COMMIT_SHA:refs/heads/$RELEASE_SYNC_BRANCH"
-
-              SYNC_PR_BODY=$(printf '%s\n' \
-                "## Version Sync" \
-                "" \
-                "This PR syncs the already-published release commit for \`v$AFTER_VERSION\` back to \`main\`." \
-                "" \
-                "- Published packages: \`v$AFTER_VERSION\`" \
-                "- Release tag: \`v$AFTER_VERSION\`" \
-                "- Source workflow: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-                "" \
-                "Merge this PR to bring package versions and changelogs back onto \`main\`." \
-              )
-
-              EXISTING_SYNC_PR=$(gh pr list \
-                --repo "$GITHUB_REPOSITORY" \
-                --state open \
-                --head "$RELEASE_SYNC_BRANCH" \
-                --json number \
-                --jq '.[0].number // empty')
-
-              if [ -n "$EXISTING_SYNC_PR" ]; then
-                gh pr edit "$EXISTING_SYNC_PR" \
-                  --repo "$GITHUB_REPOSITORY" \
-                  --title "$RELEASE_SYNC_PR_TITLE" \
-                  --body "$SYNC_PR_BODY"
-                echo "✅ Updated release sync PR #$EXISTING_SYNC_PR"
-              else
-                gh pr create \
-                  --repo "$GITHUB_REPOSITORY" \
-                  --base main \
-                  --head "$RELEASE_SYNC_BRANCH" \
-                  --title "$RELEASE_SYNC_PR_TITLE" \
-                  --body "$SYNC_PR_BODY"
-                echo "✅ Created release sync PR from $RELEASE_SYNC_BRANCH"
-              fi
+              echo "::error::Failed to push the release commit directly to main."
+              echo "::error::Direct-on-main publishing requires the release bot to bypass the main ruleset."
+              exit 1
             fi
+
+            publish_release_artifacts "$AFTER_VERSION" "$BEFORE_VERSION"
 
             echo "published=true" >> $GITHUB_OUTPUT
             echo "version=$AFTER_VERSION" >> $GITHUB_OUTPUT

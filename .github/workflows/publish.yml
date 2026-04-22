@@ -5,8 +5,7 @@
 # when code is merged to the main branch, after tests and build pass.
 #
 # Uses the shared direct publish workflow from SDK to version and publish
-# packages. When protected-branch rules reject the final sync push to main,
-# the workflow falls back to a short-lived release sync PR.
+# packages directly from main.
 # =============================================================================
 
 name: Publish
@@ -41,7 +40,6 @@ on:
 permissions:
   contents: write
   packages: write
-  pull-requests: write
   id-token: write
   pages: write
 
