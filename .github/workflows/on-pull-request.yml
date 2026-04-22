@@ -3,16 +3,10 @@ name: Pull Request Validation
 on:
   pull_request:
     branches: [main]
-    types: [opened, reopened, synchronize, labeled, unlabeled]
 
-# Cancel superseded runs while keeping label-only reruns from interrupting
-# in-flight test runs for the same pull request.
+# Cancel superseded runs when new commits are pushed.
 concurrency:
-  group: >-
-    ${{ github.workflow }}-${{ github.event.pull_request.number }}-${{
-      (github.event.action == 'labeled' || github.event.action == 'unlabeled') &&
-      'labels' || 'code'
-    }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 permissions:
@@ -157,7 +151,6 @@ jobs:
   validate-commits:
     name: Validate Conventional Commits
     runs-on: arc-happyvertical
-    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
 
     steps:
       - name: Checkout PR branch
@@ -246,7 +239,6 @@ jobs:
   validate-workflows:
     name: Validate Workflow Files
     runs-on: arc-happyvertical
-    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
 
     steps:
       - name: Checkout PR branch
@@ -301,7 +293,6 @@ jobs:
   check-naming:
     name: Check for stale @have/ references
     runs-on: arc-happyvertical
-    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
 
     steps:
       - name: Checkout
@@ -335,7 +326,6 @@ jobs:
   doc-coverage:
     name: Check documentation coverage
     runs-on: arc-happyvertical
-    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
 
     steps:
       - name: Checkout
@@ -390,13 +380,11 @@ jobs:
 
   test:
     name: Validate Changes
-    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
     uses: ./.github/workflows/test.yml
 
   docs-build:
     name: Validate Documentation Build
     runs-on: arc-happyvertical
-    if: github.event.action != 'labeled' && github.event.action != 'unlabeled'
 
     steps:
       - name: Checkout PR branch
@@ -441,8 +429,6 @@ jobs:
     needs: [test]
     if: |
       github.actor == 'dependabot[bot]' &&
-      github.event.action != 'labeled' &&
-      github.event.action != 'unlabeled' &&
       needs.test.outputs.success == 'true'
     permissions:
       contents: write
