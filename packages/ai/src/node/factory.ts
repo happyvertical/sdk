@@ -84,23 +84,34 @@ export async function getAIAuto(
     adminPassword?: string;
   };
 
+  // Caller options always win over env: collapse alias pairs (adminUrl/adminBaseUrl
+  // and adminUser/adminUsername) on the caller side first, so that an env override
+  // for one alias cannot mask an explicit caller value supplied via the other.
+  const callerAdminUrl = adminConfig.adminUrl || adminConfig.adminBaseUrl;
+  const callerAdminUser = adminConfig.adminUser || adminConfig.adminUsername;
+
   // If type is specified (either from options or env vars), use getAI directly
   if (config.type) {
     if (config.type === 'bifrost') {
+      const resolvedAdminUrl =
+        callerAdminUrl ||
+        process.env.BIFROST_ADMIN_URL ||
+        process.env.BIFROST_ADMIN_BASE_URL;
+      const resolvedAdminUser =
+        callerAdminUser ||
+        process.env.BIFROST_ADMIN_USER ||
+        process.env.BIFROST_ADMIN_USERNAME;
+
       return getAIUniversal({
         ...config,
         baseUrl: config.baseUrl || process.env.BIFROST_BASE_URL,
         apiKey: config.apiKey || process.env.BIFROST_API_KEY,
         adminApiKey:
           adminConfig.adminApiKey || process.env.BIFROST_ADMIN_API_KEY,
-        adminBaseUrl:
-          adminConfig.adminBaseUrl || process.env.BIFROST_ADMIN_BASE_URL,
-        adminUrl: adminConfig.adminUrl || process.env.BIFROST_ADMIN_URL,
-        adminUser:
-          adminConfig.adminUser ||
-          adminConfig.adminUsername ||
-          process.env.BIFROST_ADMIN_USER ||
-          process.env.BIFROST_ADMIN_USERNAME,
+        adminBaseUrl: resolvedAdminUrl,
+        adminUrl: resolvedAdminUrl,
+        adminUser: resolvedAdminUser,
+        adminUsername: resolvedAdminUser,
         adminPassword:
           adminConfig.adminPassword || process.env.BIFROST_ADMIN_PASSWORD,
       } as BifrostOptions);

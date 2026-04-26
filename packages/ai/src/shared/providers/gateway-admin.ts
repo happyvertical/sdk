@@ -32,14 +32,24 @@ export function normalizeGatewayBaseUrl(baseUrl: string): string {
 
 /**
  * Derive the gateway root URL for admin APIs from an OpenAI-compatible base URL.
+ *
+ * Strips known inference path suffixes iteratively so that a baseUrl such as
+ * `http://host/openai/v1` collapses to the gateway root rather than to the
+ * partial `http://host/openai`.
  */
 export function deriveGatewayAdminBaseUrl(baseUrl: string): string {
   let normalized = normalizeGatewayBaseUrl(baseUrl);
+  const suffixes = ['/pydanticai/v1', '/openai', '/v1'];
+  let stripped = true;
 
-  for (const suffix of ['/pydanticai/v1', '/openai', '/v1']) {
-    if (normalized.endsWith(suffix)) {
-      normalized = normalized.slice(0, -suffix.length);
-      break;
+  while (stripped) {
+    stripped = false;
+    for (const suffix of suffixes) {
+      if (normalized.endsWith(suffix)) {
+        normalized = normalized.slice(0, -suffix.length);
+        stripped = true;
+        break;
+      }
     }
   }
 
@@ -192,8 +202,8 @@ class GatewayAdminTransport {
         headers: {
           Accept: 'application/json',
           ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-          ...this.createAuthHeaders(),
           ...this.headers,
+          ...this.createAuthHeaders(),
         },
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: controller?.signal,

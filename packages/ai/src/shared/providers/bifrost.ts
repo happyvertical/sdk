@@ -132,9 +132,9 @@ function ensureBifrostOptions(options: BifrostOptions): BifrostOptions {
     : `${baseUrl}/openai`;
   const headers = options.apiKey
     ? {
+        ...options.headers,
         'x-bf-vk': options.apiKey,
         'x-api-key': options.apiKey,
-        ...options.headers,
       }
     : options.headers;
 
@@ -218,9 +218,9 @@ export class BifrostProvider extends OpenAIProvider {
       headers:
         adminKey && !(adminUsername && normalized.adminPassword)
           ? {
+              ...normalized.adminHeaders,
               'x-bf-vk': adminKey,
               'x-api-key': adminKey,
-              ...normalized.adminHeaders,
             }
           : normalized.adminHeaders,
       timeout: normalized.timeout,

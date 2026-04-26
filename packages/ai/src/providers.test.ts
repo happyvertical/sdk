@@ -643,6 +643,25 @@ describe('Bifrost Provider', () => {
       global.fetch = originalFetch;
     }
   });
+
+  it('should derive the gateway admin root from a baseUrl with stacked inference suffixes', async () => {
+    const { deriveGatewayAdminBaseUrl } = await import(
+      './shared/providers/gateway-admin'
+    );
+
+    expect(
+      deriveGatewayAdminBaseUrl('https://gateway.example.com/openai'),
+    ).toBe('https://gateway.example.com');
+    expect(
+      deriveGatewayAdminBaseUrl('https://gateway.example.com/openai/v1'),
+    ).toBe('https://gateway.example.com');
+    expect(deriveGatewayAdminBaseUrl('https://gateway.example.com/v1')).toBe(
+      'https://gateway.example.com',
+    );
+    expect(
+      deriveGatewayAdminBaseUrl('https://gateway.example.com/pydanticai/v1'),
+    ).toBe('https://gateway.example.com');
+  });
 });
 
 describe('Ollama Provider', () => {
@@ -1903,6 +1922,31 @@ describe('Environment Variable Configuration', () => {
     );
     expect((client as any).options.adminUser).toBe('admin');
     expect((client as any).options.adminPassword).toBe('secret');
+  });
+
+  it('should let caller-provided adminBaseUrl win over BIFROST_ADMIN_URL env', async () => {
+    delete process.env.LITELLM_BASE_URL;
+    delete process.env.LITELLM_API_KEY;
+    process.env.BIFROST_BASE_URL = 'https://bifrost.example.com/openai';
+    process.env.BIFROST_API_KEY = 'runtime-key';
+    process.env.BIFROST_ADMIN_URL = 'https://env-admin.example.com';
+
+    const { getAIAuto } = await import('./node/factory');
+    const client = await getAIAuto({
+      type: 'bifrost',
+      adminBaseUrl: 'https://caller-admin.example.com',
+    });
+
+    expect(client).toBeInstanceOf(BifrostProvider);
+    expect((client as any).options.adminBaseUrl).toBe(
+      'https://caller-admin.example.com',
+    );
+    expect((client as any).options.adminUrl).toBe(
+      'https://caller-admin.example.com',
+    );
+    expect((client.admin as any).transport.baseUrl).toBe(
+      'https://caller-admin.example.com',
+    );
   });
 
   it('should auto-detect Ollama from OLLAMA_HOST', async () => {
