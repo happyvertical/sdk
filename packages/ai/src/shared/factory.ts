@@ -12,6 +12,7 @@ import type {
   AIProviderType,
   AnthropicOptions,
   BedrockOptions,
+  BifrostOptions,
   ClaudeCliOptions,
   GeminiOptions,
   GetAIOptions,
@@ -47,6 +48,17 @@ function isLiteLLMOptions(
   options: GetAIOptions | AIClientOptions,
 ): options is LiteLLMOptions {
   return options.type === 'litellm';
+}
+
+/**
+ * Checks if the options are for Bifrost provider
+ * @param options - The AI provider options to check
+ * @returns True if options are for Bifrost provider
+ */
+function isBifrostOptions(
+  options: GetAIOptions | AIClientOptions,
+): options is BifrostOptions {
+  return options.type === 'bifrost';
 }
 
 /**
@@ -187,6 +199,12 @@ export async function getAI(
       maxRetries: 'number',
       apiKey: 'string',
       baseUrl: 'string',
+      adminApiKey: 'string',
+      adminBaseUrl: 'string',
+      adminUrl: 'string',
+      adminUser: 'string',
+      adminUsername: 'string',
+      adminPassword: 'string',
     },
   }) as GetAIOptions;
 
@@ -208,6 +226,9 @@ export async function getAI(
   } else if (isLiteLLMOptions(options)) {
     const { LiteLLMProvider } = await import('./providers/litellm.js');
     client = new LiteLLMProvider(options);
+  } else if (isBifrostOptions(options)) {
+    const { BifrostProvider } = await import('./providers/bifrost.js');
+    client = new BifrostProvider(options);
   } else if (isOllamaOptions(options)) {
     const { OllamaProvider } = await import('./providers/ollama.js');
     client = new OllamaProvider(options);

@@ -7,6 +7,7 @@ import { ValidationError } from '@happyvertical/utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AnthropicProvider } from './shared/providers/anthropic';
 import { BedrockProvider } from './shared/providers/bedrock';
+import { BifrostProvider } from './shared/providers/bifrost';
 import { ClaudeCliProvider } from './shared/providers/claude-cli';
 import { GeminiProvider } from './shared/providers/gemini';
 import { HuggingFaceProvider } from './shared/providers/huggingface';
@@ -318,6 +319,329 @@ describe('LiteLLM Provider', () => {
     expect(generateImage).toHaveBeenCalledWith(
       expect.objectContaining({ model: 'gpt-image-1' }),
     );
+  });
+
+  it('should create projects and virtual keys through the LiteLLM admin API', async () => {
+    const originalFetch = global.fetch;
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const headers = new Headers(init?.headers);
+        const body = JSON.parse(String(init?.body || '{}'));
+
+        expect(headers.get('Authorization')).toBe('Bearer admin-key');
+
+        if (url === 'https://llm.example.com/team/new') {
+          expect(body).toEqual({
+            team_id: 'tenant-a-project-one',
+            team_alias: 'Project One',
+            models: ['gpt-4o'],
+            max_budget: 100,
+            budget_duration: '30d',
+            tpm_limit: 10000,
+            rpm_limit: 100,
+            metadata: {
+              tenant_id: 'tenant-a',
+              environment: 'test',
+            },
+          });
+
+          return jsonResponse({
+            team_id: 'tenant-a-project-one',
+            team_alias: 'Project One',
+          });
+        }
+
+        if (url === 'https://llm.example.com/key/generate') {
+          expect(body).toEqual({
+            key_alias: 'Project One Production',
+            team_id: 'tenant-a-project-one',
+            models: ['gpt-4o'],
+            duration: '30d',
+            max_budget: 25,
+            tpm_limit: 1000,
+            rpm_limit: 20,
+            metadata: {
+              tenant_id: 'tenant-a',
+              description: 'Production tenant key',
+            },
+          });
+
+          return jsonResponse({
+            key: 'sk-litellm-generated',
+            key_alias: 'Project One Production',
+            key_name: 'sk-...rated',
+            token_id: 'token-123',
+            team_id: 'tenant-a-project-one',
+            expires: '2026-05-25T00:00:00Z',
+          });
+        }
+
+        throw new Error(`Unexpected fetch call: ${url}`);
+      },
+    );
+
+    global.fetch = fetchMock as any;
+
+    try {
+      const provider = new LiteLLMProvider({
+        type: 'litellm',
+        apiKey: 'runtime-key',
+        adminApiKey: 'admin-key',
+        baseUrl: 'https://llm.example.com/v1',
+      });
+
+      const project = await provider.admin.createProject({
+        name: 'Project One',
+        tenantId: 'tenant-a',
+        models: ['gpt-4o'],
+        budget: { maxLimit: 100, resetDuration: '30d' },
+        rateLimit: { tokenMaxLimit: 10000, requestMaxLimit: 100 },
+        metadata: { environment: 'test' },
+      });
+
+      const key = await provider.admin.createVirtualKey({
+        name: 'Project One Production',
+        description: 'Production tenant key',
+        tenantId: 'tenant-a',
+        projectId: project.id,
+        models: ['gpt-4o'],
+        duration: '30d',
+        budget: { maxLimit: 25 },
+        rateLimit: { tpmLimit: 1000, rpmLimit: 20 },
+      });
+
+      expect(project).toEqual(
+        expect.objectContaining({
+          id: 'tenant-a-project-one',
+          name: 'Project One',
+          tenantId: 'tenant-a',
+          provider: 'litellm',
+        }),
+      );
+      expect(key).toEqual(
+        expect.objectContaining({
+          id: 'token-123',
+          key: 'sk-litellm-generated',
+          projectId: 'tenant-a-project-one',
+          tenantId: 'tenant-a',
+          provider: 'litellm',
+        }),
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
+});
+
+describe('Bifrost Provider', () => {
+  it('should initialize with valid options', () => {
+    const provider = new BifrostProvider({
+      type: 'bifrost',
+      apiKey: 'runtime-key',
+      adminApiKey: 'admin-key',
+      baseUrl: 'http://localhost:8080/openai',
+      defaultModel: 'openai/gpt-4o-mini',
+    });
+
+    expect(provider).toBeInstanceOf(BifrostProvider);
+    expect((provider as any).options.baseUrl).toBe(
+      'http://localhost:8080/openai',
+    );
+    expect((provider as any).options.defaultModel).toBe('openai/gpt-4o-mini');
+    expect(provider.admin).toBeDefined();
+  });
+
+  it('should normalize a bare Bifrost gateway root to the OpenAI-compatible endpoint', () => {
+    const provider = new BifrostProvider({
+      type: 'bifrost',
+      apiKey: 'runtime-key',
+      baseUrl: 'http://localhost:8080/',
+    });
+
+    expect((provider as any).options.baseUrl).toBe(
+      'http://localhost:8080/openai',
+    );
+    expect((provider as any).options.headers).toEqual({
+      'x-bf-vk': 'runtime-key',
+      'x-api-key': 'runtime-key',
+    });
+  });
+
+  it('should require a baseUrl', () => {
+    expect(
+      () =>
+        new BifrostProvider({
+          type: 'bifrost',
+          apiKey: 'test-key',
+        }),
+    ).toThrow(ValidationError);
+  });
+
+  it('should return Bifrost-specific capabilities', async () => {
+    const provider = new BifrostProvider({
+      type: 'bifrost',
+      apiKey: 'test-key',
+      baseUrl: 'http://localhost:8080/openai',
+    });
+
+    const capabilities = await provider.getCapabilities();
+
+    expect(capabilities).toEqual({
+      chat: true,
+      completion: true,
+      embeddings: true,
+      streaming: true,
+      functions: true,
+      vision: true,
+      fineTuning: false,
+      imageEmbeddings: true,
+      imageGeneration: true,
+      tts: false,
+      voiceCloning: false,
+      voiceDesign: false,
+      maxContextLength: 128000,
+      supportedOperations: [
+        'chat',
+        'completion',
+        'embedding',
+        'streaming',
+        'functions',
+        'vision',
+        'image_embedding',
+        'image_generation',
+      ],
+    });
+  });
+
+  it('should create projects and virtual keys through the Bifrost governance API', async () => {
+    const originalFetch = global.fetch;
+    const fetchMock = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        const headers = new Headers(init?.headers);
+        const body = JSON.parse(String(init?.body || '{}'));
+
+        expect(headers.get('Authorization')).toBe('Basic YWRtaW46c2VjcmV0');
+
+        if (url === 'http://bifrost.local/api/governance/teams') {
+          expect(body).toEqual({
+            name: 'Project One',
+            customer_id: 'tenant-a',
+            budget: {
+              max_limit: 100,
+              reset_duration: '1M',
+            },
+          });
+
+          return jsonResponse({
+            id: 'team-project-one',
+            name: 'Project One',
+            customer_id: 'tenant-a',
+            budget_id: 'budget-team-project-one',
+          });
+        }
+
+        if (url === 'http://bifrost.local/api/governance/virtual-keys') {
+          expect(body).toEqual({
+            name: 'Project One Production',
+            description: 'Production tenant key',
+            provider_configs: [
+              {
+                provider: 'openai',
+                weight: 1,
+                allowed_models: ['gpt-4o-mini'],
+              },
+            ],
+            team_id: 'team-project-one',
+            budget: {
+              max_limit: 25,
+              reset_duration: '1M',
+            },
+            rate_limit: {
+              token_max_limit: 1000,
+              token_reset_duration: '1h',
+              request_max_limit: 20,
+              request_reset_duration: '1m',
+            },
+            key_ids: ['*'],
+            is_active: true,
+          });
+
+          return jsonResponse({
+            virtual_key: {
+              id: 'vk-project-one',
+              name: 'Project One Production',
+              value: 'sk-bf-generated',
+              team_id: 'team-project-one',
+            },
+          });
+        }
+
+        throw new Error(`Unexpected fetch call: ${url}`);
+      },
+    );
+
+    global.fetch = fetchMock as any;
+
+    try {
+      const provider = new BifrostProvider({
+        type: 'bifrost',
+        apiKey: 'runtime-key',
+        adminUser: 'admin',
+        adminPassword: 'secret',
+        baseUrl: 'http://bifrost.local/openai',
+      });
+
+      const project = await provider.admin.createProject({
+        name: 'Project One',
+        tenantId: 'tenant-a',
+        budget: { maxLimit: 100, resetDuration: '1M' },
+      });
+
+      const key = await provider.admin.createVirtualKey({
+        name: 'Project One Production',
+        description: 'Production tenant key',
+        projectId: project.id,
+        providerConfigs: [
+          {
+            provider: 'openai',
+            weight: 1,
+            allowedModels: ['gpt-4o-mini'],
+          },
+        ],
+        budget: { maxLimit: 25, resetDuration: '1M' },
+        rateLimit: {
+          tokenMaxLimit: 1000,
+          tokenResetDuration: '1h',
+          requestMaxLimit: 20,
+          requestResetDuration: '1m',
+        },
+        keyIds: ['*'],
+      });
+
+      expect(project).toEqual(
+        expect.objectContaining({
+          id: 'team-project-one',
+          name: 'Project One',
+          tenantId: 'tenant-a',
+          budgetId: 'budget-team-project-one',
+          provider: 'bifrost',
+        }),
+      );
+      expect(key).toEqual(
+        expect.objectContaining({
+          id: 'vk-project-one',
+          key: 'sk-bf-generated',
+          projectId: 'team-project-one',
+          provider: 'bifrost',
+        }),
+      );
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      global.fetch = originalFetch;
+    }
   });
 });
 
@@ -1266,6 +1590,13 @@ describe('Provider Implementations', () => {
     });
     expect(litellmProvider).toBeInstanceOf(LiteLLMProvider);
 
+    const bifrostProvider = new BifrostProvider({
+      type: 'bifrost',
+      apiKey: 'test-token',
+      baseUrl: 'https://bifrost.example.com/openai',
+    });
+    expect(bifrostProvider).toBeInstanceOf(BifrostProvider);
+
     // HuggingFace should work
     const hfProvider = new HuggingFaceProvider({
       type: 'huggingface',
@@ -1315,6 +1646,14 @@ describe('Provider Implementations', () => {
           type: 'litellm',
           apiKey: 'test-token',
           baseUrl: 'https://llm.example.com/v1',
+        }),
+    ).not.toThrow();
+    expect(
+      () =>
+        new BifrostProvider({
+          type: 'bifrost',
+          apiKey: 'test-token',
+          baseUrl: 'https://bifrost.example.com/openai',
         }),
     ).not.toThrow();
     expect(
@@ -1460,6 +1799,22 @@ describe('Environment Variable Configuration', () => {
     expect((client as any).options.baseUrl).toBe('https://llm.example.com/v1');
   });
 
+  it('should load Bifrost provider from HAVE_AI_TYPE', async () => {
+    process.env.HAVE_AI_TYPE = 'bifrost';
+    process.env.HAVE_AI_API_KEY = 'runtime-key';
+    process.env.HAVE_AI_ADMIN_API_KEY = 'admin-key';
+    process.env.HAVE_AI_BASE_URL = 'https://bifrost.example.com/openai';
+
+    const { getAI } = await import('./shared/factory');
+    const client = await getAI({});
+
+    expect(client).toBeInstanceOf(BifrostProvider);
+    expect((client as any).options.baseUrl).toBe(
+      'https://bifrost.example.com/openai',
+    );
+    expect((client as any).options.adminApiKey).toBe('admin-key');
+  });
+
   it('should load Ollama provider from HAVE_AI_TYPE', async () => {
     process.env.HAVE_AI_TYPE = 'ollama';
     delete process.env.HAVE_AI_BASE_URL;
@@ -1510,6 +1865,9 @@ describe('Environment Variable Configuration', () => {
   });
 
   it('should auto-detect LiteLLM from LITELLM_BASE_URL', async () => {
+    delete process.env.BIFROST_BASE_URL;
+    delete process.env.BIFROST_API_KEY;
+    delete process.env.BIFROST_ADMIN_API_KEY;
     process.env.LITELLM_BASE_URL = 'https://llm.example.com/v1';
     process.env.LITELLM_API_KEY = 'litellm-key';
 
@@ -1521,9 +1879,38 @@ describe('Environment Variable Configuration', () => {
     expect((client as any).options.apiKey).toBe('litellm-key');
   });
 
+  it('should auto-detect Bifrost from BIFROST_BASE_URL', async () => {
+    delete process.env.LITELLM_BASE_URL;
+    delete process.env.LITELLM_API_KEY;
+    process.env.BIFROST_BASE_URL = 'https://bifrost.example.com/openai';
+    process.env.BIFROST_API_KEY = 'runtime-key';
+    process.env.BIFROST_ADMIN_API_KEY = 'admin-key';
+    process.env.BIFROST_ADMIN_URL = 'https://bifrost-admin.example.com';
+    process.env.BIFROST_ADMIN_USER = 'admin';
+    process.env.BIFROST_ADMIN_PASSWORD = 'secret';
+
+    const { getAIAuto } = await import('./node/factory');
+    const client = await getAIAuto({});
+
+    expect(client).toBeInstanceOf(BifrostProvider);
+    expect((client as any).options.baseUrl).toBe(
+      'https://bifrost.example.com/openai',
+    );
+    expect((client as any).options.apiKey).toBe('runtime-key');
+    expect((client as any).options.adminApiKey).toBe('admin-key');
+    expect((client as any).options.adminUrl).toBe(
+      'https://bifrost-admin.example.com',
+    );
+    expect((client as any).options.adminUser).toBe('admin');
+    expect((client as any).options.adminPassword).toBe('secret');
+  });
+
   it('should auto-detect Ollama from OLLAMA_HOST', async () => {
     delete process.env.LITELLM_BASE_URL;
     delete process.env.LITELLM_API_KEY;
+    delete process.env.BIFROST_BASE_URL;
+    delete process.env.BIFROST_API_KEY;
+    delete process.env.BIFROST_ADMIN_API_KEY;
     delete process.env.OPENAI_API_KEY;
     process.env.OLLAMA_HOST = 'https://ollama.example.com/api';
     process.env.OLLAMA_API_KEY = 'ollama-key';
@@ -1539,6 +1926,9 @@ describe('Environment Variable Configuration', () => {
   it('should not treat a custom baseUrl as LiteLLM when Ollama env signals are present', async () => {
     delete process.env.LITELLM_BASE_URL;
     delete process.env.LITELLM_API_KEY;
+    delete process.env.BIFROST_BASE_URL;
+    delete process.env.BIFROST_API_KEY;
+    delete process.env.BIFROST_ADMIN_API_KEY;
     delete process.env.OPENAI_API_KEY;
     process.env.OLLAMA_API_KEY = 'ollama-key';
 
@@ -1555,6 +1945,9 @@ describe('Environment Variable Configuration', () => {
   it('should auto-detect Anthropic from ANTHROPIC_API_KEY', async () => {
     delete process.env.LITELLM_BASE_URL;
     delete process.env.LITELLM_API_KEY;
+    delete process.env.BIFROST_BASE_URL;
+    delete process.env.BIFROST_API_KEY;
+    delete process.env.BIFROST_ADMIN_API_KEY;
     delete process.env.OLLAMA_HOST;
     delete process.env.OLLAMA_BASE_URL;
     delete process.env.OLLAMA_API_KEY;
@@ -1570,6 +1963,9 @@ describe('Environment Variable Configuration', () => {
   it('should auto-detect Gemini from GEMINI_API_KEY', async () => {
     delete process.env.LITELLM_BASE_URL;
     delete process.env.LITELLM_API_KEY;
+    delete process.env.BIFROST_BASE_URL;
+    delete process.env.BIFROST_API_KEY;
+    delete process.env.BIFROST_ADMIN_API_KEY;
     delete process.env.OLLAMA_HOST;
     delete process.env.OLLAMA_BASE_URL;
     delete process.env.OLLAMA_API_KEY;
