@@ -30,6 +30,41 @@ export interface AIClientOptions {
   baseUrl?: string;
 
   /**
+   * Admin API key for gateway providers that support provisioning.
+   */
+  adminApiKey?: string;
+
+  /**
+   * Admin base URL for gateway providers when it differs from `baseUrl`.
+   */
+  adminBaseUrl?: string;
+
+  /**
+   * Alias for adminBaseUrl.
+   */
+  adminUrl?: string;
+
+  /**
+   * Admin username for providers that use HTTP Basic auth.
+   */
+  adminUser?: string;
+
+  /**
+   * Admin username for providers that use HTTP Basic auth.
+   */
+  adminUsername?: string;
+
+  /**
+   * Admin password for providers that use HTTP Basic auth.
+   */
+  adminPassword?: string;
+
+  /**
+   * Custom admin headers for gateway providers.
+   */
+  adminHeaders?: Record<string, string>;
+
+  /**
    * Optional shared pacing / retry configuration for getAI().
    */
   rateLimit?: AIRateLimitOptions;

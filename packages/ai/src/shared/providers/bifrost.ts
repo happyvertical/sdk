@@ -5,6 +5,7 @@ import type {
   AIMessage,
   AIModel,
   AIResponse,
+  BifrostOptions,
   ChatOptions,
   EmbeddingOptions,
   EmbeddingResponse,
@@ -12,12 +13,15 @@ import type {
   ImageEmbeddingOptions,
   ImageGenerationOptions,
   ImageGenerationResponse,
-  LiteLLMOptions,
 } from '../types';
-import { LiteLLMAdmin, resolveGatewayAdminBaseUrl } from './gateway-admin';
+import {
+  BifrostAdmin,
+  normalizeGatewayBaseUrl,
+  resolveGatewayAdminBaseUrl,
+} from './gateway-admin';
 import { type OpenAICompatibleProfile, OpenAIProvider } from './openai';
 
-const LITELLM_CAPABILITIES: AICapabilities = {
+const BIFROST_CAPABILITIES: AICapabilities = {
   chat: true,
   completion: true,
   embeddings: true,
@@ -59,11 +63,11 @@ function isImageGenerationModel(modelId: string): boolean {
   );
 }
 
-function isFilteredLiteLLMModel(modelId: string): boolean {
+function isFilteredBifrostModel(modelId: string): boolean {
   return /moderation|transcrib|whisper|speech|tts|rerank/i.test(modelId);
 }
 
-function inferLiteLLMContextLength(modelId: string): number {
+function inferBifrostContextLength(modelId: string): number {
   if (isEmbeddingModel(modelId)) return 8192;
   if (/gemini-1\.5|gemini-2\.0|gemini-2\.5|gemini-3/i.test(modelId)) {
     return 1000000;
@@ -75,20 +79,20 @@ function inferLiteLLMContextLength(modelId: string): number {
   return 32768;
 }
 
-function inferLiteLLMFunctions(modelId: string): boolean {
+function inferBifrostFunctions(modelId: string): boolean {
   if (isEmbeddingModel(modelId)) return false;
   return /gpt|claude|gemini|command|llama|mistral|qwen|deepseek|o1|o3|o4/i.test(
     modelId,
   );
 }
 
-function inferLiteLLMVision(modelId: string): boolean {
+function inferBifrostVision(modelId: string): boolean {
   return /gpt-4o|gpt-4\.1|vision|claude-3|gemini|pixtral|llava|qwen.*vl|vl-/i.test(
     modelId,
   );
 }
 
-function inferLiteLLMCapabilities(modelId: string): string[] {
+function inferBifrostCapabilities(modelId: string): string[] {
   if (isImageGenerationModel(modelId)) {
     return ['image_generation'];
   }
@@ -103,49 +107,58 @@ function inferLiteLLMCapabilities(modelId: string): string[] {
 
   const capabilities = ['text', 'chat'];
 
-  if (inferLiteLLMFunctions(modelId)) {
+  if (inferBifrostFunctions(modelId)) {
     capabilities.push('functions');
   }
 
-  if (inferLiteLLMVision(modelId)) {
+  if (inferBifrostVision(modelId)) {
     capabilities.push('vision');
   }
 
   return capabilities;
 }
 
-function normalizeBaseUrl(baseUrl: string): string {
-  return baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-}
-
-function ensureLiteLLMOptions(options: LiteLLMOptions): LiteLLMOptions {
+function ensureBifrostOptions(options: BifrostOptions): BifrostOptions {
   if (!options.baseUrl?.trim()) {
-    throw new ValidationError('LiteLLM baseUrl is required', {
-      provider: 'litellm',
-      hint: 'Pass baseUrl like https://llm.happyvertical.com/v1 or set HAVE_AI_BASE_URL / LITELLM_BASE_URL',
+    throw new ValidationError('Bifrost baseUrl is required', {
+      provider: 'bifrost',
+      hint: 'Pass baseUrl like http://localhost:8080, http://localhost:8080/openai, or http://localhost:8080/v1 and optionally adminBaseUrl for governance endpoints',
     });
   }
 
+  const baseUrl = normalizeGatewayBaseUrl(options.baseUrl);
+  const inferenceBaseUrl = /\/(?:openai|v1|pydanticai\/v1)$/.test(baseUrl)
+    ? baseUrl
+    : `${baseUrl}/openai`;
+  const headers = options.apiKey
+    ? {
+        ...options.headers,
+        'x-bf-vk': options.apiKey,
+        'x-api-key': options.apiKey,
+      }
+    : options.headers;
+
   return {
     ...options,
-    baseUrl: normalizeBaseUrl(options.baseUrl.trim()),
+    baseUrl: inferenceBaseUrl,
+    headers,
   };
 }
 
-const LITELLM_PROFILE: OpenAICompatibleProfile = {
-  providerLabel: 'LiteLLM',
-  providerName: 'litellm',
-  defaultModel: 'gpt-4',
-  capabilities: LITELLM_CAPABILITIES,
-  describeModel: (modelId) => `LiteLLM model: ${modelId}`,
-  getContextLength: inferLiteLLMContextLength,
-  getModelCapabilities: inferLiteLLMCapabilities,
-  shouldIncludeModel: (modelId) => !isFilteredLiteLLMModel(modelId),
-  supportsFunctions: inferLiteLLMFunctions,
-  supportsVision: inferLiteLLMVision,
+const BIFROST_PROFILE: OpenAICompatibleProfile = {
+  providerLabel: 'Bifrost',
+  providerName: 'bifrost',
+  defaultModel: 'openai/gpt-4o-mini',
+  capabilities: BIFROST_CAPABILITIES,
+  describeModel: (modelId) => `Bifrost model: ${modelId}`,
+  getContextLength: inferBifrostContextLength,
+  getModelCapabilities: inferBifrostCapabilities,
+  shouldIncludeModel: (modelId) => !isFilteredBifrostModel(modelId),
+  supportsFunctions: inferBifrostFunctions,
+  supportsVision: inferBifrostVision,
 };
 
-type LiteLLMResolvedCapability =
+type BifrostResolvedCapability =
   | 'chat'
   | 'vision'
   | 'embeddings'
@@ -153,7 +166,7 @@ type LiteLLMResolvedCapability =
 
 function supportsCapability(
   model: AIModel,
-  capability: LiteLLMResolvedCapability,
+  capability: BifrostResolvedCapability,
 ): boolean {
   if (capability === 'vision') {
     return (
@@ -173,39 +186,50 @@ function supportsCapability(
 }
 
 /**
- * LiteLLM provider implementation.
+ * Bifrost provider implementation.
  *
- * LiteLLM exposes an OpenAI-compatible API surface, so this provider reuses the
- * OpenAI transport while customizing provider identity, model discovery, and
- * capability heuristics for gateway-backed deployments.
+ * Bifrost exposes OpenAI-compatible inference and governance admin APIs. This
+ * provider reuses the OpenAI-compatible transport for inference and exposes
+ * `admin` for tenant project and virtual-key provisioning.
  */
-export class LiteLLMProvider extends OpenAIProvider {
-  readonly admin: LiteLLMAdmin;
+export class BifrostProvider extends OpenAIProvider {
+  readonly admin: BifrostAdmin;
   private readonly configuredDefaultModel?: string;
   private readonly resolvedModelCache = new Map<
-    LiteLLMResolvedCapability,
+    BifrostResolvedCapability,
     Promise<string>
   >();
 
-  constructor(options: LiteLLMOptions) {
-    const normalized = ensureLiteLLMOptions(options);
-    super(normalized, LITELLM_PROFILE);
-    this.admin = new LiteLLMAdmin({
-      provider: 'litellm',
+  constructor(options: BifrostOptions) {
+    const normalized = ensureBifrostOptions(options);
+    super(normalized, BIFROST_PROFILE);
+    const adminKey = normalized.adminApiKey || normalized.apiKey;
+    const adminUsername = normalized.adminUser || normalized.adminUsername;
+    this.admin = new BifrostAdmin({
+      provider: 'bifrost',
       baseUrl: resolveGatewayAdminBaseUrl(
         normalized.baseUrl,
         normalized.adminUrl || normalized.adminBaseUrl,
-        'litellm',
+        'bifrost',
       ),
-      apiKey: normalized.adminApiKey || normalized.apiKey,
-      headers: normalized.adminHeaders,
+      apiKey: adminKey,
+      username: adminUsername,
+      password: normalized.adminPassword,
+      headers:
+        adminKey && !(adminUsername && normalized.adminPassword)
+          ? {
+              ...normalized.adminHeaders,
+              'x-bf-vk': adminKey,
+              'x-api-key': adminKey,
+            }
+          : normalized.adminHeaders,
       timeout: normalized.timeout,
     });
     this.configuredDefaultModel = normalized.defaultModel;
   }
 
   private async resolveModel(
-    capability: LiteLLMResolvedCapability,
+    capability: BifrostResolvedCapability,
     explicitModel?: string,
   ): Promise<string> {
     if (explicitModel) {
@@ -233,7 +257,7 @@ export class LiteLLMProvider extends OpenAIProvider {
   }
 
   private async selectModel(
-    capability: LiteLLMResolvedCapability,
+    capability: BifrostResolvedCapability,
   ): Promise<string> {
     const models = await super.getModels();
     const model = models.find((candidate) =>
@@ -242,11 +266,11 @@ export class LiteLLMProvider extends OpenAIProvider {
 
     if (!model) {
       throw new ValidationError(
-        `No ${capability} model is available from the LiteLLM gateway`,
+        `No ${capability} model is available from the Bifrost gateway`,
         {
-          provider: 'litellm',
+          provider: 'bifrost',
           capability,
-          hint: 'Pass defaultModel explicitly or ensure /models returns a compatible model for this key',
+          hint: 'Pass defaultModel explicitly or ensure the gateway returns a compatible model for this key',
         },
       );
     }

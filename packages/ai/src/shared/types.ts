@@ -14,6 +14,7 @@ export type GeminiThinkingLevel = 'minimal' | 'low' | 'medium' | 'high';
 export const AI_PROVIDER_TYPES = [
   'openai',
   'litellm',
+  'bifrost',
   'ollama',
   'gemini',
   'anthropic',
@@ -620,6 +621,346 @@ export interface AIModel {
 }
 
 /**
+ * Budget configuration for AI gateway admin operations.
+ *
+ * Providers translate this to their native field names:
+ * - Bifrost: `budget.max_limit` / `budget.reset_duration`
+ * - LiteLLM: `max_budget` / `budget_duration`
+ */
+export interface AIAdminBudget {
+  /**
+   * Maximum spend in USD.
+   */
+  maxLimit?: number;
+
+  /**
+   * Reset duration such as `1h`, `1d`, `30d`, or `1M`.
+   */
+  resetDuration?: string;
+
+  /**
+   * Bifrost only: reset at calendar boundaries for day/week/month/year periods.
+   */
+  calendarAligned?: boolean;
+}
+
+/**
+ * Rate-limit configuration for AI gateway admin operations.
+ */
+export interface AIAdminRateLimit {
+  /**
+   * Provider-agnostic token limit.
+   *
+   * Bifrost maps this to `token_max_limit`; LiteLLM maps it to `tpm_limit`.
+   */
+  tokenMaxLimit?: number;
+
+  /**
+   * Bifrost token reset duration such as `1h`.
+   */
+  tokenResetDuration?: string;
+
+  /**
+   * Provider-agnostic request limit.
+   *
+   * Bifrost maps this to `request_max_limit`; LiteLLM maps it to `rpm_limit`.
+   */
+  requestMaxLimit?: number;
+
+  /**
+   * Bifrost request reset duration such as `1m`.
+   */
+  requestResetDuration?: string;
+
+  /**
+   * LiteLLM tokens-per-minute limit. Overrides `tokenMaxLimit` for LiteLLM.
+   */
+  tpmLimit?: number;
+
+  /**
+   * LiteLLM requests-per-minute limit. Overrides `requestMaxLimit` for LiteLLM.
+   */
+  rpmLimit?: number;
+}
+
+/**
+ * Bifrost virtual-key routing configuration.
+ */
+export interface AIAdminProviderConfig {
+  /**
+   * Provider identifier such as `openai` or `anthropic`.
+   */
+  provider: string;
+
+  /**
+   * Routing weight for this provider.
+   */
+  weight?: number;
+
+  /**
+   * Models this virtual key may use for the provider.
+   */
+  allowedModels?: string[];
+
+  /**
+   * Bifrost provider key IDs that this virtual key may use.
+   */
+  keyIds?: string[];
+}
+
+/**
+ * Options for creating a gateway-scoped project.
+ *
+ * In Bifrost, projects are implemented as governance teams, optionally attached
+ * to a customer via `tenantId`. In LiteLLM, projects are implemented as teams.
+ */
+export interface CreateAIProjectOptions {
+  /**
+   * Stable project ID. LiteLLM requires one; if omitted, a slug is derived from
+   * the tenant and project name. Bifrost generates its own team ID.
+   */
+  id?: string;
+
+  /**
+   * Human-readable project name.
+   */
+  name: string;
+
+  /**
+   * Tenant/customer identifier to attach the project to where supported.
+   */
+  tenantId?: string;
+
+  /**
+   * Human-readable description. Stored in metadata for providers that support it.
+   */
+  description?: string;
+
+  /**
+   * Models the project may access.
+   */
+  models?: string[];
+
+  /**
+   * Shared project budget.
+   */
+  budget?: AIAdminBudget;
+
+  /**
+   * Shared project rate limits.
+   */
+  rateLimit?: AIAdminRateLimit;
+
+  /**
+   * Provider-specific metadata.
+   */
+  metadata?: Record<string, unknown>;
+
+  /**
+   * Whether the project should be blocked on creation where supported.
+   */
+  isBlocked?: boolean;
+
+  /**
+   * Provider-specific request body overrides.
+   */
+  raw?: Record<string, unknown>;
+}
+
+/**
+ * Gateway project descriptor returned by admin providers.
+ */
+export interface AIAdminProject {
+  /**
+   * Provider project ID.
+   */
+  id: string;
+
+  /**
+   * Human-readable project name.
+   */
+  name: string;
+
+  /**
+   * Tenant/customer identifier where available.
+   */
+  tenantId?: string;
+
+  /**
+   * Provider budget ID where available.
+   */
+  budgetId?: string;
+
+  /**
+   * Admin provider that created this project.
+   */
+  provider: string;
+
+  /**
+   * Raw provider response.
+   */
+  raw?: unknown;
+}
+
+/**
+ * Options for creating a gateway virtual key.
+ */
+export interface CreateAIVirtualKeyOptions {
+  /**
+   * Human-readable key name or alias.
+   */
+  name: string;
+
+  /**
+   * Human-readable key description.
+   */
+  description?: string;
+
+  /**
+   * Project/team ID to attach the key to.
+   */
+  projectId?: string;
+
+  /**
+   * Tenant/customer ID to attach the key to when no project is supplied, or to
+   * record in LiteLLM metadata.
+   */
+  tenantId?: string;
+
+  /**
+   * Optional end-user ID associated with the key.
+   */
+  userId?: string;
+
+  /**
+   * Models this key may access.
+   */
+  models?: string[];
+
+  /**
+   * Bifrost provider routing configuration.
+   */
+  providerConfigs?: AIAdminProviderConfig[];
+
+  /**
+   * Key-level budget.
+   */
+  budget?: AIAdminBudget;
+
+  /**
+   * Key-level rate limits.
+   */
+  rateLimit?: AIAdminRateLimit;
+
+  /**
+   * Key duration such as `30d`, `1h`, or `permanent` where supported.
+   */
+  duration?: string;
+
+  /**
+   * Provider-specific metadata.
+   */
+  metadata?: Record<string, unknown>;
+
+  /**
+   * Bifrost provider API key IDs this virtual key may use. Use `["*"]` to allow
+   * all configured provider keys.
+   */
+  keyIds?: string[];
+
+  /**
+   * Whether the key should be active on creation.
+   */
+  isActive?: boolean;
+
+  /**
+   * LiteLLM model aliases for this key.
+   */
+  aliases?: Record<string, string>;
+
+  /**
+   * LiteLLM key-specific config.
+   */
+  config?: Record<string, unknown>;
+
+  /**
+   * LiteLLM key-specific permissions.
+   */
+  permissions?: Record<string, unknown>;
+
+  /**
+   * Provider-specific request body overrides.
+   */
+  raw?: Record<string, unknown>;
+}
+
+/**
+ * Gateway virtual key descriptor returned by admin providers.
+ */
+export interface AIVirtualKey {
+  /**
+   * Provider key ID, when returned separately from the key value.
+   */
+  id?: string;
+
+  /**
+   * Human-readable key name or alias.
+   */
+  name?: string;
+
+  /**
+   * Newly generated key value. Some provider list/detail responses may only
+   * expose a masked value.
+   */
+  key?: string;
+
+  /**
+   * Masked key value or key name, when provided.
+   */
+  maskedKey?: string;
+
+  /**
+   * Attached project/team ID.
+   */
+  projectId?: string;
+
+  /**
+   * Attached tenant/customer ID.
+   */
+  tenantId?: string;
+
+  /**
+   * Expiration timestamp where supported.
+   */
+  expiresAt?: string;
+
+  /**
+   * Admin provider that created this key.
+   */
+  provider: string;
+
+  /**
+   * Raw provider response.
+   */
+  raw?: unknown;
+}
+
+/**
+ * Admin operations exposed by gateway providers that support provisioning.
+ */
+export interface AIAdminInterface {
+  /**
+   * Create a project/team for a tenant.
+   */
+  createProject(options: CreateAIProjectOptions): Promise<AIAdminProject>;
+
+  /**
+   * Create a virtual key, optionally attached to a project or tenant.
+   */
+  createVirtualKey(options: CreateAIVirtualKeyOptions): Promise<AIVirtualKey>;
+}
+
+/**
  * AI provider capabilities
  */
 export interface AICapabilities {
@@ -821,6 +1162,11 @@ export interface EmbeddingResponse {
  * Core AI interface that all providers must implement
  */
 export interface AIInterface {
+  /**
+   * Optional admin surface for gateway providers that support provisioning.
+   */
+  admin?: AIAdminInterface;
+
   /**
    * Generate a chat completion from a sequence of messages.
    *
@@ -1254,6 +1600,51 @@ export interface LiteLLMOptions extends BaseAIOptions {
   apiKey?: string;
   baseUrl?: string;
   organization?: string;
+  adminApiKey?: string;
+  adminBaseUrl?: string;
+  adminUrl?: string;
+  adminHeaders?: Record<string, string>;
+}
+
+/**
+ * Bifrost provider options.
+ *
+ * Bifrost exposes OpenAI-compatible inference through endpoints such as
+ * `/openai` and `/v1`, plus governance admin endpoints at `/api/governance/*`.
+ */
+export interface BifrostOptions extends BaseAIOptions {
+  type: 'bifrost';
+  apiKey?: string;
+  baseUrl?: string;
+  organization?: string;
+  /**
+   * Optional virtual key for admin routes. Bifrost OSS admin APIs typically use
+   * username/password Basic auth instead; use `adminUser` / `adminPassword`
+   * when governance auth is enabled without enterprise bearer-token support.
+   */
+  adminApiKey?: string;
+  /**
+   * Admin API root. Alias: `adminUrl`.
+   */
+  adminBaseUrl?: string;
+  /**
+   * Admin API root. Kept as a friendly alias for env vars such as
+   * `BIFROST_ADMIN_URL`.
+   */
+  adminUrl?: string;
+  /**
+   * Bifrost admin username for HTTP Basic auth.
+   */
+  adminUser?: string;
+  /**
+   * Bifrost admin username for HTTP Basic auth.
+   */
+  adminUsername?: string;
+  /**
+   * Bifrost admin password for HTTP Basic auth.
+   */
+  adminPassword?: string;
+  adminHeaders?: Record<string, string>;
 }
 
 /**
@@ -1389,6 +1780,7 @@ export interface Qwen3TTSOptions extends BaseAIOptions {
 export type GetAIOptions =
   | OpenAIOptions
   | LiteLLMOptions
+  | BifrostOptions
   | OllamaOptions
   | GeminiOptions
   | AnthropicOptions

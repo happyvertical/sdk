@@ -2,7 +2,7 @@
 
 <!-- BEGIN AGENT:GENERATED -->
 ## Purpose
-Standardized AI interface supporting OpenAI, LiteLLM, Ollama, Anthropic, Gemini, Bedrock, Hugging Face, Claude CLI, and Qwen3-TTS
+Standardized AI interface supporting OpenAI, LiteLLM, Bifrost, Ollama, Anthropic, Gemini, Bedrock, Hugging Face, Claude CLI, and Qwen3-TTS
 
 ## Package Map
 - Package: `@happyvertical/ai`
@@ -25,7 +25,7 @@ pnpm --filter @happyvertical/ai clean
 - If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands.
 
 ## Ecosystem Relationships
-- Provides: Standardized AI interface supporting OpenAI, LiteLLM, Ollama, Anthropic, Gemini, Bedrock, Hugging Face, Claude CLI, and Qwen3-TTS
+- Provides: Standardized AI interface supporting OpenAI, LiteLLM, Bifrost, Ollama, Anthropic, Gemini, Bedrock, Hugging Face, Claude CLI, and Qwen3-TTS
 - Implements: none
 - Requires: @happyvertical/utils, @anthropic-ai/sdk, @aws-sdk/client-bedrock-runtime, @google/genai, openai
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)

@@ -1,6 +1,6 @@
 # @happyvertical/ai
 
-Unified interface for AI model interactions across multiple providers. Supports OpenAI, LiteLLM, Ollama, Anthropic Claude, Google Gemini, AWS Bedrock, Hugging Face, Claude CLI, and Qwen3-TTS with a consistent API for chat, completions, embeddings, streaming, function calling, image operations, and text-to-speech.
+Unified interface for AI model interactions across multiple providers. Supports OpenAI, LiteLLM, Bifrost, Ollama, Anthropic Claude, Google Gemini, AWS Bedrock, Hugging Face, Claude CLI, and Qwen3-TTS with a consistent API for chat, completions, embeddings, streaming, function calling, image operations, text-to-speech, and gateway admin provisioning where available.
 
 ## Installation
 
@@ -53,6 +53,17 @@ const litellm = await getAI({
   defaultModel: process.env.LITELLM_MODEL, // Use a model id returned by /v1/models
 });
 
+// Bifrost (OpenAI-compatible gateway with governance admin APIs)
+const bifrost = await getAI({
+  type: 'bifrost',
+  apiKey: process.env.BIFROST_API_KEY!,
+  adminUser: process.env.BIFROST_ADMIN_USER,
+  adminPassword: process.env.BIFROST_ADMIN_PASSWORD,
+  adminUrl: process.env.BIFROST_ADMIN_URL,
+  baseUrl: process.env.BIFROST_BASE_URL || 'http://localhost:8080',
+  defaultModel: process.env.BIFROST_MODEL,
+});
+
 // Ollama (local by default)
 const ollama = await getAI({
   type: 'ollama',
@@ -89,6 +100,51 @@ const cli = await getAI({ type: 'claude-cli', defaultModel: 'sonnet' });
 // Qwen3-TTS (text-to-speech only)
 const tts = await getAI({ type: 'qwen3-tts', endpoint: 'http://localhost:8880' });
 ```
+
+## Gateway Admin
+
+Gateway providers that support provisioning expose `ai.admin`.
+
+```typescript
+const ai = await getAI({
+  type: 'bifrost',
+  apiKey: process.env.BIFROST_API_KEY!,
+  adminUrl: process.env.BIFROST_ADMIN_URL || 'http://localhost:8080',
+  adminUser: process.env.BIFROST_ADMIN_USER!,
+  adminPassword: process.env.BIFROST_ADMIN_PASSWORD!,
+  baseUrl: 'http://localhost:8080',
+});
+
+const project = await ai.admin!.createProject({
+  name: 'Tenant A Production',
+  tenantId: 'customer-tenant-a',
+  budget: { maxLimit: 100, resetDuration: '1M' },
+});
+
+const key = await ai.admin!.createVirtualKey({
+  name: 'Tenant A API Key',
+  projectId: project.id,
+  providerConfigs: [
+    {
+      provider: 'openai',
+      weight: 1,
+      allowedModels: ['gpt-4o-mini'],
+    },
+  ],
+  keyIds: ['*'],
+  budget: { maxLimit: 25, resetDuration: '1M' },
+  rateLimit: {
+    tokenMaxLimit: 10000,
+    tokenResetDuration: '1h',
+    requestMaxLimit: 100,
+    requestResetDuration: '1m',
+  },
+});
+
+console.log(key.key);
+```
+
+LiteLLM uses the same SDK surface, mapping projects to LiteLLM teams and virtual keys to `/key/generate`.
 
 ## Opt-In Rate-Limit Pacing
 

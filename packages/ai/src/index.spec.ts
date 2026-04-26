@@ -3,6 +3,7 @@ import { AIClient } from './shared/client';
 import type {
   AnthropicOptions,
   BedrockOptions,
+  BifrostOptions,
   GeminiOptions,
   HuggingFaceOptions,
   OllamaOptions,
@@ -62,6 +63,17 @@ it('should support creating Ollama client via AIClient.create', async () => {
   expect(client.options.type).toBe('ollama');
 });
 
+it('should support creating Bifrost client via AIClient.create', async () => {
+  const options: BifrostOptions = {
+    type: 'bifrost',
+    apiKey: 'test-key',
+    baseUrl: 'https://bifrost.example.com/openai',
+  };
+  const client = await AIClient.create(options);
+  expect(client).toBeDefined();
+  expect(client.options.type).toBe('bifrost');
+});
+
 it('should throw helpful error for unsupported provider type', async () => {
   await expect(
     // @ts-expect-error - Testing invalid provider type
@@ -85,6 +97,7 @@ it('should list all supported providers in error message', async () => {
     const err = error as { context: { supportedTypes: string[] } };
     expect(err.context.supportedTypes).toContain('openai');
     expect(err.context.supportedTypes).toContain('litellm');
+    expect(err.context.supportedTypes).toContain('bifrost');
     expect(err.context.supportedTypes).toContain('ollama');
     expect(err.context.supportedTypes).toContain('anthropic');
     expect(err.context.supportedTypes).toContain('gemini');

@@ -11,6 +11,7 @@ import type {
   AIProviderType,
   AnthropicOptions,
   BedrockOptions,
+  BifrostOptions,
   GeminiOptions,
   GetAIOptions,
   HuggingFaceOptions,
@@ -32,7 +33,8 @@ export { getAI } from '../shared/factory';
  * Supports both HAVE_AI_* environment variables and provider-specific variables:
  * - HAVE_AI_PROVIDER / HAVE_AI_TYPE → provider type
  * - HAVE_AI_API_KEY → fallback API key
- * - LITELLM_BASE_URL / LITELLM_API_KEY → LiteLLM-specific gateway config
+ * - LITELLM_BASE_URL / LITELLM_API_KEY / LITELLM_ADMIN_API_KEY → LiteLLM-specific gateway config
+ * - BIFROST_BASE_URL / BIFROST_API_KEY / BIFROST_ADMIN_URL / BIFROST_ADMIN_USER / BIFROST_ADMIN_PASSWORD → Bifrost gateway config
  * - OLLAMA_HOST / OLLAMA_BASE_URL / OLLAMA_API_KEY → Ollama host/auth config
  * - OPENAI_API_KEY → OpenAI-specific key
  * - ANTHROPIC_API_KEY → Anthropic-specific key
@@ -59,6 +61,12 @@ export async function getAIAuto(
       maxRetries: 'number',
       apiKey: 'string',
       baseUrl: 'string',
+      adminApiKey: 'string',
+      adminBaseUrl: 'string',
+      adminUrl: 'string',
+      adminUser: 'string',
+      adminUsername: 'string',
+      adminPassword: 'string',
     },
   }) as GetAIOptions;
 
@@ -67,8 +75,48 @@ export async function getAIAuto(
     (config as any).type = (config as any).provider;
   }
 
+  const adminConfig = config as {
+    adminApiKey?: string;
+    adminBaseUrl?: string;
+    adminUrl?: string;
+    adminUser?: string;
+    adminUsername?: string;
+    adminPassword?: string;
+  };
+
+  // Caller options always win over env: collapse alias pairs (adminUrl/adminBaseUrl
+  // and adminUser/adminUsername) on the caller side first, so that an env override
+  // for one alias cannot mask an explicit caller value supplied via the other.
+  const callerAdminUrl = adminConfig.adminUrl || adminConfig.adminBaseUrl;
+  const callerAdminUser = adminConfig.adminUser || adminConfig.adminUsername;
+
   // If type is specified (either from options or env vars), use getAI directly
   if (config.type) {
+    if (config.type === 'bifrost') {
+      const resolvedAdminUrl =
+        callerAdminUrl ||
+        process.env.BIFROST_ADMIN_URL ||
+        process.env.BIFROST_ADMIN_BASE_URL;
+      const resolvedAdminUser =
+        callerAdminUser ||
+        process.env.BIFROST_ADMIN_USER ||
+        process.env.BIFROST_ADMIN_USERNAME;
+
+      return getAIUniversal({
+        ...config,
+        baseUrl: config.baseUrl || process.env.BIFROST_BASE_URL,
+        apiKey: config.apiKey || process.env.BIFROST_API_KEY,
+        adminApiKey:
+          adminConfig.adminApiKey || process.env.BIFROST_ADMIN_API_KEY,
+        adminBaseUrl: resolvedAdminUrl,
+        adminUrl: resolvedAdminUrl,
+        adminUser: resolvedAdminUser,
+        adminUsername: resolvedAdminUser,
+        adminPassword:
+          adminConfig.adminPassword || process.env.BIFROST_ADMIN_PASSWORD,
+      } as BifrostOptions);
+    }
+
     return getAIUniversal(config);
   }
 
@@ -85,6 +133,27 @@ export async function getAIAuto(
   const hasLiteLLMSignal = Boolean(
     process.env.LITELLM_BASE_URL || process.env.LITELLM_API_KEY,
   );
+  const hasBifrostSignal = Boolean(process.env.BIFROST_BASE_URL);
+
+  if (hasBifrostSignal && !config.type) {
+    return getAIUniversal({
+      ...config,
+      type: 'bifrost',
+      baseUrl: config.baseUrl || process.env.BIFROST_BASE_URL,
+      apiKey: config.apiKey || process.env.BIFROST_API_KEY,
+      adminApiKey: adminConfig.adminApiKey || process.env.BIFROST_ADMIN_API_KEY,
+      adminBaseUrl:
+        adminConfig.adminBaseUrl || process.env.BIFROST_ADMIN_BASE_URL,
+      adminUrl: adminConfig.adminUrl || process.env.BIFROST_ADMIN_URL,
+      adminUser:
+        adminConfig.adminUser ||
+        adminConfig.adminUsername ||
+        process.env.BIFROST_ADMIN_USER ||
+        process.env.BIFROST_ADMIN_USERNAME,
+      adminPassword:
+        adminConfig.adminPassword || process.env.BIFROST_ADMIN_PASSWORD,
+    } as BifrostOptions);
+  }
 
   if (hasLiteLLMSignal && !config.type) {
     return getAIUniversal({
@@ -92,6 +161,10 @@ export async function getAIAuto(
       type: 'litellm',
       baseUrl: config.baseUrl || process.env.LITELLM_BASE_URL,
       apiKey: config.apiKey || process.env.LITELLM_API_KEY,
+      adminApiKey: adminConfig.adminApiKey || process.env.LITELLM_ADMIN_API_KEY,
+      adminBaseUrl:
+        adminConfig.adminBaseUrl || process.env.LITELLM_ADMIN_BASE_URL,
+      adminUrl: adminConfig.adminUrl || process.env.LITELLM_ADMIN_URL,
     } as LiteLLMOptions);
   }
 
