@@ -1,5 +1,17 @@
 # @happyvertical/utils
 
+## 0.71.33
+
+### Patch Changes
+
+- ### Features
+
+  - add gateway admin provisioning (ai)
+
+  ### Bug Fixes
+
+  - resolve gateway admin precedence and harden URL/header handling (ai)
+
 ## 0.71.32
 
 ### Patch Changes
