@@ -81,6 +81,7 @@ export type {
   KeyEvent,
   KeyEventOptions,
   ListPropertiesOptions,
+  MatomoOptions,
   MeasurementUnit,
   Metric,
   MetricMetadata,

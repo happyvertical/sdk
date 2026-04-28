@@ -85,9 +85,36 @@ export interface PlausibleOptions extends BaseAnalyticsOptions {
 }
 
 /**
+ * Matomo Analytics provider options
+ *
+ * Matomo's Reporting API authenticates via per-user `token_auth` values; admin
+ * provisioning operations require a token belonging to a super-user.
+ */
+export interface MatomoOptions extends BaseAnalyticsOptions {
+  type: 'matomo';
+  /**
+   * Matomo base URL (e.g. `https://matomo.example.com`).
+   *
+   * Trailing slashes and explicit `/index.php` suffixes are normalized.
+   */
+  baseUrl: string;
+  /**
+   * `token_auth` for the calling user. Required for all reporting calls.
+   *
+   * For admin provisioning (createSite/createUser/etc.) this token must
+   * belong to a Matomo super-user.
+   */
+  tokenAuth: string;
+  /**
+   * Default site ID (`idSite`) for operations that don't specify one.
+   */
+  defaultSiteId?: string;
+}
+
+/**
  * Union type for all provider options
  */
-export type GetAnalyticsOptions = GA4Options | PlausibleOptions;
+export type GetAnalyticsOptions = GA4Options | PlausibleOptions | MatomoOptions;
 
 // =============================================================================
 // Property Types
