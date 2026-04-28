@@ -137,6 +137,18 @@ export class MatomoProvider implements AnalyticsInterface {
   // Client-side snippet
   // ---------------------------------------------------------------------------
 
+  /**
+   * Generate a Matomo `_paq` tracking snippet.
+   *
+   * Note on `SnippetOptions.anonymizeIp`: Matomo handles IP anonymization
+   * **server-side** via the PrivacyManager plugin (Matomo admin → Privacy →
+   * Anonymize visitors' IP addresses). The JS tracker has no equivalent
+   * client-side directive — `setDoNotTrack` respects the browser's DNT
+   * signal but does not anonymize IPs, so we deliberately do not emit it
+   * here. The flag is preserved on the returned `config` object as a
+   * caller-visible signal, but its enforcement is the operator's
+   * responsibility on the Matomo install.
+   */
   generateTrackingSnippet(
     propertyId: string,
     options: SnippetOptions = {},
@@ -146,9 +158,6 @@ export class MatomoProvider implements AnalyticsInterface {
     const sendPageView = options.sendPageView ?? true;
 
     const lines: string[] = ['var _paq = window._paq = window._paq || [];'];
-    if (options.anonymizeIp) {
-      lines.push("_paq.push(['setDoNotTrack', true]);");
-    }
     if (sendPageView) {
       lines.push("_paq.push(['trackPageView']);");
     }
