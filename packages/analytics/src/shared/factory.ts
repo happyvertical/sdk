@@ -8,6 +8,7 @@ import type {
   AnalyticsInterface,
   GA4Options,
   GetAnalyticsOptions,
+  MatomoOptions,
   PlausibleOptions,
 } from './types.js';
 
@@ -28,17 +29,27 @@ function isPlausibleOptions(
 }
 
 /**
+ * Type guard for Matomo options
+ */
+function isMatomoOptions(
+  options: GetAnalyticsOptions,
+): options is MatomoOptions {
+  return options.type === 'matomo';
+}
+
+/**
  * Creates an analytics provider instance based on the provided options.
  *
  * Supports environment variable configuration using the pattern:
- * - HAVE_ANALYTICS_TYPE → provider type ('ga4' | 'plausible')
+ * - HAVE_ANALYTICS_TYPE → provider type ('ga4' | 'plausible' | 'matomo')
  * - HAVE_ANALYTICS_SERVICE_ACCOUNT_KEY → path to service account JSON or JSON string
  * - HAVE_ANALYTICS_MEASUREMENT_ID → GA4 measurement ID (G-XXXXXXX)
  * - HAVE_ANALYTICS_API_SECRET → GA4 API secret for Measurement Protocol
  * - HAVE_ANALYTICS_DEFAULT_PROPERTY_ID → default property ID
  * - HAVE_ANALYTICS_API_KEY → Plausible API key
- * - HAVE_ANALYTICS_BASE_URL → Plausible base URL (for self-hosted)
- * - HAVE_ANALYTICS_DEFAULT_SITE_ID → Plausible default site ID
+ * - HAVE_ANALYTICS_BASE_URL → Plausible / Matomo base URL (for self-hosted)
+ * - HAVE_ANALYTICS_DEFAULT_SITE_ID → Plausible / Matomo default site ID
+ * - HAVE_ANALYTICS_TOKEN_AUTH → Matomo per-user token_auth
  * - HAVE_ANALYTICS_TIMEOUT → request timeout in milliseconds
  * - HAVE_ANALYTICS_MAX_RETRIES → maximum retry attempts
  * - HAVE_ANALYTICS_CACHE_TTL → cache TTL in milliseconds
@@ -88,6 +99,7 @@ export async function getAnalytics(
         apiKey: 'string',
         baseUrl: 'string',
         defaultSiteId: 'string',
+        tokenAuth: 'string',
         timeout: 'number',
         maxRetries: 'number',
         cacheTTL: 'number',
@@ -106,8 +118,13 @@ export async function getAnalytics(
     return new PlausibleProvider(options);
   }
 
+  if (isMatomoOptions(options)) {
+    const { MatomoProvider } = await import('./providers/matomo.js');
+    return new MatomoProvider(options);
+  }
+
   throw new ValidationError('Unsupported analytics provider type', {
-    supportedTypes: ['ga4', 'plausible'],
+    supportedTypes: ['ga4', 'plausible', 'matomo'],
     providedType: (options as { type?: string }).type,
   });
 }

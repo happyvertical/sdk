@@ -85,9 +85,36 @@ export interface PlausibleOptions extends BaseAnalyticsOptions {
 }
 
 /**
+ * Matomo Analytics provider options
+ *
+ * Matomo's Reporting API authenticates via per-user `token_auth` values; admin
+ * provisioning operations require a token belonging to a super-user.
+ */
+export interface MatomoOptions extends BaseAnalyticsOptions {
+  type: 'matomo';
+  /**
+   * Matomo base URL (e.g. `https://matomo.example.com`).
+   *
+   * Trailing slashes and explicit `/index.php` suffixes are normalized.
+   */
+  baseUrl: string;
+  /**
+   * `token_auth` for the calling user. Required for all reporting calls.
+   *
+   * For admin provisioning (createSite/createUser/etc.) this token must
+   * belong to a Matomo super-user.
+   */
+  tokenAuth: string;
+  /**
+   * Default site ID (`idSite`) for operations that don't specify one.
+   */
+  defaultSiteId?: string;
+}
+
+/**
  * Union type for all provider options
  */
-export type GetAnalyticsOptions = GA4Options | PlausibleOptions;
+export type GetAnalyticsOptions = GA4Options | PlausibleOptions | MatomoOptions;
 
 // =============================================================================
 // Property Types
@@ -978,6 +1005,313 @@ export interface AnalyticsInterface {
    * Get provider capabilities
    */
   getCapabilities(): Promise<AnalyticsCapabilities>;
+
+  /**
+   * Provisioning admin operations exposed by providers that support them.
+   *
+   * Optional. Providers that don't support tenant/site/user provisioning leave
+   * this undefined. Implementations should mirror the pattern used by
+   * `@happyvertical/ai`'s `AIAdminInterface`.
+   */
+  admin?: AnalyticsAdminInterface;
+}
+
+// =============================================================================
+// Admin Provisioning
+// =============================================================================
+
+/**
+ * Site descriptor returned by admin providers.
+ */
+export interface AnalyticsSite {
+  /**
+   * Provider site ID. For Matomo this is the numeric `idSite` as a string.
+   */
+  id: string;
+  /**
+   * Human-readable site name as stored by the provider.
+   */
+  name: string;
+  /**
+   * Primary URL or domain for the site.
+   */
+  url?: string;
+  /**
+   * Site timezone (e.g. `America/Edmonton`).
+   */
+  timezone?: string;
+  /**
+   * Currency code where applicable (e.g. `CAD`).
+   */
+  currency?: string;
+  /**
+   * Tenant identifier this site is associated with, when supplied at create time.
+   */
+  tenantId?: string;
+  /**
+   * Provider that owns this site descriptor.
+   */
+  provider: string;
+  /**
+   * Raw provider response.
+   */
+  raw?: unknown;
+}
+
+/**
+ * Options for creating a site.
+ */
+export interface CreateAnalyticsSiteOptions {
+  /**
+   * Human-readable site name.
+   */
+  name: string;
+  /**
+   * Site URL(s). At least one is required for Matomo.
+   */
+  urls: string[];
+  /**
+   * Site timezone (IANA, e.g. `America/Edmonton`). Defaults to provider default.
+   */
+  timezone?: string;
+  /**
+   * Currency code. Defaults to provider default.
+   */
+  currency?: string;
+  /**
+   * Optional tenant identifier to associate with this site.
+   */
+  tenantId?: string;
+  /**
+   * Provider-specific request body overrides.
+   */
+  raw?: Record<string, unknown>;
+}
+
+/**
+ * User access role assignable to an analytics site.
+ */
+export type AnalyticsAccessRole = 'noaccess' | 'view' | 'write' | 'admin';
+
+/**
+ * Analytics user descriptor returned by admin providers.
+ */
+export interface AnalyticsUser {
+  /**
+   * Login or username used to authenticate the user.
+   */
+  login: string;
+  /**
+   * Email address recorded for the user.
+   */
+  email?: string;
+  /**
+   * Tenant identifier this user is associated with, when supplied at create time.
+   */
+  tenantId?: string;
+  /**
+   * Whether the user has been granted super-user access.
+   */
+  isSuperUser?: boolean;
+  /**
+   * Provider that owns this user descriptor.
+   */
+  provider: string;
+  /**
+   * Raw provider response.
+   */
+  raw?: unknown;
+}
+
+/**
+ * Options for creating a user.
+ */
+export interface CreateAnalyticsUserOptions {
+  /**
+   * Login or username for the new user.
+   */
+  login: string;
+  /**
+   * Email address for the new user.
+   */
+  email: string;
+  /**
+   * Initial password. Implementations may generate one if omitted, but should
+   * surface it on the returned user. For Matomo the password is required.
+   */
+  password?: string;
+  /**
+   * Optional tenant identifier to associate with this user (stored in
+   * provider metadata where supported).
+   */
+  tenantId?: string;
+  /**
+   * Provider-specific request body overrides.
+   */
+  raw?: Record<string, unknown>;
+}
+
+/**
+ * Options for granting site access to a user.
+ */
+export interface SetUserAccessOptions {
+  /**
+   * Login or username to grant access to.
+   */
+  login: string;
+  /**
+   * Access level to grant.
+   */
+  access: AnalyticsAccessRole;
+  /**
+   * Site IDs the access applies to.
+   */
+  siteIds: string[];
+}
+
+/**
+ * Options for minting a per-user auth token scoped to a user's permissions.
+ */
+export interface MintUserTokenOptions {
+  /**
+   * Login or username to mint the token for.
+   */
+  login: string;
+  /**
+   * Description of the token (where supported).
+   */
+  description?: string;
+  /**
+   * The target user's password. Matomo's `createAppSpecificTokenAuth`
+   * confirms the *target* user's password (not the caller's) — this prevents
+   * a stolen super-user token from minting tokens for arbitrary other users.
+   *
+   * Other providers may not need this; it's optional in the shared interface
+   * but Matomo will throw without it.
+   */
+  passwordConfirmation?: string;
+}
+
+/**
+ * Auth token descriptor returned by admin providers.
+ */
+export interface AnalyticsUserToken {
+  /**
+   * The token value. Show-once for most providers; not stored in plaintext on
+   * the provider side.
+   */
+  token: string;
+  /**
+   * Login the token belongs to.
+   */
+  login: string;
+  /**
+   * Description recorded on the provider.
+   */
+  description?: string;
+  /**
+   * Provider that owns this token descriptor.
+   */
+  provider: string;
+  /**
+   * Raw provider response.
+   */
+  raw?: unknown;
+}
+
+/**
+ * Result of a provider health probe.
+ */
+export interface AnalyticsHealthResult {
+  /**
+   * Whether the probe was able to reach the provider AND complete an authed
+   * round-trip (if the probe is authed).
+   */
+  ok: boolean;
+  /**
+   * Provider version string, when available.
+   */
+  version?: string;
+  /**
+   * Failure reason when `ok` is false.
+   */
+  error?: string;
+}
+
+/**
+ * Admin operations exposed by analytics providers that support provisioning.
+ *
+ * Mirrors the shape of `@happyvertical/ai`'s `AIAdminInterface`. Methods that a
+ * particular provider can't support (e.g. `mintUserToken` against GA4) are left
+ * out of that provider's admin object — callers should feature-check via
+ * `typeof admin.mintUserToken === 'function'`.
+ */
+export interface AnalyticsAdminInterface {
+  // ---------------------------------------------------------------------------
+  // Site provisioning
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Create a site/property for a tenant.
+   */
+  createSite(options: CreateAnalyticsSiteOptions): Promise<AnalyticsSite>;
+
+  /**
+   * List all sites visible to the calling token.
+   */
+  listSites(): Promise<AnalyticsSite[]>;
+
+  /**
+   * Look up a site by id. Resolves to undefined when the site does not exist.
+   */
+  getSite(siteId: string): Promise<AnalyticsSite | undefined>;
+
+  /**
+   * Delete a site.
+   */
+  deleteSite(siteId: string): Promise<void>;
+
+  // ---------------------------------------------------------------------------
+  // User provisioning (optional capability)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Create a user.
+   */
+  createUser?(options: CreateAnalyticsUserOptions): Promise<AnalyticsUser>;
+
+  /**
+   * Look up a user by login. Resolves to undefined when the user does not exist.
+   */
+  getUser?(login: string): Promise<AnalyticsUser | undefined>;
+
+  /**
+   * Delete a user.
+   */
+  deleteUser?(login: string): Promise<void>;
+
+  /**
+   * Grant a user access to one or more sites at the given role.
+   */
+  setUserAccess?(options: SetUserAccessOptions): Promise<void>;
+
+  /**
+   * Mint a per-user auth token scoped to that user's existing permissions.
+   *
+   * The returned token is shown-once on most providers — implementations are
+   * expected to return the live value in the response and not refetch it.
+   */
+  mintUserToken?(options: MintUserTokenOptions): Promise<AnalyticsUserToken>;
+
+  // ---------------------------------------------------------------------------
+  // Health
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Probe provider reachability and auth. Always available — providers that
+   * lack a public health endpoint should make a cheap authed call instead.
+   */
+  health(): Promise<AnalyticsHealthResult>;
 }
 
 // =============================================================================
