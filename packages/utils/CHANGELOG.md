@@ -1,5 +1,19 @@
 # @happyvertical/utils
 
+## 0.71.34
+
+### Patch Changes
+
+- ### Features
+
+  - add Matomo provider with admin (sites, users, access, tokens) (analytics)
+  - add AnalyticsAdminInterface for tenant provisioning (analytics)
+
+  ### Bug Fixes
+
+  - address Copilot review feedback on Matomo provider (analytics)
+  - drop misleading setDoNotTrack mapping for Matomo anonymizeIp (analytics)
+
 ## 0.71.33
 
 ### Patch Changes
