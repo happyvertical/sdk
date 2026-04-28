@@ -201,6 +201,52 @@ describe('MatomoAdminTransport', () => {
       /HTTP 500|boom/,
     );
   });
+
+  it('ignores caller-supplied module/method/format/token_auth (reserved keys)', async () => {
+    const { calls } = setFetchMock(() => jsonResponse({ value: 'ok' }));
+    const transport = new MatomoAdminTransport({
+      baseUrl: 'https://m.example.com',
+      tokenAuth: 'real-tok',
+    });
+
+    await transport.call('API.getMatomoVersion', {
+      // All four of these MUST be ignored — a caller cannot redirect the
+      // dispatch or override the response format / auth token by passing
+      // them through `params`.
+      module: 'NotAPI',
+      method: 'BogusMethod',
+      format: 'xml',
+      token_auth: 'attacker-supplied',
+    });
+
+    const [call] = calls;
+    expect(call.body.get('module')).toBe('API');
+    expect(call.body.get('method')).toBe('API.getMatomoVersion');
+    expect(call.body.get('format')).toBe('json');
+    expect(call.body.get('token_auth')).toBe('real-tok');
+  });
+
+  it('throws MATOMO_INVALID_RESPONSE when a 2xx body is not JSON', async () => {
+    // Real-world scenario: a misconfigured reverse proxy or PHP fatal
+    // error returns an HTML error page with HTTP 200. Previously this
+    // branch silently coerced the HTML to `{ message: text }`, masking
+    // the failure. Now it raises a typed error.
+    setFetchMock(
+      () =>
+        new Response('<html><body>PHP Fatal error: ...</body></html>', {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        }),
+    );
+    const transport = new MatomoAdminTransport({
+      baseUrl: 'https://m.example.com',
+      tokenAuth: 'tok',
+    });
+
+    await expect(transport.call('API.getMatomoVersion', {})).rejects.toThrow(
+      /invalid JSON response/i,
+    );
+  });
 });
 
 describe('MatomoAdmin.createSite', () => {
@@ -431,6 +477,38 @@ describe('MatomoAdmin.user lifecycle', () => {
     await expect(admin.mintUserToken({ login: 'tenant-bma' })).rejects.toThrow(
       /passwordConfirmation/,
     );
+  });
+
+  it('mintUserToken returns the effective description even when defaulted', async () => {
+    const { calls } = setFetchMock(() => jsonResponse({ value: 'mint-token' }));
+    const admin = new MatomoAdmin({
+      baseUrl: 'https://m.example.com',
+      tokenAuth: 'tok',
+    });
+    const minted = await admin.mintUserToken({
+      login: 'tenant-bma',
+      passwordConfirmation: 'pw',
+    });
+    // The effective description must be defined and must match what was sent.
+    expect(minted.description).toBeDefined();
+    expect(calls[0].body.get('description')).toBe(minted.description);
+    // And it must not leak a project-specific brand into the upstream package.
+    expect(minted.description).not.toMatch(/anytown/i);
+  });
+
+  it('mintUserToken propagates a caller-supplied description', async () => {
+    const { calls } = setFetchMock(() => jsonResponse({ value: 'mint-token' }));
+    const admin = new MatomoAdmin({
+      baseUrl: 'https://m.example.com',
+      tokenAuth: 'tok',
+    });
+    const minted = await admin.mintUserToken({
+      login: 'tenant-bma',
+      passwordConfirmation: 'pw',
+      description: 'tenancy-doctor probe',
+    });
+    expect(minted.description).toBe('tenancy-doctor probe');
+    expect(calls[0].body.get('description')).toBe('tenancy-doctor probe');
   });
 
   it('getUser returns undefined for "doesn\'t exist" error', async () => {

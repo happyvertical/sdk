@@ -21,7 +21,6 @@
 
 import {
   type AnalyticsCapabilities,
-  AnalyticsError,
   type AnalyticsInterface,
   type ConfigOptions,
   type CreateDataStreamOptions,
@@ -40,6 +39,7 @@ import {
   NotSupportedError,
   type PageviewEvent,
   type Property,
+  PropertyNotFoundError,
   type RealtimeReportOptions,
   type ReportOptions,
   type ReportResult,
@@ -89,12 +89,7 @@ export class MatomoProvider implements AnalyticsInterface {
   async getProperty(propertyId: string): Promise<Property> {
     const site = await this.admin.getSite(propertyId);
     if (!site) {
-      throw new AnalyticsError(
-        `Matomo site not found: ${propertyId}`,
-        'PROPERTY_NOT_FOUND',
-        PROVIDER,
-        propertyId,
-      );
+      throw new PropertyNotFoundError(propertyId, PROVIDER);
     }
     return propertyFromSite(site);
   }

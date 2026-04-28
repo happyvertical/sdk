@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { PropertyNotFoundError } from '../types';
 import { MatomoProvider } from './matomo';
 
 function buildProvider() {
@@ -7,6 +8,14 @@ function buildProvider() {
     type: 'matomo',
     baseUrl: 'https://m.example.com',
     tokenAuth: 'tok',
+  });
+}
+
+function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+    ...init,
   });
 }
 
@@ -61,5 +70,32 @@ describe('MatomoProvider.generateConfig', () => {
       anonymizeIp: true,
       sendPageView: true,
     });
+  });
+});
+
+describe('MatomoProvider.getProperty', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('throws PropertyNotFoundError when the site does not exist', async () => {
+    // Matomo signals a missing site with `result=error, "...website was found
+    // in the request..."`. The provider must surface that as
+    // PropertyNotFoundError so callers can `instanceof`-check it the same way
+    // they do for GA4 and Plausible.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse({
+          result: 'error',
+          message:
+            "An unexpected website was found in the request: website id was set to '999' .",
+        }),
+      ),
+    );
+    await expect(buildProvider().getProperty('999')).rejects.toBeInstanceOf(
+      PropertyNotFoundError,
+    );
   });
 });

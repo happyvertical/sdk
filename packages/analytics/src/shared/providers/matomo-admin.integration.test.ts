@@ -13,7 +13,7 @@
  * for easy manual cleanup.
  */
 
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 
 import { MatomoAdmin } from './matomo-admin';
 
@@ -132,16 +132,32 @@ describeIf('MatomoAdmin (integration)', () => {
     expect(health.ok).toBe(true);
   });
 
-  it('teardown: deletes the test user and site', async () => {
+  // Cleanup runs as afterAll(best-effort) rather than a test case so that:
+  //   - it still runs when an earlier test fails or the runner bails early
+  //   - it doesn't fail the suite if cleanup itself fails (we'd rather see
+  //     the original test failure than a teardown error mask it)
+  // The unique-per-run naming (`analytics-admin-test-<timestamp>`) makes any
+  // residue easy to find and clear manually.
+  afterAll(async () => {
     if (createdUserLogin) {
-      await ensureAdmin().deleteUser(createdUserLogin);
-      const gone = await ensureAdmin().getUser(createdUserLogin);
-      expect(gone).toBeUndefined();
+      try {
+        await ensureAdmin().deleteUser(createdUserLogin);
+      } catch (error) {
+        console.warn(
+          `[matomo-integration] cleanup: failed to delete user ${createdUserLogin}:`,
+          error instanceof Error ? error.message : error,
+        );
+      }
     }
     if (createdSiteId) {
-      await ensureAdmin().deleteSite(createdSiteId);
-      const gone = await ensureAdmin().getSite(createdSiteId);
-      expect(gone).toBeUndefined();
+      try {
+        await ensureAdmin().deleteSite(createdSiteId);
+      } catch (error) {
+        console.warn(
+          `[matomo-integration] cleanup: failed to delete site ${createdSiteId}:`,
+          error instanceof Error ? error.message : error,
+        );
+      }
     }
   });
 });

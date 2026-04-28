@@ -133,8 +133,11 @@ export class MatomoAdminTransport {
    * Call a Matomo API method by name (e.g. `SitesManager.addSite`).
    *
    * `params` becomes the request body. Array values are encoded as
-   * `key[]=...&key[]=...`. Undefined values are dropped. `token_auth` and
-   * `format=json` are always appended last so callers cannot override them.
+   * `key[]=...&key[]=...`. Undefined and null values are dropped. The
+   * reserved keys `module`, `method`, `format`, and `token_auth` are
+   * controlled by the transport — any caller-supplied value for those
+   * keys is silently ignored so they cannot override the dispatch or
+   * the response format.
    */
   async call<T = unknown>(
     method: string,
@@ -144,11 +147,9 @@ export class MatomoAdminTransport {
     >,
   ): Promise<T> {
     const body = new URLSearchParams();
-    body.set('module', 'API');
-    body.set('method', method);
-    body.set('format', 'json');
 
     for (const [key, value] of Object.entries(params)) {
+      if (RESERVED_PARAM_KEYS.has(key)) continue;
       if (value === undefined || value === null) continue;
       if (Array.isArray(value)) {
         for (const item of value) {
@@ -159,6 +160,9 @@ export class MatomoAdminTransport {
       body.set(key, String(value));
     }
 
+    body.set('module', 'API');
+    body.set('method', method);
+    body.set('format', 'json');
     body.set('token_auth', this.tokenAuth);
 
     const controller =
@@ -182,11 +186,15 @@ export class MatomoAdminTransport {
       });
 
       const text = await response.text();
-      const parsed = text.length > 0 ? safeParseJson(text) : undefined;
 
       if (!response.ok) {
-        throw mapHttpError(response.status, parsed, text);
+        // Read the body purely to enrich the error message; parse failures
+        // here are not fatal because the HTTP error already explains the
+        // shape of what came back.
+        throw mapHttpError(response.status, tryParseJson(text), text);
       }
+
+      const parsed = text.length > 0 ? parseJsonOrThrow(text) : undefined;
 
       const errorMessage = readMatomoError(parsed);
       if (errorMessage) {
@@ -209,11 +217,45 @@ export class MatomoAdminTransport {
   }
 }
 
-function safeParseJson(text: string): unknown {
+const RESERVED_PARAM_KEYS = new Set([
+  'module',
+  'method',
+  'format',
+  'token_auth',
+]);
+
+/**
+ * Parse a 2xx response body as JSON. Matomo always answers `format=json`
+ * with JSON; if it doesn't, something has gone wrong upstream (usually a
+ * misconfigured reverse proxy or PHP fatal error returning HTML), and we
+ * surface that as a typed error rather than silently coercing.
+ */
+function parseJsonOrThrow(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    const preview = text.slice(0, 200);
+    throw new AnalyticsError(
+      `Matomo returned an invalid JSON response${
+        error instanceof Error ? `: ${error.message}` : ''
+      }${preview ? ` (response preview: ${preview})` : ''}`,
+      'MATOMO_INVALID_RESPONSE',
+      PROVIDER,
+    );
+  }
+}
+
+/**
+ * Best-effort parse for non-2xx response bodies — returns `undefined` on
+ * parse failure so the HTTP-error code path can still surface a useful
+ * status-based message.
+ */
+function tryParseJson(text: string): unknown {
+  if (!text) return undefined;
   try {
     return JSON.parse(text);
   } catch {
-    return { message: text };
+    return undefined;
   }
 }
 
@@ -477,12 +519,14 @@ export class MatomoAdmin implements AnalyticsAdminInterface {
         PROVIDER,
       );
     }
+    const effectiveDescription =
+      options.description ?? `analytics-token ${options.login}`;
     const response = await this.transport.call<unknown>(
       'UsersManager.createAppSpecificTokenAuth',
       {
         userLogin: options.login,
         passwordConfirmation: options.passwordConfirmation,
-        description: options.description ?? `anytown ${options.login}`,
+        description: effectiveDescription,
         expireHours: 0,
       },
     );
@@ -502,7 +546,7 @@ export class MatomoAdmin implements AnalyticsAdminInterface {
     return {
       token,
       login: options.login,
-      description: options.description,
+      description: effectiveDescription,
       provider: PROVIDER,
       raw: response,
     };
