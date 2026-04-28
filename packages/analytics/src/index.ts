@@ -37,16 +37,25 @@ export { getAnalytics } from './shared/factory.js';
 
 // All types
 export type {
+  // Admin / provisioning types
+  AnalyticsAccessRole,
+  AnalyticsAdminInterface,
   // Capabilities
   AnalyticsCapabilities,
+  AnalyticsHealthResult,
   // Interface
   AnalyticsInterface,
+  AnalyticsSite,
+  AnalyticsUser,
+  AnalyticsUserToken,
   // Base options
   BaseAnalyticsOptions,
   BetweenFilter,
   ConfigOptions,
   // Key event types
   CountingMethod,
+  CreateAnalyticsSiteOptions,
+  CreateAnalyticsUserOptions,
   CreateDataStreamOptions,
   CreatePropertyOptions,
   CustomDimension,
@@ -77,6 +86,7 @@ export type {
   MetricMetadata,
   // Metadata types
   MetricType,
+  MintUserTokenOptions,
   MinuteRange,
   NumericFilter,
   NumericOperation,
@@ -93,6 +103,7 @@ export type {
   ReportResult,
   ReportRow,
   ServiceAccountCredentials,
+  SetUserAccessOptions,
   SnippetOptions,
   StringFilter,
   StringMatchType,
