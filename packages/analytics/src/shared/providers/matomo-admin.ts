@@ -11,6 +11,7 @@
 
 import {
   type AnalyticsAccessRole,
+  type AnalyticsAccessVerificationResult,
   type AnalyticsAdminInterface,
   AnalyticsError,
   type AnalyticsHealthResult,
@@ -22,6 +23,8 @@ import {
   type CreateAnalyticsUserOptions,
   type MintUserTokenOptions,
   type SetUserAccessOptions,
+  type VerifyTokenSiteAccessOptions,
+  type VerifyUserSiteAccessOptions,
 } from '../types.js';
 
 const PROVIDER = 'matomo';
@@ -327,10 +330,17 @@ function userFromRow(row: JsonRecord): AnalyticsUser {
 }
 
 export class MatomoAdmin implements AnalyticsAdminInterface {
+  private readonly baseUrl: string;
+  private readonly timeout?: number;
   private readonly transport: MatomoAdminTransport;
 
   constructor(options: MatomoAdminTransportOptions) {
-    this.transport = new MatomoAdminTransport(options);
+    this.baseUrl = normalizeMatomoBaseUrl(options.baseUrl);
+    this.timeout = options.timeout;
+    this.transport = new MatomoAdminTransport({
+      ...options,
+      baseUrl: this.baseUrl,
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -506,6 +516,93 @@ export class MatomoAdmin implements AnalyticsAdminInterface {
     });
   }
 
+  async verifyUserSiteAccess(
+    options: VerifyUserSiteAccessOptions,
+  ): Promise<AnalyticsAccessVerificationResult> {
+    const requiredAccess = options.minimumAccess ?? 'view';
+    if (!isAccessRole(requiredAccess)) {
+      throw new AnalyticsError(
+        `Invalid Matomo access role: ${requiredAccess}`,
+        'MATOMO_INVALID_ROLE',
+        PROVIDER,
+      );
+    }
+
+    try {
+      const response = await this.transport.call<unknown>(
+        'UsersManager.getSitesAccessFromUser',
+        { userLogin: options.login },
+      );
+      const entries = normalizeSiteAccessEntries(response);
+      const match = entries.find((entry) => entry.siteId === options.siteId);
+      const access = match?.access ?? 'noaccess';
+      const ok = hasMinimumAccess(access, requiredAccess);
+
+      return {
+        ok,
+        provider: PROVIDER,
+        login: options.login,
+        siteId: options.siteId,
+        access,
+        requiredAccess,
+        error: ok
+          ? undefined
+          : `User "${options.login}" has ${access} access to site ${options.siteId}; ${requiredAccess} is required.`,
+        raw: response,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        provider: PROVIDER,
+        login: options.login,
+        siteId: options.siteId,
+        access: 'noaccess',
+        requiredAccess,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  async verifyTokenSiteAccess(
+    options: VerifyTokenSiteAccessOptions,
+  ): Promise<AnalyticsAccessVerificationResult> {
+    try {
+      const transport = new MatomoAdminTransport({
+        baseUrl: this.baseUrl,
+        tokenAuth: options.tokenAuth,
+        timeout: this.timeout,
+      });
+      const response = await transport.call<unknown>(
+        'SitesManager.getSiteFromId',
+        { idSite: options.siteId },
+      );
+      const siteVisible = isJsonRecord(response);
+      if (siteVisible) {
+        siteFromRow(response);
+      }
+      return {
+        ok: siteVisible,
+        provider: PROVIDER,
+        siteId: options.siteId,
+        access: siteVisible ? 'view' : 'noaccess',
+        requiredAccess: 'view',
+        error: siteVisible
+          ? undefined
+          : `Token cannot read site ${options.siteId}.`,
+        raw: response,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        provider: PROVIDER,
+        siteId: options.siteId,
+        access: 'noaccess',
+        requiredAccess: 'view',
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
   async mintUserToken(
     options: MintUserTokenOptions,
   ): Promise<AnalyticsUserToken> {
@@ -599,6 +696,61 @@ function isAccessRole(value: string): value is AnalyticsAccessRole {
     value === 'write' ||
     value === 'admin'
   );
+}
+
+interface SiteAccessEntry {
+  siteId: string;
+  access: AnalyticsAccessRole;
+}
+
+function normalizeSiteAccessEntries(response: unknown): SiteAccessEntry[] {
+  if (Array.isArray(response)) {
+    return response
+      .filter(isJsonRecord)
+      .map((row) => {
+        const siteId =
+          readString(row, 'site') ??
+          readString(row, 'idsite') ??
+          readString(row, 'idSite');
+        const access = readString(row, 'access');
+        return siteId && access && isAccessRole(access)
+          ? { siteId, access }
+          : undefined;
+      })
+      .filter((entry): entry is SiteAccessEntry => !!entry);
+  }
+
+  if (isJsonRecord(response)) {
+    const entries: SiteAccessEntry[] = [];
+    for (const [siteId, access] of Object.entries(response)) {
+      if (typeof access === 'string' && isAccessRole(access)) {
+        entries.push({ siteId, access });
+      }
+    }
+    return entries;
+  }
+
+  return [];
+}
+
+function accessRank(access: AnalyticsAccessRole): number {
+  switch (access) {
+    case 'admin':
+      return 3;
+    case 'write':
+      return 2;
+    case 'view':
+      return 1;
+    case 'noaccess':
+      return 0;
+  }
+}
+
+function hasMinimumAccess(
+  access: AnalyticsAccessRole,
+  minimumAccess: AnalyticsAccessRole,
+): boolean {
+  return accessRank(access) >= accessRank(minimumAccess);
 }
 
 /**

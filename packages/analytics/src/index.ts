@@ -39,6 +39,7 @@ export { getAnalytics } from './shared/factory.js';
 export type {
   // Admin / provisioning types
   AnalyticsAccessRole,
+  AnalyticsAccessVerificationResult,
   AnalyticsAdminInterface,
   // Capabilities
   AnalyticsCapabilities,
@@ -113,6 +114,8 @@ export type {
   // Snippet types
   TrackingSnippet,
   UpdatePropertyOptions,
+  VerifyTokenSiteAccessOptions,
+  VerifyUserSiteAccessOptions,
 } from './shared/types.js';
 
 // Error classes

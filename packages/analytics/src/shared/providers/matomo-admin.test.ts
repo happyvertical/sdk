@@ -447,6 +447,120 @@ describe('MatomoAdmin.user lifecycle', () => {
     ).rejects.toThrow(/Invalid Matomo access role/);
   });
 
+  it('verifyUserSiteAccess reads user site access and enforces minimum role', async () => {
+    const { calls } = setFetchMock(() =>
+      jsonResponse([
+        { site: '7', access: 'view' },
+        { site: '8', access: 'admin' },
+      ]),
+    );
+    const admin = new MatomoAdmin({
+      baseUrl: 'https://m.example.com',
+      tokenAuth: 'tok',
+    });
+
+    const viewResult = await admin.verifyUserSiteAccess({
+      login: 'tenant-bma',
+      siteId: '7',
+    });
+    expect(viewResult.ok).toBe(true);
+    expect(viewResult.access).toBe('view');
+    expect(viewResult.requiredAccess).toBe('view');
+
+    const adminResult = await admin.verifyUserSiteAccess({
+      login: 'tenant-bma',
+      siteId: '7',
+      minimumAccess: 'admin',
+    });
+    expect(adminResult.ok).toBe(false);
+    expect(adminResult.access).toBe('view');
+    expect(adminResult.error).toMatch(/admin is required/);
+
+    expect(calls[0].body.get('method')).toBe(
+      'UsersManager.getSitesAccessFromUser',
+    );
+    expect(calls[0].body.get('userLogin')).toBe('tenant-bma');
+  });
+
+  it('verifyUserSiteAccess accepts object-shaped Matomo access maps', async () => {
+    setFetchMock(() => jsonResponse({ '7': 'write', '8': 'view' }));
+    const admin = new MatomoAdmin({
+      baseUrl: 'https://m.example.com',
+      tokenAuth: 'tok',
+    });
+
+    const result = await admin.verifyUserSiteAccess({
+      login: 'tenant-bma',
+      siteId: '7',
+      minimumAccess: 'write',
+    });
+    expect(result.ok).toBe(true);
+    expect(result.access).toBe('write');
+  });
+
+  it('verifyUserSiteAccess reports noaccess when the user lacks the site', async () => {
+    setFetchMock(() => jsonResponse([{ site: '8', access: 'view' }]));
+    const admin = new MatomoAdmin({
+      baseUrl: 'https://m.example.com',
+      tokenAuth: 'tok',
+    });
+
+    const result = await admin.verifyUserSiteAccess({
+      login: 'tenant-bma',
+      siteId: '7',
+    });
+    expect(result.ok).toBe(false);
+    expect(result.access).toBe('noaccess');
+    expect(result.error).toMatch(/noaccess access/);
+  });
+
+  it('verifyTokenSiteAccess probes the target token against getSiteFromId', async () => {
+    const { calls } = setFetchMock(() =>
+      jsonResponse({
+        idsite: '7',
+        name: 'Bentley Alberta',
+        main_url: 'https://bentleyalberta.com',
+      }),
+    );
+    const admin = new MatomoAdmin({
+      baseUrl: 'https://m.example.com',
+      tokenAuth: 'admin-token',
+    });
+
+    const result = await admin.verifyTokenSiteAccess({
+      tokenAuth: 'tenant-token',
+      siteId: '7',
+    });
+    expect(result.ok).toBe(true);
+    expect(result.access).toBe('view');
+    expect(result.requiredAccess).toBe('view');
+    expect(calls[0].body.get('method')).toBe('SitesManager.getSiteFromId');
+    expect(calls[0].body.get('idSite')).toBe('7');
+    expect(calls[0].body.get('token_auth')).toBe('tenant-token');
+  });
+
+  it('verifyTokenSiteAccess reports false when the token cannot see the site', async () => {
+    setFetchMock(() =>
+      jsonResponse({
+        result: 'error',
+        message:
+          "You can't access this resource as it requires view access for at least one website.",
+      }),
+    );
+    const admin = new MatomoAdmin({
+      baseUrl: 'https://m.example.com',
+      tokenAuth: 'admin-token',
+    });
+
+    const result = await admin.verifyTokenSiteAccess({
+      tokenAuth: 'tenant-token',
+      siteId: '7',
+    });
+    expect(result.ok).toBe(false);
+    expect(result.access).toBe('noaccess');
+    expect(result.error).toMatch(/Authentication failed/i);
+  });
+
   it('mintUserToken forwards the per-call passwordConfirmation', async () => {
     const { calls } = setFetchMock(() =>
       jsonResponse({ value: 'mint-token-abc' }),
