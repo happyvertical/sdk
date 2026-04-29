@@ -1,5 +1,15 @@
 # @happyvertical/analytics
 
+## 0.72.0
+
+### Minor Changes
+
+- 31e0af7: Add public Matomo admin verification helpers for user site access and tenant token site access.
+
+### Patch Changes
+
+- @happyvertical/utils@0.72.0
+
 ## 0.71.34
 
 ### Patch Changes
