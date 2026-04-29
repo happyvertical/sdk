@@ -11,6 +11,7 @@
 
 import {
   type AnalyticsAccessRole,
+  type AnalyticsAccessVerificationResult,
   type AnalyticsAdminInterface,
   AnalyticsError,
   type AnalyticsHealthResult,
@@ -22,6 +23,8 @@ import {
   type CreateAnalyticsUserOptions,
   type MintUserTokenOptions,
   type SetUserAccessOptions,
+  type VerifyTokenSiteAccessOptions,
+  type VerifyUserSiteAccessOptions,
 } from '../types.js';
 
 const PROVIDER = 'matomo';
@@ -283,7 +286,7 @@ function mapApplicationError(message: string): AnalyticsError {
     message.includes('requires Super User access') ||
     message.includes("doesn't have access")
   ) {
-    return new AuthenticationError(PROVIDER);
+    return new AuthenticationError(PROVIDER, message, 'MATOMO_ACCESS_DENIED');
   }
   return new AnalyticsError(message, 'MATOMO_API_ERROR', PROVIDER);
 }
@@ -327,10 +330,25 @@ function userFromRow(row: JsonRecord): AnalyticsUser {
 }
 
 export class MatomoAdmin implements AnalyticsAdminInterface {
+  private readonly baseUrl: string;
+  private readonly timeout?: number;
   private readonly transport: MatomoAdminTransport;
 
   constructor(options: MatomoAdminTransportOptions) {
-    this.transport = new MatomoAdminTransport(options);
+    this.baseUrl = normalizeMatomoBaseUrl(options.baseUrl);
+    this.timeout = options.timeout;
+    this.transport = new MatomoAdminTransport({
+      ...options,
+      baseUrl: this.baseUrl,
+    });
+  }
+
+  private cloneTransportWithToken(tokenAuth: string): MatomoAdminTransport {
+    return new MatomoAdminTransport({
+      baseUrl: this.baseUrl,
+      tokenAuth,
+      timeout: this.timeout,
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -506,6 +524,119 @@ export class MatomoAdmin implements AnalyticsAdminInterface {
     });
   }
 
+  async verifyUserSiteAccess(
+    options: VerifyUserSiteAccessOptions,
+  ): Promise<AnalyticsAccessVerificationResult> {
+    const requiredAccess = options.minimumAccess ?? 'view';
+    if (!isAccessRole(requiredAccess)) {
+      throw new AnalyticsError(
+        `Invalid Matomo access role: ${requiredAccess}`,
+        'MATOMO_INVALID_ROLE',
+        PROVIDER,
+      );
+    }
+
+    try {
+      const response = await this.transport.call<unknown>(
+        'UsersManager.getSitesAccessFromUser',
+        { userLogin: options.login },
+      );
+      const entries = normalizeSiteAccessEntries(response);
+      const match = entries.find((entry) => entry.siteId === options.siteId);
+      let access = match?.access ?? 'noaccess';
+      if (access === 'noaccess') {
+        const user = await this.getUser(options.login);
+        if (user?.isSuperUser) {
+          access = 'admin';
+        }
+      }
+      const ok = hasMinimumAccess(access, requiredAccess);
+
+      return {
+        ok,
+        provider: PROVIDER,
+        login: options.login,
+        siteId: options.siteId,
+        access,
+        requiredAccess,
+        errorCode: ok ? undefined : 'MATOMO_ACCESS_DENIED',
+        error: ok
+          ? undefined
+          : `User "${options.login}" has ${access} access to site ${options.siteId}; ${requiredAccess} is required.`,
+        raw: response,
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        provider: PROVIDER,
+        login: options.login,
+        siteId: options.siteId,
+        access: 'noaccess',
+        requiredAccess,
+        error: error instanceof Error ? error.message : String(error),
+        errorCode: error instanceof AnalyticsError ? error.code : undefined,
+      };
+    }
+  }
+
+  async verifyTokenSiteAccess(
+    options: VerifyTokenSiteAccessOptions,
+  ): Promise<AnalyticsAccessVerificationResult> {
+    try {
+      const transport = this.cloneTransportWithToken(options.tokenAuth);
+      const response = await transport.call<unknown>(
+        'SitesManager.getSiteFromId',
+        { idSite: options.siteId },
+      );
+      if (Array.isArray(response) && response.length === 0) {
+        return {
+          ok: false,
+          provider: PROVIDER,
+          siteId: options.siteId,
+          access: 'noaccess',
+          requiredAccess: 'view',
+          errorCode: 'MATOMO_SITE_NOT_FOUND',
+          error: `Site ${options.siteId} was not found.`,
+          raw: response,
+        };
+      }
+      const siteVisible = isJsonRecord(response);
+      if (siteVisible) {
+        // Validate the response shape; siteFromRow throws on malformed rows.
+        siteFromRow(response);
+      }
+      return {
+        ok: siteVisible,
+        provider: PROVIDER,
+        siteId: options.siteId,
+        access: siteVisible ? 'view' : 'noaccess',
+        requiredAccess: 'view',
+        errorCode: siteVisible ? undefined : 'MATOMO_ACCESS_DENIED',
+        error: siteVisible
+          ? undefined
+          : `Token cannot read site ${options.siteId}.`,
+        raw: response,
+      };
+    } catch (error) {
+      const errorCode =
+        error instanceof AnalyticsError ? error.code : undefined;
+      return {
+        ok: false,
+        provider: PROVIDER,
+        siteId: options.siteId,
+        access: 'noaccess',
+        requiredAccess: 'view',
+        error:
+          errorCode === 'MATOMO_ACCESS_DENIED'
+            ? `Token cannot read site ${options.siteId} (no view grant).`
+            : error instanceof Error
+              ? error.message
+              : String(error),
+        errorCode,
+      };
+    }
+  }
+
   async mintUserToken(
     options: MintUserTokenOptions,
   ): Promise<AnalyticsUserToken> {
@@ -599,6 +730,55 @@ function isAccessRole(value: string): value is AnalyticsAccessRole {
     value === 'write' ||
     value === 'admin'
   );
+}
+
+interface SiteAccessEntry {
+  siteId: string;
+  access: AnalyticsAccessRole;
+}
+
+function normalizeSiteAccessEntries(response: unknown): SiteAccessEntry[] {
+  if (Array.isArray(response)) {
+    return response
+      .filter(isJsonRecord)
+      .map((row) => {
+        const siteId =
+          readString(row, 'site') ??
+          readString(row, 'idsite') ??
+          readString(row, 'idSite');
+        const access = readString(row, 'access');
+        return siteId && access && isAccessRole(access)
+          ? { siteId, access }
+          : undefined;
+      })
+      .filter((entry): entry is SiteAccessEntry => !!entry);
+  }
+
+  if (isJsonRecord(response)) {
+    const entries: SiteAccessEntry[] = [];
+    for (const [siteId, access] of Object.entries(response)) {
+      if (typeof access === 'string' && isAccessRole(access)) {
+        entries.push({ siteId, access });
+      }
+    }
+    return entries;
+  }
+
+  return [];
+}
+
+const ACCESS_RANK: Record<AnalyticsAccessRole, number> = {
+  noaccess: 0,
+  view: 1,
+  write: 2,
+  admin: 3,
+};
+
+function hasMinimumAccess(
+  access: AnalyticsAccessRole,
+  minimumAccess: AnalyticsAccessRole,
+): boolean {
+  return ACCESS_RANK[access] >= ACCESS_RANK[minimumAccess];
 }
 
 /**

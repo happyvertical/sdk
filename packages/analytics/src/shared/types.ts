@@ -1170,6 +1170,84 @@ export interface SetUserAccessOptions {
 }
 
 /**
+ * Options for verifying that a user has sufficient access to a site.
+ */
+export interface VerifyUserSiteAccessOptions {
+  /**
+   * Login or username to inspect.
+   */
+  login: string;
+  /**
+   * Site ID the user should be able to access.
+   */
+  siteId: string;
+  /**
+   * Minimum required access. Defaults to `view`.
+   */
+  minimumAccess?: AnalyticsAccessRole;
+}
+
+/**
+ * Options for verifying that a token can read a site.
+ */
+export interface VerifyTokenSiteAccessOptions {
+  /**
+   * Token to probe. This is the token under test, not necessarily the admin
+   * token used by the provider instance.
+   */
+  tokenAuth: string;
+  /**
+   * Site ID the token should be able to read.
+   */
+  siteId: string;
+}
+
+/**
+ * Result returned by access-verification helpers.
+ */
+export interface AnalyticsAccessVerificationResult {
+  /**
+   * Whether the requested access check passed.
+   */
+  ok: boolean;
+  /**
+   * Provider that performed the check.
+   */
+  provider: string;
+  /**
+   * Login that was inspected, when the check targets a user.
+   */
+  login?: string;
+  /**
+   * Site ID that was inspected.
+   */
+  siteId: string;
+  /**
+   * Observed access level. Token probes report `view` when the token can read
+   * the site and `noaccess` when it cannot.
+   */
+  access?: AnalyticsAccessRole;
+  /**
+   * Required access level used by the check.
+   */
+  requiredAccess?: AnalyticsAccessRole;
+  /**
+   * Failure reason when `ok` is false.
+   */
+  error?: string;
+  /**
+   * Provider-specific failure code when `ok` is false.
+   */
+  errorCode?: string;
+  /**
+   * Raw provider response. This is intended for debugging and may include more
+   * provider data than the specific access check asked for; avoid logging it
+   * verbatim in application logs.
+   */
+  raw?: unknown;
+}
+
+/**
  * Options for minting a per-user auth token scoped to a user's permissions.
  */
 export interface MintUserTokenOptions {
@@ -1296,6 +1374,20 @@ export interface AnalyticsAdminInterface {
   setUserAccess?(options: SetUserAccessOptions): Promise<void>;
 
   /**
+   * Verify that a user has at least the requested access to a site.
+   */
+  verifyUserSiteAccess?(
+    options: VerifyUserSiteAccessOptions,
+  ): Promise<AnalyticsAccessVerificationResult>;
+
+  /**
+   * Verify that a token can read a site.
+   */
+  verifyTokenSiteAccess?(
+    options: VerifyTokenSiteAccessOptions,
+  ): Promise<AnalyticsAccessVerificationResult>;
+
+  /**
    * Mint a per-user auth token scoped to that user's existing permissions.
    *
    * The returned token is shown-once on most providers — implementations are
@@ -1337,8 +1429,12 @@ export class AnalyticsError extends Error {
  * Authentication failed
  */
 export class AuthenticationError extends AnalyticsError {
-  constructor(provider?: string) {
-    super('Authentication failed', 'AUTH_ERROR', provider);
+  constructor(
+    provider?: string,
+    message: string = 'Authentication failed',
+    code: string = 'AUTH_ERROR',
+  ) {
+    super(message, code, provider);
     this.name = 'AuthenticationError';
   }
 }

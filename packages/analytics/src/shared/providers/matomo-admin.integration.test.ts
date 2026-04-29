@@ -101,7 +101,7 @@ describeIf('MatomoAdmin (integration)', () => {
     expect(fetched?.email).toBe(userEmail);
   });
 
-  it('setUserAccess + mintUserToken + the minted token can authenticate', async () => {
+  it('setUserAccess + mintUserToken + verify access for the minted token', async () => {
     if (!createdSiteId || !createdUserLogin) {
       throw new Error('site or user was not created');
     }
@@ -110,6 +110,12 @@ describeIf('MatomoAdmin (integration)', () => {
       access: 'view',
       siteIds: [createdSiteId],
     });
+    const accessCheck = await ensureAdmin().verifyUserSiteAccess({
+      login: createdUserLogin,
+      siteId: createdSiteId,
+    });
+    expect(accessCheck.ok).toBe(true);
+    expect(accessCheck.access).toBe('view');
 
     const minted = await ensureAdmin().mintUserToken({
       login: createdUserLogin,
@@ -130,6 +136,12 @@ describeIf('MatomoAdmin (integration)', () => {
     });
     const health = await scoped.health();
     expect(health.ok).toBe(true);
+
+    const tokenCheck = await ensureAdmin().verifyTokenSiteAccess({
+      tokenAuth: minted.token,
+      siteId: createdSiteId,
+    });
+    expect(tokenCheck.ok).toBe(true);
   });
 
   // Cleanup runs as afterAll(best-effort) rather than a test case so that:
