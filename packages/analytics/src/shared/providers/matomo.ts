@@ -48,18 +48,28 @@ import {
   type TrackingSnippet,
   type UpdatePropertyOptions,
 } from '../types.js';
-import { MatomoAdmin, normalizeMatomoBaseUrl } from './matomo-admin.js';
+import {
+  MatomoAdmin,
+  MatomoAdminTransport,
+  normalizeMatomoBaseUrl,
+} from './matomo-admin.js';
 
 const PROVIDER = 'matomo';
 
 export class MatomoProvider implements AnalyticsInterface {
   private readonly options: MatomoOptions;
   private readonly baseUrl: string;
+  private readonly reportingTransport: MatomoAdminTransport;
   public readonly admin: MatomoAdmin;
 
   constructor(options: MatomoOptions) {
     this.options = options;
     this.baseUrl = normalizeMatomoBaseUrl(options.baseUrl);
+    this.reportingTransport = new MatomoAdminTransport({
+      baseUrl: this.baseUrl,
+      tokenAuth: options.tokenAuth,
+      timeout: options.timeout,
+    });
     this.admin = new MatomoAdmin({
       baseUrl: this.baseUrl,
       tokenAuth: options.tokenAuth,
@@ -119,8 +129,8 @@ export class MatomoProvider implements AnalyticsInterface {
       customDimensions: false,
       customMetrics: false,
       keyEvents: false,
-      reporting: false,
-      realtimeReporting: false,
+      reporting: true,
+      realtimeReporting: true,
       serverSideTracking: false,
       clientSideSnippet: true,
       userIdentification: false,
@@ -256,17 +266,112 @@ export class MatomoProvider implements AnalyticsInterface {
   deleteKeyEvent(_propertyId: string, _eventId: string): Promise<void> {
     throw new NotSupportedError('keyEvents', PROVIDER);
   }
-  runReport(
-    _propertyId: string,
-    _options: ReportOptions,
+  async runReport(
+    propertyId: string,
+    options: ReportOptions,
   ): Promise<ReportResult> {
-    throw new NotSupportedError('runReport', PROVIDER);
+    const dimensions = options.dimensions ?? [];
+    const metrics = options.metrics;
+    const dateRange = options.dateRanges[0] ?? {
+      startDate: '7daysAgo',
+      endDate: 'today',
+    };
+    const query = matomoDateQuery(dateRange);
+    const dimensionNames = dimensions.map((dimension) => dimension.name);
+    const method = reportMethodForDimensions(dimensionNames);
+    const response = await this.reportingTransport.call<unknown>(method, {
+      idSite: propertyId,
+      period: method === 'VisitsSummary.get' ? 'day' : query.period,
+      date: query.date,
+      filter_limit: options.limit,
+      filter_offset: options.offset,
+      flat: dimensionNames.some(isPageDimension) ? 1 : undefined,
+    });
+
+    const sourceRows = normalizeMatomoRows(response);
+    const rows = sourceRows.map((row, index) => ({
+      dimensionValues: dimensions.map((dimension) => ({
+        value: dimensionValue(row, dimension.name, index),
+      })),
+      metricValues: metrics.map((metric) => ({
+        value: metricValue(row, metric.name),
+      })),
+    }));
+
+    return {
+      dimensionHeaders: dimensions.map((dimension) => ({
+        name: dimension.name,
+      })),
+      metricHeaders: metrics.map((metric) => ({
+        name: metric.name,
+        type: metricType(metric.name),
+      })),
+      rows,
+      rowCount: rows.length,
+    };
   }
-  runRealtimeReport(
-    _propertyId: string,
-    _options?: RealtimeReportOptions,
+  async runRealtimeReport(
+    propertyId: string,
+    options: RealtimeReportOptions = {},
   ): Promise<ReportResult> {
-    throw new NotSupportedError('runRealtimeReport', PROVIDER);
+    const dimensions = options.dimensions ?? [];
+    const metrics = options.metrics ?? [{ name: 'activeUsers' }];
+    const limit = options.limit ?? 10;
+    const lastMinutes = options.minuteRanges?.[0]?.startMinutesAgo ?? 30;
+
+    if (dimensions.some(isPageDimension)) {
+      const response = await this.reportingTransport.call<unknown>(
+        'Live.getLastVisitsDetails',
+        {
+          idSite: propertyId,
+          period: 'day',
+          date: 'today',
+          filter_limit: limit,
+          lastMinutes,
+        },
+      );
+      const rows = realtimePageRows(response, dimensions, metrics, limit);
+      return {
+        dimensionHeaders: dimensions.map((dimension) => ({
+          name: dimension.name,
+        })),
+        metricHeaders: metrics.map((metric) => ({
+          name: metric.name,
+          type: metricType(metric.name),
+        })),
+        rows,
+        rowCount: rows.length,
+      };
+    }
+
+    const response = await this.reportingTransport.call<unknown>(
+      'Live.getCounters',
+      {
+        idSite: propertyId,
+        lastMinutes,
+      },
+    );
+    const counters = firstRecord(response);
+    const row = {
+      dimensionValues: dimensions.map((dimension) => ({
+        value: dimensionValue(counters, dimension.name, 0),
+      })),
+      metricValues: metrics.map((metric) => ({
+        value: realtimeMetricValue(counters, metric.name),
+      })),
+    };
+
+    return {
+      dimensionHeaders: dimensions.map((dimension) => ({
+        name: dimension.name,
+      })),
+      metricHeaders: metrics.map((metric) => ({
+        name: metric.name,
+        type: metricType(metric.name),
+      })),
+      rows: [row],
+      rowCount: 1,
+    };
   }
   getMetrics(_propertyId: string): Promise<MetricMetadata[]> {
     throw new NotSupportedError('getMetrics', PROVIDER);
@@ -303,4 +408,222 @@ function propertyFromSite(site: {
     timeZone: site.timezone,
     currencyCode: site.currency,
   };
+}
+
+type MatomoRow = Record<string, unknown>;
+
+function isRecord(value: unknown): value is MatomoRow {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function firstRecord(value: unknown): MatomoRow {
+  if (Array.isArray(value)) {
+    return value.find(isRecord) ?? {};
+  }
+  return isRecord(value) ? value : {};
+}
+
+function normalizeMatomoRows(value: unknown): MatomoRow[] {
+  if (Array.isArray(value)) {
+    return value.filter(isRecord);
+  }
+  if (!isRecord(value)) {
+    return [];
+  }
+  const entries = Object.entries(value);
+  if (entries.length > 0 && entries.every(([, row]) => isRecord(row))) {
+    return entries.map(([key, row]) => ({ ...(row as MatomoRow), date: key }));
+  }
+  return [value];
+}
+
+function matomoDateQuery(range: { startDate: string; endDate: string }): {
+  period: string;
+  date: string;
+} {
+  if (range.endDate === 'today') {
+    const daysAgo = /^(\d+)daysAgo$/.exec(range.startDate);
+    if (daysAgo) {
+      return { period: 'range', date: `last${daysAgo[1]}` };
+    }
+  }
+  if (range.startDate === range.endDate) {
+    return { period: 'day', date: range.startDate };
+  }
+  return { period: 'range', date: `${range.startDate},${range.endDate}` };
+}
+
+function reportMethodForDimensions(dimensions: string[]): string {
+  if (dimensions.includes('date')) {
+    return 'VisitsSummary.get';
+  }
+  if (dimensions.some(isPageDimension)) {
+    return 'Actions.getPageUrls';
+  }
+  if (
+    dimensions.includes('sessionSource') ||
+    dimensions.includes('sessionMedium')
+  ) {
+    return 'Referrers.getAll';
+  }
+  return 'API.get';
+}
+
+function isPageDimension(dimension: { name: string } | string): boolean {
+  const name = typeof dimension === 'string' ? dimension : dimension.name;
+  return [
+    'pagePath',
+    'pageTitle',
+    'unifiedScreenName',
+    'unifiedPagePathScreen',
+  ].includes(name);
+}
+
+function dimensionValue(row: MatomoRow, name: string, index: number): string {
+  switch (name) {
+    case 'date':
+      return readString(row.date) ?? '';
+    case 'pagePath':
+    case 'unifiedPagePathScreen':
+      return readString(row.url) ?? readString(row.label) ?? '';
+    case 'pageTitle':
+    case 'unifiedScreenName':
+      return (
+        readString(row.pageTitle) ??
+        readString(row.title) ??
+        readString(row.label) ??
+        ''
+      );
+    case 'sessionSource':
+      return (
+        readString(row.label) ??
+        readString(row.referer_name) ??
+        readString(row.refererName) ??
+        ''
+      );
+    case 'sessionMedium':
+      return (
+        readString(row.referer_type) ??
+        readString(row.refererType) ??
+        readString(row.type) ??
+        ''
+      );
+    default:
+      return readString(row[name]) ?? (index === 0 ? '' : String(index));
+  }
+}
+
+function metricValue(row: MatomoRow, name: string): string {
+  switch (name) {
+    case 'activeUsers':
+      return readNumericString(row.nb_uniq_visitors ?? row.nb_users);
+    case 'sessions':
+      return readNumericString(row.nb_visits);
+    case 'bounceRate':
+      return readNumericString(row.bounce_rate);
+    case 'averageSessionDuration':
+      return readNumericString(row.avg_time_on_site);
+    case 'screenPageViews':
+      return readNumericString(row.nb_hits ?? row.nb_pageviews);
+    default:
+      return readNumericString(row[name]);
+  }
+}
+
+function realtimeMetricValue(row: MatomoRow, name: string): string {
+  switch (name) {
+    case 'activeUsers':
+      return readNumericString(row.visitors ?? row.nb_uniq_visitors);
+    case 'sessions':
+      return readNumericString(row.visits ?? row.nb_visits);
+    case 'screenPageViews':
+      return readNumericString(row.actions ?? row.nb_hits ?? row.nb_pageviews);
+    default:
+      return metricValue(row, name);
+  }
+}
+
+function metricType(name: string): string {
+  return name === 'bounceRate' ? 'TYPE_FLOAT' : 'TYPE_INTEGER';
+}
+
+function readString(value: unknown): string | undefined {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  return undefined;
+}
+
+function readNumericString(value: unknown): string {
+  if (typeof value === 'number') return String(value);
+  if (typeof value !== 'string') return '0';
+
+  const trimmed = value.trim();
+  if (!trimmed) return '0';
+  if (trimmed.includes(':')) {
+    return String(parseDurationSeconds(trimmed));
+  }
+
+  const numeric = Number(trimmed.replace('%', ''));
+  return Number.isFinite(numeric) ? String(numeric) : '0';
+}
+
+function parseDurationSeconds(value: string): number {
+  const parts = value.split(':').map((part) => Number(part));
+  if (parts.some((part) => !Number.isFinite(part))) return 0;
+  return parts.reduce((total, part) => total * 60 + part, 0);
+}
+
+function realtimePageRows(
+  response: unknown,
+  dimensions: { name: string }[],
+  metrics: { name: string }[],
+  limit: number,
+): {
+  dimensionValues: { value: string }[];
+  metricValues: { value: string }[];
+}[] {
+  const pageCounts = new Map<string, MatomoRow & { visitors: Set<string> }>();
+  const visits = normalizeMatomoRows(response);
+
+  for (const visit of visits) {
+    const visitorId =
+      readString(visit.visitorId) ?? readString(visit.idVisit) ?? '';
+    const actions = Array.isArray(visit.actionDetails)
+      ? visit.actionDetails.filter(isRecord)
+      : [];
+
+    for (const action of actions) {
+      const title =
+        readString(action.pageTitle) ??
+        readString(action.title) ??
+        readString(action.url) ??
+        '';
+      const url = readString(action.url) ?? title;
+      const key = `${title}\u0000${url}`;
+      const existing = pageCounts.get(key) ?? {
+        pageTitle: title,
+        url,
+        visitors: new Set<string>(),
+        actions: 0,
+      };
+      existing.actions = Number(existing.actions ?? 0) + 1;
+      if (visitorId) existing.visitors.add(visitorId);
+      pageCounts.set(key, existing);
+    }
+  }
+
+  return [...pageCounts.values()]
+    .sort((a, b) => Number(b.actions ?? 0) - Number(a.actions ?? 0))
+    .slice(0, limit)
+    .map((row) => ({
+      dimensionValues: dimensions.map((dimension, index) => ({
+        value: dimensionValue(row, dimension.name, index),
+      })),
+      metricValues: metrics.map((metric) => ({
+        value:
+          metric.name === 'activeUsers'
+            ? String(row.visitors.size)
+            : realtimeMetricValue(row, metric.name),
+      })),
+    }));
 }
