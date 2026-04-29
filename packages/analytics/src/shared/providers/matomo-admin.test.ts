@@ -651,7 +651,7 @@ describe('MatomoAdmin.user lifecycle', () => {
     expect(result.error).toMatch(/Authentication failed/i);
   });
 
-  it('verifyTokenSiteAccess reports noaccess for empty-array site responses', async () => {
+  it('verifyTokenSiteAccess reports site-not-found for empty-array site responses', async () => {
     setFetchMock(() => jsonResponse([]));
     const admin = new MatomoAdmin({
       baseUrl: 'https://m.example.com',
@@ -664,8 +664,8 @@ describe('MatomoAdmin.user lifecycle', () => {
     });
     expect(result.ok).toBe(false);
     expect(result.access).toBe('noaccess');
-    expect(result.errorCode).toBe('MATOMO_ACCESS_DENIED');
-    expect(result.error).toMatch(/Token cannot read site 7/);
+    expect(result.errorCode).toBe('MATOMO_SITE_NOT_FOUND');
+    expect(result.error).toMatch(/Site 7 was not found/);
   });
 
   it('mintUserToken forwards the per-call passwordConfirmation', async () => {

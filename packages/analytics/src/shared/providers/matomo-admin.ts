@@ -588,6 +588,18 @@ export class MatomoAdmin implements AnalyticsAdminInterface {
         'SitesManager.getSiteFromId',
         { idSite: options.siteId },
       );
+      if (Array.isArray(response) && response.length === 0) {
+        return {
+          ok: false,
+          provider: PROVIDER,
+          siteId: options.siteId,
+          access: 'noaccess',
+          requiredAccess: 'view',
+          errorCode: 'MATOMO_SITE_NOT_FOUND',
+          error: `Site ${options.siteId} was not found.`,
+          raw: response,
+        };
+      }
       const siteVisible = isJsonRecord(response);
       if (siteVisible) {
         // Validate the response shape; siteFromRow throws on malformed rows.
