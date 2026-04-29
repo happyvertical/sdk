@@ -286,7 +286,7 @@ function mapApplicationError(message: string): AnalyticsError {
     message.includes('requires Super User access') ||
     message.includes("doesn't have access")
   ) {
-    return new AuthenticationError(PROVIDER);
+    return new AuthenticationError(PROVIDER, message, 'MATOMO_ACCESS_DENIED');
   }
   return new AnalyticsError(message, 'MATOMO_API_ERROR', PROVIDER);
 }
@@ -340,6 +340,14 @@ export class MatomoAdmin implements AnalyticsAdminInterface {
     this.transport = new MatomoAdminTransport({
       ...options,
       baseUrl: this.baseUrl,
+    });
+  }
+
+  private cloneTransportWithToken(tokenAuth: string): MatomoAdminTransport {
+    return new MatomoAdminTransport({
+      baseUrl: this.baseUrl,
+      tokenAuth,
+      timeout: this.timeout,
     });
   }
 
@@ -535,7 +543,13 @@ export class MatomoAdmin implements AnalyticsAdminInterface {
       );
       const entries = normalizeSiteAccessEntries(response);
       const match = entries.find((entry) => entry.siteId === options.siteId);
-      const access = match?.access ?? 'noaccess';
+      let access = match?.access ?? 'noaccess';
+      if (access === 'noaccess') {
+        const user = await this.getUser(options.login);
+        if (user?.isSuperUser) {
+          access = 'admin';
+        }
+      }
       const ok = hasMinimumAccess(access, requiredAccess);
 
       return {
@@ -545,6 +559,7 @@ export class MatomoAdmin implements AnalyticsAdminInterface {
         siteId: options.siteId,
         access,
         requiredAccess,
+        errorCode: ok ? undefined : 'MATOMO_ACCESS_DENIED',
         error: ok
           ? undefined
           : `User "${options.login}" has ${access} access to site ${options.siteId}; ${requiredAccess} is required.`,
@@ -559,6 +574,7 @@ export class MatomoAdmin implements AnalyticsAdminInterface {
         access: 'noaccess',
         requiredAccess,
         error: error instanceof Error ? error.message : String(error),
+        errorCode: error instanceof AnalyticsError ? error.code : undefined,
       };
     }
   }
@@ -567,17 +583,14 @@ export class MatomoAdmin implements AnalyticsAdminInterface {
     options: VerifyTokenSiteAccessOptions,
   ): Promise<AnalyticsAccessVerificationResult> {
     try {
-      const transport = new MatomoAdminTransport({
-        baseUrl: this.baseUrl,
-        tokenAuth: options.tokenAuth,
-        timeout: this.timeout,
-      });
+      const transport = this.cloneTransportWithToken(options.tokenAuth);
       const response = await transport.call<unknown>(
         'SitesManager.getSiteFromId',
         { idSite: options.siteId },
       );
       const siteVisible = isJsonRecord(response);
       if (siteVisible) {
+        // Validate the response shape; siteFromRow throws on malformed rows.
         siteFromRow(response);
       }
       return {
@@ -586,19 +599,28 @@ export class MatomoAdmin implements AnalyticsAdminInterface {
         siteId: options.siteId,
         access: siteVisible ? 'view' : 'noaccess',
         requiredAccess: 'view',
+        errorCode: siteVisible ? undefined : 'MATOMO_ACCESS_DENIED',
         error: siteVisible
           ? undefined
           : `Token cannot read site ${options.siteId}.`,
         raw: response,
       };
     } catch (error) {
+      const errorCode =
+        error instanceof AnalyticsError ? error.code : undefined;
       return {
         ok: false,
         provider: PROVIDER,
         siteId: options.siteId,
         access: 'noaccess',
         requiredAccess: 'view',
-        error: error instanceof Error ? error.message : String(error),
+        error:
+          errorCode === 'MATOMO_ACCESS_DENIED'
+            ? `Token cannot read site ${options.siteId} (no view grant).`
+            : error instanceof Error
+              ? error.message
+              : String(error),
+        errorCode,
       };
     }
   }
@@ -733,24 +755,18 @@ function normalizeSiteAccessEntries(response: unknown): SiteAccessEntry[] {
   return [];
 }
 
-function accessRank(access: AnalyticsAccessRole): number {
-  switch (access) {
-    case 'admin':
-      return 3;
-    case 'write':
-      return 2;
-    case 'view':
-      return 1;
-    case 'noaccess':
-      return 0;
-  }
-}
+const ACCESS_RANK: Record<AnalyticsAccessRole, number> = {
+  noaccess: 0,
+  view: 1,
+  write: 2,
+  admin: 3,
+};
 
 function hasMinimumAccess(
   access: AnalyticsAccessRole,
   minimumAccess: AnalyticsAccessRole,
 ): boolean {
-  return accessRank(access) >= accessRank(minimumAccess);
+  return ACCESS_RANK[access] >= ACCESS_RANK[minimumAccess];
 }
 
 /**

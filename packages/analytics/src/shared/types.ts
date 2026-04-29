@@ -1236,7 +1236,13 @@ export interface AnalyticsAccessVerificationResult {
    */
   error?: string;
   /**
-   * Raw provider response.
+   * Provider-specific failure code when `ok` is false.
+   */
+  errorCode?: string;
+  /**
+   * Raw provider response. This is intended for debugging and may include more
+   * provider data than the specific access check asked for; avoid logging it
+   * verbatim in application logs.
    */
   raw?: unknown;
 }
@@ -1423,8 +1429,12 @@ export class AnalyticsError extends Error {
  * Authentication failed
  */
 export class AuthenticationError extends AnalyticsError {
-  constructor(provider?: string) {
-    super('Authentication failed', 'AUTH_ERROR', provider);
+  constructor(
+    provider?: string,
+    message: string = 'Authentication failed',
+    code: string = 'AUTH_ERROR',
+  ) {
+    super(message, code, provider);
     this.name = 'AuthenticationError';
   }
 }

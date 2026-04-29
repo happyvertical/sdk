@@ -101,7 +101,7 @@ describeIf('MatomoAdmin (integration)', () => {
     expect(fetched?.email).toBe(userEmail);
   });
 
-  it('setUserAccess + mintUserToken + the minted token can authenticate', async () => {
+  it('setUserAccess + mintUserToken + verify access for the minted token', async () => {
     if (!createdSiteId || !createdUserLogin) {
       throw new Error('site or user was not created');
     }
