@@ -6,17 +6,14 @@
  *   via {@link MatomoAdmin}. This is the API the tenant doctor uses.
  * - The `AnalyticsInterface` property-management surface, by delegating to the
  *   admin (a Matomo "site" maps 1:1 to a GA4-style "property").
- * - Capabilities and tracking-snippet generation.
- *
- * Reporting (`runReport`/`runRealtimeReport`) and server-side tracking
- * (`track`/`trackPageview`) are intentionally left as `NotSupportedError` for
- * this slice. They land in a follow-up — they hit different Matomo endpoints
- * (`Live.*`, `VisitsSummary.*`, `/matomo.php`) and warrant their own tests.
+ * - Capabilities, tracking-snippet generation, and a focused reporting surface
+ *   for Matomo's VisitsSummary, Actions, Referrers, and Live APIs.
  *
  * GA4-specific concepts that don't translate cleanly (data streams, custom
- * dimensions/metrics, key events) throw `NotSupportedError`. Matomo has its
- * own analogues (goals, custom dimensions plugin) — they need a different
- * shape and don't belong on the GA4-shaped methods.
+ * dimensions/metrics, key events, server-side tracking) throw
+ * `NotSupportedError`. Matomo has its own analogues (goals, custom dimensions
+ * plugin, Tracking HTTP API) — they need a different shape and don't belong on
+ * the GA4-shaped methods.
  */
 
 import {
@@ -57,13 +54,11 @@ import {
 const PROVIDER = 'matomo';
 
 export class MatomoProvider implements AnalyticsInterface {
-  private readonly options: MatomoOptions;
   private readonly baseUrl: string;
   private readonly reportingTransport: MatomoAdminTransport;
   public readonly admin: MatomoAdmin;
 
   constructor(options: MatomoOptions) {
-    this.options = options;
     this.baseUrl = normalizeMatomoBaseUrl(options.baseUrl);
     this.reportingTransport = new MatomoAdminTransport({
       baseUrl: this.baseUrl,
@@ -289,9 +284,9 @@ export class MatomoProvider implements AnalyticsInterface {
     });
 
     const sourceRows = normalizeMatomoRows(response);
-    const rows = sourceRows.map((row, index) => ({
+    const rows = sourceRows.map((row) => ({
       dimensionValues: dimensions.map((dimension) => ({
-        value: dimensionValue(row, dimension.name, index),
+        value: dimensionValue(row, dimension.name),
       })),
       metricValues: metrics.map((metric) => ({
         value: metricValue(row, metric.name),
@@ -354,7 +349,7 @@ export class MatomoProvider implements AnalyticsInterface {
     const counters = firstRecord(response);
     const row = {
       dimensionValues: dimensions.map((dimension) => ({
-        value: dimensionValue(counters, dimension.name, 0),
+        value: dimensionValue(counters, dimension.name),
       })),
       metricValues: metrics.map((metric) => ({
         value: realtimeMetricValue(counters, metric.name),
@@ -454,19 +449,27 @@ function matomoDateQuery(range: { startDate: string; endDate: string }): {
 }
 
 function reportMethodForDimensions(dimensions: string[]): string {
-  if (dimensions.includes('date')) {
+  if (dimensions.length === 0) {
     return 'VisitsSummary.get';
   }
-  if (dimensions.some(isPageDimension)) {
+  if (dimensions.every((dimension) => dimension === 'date')) {
+    return 'VisitsSummary.get';
+  }
+  if (dimensions.every(isPageDimension)) {
     return 'Actions.getPageUrls';
   }
   if (
-    dimensions.includes('sessionSource') ||
-    dimensions.includes('sessionMedium')
+    dimensions.every(
+      (dimension) =>
+        dimension === 'sessionSource' || dimension === 'sessionMedium',
+    )
   ) {
     return 'Referrers.getAll';
   }
-  return 'API.get';
+  throw new NotSupportedError(
+    `Matomo report dimensions (${dimensions.join(', ')})`,
+    PROVIDER,
+  );
 }
 
 function isPageDimension(dimension: { name: string } | string): boolean {
@@ -479,7 +482,7 @@ function isPageDimension(dimension: { name: string } | string): boolean {
   ].includes(name);
 }
 
-function dimensionValue(row: MatomoRow, name: string, index: number): string {
+function dimensionValue(row: MatomoRow, name: string): string {
   switch (name) {
     case 'date':
       return readString(row.date) ?? '';
@@ -509,7 +512,7 @@ function dimensionValue(row: MatomoRow, name: string, index: number): string {
         ''
       );
     default:
-      return readString(row[name]) ?? (index === 0 ? '' : String(index));
+      return readString(row[name]) ?? '';
   }
 }
 
@@ -616,8 +619,8 @@ function realtimePageRows(
     .sort((a, b) => Number(b.actions ?? 0) - Number(a.actions ?? 0))
     .slice(0, limit)
     .map((row) => ({
-      dimensionValues: dimensions.map((dimension, index) => ({
-        value: dimensionValue(row, dimension.name, index),
+      dimensionValues: dimensions.map((dimension) => ({
+        value: dimensionValue(row, dimension.name),
       })),
       metricValues: metrics.map((metric) => ({
         value:

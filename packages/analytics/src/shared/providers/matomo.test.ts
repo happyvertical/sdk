@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { PropertyNotFoundError } from '../types';
+import { NotSupportedError, PropertyNotFoundError } from '../types';
 import { MatomoProvider } from './matomo';
 
 function buildProvider() {
@@ -196,6 +196,49 @@ describe('MatomoProvider.runReport', () => {
       dimensionValues: [{ value: 'https://example.com/news' }],
       metricValues: [{ value: '9' }, { value: '4' }],
     });
+  });
+
+  it('maps referrer reports through Referrers.getAll', async () => {
+    const calls = setFetchMock(() =>
+      jsonResponse([
+        {
+          label: 'Google',
+          referer_type: 'search',
+          nb_visits: 12,
+          nb_uniq_visitors: 7,
+        },
+      ]),
+    );
+
+    const result = await buildProvider().runReport('7', {
+      dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+      dimensions: [{ name: 'sessionSource' }, { name: 'sessionMedium' }],
+      metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
+      limit: 10,
+    });
+
+    expect(calls[0].body.get('method')).toBe('Referrers.getAll');
+    expect(calls[0].body.get('idSite')).toBe('7');
+    expect(calls[0].body.get('date')).toBe('last7');
+    expect(calls[0].body.get('filter_limit')).toBe('10');
+    expect(result.rows[0]).toEqual({
+      dimensionValues: [{ value: 'Google' }, { value: 'search' }],
+      metricValues: [{ value: '12' }, { value: '7' }],
+    });
+  });
+
+  it('rejects unsupported dimension sets instead of calling API.get', async () => {
+    const calls = setFetchMock(() => jsonResponse({}));
+
+    await expect(
+      buildProvider().runReport('7', {
+        dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+        dimensions: [{ name: 'country' }],
+        metrics: [{ name: 'activeUsers' }],
+      }),
+    ).rejects.toBeInstanceOf(NotSupportedError);
+
+    expect(calls).toHaveLength(0);
   });
 });
 
