@@ -1,5 +1,12 @@
 # @happyvertical/sql
 
+## 0.72.2
+
+### Patch Changes
+
+- Restore legacy PostgreSQL raw query question-mark placeholder compatibility while preserving JSONB operator queries.
+  - @happyvertical/utils@0.72.2
+
 ## 0.72.1
 
 ### Patch Changes
