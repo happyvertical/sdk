@@ -128,6 +128,21 @@ function getMaxPostgresParameterIndex(sql: string): number {
   return maxIndex;
 }
 
+function usesSingleArrayParameter(sql: string): boolean {
+  const identifier = String.raw`(?:"[^"]+"|[a-z_][\w$]*)`;
+  const qualifiedIdentifier = String.raw`${identifier}(?:\s*\.\s*${identifier})?`;
+  const arrayType = String.raw`${qualifiedIdentifier}(?:\s*\([^)]*\))?\s*\[\]`;
+
+  return (
+    new RegExp(String.raw`\$1\s*::\s*${arrayType}`, 'i').test(sql) ||
+    new RegExp(
+      String.raw`\bCAST\s*\(\s*\$1\s+AS\s+${arrayType}\s*\)`,
+      'i',
+    ).test(sql) ||
+    /\b(?:ANY|ALL|SOME)\s*\(\s*\$1\s*\)/i.test(sql)
+  );
+}
+
 function normalizeRawQueryValues(sql: string, values: any[]): any[] {
   if (values.length !== 1 || !Array.isArray(values[0])) {
     return values;
@@ -135,6 +150,10 @@ function normalizeRawQueryValues(sql: string, values: any[]): any[] {
 
   const valuesArray = values[0];
   const maxParameterIndex = getMaxPostgresParameterIndex(sql);
+
+  if (maxParameterIndex === 1 && usesSingleArrayParameter(sql)) {
+    return values;
+  }
 
   if (maxParameterIndex === 0 || maxParameterIndex === valuesArray.length) {
     return valuesArray;

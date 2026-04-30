@@ -790,6 +790,7 @@ export interface DatabaseInterface {
    *
    * Raw queries use the adapter's native placeholder syntax.
    * Parameters may be passed as rest arguments or as one values array.
+   * For adapter-specific array parameter caveats, see the package docs.
    *
    * @param str - SQL query string
    * @param vars - Variables to use as parameters

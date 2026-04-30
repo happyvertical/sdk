@@ -243,10 +243,14 @@ describe('postgres tests', () => {
       'first',
       'second',
     ]);
+    const singleItemArrayParam = await db.query('SELECT $1::text[] AS items', [
+      'only',
+    ]);
 
     expect(restArgs.rows[0]).toEqual({ name: 'native', count: 2 });
     expect(valuesArray.rows[0]).toEqual({ name: 'array', count: 3 });
     expect(singleArrayParam.rows[0].items).toEqual(['first', 'second']);
+    expect(singleItemArrayParam.rows[0].items).toEqual(['only']);
   });
 
   it('should use the same raw query behavior in transaction handles', async () => {
