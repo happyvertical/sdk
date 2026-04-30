@@ -273,11 +273,19 @@ describe('postgres tests', () => {
       "SELECT '?' AS literal, ?::text AS value",
       'ok',
     );
+    const questionInEscapeString = await db.query(
+      "SELECT E'can\\'t ?' AS literal, ?::text AS value",
+      'still-ok',
+    );
 
     expect(restArgs.rows[0]).toEqual({ name: 'legacy', count: 4 });
     expect(valuesArray.rows[0]).toEqual({ name: 'array', count: 5 });
     expect(singleArrayParam.rows[0].items).toEqual(['first', 'second']);
     expect(questionInString.rows[0]).toEqual({ literal: '?', value: 'ok' });
+    expect(questionInEscapeString.rows[0]).toEqual({
+      literal: "can't ?",
+      value: 'still-ok',
+    });
   });
 
   it('should use the same raw query behavior in transaction handles', async () => {

@@ -174,7 +174,7 @@ function rewriteQuestionMarkPlaceholders(sql: string): {
   let count = 0;
   let index = 0;
 
-  const copyQuoted = (quote: "'" | '"') => {
+  const copyQuoted = (quote: "'" | '"', escaped = false) => {
     output += quote;
     index += 1;
 
@@ -182,6 +182,12 @@ function rewriteQuestionMarkPlaceholders(sql: string): {
       const char = sql[index];
       output += char;
       index += 1;
+
+      if (escaped && char === '\\' && index < sql.length) {
+        output += sql[index];
+        index += 1;
+        continue;
+      }
 
       if (char === quote) {
         if (sql[index] === quote) {
@@ -209,6 +215,13 @@ function rewriteQuestionMarkPlaceholders(sql: string): {
   while (index < sql.length) {
     const char = sql[index];
     const next = sql[index + 1];
+
+    if ((char === 'E' || char === 'e') && next === "'") {
+      output += char;
+      index += 1;
+      copyQuoted("'", true);
+      continue;
+    }
 
     if (char === "'") {
       copyQuoted("'");
