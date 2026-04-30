@@ -162,6 +162,172 @@ function normalizeRawQueryValues(sql: string, values: any[]): any[] {
   return values;
 }
 
+function rewriteQuestionMarkPlaceholders(sql: string): {
+  sql: string;
+  count: number;
+} {
+  let output = '';
+  let count = 0;
+  let index = 0;
+
+  const copyQuoted = (quote: "'" | '"', escaped = false) => {
+    output += quote;
+    index += 1;
+
+    while (index < sql.length) {
+      const char = sql[index];
+      output += char;
+      index += 1;
+
+      if (escaped && char === '\\' && index < sql.length) {
+        output += sql[index];
+        index += 1;
+        continue;
+      }
+
+      if (char === quote) {
+        if (sql[index] === quote) {
+          output += sql[index];
+          index += 1;
+          continue;
+        }
+        break;
+      }
+    }
+  };
+
+  const copyUntil = (end: string) => {
+    const endIndex = sql.indexOf(end, index + end.length);
+    if (endIndex === -1) {
+      output += sql.slice(index);
+      index = sql.length;
+      return;
+    }
+
+    output += sql.slice(index, endIndex + end.length);
+    index = endIndex + end.length;
+  };
+
+  while (index < sql.length) {
+    const char = sql[index];
+    const next = sql[index + 1];
+
+    if ((char === 'E' || char === 'e') && next === "'") {
+      output += char;
+      index += 1;
+      copyQuoted("'", true);
+      continue;
+    }
+
+    if (char === "'") {
+      copyQuoted("'");
+      continue;
+    }
+
+    if (char === '"') {
+      copyQuoted('"');
+      continue;
+    }
+
+    if (char === '-' && next === '-') {
+      const endIndex = sql.indexOf('\n', index + 2);
+      if (endIndex === -1) {
+        output += sql.slice(index);
+        index = sql.length;
+      } else {
+        output += sql.slice(index, endIndex + 1);
+        index = endIndex + 1;
+      }
+      continue;
+    }
+
+    if (char === '/' && next === '*') {
+      copyUntil('*/');
+      continue;
+    }
+
+    if (char === '$') {
+      const tag = sql.slice(index).match(/^\$[A-Za-z_][\w$]*\$|^\$\$/);
+      if (tag) {
+        copyUntil(tag[0]);
+        continue;
+      }
+    }
+
+    if (char === '?' && next !== '|' && next !== '&') {
+      count += 1;
+      output += `$${count}`;
+      index += 1;
+      continue;
+    }
+
+    output += char;
+    index += 1;
+  }
+
+  return { sql: output, count };
+}
+
+function usesSingleQuestionArrayParameter(sql: string): boolean {
+  const identifier = String.raw`(?:"[^"]+"|[a-z_][\w$]*)`;
+  const qualifiedIdentifier = String.raw`${identifier}(?:\s*\.\s*${identifier})?`;
+  const arrayType = String.raw`${qualifiedIdentifier}(?:\s*\([^)]*\))?\s*\[\]`;
+
+  return (
+    new RegExp(String.raw`\?\s*::\s*${arrayType}`, 'i').test(sql) ||
+    new RegExp(String.raw`\bCAST\s*\(\s*\?\s+AS\s+${arrayType}\s*\)`, 'i').test(
+      sql,
+    ) ||
+    /\b(?:ANY|ALL|SOME)\s*\(\s*\?\s*\)/i.test(sql)
+  );
+}
+
+function normalizeQuestionMarkQueryValues(
+  sql: string,
+  values: any[],
+  placeholderCount: number,
+): any[] {
+  if (values.length !== 1 || !Array.isArray(values[0])) {
+    return values;
+  }
+
+  if (placeholderCount === 1 && usesSingleQuestionArrayParameter(sql)) {
+    return values;
+  }
+
+  if (placeholderCount === values[0].length) {
+    return values[0];
+  }
+
+  return values;
+}
+
+function normalizePostgresRawQuery(
+  sql: string,
+  values: any[],
+): { sql: string; values: any[] } {
+  if (getMaxPostgresParameterIndex(sql) > 0) {
+    return { sql, values: normalizeRawQueryValues(sql, values) };
+  }
+
+  const rewritten = rewriteQuestionMarkPlaceholders(sql);
+  const placeholderCount = rewritten.count;
+  const queryValues = normalizeQuestionMarkQueryValues(
+    sql,
+    values,
+    placeholderCount,
+  );
+
+  if (placeholderCount > 0 && placeholderCount === queryValues.length) {
+    return {
+      sql: rewritten.sql,
+      values: queryValues,
+    };
+  }
+
+  return { sql, values: normalizeRawQueryValues(sql, values) };
+}
+
 /**
  * pgvector index operator class for CREATE INDEX
  */
@@ -999,8 +1165,9 @@ async function createDatabase(
   /**
    * Executes a raw SQL query with parameterized values
    *
-   * Uses PostgreSQL-native placeholders ($1, $2, ...). SQL is passed through
-   * unchanged so Postgres operators such as JSONB ? remain intact.
+   * Uses PostgreSQL-native placeholders ($1, $2, ...). Legacy ? placeholders
+   * are converted only when the placeholder count matches the supplied values,
+   * so Postgres operators such as JSONB ? remain intact.
    *
    * @param sql - SQL query string
    * @param values - Variables to use as parameters
@@ -1010,17 +1177,17 @@ async function createDatabase(
     sql: string,
     ...values: any[]
   ): Promise<{ rows: Record<string, any>[]; rowCount: number }> => {
-    const queryValues = normalizeRawQueryValues(sql, values);
+    const query = normalizePostgresRawQuery(sql, values);
     try {
-      const result = await client.query(sql, queryValues);
+      const result = await client.query(query.sql, query.values);
       return {
         rows: result.rows,
         rowCount: result.rowCount ?? 0,
       };
     } catch (e) {
       throw new DatabaseError('Failed to execute raw query', {
-        sql,
-        values: queryValues,
+        sql: query.sql,
+        values: query.values,
         originalError: formatDbError(e),
       });
     }
@@ -1361,8 +1528,8 @@ async function createDatabase(
           await txClient.query(sql, values);
         },
         query: async (sql, ...values) => {
-          const queryValues = normalizeRawQueryValues(sql, values);
-          const result = await txClient.query(sql, queryValues);
+          const query = normalizePostgresRawQuery(sql, values);
+          const result = await txClient.query(query.sql, query.values);
           return {
             rows: result.rows,
             rowCount: result.rowCount ?? 0,
@@ -1586,8 +1753,8 @@ async function createDatabase(
         await txClient.query(sql, values);
       },
       query: async (sql, ...values) => {
-        const queryValues = normalizeRawQueryValues(sql, values);
-        const result = await txClient.query(sql, queryValues);
+        const query = normalizePostgresRawQuery(sql, values);
+        const result = await txClient.query(query.sql, query.values);
         return {
           rows: result.rows,
           rowCount: result.rowCount ?? 0,
