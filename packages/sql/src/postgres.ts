@@ -117,6 +117,32 @@ function vectorOperator(metric: 'cosine' | 'l2' | 'ip'): string {
   }
 }
 
+function getMaxPostgresParameterIndex(sql: string): number {
+  let maxIndex = 0;
+  for (const match of sql.matchAll(/\$(\d+)/g)) {
+    const index = Number(match[1]);
+    if (Number.isSafeInteger(index) && index > maxIndex) {
+      maxIndex = index;
+    }
+  }
+  return maxIndex;
+}
+
+function normalizeRawQueryValues(sql: string, values: any[]): any[] {
+  if (values.length !== 1 || !Array.isArray(values[0])) {
+    return values;
+  }
+
+  const valuesArray = values[0];
+  const maxParameterIndex = getMaxPostgresParameterIndex(sql);
+
+  if (maxParameterIndex === 0 || maxParameterIndex === valuesArray.length) {
+    return valuesArray;
+  }
+
+  return values;
+}
+
 /**
  * pgvector index operator class for CREATE INDEX
  */
@@ -954,6 +980,9 @@ async function createDatabase(
   /**
    * Executes a raw SQL query with parameterized values
    *
+   * Uses PostgreSQL-native placeholders ($1, $2, ...). SQL is passed through
+   * unchanged so Postgres operators such as JSONB ? remain intact.
+   *
    * @param sql - SQL query string
    * @param values - Variables to use as parameters
    * @returns Promise resolving to query result with rows and count
@@ -962,12 +991,9 @@ async function createDatabase(
     sql: string,
     ...values: any[]
   ): Promise<{ rows: Record<string, any>[]; rowCount: number }> => {
+    const queryValues = normalizeRawQueryValues(sql, values);
     try {
-      // Convert ? placeholders to $1, $2, etc for PostgreSQL compatibility
-      let paramIndex = 0;
-      const pgSql = sql.replace(/\?/g, () => `$${++paramIndex}`);
-
-      const result = await client.query(pgSql, values);
+      const result = await client.query(sql, queryValues);
       return {
         rows: result.rows,
         rowCount: result.rowCount ?? 0,
@@ -975,7 +1001,7 @@ async function createDatabase(
     } catch (e) {
       throw new DatabaseError('Failed to execute raw query', {
         sql,
-        values,
+        values: queryValues,
         originalError: formatDbError(e),
       });
     }
@@ -1316,7 +1342,8 @@ async function createDatabase(
           await txClient.query(sql, values);
         },
         query: async (sql, ...values) => {
-          const result = await txClient.query(sql, values);
+          const queryValues = normalizeRawQueryValues(sql, values);
+          const result = await txClient.query(sql, queryValues);
           return {
             rows: result.rows,
             rowCount: result.rowCount ?? 0,
@@ -1540,7 +1567,8 @@ async function createDatabase(
         await txClient.query(sql, values);
       },
       query: async (sql, ...values) => {
-        const result = await txClient.query(sql, values);
+        const queryValues = normalizeRawQueryValues(sql, values);
+        const result = await txClient.query(sql, queryValues);
         return {
           rows: result.rows,
           rowCount: result.rowCount ?? 0,

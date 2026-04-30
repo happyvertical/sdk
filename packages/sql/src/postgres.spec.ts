@@ -208,6 +208,73 @@ describe('postgres tests', () => {
     const result = await db.get('contents', { id });
     expect(result).toBeNull();
   });
+
+  it('should preserve PostgreSQL JSONB existence operators in raw queries', async () => {
+    if (!postgresAvailable) return;
+
+    const hasKey = await db.query(
+      `SELECT ('{"db":true}'::jsonb ? 'db') AS has_key`,
+    );
+    const hasAny = await db.query(
+      `SELECT ('{"db":true,"cache":false}'::jsonb ?| ARRAY['db', 'missing']) AS has_any`,
+    );
+    const hasAll = await db.query(
+      `SELECT ('{"db":true,"cache":false}'::jsonb ?& ARRAY['db', 'cache']) AS has_all`,
+    );
+
+    expect(hasKey.rows[0].has_key).toBe(true);
+    expect(hasAny.rows[0].has_any).toBe(true);
+    expect(hasAll.rows[0].has_all).toBe(true);
+  });
+
+  it('should support PostgreSQL-native placeholders in raw queries', async () => {
+    if (!postgresAvailable) return;
+
+    const restArgs = await db.query(
+      'SELECT $1::text AS name, $2::int AS count',
+      'native',
+      2,
+    );
+    const valuesArray = await db.query(
+      'SELECT $1::text AS name, $2::int AS count',
+      ['array', 3],
+    );
+    const singleArrayParam = await db.query('SELECT $1::text[] AS items', [
+      'first',
+      'second',
+    ]);
+
+    expect(restArgs.rows[0]).toEqual({ name: 'native', count: 2 });
+    expect(valuesArray.rows[0]).toEqual({ name: 'array', count: 3 });
+    expect(singleArrayParam.rows[0].items).toEqual(['first', 'second']);
+  });
+
+  it('should use the same raw query behavior in transaction handles', async () => {
+    if (!postgresAvailable || !db.transaction || !db.beginTransaction) return;
+
+    await db.transaction(async (tx) => {
+      const result = await tx.query(
+        `SELECT ('{"tx":true}'::jsonb ? 'tx') AS "hasTx", $1::text AS value`,
+        ['callback'],
+      );
+
+      expect(result.rows[0]).toEqual({ hasTx: true, value: 'callback' });
+    });
+
+    const tx = await db.beginTransaction();
+    try {
+      const result = await tx.query(
+        `SELECT ('{"tx":true,"manual":true}'::jsonb ?& ARRAY['tx', 'manual']) AS "hasAll", $1::text AS value`,
+        ['manual'],
+      );
+
+      expect(result.rows[0]).toEqual({ hasAll: true, value: 'manual' });
+    } finally {
+      if (tx.isActive()) {
+        await tx.rollback();
+      }
+    }
+  });
 });
 
 describe('postgres JSON serialization', () => {
