@@ -162,10 +162,6 @@ function normalizeRawQueryValues(sql: string, values: any[]): any[] {
   return values;
 }
 
-function countQuestionMarkPlaceholders(sql: string): number {
-  return rewriteQuestionMarkPlaceholders(sql).count;
-}
-
 function rewriteQuestionMarkPlaceholders(sql: string): {
   sql: string;
   count: number;
@@ -314,7 +310,8 @@ function normalizePostgresRawQuery(
     return { sql, values: normalizeRawQueryValues(sql, values) };
   }
 
-  const placeholderCount = countQuestionMarkPlaceholders(sql);
+  const rewritten = rewriteQuestionMarkPlaceholders(sql);
+  const placeholderCount = rewritten.count;
   const queryValues = normalizeQuestionMarkQueryValues(
     sql,
     values,
@@ -323,7 +320,7 @@ function normalizePostgresRawQuery(
 
   if (placeholderCount > 0 && placeholderCount === queryValues.length) {
     return {
-      sql: rewriteQuestionMarkPlaceholders(sql).sql,
+      sql: rewritten.sql,
       values: queryValues,
     };
   }

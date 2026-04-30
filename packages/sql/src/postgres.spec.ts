@@ -277,6 +277,18 @@ describe('postgres tests', () => {
       "SELECT E'can\\'t ?' AS literal, ?::text AS value",
       'still-ok',
     );
+    const questionInLineComment = await db.query(
+      'SELECT ?::text AS value -- ? in comment\n',
+      'line-comment',
+    );
+    const questionInBlockComment = await db.query(
+      'SELECT ?::text AS value /* ? in comment */',
+      'block-comment',
+    );
+    const questionInDollarQuote = await db.query(
+      'SELECT ?::text AS value, $tag$? in dollar quote$tag$ AS literal',
+      'dollar-quote',
+    );
 
     expect(restArgs.rows[0]).toEqual({ name: 'legacy', count: 4 });
     expect(valuesArray.rows[0]).toEqual({ name: 'array', count: 5 });
@@ -285,6 +297,14 @@ describe('postgres tests', () => {
     expect(questionInEscapeString.rows[0]).toEqual({
       literal: "can't ?",
       value: 'still-ok',
+    });
+    expect(questionInLineComment.rows[0]).toEqual({ value: 'line-comment' });
+    expect(questionInBlockComment.rows[0]).toEqual({
+      value: 'block-comment',
+    });
+    expect(questionInDollarQuote.rows[0]).toEqual({
+      value: 'dollar-quote',
+      literal: '? in dollar quote',
     });
   });
 
