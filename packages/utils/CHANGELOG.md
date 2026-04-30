@@ -1,5 +1,14 @@
 # @happyvertical/utils
 
+## 0.72.3
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - address copilot review feedback (sql)
+  - address raw query review fixes (sql)
+
 ## 0.72.2
 
 ## 0.72.1
