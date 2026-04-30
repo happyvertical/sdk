@@ -1,5 +1,14 @@
 # @happyvertical/utils
 
+## 0.72.1
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - handle array params in raw queries (sql)
+  - preserve postgres raw query operators (sql)
+
 ## 0.72.0
 
 ## 0.71.34
