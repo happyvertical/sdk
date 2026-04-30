@@ -1,5 +1,12 @@
 # @happyvertical/translator
 
+## 0.72.2
+
+### Patch Changes
+
+- @happyvertical/cache@0.72.2
+- @happyvertical/utils@0.72.2
+
 ## 0.72.1
 
 ### Patch Changes

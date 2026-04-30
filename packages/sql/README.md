@@ -81,11 +81,14 @@ await pgDb.query('SELECT * FROM posts WHERE id = $1', postId);
 await pgDb.query('SELECT * FROM posts WHERE id = $1', [postId]);
 await pgDb.query('SELECT * FROM posts WHERE id = ANY($1)', postIds);
 
-// PostgreSQL SQL is passed through unchanged, so native operators are safe.
+// Legacy ? placeholders are converted only when unambiguous.
+await pgDb.query('SELECT * FROM posts WHERE id = ?', postId);
+
+// Native operators remain safe; prefer $1 placeholders when mixing operators and values.
 await pgDb.query(`SELECT ('{"db":true}'::jsonb ? 'db') AS has_db`);
 ```
 
-For PostgreSQL, a single array argument is treated as a values list unless the SQL shows a single array-typed placeholder, such as `$1::text[]`, `CAST($1 AS text[])`, or `ANY($1)`. Transaction handles follow the same raw query behavior as the root database handle.
+For PostgreSQL, a single array argument is treated as a values list unless the SQL shows a single array-typed placeholder, such as `$1::text[]`, `CAST($1 AS text[])`, `ANY($1)`, or the equivalent legacy `?` placeholder form. Transaction handles follow the same raw query behavior as the root database handle.
 
 ### CRUD Helpers
 

@@ -253,6 +253,61 @@ describe('postgres tests', () => {
     expect(singleItemArrayParam.rows[0].items).toEqual(['only']);
   });
 
+  it('should support legacy question mark placeholders in raw queries', async () => {
+    if (!postgresAvailable) return;
+
+    const restArgs = await db.query(
+      'SELECT ?::text AS name, ?::int AS count',
+      'legacy',
+      4,
+    );
+    const valuesArray = await db.query(
+      'SELECT ?::text AS name, ?::int AS count',
+      ['array', 5],
+    );
+    const singleArrayParam = await db.query('SELECT ?::text[] AS items', [
+      'first',
+      'second',
+    ]);
+    const questionInString = await db.query(
+      "SELECT '?' AS literal, ?::text AS value",
+      'ok',
+    );
+    const questionInEscapeString = await db.query(
+      "SELECT E'can\\'t ?' AS literal, ?::text AS value",
+      'still-ok',
+    );
+    const questionInLineComment = await db.query(
+      'SELECT ?::text AS value -- ? in comment\n',
+      'line-comment',
+    );
+    const questionInBlockComment = await db.query(
+      'SELECT ?::text AS value /* ? in comment */',
+      'block-comment',
+    );
+    const questionInDollarQuote = await db.query(
+      'SELECT ?::text AS value, $tag$? in dollar quote$tag$ AS literal',
+      'dollar-quote',
+    );
+
+    expect(restArgs.rows[0]).toEqual({ name: 'legacy', count: 4 });
+    expect(valuesArray.rows[0]).toEqual({ name: 'array', count: 5 });
+    expect(singleArrayParam.rows[0].items).toEqual(['first', 'second']);
+    expect(questionInString.rows[0]).toEqual({ literal: '?', value: 'ok' });
+    expect(questionInEscapeString.rows[0]).toEqual({
+      literal: "can't ?",
+      value: 'still-ok',
+    });
+    expect(questionInLineComment.rows[0]).toEqual({ value: 'line-comment' });
+    expect(questionInBlockComment.rows[0]).toEqual({
+      value: 'block-comment',
+    });
+    expect(questionInDollarQuote.rows[0]).toEqual({
+      value: 'dollar-quote',
+      literal: '? in dollar quote',
+    });
+  });
+
   it('should use the same raw query behavior in transaction handles', async () => {
     if (!postgresAvailable || !db.transaction || !db.beginTransaction) return;
 
@@ -263,6 +318,15 @@ describe('postgres tests', () => {
       );
 
       expect(result.rows[0]).toEqual({ hasTx: true, value: 'callback' });
+
+      const legacyResult = await tx.query(
+        'SELECT ?::text AS "legacyValue"',
+        'legacy-callback',
+      );
+
+      expect(legacyResult.rows[0]).toEqual({
+        legacyValue: 'legacy-callback',
+      });
     });
 
     const tx = await db.beginTransaction();
@@ -273,6 +337,13 @@ describe('postgres tests', () => {
       );
 
       expect(result.rows[0]).toEqual({ hasAll: true, value: 'manual' });
+
+      const legacyResult = await tx.query(
+        'SELECT ?::text AS "legacyValue"',
+        'legacy-manual',
+      );
+
+      expect(legacyResult.rows[0]).toEqual({ legacyValue: 'legacy-manual' });
     } finally {
       if (tx.isActive()) {
         await tx.rollback();
