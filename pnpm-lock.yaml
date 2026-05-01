@@ -977,6 +977,9 @@ importers:
 
   packages/video:
     dependencies:
+      '@happyvertical/images':
+        specifier: workspace:*
+        version: link:../images
       '@happyvertical/logger':
         specifier: workspace:*
         version: link:../logger

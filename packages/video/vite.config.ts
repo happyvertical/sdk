@@ -11,6 +11,7 @@ export default defineConfig({
     rollupOptions: {
       external: [
         /^node:/,
+        '@happyvertical/images',
         '@happyvertical/logger',
         '@happyvertical/utils',
         'sharp',

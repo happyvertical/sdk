@@ -71,6 +71,9 @@
 // Adapters
 export { FFmpegProcessor } from './adapters/ffmpeg.js';
 
+// Media bundle inspection
+export * from './media-bundles/index.js';
+
 // Types
 export type {
   AudioCodecOptions,
