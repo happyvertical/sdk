@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { PropertyNotFoundError } from '../types';
+import { NotSupportedError, PropertyNotFoundError } from '../types';
 import { MatomoProvider } from './matomo';
 
 function buildProvider() {
@@ -17,6 +17,31 @@ function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
     headers: { 'content-type': 'application/json' },
     ...init,
   });
+}
+
+interface RecordedCall {
+  body: URLSearchParams;
+}
+
+function setFetchMock(
+  fn: (call: RecordedCall) => Response | Promise<Response>,
+): RecordedCall[] {
+  const calls: RecordedCall[] = [];
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const bodyText =
+        typeof init?.body === 'string'
+          ? init.body
+          : init?.body instanceof URLSearchParams
+            ? init.body.toString()
+            : '';
+      const call = { body: new URLSearchParams(bodyText) };
+      calls.push(call);
+      return fn(call);
+    }),
+  );
+  return calls;
 }
 
 describe('MatomoProvider.generateTrackingSnippet', () => {
@@ -97,5 +122,180 @@ describe('MatomoProvider.getProperty', () => {
     await expect(buildProvider().getProperty('999')).rejects.toBeInstanceOf(
       PropertyNotFoundError,
     );
+  });
+});
+
+describe('MatomoProvider.runReport', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('maps date-dimension reports through VisitsSummary.get', async () => {
+    const calls = setFetchMock(() =>
+      jsonResponse({
+        '2026-04-28': {
+          nb_uniq_visitors: 12,
+          nb_visits: 14,
+          bounce_rate: '50%',
+          avg_time_on_site: '00:01:30',
+        },
+      }),
+    );
+
+    const result = await buildProvider().runReport('7', {
+      dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+      dimensions: [{ name: 'date' }],
+      metrics: [
+        { name: 'activeUsers' },
+        { name: 'sessions' },
+        { name: 'bounceRate' },
+        { name: 'averageSessionDuration' },
+      ],
+    });
+
+    expect(calls[0].body.get('method')).toBe('VisitsSummary.get');
+    expect(calls[0].body.get('idSite')).toBe('7');
+    expect(calls[0].body.get('date')).toBe('last30');
+    expect(result.rows).toEqual([
+      {
+        dimensionValues: [{ value: '2026-04-28' }],
+        metricValues: [
+          { value: '12' },
+          { value: '14' },
+          { value: '50' },
+          { value: '90' },
+        ],
+      },
+    ]);
+  });
+
+  it('maps page reports through Actions.getPageUrls', async () => {
+    const calls = setFetchMock(() =>
+      jsonResponse([
+        {
+          label: '/news',
+          url: 'https://example.com/news',
+          nb_hits: 9,
+          nb_uniq_visitors: 4,
+        },
+      ]),
+    );
+
+    const result = await buildProvider().runReport('7', {
+      dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+      dimensions: [{ name: 'pagePath' }],
+      metrics: [{ name: 'screenPageViews' }, { name: 'activeUsers' }],
+      limit: 5,
+    });
+
+    expect(calls[0].body.get('method')).toBe('Actions.getPageUrls');
+    expect(calls[0].body.get('flat')).toBe('1');
+    expect(calls[0].body.get('filter_limit')).toBe('5');
+    expect(result.rows[0]).toEqual({
+      dimensionValues: [{ value: 'https://example.com/news' }],
+      metricValues: [{ value: '9' }, { value: '4' }],
+    });
+  });
+
+  it('maps referrer reports through Referrers.getAll', async () => {
+    const calls = setFetchMock(() =>
+      jsonResponse([
+        {
+          label: 'Google',
+          referer_type: 'search',
+          nb_visits: 12,
+          nb_uniq_visitors: 7,
+        },
+      ]),
+    );
+
+    const result = await buildProvider().runReport('7', {
+      dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+      dimensions: [{ name: 'sessionSource' }, { name: 'sessionMedium' }],
+      metrics: [{ name: 'sessions' }, { name: 'activeUsers' }],
+      limit: 10,
+    });
+
+    expect(calls[0].body.get('method')).toBe('Referrers.getAll');
+    expect(calls[0].body.get('idSite')).toBe('7');
+    expect(calls[0].body.get('date')).toBe('last7');
+    expect(calls[0].body.get('filter_limit')).toBe('10');
+    expect(result.rows[0]).toEqual({
+      dimensionValues: [{ value: 'Google' }, { value: 'search' }],
+      metricValues: [{ value: '12' }, { value: '7' }],
+    });
+  });
+
+  it('rejects unsupported dimension sets instead of calling API.get', async () => {
+    const calls = setFetchMock(() => jsonResponse({}));
+
+    await expect(
+      buildProvider().runReport('7', {
+        dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+        dimensions: [{ name: 'country' }],
+        metrics: [{ name: 'activeUsers' }],
+      }),
+    ).rejects.toBeInstanceOf(NotSupportedError);
+
+    expect(calls).toHaveLength(0);
+  });
+});
+
+describe('MatomoProvider.runRealtimeReport', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('maps aggregate realtime counters through Live.getCounters', async () => {
+    const calls = setFetchMock(() =>
+      jsonResponse([{ visitors: 3, visits: 5, actions: 8 }]),
+    );
+
+    const result = await buildProvider().runRealtimeReport('7', {
+      metrics: [{ name: 'activeUsers' }, { name: 'sessions' }],
+    });
+
+    expect(calls[0].body.get('method')).toBe('Live.getCounters');
+    expect(calls[0].body.get('lastMinutes')).toBe('30');
+    expect(result.rows).toEqual([
+      {
+        dimensionValues: [],
+        metricValues: [{ value: '3' }, { value: '5' }],
+      },
+    ]);
+  });
+
+  it('maps realtime page dimensions through Live.getLastVisitsDetails', async () => {
+    const calls = setFetchMock(() =>
+      jsonResponse([
+        {
+          visitorId: 'a',
+          actionDetails: [
+            { pageTitle: 'News', url: '/news' },
+            { pageTitle: 'News', url: '/news' },
+          ],
+        },
+        {
+          visitorId: 'b',
+          actionDetails: [{ pageTitle: 'News', url: '/news' }],
+        },
+      ]),
+    );
+
+    const result = await buildProvider().runRealtimeReport('7', {
+      dimensions: [{ name: 'unifiedScreenName' }],
+      metrics: [{ name: 'activeUsers' }],
+      limit: 10,
+    });
+
+    expect(calls[0].body.get('method')).toBe('Live.getLastVisitsDetails');
+    expect(result.rows).toEqual([
+      {
+        dimensionValues: [{ value: 'News' }],
+        metricValues: [{ value: '2' }],
+      },
+    ]);
   });
 });
