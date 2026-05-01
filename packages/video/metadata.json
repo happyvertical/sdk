@@ -12,6 +12,7 @@
   "implements": [],
   "requires": {
     "workspace": [
+      "@happyvertical/images",
       "@happyvertical/logger",
       "@happyvertical/utils"
     ],

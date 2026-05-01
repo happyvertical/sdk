@@ -20,7 +20,9 @@
       "sharp"
     ]
   },
-  "dependents": [],
+  "dependents": [
+    "@happyvertical/video"
+  ],
   "stability": {
     "level": "stable",
     "reason": "Primary package surface is described as implemented and production-oriented."

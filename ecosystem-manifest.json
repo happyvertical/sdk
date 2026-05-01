@@ -745,7 +745,9 @@
           "sharp"
         ]
       },
-      "dependents": [],
+      "dependents": [
+        "@happyvertical/video"
+      ],
       "stability": {
         "level": "stable",
         "reason": "Primary package surface is described as implemented and production-oriented."
@@ -1362,7 +1364,7 @@
         "clean": "pnpm --filter @happyvertical/video clean"
       },
       "correctionLoops": [
-        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/logger build`, `pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/video build`.",
+        "If module resolution or export errors mention a workspace dependency, build the dependency first (`pnpm --filter @happyvertical/images build`, `pnpm --filter @happyvertical/logger build`, `pnpm --filter @happyvertical/utils build`) and then rerun `pnpm --filter @happyvertical/video build`.",
         "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/video clean` followed by `pnpm --filter @happyvertical/video build` and `pnpm --filter @happyvertical/video test`.",
         "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
       ],
@@ -1372,6 +1374,7 @@
       "implements": [],
       "requires": {
         "workspace": [
+          "@happyvertical/images",
           "@happyvertical/logger",
           "@happyvertical/utils"
         ],
@@ -1758,6 +1761,11 @@
       "type": "provides",
       "from": "@happyvertical/utils",
       "to": "Foundation utilities for ID generation, date parsing, URL handling, string conversion, error handling, and logging"
+    },
+    {
+      "type": "requires",
+      "from": "@happyvertical/video",
+      "to": "@happyvertical/images"
     },
     {
       "type": "requires",
