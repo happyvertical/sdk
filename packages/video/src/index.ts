@@ -70,9 +70,33 @@
 
 // Adapters
 export { FFmpegProcessor } from './adapters/ffmpeg.js';
-
+export type {
+  InspectMediaBundleOptions,
+  Insta360FileIdentity,
+  MediaBundleCapability,
+  MediaBundleFileRole,
+  MediaBundleHandler,
+  MediaBundleInspectContext,
+  MediaBundleInspection,
+  MediaBundleInspectTools,
+  MediaBundleSupportFile,
+  MediaFileDescriptor,
+  MediaFormatFamily,
+  MediaSupportFileVisibility,
+  NormalizedGpsTrackPoint,
+  NormalizedMediaDevice,
+  NormalizedMediaMetadata,
+  NormalizedMediaStream,
+} from './media-bundles/index.js';
 // Media bundle inspection
-export * from './media-bundles/index.js';
+export {
+  defaultMediaBundleHandlers,
+  genericImageBundleHandler,
+  genericVideoBundleHandler,
+  inspectMediaBundle,
+  insta360BundleHandler,
+  parseInsta360FileName,
+} from './media-bundles/index.js';
 
 // Types
 export type {

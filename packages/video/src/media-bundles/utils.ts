@@ -50,6 +50,10 @@ export function isImageFile(file: MediaFileDescriptor): boolean {
   return mime.startsWith('image/') || IMAGE_EXTENSIONS.has(fileExtension(file));
 }
 
+export function formatError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export async function runJsonCommand(
   bin: string,
   args: string[],
@@ -267,7 +271,7 @@ export function parseExiftoolGpsRecord(
     lastLon = lon;
     out.push({
       tSeconds: Math.max(0, (epochMs - firstEpochMs) / 1000),
-      recordedAt: new Date(epochMs),
+      recordedAt: new Date(epochMs).toISOString(),
       latitude: lat,
       longitude: lon,
       altitude: toNumber(record.GPSAltitude),
@@ -290,7 +294,7 @@ export function parseExiftoolGpsRecord(
   return [
     {
       tSeconds: 0,
-      recordedAt: new Date(epochMs),
+      recordedAt: new Date(epochMs).toISOString(),
       latitude: lat,
       longitude: lon,
       altitude: toNumber(fallback.GPSAltitude),

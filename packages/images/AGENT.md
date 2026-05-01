@@ -9,7 +9,7 @@ Image processing utilities with adapter pattern for scaling from static to enter
 - Hierarchy path: `@happyvertical/sdk > packages > images`
 - Workspace position: `15 of 29` local packages
 - Internal dependencies: none
-- Internal dependents: none
+- Internal dependents: `@happyvertical/video`
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
 
 ## Build & Test

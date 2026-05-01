@@ -6,6 +6,7 @@ import type {
 } from '../types.js';
 import {
   displayName,
+  formatError,
   isVideoFile,
   mergeMetadata,
   probeEmbeddedMetadata,
@@ -83,7 +84,3 @@ export const genericVideoBundleHandler: MediaBundleHandler = {
     };
   },
 };
-
-function formatError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}

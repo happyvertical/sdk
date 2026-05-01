@@ -7,6 +7,7 @@ import {
   type MediaBundleHandler,
   type MediaFileDescriptor,
 } from './media-bundles/index.js';
+import { parseExiftoolGpsRecord } from './media-bundles/utils.js';
 
 const file = (path: string, mimeType?: string): MediaFileDescriptor => ({
   path,
@@ -54,6 +55,33 @@ describe('media bundle inspection', () => {
       probe: false,
     });
     expect(tied.handlerId).toBe('first');
+  });
+
+  it('appends validate hook warnings to a matched inspection', async () => {
+    const result = await inspectMediaBundle([file('/tmp/a.bin')], {
+      handlers: [
+        {
+          id: 'validator',
+          version: '1.0.0',
+          priority: 1,
+          supports: () => true,
+          inspect: async (files) => ({
+            handlerId: 'validator',
+            handlerVersion: '1.0.0',
+            formatFamily: 'unknown',
+            primary: { ...files[0], role: 'primary' },
+            supportFiles: [],
+            metadata: {},
+            capabilities: [],
+            warnings: ['existing warning'],
+            errors: [],
+          }),
+          validate: () => ['validation warning'],
+        },
+      ],
+    });
+
+    expect(result.warnings).toEqual(['existing warning', 'validation warning']);
   });
 
   it('lets app-private handlers override or handle unknown formats explicitly', async () => {
@@ -152,6 +180,25 @@ describe('media bundle inspection', () => {
       '/tmp/VID_20260418_173449_00_004.insv',
       '/tmp/LRV_20260418_173449_01_004.lrv',
     ]);
+    expect(result.warnings).toEqual([
+      'ignored 2 file(s) outside Insta360 bundle 20260418_173449_004: VID_20260418_180000_00_005.insv, unrelated.mp4',
+      'probe disabled; returning file-level Insta360 bundle inspection',
+    ]);
+    expect(
+      (result.raw?.insta360 as { ignoredFiles: unknown[] }).ignoredFiles,
+    ).toHaveLength(2);
+  });
+
+  it('returns an unknown inspection when no handler matches', async () => {
+    const result = await inspectMediaBundle([file('/tmp/readme.txt')], {
+      handlers: [],
+    });
+
+    expect(result.handlerId).toBe('unknown');
+    expect(result.primary.role).toBe('primary');
+    expect(result.warnings).toEqual([
+      'no media bundle handler matched; returned unknown inspection',
+    ]);
   });
 
   it('falls back to generic video for ordinary video files', async () => {
@@ -165,5 +212,97 @@ describe('media bundle inspection', () => {
     expect(result.handlerId).toBe('generic-video');
     expect(result.formatFamily).toBe('generic-video');
     expect(result.primary.role).toBe('primary');
+  });
+});
+
+describe('parseExiftoolGpsRecord', () => {
+  it('normalizes Doc-grouped GPS samples into a deduped relative track', () => {
+    const points = parseExiftoolGpsRecord(
+      {
+        'Main:QuickTime:GPSLatitude': 1,
+        'Main:QuickTime:GPSLongitude': 2,
+        'Main:QuickTime:GPSDateTime': '2026:04:18 17:34:40Z',
+        'Doc2:QuickTime:GPSLatitude': 52.2,
+        'Doc2:QuickTime:GPSLongitude': -114.2,
+        'Doc2:QuickTime:GPSDateTime': '2026:04:18 17:34:51Z',
+        'Doc2:QuickTime:GPSAltitude': 940,
+        'Doc2:QuickTime:GPSTrack': 180,
+        'Doc2:QuickTime:GPSSpeed': 4.5,
+        'Doc1:QuickTime:GPSLatitude': 52.1,
+        'Doc1:QuickTime:GPSLongitude': -114.1,
+        'Doc1:QuickTime:GPSDateTime': '2026:04:18 17:34:50Z',
+        'Doc3:QuickTime:GPSLatitude': 52.2,
+        'Doc3:QuickTime:GPSLongitude': -114.2,
+        'Doc3:QuickTime:GPSDateTime': '2026:04:18 17:34:52Z',
+      },
+      '/tmp/LRV_20260418_173449_01_004.lrv',
+    );
+
+    expect(points).toEqual([
+      {
+        tSeconds: 0,
+        recordedAt: '2026-04-18T17:34:50.000Z',
+        latitude: 52.1,
+        longitude: -114.1,
+        altitude: null,
+        heading: null,
+        speedMps: null,
+        sourceFilePath: '/tmp/LRV_20260418_173449_01_004.lrv',
+      },
+      {
+        tSeconds: 1,
+        recordedAt: '2026-04-18T17:34:51.000Z',
+        latitude: 52.2,
+        longitude: -114.2,
+        altitude: 940,
+        heading: 180,
+        speedMps: 4.5,
+        sourceFilePath: '/tmp/LRV_20260418_173449_01_004.lrv',
+      },
+    ]);
+  });
+
+  it('falls back to a single Main or flat GPS fix when Doc groups are absent', () => {
+    expect(
+      parseExiftoolGpsRecord({
+        'Main:QuickTime:GPSLatitude': 52.468,
+        'Main:QuickTime:GPSLongitude': -114.043,
+        'Main:QuickTime:GPSDateTime': '2026:04:18 17:34:50Z',
+        'Main:QuickTime:GPSAltitude': 930,
+      }),
+    ).toEqual([
+      {
+        tSeconds: 0,
+        recordedAt: '2026-04-18T17:34:50.000Z',
+        latitude: 52.468,
+        longitude: -114.043,
+        altitude: 930,
+        heading: null,
+        speedMps: null,
+        sourceFilePath: undefined,
+      },
+    ]);
+
+    expect(
+      parseExiftoolGpsRecord(
+        Object.fromEntries([
+          ['GPSLatitude', 52.469],
+          ['GPSLongitude', -114.044],
+          ['GPSDateTime', '2026:04:18 17:34:51Z'],
+          ['GPSImgDirection', 45],
+        ]),
+      ),
+    ).toEqual([
+      {
+        tSeconds: 0,
+        recordedAt: '2026-04-18T17:34:51.000Z',
+        latitude: 52.469,
+        longitude: -114.044,
+        altitude: null,
+        heading: 45,
+        speedMps: null,
+        sourceFilePath: undefined,
+      },
+    ]);
   });
 });

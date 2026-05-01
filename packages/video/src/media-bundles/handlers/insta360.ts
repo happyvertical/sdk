@@ -8,6 +8,7 @@ import type {
 import {
   displayName,
   fileExtension,
+  formatError,
   mergeMetadata,
   probeEmbeddedMetadata,
   probeVideoMetadata,
@@ -44,8 +45,16 @@ export const insta360BundleHandler: MediaBundleHandler = {
       const parsed = parsedByPath.get(file.path);
       return Boolean(parsed && (!bundleKey || parsed.bundleKey === bundleKey));
     });
+    const ignoredFiles = files.filter((file) => !bundleFiles.includes(file));
     const primary = choosePrimary(bundleFiles, parsedByPath);
     const warnings: string[] = [];
+    if (ignoredFiles.length > 0) {
+      warnings.push(
+        `ignored ${ignoredFiles.length} file(s) outside Insta360 bundle ${bundleKey ?? 'unknown'}: ${ignoredFiles
+          .map(displayName)
+          .join(', ')}`,
+      );
+    }
     let metadata: NormalizedMediaMetadata = {
       mimeType: primary.mimeType,
       private: {
@@ -58,33 +67,34 @@ export const insta360BundleHandler: MediaBundleHandler = {
       },
     };
 
-    const supportFiles: MediaBundleSupportFile[] = [];
-    for (const file of bundleFiles) {
-      if (file === primary) continue;
-      const parsed = parsedByPath.get(file.path);
-      let supportMetadata: NormalizedMediaMetadata | undefined;
-      if (context.probe === false) {
-        warnings.push(`probe disabled for support file ${displayName(file)}`);
-      } else {
-        try {
-          supportMetadata = await probeEmbeddedMetadata(
-            file,
-            context.tools?.exiftoolPath,
-          );
-        } catch (error) {
-          warnings.push(
-            `exiftool failed for support file ${displayName(file)}: ${formatError(error)}`,
-          );
+    const nonPrimaryBundleFiles = bundleFiles.filter(
+      (file) => file !== primary,
+    );
+    const supportFiles: MediaBundleSupportFile[] = await Promise.all(
+      nonPrimaryBundleFiles.map(async (file) => {
+        const parsed = parsedByPath.get(file.path);
+        let supportMetadata: NormalizedMediaMetadata | undefined;
+        if (context.probe !== false) {
+          try {
+            supportMetadata = await probeEmbeddedMetadata(
+              file,
+              context.tools?.exiftoolPath,
+            );
+          } catch (error) {
+            warnings.push(
+              `exiftool failed for support file ${displayName(file)}: ${formatError(error)}`,
+            );
+          }
         }
-      }
-      supportFiles.push({
-        file: { ...file, role: 'support' },
-        role: 'support',
-        relationship: relationshipForInsta360SupportFile(file, parsed),
-        visibility: context.defaultSupportFileVisibility ?? 'hidden-retained',
-        metadata: supportMetadata,
-      });
-    }
+        return {
+          file: { ...file, role: 'support' },
+          role: 'support',
+          relationship: relationshipForInsta360SupportFile(file, parsed),
+          visibility: context.defaultSupportFileVisibility ?? 'hidden-retained',
+          metadata: supportMetadata,
+        } satisfies MediaBundleSupportFile;
+      }),
+    );
 
     if (context.probe === false) {
       warnings.push(
@@ -121,7 +131,7 @@ export const insta360BundleHandler: MediaBundleHandler = {
           (candidate) => candidate?.gpsTrack && candidate.gpsTrack.length > 0,
         );
       if (supportGps) {
-        metadata = mergeMetadata(metadata, { gpsTrack: supportGps.gpsTrack });
+        metadata = { ...metadata, gpsTrack: supportGps.gpsTrack };
       }
     }
 
@@ -145,6 +155,10 @@ export const insta360BundleHandler: MediaBundleHandler = {
           files: Object.fromEntries(
             bundleFiles.map((file) => [file.path, parsedByPath.get(file.path)]),
           ),
+          ignoredFiles: ignoredFiles.map((file) => ({
+            file,
+            identity: parsedByPath.get(file.path) ?? null,
+          })),
         },
       },
     };
@@ -214,8 +228,4 @@ function relationshipForInsta360SupportFile(
   if (parsed?.prefix === 'VID' && parsed.streamIndex !== '00')
     return 'paired-video-stream';
   return 'support-file';
-}
-
-function formatError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

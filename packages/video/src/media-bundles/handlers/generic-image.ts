@@ -5,7 +5,7 @@ import type {
   MediaBundleInspection,
   NormalizedMediaMetadata,
 } from '../types.js';
-import { displayName, isImageFile } from '../utils.js';
+import { displayName, formatError, isImageFile } from '../utils.js';
 
 export const genericImageBundleHandler: MediaBundleHandler = {
   id: 'generic-image',
@@ -64,7 +64,3 @@ export const genericImageBundleHandler: MediaBundleHandler = {
     };
   },
 };
-
-function formatError(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
