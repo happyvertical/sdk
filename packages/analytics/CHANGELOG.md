@@ -1,5 +1,15 @@
 # @happyvertical/analytics
 
+## 0.73.0
+
+### Minor Changes
+
+- aa27d42: Add Matomo reporting and realtime reporting support.
+
+### Patch Changes
+
+- @happyvertical/utils@0.73.0
+
 ## 0.72.3
 
 ### Patch Changes
