@@ -1,5 +1,17 @@
 # @happyvertical/utils
 
+## 0.73.1
+
+### Patch Changes
+
+- ### Features
+
+  - add extensible media bundle inspection (video)
+
+  ### Bug Fixes
+
+  - address media bundle review feedback (video)
+
 ## 0.73.0
 
 ## 0.72.3
