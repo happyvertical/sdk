@@ -83,7 +83,7 @@ describe('standardized historical weather adapters', () => {
           timezone: 'UTC',
           hourly_units: { visibility: 'm' },
           hourly: {
-            time: ['2026-01-15T18:00', '2026-01-15T19:00'],
+            time: ['2026-01-15T18:00', '2026-01-15T19:00:00Z'],
             temperature_2m: [-4.2, -3.8],
             relative_humidity_2m: [76, 74],
             precipitation: [0, 0.2],

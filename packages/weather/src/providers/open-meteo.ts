@@ -231,7 +231,7 @@ export class OpenMeteoProvider implements IWeatherProvider {
     const forecasts: WeatherForecast[] = [];
 
     for (let index = 0; index < hourly.time.length; index++) {
-      const timestamp = new Date(`${hourly.time[index]}Z`);
+      const timestamp = parseOpenMeteoTimestamp(hourly.time[index]);
       const temperature = hourly.temperature_2m?.[index];
 
       if (
@@ -282,6 +282,11 @@ function valueOrUndefined(
   value: number | null | undefined,
 ): number | undefined {
   return typeof value === 'number' ? value : undefined;
+}
+
+function parseOpenMeteoTimestamp(value: string): Date {
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value);
+  return new Date(hasTimezone ? value : `${value}Z`);
 }
 
 function describeOpenMeteoCode(code: number | null | undefined): string {
