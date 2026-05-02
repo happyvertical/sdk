@@ -76,6 +76,20 @@ export interface FetchOptions {
 }
 
 /**
+ * Fetch options for historical weather data.
+ */
+export interface HistoricalFetchOptions extends FetchOptions {
+  /** Start of the requested historical window */
+  start: Date | string;
+
+  /** End of the requested historical window. Defaults to start. */
+  end?: Date | string;
+
+  /** Requested granularity. Providers may support only hourly data. */
+  interval?: 'hourly';
+}
+
+/**
  * Core weather provider interface
  * All weather providers must implement this interface
  */
@@ -98,6 +112,23 @@ export interface IWeatherProvider {
     latitude: number,
     longitude: number,
     options?: FetchOptions,
+  ): Promise<WeatherForecast[]>;
+
+  /**
+   * Fetch historical weather observations for a location.
+   *
+   * Providers that cannot serve historical data must reject with
+   * UnsupportedWeatherCapabilityError instead of silently falling back.
+   *
+   * @param latitude - Location latitude (-90 to 90)
+   * @param longitude - Location longitude (-180 to 180)
+   * @param options - Historical fetch options
+   * @returns Array of historical weather observations
+   */
+  fetchHistoricalForLocation(
+    latitude: number,
+    longitude: number,
+    options: HistoricalFetchOptions,
   ): Promise<WeatherForecast[]>;
 
   /**
@@ -166,6 +197,15 @@ export interface GoogleWeatherOptions {
 }
 
 /**
+ * Open-Meteo provider options
+ */
+export interface OpenMeteoOptions {
+  provider: 'open-meteo';
+  /** Request timeout in milliseconds (default: 10000) */
+  timeout?: number;
+}
+
+/**
  * Weather alert from Google Weather API
  */
 export interface WeatherAlert {
@@ -192,7 +232,8 @@ export type WeatherAdapterOptions =
   | EnvironmentCanadaOptions
   | OpenWeatherMapOptions
   | OpenWeatherMapOneCallOptions
-  | GoogleWeatherOptions;
+  | GoogleWeatherOptions
+  | OpenMeteoOptions;
 
 /**
  * Partial provider options for environment variable configuration
@@ -202,12 +243,14 @@ export type PartialWeatherAdapterOptions = Partial<
 > &
   Partial<Omit<OpenWeatherMapOptions, 'provider'>> &
   Partial<Omit<OpenWeatherMapOneCallOptions, 'provider'>> &
-  Partial<Omit<GoogleWeatherOptions, 'provider'>> & {
+  Partial<Omit<GoogleWeatherOptions, 'provider'>> &
+  Partial<Omit<OpenMeteoOptions, 'provider'>> & {
     provider?:
       | 'environment-canada'
       | 'openweathermap'
       | 'openweathermap-onecall'
-      | 'google-weather';
+      | 'google-weather'
+      | 'open-meteo';
   };
 
 /**
@@ -286,5 +329,21 @@ export class NoResultsError extends WeatherError {
       { latitude, longitude },
     );
     this.name = 'NoResultsError';
+  }
+}
+
+/**
+ * Unsupported capability error - thrown when a provider cannot serve an optional capability.
+ */
+export class UnsupportedWeatherCapabilityError extends WeatherError {
+  constructor(provider: string, capability: string, message?: string) {
+    super(
+      message ||
+        `${provider} does not support weather capability: ${capability}`,
+      provider,
+      'UNSUPPORTED_CAPABILITY',
+      { capability },
+    );
+    this.name = 'UnsupportedWeatherCapabilityError';
   }
 }

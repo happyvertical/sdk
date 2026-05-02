@@ -10,8 +10,14 @@
  * Data Format: JSON via OGC API Features
  */
 
+import {
+  filterHistoricalWindow,
+  formatUtcDate,
+  normalizeHistoricalWindow,
+} from '../shared/historical';
 import type {
   FetchOptions,
+  HistoricalFetchOptions,
   IWeatherProvider,
   WeatherForecast,
 } from '../shared/types';
@@ -20,7 +26,12 @@ import {
   NoResultsError,
   WeatherError,
 } from '../shared/types';
-import { ensureValidCoordinates, isInCanada } from '../shared/utils';
+import {
+  calculateDistance,
+  ensureValidCoordinates,
+  isInCanada,
+  roundToInt,
+} from '../shared/utils';
 
 interface ECForecastData {
   type: string;
@@ -78,12 +89,47 @@ interface ECForecastData {
   }>;
 }
 
+interface ECClimateHourlyData {
+  type: string;
+  features: Array<{
+    id: string;
+    type: string;
+    geometry?: {
+      type: 'Point';
+      coordinates: [number, number];
+    };
+    properties: {
+      STATION_NAME?: string | null;
+      CLIMATE_IDENTIFIER?: string | null;
+      ID?: string | null;
+      LOCAL_DATE?: string | null;
+      UTC_DATE?: string | null;
+      TEMP?: number | null;
+      DEW_POINT_TEMP?: number | null;
+      HUMIDEX?: number | null;
+      PRECIP_AMOUNT?: number | null;
+      RELATIVE_HUMIDITY?: number | null;
+      STATION_PRESSURE?: number | null;
+      VISIBILITY?: number | null;
+      WEATHER_ENG_DESC?: string | null;
+      WINDCHILL?: number | null;
+      WIND_DIRECTION?: number | null;
+      WIND_SPEED?: number | null;
+      STN_ID?: string | number | null;
+      LONGITUDE_DECIMAL_DEGREES?: number | null;
+      LATITUDE_DECIMAL_DEGREES?: number | null;
+    };
+  }>;
+}
+
 export class EnvironmentCanadaProvider implements IWeatherProvider {
   readonly name = 'Environment Canada';
   readonly providerType = 'government' as const;
 
   private readonly apiBase =
     'https://api.weather.gc.ca/collections/citypageweather-realtime/items';
+  private readonly climateHourlyApiBase =
+    'https://api.weather.gc.ca/collections/climate-hourly/items';
   private readonly timeout: number;
 
   constructor(options: { timeout?: number } = {}) {
@@ -159,6 +205,77 @@ export class EnvironmentCanadaProvider implements IWeatherProvider {
     }
   }
 
+  async fetchHistoricalForLocation(
+    latitude: number,
+    longitude: number,
+    options: HistoricalFetchOptions,
+  ): Promise<WeatherForecast[]> {
+    ensureValidCoordinates(this.name, latitude, longitude);
+
+    if (!isInCanada(latitude, longitude)) {
+      throw new InvalidLocationError(
+        this.name,
+        latitude,
+        longitude,
+        'Environment Canada historical climate observations only support Canadian locations',
+      );
+    }
+
+    const window = normalizeHistoricalWindow(this.name, options);
+
+    try {
+      const url = this.buildClimateHourlyUrl(latitude, longitude, window);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        options.timeout || this.timeout,
+      );
+
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new WeatherError(
+          `API request failed: ${response.statusText}`,
+          this.name,
+          `HTTP_${response.status}`,
+        );
+      }
+
+      const data = (await response.json()) as ECClimateHourlyData;
+      const stationForecasts = this.transformClimateHourly(
+        data,
+        latitude,
+        longitude,
+      );
+      const forecasts = filterHistoricalWindow(
+        stationForecasts,
+        window,
+        options.limit,
+      );
+
+      if (forecasts.length === 0) {
+        throw new NoResultsError(this.name, latitude, longitude);
+      }
+
+      return forecasts;
+    } catch (error) {
+      if (error instanceof WeatherError) {
+        throw error;
+      }
+
+      if ((error as any).name === 'AbortError') {
+        throw new WeatherError('Request timeout', this.name, 'TIMEOUT');
+      }
+
+      throw new WeatherError(
+        `Failed to fetch historical weather data: ${(error as Error).message}`,
+        this.name,
+        'FETCH_ERROR',
+      );
+    }
+  }
+
   /**
    * Build Environment Canada API URL for given coordinates
    */
@@ -171,6 +288,24 @@ export class EnvironmentCanadaProvider implements IWeatherProvider {
     });
 
     return `${this.apiBase}?${params.toString()}`;
+  }
+
+  private buildClimateHourlyUrl(
+    lat: number,
+    lng: number,
+    window: { start: Date; end: Date },
+  ): string {
+    const queryStart = new Date(window.start.getTime() - 24 * 60 * 60 * 1000);
+    const queryEnd = new Date(window.end.getTime() + 24 * 60 * 60 * 1000);
+    const bboxPadding = 1;
+    const params = new URLSearchParams({
+      f: 'json',
+      bbox: `${lng - bboxPadding},${lat - bboxPadding},${lng + bboxPadding},${lat + bboxPadding}`,
+      datetime: `${formatUtcDate(queryStart)}/${formatUtcDate(queryEnd)}`,
+      limit: '2000',
+    });
+
+    return `${this.climateHourlyApiBase}?${params.toString()}`;
   }
 
   /**
@@ -263,6 +398,127 @@ export class EnvironmentCanadaProvider implements IWeatherProvider {
     return forecasts;
   }
 
+  private transformClimateHourly(
+    data: ECClimateHourlyData,
+    latitude: number,
+    longitude: number,
+  ): WeatherForecast[] {
+    if (!data.features || data.features.length === 0) {
+      throw new NoResultsError(this.name, latitude, longitude);
+    }
+
+    const byStation = new Map<
+      string,
+      { distance: number; forecasts: WeatherForecast[] }
+    >();
+
+    for (const feature of data.features) {
+      const props = feature.properties;
+      const timestamp = props.UTC_DATE
+        ? parseEnvironmentCanadaUtcDate(props.UTC_DATE)
+        : null;
+
+      if (!timestamp || Number.isNaN(timestamp.getTime())) {
+        continue;
+      }
+
+      const stationLatitude =
+        props.LATITUDE_DECIMAL_DEGREES || feature.geometry?.coordinates[1];
+      const stationLongitude =
+        props.LONGITUDE_DECIMAL_DEGREES || feature.geometry?.coordinates[0];
+
+      if (
+        typeof stationLatitude !== 'number' ||
+        typeof stationLongitude !== 'number'
+      ) {
+        continue;
+      }
+
+      const temperature =
+        typeof props.TEMP === 'number' ? props.TEMP : undefined;
+      if (temperature === undefined) {
+        continue;
+      }
+
+      const stationId = String(
+        props.CLIMATE_IDENTIFIER ||
+          props.STN_ID ||
+          props.STATION_NAME ||
+          'nearby',
+      );
+      const distance = calculateDistance(
+        latitude,
+        longitude,
+        stationLatitude,
+        stationLongitude,
+      );
+      const weatherDescription = props.WEATHER_ENG_DESC || 'Unknown';
+      const windDirection =
+        typeof props.WIND_DIRECTION === 'number'
+          ? props.WIND_DIRECTION <= 36
+            ? props.WIND_DIRECTION * 10
+            : props.WIND_DIRECTION
+          : undefined;
+
+      const forecast: WeatherForecast = {
+        timestamp,
+        temperature: roundToInt(temperature),
+        feelsLike:
+          typeof props.WINDCHILL === 'number'
+            ? roundToInt(props.WINDCHILL)
+            : typeof props.HUMIDEX === 'number'
+              ? roundToInt(props.HUMIDEX)
+              : undefined,
+        humidity: roundToInt(props.RELATIVE_HUMIDITY || 0),
+        windSpeed: roundToInt(props.WIND_SPEED || 0),
+        windDirection,
+        pressure:
+          typeof props.STATION_PRESSURE === 'number'
+            ? roundToInt(props.STATION_PRESSURE * 10)
+            : undefined,
+        conditions:
+          weatherDescription.toUpperCase() === 'NA'
+            ? 'Unknown'
+            : weatherDescription,
+        visibility:
+          typeof props.VISIBILITY === 'number' ? props.VISIBILITY : undefined,
+        precipAmount:
+          typeof props.PRECIP_AMOUNT === 'number'
+            ? props.PRECIP_AMOUNT
+            : undefined,
+        confidence: 100,
+        raw: {
+          source: 'environment-canada-climate-hourly',
+          stationId,
+          stationName: props.STATION_NAME,
+          stationLatitude,
+          stationLongitude,
+          stationDistanceKm: distance,
+          observation: props,
+        },
+      };
+
+      const group = byStation.get(stationId);
+      if (group) {
+        group.forecasts.push(forecast);
+      } else {
+        byStation.set(stationId, { distance, forecasts: [forecast] });
+      }
+    }
+
+    const nearest = [...byStation.values()].sort(
+      (a, b) => a.distance - b.distance,
+    )[0];
+
+    if (!nearest) {
+      throw new NoResultsError(this.name, latitude, longitude);
+    }
+
+    return nearest.forecasts.sort(
+      (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
+    );
+  }
+
   /**
    * Test connection to Environment Canada API
    */
@@ -307,4 +563,9 @@ export class EnvironmentCanadaProvider implements IWeatherProvider {
     // Check if coordinates are within Canada's bounds
     return isInCanada(latitude, longitude);
   }
+}
+
+function parseEnvironmentCanadaUtcDate(value: string): Date {
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value);
+  return new Date(hasTimezone ? value : `${value}Z`);
 }
