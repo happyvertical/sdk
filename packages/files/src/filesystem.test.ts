@@ -1,4 +1,4 @@
-import { mkdir, rmdir } from 'node:fs/promises';
+import { mkdir, readFile, rmdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getTempDirectory } from '@happyvertical/utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -70,6 +70,14 @@ describe('Filesystem Interface', () => {
 
       const readContent = await fs.read('test.txt');
       expect(readContent).toBe(content);
+    });
+
+    it('should place local files directly under the configured base path', async () => {
+      await fs.write('nested/base-path.txt', 'rooted once');
+
+      await expect(
+        readFile(join(testDir, 'nested/base-path.txt'), 'utf8'),
+      ).resolves.toBe('rooted once');
     });
 
     it('should write and read binary files', async () => {

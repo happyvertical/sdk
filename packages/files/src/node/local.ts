@@ -55,7 +55,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
   private readonly rootPath: string;
 
   constructor(options: LocalOptions = {}) {
-    super(options);
+    super({ ...options, basePath: '' });
     this.rootPath = options.basePath
       ? resolve(options.basePath)
       : process.cwd();
