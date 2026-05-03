@@ -91,6 +91,12 @@ interface ECForecastData {
 
 interface ECClimateHourlyData {
   type: string;
+  links?: Array<{
+    rel?: string;
+    href?: string;
+    type?: string;
+    title?: string;
+  }>;
   features: Array<{
     id: string;
     type: string;
@@ -225,34 +231,17 @@ export class EnvironmentCanadaProvider implements IWeatherProvider {
 
     try {
       const url = this.buildClimateHourlyUrl(latitude, longitude, window);
-      const controller = new AbortController();
-      const timeoutId = setTimeout(
-        () => controller.abort(),
-        options.timeout || this.timeout,
-      );
-
-      const response = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        throw new WeatherError(
-          `API request failed: ${response.statusText}`,
-          this.name,
-          `HTTP_${response.status}`,
-        );
-      }
-
-      const data = (await response.json()) as ECClimateHourlyData;
+      const data = await this.fetchClimateHourlyPages(url, options.timeout);
       const stationForecasts = this.transformClimateHourly(
         data,
         latitude,
         longitude,
-      );
-      const forecasts = filterHistoricalWindow(
-        stationForecasts,
         window,
-        options.limit,
       );
+      const forecasts =
+        options.limit && options.limit > 0
+          ? stationForecasts.slice(0, options.limit)
+          : stationForecasts;
 
       if (forecasts.length === 0) {
         throw new NoResultsError(this.name, latitude, longitude);
@@ -306,6 +295,75 @@ export class EnvironmentCanadaProvider implements IWeatherProvider {
     });
 
     return `${this.climateHourlyApiBase}?${params.toString()}`;
+  }
+
+  private async fetchClimateHourlyPages(
+    initialUrl: string,
+    timeout?: number,
+  ): Promise<ECClimateHourlyData> {
+    const features: ECClimateHourlyData['features'] = [];
+    const visited = new Set<string>();
+    let nextUrl: string | undefined = initialUrl;
+    let pageCount = 0;
+
+    while (nextUrl) {
+      if (visited.has(nextUrl)) {
+        throw new WeatherError(
+          'Environment Canada climate pagination loop detected',
+          this.name,
+          'PAGINATION_LOOP',
+        );
+      }
+
+      visited.add(nextUrl);
+      pageCount += 1;
+
+      if (pageCount > 50) {
+        throw new WeatherError(
+          'Environment Canada climate pagination exceeded safety limit',
+          this.name,
+          'PAGINATION_LIMIT',
+        );
+      }
+
+      const page = await this.fetchClimateHourlyPage(nextUrl, timeout);
+      features.push(...(page.features || []));
+      nextUrl = page.links?.find(
+        (link) => link.rel === 'next' && link.href,
+      )?.href;
+    }
+
+    return {
+      type: 'FeatureCollection',
+      features,
+    };
+  }
+
+  private async fetchClimateHourlyPage(
+    url: string,
+    timeout?: number,
+  ): Promise<ECClimateHourlyData> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      timeout || this.timeout,
+    );
+
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+
+      if (!response.ok) {
+        throw new WeatherError(
+          `API request failed: ${response.statusText}`,
+          this.name,
+          `HTTP_${response.status}`,
+        );
+      }
+
+      return (await response.json()) as ECClimateHourlyData;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   /**
@@ -402,6 +460,7 @@ export class EnvironmentCanadaProvider implements IWeatherProvider {
     data: ECClimateHourlyData,
     latitude: number,
     longitude: number,
+    window?: { start: Date; end: Date },
   ): WeatherForecast[] {
     if (!data.features || data.features.length === 0) {
       throw new NoResultsError(this.name, latitude, longitude);
@@ -506,9 +565,17 @@ export class EnvironmentCanadaProvider implements IWeatherProvider {
       }
     }
 
-    const nearest = [...byStation.values()].sort(
-      (a, b) => a.distance - b.distance,
-    )[0];
+    const nearest = [...byStation.values()]
+      .map((group) => ({
+        distance: group.distance,
+        forecasts: window
+          ? filterHistoricalWindow(group.forecasts, window)
+          : group.forecasts.sort(
+              (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
+            ),
+      }))
+      .filter((group) => group.forecasts.length > 0)
+      .sort((a, b) => a.distance - b.distance)[0];
 
     if (!nearest) {
       throw new NoResultsError(this.name, latitude, longitude);

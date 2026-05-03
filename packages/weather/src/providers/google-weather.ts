@@ -393,7 +393,7 @@ export class GoogleWeatherProvider implements IWeatherProvider {
 
     const hours = options?.hours || 24;
     const url = this.buildUrl(
-      '/history.hours:lookup',
+      '/history/hours:lookup',
       latitude,
       longitude,
       `&hours=${hours}`,

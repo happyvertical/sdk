@@ -72,6 +72,50 @@ describe('standardized historical weather adapters', () => {
     expect(result).toEqual([forecast]);
   });
 
+  it('uses the Google hourly history slash endpoint', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        timeZone: { id: 'UTC' },
+        historyHours: [
+          {
+            interval: {
+              startTime: '2026-01-15T11:00:00Z',
+              endTime: '2026-01-15T12:00:00Z',
+            },
+            displayDateTime: {
+              year: 2026,
+              month: 1,
+              day: 15,
+              hours: 11,
+              utcOffset: '0s',
+            },
+            isDaytime: true,
+            weatherCondition: {
+              iconBaseUri: '',
+              description: { text: 'Cloudy', languageCode: 'en' },
+              type: 'CLOUDY',
+            },
+            temperature: { degrees: -3, unit: 'CELSIUS' },
+            relativeHumidity: 70,
+            wind: {
+              direction: { degrees: 270, cardinal: 'W' },
+              speed: { value: 3, unit: 'METERS_PER_SECOND' },
+            },
+          },
+        ],
+      }),
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const provider = new GoogleWeatherProvider({ apiKey: 'test-key' });
+    await provider.fetchHourlyHistory(51.0447, -114.0719, { hours: 1 });
+
+    const requestedUrl = String(fetchMock.mock.calls[0][0]);
+    expect(requestedUrl).toContain('/history/hours:lookup?');
+    expect(requestedUrl).not.toContain('/history.hours:lookup');
+  });
+
   it('transforms Open-Meteo archive rows into standard forecasts', async () => {
     vi.stubGlobal(
       'fetch',
@@ -175,6 +219,133 @@ describe('standardized historical weather adapters', () => {
         source: 'environment-canada-climate-hourly',
         stationName: 'RED DEER REGIONAL A',
       }),
+    });
+  });
+
+  it('selects the nearest Environment Canada station with data in the requested window', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          type: 'FeatureCollection',
+          features: [
+            {
+              id: 'near-padding-only',
+              type: 'Feature',
+              geometry: {
+                type: 'Point',
+                coordinates: [-114.093, 52.268],
+              },
+              properties: {
+                STATION_NAME: 'NEAR PADDING ONLY',
+                CLIMATE_IDENTIFIER: 'near',
+                UTC_DATE: '2026-01-14T19:00:00',
+                TEMP: -1,
+                RELATIVE_HUMIDITY: 80,
+                WIND_SPEED: 10,
+                LONGITUDE_DECIMAL_DEGREES: -114.093,
+                LATITUDE_DECIMAL_DEGREES: 52.268,
+              },
+            },
+            {
+              id: 'far-window-match',
+              type: 'Feature',
+              geometry: {
+                type: 'Point',
+                coordinates: [-113.8944, 52.1822],
+              },
+              properties: {
+                STATION_NAME: 'FAR WINDOW MATCH',
+                CLIMATE_IDENTIFIER: 'far',
+                UTC_DATE: '2026-01-15T19:00:00',
+                TEMP: -2.6,
+                RELATIVE_HUMIDITY: 82,
+                WIND_SPEED: 13,
+                LONGITUDE_DECIMAL_DEGREES: -113.8944,
+                LATITUDE_DECIMAL_DEGREES: 52.1822,
+              },
+            },
+          ],
+        }),
+      })),
+    );
+
+    const provider = new EnvironmentCanadaProvider();
+    const forecasts = await provider.fetchHistoricalForLocation(
+      52.268,
+      -114.093,
+      {
+        start: '2026-01-15T19:00:00Z',
+        end: '2026-01-15T19:00:00Z',
+      },
+    );
+
+    expect(forecasts).toHaveLength(1);
+    expect(forecasts[0].raw).toMatchObject({
+      stationName: 'FAR WINDOW MATCH',
+    });
+  });
+
+  it('follows Environment Canada climate-hourly pagination', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          type: 'FeatureCollection',
+          features: [],
+          links: [
+            {
+              rel: 'next',
+              href: 'https://api.weather.gc.ca/collections/climate-hourly/items?offset=2000',
+            },
+          ],
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          type: 'FeatureCollection',
+          features: [
+            {
+              id: 'page-two-match',
+              type: 'Feature',
+              geometry: {
+                type: 'Point',
+                coordinates: [-113.8944, 52.1822],
+              },
+              properties: {
+                STATION_NAME: 'PAGE TWO MATCH',
+                CLIMATE_IDENTIFIER: 'page-two',
+                UTC_DATE: '2026-01-15T19:00:00',
+                TEMP: -2.6,
+                RELATIVE_HUMIDITY: 82,
+                WIND_SPEED: 13,
+                LONGITUDE_DECIMAL_DEGREES: -113.8944,
+                LATITUDE_DECIMAL_DEGREES: 52.1822,
+              },
+            },
+          ],
+        }),
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const provider = new EnvironmentCanadaProvider();
+    const forecasts = await provider.fetchHistoricalForLocation(
+      52.268,
+      -114.093,
+      {
+        start: '2026-01-15T19:00:00Z',
+        end: '2026-01-15T19:00:00Z',
+      },
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[1][0])).toContain('offset=2000');
+    expect(forecasts).toHaveLength(1);
+    expect(forecasts[0].raw).toMatchObject({
+      stationName: 'PAGE TWO MATCH',
     });
   });
 
