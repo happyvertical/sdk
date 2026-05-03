@@ -17,12 +17,14 @@
 
 import type {
   FetchOptions,
+  HistoricalFetchOptions,
   IWeatherProvider,
   WeatherForecast,
 } from '../shared/types';
 import {
   AuthenticationError,
   RateLimitError,
+  UnsupportedWeatherCapabilityError,
   WeatherError,
 } from '../shared/types';
 import {
@@ -172,6 +174,19 @@ export class OpenWeatherMapProvider implements IWeatherProvider {
         'FETCH_ERROR',
       );
     }
+  }
+
+  async fetchHistoricalForLocation(
+    latitude: number,
+    longitude: number,
+    _options: HistoricalFetchOptions,
+  ): Promise<WeatherForecast[]> {
+    ensureValidCoordinates(this.name, latitude, longitude);
+    throw new UnsupportedWeatherCapabilityError(
+      this.name,
+      'historical-weather',
+      'The OpenWeatherMap forecast adapter does not expose OpenWeatherMap historical products yet.',
+    );
   }
 
   /**

@@ -11,7 +11,15 @@ import {
   unlink,
   writeFile,
 } from 'node:fs/promises';
-import { dirname, extname, join, resolve } from 'node:path';
+import {
+  dirname,
+  extname,
+  isAbsolute,
+  join,
+  relative,
+  resolve,
+  sep,
+} from 'node:path';
 import { URL } from 'node:url';
 import { getTempDirectory } from '@happyvertical/utils';
 import { BaseFilesystemProvider } from '../shared/base';
@@ -23,6 +31,7 @@ import {
   type FileStats,
   type FilesystemCapabilities,
   FilesystemError,
+  InvalidPathError,
   type ListOptions,
   type LocalOptions,
   PermissionError,
@@ -55,7 +64,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
   private readonly rootPath: string;
 
   constructor(options: LocalOptions = {}) {
-    super(options);
+    super({ ...options, applyBasePath: false });
     this.rootPath = options.basePath
       ? resolve(options.basePath)
       : process.cwd();
@@ -78,6 +87,29 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
     this.validatePath(path);
     const normalized = this.normalizePath(path);
     return join(this.rootPath, normalized);
+  }
+
+  private resolveCachePath(path: string): string {
+    this.validatePath(path);
+
+    if (isAbsolute(path)) {
+      throw new InvalidPathError(path, this.providerType);
+    }
+
+    const normalized = this.normalizePath(path);
+    const cacheRoot = resolve(this.cacheDir);
+    const cachePath = resolve(cacheRoot, normalized);
+    const relativePath = relative(cacheRoot, cachePath);
+
+    if (
+      !relativePath ||
+      relativePath === '..' ||
+      relativePath.startsWith(`..${sep}`)
+    ) {
+      throw new InvalidPathError(path, this.providerType);
+    }
+
+    return cachePath;
   }
 
   /**
@@ -720,7 +752,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
    * Get data from cache if available and not expired (legacy)
    */
   async getCached(file: string, expiry = 300000): Promise<string | undefined> {
-    const cacheFile = resolve(getTempDirectory('cache'), file);
+    const cacheFile = this.resolveCachePath(file);
     const cached = existsSync(cacheFile);
     if (cached) {
       const stats = statSync(cacheFile);
@@ -738,7 +770,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
    * Set data in cache (legacy)
    */
   async setCached(file: string, data: string): Promise<void> {
-    const cacheFile = resolve(getTempDirectory('cache'), file);
+    const cacheFile = this.resolveCachePath(file);
     await mkdir(dirname(cacheFile), { recursive: true });
     await writeFile(cacheFile, data);
   }
@@ -757,7 +789,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
 
     clear: async (key?: string): Promise<void> => {
       if (key) {
-        const cacheFile = resolve(getTempDirectory('cache'), key);
+        const cacheFile = this.resolveCachePath(key);
         try {
           await unlink(cacheFile);
         } catch {
@@ -766,8 +798,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
       } else {
         // Clear entire cache directory
         try {
-          const cacheDir = resolve(getTempDirectory('cache'));
-          await rmdir(cacheDir, { recursive: true });
+          await rmdir(this.cacheDir, { recursive: true });
         } catch {
           // Ignore errors if directory doesn't exist
         }

@@ -1,9 +1,13 @@
-import { mkdir, rmdir } from 'node:fs/promises';
+import { mkdir, readFile, rmdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getTempDirectory } from '@happyvertical/utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getFilesystem, LocalFilesystemProvider } from './index';
-import { FileNotFoundError, FilesystemError } from './shared/types';
+import {
+  FileNotFoundError,
+  FilesystemError,
+  InvalidPathError,
+} from './shared/types';
 
 describe('Filesystem Interface', () => {
   let testDir: string;
@@ -70,6 +74,28 @@ describe('Filesystem Interface', () => {
 
       const readContent = await fs.read('test.txt');
       expect(readContent).toBe(content);
+    });
+
+    it('should place local files directly under the configured base path', async () => {
+      await fs.write('nested/base-path.txt', 'rooted once');
+
+      await expect(
+        readFile(join(testDir, 'nested/base-path.txt'), 'utf8'),
+      ).resolves.toBe('rooted once');
+    });
+
+    it('should preserve base provider cache options for local filesystems', async () => {
+      const cacheDir = join(testDir, 'custom-cache');
+      const fsWithCache = new LocalFilesystemProvider({
+        basePath: testDir,
+        cacheDir,
+      });
+
+      await fsWithCache.cache.set('entry.txt', 'cached locally');
+
+      await expect(readFile(join(cacheDir, 'entry.txt'), 'utf8')).resolves.toBe(
+        'cached locally',
+      );
     });
 
     it('should write and read binary files', async () => {
@@ -276,6 +302,20 @@ describe('Filesystem Interface', () => {
       await new Promise((resolve) => setTimeout(resolve, 10)); // Wait 10ms
       const retrieved2 = await fs.cache.get(key, 1); // 1 millisecond
       expect(retrieved2).toBeUndefined();
+    });
+
+    it('should reject absolute cache keys', async () => {
+      const absoluteKey = join(getTempDirectory(), 'have-cache-escape.txt');
+
+      await expect(
+        fs.cache.set(absoluteKey, 'cached data'),
+      ).rejects.toBeInstanceOf(InvalidPathError);
+      await expect(fs.cache.get(absoluteKey)).rejects.toBeInstanceOf(
+        InvalidPathError,
+      );
+      await expect(fs.cache.clear(absoluteKey)).rejects.toBeInstanceOf(
+        InvalidPathError,
+      );
     });
   });
 

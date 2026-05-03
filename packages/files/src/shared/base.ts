@@ -25,12 +25,14 @@ import {
  */
 export abstract class BaseFilesystemProvider implements FilesystemInterface {
   protected basePath: string;
+  protected applyBasePath: boolean;
   protected cacheDir: string;
   protected createMissing: boolean;
   protected providerType: string;
 
   constructor(options: BaseProviderOptions = {}) {
     this.basePath = options.basePath || '';
+    this.applyBasePath = options.applyBasePath ?? true;
     // Use a universal cache directory approach - will be context-specific
     this.cacheDir = options.cacheDir || this.getDefaultCacheDir();
     this.createMissing = options.createMissing ?? true;
@@ -84,7 +86,7 @@ export abstract class BaseFilesystemProvider implements FilesystemInterface {
     let normalized = path.startsWith('/') ? path.slice(1) : path;
 
     // Combine with base path if configured
-    if (this.basePath) {
+    if (this.applyBasePath && this.basePath) {
       normalized = this.joinPaths(this.basePath, normalized);
     }
 

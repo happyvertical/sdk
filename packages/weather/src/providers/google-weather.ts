@@ -16,8 +16,14 @@
  * Data Format: JSON
  */
 
+import {
+  filterHistoricalWindow,
+  hoursBetween,
+  normalizeHistoricalWindow,
+} from '../shared/historical';
 import type {
   FetchOptions,
+  HistoricalFetchOptions,
   IWeatherProvider,
   WeatherAlert,
   WeatherForecast,
@@ -26,6 +32,7 @@ import {
   AuthenticationError,
   NoResultsError,
   RateLimitError,
+  UnsupportedWeatherCapabilityError,
   WeatherError,
 } from '../shared/types';
 import {
@@ -386,7 +393,7 @@ export class GoogleWeatherProvider implements IWeatherProvider {
 
     const hours = options?.hours || 24;
     const url = this.buildUrl(
-      '/history.hours:lookup',
+      '/history/hours:lookup',
       latitude,
       longitude,
       `&hours=${hours}`,
@@ -403,6 +410,47 @@ export class GoogleWeatherProvider implements IWeatherProvider {
     return data.historyHours.map((hour) =>
       this.transformHourlyForecast(hour, 'history'),
     );
+  }
+
+  async fetchHistoricalForLocation(
+    latitude: number,
+    longitude: number,
+    options: HistoricalFetchOptions,
+  ): Promise<WeatherForecast[]> {
+    ensureValidCoordinates(this.name, latitude, longitude);
+
+    const window = normalizeHistoricalWindow(this.name, options);
+    const now = new Date();
+    const oldestSupported = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    if (window.end.getTime() > now.getTime()) {
+      throw new WeatherError(
+        'Google Weather historical lookup cannot end in the future',
+        this.name,
+        'INVALID_DATE_RANGE',
+      );
+    }
+
+    if (window.start.getTime() < oldestSupported.getTime()) {
+      throw new UnsupportedWeatherCapabilityError(
+        this.name,
+        'historical-weather',
+        'Google Weather hourly history is limited to the previous 24 hours.',
+      );
+    }
+
+    const hours = Math.min(24, hoursBetween(window.start, now));
+    const history = await this.fetchHourlyHistory(latitude, longitude, {
+      ...options,
+      hours,
+    });
+
+    const forecasts = filterHistoricalWindow(history, window, options.limit);
+    if (forecasts.length === 0) {
+      throw new NoResultsError(this.name, latitude, longitude);
+    }
+
+    return forecasts;
   }
 
   /**

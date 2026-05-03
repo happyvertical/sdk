@@ -6,6 +6,7 @@
  * - OpenWeatherMap (free tier, global, 3-hour forecasts)
  * - OpenWeatherMap One Call (paid tier, global, hourly + daily)
  * - Google Weather (paid, global, 240h hourly + 10 day daily + alerts)
+ * - Open-Meteo (free/community, global forecast + long-range hourly archive)
  *
  * @example
  * ```typescript
@@ -39,6 +40,7 @@ import { loadEnvConfig } from '@happyvertical/utils';
 // Provider imports
 import { EnvironmentCanadaProvider } from './providers/environment-canada';
 import { GoogleWeatherProvider } from './providers/google-weather';
+import { OpenMeteoProvider } from './providers/open-meteo';
 import { OpenWeatherMapProvider } from './providers/openweathermap';
 import { OpenWeatherMapOneCallProvider } from './providers/openweathermap-onecall';
 import type {
@@ -53,8 +55,10 @@ export type {
   EnvironmentCanadaOptions,
   FetchOptions,
   GoogleWeatherOptions,
+  HistoricalFetchOptions,
   IWeatherAdapter,
   IWeatherProvider,
+  OpenMeteoOptions,
   OpenWeatherMapOneCallOptions,
   OpenWeatherMapOptions,
   PartialWeatherAdapterOptions,
@@ -69,6 +73,7 @@ export {
   InvalidLocationError,
   NoResultsError,
   RateLimitError,
+  UnsupportedWeatherCapabilityError,
   WeatherError,
 } from './shared/types';
 
@@ -211,9 +216,15 @@ function mergeConfig(
       };
     }
 
+    case 'open-meteo':
+      return {
+        provider: 'open-meteo',
+        timeout: merged.timeout,
+      };
+
     default:
       throw new WeatherError(
-        `Unknown provider: ${provider}. Supported providers: environment-canada, openweathermap, openweathermap-onecall, google-weather`,
+        `Unknown provider: ${provider}. Supported providers: environment-canada, openweathermap, openweathermap-onecall, google-weather, open-meteo`,
         'unknown',
         'INVALID_PROVIDER',
       );
@@ -266,6 +277,11 @@ export async function getWeatherAdapter(
     case 'google-weather':
       return new GoogleWeatherProvider({
         apiKey: config.apiKey,
+        timeout: config.timeout,
+      });
+
+    case 'open-meteo':
+      return new OpenMeteoProvider({
         timeout: config.timeout,
       });
 
