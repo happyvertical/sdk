@@ -55,7 +55,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
   private readonly rootPath: string;
 
   constructor(options: LocalOptions = {}) {
-    super({ ...options, basePath: '' });
+    super({ ...options, applyBasePath: false });
     this.rootPath = options.basePath
       ? resolve(options.basePath)
       : process.cwd();
@@ -720,7 +720,8 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
    * Get data from cache if available and not expired (legacy)
    */
   async getCached(file: string, expiry = 300000): Promise<string | undefined> {
-    const cacheFile = resolve(getTempDirectory('cache'), file);
+    this.validatePath(file);
+    const cacheFile = resolve(this.cacheDir, file);
     const cached = existsSync(cacheFile);
     if (cached) {
       const stats = statSync(cacheFile);
@@ -738,7 +739,8 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
    * Set data in cache (legacy)
    */
   async setCached(file: string, data: string): Promise<void> {
-    const cacheFile = resolve(getTempDirectory('cache'), file);
+    this.validatePath(file);
+    const cacheFile = resolve(this.cacheDir, file);
     await mkdir(dirname(cacheFile), { recursive: true });
     await writeFile(cacheFile, data);
   }
@@ -757,7 +759,8 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
 
     clear: async (key?: string): Promise<void> => {
       if (key) {
-        const cacheFile = resolve(getTempDirectory('cache'), key);
+        this.validatePath(key);
+        const cacheFile = resolve(this.cacheDir, key);
         try {
           await unlink(cacheFile);
         } catch {
@@ -766,8 +769,7 @@ export class LocalFilesystemProvider extends BaseFilesystemProvider {
       } else {
         // Clear entire cache directory
         try {
-          const cacheDir = resolve(getTempDirectory('cache'));
-          await rmdir(cacheDir, { recursive: true });
+          await rmdir(this.cacheDir, { recursive: true });
         } catch {
           // Ignore errors if directory doesn't exist
         }

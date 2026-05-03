@@ -436,6 +436,12 @@ export interface BaseProviderOptions {
   basePath?: string;
 
   /**
+   * Whether shared path normalization should prefix basePath.
+   * Providers that map basePath into their own storage root can disable this.
+   */
+  applyBasePath?: boolean;
+
+  /**
    * Cache directory location
    */
   cacheDir?: string;

@@ -284,6 +284,8 @@ export class EnvironmentCanadaProvider implements IWeatherProvider {
     lng: number,
     window: { start: Date; end: Date },
   ): string {
+    // The climate collection can paginate in dense regions; fetchClimateHourlyPages
+    // follows every page before nearest-station selection.
     const queryStart = new Date(window.start.getTime() - 24 * 60 * 60 * 1000);
     const queryEnd = new Date(window.end.getTime() + 24 * 60 * 60 * 1000);
     const bboxPadding = 1;
@@ -512,12 +514,9 @@ export class EnvironmentCanadaProvider implements IWeatherProvider {
         stationLongitude,
       );
       const weatherDescription = props.WEATHER_ENG_DESC || 'Unknown';
-      const windDirection =
-        typeof props.WIND_DIRECTION === 'number'
-          ? props.WIND_DIRECTION <= 36
-            ? props.WIND_DIRECTION * 10
-            : props.WIND_DIRECTION
-          : undefined;
+      const windDirection = normalizeEnvironmentCanadaWindDirection(
+        props.WIND_DIRECTION,
+      );
 
       const forecast: WeatherForecast = {
         timestamp,
@@ -565,6 +564,8 @@ export class EnvironmentCanadaProvider implements IWeatherProvider {
       }
     }
 
+    // V1 uses one nearest station with at least one observation in the window.
+    // Gap-filling from additional stations can be layered on later if needed.
     const nearest = [...byStation.values()]
       .map((group) => ({
         distance: group.distance,
@@ -635,4 +636,15 @@ export class EnvironmentCanadaProvider implements IWeatherProvider {
 function parseEnvironmentCanadaUtcDate(value: string): Date {
   const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value);
   return new Date(hasTimezone ? value : `${value}Z`);
+}
+
+function normalizeEnvironmentCanadaWindDirection(
+  value: number | null | undefined,
+): number | undefined {
+  if (typeof value !== 'number') {
+    return undefined;
+  }
+
+  // EC climate-hourly WIND_DIRECTION is reported in tens of degrees: 27 => 270.
+  return value <= 36 ? value * 10 : value;
 }

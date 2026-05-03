@@ -6,12 +6,17 @@ import { OpenMeteoProvider } from '../providers/open-meteo';
 import { OpenWeatherMapProvider } from '../providers/openweathermap';
 import { OpenWeatherMapOneCallProvider } from '../providers/openweathermap-onecall';
 import type { IWeatherProvider, WeatherForecast } from '../shared/types';
-import { UnsupportedWeatherCapabilityError } from '../shared/types';
+import {
+  NoResultsError,
+  UnsupportedWeatherCapabilityError,
+  type WeatherError,
+} from '../shared/types';
 
 describe('standardized historical weather adapters', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   it('exposes fetchHistoricalForLocation on every provider', () => {
@@ -42,6 +47,7 @@ describe('standardized historical weather adapters', () => {
   it('delegates Google historical requests to hourly history within the supported range', async () => {
     const provider = new GoogleWeatherProvider({ apiKey: 'test-key' });
     const now = new Date('2026-01-15T12:00:00Z');
+    vi.useFakeTimers();
     vi.setSystemTime(now);
     const forecast: WeatherForecast = {
       timestamp: new Date('2026-01-15T11:00:00Z'),
@@ -70,6 +76,19 @@ describe('standardized historical weather adapters', () => {
       expect.objectContaining({ hours: 3 }),
     );
     expect(result).toEqual([forecast]);
+  });
+
+  it('rejects Google historical requests older than the 24-hour history window', async () => {
+    const provider = new GoogleWeatherProvider({ apiKey: 'test-key' });
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-15T12:00:00Z'));
+
+    await expect(
+      provider.fetchHistoricalForLocation(51.0447, -114.0719, {
+        start: '2026-01-14T10:59:00Z',
+        end: '2026-01-14T12:00:00Z',
+      }),
+    ).rejects.toBeInstanceOf(UnsupportedWeatherCapabilityError);
   });
 
   it('uses the Google hourly history slash endpoint', async () => {
@@ -164,6 +183,67 @@ describe('standardized historical weather adapters', () => {
     expect(forecasts[1].conditions).toBe('Rain');
   });
 
+  it('surfaces Open-Meteo API error bodies as weather errors', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          error: true,
+          reason: 'Requested date is outside archive range',
+        }),
+      })),
+    );
+
+    const provider = new OpenMeteoProvider();
+
+    await expect(
+      provider.fetchForLocation(52.268, -114.093),
+    ).rejects.toMatchObject({
+      code: 'API_ERROR',
+      message: 'Requested date is outside archive range',
+      provider: 'Open-Meteo',
+    } satisfies Partial<WeatherError>);
+  });
+
+  it('skips Open-Meteo rows with missing required measurements', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          latitude: 52.268,
+          longitude: -114.093,
+          timezone: 'UTC',
+          hourly: {
+            time: ['2026-01-15T18:00', '2026-01-15T19:00:00Z'],
+            temperature_2m: [-4.2, -3.8],
+            relative_humidity_2m: [null, 74],
+            wind_speed_10m: [18.4, 20.1],
+            weather_code: [3, 61],
+          },
+        }),
+      })),
+    );
+
+    const provider = new OpenMeteoProvider();
+    const forecasts = await provider.fetchHistoricalForLocation(
+      52.268,
+      -114.093,
+      {
+        start: '2026-01-15T18:00:00Z',
+        end: '2026-01-15T19:00:00Z',
+      },
+    );
+
+    expect(forecasts).toHaveLength(1);
+    expect(forecasts[0]).toMatchObject({
+      timestamp: new Date('2026-01-15T19:00:00Z'),
+      humidity: 74,
+      windSpeed: 20,
+    });
+  });
+
   it('uses Environment Canada climate-hourly observations for Canadian historical requests', async () => {
     vi.stubGlobal(
       'fetch',
@@ -220,6 +300,73 @@ describe('standardized historical weather adapters', () => {
         stationName: 'RED DEER REGIONAL A',
       }),
     });
+  });
+
+  it('keeps Environment Canada raw-degree wind directions above encoded tens range', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          type: 'FeatureCollection',
+          features: [
+            {
+              id: '3025484.2026.1.15.12',
+              type: 'Feature',
+              geometry: {
+                type: 'Point',
+                coordinates: [-113.8944, 52.1822],
+              },
+              properties: {
+                STATION_NAME: 'RED DEER REGIONAL A',
+                CLIMATE_IDENTIFIER: '3025484',
+                UTC_DATE: '2026-01-15T19:00:00',
+                TEMP: -2.6,
+                RELATIVE_HUMIDITY: 82,
+                WIND_DIRECTION: 350,
+                WIND_SPEED: 13,
+                LONGITUDE_DECIMAL_DEGREES: -113.8944,
+                LATITUDE_DECIMAL_DEGREES: 52.1822,
+              },
+            },
+          ],
+        }),
+      })),
+    );
+
+    const provider = new EnvironmentCanadaProvider();
+    const forecasts = await provider.fetchHistoricalForLocation(
+      52.268,
+      -114.093,
+      {
+        start: '2026-01-15T19:00:00Z',
+        end: '2026-01-15T19:00:00Z',
+      },
+    );
+
+    expect(forecasts[0].windDirection).toBe(350);
+  });
+
+  it('throws NoResultsError when Environment Canada returns no climate-hourly features', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => ({
+          type: 'FeatureCollection',
+          features: [],
+        }),
+      })),
+    );
+
+    const provider = new EnvironmentCanadaProvider();
+
+    await expect(
+      provider.fetchHistoricalForLocation(52.268, -114.093, {
+        start: '2026-01-15T19:00:00Z',
+        end: '2026-01-15T19:00:00Z',
+      }),
+    ).rejects.toBeInstanceOf(NoResultsError);
   });
 
   it('selects the nearest Environment Canada station with data in the requested window', async () => {

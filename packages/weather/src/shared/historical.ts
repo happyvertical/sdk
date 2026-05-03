@@ -12,6 +12,16 @@ export function normalizeHistoricalWindow(
   provider: string,
   options: HistoricalFetchOptions,
 ): HistoricalWindow {
+  const interval = options.interval || 'hourly';
+  if (interval !== 'hourly') {
+    throw new WeatherError(
+      `Unsupported historical weather interval: ${interval}`,
+      provider,
+      'UNSUPPORTED_INTERVAL',
+      { interval },
+    );
+  }
+
   const start = parseHistoricalDate(provider, options.start, 'start');
   const end = parseHistoricalDate(
     provider,
@@ -57,6 +67,7 @@ export function filterHistoricalWindow<T extends WeatherForecast>(
 export function hoursBetween(start: Date, end: Date): number {
   return Math.max(
     1,
+    // +1 ensures the requested window is fully covered before filtering.
     Math.ceil((end.getTime() - start.getTime()) / HOUR_MS) + 1,
   );
 }

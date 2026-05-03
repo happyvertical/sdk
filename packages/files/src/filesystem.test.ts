@@ -80,6 +80,20 @@ describe('Filesystem Interface', () => {
       ).resolves.toBe('rooted once');
     });
 
+    it('should preserve base provider cache options for local filesystems', async () => {
+      const cacheDir = join(testDir, 'custom-cache');
+      const fsWithCache = new LocalFilesystemProvider({
+        basePath: testDir,
+        cacheDir,
+      });
+
+      await fsWithCache.cache.set('entry.txt', 'cached locally');
+
+      await expect(readFile(join(cacheDir, 'entry.txt'), 'utf8')).resolves.toBe(
+        'cached locally',
+      );
+    });
+
     it('should write and read binary files', async () => {
       const buffer = Buffer.from([1, 2, 3, 4, 5]);
       await fs.write('binary.bin', buffer);

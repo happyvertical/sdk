@@ -185,7 +185,7 @@ export class OpenWeatherMapProvider implements IWeatherProvider {
     throw new UnsupportedWeatherCapabilityError(
       this.name,
       'historical-weather',
-      'OpenWeatherMap forecast API does not support standardized historical weather backfill.',
+      'The OpenWeatherMap forecast adapter does not expose OpenWeatherMap historical products yet.',
     );
   }
 

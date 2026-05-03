@@ -3,6 +3,8 @@
  *
  * Uses Open-Meteo forecast and historical archive endpoints. The archive
  * endpoint provides long-range hourly weather backfill without an API key.
+ * Archive data is published with a 5-7 day lag, so very recent windows are
+ * rejected with a descriptive range error instead of a generic no-results error.
  */
 
 import {
@@ -22,6 +24,8 @@ import {
   metersToKilometers,
   roundToInt,
 } from '../shared/utils';
+
+const ARCHIVE_PUBLISHING_LAG_MS = 5 * 24 * 60 * 60 * 1000;
 
 interface OpenMeteoHourlyData {
   time: string[];
@@ -69,7 +73,7 @@ export class OpenMeteoProvider implements IWeatherProvider {
     const params = this.buildBaseParams(latitude, longitude);
     params.set('forecast_days', '7');
 
-    const data = await this.fetchJson<OpenMeteoResponse>(
+    const data = await this.fetchJson(
       `${this.forecastApiBase}?${params.toString()}`,
       options?.timeout,
     );
@@ -94,11 +98,25 @@ export class OpenMeteoProvider implements IWeatherProvider {
     ensureValidCoordinates(this.name, latitude, longitude);
 
     const window = normalizeHistoricalWindow(this.name, options);
+    const latestArchiveEnd = new Date(Date.now() - ARCHIVE_PUBLISHING_LAG_MS);
+
+    if (window.end.getTime() > latestArchiveEnd.getTime()) {
+      throw new WeatherError(
+        'Open-Meteo archive data is published with a 5-7 day lag',
+        this.name,
+        'INVALID_DATE_RANGE',
+        {
+          requestedEnd: window.end.toISOString(),
+          latestSupportedEnd: latestArchiveEnd.toISOString(),
+        },
+      );
+    }
+
     const params = this.buildBaseParams(latitude, longitude);
     params.set('start_date', formatUtcDate(window.start));
     params.set('end_date', formatUtcDate(window.end));
 
-    const data = await this.fetchJson<OpenMeteoResponse>(
+    const data = await this.fetchJson(
       `${this.archiveApiBase}?${params.toString()}`,
       options.timeout,
     );
@@ -165,7 +183,10 @@ export class OpenMeteoProvider implements IWeatherProvider {
     });
   }
 
-  private async fetchJson<T>(url: string, timeout?: number): Promise<T> {
+  private async fetchJson(
+    url: string,
+    timeout?: number,
+  ): Promise<OpenMeteoResponse> {
     const controller = new AbortController();
     const timeoutId = setTimeout(
       () => controller.abort(),
@@ -174,7 +195,6 @@ export class OpenMeteoProvider implements IWeatherProvider {
 
     try {
       const response = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
 
       if (response.status === 429) {
         throw new RateLimitError(this.name);
@@ -199,10 +219,8 @@ export class OpenMeteoProvider implements IWeatherProvider {
         );
       }
 
-      return data as T;
+      return data;
     } catch (error) {
-      clearTimeout(timeoutId);
-
       if (error instanceof WeatherError) {
         throw error;
       }
@@ -216,6 +234,8 @@ export class OpenMeteoProvider implements IWeatherProvider {
         this.name,
         'FETCH_ERROR',
       );
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -233,10 +253,14 @@ export class OpenMeteoProvider implements IWeatherProvider {
     for (let index = 0; index < hourly.time.length; index++) {
       const timestamp = parseOpenMeteoTimestamp(hourly.time[index]);
       const temperature = hourly.temperature_2m?.[index];
+      const humidity = valueOrUndefined(hourly.relative_humidity_2m?.[index]);
+      const windSpeed = valueOrUndefined(hourly.wind_speed_10m?.[index]);
 
       if (
         Number.isNaN(timestamp.getTime()) ||
-        typeof temperature !== 'number'
+        typeof temperature !== 'number' ||
+        humidity === undefined ||
+        windSpeed === undefined
       ) {
         continue;
       }
@@ -246,8 +270,8 @@ export class OpenMeteoProvider implements IWeatherProvider {
       forecasts.push({
         timestamp,
         temperature: roundToInt(temperature),
-        humidity: roundToInt(hourly.relative_humidity_2m?.[index] || 0),
-        windSpeed: roundToInt(hourly.wind_speed_10m?.[index] || 0),
+        humidity: roundToInt(humidity),
+        windSpeed: roundToInt(windSpeed),
         windDirection: valueOrUndefined(hourly.wind_direction_10m?.[index]),
         windGust:
           typeof hourly.wind_gusts_10m?.[index] === 'number'
