@@ -3,7 +3,11 @@ import { join } from 'node:path';
 import { getTempDirectory } from '@happyvertical/utils';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getFilesystem, LocalFilesystemProvider } from './index';
-import { FileNotFoundError, FilesystemError } from './shared/types';
+import {
+  FileNotFoundError,
+  FilesystemError,
+  InvalidPathError,
+} from './shared/types';
 
 describe('Filesystem Interface', () => {
   let testDir: string;
@@ -298,6 +302,20 @@ describe('Filesystem Interface', () => {
       await new Promise((resolve) => setTimeout(resolve, 10)); // Wait 10ms
       const retrieved2 = await fs.cache.get(key, 1); // 1 millisecond
       expect(retrieved2).toBeUndefined();
+    });
+
+    it('should reject absolute cache keys', async () => {
+      const absoluteKey = join(getTempDirectory(), 'have-cache-escape.txt');
+
+      await expect(
+        fs.cache.set(absoluteKey, 'cached data'),
+      ).rejects.toBeInstanceOf(InvalidPathError);
+      await expect(fs.cache.get(absoluteKey)).rejects.toBeInstanceOf(
+        InvalidPathError,
+      );
+      await expect(fs.cache.clear(absoluteKey)).rejects.toBeInstanceOf(
+        InvalidPathError,
+      );
     });
   });
 

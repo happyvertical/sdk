@@ -231,7 +231,11 @@ export class EnvironmentCanadaProvider implements IWeatherProvider {
 
     try {
       const url = this.buildClimateHourlyUrl(latitude, longitude, window);
-      const data = await this.fetchClimateHourlyPages(url, options.timeout);
+      const data = await this.fetchClimateHourlyPages(
+        url,
+        window,
+        options.timeout,
+      );
       const stationForecasts = this.transformClimateHourly(
         data,
         latitude,
@@ -284,8 +288,9 @@ export class EnvironmentCanadaProvider implements IWeatherProvider {
     lng: number,
     window: { start: Date; end: Date },
   ): string {
-    // The climate collection can paginate in dense regions; fetchClimateHourlyPages
-    // follows every page before nearest-station selection.
+    // Padding helps discover stations near the requested point. Pagination keeps
+    // only observations inside the requested window so dense regions do not
+    // accumulate every padded row before nearest-station selection.
     const queryStart = new Date(window.start.getTime() - 24 * 60 * 60 * 1000);
     const queryEnd = new Date(window.end.getTime() + 24 * 60 * 60 * 1000);
     const bboxPadding = 1;
@@ -301,6 +306,7 @@ export class EnvironmentCanadaProvider implements IWeatherProvider {
 
   private async fetchClimateHourlyPages(
     initialUrl: string,
+    window: { start: Date; end: Date },
     timeout?: number,
   ): Promise<ECClimateHourlyData> {
     const features: ECClimateHourlyData['features'] = [];
@@ -329,7 +335,11 @@ export class EnvironmentCanadaProvider implements IWeatherProvider {
       }
 
       const page = await this.fetchClimateHourlyPage(nextUrl, timeout);
-      features.push(...(page.features || []));
+      features.push(
+        ...(page.features || []).filter((feature) =>
+          this.isClimateFeatureInWindow(feature, window),
+        ),
+      );
       nextUrl = page.links?.find(
         (link) => link.rel === 'next' && link.href,
       )?.href;
@@ -339,6 +349,26 @@ export class EnvironmentCanadaProvider implements IWeatherProvider {
       type: 'FeatureCollection',
       features,
     };
+  }
+
+  private isClimateFeatureInWindow(
+    feature: ECClimateHourlyData['features'][number],
+    window: { start: Date; end: Date },
+  ): boolean {
+    const rawTimestamp = feature.properties.UTC_DATE;
+    if (!rawTimestamp) {
+      return false;
+    }
+
+    const timestamp = parseEnvironmentCanadaUtcDate(rawTimestamp);
+    if (Number.isNaN(timestamp.getTime())) {
+      return false;
+    }
+
+    return (
+      timestamp.getTime() >= window.start.getTime() &&
+      timestamp.getTime() <= window.end.getTime()
+    );
   }
 
   private async fetchClimateHourlyPage(
