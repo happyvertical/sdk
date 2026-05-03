@@ -1,5 +1,21 @@
 # @happyvertical/utils
 
+## 0.73.2
+
+### Patch Changes
+
+- ### Features
+
+  - add standardized historical providers (weather)
+
+  ### Bug Fixes
+
+  - address copilot review feedback
+  - address remaining review threads (weather)
+  - address historical provider review (weather)
+  - parse timezone-aware open-meteo history (weather)
+  - keep local writes under configured base path (files)
+
 ## 0.73.1
 
 ### Patch Changes
