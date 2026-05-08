@@ -5,14 +5,22 @@
  * Uses YouTube Data API v3.
  */
 
-import { createLogger, type Logger } from '@happyvertical/logger';
+import { createHash, randomUUID } from 'node:crypto';
 
+import { createLogger, type Logger } from '@happyvertical/logger';
+import { resolveMediaData } from '../media.js';
+import {
+  createSafetyResult,
+  isPublicPublishMode,
+  resolvePublishMode,
+} from '../safety.js';
 import type {
   AuthorizationOptions,
   AuthorizationResult,
   AuthResult,
   CodeExchangeParams,
   ImagePost,
+  LinkPost,
   PlatformCapabilities,
   Post,
   PostAnalytics,
@@ -68,6 +76,13 @@ const DEFAULT_SCOPES = [
   'https://www.googleapis.com/auth/youtube.readonly',
 ];
 
+interface YouTubeApiError {
+  error?: {
+    code?: number | string;
+    message?: string;
+  };
+}
+
 /**
  * YouTube adapter for video publishing
  *
@@ -106,7 +121,7 @@ export class YouTubeAdapter implements SocialPlatform {
    * Generate OAuth authorization URL
    */
   getAuthorizationUrl(options: AuthorizationOptions = {}): AuthorizationResult {
-    const state = options.state ?? crypto.randomUUID();
+    const state = options.state ?? randomUUID();
     const scopes = options.scopes ?? DEFAULT_SCOPES;
 
     // Generate PKCE code verifier and challenge
@@ -237,6 +252,29 @@ export class YouTubeAdapter implements SocialPlatform {
   }
 
   async publishVideo(video: VideoPost): Promise<PostResult> {
+    const publishMode = resolvePublishMode(this.config);
+    const safeVisibility = isPublicPublishMode(publishMode)
+      ? (video.visibility ?? 'public')
+      : 'private';
+
+    if (publishMode === 'dry_run') {
+      return createSafetyResult({
+        platform: this.platform,
+        mode: publishMode,
+        postType: 'video',
+        payload: {
+          title: video.title ?? 'Untitled',
+          description: this.buildDescription(video),
+          tags: video.tags,
+          categoryId: video.categoryId ?? DEFAULT_CATEGORY_ID,
+          privacyStatus: safeVisibility,
+          isShort: video.isShort ?? false,
+          scheduledAt: video.scheduledAt?.toISOString(),
+        },
+        note: 'YouTube dry run: no video was uploaded.',
+      });
+    }
+
     const accessToken = this.currentAccessToken ?? this.config.accessToken;
     if (!accessToken) {
       throw new SocialAuthError('youtube', 'No access token');
@@ -251,7 +289,7 @@ export class YouTubeAdapter implements SocialPlatform {
         categoryId: video.categoryId ?? DEFAULT_CATEGORY_ID,
       },
       status: {
-        privacyStatus: video.visibility ?? 'public',
+        privacyStatus: safeVisibility,
         selfDeclaredMadeForKids: false,
         ...(video.scheduledAt && {
           publishAt: video.scheduledAt.toISOString(),
@@ -260,12 +298,11 @@ export class YouTubeAdapter implements SocialPlatform {
       },
     };
 
-    // Get video data
-    const videoData = Buffer.isBuffer(video.file)
-      ? video.file
-      : await fetch(video.file)
-          .then((r) => r.arrayBuffer())
-          .then(Buffer.from);
+    // Get video data.
+    const videoData = await resolveMediaData(video.file, {
+      explicitMimeType: video.mimeType,
+      fallbackMimeType: 'video/mp4',
+    });
 
     // Initialize resumable upload
     const initResponse = await fetch(
@@ -275,8 +312,8 @@ export class YouTubeAdapter implements SocialPlatform {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
-          'X-Upload-Content-Type': 'video/*',
-          'X-Upload-Content-Length': videoData.length.toString(),
+          'X-Upload-Content-Type': videoData.mimeType,
+          'X-Upload-Content-Length': videoData.data.length.toString(),
         },
         body: JSON.stringify(metadata),
       },
@@ -299,10 +336,10 @@ export class YouTubeAdapter implements SocialPlatform {
     const uploadResponse = await fetch(uploadUrl, {
       method: 'PUT',
       headers: {
-        'Content-Type': 'video/*',
-        'Content-Length': videoData.length.toString(),
+        'Content-Type': videoData.mimeType,
+        'Content-Length': videoData.data.length.toString(),
       },
-      body: new Uint8Array(videoData),
+      body: new Uint8Array(videoData.data),
     });
 
     if (!uploadResponse.ok) {
@@ -313,18 +350,32 @@ export class YouTubeAdapter implements SocialPlatform {
 
     // Upload thumbnail if provided
     if (video.thumbnail) {
-      await this.uploadThumbnail(result.id, video.thumbnail, accessToken);
+      await this.uploadThumbnail(
+        result.id,
+        video.thumbnail,
+        accessToken,
+        video.thumbnailMimeType,
+      );
     }
+
+    const status: PostResult['status'] = video.scheduledAt
+      ? 'scheduled'
+      : isPublicPublishMode(publishMode)
+        ? 'processing'
+        : 'staged';
 
     return {
       id: result.id,
       url: `https://youtube.com/watch?v=${result.id}`,
-      status: video.scheduledAt ? 'scheduled' : 'processing',
-      publishedAt: video.scheduledAt ? undefined : new Date(),
+      status,
+      publishedAt: status === 'processing' ? new Date() : undefined,
       scheduledAt: video.scheduledAt,
       metadata: {
         channelId: result.snippet?.channelId,
         channelTitle: result.snippet?.channelTitle,
+        publishMode,
+        privacyStatus: metadata.status.privacyStatus,
+        safety: !isPublicPublishMode(publishMode),
       },
     };
   }
@@ -337,13 +388,13 @@ export class YouTubeAdapter implements SocialPlatform {
     videoId: string,
     thumbnail: Buffer | string,
     accessToken: string,
+    thumbnailMimeType?: string,
   ): Promise<boolean> {
     try {
-      const thumbnailData = Buffer.isBuffer(thumbnail)
-        ? thumbnail
-        : await fetch(thumbnail)
-            .then((r) => r.arrayBuffer())
-            .then(Buffer.from);
+      const thumbnailData = await resolveMediaData(thumbnail, {
+        explicitMimeType: thumbnailMimeType,
+        fallbackMimeType: 'image/png',
+      });
 
       const response = await fetch(
         `${YOUTUBE_UPLOAD_URL}/thumbnails/set?videoId=${videoId}`,
@@ -351,9 +402,9 @@ export class YouTubeAdapter implements SocialPlatform {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'image/png',
+            'Content-Type': thumbnailData.mimeType,
           },
-          body: new Uint8Array(thumbnailData),
+          body: new Uint8Array(thumbnailData.data),
         },
       );
 
@@ -393,6 +444,14 @@ export class YouTubeAdapter implements SocialPlatform {
     );
   }
 
+  async publishLink(_link: LinkPost): Promise<PostResult> {
+    throw new SocialError(
+      'YouTube does not support link-only posts',
+      'NOT_SUPPORTED',
+      'youtube',
+    );
+  }
+
   async getPost(postId: string): Promise<Post> {
     const accessToken = this.currentAccessToken ?? this.config.accessToken;
     if (!accessToken) {
@@ -417,6 +476,8 @@ export class YouTubeAdapter implements SocialPlatform {
       throw new SocialError('Video not found', 'NOT_FOUND', 'youtube', 404);
     }
 
+    const statistics = video.statistics ?? {};
+
     return {
       id: video.id,
       url: `https://youtube.com/watch?v=${video.id}`,
@@ -426,9 +487,11 @@ export class YouTubeAdapter implements SocialPlatform {
       publishedAt: new Date(video.snippet.publishedAt),
       visibility: video.status.privacyStatus,
       analytics: {
-        views: parseInt(video.statistics.viewCount, 10),
-        likes: parseInt(video.statistics.likeCount, 10),
-        comments: parseInt(video.statistics.commentCount, 10),
+        views: this.parseMetric(statistics.viewCount),
+        likes: this.parseMetric(statistics.likeCount),
+        comments: this.parseMetric(statistics.commentCount),
+        lastUpdated: new Date(),
+        raw: statistics,
       },
     };
   }
@@ -459,14 +522,20 @@ export class YouTubeAdapter implements SocialPlatform {
       video: true,
       image: false,
       text: false,
+      link: false,
       scheduling: true,
       analytics: true,
+      rawAnalytics: true,
+      publishModes: ['dry_run', 'private_or_scheduled', 'public'],
+      staging: false,
+      privatePublishing: true,
       maxVideoLength: 60 * 60 * 12, // 12 hours (with verification)
       maxVideoSize: 256 * 1024 * 1024 * 1024, // 256GB
       supportedVideoFormats: ['mp4', 'mov', 'avi', 'wmv', 'flv', 'webm'],
       aspectRatios: ['16:9', '9:16', '1:1', '4:3'],
       maxTextLength: 5000, // Description
       maxHashtags: 15,
+      supportedPostTypes: ['video'],
     };
   }
 
@@ -480,12 +549,22 @@ export class YouTubeAdapter implements SocialPlatform {
       description += `\n\n${video.linkUrl}`;
     }
 
-    if (video.tags && video.tags.length > 0) {
-      const hashtags = video.tags.map((t) => (t.startsWith('#') ? t : `#${t}`));
+    const tags = video.isShort
+      ? Array.from(new Set([...(video.tags ?? []), 'Shorts']))
+      : video.tags;
+
+    if (tags && tags.length > 0) {
+      const hashtags = tags.map((t) => (t.startsWith('#') ? t : `#${t}`));
       description += `\n\n${hashtags.join(' ')}`;
     }
 
     return description;
+  }
+
+  private parseMetric(value: unknown): number | undefined {
+    if (value === undefined || value === null || value === '') return undefined;
+    const parsed = Number.parseInt(String(value), 10);
+    return Number.isFinite(parsed) ? parsed : undefined;
   }
 
   /**
@@ -493,11 +572,11 @@ export class YouTubeAdapter implements SocialPlatform {
    */
   private async handleError(response: Response): Promise<never> {
     const text = await response.text();
-    let error;
+    let error: YouTubeApiError;
     try {
-      error = JSON.parse(text);
+      error = JSON.parse(text) as YouTubeApiError;
     } catch {
-      error = { message: text };
+      error = { error: { message: text } };
     }
 
     if (response.status === 401) {
@@ -517,7 +596,7 @@ export class YouTubeAdapter implements SocialPlatform {
 
     throw new SocialError(
       error.error?.message ?? 'API request failed',
-      error.error?.code ?? 'API_ERROR',
+      error.error?.code?.toString() ?? 'API_ERROR',
       'youtube',
       response.status,
     );
@@ -539,10 +618,7 @@ export class YouTubeAdapter implements SocialPlatform {
    * Generate PKCE code challenge from verifier using S256
    */
   private generateCodeChallenge(verifier: string): string {
-    // Use Node.js crypto for synchronous SHA-256 hashing
-    const { createHash } = require('node:crypto');
     const hash = createHash('sha256').update(verifier).digest();
-    // Base64url encode the hash
     return Buffer.from(hash)
       .toString('base64')
       .replace(/\+/g, '-')

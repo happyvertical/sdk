@@ -5,15 +5,20 @@
  * Uses Meta Graph API.
  */
 
-import { createLogger } from '@happyvertical/logger';
-
+import {
+  createSafetyResult,
+  isPublicPublishMode,
+  resolvePublishMode,
+} from '../safety.js';
 import type {
   AuthResult,
   ImagePost,
+  LinkPost,
   PlatformCapabilities,
   Post,
   PostAnalytics,
   PostResult,
+  PublishMode,
   SocialPlatform,
   TextPost,
   ThreadsConfig,
@@ -26,6 +31,18 @@ import {
 } from '../types.js';
 
 const THREADS_API_URL = 'https://graph.threads.net/v1.0';
+
+interface ThreadsInsight {
+  name?: string;
+  values?: Array<{ value?: unknown }>;
+}
+
+interface ThreadsApiError {
+  error?: {
+    code?: number | string;
+    message?: string;
+  };
+}
 
 /**
  * Threads adapter for publishing via Meta Graph API
@@ -49,11 +66,9 @@ const THREADS_API_URL = 'https://graph.threads.net/v1.0';
 export class ThreadsAdapter implements SocialPlatform {
   readonly platform = 'threads' as const;
   private config: ThreadsConfig;
-  private logger: ReturnType<typeof createLogger>;
 
   constructor(config: ThreadsConfig) {
     this.config = config;
-    this.logger = createLogger({ level: 'info' });
   }
 
   async authenticate(): Promise<AuthResult> {
@@ -91,18 +106,39 @@ export class ThreadsAdapter implements SocialPlatform {
   }
 
   async publishVideo(video: VideoPost): Promise<PostResult> {
-    // Step 1: Create media container
-    const text = this.buildPostText(
-      video.description,
-      video.tags,
-      video.linkUrl,
-    );
+    const publishMode = resolvePublishMode(this.config);
+    const text = this.buildPostText(video.description, video.tags);
 
+    const dryRunPayload = {
+      media_type: 'VIDEO',
+      ...(typeof video.file === 'string' ? { video_url: video.file } : {}),
+      text,
+      ...(video.linkUrl ? { link_attachment: video.linkUrl } : {}),
+    };
+
+    if (publishMode === 'dry_run') {
+      return createSafetyResult({
+        platform: this.platform,
+        mode: publishMode,
+        postType: 'video',
+        payload: dryRunPayload,
+        note: 'Threads dry run: media container was not created.',
+      });
+    }
+
+    // Step 1: Create media container
     // For video, we need a URL (can't upload buffer directly)
     const videoUrl = Buffer.isBuffer(video.file)
       ? await this.uploadToTempStorage(video.file, 'video/mp4')
       : video.file;
 
+    const payload = {
+      media_type: 'VIDEO',
+      video_url: videoUrl,
+      text,
+      ...(video.linkUrl ? { link_attachment: video.linkUrl } : {}),
+    };
+
     const containerResponse = await fetch(
       `${THREADS_API_URL}/${this.config.userId}/threads`,
       {
@@ -111,11 +147,7 @@ export class ThreadsAdapter implements SocialPlatform {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${this.config.accessToken}`,
         },
-        body: JSON.stringify({
-          media_type: 'VIDEO',
-          video_url: videoUrl,
-          text,
-        }),
+        body: JSON.stringify(payload),
       },
     );
 
@@ -129,23 +161,56 @@ export class ThreadsAdapter implements SocialPlatform {
     // Step 2: Wait for container to be ready
     await this.waitForContainer(containerId);
 
+    if (!isPublicPublishMode(publishMode)) {
+      return createSafetyResult({
+        platform: this.platform,
+        mode: publishMode,
+        postType: 'video',
+        payload,
+        remoteId: containerId,
+        staged: true,
+        note: 'Threads media container created but not published.',
+      });
+    }
+
     // Step 3: Publish the container
-    return this.publishContainer(containerId);
+    return this.publishContainer(containerId, publishMode);
   }
 
   async publishImage(image: ImagePost): Promise<PostResult> {
-    // Step 1: Create media container
-    const text = this.buildPostText(
-      image.description,
-      image.tags,
-      image.linkUrl,
-    );
+    const publishMode = resolvePublishMode(this.config);
+    const text = this.buildPostText(image.description, image.tags);
 
+    const dryRunPayload = {
+      media_type: 'IMAGE',
+      ...(typeof image.file === 'string' ? { image_url: image.file } : {}),
+      text,
+      ...(image.linkUrl ? { link_attachment: image.linkUrl } : {}),
+    };
+
+    if (publishMode === 'dry_run') {
+      return createSafetyResult({
+        platform: this.platform,
+        mode: publishMode,
+        postType: 'image',
+        payload: dryRunPayload,
+        note: 'Threads dry run: media container was not created.',
+      });
+    }
+
+    // Step 1: Create media container
     // For image, we need a URL
     const imageUrl = Buffer.isBuffer(image.file)
       ? await this.uploadToTempStorage(image.file, 'image/png')
       : image.file;
 
+    const payload = {
+      media_type: 'IMAGE',
+      image_url: imageUrl,
+      text,
+      ...(image.linkUrl ? { link_attachment: image.linkUrl } : {}),
+    };
+
     const containerResponse = await fetch(
       `${THREADS_API_URL}/${this.config.userId}/threads`,
       {
@@ -154,11 +219,7 @@ export class ThreadsAdapter implements SocialPlatform {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${this.config.accessToken}`,
         },
-        body: JSON.stringify({
-          media_type: 'IMAGE',
-          image_url: imageUrl,
-          text,
-        }),
+        body: JSON.stringify(payload),
       },
     );
 
@@ -172,22 +233,49 @@ export class ThreadsAdapter implements SocialPlatform {
     // Step 2: Wait for container to be ready
     await this.waitForContainer(containerId);
 
+    if (!isPublicPublishMode(publishMode)) {
+      return createSafetyResult({
+        platform: this.platform,
+        mode: publishMode,
+        postType: 'image',
+        payload,
+        remoteId: containerId,
+        staged: true,
+        note: 'Threads media container created but not published.',
+      });
+    }
+
     // Step 3: Publish the container
-    return this.publishContainer(containerId);
+    return this.publishContainer(containerId, publishMode);
   }
 
   async publishText(text: TextPost): Promise<PostResult> {
-    const postText = this.buildPostText(text.text, text.tags, text.linkUrl);
+    const publishMode = resolvePublishMode(this.config);
+    const postText = this.buildPostText(text.text, text.tags);
 
     // Step 1: Create text container
-    const body: Record<string, any> = {
+    const body: Record<string, unknown> = {
       media_type: 'TEXT',
       text: postText,
     };
 
+    if (text.linkUrl) {
+      body.link_attachment = text.linkUrl;
+    }
+
     // Handle reply
     if (text.replyTo) {
       body.reply_to_id = text.replyTo;
+    }
+
+    if (publishMode === 'dry_run') {
+      return createSafetyResult({
+        platform: this.platform,
+        mode: publishMode,
+        postType: 'text',
+        payload: body,
+        note: 'Threads dry run: text container was not created.',
+      });
     }
 
     const containerResponse = await fetch(
@@ -209,8 +297,30 @@ export class ThreadsAdapter implements SocialPlatform {
     const containerData = await containerResponse.json();
     const containerId = containerData.id;
 
+    if (!isPublicPublishMode(publishMode)) {
+      return createSafetyResult({
+        platform: this.platform,
+        mode: publishMode,
+        postType: 'text',
+        payload: body,
+        remoteId: containerId,
+        staged: true,
+        note: 'Threads text container created but not published.',
+      });
+    }
+
     // Step 2: Publish the container (text doesn't need processing wait)
-    return this.publishContainer(containerId);
+    return this.publishContainer(containerId, publishMode);
+  }
+
+  async publishLink(link: LinkPost): Promise<PostResult> {
+    return this.publishText({
+      text: link.text ?? link.title ?? link.description ?? link.url,
+      tags: link.tags,
+      linkUrl: link.url,
+      scheduledAt: link.scheduledAt,
+      linkBehavior: link.linkBehavior,
+    });
   }
 
   /**
@@ -267,7 +377,10 @@ export class ThreadsAdapter implements SocialPlatform {
   /**
    * Publish a prepared container
    */
-  private async publishContainer(containerId: string): Promise<PostResult> {
+  private async publishContainer(
+    containerId: string,
+    publishMode: PublishMode = 'public',
+  ): Promise<PostResult> {
     const publishResponse = await fetch(
       `${THREADS_API_URL}/${this.config.userId}/threads_publish`,
       {
@@ -307,6 +420,7 @@ export class ThreadsAdapter implements SocialPlatform {
         `https://www.threads.net/@${this.config.userId}/post/${publishData.id}`,
       status: 'published',
       publishedAt: new Date(),
+      metadata: { publishMode },
     };
   }
 
@@ -406,30 +520,30 @@ export class ThreadsAdapter implements SocialPlatform {
       video: true,
       image: true,
       text: true,
+      link: true,
+      linkAttachment: true,
       scheduling: false,
       analytics: true,
+      rawAnalytics: true,
+      requiresPublicMediaUrl: true,
+      publishModes: ['dry_run', 'stage_remote', 'public'],
+      staging: true,
+      privatePublishing: false,
       maxVideoLength: 300, // 5 minutes
       maxVideoSize: 1024 * 1024 * 1024, // 1GB
       supportedVideoFormats: ['mp4', 'mov'],
       aspectRatios: ['1:1', '4:5', '9:16'],
       maxTextLength: 500,
       maxHashtags: undefined,
+      supportedPostTypes: ['text', 'image', 'video', 'link'],
     };
   }
 
   /**
    * Build post text with hashtags and link
    */
-  private buildPostText(
-    text?: string,
-    tags?: string[],
-    linkUrl?: string,
-  ): string {
+  private buildPostText(text?: string, tags?: string[]): string {
     let result = text ?? '';
-
-    if (linkUrl && !result.includes(linkUrl)) {
-      result += `\n\n${linkUrl}`;
-    }
 
     if (tags && tags.length > 0) {
       const hashtags = tags.map((t) => (t.startsWith('#') ? t : `#${t}`));
@@ -447,29 +561,33 @@ export class ThreadsAdapter implements SocialPlatform {
   /**
    * Parse insights data into PostAnalytics
    */
-  private parseInsights(insights: any[]): PostAnalytics {
+  private parseInsights(insights: ThreadsInsight[]): PostAnalytics {
     const analytics: PostAnalytics = {};
 
     for (const insight of insights) {
+      const value = insight.values?.[0]?.value;
       switch (insight.name) {
         case 'views':
-          analytics.views = insight.values?.[0]?.value ?? 0;
+          analytics.views = typeof value === 'number' ? value : undefined;
+          analytics.impressions = analytics.views;
           break;
         case 'likes':
-          analytics.likes = insight.values?.[0]?.value ?? 0;
+          analytics.likes = typeof value === 'number' ? value : undefined;
           break;
         case 'replies':
-          analytics.comments = insight.values?.[0]?.value ?? 0;
+          analytics.comments = typeof value === 'number' ? value : undefined;
           break;
         case 'reposts':
         case 'quotes':
-          analytics.shares =
-            (analytics.shares ?? 0) + (insight.values?.[0]?.value ?? 0);
+          if (typeof value === 'number') {
+            analytics.shares = (analytics.shares ?? 0) + value;
+          }
           break;
       }
     }
 
     analytics.lastUpdated = new Date();
+    analytics.raw = insights;
     return analytics;
   }
 
@@ -493,9 +611,9 @@ export class ThreadsAdapter implements SocialPlatform {
    */
   private async handleError(response: Response): Promise<never> {
     const text = await response.text();
-    let error;
+    let error: ThreadsApiError;
     try {
-      error = JSON.parse(text);
+      error = JSON.parse(text) as ThreadsApiError;
     } catch {
       error = { error: { message: text } };
     }

@@ -7,7 +7,30 @@
 /**
  * Supported social platforms
  */
-export type SocialPlatformType = 'youtube' | 'threads' | 'x' | 'bluesky';
+export type SocialPlatformType =
+  | 'youtube'
+  | 'threads'
+  | 'x'
+  | 'bluesky'
+  | 'facebook';
+
+/**
+ * How adapters should attach links to posts.
+ */
+export type LinkBehavior = 'inline' | 'attachment' | 'reply' | 'none';
+
+/**
+ * Safety mode for publish operations.
+ * - dry_run: Build and validate payloads without platform API writes
+ * - stage_remote: Use non-public staging endpoints where available
+ * - private_or_scheduled: Create a non-public/private/scheduled platform object where available
+ * - public: Publish publicly
+ */
+export type PublishMode =
+  | 'dry_run'
+  | 'stage_remote'
+  | 'private_or_scheduled'
+  | 'public';
 
 /**
  * Base configuration for social platform adapters
@@ -38,6 +61,12 @@ export interface BaseSocialConfig {
    * @default 30000
    */
   timeout?: number;
+
+  /**
+   * Controls whether publish calls create public content.
+   * Defaults to public for backward compatibility.
+   */
+  publishMode?: PublishMode;
 }
 
 /**
@@ -90,30 +119,81 @@ export interface ThreadsConfig extends BaseSocialConfig {
 }
 
 /**
+ * Facebook Page configuration
+ */
+export interface FacebookPageConfig extends BaseSocialConfig {
+  type: 'facebook';
+
+  /**
+   * Page access token with pages_manage_posts permission
+   */
+  accessToken: string;
+
+  /**
+   * Facebook Page ID
+   */
+  pageId: string;
+
+  /**
+   * Optional Graph API version.
+   * @default v24.0
+   */
+  apiVersion?: string;
+}
+
+/**
  * X (Twitter) configuration
  */
 export interface XConfig extends BaseSocialConfig {
   type: 'x';
 
   /**
-   * API key (consumer key)
+   * Authentication mode. OAuth 2.0 is used when accessSecret is omitted.
+   *
+   * @default 'oauth1' when accessSecret is present, otherwise 'oauth2'
    */
-  apiKey: string;
+  authType?: 'oauth1' | 'oauth2';
 
   /**
-   * API secret (consumer secret)
+   * API key (consumer key) for OAuth 1.0a.
    */
-  apiSecret: string;
+  apiKey?: string;
 
   /**
-   * User access token
+   * API secret (consumer secret) for OAuth 1.0a.
+   */
+  apiSecret?: string;
+
+  /**
+   * User access token.
    */
   accessToken: string;
 
   /**
-   * User access token secret
+   * User access token secret for OAuth 1.0a.
    */
-  accessSecret: string;
+  accessSecret?: string;
+
+  /**
+   * OAuth 2.0 client ID for refresh-token flows.
+   */
+  clientId?: string;
+
+  /**
+   * OAuth 2.0 client secret for confidential clients.
+   */
+  clientSecret?: string;
+
+  /**
+   * OAuth 2.0 refresh token.
+   */
+  refreshToken?: string;
+
+  /**
+   * Default handling for links.
+   * @default 'inline'
+   */
+  linkBehavior?: LinkBehavior;
 }
 
 /**
@@ -144,6 +224,7 @@ export interface BlueskyConfig extends BaseSocialConfig {
 export type SocialConfig =
   | YouTubeConfig
   | ThreadsConfig
+  | FacebookPageConfig
   | XConfig
   | BlueskyConfig;
 
@@ -187,6 +268,12 @@ export interface VideoPost {
   file: Buffer | string;
 
   /**
+   * MIME type for the video file. Detected from URLs and common buffer
+   * signatures when omitted.
+   */
+  mimeType?: string;
+
+  /**
    * Video title (YouTube, some platforms)
    */
   title?: string;
@@ -200,6 +287,12 @@ export interface VideoPost {
    * Custom thumbnail image
    */
   thumbnail?: Buffer | string;
+
+  /**
+   * MIME type for the thumbnail image. Detected from URLs and common buffer
+   * signatures when omitted.
+   */
+  thumbnailMimeType?: string;
 
   /**
    * Hashtags to include
@@ -231,6 +324,11 @@ export interface VideoPost {
    * Whether this is a Short (YouTube)
    */
   isShort?: boolean;
+
+  /**
+   * Override the adapter/account default link behavior for this post.
+   */
+  linkBehavior?: LinkBehavior;
 }
 
 /**
@@ -241,6 +339,12 @@ export interface ImagePost {
    * Image file buffer or URL
    */
   file: Buffer | string;
+
+  /**
+   * MIME type for the image file. Detected from URLs and common buffer
+   * signatures when omitted.
+   */
+  mimeType?: string;
 
   /**
    * Alt text for accessibility
@@ -266,6 +370,11 @@ export interface ImagePost {
    * Scheduled publish time
    */
   scheduledAt?: Date;
+
+  /**
+   * Override the adapter/account default link behavior for this post.
+   */
+  linkBehavior?: LinkBehavior;
 }
 
 /**
@@ -296,6 +405,51 @@ export interface TextPost {
    * Reply to post ID (for threads/replies)
    */
   replyTo?: string;
+
+  /**
+   * Override the adapter/account default link behavior for this post.
+   */
+  linkBehavior?: LinkBehavior;
+}
+
+/**
+ * Link post content
+ */
+export interface LinkPost {
+  /**
+   * URL to share
+   */
+  url: string;
+
+  /**
+   * Post text/caption
+   */
+  text?: string;
+
+  /**
+   * Link title for platforms that support link cards
+   */
+  title?: string;
+
+  /**
+   * Link description for platforms that support link cards
+   */
+  description?: string;
+
+  /**
+   * Hashtags to include
+   */
+  tags?: string[];
+
+  /**
+   * Scheduled publish time
+   */
+  scheduledAt?: Date;
+
+  /**
+   * Override the adapter/account default link behavior for this post.
+   */
+  linkBehavior?: LinkBehavior;
 }
 
 /**
@@ -315,7 +469,7 @@ export interface PostResult {
   /**
    * Publication status
    */
-  status: 'published' | 'scheduled' | 'processing';
+  status: 'published' | 'scheduled' | 'processing' | 'staged' | 'dry_run';
 
   /**
    * When the post was/will be published
@@ -350,7 +504,7 @@ export interface Post {
   /**
    * Post type
    */
-  type: 'video' | 'image' | 'text';
+  type: 'video' | 'image' | 'text' | 'link';
 
   /**
    * Post title (if applicable)
@@ -388,6 +542,11 @@ export interface PostAnalytics {
   views?: number;
 
   /**
+   * Impression count when the platform distinguishes it from views
+   */
+  impressions?: number;
+
+  /**
    * Like/favorite count
    */
   likes?: number;
@@ -406,6 +565,11 @@ export interface PostAnalytics {
    * Click count (for links)
    */
   clicks?: number;
+
+  /**
+   * Raw platform analytics payload for debugging and future reporting
+   */
+  raw?: unknown;
 
   /**
    * When analytics were last updated
@@ -433,6 +597,16 @@ export interface PlatformCapabilities {
   text: boolean;
 
   /**
+   * Supports first-class link posts or link attachments
+   */
+  link: boolean;
+
+  /**
+   * Supports native link attachments/cards instead of plain inline URLs
+   */
+  linkAttachment?: boolean;
+
+  /**
    * Supports scheduled posting
    */
   scheduling: boolean;
@@ -441,6 +615,31 @@ export interface PlatformCapabilities {
    * Supports analytics retrieval
    */
   analytics: boolean;
+
+  /**
+   * Analytics can include raw platform payloads
+   */
+  rawAnalytics?: boolean;
+
+  /**
+   * Safety modes supported by this adapter.
+   */
+  publishModes?: PublishMode[];
+
+  /**
+   * Supports a non-public remote staging step before final publish.
+   */
+  staging?: boolean;
+
+  /**
+   * Supports creating private, unpublished, or scheduled platform content.
+   */
+  privatePublishing?: boolean;
+
+  /**
+   * Media publishing requires a publicly accessible URL, not a Buffer upload
+   */
+  requiresPublicMediaUrl?: boolean;
 
   /**
    * Maximum video duration in seconds
@@ -471,6 +670,11 @@ export interface PlatformCapabilities {
    * Maximum number of hashtags
    */
   maxHashtags?: number;
+
+  /**
+   * Supported high-level post types
+   */
+  supportedPostTypes?: Array<'text' | 'image' | 'video' | 'link'>;
 }
 
 /**
@@ -506,6 +710,11 @@ export interface SocialPlatform {
    * Publish a text post
    */
   publishText(text: TextPost): Promise<PostResult>;
+
+  /**
+   * Publish a link post
+   */
+  publishLink(link: LinkPost): Promise<PostResult>;
 
   /**
    * Get a post by ID

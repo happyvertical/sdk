@@ -5,13 +5,20 @@
  * Uses Twitter API v2.
  */
 
-import { createHmac } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 
 import { createLogger } from '@happyvertical/logger';
-
+import { type ResolvedMediaData, resolveMediaData } from '../media.js';
+import {
+  createSafetyResult,
+  isPublicPublishMode,
+  resolvePublishMode,
+} from '../safety.js';
 import type {
   AuthResult,
   ImagePost,
+  LinkBehavior,
+  LinkPost,
   PlatformCapabilities,
   Post,
   PostAnalytics,
@@ -29,6 +36,9 @@ import {
 
 const X_API_URL = 'https://api.twitter.com/2';
 const X_UPLOAD_URL = 'https://upload.twitter.com/1.1';
+const X_API_MEDIA_UPLOAD_URL = 'https://api.x.com/2/media/upload';
+const X_API_MEDIA_METADATA_URL = 'https://api.x.com/2/media/metadata';
+const X_OAUTH_TOKEN_URL = 'https://api.x.com/2/oauth2/token';
 
 /**
  * X (Twitter) adapter for publishing
@@ -69,8 +79,9 @@ export class XAdapter implements SocialPlatform {
     url: string,
     params: Record<string, string>,
   ): string {
+    const { apiKey, apiSecret, accessSecret } = this.requireOAuth1Config();
     const oauthParams: Record<string, string> = {
-      oauth_consumer_key: this.config.apiKey,
+      oauth_consumer_key: apiKey,
       oauth_nonce: this.generateNonce(),
       oauth_signature_method: 'HMAC-SHA1',
       oauth_timestamp: Math.floor(Date.now() / 1000).toString(),
@@ -95,7 +106,7 @@ export class XAdapter implements SocialPlatform {
     ].join('&');
 
     // Create signing key
-    const signingKey = `${this.percentEncode(this.config.apiSecret)}&${this.percentEncode(this.config.accessSecret)}`;
+    const signingKey = `${this.percentEncode(apiSecret)}&${this.percentEncode(accessSecret)}`;
 
     // Generate HMAC-SHA1 signature
     const signature = this.hmacSha1(signatureBase, signingKey);
@@ -120,7 +131,7 @@ export class XAdapter implements SocialPlatform {
   }
 
   private generateNonce(): string {
-    return crypto.randomUUID().replace(/-/g, '');
+    return randomUUID().replace(/-/g, '');
   }
 
   private percentEncode(str: string): string {
@@ -136,7 +147,10 @@ export class XAdapter implements SocialPlatform {
 
   async authenticate(): Promise<AuthResult> {
     // Verify credentials by getting current user
-    const response = await this.makeRequest('GET', `${X_API_URL}/users/me`);
+    const response = await this.makeRequest(
+      'GET',
+      `${X_API_URL}/users/me?user.fields=username,name`,
+    );
 
     if (!response.ok) {
       throw new SocialAuthError('x', 'Invalid credentials');
@@ -144,24 +158,97 @@ export class XAdapter implements SocialPlatform {
 
     return {
       accessToken: this.config.accessToken,
+      refreshToken: this.config.refreshToken,
     };
   }
 
-  async refreshToken(_refreshToken: string): Promise<AuthResult> {
-    // OAuth 1.0a doesn't use refresh tokens
-    throw new SocialError(
-      'OAuth 1.0a does not support token refresh',
-      'NOT_SUPPORTED',
-      'x',
-    );
+  async refreshToken(refreshToken: string): Promise<AuthResult> {
+    if (!this.usesOAuth2()) {
+      throw new SocialError(
+        'OAuth 1.0a does not support token refresh',
+        'NOT_SUPPORTED',
+        'x',
+      );
+    }
+    if (!this.config.clientId || !this.config.clientSecret) {
+      throw new SocialAuthError('x', 'Missing OAuth 2.0 client credentials');
+    }
+
+    const response = await fetch(X_OAUTH_TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: this.basicAuthHeader(
+          this.config.clientId,
+          this.config.clientSecret,
+        ),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      }),
+    });
+
+    if (!response.ok) {
+      await this.handleError(response);
+    }
+
+    const token = await response.json();
+    return {
+      accessToken: token.access_token,
+      refreshToken: token.refresh_token,
+      expiresAt:
+        typeof token.expires_in === 'number'
+          ? new Date(Date.now() + token.expires_in * 1000)
+          : undefined,
+      tokenType: token.token_type,
+      scopes:
+        typeof token.scope === 'string' ? token.scope.split(' ') : undefined,
+    };
+  }
+
+  private basicAuthHeader(clientId: string, clientSecret: string): string {
+    return `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString(
+      'base64',
+    )}`;
   }
 
   async publishVideo(video: VideoPost): Promise<PostResult> {
-    // Upload video first
-    const mediaId = await this.uploadMedia(video.file, 'video');
+    const publishMode = resolvePublishMode(this.config);
+    const linkBehavior = this.resolveLinkBehavior(video.linkBehavior);
+    const text = this.buildPostText(
+      video.description,
+      video.tags,
+      video.linkUrl,
+      linkBehavior,
+    );
+    const payload = { text, linkBehavior, tags: video.tags };
 
-    // Create tweet with video
-    const text = this.buildPostText(video.description, video.tags);
+    if (publishMode === 'dry_run') {
+      return createSafetyResult({
+        platform: this.platform,
+        mode: publishMode,
+        postType: 'video',
+        payload,
+        note: 'X dry run: media was not uploaded and no post was created.',
+      });
+    }
+
+    // Upload video first. This is safe for stage modes; media is not public
+    // until attached to a post.
+    const mediaId = await this.uploadMedia(video.file, 'video', video.mimeType);
+
+    if (!isPublicPublishMode(publishMode)) {
+      return createSafetyResult({
+        platform: this.platform,
+        mode: publishMode,
+        postType: 'video',
+        payload: { ...payload, mediaId },
+        remoteId: mediaId,
+        staged: true,
+        note: 'X media uploaded but no post was created.',
+      });
+    }
 
     const response = await this.makeRequest('POST', `${X_API_URL}/tweets`, {
       text,
@@ -174,8 +261,7 @@ export class XAdapter implements SocialPlatform {
 
     const data = await response.json();
 
-    // If link provided, post as reply for better algorithm performance
-    if (video.linkUrl) {
+    if (video.linkUrl && linkBehavior === 'reply') {
       await this.postLinkReply(data.data.id, video.linkUrl);
     }
 
@@ -184,17 +270,56 @@ export class XAdapter implements SocialPlatform {
       url: `https://x.com/i/status/${data.data.id}`,
       status: 'published',
       publishedAt: new Date(),
+      metadata: { publishMode },
     };
   }
 
   async publishImage(image: ImagePost): Promise<PostResult> {
-    // Upload image first
-    const mediaId = await this.uploadMedia(image.file, 'image');
+    const publishMode = resolvePublishMode(this.config);
+    const linkBehavior = this.resolveLinkBehavior(image.linkBehavior);
+    const text = this.buildPostText(
+      image.description,
+      image.tags,
+      image.linkUrl,
+      linkBehavior,
+    );
+    const payload = {
+      text,
+      linkBehavior,
+      tags: image.tags,
+      altText: image.altText,
+    };
 
-    // Create tweet with image
-    const text = this.buildPostText(image.description, image.tags);
+    if (publishMode === 'dry_run') {
+      return createSafetyResult({
+        platform: this.platform,
+        mode: publishMode,
+        postType: 'image',
+        payload,
+        note: 'X dry run: media was not uploaded and no post was created.',
+      });
+    }
 
-    const body: any = {
+    // Upload image first. This is safe for stage modes; media is not public
+    // until attached to a post.
+    const mediaId = await this.uploadMedia(image.file, 'image', image.mimeType);
+
+    if (!isPublicPublishMode(publishMode)) {
+      if (image.altText) {
+        await this.setMediaAltText(mediaId, image.altText);
+      }
+      return createSafetyResult({
+        platform: this.platform,
+        mode: publishMode,
+        postType: 'image',
+        payload: { ...payload, mediaId },
+        remoteId: mediaId,
+        staged: true,
+        note: 'X media uploaded but no post was created.',
+      });
+    }
+
+    const body: Record<string, unknown> = {
       text,
       media: { media_ids: [mediaId] },
     };
@@ -217,8 +342,7 @@ export class XAdapter implements SocialPlatform {
 
     const data = await response.json();
 
-    // If link provided, post as reply
-    if (image.linkUrl) {
+    if (image.linkUrl && linkBehavior === 'reply') {
       await this.postLinkReply(data.data.id, image.linkUrl);
     }
 
@@ -227,17 +351,38 @@ export class XAdapter implements SocialPlatform {
       url: `https://x.com/i/status/${data.data.id}`,
       status: 'published',
       publishedAt: new Date(),
+      metadata: { publishMode },
     };
   }
 
   async publishText(text: TextPost): Promise<PostResult> {
-    const postText = this.buildPostText(text.text, text.tags);
+    const publishMode = resolvePublishMode(this.config);
+    const linkBehavior = this.resolveLinkBehavior(text.linkBehavior);
+    const postText = this.buildPostText(
+      text.text,
+      text.tags,
+      text.linkUrl,
+      linkBehavior,
+    );
 
-    const body: any = { text: postText };
+    const body: Record<string, unknown> = { text: postText };
 
     // Handle reply
     if (text.replyTo) {
       body.reply = { in_reply_to_tweet_id: text.replyTo };
+    }
+
+    if (!isPublicPublishMode(publishMode)) {
+      return createSafetyResult({
+        platform: this.platform,
+        mode: publishMode,
+        postType: 'text',
+        payload: body,
+        note:
+          publishMode === 'dry_run'
+            ? 'X dry run: no post was created.'
+            : 'X has no non-public text staging endpoint; no post was created.',
+      });
     }
 
     const response = await this.makeRequest(
@@ -252,8 +397,7 @@ export class XAdapter implements SocialPlatform {
 
     const data = await response.json();
 
-    // If link provided (and not a reply), post as separate reply
-    if (text.linkUrl && !text.replyTo) {
+    if (text.linkUrl && linkBehavior === 'reply' && !text.replyTo) {
       await this.postLinkReply(data.data.id, text.linkUrl);
     }
 
@@ -262,7 +406,18 @@ export class XAdapter implements SocialPlatform {
       url: `https://x.com/i/status/${data.data.id}`,
       status: 'published',
       publishedAt: new Date(),
+      metadata: { publishMode },
     };
+  }
+
+  async publishLink(link: LinkPost): Promise<PostResult> {
+    return this.publishText({
+      text: link.text ?? link.title ?? link.description ?? link.url,
+      tags: link.tags,
+      linkUrl: link.url,
+      scheduledAt: link.scheduledAt,
+      linkBehavior: link.linkBehavior,
+    });
   }
 
   /**
@@ -271,14 +426,122 @@ export class XAdapter implements SocialPlatform {
   private async uploadMedia(
     file: Buffer | string,
     type: 'image' | 'video',
+    mimeType?: string,
   ): Promise<string> {
-    const mediaData = Buffer.isBuffer(file)
-      ? file
-      : await fetch(file)
-          .then((r) => r.arrayBuffer())
-          .then(Buffer.from);
+    if (this.usesOAuth2()) {
+      return this.uploadMediaV2(file, type, mimeType);
+    }
 
-    const mediaType = type === 'video' ? 'video/mp4' : 'image/png';
+    return this.uploadMediaOAuth1(file, type, mimeType);
+  }
+
+  private async readMediaData(
+    file: Buffer | string,
+    type: 'image' | 'video',
+    mimeType?: string,
+  ): Promise<ResolvedMediaData> {
+    return resolveMediaData(file, {
+      explicitMimeType: mimeType,
+      fallbackMimeType: type === 'video' ? 'video/mp4' : 'image/png',
+    });
+  }
+
+  /**
+   * Upload media using X API v2 and OAuth 2.0 user context.
+   */
+  private async uploadMediaV2(
+    file: Buffer | string,
+    type: 'image' | 'video',
+    mimeType?: string,
+  ): Promise<string> {
+    const mediaData = await this.readMediaData(file, type, mimeType);
+    const mediaType = mediaData.mimeType;
+    const mediaCategory = type === 'video' ? 'tweet_video' : 'tweet_image';
+
+    const initResponse = await this.makeBearerUploadRequest('POST', {
+      command: 'INIT',
+      total_bytes: String(mediaData.data.length),
+      media_type: mediaType,
+      media_category: mediaCategory,
+    });
+
+    if (!initResponse.ok) {
+      throw new SocialError('Media upload init failed', 'UPLOAD_FAILED', 'x');
+    }
+
+    const initData = await initResponse.json();
+    const mediaId = initData.data?.id;
+    if (!mediaId) {
+      throw new SocialError(
+        'Media upload init did not return a media id',
+        'UPLOAD_FAILED',
+        'x',
+      );
+    }
+
+    const chunkSize = 5 * 1024 * 1024;
+    let segmentIndex = 0;
+
+    for (let offset = 0; offset < mediaData.data.length; offset += chunkSize) {
+      const chunk = mediaData.data.subarray(offset, offset + chunkSize);
+      const formData = new FormData();
+      formData.append('command', 'APPEND');
+      formData.append('media_id', mediaId);
+      formData.append('segment_index', segmentIndex.toString());
+      formData.append(
+        'media',
+        new Blob([new Uint8Array(chunk)], { type: mediaType }),
+      );
+
+      const appendResponse = await this.makeBearerUploadRequest(
+        'POST',
+        formData,
+      );
+
+      if (!appendResponse.ok) {
+        throw new SocialError(
+          'Media upload append failed',
+          'UPLOAD_FAILED',
+          'x',
+        );
+      }
+
+      segmentIndex++;
+    }
+
+    const finalizeResponse = await this.makeBearerUploadRequest('POST', {
+      command: 'FINALIZE',
+      media_id: mediaId,
+    });
+
+    if (!finalizeResponse.ok) {
+      throw new SocialError(
+        'Media upload finalize failed',
+        'UPLOAD_FAILED',
+        'x',
+      );
+    }
+
+    const finalizeData = await finalizeResponse.json();
+
+    if (type === 'video' && finalizeData.data?.processing_info) {
+      await this.waitForProcessing(mediaId);
+    }
+
+    return mediaId;
+  }
+
+  /**
+   * Upload media using legacy OAuth 1.0a upload endpoints.
+   */
+  private async uploadMediaOAuth1(
+    file: Buffer | string,
+    type: 'image' | 'video',
+    mimeType?: string,
+  ): Promise<string> {
+    const mediaData = await this.readMediaData(file, type, mimeType);
+
+    const mediaType = mediaData.mimeType;
     const mediaCategory = type === 'video' ? 'tweet_video' : 'tweet_image';
 
     // INIT
@@ -287,7 +550,7 @@ export class XAdapter implements SocialPlatform {
       `${X_UPLOAD_URL}/media/upload.json`,
       {
         command: 'INIT',
-        total_bytes: mediaData.length,
+        total_bytes: mediaData.data.length,
         media_type: mediaType,
         media_category: mediaCategory,
       },
@@ -304,14 +567,17 @@ export class XAdapter implements SocialPlatform {
     const chunkSize = 5 * 1024 * 1024; // 5MB chunks
     let segmentIndex = 0;
 
-    for (let offset = 0; offset < mediaData.length; offset += chunkSize) {
-      const chunk = mediaData.subarray(offset, offset + chunkSize);
+    for (let offset = 0; offset < mediaData.data.length; offset += chunkSize) {
+      const chunk = mediaData.data.subarray(offset, offset + chunkSize);
 
       const formData = new FormData();
       formData.append('command', 'APPEND');
       formData.append('media_id', mediaId);
       formData.append('segment_index', segmentIndex.toString());
-      formData.append('media', new Blob([new Uint8Array(chunk)]));
+      formData.append(
+        'media',
+        new Blob([new Uint8Array(chunk)], { type: mediaType }),
+      );
 
       const appendResponse = await this.makeUploadRequest(
         'POST',
@@ -367,17 +633,23 @@ export class XAdapter implements SocialPlatform {
     const maxChecks = 60; // 5 minutes max
 
     while (checkCount < maxChecks) {
-      const statusResponse = await this.makeUploadRequest(
-        'GET',
-        `${X_UPLOAD_URL}/media/upload.json`,
-        {
-          command: 'STATUS',
-          media_id: mediaId,
-        },
-      );
+      const statusResponse = this.usesOAuth2()
+        ? await this.makeBearerUploadRequest('GET', {
+            command: 'STATUS',
+            media_id: mediaId,
+          })
+        : await this.makeUploadRequest(
+            'GET',
+            `${X_UPLOAD_URL}/media/upload.json`,
+            {
+              command: 'STATUS',
+              media_id: mediaId,
+            },
+          );
 
       const statusData = await statusResponse.json();
-      const processingInfo = statusData.processing_info;
+      const processingInfo =
+        statusData.processing_info ?? statusData.data?.processing_info;
 
       if (!processingInfo || processingInfo.state === 'succeeded') {
         return;
@@ -412,10 +684,28 @@ export class XAdapter implements SocialPlatform {
     mediaId: string,
     altText: string,
   ): Promise<void> {
+    if (this.usesOAuth2()) {
+      const response = await this.makeRequest(
+        'POST',
+        X_API_MEDIA_METADATA_URL,
+        {
+          id: mediaId,
+          metadata: {
+            alt_text: { text: altText },
+          },
+        },
+      );
+
+      if (!response.ok) {
+        await this.handleError(response);
+      }
+      return;
+    }
+
     const url = `${X_UPLOAD_URL}/media/metadata/create.json`;
     const authHeader = this.generateOAuthSignature('POST', url, {});
 
-    await fetch(url, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         Authorization: authHeader,
@@ -426,6 +716,10 @@ export class XAdapter implements SocialPlatform {
         alt_text: { text: altText },
       }),
     });
+
+    if (!response.ok) {
+      await this.handleError(response);
+    }
   }
 
   /**
@@ -444,7 +738,7 @@ export class XAdapter implements SocialPlatform {
   async getPost(postId: string): Promise<Post> {
     const response = await this.makeRequest(
       'GET',
-      `${X_API_URL}/tweets/${postId}?tweet.fields=created_at,public_metrics,attachments`,
+      `${X_API_URL}/tweets/${postId}?tweet.fields=created_at,public_metrics,attachments&expansions=attachments.media_keys&media.fields=type`,
     );
 
     if (!response.ok) {
@@ -457,7 +751,7 @@ export class XAdapter implements SocialPlatform {
     return {
       id: tweet.id,
       url: `https://x.com/i/status/${tweet.id}`,
-      type: tweet.attachments?.media_keys ? 'image' : 'text',
+      type: this.resolvePostType(tweet, data.includes?.media),
       description: tweet.text,
       publishedAt: new Date(tweet.created_at),
       visibility: 'public',
@@ -466,6 +760,9 @@ export class XAdapter implements SocialPlatform {
         shares: tweet.public_metrics?.retweet_count,
         comments: tweet.public_metrics?.reply_count,
         views: tweet.public_metrics?.impression_count,
+        impressions: tweet.public_metrics?.impression_count,
+        lastUpdated: new Date(),
+        raw: tweet.public_metrics,
       },
     };
   }
@@ -491,34 +788,132 @@ export class XAdapter implements SocialPlatform {
       video: true,
       image: true,
       text: true,
+      link: true,
+      linkAttachment: false,
       scheduling: false, // Would need Twitter Ads API
       analytics: true,
+      rawAnalytics: true,
+      publishModes: ['dry_run', 'stage_remote', 'public'],
+      staging: true,
+      privatePublishing: false,
       maxVideoLength: 140, // 2 minutes 20 seconds
       maxVideoSize: 512 * 1024 * 1024, // 512MB
       supportedVideoFormats: ['mp4', 'mov'],
       aspectRatios: ['16:9', '1:1', '9:16'],
       maxTextLength: 280,
       maxHashtags: undefined, // No hard limit
+      supportedPostTypes: ['text', 'image', 'video', 'link'],
+    };
+  }
+
+  private resolveLinkBehavior(override?: LinkBehavior): LinkBehavior {
+    return override ?? this.config.linkBehavior ?? 'inline';
+  }
+
+  private usesOAuth2(): boolean {
+    if (this.config.authType) {
+      return this.config.authType === 'oauth2';
+    }
+
+    return !this.config.accessSecret;
+  }
+
+  private requireOAuth1Config(): {
+    apiKey: string;
+    apiSecret: string;
+    accessSecret: string;
+  } {
+    if (
+      !this.config.apiKey ||
+      !this.config.apiSecret ||
+      !this.config.accessSecret
+    ) {
+      throw new SocialAuthError('x', 'Missing OAuth 1.0a credentials');
+    }
+
+    return {
+      apiKey: this.config.apiKey,
+      apiSecret: this.config.apiSecret,
+      accessSecret: this.config.accessSecret,
     };
   }
 
   /**
    * Build post text with hashtags
    */
-  private buildPostText(text?: string, tags?: string[]): string {
+  private buildPostText(
+    text?: string,
+    tags?: string[],
+    linkUrl?: string,
+    linkBehavior: LinkBehavior = 'inline',
+  ): string {
     let result = text ?? '';
+    const suffixParts: string[] = [];
+
+    if (linkUrl && linkBehavior === 'inline') {
+      result = result.replace(linkUrl, '').trim();
+      suffixParts.push(linkUrl);
+    }
 
     if (tags && tags.length > 0) {
       const hashtags = tags.map((t) => (t.startsWith('#') ? t : `#${t}`));
-      result += `\n\n${hashtags.join(' ')}`;
+      suffixParts.push(hashtags.join(' '));
     }
 
-    // Truncate to 280 chars
-    if (result.length > 280) {
-      result = `${result.substring(0, 277)}...`;
+    const suffix = suffixParts.join('\n\n');
+    if (!suffix) {
+      return this.truncatePostText(result, 280);
     }
 
-    return result;
+    const separator = result.length > 0 ? '\n\n' : '';
+    const suffixBudget = suffix.length + separator.length;
+    if (suffixBudget >= 280) {
+      return this.truncatePostText(suffix, 280);
+    }
+
+    const textBudget = 280 - suffixBudget;
+    const truncatedText = this.truncatePostText(result, textBudget);
+
+    return truncatedText ? `${truncatedText}${separator}${suffix}` : suffix;
+  }
+
+  private truncatePostText(text: string, maxLength: number): string {
+    if (text.length <= maxLength) {
+      return text;
+    }
+
+    if (maxLength <= 3) {
+      return text.slice(0, maxLength);
+    }
+
+    return `${text.slice(0, maxLength - 3)}...`;
+  }
+
+  private resolvePostType(
+    tweet: { attachments?: { media_keys?: string[] } },
+    media?: Array<{ media_key?: string; type?: string }>,
+  ): Post['type'] {
+    const mediaKey = tweet.attachments?.media_keys?.[0];
+    if (!mediaKey) {
+      return 'text';
+    }
+
+    const mediaType =
+      media?.find((item) => item.media_key === mediaKey)?.type ??
+      this.inferMediaTypeFromKey(mediaKey);
+
+    if (mediaType === 'video' || mediaType === 'animated_gif') {
+      return 'video';
+    }
+
+    return 'image';
+  }
+
+  private inferMediaTypeFromKey(mediaKey: string): string | undefined {
+    if (mediaKey.startsWith('13_')) return 'video';
+    if (mediaKey.startsWith('7_')) return 'animated_gif';
+    if (mediaKey.startsWith('3_')) return 'photo';
+    return undefined;
   }
 
   /**
@@ -529,11 +924,12 @@ export class XAdapter implements SocialPlatform {
     url: string,
     body?: unknown,
   ): Promise<Response> {
-    const authHeader = this.generateOAuthSignature(
-      method,
-      url.split('?')[0],
-      {},
-    );
+    const parsedUrl = new URL(url);
+    const signatureParams = Object.fromEntries(parsedUrl.searchParams);
+    const signingUrl = `${parsedUrl.origin}${parsedUrl.pathname}`;
+    const authHeader = this.usesOAuth2()
+      ? `Bearer ${this.config.accessToken}`
+      : this.generateOAuthSignature(method, signingUrl, signatureParams);
 
     const options: RequestInit = {
       method,
@@ -545,6 +941,33 @@ export class XAdapter implements SocialPlatform {
 
     if (body) {
       options.body = JSON.stringify(body);
+    }
+
+    return fetch(url, options);
+  }
+
+  private async makeBearerUploadRequest(
+    method: string,
+    params: FormData | Record<string, string>,
+  ): Promise<Response> {
+    let url = X_API_MEDIA_UPLOAD_URL;
+    const options: RequestInit = {
+      method,
+      headers: {
+        Authorization: `Bearer ${this.config.accessToken}`,
+      },
+    };
+
+    if (method === 'GET' && !(params instanceof FormData)) {
+      url = `${url}?${new URLSearchParams(params).toString()}`;
+    } else if (params instanceof FormData) {
+      options.body = params;
+    } else {
+      const formData = new FormData();
+      for (const [key, value] of Object.entries(params)) {
+        formData.append(key, value);
+      }
+      options.body = formData;
     }
 
     return fetch(url, options);
@@ -567,7 +990,10 @@ export class XAdapter implements SocialPlatform {
         : Object.fromEntries(
             Object.entries(params).map(([k, v]) => [k, String(v)]),
           );
-    const queryParams = method === 'GET' ? stringParams : {};
+    const queryParams =
+      method === 'GET' || (!isFormData && !(params instanceof FormData))
+        ? stringParams
+        : {};
     const authHeader = this.generateOAuthSignature(method, url, queryParams);
 
     const options: RequestInit = {

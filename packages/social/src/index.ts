@@ -6,12 +6,14 @@
  */
 
 export { BlueskyAdapter } from './adapters/bluesky.js';
+export { FacebookPageAdapter } from './adapters/facebook.js';
 export { ThreadsAdapter } from './adapters/threads.js';
 export { XAdapter } from './adapters/x.js';
 export { YouTubeAdapter } from './adapters/youtube.js';
 export * from './types.js';
 
 import { BlueskyAdapter } from './adapters/bluesky.js';
+import { FacebookPageAdapter } from './adapters/facebook.js';
 import { ThreadsAdapter } from './adapters/threads.js';
 import { XAdapter } from './adapters/x.js';
 import { YouTubeAdapter } from './adapters/youtube.js';
@@ -72,6 +74,9 @@ export async function getSocial(config: SocialConfig): Promise<SocialPlatform> {
     case 'threads':
       adapter = new ThreadsAdapter(config);
       break;
+    case 'facebook':
+      adapter = new FacebookPageAdapter(config);
+      break;
     case 'x':
       adapter = new XAdapter(config);
       break;
@@ -80,7 +85,7 @@ export async function getSocial(config: SocialConfig): Promise<SocialPlatform> {
       break;
     default:
       throw new SocialError(
-        `Unknown platform type: ${(config as any).type}`,
+        `Unknown platform type: ${(config as { type?: string }).type}`,
         'UNKNOWN_PLATFORM',
       );
   }
@@ -132,14 +137,18 @@ export async function getSocialMulti(
 export async function publishToAll(
   adapters: SocialPlatform[],
   content: {
-    type: 'text' | 'image' | 'video';
+    type: 'text' | 'image' | 'video' | 'link';
     text?: string;
     description?: string;
     file?: Buffer | string;
     title?: string;
     linkUrl?: string;
+    url?: string;
     tags?: string[];
     altText?: string;
+    mimeType?: string;
+    thumbnail?: Buffer | string;
+    thumbnailMimeType?: string;
   },
 ): Promise<Map<string, { success: boolean; result?: unknown; error?: Error }>> {
   const results = new Map<
@@ -150,7 +159,7 @@ export async function publishToAll(
   await Promise.all(
     adapters.map(async (adapter) => {
       try {
-        let result;
+        let result: unknown;
 
         switch (content.type) {
           case 'text':
@@ -160,6 +169,24 @@ export async function publishToAll(
               tags: content.tags,
             });
             break;
+          case 'link': {
+            const url = content.url ?? content.linkUrl;
+            if (!url) {
+              throw new SocialError(
+                'Link URL required',
+                'MISSING_LINK_URL',
+                adapter.platform,
+              );
+            }
+            result = await adapter.publishLink({
+              url,
+              text: content.text,
+              title: content.title,
+              description: content.description,
+              tags: content.tags,
+            });
+            break;
+          }
           case 'image':
             if (!content.file) {
               throw new SocialError(
@@ -174,6 +201,7 @@ export async function publishToAll(
               linkUrl: content.linkUrl,
               tags: content.tags,
               altText: content.altText,
+              mimeType: content.mimeType,
             });
             break;
           case 'video':
@@ -190,6 +218,9 @@ export async function publishToAll(
               description: content.description ?? content.text,
               linkUrl: content.linkUrl,
               tags: content.tags,
+              mimeType: content.mimeType,
+              thumbnail: content.thumbnail,
+              thumbnailMimeType: content.thumbnailMimeType,
             });
             break;
         }

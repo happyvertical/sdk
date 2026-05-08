@@ -4,12 +4,17 @@
  * Implements SocialPlatform interface for Bluesky (AT Protocol) publishing.
  */
 
-import { createLogger } from '@happyvertical/logger';
-
+import { resolveMediaData } from '../media.js';
+import {
+  createSafetyResult,
+  isPublicPublishMode,
+  resolvePublishMode,
+} from '../safety.js';
 import type {
   AuthResult,
   BlueskyConfig,
   ImagePost,
+  LinkPost,
   PlatformCapabilities,
   Post,
   PostAnalytics,
@@ -25,6 +30,28 @@ import {
 } from '../types.js';
 
 const DEFAULT_PDS = 'https://bsky.social';
+
+type BlueskyPostRecord = Record<string, unknown> & {
+  $type: 'app.bsky.feed.post';
+  text: string;
+  createdAt: string;
+};
+
+interface BlueskyReplyRef {
+  root: {
+    uri: string;
+    cid: string;
+  };
+  parent: {
+    uri: string;
+    cid: string;
+  };
+}
+
+interface BlueskyApiError {
+  message?: string;
+  error?: string;
+}
 
 /**
  * Bluesky adapter for publishing via AT Protocol
@@ -48,7 +75,6 @@ const DEFAULT_PDS = 'https://bsky.social';
 export class BlueskyAdapter implements SocialPlatform {
   readonly platform = 'bluesky' as const;
   private config: BlueskyConfig;
-  private logger: ReturnType<typeof createLogger>;
   private session?: {
     did: string;
     handle: string;
@@ -58,7 +84,6 @@ export class BlueskyAdapter implements SocialPlatform {
 
   constructor(config: BlueskyConfig) {
     this.config = config;
-    this.logger = createLogger({ level: 'info' });
   }
 
   private get pdsUrl(): string {
@@ -132,32 +157,45 @@ export class BlueskyAdapter implements SocialPlatform {
     };
   }
 
-  async publishVideo(video: VideoPost): Promise<PostResult> {
-    // Bluesky supports video via embed
-    // For now, post with link to video
-    const text = this.buildPostText(
-      video.description,
-      video.tags,
-      video.linkUrl,
+  async publishVideo(_video: VideoPost): Promise<PostResult> {
+    throw new SocialError(
+      'Bluesky video publishing is not supported yet',
+      'NOT_SUPPORTED',
+      'bluesky',
     );
-
-    return this.publishText({
-      text,
-      linkUrl: video.linkUrl,
-    });
   }
 
   async publishImage(image: ImagePost): Promise<PostResult> {
+    const publishMode = resolvePublishMode(this.config);
+    const text = this.buildPostText(
+      image.description,
+      image.tags,
+      image.linkUrl,
+    );
+
+    if (publishMode === 'dry_run') {
+      return createSafetyResult({
+        platform: this.platform,
+        mode: publishMode,
+        postType: 'image',
+        payload: {
+          text,
+          altText: image.altText,
+          linkUrl: image.linkUrl,
+        },
+        note: 'Bluesky dry run: blob was not uploaded and no post was created.',
+      });
+    }
+
     if (!this.session) {
       await this.authenticate();
     }
 
-    // Upload blob first
-    const imageData = Buffer.isBuffer(image.file)
-      ? image.file
-      : await fetch(image.file)
-          .then((r) => r.arrayBuffer())
-          .then(Buffer.from);
+    // Upload blob first.
+    const imageData = await resolveMediaData(image.file, {
+      explicitMimeType: image.mimeType,
+      fallbackMimeType: 'image/png',
+    });
 
     const blobResponse = await fetch(
       `${this.pdsUrl}/xrpc/com.atproto.repo.uploadBlob`,
@@ -165,9 +203,9 @@ export class BlueskyAdapter implements SocialPlatform {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${this.session?.accessJwt}`,
-          'Content-Type': 'image/png',
+          'Content-Type': imageData.mimeType,
         },
-        body: new Uint8Array(imageData),
+        body: new Uint8Array(imageData.data),
       },
     );
 
@@ -177,13 +215,25 @@ export class BlueskyAdapter implements SocialPlatform {
 
     const blobData = await blobResponse.json();
 
-    // Create post with image embed
-    const text = this.buildPostText(
-      image.description,
-      image.tags,
-      image.linkUrl,
-    );
+    if (!isPublicPublishMode(publishMode)) {
+      return createSafetyResult({
+        platform: this.platform,
+        mode: publishMode,
+        postType: 'image',
+        payload: {
+          text,
+          altText: image.altText,
+          blob: blobData.blob,
+          linkUrl: image.linkUrl,
+          mimeType: imageData.mimeType,
+        },
+        remoteId: blobData.blob?.ref?.$link ?? blobData.blob?.cid,
+        staged: true,
+        note: 'Bluesky blob uploaded but no post record was created.',
+      });
+    }
 
+    // Create post with image embed
     const record = {
       $type: 'app.bsky.feed.post',
       text,
@@ -203,13 +253,10 @@ export class BlueskyAdapter implements SocialPlatform {
   }
 
   async publishText(text: TextPost): Promise<PostResult> {
-    if (!this.session) {
-      await this.authenticate();
-    }
-
+    const publishMode = resolvePublishMode(this.config);
     const postText = this.buildPostText(text.text, text.tags);
 
-    const record: any = {
+    const record: BlueskyPostRecord = {
       $type: 'app.bsky.feed.post',
       text: postText,
       createdAt: new Date().toISOString(),
@@ -246,9 +293,68 @@ export class BlueskyAdapter implements SocialPlatform {
       }
     }
 
+    if (!isPublicPublishMode(publishMode)) {
+      return createSafetyResult({
+        platform: this.platform,
+        mode: publishMode,
+        postType: 'text',
+        payload: record,
+        metadata: text.replyTo ? { replyTo: text.replyTo } : undefined,
+        note:
+          publishMode === 'dry_run'
+            ? 'Bluesky dry run: no post record was created.'
+            : 'Bluesky has no non-public text staging endpoint; no post record was created.',
+      });
+    }
+
+    if (!this.session) {
+      await this.authenticate();
+    }
+
     // Handle reply
     if (text.replyTo) {
       record.reply = await this.getReplyRef(text.replyTo);
+    }
+
+    return this.createPost(record);
+  }
+
+  async publishLink(link: LinkPost): Promise<PostResult> {
+    const publishMode = resolvePublishMode(this.config);
+    const postText = this.buildPostText(
+      link.text ?? link.title ?? link.description ?? link.url,
+      link.tags,
+    );
+
+    const record: BlueskyPostRecord = {
+      $type: 'app.bsky.feed.post',
+      text: postText,
+      createdAt: new Date().toISOString(),
+      embed: {
+        $type: 'app.bsky.embed.external',
+        external: {
+          uri: link.url,
+          title: link.title ?? link.url,
+          description: link.description ?? '',
+        },
+      },
+    };
+
+    if (!isPublicPublishMode(publishMode)) {
+      return createSafetyResult({
+        platform: this.platform,
+        mode: publishMode,
+        postType: 'link',
+        payload: record,
+        note:
+          publishMode === 'dry_run'
+            ? 'Bluesky dry run: no post record was created.'
+            : 'Bluesky has no non-public link staging endpoint; no post record was created.',
+      });
+    }
+
+    if (!this.session) {
+      await this.authenticate();
     }
 
     return this.createPost(record);
@@ -285,6 +391,7 @@ export class BlueskyAdapter implements SocialPlatform {
       url: `https://bsky.app/profile/${this.session?.handle}/post/${postId}`,
       status: 'published',
       publishedAt: new Date(),
+      metadata: { publishMode: resolvePublishMode(this.config) },
     };
   }
 
@@ -323,6 +430,13 @@ export class BlueskyAdapter implements SocialPlatform {
         likes: post.likeCount,
         shares: post.repostCount,
         comments: post.replyCount,
+        lastUpdated: new Date(),
+        raw: {
+          likeCount: post.likeCount,
+          repostCount: post.repostCount,
+          replyCount: post.replyCount,
+          quoteCount: post.quoteCount,
+        },
       },
     };
   }
@@ -365,21 +479,28 @@ export class BlueskyAdapter implements SocialPlatform {
       video: false, // Limited video support
       image: true,
       text: true,
+      link: true,
+      linkAttachment: true,
       scheduling: false,
       analytics: true,
+      rawAnalytics: true,
+      publishModes: ['dry_run', 'stage_remote', 'public'],
+      staging: true,
+      privatePublishing: false,
       maxVideoLength: 0,
       maxVideoSize: 0,
       supportedVideoFormats: [],
       aspectRatios: ['1:1', '16:9', '4:3'],
       maxTextLength: 300,
       maxHashtags: undefined, // No limit
+      supportedPostTypes: ['text', 'image', 'link'],
     };
   }
 
   /**
    * Get reply reference for threading
    */
-  private async getReplyRef(parentUri: string): Promise<any> {
+  private async getReplyRef(parentUri: string): Promise<BlueskyReplyRef> {
     const response = await fetch(
       `${this.pdsUrl}/xrpc/app.bsky.feed.getPostThread?uri=${encodeURIComponent(parentUri)}&depth=0`,
       {
@@ -445,9 +566,9 @@ export class BlueskyAdapter implements SocialPlatform {
    */
   private async handleError(response: Response): Promise<never> {
     const text = await response.text();
-    let error;
+    let error: BlueskyApiError;
     try {
-      error = JSON.parse(text);
+      error = JSON.parse(text) as BlueskyApiError;
     } catch {
       error = { message: text };
     }
