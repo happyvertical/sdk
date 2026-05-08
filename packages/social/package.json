@@ -1,7 +1,7 @@
 {
   "name": "@happyvertical/social",
   "version": "0.73.2",
-  "description": "Social platform adapters for publishing to YouTube, Threads, X, and Bluesky",
+  "description": "Social platform adapters for publishing to YouTube, Facebook Pages, Threads, X, and Bluesky",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -13,6 +13,7 @@
   },
   "scripts": {
     "test": "npx vitest run",
+    "test:live": "HV_SOCIAL_LIVE_SMOKE=1 npx vitest run src/live-smoke.optional.test.ts",
     "test:watch": "npx vitest",
     "build": "vite build",
     "build:watch": "vite build --watch",

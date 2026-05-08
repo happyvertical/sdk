@@ -13,14 +13,15 @@ A unified interface for publishing content to social platforms in the HAVE SDK.
 
 ## Overview
 
-The `@happyvertical/social` package provides adapters for publishing text, images, and videos to major social platforms including YouTube, Threads, X (Twitter), and Bluesky. Each adapter implements a consistent interface, making it easy to publish to multiple platforms with the same code.
+The `@happyvertical/social` package provides adapters for publishing links, text, images, and videos to major social platforms including YouTube, Facebook Pages, Threads, X (Twitter), and Bluesky. Each adapter implements a consistent interface, making it easy to publish to multiple platforms with the same code.
 
 ## Features
 
-- **Multi-Platform Support**: YouTube, Threads, X (Twitter), Bluesky
+- **Multi-Platform Support**: YouTube, Facebook Pages, Threads, X (Twitter), Bluesky
 - **Unified Interface**: Consistent API across all platforms
-- **OAuth Support**: Built-in OAuth 2.0 with PKCE for YouTube
-- **Media Publishing**: Support for text, images, and video content
+- **OAuth Support**: Built-in OAuth 2.0 with PKCE for YouTube and OAuth 1.0a/OAuth 2.0 support for X
+- **Media Publishing**: Support for link, text, image, and video content
+- **Safety Modes**: Dry-run and non-public publish modes for testing without public posts
 - **Cross-Posting**: Publish to multiple platforms simultaneously
 - **Analytics**: Retrieve post engagement metrics
 - **Platform Capabilities**: Query platform-specific limits and features
@@ -91,13 +92,18 @@ const adapters = await getSocialMulti([
     accessToken: process.env.X_ACCESS_TOKEN!,
     accessSecret: process.env.X_ACCESS_SECRET!,
   },
+  {
+    type: 'facebook',
+    pageId: process.env.FACEBOOK_PAGE_ID!,
+    accessToken: process.env.FACEBOOK_PAGE_ACCESS_TOKEN!,
+  },
 ]);
 
-// Publish to all platforms at once
+// Publish a story link to all supported platforms at once
 const results = await publishToAll(adapters, {
-  type: 'text',
+  type: 'link',
   text: 'Breaking news from Bentley!',
-  linkUrl: 'https://example.com/article',
+  url: 'https://example.com/article',
   tags: ['news', 'local'],
 });
 
@@ -109,6 +115,28 @@ for (const [platform, result] of results) {
     console.log(`${platform}: Failed - ${result.error?.message}`);
   }
 }
+```
+
+### Safety Modes
+
+Adapters default to public publishing for backward compatibility. Set `publishMode` when testing request shapes or creating non-public platform objects.
+
+```typescript
+const youtube = await getSocial({
+  type: 'youtube',
+  clientId: process.env.YOUTUBE_CLIENT_ID!,
+  clientSecret: process.env.YOUTUBE_CLIENT_SECRET!,
+  accessToken: 'user-access-token',
+  publishMode: 'private_or_scheduled',
+});
+
+const result = await youtube.publishVideo({
+  file: videoBuffer,
+  title: 'Council update',
+  isShort: true,
+});
+
+console.log(result.status); // "staged"
 ```
 
 ## Platform Adapters
@@ -175,6 +203,13 @@ await bluesky.publishImage({
   description: 'Image description',
   altText: 'Accessible alt text',
 });
+
+// Publish a first-class link card
+await bluesky.publishLink({
+  url: 'https://example.com/article',
+  title: 'Local story',
+  description: 'A short summary for the card',
+});
 ```
 
 ### X (Twitter)
@@ -208,7 +243,8 @@ await x.publishImage({
 await x.publishVideo({
   file: videoBuffer,
   description: 'Watch the latest update',
-  linkUrl: 'https://example.com', // Posted as reply for better algorithm
+  linkUrl: 'https://example.com', // Inline by default
+  linkBehavior: 'reply', // Optional: post the link as a reply instead
 });
 ```
 
@@ -232,6 +268,40 @@ await threads.publishImage({
   file: 'https://example.com/image.png', // URL required, not buffer
   description: 'Image caption',
 });
+
+// Publish a link attachment
+await threads.publishLink({
+  url: 'https://example.com/article',
+  text: 'Read the latest story',
+});
+```
+
+### Facebook Pages
+
+```typescript
+const facebook = await getSocial({
+  type: 'facebook',
+  pageId: 'page-id',
+  accessToken: 'page-access-token',
+});
+
+// Publish a Page feed link post
+await facebook.publishLink({
+  url: 'https://example.com/article',
+  text: 'Read the latest story',
+});
+
+// Create an unpublished Page post for testing
+const safeFacebook = await getSocial({
+  type: 'facebook',
+  pageId: 'page-id',
+  accessToken: 'page-access-token',
+  publishMode: 'private_or_scheduled',
+});
+
+await safeFacebook.publishText({
+  text: 'Draft post',
+});
 ```
 
 ## API Reference
@@ -252,6 +322,7 @@ interface SocialPlatform {
   publishVideo(video: VideoPost): Promise<PostResult>;
   publishImage(image: ImagePost): Promise<PostResult>;
   publishText(text: TextPost): Promise<PostResult>;
+  publishLink(link: LinkPost): Promise<PostResult>;
 
   // Management
   getPost(postId: string): Promise<Post>;
@@ -272,12 +343,13 @@ console.log(`Max video size: ${caps.maxVideoSize / (1024 * 1024)}MB`);
 console.log(`Supports scheduling: ${caps.scheduling}`);
 ```
 
-| Platform | Video | Image | Text | Scheduling | Max Video |
-|----------|-------|-------|------|------------|-----------|
-| YouTube | ✓ | ✗ | ✗ | ✓ | 256GB |
-| Threads | ✓ | ✓ | ✓ | ✗ | 1GB |
-| X | ✓ | ✓ | ✓ | ✗ | 512MB |
-| Bluesky | ✗ | ✓ | ✓ | ✗ | N/A |
+| Platform | Link | Video | Image | Text | Scheduling | Safe non-public mode | Max Video |
+|----------|------|-------|-------|------|------------|----------------------|-----------|
+| YouTube | ✗ | ✓ | ✗ | ✗ | ✓ | private upload | 256GB |
+| Facebook Pages | ✓ | ✓ | ✓ | ✓ | ✓ | unpublished/scheduled | 10GB |
+| Threads | ✓ | ✓ | ✓ | ✓ | ✗ | staged container | 1GB |
+| X | ✓ | ✓ | ✓ | ✓ | ✗ | staged media/dry run | 512MB |
+| Bluesky | ✓ | ✗ | ✓ | ✓ | ✗ | dry run/blob staging | N/A |
 
 ## Error Handling
 
@@ -316,6 +388,8 @@ interface VideoPost {
   visibility?: 'public' | 'unlisted' | 'private';
   scheduledAt?: Date;
   categoryId?: string; // YouTube category
+  isShort?: boolean;
+  linkBehavior?: 'inline' | 'attachment' | 'reply' | 'none';
 }
 
 interface ImagePost {
@@ -324,6 +398,7 @@ interface ImagePost {
   altText?: string;
   linkUrl?: string;
   tags?: string[];
+  linkBehavior?: 'inline' | 'attachment' | 'reply' | 'none';
 }
 
 interface TextPost {
@@ -331,22 +406,35 @@ interface TextPost {
   linkUrl?: string;
   tags?: string[];
   replyTo?: string; // Post ID to reply to
+  linkBehavior?: 'inline' | 'attachment' | 'reply' | 'none';
+}
+
+interface LinkPost {
+  url: string;
+  text?: string;
+  title?: string;
+  description?: string;
+  tags?: string[];
+  scheduledAt?: Date;
+  linkBehavior?: 'inline' | 'attachment' | 'reply' | 'none';
 }
 
 interface PostResult {
   id: string;
   url: string;
-  status: 'published' | 'scheduled' | 'processing';
+  status: 'published' | 'scheduled' | 'processing' | 'staged' | 'dry_run';
   publishedAt?: Date;
   scheduledAt?: Date;
 }
 
 interface PostAnalytics {
   views?: number;
+  impressions?: number;
   likes?: number;
   comments?: number;
   shares?: number;
   clicks?: number;
+  raw?: unknown;
   lastUpdated?: Date;
 }
 ```
@@ -376,12 +464,12 @@ youtube.authenticate().catch(async (error) => {
 ### Platform-Specific Optimization
 
 ```typescript
-// X: Post link as reply for better algorithm performance
-// The adapter handles this automatically when linkUrl is provided
+// X: Inline links by default, or post links as replies per account/post
 await x.publishVideo({
   file: videoBuffer,
   description: 'Watch the news',
-  linkUrl: 'https://example.com/article', // Posted as separate reply
+  linkUrl: 'https://example.com/article',
+  linkBehavior: 'reply',
 });
 
 // YouTube: Use scheduling for optimal posting times
