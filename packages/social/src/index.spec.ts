@@ -10,6 +10,7 @@ import {
   XAdapter,
   YouTubeAdapter,
 } from './index.js';
+import { resolveMediaData } from './media.js';
 
 describe('social package', () => {
   beforeEach(() => {
@@ -421,6 +422,46 @@ describe('social package', () => {
       );
     });
 
+    it('should dry-run Threads buffer videos without temp upload', async () => {
+      const fetchMock = vi.mocked(fetch);
+      const adapter = new ThreadsAdapter({
+        type: 'threads',
+        accessToken: 'token',
+        userId: 'threads-user',
+        publishMode: 'dry_run',
+      });
+
+      const result = await adapter.publishVideo({
+        file: Buffer.from('video-bytes'),
+        description: 'Story video',
+      });
+      const payload = result.metadata?.payload as Record<string, unknown>;
+
+      expect(result.status).toBe('dry_run');
+      expect(payload.video_url).toBeUndefined();
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('should dry-run Threads buffer images without temp upload', async () => {
+      const fetchMock = vi.mocked(fetch);
+      const adapter = new ThreadsAdapter({
+        type: 'threads',
+        accessToken: 'token',
+        userId: 'threads-user',
+        publishMode: 'dry_run',
+      });
+
+      const result = await adapter.publishImage({
+        file: Buffer.from('image-bytes'),
+        description: 'Story image',
+      });
+      const payload = result.metadata?.payload as Record<string, unknown>;
+
+      expect(result.status).toBe('dry_run');
+      expect(payload.image_url).toBeUndefined();
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
     it('should publish Facebook Page link posts to the feed endpoint', async () => {
       const fetchMock = vi.mocked(fetch);
       fetchMock.mockResolvedValue(
@@ -823,6 +864,22 @@ describe('social package', () => {
       expect(fetchMock.mock.calls[2]?.[1]?.headers).toMatchObject({
         'Content-Type': 'image/jpeg',
       });
+    });
+
+    it('should reject failed URL media fetches', async () => {
+      const fetchMock = vi.mocked(fetch);
+      fetchMock.mockResolvedValue(
+        new Response('not found', {
+          status: 404,
+          statusText: 'Not Found',
+        }),
+      );
+
+      await expect(
+        resolveMediaData('https://cdn.example.com/missing.jpg'),
+      ).rejects.toThrow(
+        'Failed to fetch media from https://cdn.example.com/missing.jpg: 404 Not Found - not found',
+      );
     });
   });
 

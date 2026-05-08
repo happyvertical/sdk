@@ -107,9 +107,26 @@ export class ThreadsAdapter implements SocialPlatform {
 
   async publishVideo(video: VideoPost): Promise<PostResult> {
     const publishMode = resolvePublishMode(this.config);
-    // Step 1: Create media container
     const text = this.buildPostText(video.description, video.tags);
 
+    const dryRunPayload = {
+      media_type: 'VIDEO',
+      ...(typeof video.file === 'string' ? { video_url: video.file } : {}),
+      text,
+      ...(video.linkUrl ? { link_attachment: video.linkUrl } : {}),
+    };
+
+    if (publishMode === 'dry_run') {
+      return createSafetyResult({
+        platform: this.platform,
+        mode: publishMode,
+        postType: 'video',
+        payload: dryRunPayload,
+        note: 'Threads dry run: media container was not created.',
+      });
+    }
+
+    // Step 1: Create media container
     // For video, we need a URL (can't upload buffer directly)
     const videoUrl = Buffer.isBuffer(video.file)
       ? await this.uploadToTempStorage(video.file, 'video/mp4')
@@ -121,16 +138,6 @@ export class ThreadsAdapter implements SocialPlatform {
       text,
       ...(video.linkUrl ? { link_attachment: video.linkUrl } : {}),
     };
-
-    if (publishMode === 'dry_run') {
-      return createSafetyResult({
-        platform: this.platform,
-        mode: publishMode,
-        postType: 'video',
-        payload,
-        note: 'Threads dry run: media container was not created.',
-      });
-    }
 
     const containerResponse = await fetch(
       `${THREADS_API_URL}/${this.config.userId}/threads`,
@@ -172,9 +179,26 @@ export class ThreadsAdapter implements SocialPlatform {
 
   async publishImage(image: ImagePost): Promise<PostResult> {
     const publishMode = resolvePublishMode(this.config);
-    // Step 1: Create media container
     const text = this.buildPostText(image.description, image.tags);
 
+    const dryRunPayload = {
+      media_type: 'IMAGE',
+      ...(typeof image.file === 'string' ? { image_url: image.file } : {}),
+      text,
+      ...(image.linkUrl ? { link_attachment: image.linkUrl } : {}),
+    };
+
+    if (publishMode === 'dry_run') {
+      return createSafetyResult({
+        platform: this.platform,
+        mode: publishMode,
+        postType: 'image',
+        payload: dryRunPayload,
+        note: 'Threads dry run: media container was not created.',
+      });
+    }
+
+    // Step 1: Create media container
     // For image, we need a URL
     const imageUrl = Buffer.isBuffer(image.file)
       ? await this.uploadToTempStorage(image.file, 'image/png')
@@ -186,16 +210,6 @@ export class ThreadsAdapter implements SocialPlatform {
       text,
       ...(image.linkUrl ? { link_attachment: image.linkUrl } : {}),
     };
-
-    if (publishMode === 'dry_run') {
-      return createSafetyResult({
-        platform: this.platform,
-        mode: publishMode,
-        postType: 'image',
-        payload,
-        note: 'Threads dry run: media container was not created.',
-      });
-    }
 
     const containerResponse = await fetch(
       `${THREADS_API_URL}/${this.config.userId}/threads`,

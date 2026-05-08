@@ -24,6 +24,15 @@ export async function resolveMediaData(
   }
 
   const response = await fetch(file);
+  if (!response.ok) {
+    const snippet = await response.text();
+    throw new Error(
+      `Failed to fetch media from ${file}: ${response.status} ${response.statusText}${
+        snippet ? ` - ${snippet.slice(0, 200)}` : ''
+      }`,
+    );
+  }
+
   const data = Buffer.from(await response.arrayBuffer());
 
   return {
