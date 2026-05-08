@@ -5,9 +5,10 @@
  * Uses Twitter API v2.
  */
 
-import { createHmac } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 
 import { createLogger } from '@happyvertical/logger';
+import { type ResolvedMediaData, resolveMediaData } from '../media.js';
 import {
   createSafetyResult,
   isPublicPublishMode,
@@ -36,6 +37,7 @@ import {
 const X_API_URL = 'https://api.twitter.com/2';
 const X_UPLOAD_URL = 'https://upload.twitter.com/1.1';
 const X_API_MEDIA_UPLOAD_URL = 'https://api.x.com/2/media/upload';
+const X_API_MEDIA_METADATA_URL = 'https://api.x.com/2/media/metadata';
 const X_OAUTH_TOKEN_URL = 'https://api.x.com/2/oauth2/token';
 
 /**
@@ -129,7 +131,7 @@ export class XAdapter implements SocialPlatform {
   }
 
   private generateNonce(): string {
-    return crypto.randomUUID().replace(/-/g, '');
+    return randomUUID().replace(/-/g, '');
   }
 
   private percentEncode(str: string): string {
@@ -234,7 +236,7 @@ export class XAdapter implements SocialPlatform {
 
     // Upload video first. This is safe for stage modes; media is not public
     // until attached to a post.
-    const mediaId = await this.uploadMedia(video.file, 'video');
+    const mediaId = await this.uploadMedia(video.file, 'video', video.mimeType);
 
     if (!isPublicPublishMode(publishMode)) {
       return createSafetyResult({
@@ -300,7 +302,7 @@ export class XAdapter implements SocialPlatform {
 
     // Upload image first. This is safe for stage modes; media is not public
     // until attached to a post.
-    const mediaId = await this.uploadMedia(image.file, 'image');
+    const mediaId = await this.uploadMedia(image.file, 'image', image.mimeType);
 
     if (!isPublicPublishMode(publishMode)) {
       if (image.altText) {
@@ -424,20 +426,24 @@ export class XAdapter implements SocialPlatform {
   private async uploadMedia(
     file: Buffer | string,
     type: 'image' | 'video',
+    mimeType?: string,
   ): Promise<string> {
     if (this.usesOAuth2()) {
-      return this.uploadMediaV2(file, type);
+      return this.uploadMediaV2(file, type, mimeType);
     }
 
-    return this.uploadMediaOAuth1(file, type);
+    return this.uploadMediaOAuth1(file, type, mimeType);
   }
 
-  private async readMediaData(file: Buffer | string): Promise<Buffer> {
-    return Buffer.isBuffer(file)
-      ? file
-      : await fetch(file)
-          .then((r) => r.arrayBuffer())
-          .then(Buffer.from);
+  private async readMediaData(
+    file: Buffer | string,
+    type: 'image' | 'video',
+    mimeType?: string,
+  ): Promise<ResolvedMediaData> {
+    return resolveMediaData(file, {
+      explicitMimeType: mimeType,
+      fallbackMimeType: type === 'video' ? 'video/mp4' : 'image/png',
+    });
   }
 
   /**
@@ -446,14 +452,15 @@ export class XAdapter implements SocialPlatform {
   private async uploadMediaV2(
     file: Buffer | string,
     type: 'image' | 'video',
+    mimeType?: string,
   ): Promise<string> {
-    const mediaData = await this.readMediaData(file);
-    const mediaType = type === 'video' ? 'video/mp4' : 'image/png';
+    const mediaData = await this.readMediaData(file, type, mimeType);
+    const mediaType = mediaData.mimeType;
     const mediaCategory = type === 'video' ? 'tweet_video' : 'tweet_image';
 
     const initResponse = await this.makeBearerUploadRequest('POST', {
       command: 'INIT',
-      total_bytes: String(mediaData.length),
+      total_bytes: String(mediaData.data.length),
       media_type: mediaType,
       media_category: mediaCategory,
     });
@@ -475,13 +482,16 @@ export class XAdapter implements SocialPlatform {
     const chunkSize = 5 * 1024 * 1024;
     let segmentIndex = 0;
 
-    for (let offset = 0; offset < mediaData.length; offset += chunkSize) {
-      const chunk = mediaData.subarray(offset, offset + chunkSize);
+    for (let offset = 0; offset < mediaData.data.length; offset += chunkSize) {
+      const chunk = mediaData.data.subarray(offset, offset + chunkSize);
       const formData = new FormData();
       formData.append('command', 'APPEND');
       formData.append('media_id', mediaId);
       formData.append('segment_index', segmentIndex.toString());
-      formData.append('media', new Blob([new Uint8Array(chunk)]));
+      formData.append(
+        'media',
+        new Blob([new Uint8Array(chunk)], { type: mediaType }),
+      );
 
       const appendResponse = await this.makeBearerUploadRequest(
         'POST',
@@ -527,10 +537,11 @@ export class XAdapter implements SocialPlatform {
   private async uploadMediaOAuth1(
     file: Buffer | string,
     type: 'image' | 'video',
+    mimeType?: string,
   ): Promise<string> {
-    const mediaData = await this.readMediaData(file);
+    const mediaData = await this.readMediaData(file, type, mimeType);
 
-    const mediaType = type === 'video' ? 'video/mp4' : 'image/png';
+    const mediaType = mediaData.mimeType;
     const mediaCategory = type === 'video' ? 'tweet_video' : 'tweet_image';
 
     // INIT
@@ -539,7 +550,7 @@ export class XAdapter implements SocialPlatform {
       `${X_UPLOAD_URL}/media/upload.json`,
       {
         command: 'INIT',
-        total_bytes: mediaData.length,
+        total_bytes: mediaData.data.length,
         media_type: mediaType,
         media_category: mediaCategory,
       },
@@ -556,14 +567,17 @@ export class XAdapter implements SocialPlatform {
     const chunkSize = 5 * 1024 * 1024; // 5MB chunks
     let segmentIndex = 0;
 
-    for (let offset = 0; offset < mediaData.length; offset += chunkSize) {
-      const chunk = mediaData.subarray(offset, offset + chunkSize);
+    for (let offset = 0; offset < mediaData.data.length; offset += chunkSize) {
+      const chunk = mediaData.data.subarray(offset, offset + chunkSize);
 
       const formData = new FormData();
       formData.append('command', 'APPEND');
       formData.append('media_id', mediaId);
       formData.append('segment_index', segmentIndex.toString());
-      formData.append('media', new Blob([new Uint8Array(chunk)]));
+      formData.append(
+        'media',
+        new Blob([new Uint8Array(chunk)], { type: mediaType }),
+      );
 
       const appendResponse = await this.makeUploadRequest(
         'POST',
@@ -671,14 +685,27 @@ export class XAdapter implements SocialPlatform {
     altText: string,
   ): Promise<void> {
     if (this.usesOAuth2()) {
-      this.logger.warn('X OAuth 2.0 alt text metadata is not implemented yet');
+      const response = await this.makeRequest(
+        'POST',
+        X_API_MEDIA_METADATA_URL,
+        {
+          id: mediaId,
+          metadata: {
+            alt_text: { text: altText },
+          },
+        },
+      );
+
+      if (!response.ok) {
+        await this.handleError(response);
+      }
       return;
     }
 
     const url = `${X_UPLOAD_URL}/media/metadata/create.json`;
     const authHeader = this.generateOAuthSignature('POST', url, {});
 
-    await fetch(url, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         Authorization: authHeader,
@@ -689,6 +716,10 @@ export class XAdapter implements SocialPlatform {
         alt_text: { text: altText },
       }),
     });
+
+    if (!response.ok) {
+      await this.handleError(response);
+    }
   }
 
   /**
@@ -707,7 +738,7 @@ export class XAdapter implements SocialPlatform {
   async getPost(postId: string): Promise<Post> {
     const response = await this.makeRequest(
       'GET',
-      `${X_API_URL}/tweets/${postId}?tweet.fields=created_at,public_metrics,attachments`,
+      `${X_API_URL}/tweets/${postId}?tweet.fields=created_at,public_metrics,attachments&expansions=attachments.media_keys&media.fields=type`,
     );
 
     if (!response.ok) {
@@ -720,7 +751,7 @@ export class XAdapter implements SocialPlatform {
     return {
       id: tweet.id,
       url: `https://x.com/i/status/${tweet.id}`,
-      type: tweet.attachments?.media_keys ? 'image' : 'text',
+      type: this.resolvePostType(tweet, data.includes?.media),
       description: tweet.text,
       publishedAt: new Date(tweet.created_at),
       visibility: 'public',
@@ -817,22 +848,72 @@ export class XAdapter implements SocialPlatform {
     linkBehavior: LinkBehavior = 'inline',
   ): string {
     let result = text ?? '';
+    const suffixParts: string[] = [];
 
-    if (linkUrl && linkBehavior === 'inline' && !result.includes(linkUrl)) {
-      result += result.length > 0 ? `\n\n${linkUrl}` : linkUrl;
+    if (linkUrl && linkBehavior === 'inline') {
+      result = result.replace(linkUrl, '').trim();
+      suffixParts.push(linkUrl);
     }
 
     if (tags && tags.length > 0) {
       const hashtags = tags.map((t) => (t.startsWith('#') ? t : `#${t}`));
-      result += `\n\n${hashtags.join(' ')}`;
+      suffixParts.push(hashtags.join(' '));
     }
 
-    // Truncate to 280 chars
-    if (result.length > 280) {
-      result = `${result.substring(0, 277)}...`;
+    const suffix = suffixParts.join('\n\n');
+    if (!suffix) {
+      return this.truncatePostText(result, 280);
     }
 
-    return result;
+    const separator = result.length > 0 ? '\n\n' : '';
+    const suffixBudget = suffix.length + separator.length;
+    if (suffixBudget >= 280) {
+      return this.truncatePostText(suffix, 280);
+    }
+
+    const textBudget = 280 - suffixBudget;
+    const truncatedText = this.truncatePostText(result, textBudget);
+
+    return truncatedText ? `${truncatedText}${separator}${suffix}` : suffix;
+  }
+
+  private truncatePostText(text: string, maxLength: number): string {
+    if (text.length <= maxLength) {
+      return text;
+    }
+
+    if (maxLength <= 3) {
+      return text.slice(0, maxLength);
+    }
+
+    return `${text.slice(0, maxLength - 3)}...`;
+  }
+
+  private resolvePostType(
+    tweet: { attachments?: { media_keys?: string[] } },
+    media?: Array<{ media_key?: string; type?: string }>,
+  ): Post['type'] {
+    const mediaKey = tweet.attachments?.media_keys?.[0];
+    if (!mediaKey) {
+      return 'text';
+    }
+
+    const mediaType =
+      media?.find((item) => item.media_key === mediaKey)?.type ??
+      this.inferMediaTypeFromKey(mediaKey);
+
+    if (mediaType === 'video' || mediaType === 'animated_gif') {
+      return 'video';
+    }
+
+    return 'image';
+  }
+
+  private inferMediaTypeFromKey(mediaKey: string): string | undefined {
+    if (mediaKey.startsWith('13_')) return 'video';
+    if (mediaKey.startsWith('7_')) return 'animated_gif';
+    if (mediaKey.startsWith('3_')) return 'photo';
+    return undefined;
   }
 
   /**

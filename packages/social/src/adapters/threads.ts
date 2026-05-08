@@ -18,6 +18,7 @@ import type {
   Post,
   PostAnalytics,
   PostResult,
+  PublishMode,
   SocialPlatform,
   TextPost,
   ThreadsConfig,
@@ -364,7 +365,7 @@ export class ThreadsAdapter implements SocialPlatform {
    */
   private async publishContainer(
     containerId: string,
-    publishMode = 'public',
+    publishMode: PublishMode = 'public',
   ): Promise<PostResult> {
     const publishResponse = await fetch(
       `${THREADS_API_URL}/${this.config.userId}/threads_publish`,

@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import type {
   BaseSocialConfig,
   PostResult,
@@ -23,10 +25,11 @@ export function createSafetyResult(options: {
   remoteId?: string;
   staged?: boolean;
   note?: string;
+  metadata?: Record<string, unknown>;
 }): PostResult {
   const status = options.mode === 'dry_run' ? 'dry_run' : 'staged';
   const id =
-    options.remoteId ?? `${options.platform}-${status}-${crypto.randomUUID()}`;
+    options.remoteId ?? `${options.platform}-${status}-${randomUUID()}`;
 
   return {
     id,
@@ -40,6 +43,7 @@ export function createSafetyResult(options: {
       remoteId: options.remoteId,
       payload: options.payload,
       note: options.note,
+      ...options.metadata,
     },
   };
 }

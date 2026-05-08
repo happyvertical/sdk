@@ -5,9 +5,10 @@
  * Uses YouTube Data API v3.
  */
 
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import { createLogger, type Logger } from '@happyvertical/logger';
+import { resolveMediaData } from '../media.js';
 import {
   createSafetyResult,
   isPublicPublishMode,
@@ -120,7 +121,7 @@ export class YouTubeAdapter implements SocialPlatform {
    * Generate OAuth authorization URL
    */
   getAuthorizationUrl(options: AuthorizationOptions = {}): AuthorizationResult {
-    const state = options.state ?? crypto.randomUUID();
+    const state = options.state ?? randomUUID();
     const scopes = options.scopes ?? DEFAULT_SCOPES;
 
     // Generate PKCE code verifier and challenge
@@ -297,12 +298,11 @@ export class YouTubeAdapter implements SocialPlatform {
       },
     };
 
-    // Get video data
-    const videoData = Buffer.isBuffer(video.file)
-      ? video.file
-      : await fetch(video.file)
-          .then((r) => r.arrayBuffer())
-          .then(Buffer.from);
+    // Get video data.
+    const videoData = await resolveMediaData(video.file, {
+      explicitMimeType: video.mimeType,
+      fallbackMimeType: 'video/mp4',
+    });
 
     // Initialize resumable upload
     const initResponse = await fetch(
@@ -312,8 +312,8 @@ export class YouTubeAdapter implements SocialPlatform {
         headers: {
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
-          'X-Upload-Content-Type': 'video/*',
-          'X-Upload-Content-Length': videoData.length.toString(),
+          'X-Upload-Content-Type': videoData.mimeType,
+          'X-Upload-Content-Length': videoData.data.length.toString(),
         },
         body: JSON.stringify(metadata),
       },
@@ -336,10 +336,10 @@ export class YouTubeAdapter implements SocialPlatform {
     const uploadResponse = await fetch(uploadUrl, {
       method: 'PUT',
       headers: {
-        'Content-Type': 'video/*',
-        'Content-Length': videoData.length.toString(),
+        'Content-Type': videoData.mimeType,
+        'Content-Length': videoData.data.length.toString(),
       },
-      body: new Uint8Array(videoData),
+      body: new Uint8Array(videoData.data),
     });
 
     if (!uploadResponse.ok) {
@@ -350,7 +350,12 @@ export class YouTubeAdapter implements SocialPlatform {
 
     // Upload thumbnail if provided
     if (video.thumbnail) {
-      await this.uploadThumbnail(result.id, video.thumbnail, accessToken);
+      await this.uploadThumbnail(
+        result.id,
+        video.thumbnail,
+        accessToken,
+        video.thumbnailMimeType,
+      );
     }
 
     const status: PostResult['status'] = video.scheduledAt
@@ -383,13 +388,13 @@ export class YouTubeAdapter implements SocialPlatform {
     videoId: string,
     thumbnail: Buffer | string,
     accessToken: string,
+    thumbnailMimeType?: string,
   ): Promise<boolean> {
     try {
-      const thumbnailData = Buffer.isBuffer(thumbnail)
-        ? thumbnail
-        : await fetch(thumbnail)
-            .then((r) => r.arrayBuffer())
-            .then(Buffer.from);
+      const thumbnailData = await resolveMediaData(thumbnail, {
+        explicitMimeType: thumbnailMimeType,
+        fallbackMimeType: 'image/png',
+      });
 
       const response = await fetch(
         `${YOUTUBE_UPLOAD_URL}/thumbnails/set?videoId=${videoId}`,
@@ -397,9 +402,9 @@ export class YouTubeAdapter implements SocialPlatform {
           method: 'POST',
           headers: {
             Authorization: `Bearer ${accessToken}`,
-            'Content-Type': 'image/png',
+            'Content-Type': thumbnailData.mimeType,
           },
-          body: new Uint8Array(thumbnailData),
+          body: new Uint8Array(thumbnailData.data),
         },
       );
 

@@ -252,6 +252,112 @@ describe('social package', () => {
       expect(fetchMock).toHaveBeenCalledTimes(3);
     });
 
+    it('should send X OAuth2 alt text metadata after media upload', async () => {
+      const fetchMock = vi.mocked(fetch);
+      fetchMock
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              data: { id: 'media-1', media_key: '3_media-1' },
+            }),
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(new Response('{}', { status: 200 }))
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              data: { id: 'media-1', media_key: '3_media-1' },
+            }),
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+      const adapter = new XAdapter({
+        type: 'x',
+        authType: 'oauth2',
+        accessToken: 'oauth2-token',
+        publishMode: 'stage_remote',
+      });
+
+      await adapter.publishImage({
+        file: Buffer.from('image-bytes'),
+        description: 'Story from Bentley',
+        altText: 'A photo from Bentley',
+        mimeType: 'image/jpeg',
+      });
+
+      expect(String(fetchMock.mock.calls[3]?.[0])).toBe(
+        'https://api.x.com/2/media/metadata',
+      );
+      expect(fetchMock.mock.calls[3]?.[1]?.headers).toMatchObject({
+        Authorization: 'Bearer oauth2-token',
+      });
+      expect(JSON.parse(String(fetchMock.mock.calls[3]?.[1]?.body))).toEqual({
+        id: 'media-1',
+        metadata: {
+          alt_text: { text: 'A photo from Bentley' },
+        },
+      });
+    });
+
+    it('should keep inline X link URLs and hashtags outside truncated text', async () => {
+      const adapter = new XAdapter({
+        type: 'x',
+        apiKey: 'key',
+        apiSecret: 'secret',
+        accessToken: 'token',
+        accessSecret: 'access-secret',
+        publishMode: 'dry_run',
+      });
+
+      const result = await adapter.publishLink({
+        url: 'https://bentleyalberta.com/story',
+        text: 'a'.repeat(270),
+        tags: ['news'],
+      });
+      const payload = result.metadata?.payload as { text: string };
+
+      expect(payload.text.length).toBeLessThanOrEqual(280);
+      expect(payload.text).toContain('https://bentleyalberta.com/story');
+      expect(payload.text).toContain('#news');
+      expect(
+        payload.text.endsWith('https://bentleyalberta.com/story\n\n#news'),
+      ).toBe(true);
+    });
+
+    it('should classify X media posts from expanded media types', async () => {
+      const fetchMock = vi.mocked(fetch);
+      fetchMock.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            data: {
+              id: 'tweet-1',
+              text: 'Story video',
+              created_at: '2026-05-08T15:00:00Z',
+              attachments: { media_keys: ['13_media-1'] },
+              public_metrics: {},
+            },
+            includes: {
+              media: [{ media_key: '13_media-1', type: 'video' }],
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+
+      const adapter = new XAdapter({
+        type: 'x',
+        authType: 'oauth2',
+        accessToken: 'oauth2-token',
+      });
+
+      await expect(adapter.getPost('tweet-1')).resolves.toMatchObject({
+        type: 'video',
+      });
+    });
+
     it('should publish Threads link posts using link_attachment', async () => {
       const fetchMock = vi.mocked(fetch);
       fetchMock
@@ -393,6 +499,55 @@ describe('social package', () => {
       );
     });
 
+    it('should count only positive Facebook reactions as likes', async () => {
+      const fetchMock = vi.mocked(fetch);
+      fetchMock.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            id: 'page-1_post-1',
+            message: 'Story from Bentley',
+            created_time: '2026-05-08T15:00:00+0000',
+            permalink_url: 'https://facebook.com/page-1_post-1',
+            insights: {
+              data: [
+                {
+                  name: 'post_reactions_by_type_total',
+                  values: [
+                    {
+                      value: {
+                        like: 3,
+                        love: 2,
+                        haha: 1,
+                        wow: 1,
+                        sad: 5,
+                        angry: 7,
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+
+      const adapter = new FacebookPageAdapter({
+        type: 'facebook',
+        accessToken: 'page-token',
+        pageId: 'page-1',
+      });
+
+      const post = await adapter.getPost('page-1_post-1');
+
+      expect(post.analytics?.likes).toBe(7);
+      expect(post.analytics?.raw).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: 'post_reactions_by_type_total' }),
+        ]),
+      );
+    });
+
     it('should read Facebook Page share attachments as link posts', async () => {
       const fetchMock = vi.mocked(fetch);
       fetchMock.mockResolvedValue(
@@ -486,6 +641,48 @@ describe('social package', () => {
       expect(result.metadata?.safety).toBe(true);
     });
 
+    it('should upload YouTube thumbnails with the detected MIME type', async () => {
+      const fetchMock = vi.mocked(fetch);
+      fetchMock
+        .mockResolvedValueOnce(
+          new Response('', {
+            status: 200,
+            headers: { Location: 'https://upload.youtube.test/session' },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              id: 'video-1',
+              snippet: {
+                channelId: 'channel-1',
+                channelTitle: 'Bentley',
+              },
+            }),
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(new Response('{}', { status: 200 }));
+
+      const adapter = new YouTubeAdapter({
+        type: 'youtube',
+        clientId: 'client',
+        clientSecret: 'secret',
+        accessToken: 'token',
+        publishMode: 'private_or_scheduled',
+      });
+
+      await adapter.publishVideo({
+        file: Buffer.from('video-bytes'),
+        thumbnail: Buffer.from([0xff, 0xd8, 0xff, 0xdb]),
+        title: 'Story video',
+      });
+
+      expect(fetchMock.mock.calls[2]?.[1]?.headers).toMatchObject({
+        'Content-Type': 'image/jpeg',
+      });
+    });
+
     it('should preserve unavailable YouTube statistics as undefined', async () => {
       const fetchMock = vi.mocked(fetch);
       fetchMock.mockResolvedValue(
@@ -541,6 +738,91 @@ describe('social package', () => {
         text: 'Story from Bentley',
       });
       expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('should reject Bluesky video publishing until video support exists', async () => {
+      const adapter = new BlueskyAdapter({
+        type: 'bluesky',
+        identifier: 'test.bsky.social',
+        password: 'app-password',
+      });
+
+      await expect(
+        adapter.publishVideo({
+          file: Buffer.from('video-bytes'),
+          description: 'Story video',
+        }),
+      ).rejects.toMatchObject({
+        code: 'NOT_SUPPORTED',
+        platform: 'bluesky',
+      });
+    });
+
+    it('should omit invalid Bluesky replyTo fields from safety payloads', async () => {
+      const adapter = new BlueskyAdapter({
+        type: 'bluesky',
+        identifier: 'test.bsky.social',
+        password: 'app-password',
+        publishMode: 'dry_run',
+      });
+
+      const result = await adapter.publishText({
+        text: 'Reply from Bentley',
+        replyTo: 'at://did:plc:test/app.bsky.feed.post/parent',
+      });
+      const payload = result.metadata?.payload as Record<string, unknown>;
+
+      expect(payload.replyTo).toBeUndefined();
+      expect(payload.reply).toBeUndefined();
+      expect(result.metadata?.replyTo).toBe(
+        'at://did:plc:test/app.bsky.feed.post/parent',
+      );
+    });
+
+    it('should upload Bluesky image blobs with the detected MIME type', async () => {
+      const fetchMock = vi.mocked(fetch);
+      fetchMock
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              did: 'did:plc:test',
+              handle: 'test.bsky.social',
+              accessJwt: 'access-jwt',
+              refreshJwt: 'refresh-jwt',
+            }),
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(Buffer.from([0xff, 0xd8, 0xff, 0xdb]), {
+            status: 200,
+            headers: { 'content-type': 'image/jpeg' },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              blob: { ref: { $link: 'blob-1' }, mimeType: 'image/jpeg' },
+            }),
+            { status: 200 },
+          ),
+        );
+
+      const adapter = new BlueskyAdapter({
+        type: 'bluesky',
+        identifier: 'test.bsky.social',
+        password: 'app-password',
+        publishMode: 'stage_remote',
+      });
+
+      await adapter.publishImage({
+        file: 'https://cdn.example.com/story.jpg',
+        description: 'Story from Bentley',
+      });
+
+      expect(fetchMock.mock.calls[2]?.[1]?.headers).toMatchObject({
+        'Content-Type': 'image/jpeg',
+      });
     });
   });
 

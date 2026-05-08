@@ -447,16 +447,20 @@ export class FacebookPageAdapter implements SocialPlatform {
         case 'post_reactions_by_type_total':
           analytics.likes =
             typeof value === 'object' && value !== null
-              ? Object.values(value).reduce<number>(
-                  (sum, count) => sum + (typeof count === 'number' ? count : 0),
-                  0,
-                )
+              ? this.sumPositiveReactions(value as Record<string, unknown>)
               : undefined;
           break;
       }
     }
 
     return analytics;
+  }
+
+  private sumPositiveReactions(reactions: Record<string, unknown>): number {
+    return ['like', 'love', 'haha', 'wow'].reduce((sum, key) => {
+      const count = reactions[key];
+      return sum + (typeof count === 'number' ? count : 0);
+    }, 0);
   }
 
   private async handleError(response: Response): Promise<never> {

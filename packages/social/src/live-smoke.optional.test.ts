@@ -44,31 +44,33 @@ async function readJson(response: Response): Promise<Record<string, unknown>> {
 describeLive('live social credential smoke tests', () => {
   it('validates X OAuth 1.0a credentials with a read-only users/me request', async () => {
     const env = requiredEnv([
-      'BLINDMANPRESS_X_CONSUMER_KEY',
-      'BLINDMANPRESS_X_SECRET_KEY',
-      'BLINDMANPRESS_ACCESS_TOKEN',
-      'BLINDMANPRESS_ACCESS_TOKEN_SECRET',
+      'X_CONSUMER_KEY',
+      'X_API_SECRET',
+      'X_ACCESS_TOKEN',
+      'X_ACCESS_TOKEN_SECRET',
     ]);
 
     const adapter = new XAdapter({
       type: 'x',
-      apiKey: env.BLINDMANPRESS_X_CONSUMER_KEY,
-      apiSecret: env.BLINDMANPRESS_X_SECRET_KEY,
-      accessToken: env.BLINDMANPRESS_ACCESS_TOKEN,
-      accessSecret: env.BLINDMANPRESS_ACCESS_TOKEN_SECRET,
+      apiKey: env.X_CONSUMER_KEY,
+      apiSecret: env.X_API_SECRET,
+      accessToken: env.X_ACCESS_TOKEN,
+      accessSecret: env.X_ACCESS_TOKEN_SECRET,
       publishMode: 'dry_run',
     });
 
     await expect(adapter.authenticate()).resolves.toMatchObject({
-      accessToken: env.BLINDMANPRESS_ACCESS_TOKEN,
+      accessToken: env.X_ACCESS_TOKEN,
     });
   });
 
   it('builds a YouTube Shorts OAuth consent URL without a network write', () => {
-    const env = requiredEnv(['YOUTUBE_CLIENT_ID', 'YOUTUBE_CLIENT_SECRET']);
-    const redirectUri =
-      process.env.YOUTUBE_REDIRECT_URI ??
-      'https://mac.tail8e7e73.ts.net/network/settings/social/callback/youtube';
+    const env = requiredEnv([
+      'YOUTUBE_CLIENT_ID',
+      'YOUTUBE_CLIENT_SECRET',
+      'YOUTUBE_REDIRECT_URI',
+    ]);
+    const redirectUri = env.YOUTUBE_REDIRECT_URI;
     const codeVerifier =
       'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~';
     const adapter = new YouTubeAdapter({
@@ -105,10 +107,12 @@ describeLive('live social credential smoke tests', () => {
   });
 
   it('checks the YouTube OAuth client secret at the token endpoint without a real auth code', async () => {
-    const env = requiredEnv(['YOUTUBE_CLIENT_ID', 'YOUTUBE_CLIENT_SECRET']);
-    const redirectUri =
-      process.env.YOUTUBE_REDIRECT_URI ??
-      'https://mac.tail8e7e73.ts.net/network/settings/social/callback/youtube';
+    const env = requiredEnv([
+      'YOUTUBE_CLIENT_ID',
+      'YOUTUBE_CLIENT_SECRET',
+      'YOUTUBE_REDIRECT_URI',
+    ]);
+    const redirectUri = env.YOUTUBE_REDIRECT_URI;
 
     const response = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',

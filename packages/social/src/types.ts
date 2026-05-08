@@ -268,6 +268,12 @@ export interface VideoPost {
   file: Buffer | string;
 
   /**
+   * MIME type for the video file. Detected from URLs and common buffer
+   * signatures when omitted.
+   */
+  mimeType?: string;
+
+  /**
    * Video title (YouTube, some platforms)
    */
   title?: string;
@@ -281,6 +287,12 @@ export interface VideoPost {
    * Custom thumbnail image
    */
   thumbnail?: Buffer | string;
+
+  /**
+   * MIME type for the thumbnail image. Detected from URLs and common buffer
+   * signatures when omitted.
+   */
+  thumbnailMimeType?: string;
 
   /**
    * Hashtags to include
@@ -327,6 +339,12 @@ export interface ImagePost {
    * Image file buffer or URL
    */
   file: Buffer | string;
+
+  /**
+   * MIME type for the image file. Detected from URLs and common buffer
+   * signatures when omitted.
+   */
+  mimeType?: string;
 
   /**
    * Alt text for accessibility

@@ -146,6 +146,9 @@ export async function publishToAll(
     url?: string;
     tags?: string[];
     altText?: string;
+    mimeType?: string;
+    thumbnail?: Buffer | string;
+    thumbnailMimeType?: string;
   },
 ): Promise<Map<string, { success: boolean; result?: unknown; error?: Error }>> {
   const results = new Map<
@@ -198,6 +201,7 @@ export async function publishToAll(
               linkUrl: content.linkUrl,
               tags: content.tags,
               altText: content.altText,
+              mimeType: content.mimeType,
             });
             break;
           case 'video':
@@ -214,6 +218,9 @@ export async function publishToAll(
               description: content.description ?? content.text,
               linkUrl: content.linkUrl,
               tags: content.tags,
+              mimeType: content.mimeType,
+              thumbnail: content.thumbnail,
+              thumbnailMimeType: content.thumbnailMimeType,
             });
             break;
         }

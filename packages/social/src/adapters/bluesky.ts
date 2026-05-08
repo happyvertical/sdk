@@ -4,6 +4,7 @@
  * Implements SocialPlatform interface for Bluesky (AT Protocol) publishing.
  */
 
+import { resolveMediaData } from '../media.js';
 import {
   createSafetyResult,
   isPublicPublishMode,
@@ -156,19 +157,12 @@ export class BlueskyAdapter implements SocialPlatform {
     };
   }
 
-  async publishVideo(video: VideoPost): Promise<PostResult> {
-    // Bluesky supports video via embed
-    // For now, post with link to video
-    const text = this.buildPostText(
-      video.description,
-      video.tags,
-      video.linkUrl,
+  async publishVideo(_video: VideoPost): Promise<PostResult> {
+    throw new SocialError(
+      'Bluesky video publishing is not supported yet',
+      'NOT_SUPPORTED',
+      'bluesky',
     );
-
-    return this.publishText({
-      text,
-      linkUrl: video.linkUrl,
-    });
   }
 
   async publishImage(image: ImagePost): Promise<PostResult> {
@@ -197,12 +191,11 @@ export class BlueskyAdapter implements SocialPlatform {
       await this.authenticate();
     }
 
-    // Upload blob first
-    const imageData = Buffer.isBuffer(image.file)
-      ? image.file
-      : await fetch(image.file)
-          .then((r) => r.arrayBuffer())
-          .then(Buffer.from);
+    // Upload blob first.
+    const imageData = await resolveMediaData(image.file, {
+      explicitMimeType: image.mimeType,
+      fallbackMimeType: 'image/png',
+    });
 
     const blobResponse = await fetch(
       `${this.pdsUrl}/xrpc/com.atproto.repo.uploadBlob`,
@@ -210,9 +203,9 @@ export class BlueskyAdapter implements SocialPlatform {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${this.session?.accessJwt}`,
-          'Content-Type': 'image/png',
+          'Content-Type': imageData.mimeType,
         },
-        body: new Uint8Array(imageData),
+        body: new Uint8Array(imageData.data),
       },
     );
 
@@ -232,6 +225,7 @@ export class BlueskyAdapter implements SocialPlatform {
           altText: image.altText,
           blob: blobData.blob,
           linkUrl: image.linkUrl,
+          mimeType: imageData.mimeType,
         },
         remoteId: blobData.blob?.ref?.$link ?? blobData.blob?.cid,
         staged: true,
@@ -300,14 +294,12 @@ export class BlueskyAdapter implements SocialPlatform {
     }
 
     if (!isPublicPublishMode(publishMode)) {
-      if (text.replyTo) {
-        record.replyTo = text.replyTo;
-      }
       return createSafetyResult({
         platform: this.platform,
         mode: publishMode,
         postType: 'text',
         payload: record,
+        metadata: text.replyTo ? { replyTo: text.replyTo } : undefined,
         note:
           publishMode === 'dry_run'
             ? 'Bluesky dry run: no post record was created.'
