@@ -780,7 +780,11 @@ export class XAdapter implements SocialPlatform {
   }
 
   private usesOAuth2(): boolean {
-    return this.config.authType === 'oauth2' || !this.config.accessSecret;
+    if (this.config.authType) {
+      return this.config.authType === 'oauth2';
+    }
+
+    return !this.config.accessSecret;
   }
 
   private requireOAuth1Config(): {
@@ -839,9 +843,12 @@ export class XAdapter implements SocialPlatform {
     url: string,
     body?: unknown,
   ): Promise<Response> {
+    const parsedUrl = new URL(url);
+    const signatureParams = Object.fromEntries(parsedUrl.searchParams);
+    const signingUrl = `${parsedUrl.origin}${parsedUrl.pathname}`;
     const authHeader = this.usesOAuth2()
       ? `Bearer ${this.config.accessToken}`
-      : this.generateOAuthSignature(method, url.split('?')[0], {});
+      : this.generateOAuthSignature(method, signingUrl, signatureParams);
 
     const options: RequestInit = {
       method,
@@ -902,7 +909,10 @@ export class XAdapter implements SocialPlatform {
         : Object.fromEntries(
             Object.entries(params).map(([k, v]) => [k, String(v)]),
           );
-    const queryParams = method === 'GET' ? stringParams : {};
+    const queryParams =
+      method === 'GET' || (!isFormData && !(params instanceof FormData))
+        ? stringParams
+        : {};
     const authHeader = this.generateOAuthSignature(method, url, queryParams);
 
     const options: RequestInit = {

@@ -133,7 +133,11 @@ export class FacebookPageAdapter implements SocialPlatform {
         mode: publishMode,
         postType: 'image',
         payload: {
-          caption: this.buildPostText(image.description, image.tags),
+          caption: this.buildPostText(
+            image.description,
+            image.tags,
+            image.linkUrl,
+          ),
           url: typeof image.file === 'string' ? image.file : undefined,
           link: image.linkUrl,
         },
@@ -142,7 +146,10 @@ export class FacebookPageAdapter implements SocialPlatform {
 
     const form = new FormData();
     form.set('access_token', this.config.accessToken);
-    form.set('caption', this.buildPostText(image.description, image.tags));
+    form.set(
+      'caption',
+      this.buildPostText(image.description, image.tags, image.linkUrl),
+    );
     for (const [key, value] of Object.entries(
       this.safetyFeedFields(publishMode, image.scheduledAt),
     )) {
@@ -184,7 +191,11 @@ export class FacebookPageAdapter implements SocialPlatform {
         postType: 'video',
         payload: {
           title: video.title,
-          description: this.buildPostText(video.description, video.tags),
+          description: this.buildPostText(
+            video.description,
+            video.tags,
+            video.linkUrl,
+          ),
           fileUrl: typeof video.file === 'string' ? video.file : undefined,
           link: video.linkUrl,
           scheduledAt: video.scheduledAt?.toISOString(),
@@ -194,7 +205,10 @@ export class FacebookPageAdapter implements SocialPlatform {
 
     const form = new FormData();
     form.set('access_token', this.config.accessToken);
-    form.set('description', this.buildPostText(video.description, video.tags));
+    form.set(
+      'description',
+      this.buildPostText(video.description, video.tags, video.linkUrl),
+    );
     for (const [key, value] of Object.entries(
       this.safetyFeedFields(publishMode, video.scheduledAt),
     )) {
@@ -253,7 +267,9 @@ export class FacebookPageAdapter implements SocialPlatform {
           ? 'video'
           : mediaType === 'photo'
             ? 'image'
-            : 'text',
+            : mediaType === 'share'
+              ? 'link'
+              : 'text',
       description: data.message,
       publishedAt: data.created_time ? new Date(data.created_time) : new Date(),
       visibility: 'public',
@@ -387,8 +403,16 @@ export class FacebookPageAdapter implements SocialPlatform {
     return scheduledAt ? 'scheduled' : 'staged';
   }
 
-  private buildPostText(text?: string, tags?: string[]): string {
+  private buildPostText(
+    text?: string,
+    tags?: string[],
+    linkUrl?: string,
+  ): string {
     let result = text ?? '';
+
+    if (linkUrl && !result.includes(linkUrl)) {
+      result += result.length > 0 ? `\n\n${linkUrl}` : linkUrl;
+    }
 
     if (tags && tags.length > 0) {
       const hashtags = tags.map((tag) =>

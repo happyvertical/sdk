@@ -167,6 +167,49 @@ describe('social package', () => {
       });
     });
 
+    it('should require OAuth 1.0a credentials when authType is explicit', async () => {
+      const adapter = new XAdapter({
+        type: 'x',
+        authType: 'oauth1',
+        accessToken: 'token',
+      });
+
+      await expect(adapter.authenticate()).rejects.toThrow(
+        'Missing OAuth 1.0a credentials',
+      );
+    });
+
+    it('should sign X OAuth 1.0a requests with query parameters', async () => {
+      const fetchMock = vi.mocked(fetch);
+      fetchMock.mockResolvedValue(
+        new Response(JSON.stringify({ data: { id: 'user-1' } }), {
+          status: 200,
+        }),
+      );
+
+      const adapter = new XAdapter({
+        type: 'x',
+        authType: 'oauth1',
+        apiKey: 'key',
+        apiSecret: 'secret',
+        accessToken: 'token',
+        accessSecret: 'access-secret',
+      });
+
+      await adapter.authenticate();
+
+      const authorization = String(
+        (fetchMock.mock.calls[0]?.[1]?.headers as Record<string, string>)
+          .Authorization,
+      );
+
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        'https://api.twitter.com/2/users/me?user.fields=username,name',
+      );
+      expect(authorization).toContain('oauth_signature=');
+      expect(authorization).not.toContain('user.fields');
+    });
+
     it('should stage X OAuth2 media through v2 upload endpoints', async () => {
       const fetchMock = vi.mocked(fetch);
       fetchMock
@@ -324,6 +367,58 @@ describe('social package', () => {
       expect(result.metadata?.safety).toBe(true);
     });
 
+    it('should include article links in Facebook Page video descriptions', async () => {
+      const fetchMock = vi.mocked(fetch);
+      fetchMock.mockResolvedValue(
+        new Response(JSON.stringify({ id: 'video-1' }), { status: 200 }),
+      );
+
+      const adapter = new FacebookPageAdapter({
+        type: 'facebook',
+        accessToken: 'page-token',
+        pageId: 'page-1',
+      });
+
+      await adapter.publishVideo({
+        file: 'https://cdn.example.com/video.mp4',
+        title: 'Story video',
+        description: 'Story from Bentley',
+        linkUrl: 'https://bentleyalberta.com/story',
+      });
+
+      const body = fetchMock.mock.calls[0]?.[1]?.body as FormData;
+      expect(body.get('description')).toContain('Story from Bentley');
+      expect(body.get('description')).toContain(
+        'https://bentleyalberta.com/story',
+      );
+    });
+
+    it('should read Facebook Page share attachments as link posts', async () => {
+      const fetchMock = vi.mocked(fetch);
+      fetchMock.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            id: 'page-1_post-1',
+            message: 'Story from Bentley',
+            created_time: '2026-05-08T15:00:00+0000',
+            permalink_url: 'https://facebook.com/page-1_post-1',
+            attachments: { data: [{ media_type: 'share' }] },
+          }),
+          { status: 200 },
+        ),
+      );
+
+      const adapter = new FacebookPageAdapter({
+        type: 'facebook',
+        accessToken: 'page-token',
+        pageId: 'page-1',
+      });
+
+      await expect(adapter.getPost('page-1_post-1')).resolves.toMatchObject({
+        type: 'link',
+      });
+    });
+
     it('should dry-run YouTube video uploads without fetching media', async () => {
       const fetchMock = vi.mocked(fetch);
       const adapter = new YouTubeAdapter({
@@ -389,6 +484,42 @@ describe('social package', () => {
       expect(result.status).toBe('staged');
       expect(result.metadata?.privacyStatus).toBe('private');
       expect(result.metadata?.safety).toBe(true);
+    });
+
+    it('should preserve unavailable YouTube statistics as undefined', async () => {
+      const fetchMock = vi.mocked(fetch);
+      fetchMock.mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: 'video-1',
+                snippet: {
+                  title: 'Story video',
+                  description: 'Story from Bentley',
+                  publishedAt: '2026-05-08T15:00:00Z',
+                },
+                status: { privacyStatus: 'private' },
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+      );
+
+      const adapter = new YouTubeAdapter({
+        type: 'youtube',
+        clientId: 'client',
+        clientSecret: 'secret',
+        accessToken: 'token',
+      });
+
+      const post = await adapter.getPost('video-1');
+
+      expect(post.analytics?.views).toBeUndefined();
+      expect(post.analytics?.likes).toBeUndefined();
+      expect(post.analytics?.comments).toBeUndefined();
+      expect(post.analytics?.raw).toEqual({});
     });
 
     it('should dry-run Bluesky link records without authenticating', async () => {

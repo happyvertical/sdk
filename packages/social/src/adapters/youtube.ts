@@ -471,6 +471,8 @@ export class YouTubeAdapter implements SocialPlatform {
       throw new SocialError('Video not found', 'NOT_FOUND', 'youtube', 404);
     }
 
+    const statistics = video.statistics ?? {};
+
     return {
       id: video.id,
       url: `https://youtube.com/watch?v=${video.id}`,
@@ -480,11 +482,11 @@ export class YouTubeAdapter implements SocialPlatform {
       publishedAt: new Date(video.snippet.publishedAt),
       visibility: video.status.privacyStatus,
       analytics: {
-        views: this.parseMetric(video.statistics.viewCount),
-        likes: this.parseMetric(video.statistics.likeCount),
-        comments: this.parseMetric(video.statistics.commentCount),
+        views: this.parseMetric(statistics.viewCount),
+        likes: this.parseMetric(statistics.likeCount),
+        comments: this.parseMetric(statistics.commentCount),
         lastUpdated: new Date(),
-        raw: video.statistics,
+        raw: statistics,
       },
     };
   }
