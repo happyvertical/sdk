@@ -1,5 +1,19 @@
 # @happyvertical/utils
 
+## 0.73.3
+
+### Patch Changes
+
+- ### Features
+
+  - add Garrula publishing primitives (social)
+
+  ### Bug Fixes
+
+  - address copilot review feedback (social)
+  - address publishing review feedback (social)
+  - tighten publishing adapter edges (social)
+
 ## 0.73.2
 
 ### Patch Changes
