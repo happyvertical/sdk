@@ -22,6 +22,7 @@ import type {
   TableInterface,
   TableSchemaInfo,
   TransactionHandle,
+  UpsertOptions,
 } from './shared/types';
 import { resolveSchemas } from './shared/types';
 import { buildWhere, formatDbError } from './shared/utils';
@@ -466,6 +467,86 @@ export async function getDatabase(
     }
   };
 
+  const buildDuckDBValueExpression = (
+    value: any,
+    values: any[],
+    paramIdx: { value: number },
+  ): string => {
+    if (value === null || value === undefined) {
+      return 'NULL';
+    }
+    if (value === '' && typeof value === 'string') {
+      values.push(value);
+      return `CAST($${paramIdx.value++} AS TEXT)`;
+    }
+    if (value instanceof Date) {
+      values.push(value.toISOString());
+      return `$${paramIdx.value++}`;
+    }
+    if (Array.isArray(value)) {
+      values.push(JSON.stringify(value));
+      return `CAST($${paramIdx.value++} AS JSON)`;
+    }
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      Object.getPrototypeOf(value) === Object.prototype
+    ) {
+      values.push(JSON.stringify(value));
+      return `CAST($${paramIdx.value++} AS JSON)`;
+    }
+
+    values.push(value);
+    return `$${paramIdx.value++}`;
+  };
+
+  const executeNullAwareDuckDBUpsert = async (
+    table: string,
+    conflictColumns: string[],
+    data: Record<string, any>,
+  ): Promise<QueryResult> => {
+    const conflictWhere = Object.fromEntries(
+      conflictColumns.map((col) => [col, data[col]]),
+    );
+    const existing = await get(table, conflictWhere);
+
+    if (!existing) {
+      return insert(table, data);
+    }
+
+    const keys = Object.keys(data);
+    const values: any[] = [];
+    const paramIdx = { value: 1 };
+    const assignments = keys.map((key) => {
+      const valueExpr = buildDuckDBValueExpression(data[key], values, paramIdx);
+      return `"${key}" = ${valueExpr}`;
+    });
+    const { sql: whereClause, values: whereValues } = buildWhere(
+      conflictWhere,
+      paramIdx.value,
+      'duckdb',
+    );
+    const sql = `UPDATE ${table} SET ${assignments.join(', ')} ${whereClause}`;
+
+    try {
+      await connection.run(sql, [...values, ...whereValues]);
+
+      if (writeStrategy === 'immediate') {
+        await exportTableToJSON(connection, table, dataDir);
+      }
+
+      return { operation: 'upsert', affected: 1 };
+    } catch (e) {
+      throw new DatabaseError('Failed to upsert record into table', {
+        table,
+        sql,
+        values: [...values, ...whereValues],
+        conflictColumns,
+        originalError: formatDbError(e),
+      });
+    }
+  };
+
   /**
    * Inserts a record or updates it if it already exists (UPSERT)
    *
@@ -479,6 +560,7 @@ export async function getDatabase(
     table: string,
     conflictColumns: string[],
     data: Record<string, any>,
+    options?: UpsertOptions,
   ): Promise<QueryResult> => {
     // Validate that all conflict columns are present in the data
     const missingColumns = conflictColumns.filter((col) => !(col in data));
@@ -491,6 +573,13 @@ export async function getDatabase(
         availableColumns: Object.keys(data),
         hint: 'All columns specified in ON CONFLICT must be present in the data being inserted. Undefined values should be replaced with null or an appropriate default.',
       });
+    }
+
+    if (
+      !options?.nullsDistinct &&
+      conflictColumns.some((col) => data[col] === null)
+    ) {
+      return executeNullAwareDuckDBUpsert(table, conflictColumns, data);
     }
 
     const keys = Object.keys(data);

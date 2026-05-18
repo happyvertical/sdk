@@ -209,6 +209,20 @@ export interface QueryResult {
 }
 
 /**
+ * Options for upsert operations.
+ */
+export interface UpsertOptions {
+  /**
+   * Preserve database-native NULL-distinct conflict behavior.
+   *
+   * By default, upsert treats NULL values in conflict columns as matching
+   * existing NULL values. Set this to true to opt out and use the underlying
+   * database's native ON CONFLICT behavior where NULLs are distinct.
+   */
+  nullsDistinct?: boolean;
+}
+
+/**
  * Schema definition that can be provided to database adapters
  *
  * Allows frameworks like SMRT to provide explicit schemas instead of
@@ -621,6 +635,7 @@ export interface DatabaseInterface {
     table: string,
     conflictColumns: string[],
     data: Record<string, any>,
+    options?: UpsertOptions,
   ) => Promise<QueryResult>;
 
   /**

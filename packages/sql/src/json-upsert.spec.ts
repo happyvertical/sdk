@@ -10,7 +10,7 @@
  * Fix: Convert UNIQUE INDEX statements to inline UNIQUE constraints when creating tables.
  */
 
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { clearConnectionCache, getDatabase } from './index';
@@ -348,6 +348,161 @@ describe('JSON adapter UPSERT with UNIQUE constraints (Issue #316)', () => {
     } finally {
       // Clean up test directory
       await rm(quotedTestDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should update one row when a composite conflict column is null', async () => {
+    clearConnectionCache();
+    const nullableTestDir = join(process.cwd(), '.test-json-nullable-upsert');
+    await mkdir(nullableTestDir, { recursive: true });
+    await writeFile(
+      join(nullableTestDir, 'nullable_forecasts.json'),
+      '[]',
+      'utf-8',
+    );
+
+    try {
+      const nullableDb = await getDatabase({
+        type: 'json',
+        url: nullableTestDir,
+        writeStrategy: 'immediate',
+        autoRegister: true,
+        schemas: {
+          nullable_forecasts: {
+            ddl: `CREATE TABLE nullable_forecasts (
+  id TEXT PRIMARY KEY NOT NULL,
+  slug TEXT NOT NULL,
+  tenant_id TEXT,
+  title TEXT
+)`,
+            indexes: [
+              'CREATE UNIQUE INDEX IF NOT EXISTS nullable_forecasts_slug_tenant_idx ON nullable_forecasts (slug, tenant_id)',
+            ],
+            triggers: [],
+          },
+        },
+      });
+
+      await nullableDb.upsert('nullable_forecasts', ['slug', 'tenant_id'], {
+        id: 'forecast-1',
+        slug: 'shared-forecast',
+        tenant_id: null,
+        title: 'Initial title',
+      });
+
+      await nullableDb.upsert('nullable_forecasts', ['slug', 'tenant_id'], {
+        id: 'forecast-2',
+        slug: 'shared-forecast',
+        tenant_id: null,
+        title: 'Updated title',
+      });
+
+      const records = await nullableDb.list('nullable_forecasts', {
+        slug: 'shared-forecast',
+      });
+      expect(records).toHaveLength(1);
+      expect(records[0]).toMatchObject({
+        id: 'forecast-2',
+        slug: 'shared-forecast',
+        tenant_id: null,
+        title: 'Updated title',
+      });
+
+      const persisted = JSON.parse(
+        await readFile(
+          join(nullableTestDir, 'nullable_forecasts.json'),
+          'utf-8',
+        ),
+      );
+      expect(persisted).toHaveLength(1);
+      expect(persisted[0]).toMatchObject({
+        id: 'forecast-2',
+        slug: 'shared-forecast',
+        tenant_id: null,
+        title: 'Updated title',
+      });
+    } finally {
+      await rm(nullableTestDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should preserve database-native null-distinct upsert behavior when requested', async () => {
+    clearConnectionCache();
+    const optOutTestDir = join(
+      process.cwd(),
+      '.test-json-nullable-upsert-opt-out',
+    );
+    await mkdir(optOutTestDir, { recursive: true });
+    await writeFile(
+      join(optOutTestDir, 'nullable_forecasts_opt_out.json'),
+      '[]',
+      'utf-8',
+    );
+
+    try {
+      const optOutDb = await getDatabase({
+        type: 'json',
+        url: optOutTestDir,
+        writeStrategy: 'immediate',
+        autoRegister: true,
+        schemas: {
+          nullable_forecasts_opt_out: {
+            ddl: `CREATE TABLE nullable_forecasts_opt_out (
+  id TEXT PRIMARY KEY NOT NULL,
+  slug TEXT NOT NULL,
+  tenant_id TEXT,
+  title TEXT
+)`,
+            indexes: [
+              'CREATE UNIQUE INDEX IF NOT EXISTS nullable_forecasts_opt_out_slug_tenant_idx ON nullable_forecasts_opt_out (slug, tenant_id)',
+            ],
+            triggers: [],
+          },
+        },
+      });
+
+      await optOutDb.upsert(
+        'nullable_forecasts_opt_out',
+        ['slug', 'tenant_id'],
+        {
+          id: 'forecast-1',
+          slug: 'shared-forecast',
+          tenant_id: null,
+          title: 'Initial title',
+        },
+        { nullsDistinct: true },
+      );
+
+      await optOutDb.upsert(
+        'nullable_forecasts_opt_out',
+        ['slug', 'tenant_id'],
+        {
+          id: 'forecast-2',
+          slug: 'shared-forecast',
+          tenant_id: null,
+          title: 'Second title',
+        },
+        { nullsDistinct: true },
+      );
+
+      const records = await optOutDb.list('nullable_forecasts_opt_out', {
+        slug: 'shared-forecast',
+      });
+      expect(records).toHaveLength(2);
+      expect(records.map((record) => record.title).sort()).toEqual([
+        'Initial title',
+        'Second title',
+      ]);
+
+      const persisted = JSON.parse(
+        await readFile(
+          join(optOutTestDir, 'nullable_forecasts_opt_out.json'),
+          'utf-8',
+        ),
+      );
+      expect(persisted).toHaveLength(2);
+    } finally {
+      await rm(optOutTestDir, { recursive: true, force: true });
     }
   });
 });

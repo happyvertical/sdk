@@ -477,10 +477,15 @@ export class MyDatabaseAdapter implements DatabaseInterface {
     // Implement record update
   }
 
-  async upsert(table: string, conflictColumns: string[], data: Record<string, any>): Promise<QueryResult> {
+  async upsert(
+    table: string,
+    conflictColumns: string[],
+    data: Record<string, any>,
+    options?: { nullsDistinct?: boolean },
+  ): Promise<QueryResult> {
     // Implement UPSERT using database-specific syntax
-    // SQLite/DuckDB: ON CONFLICT(...) DO UPDATE
-    // PostgreSQL: ON CONFLICT(...) DO UPDATE
+    // NULL conflict-column values match existing NULL values by default
+    // Pass { nullsDistinct: true } to preserve database-native NULL-distinct behavior
   }
 
   // Raw query execution

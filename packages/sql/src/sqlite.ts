@@ -18,6 +18,7 @@ import type {
   TableInterface,
   TableSchemaInfo,
   TransactionHandle,
+  UpsertOptions,
 } from './shared/types';
 import { resolveSchemas } from './shared/types';
 import { buildWhere, formatDbError } from './shared/utils';
@@ -33,6 +34,49 @@ const memoryConnectionCache = new Map<string, DatabaseInterface>();
  * Prevents creating duplicate connections when parallel calls happen
  */
 const pendingConnections = new Map<string, Promise<DatabaseInterface>>();
+const NULL_AWARE_UPSERT_MAX_ATTEMPTS = 8;
+const NULL_AWARE_UPSERT_BASE_DELAY_MS = 25;
+const nullAwareUpsertLocks = new Map<string, Promise<void>>();
+
+type SqliteExecutor = Pick<Client, 'execute'>;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetriableSqliteTransactionError(error: unknown): boolean {
+  const formatted = formatDbError(error).toLowerCase();
+  return (
+    formatted.includes('busy') ||
+    formatted.includes('locked') ||
+    formatted.includes('database is locked')
+  );
+}
+
+async function withNullAwareUpsertLock<T>(
+  lockKey: string,
+  callback: () => Promise<T>,
+): Promise<T> {
+  const previous = nullAwareUpsertLocks.get(lockKey) ?? Promise.resolve();
+  let release: () => void = () => {};
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const next = previous.catch(() => {}).then(() => current);
+
+  nullAwareUpsertLocks.set(lockKey, next);
+  await previous.catch(() => {});
+
+  try {
+    return await callback();
+  } finally {
+    release();
+
+    if (nullAwareUpsertLocks.get(lockKey) === next) {
+      nullAwareUpsertLocks.delete(lockKey);
+    }
+  }
+}
 
 /**
  * Generates a unique identifier for in-memory databases
@@ -282,6 +326,195 @@ export async function getDatabase(
       return serialized;
     };
 
+    const hasNullConflictValue = (
+      conflictColumns: string[],
+      data: Record<string, any>,
+    ): boolean => conflictColumns.some((col) => data[col] === null);
+
+    const buildNullAwareUpsertLockKey = (
+      table: string,
+      conflictColumns: string[],
+      data: Record<string, any>,
+    ): string => {
+      const conflictValues = conflictColumns
+        .map((col) => `${col}:${JSON.stringify(data[col])}`)
+        .join('|');
+      return `${url}:${table}:${conflictValues}`;
+    };
+
+    const validateUpsertConflictColumns = (
+      table: string,
+      conflictColumns: string[],
+      serializedData: Record<string, any>,
+    ): void => {
+      const missingColumns = conflictColumns.filter(
+        (col) => !(col in serializedData),
+      );
+
+      if (missingColumns.length > 0) {
+        throw new DatabaseError('Conflict columns missing from data', {
+          table,
+          conflictColumns,
+          missingColumns,
+          availableColumns: Object.keys(serializedData),
+          hint: 'All columns specified in ON CONFLICT must be present in the data being inserted. Undefined values are filtered out during serialization - consider using null or an empty string instead.',
+        });
+      }
+    };
+
+    const executeStandardUpsert = async (
+      table: string,
+      conflictColumns: string[],
+      serializedData: Record<string, any>,
+    ): Promise<QueryResult> => {
+      const keys = Object.keys(serializedData);
+      const values = Object.values(serializedData);
+      const placeholders = keys.map(() => '?').join(', ');
+      const updateSet = keys
+        .map((key) => `${key} = excluded.${key}`)
+        .join(', ');
+      const conflict = conflictColumns.join(', ');
+      const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
+
+      const result = await client.execute({ sql, args: values });
+      return { operation: 'upsert', affected: result.rowsAffected };
+    };
+
+    const executeNullAwareUpsertAttempt = async (
+      executor: SqliteExecutor,
+      table: string,
+      conflictColumns: string[],
+      serializedData: Record<string, any>,
+    ): Promise<QueryResult> => {
+      const keys = Object.keys(serializedData);
+      const values = Object.values(serializedData);
+      const updateSet = keys.map((key) => `${key} = ?`).join(', ');
+      const whereClause = conflictColumns
+        .map((col) => `${col} IS ?`)
+        .join(' AND ');
+      const whereValues = conflictColumns.map((col) => serializedData[col]);
+
+      const updateSql = `UPDATE ${table} SET ${updateSet} WHERE ${whereClause}`;
+      const updateResult = await executor.execute({
+        sql: updateSql,
+        args: [...values, ...whereValues],
+      });
+
+      if ((updateResult.rowsAffected ?? 0) > 0) {
+        return { operation: 'upsert', affected: updateResult.rowsAffected };
+      }
+
+      const placeholders = keys.map(() => '?').join(', ');
+      const insertSql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
+      const insertResult = await executor.execute({
+        sql: insertSql,
+        args: values,
+      });
+
+      return { operation: 'upsert', affected: insertResult.rowsAffected };
+    };
+
+    const executeNullAwareUpsertWithRetry = async (
+      table: string,
+      conflictColumns: string[],
+      serializedData: Record<string, any>,
+    ): Promise<QueryResult> => {
+      if (url === ':memory:') {
+        return executeNullAwareUpsertAttempt(
+          client,
+          table,
+          conflictColumns,
+          serializedData,
+        );
+      }
+
+      let lastError: unknown;
+
+      for (
+        let attempt = 0;
+        attempt < NULL_AWARE_UPSERT_MAX_ATTEMPTS;
+        attempt++
+      ) {
+        let transaction: Awaited<ReturnType<Client['transaction']>> | undefined;
+
+        try {
+          transaction = await client.transaction('write');
+
+          const result = await executeNullAwareUpsertAttempt(
+            transaction,
+            table,
+            conflictColumns,
+            serializedData,
+          );
+
+          await transaction.commit();
+          return result;
+        } catch (error) {
+          lastError = error;
+
+          if (transaction && !transaction.closed) {
+            try {
+              await transaction.rollback();
+            } catch (_rollbackError) {
+              // Preserve the original failure; rollback errors are secondary here.
+            }
+          }
+        } finally {
+          transaction?.close();
+        }
+
+        if (
+          lastError &&
+          attempt < NULL_AWARE_UPSERT_MAX_ATTEMPTS - 1 &&
+          isRetriableSqliteTransactionError(lastError)
+        ) {
+          await delay(NULL_AWARE_UPSERT_BASE_DELAY_MS * 2 ** attempt);
+          continue;
+        }
+
+        break;
+      }
+
+      throw lastError;
+    };
+
+    const executeUpsert = async (
+      table: string,
+      conflictColumns: string[],
+      data: Record<string, any>,
+      options: UpsertOptions | undefined,
+      acquireTransaction: boolean,
+    ): Promise<QueryResult> => {
+      const serializedData = serializeRecord(data);
+      validateUpsertConflictColumns(table, conflictColumns, serializedData);
+
+      if (
+        options?.nullsDistinct ||
+        !hasNullConflictValue(conflictColumns, serializedData)
+      ) {
+        return executeStandardUpsert(table, conflictColumns, serializedData);
+      }
+
+      if (!acquireTransaction) {
+        return executeNullAwareUpsertAttempt(
+          client,
+          table,
+          conflictColumns,
+          serializedData,
+        );
+      }
+
+      return withNullAwareUpsertLock(
+        buildNullAwareUpsertLockKey(table, conflictColumns, serializedData),
+        () =>
+          executeNullAwareUpsertWithRetry(
+            table,
+            conflictColumns,
+            serializedData,
+          ),
+      );
+    };
+
     /**
      * Inserts one or more records into a table
      *
@@ -346,10 +579,15 @@ export async function getDatabase(
       table: string,
       where: Record<string, any>,
     ): Promise<Record<string, any> | null> => {
-      const keys = Object.keys(where);
-      const values = Object.values(where);
-      const whereClause = keys.map((key) => `${key} = ?`).join(' AND ');
-      const sql = `SELECT * FROM ${table} WHERE ${whereClause}`;
+      const { sql: whereClause, values } = buildWhere(where, 1, 'sqlite');
+      if (!whereClause) {
+        throw new DatabaseError(
+          'GET requires at least one WHERE condition to prevent returning an arbitrary record',
+          { table },
+        );
+      }
+
+      const sql = `SELECT * FROM ${table} ${whereClause}`;
       try {
         const result = await client.execute({ sql: sql, args: values });
         return result.rows[0] || null;
@@ -408,13 +646,20 @@ export async function getDatabase(
       const serializedData = serializeRecord(data);
       const keys = Object.keys(serializedData);
       const values = Object.values(serializedData);
-      const setClause = keys.map((key) => `${key} = ?`).join(', ');
+      const setClause = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
+      const { sql: whereClause, values: whereValues } = buildWhere(
+        where,
+        values.length + 1,
+        'sqlite',
+      );
+      if (!whereClause) {
+        throw new DatabaseError(
+          'UPDATE requires at least one WHERE condition to prevent accidental update of all records',
+          { table },
+        );
+      }
 
-      const whereKeys = Object.keys(where);
-      const whereValues = Object.values(where);
-      const whereClause = whereKeys.map((key) => `${key} = ?`).join(' AND ');
-
-      const sql = `UPDATE ${table} SET ${setClause} WHERE ${whereClause}`;
+      const sql = `UPDATE ${table} SET ${setClause} ${whereClause}`;
       try {
         const result = await client.execute({
           sql,
@@ -444,43 +689,52 @@ export async function getDatabase(
       table: string,
       conflictColumns: string[],
       data: Record<string, any>,
+      options?: UpsertOptions,
     ): Promise<QueryResult> => {
-      // Serialize the data before upserting
-      const serializedData = serializeRecord(data);
-
-      // Validate that all conflict columns are present in the data
-      const missingColumns = conflictColumns.filter(
-        (col) => !(col in serializedData),
-      );
-
-      if (missingColumns.length > 0) {
-        throw new DatabaseError('Conflict columns missing from data', {
-          table,
-          conflictColumns,
-          missingColumns,
-          availableColumns: Object.keys(serializedData),
-          hint: 'All columns specified in ON CONFLICT must be present in the data being inserted. Undefined values are filtered out during serialization - consider using null or an empty string instead.',
-        });
-      }
-
-      const keys = Object.keys(serializedData);
-      const values = Object.values(serializedData);
-      const placeholders = keys.map(() => '?').join(', ');
-      const updateSet = keys
-        .map((key) => `${key} = excluded.${key}`)
-        .join(', ');
-      const conflict = conflictColumns.join(', ');
-
-      const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
-
       try {
-        const result = await client.execute({ sql, args: values });
-        return { operation: 'upsert', affected: result.rowsAffected };
+        return await executeUpsert(table, conflictColumns, data, options, true);
       } catch (e) {
+        if (
+          e instanceof DatabaseError &&
+          e.message === 'Conflict columns missing from data'
+        ) {
+          throw e;
+        }
+
         throw new DatabaseError('Failed to upsert record into table', {
           table,
-          sql,
-          values,
+          values: data,
+          conflictColumns,
+          originalError: formatDbError(e),
+        });
+      }
+    };
+
+    const upsertInCurrentTransaction = async (
+      table: string,
+      conflictColumns: string[],
+      data: Record<string, any>,
+      options?: UpsertOptions,
+    ): Promise<QueryResult> => {
+      try {
+        return await executeUpsert(
+          table,
+          conflictColumns,
+          data,
+          options,
+          false,
+        );
+      } catch (e) {
+        if (
+          e instanceof DatabaseError &&
+          e.message === 'Conflict columns missing from data'
+        ) {
+          throw e;
+        }
+
+        throw new DatabaseError('Failed to upsert record into table', {
+          table,
+          values: data,
           conflictColumns,
           originalError: formatDbError(e),
         });
@@ -538,12 +792,11 @@ export async function getDatabase(
         );
       }
 
-      const whereClause = keys.map((key) => `${key} = ?`).join(' AND ');
-      const values = Object.values(where);
+      const { sql: whereClause, values } = buildWhere(where, 1, 'sqlite');
 
       try {
         await client.execute({
-          sql: `DELETE FROM ${table} WHERE ${whereClause}`,
+          sql: `DELETE FROM ${table} ${whereClause}`,
           args: values,
         });
 
@@ -580,12 +833,10 @@ export async function getDatabase(
         }
 
         // Count with conditions
-        const keys = Object.keys(where);
-        const whereClause = keys.map((key) => `${key} = ?`).join(' AND ');
-        const values = Object.values(where);
+        const { sql: whereClause, values } = buildWhere(where, 1, 'sqlite');
 
         const result = await client.execute({
-          sql: `SELECT COUNT(*) as count FROM ${table} WHERE ${whereClause}`,
+          sql: `SELECT COUNT(*) as count FROM ${table} ${whereClause}`,
           args: values,
         });
 
@@ -740,7 +991,7 @@ export async function getDatabase(
           get,
           list,
           update,
-          upsert,
+          upsert: upsertInCurrentTransaction,
           getOrInsert,
           delete: deleteRecords,
           count,
@@ -807,7 +1058,7 @@ export async function getDatabase(
         get,
         list,
         update,
-        upsert,
+        upsert: upsertInCurrentTransaction,
         getOrInsert,
         delete: deleteRecords,
         count,

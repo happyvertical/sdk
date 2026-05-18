@@ -112,6 +112,11 @@ await postsTable.insert({ id: 'p4', title: 'Scoped' });
 const p = await postsTable.get({ id: 'p4' });
 ```
 
+`upsert()` treats `NULL` values in conflict columns as matching existing `NULL`
+values so nullable composite keys update the existing row instead of inserting a
+duplicate. Pass `{ nullsDistinct: true }` as the fourth argument to preserve the
+database-native behavior where `NULL` conflict values are distinct.
+
 ### Transactions
 
 ```typescript

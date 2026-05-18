@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getDatabase } from './index';
 
@@ -76,6 +79,21 @@ describe('sqlite tests', () => {
       select * from contents where id = ${data.id}
     `;
     expect(result).toEqual({ id: data.id, title: 'hi', body: 'universe' });
+  });
+
+  it('should reject empty where clauses for single-record helpers', async () => {
+    await db.insert('contents', {
+      id: randomUUID(),
+      title: 'hello',
+      body: 'world',
+    });
+
+    await expect(db.get('contents', {})).rejects.toThrow(
+      'GET requires at least one WHERE condition',
+    );
+    await expect(
+      db.update('contents', {}, { title: 'too broad' }),
+    ).rejects.toThrow('UPDATE requires at least one WHERE condition');
   });
 
   it('should handle in-memory databases with :memory: URL', async () => {
@@ -217,6 +235,139 @@ describe('sqlite tests', () => {
       await db.execute`DROP TABLE test_composite`;
     });
 
+    it('should update one row when a composite conflict column is null', async () => {
+      await db.execute`
+        CREATE TABLE test_nullable_conflict (
+          id TEXT PRIMARY KEY,
+          slug TEXT NOT NULL,
+          tenant_id TEXT,
+          name TEXT,
+          UNIQUE(slug, tenant_id)
+        )
+      `;
+
+      await db.upsert('test_nullable_conflict', ['slug', 'tenant_id'], {
+        id: 'item-1',
+        slug: 'shared-item',
+        tenant_id: null,
+        name: 'Initial Name',
+      });
+
+      await db.upsert('test_nullable_conflict', ['slug', 'tenant_id'], {
+        id: 'item-2',
+        slug: 'shared-item',
+        tenant_id: null,
+        name: 'Updated Name',
+      });
+
+      const rows = await db.many`
+        SELECT * FROM test_nullable_conflict
+        WHERE slug = ${'shared-item'} AND tenant_id IS NULL
+      `;
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toEqual({
+        id: 'item-2',
+        slug: 'shared-item',
+        tenant_id: null,
+        name: 'Updated Name',
+      });
+
+      await db.execute`DROP TABLE test_nullable_conflict`;
+    });
+
+    it('should allow opting into database-native null-distinct conflict behavior', async () => {
+      await db.execute`
+        CREATE TABLE test_nullable_distinct_conflict (
+          id TEXT PRIMARY KEY,
+          slug TEXT NOT NULL,
+          tenant_id TEXT,
+          name TEXT,
+          UNIQUE(slug, tenant_id)
+        )
+      `;
+
+      await db.upsert(
+        'test_nullable_distinct_conflict',
+        ['slug', 'tenant_id'],
+        {
+          id: 'item-1',
+          slug: 'shared-item',
+          tenant_id: null,
+          name: 'Initial Name',
+        },
+        { nullsDistinct: true },
+      );
+
+      await db.upsert(
+        'test_nullable_distinct_conflict',
+        ['slug', 'tenant_id'],
+        {
+          id: 'item-2',
+          slug: 'shared-item',
+          tenant_id: null,
+          name: 'Second Name',
+        },
+        { nullsDistinct: true },
+      );
+
+      const rows = await db.many`
+        SELECT * FROM test_nullable_distinct_conflict
+        WHERE slug = ${'shared-item'} AND tenant_id IS NULL
+      `;
+
+      expect(rows).toHaveLength(2);
+
+      await db.execute`DROP TABLE test_nullable_distinct_conflict`;
+    });
+
+    it('should keep one row for concurrent nullable-conflict upserts from two connections', async () => {
+      const dir = await mkdtemp(join(tmpdir(), 'sdk-sqlite-upsert-'));
+      const sqlitePath = join(dir, 'test.db');
+      const db1 = await getDatabase({ type: 'sqlite', url: sqlitePath });
+      const db2 = await getDatabase({ type: 'sqlite', url: sqlitePath });
+
+      try {
+        await db1.execute`
+          CREATE TABLE test_nullable_concurrent (
+            id TEXT PRIMARY KEY,
+            slug TEXT NOT NULL,
+            tenant_id TEXT,
+            name TEXT,
+            UNIQUE(slug, tenant_id)
+          )
+        `;
+
+        await Promise.all([
+          db1.upsert('test_nullable_concurrent', ['slug', 'tenant_id'], {
+            id: 'item-1',
+            slug: 'shared-item',
+            tenant_id: null,
+            name: 'First Writer',
+          }),
+          db2.upsert('test_nullable_concurrent', ['slug', 'tenant_id'], {
+            id: 'item-2',
+            slug: 'shared-item',
+            tenant_id: null,
+            name: 'Second Writer',
+          }),
+        ]);
+
+        const rows = await db1.many`
+          SELECT * FROM test_nullable_concurrent
+          WHERE slug = ${'shared-item'} AND tenant_id IS NULL
+        `;
+
+        expect(rows).toHaveLength(1);
+        expect(['item-1', 'item-2']).toContain(rows[0].id);
+        expect(['First Writer', 'Second Writer']).toContain(rows[0].name);
+      } finally {
+        db1.client.close?.();
+        db2.client.close?.();
+        await rm(dir, { force: true, recursive: true });
+      }
+    });
+
     it('should handle null values in upsert', async () => {
       const data = {
         id: randomUUID(),
@@ -331,6 +482,73 @@ describe('sqlite tests', () => {
       }).rejects.toThrowError(/Conflict columns missing from data/);
 
       await db.execute`DROP TABLE test_table`;
+    });
+
+    it('should match null values in CRUD helper where clauses', async () => {
+      await db.execute`
+        CREATE TABLE test_nullable_helpers (
+          id TEXT PRIMARY KEY,
+          slug TEXT NOT NULL,
+          tenant_id TEXT,
+          name TEXT
+        )
+      `;
+
+      await db.insert('test_nullable_helpers', {
+        id: 'helper-1',
+        slug: 'shared-item',
+        tenant_id: null,
+        name: 'Initial Name',
+      });
+
+      const found = await db.get('test_nullable_helpers', {
+        slug: 'shared-item',
+        tenant_id: null,
+      });
+      expect(found?.id).toBe('helper-1');
+
+      const countBefore = await db.count('test_nullable_helpers', {
+        slug: 'shared-item',
+        tenant_id: null,
+      });
+      expect(countBefore).toBe(1);
+
+      await db.update(
+        'test_nullable_helpers',
+        { slug: 'shared-item', tenant_id: null },
+        { name: 'Updated Name' },
+      );
+
+      const updated = await db.get('test_nullable_helpers', {
+        slug: 'shared-item',
+        tenant_id: null,
+      });
+      expect(updated?.name).toBe('Updated Name');
+
+      const inserted = await db.getOrInsert(
+        'test_nullable_helpers',
+        { slug: 'shared-item', tenant_id: null },
+        {
+          id: 'helper-2',
+          slug: 'shared-item',
+          tenant_id: null,
+          name: 'Duplicate Name',
+        },
+      );
+      expect(inserted.id).toBe('helper-1');
+
+      await db.delete('test_nullable_helpers', {
+        slug: 'shared-item',
+        tenant_id: null,
+      });
+
+      const countAfter = await db.count('test_nullable_helpers', {
+        slug: 'shared-item',
+        tenant_id: null,
+      });
+      expect(countAfter).toBe(0);
+
+      await db.execute`DROP TABLE test_nullable_helpers`;
     });
   });
 
