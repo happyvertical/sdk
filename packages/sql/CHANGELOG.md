@@ -1,5 +1,15 @@
 # @happyvertical/sql
 
+## 0.74.0
+
+### Minor Changes
+
+- a6730c1: Fix `upsert()` for nullable conflict columns by matching `NULL` values against existing `NULL` values, with a `nullsDistinct` opt-out for native database behavior.
+
+### Patch Changes
+
+- @happyvertical/utils@0.74.0
+
 ## 0.73.4
 
 ### Patch Changes
