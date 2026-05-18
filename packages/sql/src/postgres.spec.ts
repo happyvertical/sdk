@@ -22,6 +22,18 @@ async function checkPostgreSQLConnection(): Promise<boolean> {
   }
 }
 
+function postgresTestOptions(overrides: Record<string, unknown> = {}) {
+  return {
+    type: 'postgres' as const,
+    database: process.env.SQLOO_DATABASE || 'testdb',
+    host: process.env.SQLOO_HOST || 'localhost',
+    user: process.env.SQLOO_USER || 'postgres',
+    password: process.env.SQLOO_PASSWORD || 'postgres',
+    port: Number(process.env.SQLOO_PORT) || 5432,
+    ...overrides,
+  };
+}
+
 describe('postgres tests', () => {
   let db: Awaited<ReturnType<typeof getDatabase>>;
   let postgresAvailable = false;
@@ -151,6 +163,23 @@ describe('postgres tests', () => {
     expect(result?.id).toEqual(id);
     expect(result?.title).toEqual('hi');
     expect(result?.body).toEqual('universe');
+  });
+
+  it('should reject empty where clauses for single-record helpers', async () => {
+    if (!postgresAvailable) return;
+
+    await db.insert('contents', {
+      id: randomUUID(),
+      title: 'hello',
+      body: 'world',
+    });
+
+    await expect(db.get('contents', {})).rejects.toThrow(
+      'GET requires at least one WHERE condition',
+    );
+    await expect(
+      db.update('contents', {}, { title: 'too broad' }),
+    ).rejects.toThrow('UPDATE requires at least one WHERE condition');
   });
 
   it('should support transactions with commit', async () => {
@@ -663,6 +692,369 @@ describe('postgres JSON serialization', () => {
     expect(results[1].tags).toEqual(['tag3', 'tag4']);
     expect(results[1].metadata).toEqual({ index: 1 });
     expect(results[1].config).toEqual({ enabled: false });
+  });
+});
+
+describe('postgres nullable-conflict upsert', () => {
+  let db: Awaited<ReturnType<typeof getDatabase>>;
+  let postgresAvailable = false;
+
+  beforeEach(async () => {
+    postgresAvailable = await checkPostgreSQLConnection();
+    if (!postgresAvailable) {
+      console.log('PostgreSQL not available, skipping nullable upsert tests');
+      return;
+    }
+
+    db = await getDatabase(postgresTestOptions());
+  });
+
+  afterEach(async () => {
+    if (!postgresAvailable || !db) return;
+    await db.client.end();
+  });
+
+  it('should update one row when a composite conflict column is null', async () => {
+    if (!postgresAvailable) return;
+
+    const tableName = `nullable_upsert_${randomUUID().replace(/-/g, '_')}`;
+
+    try {
+      await db.client.query(`
+        CREATE TABLE ${tableName} (
+          id TEXT PRIMARY KEY,
+          slug TEXT NOT NULL,
+          tenant_id TEXT,
+          name TEXT,
+          UNIQUE(slug, tenant_id)
+        )
+      `);
+
+      await db.upsert(tableName, ['slug', 'tenant_id'], {
+        id: 'item-1',
+        slug: 'shared-item',
+        tenant_id: null,
+        name: 'Initial Name',
+      });
+
+      await db.upsert(tableName, ['slug', 'tenant_id'], {
+        id: 'item-2',
+        slug: 'shared-item',
+        tenant_id: null,
+        name: 'Updated Name',
+      });
+
+      const result = await db.client.query(
+        `SELECT * FROM ${tableName} WHERE slug = $1 AND tenant_id IS NULL`,
+        ['shared-item'],
+      );
+
+      expect(result.rows).toHaveLength(1);
+      expect(result.rows[0]).toEqual({
+        id: 'item-2',
+        slug: 'shared-item',
+        tenant_id: null,
+        name: 'Updated Name',
+      });
+    } finally {
+      await db.client.query(`DROP TABLE IF EXISTS ${tableName}`);
+    }
+  });
+
+  it('should keep one row for concurrent nullable-conflict upserts from two connections', async () => {
+    if (!postgresAvailable) return;
+
+    const tableName = `nullable_concurrent_${randomUUID().replace(/-/g, '_')}`;
+    const db1 = await getDatabase(
+      postgresTestOptions({ dbid: `nullable-1-${randomUUID()}` }),
+    );
+    const db2 = await getDatabase(
+      postgresTestOptions({ dbid: `nullable-2-${randomUUID()}` }),
+    );
+
+    try {
+      await db1.client.query(`
+        CREATE TABLE ${tableName} (
+          id TEXT PRIMARY KEY,
+          slug TEXT NOT NULL,
+          tenant_id TEXT,
+          name TEXT,
+          UNIQUE(slug, tenant_id)
+        )
+      `);
+
+      await Promise.all([
+        db1.upsert(tableName, ['slug', 'tenant_id'], {
+          id: 'item-1',
+          slug: 'shared-item',
+          tenant_id: null,
+          name: 'First Writer',
+        }),
+        db2.upsert(tableName, ['slug', 'tenant_id'], {
+          id: 'item-2',
+          slug: 'shared-item',
+          tenant_id: null,
+          name: 'Second Writer',
+        }),
+      ]);
+
+      const result = await db1.client.query(
+        `SELECT * FROM ${tableName} WHERE slug = $1 AND tenant_id IS NULL`,
+        ['shared-item'],
+      );
+
+      expect(result.rows).toHaveLength(1);
+      expect(['item-1', 'item-2']).toContain(result.rows[0].id);
+      expect(['First Writer', 'Second Writer']).toContain(result.rows[0].name);
+    } finally {
+      await db1.client.query(`DROP TABLE IF EXISTS ${tableName}`);
+      await db1.client.end();
+      await db2.client.end();
+    }
+  });
+
+  it('should match null values in CRUD helper where clauses', async () => {
+    if (!postgresAvailable) return;
+
+    const tableName = `nullable_helpers_${randomUUID().replace(/-/g, '_')}`;
+
+    try {
+      await db.client.query(`
+        CREATE TABLE ${tableName} (
+          id TEXT PRIMARY KEY,
+          slug TEXT NOT NULL,
+          tenant_id TEXT,
+          name TEXT
+        )
+      `);
+
+      await db.insert(tableName, {
+        id: 'helper-1',
+        slug: 'shared-item',
+        tenant_id: null,
+        name: 'Initial Name',
+      });
+
+      const found = await db.get(tableName, {
+        slug: 'shared-item',
+        tenant_id: null,
+      });
+      expect(found?.id).toBe('helper-1');
+
+      const countBefore = await db.count(tableName, {
+        slug: 'shared-item',
+        tenant_id: null,
+      });
+      expect(countBefore).toBe(1);
+
+      await db.update(
+        tableName,
+        { slug: 'shared-item', tenant_id: null },
+        { name: 'Updated Name' },
+      );
+
+      const updated = await db.get(tableName, {
+        slug: 'shared-item',
+        tenant_id: null,
+      });
+      expect(updated?.name).toBe('Updated Name');
+
+      const inserted = await db.getOrInsert(
+        tableName,
+        { slug: 'shared-item', tenant_id: null },
+        {
+          id: 'helper-2',
+          slug: 'shared-item',
+          tenant_id: null,
+          name: 'Duplicate Name',
+        },
+      );
+      expect(inserted.id).toBe('helper-1');
+
+      await db.delete(tableName, {
+        slug: 'shared-item',
+        tenant_id: null,
+      });
+
+      const countAfter = await db.count(tableName, {
+        slug: 'shared-item',
+        tenant_id: null,
+      });
+      expect(countAfter).toBe(0);
+    } finally {
+      await db.client.query(`DROP TABLE IF EXISTS ${tableName}`);
+    }
+  });
+
+  it('should match null values in transaction helper where clauses', async () => {
+    if (!postgresAvailable) return;
+
+    const tableName = `nullable_tx_helpers_${randomUUID().replace(/-/g, '_')}`;
+
+    try {
+      await db.client.query(`
+        CREATE TABLE ${tableName} (
+          id TEXT PRIMARY KEY,
+          slug TEXT NOT NULL,
+          tenant_id TEXT,
+          name TEXT
+        )
+      `);
+
+      await db.insert(tableName, {
+        id: 'tx-helper-1',
+        slug: 'shared-item',
+        tenant_id: null,
+        name: 'Initial Name',
+      });
+
+      await db.transaction!(async (tx) => {
+        const found = await tx.get(tableName, {
+          slug: 'shared-item',
+          tenant_id: null,
+        });
+        expect(found?.id).toBe('tx-helper-1');
+
+        await tx.update(
+          tableName,
+          { slug: 'shared-item', tenant_id: null },
+          { name: 'Updated In Transaction' },
+        );
+
+        const countBeforeDelete = await tx.count(tableName, {
+          slug: 'shared-item',
+          tenant_id: null,
+        });
+        expect(countBeforeDelete).toBe(1);
+
+        await tx.delete(tableName, {
+          slug: 'shared-item',
+          tenant_id: null,
+        });
+
+        const countAfterDelete = await tx.count(tableName, {
+          slug: 'shared-item',
+          tenant_id: null,
+        });
+        expect(countAfterDelete).toBe(0);
+      });
+    } finally {
+      await db.client.query(`DROP TABLE IF EXISTS ${tableName}`);
+    }
+  });
+
+  it('should match null values in manual transaction handle where clauses', async () => {
+    if (!postgresAvailable || !db.beginTransaction) return;
+
+    const tableName = `nullable_handle_helpers_${randomUUID().replace(/-/g, '_')}`;
+
+    try {
+      await db.client.query(`
+        CREATE TABLE ${tableName} (
+          id TEXT PRIMARY KEY,
+          slug TEXT NOT NULL,
+          tenant_id TEXT,
+          name TEXT
+        )
+      `);
+
+      await db.insert(tableName, {
+        id: 'handle-helper-1',
+        slug: 'shared-item',
+        tenant_id: null,
+        name: 'Initial Name',
+      });
+
+      const tx = await db.beginTransaction();
+      try {
+        const found = await tx.get(tableName, {
+          slug: 'shared-item',
+          tenant_id: null,
+        });
+        expect(found?.id).toBe('handle-helper-1');
+
+        await tx.update(
+          tableName,
+          { slug: 'shared-item', tenant_id: null },
+          { name: 'Updated In Handle' },
+        );
+
+        const countBeforeDelete = await tx.count(tableName, {
+          slug: 'shared-item',
+          tenant_id: null,
+        });
+        expect(countBeforeDelete).toBe(1);
+
+        await tx.delete(tableName, {
+          slug: 'shared-item',
+          tenant_id: null,
+        });
+
+        const countAfterDelete = await tx.count(tableName, {
+          slug: 'shared-item',
+          tenant_id: null,
+        });
+        expect(countAfterDelete).toBe(0);
+
+        await tx.commit();
+      } catch (error) {
+        if (tx.isActive()) {
+          await tx.rollback();
+        }
+        throw error;
+      }
+    } finally {
+      await db.client.query(`DROP TABLE IF EXISTS ${tableName}`);
+    }
+  });
+
+  it('should support PostgreSQL 15 NULLS NOT DISTINCT indexes when available', async () => {
+    if (!postgresAvailable) return;
+
+    const versionResult = await db.client.query('SHOW server_version_num');
+    const versionNum = Number(versionResult.rows[0]?.server_version_num) || 0;
+    if (versionNum < 150000) return;
+
+    const tableName = `nullable_native_${randomUUID().replace(/-/g, '_')}`;
+
+    try {
+      await db.client.query(`
+        CREATE TABLE ${tableName} (
+          id TEXT PRIMARY KEY,
+          slug TEXT NOT NULL,
+          tenant_id TEXT,
+          name TEXT
+        )
+      `);
+      await db.client.query(`
+        CREATE UNIQUE INDEX ${tableName}_slug_tenant_idx
+        ON ${tableName} (slug, tenant_id) NULLS NOT DISTINCT
+      `);
+
+      await db.upsert(tableName, ['slug', 'tenant_id'], {
+        id: 'item-1',
+        slug: 'shared-item',
+        tenant_id: null,
+        name: 'Initial Name',
+      });
+
+      await db.upsert(tableName, ['slug', 'tenant_id'], {
+        id: 'item-2',
+        slug: 'shared-item',
+        tenant_id: null,
+        name: 'Updated Name',
+      });
+
+      const result = await db.client.query(
+        `SELECT * FROM ${tableName} WHERE slug = $1 AND tenant_id IS NULL`,
+        ['shared-item'],
+      );
+
+      expect(result.rows).toHaveLength(1);
+      expect(result.rows[0].name).toBe('Updated Name');
+    } finally {
+      await db.client.query(`DROP TABLE IF EXISTS ${tableName}`);
+    }
   });
 });
 

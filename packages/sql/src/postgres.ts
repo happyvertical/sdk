@@ -18,6 +18,7 @@ import type {
   TableInterface,
   TableSchemaInfo,
   TransactionHandle,
+  UpsertOptions,
   VectorCapabilities,
   VectorIndexOptions,
   VectorSearchOptions,
@@ -91,6 +92,13 @@ export interface PostgresOptions {
  */
 const connectionCache = new Map<string, DatabaseInterface>();
 const pendingConnections = new Map<string, Promise<DatabaseInterface>>();
+
+type PostgresQueryExecutor = {
+  query: (
+    sql: string,
+    values?: any[],
+  ) => Promise<{ rows: any[]; rowCount: number | null }>;
+};
 
 /**
  * Clears the PostgreSQL connection cache.
@@ -429,7 +437,7 @@ function createVectorCapabilities(pool: Pool): VectorCapabilities {
       const keys = Object.keys(where);
       const values = Object.values(where);
       const conditions = keys
-        .map((key, i) => `"${key}" = $${i + 1}`)
+        .map((key, i) => `"${key}" IS NOT DISTINCT FROM $${i + 1}`)
         .join(' AND ');
       const vectorParam = `$${values.length + 1}`;
 
@@ -693,6 +701,218 @@ async function createDatabase(
     return serialized;
   };
 
+  let serverVersionNumPromise: Promise<number> | undefined;
+  const nullsNotDistinctIndexCache = new Map<string, Promise<boolean>>();
+
+  const hasNullConflictValue = (
+    conflictColumns: string[],
+    data: Record<string, any>,
+  ): boolean => conflictColumns.some((col) => data[col] === null);
+
+  const validateUpsertConflictColumns = (
+    table: string,
+    conflictColumns: string[],
+    serializedData: Record<string, any>,
+  ): void => {
+    const missingColumns = conflictColumns.filter(
+      (col) => !(col in serializedData),
+    );
+
+    if (missingColumns.length > 0) {
+      throw new DatabaseError('Conflict columns missing from data', {
+        table,
+        conflictColumns,
+        missingColumns,
+        availableColumns: Object.keys(serializedData),
+        hint: 'All columns specified in ON CONFLICT must be present in the data being inserted. Undefined values should be replaced with null or an appropriate default.',
+      });
+    }
+  };
+
+  const getServerVersionNum = async (): Promise<number> => {
+    serverVersionNumPromise ??= client
+      .query('SHOW server_version_num')
+      .then((result) => Number(result.rows[0]?.server_version_num) || 0);
+    return serverVersionNumPromise;
+  };
+
+  const hasNativeNullsNotDistinctIndex = async (
+    table: string,
+    conflictColumns: string[],
+  ): Promise<boolean> => {
+    const versionNum = await getServerVersionNum();
+    if (versionNum < 150000) return false;
+
+    const cacheKey = `${table}:${conflictColumns.join(',')}`;
+    let cached = nullsNotDistinctIndexCache.get(cacheKey);
+    if (!cached) {
+      cached = client
+        .query(
+          `
+            SELECT 1
+            FROM pg_index i
+            WHERE i.indrelid = to_regclass($1)
+              AND i.indisunique
+              AND i.indnullsnotdistinct
+              AND ARRAY(
+                SELECT a.attname
+                FROM unnest(i.indkey) WITH ORDINALITY AS cols(attnum, ord)
+                JOIN pg_attribute a
+                  ON a.attrelid = i.indrelid
+                 AND a.attnum = cols.attnum
+                ORDER BY cols.ord
+              ) = $2::text[]
+            LIMIT 1
+          `,
+          [table, conflictColumns],
+        )
+        .then((result) => result.rows.length > 0)
+        .catch(() => false);
+      nullsNotDistinctIndexCache.set(cacheKey, cached);
+    }
+
+    return cached;
+  };
+
+  const buildPostgresUpsertParts = (
+    conflictColumns: string[],
+    serializedData: Record<string, any>,
+  ) => {
+    const keys = Object.keys(serializedData);
+    const values = Object.values(serializedData);
+    const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+    const updateSet = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
+    const conflict = conflictColumns.join(', ');
+
+    return { keys, values, placeholders, updateSet, conflict };
+  };
+
+  const executeStandardPostgresUpsert = async (
+    executor: PostgresQueryExecutor,
+    table: string,
+    conflictColumns: string[],
+    serializedData: Record<string, any>,
+  ): Promise<BaseQueryResult> => {
+    const { keys, values, placeholders, updateSet, conflict } =
+      buildPostgresUpsertParts(conflictColumns, serializedData);
+    const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
+    const result = await executor.query(sql, values);
+    return { operation: 'upsert', affected: result.rowCount ?? 0 };
+  };
+
+  const executeNullAwarePostgresUpsert = async (
+    executor: PostgresQueryExecutor,
+    table: string,
+    conflictColumns: string[],
+    serializedData: Record<string, any>,
+  ): Promise<BaseQueryResult> => {
+    const { keys, values, placeholders } = buildPostgresUpsertParts(
+      conflictColumns,
+      serializedData,
+    );
+    const lockKey = conflictColumns
+      .map((col) => `${col}:${JSON.stringify(serializedData[col])}`)
+      .join('|');
+
+    await executor.query(
+      'SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))',
+      [`@happyvertical/sql.upsert:${table}`, lockKey],
+    );
+
+    const updateSet = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
+    const whereStart = values.length + 1;
+    const whereClause = conflictColumns
+      .map((col, i) => `${col} IS NOT DISTINCT FROM $${whereStart + i}`)
+      .join(' AND ');
+    const whereValues = conflictColumns.map((col) => serializedData[col]);
+    const updateSql = `UPDATE ${table} SET ${updateSet} WHERE ${whereClause}`;
+    const updateResult = await executor.query(updateSql, [
+      ...values,
+      ...whereValues,
+    ]);
+
+    if ((updateResult.rowCount ?? 0) > 0) {
+      return { operation: 'upsert', affected: updateResult.rowCount ?? 0 };
+    }
+
+    const insertSql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
+    const insertResult = await executor.query(insertSql, values);
+    return { operation: 'upsert', affected: insertResult.rowCount ?? 0 };
+  };
+
+  const executeNullAwarePostgresUpsertInTransaction = async (
+    table: string,
+    conflictColumns: string[],
+    serializedData: Record<string, any>,
+  ): Promise<BaseQueryResult> => {
+    const txClient = await client.connect();
+
+    try {
+      await txClient.query('BEGIN');
+      const result = await executeNullAwarePostgresUpsert(
+        txClient,
+        table,
+        conflictColumns,
+        serializedData,
+      );
+      await txClient.query('COMMIT');
+      return result;
+    } catch (error) {
+      await txClient.query('ROLLBACK');
+      throw error;
+    } finally {
+      txClient.release();
+    }
+  };
+
+  const executePostgresUpsert = async (
+    executor: PostgresQueryExecutor,
+    table: string,
+    conflictColumns: string[],
+    data: Record<string, any>,
+    options: UpsertOptions | undefined,
+    acquireTransaction: boolean,
+  ): Promise<BaseQueryResult> => {
+    const serializedData = serializeRecord(data);
+    validateUpsertConflictColumns(table, conflictColumns, serializedData);
+
+    if (
+      options?.nullsDistinct ||
+      !hasNullConflictValue(conflictColumns, serializedData)
+    ) {
+      return executeStandardPostgresUpsert(
+        executor,
+        table,
+        conflictColumns,
+        serializedData,
+      );
+    }
+
+    if (await hasNativeNullsNotDistinctIndex(table, conflictColumns)) {
+      return executeStandardPostgresUpsert(
+        executor,
+        table,
+        conflictColumns,
+        serializedData,
+      );
+    }
+
+    if (!acquireTransaction) {
+      return executeNullAwarePostgresUpsert(
+        executor,
+        table,
+        conflictColumns,
+        serializedData,
+      );
+    }
+
+    return executeNullAwarePostgresUpsertInTransaction(
+      table,
+      conflictColumns,
+      serializedData,
+    );
+  };
+
   /**
    * Inserts one or more records into a table
    *
@@ -765,12 +985,15 @@ async function createDatabase(
     table: string,
     where: Record<string, any>,
   ): Promise<Record<string, any> | null> => {
-    const keys = Object.keys(where);
-    const values = Object.values(where);
-    const whereClause = keys
-      .map((key, i) => `${key} = $${i + 1}`)
-      .join(' AND ');
-    const query = `SELECT * FROM ${table} WHERE ${whereClause}`;
+    const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
+    if (!whereClause) {
+      throw new DatabaseError(
+        'GET requires at least one WHERE condition to prevent returning an arbitrary record',
+        { table },
+      );
+    }
+
+    const query = `SELECT * FROM ${table} ${whereClause}`;
     try {
       const result = await client.query(query, values);
       return result.rows[0] || null;
@@ -828,13 +1051,19 @@ async function createDatabase(
     const keys = Object.keys(serializedData);
     const values = Object.values(serializedData);
     const setClause = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
-    const whereKeys = Object.keys(where);
-    const whereValues = Object.values(where);
-    const whereClause = whereKeys
-      .map((key, i) => `${key} = $${i + 1 + values.length}`)
-      .join(' AND ');
+    const { sql: whereClause, values: whereValues } = buildWhere(
+      where,
+      values.length + 1,
+      'postgres',
+    );
+    if (!whereClause) {
+      throw new DatabaseError(
+        'UPDATE requires at least one WHERE condition to prevent accidental update of all records',
+        { table },
+      );
+    }
 
-    const sql = `UPDATE ${table} SET ${setClause} WHERE ${whereClause}`;
+    const sql = `UPDATE ${table} SET ${setClause} ${whereClause}`;
     try {
       const result = await client.query(sql, [...values, ...whereValues]);
       return { operation: 'update', affected: result.rowCount ?? 0 };
@@ -861,41 +1090,28 @@ async function createDatabase(
     table: string,
     conflictColumns: string[],
     data: Record<string, any>,
+    options?: UpsertOptions,
   ): Promise<BaseQueryResult> => {
-    // Serialize the data to convert objects/arrays to JSON strings
-    const serializedData = serializeRecord(data);
-
-    // Validate that all conflict columns are present in the data
-    const missingColumns = conflictColumns.filter(
-      (col) => !(col in serializedData),
-    );
-
-    if (missingColumns.length > 0) {
-      throw new DatabaseError('Conflict columns missing from data', {
+    try {
+      return await executePostgresUpsert(
+        client,
         table,
         conflictColumns,
-        missingColumns,
-        availableColumns: Object.keys(serializedData),
-        hint: 'All columns specified in ON CONFLICT must be present in the data being inserted. Undefined values should be replaced with null or an appropriate default.',
-      });
-    }
-
-    const keys = Object.keys(serializedData);
-    const values = Object.values(serializedData);
-    const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-    const updateSet = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
-    const conflict = conflictColumns.join(', ');
-
-    const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
-
-    try {
-      const result = await client.query(sql, values);
-      return { operation: 'upsert', affected: result.rowCount ?? 0 };
+        data,
+        options,
+        true,
+      );
     } catch (e) {
+      if (
+        e instanceof DatabaseError &&
+        e.message === 'Conflict columns missing from data'
+      ) {
+        throw e;
+      }
+
       throw new DatabaseError('Failed to upsert record into table', {
         table,
-        sql,
-        values,
+        values: data,
         conflictColumns,
         originalError: formatDbError(e),
       });
@@ -951,12 +1167,11 @@ async function createDatabase(
       );
     }
 
-    const conditions = keys.map((key, i) => `${key} = $${i + 1}`).join(' AND ');
-    const values = Object.values(where);
+    const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
 
     try {
       const result = await client.query(
-        `DELETE FROM ${table} WHERE ${conditions}`,
+        `DELETE FROM ${table} ${whereClause}`,
         values,
       );
 
@@ -994,14 +1209,10 @@ async function createDatabase(
       }
 
       // Count with conditions
-      const keys = Object.keys(where);
-      const conditions = keys
-        .map((key, i) => `${key} = $${i + 1}`)
-        .join(' AND ');
-      const values = Object.values(where);
+      const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
 
       const result = await client.query(
-        `SELECT COUNT(*) as count FROM ${table} WHERE ${conditions}`,
+        `SELECT COUNT(*) as count FROM ${table} ${whereClause}`,
         values,
       );
 
@@ -1407,12 +1618,15 @@ async function createDatabase(
           return { operation: 'insert', affected: result.rowCount ?? 0 };
         },
         get: async (table, where) => {
-          const keys = Object.keys(where);
-          const values = Object.values(where);
-          const whereClause = keys
-            .map((key, i) => `${key} = $${i + 1}`)
-            .join(' AND ');
-          const query = `SELECT * FROM ${table} WHERE ${whereClause}`;
+          const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
+          if (!whereClause) {
+            throw new DatabaseError(
+              'GET requires at least one WHERE condition to prevent returning an arbitrary record',
+              { table },
+            );
+          }
+
+          const query = `SELECT * FROM ${table} ${whereClause}`;
           const result = await txClient.query(query, values);
           return result.rows[0] || null;
         },
@@ -1428,27 +1642,31 @@ async function createDatabase(
           const setClause = keys
             .map((key, i) => `${key} = $${i + 1}`)
             .join(', ');
-          const whereKeys = Object.keys(where);
-          const whereValues = Object.values(where);
-          const whereClause = whereKeys
-            .map((key, i) => `${key} = $${i + 1 + values.length}`)
-            .join(' AND ');
-          const sql = `UPDATE ${table} SET ${setClause} WHERE ${whereClause}`;
+          const { sql: whereClause, values: whereValues } = buildWhere(
+            where,
+            values.length + 1,
+            'postgres',
+          );
+          if (!whereClause) {
+            throw new DatabaseError(
+              'UPDATE requires at least one WHERE condition to prevent accidental update of all records',
+              { table },
+            );
+          }
+
+          const sql = `UPDATE ${table} SET ${setClause} ${whereClause}`;
           const result = await txClient.query(sql, [...values, ...whereValues]);
           return { operation: 'update', affected: result.rowCount ?? 0 };
         },
-        upsert: async (table, conflictColumns, data) => {
-          const keys = Object.keys(data);
-          const values = Object.values(data);
-          const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-          const updateSet = keys
-            .map((key, i) => `${key} = $${i + 1}`)
-            .join(', ');
-          const conflict = conflictColumns.join(', ');
-          const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
-          const result = await txClient.query(sql, values);
-          return { operation: 'upsert', affected: result.rowCount ?? 0 };
-        },
+        upsert: async (table, conflictColumns, data, options) =>
+          executePostgresUpsert(
+            txClient,
+            table,
+            conflictColumns,
+            data,
+            options,
+            false,
+          ),
         getOrInsert: async (table, where, data) => {
           const result = await txDb.get(table, where);
           if (result) return result;
@@ -1472,12 +1690,9 @@ async function createDatabase(
               { table },
             );
           }
-          const conditions = keys
-            .map((key, i) => `${key} = $${i + 1}`)
-            .join(' AND ');
-          const values = Object.values(where);
+          const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
           const result = await txClient.query(
-            `DELETE FROM ${table} WHERE ${conditions}`,
+            `DELETE FROM ${table} ${whereClause}`,
             values,
           );
           return { operation: 'delete', affected: result.rowCount ?? 0 };
@@ -1490,13 +1705,9 @@ async function createDatabase(
             );
             return Number(result.rows[0]?.count) || 0;
           }
-          const keys = Object.keys(where);
-          const conditions = keys
-            .map((key, i) => `${key} = $${i + 1}`)
-            .join(' AND ');
-          const values = Object.values(where);
+          const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
           const result = await txClient.query(
-            `SELECT COUNT(*) as count FROM ${table} WHERE ${conditions}`,
+            `SELECT COUNT(*) as count FROM ${table} ${whereClause}`,
             values,
           );
           return Number(result.rows[0]?.count) || 0;
@@ -1636,12 +1847,15 @@ async function createDatabase(
         return { operation: 'insert', affected: result.rowCount ?? 0 };
       },
       get: async (table, where) => {
-        const keys = Object.keys(where);
-        const values = Object.values(where);
-        const whereClause = keys
-          .map((key, i) => `${key} = $${i + 1}`)
-          .join(' AND ');
-        const query = `SELECT * FROM ${table} WHERE ${whereClause}`;
+        const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
+        if (!whereClause) {
+          throw new DatabaseError(
+            'GET requires at least one WHERE condition to prevent returning an arbitrary record',
+            { table },
+          );
+        }
+
+        const query = `SELECT * FROM ${table} ${whereClause}`;
         const result = await txClient.query(query, values);
         return result.rows[0] || null;
       },
@@ -1655,25 +1869,31 @@ async function createDatabase(
         const keys = Object.keys(data);
         const values = Object.values(data);
         const setClause = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
-        const whereKeys = Object.keys(where);
-        const whereValues = Object.values(where);
-        const whereClause = whereKeys
-          .map((key, i) => `${key} = $${i + 1 + values.length}`)
-          .join(' AND ');
-        const sql = `UPDATE ${table} SET ${setClause} WHERE ${whereClause}`;
+        const { sql: whereClause, values: whereValues } = buildWhere(
+          where,
+          values.length + 1,
+          'postgres',
+        );
+        if (!whereClause) {
+          throw new DatabaseError(
+            'UPDATE requires at least one WHERE condition to prevent accidental update of all records',
+            { table },
+          );
+        }
+
+        const sql = `UPDATE ${table} SET ${setClause} ${whereClause}`;
         const result = await txClient.query(sql, [...values, ...whereValues]);
         return { operation: 'update', affected: result.rowCount ?? 0 };
       },
-      upsert: async (table, conflictColumns, data) => {
-        const keys = Object.keys(data);
-        const values = Object.values(data);
-        const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-        const updateSet = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
-        const conflict = conflictColumns.join(', ');
-        const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
-        const result = await txClient.query(sql, values);
-        return { operation: 'upsert', affected: result.rowCount ?? 0 };
-      },
+      upsert: async (table, conflictColumns, data, options) =>
+        executePostgresUpsert(
+          txClient,
+          table,
+          conflictColumns,
+          data,
+          options,
+          false,
+        ),
       getOrInsert: async (table, where, data) => {
         const result = await txHandle.get(table, where);
         if (result) return result;
@@ -1697,12 +1917,9 @@ async function createDatabase(
             { table },
           );
         }
-        const conditions = keys
-          .map((key, i) => `${key} = $${i + 1}`)
-          .join(' AND ');
-        const values = Object.values(where);
+        const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
         const result = await txClient.query(
-          `DELETE FROM ${table} WHERE ${conditions}`,
+          `DELETE FROM ${table} ${whereClause}`,
           values,
         );
         return { operation: 'delete', affected: result.rowCount ?? 0 };
@@ -1715,13 +1932,9 @@ async function createDatabase(
           );
           return Number(result.rows[0]?.count) || 0;
         }
-        const keys = Object.keys(where);
-        const conditions = keys
-          .map((key, i) => `${key} = $${i + 1}`)
-          .join(' AND ');
-        const values = Object.values(where);
+        const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
         const result = await txClient.query(
-          `SELECT COUNT(*) as count FROM ${table} WHERE ${conditions}`,
+          `SELECT COUNT(*) as count FROM ${table} ${whereClause}`,
           values,
         );
         return Number(result.rows[0]?.count) || 0;

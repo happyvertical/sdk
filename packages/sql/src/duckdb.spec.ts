@@ -622,6 +622,90 @@ describe('DuckDB Adapter', () => {
       expect(allRecords[1].context).toBe('/docs');
     });
 
+    it('should update one row when a composite conflict column is null', async () => {
+      await db.execute`
+        CREATE TABLE test_nullable_conflict (
+          id VARCHAR PRIMARY KEY,
+          slug VARCHAR NOT NULL,
+          tenant_id VARCHAR,
+          title VARCHAR,
+          UNIQUE(slug, tenant_id)
+        )
+      `;
+
+      await db.upsert('test_nullable_conflict', ['slug', 'tenant_id'], {
+        id: 'post1',
+        slug: 'shared-post',
+        tenant_id: null,
+        title: 'Initial title',
+      });
+
+      await db.upsert('test_nullable_conflict', ['slug', 'tenant_id'], {
+        id: 'post2',
+        slug: 'shared-post',
+        tenant_id: null,
+        title: 'Updated title',
+      });
+
+      const records = await db.many`
+        SELECT * FROM test_nullable_conflict WHERE slug = ${'shared-post'}
+      `;
+      expect(records).toHaveLength(1);
+      expect(records[0]).toMatchObject({
+        id: 'post2',
+        slug: 'shared-post',
+        tenant_id: null,
+        title: 'Updated title',
+      });
+    });
+
+    it('should preserve database-native null-distinct upsert behavior when requested', async () => {
+      await db.execute`
+        CREATE TABLE test_nullable_conflict_opt_out (
+          id VARCHAR PRIMARY KEY,
+          slug VARCHAR NOT NULL,
+          tenant_id VARCHAR,
+          title VARCHAR,
+          UNIQUE(slug, tenant_id)
+        )
+      `;
+
+      await db.upsert(
+        'test_nullable_conflict_opt_out',
+        ['slug', 'tenant_id'],
+        {
+          id: 'post1',
+          slug: 'shared-post',
+          tenant_id: null,
+          title: 'Initial title',
+        },
+        { nullsDistinct: true },
+      );
+
+      await db.upsert(
+        'test_nullable_conflict_opt_out',
+        ['slug', 'tenant_id'],
+        {
+          id: 'post2',
+          slug: 'shared-post',
+          tenant_id: null,
+          title: 'Second title',
+        },
+        { nullsDistinct: true },
+      );
+
+      const records = await db.many`
+        SELECT * FROM test_nullable_conflict_opt_out
+        WHERE slug = ${'shared-post'}
+        ORDER BY id
+      `;
+      expect(records).toHaveLength(2);
+      expect(records.map((record) => record.title)).toEqual([
+        'Initial title',
+        'Second title',
+      ]);
+    });
+
     it('should handle null values in upsert', async () => {
       const data = {
         id: 'user1',

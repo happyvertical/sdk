@@ -223,6 +223,31 @@ describe('postgres vector capabilities (pgvector)', () => {
       expect(result?.embedding).toContain('0.5');
       expect(result?.embedding).toContain('0.6');
     });
+
+    it('should match null values in vector update where clauses', async () => {
+      if (!postgresAvailable) return;
+
+      await db.vector!.ensureColumn(testTable, 'embedding', 3);
+      await db.insert(testTable, {
+        id: 'row-null-category',
+        content: 'hello',
+        category: null,
+      });
+
+      await db.vector!.upsertVector(
+        testTable,
+        { id: 'row-null-category', category: null },
+        'embedding',
+        [0.7, 0.8, 0.9],
+      );
+
+      const result = await db.single`
+        SELECT embedding::text FROM "${testTable}" WHERE id = 'row-null-category'
+      `;
+      expect(result?.embedding).toContain('0.7');
+      expect(result?.embedding).toContain('0.8');
+      expect(result?.embedding).toContain('0.9');
+    });
   });
 
   describe('search', () => {
