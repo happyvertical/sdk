@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.73.4
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - extract animated webp frames individually (video)
+
 ## 0.73.3
 
 ### Patch Changes
