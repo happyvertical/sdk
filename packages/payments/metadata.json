@@ -1,0 +1,7 @@
+{
+  "name": "payments",
+  "description": "Payment backend abstraction for quote settlement, x402 proof verification, and payouts",
+  "category": "payments",
+  "language": "typescript",
+  "package": "@happyvertical/payments"
+}
