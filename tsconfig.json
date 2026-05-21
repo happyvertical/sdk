@@ -1,4 +1,4 @@
-{
+﻿{
   "compilerOptions": {
     // Language and Environment
     "target": "ES2023",
@@ -48,6 +48,7 @@
     { "path": "./packages/files" },
     { "path": "./packages/sql" },
     { "path": "./packages/ai" },
+    { "path": "./packages/payments" },
 
     { "path": "./packages/analytics" },
 
@@ -72,3 +73,5 @@
     { "path": "./packages/projects" }
   ]
 }
+
+
