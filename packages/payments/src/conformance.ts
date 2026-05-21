@@ -15,11 +15,13 @@ export interface PaymentBackendConformanceCase {
   run: () => Promise<void>;
 }
 
-const DEFAULT_SAMPLE_INPUT: CreatePaymentOptionInput = {
-  quoteId: 'quote-conformance-1',
-  usdAmount: 12.34,
-  expiresAt: new Date('2030-01-01T00:00:00.000Z'),
-};
+function createDefaultSampleInput(): CreatePaymentOptionInput {
+  return {
+    quoteId: 'quote-conformance-1',
+    usdAmount: 12.34,
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+  };
+}
 
 export function createPaymentBackendConformanceCases(
   options: PaymentBackendConformanceOptions,
@@ -35,7 +37,7 @@ export function createPaymentBackendConformanceCases(
       name: 'creates a payment option for a quote',
       run: async () => {
         const backend = options.createBackend();
-        const input = options.sampleInput ?? DEFAULT_SAMPLE_INPUT;
+        const input = options.sampleInput ?? createDefaultSampleInput();
         const option = await backend.createPaymentOption(input);
         assertPaymentOption(backend.capabilities, input, option);
       },
@@ -44,7 +46,7 @@ export function createPaymentBackendConformanceCases(
       name: 'returns an idempotent quote status',
       run: async () => {
         const backend = options.createBackend();
-        const input = options.sampleInput ?? DEFAULT_SAMPLE_INPUT;
+        const input = options.sampleInput ?? createDefaultSampleInput();
         const option = await backend.createPaymentOption(input);
         const status = await backend.getStatus({
           quoteId: option.quoteId,
