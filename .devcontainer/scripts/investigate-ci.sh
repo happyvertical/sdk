@@ -1,32 +1,18 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-echo "🔧 Investigating CI build environment..."
+echo "Investigating CI build and export readiness..."
 
-# Function to run a specific step
-run_step() {
-    local step_name="$1"
-    echo "🔍 Testing step: $step_name"
-    act -j test --step "$step_name" --verbose || true
-    echo ""
-}
-
-# Test individual steps
-echo "Step 1: Testing dependency installation..."
-run_step "Install dependencies"
-
-echo "Step 2: Testing build process..."
-run_step "Build packages"
-
-echo "Step 3: Testing test execution..."
-run_step "Run tests"
+echo "Validating workflow syntax with act..."
+act pull_request -j test --validate
 
 echo ""
-echo "🐚 Opening interactive shell for manual investigation..."
-echo "Use this to inspect build artifacts, check exports, and debug issues."
-echo "Path structure: /home/runner/work/sdk/sdk/"
-echo "Exit with 'exit' when done."
-echo ""
+echo "Running local build artifact checks..."
+pnpm run build
+pnpm run validate-build
+pnpm run agent:check
+pnpm run test-exports
 
-# Interactive shell at build completion
-act --shell -j test --step "Build packages"
+echo ""
+echo "Investigation complete."
+echo "For full containerized workflow logs, run: pnpm run test:ci-debug"

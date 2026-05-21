@@ -3,7 +3,7 @@
   "workspace": {
     "name": "@happyvertical/sdk",
     "path": ".",
-    "packageCount": 29,
+    "packageCount": 30,
     "localPackageOrder": [
       "accounting",
       "ai",
@@ -24,6 +24,7 @@
       "json",
       "logger",
       "messages",
+      "payments",
       "projects",
       "repos",
       "sdk-mcp",
@@ -52,7 +53,7 @@
       },
       "position": {
         "index": 1,
-        "count": 29
+        "count": 30
       },
       "description": "Multi-provider accounting integration for AR/AP sync and audit with QuickBooks, Stripe, and more",
       "commands": {
@@ -97,7 +98,7 @@
       },
       "position": {
         "index": 2,
-        "count": 29
+        "count": 30
       },
       "description": "Standardized AI interface supporting OpenAI, LiteLLM, Bifrost, Ollama, Anthropic, Gemini, Bedrock, Hugging Face, Claude CLI, and Qwen3-TTS",
       "commands": {
@@ -147,7 +148,7 @@
       },
       "position": {
         "index": 3,
-        "count": 29
+        "count": 30
       },
       "description": "Unified analytics interface for Google Analytics 4, Plausible, and more",
       "commands": {
@@ -192,7 +193,7 @@
       },
       "position": {
         "index": 4,
-        "count": 29
+        "count": 30
       },
       "description": "Unified authentication interface supporting Keycloak, AWS Cognito, and Nostr with OAuth2/OIDC and public key identity",
       "commands": {
@@ -239,7 +240,7 @@
       },
       "position": {
         "index": 5,
-        "count": 29
+        "count": 30
       },
       "description": "Standardized caching interface supporting Memory, File, and Redis backends",
       "commands": {
@@ -289,7 +290,7 @@
       },
       "position": {
         "index": 6,
-        "count": 29
+        "count": 30
       },
       "description": "ComfyUI API client for workflow orchestration and video generation",
       "commands": {
@@ -333,7 +334,7 @@
       },
       "position": {
         "index": 7,
-        "count": 29
+        "count": 30
       },
       "description": "Unified directory services with adapter-based architecture (Kanidm, Stalwart, PostgreSQL, AWS)",
       "commands": {
@@ -381,7 +382,7 @@
       },
       "position": {
         "index": 8,
-        "count": 29
+        "count": 30
       },
       "description": "Multi-part document processing with support for PDF, HTML, and Markdown",
       "commands": {
@@ -430,7 +431,7 @@
       },
       "position": {
         "index": 9,
-        "count": 29
+        "count": 30
       },
       "description": "Low-level email protocol operations with adapter-based architecture",
       "commands": {
@@ -484,7 +485,7 @@
       },
       "position": {
         "index": 10,
-        "count": 29
+        "count": 30
       },
       "description": "Unified encryption and cryptography operations with adapter-based architecture",
       "commands": {
@@ -533,7 +534,7 @@
       },
       "position": {
         "index": 11,
-        "count": 29
+        "count": 30
       },
       "description": "File system utilities for local and remote file operations",
       "commands": {
@@ -583,7 +584,7 @@
       },
       "position": {
         "index": 12,
-        "count": 29
+        "count": 30
       },
       "description": "Standardized geographical information interface supporting Google Maps and OpenStreetMap",
       "commands": {
@@ -629,7 +630,7 @@
       },
       "position": {
         "index": 13,
-        "count": 29
+        "count": 30
       },
       "description": "Reusable GitHub Actions utilities for issue triage, PR validation, and workflow automation",
       "commands": {
@@ -674,7 +675,7 @@
       },
       "position": {
         "index": 14,
-        "count": 29
+        "count": 30
       },
       "description": "GitHub GraphQL client for SDK packages",
       "commands": {
@@ -718,7 +719,7 @@
       },
       "position": {
         "index": 15,
-        "count": 29
+        "count": 30
       },
       "description": "Image processing utilities with adapter pattern for scaling from static to enterprise",
       "commands": {
@@ -766,7 +767,7 @@
       },
       "position": {
         "index": 16,
-        "count": 29
+        "count": 30
       },
       "description": "Job queue abstraction with multiple backend adapters (SQLite, PostgreSQL, Bull, SQS)",
       "commands": {
@@ -815,7 +816,7 @@
       },
       "position": {
         "index": 17,
-        "count": 29
+        "count": 30
       },
       "description": "High-performance JSON parsing and serialization with Rust SIMD acceleration and automatic fallback",
       "commands": {
@@ -858,7 +859,7 @@
       },
       "position": {
         "index": 18,
-        "count": 29
+        "count": 30
       },
       "description": "Structured logging for HAVE SDK with signal adapter",
       "commands": {
@@ -910,7 +911,7 @@
       },
       "position": {
         "index": 19,
-        "count": 29
+        "count": 30
       },
       "description": "Unified multi-channel messaging with adapter-based architecture (Slack, Twitter, Email)",
       "commands": {
@@ -949,6 +950,51 @@
       ]
     },
     {
+      "name": "@happyvertical/payments",
+      "shortName": "payments",
+      "path": "packages/payments",
+      "docs": {
+        "agent": "packages/payments/AGENT.md",
+        "metadata": "packages/payments/metadata.json"
+      },
+      "position": {
+        "index": 20,
+        "count": 30
+      },
+      "description": "Payment backend abstraction with adapters for Base USDC, BTCPay Server, and Stripe",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/payments build",
+        "test": "pnpm --filter @happyvertical/payments test",
+        "clean": "pnpm --filter @happyvertical/payments clean"
+      },
+      "correctionLoops": [
+        "If Vite or TypeScript reports missing packages, run `pnpm install` at the repo root and rerun `pnpm --filter @happyvertical/payments build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/payments clean` followed by `pnpm --filter @happyvertical/payments build` and `pnpm --filter @happyvertical/payments test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Payment backend abstraction with adapters for Base USDC, BTCPay Server, and Stripe"
+      ],
+      "implements": [],
+      "requires": {
+        "workspace": [],
+        "externalHappyVertical": [],
+        "external": [
+          "@noble/curves",
+          "@noble/hashes",
+          "@scure/bip32"
+        ]
+      },
+      "dependents": [],
+      "stability": {
+        "level": "stable",
+        "reason": "Primary package surface is described as implemented and production-oriented."
+      },
+      "keywords": [
+        "payments"
+      ]
+    },
+    {
       "name": "@happyvertical/projects",
       "shortName": "projects",
       "path": "packages/projects",
@@ -957,8 +1003,8 @@
         "metadata": "packages/projects/metadata.json"
       },
       "position": {
-        "index": 20,
-        "count": 29
+        "index": 21,
+        "count": 30
       },
       "description": "Standardized project management interface for GitHub Projects, Jira, ZenHub, and Linear",
       "commands": {
@@ -1003,8 +1049,8 @@
         "metadata": "packages/repos/metadata.json"
       },
       "position": {
-        "index": 21,
-        "count": 29
+        "index": 22,
+        "count": 30
       },
       "description": "Standardized repository interface for GitHub, GitLab, Bitbucket, and Azure DevOps",
       "commands": {
@@ -1051,8 +1097,8 @@
         "metadata": "packages/sdk-mcp/metadata.json"
       },
       "position": {
-        "index": 22,
-        "count": 29
+        "index": 23,
+        "count": 30
       },
       "description": "MCP server for HAVE SDK - Routes queries to package experts using AGENT.md files",
       "commands": {
@@ -1099,8 +1145,8 @@
         "metadata": "packages/secrets/metadata.json"
       },
       "position": {
-        "index": 23,
-        "count": 29
+        "index": 24,
+        "count": 30
       },
       "description": "Envelope encryption for per-tenant secret management with pluggable backends",
       "commands": {
@@ -1143,8 +1189,8 @@
         "metadata": "packages/social/metadata.json"
       },
       "position": {
-        "index": 24,
-        "count": 29
+        "index": 25,
+        "count": 30
       },
       "description": "Social platform adapters for publishing to YouTube, Threads, X, and Bluesky",
       "commands": {
@@ -1187,8 +1233,8 @@
         "metadata": "packages/sql/metadata.json"
       },
       "position": {
-        "index": 25,
-        "count": 29
+        "index": 26,
+        "count": 30
       },
       "description": "Database interface with support for SQLite, PostgreSQL, and DuckDB",
       "commands": {
@@ -1238,8 +1284,8 @@
         "metadata": "packages/translator/metadata.json"
       },
       "position": {
-        "index": 26,
-        "count": 29
+        "index": 27,
+        "count": 30
       },
       "description": "Standardized translation interface supporting Google Translate, DeepL, and LibreTranslate",
       "commands": {
@@ -1285,8 +1331,8 @@
         "metadata": "packages/utils/metadata.json"
       },
       "position": {
-        "index": 27,
-        "count": 29
+        "index": 28,
+        "count": 30
       },
       "description": "Foundation utilities for ID generation, date parsing, URL handling, string conversion, error handling, and logging",
       "commands": {
@@ -1354,8 +1400,8 @@
         "metadata": "packages/video/metadata.json"
       },
       "position": {
-        "index": 28,
-        "count": 29
+        "index": 29,
+        "count": 30
       },
       "description": "Video processing utilities with adapter pattern for composition and transcoding",
       "commands": {
@@ -1401,8 +1447,8 @@
         "metadata": "packages/weather/metadata.json"
       },
       "position": {
-        "index": 29,
-        "count": 29
+        "index": 30,
+        "count": 30
       },
       "description": "Weather data provider abstraction for HAppyVertical SDK",
       "commands": {
@@ -1656,6 +1702,11 @@
       "type": "provides",
       "from": "@happyvertical/messages",
       "to": "Unified multi-channel messaging with adapter-based architecture (Slack, Twitter, Email)"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/payments",
+      "to": "Payment backend abstraction with adapters for Base USDC, BTCPay Server, and Stripe"
     },
     {
       "type": "requires",

@@ -3,7 +3,7 @@
   "path": "packages/files",
   "position": {
     "index": 11,
-    "count": 29
+    "count": 30
   },
   "description": "File system utilities for local and remote file operations",
   "provides": [

@@ -3,7 +3,7 @@
   "path": "packages/accounting",
   "position": {
     "index": 1,
-    "count": 29
+    "count": 30
   },
   "description": "Multi-provider accounting integration for AR/AP sync and audit with QuickBooks, Stripe, and more",
   "provides": [

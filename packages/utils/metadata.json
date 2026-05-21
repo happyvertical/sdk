@@ -2,8 +2,8 @@
   "name": "@happyvertical/utils",
   "path": "packages/utils",
   "position": {
-    "index": 27,
-    "count": 29
+    "index": 28,
+    "count": 30
   },
   "description": "Foundation utilities for ID generation, date parsing, URL handling, string conversion, error handling, and logging",
   "provides": [

@@ -1,4 +1,4 @@
-# Use Debian base image for Bun-only environment
+# Use Debian base image for the pnpm-based workspace environment
 FROM mcr.microsoft.com/devcontainers/base:bookworm@sha256:17e6cc517b483d1108b333d4c34352b0a21617f0117052e9b259d47113a9dc37
 
 # Set environment variables
@@ -42,8 +42,8 @@ RUN install -m 0755 -d /etc/apt/keyrings \
     && rm -rf /var/lib/apt/lists/*
 
 # Install act (GitHub Actions local runner)
-RUN curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | bash \
-    && mv bin/act /usr/local/bin/act \
+RUN curl --proto '=https' --tlsv1.2 -sSfL https://raw.githubusercontent.com/nektos/act/master/install.sh \
+    | bash -s -- -b /usr/local/bin v0.2.88 \
     && chmod +x /usr/local/bin/act
 
 # Install Node.js (latest LTS)

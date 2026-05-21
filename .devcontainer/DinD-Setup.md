@@ -2,7 +2,7 @@
 
 ## Overview
 
-This devcontainer now includes Docker-in-Docker support to enable proper testing of GitHub Actions workflows using `act`. This setup allows you to test the Bun-only CI workflows with full service dependencies including PostgreSQL.
+This devcontainer now includes Docker-in-Docker support to enable proper testing of GitHub Actions workflows using `act`. This setup allows you to test the pnpm-based CI workflows with full service dependencies including PostgreSQL.
 
 ## What Changed
 
@@ -33,22 +33,22 @@ After these changes, you must rebuild the devcontainer:
 ### 2. Test DinD Setup
 ```bash
 # Test Docker-in-Docker connectivity
-bun run test:dind
+pnpm run test:dind
 
 # Validate act setup
-bun run validate-act-setup
+pnpm run validate-act-setup
 ```
 
 ### 3. Run CI Tests with Act
 ```bash
 # Test full CI workflow (with PostgreSQL service)
-bun run test:ci
+pnpm run test:ci
 
 # Debug CI issues
-bun run test:ci-debug
+pnpm run test:ci-debug
 
 # Clean up act containers
-bun run test:ci-clean
+pnpm run test:ci-clean
 ```
 
 ## Expected Performance
@@ -61,7 +61,7 @@ bun run test:ci-clean
 ### After (DinD Working)
 ✅ Full Docker access within container
 ✅ Act can test complete workflows with services
-✅ Bun-only CI workflows tested end-to-end
+✅ pnpm-based CI workflows tested end-to-end
 ✅ PostgreSQL service tests work in CI simulation
 
 ## Troubleshooting
@@ -106,7 +106,7 @@ ping dind
 
 ### Testing
 - **Full service stack** testing (app + PostgreSQL + DinD)
-- **Bun-only workflow validation** without Node.js interference
+- **pnpm-based workflow validation** with the same package manager used by CI
 - **Act integration** working properly with containers
 
 ### Security

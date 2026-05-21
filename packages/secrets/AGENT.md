@@ -7,7 +7,7 @@ Envelope encryption for per-tenant secret management with pluggable backends
 ## Package Map
 - Package: `@happyvertical/secrets`
 - Hierarchy path: `@happyvertical/sdk > packages > secrets`
-- Workspace position: `23 of 29` local packages
+- Workspace position: `24 of 30` local packages
 - Internal dependencies: `@happyvertical/sql`, `@happyvertical/utils`
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`

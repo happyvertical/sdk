@@ -2,8 +2,8 @@
   "name": "@happyvertical/projects",
   "path": "packages/projects",
   "position": {
-    "index": 20,
-    "count": 29
+    "index": 21,
+    "count": 30
   },
   "description": "Standardized project management interface for GitHub Projects, Jira, ZenHub, and Linear",
   "provides": [
