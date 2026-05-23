@@ -64,8 +64,10 @@ The release lives in `.github/workflows/shared-direct-publish.yml`
 with bot-identity gating, idempotent tag/release creation, workspace
 version sync, and a downstream `sync-smrt` job. **Don't try to unify
 this with other repos' release workflows** — it's tuned for the SDK's
-specific shape (29 packages, lockstep versioning via Changesets
-`fixed`, downstream SMRT consumer).
+specific shape (large monorepo, lockstep versioning via Changesets
+`fixed`, downstream SMRT consumer). Authoritative current package
+count + dependency graph lives in `AGENT.md`, kept in sync by
+`pnpm agent:sync`.
 
 ## Vendor SDKs go in `dependencies`, not `peerDependencies`
 

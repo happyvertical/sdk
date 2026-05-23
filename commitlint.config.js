@@ -7,12 +7,19 @@
  *    (wagoid/commitlint-github-action against this file)
  *
  * Single source of truth — see `.commitlintrc.json` deletion for context.
- * Two configs existed previously and their `scope-enum`s had drifted
- * (`comfyui/directory/social/video` only in `.commitlintrc.json`,
- * `accounting/email/encryption/github-actions/sdk-mcp/secrets/smrt/translator/weather`
- * only in `commitlint.config.js`). Reconciled below against the actual
- * `packages/*` directory list plus the small set of non-package scopes
- * that recent commit history justifies.
+ * Two configs existed previously and their `scope-enum`s had drifted:
+ *   - only in `.commitlintrc.json`: `comfyui`, `directory`, `social`, `video`
+ *   - only in `commitlint.config.js`: `email`, `encryption`, `github-actions`,
+ *     `sdk-mcp`, `secrets`
+ *   - missing from both: `languages` (a real package)
+ *
+ * Reconciled below against the actual `packages/*` directory list plus
+ * the small set of non-package scopes that recent commit history
+ * justifies. When a new package directory lands under `packages/`,
+ * add its name here too (otherwise the first `feat(<name>):` commit
+ * will fail CI). Do NOT add scopes proactively for packages on other
+ * branches — keep the enum a description of present-tense reality, not
+ * a forecast.
  *
  * https://commitlint.js.org/
  * https://www.conventionalcommits.org/
@@ -71,7 +78,6 @@ export default {
         'languages',
         'logger',
         'messages',
-        'payments',
         'projects',
         'repos',
         'sdk-mcp',
