@@ -48,11 +48,13 @@ true`).
   root (validated by both the lefthook `commit-msg` hook locally and
   the `validate-commits` job in `.github/workflows/on-pull-request.yml`
   on CI).
-- Multi-scope (`fix(a,b):`) and scoped-package (`feat(@happyvertical/sql):`)
-  forms are NOT currently accepted — `commitlint.config.mjs` uses
-  `@commitlint/config-conventional`'s default grammar. If you need
-  those forms, see the hardened raw-shell regex in
-  `have-config`'s `.github/workflows/commitlint.yml`
+- Multi-scope commits like `fix(ai,repos):` ARE accepted
+  (`@commitlint/config-conventional` parses comma-separated scopes and
+  validates each one against `scope-enum`). Scoped-package forms like
+  `feat(@happyvertical/sql):` are NOT accepted — the `@` prefix isn't
+  in the default scope grammar. If you need scoped-package scopes,
+  see the hardened raw-shell regex in `have-config`'s
+  `.github/workflows/commitlint.yml`
   (https://github.com/happyvertical/have-config/blob/main/.github/workflows/commitlint.yml)
   for the upgrade pattern — that workflow lives in the have-config
   repo, not this one.

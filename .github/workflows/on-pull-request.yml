@@ -152,6 +152,19 @@ jobs:
         with:
           configFile: commitlint.config.mjs
 
+      # `commitlint` is a devDependency — install workspace deps so
+      # `pnpm exec commitlint` works in the next step. The job
+      # otherwise only runs wagoid (a Docker action) which doesn't
+      # leave commitlint on PATH for subsequent shell steps. Without
+      # this, `npx --no-install commitlint` would fail on every
+      # clean CI runner. Matches the pattern other jobs in this
+      # workflow use (see `check-changeset` at line 44).
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          node-version: '24'
+          install-deps: 'true'
+
       - name: Validate PR title for squash merge
         # PR title is user-controlled metadata. Two non-obvious risks
         # the previous form had:
@@ -175,8 +188,10 @@ jobs:
         run: |
           # printf instead of echo: avoids the leading-dash flag trap
           # (a title starting with -e/-n/-E would be eaten by echo).
+          # pnpm exec finds commitlint via node_modules/.bin after the
+          # Setup Environment step above installs workspace deps.
           printf 'Validating PR title (length=%s)\n' "${#PR_TITLE}"
-          printf '%s\n' "$PR_TITLE" | npx --no-install commitlint --config commitlint.config.mjs
+          printf '%s\n' "$PR_TITLE" | pnpm exec commitlint --config commitlint.config.mjs
 
       - name: Determine version bump
         id: version

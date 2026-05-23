@@ -7,11 +7,14 @@ pre-commit:
     format:
       glob: "*.{js,jsx,ts,tsx,svelte}"
       # `--no-errors-on-unmatched` is required because lefthook's glob
-      # is broader than biome's `files.includes` in biome.json — top-level
-      # config files (commitlint.config.js, etc.) match the lefthook
-      # glob but biome ignores them, and biome exits 1 on "no files
-      # processed" by default, which would fail the commit. Matches the
-      # pattern used in the smrt repo's lefthook.yml.
+      # can be broader than biome's `files.includes` in biome.json —
+      # top-level config files (e.g. `eslint.config.mjs` or any future
+      # `*.config.{js,ts}` that biome ignores) can match the lefthook
+      # glob but be skipped by biome, which exits 1 on "no files
+      # processed" by default and would fail the commit. (The current
+      # `commitlint.config.mjs` doesn't match the lefthook glob, so
+      # this isn't a hot issue today — but the flag costs nothing and
+      # matches the smrt repo's lefthook.yml pattern.)
       run: pnpm biome check --write --no-errors-on-unmatched {staged_files}
       stage_fixed: true
 
