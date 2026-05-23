@@ -6,7 +6,13 @@ pre-commit:
   commands:
     format:
       glob: "*.{js,jsx,ts,tsx,svelte}"
-      run: pnpm biome check --write {staged_files}
+      # `--no-errors-on-unmatched` is required because lefthook's glob
+      # is broader than biome's `files.includes` in biome.json — top-level
+      # config files (commitlint.config.js, etc.) match the lefthook
+      # glob but biome ignores them, and biome exits 1 on "no files
+      # processed" by default, which would fail the commit. Matches the
+      # pattern used in the smrt repo's lefthook.yml.
+      run: pnpm biome check --write --no-errors-on-unmatched {staged_files}
       stage_fixed: true
 
     validate-workflows:

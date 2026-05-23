@@ -1,5 +1,19 @@
 /**
- * Commitlint configuration for conventional commits
+ * Commitlint configuration for conventional commits.
+ *
+ * Consumed by:
+ *  - lefthook `commit-msg` hook (local pre-commit validation)
+ *  - `.github/workflows/on-pull-request.yml` `validate-commits` job
+ *    (wagoid/commitlint-github-action against this file)
+ *
+ * Single source of truth — see `.commitlintrc.json` deletion for context.
+ * Two configs existed previously and their `scope-enum`s had drifted
+ * (`comfyui/directory/social/video` only in `.commitlintrc.json`,
+ * `accounting/email/encryption/github-actions/sdk-mcp/secrets/smrt/translator/weather`
+ * only in `commitlint.config.js`). Reconciled below against the actual
+ * `packages/*` directory list plus the small set of non-package scopes
+ * that recent commit history justifies.
+ *
  * https://commitlint.js.org/
  * https://www.conventionalcommits.org/
  */
@@ -13,71 +27,72 @@ export default {
       2,
       'always',
       [
-        'feat',      // New feature
-        'fix',       // Bug fix
-        'docs',      // Documentation changes
-        'style',     // Code style changes (formatting, missing semicolons, etc.)
-        'refactor',  // Code refactoring (neither fixes a bug nor adds a feature)
-        'perf',      // Performance improvements
-        'test',      // Adding or updating tests
-        'build',     // Changes to build system or dependencies
-        'ci',        // Changes to CI configuration files and scripts
-        'chore',     // Other changes that don't modify src or test files
-        'revert',    // Reverts a previous commit
+        'feat', // New feature
+        'fix', // Bug fix
+        'docs', // Documentation changes
+        'style', // Code style changes (formatting, missing semicolons, etc.)
+        'refactor', // Code refactoring (neither fixes a bug nor adds a feature)
+        'perf', // Performance improvements
+        'test', // Adding or updating tests
+        'build', // Changes to build system or dependencies
+        'ci', // Changes to CI configuration files and scripts
+        'chore', // Other changes that don't modify src or test files
+        'revert', // Reverts a previous commit
       ],
     ],
 
-    // Scope enum - optional scopes (package names)
+    // Scope enum - reconciled against `packages/*` directory list as of
+    // SDK v0.74.x. When adding a new package, add its directory name
+    // here too. Non-package scopes (`ci`, `config`, `deps`, `release`,
+    // `smrt`) cover cross-cutting commits that don't belong to a single
+    // package surface.
     'scope-enum': [
       2,
       'always',
       [
+        // Actual packages under packages/* (alphabetical)
         'accounting',
         'ai',
         'analytics',
         'auth',
         'cache',
-        'ci',
-        'config',
-        'content',
+        'comfyui',
+        'directory',
         'documents',
         'email',
         'encryption',
         'files',
         'geo',
-        'git',
-        'gnode',
         'github-actions',
         'graphql',
         'images',
         'jobs',
         'json',
+        'languages',
         'logger',
         'messages',
-        'ocr',
-        'pdf',
-        'products',
+        'payments',
         'projects',
         'repos',
         'sdk-mcp',
         'secrets',
-        'smrt',
-        'spider',
+        'social',
         'sql',
         'translator',
         'utils',
+        'video',
         'weather',
-        'deps',      // Dependency updates
-        'release',   // Release-related changes
+        // Non-package cross-cutting scopes
+        'ci', // CI / workflow changes
+        'config', // Repo-wide configuration changes (commitlint, biome, tsconfig)
+        'deps', // Dependency updates (used by Renovate)
+        'release', // Release-related changes (chore(release): version bumps)
+        'smrt', // Downstream-SMRT-sync commits (sdk -> smrt version bumps)
       ],
     ],
 
     // Subject case - allow sentence-case, lowercase, kebab-case, etc.
-    'subject-case': [
-      2,
-      'never',
-      ['upper-case', 'pascal-case', 'start-case'],
-    ],
+    'subject-case': [2, 'never', ['upper-case', 'pascal-case', 'start-case']],
 
     // Subject full stop - no period at the end
     'subject-full-stop': [2, 'never', '.'],
