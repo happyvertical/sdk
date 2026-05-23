@@ -198,10 +198,11 @@ whether it belongs in the standalone instead.
   with real credentials. They should:
   - Be opt-in via an env var (`ANALYTICS_LIVE=1`,
     `SOCIAL_LIVE_X_CREDS=...`).
-  - Not bake in personal/dev hostnames as defaults. Recurring leak:
-    `https://mac.tail8e7e73.ts.net/...` Tailscale magic-DNS hostname
-    in a YouTube OAuth callback default broke live smoke for anyone
-    who wasn't that developer.
+  - Not bake in personal/dev hostnames as defaults. Recurring leak
+    pattern: `https://<machine>.<tailnet>.ts.net/...` Tailscale
+    magic-DNS hostnames in OAuth-callback defaults (e.g. YouTube)
+    that break live smoke for any developer who isn't the one who
+    set the default.
   - Use `afterAll` (with best-effort `try/finally`) for cleanup, not a
     final `it('teardown: ...')` test case — that doesn't run if an
     earlier test fails or the suite is filtered.
@@ -210,10 +211,13 @@ whether it belongs in the standalone instead.
 
 ### Author/machine path footguns
 
-History shows leaks of `/Users/will/...` and other developer-specific
-paths into committed test fixtures and live-smoke defaults. Grep the
-diff for `/Users/`, `/home/`, `*.tail*.ts.net`, and any obviously
-personal hostname; flag any hit outside `.git/` or `node_modules/`.
+History shows leaks of `/Users/<name>/...` and other developer-
+specific paths into committed test fixtures and live-smoke defaults.
+Grep the diff for `/Users/`, `/home/`, `*.tail*.ts.net`, and any
+obviously personal hostname; flag any hit outside `.git/` or
+`node_modules/`. (Use placeholder values in examples within this
+file too — the checklist asks reviewers to grep for these patterns,
+so seeding the file with real ones would self-trigger.)
 
 ### Doc–code drift hot spots
 

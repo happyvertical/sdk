@@ -88,6 +88,14 @@ export default {
         'utils',
         'video',
         'weather',
+        // External-catalog packages — separate repos whose versions
+        // are managed in this monorepo via pnpm-workspace.yaml's
+        // `catalog:` block (`@happyvertical/{ocr,pdf,spider}`). Recent
+        // commits like `fix(spider):` / `feat(pdf):` reference these
+        // even though they don't live under `packages/`.
+        'ocr',
+        'pdf',
+        'spider',
         // Non-package cross-cutting scopes
         'ci', // CI / workflow changes
         'config', // Repo-wide configuration changes (commitlint, biome, tsconfig)

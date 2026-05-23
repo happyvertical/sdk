@@ -44,12 +44,12 @@ true`).
 ## Conventional commits + commitlint
 
 - Commit messages MUST follow Conventional Commits. The single source
-  of truth for allowed scopes is `commitlint.config.js` at the repo
+  of truth for allowed scopes is `commitlint.config.mjs` at the repo
   root (validated by both the lefthook `commit-msg` hook locally and
   the `validate-commits` job in `.github/workflows/on-pull-request.yml`
   on CI).
 - Multi-scope (`fix(a,b):`) and scoped-package (`feat(@happyvertical/sql):`)
-  forms are NOT currently accepted — `commitlint.config.js` uses
+  forms are NOT currently accepted — `commitlint.config.mjs` uses
   `@commitlint/config-conventional`'s default grammar. If you need
   those forms, see the hardened raw-shell regex in
   `have-config`'s `.github/workflows/commitlint.yml`
@@ -57,7 +57,7 @@ true`).
   for the upgrade pattern — that workflow lives in the have-config
   repo, not this one.
 - Adding a new package to `packages/<name>` requires adding `<name>`
-  to the `scope-enum` in `commitlint.config.js`. Otherwise the first
+  to the `scope-enum` in `commitlint.config.mjs`. Otherwise the first
   `feat(<name>): ...` commit will fail CI.
 
 ## Release flow
