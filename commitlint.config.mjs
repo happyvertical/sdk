@@ -19,7 +19,11 @@
  *   - only in `.commitlintrc.json`: `comfyui`, `directory`, `social`, `video`
  *   - only in `commitlint.config.js`: `email`, `encryption`, `github-actions`,
  *     `sdk-mcp`, `secrets`
- *   - missing from both: `languages` (a real package)
+ *   - missing from both: `languages` (a spec-only placeholder
+ *     directory — `packages/languages/` has SPEC.md but no
+ *     package.json or source yet, so NOT added here either; same
+ *     "no proactive scopes" rule as the dropped `payments` scope.
+ *     Add when the package is actually scaffolded.)
  *
  * Reconciled below against the actual `packages/*` directory list plus
  * the small set of non-package scopes that recent commit history
@@ -83,7 +87,6 @@ export default {
         'images',
         'jobs',
         'json',
-        'languages',
         'logger',
         'messages',
         'projects',
