@@ -84,7 +84,13 @@ jobs:
           registry-url: 'https://npm.pkg.github.com'
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-action@stable
+        # Correct action is `dtolnay/rust-toolchain` (the old reference
+        # `dtolnay/rust-action@stable` resolved to a non-existent repo
+        # — this workflow has never been triggered, so the typo was
+        # latent). SHA-pinned per supply-chain defense-in-depth, with
+        # the human-readable `# stable` annotation matching the repo's
+        # other action pins.
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
         with:
           targets: ${{ matrix.target }}
 
