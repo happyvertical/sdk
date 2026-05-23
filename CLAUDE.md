@@ -51,8 +51,11 @@ true`).
 - Multi-scope (`fix(a,b):`) and scoped-package (`feat(@happyvertical/sql):`)
   forms are NOT currently accepted — `commitlint.config.js` uses
   `@commitlint/config-conventional`'s default grammar. If you need
-  those forms, look at have-config's hardened regex in
-  `.github/workflows/commitlint.yml` for the upgrade pattern.
+  those forms, see the hardened raw-shell regex in
+  `have-config`'s `.github/workflows/commitlint.yml`
+  (https://github.com/happyvertical/have-config/blob/main/.github/workflows/commitlint.yml)
+  for the upgrade pattern — that workflow lives in the have-config
+  repo, not this one.
 - Adding a new package to `packages/<name>` requires adding `<name>`
   to the `scope-enum` in `commitlint.config.js`. Otherwise the first
   `feat(<name>): ...` commit will fail CI.

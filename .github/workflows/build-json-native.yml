@@ -87,11 +87,18 @@ jobs:
         # Correct action is `dtolnay/rust-toolchain` (the old reference
         # `dtolnay/rust-action@stable` resolved to a non-existent repo
         # — this workflow has never been triggered, so the typo was
-        # latent). SHA-pinned per supply-chain defense-in-depth, with
-        # the human-readable `# stable` annotation matching the repo's
-        # other action pins.
-        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+        # latent). SHA-pinned per supply-chain defense-in-depth.
+        #
+        # IMPORTANT: pin to a MASTER-branch SHA, not stable. dtolnay
+        # documents that the generated `stable`/`beta`/`nightly` branches
+        # get garbage-collected over time and SHA pins to those will
+        # break (per README: "In a workflow that pins the action using
+        # a full-length commit SHA ... it is required that you pick a
+        # SHA that is within the history of the master branch"). Pass
+        # the toolchain via the `toolchain` input instead.
+        uses: dtolnay/rust-toolchain@3c5f7ea28cd621ae0bf5283f0e981fb97b8a7af9 # master
         with:
+          toolchain: stable
           targets: ${{ matrix.target }}
 
       - name: Install cross-compilation tools
