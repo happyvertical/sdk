@@ -55,6 +55,8 @@ Project sync reads `.github/triage-config.json`:
 
 If `projectEnabled` is false, the config is missing, or the requested status option is absent, the workflow logs the reason and exits without changing the project.
 
+Project sync requires `PROJECT_SYNC_TOKEN` with GitHub Projects V2 read/write access. Without that secret, the workflow logs the missing token and skips the project update.
+
 ## Manual Process
 
 - Humans assign type, priority, size, status, and area labels.

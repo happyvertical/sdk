@@ -44,6 +44,8 @@ Project sync reads `.github/triage-config.json`. The filename is retained for co
 
 If project sync is disabled or required project fields are missing, the workflow logs the reason and exits without changing the project.
 
+Project sync also requires a repository secret named `PROJECT_SYNC_TOKEN`. The default `GITHUB_TOKEN` is repository-scoped and is not sufficient for GitHub Projects V2 GraphQL updates. Use a fine-grained token or GitHub App token with access to the target project and permission to read and write project items.
+
 ## Standard Labels
 
 The standardization script manages these label categories:
@@ -77,7 +79,15 @@ bun scripts/standardize-repo.ts \
   --description "Repository description" \
   --areas "area1,area2,area3" \
   --project-id "PVT_kwDOB9Y8ns4A8-TY" \
-  --status-field-id "PVTSSF_lADOB9Y8ns4A8-TY"
+  --status-field-id "PVTSSF_lADOB9Y8ns4A8-TYzgw0GaY" \
+  --status-new-id "3d8ca82c" \
+  --status-done-id "03c76b2e"
 ```
 
-After standardization, review the generated `.github/` changes and test by creating and closing an issue.
+`--status-new-id` and `--status-done-id` are required because the project sync workflow looks up `statusOptions["New"]` and `statusOptions["Done"]` before updating GitHub Projects V2. Get these option IDs with:
+
+```bash
+gh project field-list <project-number> --owner <owner> --format json
+```
+
+After standardization, configure `PROJECT_SYNC_TOKEN`, review the generated `.github/` changes, and test by creating and closing an issue.

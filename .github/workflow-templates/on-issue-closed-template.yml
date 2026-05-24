@@ -19,7 +19,6 @@ on:
 permissions:
   contents: read
   issues: read
-  repository-projects: write
 
 jobs:
   project-sync:
@@ -30,4 +29,4 @@ jobs:
       repo_owner: ${{ github.repository_owner }}
       repo_name: ${{ github.event.repository.name }}
     secrets:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.PROJECT_SYNC_TOKEN }}

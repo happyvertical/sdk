@@ -114,6 +114,7 @@ The following secrets must be configured in the repository:
 | Secret Name | Purpose | Required For |
 |-------------|---------|--------------|
 | `GITHUB_TOKEN` | GitHub API access (auto-provided) | All workflows |
+| `PROJECT_SYNC_TOKEN` | GitHub Projects V2 read/write access | issue opened/closed project sync |
 | `HAVE_RELEASE_APP_ID` | GitHub App ID for release automation | publish and merge workflows |
 | `HAVE_RELEASE_APP_PRIVATE_KEY` | GitHub App private key for release automation | publish and merge workflows |
 

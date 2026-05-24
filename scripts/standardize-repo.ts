@@ -36,6 +36,8 @@ interface StandardizeOptions {
   areaLabels: string[];
   projectId?: string;
   statusFieldId?: string;
+  statusNewId?: string;
+  statusDoneId?: string;
   statusOptions?: Record<string, string>;
   packagePattern?: string;
   packageExamples?: string[];
@@ -207,9 +209,24 @@ function createTriageConfig(options: StandardizeOptions): void {
   }
 
   if (options.projectId) {
+    const statusOptions =
+      options.statusOptions ||
+      (options.statusNewId && options.statusDoneId
+        ? {
+            New: options.statusNewId,
+            Done: options.statusDoneId,
+          }
+        : undefined);
+
+    if (!options.statusFieldId || !statusOptions) {
+      throw new Error(
+        'Project sync requires statusFieldId and statusOptions for New and Done',
+      );
+    }
+
     config.projectId = options.projectId;
     config.statusFieldId = options.statusFieldId;
-    config.statusOptions = options.statusOptions;
+    config.statusOptions = statusOptions;
   }
 
   writeFileSync(configPath, JSON.stringify(config, null, 2));
@@ -375,6 +392,8 @@ Options:
   --areas <area1,area2,...>    Comma-separated area labels (required)
   --project-id <id>            GitHub Project ID (optional)
   --status-field-id <id>       Status field ID for project (optional)
+  --status-new-id <id>         Status option ID for New (required with --project-id)
+  --status-done-id <id>        Status option ID for Done (required with --project-id)
   --package-pattern <pattern>  Package naming pattern (optional, e.g., "@org/*")
   --package-examples <list>    Comma-separated package examples (optional)
 
@@ -392,7 +411,9 @@ Examples:
     --description "TypeScript monorepo for building vertical AI applications" \\
     --areas "core,ai,database,files" \\
     --project-id "PVT_kwDOB9Y8ns4A8-TY" \\
-    --status-field-id "PVTSSF_lADOB9Y8ns4A8-TYzgw0GaY"
+    --status-field-id "PVTSSF_lADOB9Y8ns4A8-TYzgw0GaY" \\
+    --status-new-id "3d8ca82c" \\
+    --status-done-id "03c76b2e"
     `);
     return null;
   }
@@ -424,6 +445,12 @@ Examples:
       case '--status-field-id':
         options.statusFieldId = value;
         break;
+      case '--status-new-id':
+        options.statusNewId = value;
+        break;
+      case '--status-done-id':
+        options.statusDoneId = value;
+        break;
       case '--package-pattern':
         options.packagePattern = value;
         break;
@@ -448,10 +475,13 @@ Examples:
     return null;
   }
 
-  // If project ID provided, require status field ID
-  if (options.projectId && !options.statusFieldId) {
+  // If project ID provided, require the IDs needed for issue-opened/closed sync.
+  if (
+    options.projectId &&
+    (!options.statusFieldId || !options.statusNewId || !options.statusDoneId)
+  ) {
     console.error(
-      'Error: --status-field-id required when --project-id is provided',
+      'Error: --status-field-id, --status-new-id, and --status-done-id are required when --project-id is provided',
     );
     return null;
   }

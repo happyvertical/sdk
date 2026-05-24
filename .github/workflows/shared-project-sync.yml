@@ -21,13 +21,12 @@ on:
         type: string
     secrets:
       GH_TOKEN:
-        description: 'GitHub token for project sync'
-        required: true
+        description: 'GitHub token with Projects V2 read/write access'
+        required: false
 
 permissions:
   contents: read
   issues: read
-  repository-projects: write
 
 jobs:
   sync:
@@ -40,8 +39,10 @@ jobs:
 
       - name: Sync issue project status
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          PROJECT_SYNC_TOKEN: ${{ secrets.GH_TOKEN }}
         with:
-          github-token: ${{ secrets.GH_TOKEN }}
+          github-token: ${{ secrets.GH_TOKEN || github.token }}
           script: |
             const fs = require('fs');
             const path = require('path');
@@ -82,6 +83,11 @@ jobs:
               console.log(
                 `Project config is incomplete for status "${statusName}"; skipping project sync.`
               );
+              return;
+            }
+
+            if (!process.env.PROJECT_SYNC_TOKEN) {
+              console.log('No PROJECT_SYNC_TOKEN secret configured; skipping project sync.');
               return;
             }
 
