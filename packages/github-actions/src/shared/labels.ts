@@ -117,38 +117,6 @@ export const STANDARD_LABELS: Record<string, LabelDefinition[]> = {
       description: 'Good for newcomers',
     },
   ],
-  agent: [
-    {
-      name: 'agent: triage',
-      color: 'bfdadc',
-      description: 'AI triage in progress',
-    },
-    {
-      name: 'agent: planning',
-      color: 'bfdadc',
-      description: 'AI planning assistance',
-    },
-    {
-      name: 'agent: implementation',
-      color: 'bfdadc',
-      description: 'AI implementation in progress',
-    },
-    {
-      name: 'agent: testing',
-      color: 'bfdadc',
-      description: 'AI testing in progress',
-    },
-    {
-      name: 'agent: review',
-      color: 'bfdadc',
-      description: 'AI code review in progress',
-    },
-    {
-      name: 'agent: claude',
-      color: '0E8A16',
-      description: 'Claude Code is assigned to work on this issue',
-    },
-  ],
 };
 
 /**

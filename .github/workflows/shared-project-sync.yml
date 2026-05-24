@@ -1,0 +1,170 @@
+name: Shared Project Sync
+
+on:
+  workflow_call:
+    inputs:
+      issue_number:
+        description: 'Issue number'
+        required: true
+        type: number
+      status_name:
+        description: 'Project status name'
+        required: true
+        type: string
+      repo_owner:
+        description: 'Repository owner'
+        required: true
+        type: string
+      repo_name:
+        description: 'Repository name'
+        required: true
+        type: string
+    secrets:
+      GH_TOKEN:
+        description: 'GitHub token for project sync'
+        required: true
+
+permissions:
+  contents: read
+  issues: read
+  repository-projects: write
+
+jobs:
+  sync:
+    runs-on: arc-happyvertical
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          repository: ${{ inputs.repo_owner }}/${{ inputs.repo_name }}
+
+      - name: Sync issue project status
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          github-token: ${{ secrets.GH_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const issueNumber = ${{ inputs.issue_number }};
+            const owner = '${{ inputs.repo_owner }}';
+            const repo = '${{ inputs.repo_name }}';
+            const statusName = '${{ inputs.status_name }}';
+            const configPath = path.join(
+              process.env.GITHUB_WORKSPACE,
+              '.github',
+              'triage-config.json'
+            );
+
+            if (!fs.existsSync(configPath)) {
+              console.log('No .github/triage-config.json found; skipping project sync.');
+              return;
+            }
+
+            let config;
+            try {
+              config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+            } catch (error) {
+              console.log(`Could not parse project config: ${error.message}`);
+              return;
+            }
+
+            if (!config.projectEnabled) {
+              console.log('Project sync disabled in triage-config.json.');
+              return;
+            }
+
+            const projectId = config.projectId;
+            const statusFieldId = config.statusFieldId;
+            const statusOptionId = config.statusOptions?.[statusName];
+
+            if (!projectId || !statusFieldId || !statusOptionId) {
+              console.log(
+                `Project config is incomplete for status "${statusName}"; skipping project sync.`
+              );
+              return;
+            }
+
+            const issueQuery = `
+              query($owner: String!, $repo: String!, $issueNumber: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  issue(number: $issueNumber) {
+                    id
+                    projectItems(first: 100) {
+                      nodes {
+                        id
+                        project {
+                          id
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `;
+
+            const issueResult = await github.graphql(issueQuery, {
+              owner,
+              repo,
+              issueNumber,
+            });
+            const issue = issueResult.repository?.issue;
+
+            if (!issue?.id) {
+              console.log(`Issue #${issueNumber} was not found; skipping project sync.`);
+              return;
+            }
+
+            let itemId = issue.projectItems.nodes.find(
+              (item) => item.project?.id === projectId
+            )?.id;
+
+            if (!itemId) {
+              const addItemMutation = `
+                mutation($projectId: ID!, $contentId: ID!) {
+                  addProjectV2ItemById(input: {
+                    projectId: $projectId
+                    contentId: $contentId
+                  }) {
+                    item {
+                      id
+                    }
+                  }
+                }
+              `;
+
+              const addResult = await github.graphql(addItemMutation, {
+                projectId,
+                contentId: issue.id,
+              });
+              itemId = addResult.addProjectV2ItemById.item.id;
+            }
+
+            const updateStatusMutation = `
+              mutation(
+                $projectId: ID!
+                $itemId: ID!
+                $fieldId: ID!
+                $optionId: String!
+              ) {
+                updateProjectV2ItemFieldValue(input: {
+                  projectId: $projectId
+                  itemId: $itemId
+                  fieldId: $fieldId
+                  value: { singleSelectOptionId: $optionId }
+                }) {
+                  projectV2Item {
+                    id
+                  }
+                }
+              }
+            `;
+
+            await github.graphql(updateStatusMutation, {
+              projectId,
+              itemId,
+              fieldId: statusFieldId,
+              optionId: statusOptionId,
+            });
+
+            console.log(`Synced issue #${issueNumber} to project status "${statusName}".`);
