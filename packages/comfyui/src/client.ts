@@ -35,7 +35,14 @@ import type {
 interface WSMessage {
   type: string;
   data?: {
-    node?: string;
+    // `node` carries a real `null` value from the ComfyUI protocol —
+    // `parseProgressEvent` writes it through to `ProgressEvent.nodeId`,
+    // and `waitForCompletion` uses `event.nodeId === null` as the
+    // "no more nodes to execute" completion sentinel. The previous
+    // `data?: unknown` type accepted null implicitly; this narrowed
+    // type must keep it. (See `packages/comfyui/src/client.ts:436`
+    // and the comment about completion above it.)
+    node?: string | null;
     prompt_id?: string;
     output?: Record<string, unknown>;
     value?: number;

@@ -149,3 +149,11 @@ repomix-output.xml
 # Document processing cache
 *.processed_pdf
 bin/
+
+# Build output: docs/docs/build-* gets populated by per-PR doc-build
+# preview runs; docs/content/*.md is generator output from `pnpm agent:sync`-style
+# steps. Neither should be tracked — main has neither. Without these,
+# `git add -A` in any worktree that has run `pnpm install` or `pnpm build`
+# will sweep them up (this exact trap bit a hygiene commit on this branch).
+docs/docs/build-*
+docs/content/*.md
