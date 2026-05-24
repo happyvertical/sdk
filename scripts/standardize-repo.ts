@@ -3,9 +3,9 @@
  * Repository Standardization Script
  *
  * Applies HappyVertical workflow standards to a repository:
- * - Standard labels (type, priority, size, status, agent)
+ * - Standard labels (type, priority, size, status)
  * - Custom area labels
- * - Triage configuration
+ * - Project sync configuration
  * - Workflow files
  */
 
@@ -36,6 +36,8 @@ interface StandardizeOptions {
   areaLabels: string[];
   projectId?: string;
   statusFieldId?: string;
+  statusNewId?: string;
+  statusDoneId?: string;
   statusOptions?: Record<string, string>;
   packagePattern?: string;
   packageExamples?: string[];
@@ -126,33 +128,6 @@ const STANDARD_LABELS: Record<string, LabelDefinition[]> = {
       description: 'Good for newcomers',
     },
   ],
-  agent: [
-    {
-      name: 'agent: triage',
-      color: 'bfdadc',
-      description: 'AI triage in progress',
-    },
-    {
-      name: 'agent: planning',
-      color: 'bfdadc',
-      description: 'AI planning assistance',
-    },
-    {
-      name: 'agent: implementation',
-      color: 'bfdadc',
-      description: 'AI implementation in progress',
-    },
-    {
-      name: 'agent: testing',
-      color: 'bfdadc',
-      description: 'AI testing in progress',
-    },
-    {
-      name: 'agent: review',
-      color: 'bfdadc',
-      description: 'AI code review in progress',
-    },
-  ],
 };
 
 function exec(command: string): string {
@@ -209,7 +184,7 @@ function applyLabels(options: StandardizeOptions): void {
 }
 
 function createTriageConfig(options: StandardizeOptions): void {
-  console.log('\n📝 Creating triage configuration...');
+  console.log('\n📝 Creating project sync configuration...');
 
   const repoPath = options.repoPath || '.';
   const githubDir = join(repoPath, '.github');
@@ -234,9 +209,24 @@ function createTriageConfig(options: StandardizeOptions): void {
   }
 
   if (options.projectId) {
+    const statusOptions =
+      options.statusOptions ||
+      (options.statusNewId && options.statusDoneId
+        ? {
+            New: options.statusNewId,
+            Done: options.statusDoneId,
+          }
+        : undefined);
+
+    if (!options.statusFieldId || !statusOptions) {
+      throw new Error(
+        'Project sync requires statusFieldId and statusOptions for New and Done',
+      );
+    }
+
     config.projectId = options.projectId;
     config.statusFieldId = options.statusFieldId;
-    config.statusOptions = options.statusOptions;
+    config.statusOptions = statusOptions;
   }
 
   writeFileSync(configPath, JSON.stringify(config, null, 2));
@@ -270,9 +260,7 @@ function copyWorkflowFiles(options: StandardizeOptions): void {
   // Copy standard workflow templates to happyvertical/
   const templates = [
     'on-issue-opened-template.yml',
-    'on-label-changed-template.yml',
     'on-issue-closed-template.yml',
-    'on-pr-opened-template.yml',
     'on-merge-main-template.yml',
   ];
 
@@ -298,10 +286,8 @@ standardization script. Manual changes will be overwritten on updates.
 
 ## Workflows
 
-- **on-issue-opened.yml** - Automated triage when issues are created
-- **on-label-changed.yml** - Label enforcement and agent orchestration
-- **on-issue-closed.yml** - Cleanup when issues are closed
-- **on-pr-opened.yml** - Pull request automation
+- **on-issue-opened.yml** - Add new issues to the project board
+- **on-issue-closed.yml** - Move closed issues to Done
 - **on-merge-main.yml** - Build pipeline (test → build → publish)
 
 ## To Update
@@ -372,7 +358,7 @@ function displaySummary(options: StandardizeOptions): void {
     `  - ${Object.values(STANDARD_LABELS).flat().length} standard labels`,
   );
   console.log(`  - ${options.areaLabels.length} area labels`);
-  console.log(`  - Triage configuration`);
+  console.log(`  - Project sync configuration`);
   console.log(`  - Workflow files`);
 
   if (options.projectId) {
@@ -381,7 +367,7 @@ function displaySummary(options: StandardizeOptions): void {
 
   console.log(`\n📝 Next steps:`);
   console.log(`  1. Review and commit changes: git add .github/`);
-  console.log(`  2. Test triage workflow by creating an issue`);
+  console.log(`  2. Test project sync by creating and closing an issue`);
 
   if (!options.projectId) {
     console.log(
@@ -406,6 +392,8 @@ Options:
   --areas <area1,area2,...>    Comma-separated area labels (required)
   --project-id <id>            GitHub Project ID (optional)
   --status-field-id <id>       Status field ID for project (optional)
+  --status-new-id <id>         Status option ID for New (required with --project-id)
+  --status-done-id <id>        Status option ID for Done (required with --project-id)
   --package-pattern <pattern>  Package naming pattern (optional, e.g., "@org/*")
   --package-examples <list>    Comma-separated package examples (optional)
 
@@ -420,10 +408,12 @@ Examples:
   # Standardize with project board
   bun scripts/standardize-repo.ts \\
     --repo happyvertical/sdk \\
-    --description "TypeScript monorepo for AI agent development" \\
+    --description "TypeScript monorepo for building vertical AI applications" \\
     --areas "core,ai,database,files" \\
     --project-id "PVT_kwDOB9Y8ns4A8-TY" \\
-    --status-field-id "PVTSSF_lADOB9Y8ns4A8-TYzgw0GaY"
+    --status-field-id "PVTSSF_lADOB9Y8ns4A8-TYzgw0GaY" \\
+    --status-new-id "3d8ca82c" \\
+    --status-done-id "03c76b2e"
     `);
     return null;
   }
@@ -455,6 +445,12 @@ Examples:
       case '--status-field-id':
         options.statusFieldId = value;
         break;
+      case '--status-new-id':
+        options.statusNewId = value;
+        break;
+      case '--status-done-id':
+        options.statusDoneId = value;
+        break;
       case '--package-pattern':
         options.packagePattern = value;
         break;
@@ -479,10 +475,13 @@ Examples:
     return null;
   }
 
-  // If project ID provided, require status field ID
-  if (options.projectId && !options.statusFieldId) {
+  // If project ID provided, require the IDs needed for issue-opened/closed sync.
+  if (
+    options.projectId &&
+    (!options.statusFieldId || !options.statusNewId || !options.statusDoneId)
+  ) {
     console.error(
-      'Error: --status-field-id required when --project-id is provided',
+      'Error: --status-field-id, --status-new-id, and --status-done-id are required when --project-id is provided',
     );
     return null;
   }
