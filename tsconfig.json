@@ -62,6 +62,7 @@
     { "path": "./packages/documents" },
     { "path": "./packages/email" },
     { "path": "./packages/messages" },
+    { "path": "./packages/payments" },
     { "path": "./packages/directory" },
 
     // Developer tools

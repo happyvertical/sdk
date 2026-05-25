@@ -279,7 +279,7 @@ jobs:
           mkdir -p bin
           curl --proto '=https' --tlsv1.2 -sSfL \
             https://raw.githubusercontent.com/nektos/act/master/install.sh \
-            | sudo bash -s -- -b bin v0.2.82
+            | sudo bash -s -- -b bin v0.2.88
 
       - name: Validate with act
         if: steps.changed-files.outputs.any_changed == 'true'

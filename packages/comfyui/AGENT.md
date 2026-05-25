@@ -7,7 +7,7 @@ ComfyUI API client for workflow orchestration and video generation
 ## Package Map
 - Package: `@happyvertical/comfyui`
 - Hierarchy path: `@happyvertical/sdk > packages > comfyui`
-- Workspace position: `6 of 29` local packages
+- Workspace position: `6 of 30` local packages
 - Internal dependencies: `@happyvertical/logger`, `@happyvertical/utils`
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`

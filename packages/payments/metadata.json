@@ -1,0 +1,30 @@
+{
+  "name": "@happyvertical/payments",
+  "path": "packages/payments",
+  "position": {
+    "index": 20,
+    "count": 30
+  },
+  "description": "Payment backend abstraction with adapters for Base USDC, BTCPay Server, and Stripe",
+  "provides": [
+    "Payment backend abstraction with adapters for Base USDC, BTCPay Server, and Stripe"
+  ],
+  "implements": [],
+  "requires": {
+    "workspace": [],
+    "externalHappyVertical": [],
+    "external": [
+      "@noble/curves",
+      "@noble/hashes",
+      "@scure/bip32"
+    ]
+  },
+  "dependents": [],
+  "stability": {
+    "level": "stable",
+    "reason": "Primary package surface is described as implemented and production-oriented."
+  },
+  "keywords": [
+    "payments"
+  ]
+}

@@ -7,7 +7,7 @@ GitHub GraphQL client for SDK packages
 ## Package Map
 - Package: `@happyvertical/graphql`
 - Hierarchy path: `@happyvertical/sdk > packages > graphql`
-- Workspace position: `14 of 29` local packages
+- Workspace position: `14 of 30` local packages
 - Internal dependencies: none
 - Internal dependents: `@happyvertical/projects`, `@happyvertical/repos`
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
