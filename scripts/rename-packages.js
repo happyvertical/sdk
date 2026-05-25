@@ -11,8 +11,8 @@
  * Run with: node scripts/rename-packages.js
  */
 
-import { readFileSync, writeFileSync, globSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { globSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -65,7 +65,7 @@ for (const file of [rootPackageJson, ...packageJsonFiles]) {
 console.log('\n📝 Updating TypeScript files...');
 const tsFiles = globSync('packages/**/src/**/*.{ts,tsx}', {
   cwd: rootDir,
-  ignore: ['**/node_modules/**', '**/dist/**']
+  ignore: ['**/node_modules/**', '**/dist/**'],
 });
 
 for (const file of tsFiles) {
@@ -77,7 +77,7 @@ for (const file of tsFiles) {
 console.log('\n🧪 Updating test files...');
 const testFiles = globSync('packages/**/*.{test,spec}.{ts,tsx}', {
   cwd: rootDir,
-  ignore: ['**/node_modules/**', '**/dist/**']
+  ignore: ['**/node_modules/**', '**/dist/**'],
 });
 
 for (const file of testFiles) {
@@ -89,7 +89,7 @@ for (const file of testFiles) {
 console.log('\n📄 Updating markdown files...');
 const mdFiles = globSync('**/*.md', {
   cwd: rootDir,
-  ignore: ['**/node_modules/**', '**/dist/**', 'CHANGELOG.md']
+  ignore: ['**/node_modules/**', '**/dist/**', 'CHANGELOG.md'],
 });
 
 for (const file of mdFiles) {
@@ -102,7 +102,6 @@ console.log('\n⚙️  Updating configuration files...');
 const configFiles = [
   '.github/triage-config.json',
   '.github/workflows/on-issue-opened.yml',
-  '.github/actions/issue-triage/action.yml'
 ];
 
 for (const file of configFiles) {
