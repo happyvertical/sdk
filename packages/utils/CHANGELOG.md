@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.74.1
+
+### Patch Changes
+
+- ### Features
+
+  - add payments package
+
 ## 0.74.0
 
 ## 0.73.4
