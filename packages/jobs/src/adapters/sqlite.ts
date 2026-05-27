@@ -1,6 +1,7 @@
 import {
   type DatabaseInterface,
   getDatabase,
+  type SqliteCapabilitiesOptions,
   syncSchema,
 } from '@happyvertical/sql';
 import { BaseJobStore, validateTableName } from '../base-store.js';
@@ -22,6 +23,8 @@ export interface SqliteJobStoreConfig {
   db?: DatabaseInterface;
   /** Table name for jobs (default: '_jobs') */
   tableName?: string;
+  /** Optional SQLite native capabilities for development/test modes */
+  capabilities?: SqliteCapabilitiesOptions;
 }
 
 /**
@@ -35,12 +38,14 @@ export class SqliteJobStore extends BaseJobStore {
   private readonly url: string;
   private readonly externalDb: DatabaseInterface | null;
   private readonly tableName: string;
+  private readonly capabilities: SqliteCapabilitiesOptions | undefined;
 
   constructor(config: SqliteJobStoreConfig = {}) {
     super();
     this.url = config.url ?? ':memory:';
     this.externalDb = config.db ?? null;
     this.tableName = validateTableName(config.tableName ?? '_jobs');
+    this.capabilities = config.capabilities;
   }
 
   async initialize(): Promise<void> {
@@ -48,7 +53,12 @@ export class SqliteJobStore extends BaseJobStore {
 
     // Use existing database or create new one
     this.db =
-      this.externalDb ?? (await getDatabase({ type: 'sqlite', url: this.url }));
+      this.externalDb ??
+      (await getDatabase({
+        type: 'sqlite',
+        url: this.url,
+        capabilities: this.capabilities,
+      }));
 
     // Create jobs table and indexes using syncSchema
     const schema = `
@@ -410,10 +420,22 @@ export class SqliteJobStore extends BaseJobStore {
   }
 
   async close(): Promise<void> {
-    // The SDK's DatabaseInterface doesn't have a close method
-    // For now, just reset our internal state
+    if (this.db && !this.externalDb) {
+      await this.db.close?.();
+    }
     this.db = null;
     this.initialized = false;
+  }
+
+  async waitForUpdate(timeoutMs?: number): Promise<boolean> {
+    if (!this.db?.notifications) {
+      if (timeoutMs && timeoutMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, timeoutMs));
+      }
+      return false;
+    }
+
+    return this.db.notifications.waitForUpdate({ timeoutMs });
   }
 }
 

@@ -57,6 +57,18 @@
     "pg": "^8.20.0",
     "sqlite-vss": "^0.1.2"
   },
+  "peerDependencies": {
+    "@russellthehippo/honker-node": "^0.3.3",
+    "@sqliteai/sqlite-vector": "^1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@russellthehippo/honker-node": {
+      "optional": true
+    },
+    "@sqliteai/sqlite-vector": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@types/node": "25.0.10",
     "@types/pg": "^8.20.0",

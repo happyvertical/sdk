@@ -275,6 +275,12 @@ export interface JobStore {
   subscribe(listener: JobEventListener): Unsubscribe;
 
   /**
+   * Wait for a store-level update signal, if the adapter supports one.
+   * Adapters without push notifications may omit this and rely on polling.
+   */
+  waitForUpdate?(timeoutMs?: number): Promise<boolean>;
+
+  /**
    * Update worker heartbeat for a job
    */
   heartbeat(jobId: string, workerId: string): Promise<void>;

@@ -478,7 +478,8 @@ export interface VectorIndexOptions {
  * Vector operations capability for database adapters
  *
  * Provides native vector similarity search, storage, and indexing.
- * Currently implemented by the PostgreSQL adapter via pgvector.
+ * Implemented by PostgreSQL via pgvector and optionally by SQLite via
+ * sqlite-vector.
  */
 export interface VectorCapabilities {
   /**
@@ -537,6 +538,90 @@ export interface VectorCapabilities {
     column: string,
     embedding: number[],
   ): Promise<void>;
+}
+
+/**
+ * SQLite notification delivered by optional notification capabilities.
+ */
+export interface DatabaseNotification {
+  id: number;
+  channel: string;
+  payload: any;
+  createdAt?: number | string | Date | null;
+}
+
+/**
+ * Options for notification listeners.
+ */
+export interface NotificationListenOptions {
+  /**
+   * Fallback poll interval in milliseconds when the native watcher does not
+   * receive an update signal.
+   */
+  fallbackPollMs?: number | null;
+}
+
+/**
+ * Options for waiting on the next database update.
+ */
+export interface NotificationWaitOptions {
+  /**
+   * Maximum time to wait in milliseconds. When omitted, waits indefinitely.
+   */
+  timeoutMs?: number;
+
+  /**
+   * Optional abort signal to cancel the wait.
+   */
+  signal?: AbortSignal;
+}
+
+/**
+ * Options for pruning persisted notification rows.
+ */
+export interface NotificationPruneOptions {
+  /** Delete notifications older than this many seconds. */
+  olderThanS?: number | null;
+  /** Keep at most this many most-recent notifications. */
+  maxKeep?: number | null;
+}
+
+/**
+ * Optional notification/pub-sub capabilities for database adapters.
+ */
+export interface NotificationCapabilities {
+  notify(channel: string, payload: any): Promise<number>;
+  listen(
+    channel: string,
+    options?: NotificationListenOptions,
+  ): AsyncIterable<DatabaseNotification>;
+  waitForUpdate(options?: NotificationWaitOptions): Promise<boolean>;
+  prune(options?: NotificationPruneOptions): Promise<number>;
+}
+
+/**
+ * Options for SQLite native notification support.
+ */
+export interface SqliteNotificationCapabilityOptions {
+  watcherBackend?: 'polling' | 'kernel' | 'shm';
+  maxReaders?: number;
+}
+
+/**
+ * Options for SQLite native vector support.
+ */
+export interface SqliteVectorCapabilityOptions {
+  preload?: boolean;
+  quantization?: 'turbo4' | 'turbo3' | 'turbo2' | 'uint8' | 'int8' | '1bit';
+  maxMemory?: string;
+}
+
+/**
+ * Optional SQLite-only native capabilities.
+ */
+export interface SqliteCapabilitiesOptions {
+  notifications?: boolean | SqliteNotificationCapabilityOptions;
+  vector?: boolean | SqliteVectorCapabilityOptions;
 }
 
 /**
@@ -890,6 +975,16 @@ export interface DatabaseInterface {
    * Consumers should check for this capability rather than checking the database type.
    */
   vector?: VectorCapabilities;
+
+  /**
+   * Optional notification/pub-sub operations.
+   */
+  notifications?: NotificationCapabilities;
+
+  /**
+   * Close the database adapter and release native resources when supported.
+   */
+  close?: () => Promise<void>;
 
   /**
    * ALTER TABLE operations for schema evolution

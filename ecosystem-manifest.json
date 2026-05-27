@@ -1259,6 +1259,8 @@
         "external": [
           "@duckdb/node-api",
           "@libsql/client",
+          "@russellthehippo/honker-node",
+          "@sqliteai/sqlite-vector",
           "pg",
           "sqlite-vss"
         ]
