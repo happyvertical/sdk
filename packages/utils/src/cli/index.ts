@@ -10,3 +10,4 @@ export {
   type ParsedArgs,
   parseCliArgs,
 } from './parse-args.js';
+export { type ParsedFlagArgs, parseFlagArgs } from './parse-flags.js';
