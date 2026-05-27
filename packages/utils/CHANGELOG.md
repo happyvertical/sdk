@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.74.2
+
+### Patch Changes
+
+- ### Features
+
+  - add optional SQLite native capabilities (sql)
+
 ## 0.74.1
 
 ### Patch Changes
