@@ -63,7 +63,7 @@ These packages form the foundation everything else builds on.
 
 | Package | Description |
 |---------|-------------|
-| [**@happyvertical/sql**](./packages/sql/README.md) | Unified database interface for SQLite (LibSQL/Turso), PostgreSQL, DuckDB, and a JSON file adapter. Template literal queries, CRUD helpers, transactions, schema sync, and pgvector support. |
+| [**@happyvertical/sql**](./packages/sql/README.md) | Unified database interface for SQLite (LibSQL/Turso), PostgreSQL, DuckDB, and a JSON file adapter. Template literal queries, CRUD helpers, transactions, schema sync, pgvector support, and optional local SQLite vector/notification capabilities. |
 | [**@happyvertical/files**](./packages/files/README.md) | Filesystem abstraction for local disk and Google Drive, plus rate-limited HTTP fetch utilities. |
 | [**@happyvertical/cache**](./packages/cache/README.md) | Caching layer supporting Memory, File, Redis, and S3 backends with TTL, LRU/LFU eviction, batch operations, and compression. |
 

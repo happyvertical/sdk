@@ -133,6 +133,31 @@ export class JobWorker extends EventEmitter implements IWorker {
    * Start the polling loop
    */
   private startPolling(): void {
+    const scheduleNextPoll = () => {
+      if (!this.running) return;
+
+      if (!this.store.waitForUpdate) {
+        this.pollTimer = setTimeout(poll, this.config.pollInterval);
+        return;
+      }
+
+      this.pollTimer = setTimeout(() => {
+        void waitThenPoll();
+      }, 0);
+    };
+
+    const waitThenPoll = async () => {
+      try {
+        await this.store.waitForUpdate?.(this.config.pollInterval);
+      } catch (error) {
+        this.emit('worker:error', error as Error);
+      }
+
+      if (this.running) {
+        await poll();
+      }
+    };
+
     const poll = async () => {
       if (!this.running) return;
 
@@ -143,9 +168,7 @@ export class JobWorker extends EventEmitter implements IWorker {
       }
 
       // Schedule next poll
-      if (this.running) {
-        this.pollTimer = setTimeout(poll, this.config.pollInterval);
-      }
+      scheduleNextPoll();
     };
 
     // Start immediately

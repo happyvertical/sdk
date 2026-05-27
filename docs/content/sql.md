@@ -20,7 +20,8 @@ The `@happyvertical/sql` package provides a simple and consistent interface for 
 - **Unified API** for SQLite, LibSQL, PostgreSQL, and DuckDB
 - **Template literal query interface** with automatic parameterization and shorthand aliases
 - **DuckDB JSON support** for querying git-tracked JSON files with SQL
-- **Vector search capabilities** with SQLite-VSS integration
+- **Vector search capabilities** with PostgreSQL pgvector and optional SQLite sqlite-vector
+- **Optional SQLite notifications** with Honker for local development and tests
 - **LibSQL/Turso support** with remote connections and encryption
 - **Type-safe query results** with comprehensive TypeScript support
 - **Simple CRUD operations** with minimal boilerplate
@@ -388,35 +389,83 @@ await syncSchema({ db, schema });
 const exists = await db.tableExists('users');
 ```
 
-### Vector Search with SQLite-VSS
+### Vector Search
+
+PostgreSQL exposes `db.vector` through pgvector. SQLite keeps the LibSQL adapter
+path by default, but local development and tests can opt into sqlite-vector with
+native SQLite capabilities.
 
 ```typescript
-// Note: Vector search is only available with SQLite databases
-// Create vector search table
-await db.execute`
-  CREATE VIRTUAL TABLE IF NOT EXISTS document_embeddings USING vss0(
-    id TEXT PRIMARY KEY,
-    embedding(1536),
-    content TEXT
-  )
-`;
+const db = await getDatabase({
+  type: 'sqlite',
+  url: 'file:./dev.db',
+  capabilities: {
+    vector: { quantization: 'turbo4', preload: true },
+  },
+});
 
-// Insert embeddings
-const embedding = new Float32Array(1536); // Your embedding vector
-await db.execute`
-  INSERT INTO document_embeddings (id, embedding, content)
-  VALUES (${docId}, ${embedding}, ${content})
-`;
+await db.vector?.ensureColumn('documents', 'embedding', 1536);
+await db.vector?.upsertVector('documents', { id: 'doc-1' }, 'embedding', vector);
+await db.vector?.ensureIndex('documents', 'embedding', { metric: 'cosine' });
 
-// Perform similarity search
-const similarDocs = await db.many`
-  SELECT id, content, distance
-  FROM document_embeddings
-  WHERE vss_search(embedding, ${queryEmbedding})
-  ORDER BY distance
-  LIMIT ${limit}
-`;
+const similarDocs = await db.vector?.search(
+  'documents',
+  'embedding',
+  queryEmbedding,
+  {
+    limit: 10,
+    metric: 'cosine',
+    where: 'status = $2',
+    params: ['published'],
+  },
+);
+
+await db.close?.();
 ```
+
+The optional SQLite vector package is loaded lazily with
+`@sqliteai/sqlite-vector`'s `getExtensionPath()`. Schema changes happen only
+when `ensureColumn()` or `ensureIndex()` is called. Remote `libsql://`, `http://`,
+and `https://` URLs are rejected when native SQLite capabilities are enabled.
+
+### Optional SQLite Notifications
+
+SQLite notifications are also opt-in and use `@russellthehippo/honker-node` as a
+sidecar connection to the same local file. Honker bootstraps its `_honker_*`
+tables on open and requires a file-backed database, so `:memory:` is rejected
+when notifications are enabled.
+
+```typescript
+const db = await getDatabase({
+  type: 'sqlite',
+  url: 'file:./dev.db',
+  capabilities: {
+    notifications: { watcherBackend: 'polling' },
+  },
+});
+
+const listener = db.notifications!.listen('jobs');
+await db.notifications!.notify('jobs', { id: 'job-1' });
+
+for await (const message of listener) {
+  console.log(message.channel, message.payload);
+  break;
+}
+
+await db.notifications!.waitForUpdate({ timeoutMs: 5000 });
+await db.notifications!.prune({ maxKeep: 1000 });
+await db.close?.();
+```
+
+Install the optional peers only where these local capabilities are needed:
+
+```bash
+pnpm add -D @sqliteai/sqlite-vector @russellthehippo/honker-node
+```
+
+`sqlite-vector` uses a custom license declared as `SEE LICENSE IN LICENSE.md`;
+keep it opt-in and review the upstream license before shipping it outside
+development or test environments.
 
 ## Writing Custom Adapters
 
