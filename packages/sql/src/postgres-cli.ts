@@ -197,7 +197,18 @@ export function postgresEnvFromUrl(
  *
  * Auth vars (PGPASSWORD / PGPASSFILE) are intentionally NOT scrubbed:
  * they don't change target routing and some environments intentionally
- * supply credentials out-of-band while keeping DATABASE_URL passwordless.
+ * supply credentials out-of-band while keeping DATABASE_URL passwordless
+ * (the Heroku/Railway/Render-style "DATABASE_URL has user but no
+ * password; PGPASSWORD env carries the credential" pattern).
+ *
+ * **Trade-off this opens up:** on a developer machine, a stale
+ * `PGPASSWORD` set for an earlier task can flow into a later `pg_dump`
+ * targeting a different database. This typically surfaces as a clear
+ * authentication error rather than silent wrong-credential use, but
+ * callers in environments where this is a real concern should clear
+ * `PGPASSWORD` from `process.env` before invoking these helpers (or
+ * supply the credential via the URL itself, which overrides any
+ * inherited value).
  */
 const LIBPQ_INHERITANCE_VARS = [
   'PGHOST',
