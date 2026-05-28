@@ -268,7 +268,14 @@ export async function restoreBackup(
 
   await restorePostgresDatabase(options.databaseUrl, dumpPath);
 
-  if (!options.skipFiles && options.onRestore) {
+  // Skip `onRestore` for DB-only backups: if the backup was taken with
+  // `skipFiles: true` or no `onBackup` hook, the manifest records
+  // `files.exported: false` and the `files/` directory may not exist on
+  // disk. Calling a generic restore hook anyway would either crash
+  // after the database has already been restored, or — worse — let
+  // the hook clear target file storage before discovering there's
+  // nothing to restore from.
+  if (!options.skipFiles && options.onRestore && manifest.files.exported) {
     await options.onRestore({
       backupPath,
       databaseUrl: options.databaseUrl,

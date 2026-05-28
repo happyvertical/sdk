@@ -58,6 +58,30 @@ describe('postgres-cli URL helpers', () => {
         else process.env.PGPASSFILE = previous;
       }
     });
+
+    it('preserves inherited PGUSER for env-auth flows', async () => {
+      // Heroku/Railway-style setups put PGUSER (and PGPASSWORD) in env
+      // and use a DATABASE_URL that may omit the username. Scrubbing
+      // PGUSER along with PGHOST would cause pg_dump to connect as the
+      // OS user and fail authentication.
+      const previous = process.env.PGUSER;
+      process.env.PGUSER = 'env-supplied-user';
+      try {
+        await expect(
+          runCommand(
+            process.execPath,
+            [
+              '-e',
+              'if (process.env.PGUSER !== "env-supplied-user") process.exit(1)',
+            ],
+            { stdio: 'pipe' },
+          ),
+        ).resolves.toBeUndefined();
+      } finally {
+        if (previous === undefined) delete process.env.PGUSER;
+        else process.env.PGUSER = previous;
+      }
+    });
   });
 
   describe('isLocalDatabaseUrl', () => {

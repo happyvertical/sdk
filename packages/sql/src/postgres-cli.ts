@@ -195,27 +195,33 @@ export function postgresEnvFromUrl(
  * certificate path. They're explicitly overridden only when the URL
  * supplies a value.
  *
- * Auth vars (PGPASSWORD / PGPASSFILE) are intentionally NOT scrubbed:
- * they don't change target routing and some environments intentionally
- * supply credentials out-of-band while keeping DATABASE_URL passwordless
- * (the Heroku/Railway/Render-style "DATABASE_URL has user but no
- * password; PGPASSWORD env carries the credential" pattern).
+ * Auth/identity vars (PGUSER / PGPASSWORD / PGPASSFILE) are
+ * intentionally NOT scrubbed: they don't change target routing and
+ * some environments intentionally supply credentials and the
+ * connecting role out-of-band while keeping DATABASE_URL itself
+ * minimal — the Heroku/Railway/Render-style "DATABASE_URL has the
+ * host and database; PGUSER + PGPASSWORD env carry the auth identity"
+ * pattern. When the URL DOES supply a username or password,
+ * `postgresEnvFromUrl` writes that value into the per-call env which
+ * then overrides the inherited one via the spawn-env merge.
+ *
+ * `PGDATABASE` is also kept out of the scrub list: `postgresEnvFromUrl`
+ * always sets it (either from the URL path or the explicit override),
+ * so the parent's value is overwritten in the merge regardless.
  *
  * **Trade-off this opens up:** on a developer machine, a stale
- * `PGPASSWORD` set for an earlier task can flow into a later `pg_dump`
- * targeting a different database. This typically surfaces as a clear
- * authentication error rather than silent wrong-credential use, but
- * callers in environments where this is a real concern should clear
- * `PGPASSWORD` from `process.env` before invoking these helpers (or
- * supply the credential via the URL itself, which overrides any
- * inherited value).
+ * `PGUSER`/`PGPASSWORD` set for an earlier task can flow into a later
+ * `pg_dump` targeting a different database. This typically surfaces as
+ * a clear authentication error rather than silent wrong-credential
+ * use, but callers in environments where this is a real concern should
+ * clear those env vars from `process.env` before invoking these
+ * helpers (or supply the credential via the URL itself, which
+ * overrides any inherited value).
  */
 const LIBPQ_INHERITANCE_VARS = [
   'PGHOST',
   'PGHOSTADDR',
   'PGPORT',
-  'PGDATABASE',
-  'PGUSER',
   'PGSERVICE',
   'PGSERVICEFILE',
 ] as const;
