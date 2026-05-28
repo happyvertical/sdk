@@ -52,7 +52,7 @@ export function parseFlagArgs(args: string[]): ParsedFlagArgs {
     }
 
     const next = args[index + 1];
-    if (next && !next.startsWith('--')) {
+    if (next !== undefined && !next.startsWith('--')) {
       flags[key] = next;
       index += 1;
     } else {

@@ -44,6 +44,13 @@ describe('parseFlagArgs', () => {
     });
   });
 
+  it('accepts an explicit empty-string value', () => {
+    expect(parseFlagArgs(['--label', ''])).toEqual({
+      flags: { label: '' },
+      positionals: [],
+    });
+  });
+
   it('rejects an empty flag name (--=value, --=) instead of silently producing an empty key', () => {
     expect(() => parseFlagArgs(['--=value'])).toThrow(/empty/);
     expect(() => parseFlagArgs(['--='])).toThrow(/empty/);
