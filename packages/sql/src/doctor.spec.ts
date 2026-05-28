@@ -150,3 +150,50 @@ describe('runDoctor non-postgres guard', () => {
     );
   });
 });
+
+describe('doctor count formatting', () => {
+  it('preserves large duplicate counts without int overflow', async () => {
+    const check = checkUniqueColumn({
+      table: 'widgets',
+      column: 'slug',
+      label: 'slug',
+    });
+    const issues = await check({
+      db: {
+        query: async () => ({
+          rows: [{ value: 'duplicate', count: '9223372036854775807' }],
+        }),
+      } as unknown as DatabaseInterface,
+      tables: new Set(['widgets']),
+    });
+    expect(issues).toEqual([
+      {
+        level: 'fail',
+        message:
+          'Duplicate slug "duplicate" in widgets (9223372036854775807 rows).',
+      },
+    ]);
+  });
+
+  it('preserves large orphan counts without int overflow', async () => {
+    const check = checkRelationship({
+      childTable: 'children',
+      childColumn: 'parent_id',
+      parentTable: 'parents',
+      label: 'children point at parents',
+    });
+    const issues = await check({
+      db: {
+        query: async () => ({ rows: [{ count: '9223372036854775807' }] }),
+      } as unknown as DatabaseInterface,
+      tables: new Set(['children', 'parents']),
+    });
+    expect(issues).toEqual([
+      {
+        level: 'fail',
+        message:
+          'children point at parents: 9223372036854775807 orphaned rows.',
+      },
+    ]);
+  });
+});

@@ -153,11 +153,10 @@ export async function exportBackup<Extra = unknown>(
   assertCanExportDatabase(options.databaseUrl, options);
 
   const label = validateLabel(options.label ?? 'backup');
-  const backupPath = resolve(
+  const backupPath = await createUniqueBackupDir(
     options.backupRoot ?? defaultBackupRoot(),
-    `${label}-${timestampForBackup()}`,
+    label,
   );
-  await mkdir(backupPath, { recursive: true, mode: 0o700 });
 
   try {
     const dumpPath = join(backupPath, DEFAULT_DUMP_FILE);
@@ -328,4 +327,31 @@ function validateManifestPathSegment(value: string, field: string): string {
     );
   }
   return value;
+}
+
+async function createUniqueBackupDir(
+  backupRoot: string,
+  label: string,
+): Promise<string> {
+  const root = resolve(backupRoot);
+  await mkdir(root, { recursive: true, mode: 0o700 });
+
+  const baseName = `${label}-${timestampForBackup()}`;
+  for (let attempt = 0; attempt < 64; attempt += 1) {
+    const suffix = attempt === 0 ? '' : `-${attempt.toString(36)}`;
+    const candidate = join(root, `${baseName}${suffix}`);
+    try {
+      await mkdir(candidate, { mode: 0o700 });
+      return candidate;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  throw new Error(
+    `Failed to create a unique backup directory under ${root} for label "${label}".`,
+  );
 }

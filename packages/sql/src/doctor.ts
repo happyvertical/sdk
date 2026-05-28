@@ -129,7 +129,7 @@ export function checkUniqueColumn(spec: UniqueColumnSpec): DoctorCheck {
   return async ({ db, tables }) => {
     if (!tables.has(spec.table)) return [];
     const result = await db.query(`
-      SELECT ${quoteIdentifier(spec.column)} AS value, count(*)::int AS count
+      SELECT ${quoteIdentifier(spec.column)} AS value, count(*)::text AS count
       FROM ${quoteIdentifier(spec.table)}
       WHERE NULLIF(trim(${quoteIdentifier(spec.column)}::text), '') IS NOT NULL
       GROUP BY ${quoteIdentifier(spec.column)}
@@ -138,8 +138,8 @@ export function checkUniqueColumn(spec: UniqueColumnSpec): DoctorCheck {
     `);
     return result.rows.map((row) => ({
       level: 'fail' as const,
-      message: `Duplicate ${spec.label} "${String(row.value)}" in ${spec.table} (${Number(
-        row.count ?? 0,
+      message: `Duplicate ${spec.label} "${String(row.value)}" in ${spec.table} (${countValueFromRow(
+        row.count,
       )} rows).`,
     }));
   };
@@ -167,19 +167,19 @@ export function checkRelationship(spec: RelationshipSpec): DoctorCheck {
       return [];
     const parentColumn = spec.parentColumn ?? 'id';
     const result = await db.query(`
-      SELECT count(*)::int AS count
+      SELECT count(*)::text AS count
       FROM ${quoteIdentifier(spec.childTable)} child
       LEFT JOIN ${quoteIdentifier(spec.parentTable)} parent
         ON parent.${quoteIdentifier(parentColumn)} = child.${quoteIdentifier(spec.childColumn)}
       WHERE NULLIF(trim(child.${quoteIdentifier(spec.childColumn)}::text), '') IS NOT NULL
         AND parent.${quoteIdentifier(parentColumn)} IS NULL
     `);
-    const orphanCount = Number(result.rows[0]?.count ?? 0);
-    if (orphanCount === 0) return [];
+    const orphanCount = countValueFromRow(result.rows[0]?.count);
+    if (orphanCount === '0') return [];
     return [
       {
         level: 'fail',
-        message: `${spec.label}: ${orphanCount} orphaned row${orphanCount === 1 ? '' : 's'}.`,
+        message: `${spec.label}: ${orphanCount} orphaned row${orphanCount === '1' ? '' : 's'}.`,
       },
     ];
   };
@@ -194,4 +194,12 @@ async function listPublicTables(db: DatabaseInterface): Promise<Set<string>> {
 
 function quoteIdentifier(value: string): string {
   return `"${value.replace(/"/gu, '""')}"`;
+}
+
+function countValueFromRow(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'bigint') {
+    return String(value);
+  }
+  return '0';
 }
