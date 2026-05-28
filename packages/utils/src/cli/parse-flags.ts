@@ -35,6 +35,14 @@ export function parseFlagArgs(args: string[]): ParsedFlagArgs {
     }
 
     const [rawKey, inlineValue] = arg.slice(2).split(/=(.*)/su, 2);
+    if (rawKey === '') {
+      // `--=value` or just `--` followed by garbage — the empty key
+      // would be unreachable to any sensible caller. Throw rather than
+      // silently producing `flags[''] = value`.
+      throw new Error(
+        `Invalid flag token "${arg}": flag name is empty. Use --key=value or --key value.`,
+      );
+    }
     const key = rawKey.replace(/-([a-z])/gu, (_match, letter: string) =>
       letter.toUpperCase(),
     );

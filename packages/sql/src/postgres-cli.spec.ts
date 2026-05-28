@@ -74,37 +74,63 @@ describe('postgres-cli URL helpers', () => {
           'postgresql://user:secret@db.example.com:5439/app?sslmode=require',
         ),
       ).toEqual({
-        // Connection-target vars are always present and pinned to the
-        // URL value (or empty) so PGHOST/PGSERVICE from the parent
-        // process can't redirect the child to a different DB.
+        // Only vars with URL-derived values are SET. Inherited
+        // libpq vars are scrubbed by `runCommand` separately —
+        // setting them to empty string here would break libpq
+        // (PGSERVICE='' is treated as "service named empty string"
+        // and produces "definition of service \"\" not found").
         PGDATABASE: 'app',
         PGHOST: 'db.example.com',
-        PGHOSTADDR: '',
         PGPORT: '5439',
         PGUSER: 'user',
         PGPASSWORD: 'secret',
-        PGSERVICE: '',
-        PGSERVICEFILE: '',
-        PGPASSFILE: '',
         PGSSLMODE: 'require',
       });
     });
 
-    it('scrubs inherited libpq connection vars when URL omits them', () => {
+    it('omits libpq vars when the URL has no value for them', () => {
       // postgresql:///app — no host, no port, no user, no password.
-      // Without scrubbing, a parent process PGHOST=staging would silently
-      // redirect pg_dump to staging even though the caller passed a
-      // host-less URL clearly meant to be local.
+      // The returned env contains only PGDATABASE; the rest are absent
+      // entirely (NOT empty strings). The scrubbing of inherited
+      // PGHOST/PGSERVICE from the parent process happens in
+      // `runCommand`, not here.
       const env = postgresEnvFromUrl('postgresql:///app');
-      expect(env.PGHOST).toBe('');
-      expect(env.PGHOSTADDR).toBe('');
-      expect(env.PGPORT).toBe('');
-      expect(env.PGUSER).toBe('');
-      expect(env.PGPASSWORD).toBe('');
-      expect(env.PGSERVICE).toBe('');
-      expect(env.PGSERVICEFILE).toBe('');
-      expect(env.PGPASSFILE).toBe('');
-      expect(env.PGDATABASE).toBe('app');
+      expect(env).toEqual({ PGDATABASE: 'app' });
+      expect('PGHOST' in env).toBe(false);
+      expect('PGSERVICE' in env).toBe(false);
+      expect('PGPASSFILE' in env).toBe(false);
+    });
+
+    it('reads password from a ?password= query parameter', () => {
+      // Neon/Supabase emit URLs that put the password in the query
+      // string. `redactDatabaseUrl` already masks these in logs; the
+      // env builder also needs to honor them so the connection works.
+      expect(
+        postgresEnvFromUrl(
+          'postgresql://user@host.example.com/app?password=s3cret&sslmode=require',
+        ),
+      ).toMatchObject({
+        PGPASSWORD: 's3cret',
+        PGUSER: 'user',
+      });
+    });
+
+    it('reads password from ?passwd= and ?pass= aliases', () => {
+      expect(
+        postgresEnvFromUrl('postgresql://user@host/app?passwd=x'),
+      ).toMatchObject({ PGPASSWORD: 'x' });
+      expect(
+        postgresEnvFromUrl('postgresql://user@host/app?pass=y'),
+      ).toMatchObject({ PGPASSWORD: 'y' });
+    });
+
+    it('prefers userinfo password over query-param when both are set', () => {
+      // Defensive precedence — userinfo is the canonical form.
+      expect(
+        postgresEnvFromUrl(
+          'postgresql://user:fromuserinfo@host/app?password=fromquery',
+        ),
+      ).toMatchObject({ PGPASSWORD: 'fromuserinfo' });
     });
 
     it('honors a database override', () => {

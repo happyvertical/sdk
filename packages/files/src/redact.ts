@@ -31,17 +31,34 @@ function looksLikeSecret(key: string): boolean {
 export function redactFilesystemConfig<T>(
   value: T,
 ): T extends object ? unknown : T {
-  return redactSecrets(value) as T extends object ? unknown : T;
+  return redactSecrets(value, new WeakSet()) as T extends object ? unknown : T;
 }
 
-function redactSecrets(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(redactSecrets);
+/**
+ * Recurse, replacing values at secret-shaped keys with `[redacted]`.
+ *
+ * `seen` is a WeakSet of already-visited objects/arrays. Configs handed
+ * to this helper can come from anywhere — ORM connection bags,
+ * EventEmitter-backed config holders, user-constructed objects — and
+ * those occasionally carry circular references. Without a visited
+ * guard the recursion overflows the stack on cyclic input. The guard
+ * returns the `'[circular]'` sentinel for a re-visit, which is more
+ * useful than a crash and still hides any nested secrets.
+ */
+function redactSecrets(value: unknown, seen: WeakSet<object>): unknown {
+  if (Array.isArray(value)) {
+    if (seen.has(value)) return '[circular]';
+    seen.add(value);
+    return value.map((item) => redactSecrets(item, seen));
+  }
   if (!value || typeof value !== 'object') return value;
+  if (seen.has(value as object)) return '[circular]';
+  seen.add(value as object);
 
   return Object.fromEntries(
     Object.entries(value as Record<string, unknown>).map(([key, item]) => [
       key,
-      looksLikeSecret(key) ? '[redacted]' : redactSecrets(item),
+      looksLikeSecret(key) ? '[redacted]' : redactSecrets(item, seen),
     ]),
   );
 }

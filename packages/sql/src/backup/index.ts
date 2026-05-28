@@ -49,6 +49,15 @@ export {
 
 export interface ExportBackupContext {
   backupPath: string;
+  /**
+   * The raw, credential-bearing database URL the caller passed to
+   * `exportBackup`. The hook needs the raw form to open its own
+   * connection, but **do not log this value verbatim** — it contains
+   * credentials. Run it through `redactDatabaseUrl` (exported from
+   * `@happyvertical/sql`) before including it in any output. The
+   * manifest's `database.url` field is redacted; only `databaseUrl`
+   * here is raw.
+   */
   databaseUrl: string;
   /**
    * Local directory the caller should copy file storage into.
@@ -87,9 +96,12 @@ export interface ExportBackupOptions<Extra = unknown> {
   /**
    * Caller-supplied hook for filling the database half of the manifest
    * with diagnostic metadata (row counts, schema count, etc.) — runs
-   * after the dump completes.
+   * after the dump completes. As with `onBackup`, the `databaseUrl`
+   * passed in is the raw credential-bearing form — redact via
+   * `redactDatabaseUrl` before logging.
    */
   onDatabaseMetadata?: (ctx: {
+    /** Raw URL — see warning on {@link ExportBackupContext.databaseUrl}. */
     databaseUrl: string;
   }) => Promise<Record<string, unknown>>;
   /** Recorded as `files.storageConfig` on the manifest after redaction by the caller. */
@@ -100,6 +112,7 @@ export interface ExportBackupOptions<Extra = unknown> {
 
 export interface RestoreBackupContext {
   backupPath: string;
+  /** Raw URL — see warning on {@link ExportBackupContext.databaseUrl}. */
   databaseUrl: string;
   filesDir: string;
   manifest: BackupManifest;
@@ -278,16 +291,22 @@ export async function resetLocalDatabaseFromBackup(
   assertCanImportDatabase(options.databaseUrl, { allowProduction: false });
 
   // Validate the backup BEFORE dropping the local database. A mistyped
-  // backupPath, missing dump file, or corrupted manifest would otherwise
-  // destroy the existing database (drop + create) and only then fail
-  // when restoreBackup tries to read the manifest — leaving the
-  // developer with an empty local DB and a confusing ENOENT error.
+  // backupPath, missing dump file, or corrupted manifest field would
+  // otherwise destroy the existing database (drop + create) and only
+  // then fail when restoreBackup tries to read those values — leaving
+  // the developer with an empty local DB and a confusing ENOENT error.
+  //
+  // Validates every manifest field restoreBackup later relies on
+  // (`database.dumpFile` AND `files.directory`), and verifies the dump
+  // file actually exists on disk. The drop only happens if all of that
+  // is sound.
   const backupPath = resolve(options.backupPath);
   const manifest = await readBackupManifest(backupPath);
   const dumpFile = validateManifestPathSegment(
     manifest.database.dumpFile,
     'database dump file',
   );
+  validateManifestPathSegment(manifest.files.directory, 'files directory');
   await access(join(backupPath, dumpFile));
 
   await dropPostgresDatabase(options.databaseUrl);

@@ -138,22 +138,31 @@ export function postgresEnvFromUrl(
   const env: Record<string, string> = {};
   const database = databaseOverride ?? databaseNameFromUrl(databaseUrl);
 
-  // ALL libpq connection-target variables are pinned to URL-derived
-  // values (or empty string) — never left to inherit from the parent
-  // process. This is a safety guard: a developer with PGHOST=staging in
-  // their shell would otherwise see `dumpPostgresDatabase('postgres:///localdb')`
-  // silently connect to staging. Similarly PGSERVICE / PGSERVICEFILE
-  // can redirect connections via a pg_service.conf entry the caller
-  // never intended to use.
+  // Only set vars we have URL-derived values for. Inherited libpq env
+  // (PGHOST, PGSERVICE, etc.) is scrubbed separately by `runCommand`
+  // via `LIBPQ_INHERITANCE_VARS` — see below. We cannot use empty
+  // strings to "unset" these vars: libpq treats e.g. `PGSERVICE=''` as
+  // a request for a service literally named empty-string, which fails
+  // with `definition of service "" not found`. The right way to
+  // "unset" is to remove the key entirely from the child's env, which
+  // runCommand does for us before merging.
   env.PGDATABASE = database;
-  env.PGHOST = url.hostname || '';
-  env.PGHOSTADDR = '';
-  env.PGPORT = url.port || '';
-  env.PGUSER = url.username ? decodeUserInfo(url.username) : '';
-  env.PGPASSWORD = url.password ? decodeUserInfo(url.password) : '';
-  env.PGSERVICE = '';
-  env.PGSERVICEFILE = '';
-  env.PGPASSFILE = '';
+  if (url.hostname) env.PGHOST = url.hostname;
+  if (url.port) env.PGPORT = url.port;
+  if (url.username) env.PGUSER = decodeUserInfo(url.username);
+
+  // Password can come from userinfo OR query-string (`?password=...`,
+  // `?passwd=...`, `?pass=...`) — cloud providers like Neon and
+  // Supabase use the query-string form. `redactDatabaseUrl` already
+  // masks all three in logs; the env builder honors all three for
+  // connection.
+  const passwordFromUrl =
+    (url.password && decodeUserInfo(url.password)) ||
+    url.searchParams.get('password') ||
+    url.searchParams.get('passwd') ||
+    url.searchParams.get('pass') ||
+    '';
+  if (passwordFromUrl) env.PGPASSWORD = passwordFromUrl;
 
   for (const [param, envName] of [
     ['sslmode', 'PGSSLMODE'],
@@ -167,6 +176,29 @@ export function postgresEnvFromUrl(
 
   return env;
 }
+
+/**
+ * Libpq env vars that determine **where** a pg connection lands. Scrubbed
+ * from the inherited parent environment by `runCommand` so a developer
+ * with `PGHOST=staging` in their shell can't silently redirect a
+ * pg_dump call that was supposed to target the URL the caller passed.
+ *
+ * SSL-related vars (PGSSLMODE/PGSSLROOTCERT/...) are intentionally NOT
+ * scrubbed — a caller may legitimately want to inherit a system-wide
+ * certificate path. They're explicitly overridden only when the URL
+ * supplies a value.
+ */
+const LIBPQ_INHERITANCE_VARS = [
+  'PGHOST',
+  'PGHOSTADDR',
+  'PGPORT',
+  'PGDATABASE',
+  'PGUSER',
+  'PGPASSWORD',
+  'PGSERVICE',
+  'PGSERVICEFILE',
+  'PGPASSFILE',
+] as const;
 
 /**
  * Guard for export operations. Two distinct hazards:
@@ -324,7 +356,17 @@ export async function dropPostgresDatabase(
 
 /**
  * Spawn helper used by the wrappers above. Inherits stdio so progress and
- * error output stream to the parent terminal (these are interactive ops).
+ * error output stream to the parent terminal (these are interactive ops),
+ * unless the caller passes `stdio: 'pipe'` for programmatic use — in
+ * which case stderr is captured and included in the thrown error so the
+ * failure isn't an opaque `"pg_dump exited with status 1"`.
+ *
+ * Libpq connection vars (PGHOST, PGSERVICE, ...) inherited from the
+ * parent process are scrubbed before merging with `options.env`. This is
+ * the half of "URL-determined connection target" that
+ * `postgresEnvFromUrl` can't do alone: without scrubbing, a developer
+ * with `PGHOST=staging` in their shell would silently redirect the
+ * child's connection regardless of what the URL specified.
  */
 export async function runCommand(
   command: string,
@@ -335,19 +377,37 @@ export async function runCommand(
     stdio?: 'inherit' | 'pipe';
   } = {},
 ): Promise<void> {
+  const parentEnv = { ...process.env };
+  for (const key of LIBPQ_INHERITANCE_VARS) {
+    delete parentEnv[key];
+  }
+
   await new Promise<void>((resolvePromise, reject) => {
     const child = spawn(command, args, {
       cwd: options.cwd ?? process.cwd(),
-      env: { ...process.env, ...options.env },
+      env: { ...parentEnv, ...options.env },
       stdio: options.stdio ?? 'inherit',
     });
+
+    // When the caller pipes stdio, capture stderr so we can surface it
+    // in the rejection. Default (`'inherit'`) streams stderr to the
+    // parent terminal live; there's nothing to capture in that case.
+    const stderrChunks: Buffer[] = [];
+    if (options.stdio === 'pipe' && child.stderr) {
+      child.stderr.on('data', (chunk: Buffer) => {
+        stderrChunks.push(chunk);
+      });
+    }
+
     child.on('error', reject);
     child.on('close', (code) => {
       if (code === 0) {
         resolvePromise();
         return;
       }
-      reject(new Error(`${command} exited with status ${code}`));
+      const stderr = Buffer.concat(stderrChunks).toString('utf8').trim();
+      const stderrSuffix = stderr ? `: ${stderr.slice(-2000)}` : '';
+      reject(new Error(`${command} exited with status ${code}${stderrSuffix}`));
     });
   });
 }
