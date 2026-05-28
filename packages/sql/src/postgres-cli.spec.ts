@@ -44,6 +44,27 @@ describe('postgres-cli URL helpers', () => {
     it('returns a sentinel for unparseable input', () => {
       expect(redactDatabaseUrl('not a url')).toBe('[invalid database url]');
     });
+
+    it('redacts password supplied as a query parameter', () => {
+      // Cloud providers (Neon/Supabase/Railway) emit URLs of this shape.
+      // Without query-param redaction the password would persist in the
+      // backup manifest and logs.
+      const redacted = redactDatabaseUrl(
+        'postgresql://user@host.example.com/app?password=s3cret&sslmode=require',
+      );
+      expect(redacted).not.toContain('s3cret');
+      expect(redacted).toContain('password=***');
+      expect(redacted).toContain('sslmode=require');
+    });
+
+    it('redacts variant query-param spellings (passwd, pass)', () => {
+      expect(redactDatabaseUrl('postgresql://host/app?passwd=oops')).toContain(
+        'passwd=***',
+      );
+      expect(redactDatabaseUrl('postgresql://host/app?pass=oops')).toContain(
+        'pass=***',
+      );
+    });
   });
 
   describe('postgresEnvFromUrl', () => {
@@ -53,13 +74,37 @@ describe('postgres-cli URL helpers', () => {
           'postgresql://user:secret@db.example.com:5439/app?sslmode=require',
         ),
       ).toEqual({
+        // Connection-target vars are always present and pinned to the
+        // URL value (or empty) so PGHOST/PGSERVICE from the parent
+        // process can't redirect the child to a different DB.
         PGDATABASE: 'app',
         PGHOST: 'db.example.com',
-        PGPASSWORD: 'secret',
+        PGHOSTADDR: '',
         PGPORT: '5439',
-        PGSSLMODE: 'require',
         PGUSER: 'user',
+        PGPASSWORD: 'secret',
+        PGSERVICE: '',
+        PGSERVICEFILE: '',
+        PGPASSFILE: '',
+        PGSSLMODE: 'require',
       });
+    });
+
+    it('scrubs inherited libpq connection vars when URL omits them', () => {
+      // postgresql:///app — no host, no port, no user, no password.
+      // Without scrubbing, a parent process PGHOST=staging would silently
+      // redirect pg_dump to staging even though the caller passed a
+      // host-less URL clearly meant to be local.
+      const env = postgresEnvFromUrl('postgresql:///app');
+      expect(env.PGHOST).toBe('');
+      expect(env.PGHOSTADDR).toBe('');
+      expect(env.PGPORT).toBe('');
+      expect(env.PGUSER).toBe('');
+      expect(env.PGPASSWORD).toBe('');
+      expect(env.PGSERVICE).toBe('');
+      expect(env.PGSERVICEFILE).toBe('');
+      expect(env.PGPASSFILE).toBe('');
+      expect(env.PGDATABASE).toBe('app');
     });
 
     it('honors a database override', () => {

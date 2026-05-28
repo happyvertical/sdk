@@ -9,7 +9,7 @@
  * subpath usable by apps that only need the database half.
  */
 import { execFile } from 'node:child_process';
-import { mkdir } from 'node:fs/promises';
+import { access, mkdir, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import {
@@ -135,6 +135,17 @@ export function defaultBackupRoot(): string {
  *
  * Returns the directory path and the manifest. The manifest's `extra`
  * field carries whatever `onBackup` returned.
+ *
+ * **Failure model:** the function is all-or-nothing. If any step after
+ * the initial directory creation throws — `dumpPostgresDatabase`,
+ * `onBackup`, `onDatabaseMetadata`, `getGitSha`, or the final manifest
+ * write — the partial backup directory is removed (best-effort)
+ * before the original error is re-thrown. Callers therefore never see
+ * a backup directory on disk without a complete manifest, which would
+ * otherwise poison later `restoreBackup` calls with confusing
+ * "no manifest" errors and leak a partial dump containing sensitive
+ * data. If cleanup itself fails, that error is logged via
+ * `console.warn` and swallowed so it doesn't mask the original.
  */
 export async function exportBackup<Extra = unknown>(
   options: ExportBackupOptions<Extra>,
@@ -148,58 +159,76 @@ export async function exportBackup<Extra = unknown>(
   );
   await mkdir(backupPath, { recursive: true, mode: 0o700 });
 
-  const dumpPath = join(backupPath, DEFAULT_DUMP_FILE);
-  await dumpPostgresDatabase(options.databaseUrl, dumpPath);
+  try {
+    const dumpPath = join(backupPath, DEFAULT_DUMP_FILE);
+    await dumpPostgresDatabase(options.databaseUrl, dumpPath);
 
-  const filesDir = join(backupPath, DEFAULT_FILES_DIR);
-  let filesInfo: BackupManifestFiles = {
-    directory: DEFAULT_FILES_DIR,
-    exported: false,
-    count: 0,
-    bytes: 0,
-    reason: 'Skipped by skipFiles.',
-    storageConfig: options.filesStorageConfig,
-  };
-  let extra: Extra | undefined;
-
-  if (!options.skipFiles && options.onBackup) {
-    await mkdir(filesDir, { recursive: true, mode: 0o700 });
-    const result = await options.onBackup({
-      backupPath,
-      databaseUrl: options.databaseUrl,
-      filesDir,
-    });
-    if (result !== undefined && result !== null) extra = result as Extra;
-    filesInfo = {
+    const filesDir = join(backupPath, DEFAULT_FILES_DIR);
+    let filesInfo: BackupManifestFiles = {
       directory: DEFAULT_FILES_DIR,
-      exported: true,
+      exported: false,
       count: 0,
       bytes: 0,
+      reason: 'Skipped by skipFiles.',
       storageConfig: options.filesStorageConfig,
     };
+    let extra: Extra | undefined;
+
+    if (!options.skipFiles && options.onBackup) {
+      await mkdir(filesDir, { recursive: true, mode: 0o700 });
+      const result = await options.onBackup({
+        backupPath,
+        databaseUrl: options.databaseUrl,
+        filesDir,
+      });
+      if (result !== undefined && result !== null) extra = result as Extra;
+      filesInfo = {
+        directory: DEFAULT_FILES_DIR,
+        exported: true,
+        count: 0,
+        bytes: 0,
+        storageConfig: options.filesStorageConfig,
+      };
+    }
+
+    const metadata = options.onDatabaseMetadata
+      ? await options.onDatabaseMetadata({ databaseUrl: options.databaseUrl })
+      : undefined;
+
+    const manifest: BackupManifest & { extra?: Extra } = {
+      kind: BACKUP_KIND,
+      version: BACKUP_VERSION,
+      timestamp: new Date().toISOString(),
+      gitSha: await getGitSha(options.gitCwd),
+      source: label,
+      database: {
+        dumpFile: DEFAULT_DUMP_FILE,
+        url: redactDatabaseUrl(options.databaseUrl),
+        metadata,
+      },
+      files: filesInfo,
+      extra,
+    };
+
+    await writeBackupManifest(backupPath, manifest);
+    return { backupPath, manifest };
+  } catch (error) {
+    // Partial state on disk would either confuse later restoreBackup
+    // calls (no manifest → cryptic ENOENT) or leak sensitive dump
+    // contents. Remove the directory; if cleanup fails, log but don't
+    // mask the original error.
+    try {
+      await rm(backupPath, { recursive: true, force: true });
+    } catch (cleanupError) {
+      console.warn(
+        `exportBackup: failed to clean up partial backup at ${backupPath}:`,
+        cleanupError instanceof Error
+          ? cleanupError.message
+          : String(cleanupError),
+      );
+    }
+    throw error;
   }
-
-  const metadata = options.onDatabaseMetadata
-    ? await options.onDatabaseMetadata({ databaseUrl: options.databaseUrl })
-    : undefined;
-
-  const manifest: BackupManifest & { extra?: Extra } = {
-    kind: BACKUP_KIND,
-    version: BACKUP_VERSION,
-    timestamp: new Date().toISOString(),
-    gitSha: await getGitSha(options.gitCwd),
-    source: label,
-    database: {
-      dumpFile: DEFAULT_DUMP_FILE,
-      url: redactDatabaseUrl(options.databaseUrl),
-      metadata,
-    },
-    files: filesInfo,
-    extra,
-  };
-
-  await writeBackupManifest(backupPath, manifest);
-  return { backupPath, manifest };
 }
 
 /**
@@ -248,6 +277,19 @@ export async function resetLocalDatabaseFromBackup(
   options: ResetLocalOptions,
 ): Promise<BackupManifest> {
   assertCanImportDatabase(options.databaseUrl, { allowProduction: false });
+
+  // Validate the backup BEFORE dropping the local database. A mistyped
+  // backupPath, missing dump file, or corrupted manifest would otherwise
+  // destroy the existing database (drop + create) and only then fail
+  // when restoreBackup tries to read the manifest — leaving the
+  // developer with an empty local DB and a confusing ENOENT error.
+  const backupPath = resolve(options.backupPath);
+  const manifest = await readBackupManifest(backupPath);
+  const dumpFile = validateManifestPathSegment(
+    manifest.database.dumpFile,
+    'database dump file',
+  );
+  await access(join(backupPath, dumpFile));
 
   await dropPostgresDatabase(options.databaseUrl);
   await createPostgresDatabase(options.databaseUrl);

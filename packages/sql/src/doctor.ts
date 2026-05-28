@@ -1,5 +1,5 @@
 /**
- * Generic database integrity-check framework.
+ * Database integrity-check framework.
  *
  * The runner is a thin loop over user-supplied checks; the value here is
  * the reusable check builders (expected tables, unique columns, FK-like
@@ -8,6 +8,14 @@
  *
  * No SMRT awareness — checks operate on the `DatabaseInterface` from this
  * package and on plain table/column names.
+ *
+ * **Postgres-only today.** The bundled check builders and
+ * `listPublicTables` use Postgres syntax (`pg_tables`, `::int`/`::text`
+ * casts). The shape is portable in principle — `DoctorContext` carries a
+ * generic `DatabaseInterface` so apps can add engine-aware checks — but
+ * the out-of-the-box runner expects a Postgres connection. `runDoctor`
+ * throws early if pointed at a non-Postgres URL rather than failing
+ * mid-execution with a confusing `pg_tables`-doesn't-exist error.
  */
 import type { DatabaseInterface } from './shared/types';
 
@@ -47,6 +55,7 @@ export interface DoctorResult {
 export async function runDoctor(
   options: RunDoctorOptions,
 ): Promise<DoctorResult> {
+  assertPostgresAdapter(options.db);
   const tables = await listPublicTables(options.db);
   const issues: DoctorIssue[] = [];
 
@@ -60,6 +69,23 @@ export async function runDoctor(
     warnings: issues.filter((issue) => issue.level === 'warn'),
     issues,
   };
+}
+
+/**
+ * Throw early if the supplied database isn't Postgres. The check builders
+ * and `listPublicTables` use Postgres syntax; pointing them at SQLite or
+ * DuckDB would fail mid-execution with a confusing "table pg_tables does
+ * not exist" error from the adapter. Fail fast with a useful message
+ * instead.
+ */
+function assertPostgresAdapter(db: DatabaseInterface): void {
+  const url = String(db.url ?? '');
+  if (!url.startsWith('postgres://') && !url.startsWith('postgresql://')) {
+    throw new Error(
+      `runDoctor requires a Postgres database connection. Got URL: ${url ? url.replace(/\/\/[^/]+/, '//***') : '(empty)'}. ` +
+        'The bundled check builders use Postgres-specific syntax (pg_tables, ::int/::text casts).',
+    );
+  }
 }
 
 /**

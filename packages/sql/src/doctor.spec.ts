@@ -135,3 +135,18 @@ describe('doctor framework (pg integration)', () => {
     expect(result.issues).toEqual([]);
   });
 });
+
+describe('runDoctor non-postgres guard', () => {
+  it('throws a clear error when the database is not Postgres', async () => {
+    // Doctor's check builders use pg-specific syntax; pointing them at
+    // SQLite would fail mid-execution with a cryptic "no such table
+    // pg_tables" error. The guard surfaces the constraint up front.
+    const sqliteDb = await getDatabase({
+      type: 'sqlite',
+      url: ':memory:',
+    });
+    await expect(runDoctor({ db: sqliteDb, checks: [] })).rejects.toThrow(
+      /Postgres/,
+    );
+  });
+});

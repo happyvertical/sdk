@@ -35,6 +35,15 @@ export interface DumpOptions {
 export interface RestoreOptions {
   extraArgs?: string[];
   binary?: string;
+  /**
+   * Wrap the restore in `--single-transaction --exit-on-error` so a
+   * mid-restore failure rolls the target database back to its prior
+   * state instead of leaving it partially-restored-but-failing.
+   * Defaults to `true`. Set to `false` if you need parallel restore
+   * (`--jobs N` in `extraArgs`); pg_restore rejects `--single-transaction`
+   * combined with `--jobs`.
+   */
+  singleTransaction?: boolean;
 }
 
 export interface CreateDropOptions {
@@ -86,12 +95,23 @@ export function isLocalDatabaseUrl(databaseUrl: string): boolean {
 /**
  * Strip credentials from a postgres URL for logging/manifest use.
  * Returns `[invalid database url]` if parsing fails.
+ *
+ * Redacts both the userinfo (`user:password@`) and any credential-shaped
+ * query parameters (`?password=…`, `?passwd=…`, `?pass=…`) — cloud
+ * providers like Neon and Supabase emit URLs with `?password=` instead of
+ * (or in addition to) the userinfo form, and leaking those into logs or
+ * the backup manifest defeats the rest of the redaction.
  */
 export function redactDatabaseUrl(databaseUrl: string): string {
   try {
     const url = new URL(databaseUrl);
     if (url.username) url.username = '***';
     if (url.password) url.password = '***';
+    for (const param of ['password', 'passwd', 'pass']) {
+      if (url.searchParams.has(param)) {
+        url.searchParams.set(param, '***');
+      }
+    }
     return url.toString();
   } catch {
     return '[invalid database url]';
@@ -117,11 +137,23 @@ export function postgresEnvFromUrl(
 
   const env: Record<string, string> = {};
   const database = databaseOverride ?? databaseNameFromUrl(databaseUrl);
+
+  // ALL libpq connection-target variables are pinned to URL-derived
+  // values (or empty string) — never left to inherit from the parent
+  // process. This is a safety guard: a developer with PGHOST=staging in
+  // their shell would otherwise see `dumpPostgresDatabase('postgres:///localdb')`
+  // silently connect to staging. Similarly PGSERVICE / PGSERVICEFILE
+  // can redirect connections via a pg_service.conf entry the caller
+  // never intended to use.
   env.PGDATABASE = database;
-  if (url.hostname) env.PGHOST = url.hostname;
-  if (url.port) env.PGPORT = url.port;
-  if (url.username) env.PGUSER = decodeUserInfo(url.username);
-  if (url.password) env.PGPASSWORD = decodeUserInfo(url.password);
+  env.PGHOST = url.hostname || '';
+  env.PGHOSTADDR = '';
+  env.PGPORT = url.port || '';
+  env.PGUSER = url.username ? decodeUserInfo(url.username) : '';
+  env.PGPASSWORD = url.password ? decodeUserInfo(url.password) : '';
+  env.PGSERVICE = '';
+  env.PGSERVICEFILE = '';
+  env.PGPASSFILE = '';
 
   for (const [param, envName] of [
     ['sslmode', 'PGSSLMODE'],
@@ -215,6 +247,7 @@ export async function restorePostgresDatabase(
   dumpPath: string,
   options: RestoreOptions = {},
 ): Promise<void> {
+  const singleTransaction = options.singleTransaction ?? true;
   await runCommand(
     options.binary ?? 'pg_restore',
     [
@@ -222,9 +255,24 @@ export async function restorePostgresDatabase(
       '--if-exists',
       '--no-owner',
       '--no-acl',
+      // Atomic-restore default: wrap the whole operation in one
+      // transaction. Without this, a mid-restore failure (e.g. a unique
+      // constraint conflict halfway through data load) leaves the
+      // target database with the `--clean` DROPs applied AND part of
+      // the new schema/data, while pg_restore still exits non-zero —
+      // operationally the worst of both worlds. Caller can opt out via
+      // `singleTransaction: false` when running parallel restores
+      // (`--jobs N`) since pg_restore rejects the combination.
+      ...(singleTransaction ? ['--single-transaction', '--exit-on-error'] : []),
       '--dbname',
       databaseNameFromUrl(databaseUrl),
       ...(options.extraArgs ?? []),
+      // POSIX end-of-options marker: `dumpPath` is the final positional
+      // and must be interpreted as a path, not a flag. Without `--`, a
+      // path that starts with `-` (e.g. a temp file generated as
+      // `-tmp-XXX.dump`) would be misparsed by pg_restore as an unknown
+      // option.
+      '--',
       dumpPath,
     ],
     { env: postgresEnvFromUrl(databaseUrl) },
