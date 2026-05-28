@@ -30,10 +30,10 @@ describe('parseFlagArgs', () => {
     });
   });
 
-  it('ignores the POSIX end-of-options marker', () => {
+  it('treats all args after POSIX end-of-options marker as positionals', () => {
     expect(parseFlagArgs(['--', '--from', 'backup-a'])).toEqual({
-      flags: { from: 'backup-a' },
-      positionals: [],
+      flags: {},
+      positionals: ['--from', 'backup-a'],
     });
   });
 

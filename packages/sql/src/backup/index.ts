@@ -16,10 +16,8 @@ import {
   assertCanExportDatabase,
   assertCanImportDatabase,
   createPostgresDatabase,
-  databaseNameFromUrl,
   dropPostgresDatabase,
   dumpPostgresDatabase,
-  postgresEnvFromUrl,
   redactDatabaseUrl,
   restorePostgresDatabase,
 } from '../postgres-cli';
@@ -143,12 +141,12 @@ export async function exportBackup<Extra = unknown>(
 ): Promise<ExportBackupResult<Extra>> {
   assertCanExportDatabase(options.databaseUrl, options);
 
-  const label = options.label ?? 'backup';
+  const label = validateLabel(options.label ?? 'backup');
   const backupPath = resolve(
     options.backupRoot ?? defaultBackupRoot(),
     `${label}-${timestampForBackup()}`,
   );
-  await mkdir(backupPath, { recursive: true });
+  await mkdir(backupPath, { recursive: true, mode: 0o700 });
 
   const dumpPath = join(backupPath, DEFAULT_DUMP_FILE);
   await dumpPostgresDatabase(options.databaseUrl, dumpPath);
@@ -165,7 +163,7 @@ export async function exportBackup<Extra = unknown>(
   let extra: Extra | undefined;
 
   if (!options.skipFiles && options.onBackup) {
-    await mkdir(filesDir, { recursive: true });
+    await mkdir(filesDir, { recursive: true, mode: 0o700 });
     const result = await options.onBackup({
       backupPath,
       databaseUrl: options.databaseUrl,
@@ -215,17 +213,25 @@ export async function restoreBackup(
   const backupPath = resolve(options.backupPath);
   const manifest = await readBackupManifest(backupPath);
   assertCanImportDatabase(options.databaseUrl, options);
-
-  await restorePostgresDatabase(
-    options.databaseUrl,
-    join(backupPath, manifest.database.dumpFile),
+  const dumpPath = join(
+    backupPath,
+    validateManifestPathSegment(
+      manifest.database.dumpFile,
+      'database dump file',
+    ),
   );
+  const filesDir = join(
+    backupPath,
+    validateManifestPathSegment(manifest.files.directory, 'files directory'),
+  );
+
+  await restorePostgresDatabase(options.databaseUrl, dumpPath);
 
   if (!options.skipFiles && options.onRestore) {
     await options.onRestore({
       backupPath,
       databaseUrl: options.databaseUrl,
-      filesDir: join(backupPath, manifest.files.directory),
+      filesDir,
       manifest,
     });
   }
@@ -262,4 +268,22 @@ async function getGitSha(cwd: string = process.cwd()): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+function validateLabel(label: string): string {
+  if (!label || label === '.' || label === '..' || /[\\/]/u.test(label)) {
+    throw new Error(
+      `Backup label "${label}" is invalid. Labels must be a single path-safe segment.`,
+    );
+  }
+  return label;
+}
+
+function validateManifestPathSegment(value: string, field: string): string {
+  if (!value || value === '.' || value === '..' || /[\\/]/u.test(value)) {
+    throw new Error(
+      `Backup manifest ${field} is invalid: "${value}". It must be a single path segment.`,
+    );
+  }
+  return value;
 }

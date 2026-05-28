@@ -7,7 +7,7 @@
  * field. Bumping `BACKUP_VERSION` is the way to evolve the shape — older
  * backups will fail `readBackupManifest` until upgraded.
  */
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, rename, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 export const BACKUP_KIND = 'happyvertical-backup' as const;
@@ -74,11 +74,15 @@ export async function writeBackupManifest(
   backupPath: string,
   manifest: BackupManifest,
 ): Promise<void> {
-  await writeFile(
-    join(backupPath, DEFAULT_MANIFEST_FILE),
-    `${JSON.stringify(manifest, null, 2)}\n`,
-    { mode: 0o600 },
+  const targetPath = join(backupPath, DEFAULT_MANIFEST_FILE);
+  const tempPath = join(
+    backupPath,
+    `.manifest.${process.pid}.${Date.now().toString(36)}.tmp`,
   );
+  await writeFile(tempPath, `${JSON.stringify(manifest, null, 2)}\n`, {
+    mode: 0o600,
+  });
+  await rename(tempPath, targetPath);
 }
 
 /**

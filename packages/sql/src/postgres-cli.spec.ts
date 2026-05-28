@@ -76,6 +76,15 @@ describe('postgres-cli URL helpers', () => {
         /protocol/u,
       );
     });
+
+    it('gracefully handles raw percent characters in credentials', () => {
+      expect(
+        postgresEnvFromUrl('postgresql://user:p%ss@localhost:5432/app'),
+      ).toMatchObject({
+        PGUSER: 'user',
+        PGPASSWORD: 'p%ss',
+      });
+    });
   });
 
   describe('assertCanExportDatabase', () => {

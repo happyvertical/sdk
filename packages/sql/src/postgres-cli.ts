@@ -9,7 +9,7 @@
  * snapshot helpers that compose these primitives with file storage.
  */
 import { spawn } from 'node:child_process';
-import { mkdir } from 'node:fs/promises';
+import { chmod, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 
 export interface PostgresLocalityOptions {
@@ -120,8 +120,8 @@ export function postgresEnvFromUrl(
   env.PGDATABASE = database;
   if (url.hostname) env.PGHOST = url.hostname;
   if (url.port) env.PGPORT = url.port;
-  if (url.username) env.PGUSER = decodeURIComponent(url.username);
-  if (url.password) env.PGPASSWORD = decodeURIComponent(url.password);
+  if (url.username) env.PGUSER = decodeUserInfo(url.username);
+  if (url.password) env.PGPASSWORD = decodeUserInfo(url.password);
 
   for (const [param, envName] of [
     ['sslmode', 'PGSSLMODE'],
@@ -189,7 +189,7 @@ export async function dumpPostgresDatabase(
   dumpPath: string,
   options: DumpOptions = {},
 ): Promise<void> {
-  await mkdir(dirname(dumpPath), { recursive: true });
+  await mkdir(dirname(dumpPath), { recursive: true, mode: 0o700 });
   await runCommand(
     options.binary ?? 'pg_dump',
     [
@@ -202,6 +202,7 @@ export async function dumpPostgresDatabase(
     ],
     { env: postgresEnvFromUrl(databaseUrl) },
   );
+  await chmod(dumpPath, 0o600);
 }
 
 /**
@@ -301,4 +302,12 @@ export async function runCommand(
       reject(new Error(`${command} exited with status ${code}`));
     });
   });
+}
+
+function decodeUserInfo(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }

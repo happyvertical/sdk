@@ -10,7 +10,7 @@
  *   --foo bar        -> flags.foo = 'bar'
  *   --foo=bar        -> flags.foo = 'bar'
  *   --foo-bar baz    -> flags.fooBar = 'baz'   (kebab -> camel)
- *   --               -> ignored (POSIX end-of-options marker)
+ *   --               -> stop parsing flags; rest are positionals
  *
  * Anything not starting with `--` becomes a positional.
  */
@@ -25,7 +25,10 @@ export function parseFlagArgs(args: string[]): ParsedFlagArgs {
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
-    if (arg === '--') continue;
+    if (arg === '--') {
+      positionals.push(...args.slice(index + 1));
+      break;
+    }
     if (!arg.startsWith('--')) {
       positionals.push(arg);
       continue;
