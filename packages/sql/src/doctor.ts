@@ -17,6 +17,7 @@
  * throws early if pointed at a non-Postgres URL rather than failing
  * mid-execution with a confusing `pg_tables`-doesn't-exist error.
  */
+import { redactDatabaseUrl } from './postgres-cli';
 import type { DatabaseInterface } from './shared/types';
 
 export type DoctorLevel = 'fail' | 'warn';
@@ -82,7 +83,7 @@ function assertPostgresAdapter(db: DatabaseInterface): void {
   const url = String(db.url ?? '');
   if (!url.startsWith('postgres://') && !url.startsWith('postgresql://')) {
     throw new Error(
-      `runDoctor requires a Postgres database connection. Got URL: ${url ? url.replace(/\/\/[^/]+/, '//***') : '(empty)'}. ` +
+      `runDoctor requires a Postgres database connection. Got URL: ${url ? redactDatabaseUrl(url) : '(empty)'}. ` +
         'The bundled check builders use Postgres-specific syntax (pg_tables, ::int/::text casts).',
     );
   }

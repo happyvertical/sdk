@@ -149,6 +149,25 @@ describe('runDoctor non-postgres guard', () => {
       /Postgres/,
     );
   });
+
+  it('redacts credential-shaped query params in the URL shown in errors', async () => {
+    const nonPostgresDb = {
+      url: 'mysql://db.example.com/app?password=s3cret&token=keepme',
+      query: async () => ({ rows: [] }),
+    } as unknown as DatabaseInterface;
+
+    try {
+      await runDoctor({ db: nonPostgresDb, checks: [] });
+    } catch (error) {
+      const message = String((error as Error).message);
+      expect(message).toContain('password=***');
+      expect(message).toContain('token=keepme');
+      expect(message).not.toContain('s3cret');
+      return;
+    }
+
+    throw new Error('Expected runDoctor to throw for non-Postgres URL');
+  });
 });
 
 describe('doctor count formatting', () => {
