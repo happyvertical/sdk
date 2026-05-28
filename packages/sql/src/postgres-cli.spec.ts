@@ -6,6 +6,7 @@ import {
   isLocalDatabaseUrl,
   postgresEnvFromUrl,
   redactDatabaseUrl,
+  runCommand,
 } from './postgres-cli';
 
 describe('postgres-cli URL helpers', () => {
@@ -20,6 +21,42 @@ describe('postgres-cli URL helpers', () => {
       expect(() =>
         databaseNameFromUrl('postgresql://user:pass@localhost:5432/'),
       ).toThrow(/database name/u);
+    });
+  });
+
+  describe('runCommand env scrubbing', () => {
+    it('scrubs inherited routing vars like PGHOST', async () => {
+      const previous = process.env.PGHOST;
+      process.env.PGHOST = 'staging.example.com';
+      try {
+        await expect(
+          runCommand(
+            process.execPath,
+            ['-e', 'if (process.env.PGHOST) process.exit(1)'],
+            { stdio: 'pipe' },
+          ),
+        ).resolves.toBeUndefined();
+      } finally {
+        if (previous === undefined) delete process.env.PGHOST;
+        else process.env.PGHOST = previous;
+      }
+    });
+
+    it('preserves inherited auth vars like PGPASSFILE', async () => {
+      const previous = process.env.PGPASSFILE;
+      process.env.PGPASSFILE = '/tmp/test-pgpass';
+      try {
+        await expect(
+          runCommand(
+            process.execPath,
+            ['-e', 'if (!process.env.PGPASSFILE) process.exit(1)'],
+            { stdio: 'pipe' },
+          ),
+        ).resolves.toBeUndefined();
+      } finally {
+        if (previous === undefined) delete process.env.PGPASSFILE;
+        else process.env.PGPASSFILE = previous;
+      }
     });
   });
 

@@ -187,6 +187,10 @@ export function postgresEnvFromUrl(
  * scrubbed — a caller may legitimately want to inherit a system-wide
  * certificate path. They're explicitly overridden only when the URL
  * supplies a value.
+ *
+ * Auth vars (PGPASSWORD / PGPASSFILE) are intentionally NOT scrubbed:
+ * they don't change target routing and some environments intentionally
+ * supply credentials out-of-band while keeping DATABASE_URL passwordless.
  */
 const LIBPQ_INHERITANCE_VARS = [
   'PGHOST',
@@ -194,10 +198,8 @@ const LIBPQ_INHERITANCE_VARS = [
   'PGPORT',
   'PGDATABASE',
   'PGUSER',
-  'PGPASSWORD',
   'PGSERVICE',
   'PGSERVICEFILE',
-  'PGPASSFILE',
 ] as const;
 
 /**
