@@ -170,6 +170,20 @@ describe('postgres-cli URL helpers', () => {
       ).toMatchObject({ PGPASSWORD: 'fromuserinfo' });
     });
 
+    it('strips IPv6 brackets when assigning PGHOST', () => {
+      // URL.hostname returns '[::1]' (with brackets) for IPv6 literals,
+      // but libpq expects the bare address. The locality check correctly
+      // strips brackets; the env builder must do the same or pg_dump
+      // fails to resolve the host.
+      expect(
+        postgresEnvFromUrl('postgresql://user:pass@[::1]:5432/app'),
+      ).toMatchObject({ PGHOST: '::1', PGPORT: '5432' });
+
+      expect(
+        postgresEnvFromUrl('postgresql://user:pass@[2001:db8::1]/app'),
+      ).toMatchObject({ PGHOST: '2001:db8::1' });
+    });
+
     it('honors a database override', () => {
       expect(
         postgresEnvFromUrl(

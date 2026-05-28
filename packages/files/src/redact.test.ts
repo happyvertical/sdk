@@ -79,4 +79,27 @@ describe('redactFilesystemConfig', () => {
     expect((result[0] as Record<string, unknown>).token).toBe('[redacted]');
     expect(result[1]).toBe('[circular]');
   });
+
+  it('preserves DAG-shaped input (shared non-cyclic references)', () => {
+    // Two pointers to the same non-cyclic sub-object should both receive
+    // the redacted structure, not get `'[circular]'` on the second branch.
+    // Real-world example: a config with two providers sharing one
+    // credentials object.
+    const shared = { name: 'creds', privateKey: 'secret' };
+    const result = redactFilesystemConfig({
+      outbound: shared,
+      inbound: shared,
+    }) as Record<string, unknown>;
+    expect(result.outbound).toEqual({
+      name: 'creds',
+      privateKey: '[redacted]',
+    });
+    // Second branch must get the same redacted structure, NOT a sentinel.
+    expect(result.inbound).toEqual({
+      name: 'creds',
+      privateKey: '[redacted]',
+    });
+    // And the two should be reference-equal (same cached output).
+    expect(result.outbound).toBe(result.inbound);
+  });
 });

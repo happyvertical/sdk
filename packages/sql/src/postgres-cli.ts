@@ -147,7 +147,14 @@ export function postgresEnvFromUrl(
   // "unset" is to remove the key entirely from the child's env, which
   // runCommand does for us before merging.
   env.PGDATABASE = database;
-  if (url.hostname) env.PGHOST = url.hostname;
+  if (url.hostname) {
+    // Strip IPv6 brackets: `URL.hostname` returns `'[::1]'` for IPv6
+    // literals, but libpq's `PGHOST` expects the bare address (`'::1'`).
+    // Brackets are URI syntax only — passing them through means
+    // pg_dump/pg_restore fail to resolve the host even though
+    // `isLocalDatabaseUrl` correctly recognises the same URL as local.
+    env.PGHOST = url.hostname.replace(/^\[|\]$/gu, '');
+  }
   if (url.port) env.PGPORT = url.port;
   if (url.username) env.PGUSER = decodeUserInfo(url.username);
 
