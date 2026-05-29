@@ -191,16 +191,18 @@ whether it belongs in the standalone instead.
   The section between `<!-- BEGIN AGENT:GENERATED -->` and
   `<!-- END AGENT:GENERATED -->` markers is regenerated on every
   sync — manual hand-edits inside that section will be wiped.
-  - **Root `AGENT.md` only**: text AFTER the END marker is preserved
-    as "legacy notes" (see `extractLegacyNotes()` in
-    `scripts/sync-agent-context.js`). The root file uses this seam
-    for hand-written agent guidance (slash commands, conventions,
-    cross-references).
-  - **Per-package `AGENT.md`**: no legacy-notes section — the
-    generator runs `removeIfExists(legacyMetaPath)` unconditionally
-    per package, so manual edits there really do get wiped.
-  - If the GENERATED content itself needs to change (per-package or
-    inside the markers), the *generator* needs to change.
+  - **Both root AND per-package `AGENT.md` preserve trailing
+    notes**: text AFTER the END marker is extracted via
+    `extractLegacyNotes()` (`scripts/sync-agent-context.js:317`)
+    and re-appended by `renderRootAgent` / `renderPackageAgent`
+    (line 459 for packages, line 750 for root) on the next sync.
+    Use this seam for hand-written agent guidance — slash commands,
+    conventions, cross-references that the generator doesn't know
+    about. (Note: `removeIfExists(legacyMetaPath)` in the
+    per-package loop only deletes the optional `.claude-meta.json`
+    sidecar, NOT the AGENT.md trailing notes.)
+  - If the GENERATED content itself needs to change (inside the
+    markers, per-package or root), the *generator* needs to change.
 
 ### Live / optional integration tests
 
