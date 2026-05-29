@@ -7,7 +7,7 @@ Weather data provider abstraction for HAppyVertical SDK
 ## Package Map
 - Package: `@happyvertical/weather`
 - Hierarchy path: `@happyvertical/sdk > packages > weather`
-- Workspace position: `29 of 29` local packages
+- Workspace position: `30 of 30` local packages
 - Internal dependencies: `@happyvertical/utils`
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`

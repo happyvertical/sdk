@@ -6,8 +6,8 @@ This devcontainer is configured with [Act](https://github.com/nektos/act) for ru
 
 - **Exact CI Environment**: Runs the same Ubuntu container as GitHub Actions
 - **PostgreSQL Service**: Includes PostgreSQL service matching CI setup
-- **Step-by-Step Debugging**: Execute individual workflow steps
-- **Interactive Shell**: Drop into CI environment for investigation
+- **Workflow Validation**: Validate workflow syntax locally before pushing
+- **Verbose Debugging**: Run the CI workflow locally with detailed logs
 - **Artifact Collection**: Save CI artifacts locally for inspection
 
 ## Quick Start
@@ -18,7 +18,7 @@ After pulling these changes, rebuild the devcontainer:
 **Option A: Automated Script (Recommended)**
 ```bash
 # From host machine (outside devcontainer)
-bun run rebuild-devcontainer
+pnpm run rebuild-devcontainer
 ```
 
 **Option B: VS Code Command Palette**
@@ -32,42 +32,42 @@ This installs act and Docker CLI with all dependencies.
 
 ### 2. Validate Setup
 ```bash
-bun run validate-act-setup
+pnpm run validate-act-setup
 ```
 
 ### 3. Run CI Locally
 ```bash
 # Full CI workflow
-bun run test:ci
+pnpm run test:ci
 
 # Debug with verbose output
-bun run debug-ci
+pnpm run debug-ci
 
-# Investigate step-by-step
-bun run investigate-ci
+# Investigate local build/export readiness
+pnpm run investigate-ci
 
 # Test specific issues
-bun run test-exports
+pnpm run test-exports
 ```
 
 ## Available Commands
 
 ### Package Scripts
-- `bun run test:ci` - Run full PR workflow locally
-- `bun run test:ci-debug` - Verbose debugging with shell access
-- `bun run test:ci-build` - Run only build step
-- `bun run test:ci-clean` - Clean run (removes cached containers)
-- `bun run debug-ci` - Comprehensive debugging script
-- `bun run investigate-ci` - Step-by-step investigation
-- `bun run test-exports` - Test module export resolution
-- `bun run validate-act-setup` - Validate act integration setup
-- `bun run rebuild-devcontainer` - Rebuild devcontainer (from host)
+- `pnpm run test:ci` - Run full PR workflow locally
+- `pnpm run test:ci-debug` - Verbose local workflow debugging
+- `pnpm run test:ci-build` - Run local build and artifact validation
+- `pnpm run test:ci-clean` - Clean run (removes cached containers)
+- `pnpm run debug-ci` - Comprehensive debugging script
+- `pnpm run investigate-ci` - Local build/export investigation
+- `pnpm run test-exports` - Test module export resolution
+- `pnpm run validate-act-setup` - Validate act integration setup
+- `pnpm run rebuild-devcontainer` - Rebuild devcontainer (from host)
 
 ### VS Code Tasks
 Access via Command Palette → `Tasks: Run Task`:
 - **Run CI Tests Locally** - Full workflow execution
 - **Debug CI Failure** - Comprehensive debugging
-- **Investigate CI Environment** - Interactive investigation
+- **Investigate CI Environment** - Local build/export investigation
 - **Test Export Resolution** - Module resolution testing
 - **CI Build Only** - Just the build step
 - **CI Clean Run** - Fresh container run
@@ -77,32 +77,33 @@ Access via Command Palette → `Tasks: Run Task`:
 
 ### 1. Reproduce CI Failure
 ```bash
-bun run test:ci
+pnpm run test:ci
 ```
 
 ### 2. Debug Specific Issues
 ```bash
 # Test build artifacts
-bun run test:ci-build
+pnpm run test:ci-build
 
-# Interactive investigation
-bun run investigate-ci
+# Local build/export investigation
+pnpm run investigate-ci
 ```
 
 ### 3. Examine Export Resolution
 ```bash
-bun run test-exports
+pnpm run test-exports
 ```
 
-### 4. Step-by-Step Analysis
+### 4. Local Build Artifact Analysis
 ```bash
-# Open shell at build completion
-act --shell -j test --step "Build packages"
+# Build and validate artifacts locally
+pnpm run test:ci-build
+pnpm run test-exports
 
-# Inside the container:
-ls -la /home/runner/work/sdk/sdk/packages/sql/dist/
-cat /home/runner/work/sdk/sdk/packages/sql/dist/index.d.ts
-node --input-type=module -e "import('@happyvertical/sql').then(m => console.log(m))"
+# Inspect generated artifacts
+ls -la packages/sql/dist/
+cat packages/sql/dist/index.d.ts
+node --input-type=module -e "import('./packages/sql/dist/index.js').then(m => console.log(Object.keys(m)))"
 ```
 
 ## Configuration Files
@@ -138,10 +139,9 @@ sudo usermod -aG docker $USER
 ```
 
 ### PostgreSQL Connection Issues
-Act runs its own PostgreSQL service. Check connection:
+Act runs its own PostgreSQL service. For detailed service logs, run:
 ```bash
-act --shell -j test
-# Inside: PGPASSWORD=postgres psql -h localhost -U postgres -d testdb
+pnpm run test:ci-debug
 ```
 
 ### Path Structure Differences
@@ -203,7 +203,7 @@ docker pull catthehacker/ubuntu:act-latest
 
 ### Scripts
 - `.devcontainer/scripts/debug-ci.sh` - Comprehensive debugging
-- `.devcontainer/scripts/investigate-ci.sh` - Step-by-step investigation
+- `.devcontainer/scripts/investigate-ci.sh` - Local build/export investigation
 - `.devcontainer/scripts/test-exports.sh` - Export resolution testing
 - `.devcontainer/scripts/validate-act-setup.sh` - Setup validation
 

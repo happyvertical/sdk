@@ -1,5 +1,41 @@
 # @happyvertical/utils
 
+## 0.74.3
+
+### Patch Changes
+
+- ### Features
+
+  - db ops tooling primitives (sql,files,utils)
+
+  ### Bug Fixes
+
+  - redact full URL in doctor non-postgres guard (sql)
+  - codex round-6 — gate onRestore on files.exported + un-scrub PGUSER (sql)
+  - preserve empty flag values (utils)
+  - round-5 IPv6 PGHOST + redact DAG-share handling (sql,files)
+  - preserve inherited libpq auth env (sql)
+  - regression + 6 fixes from round-4 multi-agent review (sql,files,utils)
+  - harden backup dir race and doctor count handling (sql)
+  - close 3 P1 safety gaps + 3 hardening fixes on db-ops tooling (sql)
+  - harden db ops tooling (sql,utils)
+
+## 0.74.2
+
+### Patch Changes
+
+- ### Features
+
+  - add optional SQLite native capabilities (sql)
+
+## 0.74.1
+
+### Patch Changes
+
+- ### Features
+
+  - add payments package
+
 ## 0.74.0
 
 ## 0.73.4

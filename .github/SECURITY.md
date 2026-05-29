@@ -12,8 +12,6 @@ This document explains the security configurations implemented in the GitHub Act
 - `actions/checkout@v4` - Consistent across all workflows
 - `actions/setup-node@v4` - Latest stable version
 - `actions/cache@v4` - Latest stable version
-- `anthropics/claude-code-action@v1.0.0` - Pinned to stable release
-- `alstr/todo-to-issue-action@v5.0.0` - Pinned to specific version
 - `dependabot/fetch-metadata@v2.1.0` - Pinned to specific version
 
 ### 2. Secret Validation
@@ -25,8 +23,8 @@ This document explains the security configurations implemented in the GitHub Act
 ```yaml
 - name: Validate required secrets
   run: |
-    if [ -z "${{ secrets.ANTHROPIC_API_KEY }}" ]; then
-      echo "Error: ANTHROPIC_API_KEY secret is not configured"
+    if [ -z "${{ secrets.HAVE_RELEASE_APP_PRIVATE_KEY }}" ]; then
+      echo "Error: HAVE_RELEASE_APP_PRIVATE_KEY secret is not configured"
       exit 1
     fi
     echo "All required secrets are configured"
@@ -89,13 +87,13 @@ permissions:
 **Usage**:
 ```bash
 # Validate specific secrets
-./validate-security.sh --secrets GITHUB_TOKEN ANTHROPIC_API_KEY
+./validate-security.sh --secrets GITHUB_TOKEN HAVE_RELEASE_APP_PRIVATE_KEY
 
 # Validate workflow files
-./validate-security.sh --workflows .github/workflows/claude.yaml
+./validate-security.sh --workflows .github/workflows/on-merge-main.yml
 
 # Combined validation
-./validate-security.sh --secrets GITHUB_TOKEN --workflows .github/workflows/claude.yaml
+./validate-security.sh --secrets GITHUB_TOKEN --workflows .github/workflows/on-merge-main.yml
 ```
 
 ## Security Checklist
@@ -116,7 +114,9 @@ The following secrets must be configured in the repository:
 | Secret Name | Purpose | Required For |
 |-------------|---------|--------------|
 | `GITHUB_TOKEN` | GitHub API access (auto-provided) | All workflows |
-| `ANTHROPIC_API_KEY` | Claude AI integration | claude.yaml |
+| `PROJECT_SYNC_TOKEN` | GitHub Projects V2 read/write access | issue opened/closed project sync |
+| `HAVE_RELEASE_APP_ID` | GitHub App ID for release automation | publish and merge workflows |
+| `HAVE_RELEASE_APP_PRIVATE_KEY` | GitHub App private key for release automation | publish and merge workflows |
 
 ## Monitoring and Maintenance
 

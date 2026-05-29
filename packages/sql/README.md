@@ -192,11 +192,83 @@ await db.vector.upsertVector('documents', { id: 'doc-1' }, 'embedding', vector);
 const results = await db.vector.search('documents', 'embedding', queryVector, { limit: 10 });
 ```
 
+### Optional SQLite Capabilities
+
+SQLite keeps the existing LibSQL adapter path by default. For local development
+and tests, opt into native SQLite capabilities with `capabilities`. This switches
+the adapter to Node's built-in `node:sqlite` for local files or `:memory:` and
+rejects remote `libsql://`, `http://`, and `https://` URLs.
+
+```bash
+pnpm add -D @sqliteai/sqlite-vector @russellthehippo/honker-node
+```
+
+```typescript
+type SqliteCapabilitiesOptions = {
+  notifications?: boolean | {
+    watcherBackend?: 'polling' | 'kernel' | 'shm';
+    maxReaders?: number;
+  };
+  vector?: boolean | {
+    preload?: boolean;
+    quantization?: 'turbo4' | 'turbo3' | 'turbo2' | 'uint8' | 'int8' | '1bit';
+    maxMemory?: string;
+  };
+};
+```
+
+```typescript
+const db = await getDatabase({
+  type: 'sqlite',
+  url: 'file:./dev.db',
+  capabilities: {
+    vector: { quantization: 'turbo4', preload: true },
+    notifications: { watcherBackend: 'polling' },
+  },
+});
+
+await db.vector?.ensureColumn('documents', 'embedding', 1536);
+await db.vector?.upsertVector('documents', { id: 'doc-1' }, 'embedding', vector);
+const matches = await db.vector?.search('documents', 'embedding', queryVector, {
+  limit: 10,
+  metric: 'cosine',
+  where: 'status = $2',
+  params: ['published'],
+});
+
+const listener = db.notifications!.listen('jobs');
+await db.notifications!.notify('jobs', { id: 'job-1' });
+for await (const message of listener) {
+  console.log(message.channel, message.payload);
+  break;
+}
+await db.notifications!.waitForUpdate({ timeoutMs: 5000 });
+await db.close?.();
+```
+
+`@sqliteai/sqlite-vector` is loaded lazily through `getExtensionPath()` and only
+mutates schema when `ensureColumn()` or `ensureIndex()` is called. SQLite vector
+search uses the same `db.vector` API as PostgreSQL. `ensureIndex()` creates a
+quantized sqlite-vector index with `turbo4` by default, and filtered searches can
+keep PostgreSQL-style `$2`, `$3`, etc. placeholders in `VectorSearchOptions.where`.
+
+`@russellthehippo/honker-node` is loaded lazily as a sidecar connection to the
+same file. Honker bootstraps its `_honker_*` tables on open and requires a
+file-backed database, so `:memory:` is rejected when notifications are enabled.
+When notifications are enabled, `db.notifications` exposes `notify()`,
+`listen()`, `waitForUpdate()`, and `prune()`; call `db.close?.()` when a test or
+worker is done so watcher handles and sidecar connections are released.
+
+Both packages are optional peers. `sqlite-vector` uses a custom license declared
+as `SEE LICENSE IN LICENSE.md`; keep it opt-in and review the upstream
+[license](https://github.com/sqliteai/sqlite-vector/blob/main/LICENSE.md) before
+shipping it beyond development or test environments.
+
 ## Adapters
 
 | Adapter | `type` | Backend | Notes |
 |---------|--------|---------|-------|
-| SQLite | `'sqlite'` | LibSQL (`@libsql/client`) | Supports `:memory:`, file, and remote Turso URLs |
+| SQLite | `'sqlite'` | LibSQL (`@libsql/client`) by default; native `node:sqlite` when capabilities are enabled | Supports `:memory:`, file, and remote Turso URLs by default. Native capabilities are local-only |
 | PostgreSQL | `'postgres'` | `pg` Pool | Connection pooling, pgvector support |
 | DuckDB | `'duckdb'` | `@duckdb/node-api` | JSON file auto-registration, write-back strategies |
 | JSON | `'json'` | DuckDB in-memory | Queries JSON files as tables, connection caching |
@@ -205,7 +277,7 @@ const results = await db.vector.search('documents', 'embedding', queryVector, { 
 
 **Factory**: `getDatabase(options)` — creates or returns a cached database connection.
 
-**Interface** (`DatabaseInterface`): `many`, `single`, `pluck`, `execute`, `query`, `insert`, `get`, `list`, `update`, `upsert`, `getOrInsert`, `delete`, `count`, `table`, `tableExists`, `syncSchema`, `transaction`, `beginTransaction`, `vector`.
+**Interface** (`DatabaseInterface`): `many`, `single`, `pluck`, `execute`, `query`, `insert`, `get`, `list`, `update`, `upsert`, `getOrInsert`, `delete`, `count`, `table`, `tableExists`, `syncSchema`, `transaction`, `beginTransaction`, `vector`, `notifications`, `close`.
 
 **Utilities**: `buildWhere`, `syncSchema`, `tableExists`, `escapeSqlValue`, `validateColumnName`, `formatDbError`, `convertUniqueIndexesToInlineConstraints`.
 

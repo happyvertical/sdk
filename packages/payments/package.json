@@ -1,0 +1,88 @@
+{
+  "name": "@happyvertical/payments",
+  "version": "0.74.3",
+  "description": "Payment backend abstraction with adapters for Base USDC, BTCPay Server, and Stripe",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./base-usdc": {
+      "types": "./dist/adapters/base-usdc.d.ts",
+      "import": "./dist/adapters/base-usdc.js"
+    },
+    "./btc": {
+      "types": "./dist/adapters/btc.d.ts",
+      "import": "./dist/adapters/btc.js"
+    },
+    "./stripe": {
+      "types": "./dist/adapters/stripe.d.ts",
+      "import": "./dist/adapters/stripe.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/conformance.d.ts",
+      "import": "./dist/testing/conformance.js"
+    }
+  },
+  "scripts": {
+    "test": "npx vitest run",
+    "test:watch": "npx vitest",
+    "build": "vite build",
+    "build:watch": "vite build --watch",
+    "docs": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules",
+    "docs:watch": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules --watch",
+    "clean": "rm -rf dist docs",
+    "dev": "npm run build:watch & npm run test:watch"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "AGENT.md",
+    "metadata.json"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/happyvertical/sdk.git",
+    "directory": "packages/payments"
+  },
+  "bugs": {
+    "url": "https://github.com/happyvertical/sdk/issues"
+  },
+  "homepage": "https://github.com/happyvertical/sdk/tree/main/packages/payments#readme",
+  "license": "MIT",
+  "peerDependencies": {
+    "@noble/curves": "~2.0.1",
+    "@noble/hashes": "~2.0.1",
+    "@scure/bip32": "~2.0.1"
+  },
+  "peerDependenciesMeta": {
+    "@noble/curves": {
+      "optional": true
+    },
+    "@noble/hashes": {
+      "optional": true
+    },
+    "@scure/bip32": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@noble/curves": "2.0.1",
+    "@noble/hashes": "2.0.1",
+    "@scure/bip32": "2.0.1",
+    "@types/node": "24.12.2",
+    "@vitest/coverage-v8": "4.1.5",
+    "typescript": "^5.9.3",
+    "vite": "7.3.2",
+    "vite-plugin-dts": "4.5.4",
+    "vitest": "^4.1.5"
+  }
+}

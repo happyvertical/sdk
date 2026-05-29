@@ -3,7 +3,7 @@
   "path": "packages/images",
   "position": {
     "index": 15,
-    "count": 29
+    "count": 30
   },
   "description": "Image processing utilities with adapter pattern for scaling from static to enterprise",
   "provides": [

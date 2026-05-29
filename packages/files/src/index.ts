@@ -57,6 +57,8 @@ export {
 export { LocalFilesystemProvider } from './node/local';
 export { GoogleDriveProvider } from './providers/gdrive';
 export { S3FilesystemProvider } from './providers/s3';
+// Secret redaction utility for provider configs
+export { redactFilesystemConfig } from './redact';
 // Export main factory function and types
 export {
   getAvailableProviders,

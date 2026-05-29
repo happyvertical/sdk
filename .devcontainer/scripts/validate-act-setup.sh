@@ -64,7 +64,7 @@ fi
 
 echo ""
 echo "🎯 Ready to test Act integration!"
-echo "Try: bun run test:ci"
+echo "Try: pnpm run test:ci"
 echo ""
 echo "🔧 DinD Troubleshooting:"
 echo "  - If Docker fails, check: docker-compose logs dind"

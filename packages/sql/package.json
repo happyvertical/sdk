@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/sql",
-  "version": "0.74.0",
+  "version": "0.74.3",
   "description": "Database interface with support for SQLite, PostgreSQL, and DuckDB",
   "type": "module",
   "main": "./dist/index.js",
@@ -32,6 +32,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./backup": {
+      "import": "./dist/backup/index.js",
+      "types": "./dist/backup/index.d.ts"
     }
   },
   "scripts": {
@@ -56,6 +60,18 @@
     "@libsql/client": "0.17.2",
     "pg": "^8.20.0",
     "sqlite-vss": "^0.1.2"
+  },
+  "peerDependencies": {
+    "@russellthehippo/honker-node": "^0.3.3",
+    "@sqliteai/sqlite-vector": "^1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@russellthehippo/honker-node": {
+      "optional": true
+    },
+    "@sqliteai/sqlite-vector": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/node": "25.0.10",

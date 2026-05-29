@@ -15,6 +15,7 @@ import type {
   IndexDefinition,
   QueryResult,
   SchemaInitializationOptions,
+  SqliteCapabilitiesOptions,
   TableInterface,
   TableSchemaInfo,
   TransactionHandle,
@@ -169,6 +170,15 @@ export interface SqliteOptions {
   dbid?: string;
 
   /**
+   * Optional native SQLite capabilities for local development and testing.
+   *
+   * When any capability is enabled, the adapter uses the internal native
+   * SQLite implementation instead of the LibSQL client path. Native
+   * capabilities are only supported for local SQLite databases.
+   */
+  capabilities?: SqliteCapabilitiesOptions;
+
+  /**
    * Schema definitions for tables.
    * Accepts a record or a lazy function (see SchemasOption).
    *
@@ -176,6 +186,12 @@ export interface SqliteOptions {
    * Accepts a lazy function to defer schema building until needed.
    */
   schemas?: import('./shared/types').SchemasOption;
+}
+
+function hasNativeSqliteCapabilities(options: SqliteOptions): boolean {
+  return Boolean(
+    options.capabilities?.notifications || options.capabilities?.vector,
+  );
 }
 
 /**
@@ -264,6 +280,11 @@ export async function getDatabase(
   // Mutate options object to ensure child objects reuse the same connection
   if (url === ':memory:' && !options.dbid) {
     options.dbid = generateDbId();
+  }
+
+  if (hasNativeSqliteCapabilities(options)) {
+    const sqliteNative = await import('./sqlite-native.js');
+    return sqliteNative.getNativeSqliteDatabase(options);
   }
 
   // Check if we have a cached connection for this dbid

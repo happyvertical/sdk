@@ -63,7 +63,7 @@ These packages form the foundation everything else builds on.
 
 | Package | Description |
 |---------|-------------|
-| [**@happyvertical/sql**](./packages/sql/README.md) | Unified database interface for SQLite (LibSQL/Turso), PostgreSQL, DuckDB, and a JSON file adapter. Template literal queries, CRUD helpers, transactions, schema sync, and pgvector support. |
+| [**@happyvertical/sql**](./packages/sql/README.md) | Unified database interface for SQLite (LibSQL/Turso), PostgreSQL, DuckDB, and a JSON file adapter. Template literal queries, CRUD helpers, transactions, schema sync, pgvector support, and optional local SQLite vector/notification capabilities. |
 | [**@happyvertical/files**](./packages/files/README.md) | Filesystem abstraction for local disk and Google Drive, plus rate-limited HTTP fetch utilities. |
 | [**@happyvertical/cache**](./packages/cache/README.md) | Caching layer supporting Memory, File, Redis, and S3 backends with TTL, LRU/LFU eviction, batch operations, and compression. |
 
@@ -82,6 +82,12 @@ These packages form the foundation everything else builds on.
 | [**@happyvertical/auth**](./packages/auth/README.md) | Authentication adapter for Keycloak (OIDC/OAuth2), AWS Cognito, and Nostr decentralized identity. |
 | [**@happyvertical/encryption**](./packages/encryption/README.md) | Cryptography operations with PGP/OpenPGP, NaCl/libsodium, and Node.js crypto adapters. Text, file, buffer, and email encryption; digital signing; key management. |
 | [**@happyvertical/secrets**](./packages/secrets/README.md) | Envelope encryption for per-tenant secret management. Two-tier key hierarchy (AMK → TDEK → secret value) with database-backed storage and zero-downtime key rotation. |
+
+### Commerce
+
+| Package | Description |
+|---------|-------------|
+| [**@happyvertical/payments**](./packages/payments/README.md) | Payment backend abstraction with adapters for Base USDC, BTCPay Server, and Stripe Checkout. Quote payment options, status polling, x402 verification, refunds, and payouts. |
 
 ### World Knowledge
 

@@ -208,21 +208,55 @@ export function validateColumnName(column: string): string {
 
 // Import utilities from shared utils
 import { buildWhere, formatDbError } from './shared/utils';
-export { buildWhere, formatDbError };
+
 export type { SqlAdapterType } from './shared/utils';
+export { buildWhere, formatDbError };
 
 // Import DuckDB schema transformation utilities
 import { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils';
-export { convertUniqueIndexesToInlineConstraints };
+
+// Generic database integrity-check framework
+export {
+  checkExpectedTables,
+  checkRelationship,
+  checkUniqueColumn,
+  type DoctorCheck,
+  type DoctorContext,
+  type DoctorIssue,
+  type DoctorLevel,
+  type DoctorResult,
+  type RelationshipSpec,
+  type RunDoctorOptions,
+  runDoctor,
+  type UniqueColumnSpec,
+} from './doctor';
 
 // Export adapter cache utilities (for testing)
 export { clearConnectionCache } from './json.js';
 export { clearPostgresConnectionCache } from './postgres.js';
+// Postgres CLI shell-outs and URL helpers
+export {
+  assertCanExportDatabase,
+  assertCanImportDatabase,
+  type CreateDropOptions,
+  createPostgresDatabase,
+  type DumpOptions,
+  databaseNameFromUrl,
+  dropPostgresDatabase,
+  dumpPostgresDatabase,
+  isLocalDatabaseUrl,
+  type PostgresImportLocalityOptions,
+  type PostgresLocalityOptions,
+  postgresEnvFromUrl,
+  type RestoreOptions,
+  redactDatabaseUrl,
+  restorePostgresDatabase,
+} from './postgres-cli';
 export type { SchemaInitializationResult } from './schema-manager';
 // Export schema management
 export { DatabaseSchemaManager } from './schema-manager';
-
 export * from './shared/types';
+export { convertUniqueIndexesToInlineConstraints };
 
 export default {
   getDatabase,
