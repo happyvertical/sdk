@@ -151,9 +151,17 @@ repomix-output.xml
 bin/
 
 # Build output: docs/docs/build-* gets populated by per-PR doc-build
-# preview runs; docs/content/*.md is generator output from `pnpm agent:sync`-style
-# steps. Neither should be tracked — main has neither. Without these,
-# `git add -A` in any worktree that has run `pnpm install` or `pnpm build`
-# will sweep them up (this exact trap bit a hygiene commit on this branch).
+# preview runs (not on main). Without this rule, `git add -A` in any
+# worktree that has run `pnpm install` or `pnpm build` will sweep
+# them up (this exact trap bit a hygiene commit on this branch).
+#
+# NOT ignoring `docs/content/*.md` here even though my worktree had
+# untracked ones — main has 12 *tracked* `docs/content/*.md` files
+# (`ai.md`, `cache.md`, `contributing.md`, etc. — Docusaurus source
+# content with frontmatter). Ignoring the glob would silently skip
+# any NEW authored content for new packages (e.g. someone authoring
+# `docs/content/payments.md`). The discriminator between authored
+# and generator-output `.md` here is "has Docusaurus frontmatter" —
+# not expressible in gitignore. Better to let the trap re-bite a
+# careful committer than to silently hide legitimate authoring.
 docs/docs/build-*
-docs/content/*.md

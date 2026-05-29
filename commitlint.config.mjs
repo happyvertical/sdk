@@ -89,6 +89,7 @@ export default {
         'json',
         'logger',
         'messages',
+        'payments',
         'projects',
         'repos',
         'sdk-mcp',

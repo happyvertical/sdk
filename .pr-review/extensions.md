@@ -29,7 +29,7 @@ provider underneath. When reviewing:
   the bar.
 
 ### Multi-provider footguns (`@happyvertical/ai`, weather, analytics,
-social, geo, translator, auth, cache)
+social, geo, translator, auth, cache, payments)
 
 Most SDK packages ship multiple providers behind one interface. The
 hottest review-comment area in the repo is *cross-provider parity* —
@@ -187,9 +187,20 @@ whether it belongs in the standalone instead.
   packages are version-locked. A manual `package.json` version bump in
   one package without bumping the rest will fail the consistency guard.
   Let the release workflow do it.
-- **`AGENT.md` files are generated** from `pnpm agent:sync`. Manual
-  hand-edits will be wiped on the next sync. If the AGENT.md content
-  needs to change, the *generator* needs to change.
+- **`AGENT.md` files are mostly generated** from `pnpm agent:sync`.
+  The section between `<!-- BEGIN AGENT:GENERATED -->` and
+  `<!-- END AGENT:GENERATED -->` markers is regenerated on every
+  sync — manual hand-edits inside that section will be wiped.
+  - **Root `AGENT.md` only**: text AFTER the END marker is preserved
+    as "legacy notes" (see `extractLegacyNotes()` in
+    `scripts/sync-agent-context.js`). The root file uses this seam
+    for hand-written agent guidance (slash commands, conventions,
+    cross-references).
+  - **Per-package `AGENT.md`**: no legacy-notes section — the
+    generator runs `removeIfExists(legacyMetaPath)` unconditionally
+    per package, so manual edits there really do get wiped.
+  - If the GENERATED content itself needs to change (per-package or
+    inside the markers), the *generator* needs to change.
 
 ### Live / optional integration tests
 
