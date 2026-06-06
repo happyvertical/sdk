@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.74.4
+
+### Patch Changes
+
+- ### Features
+
+  - implement stripe provider (accounting)
+
 ## 0.74.3
 
 ### Patch Changes
