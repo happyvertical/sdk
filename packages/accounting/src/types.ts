@@ -60,6 +60,16 @@ export interface StripeOptions extends BaseAccountingOptions {
   type: 'stripe';
   /** Stripe secret key */
   secretKey: string;
+  /** Stripe API version sent on requests */
+  apiVersion?: string;
+  /** Stripe API base URL, primarily useful for tests */
+  apiBaseUrl?: string;
+  /** Stripe webhook endpoint secret */
+  webhookSecret?: string;
+  /** Maximum webhook signature age in seconds. Defaults to 300 seconds. */
+  webhookTolerance?: number;
+  /** Fetch implementation override, primarily useful for tests */
+  fetch?: typeof fetch;
 }
 
 /**
@@ -405,6 +415,86 @@ export interface ExternalPayment extends ExternalRecord {
 }
 
 // =============================================================================
+// Stripe Billing Types
+// =============================================================================
+
+export type StripeCheckoutMode = 'payment' | 'setup' | 'subscription';
+
+export type StripeSubscriptionStatus =
+  | 'active'
+  | 'canceled'
+  | 'incomplete'
+  | 'incomplete_expired'
+  | 'past_due'
+  | 'paused'
+  | 'trialing'
+  | 'unpaid';
+
+export interface StripeRecurringPriceData {
+  interval: 'day' | 'week' | 'month' | 'year';
+  intervalCount?: number;
+}
+
+export interface StripeCheckoutPriceData {
+  currency: string;
+  unitAmount: number;
+  product?: string;
+  productName?: string;
+  recurring?: StripeRecurringPriceData;
+}
+
+export interface StripeCheckoutLineItem {
+  price?: string;
+  priceData?: StripeCheckoutPriceData;
+  quantity?: number;
+}
+
+export interface StripeCheckoutSessionInput {
+  mode?: StripeCheckoutMode;
+  successUrl: string;
+  cancelUrl: string;
+  customerExternalId?: string;
+  customerEmail?: string;
+  clientReferenceId?: string;
+  lineItems: StripeCheckoutLineItem[];
+  metadata?: Record<string, string | number | boolean | null | undefined>;
+  allowPromotionCodes?: boolean;
+}
+
+export interface StripeCheckoutSession {
+  externalId: string;
+  url: string | null;
+  customerExternalId?: string;
+  subscriptionExternalId?: string;
+  paymentIntentExternalId?: string;
+  raw?: unknown;
+}
+
+export interface StripeCustomerPortalSessionInput {
+  customerExternalId: string;
+  returnUrl: string;
+  configurationExternalId?: string;
+}
+
+export interface StripeCustomerPortalSession {
+  externalId: string;
+  url: string;
+  raw?: unknown;
+}
+
+export interface StripeSubscriptionStatusResult {
+  externalId: string;
+  status: StripeSubscriptionStatus;
+  customerExternalId: string;
+  currentPeriodStart?: Date;
+  currentPeriodEnd?: Date;
+  cancelAtPeriodEnd: boolean;
+  canceledAt?: Date;
+  trialEnd?: Date;
+  raw?: unknown;
+}
+
+// =============================================================================
 // Sync Result Types
 // =============================================================================
 
@@ -611,6 +701,32 @@ export interface PaymentOperations {
 }
 
 /**
+ * Stripe billing operations interface.
+ *
+ * These operations are Stripe-specific because billing portals and checkout
+ * sessions are payment-provider products rather than portable accounting
+ * concepts.
+ */
+export interface StripeBillingOperations {
+  /** Create a Stripe Checkout Session */
+  createCheckoutSession(
+    input: StripeCheckoutSessionInput,
+  ): Promise<StripeCheckoutSession>;
+  /** Create a Stripe Customer Portal Session */
+  createCustomerPortalSession(
+    input: StripeCustomerPortalSessionInput,
+  ): Promise<StripeCustomerPortalSession>;
+  /** Retrieve a Stripe subscription status summary */
+  retrieveSubscriptionStatus(
+    subscriptionExternalId: string,
+  ): Promise<StripeSubscriptionStatusResult>;
+  /** List Stripe subscription status summaries for a customer */
+  listCustomerSubscriptions(
+    customerExternalId: string,
+  ): Promise<StripeSubscriptionStatusResult[]>;
+}
+
+/**
  * Audit operations interface
  */
 export interface AuditOperations {
@@ -677,4 +793,12 @@ export interface AccountingProvider {
   // Webhooks
   /** Webhook operations */
   webhooks: WebhookOperations;
+}
+
+/**
+ * Stripe provider interface with provider-specific billing operations.
+ */
+export interface StripeAccountingProvider extends AccountingProvider {
+  readonly type: 'stripe';
+  billing: StripeBillingOperations;
 }
