@@ -15,6 +15,7 @@ import type {
   DatabaseInterface,
   IndexDefinition,
   SchemaInitializationOptions,
+  SessionHandle,
   TableInterface,
   TableSchemaInfo,
   TransactionHandle,
@@ -1405,6 +1406,76 @@ async function createDatabase(
   };
 
   /**
+   * Acquire a pinned connection from the pool for session-scoped state such as
+   * `pg_advisory_lock`. Every query on the returned handle runs on the same
+   * client until {@link SessionHandle.release} drops the connection (which
+   * frees any session locks it held). The connection is held for the handle's
+   * lifetime, so hold one session per process, not per operation.
+   */
+  const acquireSession = async (): Promise<SessionHandle> => {
+    const sessionClient = await pool.connect();
+    let released = false;
+    let lost = false;
+
+    // pg-pool removes its idle 'error' listener when a client is checked out.
+    // A session is pinned for the process lifetime and mostly idle between
+    // queries, so a backend disconnect/failover would emit 'error' on a
+    // listener-less client and crash the process. Absorb it and mark the
+    // session dead instead; the next query()/isActive() surfaces it.
+    sessionClient.on('error', () => {
+      lost = true;
+    });
+
+    return {
+      query: async (sql: string, ...values: any[]) => {
+        if (released) {
+          throw new DatabaseError('Session has been released', {});
+        }
+        if (lost) {
+          throw new DatabaseError('Session connection was lost', {});
+        }
+        const normalized = normalizePostgresRawQuery(sql, values);
+        try {
+          const result = await sessionClient.query(
+            normalized.sql,
+            normalized.values,
+          );
+          return {
+            rows: result.rows,
+            rowCount: result.rowCount ?? 0,
+          };
+        } catch (e) {
+          throw new DatabaseError('Failed to execute session query', {
+            sql: normalized.sql,
+            values: normalized.values,
+            originalError: formatDbError(e),
+          });
+        }
+      },
+      isActive: () => !released && !lost,
+      release: async () => {
+        if (released) return;
+        released = true;
+        // Free session advisory locks before tearing down so the contract
+        // "after release() the locks are gone" holds deterministically — the
+        // destroy below is async (TCP teardown) and resolves later. Skip on a
+        // lost connection (nothing to talk to; backend exit frees them anyway).
+        if (!lost) {
+          try {
+            await sessionClient.query('SELECT pg_advisory_unlock_all()');
+          } catch {
+            // Best-effort; the destroy below frees locks at backend exit.
+          }
+        }
+        // Destroy the physical connection rather than returning it to the pool.
+        // Returning it would NOT clear residual session state, which could then
+        // leak onto a connection later handed to unrelated code.
+        sessionClient.release(true);
+      },
+    };
+  };
+
+  /**
    * Checks if a table exists in the database
    *
    * @param tableName - Name of the table to check
@@ -2281,6 +2352,7 @@ async function createDatabase(
     initializeSchemas,
     transaction,
     beginTransaction,
+    acquireSession,
     getTableSchema,
     alterTable,
     vector: createVectorCapabilities(pool),

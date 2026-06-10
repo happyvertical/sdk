@@ -961,6 +961,34 @@ export interface DatabaseInterface {
   beginTransaction?: () => Promise<TransactionHandle>;
 
   /**
+   * Acquire a pinned single-connection session.
+   *
+   * Returns a {@link SessionHandle} whose queries all run on one underlying
+   * connection, enabling session-scoped state (e.g. PostgreSQL session advisory
+   * locks) that the pooled top-level {@link query} cannot hold reliably. The
+   * caller must {@link SessionHandle.release} it.
+   *
+   * Only meaningful for engines with session-scoped state, so it is currently
+   * implemented for PostgreSQL only; check for the method before calling
+   * (`if (db.acquireSession)`). Single-connection engines (SQLite, DuckDB) have
+   * no session-scoped locks to hold, so they leave it undefined.
+   *
+   * @returns Promise resolving to a SessionHandle
+   *
+   * @example Hold a Postgres session advisory lock
+   * ```typescript
+   * const session = await db.acquireSession();
+   * try {
+   *   await session.query('SELECT pg_advisory_lock($1)', 42);
+   *   // ... lock is held for the life of this session ...
+   * } finally {
+   *   await session.release(); // frees the lock and drops the connection
+   * }
+   * ```
+   */
+  acquireSession?: () => Promise<SessionHandle>;
+
+  /**
    * Retrieves the schema information for a table
    *
    * @param table - Table name
@@ -1069,6 +1097,51 @@ export interface TransactionHandle extends DatabaseInterface {
    * Whether the transaction is still active (not committed or rolled back)
    */
   isActive: () => boolean;
+}
+
+/**
+ * Pinned single-connection session handle.
+ *
+ * Obtained via {@link DatabaseInterface.acquireSession}. Unlike the pooled
+ * top-level `query` (which may run each statement on a different connection),
+ * every call on a session handle runs on the *same* underlying connection for
+ * the handle's lifetime. This is required for session-scoped state such as
+ * PostgreSQL session advisory locks (`pg_advisory_lock`), which must be
+ * acquired, observed, and released on one connection — and which release
+ * automatically if the connection drops (e.g. the process dies).
+ *
+ * A session holds one connection out of the pool (default max 20) for its
+ * entire lifetime, so it is meant to be held one-per-process, not per-operation.
+ * Always {@link SessionHandle.release} the handle when done, and release it
+ * *before* calling `db.client.end()` — a pinned connection keeps `pool.end()`
+ * from resolving.
+ */
+export interface SessionHandle {
+  /**
+   * Execute a raw query on this session's pinned connection.
+   * Same placeholder/return contract as {@link DatabaseInterface.query}.
+   * Throws if the session has been released or its connection was lost.
+   */
+  query: (
+    sql: string,
+    ...vars: any[]
+  ) => Promise<{ rows: Record<string, any>[]; rowCount: number }>;
+
+  /**
+   * Whether the session is still usable — not released and its connection has
+   * not errored/dropped. A long-lived lock holder can poll this without
+   * issuing a query.
+   */
+  isActive: () => boolean;
+
+  /**
+   * Release the session. Idempotent. After release the handle must not be used.
+   * Best-effort frees session-scoped locks, then drops the underlying
+   * connection (it is NOT returned to the pool) so the database releases any
+   * remaining session state — returning it to the pool would leak that state
+   * onto a later, unrelated checkout.
+   */
+  release: () => Promise<void>;
 }
 
 /**
