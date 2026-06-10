@@ -264,13 +264,22 @@ describe('postgres tests', () => {
     // release() frees the lock (pg_advisory_unlock_all) before dropping the
     // connection, so this is deterministic, not racing the async teardown.
     expect(session.isActive()).toBe(false);
-    const free = await db.query(
-      'SELECT pg_try_advisory_lock(?) AS got',
-      lockKey,
-    );
-    expect(free.rows[0].got).toBe(true);
-    // Clean up the lock taken by the assertion above (same pooled session).
-    await db.query('SELECT pg_advisory_unlock(?)', lockKey);
+
+    // Verify the lock is free on a *pinned* session so the acquire and the
+    // cleanup unlock happen on the same connection (a pooled try+unlock could
+    // land on different connections and leak the lock).
+    const verify = await db.acquireSession?.();
+    if (!verify) throw new Error('acquireSession returned no handle');
+    try {
+      const free = await verify.query(
+        'SELECT pg_try_advisory_lock(?) AS got',
+        lockKey,
+      );
+      expect(free.rows[0].got).toBe(true);
+    } finally {
+      // release() destroys the connection, which frees the lock just taken.
+      await verify.release();
+    }
 
     // Using a released session must fail clearly.
     await expect(session.query('SELECT 1')).rejects.toThrow(

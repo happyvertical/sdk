@@ -1462,6 +1462,16 @@ async function createDatabase(
         // lost connection (nothing to talk to; backend exit frees them anyway).
         if (!lost) {
           try {
+            // A caller that left the connection in an aborted transaction
+            // (BEGIN, a failed statement, then release) would make
+            // pg_advisory_unlock_all() error with "current transaction is
+            // aborted". Roll back first (a no-op when no transaction is open)
+            // so the unlock runs and the deterministic-release contract holds.
+            await sessionClient.query('ROLLBACK');
+          } catch {
+            // No open transaction, or already gone — proceed to unlock.
+          }
+          try {
             await sessionClient.query('SELECT pg_advisory_unlock_all()');
           } catch {
             // Best-effort; the destroy below frees locks at backend exit.
