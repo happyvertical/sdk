@@ -1,5 +1,17 @@
 # @happyvertical/utils
 
+## 0.74.5
+
+### Patch Changes
+
+- ### Features
+
+  - add acquireSession() for pinned-connection session locks (sql)
+
+  ### Bug Fixes
+
+  - roll back before unlock in session release; pin test cleanup (sql)
+
 ## 0.74.4
 
 ### Patch Changes
