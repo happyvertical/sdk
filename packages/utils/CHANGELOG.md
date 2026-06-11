@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.74.6
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - bind MatomoAdmin capability methods so detached calls keep their instance (#1044) (analytics)
+
 ## 0.74.5
 
 ### Patch Changes

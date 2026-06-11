@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/projects",
-  "version": "0.74.5",
+  "version": "0.74.6",
   "description": "Standardized project management interface for GitHub Projects, Jira, ZenHub, and Linear",
   "type": "module",
   "main": "./dist/index.js",
