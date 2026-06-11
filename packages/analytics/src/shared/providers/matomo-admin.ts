@@ -341,6 +341,28 @@ export class MatomoAdmin implements AnalyticsAdminInterface {
       ...options,
       baseUrl: this.baseUrl,
     });
+
+    // `AnalyticsAdminInterface` marks capability methods optional and tells
+    // callers to feature-check them (`typeof admin.mintUserToken ===
+    // 'function'`). The idiomatic TypeScript narrowing for that is to pull
+    // the method into a local before calling it, which detaches `this`.
+    // Bind every interface method so detached calls still hit this instance
+    // instead of crashing with `this === undefined` (surfaced in production
+    // as "Cannot read properties of undefined (reading
+    // 'cloneTransportWithToken')" during minted-token verification —
+    // https://github.com/happyvertical/sdk/issues/1043).
+    this.createSite = this.createSite.bind(this);
+    this.listSites = this.listSites.bind(this);
+    this.getSite = this.getSite.bind(this);
+    this.deleteSite = this.deleteSite.bind(this);
+    this.createUser = this.createUser.bind(this);
+    this.getUser = this.getUser.bind(this);
+    this.deleteUser = this.deleteUser.bind(this);
+    this.setUserAccess = this.setUserAccess.bind(this);
+    this.verifyUserSiteAccess = this.verifyUserSiteAccess.bind(this);
+    this.verifyTokenSiteAccess = this.verifyTokenSiteAccess.bind(this);
+    this.mintUserToken = this.mintUserToken.bind(this);
+    this.health = this.health.bind(this);
   }
 
   private cloneTransportWithToken(tokenAuth: string): MatomoAdminTransport {

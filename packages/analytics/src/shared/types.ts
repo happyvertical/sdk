@@ -1323,6 +1323,12 @@ export interface AnalyticsHealthResult {
  * particular provider can't support (e.g. `mintUserToken` against GA4) are left
  * out of that provider's admin object — callers should feature-check via
  * `typeof admin.mintUserToken === 'function'`.
+ *
+ * Because that feature-check idiom typically narrows a method into a local
+ * (`const fn = admin.mintUserToken; if (fn) await fn(...)`), implementations
+ * MUST keep these methods detachment-safe — i.e. bind them to the instance so a
+ * detached/destructured reference still carries `this`. See `MatomoAdmin`'s
+ * constructor for the reference implementation (https://github.com/happyvertical/sdk/issues/1043).
  */
 export interface AnalyticsAdminInterface {
   // ---------------------------------------------------------------------------
