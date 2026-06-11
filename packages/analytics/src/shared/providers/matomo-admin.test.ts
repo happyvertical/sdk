@@ -668,6 +668,49 @@ describe('MatomoAdmin.user lifecycle', () => {
     expect(result.error).toMatch(/Site 7 was not found/);
   });
 
+  it('mint-then-verify works with detached method references (#1043)', async () => {
+    // Regression: `AnalyticsAdminInterface` marks capability methods optional
+    // and documents feature-checking them, so callers narrow by pulling the
+    // method into a local — detaching `this`. Unbound prototype methods then
+    // ran with `this === undefined`, and minted-token verification failed
+    // with "Cannot read properties of undefined (reading
+    // 'cloneTransportWithToken')".
+    const responses = [
+      jsonResponse({ value: 'minted-token-abc' }),
+      jsonResponse({
+        idsite: '19',
+        name: 'Anytown',
+        main_url: 'https://anytown.example.com',
+      }),
+    ];
+    const { calls } = setFetchMock(() => nextResponse(responses));
+    const admin = new MatomoAdmin({
+      baseUrl: 'https://m.example.com',
+      tokenAuth: 'super-user-token',
+    });
+
+    const { mintUserToken, verifyTokenSiteAccess } = admin;
+    expect(typeof mintUserToken).toBe('function');
+    expect(typeof verifyTokenSiteAccess).toBe('function');
+
+    const minted = await mintUserToken({
+      login: 'tenant-user',
+      passwordConfirmation: 'tenant-password',
+    });
+    expect(minted.token).toBe('minted-token-abc');
+
+    const access = await verifyTokenSiteAccess({
+      tokenAuth: minted.token,
+      siteId: '19',
+    });
+    expect(access.error).toBeUndefined();
+    expect(access.ok).toBe(true);
+    expect(access.access).toBe('view');
+    // The verification probe must run under the freshly minted token, not
+    // the super-user token the admin was constructed with.
+    expect(calls[1].body.get('token_auth')).toBe('minted-token-abc');
+  });
+
   it('mintUserToken forwards the per-call passwordConfirmation', async () => {
     const { calls } = setFetchMock(() =>
       jsonResponse({ value: 'mint-token-abc' }),
