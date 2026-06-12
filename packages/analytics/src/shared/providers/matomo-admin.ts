@@ -23,6 +23,7 @@ import {
   type CreateAnalyticsUserOptions,
   type MintUserTokenOptions,
   type SetUserAccessOptions,
+  type UpdateAnalyticsSiteOptions,
   type VerifyTokenSiteAccessOptions,
   type VerifyUserSiteAccessOptions,
 } from '../types.js';
@@ -354,6 +355,7 @@ export class MatomoAdmin implements AnalyticsAdminInterface {
     this.createSite = this.createSite.bind(this);
     this.listSites = this.listSites.bind(this);
     this.getSite = this.getSite.bind(this);
+    this.updateSite = this.updateSite.bind(this);
     this.deleteSite = this.deleteSite.bind(this);
     this.createUser = this.createUser.bind(this);
     this.getUser = this.getUser.bind(this);
@@ -450,6 +452,45 @@ export class MatomoAdmin implements AnalyticsAdminInterface {
       }
       throw error;
     }
+  }
+
+  async updateSite(
+    options: UpdateAnalyticsSiteOptions,
+  ): Promise<AnalyticsSite> {
+    // Distinguish "not provided" (leave the provider's URLs untouched) from an
+    // explicit empty list, which Matomo would otherwise silently ignore.
+    if (options.urls && options.urls.length === 0) {
+      throw new AnalyticsError(
+        'Matomo updateSite requires at least one URL when urls is provided',
+        'MATOMO_URLS_REQUIRED',
+        PROVIDER,
+      );
+    }
+
+    // `SitesManager.updateSite` is a partial update on the Matomo side too —
+    // omitted params keep their current values. The transport drops undefined
+    // params, so only the supplied fields are sent. A non-existent idSite
+    // surfaces as a `result=error` payload and propagates as AnalyticsError.
+    await this.transport.call<unknown>('SitesManager.updateSite', {
+      idSite: options.siteId,
+      siteName: options.name,
+      urls: options.urls,
+      timezone: options.timezone,
+      currency: options.currency,
+      ...(options.raw ?? {}),
+    });
+
+    // Read the site back so callers get the provider-normalized state, same
+    // as createSite.
+    const site = await this.getSite(options.siteId);
+    if (!site) {
+      throw new AnalyticsError(
+        `Matomo site ${options.siteId} was not found after update`,
+        'MATOMO_SITE_NOT_FOUND',
+        PROVIDER,
+      );
+    }
+    return { ...site, tenantId: options.tenantId };
   }
 
   async deleteSite(siteId: string): Promise<void> {
