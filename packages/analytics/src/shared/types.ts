@@ -1089,6 +1089,22 @@ export interface CreateAnalyticsSiteOptions {
 }
 
 /**
+ * Options for updating an existing site.
+ *
+ * Reuses the `createSite` field shapes — every field except `siteId` is
+ * optional, and omitted fields are left unchanged on the provider (partial
+ * update).
+ */
+export interface UpdateAnalyticsSiteOptions
+  extends Partial<CreateAnalyticsSiteOptions> {
+  /**
+   * Provider site ID of the site to update. For Matomo this is the numeric
+   * `idSite` as a string.
+   */
+  siteId: string;
+}
+
+/**
  * User access role assignable to an analytics site.
  */
 export type AnalyticsAccessRole = 'noaccess' | 'view' | 'write' | 'admin';
@@ -1349,6 +1365,15 @@ export interface AnalyticsAdminInterface {
    * Look up a site by id. Resolves to undefined when the site does not exist.
    */
   getSite(siteId: string): Promise<AnalyticsSite | undefined>;
+
+  /**
+   * Update an existing site in place. Optional capability — partial update:
+   * only the fields supplied in the options change on the provider.
+   *
+   * Implementations should resolve to the post-update site as read back from
+   * the provider, normalized the same way `createSite`'s result is.
+   */
+  updateSite?(options: UpdateAnalyticsSiteOptions): Promise<AnalyticsSite>;
 
   /**
    * Delete a site.

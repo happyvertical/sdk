@@ -113,6 +113,7 @@ export type {
   TrackEvent,
   // Snippet types
   TrackingSnippet,
+  UpdateAnalyticsSiteOptions,
   UpdatePropertyOptions,
   VerifyTokenSiteAccessOptions,
   VerifyUserSiteAccessOptions,

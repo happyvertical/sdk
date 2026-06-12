@@ -325,6 +325,159 @@ describe('MatomoAdmin.createSite', () => {
   });
 });
 
+describe('MatomoAdmin.updateSite', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('calls SitesManager.updateSite then reads the normalized site back', async () => {
+    const responses = [
+      jsonResponse({ result: 'success', message: 'ok' }),
+      jsonResponse({
+        idsite: '7',
+        name: 'Bentley Alberta',
+        main_url: 'https://bentleyalberta.com',
+        timezone: 'America/Edmonton',
+        currency: 'CAD',
+      }),
+    ];
+    const { calls } = setFetchMock(() => nextResponse(responses));
+
+    const admin = new MatomoAdmin({
+      baseUrl: 'https://m.example.com',
+      tokenAuth: 'tok',
+    });
+
+    const site = await admin.updateSite({
+      siteId: '7',
+      name: 'Bentley Alberta',
+      urls: ['https://bentleyalberta.com'],
+      tenantId: 'bentleyalberta',
+    });
+
+    expect(site.id).toBe('7');
+    expect(site.name).toBe('Bentley Alberta');
+    expect(site.url).toBe('https://bentleyalberta.com');
+    expect(site.tenantId).toBe('bentleyalberta');
+    expect(site.timezone).toBe('America/Edmonton');
+    expect(site.currency).toBe('CAD');
+    expect(site.provider).toBe('matomo');
+
+    expect(calls[0].body.get('method')).toBe('SitesManager.updateSite');
+    expect(calls[0].body.get('idSite')).toBe('7');
+    expect(calls[0].body.get('siteName')).toBe('Bentley Alberta');
+    expect(calls[0].body.getAll('urls[]')).toEqual([
+      'https://bentleyalberta.com',
+    ]);
+    expect(calls[1].body.get('method')).toBe('SitesManager.getSiteFromId');
+    expect(calls[1].body.get('idSite')).toBe('7');
+  });
+
+  it('sends only the supplied fields (partial update)', async () => {
+    const responses = [
+      jsonResponse({ result: 'success', message: 'ok' }),
+      jsonResponse({
+        idsite: '7',
+        name: 'Bentley Alberta',
+        main_url: 'https://bentleyalberta.com',
+      }),
+    ];
+    const { calls } = setFetchMock(() => nextResponse(responses));
+
+    const admin = new MatomoAdmin({
+      baseUrl: 'https://m.example.com',
+      tokenAuth: 'tok',
+    });
+
+    await admin.updateSite({
+      siteId: '7',
+      urls: ['https://bentleyalberta.com'],
+    });
+
+    expect(calls[0].body.get('idSite')).toBe('7');
+    expect(calls[0].body.getAll('urls[]')).toEqual([
+      'https://bentleyalberta.com',
+    ]);
+    // Omitted fields must not be sent — Matomo keeps their current values.
+    expect(calls[0].body.get('siteName')).toBeNull();
+    expect(calls[0].body.get('timezone')).toBeNull();
+    expect(calls[0].body.get('currency')).toBeNull();
+  });
+
+  it('works with a detached method reference (#1043)', async () => {
+    // Same regression class as mint-then-verify: `updateSite` is an optional
+    // capability on `AnalyticsAdminInterface`, so callers feature-check it by
+    // pulling the method into a local — detaching `this`.
+    const responses = [
+      jsonResponse({ result: 'success', message: 'ok' }),
+      jsonResponse({
+        idsite: '19',
+        name: 'Anytown',
+        main_url: 'https://anytown.example.com',
+      }),
+    ];
+    setFetchMock(() => nextResponse(responses));
+    const admin = new MatomoAdmin({
+      baseUrl: 'https://m.example.com',
+      tokenAuth: 'tok',
+    });
+
+    const { updateSite } = admin;
+    expect(typeof updateSite).toBe('function');
+
+    const site = await updateSite({
+      siteId: '19',
+      urls: ['https://anytown.example.com'],
+    });
+    expect(site.id).toBe('19');
+    expect(site.url).toBe('https://anytown.example.com');
+  });
+
+  it('propagates a site-not-found application error', async () => {
+    setFetchMock(() =>
+      jsonResponse({
+        result: 'error',
+        message:
+          "An unexpected website was found in the request: website id was set to '999' .",
+      }),
+    );
+    const admin = new MatomoAdmin({
+      baseUrl: 'https://m.example.com',
+      tokenAuth: 'tok',
+    });
+    await expect(
+      admin.updateSite({ siteId: '999', name: 'nope' }),
+    ).rejects.toThrow(AnalyticsError);
+  });
+
+  it('throws when urls is provided but empty', async () => {
+    setFetchMock(() => jsonResponse({}));
+    const admin = new MatomoAdmin({
+      baseUrl: 'https://m.example.com',
+      tokenAuth: 'tok',
+    });
+    await expect(admin.updateSite({ siteId: '7', urls: [] })).rejects.toThrow(
+      /at least one URL/,
+    );
+  });
+
+  it('throws when the site cannot be read back after the update', async () => {
+    const responses = [
+      jsonResponse({ result: 'success', message: 'ok' }),
+      jsonResponse([]),
+    ];
+    setFetchMock(() => nextResponse(responses));
+    const admin = new MatomoAdmin({
+      baseUrl: 'https://m.example.com',
+      tokenAuth: 'tok',
+    });
+    await expect(admin.updateSite({ siteId: '7', name: 'x' })).rejects.toThrow(
+      /not found after update/,
+    );
+  });
+});
+
 describe('MatomoAdmin.listSites / getSite', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
