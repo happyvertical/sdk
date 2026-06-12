@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.74.7
+
+### Patch Changes
+
+- ### Features
+
+  - add updateSite admin capability for partial site updates (#1045) (analytics)
+
 ## 0.74.6
 
 ### Patch Changes
