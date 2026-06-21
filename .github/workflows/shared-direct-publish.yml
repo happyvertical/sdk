@@ -15,10 +15,11 @@
 #       uses: happyvertical/sdk/.github/workflows/shared-direct-publish.yml@main
 #       with:
 #         node-version: '24'
-#         registry-url: 'https://npm.pkg.github.com'
+#         registry-url: 'https://registry.npmjs.org'
 #       secrets:
 #         HAVE_RELEASE_APP_ID: ${{ secrets.HAVE_RELEASE_APP_ID }}
 #         HAVE_RELEASE_APP_PRIVATE_KEY: ${{ secrets.HAVE_RELEASE_APP_PRIVATE_KEY }}
+#         NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 # =============================================================================
 
 name: Shared Direct Publish
@@ -35,7 +36,7 @@ on:
         description: 'NPM registry URL'
         required: false
         type: string
-        default: 'https://npm.pkg.github.com'
+        default: 'https://registry.npmjs.org'
       skip-docs:
         description: 'Skip documentation deployment'
         required: false
@@ -47,6 +48,9 @@ on:
         required: true
       HAVE_RELEASE_APP_PRIVATE_KEY:
         description: 'GitHub App private key for release automation'
+        required: true
+      NPM_TOKEN:
+        description: 'npm automation token for publishing public packages'
         required: true
     outputs:
       published:
@@ -61,7 +65,7 @@ on:
 
 permissions:
   contents: write
-  packages: write
+  packages: read
   id-token: write
 
 jobs:
@@ -94,6 +98,11 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
           install-deps: 'true'
+
+      - name: Configure npm publish registry
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ inputs.node-version }}
           registry-url: ${{ inputs.registry-url }}
 
       - name: Setup Turborepo cache
@@ -132,8 +141,8 @@ jobs:
         env:
           CI: true
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
 
@@ -166,9 +175,9 @@ jobs:
               echo "ℹ️  Release v$version already exists, skipping release creation"
             else
               if [ -n "$previous_version" ] && [ "$previous_version" != "$version" ]; then
-                release_notes="## Published Packages"$'\n\n'"All packages published to GitHub Packages at version $version."$'\n\n'"Full Changelog: https://github.com/${GITHUB_REPOSITORY}/compare/v$previous_version...v$version"
+                release_notes="## Published Packages"$'\n\n'"All packages published to npm at version $version."$'\n\n'"Full Changelog: https://github.com/${GITHUB_REPOSITORY}/compare/v$previous_version...v$version"
               else
-                release_notes="## Published Packages"$'\n\n'"All packages published to GitHub Packages at version $version from committed release state on \`main\`."
+                release_notes="## Published Packages"$'\n\n'"All packages published to npm at version $version from committed release state on \`main\`."
               fi
 
               gh release create "v$version" \

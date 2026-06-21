@@ -6,13 +6,7 @@ Document processing with hierarchical structure. Currently supports PDF document
 
 ## Installation
 
-```bash
-npm install @happyvertical/documents
-# or
-pnpm add @happyvertical/documents
-```
-
-> Published to GitHub Packages (`npm.pkg.github.com`). Requires `@happyvertical/files`, `@happyvertical/pdf`, `@happyvertical/spider`, and `@happyvertical/utils` as workspace dependencies.
+This package is currently workspace-only. It depends on `@happyvertical/ocr`, `@happyvertical/pdf`, and `@happyvertical/spider`, which must move to public npm before `@happyvertical/documents` can be published there for anonymous installs.
 
 ## Quick Start
 

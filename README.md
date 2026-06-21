@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-A TypeScript monorepo for building vertical AI agents, published to GitHub Packages as `@happyvertical/*`.
+A TypeScript monorepo for building vertical AI agents, published to public npm as `@happyvertical/*`.
 
 ## Architecture
 
@@ -117,18 +117,9 @@ These packages form the foundation everything else builds on.
 
 ## Installation
 
-All packages are published to GitHub Packages. You need a GitHub token with `read:packages` scope.
+Published packages are available on public npm under the `@happyvertical` scope. No GitHub Packages token or scoped registry configuration is required. Packages that still depend on legacy internal packages, such as `@happyvertical/documents`, remain workspace-only until those dependencies are also available on public npm.
 
-### 1. Configure the registry
-
-Create or update `.npmrc` in your project:
-
-```bash
-@happyvertical:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
-```
-
-### 2. Install what you need
+### Install what you need
 
 ```bash
 # Pick the packages you want

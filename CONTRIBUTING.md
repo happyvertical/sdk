@@ -124,7 +124,7 @@ Releases are managed through changesets:
    - Bumps versions in `package.json`
    - Updates `CHANGELOG.md` files
    - Deletes changeset files
-3. **Merge to publish** - When the Version Packages PR merges, packages are automatically published to GitHub Packages
+3. **Merge to publish** - When the Version Packages PR merges, packages are automatically published to public npm
 
 This means releases are batched and controlled, not automatic on every merge. 
 

@@ -25,17 +25,7 @@ Document processing for PDFs, HTML, and Markdown with hierarchical structure.
 
 ## Installation
 
-```bash
-npm install @happyvertical/documents
-```
-
-```bash
-pnpm add @happyvertical/documents
-```
-
-```bash
-yarn add @happyvertical/documents
-```
+This package is currently workspace-only. It depends on `@happyvertical/ocr`, `@happyvertical/pdf`, and `@happyvertical/spider`, which must move to public npm before `@happyvertical/documents` can be published there for anonymous installs.
 
 ## Claude Code Context
 

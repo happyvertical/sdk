@@ -29,6 +29,9 @@ on:
       HAVE_RELEASE_APP_PRIVATE_KEY:
         description: 'GitHub App private key for release automation'
         required: true
+      NPM_TOKEN:
+        description: 'npm automation token for publishing public packages'
+        required: true
   workflow_dispatch:
     inputs:
       skip-docs:
@@ -39,7 +42,7 @@ on:
 
 permissions:
   contents: write
-  packages: write
+  packages: read
   id-token: write
   pages: write
 
@@ -49,11 +52,12 @@ jobs:
     uses: ./.github/workflows/shared-direct-publish.yml
     with:
       node-version: '24'
-      registry-url: 'https://npm.pkg.github.com'
+      registry-url: 'https://registry.npmjs.org'
       skip-docs: ${{ github.event.inputs.skip-docs == 'true' }}
     secrets:
       HAVE_RELEASE_APP_ID: ${{ secrets.HAVE_RELEASE_APP_ID }}
       HAVE_RELEASE_APP_PRIVATE_KEY: ${{ secrets.HAVE_RELEASE_APP_PRIVATE_KEY }}
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   sync-smrt:
     name: Sync SMRT SDK Dependencies
@@ -86,7 +90,6 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
-          registry-url: 'https://npm.pkg.github.com'
 
       - name: Setup pnpm
         uses: pnpm/action-setup@903f9c1a6ebcba6cf41d87230be49611ac97822e # v6

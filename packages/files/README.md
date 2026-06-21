@@ -8,7 +8,7 @@ Unified filesystem interface for the HAVE SDK. Provides a consistent API across 
 pnpm add @happyvertical/files
 ```
 
-> Published to GitHub Packages (`npm.pkg.github.com`). Requires `@happyvertical/utils` as a workspace dependency.
+> Published to public npm. Depends on `@happyvertical/utils`.
 
 ## Usage
 
