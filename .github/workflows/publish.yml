@@ -110,8 +110,15 @@ jobs:
             "${{ needs.release.outputs.version }}"
 
           cd smrt
-          bash scripts/check-sdk-versions.sh
+          # Private legacy SDK packages intentionally stay on GitHub Packages.
+          # Resolve the newly public SDK packages from npmjs for this lockfile refresh.
+          cp .npmrc .npmrc.sdk-sync.bak
+          trap 'mv .npmrc.sdk-sync.bak .npmrc' EXIT
+          grep -v '^@happyvertical:registry=' .npmrc.sdk-sync.bak > .npmrc
+          echo '@happyvertical:registry=https://registry.npmjs.org' >> .npmrc
           pnpm install --lockfile-only --ignore-scripts
+          mv .npmrc.sdk-sync.bak .npmrc
+          trap - EXIT
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
