@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/accounting",
-  "version": "0.74.7",
+  "version": "0.74.8",
   "description": "Multi-provider accounting integration for AR/AP sync and audit with QuickBooks, Stripe, and more",
   "type": "module",
   "main": "./dist/index.js",

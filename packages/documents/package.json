@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/documents",
-  "version": "0.74.7",
+  "version": "0.74.8",
   "private": true,
   "description": "Multi-part document processing with support for PDF, HTML, and Markdown",
   "type": "module",

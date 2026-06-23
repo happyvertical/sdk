@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.74.8
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - publish sdk packages to public npm
+
 ## 0.74.7
 
 ### Patch Changes
