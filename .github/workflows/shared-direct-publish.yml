@@ -42,6 +42,11 @@ on:
         required: false
         type: boolean
         default: false
+      recover-committed-release:
+        description: 'Publish the current committed release version without generating a new version bump'
+        required: false
+        type: boolean
+        default: false
     secrets:
       HAVE_RELEASE_APP_ID:
         description: 'GitHub App ID for release automation'
@@ -104,6 +109,27 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
           registry-url: ${{ inputs.registry-url }}
+
+      - name: Configure npm publish auth
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${NPM_TOKEN:-}" ]; then
+            echo "::error::NPM_TOKEN secret is empty or unavailable."
+            exit 1
+          fi
+
+          registry="${{ inputs.registry-url }}"
+          registry_auth_host="${registry#https:}"
+          registry_auth_host="${registry_auth_host#http:}"
+          registry_auth_host="${registry_auth_host%/}/"
+
+          npm config set registry "$registry" --location=user
+          npm config set "${registry_auth_host}:_authToken" "$NPM_TOKEN" --location=user
+          npm whoami --registry "$registry" >/dev/null
+          echo "✅ npm publish auth verified"
 
       - name: Setup Turborepo cache
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
@@ -191,11 +217,40 @@ jobs:
           BEFORE_VERSION=$(node -p "require('./package.json').version")
           echo "Version before release: $BEFORE_VERSION"
 
-          # Auto-generate changeset from conventional commits (if no changesets exist)
-          pnpm run changeset:auto
+          if git rev-parse "v$BEFORE_VERSION" >/dev/null 2>&1; then
+            # Auto-generate changeset from conventional commits (if no changesets exist)
+            pnpm run changeset:auto
 
-          # Version packages (updates package.json and CHANGELOGs)
-          pnpm run changeset:version
+            # Version packages (updates package.json and CHANGELOGs)
+            pnpm run changeset:version
+          else
+            release_commit=$(git log \
+              --fixed-strings \
+              --grep="chore(release): v$BEFORE_VERSION" \
+              --format='%H' \
+              -n 1)
+
+            if [ -z "$release_commit" ]; then
+              echo "::error::Cannot recover committed release state because no chore(release): v$BEFORE_VERSION commit was found."
+              exit 1
+            fi
+
+            releaseable_commits=$(git log "$release_commit"..HEAD --pretty=format:%s --no-merges | \
+              grep -E '^(feat|fix|perf)(\(.+\))?!?:|^chore\(deps\)!?:|BREAKING CHANGE' || true)
+
+            if [ -n "$releaseable_commits" ]; then
+              echo "::error::Cannot recover v$BEFORE_VERSION because releaseable commits landed after the release commit:"
+              echo "$releaseable_commits"
+              exit 1
+            fi
+
+            if [ "${{ inputs.recover-committed-release }}" = "true" ]; then
+              echo "ℹ️  Recovering committed release state for v$BEFORE_VERSION by explicit request"
+            else
+              echo "ℹ️  Tag v$BEFORE_VERSION is missing; safely recovering committed release state"
+            fi
+            echo "ℹ️  Skipping changeset generation/versioning to avoid a duplicate version bump"
+          fi
 
           # Sync root package.json version with workspace packages
           WORKSPACE_VERSION=$(node -p "require('./packages/utils/package.json').version")
