@@ -39,6 +39,11 @@ on:
         required: false
         default: 'false'
         type: boolean
+      recover-committed-release:
+        description: 'Publish the current committed release version without generating a new version bump'
+        required: false
+        default: 'false'
+        type: boolean
 
 permissions:
   contents: write
@@ -54,6 +59,7 @@ jobs:
       node-version: '24'
       registry-url: 'https://registry.npmjs.org'
       skip-docs: ${{ github.event.inputs.skip-docs == 'true' }}
+      recover-committed-release: ${{ github.event.inputs.recover-committed-release == 'true' }}
     secrets:
       HAVE_RELEASE_APP_ID: ${{ secrets.HAVE_RELEASE_APP_ID }}
       HAVE_RELEASE_APP_PRIVATE_KEY: ${{ secrets.HAVE_RELEASE_APP_PRIVATE_KEY }}
