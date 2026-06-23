@@ -46,7 +46,10 @@ jobs:
       always() &&
       (needs.test.result == 'success' || needs.test.result == 'skipped')
     uses: ./.github/workflows/publish.yml
-    secrets: inherit
+    secrets:
+      HAVE_RELEASE_APP_ID: ${{ secrets.HAVE_RELEASE_APP_ID }}
+      HAVE_RELEASE_APP_PRIVATE_KEY: ${{ secrets.HAVE_RELEASE_APP_PRIVATE_KEY }}
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   summary:
     needs: [test, publish]
