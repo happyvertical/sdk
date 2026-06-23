@@ -36,16 +36,16 @@ This document explains the security configurations implemented in the GitHub Act
 
 **Before**:
 ```yaml
-echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> .npmrc
+echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" >> .npmrc
 ```
 
 **After**:
 ```yaml
-echo "@happyvertical:registry=https://npm.pkg.github.com" > .npmrc
+echo "registry=https://registry.npmjs.org" > .npmrc
 # Token is passed via environment variables instead
 env:
-  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+  NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 ```
 
 ### 4. Permission Documentation
@@ -57,7 +57,7 @@ env:
 ```yaml
 permissions:
   contents: write       # Required for creating git tags/releases and pushing commits
-  packages: write       # Required for publishing packages to GitHub Packages
+  packages: read        # Required while workspace installs still consume internal packages
   pages: write          # Required for GitHub Pages deployment (when enabled)
   id-token: write       # Required for GitHub Pages deployment (when enabled)
 ```

@@ -5,7 +5,6 @@ Database interface with support for SQLite (via LibSQL/Turso), PostgreSQL, DuckD
 ## Installation
 
 ```bash
-# Requires GitHub Packages registry
 pnpm add @happyvertical/sql
 ```
 

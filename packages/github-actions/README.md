@@ -5,9 +5,6 @@ GitHub Actions utilities for CI/CD automation. Provides AI-powered issue triage 
 ## Installation
 
 ```bash
-# .npmrc
-@happyvertical:registry=https://npm.pkg.github.com
-
 npm install @happyvertical/github-actions
 ```
 

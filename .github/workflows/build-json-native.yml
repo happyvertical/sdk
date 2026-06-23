@@ -15,6 +15,10 @@ on:
         description: 'Skip publishing (for testing)'
         type: boolean
         default: false
+    secrets:
+      NPM_TOKEN:
+        description: 'npm automation token for publishing public packages'
+        required: false
   workflow_dispatch:
     inputs:
       dry-run:
@@ -24,7 +28,6 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   build:
@@ -81,7 +84,6 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
-          registry-url: 'https://npm.pkg.github.com'
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-action@stable
@@ -161,7 +163,7 @@ jobs:
             "main": "json-native.node",
             "files": ["json-native.node"],
             "publishConfig": {
-              "registry": "https://npm.pkg.github.com",
+              "registry": "https://registry.npmjs.org",
               "access": "public"
             },
             "repository": {
@@ -194,7 +196,7 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
-          registry-url: 'https://npm.pkg.github.com'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Download all artifacts
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
@@ -206,7 +208,7 @@ jobs:
       - name: Publish platform packages
         working-directory: packages/json
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           for dir in npm/json-native-*/; do
             if [ -d "$dir" ]; then
