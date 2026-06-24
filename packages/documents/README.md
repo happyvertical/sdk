@@ -6,7 +6,13 @@ Document processing with hierarchical structure. Currently supports PDF document
 
 ## Installation
 
-This package is currently workspace-only. It depends on `@happyvertical/ocr`, `@happyvertical/pdf`, and `@happyvertical/spider`, which must move to public npm before `@happyvertical/documents` can be published there for anonymous installs.
+Install from the public npm registry:
+
+```bash
+npm install @happyvertical/documents
+```
+
+Anonymous installs also require the package's external `@happyvertical/ocr`, `@happyvertical/pdf`, and `@happyvertical/spider` dependencies to be available on public npm.
 
 ## Quick Start
 

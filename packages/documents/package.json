@@ -1,7 +1,6 @@
 {
   "name": "@happyvertical/documents",
   "version": "0.74.8",
-  "private": true,
   "description": "Multi-part document processing with support for PDF, HTML, and Markdown",
   "type": "module",
   "main": "dist/index.js",
@@ -16,6 +15,10 @@
     "AGENT.md",
     "metadata.json"
   ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/happyvertical/sdk.git",
