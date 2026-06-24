@@ -145,6 +145,7 @@ const { sql, values } = buildWhere({
   status: 'active',
   'price >': 100,
   'category in': ['electronics', 'books'],
+  'status not in': ['archived'],
   'name like': '%shirt%',
   deleted_at: null,         // IS NULL
   'updated_at !=': null,    // IS NOT NULL
@@ -160,6 +161,37 @@ buildWhere([
 ]);
 // WHERE (status = $1 AND price > $2) OR (status = $3 AND priority = $4)
 ```
+
+### Aggregate Query Building
+
+```typescript
+import { buildAggregate } from '@happyvertical/sql';
+
+const aggregate = buildAggregate(
+  {
+    from: 'orders',
+    select: [
+      { bucket: 'month', column: 'created_at', as: 'month' },
+      { column: 'customer_id' },
+      { fn: 'sum', column: 'total', as: 'revenue' },
+      { fn: 'count', as: 'order_count' },
+    ],
+    where: { status: 'paid' },
+    having: { 'revenue >': 0 },
+    orderBy: ['month ASC', 'revenue DESC'],
+    limit: 100,
+  },
+  1,
+  'postgres',
+);
+
+const rows = await db.query(aggregate.sql, aggregate.values);
+```
+
+`buildAggregate()` emits parameterized SQL and values, reuses `buildWhere()`
+semantics for `where` and `having`, and maps time buckets per adapter:
+PostgreSQL, DuckDB, and JSON use `date_trunc(...)`; SQLite uses portable
+`strftime(...)`/`date(...)` expressions.
 
 ### Schema Synchronization
 

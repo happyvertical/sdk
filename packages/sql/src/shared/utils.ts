@@ -53,7 +53,28 @@ const VALID_OPERATORS = {
   '!=': '!=',
   like: 'LIKE',
   in: 'IN',
+  'not in': 'NOT IN',
 } as const;
+
+function parseConditionKey(fullKey: string): {
+  field: string;
+  operator: string;
+} {
+  const trimmed = fullKey.trim();
+  const lower = trimmed.toLowerCase();
+  const operators = ['not in', 'like', 'in', '!=', '>=', '<=', '>', '<', '='];
+
+  for (const operator of operators) {
+    if (lower.endsWith(` ${operator}`)) {
+      return {
+        field: trimmed.slice(0, -(operator.length + 1)).trim(),
+        operator,
+      };
+    }
+  }
+
+  return { field: trimmed, operator: '=' };
+}
 
 /**
  * SQL adapter type for adapter-specific query generation
@@ -70,7 +91,7 @@ const buildCondition = (
   currIndex: { value: number },
   adapterType?: SqlAdapterType,
 ): { sql: string; values: any[] } => {
-  const [field, operator = '='] = fullKey.split(' ');
+  const { field, operator } = parseConditionKey(fullKey);
   const sqlOperator =
     VALID_OPERATORS[operator as keyof typeof VALID_OPERATORS] || '=';
   const values: any[] = [];
@@ -79,9 +100,15 @@ const buildCondition = (
 
   if (value === null) {
     sql = `${field} IS ${sqlOperator === '=' ? 'NULL' : 'NOT NULL'}`;
-  } else if (sqlOperator === 'IN' && Array.isArray(value)) {
+  } else if (
+    (sqlOperator === 'IN' || sqlOperator === 'NOT IN') &&
+    Array.isArray(value)
+  ) {
+    if (value.length === 0) {
+      throw new Error(`${sqlOperator} requires at least one value`);
+    }
     const placeholders = value.map(() => `$${currIndex.value++}`).join(', ');
-    sql = `${field} IN (${placeholders})`;
+    sql = `${field} ${sqlOperator} (${placeholders})`;
     values.push(...value);
   } else if (value instanceof Date) {
     // DuckDB/JSON need CAST to TIMESTAMP to prevent ANY type inference (issue #540)

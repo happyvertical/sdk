@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { buildWhere, getDatabase, syncSchema } from './index';
 
 const _TMP_DIR = path.resolve(`${tmpdir()}/kissd`);
+const deletedAt = 'deleted_at';
 
 it.skip('should be able to get the adapter for a postgres database', async () => {
   const db = await getDatabase({
@@ -66,7 +67,7 @@ it('should handle basic usage with different operators', () => {
 
 it('should handle NULL values correctly', () => {
   const result = buildWhere({
-    deleted_at: null,
+    [deletedAt]: null,
     'updated_at !=': null,
     status: 'active',
   });
@@ -94,7 +95,7 @@ it('should handle date filtering with null check (no adapter)', () => {
   const result = buildWhere({
     'created_at >': startDate,
     'created_at <=': endDate,
-    deleted_at: null,
+    [deletedAt]: null,
   });
 
   // Without adapter type, Date objects are ISO strings without CAST
@@ -154,14 +155,39 @@ it('should handle LIKE operators for search', () => {
 it('should handle IN clauses with arrays', () => {
   const result = buildWhere({
     'role in': ['admin', 'editor'],
+    'status not in': ['archived', 'deleted'],
     active: true,
     'last_login !=': null,
   });
 
   expect(result.sql).toBe(
-    'WHERE role IN ($1, $2) AND active = $3 AND last_login IS NOT NULL',
+    'WHERE role IN ($1, $2) AND status NOT IN ($3, $4) AND active = $5 AND last_login IS NOT NULL',
   );
-  expect(result.values).toEqual(['admin', 'editor', true]);
+  expect(result.values).toEqual([
+    'admin',
+    'editor',
+    'archived',
+    'deleted',
+    true,
+  ]);
+});
+
+it('should handle expression fields with spaces', () => {
+  const result = buildWhere({
+    'COUNT(DISTINCT user_id) >=': 2,
+    'SUM(total_amount) >': 100,
+  });
+
+  expect(result.sql).toBe(
+    'WHERE COUNT(DISTINCT user_id) >= $1 AND SUM(total_amount) > $2',
+  );
+  expect(result.values).toEqual([2, 100]);
+});
+
+it('should reject empty IN clauses', () => {
+  expect(() => buildWhere({ 'role in': [] })).toThrow(
+    'IN requires at least one value',
+  );
 });
 
 // 2D Array WHERE tests (OR/AND compound logic)
@@ -223,7 +249,7 @@ describe('buildWhere 2D array support', () => {
 
   it('should handle NULL values within 2D array', () => {
     const result = buildWhere([
-      [{ deleted_at: null }, { status: 'active' }],
+      [{ [deletedAt]: null }, { status: 'active' }],
       [{ 'deleted_at !=': null }],
     ]);
 
