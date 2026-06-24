@@ -1,5 +1,13 @@
 # @happyvertical/documents
 
+## 0.74.9
+
+### Patch Changes
+
+- 7e8d927: Publish @happyvertical/documents to public npm.
+  - @happyvertical/files@0.74.9
+  - @happyvertical/utils@0.74.9
+
 ## 0.74.8
 
 ### Patch Changes
