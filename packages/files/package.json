@@ -24,7 +24,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1034.0",
     "@happyvertical/utils": "workspace:*",
-    "google-auth-library": "^9.15.1",
+    "google-auth-library": "^10.9.0",
     "googleapis": "^144.0.0"
   },
   "devDependencies": {
