@@ -146,7 +146,7 @@ function selectExpression(
 function validateWhereShape(where: AggregateSpec['where']): void {
   if (!where) return;
   const validateKey = (key: string) => {
-    const [field] = key.trim().split(/\s+/);
+    const { field } = parseConditionKey(key);
     if (field) validateSqlIdentifier(field);
   };
   if (Array.isArray(where)) {
@@ -162,23 +162,14 @@ function validateWhereShape(where: AggregateSpec['where']): void {
 
 function parseConditionKey(key: string): { field: string; operator: string } {
   const trimmed = key.trim();
-  const operators = [
-    ' not in',
-    ' like',
-    ' in',
-    ' !=',
-    ' >=',
-    ' <=',
-    ' >',
-    ' <',
-    ' =',
-  ];
+  const operators = ['not in', 'like', 'in', '!=', '>=', '<=', '>', '<', '='];
   const lower = trimmed.toLowerCase();
   for (const operator of operators) {
-    if (lower.endsWith(operator)) {
+    const suffix = ` ${operator}`;
+    if (lower.endsWith(suffix)) {
       return {
-        field: trimmed.slice(0, -operator.length).trim(),
-        operator: operator.trim(),
+        field: trimmed.slice(0, -suffix.length).trim(),
+        operator,
       };
     }
   }

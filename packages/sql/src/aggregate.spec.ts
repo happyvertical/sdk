@@ -248,5 +248,26 @@ describe('aggregate SQL builder', () => {
         having: { 'count in': [] },
       }),
     ).toThrow('requires at least one value');
+    expect(() =>
+      buildAggregate({
+        from: 'orders',
+        select: [{ fn: 'count', as: 'count' }],
+        where: { 'tenant_id = tenant_id OR status': 'paid' },
+      }),
+    ).toThrow('Invalid SQL identifier');
+    expect(() =>
+      buildAggregate({
+        from: 'orders',
+        select: [{ fn: 'count', as: 'count' }],
+        where: [[{ 'tenant_id = tenant_id OR status': 'paid' }]],
+      }),
+    ).toThrow('Invalid SQL identifier');
+    expect(() =>
+      buildAggregate({
+        from: 'orders',
+        select: [{ fn: 'count', as: 'count' }],
+        having: { 'count = count OR count': 1 },
+      }),
+    ).toThrow('Invalid SQL identifier');
   });
 });
