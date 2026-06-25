@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.74.10
+
+### Patch Changes
+
+- ### Features
+
+  - add aggregate query builder (#1054) (sql)
+
 ## 0.74.9
 
 ## 0.74.8
