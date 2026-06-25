@@ -56,9 +56,14 @@ const VALID_OPERATORS = {
   'not in': 'NOT IN',
 } as const;
 
+function isSimpleSqlIdentifier(field: string): boolean {
+  return /^[a-zA-Z0-9_.]+$/.test(field);
+}
+
 function parseConditionKey(fullKey: string): {
   field: string;
   operator: string;
+  explicitOperator: boolean;
 } {
   const trimmed = fullKey.trim();
   const lower = trimmed.toLowerCase();
@@ -69,11 +74,12 @@ function parseConditionKey(fullKey: string): {
       return {
         field: trimmed.slice(0, -(operator.length + 1)).trim(),
         operator,
+        explicitOperator: true,
       };
     }
   }
 
-  return { field: trimmed, operator: '=' };
+  return { field: trimmed, operator: '=', explicitOperator: false };
 }
 
 /**
@@ -91,7 +97,10 @@ const buildCondition = (
   currIndex: { value: number },
   adapterType?: SqlAdapterType,
 ): { sql: string; values: any[] } => {
-  const { field, operator } = parseConditionKey(fullKey);
+  const { field, operator, explicitOperator } = parseConditionKey(fullKey);
+  if (!explicitOperator && !isSimpleSqlIdentifier(field)) {
+    throw new Error(`Invalid SQL identifier: ${field}`);
+  }
   const sqlOperator =
     VALID_OPERATORS[operator as keyof typeof VALID_OPERATORS] || '=';
   const values: any[] = [];

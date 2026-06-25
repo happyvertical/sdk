@@ -184,9 +184,7 @@ function expandHavingKey(
   const expression =
     expressionByAlias.get(parsed.field) ?? validateSqlIdentifier(parsed.field);
 
-  return parsed.operator === '='
-    ? expression
-    : `${expression} ${parsed.operator}`;
+  return `${expression} ${parsed.operator}`;
 }
 
 function expandHaving(

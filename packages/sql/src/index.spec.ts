@@ -176,12 +176,19 @@ it('should handle expression fields with spaces', () => {
   const result = buildWhere({
     'COUNT(DISTINCT user_id) >=': 2,
     'SUM(total_amount) >': 100,
+    'LOWER(status) =': 'paid',
   });
 
   expect(result.sql).toBe(
-    'WHERE COUNT(DISTINCT user_id) >= $1 AND SUM(total_amount) > $2',
+    'WHERE COUNT(DISTINCT user_id) >= $1 AND SUM(total_amount) > $2 AND LOWER(status) = $3',
   );
-  expect(result.values).toEqual([2, 100]);
+  expect(result.values).toEqual([2, 100, 'paid']);
+});
+
+it('should reject unsafe implicit equality keys', () => {
+  expect(() =>
+    buildWhere({ 'tenant_id = tenant_id OR status': 'paid' }),
+  ).toThrow('Invalid SQL identifier');
 });
 
 it('should reject empty IN clauses', () => {
