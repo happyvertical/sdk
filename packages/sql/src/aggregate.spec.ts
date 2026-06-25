@@ -77,6 +77,22 @@ describe('aggregate SQL builder', () => {
     expect(result.values).toEqual([2]);
   });
 
+  it('handles uppercase count and rejects distinct count without a column', () => {
+    expect(
+      buildAggregate({
+        from: 'orders',
+        select: [{ fn: 'COUNT', as: 'order_count' }],
+      }).sql,
+    ).toBe('SELECT COUNT(*) AS order_count FROM orders');
+
+    expect(() =>
+      buildAggregate({
+        from: 'orders',
+        select: [{ fn: 'count', distinct: true, as: 'order_count' }],
+      }),
+    ).toThrow('Aggregate count with distinct requires a column');
+  });
+
   it('builds OR/AND having clauses with stable placeholder order', () => {
     const result = buildAggregate({
       from: 'orders',
@@ -132,11 +148,51 @@ describe('aggregate SQL builder', () => {
       "strftime('%Y-%m-%d 00:00:00', created_at)",
     );
     expect(bucketExpr('sqlite', 'week', 'created_at')).toBe(
-      "date(created_at, printf('-%d days', (CAST(strftime('%w', created_at) AS INTEGER) + 6) % 7))",
+      "strftime('%Y-%m-%d 00:00:00', date(created_at, printf('-%d days', (CAST(strftime('%w', created_at) AS INTEGER) + 6) % 7)))",
     );
     expect(bucketExpr('sqlite', 'quarter', 'created_at')).toBe(
-      "date(strftime('%Y-', created_at) || printf('%02d', ((CAST(strftime('%m', created_at) AS INTEGER) - 1) / 3) * 3 + 1) || '-01')",
+      "strftime('%Y-%m-%d 00:00:00', date(strftime('%Y-', created_at) || printf('%02d', ((CAST(strftime('%m', created_at) AS INTEGER) - 1) / 3) * 3 + 1) || '-01'))",
     );
+  });
+
+  it('emits SQLite-safe offset without limit', () => {
+    const spec: AggregateSpec = {
+      from: 'orders',
+      select: [{ fn: 'count', as: 'count' }],
+      offset: 5,
+    };
+
+    expect(buildAggregate(spec, 1, 'sqlite')).toEqual({
+      sql: 'SELECT COUNT(*) AS count FROM orders LIMIT -1 OFFSET $1',
+      values: [5],
+    });
+    expect(buildAggregate(spec, 1, 'postgres')).toEqual({
+      sql: 'SELECT COUNT(*) AS count FROM orders OFFSET $1',
+      values: [5],
+    });
+  });
+
+  it('executes SQLite offset without limit', async () => {
+    const db = await getDatabase({ type: 'sqlite', url: ':memory:' });
+    await syncSchema({
+      db,
+      schema: 'CREATE TABLE orders (id TEXT PRIMARY KEY)',
+    });
+    await db.insert('orders', [{ id: '1' }, { id: '2' }]);
+
+    const aggregate = buildAggregate(
+      {
+        from: 'orders',
+        select: [{ column: 'id' }],
+        orderBy: 'id ASC',
+        offset: 1,
+      },
+      1,
+      'sqlite',
+    );
+
+    const result = await db.query(aggregate.sql, ...aggregate.values);
+    expect(result.rows).toEqual([{ id: '2' }]);
   });
 
   it('executes generated aggregate SQL against SQLite', async () => {

@@ -162,6 +162,10 @@ buildWhere([
 // WHERE (status = $1 AND price > $2) OR (status = $3 AND priority = $4)
 ```
 
+Condition keys with explicit operator suffixes are emitted as SQL
+field/expression text. Keep those keys developer-controlled; do not pass
+end-user input as condition keys.
+
 ### Aggregate Query Building
 
 ```typescript

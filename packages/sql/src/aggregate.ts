@@ -1,5 +1,9 @@
 import type { WhereClause } from './shared/types.js';
-import { buildWhere, type SqlAdapterType } from './shared/utils.js';
+import {
+  buildWhere,
+  parseConditionKey,
+  type SqlAdapterType,
+} from './shared/utils.js';
 
 export type AggregateTimeBucketUnit =
   | 'minute'
@@ -98,11 +102,11 @@ export function bucketExpr(
     case 'day':
       return `strftime('%Y-%m-%d 00:00:00', ${col})`;
     case 'week':
-      return `date(${col}, printf('-%d days', (CAST(strftime('%w', ${col}) AS INTEGER) + 6) % 7))`;
+      return `strftime('%Y-%m-%d 00:00:00', date(${col}, printf('-%d days', (CAST(strftime('%w', ${col}) AS INTEGER) + 6) % 7)))`;
     case 'month':
       return `strftime('%Y-%m-01 00:00:00', ${col})`;
     case 'quarter':
-      return `date(strftime('%Y-', ${col}) || printf('%02d', ((CAST(strftime('%m', ${col}) AS INTEGER) - 1) / 3) * 3 + 1) || '-01')`;
+      return `strftime('%Y-%m-%d 00:00:00', date(strftime('%Y-', ${col}) || printf('%02d', ((CAST(strftime('%m', ${col}) AS INTEGER) - 1) / 3) * 3 + 1) || '-01'))`;
     case 'year':
       return `strftime('%Y-01-01 00:00:00', ${col})`;
   }
@@ -111,8 +115,12 @@ export function bucketExpr(
 function aggregateExpression(
   expr: Extract<AggregateSelectExpr, { fn: AggregateFunction }>,
 ): string {
+  const normalizedFn = String(expr.fn).toLowerCase();
   const fn = validateSqlIdentifier(String(expr.fn)).toUpperCase();
-  if (expr.fn === 'count' && !expr.column) {
+  if (normalizedFn === 'count' && !expr.column) {
+    if (expr.distinct) {
+      throw new Error(`Aggregate ${expr.fn} with distinct requires a column`);
+    }
     return 'COUNT(*)';
   }
   if (!expr.column) {
@@ -158,22 +166,6 @@ function validateWhereShape(where: AggregateSpec['where']): void {
     return;
   }
   for (const key of Object.keys(where)) validateKey(key);
-}
-
-function parseConditionKey(key: string): { field: string; operator: string } {
-  const trimmed = key.trim();
-  const operators = ['not in', 'like', 'in', '!=', '>=', '<=', '>', '<', '='];
-  const lower = trimmed.toLowerCase();
-  for (const operator of operators) {
-    const suffix = ` ${operator}`;
-    if (lower.endsWith(suffix)) {
-      return {
-        field: trimmed.slice(0, -suffix.length).trim(),
-        operator,
-      };
-    }
-  }
-  return { field: trimmed, operator: '=' };
 }
 
 function expandHavingKey(
@@ -297,6 +289,11 @@ export function buildAggregate(
   if (spec.limit !== undefined) {
     pagingSql.push(`LIMIT ${placeholder(nextParamIndex++)}`);
     pagingValues.push(spec.limit);
+  } else if (
+    spec.offset !== undefined &&
+    normalizeAdapter(adapterType) === 'sqlite'
+  ) {
+    pagingSql.push('LIMIT -1');
   }
   if (spec.offset !== undefined) {
     pagingSql.push(`OFFSET ${placeholder(nextParamIndex++)}`);

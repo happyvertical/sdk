@@ -60,7 +60,7 @@ function isSimpleSqlIdentifier(field: string): boolean {
   return /^[a-zA-Z0-9_.]+$/.test(field);
 }
 
-function parseConditionKey(fullKey: string): {
+export function parseConditionKey(fullKey: string): {
   field: string;
   operator: string;
   explicitOperator: boolean;
@@ -147,6 +147,11 @@ const buildCondition = (
  *     prevent DuckDB ANY-type inference issues.
  *   - `'sqlite'` / `'postgres'` / `undefined`: Passes ISO strings directly
  *     (these adapters handle ISO timestamp strings natively).
+ *
+ * Keys with explicit operator suffixes are treated as SQL field/expression
+ * text. Keep those keys developer-controlled; do not pass end-user input as a
+ * condition key.
+ *
  * @returns Object containing the SQL clause and array of values
  *
  * @example Basic Usage (Object format - AND-only):
