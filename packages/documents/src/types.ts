@@ -144,26 +144,28 @@ export interface FetchDocumentOptions {
   /**
    * Scraper type to use for content extraction
    * - 'basic': Fast, static HTML scraping (default)
-   * - 'crawlee': Full browser with JavaScript execution
+   * - 'tree': Browser-backed expansion of trees and accordions
+   * - 'crawlee': Deprecated alias for spider: 'crawlee' with basic scraping
    * @default 'basic'
    */
-  scraper?: 'basic' | 'crawlee';
+  scraper?: 'basic' | 'tree' | 'crawlee';
 
   /**
    * Spider adapter to use for fetching web pages
    * - 'simple': Basic HTTP fetch
    * - 'dom': HTML parsing with happy-dom
-   * - 'crawlee': Headless browser (requires scraper: 'crawlee')
+   * - 'crawlee': Headless browser through Crawlee
+   * - 'crawl4ai': Remote crawl4ai server
    * @default 'dom'
    */
-  spider?: 'simple' | 'dom' | 'crawlee';
+  spider?: 'simple' | 'dom' | 'crawlee' | 'crawl4ai';
 
   /**
    * Spider adapter to use for HTML fetching (deprecated, use 'spider' instead)
    * @default 'simple'
    * @deprecated Use 'spider' instead
    */
-  spiderAdapter?: 'simple' | 'dom' | 'crawlee';
+  spiderAdapter?: 'simple' | 'dom' | 'crawlee' | 'crawl4ai';
 
   /**
    * Whether to use cache for spider fetching
