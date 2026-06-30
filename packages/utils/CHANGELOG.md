@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.74.11
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - verify public npm release installs (#1056)
+
 ## 0.74.10
 
 ### Patch Changes

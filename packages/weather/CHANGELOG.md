@@ -1,5 +1,12 @@
 # @happyvertical/weather
 
+## 0.74.11
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.74.11
+
 ## 0.74.10
 
 ### Patch Changes

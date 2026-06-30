@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/ai",
-  "version": "0.74.10",
+  "version": "0.74.11",
   "description": "Standardized AI interface supporting OpenAI, LiteLLM, Bifrost, Ollama, Anthropic, Gemini, Bedrock, Hugging Face, Claude CLI, and Qwen3-TTS",
   "type": "module",
   "main": "./dist/index.js",

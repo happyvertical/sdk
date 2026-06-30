@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/docs",
-  "version": "0.74.10",
+  "version": "0.74.11",
   "private": true,
   "main": "docusaurus.config.ts",
   "description": "Happy Vertical SDK Documentation - Build powerful AI agents in TypeScript",
