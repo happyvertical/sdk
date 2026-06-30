@@ -214,7 +214,7 @@ jobs:
                   local -a missing_packages=()
 
                   while IFS= read -r package_name; do
-                    if ! npmjs_command "$wait_dir" view "$package_name@$version" version >/dev/null 2>&1; then
+                    if ! npmjs_command "$wait_dir" --prefer-online view "$package_name@$version" version >/dev/null 2>&1; then
                       missing_packages+=("$package_name")
                     fi
                   done < "$packages_file"
