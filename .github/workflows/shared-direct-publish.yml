@@ -179,6 +179,115 @@ jobs:
             local previous_version="$2"
             local release_notes=""
 
+            verify_public_npm_installs() {
+              local version="$1"
+              local packages_file
+
+              packages_file="$(mktemp)"
+              RELEASE_VERSION="$version" node <<'NODE' > "$packages_file"
+          const fs = require('fs');
+          const path = require('path');
+
+          const releaseVersion = process.env.RELEASE_VERSION;
+          const candidates = new Set();
+
+          function addPackageJson(filePath) {
+            if (fs.existsSync(filePath)) {
+              candidates.add(filePath);
+            }
+          }
+
+          addPackageJson('package.json');
+
+          for (const workspaceDir of ['packages']) {
+            if (!fs.existsSync(workspaceDir)) {
+              continue;
+            }
+
+            for (const entry of fs.readdirSync(workspaceDir, { withFileTypes: true })) {
+              if (entry.isDirectory()) {
+                addPackageJson(path.join(workspaceDir, entry.name, 'package.json'));
+              }
+            }
+          }
+
+          for (const packageJsonPath of [...candidates].sort()) {
+            const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+            const publishRegistry = pkg.publishConfig?.registry ?? '';
+            const rootWorkspacePackage =
+              packageJsonPath === 'package.json' &&
+              fs.existsSync('pnpm-workspace.yaml') &&
+              !publishRegistry;
+
+            if (
+              !pkg.name ||
+              pkg.private ||
+              pkg.version !== releaseVersion ||
+              rootWorkspacePackage ||
+              (publishRegistry && !publishRegistry.includes('registry.npmjs.org'))
+            ) {
+              continue;
+            }
+
+            console.log(pkg.name);
+          }
+          NODE
+
+              if [ ! -s "$packages_file" ]; then
+                echo "ℹ️  No public npm packages at v$version found for clean-room install verification"
+                rm -f "$packages_file"
+                return 0
+              fi
+
+              echo "🔍 Verifying anonymous public npm installs for v$version"
+              sed 's/^/  - /' "$packages_file"
+
+              while IFS= read -r package_name; do
+                local smoke_dir
+                smoke_dir="$(mktemp -d)"
+
+                for attempt in 1 2 3; do
+                  if (
+                    cd "$smoke_dir"
+                    export HOME="$smoke_dir/home"
+                    export npm_config_cache="$smoke_dir/npm-cache"
+                    export npm_config_globalconfig="$smoke_dir/global-npmrc"
+                    export npm_config_update_notifier=false
+                    export npm_config_userconfig="$smoke_dir/.npmrc"
+                    mkdir -p "$HOME" "$npm_config_cache"
+                    : > "$npm_config_globalconfig"
+                    printf 'registry=https://registry.npmjs.org/\n' > "$npm_config_userconfig"
+                    unset GH_TOKEN GITHUB_TOKEN NODE_AUTH_TOKEN NPM_TOKEN
+                    npm install \
+                      --ignore-scripts \
+                      --no-audit \
+                      --no-fund \
+                      --package-lock=false \
+                      --registry=https://registry.npmjs.org \
+                      "$package_name@$version"
+                  ); then
+                    echo "✅ $package_name@$version resolves from public npm"
+                    break
+                  fi
+
+                  if [ "$attempt" -eq 3 ]; then
+                    echo "::error::Anonymous public npm install failed for $package_name@$version."
+                    echo "::error::Check that all published dependency ranges are satisfiable from registry.npmjs.org."
+                    rm -rf "$smoke_dir"
+                    rm -f "$packages_file"
+                    return 1
+                  fi
+
+                  echo "Install check for $package_name@$version failed on attempt $attempt; retrying after registry propagation delay..."
+                  sleep $((attempt * 10))
+                done
+
+                rm -rf "$smoke_dir"
+              done < "$packages_file"
+
+              rm -f "$packages_file"
+            }
+
             # Build packages
             pnpm run build
 
@@ -187,6 +296,10 @@ jobs:
 
             # Publish packages
             pnpm run changeset:publish
+
+            # Verify anonymous consumers can resolve the packages from public npm
+            # before creating the release tag that marks the publish complete.
+            verify_public_npm_installs "$version"
 
             # Create and push git tag (idempotent - skip if tag already exists)
             if git rev-parse "v$version" >/dev/null 2>&1; then
