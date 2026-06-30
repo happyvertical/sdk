@@ -183,6 +183,62 @@ jobs:
               local version="$1"
               local packages_file
 
+              npmjs_command() {
+                local work_dir="$1"
+                shift
+
+                (
+                  cd "$work_dir"
+                  export HOME="$work_dir/home"
+                  export npm_config_cache="$work_dir/npm-cache"
+                  export npm_config_globalconfig="$work_dir/global-npmrc"
+                  export npm_config_update_notifier=false
+                  export npm_config_userconfig="$work_dir/.npmrc"
+                  mkdir -p "$HOME" "$npm_config_cache"
+                  : > "$npm_config_globalconfig"
+                  printf 'registry=https://registry.npmjs.org/\n' > "$npm_config_userconfig"
+                  unset GH_TOKEN GITHUB_TOKEN NODE_AUTH_TOKEN NPM_TOKEN
+                  npm --registry=https://registry.npmjs.org "$@"
+                )
+              }
+
+              wait_for_public_package_versions() {
+                local packages_file="$1"
+                local version="$2"
+                local wait_dir
+                local max_attempts=12
+
+                wait_dir="$(mktemp -d)"
+
+                for attempt in $(seq 1 "$max_attempts"); do
+                  local -a missing_packages=()
+
+                  while IFS= read -r package_name; do
+                    if ! npmjs_command "$wait_dir" --prefer-online view "$package_name@$version" version >/dev/null 2>&1; then
+                      missing_packages+=("$package_name")
+                    fi
+                  done < "$packages_file"
+
+                  if [ "${#missing_packages[@]}" -eq 0 ]; then
+                    rm -rf "$wait_dir"
+                    return 0
+                  fi
+
+                  if [ "$attempt" -eq "$max_attempts" ]; then
+                    echo "::error::Timed out waiting for published packages to become visible on registry.npmjs.org:"
+                    printf '::error::  - %s\n' "${missing_packages[@]/%/@$version}"
+                    rm -rf "$wait_dir"
+                    return 1
+                  fi
+
+                  echo "Waiting for registry.npmjs.org propagation before install checks (attempt $attempt/$max_attempts):"
+                  printf '  - %s\n' "${missing_packages[@]/%/@$version}"
+                  sleep $((attempt * 10))
+                done
+
+                rm -rf "$wait_dir"
+              }
+
               packages_file="$(mktemp)"
               RELEASE_VERSION="$version" node <<'NODE' > "$packages_file"
           const fs = require('fs');
@@ -242,30 +298,22 @@ jobs:
               echo "🔍 Verifying anonymous public npm installs for v$version"
               sed 's/^/  - /' "$packages_file"
 
+              if ! wait_for_public_package_versions "$packages_file" "$version"; then
+                rm -f "$packages_file"
+                return 1
+              fi
+
               while IFS= read -r package_name; do
                 local smoke_dir
                 smoke_dir="$(mktemp -d)"
 
                 for attempt in 1 2 3; do
-                  if (
-                    cd "$smoke_dir"
-                    export HOME="$smoke_dir/home"
-                    export npm_config_cache="$smoke_dir/npm-cache"
-                    export npm_config_globalconfig="$smoke_dir/global-npmrc"
-                    export npm_config_update_notifier=false
-                    export npm_config_userconfig="$smoke_dir/.npmrc"
-                    mkdir -p "$HOME" "$npm_config_cache"
-                    : > "$npm_config_globalconfig"
-                    printf 'registry=https://registry.npmjs.org/\n' > "$npm_config_userconfig"
-                    unset GH_TOKEN GITHUB_TOKEN NODE_AUTH_TOKEN NPM_TOKEN
-                    npm install \
-                      --ignore-scripts \
-                      --no-audit \
-                      --no-fund \
-                      --package-lock=false \
-                      --registry=https://registry.npmjs.org \
-                      "$package_name@$version"
-                  ); then
+                  if npmjs_command "$smoke_dir" install \
+                    --ignore-scripts \
+                    --no-audit \
+                    --no-fund \
+                    --package-lock=false \
+                    "$package_name@$version"; then
                     echo "✅ $package_name@$version resolves from public npm"
                     break
                   fi
