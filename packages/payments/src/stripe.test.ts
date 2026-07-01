@@ -1622,6 +1622,7 @@ describe('StripeAdapter saved payment methods (setup)', () => {
             'setup_intent',
             {
               id: 'seti_123',
+              status: 'succeeded',
               ...Object.fromEntries([
                 [
                   'payment_method',
@@ -1673,6 +1674,28 @@ describe('StripeAdapter saved payment methods (setup)', () => {
     await expect(
       adapter.getSetupResult({ sessionId: 'cs_setup_123' }),
     ).resolves.toMatchObject({ status: 'pending' });
+  });
+
+  it('getSetupResult stays pending while the SetupIntent is still processing', async () => {
+    // A complete Checkout Session whose SetupIntent has not yet succeeded must
+    // not be reported as complete — the saved method isn't reusable yet.
+    const adapter = makeAdapter(async () =>
+      jsonResponse({
+        id: 'cs_setup_123',
+        status: 'complete',
+        ...Object.fromEntries([
+          ['customer', 'cus_123'],
+          ['setup_intent', { id: 'seti_123', status: 'processing' }],
+        ]),
+      }),
+    );
+
+    await expect(
+      adapter.getSetupResult({ sessionId: 'cs_setup_123' }),
+    ).resolves.toMatchObject({
+      status: 'pending',
+      providerCustomerId: 'cus_123',
+    });
   });
 
   it('getSetupResult rejects a non-2xx Stripe response', async () => {

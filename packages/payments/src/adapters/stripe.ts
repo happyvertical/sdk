@@ -597,7 +597,10 @@ export class StripeAdapter implements PaymentBackend {
 
     return {
       backendId: this.capabilities.id,
-      status: mapStripeSetupStatus(readString(session, 'status')),
+      status: mapStripeSetupStatus(
+        readString(session, 'status'),
+        readString(setupIntent, 'status'),
+      ),
       providerCustomerId: normalizeOptionalProviderString(
         readProviderString(session, 'customer'),
       ),
@@ -1048,16 +1051,23 @@ function mapStripeRefundStatus(
 }
 
 function mapStripeSetupStatus(
-  status: string | undefined,
+  sessionStatus: string | undefined,
+  setupIntentStatus: string | undefined,
 ): SavedPaymentMethod['status'] {
-  switch (status) {
-    case 'complete':
-      return 'complete';
-    case 'expired':
-      return 'expired';
-    default:
-      return 'pending';
+  if (sessionStatus === 'expired') {
+    return 'expired';
   }
+
+  // The Checkout Session can report `complete` while its SetupIntent is still
+  // `processing` (async setup methods via dynamic payment methods). The saved
+  // method is only reusable once the SetupIntent itself has succeeded, so only
+  // then do we report completion — otherwise callers might persist a method as
+  // ready before it actually is.
+  if (sessionStatus === 'complete' && setupIntentStatus === 'succeeded') {
+    return 'complete';
+  }
+
+  return 'pending';
 }
 
 function readObject(
