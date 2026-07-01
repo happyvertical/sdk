@@ -21,9 +21,11 @@
  *     `sdk-mcp`, `secrets`
  *   - missing from both: `languages` (a spec-only placeholder
  *     directory — `packages/languages/` has SPEC.md but no
- *     package.json or source yet, so NOT added here either; same
- *     "no proactive scopes" rule as the dropped `payments` scope.
- *     Add when the package is actually scaffolded.)
+ *     package.json or source yet, so NOT added here either. This
+ *     follows the same "no proactive scopes" rule that kept `payments`
+ *     out until `packages/payments` landed with real package metadata.
+ *     Add new placeholder scopes only when the package is actually
+ *     scaffolded.)
  *
  * Reconciled below against the actual `packages/*` directory list plus
  * the small set of non-package scopes that recent commit history
