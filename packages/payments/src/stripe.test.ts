@@ -851,6 +851,70 @@ describe('StripeAdapter', () => {
     });
   });
 
+  it('maps captured payment_intent.succeeded webhooks to confirmed status', () => {
+    const adapter = createWebhookAdapter();
+    const payload = JSON.stringify({
+      id: 'evt_pi_succeeded',
+      type: 'payment_intent.succeeded',
+      data: {
+        object: {
+          id: 'pi_123',
+          metadata: { quoteId: 'quote-pi' },
+        },
+      },
+    });
+    const event = adapter.parseWebhookEvent(
+      payload,
+      stripeWebhookSignature(payload),
+    );
+
+    expect(event).toMatchObject({
+      id: 'evt_pi_succeeded',
+      type: 'payment_intent.succeeded',
+      status: 'confirmed',
+      quoteId: 'quote-pi',
+      providerPaymentId: 'pi_123',
+    });
+  });
+
+  it('maps voided payment_intent.canceled webhooks to a terminal status', () => {
+    const adapter = createWebhookAdapter();
+    const payload = JSON.stringify({
+      id: 'evt_pi_canceled',
+      type: 'payment_intent.canceled',
+      data: { object: { id: 'pi_123' } },
+    });
+    const event = adapter.parseWebhookEvent(
+      payload,
+      stripeWebhookSignature(payload),
+    );
+
+    expect(event).toMatchObject({
+      id: 'evt_pi_canceled',
+      status: 'failed',
+      providerPaymentId: 'pi_123',
+    });
+  });
+
+  it('maps payment_intent.payment_failed webhooks to failed status', () => {
+    const adapter = createWebhookAdapter();
+    const payload = JSON.stringify({
+      id: 'evt_pi_failed',
+      type: 'payment_intent.payment_failed',
+      data: { object: { id: 'pi_123' } },
+    });
+    const event = adapter.parseWebhookEvent(
+      payload,
+      stripeWebhookSignature(payload),
+    );
+
+    expect(event).toMatchObject({
+      id: 'evt_pi_failed',
+      status: 'failed',
+      providerPaymentId: 'pi_123',
+    });
+  });
+
   it('wraps malformed Stripe webhook JSON in a provider error', () => {
     const adapter = createWebhookAdapter();
 

@@ -1031,6 +1031,20 @@ function mapStripeWebhookStatus(
     return 'expired';
   }
 
+  // Manual-capture PaymentIntent lifecycle (authorize → capture / void).
+  // Without these, a captured or voided intent falls through to the
+  // non-terminal default below, so webhook-driven consumers would never see a
+  // terminal status for it.
+  if (type === 'payment_intent.succeeded') {
+    return 'confirmed';
+  }
+
+  if (type === 'payment_intent.canceled') {
+    // A voided authorization is terminal and unsettled. The shared
+    // PaymentStatus union has no dedicated "canceled", so map to failed.
+    return 'failed';
+  }
+
   if (type?.includes('failed')) {
     return 'failed';
   }
