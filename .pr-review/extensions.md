@@ -170,12 +170,16 @@ whether it belongs in the standalone instead.
 
 ### Build, release, and consumer-impact
 
-- **Changesets.** Every non-doc/test/CI PR requires `.changeset/*.md` or
-  a `skip-changeset` label. The bump type should match the conventional
-  commit type — `fix:` → patch, `feat:` → minor, `BREAKING CHANGE:` →
-  major-treated-as-minor pre-1.0. Flag mismatches (a `feat` with only a
-  patch bump silently delays the feature reaching consumers since
-  Renovate dedupes patches more aggressively).
+- **Changesets.** Explicit `.changeset/*.md` files are fine, and a
+  `skip-changeset` label is the opt-out. Do not flag a missing manual
+  changeset when `.github/workflows/on-pull-request.yml`'s
+  `Check for Changeset` job passes by validating
+  `pnpm run changeset:auto` for releaseable conventional commits. That
+  auto path creates the fixed-group changeset on merge; review the
+  commit subjects for accurate release notes and bump signal instead.
+  Flag only when the workflow check fails, no skip label exists, or the
+  commit signal/bump is wrong (`fix:` → patch, `feat:` → minor,
+  `BREAKING CHANGE:` → major-treated-as-minor pre-1.0).
 - **`pnpm-lock.yaml` churn.** This monorepo uses `pnpm` catalogs for
   external deps (#808). A PR that bumps a transitively-duplicated
   external dep version (e.g. adds a new copy of `undici` at a different

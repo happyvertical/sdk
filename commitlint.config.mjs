@@ -28,12 +28,12 @@
  *     scaffolded.)
  *
  * Reconciled below against the actual `packages/*` directory list plus
- * the small set of non-package scopes that recent commit history
- * justifies. When a new package directory lands under `packages/`,
- * add its name here too (otherwise the first `feat(<name>):` commit
- * will fail CI). Do NOT add scopes proactively for packages on other
- * branches — keep the enum a description of present-tense reality, not
- * a forecast.
+ * the small set of non-package and historical scopes that recent commit
+ * history justifies. When a new package directory lands under
+ * `packages/`, add its name here too (otherwise the first
+ * `feat(<name>):` commit will fail CI). Do NOT add scopes proactively
+ * for packages on other branches — keep the enum a description of
+ * present-tense reality and recent compatibility, not a forecast.
  *
  * https://commitlint.js.org/
  * https://www.conventionalcommits.org/
@@ -110,10 +110,18 @@ export default {
         'ocr',
         'pdf',
         'spider',
+        // Historical scopes from recently removed or externalized
+        // package surfaces. Keeping these avoids rejecting in-flight
+        // work and recently-used commit subjects while the repo history
+        // still references them.
+        'content',
+        'gnode',
+        'products',
         // Non-package cross-cutting scopes
         'ci', // CI / workflow changes
         'config', // Repo-wide configuration changes (commitlint, biome, tsconfig)
         'deps', // Dependency updates (used by Renovate)
+        'git', // Git hooks and repository metadata
         'release', // Release-related changes (chore(release): version bumps)
         'smrt', // Downstream-SMRT-sync commits (sdk -> smrt version bumps)
       ],
