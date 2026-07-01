@@ -1698,6 +1698,73 @@ describe('StripeAdapter saved payment methods (setup)', () => {
     });
   });
 
+  it('getSetupResult maps a declined/canceled SetupIntent to a terminal failed', async () => {
+    // Card declined at the save step → session complete, intent
+    // requires_payment_method. Must be terminal so callers stop polling.
+    const adapter = makeAdapter(async () =>
+      jsonResponse({
+        id: 'cs_setup_123',
+        status: 'complete',
+        ...Object.fromEntries([
+          ['customer', 'cus_123'],
+          [
+            'setup_intent',
+            { id: 'seti_123', status: 'requires_payment_method' },
+          ],
+        ]),
+      }),
+    );
+
+    await expect(
+      adapter.getSetupResult({ sessionId: 'cs_setup_123' }),
+    ).resolves.toMatchObject({ status: 'failed' });
+  });
+
+  it('getSetupResult does not report complete without a reusable customer reference', async () => {
+    // A succeeded intent with no cus_ can't be charged off-session, so it must
+    // not be advertised as complete.
+    const adapter = makeAdapter(async () =>
+      jsonResponse({
+        id: 'cs_setup_123',
+        status: 'complete',
+        ...Object.fromEntries([
+          [
+            'setup_intent',
+            {
+              id: 'seti_123',
+              status: 'succeeded',
+              ...Object.fromEntries([['payment_method', { id: 'pm_123' }]]),
+            },
+          ],
+        ]),
+      }),
+    );
+
+    await expect(
+      adapter.getSetupResult({ sessionId: 'cs_setup_123' }),
+    ).resolves.toMatchObject({
+      status: 'pending',
+      providerPaymentMethodId: 'pm_123',
+      providerCustomerId: undefined,
+    });
+  });
+
+  it('createSetupSession rejects an unsupported currency before any network call', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({}));
+    const adapter = new StripeAdapter({
+      secretKey: 'sk_test_123',
+      apiBaseUrl: 'https://stripe.example/v1',
+      fetch: fetchMock,
+      successUrl: 'https://app.example/setup/success',
+      cancelUrl: 'https://app.example/setup/cancel',
+    });
+
+    await expect(
+      adapter.createSetupSession({ currency: 'JPY' }),
+    ).rejects.toThrow(/not configured as supported/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('getSetupResult rejects a non-2xx Stripe response', async () => {
     const adapter = makeAdapter(async () =>
       jsonResponse({ error: { message: 'No such checkout session' } }, 404),

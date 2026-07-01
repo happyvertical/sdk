@@ -214,7 +214,12 @@ export interface SetupSession {
   sessionId: string;
   /** Hosted URL the buyer completes to save their card. */
   url: string;
-  /** Provider customer id, when one was supplied or already created. */
+  /**
+   * Provider customer id — present only when one was supplied on input. For the
+   * email / auto-create path the customer is created when the buyer completes
+   * the flow, so this is typically `undefined` here; read it from
+   * {@link getSetupResult} after completion instead.
+   */
   providerCustomerId?: string;
   raw?: unknown;
 }
@@ -226,8 +231,17 @@ export interface GetSetupResultInput {
 
 export interface SavedPaymentMethod {
   backendId: string;
-  status: 'complete' | 'pending' | 'expired';
-  /** Reusable references to persist — never card data. */
+  /**
+   * `complete` only when the method is actually reusable — the setup succeeded
+   * AND both reusable references are present. `pending` while still in progress,
+   * `failed` on a declined/canceled setup (terminal — stop polling), `expired`
+   * when the session lapsed.
+   */
+  status: 'complete' | 'pending' | 'failed' | 'expired';
+  /**
+   * Reusable references to persist — never card data. Both are guaranteed
+   * present whenever `status === 'complete'`.
+   */
   providerCustomerId?: string;
   providerPaymentMethodId?: string;
   /** Non-sensitive display fields. */
@@ -236,6 +250,11 @@ export interface SavedPaymentMethod {
   last4?: string;
   expMonth?: number;
   expYear?: number;
+  /**
+   * Full, untrimmed provider object for inspection. May contain PII (e.g. a
+   * Checkout Session's `customer_details`) — persist the typed reference/display
+   * fields above, not `raw`.
+   */
   raw?: unknown;
 }
 

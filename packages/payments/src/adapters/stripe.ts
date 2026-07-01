@@ -595,18 +595,32 @@ export class StripeAdapter implements PaymentBackend {
     const paymentMethod = readObject(setupIntent, 'payment_method');
     const card = readObject(paymentMethod, 'card');
 
+    const providerCustomerId = normalizeOptionalProviderString(
+      readProviderString(session, 'customer'),
+    );
+    const providerPaymentMethodId = normalizeOptionalProviderString(
+      readProviderString(paymentMethod, 'id'),
+    );
+
+    let status = mapStripeSetupStatus(
+      readString(session, 'status'),
+      readString(setupIntent, 'status'),
+    );
+    // Never report `complete` without the reusable references a caller needs to
+    // charge the method later — a `pm_` with no `cus_` can't be charged
+    // off-session, so treat that as not-yet-ready rather than a false success.
+    if (
+      status === 'complete' &&
+      (!providerCustomerId || !providerPaymentMethodId)
+    ) {
+      status = 'pending';
+    }
+
     return {
       backendId: this.capabilities.id,
-      status: mapStripeSetupStatus(
-        readString(session, 'status'),
-        readString(setupIntent, 'status'),
-      ),
-      providerCustomerId: normalizeOptionalProviderString(
-        readProviderString(session, 'customer'),
-      ),
-      providerPaymentMethodId: normalizeOptionalProviderString(
-        readProviderString(paymentMethod, 'id'),
-      ),
+      status,
+      providerCustomerId,
+      providerPaymentMethodId,
       type: readString(paymentMethod, 'type'),
       brand: readString(card, 'brand'),
       last4: readString(card, 'last4'),
@@ -1058,13 +1072,24 @@ function mapStripeSetupStatus(
     return 'expired';
   }
 
-  // The Checkout Session can report `complete` while its SetupIntent is still
-  // `processing` (async setup methods via dynamic payment methods). The saved
-  // method is only reusable once the SetupIntent itself has succeeded, so only
-  // then do we report completion — otherwise callers might persist a method as
-  // ready before it actually is.
-  if (sessionStatus === 'complete' && setupIntentStatus === 'succeeded') {
-    return 'complete';
+  if (sessionStatus === 'complete') {
+    // The method is reusable only once the SetupIntent itself has succeeded —
+    // the Session can be `complete` while the intent is still `processing`
+    // (async setup methods via dynamic payment methods).
+    if (setupIntentStatus === 'succeeded') {
+      return 'complete';
+    }
+    // A finished session whose SetupIntent didn't succeed is a terminal
+    // failure (card declined → `requires_payment_method`, or `canceled`), so
+    // callers can stop polling instead of waiting on a `pending` that will
+    // never resolve. Still-in-flight states (`processing`, `requires_action`)
+    // remain `pending`.
+    if (
+      setupIntentStatus === 'canceled' ||
+      setupIntentStatus === 'requires_payment_method'
+    ) {
+      return 'failed';
+    }
   }
 
   return 'pending';
