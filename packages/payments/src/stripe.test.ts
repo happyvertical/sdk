@@ -1659,6 +1659,34 @@ describe('StripeAdapter manual-capture lifecycle', () => {
     ).resolves.toMatchObject({ status: 'failed', providerPaymentId: 'pi_123' });
   });
 
+  it('authorizePayment exposes client_secret and next_action for SCA-required intents', async () => {
+    const adapter = makeAdapter(async () =>
+      jsonResponse({
+        id: 'pi_123',
+        status: 'requires_action',
+        amount: 5000,
+        currency: 'cad',
+        ...Object.fromEntries([
+          ['client_secret', 'pi_123_secret_abc'],
+          ['next_action', { type: 'use_stripe_sdk' }],
+        ]),
+      }),
+    );
+
+    const result = await adapter.authorizePayment({
+      amount: 5000,
+      currency: 'CAD',
+      paymentMethod: 'pm_card_authenticationRequired',
+    });
+
+    expect(result).toMatchObject({
+      status: 'requires_action',
+      providerPaymentId: 'pi_123',
+      clientSecret: 'pi_123_secret_abc',
+      nextAction: { type: 'use_stripe_sdk' },
+    });
+  });
+
   it('authorizePayment rejects a non-2xx Stripe response', async () => {
     const adapter = makeAdapter(async () =>
       jsonResponse({ error: { message: 'Your card was declined.' } }, 402),

@@ -543,12 +543,20 @@ export class StripeAdapter implements PaymentBackend {
       );
     }
 
+    const nextAction = intent.next_action ?? undefined;
+
     return {
       backendId: this.capabilities.id,
       status: mapStripeAuthorizationStatus(readString(intent, 'status')),
       providerPaymentId,
       amount: readSafeInteger(intent, 'amount') ?? amount,
       currency: (readString(intent, 'currency') ?? currency).toUpperCase(),
+      // Exposed so callers can complete SCA/3-D Secure when the intent comes
+      // back `requires_action`, instead of digging into `raw`.
+      clientSecret: normalizeOptionalProviderString(
+        readProviderString(intent, 'client_secret'),
+      ),
+      nextAction,
       raw: intent,
     };
   }

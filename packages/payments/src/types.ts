@@ -217,6 +217,17 @@ export interface AuthorizationResult {
   providerPaymentId?: string;
   amount?: number;
   currency?: string;
+  /**
+   * Client secret to complete authentication when `status` is
+   * `requires_action` (e.g. 3-D Secure). The buyer's client uses it to finish
+   * the challenge, after which the intent moves to `requires_capture`.
+   */
+  clientSecret?: string;
+  /**
+   * Provider-specific next-action payload when `status` is `requires_action`
+   * (e.g. the redirect/challenge details). Present only when action is needed.
+   */
+  nextAction?: unknown;
   raw?: unknown;
 }
 
