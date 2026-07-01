@@ -499,12 +499,12 @@ export class StripeAdapter implements PaymentBackend {
       input.paymentMethod,
       'Stripe authorize paymentMethod',
     );
-    const customerId =
-      input.customerId === undefined
+    const providerCustomerId =
+      input.providerCustomerId === undefined
         ? undefined
         : normalizeNonEmptyString(
-            input.customerId,
-            'Stripe authorize customerId',
+            input.providerCustomerId,
+            'Stripe authorize providerCustomerId',
           );
     const quoteId =
       input.quoteId === undefined
@@ -526,7 +526,9 @@ export class StripeAdapter implements PaymentBackend {
             ['payment_method', paymentMethod],
             ['capture_method', 'manual'],
           ]),
-          ...(customerId === undefined ? {} : { customer: customerId }),
+          ...(providerCustomerId === undefined
+            ? {}
+            : { customer: providerCustomerId }),
           ...flattenStripeMetadata(input.metadata),
           ...(quoteId === undefined ? {} : { 'metadata[quoteId]': quoteId }),
         }),
@@ -543,20 +545,28 @@ export class StripeAdapter implements PaymentBackend {
       );
     }
 
-    const nextAction = intent.next_action ?? undefined;
+    const status = mapStripeAuthorizationStatus(readString(intent, 'status'));
+    // Only surface the SCA fields when authentication is actually required — the
+    // documented contract — even though Stripe returns client_secret regardless.
+    // Authorization status transitions (requires_action → requires_capture) are
+    // observed via `parseWebhookEvent`; `getStatus` handles Checkout sessions,
+    // not PaymentIntents.
+    const actionRequired = status === 'requires_action';
 
     return {
       backendId: this.capabilities.id,
-      status: mapStripeAuthorizationStatus(readString(intent, 'status')),
+      status,
       providerPaymentId,
       amount: readSafeInteger(intent, 'amount') ?? amount,
       currency: (readString(intent, 'currency') ?? currency).toUpperCase(),
-      // Exposed so callers can complete SCA/3-D Secure when the intent comes
-      // back `requires_action`, instead of digging into `raw`.
-      clientSecret: normalizeOptionalProviderString(
-        readProviderString(intent, 'client_secret'),
-      ),
-      nextAction,
+      clientSecret: actionRequired
+        ? normalizeOptionalProviderString(
+            readProviderString(intent, 'client_secret'),
+          )
+        : undefined,
+      nextAction: actionRequired
+        ? (intent.next_action ?? undefined)
+        : undefined,
       raw: intent,
     };
   }
@@ -1039,18 +1049,23 @@ function mapStripeWebhookStatus(
     return 'expired';
   }
 
-  // Manual-capture PaymentIntent lifecycle (authorize → capture / void).
-  // Without these, a captured or voided intent falls through to the
-  // non-terminal default below, so webhook-driven consumers would never see a
-  // terminal status for it.
-  if (type === 'payment_intent.succeeded') {
-    return 'confirmed';
-  }
-
-  if (type === 'payment_intent.canceled') {
-    // A voided authorization is terminal and unsettled. The shared
-    // PaymentStatus union has no dedicated "canceled", so map to failed.
-    return 'failed';
+  // Manual-capture PaymentIntent lifecycle (authorize → capture / void). Only
+  // treat these as terminal for intents WE created and can correlate — i.e.
+  // ones carrying our `quoteId` in metadata. Checkout Sessions create their own
+  // PaymentIntents (which also fire `payment_intent.succeeded`) with no quoteId
+  // on the intent; those are handled via the `checkout.session.*` events above,
+  // so here they fall through to the non-terminal default rather than emitting a
+  // spurious, uncorrelatable `confirmed`/`failed`.
+  if (
+    type === 'payment_intent.succeeded' ||
+    type === 'payment_intent.canceled'
+  ) {
+    const metadata = (object?.metadata as Record<string, unknown>) ?? {};
+    if (readString(metadata, 'quoteId') !== undefined) {
+      // A voided authorization is terminal and unsettled; the shared
+      // PaymentStatus union has no `canceled`, so it surfaces as `failed`.
+      return type === 'payment_intent.succeeded' ? 'confirmed' : 'failed';
+    }
   }
 
   if (type?.includes('failed')) {
@@ -1103,10 +1118,11 @@ function mapStripeCaptureStatus(
   switch (status) {
     case 'succeeded':
       return 'succeeded';
+    // Capturing an authorized intent shouldn't re-enter authentication; treat
+    // any in-flight/action state as still processing rather than a failure.
     case 'processing':
-      return 'processing';
     case 'requires_action':
-      return 'requires_action';
+      return 'processing';
     default:
       return 'failed';
   }

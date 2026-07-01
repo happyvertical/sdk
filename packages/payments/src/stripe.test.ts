@@ -882,7 +882,7 @@ describe('StripeAdapter', () => {
     const payload = JSON.stringify({
       id: 'evt_pi_canceled',
       type: 'payment_intent.canceled',
-      data: { object: { id: 'pi_123' } },
+      data: { object: { id: 'pi_123', metadata: { quoteId: 'quote-pi' } } },
     });
     const event = adapter.parseWebhookEvent(
       payload,
@@ -893,6 +893,28 @@ describe('StripeAdapter', () => {
       id: 'evt_pi_canceled',
       status: 'failed',
       providerPaymentId: 'pi_123',
+    });
+  });
+
+  it('does not reclassify a Checkout-originated payment_intent.succeeded (no quoteId)', () => {
+    // Checkout Sessions create their own PaymentIntent (no quoteId on the
+    // intent) which also fires payment_intent.succeeded. It must stay
+    // non-terminal here so a normal checkout doesn't emit a spurious,
+    // uncorrelatable `confirmed` event — the session events handle it.
+    const adapter = createWebhookAdapter();
+    const payload = JSON.stringify({
+      id: 'evt_pi_checkout',
+      type: 'payment_intent.succeeded',
+      data: { object: { id: 'pi_checkout' } },
+    });
+    const event = adapter.parseWebhookEvent(
+      payload,
+      stripeWebhookSignature(payload),
+    );
+
+    expect(event).toMatchObject({
+      id: 'evt_pi_checkout',
+      status: 'processing',
     });
   });
 
@@ -1687,6 +1709,57 @@ describe('StripeAdapter manual-capture lifecycle', () => {
     });
   });
 
+  it('authorizePayment does not expose SCA fields when no action is required', async () => {
+    const adapter = makeAdapter(async () =>
+      jsonResponse({
+        id: 'pi_123',
+        status: 'requires_capture',
+        amount: 5000,
+        currency: 'cad',
+        // Stripe returns client_secret regardless; it must not surface here.
+        ...Object.fromEntries([['client_secret', 'pi_123_secret_abc']]),
+      }),
+    );
+
+    const result = await adapter.authorizePayment({
+      amount: 5000,
+      currency: 'CAD',
+      paymentMethod: 'pm_card_visa',
+    });
+
+    expect(result.status).toBe('requires_capture');
+    expect(result.clientSecret).toBeUndefined();
+    expect(result.nextAction).toBeUndefined();
+  });
+
+  it('authorizePayment maps a still-processing intent and omits the idempotency header when no key is given', async () => {
+    let capturedInit: RequestInit | undefined;
+    const adapter = makeAdapter(async (_input, init) => {
+      capturedInit = init;
+      return jsonResponse({
+        id: 'pi_123',
+        status: 'processing',
+        amount: 5000,
+        currency: 'cad',
+      });
+    });
+
+    const result = await adapter.authorizePayment({
+      amount: 5000,
+      currency: 'CAD',
+      paymentMethod: 'pm_card_visa',
+    });
+
+    expect(result).toMatchObject({
+      status: 'processing',
+      providerPaymentId: 'pi_123',
+    });
+    // No idempotency key supplied → no stale header leaks onto the request.
+    expect(
+      new Headers(capturedInit?.headers).get('Idempotency-Key'),
+    ).toBeNull();
+  });
+
   it('authorizePayment rejects a non-2xx Stripe response', async () => {
     const adapter = makeAdapter(async () =>
       jsonResponse({ error: { message: 'Your card was declined.' } }, 402),
@@ -1713,12 +1786,14 @@ describe('StripeAdapter manual-capture lifecycle', () => {
     ).rejects.toThrow(/greater than zero/);
   });
 
-  it('capturePayment captures the full amount by default', async () => {
+  it('capturePayment captures the full amount by default and forwards the idempotency key', async () => {
     let capturedUrl = '';
     let capturedBody = '';
+    let capturedInit: RequestInit | undefined;
     const adapter = makeAdapter(async (input, init) => {
       capturedUrl = String(input);
       capturedBody = String(init?.body ?? '');
+      capturedInit = init;
       return jsonResponse({
         id: 'pi_123',
         status: 'succeeded',
@@ -1735,6 +1810,10 @@ describe('StripeAdapter manual-capture lifecycle', () => {
 
     expect(capturedUrl).toBe(
       'https://stripe.example/v1/payment_intents/pi_123/capture',
+    );
+    // Double-capture protection: the key must reach the request.
+    expect(new Headers(capturedInit?.headers).get('Idempotency-Key')).toBe(
+      'campaign-1-capture',
     );
     expect(new URLSearchParams(capturedBody).has('amount_to_capture')).toBe(
       false,
@@ -1780,10 +1859,12 @@ describe('StripeAdapter manual-capture lifecycle', () => {
     ).rejects.toThrow(/providerPaymentId/);
   });
 
-  it('voidPayment cancels an uncaptured PaymentIntent', async () => {
+  it('voidPayment cancels an uncaptured PaymentIntent and forwards the idempotency key', async () => {
     let capturedUrl = '';
-    const adapter = makeAdapter(async (input) => {
+    let capturedInit: RequestInit | undefined;
+    const adapter = makeAdapter(async (input, init) => {
       capturedUrl = String(input);
+      capturedInit = init;
       return jsonResponse({ id: 'pi_123', status: 'canceled' });
     });
 
@@ -1794,6 +1875,9 @@ describe('StripeAdapter manual-capture lifecycle', () => {
 
     expect(capturedUrl).toBe(
       'https://stripe.example/v1/payment_intents/pi_123/cancel',
+    );
+    expect(new Headers(capturedInit?.headers).get('Idempotency-Key')).toBe(
+      'campaign-1-void',
     );
     expect(result).toMatchObject({
       backendId: 'stripe',

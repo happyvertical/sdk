@@ -193,11 +193,12 @@ export interface RefundResult {
 export interface AuthorizePaymentInput {
   /** Amount to authorize, in the currency's smallest unit (e.g. cents). */
   amount: number;
+  /** Currency (ISO 4217). Must be in the backend's configured supported set. */
   currency: string;
   /** Provider payment-method reference to charge (e.g. a Stripe `pm_...` id). */
   paymentMethod: string;
   /** Optional provider customer reference (e.g. a Stripe `cus_...` id). */
-  customerId?: string;
+  providerCustomerId?: string;
   description?: string;
   /** Optional caller reference, surfaced to the provider as metadata. */
   quoteId?: string;
@@ -242,7 +243,10 @@ export interface CapturePaymentInput {
 
 export interface CaptureResult {
   backendId: string;
-  status: 'succeeded' | 'processing' | 'requires_action' | 'failed';
+  // No `requires_action`: capturing an already-authorized intent does not
+  // re-enter authentication, and CaptureResult carries no client secret to act
+  // on one. Any unexpected provider action-required state maps to `processing`.
+  status: 'succeeded' | 'processing' | 'failed';
   providerPaymentId?: string;
   amount?: number;
   currency?: string;
@@ -253,9 +257,22 @@ export interface VoidPaymentInput {
   /** Provider id returned by `authorizePayment`. */
   providerPaymentId: string;
   idempotencyKey?: string;
-  /** Optional provider cancellation reason. */
-  reason?: string;
+  /**
+   * Optional cancellation reason. Constrained to the provider's accepted set —
+   * Stripe rejects any other value, which would fail the cancel and leave the
+   * authorization hold in place.
+   */
+  reason?: 'duplicate' | 'fraudulent' | 'requested_by_customer' | 'abandoned';
 }
+
+// NOTE (void status vs webhooks): a successful `voidPayment` returns
+// `VoidResult.status: 'canceled'`. The same event arriving via
+// `parseWebhookEvent` (`payment_intent.canceled`) maps to the shared
+// `PaymentStatus`, which has no `canceled` member, so it surfaces as the
+// terminal `failed`. Consumers reconciling the two paths should disambiguate a
+// benign void from a real failure using the webhook event `type`. (A dedicated
+// `canceled` PaymentStatus would remove this asymmetry — a follow-up, since it
+// widens the shared union and `PaymentEvent` for every backend.)
 
 export interface VoidResult {
   backendId: string;
