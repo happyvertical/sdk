@@ -5,15 +5,17 @@
  *  - lefthook `commit-msg` hook (local pre-commit validation)
  *  - `.github/workflows/on-pull-request.yml` `validate-commits` job
  *    (wagoid/commitlint-github-action against this file, plus a
- *    second `pnpm exec commitlint` step that validates the PR title)
+ *    second `pnpm dlx commitlint` step that validates the PR title
+ *    without installing the full workspace)
  *
- * Single source of truth for commitlint-validated paths — see
- * `.commitlintrc.json` deletion for context. Note: `scripts/release-
- * helper.js` still calls `scripts/validate-conventional-commits.js`,
- * which uses its own hardcoded regex (permissive scope, 50-char
- * subject limit) and does NOT consult this file. Retiring that
- * script is a follow-up; for now treat any commit message that
- * passes the release-helper preflight as still subject to the
+ * Single source of truth for commit message rules and scope validation
+ * — see `.commitlintrc.json` deletion for context. Note:
+ * `scripts/release-helper.js` still calls
+ * `scripts/validate-conventional-commits.js`, which uses its own
+ * hardcoded regex (permissive scope, 50-char subject limit) and does
+ * NOT consult this file. Retiring that script is a follow-up; for now
+ * treat any commit message that passes the release-helper preflight as
+ * still subject to the
  * stricter commitlint rules below.
  * Two configs existed previously and their `scope-enum`s had drifted:
  *   - only in `.commitlintrc.json`: `comfyui`, `directory`, `social`, `video`
