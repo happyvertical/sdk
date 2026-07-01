@@ -1598,6 +1598,33 @@ describe('StripeAdapter saved payment methods (setup)', () => {
     expect(body.get('currency')).toBe('usd');
   });
 
+  it('createSetupSession omits the Idempotency-Key header when no key is given', async () => {
+    let capturedInit: RequestInit | undefined;
+    const adapter = makeAdapter(async (_input, init) => {
+      capturedInit = init;
+      return jsonResponse({
+        id: 'cs_setup_123',
+        url: 'https://checkout.stripe.com/c/pay/cs_setup_123',
+      });
+    });
+
+    await adapter.createSetupSession({ customerEmail: 'ad@example.com' });
+
+    expect(
+      new Headers(capturedInit?.headers).get('Idempotency-Key'),
+    ).toBeNull();
+  });
+
+  it('getSetupResult maps an expired setup session to expired', async () => {
+    const adapter = makeAdapter(async () =>
+      jsonResponse({ id: 'cs_setup_123', status: 'expired' }),
+    );
+
+    await expect(
+      adapter.getSetupResult({ sessionId: 'cs_setup_123' }),
+    ).resolves.toMatchObject({ status: 'expired' });
+  });
+
   it('createSetupSession requires success and cancel URLs', async () => {
     const adapter = new StripeAdapter({
       secretKey: 'sk_test_123',
@@ -1624,20 +1651,33 @@ describe('StripeAdapter saved payment methods (setup)', () => {
   });
 
   it('getSetupResult keeps a 3-DS (requires_action) SetupIntent pending, not failed', async () => {
+    // Include an expanded payment_method + customer so the reference-gate is
+    // satisfied — then it's the SetupIntent status (not a missing ref) that
+    // keeps this `pending`.
     const adapter = makeAdapter(async () =>
       jsonResponse({
         id: 'cs_setup_123',
         status: 'complete',
         ...Object.fromEntries([
           ['customer', 'cus_123'],
-          ['setup_intent', { id: 'seti_123', status: 'requires_action' }],
+          [
+            'setup_intent',
+            {
+              id: 'seti_123',
+              status: 'requires_action',
+              ...Object.fromEntries([['payment_method', { id: 'pm_123' }]]),
+            },
+          ],
         ]),
       }),
     );
 
     await expect(
       adapter.getSetupResult({ sessionId: 'cs_setup_123' }),
-    ).resolves.toMatchObject({ status: 'pending' });
+    ).resolves.toMatchObject({
+      status: 'pending',
+      providerPaymentMethodId: 'pm_123',
+    });
   });
 
   it('getSetupResult returns the saved token references and card display fields', async () => {
@@ -1709,14 +1749,22 @@ describe('StripeAdapter saved payment methods (setup)', () => {
 
   it('getSetupResult stays pending while the SetupIntent is still processing', async () => {
     // A complete Checkout Session whose SetupIntent has not yet succeeded must
-    // not be reported as complete — the saved method isn't reusable yet.
+    // not be reported as complete — the saved method isn't reusable yet. Both
+    // refs are present, so it's the intent status (not a missing ref) at work.
     const adapter = makeAdapter(async () =>
       jsonResponse({
         id: 'cs_setup_123',
         status: 'complete',
         ...Object.fromEntries([
           ['customer', 'cus_123'],
-          ['setup_intent', { id: 'seti_123', status: 'processing' }],
+          [
+            'setup_intent',
+            {
+              id: 'seti_123',
+              status: 'processing',
+              ...Object.fromEntries([['payment_method', { id: 'pm_123' }]]),
+            },
+          ],
         ]),
       }),
     );
@@ -1726,6 +1774,7 @@ describe('StripeAdapter saved payment methods (setup)', () => {
     ).resolves.toMatchObject({
       status: 'pending',
       providerCustomerId: 'cus_123',
+      providerPaymentMethodId: 'pm_123',
     });
   });
 

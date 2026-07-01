@@ -496,8 +496,9 @@ export class StripeAdapter implements PaymentBackend {
 
     const successUrl = normalizeUrlString(rawSuccessUrl, 'Stripe successUrl');
     const cancelUrl = normalizeUrlString(rawCancelUrl, 'Stripe cancelUrl');
-    // Stripe requires a currency for setup-mode Checkout Sessions when
-    // payment_method_types is not set; default to the backend currency.
+    // Currency for the setup-mode session (defaults to the backend currency).
+    // Redundant now that payment_method_types is always set, but harmless and
+    // kept so the session is well-formed if that restriction is ever relaxed.
     const currency = normalizeStripeCurrency(
       input.currency ?? this.defaultCurrency,
     );
@@ -599,8 +600,13 @@ export class StripeAdapter implements PaymentBackend {
     const paymentMethod = readObject(setupIntent, 'payment_method');
     const card = readObject(paymentMethod, 'card');
 
+    // `customer` is a bare `cus_` string on the request path (only
+    // setup_intent.payment_method is expanded), but read tolerantly of an
+    // expanded object so a future `expand[]=customer` can't wrongly downgrade a
+    // completed setup to a permanent `pending`.
     const providerCustomerId = normalizeOptionalProviderString(
-      readProviderString(session, 'customer'),
+      readProviderString(session, 'customer') ??
+        readProviderString(readObject(session, 'customer'), 'id'),
     );
     const providerPaymentMethodId = normalizeOptionalProviderString(
       readProviderString(paymentMethod, 'id'),
