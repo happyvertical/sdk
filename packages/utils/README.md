@@ -6,7 +6,6 @@ Foundation utilities for the HAVE SDK: ID generation, date parsing, URL handling
 
 ```bash
 pnpm add @happyvertical/utils
-# Published to GitHub Packages — requires .npmrc with @happyvertical registry
 ```
 
 A browser-safe entry point is available at `@happyvertical/utils/browser` (excludes Node.js-specific code like `node:vm` sandbox and `node:crypto` hashing).

@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/payments",
-  "version": "0.74.4",
+  "version": "0.74.11",
   "description": "Payment backend abstraction with adapters for Base USDC, BTCPay Server, and Stripe",
   "type": "module",
   "main": "./dist/index.js",
@@ -45,7 +45,7 @@
     "metadata.json"
   ],
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com",
+    "registry": "https://registry.npmjs.org",
     "access": "public"
   },
   "repository": {

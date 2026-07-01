@@ -53,7 +53,34 @@ const VALID_OPERATORS = {
   '!=': '!=',
   like: 'LIKE',
   in: 'IN',
+  'not in': 'NOT IN',
 } as const;
+
+function isSimpleSqlIdentifier(field: string): boolean {
+  return /^[a-zA-Z0-9_.]+$/.test(field);
+}
+
+export function parseConditionKey(fullKey: string): {
+  field: string;
+  operator: string;
+  explicitOperator: boolean;
+} {
+  const trimmed = fullKey.trim();
+  const lower = trimmed.toLowerCase();
+  const operators = ['not in', 'like', 'in', '!=', '>=', '<=', '>', '<', '='];
+
+  for (const operator of operators) {
+    if (lower.endsWith(` ${operator}`)) {
+      return {
+        field: trimmed.slice(0, -(operator.length + 1)).trim(),
+        operator,
+        explicitOperator: true,
+      };
+    }
+  }
+
+  return { field: trimmed, operator: '=', explicitOperator: false };
+}
 
 /**
  * SQL adapter type for adapter-specific query generation
@@ -70,7 +97,10 @@ const buildCondition = (
   currIndex: { value: number },
   adapterType?: SqlAdapterType,
 ): { sql: string; values: any[] } => {
-  const [field, operator = '='] = fullKey.split(' ');
+  const { field, operator, explicitOperator } = parseConditionKey(fullKey);
+  if (!explicitOperator && !isSimpleSqlIdentifier(field)) {
+    throw new Error(`Invalid SQL identifier: ${field}`);
+  }
   const sqlOperator =
     VALID_OPERATORS[operator as keyof typeof VALID_OPERATORS] || '=';
   const values: any[] = [];
@@ -79,9 +109,15 @@ const buildCondition = (
 
   if (value === null) {
     sql = `${field} IS ${sqlOperator === '=' ? 'NULL' : 'NOT NULL'}`;
-  } else if (sqlOperator === 'IN' && Array.isArray(value)) {
+  } else if (
+    (sqlOperator === 'IN' || sqlOperator === 'NOT IN') &&
+    Array.isArray(value)
+  ) {
+    if (value.length === 0) {
+      throw new Error(`${sqlOperator} requires at least one value`);
+    }
     const placeholders = value.map(() => `$${currIndex.value++}`).join(', ');
-    sql = `${field} IN (${placeholders})`;
+    sql = `${field} ${sqlOperator} (${placeholders})`;
     values.push(...value);
   } else if (value instanceof Date) {
     // DuckDB/JSON need CAST to TIMESTAMP to prevent ANY type inference (issue #540)
@@ -111,6 +147,11 @@ const buildCondition = (
  *     prevent DuckDB ANY-type inference issues.
  *   - `'sqlite'` / `'postgres'` / `undefined`: Passes ISO strings directly
  *     (these adapters handle ISO timestamp strings natively).
+ *
+ * Keys with explicit operator suffixes are treated as SQL field/expression
+ * text. Keep those keys developer-controlled; do not pass end-user input as a
+ * condition key.
+ *
  * @returns Object containing the SQL clause and array of values
  *
  * @example Basic Usage (Object format - AND-only):

@@ -22,10 +22,13 @@ on:
       HAVE_RELEASE_APP_PRIVATE_KEY:
         description: 'GitHub App private key for release automation'
         required: true
+      NPM_TOKEN:
+        description: 'npm automation token for publishing public packages'
+        required: true
 
 permissions:
   contents: write
-  packages: write
+  packages: read
   pull-requests: write
   id-token: write
   pages: write
@@ -43,7 +46,10 @@ jobs:
       always() &&
       (needs.test.result == 'success' || needs.test.result == 'skipped')
     uses: ./.github/workflows/publish.yml
-    secrets: inherit
+    secrets:
+      HAVE_RELEASE_APP_ID: ${{ secrets.HAVE_RELEASE_APP_ID }}
+      HAVE_RELEASE_APP_PRIVATE_KEY: ${{ secrets.HAVE_RELEASE_APP_PRIVATE_KEY }}
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   summary:
     needs: [test, publish]

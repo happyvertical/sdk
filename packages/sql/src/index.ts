@@ -209,6 +209,15 @@ export function validateColumnName(column: string): string {
 // Import utilities from shared utils
 import { buildWhere, formatDbError } from './shared/utils';
 
+export {
+  type AggregateBuildResult,
+  type AggregateFunction,
+  type AggregateSelectExpr,
+  type AggregateSpec,
+  type AggregateTimeBucketUnit,
+  bucketExpr,
+  buildAggregate,
+} from './aggregate.js';
 export type { SqlAdapterType } from './shared/utils';
 export { buildWhere, formatDbError };
 

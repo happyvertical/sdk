@@ -34,7 +34,7 @@ runs:
       uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
       with:
         node-version: ${{ inputs.node-version }}
-        registry-url: ${{ inputs.registry-url || 'https://registry.npmjs.org' }}
+        registry-url: ${{ inputs.registry-url }}
 
     - name: Setup pnpm
       uses: pnpm/action-setup@903f9c1a6ebcba6cf41d87230be49611ac97822e # v6
@@ -83,5 +83,5 @@ runs:
       env:
         # Force ONNX Runtime to skip CUDA installation
         ONNXRUNTIME_NODE_INSTALL_CUDA: 'skip'
-        # GitHub Packages auth for @happyvertical/* packages
+        # GitHub Packages auth for locked external package tarballs still in the workspace lockfile
         NODE_AUTH_TOKEN: ${{ github.token }}

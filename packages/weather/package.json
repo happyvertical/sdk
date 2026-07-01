@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/weather",
-  "version": "0.74.4",
+  "version": "0.74.11",
   "description": "Weather data provider abstraction for HAppyVertical SDK",
   "type": "module",
   "main": "./dist/index.js",
@@ -48,7 +48,7 @@
     "directory": "packages/weather"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com",
+    "registry": "https://registry.npmjs.org",
     "access": "public"
   },
   "dependencies": {

@@ -8,7 +8,7 @@ MCP server for the HAVE SDK that routes developer queries to package documentati
 pnpm install @happyvertical/sdk-mcp
 ```
 
-> Published to GitHub Packages (`npm.pkg.github.com`). Configure your `.npmrc` accordingly.
+> Published to public npm. No scoped registry configuration is required.
 
 ## Usage
 

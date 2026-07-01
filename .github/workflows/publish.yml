@@ -29,6 +29,9 @@ on:
       HAVE_RELEASE_APP_PRIVATE_KEY:
         description: 'GitHub App private key for release automation'
         required: true
+      NPM_TOKEN:
+        description: 'npm automation token for publishing public packages'
+        required: true
   workflow_dispatch:
     inputs:
       skip-docs:
@@ -36,10 +39,15 @@ on:
         required: false
         default: 'false'
         type: boolean
+      recover-committed-release:
+        description: 'Publish the current committed release version without generating a new version bump'
+        required: false
+        default: 'false'
+        type: boolean
 
 permissions:
   contents: write
-  packages: write
+  packages: read
   id-token: write
   pages: write
 
@@ -49,11 +57,13 @@ jobs:
     uses: ./.github/workflows/shared-direct-publish.yml
     with:
       node-version: '24'
-      registry-url: 'https://npm.pkg.github.com'
+      registry-url: 'https://registry.npmjs.org'
       skip-docs: ${{ github.event.inputs.skip-docs == 'true' }}
+      recover-committed-release: ${{ github.event.inputs.recover-committed-release == 'true' }}
     secrets:
       HAVE_RELEASE_APP_ID: ${{ secrets.HAVE_RELEASE_APP_ID }}
       HAVE_RELEASE_APP_PRIVATE_KEY: ${{ secrets.HAVE_RELEASE_APP_PRIVATE_KEY }}
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   sync-smrt:
     name: Sync SMRT SDK Dependencies
@@ -86,7 +96,6 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '24'
-          registry-url: 'https://npm.pkg.github.com'
 
       - name: Setup pnpm
         uses: pnpm/action-setup@903f9c1a6ebcba6cf41d87230be49611ac97822e # v6
@@ -101,8 +110,15 @@ jobs:
             "${{ needs.release.outputs.version }}"
 
           cd smrt
-          bash scripts/check-sdk-versions.sh
+          # Private legacy SDK packages intentionally stay on GitHub Packages.
+          # Resolve the newly public SDK packages from npmjs for this lockfile refresh.
+          cp .npmrc .npmrc.sdk-sync.bak
+          trap 'mv .npmrc.sdk-sync.bak .npmrc' EXIT
+          grep -v '^@happyvertical:registry=' .npmrc.sdk-sync.bak > .npmrc
+          echo '@happyvertical:registry=https://registry.npmjs.org' >> .npmrc
           pnpm install --lockfile-only --ignore-scripts
+          mv .npmrc.sdk-sync.bak .npmrc
+          trap - EXIT
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

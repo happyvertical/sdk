@@ -238,6 +238,55 @@ describe('postgres tests', () => {
     expect(result).toBeNull();
   });
 
+  it('acquireSession holds a session advisory lock across queries until release', async () => {
+    if (!postgresAvailable) return;
+    expect(typeof db.acquireSession).toBe('function');
+
+    const lockKey = 918_273_645;
+    const session = await db.acquireSession?.();
+    if (!session) throw new Error('acquireSession returned no handle');
+    expect(session.isActive()).toBe(true);
+
+    try {
+      await session.query('SELECT pg_advisory_lock(?)', lockKey);
+
+      // A pooled connection (separate from the session's pinned one) must
+      // observe the lock as held.
+      const held = await db.query(
+        'SELECT pg_try_advisory_lock(?) AS got',
+        lockKey,
+      );
+      expect(held.rows[0].got).toBe(false);
+    } finally {
+      await session.release();
+    }
+
+    // release() frees the lock (pg_advisory_unlock_all) before dropping the
+    // connection, so this is deterministic, not racing the async teardown.
+    expect(session.isActive()).toBe(false);
+
+    // Verify the lock is free on a *pinned* session so the acquire and the
+    // cleanup unlock happen on the same connection (a pooled try+unlock could
+    // land on different connections and leak the lock).
+    const verify = await db.acquireSession?.();
+    if (!verify) throw new Error('acquireSession returned no handle');
+    try {
+      const free = await verify.query(
+        'SELECT pg_try_advisory_lock(?) AS got',
+        lockKey,
+      );
+      expect(free.rows[0].got).toBe(true);
+    } finally {
+      // release() destroys the connection, which frees the lock just taken.
+      await verify.release();
+    }
+
+    // Using a released session must fail clearly.
+    await expect(session.query('SELECT 1')).rejects.toThrow(
+      /Session has been released/,
+    );
+  });
+
   it('should preserve PostgreSQL JSONB existence operators in raw queries', async () => {
     if (!postgresAvailable) return;
 

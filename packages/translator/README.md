@@ -6,7 +6,6 @@ Standardized translation interface supporting Google Translate, DeepL, and Libre
 
 ```bash
 pnpm add @happyvertical/translator
-# Requires GitHub Packages registry for @happyvertical scope
 ```
 
 ## Quick Start

@@ -1,5 +1,61 @@
 # @happyvertical/documents
 
+## 0.74.11
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.74.11
+  - @happyvertical/files@0.74.11
+
+## 0.74.10
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.74.10
+  - @happyvertical/files@0.74.10
+
+## 0.74.9
+
+### Patch Changes
+
+- 7e8d927: Publish @happyvertical/documents to public npm.
+  - @happyvertical/files@0.74.9
+  - @happyvertical/utils@0.74.9
+
+## 0.74.8
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.74.8
+  - @happyvertical/files@0.74.8
+
+## 0.74.7
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.74.7
+  - @happyvertical/files@0.74.7
+
+## 0.74.6
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.74.6
+  - @happyvertical/files@0.74.6
+
+## 0.74.5
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.74.5
+  - @happyvertical/files@0.74.5
+
 ## 0.74.4
 
 ### Patch Changes

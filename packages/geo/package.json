@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/geo",
-  "version": "0.74.4",
+  "version": "0.74.11",
   "description": "Standardized geographical information interface supporting Google Maps and OpenStreetMap",
   "type": "module",
   "main": "./dist/index.js",
@@ -22,7 +22,7 @@
     "metadata.json"
   ],
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com",
+    "registry": "https://registry.npmjs.org",
     "access": "public"
   },
   "repository": {

@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/directory",
-  "version": "0.74.4",
+  "version": "0.74.11",
   "description": "Unified directory services with adapter-based architecture (Kanidm, Stalwart, PostgreSQL, AWS)",
   "type": "module",
   "main": "./dist/index.js",
@@ -20,7 +20,7 @@
     "metadata.json"
   ],
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com",
+    "registry": "https://registry.npmjs.org",
     "access": "public"
   },
   "scripts": {

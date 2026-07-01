@@ -12,7 +12,7 @@ concurrency:
 
 permissions:
   contents: write
-  packages: write
+  packages: read
   pull-requests: write
   id-token: write
   pages: write
@@ -29,3 +29,4 @@ jobs:
     secrets:
       HAVE_RELEASE_APP_ID: ${{ secrets.HAVE_RELEASE_APP_ID }}
       HAVE_RELEASE_APP_PRIVATE_KEY: ${{ secrets.HAVE_RELEASE_APP_PRIVATE_KEY }}
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

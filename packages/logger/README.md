@@ -6,7 +6,6 @@ Structured logging for HAVE SDK with signal adapter integration and optional Sen
 
 ```bash
 pnpm add @happyvertical/logger
-# Registry: https://npm.pkg.github.com
 
 # Optional: for Sentry integration
 pnpm add @sentry/node

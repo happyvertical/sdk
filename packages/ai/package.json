@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/ai",
-  "version": "0.74.4",
+  "version": "0.74.11",
   "description": "Standardized AI interface supporting OpenAI, LiteLLM, Bifrost, Ollama, Anthropic, Gemini, Bedrock, Hugging Face, Claude CLI, and Qwen3-TTS",
   "type": "module",
   "main": "./dist/index.js",
@@ -22,7 +22,7 @@
     "metadata.json"
   ],
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com",
+    "registry": "https://registry.npmjs.org",
     "access": "public"
   },
   "repository": {

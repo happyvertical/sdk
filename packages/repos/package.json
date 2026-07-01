@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/repos",
-  "version": "0.74.4",
+  "version": "0.74.11",
   "description": "Standardized repository interface for GitHub, GitLab, Bitbucket, and Azure DevOps",
   "type": "module",
   "main": "./dist/index.js",
@@ -42,7 +42,7 @@
     "metadata.json"
   ],
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com",
+    "registry": "https://registry.npmjs.org",
     "access": "public"
   },
   "repository": {

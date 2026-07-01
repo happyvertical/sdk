@@ -234,7 +234,7 @@ jobs:
                   '2. Packages are built',
                   '3. Versions are bumped automatically',
                   '4. The release commit is pushed back to `main`',
-                  '5. Packages are published to GitHub Packages',
+                  '5. Packages are published to public npm',
                   '6. Git tags are created'
                 ]
               : [

@@ -54,10 +54,17 @@ export async function fetchDocument(
 
   if (isWebUrl && !options.type) {
     try {
+      const scraper =
+        options.scraper === 'crawlee' ? 'basic' : (options.scraper ?? 'basic');
+      const spider =
+        options.spider ??
+        options.spiderAdapter ??
+        (options.scraper === 'crawlee' ? 'crawlee' : 'dom');
+
       // Use spider to detect WordPress, CivicWeb, DocuShare, and other document management systems
       const scraped = await scrapeDocument(url, {
-        scraper: options.scraper || 'basic',
-        spider: options.spider || 'dom',
+        scraper,
+        spider,
         cache: options.cache,
         cacheExpiry: options.cacheExpiry,
         headers: options.headers,
@@ -90,7 +97,7 @@ export async function fetchDocument(
 
   // Determine type - check URL extension first, then MIME type
   // This handles servers that return incorrect Content-Type headers (e.g., application/octet-stream for PDFs)
-  let type = options.type;
+  let type = options.type ?? '';
 
   if (!type) {
     // Extract file extension from URL
@@ -105,7 +112,7 @@ export async function fetchDocument(
       type = 'application/pdf';
     } else {
       // Fall back to MIME type detection
-      type = getMimeType(url) || '';
+      type = getMimeType(url) ?? '';
     }
   }
 

@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/logger",
-  "version": "0.74.4",
+  "version": "0.74.11",
   "description": "Structured logging for HAVE SDK with signal adapter",
   "type": "module",
   "main": "./dist/index.js",
@@ -34,7 +34,7 @@
     "metadata.json"
   ],
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com",
+    "registry": "https://registry.npmjs.org",
     "access": "public"
   },
   "scripts": {

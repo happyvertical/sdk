@@ -67,7 +67,8 @@ function collectSdkPackageNames() {
     const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
     if (
       typeof manifest.name === 'string' &&
-      manifest.name.startsWith('@happyvertical/')
+      manifest.name.startsWith('@happyvertical/') &&
+      manifest.private !== true
     ) {
       packageNames.add(manifest.name);
     }

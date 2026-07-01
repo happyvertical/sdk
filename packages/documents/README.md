@@ -6,13 +6,13 @@ Document processing with hierarchical structure. Currently supports PDF document
 
 ## Installation
 
+Install from the public npm registry:
+
 ```bash
 npm install @happyvertical/documents
-# or
-pnpm add @happyvertical/documents
 ```
 
-> Published to GitHub Packages (`npm.pkg.github.com`). Requires `@happyvertical/files`, `@happyvertical/pdf`, `@happyvertical/spider`, and `@happyvertical/utils` as workspace dependencies.
+Anonymous installs also require the package's external `@happyvertical/ocr`, `@happyvertical/pdf`, and `@happyvertical/spider` dependencies to be available on public npm.
 
 ## Quick Start
 
@@ -85,8 +85,8 @@ Main factory function. Detects document format, selects the appropriate processo
 | `cacheDir` | `string` | OS temp dir | Directory for caching downloaded files |
 | `cache` | `boolean` | `true` | Enable/disable spider fetch caching |
 | `cacheExpiry` | `number` | `300000` | Cache expiry in milliseconds |
-| `scraper` | `'basic' \| 'crawlee'` | `'basic'` | Scraper type for content extraction |
-| `spider` | `'simple' \| 'dom' \| 'crawlee'` | `'dom'` | Spider adapter for fetching web pages |
+| `scraper` | `'basic' \| 'tree' \| 'crawlee'` | `'basic'` | Scraper strategy for content extraction. `crawlee` is a deprecated alias for `spider: 'crawlee'` with basic scraping. |
+| `spider` | `'simple' \| 'dom' \| 'crawlee' \| 'crawl4ai'` | `'dom'` | Spider adapter for fetching web pages |
 | `headers` | `Record<string, string>` | — | Custom HTTP headers for spider requests |
 | `timeout` | `number` | `30000` | Request timeout in milliseconds |
 | `maxDuration` | `number` | — | Max scraping time in milliseconds |

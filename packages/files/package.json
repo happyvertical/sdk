@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/files",
-  "version": "0.74.4",
+  "version": "0.74.11",
   "description": "File system utilities for local and remote file operations",
   "type": "module",
   "main": "./dist/index.js",
@@ -49,7 +49,7 @@
     "metadata.json"
   ],
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com",
+    "registry": "https://registry.npmjs.org",
     "access": "public"
   },
   "repository": {

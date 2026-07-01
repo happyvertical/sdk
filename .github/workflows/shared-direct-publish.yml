@@ -15,10 +15,11 @@
 #       uses: happyvertical/sdk/.github/workflows/shared-direct-publish.yml@main
 #       with:
 #         node-version: '24'
-#         registry-url: 'https://npm.pkg.github.com'
+#         registry-url: 'https://registry.npmjs.org'
 #       secrets:
 #         HAVE_RELEASE_APP_ID: ${{ secrets.HAVE_RELEASE_APP_ID }}
 #         HAVE_RELEASE_APP_PRIVATE_KEY: ${{ secrets.HAVE_RELEASE_APP_PRIVATE_KEY }}
+#         NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 # =============================================================================
 
 name: Shared Direct Publish
@@ -35,9 +36,14 @@ on:
         description: 'NPM registry URL'
         required: false
         type: string
-        default: 'https://npm.pkg.github.com'
+        default: 'https://registry.npmjs.org'
       skip-docs:
         description: 'Skip documentation deployment'
+        required: false
+        type: boolean
+        default: false
+      recover-committed-release:
+        description: 'Publish the current committed release version without generating a new version bump'
         required: false
         type: boolean
         default: false
@@ -47,6 +53,9 @@ on:
         required: true
       HAVE_RELEASE_APP_PRIVATE_KEY:
         description: 'GitHub App private key for release automation'
+        required: true
+      NPM_TOKEN:
+        description: 'npm automation token for publishing public packages'
         required: true
     outputs:
       published:
@@ -61,7 +70,7 @@ on:
 
 permissions:
   contents: write
-  packages: write
+  packages: read
   id-token: write
 
 jobs:
@@ -94,7 +103,33 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
           install-deps: 'true'
+
+      - name: Configure npm publish registry
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ inputs.node-version }}
           registry-url: ${{ inputs.registry-url }}
+
+      - name: Configure npm publish auth
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${NPM_TOKEN:-}" ]; then
+            echo "::error::NPM_TOKEN secret is empty or unavailable."
+            exit 1
+          fi
+
+          registry="${{ inputs.registry-url }}"
+          registry_auth_host="${registry#https:}"
+          registry_auth_host="${registry_auth_host#http:}"
+          registry_auth_host="${registry_auth_host%/}/"
+
+          npm config set registry "$registry" --location=user
+          npm config set "${registry_auth_host}:_authToken" "$NPM_TOKEN" --location=user
+          npm whoami --registry "$registry" >/dev/null
+          echo "✅ npm publish auth verified"
 
       - name: Setup Turborepo cache
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
@@ -132,8 +167,8 @@ jobs:
         env:
           CI: true
           GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
 
@@ -144,6 +179,163 @@ jobs:
             local previous_version="$2"
             local release_notes=""
 
+            verify_public_npm_installs() {
+              local version="$1"
+              local packages_file
+
+              npmjs_command() {
+                local work_dir="$1"
+                shift
+
+                (
+                  cd "$work_dir"
+                  export HOME="$work_dir/home"
+                  export npm_config_cache="$work_dir/npm-cache"
+                  export npm_config_globalconfig="$work_dir/global-npmrc"
+                  export npm_config_update_notifier=false
+                  export npm_config_userconfig="$work_dir/.npmrc"
+                  mkdir -p "$HOME" "$npm_config_cache"
+                  : > "$npm_config_globalconfig"
+                  printf 'registry=https://registry.npmjs.org/\n' > "$npm_config_userconfig"
+                  unset GH_TOKEN GITHUB_TOKEN NODE_AUTH_TOKEN NPM_TOKEN
+                  npm --registry=https://registry.npmjs.org "$@"
+                )
+              }
+
+              wait_for_public_package_versions() {
+                local packages_file="$1"
+                local version="$2"
+                local wait_dir
+                local max_attempts=12
+
+                wait_dir="$(mktemp -d)"
+
+                for attempt in $(seq 1 "$max_attempts"); do
+                  local -a missing_packages=()
+
+                  while IFS= read -r package_name; do
+                    if ! npmjs_command "$wait_dir" --prefer-online view "$package_name@$version" version >/dev/null 2>&1; then
+                      missing_packages+=("$package_name")
+                    fi
+                  done < "$packages_file"
+
+                  if [ "${#missing_packages[@]}" -eq 0 ]; then
+                    rm -rf "$wait_dir"
+                    return 0
+                  fi
+
+                  if [ "$attempt" -eq "$max_attempts" ]; then
+                    echo "::error::Timed out waiting for published packages to become visible on registry.npmjs.org:"
+                    printf '::error::  - %s\n' "${missing_packages[@]/%/@$version}"
+                    rm -rf "$wait_dir"
+                    return 1
+                  fi
+
+                  echo "Waiting for registry.npmjs.org propagation before install checks (attempt $attempt/$max_attempts):"
+                  printf '  - %s\n' "${missing_packages[@]/%/@$version}"
+                  sleep $((attempt * 10))
+                done
+
+                rm -rf "$wait_dir"
+              }
+
+              packages_file="$(mktemp)"
+              RELEASE_VERSION="$version" node <<'NODE' > "$packages_file"
+          const fs = require('fs');
+          const path = require('path');
+
+          const releaseVersion = process.env.RELEASE_VERSION;
+          const candidates = new Set();
+
+          function addPackageJson(filePath) {
+            if (fs.existsSync(filePath)) {
+              candidates.add(filePath);
+            }
+          }
+
+          addPackageJson('package.json');
+
+          for (const workspaceDir of ['packages']) {
+            if (!fs.existsSync(workspaceDir)) {
+              continue;
+            }
+
+            for (const entry of fs.readdirSync(workspaceDir, { withFileTypes: true })) {
+              if (entry.isDirectory()) {
+                addPackageJson(path.join(workspaceDir, entry.name, 'package.json'));
+              }
+            }
+          }
+
+          for (const packageJsonPath of [...candidates].sort()) {
+            const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+            const publishRegistry = pkg.publishConfig?.registry ?? '';
+            const rootWorkspacePackage =
+              packageJsonPath === 'package.json' &&
+              fs.existsSync('pnpm-workspace.yaml') &&
+              !publishRegistry;
+
+            if (
+              !pkg.name ||
+              pkg.private ||
+              pkg.version !== releaseVersion ||
+              rootWorkspacePackage ||
+              (publishRegistry && !publishRegistry.includes('registry.npmjs.org'))
+            ) {
+              continue;
+            }
+
+            console.log(pkg.name);
+          }
+          NODE
+
+              if [ ! -s "$packages_file" ]; then
+                echo "ℹ️  No public npm packages at v$version found for clean-room install verification"
+                rm -f "$packages_file"
+                return 0
+              fi
+
+              echo "🔍 Verifying anonymous public npm installs for v$version"
+              sed 's/^/  - /' "$packages_file"
+
+              if ! wait_for_public_package_versions "$packages_file" "$version"; then
+                rm -f "$packages_file"
+                return 1
+              fi
+
+              while IFS= read -r package_name; do
+                local smoke_dir
+                smoke_dir="$(mktemp -d)"
+
+                for attempt in 1 2 3; do
+                  if npmjs_command "$smoke_dir" install \
+                    --ignore-scripts \
+                    --no-audit \
+                    --no-fund \
+                    --package-lock=false \
+                    "$package_name@$version"; then
+                    echo "✅ $package_name@$version resolves from public npm"
+                    break
+                  fi
+
+                  if [ "$attempt" -eq 3 ]; then
+                    echo "::error::Anonymous public npm install failed for $package_name@$version."
+                    echo "::error::Check that all published dependency ranges are satisfiable from registry.npmjs.org."
+                    rm -rf "$smoke_dir"
+                    rm -f "$packages_file"
+                    return 1
+                  fi
+
+                  echo "Install check for $package_name@$version failed on attempt $attempt; retrying after registry propagation delay..."
+                  sleep $((attempt * 10))
+                done
+
+                rm -rf "$smoke_dir"
+              done < "$packages_file"
+
+              rm -f "$packages_file"
+            }
+
             # Build packages
             pnpm run build
 
@@ -152,6 +344,10 @@ jobs:
 
             # Publish packages
             pnpm run changeset:publish
+
+            # Verify anonymous consumers can resolve the packages from public npm
+            # before creating the release tag that marks the publish complete.
+            verify_public_npm_installs "$version"
 
             # Create and push git tag (idempotent - skip if tag already exists)
             if git rev-parse "v$version" >/dev/null 2>&1; then
@@ -166,9 +362,9 @@ jobs:
               echo "ℹ️  Release v$version already exists, skipping release creation"
             else
               if [ -n "$previous_version" ] && [ "$previous_version" != "$version" ]; then
-                release_notes="## Published Packages"$'\n\n'"All packages published to GitHub Packages at version $version."$'\n\n'"Full Changelog: https://github.com/${GITHUB_REPOSITORY}/compare/v$previous_version...v$version"
+                release_notes="## Published Packages"$'\n\n'"All packages published to npm at version $version."$'\n\n'"Full Changelog: https://github.com/${GITHUB_REPOSITORY}/compare/v$previous_version...v$version"
               else
-                release_notes="## Published Packages"$'\n\n'"All packages published to GitHub Packages at version $version from committed release state on \`main\`."
+                release_notes="## Published Packages"$'\n\n'"All packages published to npm at version $version from committed release state on \`main\`."
               fi
 
               gh release create "v$version" \
@@ -182,11 +378,40 @@ jobs:
           BEFORE_VERSION=$(node -p "require('./package.json').version")
           echo "Version before release: $BEFORE_VERSION"
 
-          # Auto-generate changeset from conventional commits (if no changesets exist)
-          pnpm run changeset:auto
+          if git rev-parse "v$BEFORE_VERSION" >/dev/null 2>&1; then
+            # Auto-generate changeset from conventional commits (if no changesets exist)
+            pnpm run changeset:auto
 
-          # Version packages (updates package.json and CHANGELOGs)
-          pnpm run changeset:version
+            # Version packages (updates package.json and CHANGELOGs)
+            pnpm run changeset:version
+          else
+            release_commit=$(git log \
+              --fixed-strings \
+              --grep="chore(release): v$BEFORE_VERSION" \
+              --format='%H' \
+              -n 1)
+
+            if [ -z "$release_commit" ]; then
+              echo "::error::Cannot recover committed release state because no chore(release): v$BEFORE_VERSION commit was found."
+              exit 1
+            fi
+
+            releaseable_commits=$(git log "$release_commit"..HEAD --pretty=format:%s --no-merges | \
+              grep -E '^(feat|fix|perf)(\(.+\))?!?:|^chore\(deps\)!?:|BREAKING CHANGE' || true)
+
+            if [ -n "$releaseable_commits" ]; then
+              echo "::error::Cannot recover v$BEFORE_VERSION because releaseable commits landed after the release commit:"
+              echo "$releaseable_commits"
+              exit 1
+            fi
+
+            if [ "${{ inputs.recover-committed-release }}" = "true" ]; then
+              echo "ℹ️  Recovering committed release state for v$BEFORE_VERSION by explicit request"
+            else
+              echo "ℹ️  Tag v$BEFORE_VERSION is missing; safely recovering committed release state"
+            fi
+            echo "ℹ️  Skipping changeset generation/versioning to avoid a duplicate version bump"
+          fi
 
           # Sync root package.json version with workspace packages
           WORKSPACE_VERSION=$(node -p "require('./packages/utils/package.json').version")

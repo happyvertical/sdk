@@ -1,5 +1,67 @@
 # @happyvertical/messages
 
+## 0.74.11
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.74.11
+  - @happyvertical/email@0.74.11
+  - @happyvertical/logger@0.74.11
+
+## 0.74.10
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.74.10
+  - @happyvertical/email@0.74.10
+  - @happyvertical/logger@0.74.10
+
+## 0.74.9
+
+### Patch Changes
+
+- @happyvertical/email@0.74.9
+- @happyvertical/logger@0.74.9
+- @happyvertical/utils@0.74.9
+
+## 0.74.8
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.74.8
+  - @happyvertical/email@0.74.8
+  - @happyvertical/logger@0.74.8
+
+## 0.74.7
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.74.7
+  - @happyvertical/email@0.74.7
+  - @happyvertical/logger@0.74.7
+
+## 0.74.6
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.74.6
+  - @happyvertical/email@0.74.6
+  - @happyvertical/logger@0.74.6
+
+## 0.74.5
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.74.5
+  - @happyvertical/email@0.74.5
+  - @happyvertical/logger@0.74.5
+
 ## 0.74.4
 
 ### Patch Changes

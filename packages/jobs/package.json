@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/jobs",
-  "version": "0.74.4",
+  "version": "0.74.11",
   "description": "Job queue abstraction with multiple backend adapters (SQLite, PostgreSQL, Bull, SQS)",
   "type": "module",
   "main": "./dist/index.js",
@@ -16,7 +16,7 @@
     "have-jobs-context": "./dist/cli/claude-context.js"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com",
+    "registry": "https://registry.npmjs.org",
     "access": "public"
   },
   "repository": {

@@ -1,5 +1,60 @@
 # @happyvertical/secrets
 
+## 0.74.11
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.74.11
+  - @happyvertical/sql@0.74.11
+
+## 0.74.10
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.74.10
+  - @happyvertical/sql@0.74.10
+
+## 0.74.9
+
+### Patch Changes
+
+- @happyvertical/sql@0.74.9
+- @happyvertical/utils@0.74.9
+
+## 0.74.8
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.74.8
+  - @happyvertical/sql@0.74.8
+
+## 0.74.7
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.74.7
+  - @happyvertical/sql@0.74.7
+
+## 0.74.6
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.74.6
+  - @happyvertical/sql@0.74.6
+
+## 0.74.5
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.74.5
+  - @happyvertical/sql@0.74.5
+
 ## 0.74.4
 
 ### Patch Changes

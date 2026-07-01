@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/utils",
-  "version": "0.74.4",
+  "version": "0.74.11",
   "description": "Foundation utilities for ID generation, date parsing, URL handling, string conversion, error handling, and logging",
   "type": "module",
   "main": "./dist/index.js",
@@ -54,7 +54,7 @@
     "metadata.json"
   ],
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com",
+    "registry": "https://registry.npmjs.org",
     "access": "public"
   },
   "repository": {

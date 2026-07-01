@@ -12,7 +12,6 @@ Geocoding, reverse geocoding, and static map generation with a unified adapter i
 ## Installation
 
 ```bash
-# GitHub Packages registry
 pnpm add @happyvertical/geo
 ```
 

@@ -1089,6 +1089,22 @@ export interface CreateAnalyticsSiteOptions {
 }
 
 /**
+ * Options for updating an existing site.
+ *
+ * Reuses the `createSite` field shapes — every field except `siteId` is
+ * optional, and omitted fields are left unchanged on the provider (partial
+ * update).
+ */
+export interface UpdateAnalyticsSiteOptions
+  extends Partial<CreateAnalyticsSiteOptions> {
+  /**
+   * Provider site ID of the site to update. For Matomo this is the numeric
+   * `idSite` as a string.
+   */
+  siteId: string;
+}
+
+/**
  * User access role assignable to an analytics site.
  */
 export type AnalyticsAccessRole = 'noaccess' | 'view' | 'write' | 'admin';
@@ -1323,6 +1339,12 @@ export interface AnalyticsHealthResult {
  * particular provider can't support (e.g. `mintUserToken` against GA4) are left
  * out of that provider's admin object — callers should feature-check via
  * `typeof admin.mintUserToken === 'function'`.
+ *
+ * Because that feature-check idiom typically narrows a method into a local
+ * (`const fn = admin.mintUserToken; if (fn) await fn(...)`), implementations
+ * MUST keep these methods detachment-safe — i.e. bind them to the instance so a
+ * detached/destructured reference still carries `this`. See `MatomoAdmin`'s
+ * constructor for the reference implementation (https://github.com/happyvertical/sdk/issues/1043).
  */
 export interface AnalyticsAdminInterface {
   // ---------------------------------------------------------------------------
@@ -1343,6 +1365,15 @@ export interface AnalyticsAdminInterface {
    * Look up a site by id. Resolves to undefined when the site does not exist.
    */
   getSite(siteId: string): Promise<AnalyticsSite | undefined>;
+
+  /**
+   * Update an existing site in place. Optional capability — partial update:
+   * only the fields supplied in the options change on the provider.
+   *
+   * Implementations should resolve to the post-update site as read back from
+   * the provider, normalized the same way `createSite`'s result is.
+   */
+  updateSite?(options: UpdateAnalyticsSiteOptions): Promise<AnalyticsSite>;
 
   /**
    * Delete a site.

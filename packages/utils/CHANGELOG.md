@@ -1,5 +1,59 @@
 # @happyvertical/utils
 
+## 0.74.11
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - verify public npm release installs (#1056)
+
+## 0.74.10
+
+### Patch Changes
+
+- ### Features
+
+  - add aggregate query builder (#1054) (sql)
+
+## 0.74.9
+
+## 0.74.8
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - publish sdk packages to public npm
+
+## 0.74.7
+
+### Patch Changes
+
+- ### Features
+
+  - add updateSite admin capability for partial site updates (#1045) (analytics)
+
+## 0.74.6
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - bind MatomoAdmin capability methods so detached calls keep their instance (#1044) (analytics)
+
+## 0.74.5
+
+### Patch Changes
+
+- ### Features
+
+  - add acquireSession() for pinned-connection session locks (sql)
+
+  ### Bug Fixes
+
+  - roll back before unlock in session release; pin test cleanup (sql)
+
 ## 0.74.4
 
 ### Patch Changes
