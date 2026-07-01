@@ -496,8 +496,8 @@ export class StripeAdapter implements PaymentBackend {
       'Stripe authorize amount',
     );
     const paymentMethod = normalizeNonEmptyString(
-      input.paymentMethod,
-      'Stripe authorize paymentMethod',
+      input.providerPaymentMethodId,
+      'Stripe authorize providerPaymentMethodId',
     );
     const providerCustomerId =
       input.providerCustomerId === undefined
@@ -548,9 +548,10 @@ export class StripeAdapter implements PaymentBackend {
     const status = mapStripeAuthorizationStatus(readString(intent, 'status'));
     // Only surface the SCA fields when authentication is actually required — the
     // documented contract — even though Stripe returns client_secret regardless.
-    // Authorization status transitions (requires_action → requires_capture) are
-    // observed via `parseWebhookEvent`; `getStatus` handles Checkout sessions,
-    // not PaymentIntents.
+    // (Authorization progress is observed via `parseWebhookEvent`, which surfaces
+    // the ready-to-capture transition as `processing` — there is no distinct
+    // `requires_capture` webhook status; `getStatus` handles Checkout sessions,
+    // not PaymentIntents.)
     const actionRequired = status === 'requires_action';
 
     return {
@@ -1052,20 +1053,23 @@ function mapStripeWebhookStatus(
   // Manual-capture PaymentIntent lifecycle (authorize → capture / void). Only
   // treat these as terminal for intents WE created and can correlate — i.e.
   // ones carrying our `quoteId` in metadata. Checkout Sessions create their own
-  // PaymentIntents (which also fire `payment_intent.succeeded`) with no quoteId
-  // on the intent; those are handled via the `checkout.session.*` events above,
-  // so here they fall through to the non-terminal default rather than emitting a
-  // spurious, uncorrelatable `confirmed`/`failed`.
+  // PaymentIntents (which fire these same events with no quoteId on the intent);
+  // those are handled via the `checkout.session.*` events above, so here they
+  // stay non-terminal (`processing`) rather than emitting a spurious,
+  // uncorrelatable terminal event. Handled before the generic `failed` catch
+  // below so an un-owned `payment_intent.payment_failed` isn't reclassified.
   if (
     type === 'payment_intent.succeeded' ||
-    type === 'payment_intent.canceled'
+    type === 'payment_intent.canceled' ||
+    type === 'payment_intent.payment_failed'
   ) {
     const metadata = (object?.metadata as Record<string, unknown>) ?? {};
     if (readString(metadata, 'quoteId') !== undefined) {
-      // A voided authorization is terminal and unsettled; the shared
-      // PaymentStatus union has no `canceled`, so it surfaces as `failed`.
+      // A voided/failed authorization is terminal and unsettled; the shared
+      // PaymentStatus union has no `canceled`, so both surface as `failed`.
       return type === 'payment_intent.succeeded' ? 'confirmed' : 'failed';
     }
+    return 'processing';
   }
 
   if (type?.includes('failed')) {

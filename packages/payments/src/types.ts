@@ -195,12 +195,20 @@ export interface AuthorizePaymentInput {
   amount: number;
   /** Currency (ISO 4217). Must be in the backend's configured supported set. */
   currency: string;
-  /** Provider payment-method reference to charge (e.g. a Stripe `pm_...` id). */
-  paymentMethod: string;
+  /**
+   * Provider payment-method reference to charge (e.g. a Stripe `pm_...` id) —
+   * the `providerPaymentMethodId` a saved-card / setup flow returns.
+   */
+  providerPaymentMethodId: string;
   /** Optional provider customer reference (e.g. a Stripe `cus_...` id). */
   providerCustomerId?: string;
   description?: string;
-  /** Optional caller reference, surfaced to the provider as metadata. */
+  /**
+   * Optional caller reference, surfaced to the provider as metadata. Also
+   * correlates this intent's capture/void/fail webhooks: without it, those
+   * PaymentIntent events surface as `processing` (non-terminal) rather than
+   * `confirmed`/`failed`, since they can't be attributed.
+   */
   quoteId?: string;
   idempotencyKey?: string;
   metadata?: Record<string, string | number | boolean | null | undefined>;

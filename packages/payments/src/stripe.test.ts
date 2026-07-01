@@ -918,12 +918,12 @@ describe('StripeAdapter', () => {
     });
   });
 
-  it('maps payment_intent.payment_failed webhooks to failed status', () => {
+  it('maps an owned payment_intent.payment_failed webhook to failed', () => {
     const adapter = createWebhookAdapter();
     const payload = JSON.stringify({
       id: 'evt_pi_failed',
       type: 'payment_intent.payment_failed',
-      data: { object: { id: 'pi_123' } },
+      data: { object: { id: 'pi_123', metadata: { quoteId: 'quote-pi' } } },
     });
     const event = adapter.parseWebhookEvent(
       payload,
@@ -934,6 +934,27 @@ describe('StripeAdapter', () => {
       id: 'evt_pi_failed',
       status: 'failed',
       providerPaymentId: 'pi_123',
+    });
+  });
+
+  it('does not reclassify a Checkout-originated payment_intent.payment_failed (no quoteId)', () => {
+    // A synchronous Checkout decline fires payment_intent.payment_failed on the
+    // session's own PI (no quoteId); the session stays open for retry, so this
+    // must stay non-terminal rather than emit a spurious `failed`.
+    const adapter = createWebhookAdapter();
+    const payload = JSON.stringify({
+      id: 'evt_pi_checkout_failed',
+      type: 'payment_intent.payment_failed',
+      data: { object: { id: 'pi_checkout' } },
+    });
+    const event = adapter.parseWebhookEvent(
+      payload,
+      stripeWebhookSignature(payload),
+    );
+
+    expect(event).toMatchObject({
+      id: 'evt_pi_checkout_failed',
+      status: 'processing',
     });
   });
 
@@ -1640,7 +1661,7 @@ describe('StripeAdapter manual-capture lifecycle', () => {
     const result = await adapter.authorizePayment({
       amount: 5000,
       currency: 'CAD',
-      paymentMethod: 'pm_card_visa',
+      providerPaymentMethodId: 'pm_card_visa',
       description: 'Anytown campaign',
       idempotencyKey: 'campaign-1-authorize',
       metadata: { campaignId: '1' },
@@ -1676,7 +1697,7 @@ describe('StripeAdapter manual-capture lifecycle', () => {
       adapter.authorizePayment({
         amount: 5000,
         currency: 'CAD',
-        paymentMethod: 'pm_card_declined',
+        providerPaymentMethodId: 'pm_card_declined',
       }),
     ).resolves.toMatchObject({ status: 'failed', providerPaymentId: 'pi_123' });
   });
@@ -1698,7 +1719,7 @@ describe('StripeAdapter manual-capture lifecycle', () => {
     const result = await adapter.authorizePayment({
       amount: 5000,
       currency: 'CAD',
-      paymentMethod: 'pm_card_authenticationRequired',
+      providerPaymentMethodId: 'pm_card_authenticationRequired',
     });
 
     expect(result).toMatchObject({
@@ -1724,7 +1745,7 @@ describe('StripeAdapter manual-capture lifecycle', () => {
     const result = await adapter.authorizePayment({
       amount: 5000,
       currency: 'CAD',
-      paymentMethod: 'pm_card_visa',
+      providerPaymentMethodId: 'pm_card_visa',
     });
 
     expect(result.status).toBe('requires_capture');
@@ -1747,7 +1768,7 @@ describe('StripeAdapter manual-capture lifecycle', () => {
     const result = await adapter.authorizePayment({
       amount: 5000,
       currency: 'CAD',
-      paymentMethod: 'pm_card_visa',
+      providerPaymentMethodId: 'pm_card_visa',
     });
 
     expect(result).toMatchObject({
@@ -1769,7 +1790,7 @@ describe('StripeAdapter manual-capture lifecycle', () => {
       adapter.authorizePayment({
         amount: 5000,
         currency: 'CAD',
-        paymentMethod: 'pm_card_visa',
+        providerPaymentMethodId: 'pm_card_visa',
       }),
     ).rejects.toThrow('Your card was declined.');
   });
@@ -1781,7 +1802,7 @@ describe('StripeAdapter manual-capture lifecycle', () => {
       adapter.authorizePayment({
         amount: 0,
         currency: 'CAD',
-        paymentMethod: 'pm_card_visa',
+        providerPaymentMethodId: 'pm_card_visa',
       }),
     ).rejects.toThrow(/greater than zero/);
   });
@@ -1857,6 +1878,32 @@ describe('StripeAdapter manual-capture lifecycle', () => {
     await expect(
       adapter.capturePayment({ providerPaymentId: '' }),
     ).rejects.toThrow(/providerPaymentId/);
+  });
+
+  it('capturePayment maps an async (processing) capture to processing', async () => {
+    const adapter = makeAdapter(async () =>
+      jsonResponse({ id: 'pi_123', status: 'processing', amount: 5000 }),
+    );
+
+    await expect(
+      adapter.capturePayment({ providerPaymentId: 'pi_123' }),
+    ).resolves.toMatchObject({
+      status: 'processing',
+      providerPaymentId: 'pi_123',
+    });
+  });
+
+  it('capturePayment surfaces a Stripe 400 (e.g. already captured) as a rejection', async () => {
+    const adapter = makeAdapter(async () =>
+      jsonResponse(
+        { error: { message: 'This PaymentIntent could not be captured' } },
+        400,
+      ),
+    );
+
+    await expect(
+      adapter.capturePayment({ providerPaymentId: 'pi_123' }),
+    ).rejects.toThrow('could not be captured');
   });
 
   it('voidPayment cancels an uncaptured PaymentIntent and forwards the idempotency key', async () => {
