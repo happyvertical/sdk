@@ -496,6 +496,12 @@ export class StripeAdapter implements PaymentBackend {
 
     const successUrl = normalizeUrlString(rawSuccessUrl, 'Stripe successUrl');
     const cancelUrl = normalizeUrlString(rawCancelUrl, 'Stripe cancelUrl');
+    // Stripe requires a currency for setup-mode Checkout Sessions when
+    // payment_method_types is not set; default to the backend currency.
+    const currency = normalizeStripeCurrency(
+      input.currency ?? this.defaultCurrency,
+    );
+    this.assertSupportedCurrency(currency);
     const providerCustomerId =
       input.providerCustomerId === undefined
         ? undefined
@@ -504,25 +510,29 @@ export class StripeAdapter implements PaymentBackend {
             'Stripe setup customer',
           );
 
-    // Either attach to an existing customer, or let Stripe create one (optionally
-    // prefilled by email). All snake_case keys go through Object.fromEntries.
-    const customerParams: [string, unknown][] =
-      providerCustomerId !== undefined
-        ? [['customer', providerCustomerId]]
-        : input.customerEmail === undefined
-          ? []
-          : [
-              [
-                'customer_email',
-                normalizeNonEmptyString(
-                  input.customerEmail,
-                  'Stripe setup customerEmail',
-                ),
-              ],
-            ];
+    // Either attach to an existing customer, or force Stripe to create one so
+    // the saved method comes back with a reusable `cus_` reference. Setup-mode
+    // sessions do NOT create a customer on their own — `customer_creation` must
+    // be `always`. All snake_case keys go through Object.fromEntries.
+    const customerParams: [string, unknown][] = [];
+    if (providerCustomerId !== undefined) {
+      customerParams.push(['customer', providerCustomerId]);
+    } else {
+      customerParams.push(['customer_creation', 'always']);
+      if (input.customerEmail !== undefined) {
+        customerParams.push([
+          'customer_email',
+          normalizeNonEmptyString(
+            input.customerEmail,
+            'Stripe setup customerEmail',
+          ),
+        ]);
+      }
+    }
 
     const params: Record<string, unknown> = {
       mode: 'setup',
+      currency,
       ...Object.fromEntries([
         ['success_url', successUrl],
         ['cancel_url', cancelUrl],

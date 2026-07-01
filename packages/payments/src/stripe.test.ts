@@ -1563,7 +1563,10 @@ describe('StripeAdapter saved payment methods (setup)', () => {
     );
     const body = new URLSearchParams(String(capturedInit?.body));
     expect(body.get('mode')).toBe('setup');
+    expect(body.get('currency')).toBe('usd');
     expect(body.get('customer')).toBe('cus_123');
+    // An existing customer must not also trigger customer_creation.
+    expect(body.has('customer_creation')).toBe(false);
     expect(body.get('metadata[advertiserId]')).toBe('7');
     expect(result).toMatchObject({
       backendId: 'stripe',
@@ -1588,6 +1591,10 @@ describe('StripeAdapter saved payment methods (setup)', () => {
     const body = new URLSearchParams(capturedBody);
     expect(body.get('customer_email')).toBe('ad@example.com');
     expect(body.has('customer')).toBe(false);
+    // Setup mode does not create a customer on its own, so force it — otherwise
+    // getSetupResult would come back without a reusable cus_ reference.
+    expect(body.get('customer_creation')).toBe('always');
+    expect(body.get('currency')).toBe('usd');
   });
 
   it('createSetupSession requires success and cancel URLs', async () => {

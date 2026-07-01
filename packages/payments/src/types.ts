@@ -191,6 +191,12 @@ export interface RefundResult {
 }
 
 export interface CreateSetupSessionInput {
+  /**
+   * Settlement currency for the setup session. Stripe requires a currency for
+   * setup-mode Checkout Sessions; defaults to the backend's configured
+   * currency when omitted.
+   */
+  currency?: string;
   /** Where Stripe returns the buyer after saving the card. */
   successUrl?: string;
   cancelUrl?: string;
