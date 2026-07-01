@@ -13,6 +13,7 @@ import {
   normalizeMaxStoredPaymentOptions,
   normalizeMinorUnitAmount,
   normalizeNonEmptyString,
+  normalizePositiveMinorUnitAmount,
   normalizePositivePaymentAmount,
   normalizeUrlString,
   pollPaymentStatus,
@@ -20,6 +21,10 @@ import {
   rememberPaymentOption,
 } from '../shared.js';
 import type {
+  AuthorizationResult,
+  AuthorizePaymentInput,
+  CapturePaymentInput,
+  CaptureResult,
   CreatePaymentOptionInput,
   PaymentBackend,
   PaymentBackendCapabilities,
@@ -33,6 +38,8 @@ import type {
   RefundPaymentInput,
   RefundResult,
   SendPayoutInput,
+  VoidPaymentInput,
+  VoidResult,
   WatchPaymentInput,
 } from '../types.js';
 
@@ -169,6 +176,7 @@ export class StripeAdapter implements PaymentBackend {
       supportsRefunds: true,
       supportsPayouts: true,
       supportsWebhooks: true,
+      supportsManualCapture: true,
       metadata: {
         provider: 'stripe',
       },
@@ -477,6 +485,169 @@ export class StripeAdapter implements PaymentBackend {
     };
   }
 
+  async authorizePayment(
+    input: AuthorizePaymentInput,
+  ): Promise<AuthorizationResult> {
+    const currency = normalizeStripeCurrency(input.currency);
+    this.assertSupportedCurrency(currency);
+    const amount = normalizePositivePaymentAmount(
+      input.amount,
+      currency,
+      'Stripe authorize amount',
+    );
+    const paymentMethod = normalizeNonEmptyString(
+      input.providerPaymentMethodId,
+      'Stripe authorize providerPaymentMethodId',
+    );
+    const providerCustomerId =
+      input.providerCustomerId === undefined
+        ? undefined
+        : normalizeNonEmptyString(
+            input.providerCustomerId,
+            'Stripe authorize providerCustomerId',
+          );
+    const quoteId =
+      input.quoteId === undefined
+        ? undefined
+        : normalizeNonEmptyString(input.quoteId, 'Stripe authorize quoteId');
+
+    const intent = await this.stripeRequest<Record<string, unknown>>(
+      '/payment_intents',
+      {
+        method: 'POST',
+        idempotencyKey: input.idempotencyKey,
+        body: formEncode({
+          amount,
+          currency,
+          confirm: true,
+          'payment_method_types[]': 'card',
+          description: input.description,
+          ...Object.fromEntries([
+            ['payment_method', paymentMethod],
+            ['capture_method', 'manual'],
+            // Off-session (merchant-initiated) by default — the primary use is
+            // charging a saved card while the buyer is absent. Without this,
+            // Stripe treats it as on-session and may raise an SCA challenge the
+            // absent buyer can't complete, so the hold is never placed.
+            ['off_session', input.offSession ?? true],
+          ]),
+          ...(providerCustomerId === undefined
+            ? {}
+            : { customer: providerCustomerId }),
+          ...flattenStripeMetadata(input.metadata),
+          ...(quoteId === undefined ? {} : { 'metadata[quoteId]': quoteId }),
+        }),
+      },
+    );
+
+    const providerPaymentId = normalizeOptionalProviderString(
+      readProviderString(intent, 'id'),
+    );
+
+    if (!providerPaymentId) {
+      throw new PaymentProviderError(
+        'Stripe PaymentIntent response did not include an id.',
+      );
+    }
+
+    const status = mapStripeAuthorizationStatus(readString(intent, 'status'));
+    // Only surface the SCA fields when authentication is actually required — the
+    // documented contract — even though Stripe returns client_secret regardless.
+    // (Authorization progress is observed via `parseWebhookEvent`, which surfaces
+    // the ready-to-capture transition as `processing` — there is no distinct
+    // `requires_capture` webhook status; `getStatus` handles Checkout sessions,
+    // not PaymentIntents.)
+    const actionRequired = status === 'requires_action';
+
+    return {
+      backendId: this.capabilities.id,
+      status,
+      providerPaymentId,
+      amount: readSafeInteger(intent, 'amount') ?? amount,
+      currency: (readString(intent, 'currency') ?? currency).toUpperCase(),
+      clientSecret: actionRequired
+        ? normalizeOptionalProviderString(
+            readProviderString(intent, 'client_secret'),
+          )
+        : undefined,
+      nextAction: actionRequired
+        ? (intent.next_action ?? undefined)
+        : undefined,
+      raw: intent,
+    };
+  }
+
+  async capturePayment(input: CapturePaymentInput): Promise<CaptureResult> {
+    const providerPaymentId = normalizeNonEmptyString(
+      input.providerPaymentId,
+      'Stripe capture providerPaymentId',
+    );
+    const amount =
+      input.amount === undefined
+        ? undefined
+        : normalizePositiveMinorUnitAmount(
+            input.amount,
+            'Stripe capture amount',
+          );
+
+    const intent = await this.stripeRequest<Record<string, unknown>>(
+      `/payment_intents/${encodeURIComponent(providerPaymentId)}/capture`,
+      {
+        method: 'POST',
+        idempotencyKey: input.idempotencyKey,
+        body: formEncode({
+          ...Object.fromEntries([['amount_to_capture', amount]]),
+          ...flattenStripeMetadata(input.metadata),
+        }),
+      },
+    );
+
+    return {
+      backendId: this.capabilities.id,
+      status: mapStripeCaptureStatus(readString(intent, 'status')),
+      providerPaymentId:
+        normalizeOptionalProviderString(readProviderString(intent, 'id')) ??
+        providerPaymentId,
+      amount:
+        readSafeInteger(intent, 'amount_received') ??
+        readSafeInteger(intent, 'amount') ??
+        amount,
+      currency: readStripeResultCurrency(intent),
+      raw: intent,
+    };
+  }
+
+  async voidPayment(input: VoidPaymentInput): Promise<VoidResult> {
+    const providerPaymentId = normalizeNonEmptyString(
+      input.providerPaymentId,
+      'Stripe void providerPaymentId',
+    );
+    const reason =
+      input.reason === undefined
+        ? undefined
+        : normalizeNonEmptyString(input.reason, 'Stripe void reason');
+
+    const intent = await this.stripeRequest<Record<string, unknown>>(
+      `/payment_intents/${encodeURIComponent(providerPaymentId)}/cancel`,
+      {
+        method: 'POST',
+        idempotencyKey: input.idempotencyKey,
+        body: formEncode(Object.fromEntries([['cancellation_reason', reason]])),
+      },
+    );
+
+    return {
+      backendId: this.capabilities.id,
+      status: mapStripeVoidStatus(readString(intent, 'status')),
+      providerPaymentId:
+        normalizeOptionalProviderString(readProviderString(intent, 'id')) ??
+        providerPaymentId,
+      amount: readSafeInteger(intent, 'amount'),
+      currency: readStripeResultCurrency(intent),
+      raw: intent,
+    };
+  }
+
   parseWebhookEvent(payload: string, signature?: string): StripeWebhookEvent {
     if (!this.webhookSecret) {
       throw new PaymentConfigurationError(
@@ -526,7 +697,14 @@ export class StripeAdapter implements PaymentBackend {
       type,
       status: mapStripeWebhookStatus(type, data),
       quoteId: normalizeOptionalWebhookString(
-        readString(data, 'client_reference_id') ??
+        // `client_reference_id` is a Checkout Session-only field; honor it only
+        // for session events so a non-session object (a PaymentIntent / Charge /
+        // Transfer, possibly from a malicious Connect account) can't spoof
+        // correlation to another quote's id. Non-session events correlate only
+        // via our own `metadata.quoteId`.
+        (type.startsWith('checkout.session.')
+          ? readString(data, 'client_reference_id')
+          : undefined) ??
           readString(
             (data?.metadata as Record<string, unknown>) ?? {},
             'quoteId',
@@ -884,12 +1062,60 @@ function mapStripeWebhookStatus(
     return 'expired';
   }
 
-  if (type?.includes('failed')) {
-    return 'failed';
+  // Manual-capture PaymentIntent lifecycle (authorize → capture / void). Only
+  // treat these as terminal for intents WE created and can correlate — i.e.
+  // ones carrying our `quoteId` in metadata. Checkout Sessions create their own
+  // PaymentIntents (which fire these same events with no quoteId on the intent);
+  // those are handled via the `checkout.session.*` events above, so here they
+  // stay non-terminal (`processing`) rather than emitting a spurious,
+  // uncorrelatable terminal event. Handled before the generic `failed` catch
+  // below so an un-owned `payment_intent.payment_failed` isn't reclassified.
+  if (
+    type === 'payment_intent.succeeded' ||
+    type === 'payment_intent.canceled' ||
+    type === 'payment_intent.payment_failed'
+  ) {
+    const metadata = (object?.metadata as Record<string, unknown>) ?? {};
+    // Match parseWebhookEvent's normalization so an empty/blank quoteId is
+    // treated as un-owned by both — gate and reporter must agree on ownership.
+    const owned =
+      normalizeOptionalWebhookString(readString(metadata, 'quoteId')) !==
+      undefined;
+    if (owned) {
+      if (type === 'payment_intent.succeeded') {
+        return 'confirmed';
+      }
+      // A manual-capture hold Stripe released automatically (it lapsed) is
+      // `expired`, distinct from a deliberate void or hard decline (`failed`);
+      // the shared PaymentStatus union has no `canceled`.
+      if (
+        type === 'payment_intent.canceled' &&
+        readString(object, 'cancellation_reason') === 'automatic'
+      ) {
+        return 'expired';
+      }
+      return 'failed';
+    }
+    return 'processing';
   }
 
-  if (type?.includes('refunded')) {
+  // Terminal failure/refund only for payment-in objects (Checkout Session,
+  // PaymentIntent, Charge). Money-out / unrelated events (transfer.failed,
+  // payout.failed, refund.failed, application_fee.refunded, …) also match a
+  // naive substring scan — and a failed Transfer even carries our quoteId
+  // (sendPayout stamps it), which would miscorrelate a payout failure as a
+  // payment failure — so they must not surface as a terminal payment status.
+  const isPaymentInEvent =
+    type?.startsWith('checkout.session.') === true ||
+    type?.startsWith('payment_intent.') === true ||
+    type?.startsWith('charge.') === true;
+
+  if (isPaymentInEvent && type?.includes('refunded')) {
     return 'refunded';
+  }
+
+  if (isPaymentInEvent && type?.includes('failed')) {
+    return 'failed';
   }
 
   return 'processing';
@@ -909,6 +1135,51 @@ function mapStripeRefundStatus(
     default:
       return 'submitted';
   }
+}
+
+function mapStripeAuthorizationStatus(
+  status: string | undefined,
+): AuthorizationResult['status'] {
+  switch (status) {
+    case 'requires_capture':
+      return 'requires_capture';
+    case 'succeeded':
+      return 'succeeded';
+    case 'requires_action':
+      return 'requires_action';
+    case 'processing':
+      return 'processing';
+    default:
+      return 'failed';
+  }
+}
+
+function mapStripeCaptureStatus(
+  status: string | undefined,
+): CaptureResult['status'] {
+  switch (status) {
+    case 'succeeded':
+      return 'succeeded';
+    // Capturing an authorized intent shouldn't re-enter authentication; treat
+    // any in-flight/action state as still processing rather than a failure.
+    case 'processing':
+    case 'requires_action':
+      return 'processing';
+    default:
+      return 'failed';
+  }
+}
+
+function mapStripeVoidStatus(status: string | undefined): VoidResult['status'] {
+  return status === 'canceled' ? 'canceled' : 'failed';
+}
+
+function readStripeResultCurrency(
+  value: Record<string, unknown>,
+): string | undefined {
+  const currency = readString(value, 'currency');
+
+  return currency === undefined ? undefined : currency.toUpperCase();
 }
 
 function extractStripeSessionId(payTo: string): string | undefined {

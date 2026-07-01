@@ -28,6 +28,12 @@ export interface PaymentBackendCapabilities {
   supportsRefunds: boolean;
   supportsPayouts: boolean;
   supportsWebhooks: boolean;
+  /**
+   * Whether the backend supports the manual-capture card lifecycle
+   * (`authorizePayment` → `capturePayment` / `voidPayment`). Card processors
+   * such as Stripe set this; settlement-only rails (crypto) leave it unset.
+   */
+  supportsManualCapture?: boolean;
   metadata?: Record<string, unknown>;
 }
 
@@ -184,6 +190,134 @@ export interface RefundResult {
   raw?: unknown;
 }
 
+export interface AuthorizePaymentInput {
+  /** Amount to authorize, in the currency's smallest unit (e.g. cents). */
+  amount: number;
+  /** Currency (ISO 4217). Must be in the backend's configured supported set. */
+  currency: string;
+  /**
+   * Provider payment-method reference to charge (e.g. a Stripe `pm_...` id) —
+   * the `providerPaymentMethodId` a saved-card / setup flow returns.
+   */
+  providerPaymentMethodId: string;
+  /**
+   * Provider customer reference (e.g. a Stripe `cus_...` id). Required when the
+   * payment method is attached to a customer — which a saved card always is, so
+   * this is required for the save-card → charge flow — or the provider rejects
+   * the charge. Optional only for a one-off, unattached payment method.
+   */
+  providerCustomerId?: string;
+  description?: string;
+  /**
+   * Whether the customer is absent — an off-session, merchant-initiated charge
+   * (e.g. charging a saved card at approval time). Defaults to `true`, the
+   * primary use of this method. Set `false` for on-session authorizations where
+   * the buyer is present to complete any authentication challenge.
+   *
+   * Note: off-session, an issuer step-up surfaces as a thrown error
+   * (`authentication_required`), NOT a `requires_action` result — the absent
+   * buyer can't authenticate, so the caller must re-prompt on-session.
+   * `requires_action` (with `clientSecret`/`nextAction`) only occurs when
+   * `offSession` is `false`.
+   */
+  offSession?: boolean;
+  /**
+   * Optional caller reference, surfaced to the provider as metadata. Also
+   * correlates this intent's capture/void/fail webhooks: without it, those
+   * PaymentIntent events surface as `processing` (non-terminal) rather than
+   * `confirmed`/`failed`, since they can't be attributed.
+   */
+  quoteId?: string;
+  idempotencyKey?: string;
+  metadata?: Record<string, string | number | boolean | null | undefined>;
+}
+
+export interface AuthorizationResult {
+  backendId: string;
+  /**
+   * `requires_capture` on a successful hold (the normal manual-capture result).
+   * `succeeded` means the intent was already captured (an auto-capture backend/
+   * config) — treat it as captured, do NOT then call `capturePayment`.
+   * `requires_action` (on-session only — see `AuthorizePaymentInput.offSession`)
+   * needs the buyer to complete authentication via `clientSecret`/`nextAction`.
+   * `processing` is an async authorization still in flight; `failed` is a
+   * declined/unusable intent.
+   */
+  status:
+    | 'requires_capture'
+    | 'requires_action'
+    | 'processing'
+    | 'succeeded'
+    | 'failed';
+  /** Provider id of the authorized payment, needed to capture or void it. */
+  providerPaymentId?: string;
+  amount?: number;
+  currency?: string;
+  /**
+   * Client secret to complete authentication when `status` is
+   * `requires_action` (e.g. 3-D Secure). The buyer's client uses it to finish
+   * the challenge, after which the intent moves to `requires_capture`.
+   */
+  clientSecret?: string;
+  /**
+   * Provider-specific next-action payload when `status` is `requires_action`
+   * (e.g. the redirect/challenge details). Present only when action is needed.
+   */
+  nextAction?: unknown;
+  raw?: unknown;
+}
+
+export interface CapturePaymentInput {
+  /** Provider id returned by `authorizePayment`. */
+  providerPaymentId: string;
+  /** Partial capture amount in the smallest unit; omit to capture in full. */
+  amount?: number;
+  idempotencyKey?: string;
+  metadata?: Record<string, string | number | boolean | null | undefined>;
+}
+
+export interface CaptureResult {
+  backendId: string;
+  // No `requires_action`: capturing an already-authorized intent does not
+  // re-enter authentication, and CaptureResult carries no client secret to act
+  // on one. Any unexpected provider action-required state maps to `processing`.
+  status: 'succeeded' | 'processing' | 'failed';
+  providerPaymentId?: string;
+  amount?: number;
+  currency?: string;
+  raw?: unknown;
+}
+
+export interface VoidPaymentInput {
+  /** Provider id returned by `authorizePayment`. */
+  providerPaymentId: string;
+  idempotencyKey?: string;
+  /**
+   * Optional cancellation reason. Constrained to the provider's accepted set —
+   * Stripe rejects any other value, which would fail the cancel and leave the
+   * authorization hold in place.
+   */
+  reason?: 'duplicate' | 'fraudulent' | 'requested_by_customer' | 'abandoned';
+}
+
+// NOTE (void status vs webhooks): a successful `voidPayment` returns
+// `VoidResult.status: 'canceled'`. The same event arriving via
+// `parseWebhookEvent` (`payment_intent.canceled`) maps to the shared
+// `PaymentStatus`, which has no `canceled` member, so it surfaces as the
+// terminal `failed`. Consumers reconciling the two paths should disambiguate a
+// benign void from a real failure using the webhook event `type`. (A dedicated
+// `canceled` PaymentStatus would remove this asymmetry — a follow-up, since it
+// widens the shared union and `PaymentEvent` for every backend.)
+
+export interface VoidResult {
+  backendId: string;
+  status: 'canceled' | 'failed';
+  providerPaymentId?: string;
+  amount?: number;
+  currency?: string;
+  raw?: unknown;
+}
+
 export interface PaymentBackend {
   readonly capabilities: PaymentBackendCapabilities;
 
@@ -204,6 +338,23 @@ export interface PaymentBackend {
   sendPayout(input: SendPayoutInput): Promise<PayoutResult>;
 
   refundPayment?(input: RefundPaymentInput): Promise<RefundResult>;
+
+  /**
+   * Authorize (place a hold on) funds without capturing them, returning an
+   * uncaptured payment that can later be captured or voided. Card-processor
+   * backends implement this; settlement-only rails do not.
+   */
+  authorizePayment?(input: AuthorizePaymentInput): Promise<AuthorizationResult>;
+
+  /**
+   * Capture a previously authorized payment — in full, or a partial `amount`.
+   */
+  capturePayment?(input: CapturePaymentInput): Promise<CaptureResult>;
+
+  /**
+   * Void (cancel) an authorized-but-uncaptured payment. No funds move.
+   */
+  voidPayment?(input: VoidPaymentInput): Promise<VoidResult>;
 
   parseWebhookEvent?(payload: string, signature?: string): PaymentWebhookEvent;
 }

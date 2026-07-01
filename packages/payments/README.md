@@ -31,10 +31,37 @@ import { StripeAdapter } from '@happyvertical/payments/stripe';
 - `BtcAdapter`: BTCPay Server invoice, polling/webhook status, tiered
   confirmation policy, and unsigned PSBT payout creation.
 - `StripeAdapter`: Stripe Checkout URL settlement, webhook verification,
-  refunds, and Stripe Connect transfers.
+  refunds, Stripe Connect transfers, and the manual-capture card lifecycle
+  (`authorizePayment` / `capturePayment` / `voidPayment`).
 
 The package does not depend on SMRT or a database. Consumers own quote
 persistence, webhook routing, and operational policy.
+
+### Manual capture (authorize → capture / void)
+
+Charge a saved card later — e.g. hold at approval, capture on fulfillment:
+
+```ts
+const auth = await stripe.authorizePayment({
+  amount: 5000, // minor units
+  currency: 'CAD',
+  providerPaymentMethodId: saved.providerPaymentMethodId, // pm_...
+  providerCustomerId: saved.providerCustomerId, // cus_... — REQUIRED for a saved card
+  quoteId: campaign.id, // stamp your id so capture/void webhooks are correlatable
+  // offSession defaults to true (buyer absent). An off-session step-up throws
+  // `authentication_required`; re-prompt on-session (offSession: false) to recover.
+});
+if (auth.status !== 'requires_capture') {
+  // 'succeeded' means already captured (don't capture again); else declined.
+}
+await stripe.capturePayment({ providerPaymentId: auth.providerPaymentId, idempotencyKey });
+// or, to release the hold:
+await stripe.voidPayment({ providerPaymentId: auth.providerPaymentId, idempotencyKey });
+```
+
+Common footguns: omitting `providerCustomerId` for a customer-attached (saved)
+card 400s at charge time; omitting `quoteId` leaves the intent's
+capture/void/fail webhooks un-correlatable (`processing`, no `quoteId`).
 
 Public payment amounts follow Stripe's convention: `amount` is an integer in
 the smallest currency unit, paired with a `currency` code. For example,
