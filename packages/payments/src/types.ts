@@ -200,9 +200,21 @@ export interface AuthorizePaymentInput {
    * the `providerPaymentMethodId` a saved-card / setup flow returns.
    */
   providerPaymentMethodId: string;
-  /** Optional provider customer reference (e.g. a Stripe `cus_...` id). */
+  /**
+   * Provider customer reference (e.g. a Stripe `cus_...` id). Required when the
+   * payment method is attached to a customer — which a saved card always is, so
+   * this is required for the save-card → charge flow — or the provider rejects
+   * the charge. Optional only for a one-off, unattached payment method.
+   */
   providerCustomerId?: string;
   description?: string;
+  /**
+   * Whether the customer is absent — an off-session, merchant-initiated charge
+   * (e.g. charging a saved card at approval time). Defaults to `true`, the
+   * primary use of this method. Set `false` for on-session authorizations where
+   * the buyer is present to complete any authentication challenge.
+   */
+  offSession?: boolean;
   /**
    * Optional caller reference, surfaced to the provider as metadata. Also
    * correlates this intent's capture/void/fail webhooks: without it, those

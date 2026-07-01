@@ -525,6 +525,11 @@ export class StripeAdapter implements PaymentBackend {
           ...Object.fromEntries([
             ['payment_method', paymentMethod],
             ['capture_method', 'manual'],
+            // Off-session (merchant-initiated) by default — the primary use is
+            // charging a saved card while the buyer is absent. Without this,
+            // Stripe treats it as on-session and may raise an SCA challenge the
+            // absent buyer can't complete, so the hold is never placed.
+            ['off_session', input.offSession ?? true],
           ]),
           ...(providerCustomerId === undefined
             ? {}
@@ -1064,20 +1069,46 @@ function mapStripeWebhookStatus(
     type === 'payment_intent.payment_failed'
   ) {
     const metadata = (object?.metadata as Record<string, unknown>) ?? {};
-    if (readString(metadata, 'quoteId') !== undefined) {
-      // A voided/failed authorization is terminal and unsettled; the shared
-      // PaymentStatus union has no `canceled`, so both surface as `failed`.
-      return type === 'payment_intent.succeeded' ? 'confirmed' : 'failed';
+    // Match parseWebhookEvent's normalization so an empty/blank quoteId is
+    // treated as un-owned by both — gate and reporter must agree on ownership.
+    const owned =
+      normalizeOptionalWebhookString(readString(metadata, 'quoteId')) !==
+      undefined;
+    if (owned) {
+      if (type === 'payment_intent.succeeded') {
+        return 'confirmed';
+      }
+      // A manual-capture hold Stripe released automatically (it lapsed) is
+      // `expired`, distinct from a deliberate void or hard decline (`failed`);
+      // the shared PaymentStatus union has no `canceled`.
+      if (
+        type === 'payment_intent.canceled' &&
+        readString(object, 'cancellation_reason') === 'automatic'
+      ) {
+        return 'expired';
+      }
+      return 'failed';
     }
     return 'processing';
   }
 
-  if (type?.includes('failed')) {
-    return 'failed';
+  // Terminal failure/refund only for payment-in objects (Checkout Session,
+  // PaymentIntent, Charge). Money-out / unrelated events (transfer.failed,
+  // payout.failed, refund.failed, application_fee.refunded, …) also match a
+  // naive substring scan — and a failed Transfer even carries our quoteId
+  // (sendPayout stamps it), which would miscorrelate a payout failure as a
+  // payment failure — so they must not surface as a terminal payment status.
+  const isPaymentInEvent =
+    type?.startsWith('checkout.session.') === true ||
+    type?.startsWith('payment_intent.') === true ||
+    type?.startsWith('charge.') === true;
+
+  if (isPaymentInEvent && type?.includes('refunded')) {
+    return 'refunded';
   }
 
-  if (type?.includes('refunded')) {
-    return 'refunded';
+  if (isPaymentInEvent && type?.includes('failed')) {
+    return 'failed';
   }
 
   return 'processing';

@@ -896,6 +896,44 @@ describe('StripeAdapter', () => {
     });
   });
 
+  it('maps an auto-canceled (lapsed) authorization hold to expired, not failed', () => {
+    const adapter = createWebhookAdapter();
+    const payload = JSON.stringify({
+      id: 'evt_pi_expired',
+      type: 'payment_intent.canceled',
+      data: {
+        object: {
+          id: 'pi_123',
+          ...Object.fromEntries([['cancellation_reason', 'automatic']]),
+          metadata: { quoteId: 'quote-pi' },
+        },
+      },
+    });
+    const event = adapter.parseWebhookEvent(
+      payload,
+      stripeWebhookSignature(payload),
+    );
+
+    expect(event).toMatchObject({ id: 'evt_pi_expired', status: 'expired' });
+  });
+
+  it('does not report a failed payout/transfer as a payment failure', () => {
+    // sendPayout stamps our quoteId on the Transfer; transfer.failed must NOT
+    // surface as a correlated terminal payment `failed`.
+    const adapter = createWebhookAdapter();
+    const payload = JSON.stringify({
+      id: 'evt_transfer_failed',
+      type: 'transfer.failed',
+      data: { object: { id: 'tr_123', metadata: { quoteId: 'quote-payout' } } },
+    });
+    const event = adapter.parseWebhookEvent(
+      payload,
+      stripeWebhookSignature(payload),
+    );
+
+    expect(event.status).toBe('processing');
+  });
+
   it('does not reclassify a Checkout-originated payment_intent.succeeded (no quoteId)', () => {
     // Checkout Sessions create their own PaymentIntent (no quoteId on the
     // intent) which also fires payment_intent.succeeded. It must stay
@@ -1678,6 +1716,7 @@ describe('StripeAdapter manual-capture lifecycle', () => {
     expect(body.get('payment_method')).toBe('pm_card_visa');
     expect(body.get('capture_method')).toBe('manual');
     expect(body.get('confirm')).toBe('true');
+    expect(body.get('off_session')).toBe('true');
     expect(body.get('metadata[campaignId]')).toBe('1');
     expect(result).toMatchObject({
       backendId: 'stripe',
@@ -1686,6 +1725,48 @@ describe('StripeAdapter manual-capture lifecycle', () => {
       amount: 5000,
       currency: 'CAD',
     });
+  });
+
+  it('authorizePayment attaches the customer and marks off-session for a saved card', async () => {
+    let capturedBody = '';
+    const adapter = makeAdapter(async (_input, init) => {
+      capturedBody = String(init?.body ?? '');
+      return jsonResponse({
+        id: 'pi_123',
+        status: 'requires_capture',
+        amount: 5000,
+        currency: 'cad',
+      });
+    });
+
+    await adapter.authorizePayment({
+      amount: 5000,
+      currency: 'CAD',
+      providerPaymentMethodId: 'pm_saved',
+      providerCustomerId: 'cus_123',
+    });
+
+    const body = new URLSearchParams(capturedBody);
+    // A customer-attached saved pm_ must send `customer`, or Stripe 400s.
+    expect(body.get('customer')).toBe('cus_123');
+    expect(body.get('off_session')).toBe('true');
+  });
+
+  it('authorizePayment can opt into an on-session authorization', async () => {
+    let capturedBody = '';
+    const adapter = makeAdapter(async (_input, init) => {
+      capturedBody = String(init?.body ?? '');
+      return jsonResponse({ id: 'pi_123', status: 'requires_capture' });
+    });
+
+    await adapter.authorizePayment({
+      amount: 5000,
+      currency: 'CAD',
+      providerPaymentMethodId: 'pm_saved',
+      offSession: false,
+    });
+
+    expect(new URLSearchParams(capturedBody).get('off_session')).toBe('false');
   });
 
   it('authorizePayment maps an unexpected PaymentIntent status to failed', async () => {
