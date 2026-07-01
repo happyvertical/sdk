@@ -934,6 +934,59 @@ describe('StripeAdapter', () => {
     expect(event.status).toBe('processing');
   });
 
+  it('ignores client_reference_id on non-session events (no cross-quote spoofing)', () => {
+    // client_reference_id is a Checkout Session-only field. A non-session object
+    // (here a charge, e.g. from a malicious Connect account) carrying a victim's
+    // quoteId in client_reference_id must NOT be attributed to that quote.
+    const adapter = createWebhookAdapter();
+    const payload = JSON.stringify({
+      id: 'evt_charge_refunded',
+      type: 'charge.refunded',
+      data: {
+        object: {
+          id: 'ch_123',
+          ...Object.fromEntries([['client_reference_id', 'victim-quote']]),
+        },
+      },
+    });
+    const event = adapter.parseWebhookEvent(
+      payload,
+      stripeWebhookSignature(payload),
+    );
+
+    // Refund status is still terminal (payment-in), but not correlated to the
+    // spoofed quote.
+    expect(event.status).toBe('refunded');
+    expect(event.quoteId).toBeUndefined();
+  });
+
+  it('honors client_reference_id on session events', () => {
+    const adapter = createWebhookAdapter();
+    const payload = JSON.stringify({
+      id: 'evt_session_complete',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_123',
+          status: 'complete',
+          ...Object.fromEntries([
+            ['payment_status', 'paid'],
+            ['client_reference_id', 'quote-legit'],
+          ]),
+        },
+      },
+    });
+    const event = adapter.parseWebhookEvent(
+      payload,
+      stripeWebhookSignature(payload),
+    );
+
+    expect(event).toMatchObject({
+      status: 'confirmed',
+      quoteId: 'quote-legit',
+    });
+  });
+
   it('does not reclassify a Checkout-originated payment_intent.succeeded (no quoteId)', () => {
     // Checkout Sessions create their own PaymentIntent (no quoteId on the
     // intent) which also fires payment_intent.succeeded. It must stay
@@ -1783,7 +1836,10 @@ describe('StripeAdapter manual-capture lifecycle', () => {
     ).resolves.toMatchObject({ status: 'failed', providerPaymentId: 'pi_123' });
   });
 
-  it('authorizePayment exposes client_secret and next_action for SCA-required intents', async () => {
+  it('authorizePayment exposes client_secret and next_action for an on-session SCA intent', async () => {
+    // requires_action is reachable on the ON-SESSION path (offSession: false),
+    // where the buyer is present to complete the challenge. Off-session, Stripe
+    // instead throws 402 authentication_required (see the next test).
     const adapter = makeAdapter(async () =>
       jsonResponse({
         id: 'pi_123',
@@ -1801,6 +1857,7 @@ describe('StripeAdapter manual-capture lifecycle', () => {
       amount: 5000,
       currency: 'CAD',
       providerPaymentMethodId: 'pm_card_authenticationRequired',
+      offSession: false,
     });
 
     expect(result).toMatchObject({
@@ -1809,6 +1866,32 @@ describe('StripeAdapter manual-capture lifecycle', () => {
       clientSecret: 'pi_123_secret_abc',
       nextAction: { type: 'use_stripe_sdk' },
     });
+  });
+
+  it('authorizePayment surfaces an off-session authentication_required as a rejection', async () => {
+    // On the default off-session path, an issuer step-up is a hard 402
+    // (`authentication_required`) — not a requires_action result — so the hold
+    // isn't placed and the caller must re-prompt on-session.
+    const adapter = makeAdapter(async () =>
+      jsonResponse(
+        {
+          error: {
+            code: 'authentication_required',
+            message: 'Authentication required',
+          },
+        },
+        402,
+      ),
+    );
+
+    await expect(
+      adapter.authorizePayment({
+        amount: 5000,
+        currency: 'CAD',
+        providerPaymentMethodId: 'pm_saved',
+        providerCustomerId: 'cus_123',
+      }),
+    ).rejects.toThrow('Authentication required');
   });
 
   it('authorizePayment does not expose SCA fields when no action is required', async () => {

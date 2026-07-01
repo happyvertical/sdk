@@ -697,7 +697,14 @@ export class StripeAdapter implements PaymentBackend {
       type,
       status: mapStripeWebhookStatus(type, data),
       quoteId: normalizeOptionalWebhookString(
-        readString(data, 'client_reference_id') ??
+        // `client_reference_id` is a Checkout Session-only field; honor it only
+        // for session events so a non-session object (a PaymentIntent / Charge /
+        // Transfer, possibly from a malicious Connect account) can't spoof
+        // correlation to another quote's id. Non-session events correlate only
+        // via our own `metadata.quoteId`.
+        (type.startsWith('checkout.session.')
+          ? readString(data, 'client_reference_id')
+          : undefined) ??
           readString(
             (data?.metadata as Record<string, unknown>) ?? {},
             'quoteId',

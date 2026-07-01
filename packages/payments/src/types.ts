@@ -213,6 +213,12 @@ export interface AuthorizePaymentInput {
    * (e.g. charging a saved card at approval time). Defaults to `true`, the
    * primary use of this method. Set `false` for on-session authorizations where
    * the buyer is present to complete any authentication challenge.
+   *
+   * Note: off-session, an issuer step-up surfaces as a thrown error
+   * (`authentication_required`), NOT a `requires_action` result — the absent
+   * buyer can't authenticate, so the caller must re-prompt on-session.
+   * `requires_action` (with `clientSecret`/`nextAction`) only occurs when
+   * `offSession` is `false`.
    */
   offSession?: boolean;
   /**
@@ -228,6 +234,15 @@ export interface AuthorizePaymentInput {
 
 export interface AuthorizationResult {
   backendId: string;
+  /**
+   * `requires_capture` on a successful hold (the normal manual-capture result).
+   * `succeeded` means the intent was already captured (an auto-capture backend/
+   * config) — treat it as captured, do NOT then call `capturePayment`.
+   * `requires_action` (on-session only — see `AuthorizePaymentInput.offSession`)
+   * needs the buyer to complete authentication via `clientSecret`/`nextAction`.
+   * `processing` is an async authorization still in flight; `failed` is a
+   * declined/unusable intent.
+   */
   status:
     | 'requires_capture'
     | 'requires_action'
