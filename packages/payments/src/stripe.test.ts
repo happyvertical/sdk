@@ -851,6 +851,204 @@ describe('StripeAdapter', () => {
     });
   });
 
+  it('maps captured payment_intent.succeeded webhooks to confirmed status', () => {
+    const adapter = createWebhookAdapter();
+    const payload = JSON.stringify({
+      id: 'evt_pi_succeeded',
+      type: 'payment_intent.succeeded',
+      data: {
+        object: {
+          id: 'pi_123',
+          metadata: { quoteId: 'quote-pi' },
+        },
+      },
+    });
+    const event = adapter.parseWebhookEvent(
+      payload,
+      stripeWebhookSignature(payload),
+    );
+
+    expect(event).toMatchObject({
+      id: 'evt_pi_succeeded',
+      type: 'payment_intent.succeeded',
+      status: 'confirmed',
+      quoteId: 'quote-pi',
+      providerPaymentId: 'pi_123',
+    });
+  });
+
+  it('maps voided payment_intent.canceled webhooks to a terminal status', () => {
+    const adapter = createWebhookAdapter();
+    const payload = JSON.stringify({
+      id: 'evt_pi_canceled',
+      type: 'payment_intent.canceled',
+      data: { object: { id: 'pi_123', metadata: { quoteId: 'quote-pi' } } },
+    });
+    const event = adapter.parseWebhookEvent(
+      payload,
+      stripeWebhookSignature(payload),
+    );
+
+    expect(event).toMatchObject({
+      id: 'evt_pi_canceled',
+      status: 'failed',
+      providerPaymentId: 'pi_123',
+    });
+  });
+
+  it('maps an auto-canceled (lapsed) authorization hold to expired, not failed', () => {
+    const adapter = createWebhookAdapter();
+    const payload = JSON.stringify({
+      id: 'evt_pi_expired',
+      type: 'payment_intent.canceled',
+      data: {
+        object: {
+          id: 'pi_123',
+          ...Object.fromEntries([['cancellation_reason', 'automatic']]),
+          metadata: { quoteId: 'quote-pi' },
+        },
+      },
+    });
+    const event = adapter.parseWebhookEvent(
+      payload,
+      stripeWebhookSignature(payload),
+    );
+
+    expect(event).toMatchObject({ id: 'evt_pi_expired', status: 'expired' });
+  });
+
+  it('does not report a failed payout/transfer as a payment failure', () => {
+    // sendPayout stamps our quoteId on the Transfer; transfer.failed must NOT
+    // surface as a correlated terminal payment `failed`.
+    const adapter = createWebhookAdapter();
+    const payload = JSON.stringify({
+      id: 'evt_transfer_failed',
+      type: 'transfer.failed',
+      data: { object: { id: 'tr_123', metadata: { quoteId: 'quote-payout' } } },
+    });
+    const event = adapter.parseWebhookEvent(
+      payload,
+      stripeWebhookSignature(payload),
+    );
+
+    expect(event.status).toBe('processing');
+  });
+
+  it('ignores client_reference_id on non-session events (no cross-quote spoofing)', () => {
+    // client_reference_id is a Checkout Session-only field. A non-session object
+    // (here a charge, e.g. from a malicious Connect account) carrying a victim's
+    // quoteId in client_reference_id must NOT be attributed to that quote.
+    const adapter = createWebhookAdapter();
+    const payload = JSON.stringify({
+      id: 'evt_charge_refunded',
+      type: 'charge.refunded',
+      data: {
+        object: {
+          id: 'ch_123',
+          ...Object.fromEntries([['client_reference_id', 'victim-quote']]),
+        },
+      },
+    });
+    const event = adapter.parseWebhookEvent(
+      payload,
+      stripeWebhookSignature(payload),
+    );
+
+    // Refund status is still terminal (payment-in), but not correlated to the
+    // spoofed quote.
+    expect(event.status).toBe('refunded');
+    expect(event.quoteId).toBeUndefined();
+  });
+
+  it('honors client_reference_id on session events', () => {
+    const adapter = createWebhookAdapter();
+    const payload = JSON.stringify({
+      id: 'evt_session_complete',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_123',
+          status: 'complete',
+          ...Object.fromEntries([
+            ['payment_status', 'paid'],
+            ['client_reference_id', 'quote-legit'],
+          ]),
+        },
+      },
+    });
+    const event = adapter.parseWebhookEvent(
+      payload,
+      stripeWebhookSignature(payload),
+    );
+
+    expect(event).toMatchObject({
+      status: 'confirmed',
+      quoteId: 'quote-legit',
+    });
+  });
+
+  it('does not reclassify a Checkout-originated payment_intent.succeeded (no quoteId)', () => {
+    // Checkout Sessions create their own PaymentIntent (no quoteId on the
+    // intent) which also fires payment_intent.succeeded. It must stay
+    // non-terminal here so a normal checkout doesn't emit a spurious,
+    // uncorrelatable `confirmed` event — the session events handle it.
+    const adapter = createWebhookAdapter();
+    const payload = JSON.stringify({
+      id: 'evt_pi_checkout',
+      type: 'payment_intent.succeeded',
+      data: { object: { id: 'pi_checkout' } },
+    });
+    const event = adapter.parseWebhookEvent(
+      payload,
+      stripeWebhookSignature(payload),
+    );
+
+    expect(event).toMatchObject({
+      id: 'evt_pi_checkout',
+      status: 'processing',
+    });
+  });
+
+  it('maps an owned payment_intent.payment_failed webhook to failed', () => {
+    const adapter = createWebhookAdapter();
+    const payload = JSON.stringify({
+      id: 'evt_pi_failed',
+      type: 'payment_intent.payment_failed',
+      data: { object: { id: 'pi_123', metadata: { quoteId: 'quote-pi' } } },
+    });
+    const event = adapter.parseWebhookEvent(
+      payload,
+      stripeWebhookSignature(payload),
+    );
+
+    expect(event).toMatchObject({
+      id: 'evt_pi_failed',
+      status: 'failed',
+      providerPaymentId: 'pi_123',
+    });
+  });
+
+  it('does not reclassify a Checkout-originated payment_intent.payment_failed (no quoteId)', () => {
+    // A synchronous Checkout decline fires payment_intent.payment_failed on the
+    // session's own PI (no quoteId); the session stays open for retry, so this
+    // must stay non-terminal rather than emit a spurious `failed`.
+    const adapter = createWebhookAdapter();
+    const payload = JSON.stringify({
+      id: 'evt_pi_checkout_failed',
+      type: 'payment_intent.payment_failed',
+      data: { object: { id: 'pi_checkout' } },
+    });
+    const event = adapter.parseWebhookEvent(
+      payload,
+      stripeWebhookSignature(payload),
+    );
+
+    expect(event).toMatchObject({
+      id: 'evt_pi_checkout_failed',
+      status: 'processing',
+    });
+  });
+
   it('wraps malformed Stripe webhook JSON in a provider error', () => {
     const adapter = createWebhookAdapter();
 
@@ -1512,6 +1710,412 @@ describe('StripeAdapter', () => {
     ).resolves.toMatchObject({
       refundId: 're_trimmed',
     });
+  });
+});
+
+describe('StripeAdapter manual-capture lifecycle', () => {
+  function makeAdapter(
+    fetchImpl: (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => Promise<Response>,
+  ) {
+    return new StripeAdapter({
+      secretKey: 'sk_test_123',
+      apiBaseUrl: 'https://stripe.example/v1',
+      fetch: vi.fn(fetchImpl),
+      successUrl: 'https://app.example/success',
+      cancelUrl: 'https://app.example/cancel',
+    });
+  }
+
+  it('advertises manual-capture support', () => {
+    const adapter = makeAdapter(async () => jsonResponse({}));
+
+    expect(adapter.capabilities.supportsManualCapture).toBe(true);
+  });
+
+  it('authorizePayment creates a manual-capture PaymentIntent and forwards the idempotency key', async () => {
+    let capturedUrl = '';
+    let capturedInit: RequestInit | undefined;
+    const adapter = makeAdapter(async (input, init) => {
+      capturedUrl = String(input);
+      capturedInit = init;
+      return jsonResponse({
+        id: 'pi_123',
+        status: 'requires_capture',
+        amount: 5000,
+        currency: 'cad',
+      });
+    });
+
+    const result = await adapter.authorizePayment({
+      amount: 5000,
+      currency: 'CAD',
+      providerPaymentMethodId: 'pm_card_visa',
+      description: 'Anytown campaign',
+      idempotencyKey: 'campaign-1-authorize',
+      metadata: { campaignId: '1' },
+    });
+
+    expect(capturedUrl).toBe('https://stripe.example/v1/payment_intents');
+    expect(capturedInit?.method).toBe('POST');
+    const headers = new Headers(capturedInit?.headers);
+    expect(headers.get('Authorization')).toBe('Bearer sk_test_123');
+    expect(headers.get('Idempotency-Key')).toBe('campaign-1-authorize');
+    const body = new URLSearchParams(String(capturedInit?.body));
+    expect(body.get('amount')).toBe('5000');
+    expect(body.get('currency')).toBe('cad');
+    expect(body.get('payment_method')).toBe('pm_card_visa');
+    expect(body.get('capture_method')).toBe('manual');
+    expect(body.get('confirm')).toBe('true');
+    expect(body.get('off_session')).toBe('true');
+    expect(body.get('metadata[campaignId]')).toBe('1');
+    expect(result).toMatchObject({
+      backendId: 'stripe',
+      status: 'requires_capture',
+      providerPaymentId: 'pi_123',
+      amount: 5000,
+      currency: 'CAD',
+    });
+  });
+
+  it('authorizePayment attaches the customer and marks off-session for a saved card', async () => {
+    let capturedBody = '';
+    const adapter = makeAdapter(async (_input, init) => {
+      capturedBody = String(init?.body ?? '');
+      return jsonResponse({
+        id: 'pi_123',
+        status: 'requires_capture',
+        amount: 5000,
+        currency: 'cad',
+      });
+    });
+
+    await adapter.authorizePayment({
+      amount: 5000,
+      currency: 'CAD',
+      providerPaymentMethodId: 'pm_saved',
+      providerCustomerId: 'cus_123',
+    });
+
+    const body = new URLSearchParams(capturedBody);
+    // A customer-attached saved pm_ must send `customer`, or Stripe 400s.
+    expect(body.get('customer')).toBe('cus_123');
+    expect(body.get('off_session')).toBe('true');
+  });
+
+  it('authorizePayment can opt into an on-session authorization', async () => {
+    let capturedBody = '';
+    const adapter = makeAdapter(async (_input, init) => {
+      capturedBody = String(init?.body ?? '');
+      return jsonResponse({ id: 'pi_123', status: 'requires_capture' });
+    });
+
+    await adapter.authorizePayment({
+      amount: 5000,
+      currency: 'CAD',
+      providerPaymentMethodId: 'pm_saved',
+      offSession: false,
+    });
+
+    expect(new URLSearchParams(capturedBody).get('off_session')).toBe('false');
+  });
+
+  it('authorizePayment maps an unexpected PaymentIntent status to failed', async () => {
+    const adapter = makeAdapter(async () =>
+      jsonResponse({ id: 'pi_123', status: 'requires_payment_method' }),
+    );
+
+    await expect(
+      adapter.authorizePayment({
+        amount: 5000,
+        currency: 'CAD',
+        providerPaymentMethodId: 'pm_card_declined',
+      }),
+    ).resolves.toMatchObject({ status: 'failed', providerPaymentId: 'pi_123' });
+  });
+
+  it('authorizePayment exposes client_secret and next_action for an on-session SCA intent', async () => {
+    // requires_action is reachable on the ON-SESSION path (offSession: false),
+    // where the buyer is present to complete the challenge. Off-session, Stripe
+    // instead throws 402 authentication_required (see the next test).
+    const adapter = makeAdapter(async () =>
+      jsonResponse({
+        id: 'pi_123',
+        status: 'requires_action',
+        amount: 5000,
+        currency: 'cad',
+        ...Object.fromEntries([
+          ['client_secret', 'pi_123_secret_abc'],
+          ['next_action', { type: 'use_stripe_sdk' }],
+        ]),
+      }),
+    );
+
+    const result = await adapter.authorizePayment({
+      amount: 5000,
+      currency: 'CAD',
+      providerPaymentMethodId: 'pm_card_authenticationRequired',
+      offSession: false,
+    });
+
+    expect(result).toMatchObject({
+      status: 'requires_action',
+      providerPaymentId: 'pi_123',
+      clientSecret: 'pi_123_secret_abc',
+      nextAction: { type: 'use_stripe_sdk' },
+    });
+  });
+
+  it('authorizePayment surfaces an off-session authentication_required as a rejection', async () => {
+    // On the default off-session path, an issuer step-up is a hard 402
+    // (`authentication_required`) — not a requires_action result — so the hold
+    // isn't placed and the caller must re-prompt on-session.
+    const adapter = makeAdapter(async () =>
+      jsonResponse(
+        {
+          error: {
+            code: 'authentication_required',
+            message: 'Authentication required',
+          },
+        },
+        402,
+      ),
+    );
+
+    await expect(
+      adapter.authorizePayment({
+        amount: 5000,
+        currency: 'CAD',
+        providerPaymentMethodId: 'pm_saved',
+        providerCustomerId: 'cus_123',
+      }),
+    ).rejects.toThrow('Authentication required');
+  });
+
+  it('authorizePayment does not expose SCA fields when no action is required', async () => {
+    const adapter = makeAdapter(async () =>
+      jsonResponse({
+        id: 'pi_123',
+        status: 'requires_capture',
+        amount: 5000,
+        currency: 'cad',
+        // Stripe returns client_secret regardless; it must not surface here.
+        ...Object.fromEntries([['client_secret', 'pi_123_secret_abc']]),
+      }),
+    );
+
+    const result = await adapter.authorizePayment({
+      amount: 5000,
+      currency: 'CAD',
+      providerPaymentMethodId: 'pm_card_visa',
+    });
+
+    expect(result.status).toBe('requires_capture');
+    expect(result.clientSecret).toBeUndefined();
+    expect(result.nextAction).toBeUndefined();
+  });
+
+  it('authorizePayment maps a still-processing intent and omits the idempotency header when no key is given', async () => {
+    let capturedInit: RequestInit | undefined;
+    const adapter = makeAdapter(async (_input, init) => {
+      capturedInit = init;
+      return jsonResponse({
+        id: 'pi_123',
+        status: 'processing',
+        amount: 5000,
+        currency: 'cad',
+      });
+    });
+
+    const result = await adapter.authorizePayment({
+      amount: 5000,
+      currency: 'CAD',
+      providerPaymentMethodId: 'pm_card_visa',
+    });
+
+    expect(result).toMatchObject({
+      status: 'processing',
+      providerPaymentId: 'pi_123',
+    });
+    // No idempotency key supplied → no stale header leaks onto the request.
+    expect(
+      new Headers(capturedInit?.headers).get('Idempotency-Key'),
+    ).toBeNull();
+  });
+
+  it('authorizePayment rejects a non-2xx Stripe response', async () => {
+    const adapter = makeAdapter(async () =>
+      jsonResponse({ error: { message: 'Your card was declined.' } }, 402),
+    );
+
+    await expect(
+      adapter.authorizePayment({
+        amount: 5000,
+        currency: 'CAD',
+        providerPaymentMethodId: 'pm_card_visa',
+      }),
+    ).rejects.toThrow('Your card was declined.');
+  });
+
+  it('authorizePayment rejects a non-positive amount', async () => {
+    const adapter = makeAdapter(async () => jsonResponse({}));
+
+    await expect(
+      adapter.authorizePayment({
+        amount: 0,
+        currency: 'CAD',
+        providerPaymentMethodId: 'pm_card_visa',
+      }),
+    ).rejects.toThrow(/greater than zero/);
+  });
+
+  it('capturePayment captures the full amount by default and forwards the idempotency key', async () => {
+    let capturedUrl = '';
+    let capturedBody = '';
+    let capturedInit: RequestInit | undefined;
+    const adapter = makeAdapter(async (input, init) => {
+      capturedUrl = String(input);
+      capturedBody = String(init?.body ?? '');
+      capturedInit = init;
+      return jsonResponse({
+        id: 'pi_123',
+        status: 'succeeded',
+        amount: 5000,
+        ...Object.fromEntries([['amount_received', 5000]]),
+        currency: 'cad',
+      });
+    });
+
+    const result = await adapter.capturePayment({
+      providerPaymentId: 'pi_123',
+      idempotencyKey: 'campaign-1-capture',
+    });
+
+    expect(capturedUrl).toBe(
+      'https://stripe.example/v1/payment_intents/pi_123/capture',
+    );
+    // Double-capture protection: the key must reach the request.
+    expect(new Headers(capturedInit?.headers).get('Idempotency-Key')).toBe(
+      'campaign-1-capture',
+    );
+    expect(new URLSearchParams(capturedBody).has('amount_to_capture')).toBe(
+      false,
+    );
+    expect(result).toMatchObject({
+      backendId: 'stripe',
+      status: 'succeeded',
+      providerPaymentId: 'pi_123',
+      amount: 5000,
+      currency: 'CAD',
+    });
+  });
+
+  it('capturePayment sends amount_to_capture for a partial capture', async () => {
+    let capturedBody = '';
+    const adapter = makeAdapter(async (_input, init) => {
+      capturedBody = String(init?.body ?? '');
+      return jsonResponse({
+        id: 'pi_123',
+        status: 'succeeded',
+        amount: 5000,
+        ...Object.fromEntries([['amount_received', 2500]]),
+        currency: 'cad',
+      });
+    });
+
+    const result = await adapter.capturePayment({
+      providerPaymentId: 'pi_123',
+      amount: 2500,
+    });
+
+    expect(new URLSearchParams(capturedBody).get('amount_to_capture')).toBe(
+      '2500',
+    );
+    expect(result.amount).toBe(2500);
+  });
+
+  it('capturePayment requires a providerPaymentId', async () => {
+    const adapter = makeAdapter(async () => jsonResponse({}));
+
+    await expect(
+      adapter.capturePayment({ providerPaymentId: '' }),
+    ).rejects.toThrow(/providerPaymentId/);
+  });
+
+  it('capturePayment maps an async (processing) capture to processing', async () => {
+    const adapter = makeAdapter(async () =>
+      jsonResponse({ id: 'pi_123', status: 'processing', amount: 5000 }),
+    );
+
+    await expect(
+      adapter.capturePayment({ providerPaymentId: 'pi_123' }),
+    ).resolves.toMatchObject({
+      status: 'processing',
+      providerPaymentId: 'pi_123',
+    });
+  });
+
+  it('capturePayment surfaces a Stripe 400 (e.g. already captured) as a rejection', async () => {
+    const adapter = makeAdapter(async () =>
+      jsonResponse(
+        { error: { message: 'This PaymentIntent could not be captured' } },
+        400,
+      ),
+    );
+
+    await expect(
+      adapter.capturePayment({ providerPaymentId: 'pi_123' }),
+    ).rejects.toThrow('could not be captured');
+  });
+
+  it('voidPayment cancels an uncaptured PaymentIntent and forwards the idempotency key', async () => {
+    let capturedUrl = '';
+    let capturedInit: RequestInit | undefined;
+    const adapter = makeAdapter(async (input, init) => {
+      capturedUrl = String(input);
+      capturedInit = init;
+      return jsonResponse({ id: 'pi_123', status: 'canceled' });
+    });
+
+    const result = await adapter.voidPayment({
+      providerPaymentId: 'pi_123',
+      idempotencyKey: 'campaign-1-void',
+    });
+
+    expect(capturedUrl).toBe(
+      'https://stripe.example/v1/payment_intents/pi_123/cancel',
+    );
+    expect(new Headers(capturedInit?.headers).get('Idempotency-Key')).toBe(
+      'campaign-1-void',
+    );
+    expect(result).toMatchObject({
+      backendId: 'stripe',
+      status: 'canceled',
+      providerPaymentId: 'pi_123',
+    });
+  });
+
+  it('voidPayment maps a non-canceled status to failed', async () => {
+    const adapter = makeAdapter(async () =>
+      jsonResponse({ id: 'pi_123', status: 'requires_capture' }),
+    );
+
+    await expect(
+      adapter.voidPayment({ providerPaymentId: 'pi_123' }),
+    ).resolves.toMatchObject({ status: 'failed' });
+  });
+
+  it('refundPayment refunds a captured PaymentIntent (reused by the lifecycle)', async () => {
+    const adapter = makeAdapter(async (input) => {
+      expect(String(input)).toBe('https://stripe.example/v1/refunds');
+      return jsonResponse({ id: 're_123', status: 'succeeded' });
+    });
+
+    await expect(
+      adapter.refundPayment({ paymentId: 'pi_123', amount: 2500 }),
+    ).resolves.toMatchObject({ status: 'succeeded', refundId: 're_123' });
   });
 });
 
