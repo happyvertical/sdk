@@ -28,6 +28,12 @@ export interface PaymentBackendCapabilities {
   supportsRefunds: boolean;
   supportsPayouts: boolean;
   supportsWebhooks: boolean;
+  /**
+   * Whether the backend can save a reusable payment method (card on file)
+   * via `createSetupSession` / `getSetupResult`. Card processors such as
+   * Stripe set this; settlement-only rails (crypto) leave it unset.
+   */
+  supportsSavedPaymentMethods?: boolean;
   metadata?: Record<string, unknown>;
 }
 
@@ -184,6 +190,49 @@ export interface RefundResult {
   raw?: unknown;
 }
 
+export interface CreateSetupSessionInput {
+  /** Where Stripe returns the buyer after saving the card. */
+  successUrl?: string;
+  cancelUrl?: string;
+  /** Prefill / create the customer by email (ignored if providerCustomerId is set). */
+  customerEmail?: string;
+  /** Attach the saved method to an existing provider customer (e.g. cus_...). */
+  providerCustomerId?: string;
+  idempotencyKey?: string;
+  metadata?: Record<string, string | number | boolean | null | undefined>;
+}
+
+export interface SetupSession {
+  backendId: string;
+  /** Provider session id (e.g. a Stripe Checkout Session cs_...). */
+  sessionId: string;
+  /** Hosted URL the buyer completes to save their card. */
+  url: string;
+  /** Provider customer id, when one was supplied or already created. */
+  providerCustomerId?: string;
+  raw?: unknown;
+}
+
+export interface GetSetupResultInput {
+  /** The `sessionId` returned by createSetupSession. */
+  sessionId: string;
+}
+
+export interface SavedPaymentMethod {
+  backendId: string;
+  status: 'complete' | 'pending' | 'expired';
+  /** Reusable references to persist — never card data. */
+  providerCustomerId?: string;
+  providerPaymentMethodId?: string;
+  /** Non-sensitive display fields. */
+  type?: string;
+  brand?: string;
+  last4?: string;
+  expMonth?: number;
+  expYear?: number;
+  raw?: unknown;
+}
+
 export interface PaymentBackend {
   readonly capabilities: PaymentBackendCapabilities;
 
@@ -204,6 +253,21 @@ export interface PaymentBackend {
   sendPayout(input: SendPayoutInput): Promise<PayoutResult>;
 
   refundPayment?(input: RefundPaymentInput): Promise<RefundResult>;
+
+  /**
+   * Start a hosted flow to save a reusable payment method (card on file)
+   * without charging. Returns a redirect URL the buyer completes; the saved
+   * method is then read back with {@link getSetupResult}. Card-processor
+   * backends implement this; settlement-only rails do not.
+   */
+  createSetupSession?(input: CreateSetupSessionInput): Promise<SetupSession>;
+
+  /**
+   * Read the outcome of a {@link createSetupSession} flow — the saved
+   * payment-method + customer references and non-sensitive card display
+   * fields (brand / last4 / expiry). Never returns raw card data.
+   */
+  getSetupResult?(input: GetSetupResultInput): Promise<SavedPaymentMethod>;
 
   parseWebhookEvent?(payload: string, signature?: string): PaymentWebhookEvent;
 }

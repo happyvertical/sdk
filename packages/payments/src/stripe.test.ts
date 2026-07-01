@@ -1514,3 +1514,167 @@ describe('StripeAdapter', () => {
     });
   });
 });
+
+describe('StripeAdapter saved payment methods (setup)', () => {
+  function makeAdapter(
+    fetchImpl: (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => Promise<Response>,
+  ) {
+    return new StripeAdapter({
+      secretKey: 'sk_test_123',
+      apiBaseUrl: 'https://stripe.example/v1',
+      fetch: vi.fn(fetchImpl),
+      successUrl: 'https://app.example/setup/success',
+      cancelUrl: 'https://app.example/setup/cancel',
+    });
+  }
+
+  it('advertises saved-payment-method support', () => {
+    const adapter = makeAdapter(async () => jsonResponse({}));
+
+    expect(adapter.capabilities.supportsSavedPaymentMethods).toBe(true);
+  });
+
+  it('createSetupSession opens a setup-mode Checkout Session and forwards idempotency', async () => {
+    let capturedUrl = '';
+    let capturedInit: RequestInit | undefined;
+    const adapter = makeAdapter(async (input, init) => {
+      capturedUrl = String(input);
+      capturedInit = init;
+      return jsonResponse({
+        id: 'cs_setup_123',
+        url: 'https://checkout.stripe.com/c/pay/cs_setup_123',
+        ...Object.fromEntries([['customer', 'cus_123']]),
+      });
+    });
+
+    const result = await adapter.createSetupSession({
+      providerCustomerId: 'cus_123',
+      idempotencyKey: 'advertiser-7-save-card',
+      metadata: { advertiserId: '7' },
+    });
+
+    expect(capturedUrl).toBe('https://stripe.example/v1/checkout/sessions');
+    expect(capturedInit?.method).toBe('POST');
+    expect(new Headers(capturedInit?.headers).get('Idempotency-Key')).toBe(
+      'advertiser-7-save-card',
+    );
+    const body = new URLSearchParams(String(capturedInit?.body));
+    expect(body.get('mode')).toBe('setup');
+    expect(body.get('customer')).toBe('cus_123');
+    expect(body.get('metadata[advertiserId]')).toBe('7');
+    expect(result).toMatchObject({
+      backendId: 'stripe',
+      sessionId: 'cs_setup_123',
+      url: 'https://checkout.stripe.com/c/pay/cs_setup_123',
+      providerCustomerId: 'cus_123',
+    });
+  });
+
+  it('createSetupSession uses customer_email when no customer id is supplied', async () => {
+    let capturedBody = '';
+    const adapter = makeAdapter(async (_input, init) => {
+      capturedBody = String(init?.body ?? '');
+      return jsonResponse({
+        id: 'cs_setup_123',
+        url: 'https://checkout.stripe.com/c/pay/cs_setup_123',
+      });
+    });
+
+    await adapter.createSetupSession({ customerEmail: 'ad@example.com' });
+
+    const body = new URLSearchParams(capturedBody);
+    expect(body.get('customer_email')).toBe('ad@example.com');
+    expect(body.has('customer')).toBe(false);
+  });
+
+  it('createSetupSession requires success and cancel URLs', async () => {
+    const adapter = new StripeAdapter({
+      secretKey: 'sk_test_123',
+      apiBaseUrl: 'https://stripe.example/v1',
+      fetch: vi.fn(async () => jsonResponse({})),
+    });
+
+    await expect(adapter.createSetupSession({})).rejects.toThrow(
+      /successUrl and cancelUrl/,
+    );
+  });
+
+  it('getSetupResult returns the saved token references and card display fields', async () => {
+    let capturedUrl = '';
+    const adapter = makeAdapter(async (input) => {
+      capturedUrl = String(input);
+      return jsonResponse({
+        id: 'cs_setup_123',
+        status: 'complete',
+        ...Object.fromEntries([
+          ['customer', 'cus_123'],
+          [
+            'setup_intent',
+            {
+              id: 'seti_123',
+              ...Object.fromEntries([
+                [
+                  'payment_method',
+                  {
+                    id: 'pm_123',
+                    type: 'card',
+                    card: {
+                      brand: 'visa',
+                      last4: '4242',
+                      ...Object.fromEntries([
+                        ['exp_month', 12],
+                        ['exp_year', 2030],
+                      ]),
+                    },
+                  },
+                ],
+              ]),
+            },
+          ],
+        ]),
+      });
+    });
+
+    const result = await adapter.getSetupResult({ sessionId: 'cs_setup_123' });
+
+    expect(capturedUrl).toContain(
+      'https://stripe.example/v1/checkout/sessions/cs_setup_123',
+    );
+    expect(capturedUrl).toContain('setup_intent.payment_method');
+    expect(result).toEqual({
+      backendId: 'stripe',
+      status: 'complete',
+      providerCustomerId: 'cus_123',
+      providerPaymentMethodId: 'pm_123',
+      type: 'card',
+      brand: 'visa',
+      last4: '4242',
+      expMonth: 12,
+      expYear: 2030,
+      raw: expect.anything(),
+    });
+  });
+
+  it('getSetupResult maps an incomplete session to pending', async () => {
+    const adapter = makeAdapter(async () =>
+      jsonResponse({ id: 'cs_setup_123', status: 'open' }),
+    );
+
+    await expect(
+      adapter.getSetupResult({ sessionId: 'cs_setup_123' }),
+    ).resolves.toMatchObject({ status: 'pending' });
+  });
+
+  it('getSetupResult rejects a non-2xx Stripe response', async () => {
+    const adapter = makeAdapter(async () =>
+      jsonResponse({ error: { message: 'No such checkout session' } }, 404),
+    );
+
+    await expect(
+      adapter.getSetupResult({ sessionId: 'cs_missing' }),
+    ).rejects.toThrow('No such checkout session');
+  });
+});

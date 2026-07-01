@@ -21,6 +21,8 @@ import {
 } from '../shared.js';
 import type {
   CreatePaymentOptionInput,
+  CreateSetupSessionInput,
+  GetSetupResultInput,
   PaymentBackend,
   PaymentBackendCapabilities,
   PaymentEvent,
@@ -32,7 +34,9 @@ import type {
   PayoutResult,
   RefundPaymentInput,
   RefundResult,
+  SavedPaymentMethod,
   SendPayoutInput,
+  SetupSession,
   WatchPaymentInput,
 } from '../types.js';
 
@@ -169,6 +173,7 @@ export class StripeAdapter implements PaymentBackend {
       supportsRefunds: true,
       supportsPayouts: true,
       supportsWebhooks: true,
+      supportsSavedPaymentMethods: true,
       metadata: {
         provider: 'stripe',
       },
@@ -474,6 +479,127 @@ export class StripeAdapter implements PaymentBackend {
       amount,
       currency: currency.toUpperCase(),
       raw: refund,
+    };
+  }
+
+  async createSetupSession(
+    input: CreateSetupSessionInput,
+  ): Promise<SetupSession> {
+    const rawSuccessUrl = input.successUrl ?? this.options.successUrl;
+    const rawCancelUrl = input.cancelUrl ?? this.options.cancelUrl;
+
+    if (rawSuccessUrl === undefined || rawCancelUrl === undefined) {
+      throw new PaymentConfigurationError(
+        'StripeAdapter createSetupSession requires successUrl and cancelUrl.',
+      );
+    }
+
+    const successUrl = normalizeUrlString(rawSuccessUrl, 'Stripe successUrl');
+    const cancelUrl = normalizeUrlString(rawCancelUrl, 'Stripe cancelUrl');
+    const providerCustomerId =
+      input.providerCustomerId === undefined
+        ? undefined
+        : normalizeNonEmptyString(
+            input.providerCustomerId,
+            'Stripe setup customer',
+          );
+
+    // Either attach to an existing customer, or let Stripe create one (optionally
+    // prefilled by email). All snake_case keys go through Object.fromEntries.
+    const customerParams: [string, unknown][] =
+      providerCustomerId !== undefined
+        ? [['customer', providerCustomerId]]
+        : input.customerEmail === undefined
+          ? []
+          : [
+              [
+                'customer_email',
+                normalizeNonEmptyString(
+                  input.customerEmail,
+                  'Stripe setup customerEmail',
+                ),
+              ],
+            ];
+
+    const params: Record<string, unknown> = {
+      mode: 'setup',
+      ...Object.fromEntries([
+        ['success_url', successUrl],
+        ['cancel_url', cancelUrl],
+        ...customerParams,
+      ]),
+      ...flattenStripeMetadata(input.metadata),
+    };
+
+    const session = await this.stripeRequest<Record<string, unknown>>(
+      '/checkout/sessions',
+      {
+        method: 'POST',
+        idempotencyKey: input.idempotencyKey,
+        body: formEncode(params),
+      },
+    );
+
+    const sessionId = normalizeOptionalProviderString(
+      readProviderString(session, 'id'),
+    );
+    const url = normalizeOptionalProviderString(
+      readProviderString(session, 'url'),
+    );
+
+    if (!sessionId || !url) {
+      throw new PaymentProviderError(
+        'Stripe setup Checkout Session response did not include id and url.',
+      );
+    }
+
+    return {
+      backendId: this.capabilities.id,
+      sessionId,
+      url,
+      providerCustomerId:
+        providerCustomerId ??
+        normalizeOptionalProviderString(
+          readProviderString(session, 'customer'),
+        ),
+      raw: session,
+    };
+  }
+
+  async getSetupResult(
+    input: GetSetupResultInput,
+  ): Promise<SavedPaymentMethod> {
+    const sessionId = normalizeNonEmptyString(
+      input.sessionId,
+      'Stripe setup sessionId',
+    );
+
+    const query = new URLSearchParams();
+    query.append('expand[]', 'setup_intent.payment_method');
+
+    const session = await this.stripeRequest<Record<string, unknown>>(
+      `/checkout/sessions/${encodeURIComponent(sessionId)}?${query.toString()}`,
+    );
+
+    const setupIntent = readObject(session, 'setup_intent');
+    const paymentMethod = readObject(setupIntent, 'payment_method');
+    const card = readObject(paymentMethod, 'card');
+
+    return {
+      backendId: this.capabilities.id,
+      status: mapStripeSetupStatus(readString(session, 'status')),
+      providerCustomerId: normalizeOptionalProviderString(
+        readProviderString(session, 'customer'),
+      ),
+      providerPaymentMethodId: normalizeOptionalProviderString(
+        readProviderString(paymentMethod, 'id'),
+      ),
+      type: readString(paymentMethod, 'type'),
+      brand: readString(card, 'brand'),
+      last4: readString(card, 'last4'),
+      expMonth: readSafeInteger(card, 'exp_month'),
+      expYear: readSafeInteger(card, 'exp_year'),
+      raw: session,
     };
   }
 
@@ -909,6 +1035,30 @@ function mapStripeRefundStatus(
     default:
       return 'submitted';
   }
+}
+
+function mapStripeSetupStatus(
+  status: string | undefined,
+): SavedPaymentMethod['status'] {
+  switch (status) {
+    case 'complete':
+      return 'complete';
+    case 'expired':
+      return 'expired';
+    default:
+      return 'pending';
+  }
+}
+
+function readObject(
+  value: Record<string, unknown> | undefined,
+  key: string,
+): Record<string, unknown> | undefined {
+  const item = value?.[key];
+
+  return item && typeof item === 'object' && !Array.isArray(item)
+    ? (item as Record<string, unknown>)
+    : undefined;
 }
 
 function extractStripeSessionId(payTo: string): string | undefined {
