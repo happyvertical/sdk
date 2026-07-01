@@ -756,7 +756,7 @@ async function createDatabase(
               AND i.indisunique
               AND i.indnullsnotdistinct
               AND ARRAY(
-                SELECT a.attname
+                SELECT a.attname::text
                 FROM unnest(i.indkey) WITH ORDINALITY AS cols(attnum, ord)
                 JOIN pg_attribute a
                   ON a.attrelid = i.indrelid
