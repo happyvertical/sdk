@@ -23,11 +23,32 @@ import type {
 } from './types.js';
 
 /**
- * WebSocket message types from ComfyUI
+ * WebSocket message types from ComfyUI.
+ *
+ * `data` carries the union of fields the various message types
+ * use, discriminated by `type` at runtime in `parseProgressEvent`.
+ * Previously typed as `unknown`, which made every
+ * `message.data?.<field>` access in that switch fail TS2339 — the
+ * narrowing would have required parser-side type guards, much
+ * heavier than just listing the actual fields here.
  */
 interface WSMessage {
   type: string;
-  data?: unknown;
+  data?: {
+    // `node` carries a real `null` value from the ComfyUI protocol —
+    // `parseProgressEvent` writes it through to `ProgressEvent.nodeId`,
+    // and `waitForCompletion` uses `event.nodeId === null` as the
+    // "no more nodes to execute" completion sentinel. The previous
+    // `data?: unknown` type accepted null implicitly; this narrowed
+    // type must keep it. (See `packages/comfyui/src/client.ts:436`
+    // and the comment about completion above it.)
+    node?: string | null;
+    prompt_id?: string;
+    output?: Record<string, unknown>;
+    value?: number;
+    max?: number;
+    exception_message?: string;
+  };
 }
 
 /**

@@ -182,9 +182,14 @@ export interface ProgressEvent {
     | 'execution_error';
 
   /**
-   * Currently executing node ID
+   * Currently executing node ID. May be `null` on `executed` events
+   * — the ComfyUI WebSocket protocol uses `nodeId === null` as a
+   * "no more nodes to execute" completion sentinel, which
+   * `waitForCompletion` (client.ts) relies on. Treat `null` as
+   * "workflow complete", `undefined` as "field absent", and a
+   * string as "this node is the subject of the event".
    */
-  nodeId?: string;
+  nodeId?: string | null;
 
   /**
    * Progress value (0-100 for 'progress' type)
