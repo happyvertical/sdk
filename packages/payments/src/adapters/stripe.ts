@@ -533,6 +533,10 @@ export class StripeAdapter implements PaymentBackend {
     const params: Record<string, unknown> = {
       mode: 'setup',
       currency,
+      // Restrict to cards: SavedPaymentMethod exposes card display fields
+      // (brand/last4/expiry), so allowing SEPA/Bacs/etc. would yield saved
+      // methods with no usable display detail.
+      'payment_method_types[]': 'card',
       ...Object.fromEntries([
         ['success_url', successUrl],
         ['cancel_url', cancelUrl],

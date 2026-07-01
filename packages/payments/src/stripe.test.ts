@@ -1564,6 +1564,7 @@ describe('StripeAdapter saved payment methods (setup)', () => {
     const body = new URLSearchParams(String(capturedInit?.body));
     expect(body.get('mode')).toBe('setup');
     expect(body.get('currency')).toBe('usd');
+    expect(body.get('payment_method_types[]')).toBe('card');
     expect(body.get('customer')).toBe('cus_123');
     // An existing customer must not also trigger customer_creation.
     expect(body.has('customer_creation')).toBe(false);
@@ -1607,6 +1608,36 @@ describe('StripeAdapter saved payment methods (setup)', () => {
     await expect(adapter.createSetupSession({})).rejects.toThrow(
       /successUrl and cancelUrl/,
     );
+  });
+
+  it('createSetupSession rejects a blank providerCustomerId / customerEmail', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({}));
+    const adapter = makeAdapter(fetchMock);
+
+    await expect(
+      adapter.createSetupSession({ providerCustomerId: '   ' }),
+    ).rejects.toThrow(/must not be empty/);
+    await expect(
+      adapter.createSetupSession({ customerEmail: '' }),
+    ).rejects.toThrow(/must not be empty/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('getSetupResult keeps a 3-DS (requires_action) SetupIntent pending, not failed', async () => {
+    const adapter = makeAdapter(async () =>
+      jsonResponse({
+        id: 'cs_setup_123',
+        status: 'complete',
+        ...Object.fromEntries([
+          ['customer', 'cus_123'],
+          ['setup_intent', { id: 'seti_123', status: 'requires_action' }],
+        ]),
+      }),
+    );
+
+    await expect(
+      adapter.getSetupResult({ sessionId: 'cs_setup_123' }),
+    ).resolves.toMatchObject({ status: 'pending' });
   });
 
   it('getSetupResult returns the saved token references and card display fields', async () => {
