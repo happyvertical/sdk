@@ -150,13 +150,56 @@ jobs:
       - name: Validate commit messages
         uses: wagoid/commitlint-github-action@b948419dd99f3fd78a6548d48f94e3df7f6bf3ed # v6
         with:
-          configFile: .commitlintrc.json
+          configFile: commitlint.config.mjs
+
+      # PR title validation only needs commitlint, not the full
+      # workspace setup. Avoid ./.github/actions/setup-environment here
+      # because that composite action installs apt packages and the
+      # complete workspace dependency graph on the self-hosted runner.
+      - name: Setup Node.js for PR title validation
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '24'
+
+      - name: Setup pnpm for PR title validation
+        uses: pnpm/action-setup@903f9c1a6ebcba6cf41d87230be49611ac97822e # v6
+        with:
+          run_install: false
+
+      - name: Install commitlint dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter @happyvertical/sdk
+        env:
+          # Needed only because .npmrc references GitHub Packages auth.
+          NODE_AUTH_TOKEN: ${{ github.token }}
 
       - name: Validate PR title for squash merge
+        # PR title is user-controlled metadata. Two non-obvious risks
+        # the previous form had:
+        #   (1) Interpolating the title directly into a shell script
+        #       lets a title with command substitution execute the
+        #       substitution at the runner's shell — real command
+        #       injection, especially on the self-hosted
+        #       arc-happyvertical runner this workflow runs on. Pass
+        #       via env: instead, then quote the variable expansion.
+        #   (2) scripts/validate-conventional-commits.js uses a
+        #       hardcoded regex with permissive scope and a 50-char
+        #       subject limit. Titles that pass the commit-validate
+        #       job's commitlint config (with strict scope-enum +
+        #       100-char limit) could STILL be rejected here, AND
+        #       titles that fail commitlint's scope-enum could
+        #       squash-merge cleanly. Replace the regex check with
+        #       commitlint using the same config the commit
+        #       validator uses, so both gates speak with one voice.
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
-          title="${{ github.event.pull_request.title }}"
-          echo "Validating PR title: $title"
-          node scripts/validate-conventional-commits.js --message "$title"
+          # printf instead of echo: avoids the leading-dash flag trap
+          # (a title starting with -e/-n/-E would be eaten by echo).
+          # pnpm exec finds commitlint from the root-only install above;
+          # that avoids apt packages, workspace install scripts, and
+          # package-level dependency installation.
+          printf 'Validating PR title (length=%s)\n' "${#PR_TITLE}"
+          printf '%s\n' "$PR_TITLE" | pnpm exec commitlint --config commitlint.config.mjs
 
       - name: Determine version bump
         id: version
