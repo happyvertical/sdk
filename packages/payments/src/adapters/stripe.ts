@@ -13,6 +13,7 @@ import {
   normalizeMaxStoredPaymentOptions,
   normalizeMinorUnitAmount,
   normalizeNonEmptyString,
+  normalizePositiveMinorUnitAmount,
   normalizePositivePaymentAmount,
   normalizeUrlString,
   pollPaymentStatus,
@@ -20,6 +21,10 @@ import {
   rememberPaymentOption,
 } from '../shared.js';
 import type {
+  AuthorizationResult,
+  AuthorizePaymentInput,
+  CapturePaymentInput,
+  CaptureResult,
   CreatePaymentOptionInput,
   PaymentBackend,
   PaymentBackendCapabilities,
@@ -33,6 +38,8 @@ import type {
   RefundPaymentInput,
   RefundResult,
   SendPayoutInput,
+  VoidPaymentInput,
+  VoidResult,
   WatchPaymentInput,
 } from '../types.js';
 
@@ -169,6 +176,7 @@ export class StripeAdapter implements PaymentBackend {
       supportsRefunds: true,
       supportsPayouts: true,
       supportsWebhooks: true,
+      supportsManualCapture: true,
       metadata: {
         provider: 'stripe',
       },
@@ -474,6 +482,145 @@ export class StripeAdapter implements PaymentBackend {
       amount,
       currency: currency.toUpperCase(),
       raw: refund,
+    };
+  }
+
+  async authorizePayment(
+    input: AuthorizePaymentInput,
+  ): Promise<AuthorizationResult> {
+    const currency = normalizeStripeCurrency(input.currency);
+    this.assertSupportedCurrency(currency);
+    const amount = normalizePositivePaymentAmount(
+      input.amount,
+      currency,
+      'Stripe authorize amount',
+    );
+    const paymentMethod = normalizeNonEmptyString(
+      input.paymentMethod,
+      'Stripe authorize paymentMethod',
+    );
+    const customerId =
+      input.customerId === undefined
+        ? undefined
+        : normalizeNonEmptyString(
+            input.customerId,
+            'Stripe authorize customerId',
+          );
+    const quoteId =
+      input.quoteId === undefined
+        ? undefined
+        : normalizeNonEmptyString(input.quoteId, 'Stripe authorize quoteId');
+
+    const intent = await this.stripeRequest<Record<string, unknown>>(
+      '/payment_intents',
+      {
+        method: 'POST',
+        idempotencyKey: input.idempotencyKey,
+        body: formEncode({
+          amount,
+          currency,
+          confirm: true,
+          'payment_method_types[]': 'card',
+          description: input.description,
+          ...Object.fromEntries([
+            ['payment_method', paymentMethod],
+            ['capture_method', 'manual'],
+          ]),
+          ...(customerId === undefined ? {} : { customer: customerId }),
+          ...flattenStripeMetadata(input.metadata),
+          ...(quoteId === undefined ? {} : { 'metadata[quoteId]': quoteId }),
+        }),
+      },
+    );
+
+    const providerPaymentId = normalizeOptionalProviderString(
+      readProviderString(intent, 'id'),
+    );
+
+    if (!providerPaymentId) {
+      throw new PaymentProviderError(
+        'Stripe PaymentIntent response did not include an id.',
+      );
+    }
+
+    return {
+      backendId: this.capabilities.id,
+      status: mapStripeAuthorizationStatus(readString(intent, 'status')),
+      providerPaymentId,
+      amount: readSafeInteger(intent, 'amount') ?? amount,
+      currency: (readString(intent, 'currency') ?? currency).toUpperCase(),
+      raw: intent,
+    };
+  }
+
+  async capturePayment(input: CapturePaymentInput): Promise<CaptureResult> {
+    const providerPaymentId = normalizeNonEmptyString(
+      input.providerPaymentId,
+      'Stripe capture providerPaymentId',
+    );
+    const amount =
+      input.amount === undefined
+        ? undefined
+        : normalizePositiveMinorUnitAmount(
+            input.amount,
+            'Stripe capture amount',
+          );
+
+    const intent = await this.stripeRequest<Record<string, unknown>>(
+      `/payment_intents/${encodeURIComponent(providerPaymentId)}/capture`,
+      {
+        method: 'POST',
+        idempotencyKey: input.idempotencyKey,
+        body: formEncode({
+          ...Object.fromEntries([['amount_to_capture', amount]]),
+          ...flattenStripeMetadata(input.metadata),
+        }),
+      },
+    );
+
+    return {
+      backendId: this.capabilities.id,
+      status: mapStripeCaptureStatus(readString(intent, 'status')),
+      providerPaymentId:
+        normalizeOptionalProviderString(readProviderString(intent, 'id')) ??
+        providerPaymentId,
+      amount:
+        readSafeInteger(intent, 'amount_received') ??
+        readSafeInteger(intent, 'amount') ??
+        amount,
+      currency: readStripeResultCurrency(intent),
+      raw: intent,
+    };
+  }
+
+  async voidPayment(input: VoidPaymentInput): Promise<VoidResult> {
+    const providerPaymentId = normalizeNonEmptyString(
+      input.providerPaymentId,
+      'Stripe void providerPaymentId',
+    );
+    const reason =
+      input.reason === undefined
+        ? undefined
+        : normalizeNonEmptyString(input.reason, 'Stripe void reason');
+
+    const intent = await this.stripeRequest<Record<string, unknown>>(
+      `/payment_intents/${encodeURIComponent(providerPaymentId)}/cancel`,
+      {
+        method: 'POST',
+        idempotencyKey: input.idempotencyKey,
+        body: formEncode(Object.fromEntries([['cancellation_reason', reason]])),
+      },
+    );
+
+    return {
+      backendId: this.capabilities.id,
+      status: mapStripeVoidStatus(readString(intent, 'status')),
+      providerPaymentId:
+        normalizeOptionalProviderString(readProviderString(intent, 'id')) ??
+        providerPaymentId,
+      amount: readSafeInteger(intent, 'amount'),
+      currency: readStripeResultCurrency(intent),
+      raw: intent,
     };
   }
 
@@ -909,6 +1056,50 @@ function mapStripeRefundStatus(
     default:
       return 'submitted';
   }
+}
+
+function mapStripeAuthorizationStatus(
+  status: string | undefined,
+): AuthorizationResult['status'] {
+  switch (status) {
+    case 'requires_capture':
+      return 'requires_capture';
+    case 'succeeded':
+      return 'succeeded';
+    case 'requires_action':
+      return 'requires_action';
+    case 'processing':
+      return 'processing';
+    default:
+      return 'failed';
+  }
+}
+
+function mapStripeCaptureStatus(
+  status: string | undefined,
+): CaptureResult['status'] {
+  switch (status) {
+    case 'succeeded':
+      return 'succeeded';
+    case 'processing':
+      return 'processing';
+    case 'requires_action':
+      return 'requires_action';
+    default:
+      return 'failed';
+  }
+}
+
+function mapStripeVoidStatus(status: string | undefined): VoidResult['status'] {
+  return status === 'canceled' ? 'canceled' : 'failed';
+}
+
+function readStripeResultCurrency(
+  value: Record<string, unknown>,
+): string | undefined {
+  const currency = readString(value, 'currency');
+
+  return currency === undefined ? undefined : currency.toUpperCase();
 }
 
 function extractStripeSessionId(payTo: string): string | undefined {

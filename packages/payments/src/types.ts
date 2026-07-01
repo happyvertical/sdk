@@ -28,6 +28,12 @@ export interface PaymentBackendCapabilities {
   supportsRefunds: boolean;
   supportsPayouts: boolean;
   supportsWebhooks: boolean;
+  /**
+   * Whether the backend supports the manual-capture card lifecycle
+   * (`authorizePayment` → `capturePayment` / `voidPayment`). Card processors
+   * such as Stripe set this; settlement-only rails (crypto) leave it unset.
+   */
+  supportsManualCapture?: boolean;
   metadata?: Record<string, unknown>;
 }
 
@@ -184,6 +190,71 @@ export interface RefundResult {
   raw?: unknown;
 }
 
+export interface AuthorizePaymentInput {
+  /** Amount to authorize, in the currency's smallest unit (e.g. cents). */
+  amount: number;
+  currency: string;
+  /** Provider payment-method reference to charge (e.g. a Stripe `pm_...` id). */
+  paymentMethod: string;
+  /** Optional provider customer reference (e.g. a Stripe `cus_...` id). */
+  customerId?: string;
+  description?: string;
+  /** Optional caller reference, surfaced to the provider as metadata. */
+  quoteId?: string;
+  idempotencyKey?: string;
+  metadata?: Record<string, string | number | boolean | null | undefined>;
+}
+
+export interface AuthorizationResult {
+  backendId: string;
+  status:
+    | 'requires_capture'
+    | 'requires_action'
+    | 'processing'
+    | 'succeeded'
+    | 'failed';
+  /** Provider id of the authorized payment, needed to capture or void it. */
+  providerPaymentId?: string;
+  amount?: number;
+  currency?: string;
+  raw?: unknown;
+}
+
+export interface CapturePaymentInput {
+  /** Provider id returned by `authorizePayment`. */
+  providerPaymentId: string;
+  /** Partial capture amount in the smallest unit; omit to capture in full. */
+  amount?: number;
+  idempotencyKey?: string;
+  metadata?: Record<string, string | number | boolean | null | undefined>;
+}
+
+export interface CaptureResult {
+  backendId: string;
+  status: 'succeeded' | 'processing' | 'requires_action' | 'failed';
+  providerPaymentId?: string;
+  amount?: number;
+  currency?: string;
+  raw?: unknown;
+}
+
+export interface VoidPaymentInput {
+  /** Provider id returned by `authorizePayment`. */
+  providerPaymentId: string;
+  idempotencyKey?: string;
+  /** Optional provider cancellation reason. */
+  reason?: string;
+}
+
+export interface VoidResult {
+  backendId: string;
+  status: 'canceled' | 'failed';
+  providerPaymentId?: string;
+  amount?: number;
+  currency?: string;
+  raw?: unknown;
+}
+
 export interface PaymentBackend {
   readonly capabilities: PaymentBackendCapabilities;
 
@@ -204,6 +275,23 @@ export interface PaymentBackend {
   sendPayout(input: SendPayoutInput): Promise<PayoutResult>;
 
   refundPayment?(input: RefundPaymentInput): Promise<RefundResult>;
+
+  /**
+   * Authorize (place a hold on) funds without capturing them, returning an
+   * uncaptured payment that can later be captured or voided. Card-processor
+   * backends implement this; settlement-only rails do not.
+   */
+  authorizePayment?(input: AuthorizePaymentInput): Promise<AuthorizationResult>;
+
+  /**
+   * Capture a previously authorized payment — in full, or a partial `amount`.
+   */
+  capturePayment?(input: CapturePaymentInput): Promise<CaptureResult>;
+
+  /**
+   * Void (cancel) an authorized-but-uncaptured payment. No funds move.
+   */
+  voidPayment?(input: VoidPaymentInput): Promise<VoidResult>;
 
   parseWebhookEvent?(payload: string, signature?: string): PaymentWebhookEvent;
 }
