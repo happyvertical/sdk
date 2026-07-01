@@ -26,6 +26,8 @@ import type {
   CapturePaymentInput,
   CaptureResult,
   CreatePaymentOptionInput,
+  CreateSetupSessionInput,
+  GetSetupResultInput,
   PaymentBackend,
   PaymentBackendCapabilities,
   PaymentEvent,
@@ -37,7 +39,9 @@ import type {
   PayoutResult,
   RefundPaymentInput,
   RefundResult,
+  SavedPaymentMethod,
   SendPayoutInput,
+  SetupSession,
   VoidPaymentInput,
   VoidResult,
   WatchPaymentInput,
@@ -177,6 +181,7 @@ export class StripeAdapter implements PaymentBackend {
       supportsPayouts: true,
       supportsWebhooks: true,
       supportsManualCapture: true,
+      supportsSavedPaymentMethods: true,
       metadata: {
         provider: 'stripe',
       },
@@ -645,6 +650,164 @@ export class StripeAdapter implements PaymentBackend {
       amount: readSafeInteger(intent, 'amount'),
       currency: readStripeResultCurrency(intent),
       raw: intent,
+    };
+  }
+
+  async createSetupSession(
+    input: CreateSetupSessionInput,
+  ): Promise<SetupSession> {
+    const rawSuccessUrl = input.successUrl ?? this.options.successUrl;
+    const rawCancelUrl = input.cancelUrl ?? this.options.cancelUrl;
+
+    if (rawSuccessUrl === undefined || rawCancelUrl === undefined) {
+      throw new PaymentConfigurationError(
+        'StripeAdapter createSetupSession requires successUrl and cancelUrl.',
+      );
+    }
+
+    const successUrl = normalizeUrlString(rawSuccessUrl, 'Stripe successUrl');
+    const cancelUrl = normalizeUrlString(rawCancelUrl, 'Stripe cancelUrl');
+    // Currency for the setup-mode session (defaults to the backend currency).
+    // Redundant now that payment_method_types is always set, but harmless and
+    // kept so the session is well-formed if that restriction is ever relaxed.
+    const currency = normalizeStripeCurrency(
+      input.currency ?? this.defaultCurrency,
+    );
+    this.assertSupportedCurrency(currency);
+    const providerCustomerId =
+      input.providerCustomerId === undefined
+        ? undefined
+        : normalizeNonEmptyString(
+            input.providerCustomerId,
+            'Stripe setup customer',
+          );
+
+    // Either attach to an existing customer, or force Stripe to create one so
+    // the saved method comes back with a reusable `cus_` reference. Setup-mode
+    // sessions do NOT create a customer on their own — `customer_creation` must
+    // be `always`. All snake_case keys go through Object.fromEntries.
+    const customerParams: [string, unknown][] = [];
+    if (providerCustomerId !== undefined) {
+      customerParams.push(['customer', providerCustomerId]);
+    } else {
+      customerParams.push(['customer_creation', 'always']);
+      if (input.customerEmail !== undefined) {
+        customerParams.push([
+          'customer_email',
+          normalizeNonEmptyString(
+            input.customerEmail,
+            'Stripe setup customerEmail',
+          ),
+        ]);
+      }
+    }
+
+    const params: Record<string, unknown> = {
+      mode: 'setup',
+      currency,
+      // Restrict to cards: SavedPaymentMethod exposes card display fields
+      // (brand/last4/expiry), so allowing SEPA/Bacs/etc. would yield saved
+      // methods with no usable display detail.
+      'payment_method_types[]': 'card',
+      ...Object.fromEntries([
+        ['success_url', successUrl],
+        ['cancel_url', cancelUrl],
+        ...customerParams,
+      ]),
+      ...flattenStripeMetadata(input.metadata),
+    };
+
+    const session = await this.stripeRequest<Record<string, unknown>>(
+      '/checkout/sessions',
+      {
+        method: 'POST',
+        idempotencyKey: input.idempotencyKey,
+        body: formEncode(params),
+      },
+    );
+
+    const sessionId = normalizeOptionalProviderString(
+      readProviderString(session, 'id'),
+    );
+    const url = normalizeOptionalProviderString(
+      readProviderString(session, 'url'),
+    );
+
+    if (!sessionId || !url) {
+      throw new PaymentProviderError(
+        'Stripe setup Checkout Session response did not include id and url.',
+      );
+    }
+
+    return {
+      backendId: this.capabilities.id,
+      sessionId,
+      url,
+      providerCustomerId:
+        providerCustomerId ??
+        normalizeOptionalProviderString(
+          readProviderString(session, 'customer'),
+        ),
+      raw: session,
+    };
+  }
+
+  async getSetupResult(
+    input: GetSetupResultInput,
+  ): Promise<SavedPaymentMethod> {
+    const sessionId = normalizeNonEmptyString(
+      input.sessionId,
+      'Stripe setup sessionId',
+    );
+
+    const query = new URLSearchParams();
+    query.append('expand[]', 'setup_intent.payment_method');
+
+    const session = await this.stripeRequest<Record<string, unknown>>(
+      `/checkout/sessions/${encodeURIComponent(sessionId)}?${query.toString()}`,
+    );
+
+    const setupIntent = readObject(session, 'setup_intent');
+    const paymentMethod = readObject(setupIntent, 'payment_method');
+    const card = readObject(paymentMethod, 'card');
+
+    // `customer` is a bare `cus_` string on the request path (only
+    // setup_intent.payment_method is expanded), but read tolerantly of an
+    // expanded object so a future `expand[]=customer` can't wrongly downgrade a
+    // completed setup to a permanent `pending`.
+    const providerCustomerId = normalizeOptionalProviderString(
+      readProviderString(session, 'customer') ??
+        readProviderString(readObject(session, 'customer'), 'id'),
+    );
+    const providerPaymentMethodId = normalizeOptionalProviderString(
+      readProviderString(paymentMethod, 'id'),
+    );
+
+    let status = mapStripeSetupStatus(
+      readString(session, 'status'),
+      readString(setupIntent, 'status'),
+    );
+    // Never report `complete` without the reusable references a caller needs to
+    // charge the method later — a `pm_` with no `cus_` can't be charged
+    // off-session, so treat that as not-yet-ready rather than a false success.
+    if (
+      status === 'complete' &&
+      (!providerCustomerId || !providerPaymentMethodId)
+    ) {
+      status = 'pending';
+    }
+
+    return {
+      backendId: this.capabilities.id,
+      status,
+      providerCustomerId,
+      providerPaymentMethodId,
+      type: readString(paymentMethod, 'type'),
+      brand: readString(card, 'brand'),
+      last4: readString(card, 'last4'),
+      expMonth: readSafeInteger(card, 'exp_month'),
+      expYear: readSafeInteger(card, 'exp_year'),
+      raw: session,
     };
   }
 
@@ -1180,6 +1343,48 @@ function readStripeResultCurrency(
   const currency = readString(value, 'currency');
 
   return currency === undefined ? undefined : currency.toUpperCase();
+}
+
+function mapStripeSetupStatus(
+  sessionStatus: string | undefined,
+  setupIntentStatus: string | undefined,
+): SavedPaymentMethod['status'] {
+  if (sessionStatus === 'expired') {
+    return 'expired';
+  }
+
+  if (sessionStatus === 'complete') {
+    // The method is reusable only once the SetupIntent itself has succeeded —
+    // the Session can be `complete` while the intent is still `processing`
+    // (async setup methods via dynamic payment methods).
+    if (setupIntentStatus === 'succeeded') {
+      return 'complete';
+    }
+    // A finished session whose SetupIntent didn't succeed is a terminal
+    // failure (card declined → `requires_payment_method`, or `canceled`), so
+    // callers can stop polling instead of waiting on a `pending` that will
+    // never resolve. Still-in-flight states (`processing`, `requires_action`)
+    // remain `pending`.
+    if (
+      setupIntentStatus === 'canceled' ||
+      setupIntentStatus === 'requires_payment_method'
+    ) {
+      return 'failed';
+    }
+  }
+
+  return 'pending';
+}
+
+function readObject(
+  value: Record<string, unknown> | undefined,
+  key: string,
+): Record<string, unknown> | undefined {
+  const item = value?.[key];
+
+  return item && typeof item === 'object' && !Array.isArray(item)
+    ? (item as Record<string, unknown>)
+    : undefined;
 }
 
 function extractStripeSessionId(payTo: string): string | undefined {

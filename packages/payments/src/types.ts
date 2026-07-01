@@ -34,6 +34,12 @@ export interface PaymentBackendCapabilities {
    * such as Stripe set this; settlement-only rails (crypto) leave it unset.
    */
   supportsManualCapture?: boolean;
+  /**
+   * Whether the backend can save a reusable payment method (card on file)
+   * via `createSetupSession` / `getSetupResult`. Card processors such as
+   * Stripe set this; settlement-only rails (crypto) leave it unset.
+   */
+  supportsSavedPaymentMethods?: boolean;
   metadata?: Record<string, unknown>;
 }
 
@@ -318,6 +324,74 @@ export interface VoidResult {
   raw?: unknown;
 }
 
+export interface CreateSetupSessionInput {
+  /**
+   * Settlement currency for the setup session. Stripe requires a currency for
+   * setup-mode Checkout Sessions; defaults to the backend's configured
+   * currency when omitted.
+   */
+  currency?: string;
+  /** Where Stripe returns the buyer after saving the card. */
+  successUrl?: string;
+  cancelUrl?: string;
+  /** Prefill / create the customer by email (ignored if providerCustomerId is set). */
+  customerEmail?: string;
+  /** Attach the saved method to an existing provider customer (e.g. cus_...). */
+  providerCustomerId?: string;
+  idempotencyKey?: string;
+  metadata?: Record<string, string | number | boolean | null | undefined>;
+}
+
+export interface SetupSession {
+  backendId: string;
+  /** Provider session id (e.g. a Stripe Checkout Session cs_...). */
+  sessionId: string;
+  /** Hosted URL the buyer completes to save their card. */
+  url: string;
+  /**
+   * Provider customer id — present only when one was supplied on input. For the
+   * email / auto-create path the customer is created when the buyer completes
+   * the flow, so this is typically `undefined` here; read it from
+   * {@link getSetupResult} after completion instead.
+   */
+  providerCustomerId?: string;
+  raw?: unknown;
+}
+
+export interface GetSetupResultInput {
+  /** The `sessionId` returned by createSetupSession. */
+  sessionId: string;
+}
+
+export interface SavedPaymentMethod {
+  backendId: string;
+  /**
+   * `complete` only when the method is actually reusable — the setup succeeded
+   * AND both reusable references are present. `pending` while still in progress,
+   * `failed` on a declined/canceled setup (terminal — stop polling), `expired`
+   * when the session lapsed.
+   */
+  status: 'complete' | 'pending' | 'failed' | 'expired';
+  /**
+   * Reusable references to persist — never card data. Both are guaranteed
+   * present whenever `status === 'complete'`.
+   */
+  providerCustomerId?: string;
+  providerPaymentMethodId?: string;
+  /** Non-sensitive display fields. */
+  type?: string;
+  brand?: string;
+  last4?: string;
+  expMonth?: number;
+  expYear?: number;
+  /**
+   * Full, untrimmed provider object for inspection. May contain PII (e.g. a
+   * Checkout Session's `customer_details`) — persist the typed reference/display
+   * fields above, not `raw`.
+   */
+  raw?: unknown;
+}
+
 export interface PaymentBackend {
   readonly capabilities: PaymentBackendCapabilities;
 
@@ -355,6 +429,21 @@ export interface PaymentBackend {
    * Void (cancel) an authorized-but-uncaptured payment. No funds move.
    */
   voidPayment?(input: VoidPaymentInput): Promise<VoidResult>;
+
+  /**
+   * Start a hosted flow to save a reusable payment method (card on file)
+   * without charging. Returns a redirect URL the buyer completes; the saved
+   * method is then read back with {@link getSetupResult}. Card-processor
+   * backends implement this; settlement-only rails do not.
+   */
+  createSetupSession?(input: CreateSetupSessionInput): Promise<SetupSession>;
+
+  /**
+   * Read the outcome of a {@link createSetupSession} flow — the saved
+   * payment-method + customer references and non-sensitive card display
+   * fields (brand / last4 / expiry). Never returns raw card data.
+   */
+  getSetupResult?(input: GetSetupResultInput): Promise<SavedPaymentMethod>;
 
   parseWebhookEvent?(payload: string, signature?: string): PaymentWebhookEvent;
 }

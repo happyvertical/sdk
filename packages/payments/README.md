@@ -31,11 +31,36 @@ import { StripeAdapter } from '@happyvertical/payments/stripe';
 - `BtcAdapter`: BTCPay Server invoice, polling/webhook status, tiered
   confirmation policy, and unsigned PSBT payout creation.
 - `StripeAdapter`: Stripe Checkout URL settlement, webhook verification,
-  refunds, Stripe Connect transfers, and the manual-capture card lifecycle
-  (`authorizePayment` / `capturePayment` / `voidPayment`).
+  refunds, Stripe Connect transfers, saved payment methods / card-on-file
+  (`createSetupSession` / `getSetupResult`), and the manual-capture card
+  lifecycle (`authorizePayment` / `capturePayment` / `voidPayment`).
 
 The package does not depend on SMRT or a database. Consumers own quote
 persistence, webhook routing, and operational policy.
+
+### Save a card (setup) → charge later
+
+```ts
+const setup = await stripe.createSetupSession({
+  customerEmail: advertiser.email, // or providerCustomerId for an existing customer
+  successUrl,
+  cancelUrl,
+});
+redirect(setup.url); // buyer saves their card on Stripe's hosted page
+
+// on return, read the reusable references to persist:
+const saved = await stripe.getSetupResult({ sessionId: setup.sessionId });
+if (saved.status === 'complete') {
+  // both refs are guaranteed present when complete; persist them (never `raw`,
+  // which may contain PII). Charge later via authorizePayment (see below /
+  // the manual-capture adapter).
+  persist({ cus: saved.providerCustomerId, pm: saved.providerPaymentMethodId,
+            brand: saved.brand, last4: saved.last4 });
+}
+// status: 'pending' (still processing), 'failed' (declined — stop polling),
+// 'expired' (session lapsed). A setup-mode Checkout webhook is only a
+// "go call getSetupResult" trigger, not the save outcome itself.
+```
 
 ### Manual capture (authorize → capture / void)
 

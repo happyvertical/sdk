@@ -2118,3 +2118,344 @@ describe('StripeAdapter manual-capture lifecycle', () => {
     ).resolves.toMatchObject({ status: 'succeeded', refundId: 're_123' });
   });
 });
+
+describe('StripeAdapter saved payment methods (setup)', () => {
+  function makeAdapter(
+    fetchImpl: (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => Promise<Response>,
+  ) {
+    return new StripeAdapter({
+      secretKey: 'sk_test_123',
+      apiBaseUrl: 'https://stripe.example/v1',
+      fetch: vi.fn(fetchImpl),
+      successUrl: 'https://app.example/setup/success',
+      cancelUrl: 'https://app.example/setup/cancel',
+    });
+  }
+
+  it('advertises saved-payment-method support', () => {
+    const adapter = makeAdapter(async () => jsonResponse({}));
+
+    expect(adapter.capabilities.supportsSavedPaymentMethods).toBe(true);
+  });
+
+  it('createSetupSession opens a setup-mode Checkout Session and forwards idempotency', async () => {
+    let capturedUrl = '';
+    let capturedInit: RequestInit | undefined;
+    const adapter = makeAdapter(async (input, init) => {
+      capturedUrl = String(input);
+      capturedInit = init;
+      return jsonResponse({
+        id: 'cs_setup_123',
+        url: 'https://checkout.stripe.com/c/pay/cs_setup_123',
+        ...Object.fromEntries([['customer', 'cus_123']]),
+      });
+    });
+
+    const result = await adapter.createSetupSession({
+      providerCustomerId: 'cus_123',
+      idempotencyKey: 'advertiser-7-save-card',
+      metadata: { advertiserId: '7' },
+    });
+
+    expect(capturedUrl).toBe('https://stripe.example/v1/checkout/sessions');
+    expect(capturedInit?.method).toBe('POST');
+    expect(new Headers(capturedInit?.headers).get('Idempotency-Key')).toBe(
+      'advertiser-7-save-card',
+    );
+    const body = new URLSearchParams(String(capturedInit?.body));
+    expect(body.get('mode')).toBe('setup');
+    expect(body.get('currency')).toBe('usd');
+    expect(body.get('payment_method_types[]')).toBe('card');
+    expect(body.get('customer')).toBe('cus_123');
+    // An existing customer must not also trigger customer_creation.
+    expect(body.has('customer_creation')).toBe(false);
+    expect(body.get('metadata[advertiserId]')).toBe('7');
+    expect(result).toMatchObject({
+      backendId: 'stripe',
+      sessionId: 'cs_setup_123',
+      url: 'https://checkout.stripe.com/c/pay/cs_setup_123',
+      providerCustomerId: 'cus_123',
+    });
+  });
+
+  it('createSetupSession uses customer_email when no customer id is supplied', async () => {
+    let capturedBody = '';
+    const adapter = makeAdapter(async (_input, init) => {
+      capturedBody = String(init?.body ?? '');
+      return jsonResponse({
+        id: 'cs_setup_123',
+        url: 'https://checkout.stripe.com/c/pay/cs_setup_123',
+      });
+    });
+
+    await adapter.createSetupSession({ customerEmail: 'ad@example.com' });
+
+    const body = new URLSearchParams(capturedBody);
+    expect(body.get('customer_email')).toBe('ad@example.com');
+    expect(body.has('customer')).toBe(false);
+    // Setup mode does not create a customer on its own, so force it — otherwise
+    // getSetupResult would come back without a reusable cus_ reference.
+    expect(body.get('customer_creation')).toBe('always');
+    expect(body.get('currency')).toBe('usd');
+  });
+
+  it('createSetupSession omits the Idempotency-Key header when no key is given', async () => {
+    let capturedInit: RequestInit | undefined;
+    const adapter = makeAdapter(async (_input, init) => {
+      capturedInit = init;
+      return jsonResponse({
+        id: 'cs_setup_123',
+        url: 'https://checkout.stripe.com/c/pay/cs_setup_123',
+      });
+    });
+
+    await adapter.createSetupSession({ customerEmail: 'ad@example.com' });
+
+    expect(
+      new Headers(capturedInit?.headers).get('Idempotency-Key'),
+    ).toBeNull();
+  });
+
+  it('getSetupResult maps an expired setup session to expired', async () => {
+    const adapter = makeAdapter(async () =>
+      jsonResponse({ id: 'cs_setup_123', status: 'expired' }),
+    );
+
+    await expect(
+      adapter.getSetupResult({ sessionId: 'cs_setup_123' }),
+    ).resolves.toMatchObject({ status: 'expired' });
+  });
+
+  it('createSetupSession requires success and cancel URLs', async () => {
+    const adapter = new StripeAdapter({
+      secretKey: 'sk_test_123',
+      apiBaseUrl: 'https://stripe.example/v1',
+      fetch: vi.fn(async () => jsonResponse({})),
+    });
+
+    await expect(adapter.createSetupSession({})).rejects.toThrow(
+      /successUrl and cancelUrl/,
+    );
+  });
+
+  it('createSetupSession rejects a blank providerCustomerId / customerEmail', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({}));
+    const adapter = makeAdapter(fetchMock);
+
+    await expect(
+      adapter.createSetupSession({ providerCustomerId: '   ' }),
+    ).rejects.toThrow(/must not be empty/);
+    await expect(
+      adapter.createSetupSession({ customerEmail: '' }),
+    ).rejects.toThrow(/must not be empty/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('getSetupResult keeps a 3-DS (requires_action) SetupIntent pending, not failed', async () => {
+    // Include an expanded payment_method + customer so the reference-gate is
+    // satisfied — then it's the SetupIntent status (not a missing ref) that
+    // keeps this `pending`.
+    const adapter = makeAdapter(async () =>
+      jsonResponse({
+        id: 'cs_setup_123',
+        status: 'complete',
+        ...Object.fromEntries([
+          ['customer', 'cus_123'],
+          [
+            'setup_intent',
+            {
+              id: 'seti_123',
+              status: 'requires_action',
+              ...Object.fromEntries([['payment_method', { id: 'pm_123' }]]),
+            },
+          ],
+        ]),
+      }),
+    );
+
+    await expect(
+      adapter.getSetupResult({ sessionId: 'cs_setup_123' }),
+    ).resolves.toMatchObject({
+      status: 'pending',
+      providerPaymentMethodId: 'pm_123',
+    });
+  });
+
+  it('getSetupResult returns the saved token references and card display fields', async () => {
+    let capturedUrl = '';
+    const adapter = makeAdapter(async (input) => {
+      capturedUrl = String(input);
+      return jsonResponse({
+        id: 'cs_setup_123',
+        status: 'complete',
+        ...Object.fromEntries([
+          ['customer', 'cus_123'],
+          [
+            'setup_intent',
+            {
+              id: 'seti_123',
+              status: 'succeeded',
+              ...Object.fromEntries([
+                [
+                  'payment_method',
+                  {
+                    id: 'pm_123',
+                    type: 'card',
+                    card: {
+                      brand: 'visa',
+                      last4: '4242',
+                      ...Object.fromEntries([
+                        ['exp_month', 12],
+                        ['exp_year', 2030],
+                      ]),
+                    },
+                  },
+                ],
+              ]),
+            },
+          ],
+        ]),
+      });
+    });
+
+    const result = await adapter.getSetupResult({ sessionId: 'cs_setup_123' });
+
+    expect(capturedUrl).toContain(
+      'https://stripe.example/v1/checkout/sessions/cs_setup_123',
+    );
+    expect(capturedUrl).toContain('setup_intent.payment_method');
+    expect(result).toEqual({
+      backendId: 'stripe',
+      status: 'complete',
+      providerCustomerId: 'cus_123',
+      providerPaymentMethodId: 'pm_123',
+      type: 'card',
+      brand: 'visa',
+      last4: '4242',
+      expMonth: 12,
+      expYear: 2030,
+      raw: expect.anything(),
+    });
+  });
+
+  it('getSetupResult maps an incomplete session to pending', async () => {
+    const adapter = makeAdapter(async () =>
+      jsonResponse({ id: 'cs_setup_123', status: 'open' }),
+    );
+
+    await expect(
+      adapter.getSetupResult({ sessionId: 'cs_setup_123' }),
+    ).resolves.toMatchObject({ status: 'pending' });
+  });
+
+  it('getSetupResult stays pending while the SetupIntent is still processing', async () => {
+    // A complete Checkout Session whose SetupIntent has not yet succeeded must
+    // not be reported as complete — the saved method isn't reusable yet. Both
+    // refs are present, so it's the intent status (not a missing ref) at work.
+    const adapter = makeAdapter(async () =>
+      jsonResponse({
+        id: 'cs_setup_123',
+        status: 'complete',
+        ...Object.fromEntries([
+          ['customer', 'cus_123'],
+          [
+            'setup_intent',
+            {
+              id: 'seti_123',
+              status: 'processing',
+              ...Object.fromEntries([['payment_method', { id: 'pm_123' }]]),
+            },
+          ],
+        ]),
+      }),
+    );
+
+    await expect(
+      adapter.getSetupResult({ sessionId: 'cs_setup_123' }),
+    ).resolves.toMatchObject({
+      status: 'pending',
+      providerCustomerId: 'cus_123',
+      providerPaymentMethodId: 'pm_123',
+    });
+  });
+
+  it('getSetupResult maps a declined/canceled SetupIntent to a terminal failed', async () => {
+    // Card declined at the save step → session complete, intent
+    // requires_payment_method. Must be terminal so callers stop polling.
+    const adapter = makeAdapter(async () =>
+      jsonResponse({
+        id: 'cs_setup_123',
+        status: 'complete',
+        ...Object.fromEntries([
+          ['customer', 'cus_123'],
+          [
+            'setup_intent',
+            { id: 'seti_123', status: 'requires_payment_method' },
+          ],
+        ]),
+      }),
+    );
+
+    await expect(
+      adapter.getSetupResult({ sessionId: 'cs_setup_123' }),
+    ).resolves.toMatchObject({ status: 'failed' });
+  });
+
+  it('getSetupResult does not report complete without a reusable customer reference', async () => {
+    // A succeeded intent with no cus_ can't be charged off-session, so it must
+    // not be advertised as complete.
+    const adapter = makeAdapter(async () =>
+      jsonResponse({
+        id: 'cs_setup_123',
+        status: 'complete',
+        ...Object.fromEntries([
+          [
+            'setup_intent',
+            {
+              id: 'seti_123',
+              status: 'succeeded',
+              ...Object.fromEntries([['payment_method', { id: 'pm_123' }]]),
+            },
+          ],
+        ]),
+      }),
+    );
+
+    await expect(
+      adapter.getSetupResult({ sessionId: 'cs_setup_123' }),
+    ).resolves.toMatchObject({
+      status: 'pending',
+      providerPaymentMethodId: 'pm_123',
+      providerCustomerId: undefined,
+    });
+  });
+
+  it('createSetupSession rejects an unsupported currency before any network call', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({}));
+    const adapter = new StripeAdapter({
+      secretKey: 'sk_test_123',
+      apiBaseUrl: 'https://stripe.example/v1',
+      fetch: fetchMock,
+      successUrl: 'https://app.example/setup/success',
+      cancelUrl: 'https://app.example/setup/cancel',
+    });
+
+    await expect(
+      adapter.createSetupSession({ currency: 'JPY' }),
+    ).rejects.toThrow(/not configured as supported/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('getSetupResult rejects a non-2xx Stripe response', async () => {
+    const adapter = makeAdapter(async () =>
+      jsonResponse({ error: { message: 'No such checkout session' } }, 404),
+    );
+
+    await expect(
+      adapter.getSetupResult({ sessionId: 'cs_missing' }),
+    ).rejects.toThrow('No such checkout session');
+  });
+});
