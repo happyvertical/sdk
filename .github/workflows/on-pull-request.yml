@@ -166,6 +166,12 @@ jobs:
         with:
           run_install: false
 
+      - name: Install commitlint dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts --filter @happyvertical/sdk
+        env:
+          # Needed only because .npmrc references GitHub Packages auth.
+          NODE_AUTH_TOKEN: ${{ github.token }}
+
       - name: Validate PR title for squash merge
         # PR title is user-controlled metadata. Two non-obvious risks
         # the previous form had:
@@ -189,13 +195,11 @@ jobs:
         run: |
           # printf instead of echo: avoids the leading-dash flag trap
           # (a title starting with -e/-n/-E would be eaten by echo).
-          # pnpm dlx installs only commitlint and the conventional config
-          # for this check, avoiding workspace install scripts.
+          # pnpm exec finds commitlint from the root-only install above;
+          # that avoids apt packages, workspace install scripts, and
+          # package-level dependency installation.
           printf 'Validating PR title (length=%s)\n' "${#PR_TITLE}"
-          printf '%s\n' "$PR_TITLE" | pnpm dlx \
-            --package @commitlint/cli@20.5.0 \
-            --package @commitlint/config-conventional@20.5.0 \
-            commitlint --config commitlint.config.mjs
+          printf '%s\n' "$PR_TITLE" | pnpm exec commitlint --config commitlint.config.mjs
 
       - name: Determine version bump
         id: version

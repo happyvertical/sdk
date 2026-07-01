@@ -5,8 +5,8 @@
  *  - lefthook `commit-msg` hook (local pre-commit validation)
  *  - `.github/workflows/on-pull-request.yml` `validate-commits` job
  *    (wagoid/commitlint-github-action against this file, plus a
- *    second `pnpm dlx commitlint` step that validates the PR title
- *    without installing the full workspace)
+ *    second `pnpm exec commitlint` step that validates the PR title
+ *    after a root-only, scripts-disabled install)
  *
  * Single source of truth for commit message rules and scope validation
  * — see `.commitlintrc.json` deletion for context. Note:
