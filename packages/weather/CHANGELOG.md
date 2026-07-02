@@ -1,5 +1,11 @@
 # @happyvertical/weather
 
+## 0.76.2
+
+### Patch Changes
+
+- @happyvertical/utils@0.76.2
+
 ## 0.76.1
 
 ### Patch Changes
