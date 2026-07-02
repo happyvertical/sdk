@@ -485,7 +485,7 @@ export class StripeAdapter implements PaymentBackend {
       ),
       transactionId: paymentReference,
       amount,
-      currency: currency.toUpperCase(),
+      currency: readStripeResultCurrency(refund) ?? currency.toUpperCase(),
       raw: refund,
     };
   }

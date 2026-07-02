@@ -2117,6 +2117,31 @@ describe('StripeAdapter manual-capture lifecycle', () => {
       adapter.refundPayment({ paymentId: 'pi_123', amount: 2500 }),
     ).resolves.toMatchObject({ status: 'succeeded', refundId: 're_123' });
   });
+
+  it('refundPayment reads the refunded currency back from the Stripe response', async () => {
+    // The adapter default is USD and the caller omits input.currency, so the
+    // returned currency must come from the Refund object, not the request
+    // default. Stripe echoes 'eur' here (distinct from both the USD default and
+    // any input currency), so a default/input fallback would surface the wrong
+    // code — Stripe Refund objects always include the actual refunded currency.
+    const adapter = makeAdapter(async (input) => {
+      expect(String(input)).toBe('https://stripe.example/v1/refunds');
+      return jsonResponse({
+        id: 're_123',
+        status: 'succeeded',
+        amount: 2500,
+        currency: 'eur',
+      });
+    });
+
+    await expect(
+      adapter.refundPayment({ paymentId: 'pi_123', amount: 2500 }),
+    ).resolves.toMatchObject({
+      status: 'succeeded',
+      refundId: 're_123',
+      currency: 'EUR',
+    });
+  });
 });
 
 describe('StripeAdapter saved payment methods (setup)', () => {
