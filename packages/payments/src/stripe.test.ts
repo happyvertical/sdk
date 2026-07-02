@@ -1520,6 +1520,50 @@ describe('StripeAdapter', () => {
     });
   });
 
+  it('surfaces the refunded amount from the Stripe response for a full refund', async () => {
+    let refundBody = '';
+    const fetch = vi.fn(
+      async (input: string | URL | Request, init?: RequestInit) => {
+        if (String(input).endsWith('/refunds') && init?.method === 'POST') {
+          refundBody = String(init?.body ?? '');
+          // A full refund settles the whole captured charge; Stripe echoes the
+          // amount it actually refunded even though the caller sent none.
+          return jsonResponse({
+            id: 're_full',
+            status: 'succeeded',
+            amount: 5000,
+            currency: 'usd',
+          });
+        }
+
+        return jsonResponse({ error: { message: 'not found' } }, 404);
+      },
+    );
+    const adapter = new StripeAdapter({
+      secretKey: 'sk_test_123',
+      apiBaseUrl: 'https://stripe.example/v1',
+      fetch,
+      successUrl: 'https://app.example/success',
+      cancelUrl: 'https://app.example/cancel',
+    });
+
+    // Omit `amount` — a full refund — so the result's amount can only come from
+    // the Stripe response, not the (absent) request input.
+    const refund = await adapter.refundPayment({
+      paymentId: 'pi_123',
+      currency: 'USD',
+    });
+
+    // No amount is sent to Stripe for a full refund...
+    expect(new URLSearchParams(refundBody).has('amount')).toBe(false);
+    // ...but the result still reports the amount Stripe refunded.
+    expect(refund).toMatchObject({
+      status: 'succeeded',
+      refundId: 're_full',
+      amount: 5000,
+    });
+  });
+
   it('maps Stripe refund response statuses to refund results', async () => {
     for (const [stripeStatus, expectedStatus] of [
       ['succeeded', 'succeeded'],
