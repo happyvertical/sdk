@@ -484,11 +484,13 @@ export class StripeAdapter implements PaymentBackend {
         readProviderString(refund, 'id'),
       ),
       transactionId: paymentReference,
-      // Read the settled amount back from the refund object (mirrors
-      // capturePayment) so a full refund — no `input.amount` supplied — still
-      // surfaces the amount Stripe actually refunded instead of `undefined`.
+      // Read the settled amount and currency back from the refund object
+      // (mirrors capturePayment) so a full refund — no `input.amount` supplied,
+      // and possibly a currency differing from the adapter default when
+      // `input.currency` is omitted — surfaces what Stripe actually refunded
+      // instead of the request defaults.
       amount: readSafeInteger(refund, 'amount') ?? amount,
-      currency: currency.toUpperCase(),
+      currency: readStripeResultCurrency(refund) ?? currency.toUpperCase(),
       raw: refund,
     };
   }
