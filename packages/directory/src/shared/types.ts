@@ -278,7 +278,10 @@ export interface AwsOrganizationalUnit {
 export interface CreateAwsOuInput {
   name: string;
   parentId: string;
+  tags?: Record<string, string>;
 }
+
+export interface EnsureAwsOuInput extends CreateAwsOuInput {}
 
 export interface AwsAccount {
   id: string;
@@ -292,6 +295,11 @@ export interface CreateAwsAccountInput {
   name: string;
   email: string;
   roleName?: string;
+  tags?: Record<string, string>;
+}
+
+export interface EnsureAwsAccountInput extends CreateAwsAccountInput {
+  wait?: AwsAccountCreationWaitOptions;
 }
 
 export interface AwsAccountCreationStatus {
@@ -299,6 +307,17 @@ export interface AwsAccountCreationStatus {
   accountId?: string;
   state: 'IN_PROGRESS' | 'SUCCEEDED' | 'FAILED';
   failureReason?: string;
+}
+
+export interface AwsAccountCreationWaitOptions {
+  timeoutMs?: number;
+  pollIntervalMs?: number;
+}
+
+export interface AwsAccountParent {
+  id: string;
+  /** AWS Organizations parent type, commonly ROOT or ORGANIZATIONAL_UNIT. */
+  type: string;
 }
 
 export interface AwsIamUser {
@@ -320,6 +339,46 @@ export interface AwsAccessKey {
   createDate?: Date;
 }
 
+export interface AwsAssumeRoleInput {
+  roleArn: string;
+  sessionName: string;
+  externalId?: string;
+  durationSeconds?: number;
+}
+
+export interface AwsTemporaryCredentials {
+  accessKeyId: string;
+  secretAccessKey: string;
+  sessionToken: string;
+  expiration?: Date;
+  assumedRoleArn?: string;
+  assumedRoleId?: string;
+}
+
+export interface AwsIamRole {
+  roleName: string;
+  arn?: string;
+  roleId?: string;
+  path?: string;
+  createDate?: Date;
+  assumeRolePolicyDocument?: string;
+}
+
+export interface EnsureAwsIamRoleInput {
+  roleName: string;
+  assumeRolePolicyDocument: string;
+  description?: string;
+  /** IAM role path is used only when creating a role; AWS does not allow updating it. */
+  path?: string;
+  tags?: Record<string, string>;
+}
+
+export interface PutAwsIamRolePolicyInput {
+  roleName: string;
+  policyName: string;
+  policyDocument: string;
+}
+
 export interface AwsDirectoryAdapter extends DirectoryAdapter {
   // Organizational Units
   createOrganizationalUnit(
@@ -327,18 +386,48 @@ export interface AwsDirectoryAdapter extends DirectoryAdapter {
   ): Promise<AwsOrganizationalUnit>;
   getOrganizationalUnit(id: string): Promise<AwsOrganizationalUnit>;
   listOrganizationalUnits(parentId: string): Promise<AwsOrganizationalUnit[]>;
+  findOrganizationalUnitByName(
+    parentId: string,
+    name: string,
+  ): Promise<AwsOrganizationalUnit | null>;
+  ensureOrganizationalUnit(
+    input: EnsureAwsOuInput,
+  ): Promise<AwsOrganizationalUnit>;
 
   // Accounts
   createAccount(
     input: CreateAwsAccountInput,
   ): Promise<AwsAccountCreationStatus>;
+  ensureAccount(input: EnsureAwsAccountInput): Promise<AwsAccount>;
   getAccountCreationStatus(id: string): Promise<AwsAccountCreationStatus>;
+  waitForAccountCreation(
+    id: string,
+    options?: AwsAccountCreationWaitOptions,
+  ): Promise<AwsAccountCreationStatus>;
+  findAccountByEmail(email: string): Promise<AwsAccount | null>;
   listAccounts(): Promise<AwsAccount[]>;
+  getAccountParent(accountId: string): Promise<AwsAccountParent | null>;
   moveAccount(
     accountId: string,
     sourceParentId: string,
     destParentId: string,
   ): Promise<void>;
+  ensureAccountInOrganizationalUnit(
+    accountId: string,
+    destinationParentId: string,
+  ): Promise<void>;
+  tagAwsOrganizationsResource(
+    resourceId: string,
+    tags: Record<string, string>,
+  ): Promise<void>;
+
+  // STS
+  assumeAwsRole(input: AwsAssumeRoleInput): Promise<AwsTemporaryCredentials>;
+
+  // IAM Roles
+  getIamRole(roleName: string): Promise<AwsIamRole>;
+  ensureIamRole(input: EnsureAwsIamRoleInput): Promise<AwsIamRole>;
+  putIamRolePolicy(input: PutAwsIamRolePolicyInput): Promise<void>;
 
   // IAM Users
   createIamUser(input: CreateAwsIamUserInput): Promise<AwsIamUser>;

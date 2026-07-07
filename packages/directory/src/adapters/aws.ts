@@ -16,18 +16,24 @@ import {
   AttachUserPolicyCommand,
   CreateAccessKeyCommand,
   CreateGroupCommand,
+  CreateRoleCommand,
   CreateUserCommand,
   DeleteAccessKeyCommand,
   DeleteGroupCommand,
   DeleteUserCommand,
   DetachUserPolicyCommand,
   GetGroupCommand,
+  GetRoleCommand,
   GetUserCommand,
   IAMClient,
   ListGroupsCommand,
   ListGroupsForUserCommand,
   ListUsersCommand,
+  PutRolePolicyCommand,
   RemoveUserFromGroupCommand,
+  TagRoleCommand,
+  UpdateAssumeRolePolicyCommand,
+  UpdateRoleCommand,
   UpdateUserCommand,
 } from '@aws-sdk/client-iam';
 import {
@@ -37,9 +43,12 @@ import {
   DescribeOrganizationalUnitCommand,
   ListAccountsCommand,
   ListOrganizationalUnitsForParentCommand,
+  ListParentsCommand,
   MoveAccountCommand,
   OrganizationsClient,
+  TagResourceCommand,
 } from '@aws-sdk/client-organizations';
+import { AssumeRoleCommand, STSClient } from '@aws-sdk/client-sts';
 import {
   AuthenticationError,
   ConflictError,
@@ -51,10 +60,15 @@ import type {
   AwsAccessKey,
   AwsAccount,
   AwsAccountCreationStatus,
+  AwsAccountCreationWaitOptions,
+  AwsAccountParent,
+  AwsAssumeRoleInput,
   AwsDirectoryAdapter,
+  AwsIamRole,
   AwsIamUser,
   AwsOptions,
   AwsOrganizationalUnit,
+  AwsTemporaryCredentials,
   CreateAwsAccountInput,
   CreateAwsIamUserInput,
   CreateAwsOuInput,
@@ -62,9 +76,16 @@ import type {
   CreateUserInput,
   DirectoryGroup,
   DirectoryUser,
+  EnsureAwsAccountInput,
+  EnsureAwsIamRoleInput,
+  EnsureAwsOuInput,
+  PutAwsIamRolePolicyInput,
   UpdateGroupInput,
   UpdateUserInput,
 } from '../shared/types.js';
+
+const DEFAULT_ACCOUNT_CREATION_TIMEOUT_MS = 10 * 60 * 1000;
+const DEFAULT_ACCOUNT_CREATION_POLL_INTERVAL_MS = 5 * 1000;
 
 // ============================================================================
 // Error Handling Helper
@@ -167,6 +188,57 @@ function mapIamUserToAwsIamUser(user: {
   };
 }
 
+function mapAwsAccount(account: {
+  Id?: string;
+  Name?: string;
+  Email?: string;
+  Arn?: string;
+  Status?: string;
+  State?: string;
+}): AwsAccount {
+  return {
+    id: account.Id ?? '',
+    name: account.Name ?? '',
+    email: account.Email ?? '',
+    arn: account.Arn,
+    status: account.Status ? String(account.Status) : undefined,
+  };
+}
+
+function mapAwsIamRole(role: {
+  RoleName?: string;
+  Arn?: string;
+  RoleId?: string;
+  Path?: string;
+  CreateDate?: Date;
+  AssumeRolePolicyDocument?: string;
+}): AwsIamRole {
+  return {
+    roleName: role.RoleName ?? '',
+    arn: role.Arn,
+    roleId: role.RoleId,
+    path: role.Path,
+    createDate: role.CreateDate,
+    assumeRolePolicyDocument: role.AssumeRolePolicyDocument,
+  };
+}
+
+function toAwsTags(
+  tags?: Record<string, string>,
+): { Key: string; Value: string }[] | undefined {
+  const entries = Object.entries(tags ?? {}).filter(([key]) => key.length > 0);
+
+  if (entries.length === 0) {
+    return undefined;
+  }
+
+  return entries.map(([Key, Value]) => ({ Key, Value }));
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 // ============================================================================
 // Adapter Implementation
 // ============================================================================
@@ -174,6 +246,7 @@ function mapIamUserToAwsIamUser(user: {
 export class AwsAdapter implements AwsDirectoryAdapter {
   private readonly orgs: OrganizationsClient;
   private readonly iam: IAMClient;
+  private readonly sts: STSClient;
 
   constructor(readonly options: AwsOptions) {
     const clientConfig = {
@@ -183,6 +256,7 @@ export class AwsAdapter implements AwsDirectoryAdapter {
 
     this.orgs = new OrganizationsClient(clientConfig);
     this.iam = new IAMClient(clientConfig);
+    this.sts = new STSClient(clientConfig);
   }
 
   // ==========================================================================
@@ -408,6 +482,7 @@ export class AwsAdapter implements AwsDirectoryAdapter {
         new CreateOrganizationalUnitCommand({
           ParentId: input.parentId,
           Name: input.name,
+          Tags: toAwsTags(input.tags),
         }),
       );
 
@@ -446,21 +521,58 @@ export class AwsAdapter implements AwsDirectoryAdapter {
     parentId: string,
   ): Promise<AwsOrganizationalUnit[]> {
     try {
-      const result = await this.orgs.send(
-        new ListOrganizationalUnitsForParentCommand({
-          ParentId: parentId,
-        }),
-      );
+      const organizationalUnits: AwsOrganizationalUnit[] = [];
+      let nextToken: string | undefined;
 
-      return (result.OrganizationalUnits ?? []).map((ou) => ({
-        id: ou.Id ?? '',
-        name: ou.Name ?? '',
-        arn: ou.Arn,
-        parentId,
-      }));
+      do {
+        const result = await this.orgs.send(
+          new ListOrganizationalUnitsForParentCommand({
+            ParentId: parentId,
+            NextToken: nextToken,
+          }),
+        );
+
+        organizationalUnits.push(
+          ...(result.OrganizationalUnits ?? []).map((ou) => ({
+            id: ou.Id ?? '',
+            name: ou.Name ?? '',
+            arn: ou.Arn,
+            parentId,
+          })),
+        );
+        nextToken = result.NextToken;
+      } while (nextToken);
+
+      return organizationalUnits;
     } catch (error) {
       handleAwsError(error, `listOrganizationalUnits(${parentId})`);
     }
+  }
+
+  async findOrganizationalUnitByName(
+    parentId: string,
+    name: string,
+  ): Promise<AwsOrganizationalUnit | null> {
+    const organizationalUnits = await this.listOrganizationalUnits(parentId);
+    return organizationalUnits.find((ou) => ou.name === name) ?? null;
+  }
+
+  async ensureOrganizationalUnit(
+    input: EnsureAwsOuInput,
+  ): Promise<AwsOrganizationalUnit> {
+    const existing = await this.findOrganizationalUnitByName(
+      input.parentId,
+      input.name,
+    );
+
+    if (existing) {
+      if (input.tags) {
+        await this.tagAwsOrganizationsResource(existing.id, input.tags);
+      }
+      return existing;
+    }
+
+    return this.createOrganizationalUnit(input);
   }
 
   // ==========================================================================
@@ -476,12 +588,21 @@ export class AwsAdapter implements AwsDirectoryAdapter {
           AccountName: input.name,
           Email: input.email,
           ...(input.roleName ? { RoleName: input.roleName } : {}),
+          Tags: toAwsTags(input.tags),
         }),
       );
 
       const status = result.CreateAccountStatus;
+      if (!status?.Id) {
+        throw new DirectoryError(
+          `createAccount(${input.name}) did not return a create account request id`,
+          'AWS_ACCOUNT_CREATION_REQUEST_ID_MISSING',
+          'aws',
+        );
+      }
+
       return {
-        id: status?.Id ?? '',
+        id: status.Id,
         accountId: status?.AccountId,
         state:
           (status?.State as AwsAccountCreationStatus['state']) ?? 'IN_PROGRESS',
@@ -521,17 +642,132 @@ export class AwsAdapter implements AwsDirectoryAdapter {
 
   async listAccounts(): Promise<AwsAccount[]> {
     try {
-      const result = await this.orgs.send(new ListAccountsCommand({}));
-      return (result.Accounts ?? []).map((a) => ({
-        id: a.Id ?? '',
-        name: a.Name ?? '',
-        email: a.Email ?? '',
-        arn: a.Arn,
-        status: a.Status ? String(a.Status) : undefined,
-      }));
+      const accounts: AwsAccount[] = [];
+      let nextToken: string | undefined;
+
+      do {
+        const result = await this.orgs.send(
+          new ListAccountsCommand({ NextToken: nextToken }),
+        );
+        accounts.push(...(result.Accounts ?? []).map((a) => mapAwsAccount(a)));
+        nextToken = result.NextToken;
+      } while (nextToken);
+
+      return accounts;
     } catch (error) {
       handleAwsError(error, 'listAccounts');
     }
+  }
+
+  async findAccountByEmail(email: string): Promise<AwsAccount | null> {
+    const accounts = await this.listAccounts();
+    return (
+      accounts.find(
+        (account) => account.email.toLowerCase() === email.toLowerCase(),
+      ) ?? null
+    );
+  }
+
+  async ensureAccount(input: EnsureAwsAccountInput): Promise<AwsAccount> {
+    const existing = await this.findAccountByEmail(input.email);
+    if (existing) {
+      if (input.tags) {
+        await this.tagAwsOrganizationsResource(existing.id, input.tags);
+      }
+      return existing;
+    }
+
+    const createStatus = await this.createAccount(input);
+    const finalStatus = await this.waitForAccountCreation(
+      createStatus.id,
+      input.wait,
+    );
+
+    if (finalStatus.state !== 'SUCCEEDED' || !finalStatus.accountId) {
+      throw new DirectoryError(
+        `ensureAccount(${input.email}) failed: ${finalStatus.failureReason ?? finalStatus.state}`,
+        'AWS_ACCOUNT_CREATION_FAILED',
+        'aws',
+      );
+    }
+
+    const created = await this.findAccountByEmail(input.email);
+    if (created) {
+      return created;
+    }
+
+    return {
+      id: finalStatus.accountId,
+      name: input.name,
+      email: input.email,
+      status: 'ACTIVE',
+    };
+  }
+
+  async waitForAccountCreation(
+    id: string,
+    options: AwsAccountCreationWaitOptions = {},
+  ): Promise<AwsAccountCreationStatus> {
+    const timeoutMs = options.timeoutMs ?? DEFAULT_ACCOUNT_CREATION_TIMEOUT_MS;
+    const pollIntervalMs =
+      options.pollIntervalMs ?? DEFAULT_ACCOUNT_CREATION_POLL_INTERVAL_MS;
+    const startedAt = Date.now();
+
+    while (true) {
+      const status = await this.getAccountCreationStatus(id);
+      if (status.state !== 'IN_PROGRESS') {
+        return status;
+      }
+
+      if (Date.now() - startedAt >= timeoutMs) {
+        throw new DirectoryError(
+          `waitForAccountCreation(${id}) timed out after ${timeoutMs}ms`,
+          'AWS_ACCOUNT_CREATION_TIMEOUT',
+          'aws',
+        );
+      }
+
+      await sleep(pollIntervalMs);
+    }
+  }
+
+  async getAccountParent(accountId: string): Promise<AwsAccountParent | null> {
+    try {
+      const result = await this.orgs.send(
+        new ListParentsCommand({ ChildId: accountId }),
+      );
+      const parent = result.Parents?.[0];
+      if (!parent?.Id) {
+        return null;
+      }
+
+      return {
+        id: parent.Id,
+        type: parent.Type ? String(parent.Type) : '',
+      };
+    } catch (error) {
+      handleAwsError(error, `getAccountParent(${accountId})`);
+    }
+  }
+
+  async ensureAccountInOrganizationalUnit(
+    accountId: string,
+    destinationParentId: string,
+  ): Promise<void> {
+    const currentParent = await this.getAccountParent(accountId);
+    if (currentParent?.id === destinationParentId) {
+      return;
+    }
+
+    if (!currentParent?.id) {
+      throw new DirectoryError(
+        `ensureAccountInOrganizationalUnit(${accountId}) could not determine the current account parent`,
+        'AWS_ACCOUNT_PARENT_MISSING',
+        'aws',
+      );
+    }
+
+    await this.moveAccount(accountId, currentParent.id, destinationParentId);
   }
 
   async moveAccount(
@@ -552,6 +788,153 @@ export class AwsAdapter implements AwsDirectoryAdapter {
         error,
         `moveAccount(${accountId}, ${sourceParentId} -> ${destParentId})`,
       );
+    }
+  }
+
+  async tagAwsOrganizationsResource(
+    resourceId: string,
+    tags: Record<string, string>,
+  ): Promise<void> {
+    const awsTags = toAwsTags(tags);
+    if (!awsTags) {
+      return;
+    }
+
+    try {
+      await this.orgs.send(
+        new TagResourceCommand({
+          ResourceId: resourceId,
+          Tags: awsTags,
+        }),
+      );
+    } catch (error) {
+      handleAwsError(error, `tagAwsOrganizationsResource(${resourceId})`);
+    }
+  }
+
+  // ==========================================================================
+  // STS (AwsDirectoryAdapter)
+  // ==========================================================================
+
+  async assumeAwsRole(
+    input: AwsAssumeRoleInput,
+  ): Promise<AwsTemporaryCredentials> {
+    try {
+      const result = await this.sts.send(
+        new AssumeRoleCommand({
+          RoleArn: input.roleArn,
+          RoleSessionName: input.sessionName,
+          ...(input.externalId ? { ExternalId: input.externalId } : {}),
+          ...(input.durationSeconds
+            ? { DurationSeconds: input.durationSeconds }
+            : {}),
+        }),
+      );
+      const credentials = result.Credentials;
+
+      if (
+        !credentials?.AccessKeyId ||
+        !credentials.SecretAccessKey ||
+        !credentials.SessionToken
+      ) {
+        throw new DirectoryError(
+          `assumeAwsRole(${input.roleArn}) returned incomplete credentials`,
+          'AWS_ASSUME_ROLE_INCOMPLETE_CREDENTIALS',
+          'aws',
+        );
+      }
+
+      return {
+        accessKeyId: credentials.AccessKeyId,
+        secretAccessKey: credentials.SecretAccessKey,
+        sessionToken: credentials.SessionToken,
+        expiration: credentials.Expiration,
+        assumedRoleArn: result.AssumedRoleUser?.Arn,
+        assumedRoleId: result.AssumedRoleUser?.AssumedRoleId,
+      };
+    } catch (error) {
+      handleAwsError(error, `assumeAwsRole(${input.roleArn})`);
+    }
+  }
+
+  // ==========================================================================
+  // IAM Roles (AwsDirectoryAdapter)
+  // ==========================================================================
+
+  async getIamRole(roleName: string): Promise<AwsIamRole> {
+    try {
+      const result = await this.iam.send(
+        new GetRoleCommand({ RoleName: roleName }),
+      );
+      return mapAwsIamRole(result.Role ?? {});
+    } catch (error) {
+      handleAwsError(error, `getIamRole(${roleName})`);
+    }
+  }
+
+  async ensureIamRole(input: EnsureAwsIamRoleInput): Promise<AwsIamRole> {
+    try {
+      await this.getIamRole(input.roleName);
+      await this.iam.send(
+        new UpdateAssumeRolePolicyCommand({
+          RoleName: input.roleName,
+          PolicyDocument: input.assumeRolePolicyDocument,
+        }),
+      );
+
+      if (input.description !== undefined) {
+        await this.iam.send(
+          new UpdateRoleCommand({
+            RoleName: input.roleName,
+            Description: input.description,
+          }),
+        );
+      }
+
+      const tags = toAwsTags(input.tags);
+      if (tags) {
+        await this.iam.send(
+          new TagRoleCommand({
+            RoleName: input.roleName,
+            Tags: tags,
+          }),
+        );
+      }
+
+      return this.getIamRole(input.roleName);
+    } catch (error) {
+      if (!(error instanceof NotFoundError)) {
+        throw error;
+      }
+    }
+
+    try {
+      const result = await this.iam.send(
+        new CreateRoleCommand({
+          RoleName: input.roleName,
+          AssumeRolePolicyDocument: input.assumeRolePolicyDocument,
+          ...(input.description ? { Description: input.description } : {}),
+          ...(input.path ? { Path: input.path } : {}),
+          Tags: toAwsTags(input.tags),
+        }),
+      );
+      return mapAwsIamRole(result.Role ?? {});
+    } catch (error) {
+      handleAwsError(error, `ensureIamRole(${input.roleName})`);
+    }
+  }
+
+  async putIamRolePolicy(input: PutAwsIamRolePolicyInput): Promise<void> {
+    try {
+      await this.iam.send(
+        new PutRolePolicyCommand({
+          RoleName: input.roleName,
+          PolicyName: input.policyName,
+          PolicyDocument: input.policyDocument,
+        }),
+      );
+    } catch (error) {
+      handleAwsError(error, `putIamRolePolicy(${input.roleName})`);
     }
   }
 

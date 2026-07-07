@@ -360,6 +360,7 @@
         "external": [
           "@aws-sdk/client-iam",
           "@aws-sdk/client-organizations",
+          "@aws-sdk/client-sts",
           "pg"
         ]
       },

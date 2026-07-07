@@ -28,7 +28,7 @@ pnpm --filter @happyvertical/directory clean
 ## Ecosystem Relationships
 - Provides: Unified directory services with adapter-based architecture (Kanidm, Stalwart, PostgreSQL, AWS)
 - Implements: none
-- Requires: @happyvertical/utils, @aws-sdk/client-iam, @aws-sdk/client-organizations, pg
+- Requires: @happyvertical/utils, @aws-sdk/client-iam, @aws-sdk/client-organizations, @aws-sdk/client-sts, pg
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
 
