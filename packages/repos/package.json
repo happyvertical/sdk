@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/repos",
-  "version": "0.76.2",
+  "version": "0.77.0",
   "description": "Standardized repository interface for GitHub, GitLab, Bitbucket, and Azure DevOps",
   "type": "module",
   "main": "./dist/index.js",

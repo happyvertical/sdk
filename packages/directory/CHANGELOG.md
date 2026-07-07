@@ -1,5 +1,15 @@
 # @happyvertical/directory
 
+## 0.77.0
+
+### Minor Changes
+
+- 63ff56e: Add idempotent AWS Organizations account vending helpers plus STS and IAM role bootstrap helpers for tenant-owned cloud infrastructure.
+
+### Patch Changes
+
+- @happyvertical/utils@0.77.0
+
 ## 0.76.2
 
 ### Patch Changes
