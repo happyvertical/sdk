@@ -316,7 +316,8 @@ export interface AwsAccountCreationWaitOptions {
 
 export interface AwsAccountParent {
   id: string;
-  type: 'ROOT' | 'ORGANIZATIONAL_UNIT' | string;
+  /** AWS Organizations parent type, commonly ROOT or ORGANIZATIONAL_UNIT. */
+  type: string;
 }
 
 export interface AwsIamUser {
@@ -367,6 +368,7 @@ export interface EnsureAwsIamRoleInput {
   roleName: string;
   assumeRolePolicyDocument: string;
   description?: string;
+  /** IAM role path is used only when creating a role; AWS does not allow updating it. */
   path?: string;
   tags?: Record<string, string>;
 }

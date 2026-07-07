@@ -3,7 +3,11 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ConflictError, NotFoundError } from '../shared/errors.js';
+import {
+  ConflictError,
+  DirectoryError,
+  NotFoundError,
+} from '../shared/errors.js';
 import type { AwsOptions } from '../shared/types.js';
 
 // Mock AWS SDK clients
@@ -54,7 +58,9 @@ vi.mock('@aws-sdk/client-iam', () => ({
   CreateRoleCommand: MockCommand,
   GetRoleCommand: MockCommand,
   PutRolePolicyCommand: MockCommand,
+  TagRoleCommand: MockCommand,
   UpdateAssumeRolePolicyCommand: MockCommand,
+  UpdateRoleCommand: MockCommand,
 }));
 
 vi.mock('@aws-sdk/client-sts', () => ({
@@ -356,6 +362,23 @@ describe('AwsAdapter', () => {
       });
     });
 
+    it('should fail fast when account creation omits the request id', async () => {
+      mockOrgSend.mockResolvedValueOnce({
+        CreateAccountStatus: {
+          State: 'IN_PROGRESS',
+        },
+      });
+
+      await expect(
+        adapter.createAccount({
+          name: 'Dev Account',
+          email: 'dev@example.com',
+        }),
+      ).rejects.toMatchObject({
+        code: 'AWS_ACCOUNT_CREATION_REQUEST_ID_MISSING',
+      });
+    });
+
     it('should get account creation status', async () => {
       mockOrgSend.mockResolvedValueOnce({
         CreateAccountStatus: {
@@ -471,10 +494,16 @@ describe('AwsAdapter', () => {
       const account = await adapter.ensureAccount({
         name: 'Prod',
         email: 'prod@example.com',
+        tags: { Tenant: 'prod' },
         wait: { pollIntervalMs: 0, timeoutMs: 1000 },
       });
 
       expect(account.id).toBe('123456789012');
+      expect(mockOrgSend.mock.calls[1][0].input).toMatchObject({
+        AccountName: 'Prod',
+        Email: 'prod@example.com',
+        Tags: [{ Key: 'Tenant', Value: 'prod' }],
+      });
     });
 
     it('should move account between OUs', async () => {
@@ -491,6 +520,15 @@ describe('AwsAdapter', () => {
 
       const parent = await adapter.getAccountParent('111');
       expect(parent).toEqual({ id: 'r-root', type: 'ROOT' });
+    });
+
+    it('should not invent an OU parent type when AWS omits the type', async () => {
+      mockOrgSend.mockResolvedValueOnce({
+        Parents: [{ Id: 'r-root' }],
+      });
+
+      const parent = await adapter.getAccountParent('111');
+      expect(parent).toEqual({ id: 'r-root', type: '' });
     });
 
     it('should not move an account already under the destination parent', async () => {
@@ -516,6 +554,21 @@ describe('AwsAdapter', () => {
       });
     });
 
+    it('should report missing account parent state without NotFoundError', async () => {
+      mockOrgSend.mockResolvedValueOnce({ Parents: [] });
+
+      let thrown: unknown;
+      try {
+        await adapter.ensureAccountInOrganizationalUnit('111', 'ou-dest');
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(DirectoryError);
+      expect(thrown).not.toBeInstanceOf(NotFoundError);
+      expect(thrown).toMatchObject({ code: 'AWS_ACCOUNT_PARENT_MISSING' });
+    });
+
     it('should tag an Organizations resource', async () => {
       mockOrgSend.mockResolvedValueOnce({});
       await adapter.tagAwsOrganizationsResource('ou-1', {
@@ -524,6 +577,18 @@ describe('AwsAdapter', () => {
       expect(mockOrgSend.mock.calls[0][0].input).toMatchObject({
         ResourceId: 'ou-1',
         Tags: [{ Key: 'Tenant', Value: 'example' }],
+      });
+    });
+
+    it('should preserve empty AWS tag values and skip only empty keys', async () => {
+      mockOrgSend.mockResolvedValueOnce({});
+      await adapter.tagAwsOrganizationsResource('ou-1', {
+        Tenant: '',
+        '': 'ignored',
+      });
+      expect(mockOrgSend.mock.calls[0][0].input).toMatchObject({
+        ResourceId: 'ou-1',
+        Tags: [{ Key: 'Tenant', Value: '' }],
       });
     });
   });
@@ -614,19 +679,40 @@ describe('AwsAdapter', () => {
         Role: {
           RoleName: 'TenantDeploy',
           Arn: 'arn:aws:iam::123:role/TenantDeploy',
+          AssumeRolePolicyDocument: 'old-policy',
         },
       });
       mockIamSend.mockResolvedValueOnce({});
+      mockIamSend.mockResolvedValueOnce({});
+      mockIamSend.mockResolvedValueOnce({});
+      mockIamSend.mockResolvedValueOnce({
+        Role: {
+          RoleName: 'TenantDeploy',
+          Arn: 'arn:aws:iam::123:role/TenantDeploy',
+          AssumeRolePolicyDocument: 'new-policy',
+        },
+      });
 
       const role = await adapter.ensureIamRole({
         roleName: 'TenantDeploy',
-        assumeRolePolicyDocument: '{"Version":"2012-10-17"}',
+        assumeRolePolicyDocument: 'new-policy',
+        description: 'Tenant deployment role',
+        tags: { Tenant: 'example' },
       });
 
       expect(role.roleName).toBe('TenantDeploy');
+      expect(role.assumeRolePolicyDocument).toBe('new-policy');
       expect(mockIamSend.mock.calls[1][0].input).toMatchObject({
         RoleName: 'TenantDeploy',
-        PolicyDocument: '{"Version":"2012-10-17"}',
+        PolicyDocument: 'new-policy',
+      });
+      expect(mockIamSend.mock.calls[2][0].input).toMatchObject({
+        RoleName: 'TenantDeploy',
+        Description: 'Tenant deployment role',
+      });
+      expect(mockIamSend.mock.calls[3][0].input).toMatchObject({
+        RoleName: 'TenantDeploy',
+        Tags: [{ Key: 'Tenant', Value: 'example' }],
       });
     });
 

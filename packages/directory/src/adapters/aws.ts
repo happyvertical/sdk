@@ -31,7 +31,9 @@ import {
   ListUsersCommand,
   PutRolePolicyCommand,
   RemoveUserFromGroupCommand,
+  TagRoleCommand,
   UpdateAssumeRolePolicyCommand,
+  UpdateRoleCommand,
   UpdateUserCommand,
 } from '@aws-sdk/client-iam';
 import {
@@ -224,9 +226,7 @@ function mapAwsIamRole(role: {
 function toAwsTags(
   tags?: Record<string, string>,
 ): { Key: string; Value: string }[] | undefined {
-  const entries = Object.entries(tags ?? {}).filter(
-    ([key, value]) => key.length > 0 && value.length > 0,
-  );
+  const entries = Object.entries(tags ?? {}).filter(([key]) => key.length > 0);
 
   if (entries.length === 0) {
     return undefined;
@@ -593,8 +593,16 @@ export class AwsAdapter implements AwsDirectoryAdapter {
       );
 
       const status = result.CreateAccountStatus;
+      if (!status?.Id) {
+        throw new DirectoryError(
+          `createAccount(${input.name}) did not return a create account request id`,
+          'AWS_ACCOUNT_CREATION_REQUEST_ID_MISSING',
+          'aws',
+        );
+      }
+
       return {
-        id: status?.Id ?? '',
+        id: status.Id,
         accountId: status?.AccountId,
         state:
           (status?.State as AwsAccountCreationStatus['state']) ?? 'IN_PROGRESS',
@@ -735,7 +743,7 @@ export class AwsAdapter implements AwsDirectoryAdapter {
 
       return {
         id: parent.Id,
-        type: parent.Type ? String(parent.Type) : 'ORGANIZATIONAL_UNIT',
+        type: parent.Type ? String(parent.Type) : '',
       };
     } catch (error) {
       handleAwsError(error, `getAccountParent(${accountId})`);
@@ -752,7 +760,11 @@ export class AwsAdapter implements AwsDirectoryAdapter {
     }
 
     if (!currentParent?.id) {
-      throw new NotFoundError('account parent', accountId, 'aws');
+      throw new DirectoryError(
+        `ensureAccountInOrganizationalUnit(${accountId}) could not determine the current account parent`,
+        'AWS_ACCOUNT_PARENT_MISSING',
+        'aws',
+      );
     }
 
     await this.moveAccount(accountId, currentParent.id, destinationParentId);
@@ -862,14 +874,34 @@ export class AwsAdapter implements AwsDirectoryAdapter {
 
   async ensureIamRole(input: EnsureAwsIamRoleInput): Promise<AwsIamRole> {
     try {
-      const existing = await this.getIamRole(input.roleName);
+      await this.getIamRole(input.roleName);
       await this.iam.send(
         new UpdateAssumeRolePolicyCommand({
           RoleName: input.roleName,
           PolicyDocument: input.assumeRolePolicyDocument,
         }),
       );
-      return existing;
+
+      if (input.description !== undefined) {
+        await this.iam.send(
+          new UpdateRoleCommand({
+            RoleName: input.roleName,
+            Description: input.description,
+          }),
+        );
+      }
+
+      const tags = toAwsTags(input.tags);
+      if (tags) {
+        await this.iam.send(
+          new TagRoleCommand({
+            RoleName: input.roleName,
+            Tags: tags,
+          }),
+        );
+      }
+
+      return this.getIamRole(input.roleName);
     } catch (error) {
       if (!(error instanceof NotFoundError)) {
         throw error;
