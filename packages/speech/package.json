@@ -1,0 +1,58 @@
+{
+  "name": "@happyvertical/speech",
+  "version": "0.77.0",
+  "description": "Speech provider abstraction for STT and TTS backends",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "test": "npx vitest run",
+    "test:watch": "npx vitest",
+    "build": "vite build",
+    "build:watch": "vite build --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "dev": "vite build --watch"
+  },
+  "devDependencies": {
+    "@types/node": "25.0.10",
+    "typescript": "^5.9.3",
+    "vite": "7.3.2",
+    "vite-plugin-dts": "4.5.4",
+    "vitest": "^4.1.5"
+  },
+  "keywords": [
+    "speech",
+    "stt",
+    "tts",
+    "studio-server",
+    "qwen3-tts"
+  ],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "AGENT.md",
+    "metadata.json"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/happyvertical/sdk.git",
+    "directory": "packages/speech"
+  },
+  "bugs": {
+    "url": "https://github.com/happyvertical/sdk/issues"
+  },
+  "homepage": "https://github.com/happyvertical/sdk/tree/main/packages/speech#readme",
+  "license": "MIT"
+}

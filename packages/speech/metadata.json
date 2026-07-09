@@ -1,0 +1,31 @@
+{
+  "name": "@happyvertical/speech",
+  "path": "packages/speech",
+  "position": {
+    "index": 26,
+    "count": 31
+  },
+  "description": "Speech provider abstraction for STT and TTS backends",
+  "provides": [
+    "Speech provider abstraction for STT and TTS backends"
+  ],
+  "implements": [
+    "Studio Server STT",
+    "Studio Server TTS",
+    "Qwen3 TTS",
+    "OpenAI-compatible TTS"
+  ],
+  "requires": {
+    "workspace": [],
+    "externalHappyVertical": [],
+    "external": []
+  },
+  "dependents": [],
+  "stability": {
+    "level": "experimental",
+    "reason": "Marked as preview or experimental in package guidance."
+  },
+  "keywords": [
+    "speech"
+  ]
+}

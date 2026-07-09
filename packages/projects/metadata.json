@@ -3,7 +3,7 @@
   "path": "packages/projects",
   "position": {
     "index": 21,
-    "count": 30
+    "count": 31
   },
   "description": "Standardized project management interface for GitHub Projects, Jira, ZenHub, and Linear",
   "provides": [

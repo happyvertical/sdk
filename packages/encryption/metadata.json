@@ -3,7 +3,7 @@
   "path": "packages/encryption",
   "position": {
     "index": 10,
-    "count": 30
+    "count": 31
   },
   "description": "Unified encryption and cryptography operations with adapter-based architecture",
   "provides": [

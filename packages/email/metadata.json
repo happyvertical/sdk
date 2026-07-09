@@ -3,7 +3,7 @@
   "path": "packages/email",
   "position": {
     "index": 9,
-    "count": 30
+    "count": 31
   },
   "description": "Low-level email protocol operations with adapter-based architecture",
   "provides": [

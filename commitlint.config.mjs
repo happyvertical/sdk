@@ -99,6 +99,7 @@ export default {
         'sdk-mcp',
         'secrets',
         'social',
+        'speech',
         'sql',
         'translator',
         'utils',

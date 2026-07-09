@@ -3,7 +3,7 @@
   "path": "packages/comfyui",
   "position": {
     "index": 6,
-    "count": 30
+    "count": 31
   },
   "description": "ComfyUI API client for workflow orchestration and video generation",
   "provides": [

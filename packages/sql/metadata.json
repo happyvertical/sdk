@@ -2,8 +2,8 @@
   "name": "@happyvertical/sql",
   "path": "packages/sql",
   "position": {
-    "index": 26,
-    "count": 30
+    "index": 27,
+    "count": 31
   },
   "description": "Database interface with support for SQLite, PostgreSQL, and DuckDB",
   "provides": [

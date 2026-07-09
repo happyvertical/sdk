@@ -3,7 +3,7 @@
   "path": "packages/social",
   "position": {
     "index": 25,
-    "count": 30
+    "count": 31
   },
   "description": "Social platform adapters for publishing to YouTube, Threads, X, and Bluesky",
   "provides": [

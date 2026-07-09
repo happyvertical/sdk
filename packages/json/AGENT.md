@@ -7,7 +7,7 @@ High-performance JSON parsing and serialization with Rust SIMD acceleration and 
 ## Package Map
 - Package: `@happyvertical/json`
 - Hierarchy path: `@happyvertical/sdk > packages > json`
-- Workspace position: `17 of 30` local packages
+- Workspace position: `17 of 31` local packages
 - Internal dependencies: none
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
