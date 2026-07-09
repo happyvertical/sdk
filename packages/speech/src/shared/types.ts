@@ -69,6 +69,7 @@ export interface SpeechVoice {
   name?: string;
   language?: string;
   speakerId?: string;
+  /** Opaque pre-extracted prompt for providers that support voice cloning. */
   prompt?: string;
   metadata?: Record<string, unknown>;
 }

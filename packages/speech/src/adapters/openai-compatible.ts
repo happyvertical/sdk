@@ -6,33 +6,23 @@ import {
 } from '../shared/http.js';
 import type {
   OpenAICompatibleSpeechSynthesizerOptions,
-  Qwen3SpeechSynthesizerOptions,
   SpeechSynthesizer,
-  SpeechSynthesizerType,
   SynthesisRequest,
   SynthesizedSpeech,
 } from '../shared/types.js';
-
-type OpenAICompatibleSpeechOptions =
-  | OpenAICompatibleSpeechSynthesizerOptions
-  | Qwen3SpeechSynthesizerOptions;
 
 export class OpenAICompatibleSpeechSynthesizer
   extends HttpSpeechAdapter
   implements SpeechSynthesizer
 {
-  readonly type: Extract<
-    SpeechSynthesizerType,
-    'openai-compatible' | 'qwen3-tts'
-  >;
+  readonly type = 'openai-compatible' as const;
 
   private readonly speechPath: string;
   private readonly defaultModel: string;
   private readonly defaultVoice: string;
 
-  constructor(options: OpenAICompatibleSpeechOptions) {
+  constructor(options: OpenAICompatibleSpeechSynthesizerOptions) {
     super(options);
-    this.type = options.type;
     this.speechPath = options.speechPath ?? '/v1/audio/speech';
     this.defaultModel = options.defaultModel ?? 'tts-1';
     this.defaultVoice = options.defaultVoice ?? 'alloy';
@@ -67,16 +57,5 @@ export class OpenAICompatibleSpeechSynthesizer
       format: speech.format ?? outputFormat,
       model: speech.model ?? String(payload.model),
     };
-  }
-}
-
-export class Qwen3SpeechSynthesizer extends OpenAICompatibleSpeechSynthesizer {
-  constructor(options: Qwen3SpeechSynthesizerOptions) {
-    super({
-      ...options,
-      type: 'qwen3-tts',
-      defaultModel: options.defaultModel ?? 'qwen3-tts',
-      defaultVoice: options.defaultVoice ?? 'default',
-    });
   }
 }

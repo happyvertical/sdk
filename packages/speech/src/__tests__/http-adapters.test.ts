@@ -130,6 +130,22 @@ describe('@happyvertical/speech HTTP adapters', () => {
     ).rejects.toThrow('TTS provider type is required');
   });
 
+  it('falls back past blank preferred environment aliases', async () => {
+    const speech = await getSpeech(
+      {},
+      {
+        env: Object.fromEntries([
+          ['HAVE_SPEECH_TTS_TYPE', ' '],
+          ['HAVE_SPEECH_TTS_BASE_URL', ''],
+          ['TTS_ADAPTER', 'qwen3-tts'],
+          ['TTS_BASE_URL', 'http://speech.example'],
+        ]),
+      },
+    );
+
+    expect(speech.synthesizer?.type).toBe('qwen3-tts');
+  });
+
   it('posts Studio Server STT audio to /v1/transcribe as multipart form data', async () => {
     await withFixtureServer(
       (req, body, res) => {
@@ -138,20 +154,28 @@ describe('@happyvertical/speech HTTP adapters', () => {
         expect(req.headers['content-type']).toContain('multipart/form-data');
 
         const multipart = body.toString('utf8');
-        expect(multipart).toContain('name="file"; filename="fixture.wav"');
+        expect(multipart).toContain('name="audio"; filename="fixture.wav"');
         expect(multipart).toContain('Content-Type: audio/wav');
         expect(req.headers.authorization).toBe('Bearer test-token');
         expect(multipart).toContain('name="language"');
         expect(multipart).toContain('en');
-        expect(multipart).toContain('name="sample_rate"');
-        expect(multipart).toContain('16000');
 
         res.setHeader('content-type', 'application/json');
         res.end(
           JSON.stringify({
             text: 'hello from studio',
             language: 'en',
-            words: [{ word: 'hello', start: 0, end: 0.4 }],
+            // biome-ignore lint/style/useNamingConvention: Studio Server response uses snake_case.
+            word_timings: [{ word: 'hello', start: 0, end: 0.4 }],
+            segments: [
+              {
+                text: 'hello from studio',
+                start: 0,
+                end: 0.4,
+                confidence: 0.98,
+                speaker: 'speaker-1',
+              },
+            ],
           }),
         );
       },
@@ -174,6 +198,15 @@ describe('@happyvertical/speech HTTP adapters', () => {
         expect(result.text).toBe('hello from studio');
         expect(result.words).toEqual([
           { word: 'hello', startSeconds: 0, endSeconds: 0.4 },
+        ]);
+        expect(result.segments).toEqual([
+          {
+            text: 'hello from studio',
+            startSeconds: 0,
+            endSeconds: 0.4,
+            confidence: 0.98,
+            speakerId: 'speaker-1',
+          },
         ]);
       },
     );
@@ -235,38 +268,28 @@ describe('@happyvertical/speech HTTP adapters', () => {
     );
   });
 
-  it('posts Studio Server TTS to /v1/tts/synthesize with Studio-shaped JSON', async () => {
+  it('posts Studio Server TTS to /v1/tts/synthesize as multipart form data', async () => {
     await withFixtureServer(
       (req, body, res) => {
         expect(req.method).toBe('POST');
         expect(req.url).toBe('/v1/tts/synthesize');
-        expect(req.headers['content-type']).toContain('application/json');
+        expect(req.headers['content-type']).toContain('multipart/form-data');
 
-        const payload = JSON.parse(body.toString('utf8')) as Record<
-          string,
-          unknown
-        >;
-        expect(payload).toMatchObject(
-          Object.fromEntries([
-            ['text', 'Speak through Studio Server.'],
-            ['voice', 'narrator'],
-            ['format', 'wav'],
-            ['sample_rate', 24000],
-            ['speed', 1.1],
-          ]),
-        );
-        expect(payload).not.toHaveProperty('input');
-        expect(payload).not.toHaveProperty('response_format');
+        const multipart = body.toString('utf8');
+        expect(multipart).toContain('name="text"');
+        expect(multipart).toContain('Speak through Studio Server.');
+        expect(multipart).toContain('name="language"');
+        expect(multipart).toContain('English');
+        expect(multipart).toContain('name="speaker"');
+        expect(multipart).toContain('narrator');
+        expect(multipart).toContain('name="voice_prompt"');
+        expect(multipart).toContain('studio-voice-prompt');
+        expect(multipart).toContain('name="speed"');
+        expect(multipart).toContain('1.1');
 
-        res.setHeader('content-type', 'application/json');
-        res.end(
-          JSON.stringify({
-            audio: Buffer.from('studio-audio').toString('base64'),
-            contentType: 'audio/wav',
-            sampleRate: 24000,
-            wordTimings: [{ word: 'Speak', start: 0, end: 0.25 }],
-          }),
-        );
+        res.setHeader('content-type', 'audio/wav');
+        res.setHeader('x-sample-rate', '24000');
+        res.end(Buffer.from('studio-audio'));
       },
       async (baseUrl) => {
         const synthesizer = await getSpeechSynthesizer({
@@ -275,43 +298,41 @@ describe('@happyvertical/speech HTTP adapters', () => {
         });
         const result = await synthesizer.synthesize({
           text: 'Speak through Studio Server.',
-          voice: 'narrator',
-          outputFormat: 'wav',
-          sampleRate: 24000,
+          language: 'English',
+          voice: {
+            speakerId: 'narrator',
+            prompt: 'studio-voice-prompt',
+          },
           speed: 1.1,
         });
 
         expect(Buffer.from(result.audio).toString('utf8')).toBe('studio-audio');
         expect(result.contentType).toBe('audio/wav');
+        expect(result.format).toBe('wav');
         expect(result.sampleRate).toBe(24000);
-        expect(result.words).toEqual([
-          { word: 'Speak', startSeconds: 0, endSeconds: 0.25 },
-        ]);
       },
     );
   });
 
-  it('configures Qwen3 TTS through env and posts OpenAI-shaped JSON to /v1/audio/speech', async () => {
+  it('configures Qwen3 TTS through env and posts multipart form data to /v1/audio/speech', async () => {
     await withFixtureServer(
       (req, body, res) => {
         expect(req.method).toBe('POST');
         expect(req.url).toBe('/v1/audio/speech');
-        expect(req.headers['content-type']).toContain('application/json');
+        expect(req.headers['content-type']).toContain('multipart/form-data');
 
-        const payload = JSON.parse(body.toString('utf8')) as Record<
-          string,
-          unknown
-        >;
-        expect(payload).toEqual(
-          Object.fromEntries([
-            ['model', 'qwen3-tts'],
-            ['input', 'Speak through Qwen.'],
-            ['voice', 'default'],
-            ['response_format', 'mp3'],
-          ]),
-        );
+        const multipart = body.toString('utf8');
+        expect(multipart).toContain('name="text"');
+        expect(multipart).toContain('Speak through Qwen.');
+        expect(multipart).toContain('name="language"');
+        expect(multipart).toContain('English');
+        expect(multipart).toContain('name="speaker"');
+        expect(multipart).toContain('Ryan');
+        expect(multipart).toContain('name="voice_prompt"');
+        expect(multipart).toContain('qwen-voice-prompt');
 
-        res.setHeader('content-type', 'audio/mpeg');
+        res.setHeader('content-type', 'audio/wav');
+        res.setHeader('x-sample-rate', '24000');
         res.end(Buffer.from('qwen-audio'));
       },
       async (baseUrl) => {
@@ -326,11 +347,17 @@ describe('@happyvertical/speech HTTP adapters', () => {
         );
         const result = await speech.synthesize({
           text: 'Speak through Qwen.',
-          outputFormat: 'mp3',
+          language: 'English',
+          voice: {
+            speakerId: 'Ryan',
+            prompt: 'qwen-voice-prompt',
+          },
         });
 
         expect(Buffer.from(result.audio).toString('utf8')).toBe('qwen-audio');
-        expect(result.contentType).toBe('audio/mpeg');
+        expect(result.contentType).toBe('audio/wav');
+        expect(result.format).toBe('wav');
+        expect(result.sampleRate).toBe(24000);
         expect(result.provider).toBe('qwen3-tts');
         expect(result.model).toBe('qwen3-tts');
       },

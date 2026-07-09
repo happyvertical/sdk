@@ -43,12 +43,14 @@ const spoken = await speech.synthesize({
 
 ## Adapters
 
-| Provider | Type | Method | Path |
-| --- | --- | --- | --- |
-| Studio Server STT | `studio-server` | `POST` | `/v1/transcribe` |
-| Studio Server TTS | `studio-server` | `POST` | `/v1/tts/synthesize` |
-| Qwen3 TTS | `qwen3-tts` | `POST` | `/v1/audio/speech` |
-| OpenAI-compatible TTS | `openai-compatible` | `POST` | `/v1/audio/speech` |
+| Provider | Type | Method | Path | Encoding |
+| --- | --- | --- | --- | --- |
+| Studio Server STT | `studio-server` | `POST` | `/v1/transcribe` | Multipart (`audio`) |
+| Studio Server TTS | `studio-server` | `POST` | `/v1/tts/synthesize` | Multipart |
+| Qwen3 TTS | `qwen3-tts` | `POST` | `/v1/audio/speech` | Multipart |
+| OpenAI-compatible TTS | `openai-compatible` | `POST` | `/v1/audio/speech` | JSON |
+
+Studio Server and Qwen3 accept pre-extracted provider voice prompts through `SpeechVoice.prompt`; the adapters forward these as the multipart `voice_prompt` field.
 
 ## Environment Configuration
 
@@ -76,4 +78,8 @@ Optional overrides include `STT_PATH`, `TTS_PATH`, `STT_API_KEY`, `TTS_API_KEY`,
 
 ## Testing
 
-Default tests use tiny in-process HTTP fixture services that emulate Studio Server and Qwen endpoint shapes. They validate contract differences without downloading or running production-scale models.
+Default tests use tiny in-process HTTP fixture services that mirror the Studio Server, Qwen3, and OpenAI-compatible request shapes. They validate field names, encodings, and response normalization without downloading production-scale models.
+
+Docker or Testcontainers integration suites should run the fixture services or Studio Server with mock backends. Model-backed tests must remain opt-in, for example behind `HV_SPEECH_MODEL_TESTS=1`, so the normal SDK suite never downloads model weights.
+
+On Apple Silicon, run model-backed Qwen tests with a host-native Metal/MLX runtime or against a remote cluster service; Docker contract tests should continue using mock backends because Linux containers do not expose the host Metal runtime.

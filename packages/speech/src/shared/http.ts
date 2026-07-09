@@ -3,8 +3,10 @@ import type {
   AudioInput,
   HttpSpeechOptions,
   SpeechFetch,
+  SynthesisRequest,
   SynthesizedSpeech,
   TranscriptResult,
+  TranscriptSegment,
   WordTiming,
 } from './types.js';
 
@@ -178,7 +180,11 @@ async function assertOk(
   );
 }
 
-export function appendAudioInput(form: FormData, audio: AudioInput): void {
+export function appendAudioInput(
+  form: FormData,
+  audio: AudioInput,
+  fieldName = 'audio',
+): void {
   const filename = audio.filename ?? 'audio';
   const data = audio.data;
 
@@ -189,14 +195,14 @@ export function appendAudioInput(form: FormData, audio: AudioInput): void {
       data.type === contentType
         ? data
         : new Blob([data], { type: contentType });
-    form.append('file', blob, filename);
+    form.append(fieldName, blob, filename);
     return;
   }
 
   const contentType = audio.contentType ?? 'application/octet-stream';
   const blobPart =
     data instanceof Uint8Array ? arrayBufferFromBytes(data) : data;
-  form.append('file', new Blob([blobPart], { type: contentType }), filename);
+  form.append(fieldName, new Blob([blobPart], { type: contentType }), filename);
 }
 
 export function appendOptionalFormValue(
@@ -211,13 +217,40 @@ export function appendOptionalFormValue(
   form.append(name, String(value));
 }
 
+export function createHappyVerticalSynthesisForm(
+  request: SynthesisRequest,
+  defaultVoice?: string,
+): FormData {
+  const form = new FormData();
+  const voice =
+    request.voice && typeof request.voice !== 'string'
+      ? request.voice
+      : undefined;
+  form.set('text', request.text);
+  appendOptionalFormValue(
+    form,
+    'language',
+    request.language ?? voice?.language,
+  );
+  appendOptionalFormValue(
+    form,
+    'speaker',
+    voiceToString(request.voice, defaultVoice),
+  );
+  appendOptionalFormValue(form, 'speed', request.speed);
+
+  appendOptionalFormValue(form, 'voice_prompt', voice?.prompt);
+
+  return form;
+}
+
 export function voiceToString(
   voice:
     | string
     | { id?: string; name?: string; speakerId?: string }
     | undefined,
-  fallback: string,
-): string {
+  fallback?: string,
+): string | undefined {
   if (!voice) {
     return fallback;
   }
@@ -325,6 +358,36 @@ export function normalizeWordTimings(value: unknown): WordTiming[] | undefined {
   });
 }
 
+export function normalizeTranscriptSegments(
+  value: unknown,
+): TranscriptSegment[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  return value.flatMap((entry): TranscriptSegment[] => {
+    if (!entry || typeof entry !== 'object') {
+      return [];
+    }
+
+    const record = entry as Record<string, unknown>;
+    const text = getString(record, 'text', 'transcript');
+    if (!text) {
+      return [];
+    }
+
+    return [
+      {
+        text,
+        startSeconds: getNumber(record, 'startSeconds', 'start', 'start_time'),
+        endSeconds: getNumber(record, 'endSeconds', 'end', 'end_time'),
+        confidence: getNumber(record, 'confidence'),
+        speakerId: getString(record, 'speakerId', 'speaker', 'speaker_id'),
+      },
+    ];
+  });
+}
+
 export async function readTranscriptResponse(
   response: Response,
   adapterName: string,
@@ -349,6 +412,7 @@ export async function readTranscriptResponse(
     words: normalizeWordTimings(
       json.words ?? json.wordTimings ?? json.word_timings,
     ),
+    segments: normalizeTranscriptSegments(json.segments),
     provider: getString(json, 'provider') ?? adapterName,
     model: getString(json, 'model'),
     raw: json,
@@ -364,10 +428,12 @@ export async function readSynthesizedSpeechResponse(
 
   if (!responseContentType.includes('application/json')) {
     const audio = await response.arrayBuffer();
+    const sampleRate = parseHeaderNumber(response, 'x-sample-rate');
     return {
       audio,
       contentType: responseContentType,
       format: contentTypeToFormat(responseContentType),
+      sampleRate,
       provider: adapterName,
     };
   }
@@ -406,4 +472,17 @@ export async function readSynthesizedSpeechResponse(
     model: getString(json, 'model'),
     raw: json,
   };
+}
+
+function parseHeaderNumber(
+  response: Response,
+  headerName: string,
+): number | undefined {
+  const value = response.headers.get(headerName);
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
 }

@@ -1,7 +1,5 @@
-import {
-  OpenAICompatibleSpeechSynthesizer,
-  Qwen3SpeechSynthesizer,
-} from '../adapters/openai-compatible.js';
+import { OpenAICompatibleSpeechSynthesizer } from '../adapters/openai-compatible.js';
+import { Qwen3SpeechSynthesizer } from '../adapters/qwen3.js';
 import {
   StudioServerSpeechSynthesizer,
   StudioServerTranscriber,
@@ -311,8 +309,8 @@ function hasSynthesizerEnv(env: SpeechEnv): boolean {
 function readEnv(env: SpeechEnv, ...keys: string[]): string | undefined {
   for (const key of keys) {
     const value = env[key];
-    if (value !== undefined) {
-      return value;
+    if (value?.trim()) {
+      return value.trim();
     }
   }
 

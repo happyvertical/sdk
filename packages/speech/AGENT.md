@@ -46,6 +46,6 @@ Adapter constructors are internal implementation details. Keep new backends behi
 ## Adapters
 
 - Studio Server STT (`type: 'studio-server'`) posts multipart audio to `/v1/transcribe`.
-- Studio Server TTS (`type: 'studio-server'`) posts Studio-shaped JSON to `/v1/tts/synthesize`.
-- Qwen3 TTS (`type: 'qwen3-tts'`) posts OpenAI-shaped JSON to `/v1/audio/speech`.
+- Studio Server TTS (`type: 'studio-server'`) posts multipart form data to `/v1/tts/synthesize`.
+- Qwen3 TTS (`type: 'qwen3-tts'`) posts multipart form data to `/v1/audio/speech`.
 - OpenAI-compatible TTS (`type: 'openai-compatible'`) posts OpenAI-shaped JSON to `/v1/audio/speech`.
