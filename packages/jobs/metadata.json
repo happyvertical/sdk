@@ -3,7 +3,7 @@
   "path": "packages/jobs",
   "position": {
     "index": 16,
-    "count": 30
+    "count": 31
   },
   "description": "Job queue abstraction with multiple backend adapters (SQLite, PostgreSQL, Bull, SQS)",
   "provides": [

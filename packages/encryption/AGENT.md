@@ -7,7 +7,7 @@ Unified encryption and cryptography operations with adapter-based architecture
 ## Package Map
 - Package: `@happyvertical/encryption`
 - Hierarchy path: `@happyvertical/sdk > packages > encryption`
-- Workspace position: `10 of 30` local packages
+- Workspace position: `10 of 31` local packages
 - Internal dependencies: `@happyvertical/logger`, `@happyvertical/utils`
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`

@@ -7,7 +7,7 @@ File system utilities for local and remote file operations
 ## Package Map
 - Package: `@happyvertical/files`
 - Hierarchy path: `@happyvertical/sdk > packages > files`
-- Workspace position: `11 of 30` local packages
+- Workspace position: `11 of 31` local packages
 - Internal dependencies: `@happyvertical/utils`
 - Internal dependents: `@happyvertical/documents`, `@happyvertical/sdk-mcp`
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`

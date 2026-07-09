@@ -3,7 +3,7 @@
   "path": "packages/analytics",
   "position": {
     "index": 3,
-    "count": 30
+    "count": 31
   },
   "description": "Unified analytics interface for Google Analytics 4, Plausible, and more",
   "provides": [

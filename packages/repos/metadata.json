@@ -3,7 +3,7 @@
   "path": "packages/repos",
   "position": {
     "index": 22,
-    "count": 30
+    "count": 31
   },
   "description": "Standardized repository interface for GitHub, GitLab, Bitbucket, and Azure DevOps",
   "provides": [

@@ -3,7 +3,7 @@
   "path": "packages/ai",
   "position": {
     "index": 2,
-    "count": 30
+    "count": 31
   },
   "description": "Standardized AI interface supporting OpenAI, LiteLLM, Bifrost, Ollama, Anthropic, Gemini, Bedrock, Hugging Face, Claude CLI, and Qwen3-TTS",
   "provides": [

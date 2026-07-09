@@ -7,7 +7,7 @@ Foundation utilities for ID generation, date parsing, URL handling, string conve
 ## Package Map
 - Package: `@happyvertical/utils`
 - Hierarchy path: `@happyvertical/sdk > packages > utils`
-- Workspace position: `28 of 30` local packages
+- Workspace position: `29 of 31` local packages
 - Internal dependencies: none
 - Internal dependents: `@happyvertical/accounting`, `@happyvertical/ai`, `@happyvertical/analytics`, `@happyvertical/auth`, `@happyvertical/cache`, `@happyvertical/comfyui`, `@happyvertical/directory`, `@happyvertical/documents`, `@happyvertical/email`, `@happyvertical/encryption`, `@happyvertical/files`, `@happyvertical/geo`, `@happyvertical/jobs`, `@happyvertical/logger`, `@happyvertical/messages`, `@happyvertical/sdk-mcp`, `@happyvertical/secrets`, `@happyvertical/social`, `@happyvertical/sql`, `@happyvertical/translator`, `@happyvertical/video`, `@happyvertical/weather`
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`

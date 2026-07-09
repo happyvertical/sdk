@@ -3,7 +3,7 @@
   "path": "packages/payments",
   "position": {
     "index": 20,
-    "count": 30
+    "count": 31
   },
   "description": "Payment backend abstraction with adapters for Base USDC, BTCPay Server, and Stripe",
   "provides": [
