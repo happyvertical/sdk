@@ -49,14 +49,18 @@ export class OpenAICompatibleSpeechSynthesizer
       speed: request.speed,
     });
 
-    const response = await this.post(this.type, this.speechPath, {
-      headers: {
-        'content-type': 'application/json',
+    const speech = await this.post(
+      this.type,
+      this.speechPath,
+      {
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: request.signal,
       },
-      body: JSON.stringify(payload),
-      signal: request.signal,
-    });
-    const speech = await readSynthesizedSpeechResponse(response, this.type);
+      (response) => readSynthesizedSpeechResponse(response, this.type),
+    );
 
     return {
       ...speech,

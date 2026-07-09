@@ -161,12 +161,12 @@ function normalizeTranscriberOptions(
   const baseUrl =
     options.baseUrl ?? readEnv(env, 'HAVE_SPEECH_STT_BASE_URL', 'STT_BASE_URL');
 
-  if (!baseUrl?.trim()) {
-    throw new SpeechConfigurationError('STT baseUrl is required', type);
-  }
-
   if (type !== 'studio-server') {
     throw new InvalidSpeechAdapterError(type, 'STT');
+  }
+
+  if (!baseUrl?.trim()) {
+    throw new SpeechConfigurationError('STT baseUrl is required', type);
   }
 
   return {
@@ -211,6 +211,14 @@ function normalizeSpeechSynthesizerOptions(
 
   if (!type) {
     throw new SpeechConfigurationError('TTS provider type is required');
+  }
+
+  if (
+    type !== 'studio-server' &&
+    type !== 'qwen3-tts' &&
+    type !== 'openai-compatible'
+  ) {
+    throw new InvalidSpeechAdapterError(type, 'TTS');
   }
 
   if (!baseUrl?.trim()) {
@@ -312,7 +320,7 @@ function readEnv(env: SpeechEnv, ...keys: string[]): string | undefined {
 }
 
 function hasAnyEnv(env: SpeechEnv, ...keys: string[]): boolean {
-  return keys.some((key) => env[key] !== undefined);
+  return keys.some((key) => Boolean(env[key]?.trim()));
 }
 
 function parseOptionalInteger(value: string | undefined): number | undefined {

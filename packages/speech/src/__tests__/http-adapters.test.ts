@@ -70,11 +70,14 @@ describe('@happyvertical/speech HTTP adapters', () => {
     });
   });
 
-  it('returns an injectable speech service that fails clearly when no provider is configured', async () => {
+  it('ignores empty env values and fails clearly when no provider is configured', async () => {
     const speech = await getSpeech(
       {},
       {
-        env: {},
+        env: Object.fromEntries([
+          ['STT_BASE_URL', ' '],
+          ['TTS_BASE_URL', ''],
+        ]),
       },
     );
 
@@ -96,9 +99,14 @@ describe('@happyvertical/speech HTTP adapters', () => {
     await expect(
       getTranscriber({
         type: 'qwen3-tts',
-        baseUrl: 'http://speech.example',
       } as never),
     ).rejects.toThrow('Invalid STT speech adapter type: qwen3-tts');
+
+    await expect(
+      getSpeechSynthesizer({
+        type: 'unsupported',
+      } as never),
+    ).rejects.toThrow('Invalid TTS speech adapter type: unsupported');
 
     await expect(
       getSpeech(
@@ -197,6 +205,32 @@ describe('@happyvertical/speech HTTP adapters', () => {
         });
 
         expect(result.text).toBe('blob ok');
+      },
+    );
+  });
+
+  it('preserves the MIME type from Blob audio inputs', async () => {
+    await withFixtureServer(
+      (_req, body, res) => {
+        const multipart = body.toString('utf8');
+        expect(multipart).toContain('Content-Type: audio/wav');
+
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ text: 'typed blob ok' }));
+      },
+      async (baseUrl) => {
+        const transcriber = await getTranscriber({
+          type: 'studio-server',
+          baseUrl,
+        });
+        const result = await transcriber.transcribe({
+          audio: {
+            data: new Blob(['blob audio'], { type: 'audio/wav' }),
+            filename: 'fixture.wav',
+          },
+        });
+
+        expect(result.text).toBe('typed blob ok');
       },
     );
   });
@@ -461,5 +495,43 @@ describe('@happyvertical/speech HTTP adapters', () => {
         },
       }),
     ).rejects.toThrow('request timeout signal fired');
+  });
+
+  it('keeps the timeout active while reading the response body', async () => {
+    let bodyReadAborted = false;
+    const synthesizer = await getSpeechSynthesizer({
+      type: 'qwen3-tts',
+      baseUrl: 'http://speech.example',
+      timeoutMs: 1,
+      fetch: async (_input, init) => {
+        const signal = init?.signal;
+        if (!signal) {
+          throw new Error('Expected a timeout signal');
+        }
+
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              signal.addEventListener(
+                'abort',
+                () => {
+                  bodyReadAborted = true;
+                  controller.error(signal.reason);
+                },
+                { once: true },
+              );
+            },
+          }),
+          {
+            headers: { 'content-type': 'audio/mpeg' },
+          },
+        );
+      },
+    });
+
+    await expect(
+      synthesizer.synthesize({ text: 'timeout while streaming' }),
+    ).rejects.toMatchObject({ name: 'AbortError' });
+    expect(bodyReadAborted).toBe(true);
   });
 });

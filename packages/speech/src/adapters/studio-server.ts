@@ -41,11 +41,15 @@ export class StudioServerTranscriber
     appendOptionalFormValue(form, 'sample_rate', request.audio.sampleRate);
     appendOptionalFormValue(form, 'channels', request.audio.channels);
 
-    const response = await this.post(this.type, this.transcribePath, {
-      body: form,
-      signal: request.signal,
-    });
-    return readTranscriptResponse(response, this.type);
+    return this.post(
+      this.type,
+      this.transcribePath,
+      {
+        body: form,
+        signal: request.signal,
+      },
+      (response) => readTranscriptResponse(response, this.type),
+    );
   }
 }
 
@@ -79,13 +83,17 @@ export class StudioServerSpeechSynthesizer
       metadata: request.metadata,
     });
 
-    const response = await this.post(this.type, this.synthesizePath, {
-      headers: {
-        'content-type': 'application/json',
+    return this.post(
+      this.type,
+      this.synthesizePath,
+      {
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: request.signal,
       },
-      body: JSON.stringify(payload),
-      signal: request.signal,
-    });
-    return readSynthesizedSpeechResponse(response, this.type);
+      (response) => readSynthesizedSpeechResponse(response, this.type),
+    );
   }
 }

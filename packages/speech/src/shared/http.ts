@@ -21,14 +21,18 @@ export function resolveSpeechUrl(baseUrl: string, path: string): string {
 }
 
 export function resolveFetch(fetchOverride?: SpeechFetch): SpeechFetch {
-  const resolved = fetchOverride ?? globalThis.fetch;
-  if (!resolved) {
+  if (fetchOverride) {
+    return fetchOverride;
+  }
+
+  const globalFetch = globalThis.fetch;
+  if (!globalFetch) {
     throw new SpeechConfigurationError(
       'No fetch implementation available for speech adapter',
     );
   }
 
-  return resolved.bind(globalThis);
+  return globalFetch.bind(globalThis);
 }
 
 export function mergeHeaders(
@@ -65,11 +69,12 @@ export abstract class HttpSpeechAdapter {
     this.timeoutMs = options.timeoutMs;
   }
 
-  protected async post(
+  protected async post<T>(
     adapterName: string,
     path: string,
     init: Omit<RequestInit, 'method'>,
-  ): Promise<Response> {
+    readResponse: (response: Response) => Promise<T>,
+  ): Promise<T> {
     const timeoutController =
       this.timeoutMs && this.timeoutMs > 0 ? new AbortController() : undefined;
     const timeout =
@@ -95,7 +100,7 @@ export abstract class HttpSpeechAdapter {
         },
       );
       await assertOk(response, adapterName);
-      return response;
+      return await readResponse(response);
     } finally {
       if (timeout) {
         clearTimeout(timeout);
@@ -174,11 +179,12 @@ async function assertOk(
 }
 
 export function appendAudioInput(form: FormData, audio: AudioInput): void {
-  const contentType = audio.contentType ?? 'application/octet-stream';
   const filename = audio.filename ?? 'audio';
   const data = audio.data;
 
   if (typeof Blob !== 'undefined' && data instanceof Blob) {
+    const contentType =
+      audio.contentType ?? (data.type || 'application/octet-stream');
     const blob =
       data.type === contentType
         ? data
@@ -187,6 +193,7 @@ export function appendAudioInput(form: FormData, audio: AudioInput): void {
     return;
   }
 
+  const contentType = audio.contentType ?? 'application/octet-stream';
   const blobPart =
     data instanceof Uint8Array ? arrayBufferFromBytes(data) : data;
   form.append('file', new Blob([blobPart], { type: contentType }), filename);
