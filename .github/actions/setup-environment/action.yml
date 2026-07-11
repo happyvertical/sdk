@@ -80,7 +80,7 @@ runs:
         mkdir -p "$(dirname "$user_config")"
         touch "$user_config"
         npm config set registry "${{ inputs.registry-url }}" --location=user
-        printf '//%s/:_authToken=%s\n//%s/:always-auth=true\n' \
+        printf '\n//%s/:_authToken=%s\n//%s/:always-auth=true\n' \
           "$registry_host" "$NODE_AUTH_TOKEN" "$registry_host" >> "$user_config"
 
     - name: Configure GitHub Packages auth
@@ -92,7 +92,7 @@ runs:
         user_config="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
         mkdir -p "$(dirname "$user_config")"
         touch "$user_config"
-        printf '%s\n' \
+        printf '\n%s\n%s\n%s\n' \
           '@happyvertical:registry=https://npm.pkg.github.com' \
           "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" \
           '//npm.pkg.github.com/:always-auth=true' >> "$user_config"
@@ -123,10 +123,16 @@ runs:
       id: pnpm-store-strategy
       shell: bash
       run: |
-        if [ -n "${PNPM_STORE_DIR:-}" ]; then
+        if [[ "${RUNNER_NAME:-}" == arc-happyvertical-node-* ]] && \
+          [ -n "${PNPM_STORE_DIR:-}" ]; then
           echo "store-root=$PNPM_STORE_DIR" >> "$GITHUB_OUTPUT"
           echo "use-actions-cache=false" >> "$GITHUB_OUTPUT"
           echo "Using the node-local persistent pnpm store"
+        elif [ "${RUNNER_ENVIRONMENT:-}" = self-hosted ]; then
+          store_root="$RUNNER_TEMP/pnpm-store-${GITHUB_RUN_ID}-${GITHUB_JOB}-${GITHUB_RUN_ATTEMPT}"
+          echo "store-root=$store_root" >> "$GITHUB_OUTPUT"
+          echo "use-actions-cache=false" >> "$GITHUB_OUTPUT"
+          echo "Using an isolated compatibility-runner pnpm store"
         else
           echo "store-root=$HOME/.local/share/pnpm/store" >> "$GITHUB_OUTPUT"
           echo "use-actions-cache=true" >> "$GITHUB_OUTPUT"
@@ -138,7 +144,7 @@ runs:
       run: |
         store_root="${{ steps.pnpm-store-strategy.outputs.store-root }}"
         mkdir -p "$store_root"
-        pnpm config set store-dir "$store_root" --location=global
+        pnpm config set store-dir "$store_root" --location=user
 
     - name: Get pnpm store directory
       id: pnpm-store

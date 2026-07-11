@@ -22,7 +22,8 @@ suites.
 
 Set `CI_NODE_RUNNER_ENABLED=true` only after the node-runner smoke workflow
 passes. Clearing the variable immediately routes ordinary Node jobs back to
-`arc-happyvertical`.
+`arc-happyvertical`. Compatibility runners use a cold, job-isolated pnpm store
+so pnpm 11's SQLite store index is never shared by concurrent fallback pods.
 
 The runner workspace and `PNPM_STORE_DIR` must share a filesystem. The smoke
 workflow verifies matching device IDs and confirms that installed dependency
