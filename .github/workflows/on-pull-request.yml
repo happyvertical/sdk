@@ -170,17 +170,12 @@ jobs:
         with:
           node-version: '24.18.0'
 
-      - name: Setup pnpm for PR title validation
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-        with:
-          version: '11.11.0'
-          run_install: false
-
       - name: Install commitlint dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts --filter @happyvertical/sdk
-        env:
-          # Needed only because .npmrc references GitHub Packages auth.
-          NODE_AUTH_TOKEN: ${{ github.token }}
+        run: |
+          npm install --prefix "$RUNNER_TEMP/commitlint" --no-save \
+            --ignore-scripts --no-audit --no-fund \
+            @commitlint/cli@20.5.0 \
+            @commitlint/config-conventional@20.5.0
 
       - name: Validate PR title for squash merge
         # PR title is user-controlled metadata. Two non-obvious risks
@@ -205,11 +200,14 @@ jobs:
         run: |
           # printf instead of echo: avoids the leading-dash flag trap
           # (a title starting with -e/-n/-E would be eaten by echo).
-          # pnpm exec finds commitlint from the root-only install above;
-          # that avoids apt packages, workspace install scripts, and
-          # package-level dependency installation.
+          # NODE_PATH lets the repository config resolve its conventional
+          # preset from the standalone temp install. No workspace package or
+          # private registry dependency is installed by this metadata job.
           printf 'Validating PR title (length=%s)\n' "${#PR_TITLE}"
-          printf '%s\n' "$PR_TITLE" | pnpm exec commitlint --config commitlint.config.mjs
+          printf '%s\n' "$PR_TITLE" | \
+            NODE_PATH="$RUNNER_TEMP/commitlint/node_modules" \
+            "$RUNNER_TEMP/commitlint/node_modules/.bin/commitlint" \
+              --config commitlint.config.mjs
 
       - name: Determine version bump
         id: version
