@@ -92,8 +92,7 @@ runs:
         user_config="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
         mkdir -p "$(dirname "$user_config")"
         touch "$user_config"
-        printf '\n%s\n%s\n%s\n' \
-          '@happyvertical:registry=https://npm.pkg.github.com' \
+        printf '\n%s\n%s\n' \
           "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" \
           '//npm.pkg.github.com/:always-auth=true' >> "$user_config"
 
