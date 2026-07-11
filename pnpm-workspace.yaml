@@ -3,6 +3,25 @@ packages:
   - 'docs'
   - 'test-town-gnode'
 
+overrides:
+  '@types/node': 24.12.2
+  rollup: 4.60.2
+  '@happyvertical/ai': 'workspace:*'
+  '@happyvertical/cache': 'workspace:*'
+  '@happyvertical/files': 'workspace:*'
+  '@happyvertical/logger': 'workspace:*'
+  '@happyvertical/utils': 'workspace:*'
+
+allowBuilds:
+  core-js: true
+  esbuild: true
+  lefthook: true
+  msgpackr-extract: true
+  onnxruntime-node: true
+  protobufjs: true
+  sharp: true
+  tesseract.js: true
+
 # Centralized versions for external @happyvertical packages not in this monorepo.
 # These are separate repos (ocr, pdf, spider) whose transitive deps pull in
 # old SDK versions. The catalog + overrides below keep everything aligned.

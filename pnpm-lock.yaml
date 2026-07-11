@@ -8,7 +8,7 @@ catalogs:
   default:
     '@happyvertical/ocr':
       specifier: ^0.60.39
-      version: 0.60.39
+      version: 0.60.55
     '@happyvertical/pdf':
       specifier: ^0.65
       version: 0.65.3
@@ -367,7 +367,7 @@ importers:
         version: link:../files
       '@happyvertical/ocr':
         specifier: 'catalog:'
-        version: 0.60.39
+        version: 0.60.55
       '@happyvertical/pdf':
         specifier: 'catalog:'
         version: 0.65.3
@@ -3256,10 +3256,6 @@ packages:
 
   '@hapi/topo@5.1.0':
     resolution: {integrity: sha512-foQZKJig7Ob0BMAYBfcJk8d77QtOe7Wo4ox7ff1lQYoNNAb6jwcY1ncdoy2e9wQZzvNy7ODZCYJkK8kzmcAnAg==}
-
-  '@happyvertical/ocr@0.60.39':
-    resolution: {integrity: sha512-rLj1TnNBm8R90bx55Jd8XQ1Gn4F/BKSNYxHX4/PZfDSNgReiKKhV4jzP1eBowywFr4hf5hWpCVK3xI4XMSR46Q==, tarball: https://npm.pkg.github.com/download/@happyvertical/ocr/0.60.39/b0bcfd79369e060b6c5e09fd544ed8d3cc72b6da}
-    engines: {node: '>=24', pnpm: '>=9'}
 
   '@happyvertical/ocr@0.60.55':
     resolution: {integrity: sha512-IGpUZc2G+7W+kwFQ0dKmjX9IzjGvKabQ0RMViEf1CQPmhYS0XwuKhKsiSu3WwzqRGvpOuz7HSNUG3hy5zCskjA==}
@@ -6240,6 +6236,7 @@ packages:
 
   '@ungap/structured-clone@1.3.0':
     resolution: {integrity: sha512-WmoN8qaIAo7WTYWbAZuG8PYEhn5fkz7dZrqTBZ7dtt//lL2Gwms1IcnQ5yHqjDfX8Ft5j4YzDM23f87zBfDe9g==}
+    deprecated: Potential CWE-502 - Update to 1.3.1 or higher
 
   '@vitest/coverage-v8@4.1.5':
     resolution: {integrity: sha512-38C0/Ddb7HcRG0Z4/DUem8x57d2p9jYgp18mkaYswEOQBGsI1CG4f/hjm0ZCeaJfWhSZ4k7jgs29V1Zom7Ki9A==}
@@ -8510,6 +8507,7 @@ packages:
   git-raw-commits@5.0.1:
     resolution: {integrity: sha512-Y+csSm2GD/PCSh6Isd/WiMjNAydu0VBiG9J7EdQsNA5P9uXvLayqjmTsNlK5Gs9IhblFZqOU0yid5Il5JPoLiQ==}
     engines: {node: '>=18'}
+    deprecated: Deprecated and no longer maintained. Use @conventional-changelog/git-client instead.
     hasBin: true
 
   github-from-package@0.0.0:
@@ -12691,6 +12689,7 @@ packages:
 
   uuid@10.0.0:
     resolution: {integrity: sha512-8XkAphELsDnEGrDxUOHB3RGvXz6TeuYSGEZBOjtTtPm2lwhGBjLgOzLHB63IUWfBpNucQjND6d3AOudO+H3RWQ==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
   uuid@11.1.0:
@@ -12703,10 +12702,12 @@ packages:
 
   uuid@8.3.2:
     resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
   uuid@9.0.1:
     resolution: {integrity: sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
   vali-date@1.0.0:
@@ -17164,17 +17165,6 @@ snapshots:
   '@hapi/topo@5.1.0':
     dependencies:
       '@hapi/hoek': 9.3.0
-
-  '@happyvertical/ocr@0.60.39':
-    dependencies:
-      '@gutenye/ocr-node': 1.4.8
-      '@happyvertical/ai': link:packages/ai
-      '@happyvertical/utils': link:packages/utils
-      jpeg-js: 0.4.4
-      pngjs: 7.0.0
-      tesseract.js: 6.0.1
-    transitivePeerDependencies:
-      - encoding
 
   '@happyvertical/ocr@0.60.55':
     dependencies:
@@ -24070,7 +24060,7 @@ snapshots:
       webidl-conversions: 8.0.1
       whatwg-mimetype: 4.0.0
       whatwg-url: 15.1.0
-      ws: 8.19.0
+      ws: 8.21.0
       xml-name-validator: 5.0.0
     transitivePeerDependencies:
       - '@noble/hashes'

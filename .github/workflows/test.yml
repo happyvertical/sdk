@@ -1,119 +1,90 @@
-# =============================================================================
-# EDITABLE WORKFLOW - Customize for SDK
-# =============================================================================
-# This workflow is called by .github/workflows/happyvertical/on-merge-main.yml
-# when code is merged to the main branch.
-#
-# Customize the test process for the SDK below.
-# =============================================================================
-
 name: Test
 
 on:
   workflow_call:
+    inputs:
+      mode:
+        description: 'full for exhaustive validation; affected for PR feedback'
+        required: false
+        type: string
+        default: full
     outputs:
       success:
-        description: 'Whether tests passed'
-        value: ${{ jobs.test.outputs.success }}
+        description: 'Whether the selected validation suite passed'
+        value: ${{ jobs.validate.outputs.success }}
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Validation scope'
+        required: true
+        type: choice
+        default: full
+        options: [full, affected]
 
 permissions:
   contents: read
   packages: read
 
 jobs:
-  test:
+  validate:
+    # Keep this name stable: the main-branch ruleset requires
+    # "Validate Changes / Run Tests" from the calling workflow.
     name: Run Tests
-    runs-on: arc-happyvertical
-
-    # PostgreSQL service for database tests
-    services:
-      postgres:
-        image: postgres:18-alpine@sha256:52098013b4b64a746626437d38afc03cabff6cdeb4d3d92e2342aa95f0ce56ea
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: testdb
-          PGUSER: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
+    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'arc-happyvertical' }}
+    timeout-minutes: 40
     outputs:
-      success: ${{ steps.test-result.outputs.success }}
-
+      success: ${{ steps.result.outputs.success }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
 
-      - name: Setup Environment
+      - name: Setup environment
         uses: ./.github/actions/setup-environment
         with:
-          node-version: '24'
+          node-version: '24.18.0'
+          github-packages-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Setup Turborepo cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
-        with:
-          path: .turbo
-          key: |
-            ${{ runner.os }}-turbo-${{ hashFiles(
-              '**/package.json',
-              '**/pnpm-lock.yaml',
-              'packages/*/src/**',
-              'packages/*/test/**'
-            ) }}
-          restore-keys: |
-            ${{ runner.os }}-turbo-
-
-      - name: Cache build outputs
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
-        with:
-          path: |
-            packages/*/dist
-          key: |
-            ${{ runner.os }}-build-${{ hashFiles(
-              'packages/*/src/**',
-              'packages/*/test/**',
-              'packages/*/package.json',
-              'packages/*/tsconfig.json'
-            ) }}
-          restore-keys: |
-            ${{ runner.os }}-build-
-
-      - name: Build packages
-        run: pnpm run build
-
-      - name: Validate published artifacts
-        run: pnpm run validate-build
-
-      - name: Validate agent context graph
-        run: pnpm run agent:check
-
-      - name: Run typecheck, lint, and tests
-        id: parallel-checks
+      - name: Run exhaustive build, typecheck, lint, tests, and optional adapters
+        id: exhaustive
+        if: inputs.mode == 'full'
         run: |
-          # Run typecheck, lint, and test using Turborepo dependency graph
-          # Exclude @happyvertical/docs: docs build requires deps:all
-          pnpm turbo run typecheck lint test --filter='!@happyvertical/docs'
+          pnpm turbo run build typecheck lint test test:optional \
+            --filter='!@happyvertical/docs' --concurrency=2
+          pnpm run validate-build
+          pnpm run agent:check
         env:
-          SQLOO_HOST: localhost
-          SQLOO_USER: postgres
-          SQLOO_PASSWORD: postgres
-          SQLOO_DATABASE: testdb
-          SQLOO_PORT: 5432
+          NODE_ENV: test
+          TURBO_FORCE: 'true'
 
-      - name: Set test result
-        id: test-result
-        if: always()
-        shell: bash
+      - name: Run affected package and dependency closures
+        id: affected
+        if: inputs.mode == 'affected'
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          NODE_ENV: test
         run: |
-          if [ "${{ steps.parallel-checks.outcome }}" = "success" ]; then
-            echo "success=true" >> $GITHUB_OUTPUT
-          else
-            echo "success=false" >> $GITHUB_OUTPUT
+          if [ -z "$BASE_SHA" ]; then
+            echo 'Affected mode requires a pull_request base SHA'
             exit 1
           fi
+          pnpm turbo run build typecheck lint test test:optional \
+            --filter="...[$BASE_SHA]" --filter='!@happyvertical/docs' \
+            --concurrency=2
+
+      - name: Set validation result
+        id: result
+        if: always()
+        env:
+          MODE: ${{ inputs.mode }}
+          EXHAUSTIVE: ${{ steps.exhaustive.outcome }}
+          AFFECTED: ${{ steps.affected.outcome }}
+        run: |
+          outcome="$EXHAUSTIVE"
+          if [ "$MODE" = 'affected' ]; then outcome="$AFFECTED"; fi
+          if [ "$outcome" != 'success' ]; then
+            echo 'success=false' >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          echo 'success=true' >> "$GITHUB_OUTPUT"

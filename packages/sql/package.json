@@ -42,7 +42,7 @@
     "test": "npx vitest run",
     "test:watch": "npx vitest",
     "test:sqlite": "npx vitest run src/sqlite.spec.ts",
-    "test:postgres": "npx vitest run src/postgres.spec.ts",
+    "test:postgres": "node ../../scripts/run-with-ci-postgres.mjs -- npx vitest run src/postgres.spec.ts src/postgres-vector.spec.ts",
     "test:duckdb": "npx vitest run src/duckdb.spec.ts",
     "build": "vite build",
     "build:watch": "vite build --watch",

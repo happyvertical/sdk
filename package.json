@@ -9,6 +9,7 @@
     "format:check": "turbo run format --dry-run",
     "prepare": "git rev-parse --git-dir > /dev/null 2>&1 && lefthook install || echo 'Skipping lefthook install (not in git repository)'",
     "test": "turbo run test",
+    "test:ci-scripts": "node --test scripts/*.test.mjs",
     "test:watch": "turbo run test:watch",
     "test:unit": "npx vitest run --grep '\\.test\\.ts$'",
     "test:integration": "npx vitest run --grep '\\.spec\\.ts$'",
@@ -74,22 +75,9 @@
     "vite-plugin-dts": "4.5.4",
     "vitest": "4.1.5"
   },
-  "resolutions": {
-    "@types/node": "24.12.2"
-  },
-  "pnpm": {
-    "overrides": {
-      "rollup": "4.60.2",
-      "@happyvertical/ai": "workspace:*",
-      "@happyvertical/cache": "workspace:*",
-      "@happyvertical/files": "workspace:*",
-      "@happyvertical/logger": "workspace:*",
-      "@happyvertical/utils": "workspace:*"
-    }
-  },
   "engines": {
-    "node": ">=24",
-    "pnpm": ">=9"
+    "node": ">=24.18.0",
+    "pnpm": ">=11.11.0"
   },
-  "packageManager": "pnpm@10.33.0"
+  "packageManager": "pnpm@11.11.0"
 }

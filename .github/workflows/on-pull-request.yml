@@ -3,22 +3,25 @@ name: Pull Request Validation
 on:
   pull_request:
     branches: [main, dependency-updates]
+  merge_group:
+    types: [checks_requested]
 
 # Cancel superseded runs when new commits are pushed.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
-  pull-requests: write
+  pull-requests: read
   packages: read
 
 jobs:
   changeset-check:
     name: Check for Changeset
-    runs-on: arc-happyvertical
+    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'arc-happyvertical' }}
     if: |
+      github.event_name == 'pull_request' &&
       !startsWith(github.event.pull_request.head.ref, 'renovate/')
 
     steps:
@@ -35,23 +38,25 @@ jobs:
           PR_NUM="${{ github.event.pull_request.number }}"
           if gh pr view "$PR_NUM" --json labels \
              --jq '.labels[].name' | grep -q 'skip-changeset'; then
-            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "skip=true" >> "$GITHUB_OUTPUT"
             echo "✅ Will skip (skip-changeset label present)"
           else
-            echo "skip=false" >> $GITHUB_OUTPUT
+            echo "skip=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Setup Environment
         if: steps.skip-check.outputs.skip != 'true'
         uses: ./.github/actions/setup-environment
         with:
-          node-version: '24'
+          node-version: '24.18.0'
           install-deps: 'true'
+          github-packages-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check for changeset
         if: steps.skip-check.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
         run: |
           PR_NUM="${{ github.event.pull_request.number }}"
           if gh pr view "$PR_NUM" --json labels \
@@ -60,7 +65,6 @@ jobs:
             exit 0
           fi
 
-          PR_BRANCH="${{ github.event.pull_request.head.ref }}"
           if echo "$PR_BRANCH" | grep -q '^renovate/'; then
             echo "✅ Skipping changeset check (Renovate dependency update PR from $PR_BRANCH)"
             exit 0
@@ -139,7 +143,12 @@ jobs:
 
   validate-commits:
     name: Validate Conventional Commits
-    runs-on: arc-happyvertical
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      packages: read
 
     steps:
       - name: Checkout PR branch
@@ -157,20 +166,16 @@ jobs:
       # because that composite action installs apt packages and the
       # complete workspace dependency graph on the self-hosted runner.
       - name: Setup Node.js for PR title validation
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: '24'
-
-      - name: Setup pnpm for PR title validation
-        uses: pnpm/action-setup@903f9c1a6ebcba6cf41d87230be49611ac97822e # v6
-        with:
-          run_install: false
+          node-version: '24.18.0'
 
       - name: Install commitlint dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts --filter @happyvertical/sdk
-        env:
-          # Needed only because .npmrc references GitHub Packages auth.
-          NODE_AUTH_TOKEN: ${{ github.token }}
+        run: |
+          npm install --prefix "$RUNNER_TEMP/commitlint" --no-save \
+            --ignore-scripts --no-audit --no-fund \
+            @commitlint/cli@20.5.0 \
+            @commitlint/config-conventional@20.5.0
 
       - name: Validate PR title for squash merge
         # PR title is user-controlled metadata. Two non-obvious risks
@@ -195,11 +200,14 @@ jobs:
         run: |
           # printf instead of echo: avoids the leading-dash flag trap
           # (a title starting with -e/-n/-E would be eaten by echo).
-          # pnpm exec finds commitlint from the root-only install above;
-          # that avoids apt packages, workspace install scripts, and
-          # package-level dependency installation.
+          # NODE_PATH lets the repository config resolve its conventional
+          # preset from the standalone temp install. No workspace package or
+          # private registry dependency is installed by this metadata job.
           printf 'Validating PR title (length=%s)\n' "${#PR_TITLE}"
-          printf '%s\n' "$PR_TITLE" | pnpm exec commitlint --config commitlint.config.mjs
+          printf '%s\n' "$PR_TITLE" | \
+            NODE_PATH="$RUNNER_TEMP/commitlint/node_modules" \
+            "$RUNNER_TEMP/commitlint/node_modules/.bin/commitlint" \
+              --config commitlint.config.mjs
 
       - name: Determine version bump
         id: version
@@ -218,8 +226,8 @@ jobs:
             bump="minor"  # Treat as minor until 1.0.0
           fi
 
-          echo "base_ref=$base_ref" >> $GITHUB_OUTPUT
-          echo "bump=$bump" >> $GITHUB_OUTPUT
+          echo "base_ref=$base_ref" >> "$GITHUB_OUTPUT"
+          echo "bump=$bump" >> "$GITHUB_OUTPUT"
           if [ "$base_ref" = "main" ]; then
             echo "📦 Merging to main will perform a $bump version bump"
           else
@@ -290,7 +298,8 @@ jobs:
 
   validate-workflows:
     name: Validate Workflow Files
-    runs-on: arc-happyvertical
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout PR branch
@@ -309,42 +318,36 @@ jobs:
           files="${{ steps.changed-files.outputs.all_changed_files }}"
           echo "Changed files: $files"
 
+          python3 -m pip install --user yamllint
+
           for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
             echo "  Checking $file..."
-            yamllint -c .github/.yamllint.yml "$file" || exit 1
+            "$HOME/.local/bin/yamllint" -c .github/.yamllint.yml "$file" || exit 1
           done
 
           echo "✅ YAML syntax validation passed"
 
-      - name: Install act
+      - name: Validate with actionlint
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          mkdir -p bin
-          curl --proto '=https' --tlsv1.2 -sSfL \
-            https://raw.githubusercontent.com/nektos/act/master/install.sh \
-            | sudo bash -s -- -b bin v0.2.88
-
-      - name: Validate with act
-        if: steps.changed-files.outputs.any_changed == 'true'
-        run: |
-          if ! ./bin/act --list > /tmp/act-output.txt 2>&1; then
-            echo "❌ act --list failed - workflow syntax issue"
-            echo "Error output:"
-            cat /tmp/act-output.txt
-            exit 1
-          fi
-          echo "✅ act validation passed"
+          bash <(curl -sSfL \
+            https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
+            ./actionlint -config-file .github/actionlint.yaml \
+              -ignore 'SC2086|SC2094|SC2129' "$file"
+          done
 
       - name: Workflow validation summary
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
           echo "✅ All workflow validations passed:"
           echo "  - YAML syntax validated with yamllint"
-          echo "  - Workflow parsing verified with act"
+          echo "  - Workflow expressions validated with actionlint"
 
   check-naming:
     name: Check for stale @have/ references
-    runs-on: arc-happyvertical
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -377,7 +380,8 @@ jobs:
 
   doc-coverage:
     name: Check documentation coverage
-    runs-on: arc-happyvertical
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -428,15 +432,20 @@ jobs:
 
       - name: Check ecosystem manifest freshness
         if: steps.changed-files.outputs.any_changed == 'true'
-        run: pnpm run agent:check
+        run: node scripts/sync-agent-context.js --check
 
   test:
     name: Validate Changes
     uses: ./.github/workflows/test.yml
+    with:
+      mode: ${{ github.event_name == 'merge_group' && 'full' || (vars.CI_MERGE_QUEUE_ENABLED == 'true' && 'affected' || 'full') }}
+    permissions:
+      contents: read
+      packages: read
 
   docs-build:
     name: Validate Documentation Build
-    runs-on: arc-happyvertical
+    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'arc-happyvertical' }}
 
     steps:
       - name: Checkout PR branch
@@ -444,6 +453,7 @@ jobs:
 
       - name: Get changed files
         id: changed-files
+        if: github.event_name == 'pull_request'
         uses: tj-actions/changed-files@48d8f15b2aaa3d255ca5af3eba4870f807ce6b3c # v45
         with:
           files: |
@@ -454,20 +464,21 @@ jobs:
             ecosystem-manifest.json
 
       - name: Setup Environment
-        if: steps.changed-files.outputs.any_changed == 'true'
+        if: github.event_name == 'merge_group' || steps.changed-files.outputs.any_changed == 'true'
         uses: ./.github/actions/setup-environment
         with:
-          node-version: '24'
+          node-version: '24.18.0'
+          github-packages-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build documentation site
         id: build
-        if: steps.changed-files.outputs.any_changed == 'true'
+        if: github.event_name == 'merge_group' || steps.changed-files.outputs.any_changed == 'true'
         run: pnpm run docs:site:build
         env:
           NODE_OPTIONS: '--max-old-space-size=8192'
 
       - name: Documentation build summary
-        if: steps.changed-files.outputs.any_changed == 'true'
+        if: github.event_name == 'merge_group' || steps.changed-files.outputs.any_changed == 'true'
         run: |
           if [ "${{ steps.build.outcome }}" = "failure" ]; then
             echo "::warning::Documentation build failed (pre-existing Docusaurus SSR issue). This does not block the PR."
@@ -475,9 +486,163 @@ jobs:
             echo "Documentation site built successfully with no broken links."
           fi
 
+  secret-scan:
+    name: Secret Scan
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR history
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+      - name: Install Gitleaks CLI
+        env:
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          archive="$RUNNER_TEMP/gitleaks.tar.gz"
+          curl --proto '=https' --tlsv1.2 -fsSL \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            -o "$archive"
+          echo "$GITLEAKS_SHA256  $archive" | sha256sum --check
+          tar -xzf "$archive" -C "$RUNNER_TEMP" gitleaks
+          mkdir -p "$RUNNER_TEMP/bin"
+          install "$RUNNER_TEMP/gitleaks" "$RUNNER_TEMP/bin/gitleaks"
+      - name: Scan introduced commits
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          "$RUNNER_TEMP/bin/gitleaks" git --no-banner --redact \
+            --log-opts="$BASE_SHA..$HEAD_SHA" .
+
+  postgres-scope:
+    name: Detect PostgreSQL Test Scope
+    runs-on: ubuntu-latest
+    outputs:
+      required: ${{ github.event_name == 'merge_group' && 'true' || steps.filter.outputs.postgres }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Detect PostgreSQL-sensitive changes
+        id: filter
+        if: github.event_name == 'pull_request'
+        uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3
+        with:
+          filters: |
+            postgres:
+              - '.github/actions/**'
+              - '.github/workflows/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'turbo.json'
+              - 'vitest.config.*'
+              - 'packages/sql/**'
+              - 'packages/utils/**'
+              - 'scripts/run-with-ci-postgres.mjs'
+
+  postgres-tests:
+    name: PostgreSQL Tests
+    needs: postgres-scope
+    if: needs.postgres-scope.outputs.required == 'true' && vars.CI_POSTGRES_ENABLED == 'true'
+    uses: ./.github/workflows/postgres-tests.yml
+    permissions:
+      contents: read
+      packages: read
+
+  publish-dry-run:
+    name: Publish Dry Run
+    if: github.event_name == 'merge_group' || vars.CI_MERGE_QUEUE_ENABLED != 'true'
+    uses: ./.github/workflows/publish-dry-run.yml
+    permissions:
+      contents: read
+      packages: read
+
+  required-ci:
+    name: Required CI
+    if: always()
+    needs:
+      - changeset-check
+      - validate-commits
+      - validate-workflows
+      - check-naming
+      - doc-coverage
+      - secret-scan
+      - postgres-scope
+      - postgres-tests
+      - test
+      - docs-build
+      - publish-dry-run
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Verify event-appropriate required job set
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REF: ${{ github.head_ref }}
+          MERGE_QUEUE_ENABLED: ${{ vars.CI_MERGE_QUEUE_ENABLED }}
+          CHANGESET: ${{ needs.changeset-check.result }}
+          COMMITS: ${{ needs.validate-commits.result }}
+          WORKFLOWS: ${{ needs.validate-workflows.result }}
+          NAMING: ${{ needs.check-naming.result }}
+          DOC_COVERAGE: ${{ needs.doc-coverage.result }}
+          SECRET_SCAN: ${{ needs.secret-scan.result }}
+          POSTGRES_SCOPE: ${{ needs.postgres-scope.result }}
+          POSTGRES_REQUIRED: ${{ needs.postgres-scope.outputs.required }}
+          POSTGRES_ENABLED: ${{ vars.CI_POSTGRES_ENABLED }}
+          POSTGRES: ${{ needs.postgres-tests.result }}
+          TEST: ${{ needs.test.result }}
+          DOCS: ${{ needs.docs-build.result }}
+          PACK: ${{ needs.publish-dry-run.result }}
+        run: |
+          require_success() {
+            if [ "$2" != success ]; then
+              echo "$1 must succeed, got: $2"
+              exit 1
+            fi
+          }
+
+          require_success 'PostgreSQL scope detection' "$POSTGRES_SCOPE"
+          require_success 'Validate Changes' "$TEST"
+          require_success 'Documentation Build' "$DOCS"
+
+          if [ "$POSTGRES_REQUIRED" = true ] && [ "$POSTGRES_ENABLED" = true ]; then
+            require_success 'PostgreSQL Tests' "$POSTGRES"
+          elif [ "$POSTGRES" != skipped ]; then
+            echo "PostgreSQL Tests should be skipped, got: $POSTGRES"
+            exit 1
+          fi
+
+          if [ "$EVENT_NAME" = pull_request ]; then
+            if [[ "$HEAD_REF" == renovate/* ]]; then
+              test "$CHANGESET" = skipped
+            else
+              require_success 'Changeset Check' "$CHANGESET"
+            fi
+            require_success 'Conventional Commits' "$COMMITS"
+            require_success 'Workflow Validation' "$WORKFLOWS"
+            require_success 'Naming Check' "$NAMING"
+            require_success 'Documentation Coverage' "$DOC_COVERAGE"
+            require_success 'Secret Scan' "$SECRET_SCAN"
+            if [ "$MERGE_QUEUE_ENABLED" = true ]; then
+              test "$PACK" = skipped
+            else
+              require_success 'Publish Dry Run' "$PACK"
+            fi
+          else
+            for result in "$CHANGESET" "$COMMITS" "$WORKFLOWS" "$NAMING" "$DOC_COVERAGE" "$SECRET_SCAN"; do
+              test "$result" = skipped
+            done
+            require_success 'Publish Dry Run' "$PACK"
+          fi
+
+          echo "Required CI passed for $EVENT_NAME"
+
   dependabot:
     name: Dependabot Automation
-    runs-on: arc-happyvertical
+    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'arc-happyvertical' }}
     needs: [test]
     if: |
       github.actor == 'dependabot[bot]' &&
@@ -502,7 +667,8 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
         with:
-          node-version: '24'
+          node-version: '24.18.0'
+          github-packages-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Dependabot metadata
         id: metadata
