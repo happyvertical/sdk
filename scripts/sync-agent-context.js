@@ -342,8 +342,22 @@ function loadLegacyMeta(rawText) {
 }
 
 function parseCatalogPackageNames(workspaceYaml) {
-  const matches = workspaceYaml.match(/'@happyvertical\/[^']+'/g) ?? [];
-  return matches.map((entry) => entry.replace(/'/g, '')).sort();
+  const packages = [];
+  let inCatalog = false;
+
+  for (const line of workspaceYaml.split('\n')) {
+    if (/^catalog:\s*$/.test(line)) {
+      inCatalog = true;
+      continue;
+    }
+    if (inCatalog && /^\S/.test(line)) break;
+    if (!inCatalog) continue;
+
+    const match = /^\s{2}'(@happyvertical\/[^']+)':/.exec(line);
+    if (match) packages.push(match[1]);
+  }
+
+  return packages.sort();
 }
 
 function formatInlineList(values) {

@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: arc-happyvertical
+    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'arc-happyvertical' }}
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -26,19 +26,10 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup-environment
         with:
-          node-version: '24'
-
-      - name: Setup Turborepo cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
-        with:
-          path: .turbo
-          key: |
-            ${{ runner.os }}-turbo-build-${{
-              hashFiles('**/pnpm-lock.yaml')
-            }}
-          restore-keys: |
-            ${{ runner.os }}-turbo-build-
-            ${{ runner.os }}-turbo-
+          node-version: '24.18.0'
+          github-packages-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build packages
         run: pnpm run build
+        env:
+          TURBO_FORCE: 'true'

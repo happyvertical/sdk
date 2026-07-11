@@ -1,0 +1,134 @@
+name: Publish Dry Run
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  PUBLISH_PACK_SHARD_COUNT: '2'
+
+jobs:
+  prepare:
+    name: Prepare Versioned Workspace
+    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'arc-happyvertical' }}
+    timeout-minutes: 30
+    outputs:
+      validate: ${{ steps.version.outputs.validate }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+      - name: Setup environment
+        uses: ./.github/actions/setup-environment
+        with:
+          github-packages-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Preview Changesets version and build
+        id: version
+        run: |
+          before=$(node -p "require('./package.json').version")
+          pnpm run changeset:auto
+          pnpm run changeset:version
+          after=$(node -p "require('./packages/utils/package.json').version")
+          if [ "$before" = "$after" ]; then
+            echo 'validate=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          AFTER_VERSION="$after" node -e "const fs=require('fs'); const p=require('./package.json'); p.version=process.env.AFTER_VERSION; fs.writeFileSync('package.json', JSON.stringify(p,null,2)+'\n')"
+          major=${after%%.*}
+          if [ "$major" -ge 1 ]; then
+            echo "Changesets preview reached $after; major releases require manual approval"
+            exit 1
+          fi
+          rm -rf .turbo
+          find packages -type d -name dist -prune -exec rm -rf {} +
+          TURBO_FORCE=true pnpm run build
+          pnpm run validate-build
+          echo 'validate=true' >> "$GITHUB_OUTPUT"
+      - name: Archive versioned workspace and build outputs
+        if: steps.version.outputs.validate == 'true'
+        run: |
+          {
+            printf '%s\n' package.json
+            find packages -type f \( -name package.json -o -name CHANGELOG.md -o -path '*/dist/*' \) -print
+          } | sort -u > publish-workspace-files
+          tar -cf publish-workspace.tar -T publish-workspace-files
+      - name: Upload versioned workspace
+        if: steps.version.outputs.validate == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: publish-dry-run-workspace
+          path: publish-workspace.tar
+          retention-days: 1
+          if-no-files-found: error
+
+  pack:
+    name: Pack Validation (${{ matrix.shard }}/2)
+    needs: prepare
+    if: needs.prepare.outputs.validate == 'true'
+    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'arc-happyvertical' }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        shard: [1, 2]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Download versioned workspace
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+        with:
+          name: publish-dry-run-workspace
+          path: release-workspace
+      - name: Extract versioned workspace
+        run: tar -xf release-workspace/publish-workspace.tar
+      - name: Setup environment
+        uses: ./.github/actions/setup-environment
+        with:
+          github-packages-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create and validate package tarballs
+        run: node scripts/validate-publish-packages.mjs
+        env:
+          PUBLISH_PACK_SHARD_INDEX: ${{ matrix.shard }}
+          PUBLISH_PACK_OUTPUT_DIR: publish-pack-output
+      - name: Upload verified tarballs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: publish-dry-run-pack-${{ matrix.shard }}
+          path: publish-pack-output/
+          retention-days: 1
+          if-no-files-found: error
+
+  summary:
+    name: Version And Pack Validation
+    needs: [prepare, pack]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout repository
+        if: needs.prepare.outputs.validate == 'true'
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Download verified tarballs
+        if: needs.prepare.outputs.validate == 'true'
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4
+        with:
+          pattern: publish-dry-run-pack-*
+          path: publish-pack-output
+          merge-multiple: true
+      - name: Verify complete artifact set
+        if: needs.prepare.outputs.validate == 'true'
+        run: node scripts/verify-publish-artifacts.mjs publish-pack-output
+      - name: Evaluate validation result
+        env:
+          PREPARE: ${{ needs.prepare.result }}
+          VALIDATE: ${{ needs.prepare.outputs.validate }}
+          PACK: ${{ needs.pack.result }}
+        run: |
+          test "$PREPARE" = success
+          if [ "$VALIDATE" = true ]; then test "$PACK" = success; fi

@@ -35,6 +35,7 @@ permissions:
 
 jobs:
   test:
+    if: vars.CI_MERGE_QUEUE_ENABLED != 'true'
     uses: ./.github/workflows/test.yml
     secrets: inherit
 
@@ -44,7 +45,7 @@ jobs:
     needs: test
     if: |
       always() &&
-      (needs.test.result == 'success' || needs.test.result == 'skipped')
+      (vars.CI_MERGE_QUEUE_ENABLED == 'true' || needs.test.result == 'success')
     uses: ./.github/workflows/publish.yml
     secrets:
       HAVE_RELEASE_APP_ID: ${{ secrets.HAVE_RELEASE_APP_ID }}
@@ -54,10 +55,13 @@ jobs:
   summary:
     needs: [test, publish]
     if: always()
-    runs-on: arc-happyvertical
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Workflow Summary
         run: |
+          # shellcheck disable=SC2086,SC2129
           echo "## Merge Orchestration Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           test_result="${{ needs.test.result || 'skipped (no test.yml)' }}"

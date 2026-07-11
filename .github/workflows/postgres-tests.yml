@@ -1,0 +1,74 @@
+name: PostgreSQL Tests
+
+on:
+  workflow_call:
+    inputs:
+      backend:
+        description: 'shared or service-container'
+        required: false
+        type: string
+        default: shared
+  workflow_dispatch:
+    inputs:
+      backend:
+        description: 'PostgreSQL backend'
+        required: true
+        type: choice
+        default: shared
+        options: [shared, service-container]
+  schedule:
+    - cron: '0 8 * * *'
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  shared:
+    name: Registered PostgreSQL Suites (Shared)
+    if: inputs.backend != 'service-container' && (github.event_name == 'workflow_dispatch' || vars.CI_POSTGRES_ENABLED == 'true')
+    runs-on: arc-happyvertical-node
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Setup environment
+        uses: ./.github/actions/setup-environment
+        with:
+          github-packages-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Remove abandoned databases older than six hours
+        run: node scripts/cleanup-ci-postgres.mjs
+      - name: Run registered PostgreSQL suites
+        run: pnpm turbo run test:postgres --concurrency=2
+        env:
+          NODE_ENV: test
+
+  service-container:
+    name: Registered PostgreSQL Suites (Fallback)
+    if: github.event_name == 'workflow_dispatch' && inputs.backend == 'service-container'
+    runs-on: arc-happyvertical
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18-alpine@sha256:52098013b4b64a746626437d38afc03cabff6cdeb4d3d92e2342aa95f0ce56ea
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Setup environment
+        uses: ./.github/actions/setup-environment
+        with:
+          github-packages-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run registered PostgreSQL suites
+        run: pnpm turbo run test:postgres --concurrency=2
+        env:
+          CI_POSTGRES_BASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          NODE_ENV: test

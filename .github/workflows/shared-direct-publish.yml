@@ -31,7 +31,7 @@ on:
         description: 'Node.js version to use'
         required: false
         type: string
-        default: '24'
+        default: '24.18.0'
       registry-url:
         description: 'NPM registry URL'
         required: false
@@ -76,7 +76,7 @@ permissions:
 jobs:
   release:
     name: Version and Publish
-    runs-on: arc-happyvertical
+    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'arc-happyvertical' }}
     timeout-minutes: 20
     outputs:
       published: ${{ steps.publish.outputs.published }}
@@ -114,6 +114,7 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          # shellcheck disable=SC2086,SC2094,SC2129
           set -euo pipefail
 
           if [ -z "${NPM_TOKEN:-}" ]; then
@@ -130,14 +131,6 @@ jobs:
           npm config set "${registry_auth_host}:_authToken" "$NPM_TOKEN" --location=user
           npm whoami --registry "$registry" >/dev/null
           echo "✅ npm publish auth verified"
-
-      - name: Setup Turborepo cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
-        with:
-          path: .turbo
-          key: ${{ runner.os }}-turbo-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-turbo-
 
       - name: Configure Git
         run: |
@@ -470,6 +463,7 @@ jobs:
       - name: Check if version was published
         id: check_published
         run: |
+          # shellcheck disable=SC2086,SC2129
           # Pass through the published status from the release step
           echo "published=${{ steps.changesets_release.outputs.published || 'false' }}" >> $GITHUB_OUTPUT
           echo "version=${{ steps.changesets_release.outputs.version || '' }}" >> $GITHUB_OUTPUT
@@ -478,14 +472,17 @@ jobs:
       - name: Set outputs
         id: publish
         run: |
+          # shellcheck disable=SC2086
           echo "published=${{ steps.check_published.outputs.published }}" >> $GITHUB_OUTPUT
 
       - name: Set version output
         id: get_version
         run: |
+          # shellcheck disable=SC2086
           echo "version=${{ steps.check_published.outputs.version }}" >> $GITHUB_OUTPUT
 
       - name: Set reason output
         id: get_reason
         run: |
+          # shellcheck disable=SC2086
           echo "reason=${{ steps.check_published.outputs.reason }}" >> $GITHUB_OUTPUT

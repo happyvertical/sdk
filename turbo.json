@@ -1,6 +1,7 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "tui",
+  "globalPassThroughEnv": ["PUBLISH_PACK_OUTPUT_DIR"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
@@ -14,7 +15,7 @@
       "outputs": ["dist/**", "build/**"]
     },
     "test": {
-      "dependsOn": ["build"],
+      "dependsOn": ["^build"],
       "inputs": ["src/**", "test/**", "**/*.test.ts", "**/*.spec.ts", "package.json"],
       "outputs": ["coverage/**"]
     },
@@ -23,7 +24,26 @@
       "persistent": true
     },
     "test:optional": {
-      "dependsOn": ["build"],
+      "dependsOn": ["^build"],
+      "cache": false
+    },
+    "test:postgres": {
+      "dependsOn": ["^build"],
+      "env": [
+        "CI_POSTGRES_BASE_URL",
+        "CI_POSTGRES_BASE_URL_FILE",
+        "DATABASE_URL",
+        "TEST_DB_URL",
+        "TEST_DB_ADAPTER",
+        "HAVE_SQL_URL",
+        "SQLOO_URL",
+        "PGHOST",
+        "PGPORT",
+        "PGUSER",
+        "PGPASSWORD",
+        "PGDATABASE",
+        "NODE_ENV"
+      ],
       "cache": false
     },
     "lint": {

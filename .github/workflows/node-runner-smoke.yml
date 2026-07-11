@@ -1,0 +1,43 @@
+name: Node Runner Smoke Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  smoke:
+    name: Node Runner Shadow Validation
+    runs-on: arc-happyvertical-node
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Verify runner contract
+        run: |
+          set -euo pipefail
+          test "$(node --version)" = 'v24.18.0'
+          test "$(pnpm --version)" = '11.11.0'
+          command -v psql
+          test ! -S /var/run/docker.sock
+          test -r "$CI_POSTGRES_BASE_URL_FILE"
+
+      - name: Setup environment
+        uses: ./.github/actions/setup-environment
+        with:
+          github-packages-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify node-local hardlink layout
+        run: |
+          set -euo pipefail
+          test "$(stat -c '%d' "$PNPM_STORE_DIR")" = "$(stat -c '%d' "$GITHUB_WORKSPACE")"
+          linked_file=$(find node_modules/.pnpm -type f -links +1 -print -quit)
+          test -n "$linked_file"
+          test "$(stat -c '%h' "$linked_file")" -gt 1
+          echo "Verified installed hardlink: $linked_file"
+
+      - name: Verify disposable PostgreSQL lifecycle
+        run: node scripts/run-with-ci-postgres.mjs -- psql --command 'SELECT current_database()'
