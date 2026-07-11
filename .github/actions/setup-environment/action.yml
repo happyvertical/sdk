@@ -76,10 +76,12 @@ runs:
         registry_host="${registry_host#https://}"
         registry_host="${registry_host#http://}"
         registry_host="${registry_host%/}"
-        touch "$HOME/.npmrc"
+        user_config="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+        mkdir -p "$(dirname "$user_config")"
+        touch "$user_config"
         npm config set registry "${{ inputs.registry-url }}" --location=user
         printf '//%s/:_authToken=%s\n//%s/:always-auth=true\n' \
-          "$registry_host" "$NODE_AUTH_TOKEN" "$registry_host" >> "$HOME/.npmrc"
+          "$registry_host" "$NODE_AUTH_TOKEN" "$registry_host" >> "$user_config"
 
     - name: Configure GitHub Packages auth
       if: inputs.github-packages-token != ''
@@ -87,11 +89,13 @@ runs:
       env:
         NODE_AUTH_TOKEN: ${{ inputs.github-packages-token }}
       run: |
-        touch "$HOME/.npmrc"
+        user_config="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
+        mkdir -p "$(dirname "$user_config")"
+        touch "$user_config"
         printf '%s\n' \
           '@happyvertical:registry=https://npm.pkg.github.com' \
           "//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}" \
-          '//npm.pkg.github.com/:always-auth=true' >> "$HOME/.npmrc"
+          '//npm.pkg.github.com/:always-auth=true' >> "$user_config"
 
     - name: Check pnpm
       id: pnpm-check
