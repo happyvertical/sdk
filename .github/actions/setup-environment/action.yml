@@ -20,7 +20,7 @@ inputs:
     required: false
     default: ''
   github-packages-token:
-    description: 'Authentication token for GitHub Packages installs'
+    description: 'GitHub Packages token override; defaults to the workflow token'
     required: false
     default: ''
 
@@ -84,10 +84,10 @@ runs:
           "$registry_host" "$NODE_AUTH_TOKEN" "$registry_host" >> "$user_config"
 
     - name: Configure GitHub Packages auth
-      if: inputs.github-packages-token != ''
+      if: inputs.github-packages-token != '' || github.token != ''
       shell: bash
       env:
-        NODE_AUTH_TOKEN: ${{ inputs.github-packages-token }}
+        NODE_AUTH_TOKEN: ${{ inputs.github-packages-token || github.token }}
       run: |
         user_config="${NPM_CONFIG_USERCONFIG:-$HOME/.npmrc}"
         mkdir -p "$(dirname "$user_config")"
