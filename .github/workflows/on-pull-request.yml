@@ -3,13 +3,33 @@ name: Pull Request Validation
 on:
   pull_request:
     branches: [main, dependency-updates]
+    types: [opened, edited, synchronize, reopened, ready_for_review, converted_to_draft, labeled, unlabeled]
   merge_group:
     types: [checks_requested]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Pull request number to recheck after a claim-only transition
+        required: true
+        type: number
 
 # Cancel superseded runs when new commits are pushed.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: >-
+    ${{ github.workflow }}-${{
+      github.event.pull_request.number ||
+      inputs.pr_number ||
+      github.event.merge_group.head_sha ||
+      github.ref
+    }}-${{
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+      !contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
+      !(github.event.action == 'edited' && github.event.changes.base != null))) &&
+      'lifecycle' ||
+      'validation'
+    }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -17,11 +37,74 @@ permissions:
   packages: read
 
 jobs:
+  # hv-agent-policy:start
+  lifecycle:
+    name: lifecycle
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'pull_request' ||
+      github.event_name == 'merge_group'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
+      packages: read
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: oras-project/setup-oras@22ce207df3b08e061f537244349aac6ae1d214f6 # v1
+      - name: Load pinned policy runtime
+        env:
+          POLICY_ARTIFACT: ${{ vars.AGENT_POLICY_ARTIFACT }}
+        run: |
+          case "$POLICY_ARTIFACT" in
+            ghcr.io/*@sha256:*) ;;
+            *) echo 'AGENT_POLICY_ARTIFACT must be an immutable GHCR digest' >&2; exit 1 ;;
+          esac
+          policy_dir="$RUNNER_TEMP/hv-policy"
+          rm -rf "$policy_dir"
+          mkdir -p "$policy_dir"
+          oras pull "$POLICY_ARTIFACT" -o "$policy_dir"
+          archive="$policy_dir/agent-policy.tar.gz"
+          test -f "$archive" || { echo 'policy artifact is missing agent-policy.tar.gz' >&2; exit 1; }
+          python3 - "$archive" <<'PY'
+          import pathlib
+          import sys
+          import tarfile
+
+          with tarfile.open(sys.argv[1], "r:gz") as archive:
+              for member in archive.getmembers():
+                  path = pathlib.PurePosixPath(member.name)
+                  if path.is_absolute() or ".." in path.parts or member.issym() or member.islnk():
+                      raise SystemExit(f"unsafe policy archive member: {member.name}")
+          PY
+          tar -xzf "$archive" -C "$policy_dir"
+          echo "HV_POLICY_DIR=$policy_dir" >> "$GITHUB_ENV"
+      - name: Validate lifecycle
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
+          MERGE_GROUP_HEAD_SHA: ${{ github.event.merge_group.head_sha }}
+          MERGE_GROUP_HEAD_REF: ${{ github.event.merge_group.head_ref }}
+        run: |
+          set -euo pipefail
+          numbers_file="$RUNNER_TEMP/hv-agent-lifecycle-prs"
+          "$HV_POLICY_DIR/scripts/hv-agent-lifecycle-prs" > "$numbers_file"
+          while IFS= read -r number; do
+            python3 "$HV_POLICY_DIR/scripts/hv-agent" check-pr "$number"
+          done < "$numbers_file"
+  # hv-agent-policy:end
+
   changeset-check:
     name: Check for Changeset
     runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'arc-happyvertical' }}
     if: |
       github.event_name == 'pull_request' &&
+      (contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) ||
+      (github.event.action == 'edited' && github.event.changes.base != null)) &&
       !startsWith(github.event.pull_request.head.ref, 'renovate/')
 
     steps:
@@ -143,7 +226,10 @@ jobs:
 
   validate-commits:
     name: Validate Conventional Commits
-    if: github.event_name == 'pull_request'
+    if: >-
+      github.event_name == 'pull_request' &&
+      (contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) ||
+      (github.event.action == 'edited' && github.event.changes.base != null))
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -298,7 +384,10 @@ jobs:
 
   validate-workflows:
     name: Validate Workflow Files
-    if: github.event_name == 'pull_request'
+    if: >-
+      github.event_name == 'pull_request' &&
+      (contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) ||
+      (github.event.action == 'edited' && github.event.changes.base != null))
     runs-on: ubuntu-latest
 
     steps:
@@ -346,7 +435,10 @@ jobs:
 
   check-naming:
     name: Check for stale @have/ references
-    if: github.event_name == 'pull_request'
+    if: >-
+      github.event_name == 'pull_request' &&
+      (contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) ||
+      (github.event.action == 'edited' && github.event.changes.base != null))
     runs-on: ubuntu-latest
 
     steps:
@@ -380,7 +472,10 @@ jobs:
 
   doc-coverage:
     name: Check documentation coverage
-    if: github.event_name == 'pull_request'
+    if: >-
+      github.event_name == 'pull_request' &&
+      (contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) ||
+      (github.event.action == 'edited' && github.event.changes.base != null))
     runs-on: ubuntu-latest
 
     steps:
@@ -436,6 +531,11 @@ jobs:
 
   test:
     name: Validate Changes
+    if: >-
+      github.event_name == 'merge_group' ||
+      (github.event_name == 'pull_request' &&
+      (contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) ||
+      (github.event.action == 'edited' && github.event.changes.base != null)))
     uses: ./.github/workflows/test.yml
     with:
       mode: ${{ github.event_name == 'merge_group' && 'full' || (vars.CI_MERGE_QUEUE_ENABLED == 'true' && 'affected' || 'full') }}
@@ -445,6 +545,11 @@ jobs:
 
   docs-build:
     name: Validate Documentation Build
+    if: >-
+      github.event_name == 'merge_group' ||
+      (github.event_name == 'pull_request' &&
+      (contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) ||
+      (github.event.action == 'edited' && github.event.changes.base != null)))
     runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'arc-happyvertical' }}
 
     steps:
@@ -488,7 +593,10 @@ jobs:
 
   secret-scan:
     name: Secret Scan
-    if: github.event_name == 'pull_request'
+    if: >-
+      github.event_name == 'pull_request' &&
+      (contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) ||
+      (github.event.action == 'edited' && github.event.changes.base != null))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR history
@@ -518,6 +626,11 @@ jobs:
 
   postgres-scope:
     name: Detect PostgreSQL Test Scope
+    if: >-
+      github.event_name == 'merge_group' ||
+      (github.event_name == 'pull_request' &&
+      (contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) ||
+      (github.event.action == 'edited' && github.event.changes.base != null)))
     runs-on: ubuntu-latest
     outputs:
       required: ${{ github.event_name == 'merge_group' && 'true' || steps.filter.outputs.postgres }}
@@ -545,7 +658,13 @@ jobs:
   postgres-tests:
     name: PostgreSQL Tests
     needs: postgres-scope
-    if: needs.postgres-scope.outputs.required == 'true' && vars.CI_POSTGRES_ENABLED == 'true'
+    if: >-
+      (github.event_name == 'merge_group' ||
+      (github.event_name == 'pull_request' &&
+      (contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) ||
+      (github.event.action == 'edited' && github.event.changes.base != null)))) &&
+      needs.postgres-scope.outputs.required == 'true' &&
+      vars.CI_POSTGRES_ENABLED == 'true'
     uses: ./.github/workflows/postgres-tests.yml
     permissions:
       contents: read
@@ -553,15 +672,33 @@ jobs:
 
   publish-dry-run:
     name: Publish Dry Run
-    if: github.event_name == 'merge_group' || vars.CI_MERGE_QUEUE_ENABLED != 'true'
+    if: >-
+      (github.event_name == 'merge_group' ||
+      (github.event_name == 'pull_request' &&
+      (contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) ||
+      (github.event.action == 'edited' && github.event.changes.base != null)))) &&
+      (github.event_name == 'merge_group' || vars.CI_MERGE_QUEUE_ENABLED != 'true')
     uses: ./.github/workflows/publish-dry-run.yml
     permissions:
       contents: read
       packages: read
 
   required-ci:
-    name: Required CI
-    if: always()
+    name: >-
+      ${{
+        (github.event_name == 'merge_group' ||
+        (github.event_name == 'pull_request' &&
+        (contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) ||
+        (github.event.action == 'edited' && github.event.changes.base != null)))) &&
+        'Required CI' ||
+        'Lifecycle Required CI Event'
+      }}
+    if: >-
+      always() &&
+      (github.event_name == 'merge_group' ||
+      (github.event_name == 'pull_request' &&
+      (contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) ||
+      (github.event.action == 'edited' && github.event.changes.base != null))))
     needs:
       - changeset-check
       - validate-commits
