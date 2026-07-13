@@ -481,6 +481,44 @@ describe('inspectZipManifest', () => {
     expect(error.entryPath).toBe(name);
   });
 
+  it.each([
+    { creator: 'DOS', versionMadeBy: 0x0014 },
+    { creator: 'NTFS', versionMadeBy: 0x0a14 },
+  ])('rejects spoofed Unix file-type bits from a $creator creator', ({
+    versionMadeBy,
+  }) => {
+    const error = inspectError(
+      buildZip([
+        {
+          name: 'folder',
+          externalAttributes: (0o040755 << 16) >>> 0,
+          versionMadeBy,
+        },
+        { name: 'folder/file.txt' },
+      ]),
+    );
+
+    expect(error).toBeInstanceOf(UnsupportedZipFeatureError);
+    expect((error as UnsupportedZipFeatureError).feature).toBe(
+      'ambiguous-metadata',
+    );
+    expect(error.entryPath).toBe('folder');
+  });
+
+  it('honors Unix file-type bits from a Darwin creator', () => {
+    const manifest = inspectZipManifest(
+      buildZip([
+        {
+          name: 'folder',
+          externalAttributes: (0o040755 << 16) >>> 0,
+          versionMadeBy: 0x1314,
+        },
+      ]),
+    );
+
+    expect(manifest.entries[0]?.type).toBe('directory');
+  });
+
   it('rejects ASi Unix metadata that could override the entry file type', () => {
     const asiUnixExtra = extraField(0x756e, new Uint8Array(10));
 
