@@ -7,6 +7,7 @@
  */
 
 const CENTRAL_DIRECTORY_SIGNATURE = 0x02014b50;
+const DATA_DESCRIPTOR_SIGNATURE = 0x08074b50;
 const END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06054b50;
 const LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50;
 const ZIP64_END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06064b50;
@@ -36,6 +37,7 @@ const UNIX_DIRECTORY_TYPE = 0o040000;
 const UNIX_REGULAR_FILE_TYPE = 0o100000;
 const UNIX_SYMLINK_TYPE = 0o120000;
 const DOS_DIRECTORY_ATTRIBUTE = 0x10;
+const WINDOWS_REPARSE_POINT_ATTRIBUTE = 0x400;
 
 const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
 
@@ -119,6 +121,7 @@ export type ZipUnsafeEntryReason =
   | 'nul-byte'
   | 'path-conflict'
   | 'path-traversal'
+  | 'reparse-point'
   | 'special-file'
   | 'symlink';
 
@@ -194,9 +197,10 @@ interface ResolvedZipManifestLimits {
  *
  * ZIP64, encrypted, and multi-disk archives are rejected. Entry paths are
  * normalized and checked for traversal, absolute/drive-qualified forms, NTFS
- * alternate data streams, NUL bytes, symlinks, Unix special files, and
- * post-normalization collisions. The declared entry sizes and end-record
- * validation work are bounded before a manifest is returned.
+ * alternate data streams, NUL bytes, Unix symlinks and special files, Windows
+ * reparse points, and post-normalization collisions. Local entry ranges,
+ * declared entry sizes, and end-record validation work are bounded and
+ * cross-checked before a manifest is returned.
  */
 export function inspectZipManifest(
   data: Uint8Array,
@@ -240,6 +244,7 @@ export function inspectZipManifest(
   }
 
   const entries: ZipManifestEntry[] = [];
+  const localEntryRanges: LocalEntryRange[] = [];
   const normalizedPaths = new Set<string>();
   let totalUncompressedBytes = 0;
   let fileCount = 0;
@@ -262,6 +267,7 @@ export function inspectZipManifest(
 
     const flags = view.getUint16(offset + 8, true);
     const compressionMethod = view.getUint16(offset + 10, true);
+    const crc32 = view.getUint32(offset + 16, true);
     const compressedSize = view.getUint32(offset + 20, true);
     const uncompressedSize = view.getUint32(offset + 24, true);
     const fileNameLength = view.getUint16(offset + 28, true);
@@ -312,6 +318,13 @@ export function inspectZipManifest(
 
     const unixMode = (externalAttributes >>> 16) & 0xffff;
     const unixFileType = unixMode & UNIX_FILE_TYPE_MASK;
+    if ((externalAttributes & WINDOWS_REPARSE_POINT_ATTRIBUTE) !== 0) {
+      throw new UnsafeZipEntryError(
+        'reparse-point',
+        rawPath,
+        `ZIP entry "${rawPath}" is a Windows reparse point, which is not allowed.`,
+      );
+    }
     if (unixFileType === UNIX_SYMLINK_TYPE) {
       throw new UnsafeZipEntryError(
         'symlink',
@@ -369,8 +382,9 @@ export function inspectZipManifest(
 
     normalizedPaths.add(path);
 
-    validateLocalHeader(data, view, {
+    const localDataEnd = validateLocalHeader(data, view, {
       centralDirectoryOffset: endRecord.centralDirectoryOffset,
+      centralCrc32: crc32,
       centralFlags: flags,
       centralNameStart: nameStart,
       centralNameEnd: nameEnd,
@@ -378,6 +392,11 @@ export function inspectZipManifest(
       compressionMethod,
       localHeaderOffset,
       uncompressedSize,
+    });
+    localEntryRanges.push({
+      end: localDataEnd,
+      path,
+      start: localHeaderOffset,
     });
 
     if (uncompressedSize > resolvedLimits.maxEntryUncompressedBytes) {
@@ -423,6 +442,7 @@ export function inspectZipManifest(
     );
   }
 
+  assertNoOverlappingLocalEntryRanges(localEntryRanges);
   assertNoFileDescendantConflicts(entries);
 
   return {
@@ -432,6 +452,30 @@ export function inspectZipManifest(
     directoryCount,
     totalUncompressedBytes,
   };
+}
+
+interface LocalEntryRange {
+  start: number;
+  end: number;
+  path: string;
+}
+
+function assertNoOverlappingLocalEntryRanges(
+  ranges: readonly LocalEntryRange[],
+): void {
+  const sortedRanges = [...ranges].sort(
+    (left, right) => left.start - right.start || left.end - right.end,
+  );
+
+  for (let index = 1; index < sortedRanges.length; index += 1) {
+    const previous = sortedRanges[index - 1];
+    const current = sortedRanges[index];
+    if (current.start < previous.end) {
+      throw new InvalidZipArchiveError(
+        `ZIP local entry ranges for "${previous.path}" and "${current.path}" overlap.`,
+      );
+    }
+  }
 }
 
 function assertNoFileDescendantConflicts(
@@ -700,6 +744,7 @@ function validateLocalHeader(
   view: DataView,
   entry: {
     centralDirectoryOffset: number;
+    centralCrc32: number;
     centralFlags: number;
     centralNameStart: number;
     centralNameEnd: number;
@@ -708,7 +753,7 @@ function validateLocalHeader(
     localHeaderOffset: number;
     uncompressedSize: number;
   },
-): void {
+): number {
   assertRange(
     entry.localHeaderOffset,
     LOCAL_FILE_HEADER_SIZE,
@@ -730,6 +775,7 @@ function validateLocalHeader(
     entry.localHeaderOffset + 8,
     true,
   );
+  const localCrc32 = view.getUint32(entry.localHeaderOffset + 14, true);
   const localCompressedSize = view.getUint32(
     entry.localHeaderOffset + 18,
     true,
@@ -785,6 +831,7 @@ function validateLocalHeader(
 
   if ((localFlags & DATA_DESCRIPTOR_FLAG) === 0) {
     if (
+      localCrc32 !== entry.centralCrc32 ||
       localCompressedSize !== entry.compressedSize ||
       localUncompressedSize !== entry.uncompressedSize
     ) {
@@ -792,6 +839,16 @@ function validateLocalHeader(
         'ZIP local file sizes do not match the central-directory entry.',
       );
     }
+  } else if (
+    (localCrc32 !== 0 && localCrc32 !== entry.centralCrc32) ||
+    (localCompressedSize !== 0 &&
+      localCompressedSize !== entry.compressedSize) ||
+    (localUncompressedSize !== 0 &&
+      localUncompressedSize !== entry.uncompressedSize)
+  ) {
+    throw new InvalidZipArchiveError(
+      'ZIP local file metadata does not match its data descriptor.',
+    );
   }
 
   if (entry.compressedSize > entry.centralDirectoryOffset - localExtraEnd) {
@@ -799,6 +856,60 @@ function validateLocalHeader(
       'ZIP entry body is truncated or overlaps the central directory.',
     );
   }
+
+  const localDataEnd = localExtraEnd + entry.compressedSize;
+  if ((localFlags & DATA_DESCRIPTOR_FLAG) !== 0) {
+    return validateDataDescriptor(view, localDataEnd, entry);
+  }
+  return localDataEnd;
+}
+
+function validateDataDescriptor(
+  view: DataView,
+  offset: number,
+  entry: {
+    centralDirectoryOffset: number;
+    centralCrc32: number;
+    compressedSize: number;
+    uncompressedSize: number;
+  },
+): number {
+  assertRange(
+    offset,
+    12,
+    entry.centralDirectoryOffset,
+    'ZIP data descriptor is missing or truncated.',
+  );
+
+  const firstValue = view.getUint32(offset, true);
+  const unsignedMatches =
+    firstValue === entry.centralCrc32 &&
+    view.getUint32(offset + 4, true) === entry.compressedSize &&
+    view.getUint32(offset + 8, true) === entry.uncompressedSize;
+
+  if (firstValue !== DATA_DESCRIPTOR_SIGNATURE) {
+    if (unsignedMatches) {
+      return offset + 12;
+    }
+    throw new InvalidZipArchiveError(
+      'ZIP data descriptor does not match its central-directory entry.',
+    );
+  }
+
+  const hasSignedRange = 16 <= entry.centralDirectoryOffset - offset;
+  const signedMatches =
+    hasSignedRange &&
+    view.getUint32(offset + 4, true) === entry.centralCrc32 &&
+    view.getUint32(offset + 8, true) === entry.compressedSize &&
+    view.getUint32(offset + 12, true) === entry.uncompressedSize;
+
+  if (signedMatches === unsignedMatches) {
+    throw new InvalidZipArchiveError(
+      'ZIP data descriptor is ambiguous or does not match its central-directory entry.',
+    );
+  }
+
+  return signedMatches ? offset + 16 : offset + 12;
 }
 
 function assertExtraFields(
