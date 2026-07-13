@@ -133,8 +133,12 @@ must collectively cover every byte before the central directory, so archive
 preambles, padding gaps, and local entries omitted from the central directory
 are rejected. Signed and unsigned 32-bit data descriptors are cross-checked
 against their central-directory entry; missing, truncated, or inconsistent
-descriptors are rejected. Entry names use strict UTF-8 decoding whether or not
-the UTF-8 flag is set, so common macOS ZIPs with valid names remain compatible.
+descriptors are rejected. Data descriptors on compressed entries are also
+rejected because their payload boundary cannot be verified without
+decompression; classic descriptors remain supported for stored entries. Entry
+names use strict UTF-8 decoding whether or not the UTF-8 flag is set, preserve
+a leading UTF-8 BOM as part of the path, and keep common macOS ZIPs with valid
+names compatible.
 PKWARE alternate-encoding, Info-ZIP, and Xceed path extra fields are rejected
 so an extractor cannot select a different path or character encoding from the
 one inspected. PKWARE and ASi Unix extra fields are likewise rejected because

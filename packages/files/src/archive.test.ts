@@ -766,6 +766,31 @@ describe('inspectZipManifest', () => {
     expect(inspectZipManifest(data).entries[0]?.path).toBe('crc-collision.bin');
   });
 
+  it('rejects compressed entries whose data-descriptor boundary requires decompression', () => {
+    const error = inspectError(
+      buildZip([
+        {
+          name: 'streamed-deflate.bin',
+          body: new Uint8Array([0x03, 0x00]),
+          compressedSize: 2,
+          compressionMethod: 8,
+          dataDescriptor: 'signed',
+          flags: 0x0008,
+          uncompressedSize: 0,
+        },
+      ]),
+    );
+
+    expect(error).toBeInstanceOf(UnsupportedZipFeatureError);
+    expect((error as UnsupportedZipFeatureError).feature).toBe(
+      'ambiguous-metadata',
+    );
+    expect((error as UnsupportedZipFeatureError).entryPath).toBe(
+      'streamed-deflate.bin',
+    );
+    expect(error.message).toContain('payload boundary');
+  });
+
   it('rejects missing data descriptors', () => {
     const error = inspectError(
       buildZip([
@@ -1057,6 +1082,13 @@ describe('inspectZipManifest', () => {
           ?.path,
       ).toBe('café.txt');
     }
+  });
+
+  it('preserves a leading UTF-8 BOM as part of an entry path', () => {
+    expect(
+      inspectZipManifest(buildZip([{ name: '\ufeffsafe.txt' }])).entries[0]
+        ?.path,
+    ).toBe('\ufeffsafe.txt');
   });
 
   it('rejects PKWARE alternate filename encodings in local and central metadata', () => {

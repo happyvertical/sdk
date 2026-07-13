@@ -44,7 +44,10 @@ const DARWIN_CREATOR_SYSTEM = 19;
 const WINDOWS_RESERVED_DEVICE_BASENAME =
   /^(?:aux|con|conin\$|conout\$|nul|prn|com[1-9\u00b9\u00b2\u00b3]|lpt[1-9\u00b9\u00b2\u00b3])$/iu;
 
-const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
+const utf8Decoder = new TextDecoder('utf-8', {
+  fatal: true,
+  ignoreBOM: true,
+});
 
 /** Limits applied while inspecting ZIP metadata. */
 export interface ZipManifestLimits {
@@ -423,6 +426,7 @@ export function inspectZipManifest(
       compressedSize,
       compressionMethod,
       localHeaderOffset,
+      rawPath,
       uncompressedSize,
     });
     localEntryRanges.push({
@@ -814,6 +818,7 @@ function validateLocalHeader(
     compressedSize: number;
     compressionMethod: number;
     localHeaderOffset: number;
+    rawPath: string;
     uncompressedSize: number;
   },
 ): number {
@@ -864,6 +869,17 @@ function validateLocalHeader(
   ) {
     throw new InvalidZipArchiveError(
       'ZIP local file header does not match its central-directory entry.',
+    );
+  }
+
+  if (
+    (localFlags & DATA_DESCRIPTOR_FLAG) !== 0 &&
+    entry.compressionMethod !== 0
+  ) {
+    throw new UnsupportedZipFeatureError(
+      'ambiguous-metadata',
+      `Compressed ZIP entry "${entry.rawPath}" uses a data descriptor whose payload boundary cannot be verified without decompression.`,
+      entry.rawPath,
     );
   }
 
