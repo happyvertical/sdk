@@ -26,7 +26,7 @@ concurrency:
       (github.event_name == 'pull_request' &&
       !contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
       !(github.event.action == 'edited' && github.event.changes.base != null))) &&
-      format('lifecycle-{0}', github.run_id) ||
+      'lifecycle' ||
       'validation'
     }}
   cancel-in-progress: true
