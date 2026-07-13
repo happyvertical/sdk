@@ -22,6 +22,11 @@ concurrency:
       github.event.merge_group.head_sha ||
       github.ref
     }}-${{
+      (github.event_name == 'pull_request' &&
+      github.event.action == 'edited' &&
+      github.event.changes.title != null &&
+      github.event.changes.base == null) &&
+      'title' ||
       (github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'pull_request' &&
       !contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
