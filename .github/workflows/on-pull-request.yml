@@ -686,12 +686,7 @@ jobs:
 
   validation-gate:
     name: >-
-      ${{ (github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' &&
-      !contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
-      !(github.event.action == 'edited' && github.event.changes.base != null))) &&
-      'Required CI / inactive validation' ||
-      'Required CI / validation' }}
+      Required CI / ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && !contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) && !(github.event.action == 'edited' && github.event.changes.base != null))) && 'inactive validation' || 'validation' }}
     if: >-
       always() &&
       (github.event_name == 'merge_group' ||
