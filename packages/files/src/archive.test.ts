@@ -709,51 +709,27 @@ describe('inspectZipManifest', () => {
     expect(error.message).toContain('not described by a central-directory');
   });
 
-  it('includes validated data descriptors in overlap detection', () => {
-    const embeddedDescriptor = buildDataDescriptor(0, 56, 56, true);
-    const error = inspectError(
-      buildZip([
-        {
-          name: 'first.bin',
-          compressedSize: 56,
-          flags: 0x0008,
-          uncompressedSize: 56,
-        },
-        {
-          name: 'second.bin',
-          body: embeddedDescriptor,
-        },
-      ]),
-    );
-
-    expect(error).toBeInstanceOf(InvalidZipArchiveError);
-    expect(error.message).toContain('local entry ranges');
-    expect(error.message).toContain('overlap');
-  });
-
   it.each([
-    'signed',
-    'unsigned',
-  ] as const)('accepts and bounds %s classic data descriptors', (dataDescriptor) => {
-    const data = buildZip([
+    [
+      'signed stored',
       {
-        name: 'streamed.bin',
+        name: 'signed-stored.bin',
         body: new Uint8Array([1, 2, 3]),
-        crc32: 0x55bc801d,
-        dataDescriptor,
+        dataDescriptor: 'signed',
         flags: 0x0008,
       },
-      { name: 'next.txt' },
-    ]);
-
-    expect(inspectZipManifest(data).entries.map(({ path }) => path)).toEqual([
-      'streamed.bin',
-      'next.txt',
-    ]);
-  });
-
-  it('accepts an unsigned data descriptor whose CRC equals the optional signature', () => {
-    const data = buildZip([
+    ],
+    [
+      'unsigned stored',
+      {
+        name: 'unsigned-stored.bin',
+        body: new Uint8Array([1, 2, 3]),
+        dataDescriptor: 'unsigned',
+        flags: 0x0008,
+      },
+    ],
+    [
+      'stored CRC/signature collision',
       {
         name: 'crc-collision.bin',
         body: new Uint8Array([1, 2, 3]),
@@ -761,50 +737,50 @@ describe('inspectZipManifest', () => {
         dataDescriptor: 'unsigned',
         flags: 0x0008,
       },
-    ]);
-
-    expect(inspectZipManifest(data).entries[0]?.path).toBe('crc-collision.bin');
-  });
-
-  it('rejects compressed entries whose data-descriptor boundary requires decompression', () => {
-    const error = inspectError(
-      buildZip([
-        {
-          name: 'streamed-deflate.bin',
-          body: new Uint8Array([0x03, 0x00]),
-          compressedSize: 2,
-          compressionMethod: 8,
-          dataDescriptor: 'signed',
-          flags: 0x0008,
-          uncompressedSize: 0,
-        },
-      ]),
-    );
+    ],
+    [
+      'missing stored',
+      {
+        name: 'missing-stored.bin',
+        body: new Uint8Array([1, 2, 3]),
+        dataDescriptor: 'missing',
+        flags: 0x0008,
+      },
+    ],
+    [
+      'signed deflate',
+      {
+        name: 'streamed-deflate.bin',
+        body: new Uint8Array([0x03, 0x00]),
+        compressionMethod: 8,
+        dataDescriptor: 'signed',
+        flags: 0x0008,
+        uncompressedSize: 0,
+      },
+    ],
+    [
+      'stored early-boundary smuggling',
+      {
+        name: 'smuggled-stored.bin',
+        body: concatenate([
+          buildDataDescriptor(0, 0, 0, true),
+          new Uint8Array([0x50, 0x4b, 0x03, 0x04]),
+        ]),
+        dataDescriptor: 'signed',
+        flags: 0x0008,
+      },
+    ],
+  ] satisfies Array<
+    [string, ZipFixtureEntry]
+  >)('rejects %s data descriptors as ambiguous metadata', (_label, entry) => {
+    const error = inspectError(buildZip([entry]));
 
     expect(error).toBeInstanceOf(UnsupportedZipFeatureError);
     expect((error as UnsupportedZipFeatureError).feature).toBe(
       'ambiguous-metadata',
     );
-    expect((error as UnsupportedZipFeatureError).entryPath).toBe(
-      'streamed-deflate.bin',
-    );
+    expect((error as UnsupportedZipFeatureError).entryPath).toBe(entry.name);
     expect(error.message).toContain('payload boundary');
-  });
-
-  it('rejects missing data descriptors', () => {
-    const error = inspectError(
-      buildZip([
-        {
-          name: 'streamed.bin',
-          body: new Uint8Array([1, 2, 3]),
-          dataDescriptor: 'missing',
-          flags: 0x0008,
-        },
-      ]),
-    );
-
-    expect(error).toBeInstanceOf(InvalidZipArchiveError);
-    expect(error.message).toContain('data descriptor');
   });
 
   it('enforces the configured central-directory entry-count limit', () => {
