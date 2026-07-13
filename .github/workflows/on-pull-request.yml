@@ -793,6 +793,8 @@ jobs:
       !contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
       !(github.event.action == 'edited' && github.event.changes.base != null)))
     needs: [lifecycle, validate-commits]
+    outputs:
+      prerequisites-passed: ${{ steps.prerequisites.outputs.passed }}
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -800,13 +802,11 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-      - name: Preserve validation baseline
+      - name: Validate metadata prerequisites
+        id: prerequisites
         env:
-          GH_TOKEN: ${{ github.token }}
           EVENT_ACTION: ${{ github.event.action }}
           TITLE_CHANGED: ${{ github.event.changes.title != null }}
-          PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
-          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           LIFECYCLE: ${{ needs.lifecycle.result }}
           COMMITS: ${{ needs.validate-commits.result }}
         run: |
@@ -816,6 +816,14 @@ jobs:
             echo "::error::Conventional title validation failed: $COMMITS"
             exit 1
           fi
+          echo "passed=true" >> "$GITHUB_OUTPUT"
+      - name: Preserve validation baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
           head_sha="$EVENT_HEAD_SHA"
           if [ "${{ github.event_name }}" = workflow_dispatch ]; then
             head_sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
@@ -846,12 +854,13 @@ jobs:
           EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           VALIDATION: ${{ needs.validation-gate.result }}
           METADATA: ${{ needs.metadata-gate.result }}
+          METADATA_PREREQUISITES: ${{ needs.metadata-gate.outputs.prerequisites-passed }}
         run: |
           set -euo pipefail
           if [ "$VALIDATION" = success ] && [ "$METADATA" = skipped ]; then
             exit 0
           fi
-          if [ "$VALIDATION" = skipped ] && [ "$METADATA" = success ]; then
+          if [ "$VALIDATION" = skipped ] && [ "$METADATA_PREREQUISITES" = true ]; then
             head_sha="$EVENT_HEAD_SHA"
             if [ "${{ github.event_name }}" = workflow_dispatch ]; then
               head_sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
@@ -865,7 +874,7 @@ jobs:
             echo "::error::Final validation baseline for $head_sha is pending=$pending latest=$latest"
             exit 1
           fi
-          echo "::error::Expected exactly one successful gate; validation=$VALIDATION metadata=$METADATA"
+          echo "::error::Expected exactly one valid gate; validation=$VALIDATION metadata=$METADATA metadata_prerequisites=$METADATA_PREREQUISITES"
           exit 1
 
   dependabot:
