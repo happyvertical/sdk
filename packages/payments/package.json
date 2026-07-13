@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/payments",
-  "version": "0.78.0",
+  "version": "0.78.1",
   "description": "Payment backend abstraction with adapters for Base USDC, BTCPay Server, and Stripe",
   "type": "module",
   "main": "./dist/index.js",

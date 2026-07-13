@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.78.1
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - share Vitest config with package tests (#1081) (ci)
+
 ## 0.78.0
 
 ## 0.77.0
