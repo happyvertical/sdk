@@ -15,6 +15,8 @@ interface ZipFixtureEntry {
   name: string | Uint8Array;
   body?: Uint8Array;
   compressedSize?: number;
+  crc32?: number;
+  dataDescriptor?: 'signed' | 'unsigned' | 'missing';
   uncompressedSize?: number;
   compressionMethod?: number;
   flags?: number;
@@ -78,6 +80,7 @@ function buildZip(
     const body = entry.body ?? new Uint8Array();
     const compressedSize = entry.compressedSize ?? body.length;
     const uncompressedSize = entry.uncompressedSize ?? body.length;
+    const crc32 = entry.crc32 ?? 0;
     const compressionMethod = entry.compressionMethod ?? 0;
     const flags = entry.flags ?? 0;
     const localFlags = entry.localFlags ?? flags;
@@ -87,17 +90,36 @@ function buildZip(
     localOffsets.push(localOffset);
     const localHeader = new Uint8Array(30);
     const localView = new DataView(localHeader.buffer);
+    const localUsesDataDescriptor = (localFlags & 0x0008) !== 0;
     localView.setUint32(0, 0x04034b50, true);
     localView.setUint16(4, 20, true);
     localView.setUint16(6, localFlags, true);
     localView.setUint16(8, compressionMethod, true);
-    localView.setUint32(18, compressedSize, true);
-    localView.setUint32(22, uncompressedSize, true);
+    localView.setUint32(14, localUsesDataDescriptor ? 0 : crc32, true);
+    localView.setUint32(18, localUsesDataDescriptor ? 0 : compressedSize, true);
+    localView.setUint32(
+      22,
+      localUsesDataDescriptor ? 0 : uncompressedSize,
+      true,
+    );
     localView.setUint16(26, localName.length, true);
     localView.setUint16(28, localExtra.length, true);
-    localParts.push(localHeader, localName, localExtra, body);
+    const dataDescriptor =
+      (flags & 0x0008) !== 0 && entry.dataDescriptor !== 'missing'
+        ? buildDataDescriptor(
+            crc32,
+            compressedSize,
+            uncompressedSize,
+            entry.dataDescriptor !== 'unsigned',
+          )
+        : new Uint8Array();
+    localParts.push(localHeader, localName, localExtra, body, dataDescriptor);
     localOffset +=
-      localHeader.length + localName.length + localExtra.length + body.length;
+      localHeader.length +
+      localName.length +
+      localExtra.length +
+      body.length +
+      dataDescriptor.length;
 
     const centralHeader = new Uint8Array(46);
     const centralView = new DataView(centralHeader.buffer);
@@ -106,6 +128,7 @@ function buildZip(
     centralView.setUint16(6, 20, true);
     centralView.setUint16(8, flags, true);
     centralView.setUint16(10, compressionMethod, true);
+    centralView.setUint32(16, crc32, true);
     centralView.setUint32(20, compressedSize, true);
     centralView.setUint32(24, uncompressedSize, true);
     centralView.setUint16(28, centralName.length, true);
@@ -161,6 +184,24 @@ function buildZip(
     endRecord,
     comment,
   ]);
+}
+
+function buildDataDescriptor(
+  crc32: number,
+  compressedSize: number,
+  uncompressedSize: number,
+  includeSignature: boolean,
+): Uint8Array {
+  const descriptor = new Uint8Array(includeSignature ? 16 : 12);
+  const view = new DataView(descriptor.buffer);
+  const valuesOffset = includeSignature ? 4 : 0;
+  if (includeSignature) {
+    view.setUint32(0, 0x08074b50, true);
+  }
+  view.setUint32(valuesOffset, crc32, true);
+  view.setUint32(valuesOffset + 4, compressedSize, true);
+  view.setUint32(valuesOffset + 8, uncompressedSize, true);
+  return descriptor;
 }
 
 function mutateZip(
@@ -296,6 +337,22 @@ describe('inspectZipManifest', () => {
 
     expect(error).toBeInstanceOf(UnsafeZipEntryError);
     expect((error as UnsafeZipEntryError).reason).toBe('symlink');
+  });
+
+  it('rejects Windows reparse-point entries', () => {
+    const error = inspectError(
+      buildZip([
+        {
+          name: 'junction',
+          externalAttributes: 0x400,
+          versionMadeBy: 0x0a14,
+        },
+      ]),
+    );
+
+    expect(error).toBeInstanceOf(UnsafeZipEntryError);
+    expect((error as UnsafeZipEntryError).reason).toBe('reparse-point');
+    expect(error.entryPath).toBe('junction');
   });
 
   it.each([
@@ -456,6 +513,99 @@ describe('inspectZipManifest', () => {
 
     expect(error).toBeInstanceOf(InvalidZipArchiveError);
     expect(error.message).toContain('different compressed and uncompressed');
+  });
+
+  it('rejects overlapping local entry ranges', () => {
+    const error = inspectError(
+      buildZip([
+        {
+          name: 'first.bin',
+          compressedSize: 48,
+          uncompressedSize: 48,
+        },
+        {
+          name: 'second.bin',
+          body: new Uint8Array(96),
+        },
+      ]),
+    );
+
+    expect(error).toBeInstanceOf(InvalidZipArchiveError);
+    expect(error.message).toContain('local entry ranges');
+    expect(error.message).toContain('overlap');
+  });
+
+  it('includes validated data descriptors in overlap detection', () => {
+    const embeddedDescriptor = buildDataDescriptor(0, 56, 56, true);
+    const error = inspectError(
+      buildZip([
+        {
+          name: 'first.bin',
+          compressedSize: 56,
+          flags: 0x0008,
+          uncompressedSize: 56,
+        },
+        {
+          name: 'second.bin',
+          body: embeddedDescriptor,
+        },
+      ]),
+    );
+
+    expect(error).toBeInstanceOf(InvalidZipArchiveError);
+    expect(error.message).toContain('local entry ranges');
+    expect(error.message).toContain('overlap');
+  });
+
+  it.each([
+    'signed',
+    'unsigned',
+  ] as const)('accepts and bounds %s classic data descriptors', (dataDescriptor) => {
+    const data = buildZip([
+      {
+        name: 'streamed.bin',
+        body: new Uint8Array([1, 2, 3]),
+        crc32: 0x55bc801d,
+        dataDescriptor,
+        flags: 0x0008,
+      },
+      { name: 'next.txt' },
+    ]);
+
+    expect(inspectZipManifest(data).entries.map(({ path }) => path)).toEqual([
+      'streamed.bin',
+      'next.txt',
+    ]);
+  });
+
+  it('accepts an unsigned data descriptor whose CRC equals the optional signature', () => {
+    const data = buildZip([
+      {
+        name: 'crc-collision.bin',
+        body: new Uint8Array([1, 2, 3]),
+        crc32: 0x08074b50,
+        dataDescriptor: 'unsigned',
+        flags: 0x0008,
+      },
+    ]);
+
+    expect(inspectZipManifest(data).entries[0]?.path).toBe('crc-collision.bin');
+  });
+
+  it('rejects missing data descriptors', () => {
+    const error = inspectError(
+      buildZip([
+        {
+          name: 'streamed.bin',
+          body: new Uint8Array([1, 2, 3]),
+          dataDescriptor: 'missing',
+          flags: 0x0008,
+        },
+      ]),
+    );
+
+    expect(error).toBeInstanceOf(InvalidZipArchiveError);
+    expect(error.message).toContain('data descriptor');
   });
 
   it('enforces the configured central-directory entry-count limit', () => {
