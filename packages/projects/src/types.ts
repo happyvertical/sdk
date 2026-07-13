@@ -12,11 +12,25 @@ export interface Project {
   fields: Field[];
 }
 
+/**
+ * A provider-neutral item on a project board.
+ */
 export interface ProjectItem {
-  id: string; // Project item ID
-  contentId: string; // Issue/PR node ID
+  /** Provider project-item ID. */
+  id: string;
+  /** Provider content-node ID for the issue, pull request, or draft issue. */
+  contentId: string;
+  /** Content title when returned by the provider. */
+  title?: string;
+  /** Content URL, or `null` when the content has no provider URL. */
+  url?: string | null;
+  /** Provider usernames assigned to the content. */
+  assignees?: string[];
+  /** Selected status name from the configured or canonical status field. */
   status?: string;
+  /** Provider field values keyed by field name. */
   fields: Record<string, unknown>;
+  /** Kind of content represented by the project item. */
   type: 'Issue' | 'PullRequest' | 'DraftIssue';
 }
 
@@ -42,12 +56,20 @@ export interface FieldOption {
   color?: string;
 }
 
+/**
+ * Options for reading project items.
+ */
 export interface ItemFilters {
+  /** Return items in this status when supported by the provider. */
   status?: string;
+  /** Return items assigned to these provider usernames when supported. */
   assignees?: string[];
+  /** Return items with these labels when supported. */
   labels?: string[];
+  /** Maximum number of items to return. Defaults to 100; zero returns none. */
   limit?: number;
-  cursor?: string; // For pagination
+  /** Provider cursor after which item pagination begins. */
+  cursor?: string;
 }
 
 /**
