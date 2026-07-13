@@ -458,7 +458,10 @@ export function inspectZipManifest(
     );
   }
 
-  assertNoOverlappingLocalEntryRanges(localEntryRanges);
+  assertLocalEntryRangesCoverArchiveData(
+    localEntryRanges,
+    endRecord.centralDirectoryOffset,
+  );
   assertNoFileDescendantConflicts(entries);
 
   return {
@@ -476,21 +479,33 @@ interface LocalEntryRange {
   path: string;
 }
 
-function assertNoOverlappingLocalEntryRanges(
+function assertLocalEntryRangesCoverArchiveData(
   ranges: readonly LocalEntryRange[],
+  centralDirectoryOffset: number,
 ): void {
   const sortedRanges = [...ranges].sort(
     (left, right) => left.start - right.start || left.end - right.end,
   );
+  let expectedStart = 0;
 
-  for (let index = 1; index < sortedRanges.length; index += 1) {
-    const previous = sortedRanges[index - 1];
-    const current = sortedRanges[index];
-    if (current.start < previous.end) {
+  for (const range of sortedRanges) {
+    if (range.start < expectedStart) {
       throw new InvalidZipArchiveError(
-        `ZIP local entry ranges for "${previous.path}" and "${current.path}" overlap.`,
+        `ZIP local entry ranges overlap at "${range.path}".`,
       );
     }
+    if (range.start > expectedStart) {
+      throw new InvalidZipArchiveError(
+        'ZIP contains data before the central directory that is not described by a central-directory entry.',
+      );
+    }
+    expectedStart = range.end;
+  }
+
+  if (expectedStart !== centralDirectoryOffset) {
+    throw new InvalidZipArchiveError(
+      'ZIP contains data before the central directory that is not described by a central-directory entry.',
+    );
   }
 }
 

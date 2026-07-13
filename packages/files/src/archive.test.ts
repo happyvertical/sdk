@@ -219,6 +219,47 @@ function mutateZip(
   return result;
 }
 
+function removeCentralDirectoryEntry(
+  data: Uint8Array,
+  entryIndex: number,
+): Uint8Array {
+  const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
+  const endRecord = data.length - 22;
+  const centralDirectoryOffset = view.getUint32(endRecord + 16, true);
+  const entryCount = view.getUint16(endRecord + 10, true);
+  if (entryIndex < 0 || entryIndex >= entryCount) {
+    throw new RangeError('Central-directory entry index is out of range');
+  }
+
+  let entryStart = centralDirectoryOffset;
+  for (let index = 0; index < entryIndex; index += 1) {
+    entryStart +=
+      46 +
+      view.getUint16(entryStart + 28, true) +
+      view.getUint16(entryStart + 30, true) +
+      view.getUint16(entryStart + 32, true);
+  }
+  const entryLength =
+    46 +
+    view.getUint16(entryStart + 28, true) +
+    view.getUint16(entryStart + 30, true) +
+    view.getUint16(entryStart + 32, true);
+  const result = concatenate([
+    data.subarray(0, entryStart),
+    data.subarray(entryStart + entryLength),
+  ]);
+  const resultView = new DataView(result.buffer);
+  const resultEndRecord = endRecord - entryLength;
+  resultView.setUint16(resultEndRecord + 8, entryCount - 1, true);
+  resultView.setUint16(resultEndRecord + 10, entryCount - 1, true);
+  resultView.setUint32(
+    resultEndRecord + 12,
+    view.getUint32(endRecord + 12, true) - entryLength,
+    true,
+  );
+  return result;
+}
+
 function inspectError(
   data: Uint8Array,
   limits?: ZipManifestLimits,
@@ -235,6 +276,13 @@ function inspectError(
 }
 
 describe('inspectZipManifest', () => {
+  it('accepts an empty archive with no local entry data', () => {
+    const manifest = inspectZipManifest(buildZip([]));
+
+    expect(manifest.entries).toEqual([]);
+    expect(manifest.entryCount).toBe(0);
+  });
+
   it('returns normalized file and directory metadata without rejecting spaces', () => {
     const data = buildZip([
       { name: 'project folder/' },
@@ -589,6 +637,38 @@ describe('inspectZipManifest', () => {
     expect(error).toBeInstanceOf(InvalidZipArchiveError);
     expect(error.message).toContain('local entry ranges');
     expect(error.message).toContain('overlap');
+  });
+
+  it.each([
+    {
+      label: 'before the referenced entry',
+      entries: [{ name: '../hidden.txt' }, { name: 'safe.txt' }],
+      hiddenIndex: 0,
+    },
+    {
+      label: 'between referenced entries',
+      entries: [
+        { name: 'first.txt' },
+        { name: '../hidden.txt' },
+        { name: 'last.txt' },
+      ],
+      hiddenIndex: 1,
+    },
+    {
+      label: 'after the referenced entry',
+      entries: [{ name: 'safe.txt' }, { name: '../hidden.txt' }],
+      hiddenIndex: 1,
+    },
+  ])('rejects an unreferenced local entry $label', ({
+    entries,
+    hiddenIndex,
+  }) => {
+    const error = inspectError(
+      removeCentralDirectoryEntry(buildZip(entries), hiddenIndex),
+    );
+
+    expect(error).toBeInstanceOf(InvalidZipArchiveError);
+    expect(error.message).toContain('not described by a central-directory');
   });
 
   it('includes validated data descriptors in overlap detection', () => {

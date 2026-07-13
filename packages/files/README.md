@@ -115,7 +115,8 @@ traversal, absolute/drive-qualified paths, NTFS alternate data stream paths
 containing colons, NUL bytes, Unix symlinks and special files, Windows reparse
 points and reserved device names, path segments ending in dots or spaces,
 case-insensitive or Unicode-normalization path collisions, file/descendant path
-conflicts, or overlapping local entry ranges.
+conflicts, overlapping local entry ranges, or unreferenced data before the
+central directory.
 
 Default limits are 10,000 entries, 200 MiB per entry, 2 GiB aggregate declared
 uncompressed size, and 1,024 encoded path bytes. Entry count includes directory
@@ -127,8 +128,10 @@ Policy is deliberately strict: ZIP64, encrypted, multi-disk, malformed,
 truncated, ambiguous-end-record, and non-UTF-8-name archives are rejected with
 typed errors. Stored entries must also declare identical compressed and
 uncompressed sizes, and each local header, compressed payload, and optional
-classic data descriptor must occupy a distinct range before the central
-directory. Signed and unsigned 32-bit data descriptors are cross-checked
+classic data descriptor must occupy a distinct range. Those referenced ranges
+must collectively cover every byte before the central directory, so archive
+preambles, padding gaps, and local entries omitted from the central directory
+are rejected. Signed and unsigned 32-bit data descriptors are cross-checked
 against their central-directory entry; missing, truncated, or inconsistent
 descriptors are rejected. Entry names use strict UTF-8 decoding whether or not
 the UTF-8 flag is set, so common macOS ZIPs with valid names remain compatible.
