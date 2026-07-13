@@ -336,11 +336,25 @@ export function inspectZipManifest(
       );
     }
 
+    const hasDirectoryPathMarker =
+      rawPath.endsWith('/') || rawPath.endsWith('\\');
+    const hasDosDirectoryAttribute =
+      (externalAttributes & DOS_DIRECTORY_ATTRIBUTE) !== 0;
+    if (
+      unixFileType === UNIX_REGULAR_FILE_TYPE &&
+      (hasDirectoryPathMarker || hasDosDirectoryAttribute)
+    ) {
+      throw new UnsupportedZipFeatureError(
+        'ambiguous-metadata',
+        `ZIP entry "${rawPath}" has contradictory Unix file and directory metadata.`,
+        rawPath,
+      );
+    }
+
     const type: ZipManifestEntry['type'] =
-      rawPath.endsWith('/') ||
-      rawPath.endsWith('\\') ||
-      (unixMode & UNIX_FILE_TYPE_MASK) === UNIX_DIRECTORY_TYPE ||
-      (externalAttributes & DOS_DIRECTORY_ATTRIBUTE) !== 0
+      hasDirectoryPathMarker ||
+      unixFileType === UNIX_DIRECTORY_TYPE ||
+      hasDosDirectoryAttribute
         ? 'directory'
         : 'file';
 

@@ -301,6 +301,35 @@ describe('inspectZipManifest', () => {
     expect((error as UnsafeZipEntryError).reason).toBe('special-file');
   });
 
+  it.each([
+    {
+      label: 'DOS directory attribute',
+      name: 'folder',
+      externalAttributes: (((0o100644 << 16) >>> 0) | 0x10) >>> 0,
+    },
+    {
+      label: 'directory path marker',
+      name: 'folder/',
+      externalAttributes: (0o100644 << 16) >>> 0,
+    },
+  ])('rejects Unix regular files with a conflicting $label', ({
+    name,
+    externalAttributes,
+  }) => {
+    const error = inspectError(
+      buildZip([
+        { name, externalAttributes, versionMadeBy: 0x0314 },
+        { name: 'folder/file.txt' },
+      ]),
+    );
+
+    expect(error).toBeInstanceOf(UnsupportedZipFeatureError);
+    expect((error as UnsupportedZipFeatureError).feature).toBe(
+      'ambiguous-metadata',
+    );
+    expect(error.entryPath).toBe(name);
+  });
+
   it('rejects ASi Unix metadata that could override the entry file type', () => {
     const asiUnixExtra = extraField(0x756e, new Uint8Array(10));
 
