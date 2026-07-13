@@ -29,7 +29,7 @@ concurrency:
       'lifecycle' ||
       'validation'
     }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ !(github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && !contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) && !(github.event.action == 'edited' && github.event.changes.base != null))) }}
 
 permissions:
   contents: read
@@ -685,7 +685,7 @@ jobs:
       packages: read
 
   validation-gate:
-    name: ${{ (github.event_name == 'merge_group' || (github.event_name == 'pull_request' && (contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) || (github.event.action == 'edited' && github.event.changes.base != null)))) && 'Required CI / validation' || 'Required CI / validation (inactive)' }}
+    name: Required CI / validation
     if: >-
       always() &&
       (github.event_name == 'merge_group' ||
