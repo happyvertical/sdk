@@ -112,7 +112,7 @@ metadata only. It does not decompress or materialize file bodies. Paths are
 returned with `/` separators and `.`/empty segments removed; names containing
 ordinary spaces remain valid. The whole archive is rejected for parent
 traversal, absolute/drive-qualified paths, NUL bytes, symlinks, Unix special
-files, or normalized path collisions.
+files, normalized path collisions, or file/descendant path conflicts.
 
 Default limits are 10,000 entries, 200 MiB per entry, 2 GiB aggregate declared
 uncompressed size, and 1,024 encoded path bytes. Entry count includes directory
@@ -121,8 +121,9 @@ with non-negative safe integers. The entry limit also bounds cumulative
 central-directory work while disambiguating end records in hostile comments.
 
 Policy is deliberately strict: ZIP64, encrypted, multi-disk, malformed,
-truncated, and non-UTF-8-name archives are rejected with typed errors. Raw
-entry names use strict UTF-8 decoding whether or not the UTF-8 flag is set, so
+truncated, and non-UTF-8-name archives are rejected with typed errors. Stored
+entries must also declare identical compressed and uncompressed sizes. Entry
+names use strict UTF-8 decoding whether or not the UTF-8 flag is set, so
 common macOS ZIPs with valid names remain compatible. Info-ZIP and Xceed
 Unicode path extra fields are rejected so an extractor cannot select a
 different path from the one inspected. PKWARE and ASi Unix extra fields are

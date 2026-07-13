@@ -116,6 +116,7 @@ export type ZipUnsafeEntryReason =
   | 'duplicate-path'
   | 'empty-path'
   | 'nul-byte'
+  | 'path-conflict'
   | 'path-traversal'
   | 'special-file'
   | 'symlink';
@@ -329,6 +330,20 @@ export function inspectZipManifest(
       );
     }
 
+    if (compressionMethod === 0 && compressedSize !== uncompressedSize) {
+      throw new InvalidZipArchiveError(
+        `Stored ZIP entry "${path}" declares different compressed and uncompressed sizes.`,
+      );
+    }
+
+    const type: ZipManifestEntry['type'] =
+      rawPath.endsWith('/') ||
+      rawPath.endsWith('\\') ||
+      (unixMode & UNIX_FILE_TYPE_MASK) === UNIX_DIRECTORY_TYPE ||
+      (externalAttributes & DOS_DIRECTORY_ATTRIBUTE) !== 0
+        ? 'directory'
+        : 'file';
+
     if (normalizedPaths.has(path)) {
       throw new UnsafeZipEntryError(
         'duplicate-path',
@@ -336,6 +351,7 @@ export function inspectZipManifest(
         `ZIP entry "${rawPath}" collides with another normalized path ("${path}").`,
       );
     }
+
     normalizedPaths.add(path);
 
     validateLocalHeader(data, view, {
@@ -370,14 +386,6 @@ export function inspectZipManifest(
       );
     }
 
-    const type =
-      rawPath.endsWith('/') ||
-      rawPath.endsWith('\\') ||
-      (unixMode & UNIX_FILE_TYPE_MASK) === UNIX_DIRECTORY_TYPE ||
-      (externalAttributes & DOS_DIRECTORY_ATTRIBUTE) !== 0
-        ? 'directory'
-        : 'file';
-
     if (type === 'directory') {
       directoryCount += 1;
     } else {
@@ -400,6 +408,8 @@ export function inspectZipManifest(
     );
   }
 
+  assertNoFileDescendantConflicts(entries);
+
   return {
     entries,
     entryCount: entries.length,
@@ -407,6 +417,41 @@ export function inspectZipManifest(
     directoryCount,
     totalUncompressedBytes,
   };
+}
+
+function assertNoFileDescendantConflicts(
+  entries: readonly ZipManifestEntry[],
+): void {
+  const sortedEntries = [...entries].sort((left, right) =>
+    left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
+  );
+
+  for (const entry of sortedEntries) {
+    if (entry.type !== 'file') {
+      continue;
+    }
+
+    const descendantPrefix = `${entry.path}/`;
+    let low = 0;
+    let high = sortedEntries.length;
+    while (low < high) {
+      const middle = low + Math.floor((high - low) / 2);
+      if (sortedEntries[middle].path < descendantPrefix) {
+        low = middle + 1;
+      } else {
+        high = middle;
+      }
+    }
+
+    const descendant = sortedEntries[low];
+    if (descendant?.path.startsWith(descendantPrefix)) {
+      throw new UnsafeZipEntryError(
+        'path-conflict',
+        entry.path,
+        `ZIP file entry "${entry.path}" conflicts with descendant entry "${descendant.path}".`,
+      );
+    }
+  }
 }
 
 function resolveLimits(limits: ZipManifestLimits): ResolvedZipManifestLimits {

@@ -364,6 +364,59 @@ describe('inspectZipManifest', () => {
     expect((error as UnsafeZipEntryError).reason).toBe('duplicate-path');
   });
 
+  it.each([
+    [
+      'file before descendant',
+      [{ name: 'folder' }, { name: 'folder/file.txt' }],
+    ],
+    [
+      'descendant before file',
+      [{ name: 'folder/file.txt' }, { name: 'folder' }],
+    ],
+  ])('rejects file and descendant path conflicts: %s', (_label, entries) => {
+    const error = inspectError(buildZip(entries));
+
+    expect(error).toBeInstanceOf(UnsafeZipEntryError);
+    expect((error as UnsafeZipEntryError).reason).toBe('path-conflict');
+  });
+
+  it('accepts an explicit directory that follows its descendant', () => {
+    const manifest = inspectZipManifest(
+      buildZip([{ name: 'folder/file.txt' }, { name: 'folder/' }]),
+    );
+
+    expect(manifest.entries.map(({ path, type }) => ({ path, type }))).toEqual([
+      { path: 'folder/file.txt', type: 'file' },
+      { path: 'folder', type: 'directory' },
+    ]);
+  });
+
+  it('bounds conflict inspection for many deep slash-heavy paths', () => {
+    const entries = Array.from({ length: 250 }, (_, index) => ({
+      name: `root-${index}/${Array.from({ length: 200 }, () => 'd').join('/')}/file.txt`,
+    }));
+
+    const manifest = inspectZipManifest(buildZip(entries));
+
+    expect(manifest.entryCount).toBe(entries.length);
+  });
+
+  it('rejects stored entries whose declared sizes differ', () => {
+    const error = inspectError(
+      buildZip([
+        {
+          name: 'impossible.bin',
+          compressedSize: 0,
+          uncompressedSize: 10,
+          compressionMethod: 0,
+        },
+      ]),
+    );
+
+    expect(error).toBeInstanceOf(InvalidZipArchiveError);
+    expect(error.message).toContain('different compressed and uncompressed');
+  });
+
   it('enforces the configured central-directory entry-count limit', () => {
     const error = inspectError(buildZip([{ name: 'one' }, { name: 'two' }]), {
       maxEntries: 1,
