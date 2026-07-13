@@ -263,6 +263,18 @@ describe('inspectZipManifest', () => {
     expect((error as UnsafeZipEntryError).reason).toBe(reason);
   });
 
+  it.each([
+    'safe.txt:payload',
+    'dir/file.txt:payload',
+    'dir/C:payload',
+  ])('rejects NTFS alternate data stream path %s', (name) => {
+    const error = inspectError(buildZip([{ name }]));
+
+    expect(error).toBeInstanceOf(UnsafeZipEntryError);
+    expect((error as UnsafeZipEntryError).reason).toBe('alternate-data-stream');
+    expect(error.entryPath).toBe(name);
+  });
+
   it('rejects an actual NUL byte while allowing ordinary spaces', () => {
     const error = inspectError(buildZip([{ name: 'safe name\0hidden.txt' }]));
 
