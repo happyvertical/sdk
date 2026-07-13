@@ -136,9 +136,10 @@ against their central-directory entry; missing, truncated, or inconsistent
 descriptors are rejected. Data descriptors on compressed entries are also
 rejected because their payload boundary cannot be verified without
 decompression; classic descriptors remain supported for stored entries. Entry
-names use strict UTF-8 decoding whether or not the UTF-8 flag is set, preserve
-a leading UTF-8 BOM as part of the path, and keep common macOS ZIPs with valid
-names compatible.
+names use strict UTF-8 decoding whether or not the UTF-8 flag is set. Leading
+UTF-8 BOMs are rejected because filename decoders disagree on whether the BOM
+is part of the extracted path; common macOS ZIPs with valid UTF-8 names remain
+compatible.
 PKWARE alternate-encoding, Info-ZIP, and Xceed path extra fields are rejected
 so an extractor cannot select a different path or character encoding from the
 one inspected. PKWARE and ASi Unix extra fields are likewise rejected because

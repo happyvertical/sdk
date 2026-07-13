@@ -1065,13 +1065,22 @@ function assertNotAesCompression(compressionMethod: number): void {
 }
 
 function decodeEntryPath(bytes: Uint8Array): string {
+  let path: string;
   try {
-    return utf8Decoder.decode(bytes);
+    path = utf8Decoder.decode(bytes);
   } catch {
     throw new InvalidZipArchiveError(
       'ZIP entry path is not valid UTF-8. Legacy non-UTF-8 names are not supported.',
     );
   }
+  if (path.startsWith('\ufeff')) {
+    throw new UnsupportedZipFeatureError(
+      'ambiguous-metadata',
+      'ZIP entry path starts with a UTF-8 BOM, which filename decoders interpret inconsistently.',
+      path,
+    );
+  }
+  return path;
 }
 
 function normalizeEntryPath(rawPath: string): string {
