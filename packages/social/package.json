@@ -12,9 +12,9 @@
     }
   },
   "scripts": {
-    "test": "npx vitest run",
-    "test:live": "HV_SOCIAL_LIVE_SMOKE=1 npx vitest run src/live-smoke.optional.test.ts",
-    "test:watch": "npx vitest",
+    "test": "vitest --config ../../vitest.package.config.ts run",
+    "test:live": "HV_SOCIAL_LIVE_SMOKE=1 vitest --config ../../vitest.package.config.ts run src/live-smoke.optional.test.ts",
+    "test:watch": "vitest --config ../../vitest.package.config.ts",
     "build": "vite build",
     "build:watch": "vite build --watch",
     "clean": "rm -rf dist",

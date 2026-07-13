@@ -25,9 +25,9 @@
     "build": "vite build",
     "build:watch": "vite build --watch",
     "dev": "vite build --watch",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:optional": "VITEST_INCLUDE_OPTIONAL=true vitest run",
+    "test": "vitest --config ../../vitest.package.config.ts run",
+    "test:watch": "vitest --config ../../vitest.package.config.ts",
+    "test:optional": "VITEST_INCLUDE_OPTIONAL=true vitest --config ../../vitest.package.config.ts run",
     "clean": "rm -rf dist",
     "docs": "typedoc",
     "docs:watch": "typedoc --watch"

@@ -39,8 +39,8 @@
     "build": "vite build",
     "build:watch": "vite build --watch",
     "dev": "vite --port 3004",
-    "test": "vitest run",
-    "test:watch": "vitest watch"
+    "test": "vitest --config ../../vitest.package.config.ts run",
+    "test:watch": "vitest --config ../../vitest.package.config.ts watch"
   },
   "dependencies": {
     "@happyvertical/files": "workspace:*",

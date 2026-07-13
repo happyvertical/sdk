@@ -16,7 +16,19 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "test/**", "**/*.test.ts", "**/*.spec.ts", "package.json"],
+      "inputs": [
+        "$TURBO_ROOT$/vite.config.base.ts",
+        "$TURBO_ROOT$/vitest.package.config.ts",
+        "$TURBO_ROOT$/vitest.shared.ts",
+        "$TURBO_ROOT$/vitest.setup.ts",
+        "src/**",
+        "test/**",
+        "**/*.test.ts",
+        "**/*.spec.ts",
+        "package.json",
+        "vite.config.ts",
+        "vitest.config.ts"
+      ],
       "outputs": ["coverage/**"]
     },
     "test:watch": {

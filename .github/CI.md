@@ -38,6 +38,18 @@ remote cache must produce warnings and a cold local build, not fail a job.
 Validation seed builds use `TURBO_FORCE=true` where exercising the current
 commit is required.
 
+## Vitest configuration
+
+Root test commands load `vitest.config.ts`. Package-local commands must pass
+`--config ../../vitest.package.config.ts`; the package config preserves the
+package's Vite config and any local `vitest.config.ts`, then applies the shared
+timeouts and worker limits from `vitest.shared.ts`. This prevents package tests
+from silently using Vitest's 5-second default on a contended runner.
+
+`pnpm test:ci-scripts` enforces this command boundary and resolves representative
+plain and locally overridden package configs. Add package-specific discovery or
+coverage rules to a package `vitest.config.ts`, not to its test command.
+
 ## Pull requests, merge groups, and Required CI
 
 `CI_MERGE_QUEUE_ENABLED` stages the cutover:

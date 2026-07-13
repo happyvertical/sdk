@@ -12,8 +12,8 @@
     }
   },
   "scripts": {
-    "test": "npx vitest run",
-    "test:watch": "npx vitest",
+    "test": "vitest --config ../../vitest.package.config.ts run",
+    "test:watch": "vitest --config ../../vitest.package.config.ts",
     "build": "vite build",
     "build:watch": "vite build --watch",
     "typecheck": "tsc --noEmit",
