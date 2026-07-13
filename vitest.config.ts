@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { defineConfig } from 'vitest/config';
+import { sharedVitestConfig } from './vitest.shared';
 
 /**
  * Unified Vitest configuration for the entire HAVE SDK
@@ -20,8 +21,7 @@ export default defineConfig({
   ],
 
   test: {
-    // Global test setup
-    setupFiles: ['./vitest.setup.ts'],
+    ...sharedVitestConfig.test,
 
     // Include all test file types following the testing standard
     // - *.test.ts: Unit tests
@@ -45,16 +45,6 @@ export default defineConfig({
       '**/coverage/**',
     ],
 
-    // Environment configuration
-    environment: 'node',
-
-    // Timeouts for different test types
-    testTimeout: 30000, // Longer for potential OCR/PDF processing
-    hookTimeout: 30000, // Match testTimeout for slow CI environments
-
-    // Reporter configuration
-    reporters: ['default'],
-
     // Coverage configuration
     coverage: {
       provider: 'v8',
@@ -64,18 +54,6 @@ export default defineConfig({
         'packages/*/src/**/*.d.ts',
       ],
     },
-
-    // Pool options for parallel execution
-    pool: 'forks',
-    poolOptions: {
-      forks: {
-        singleFork: true, // Run tests sequentially to avoid memory issues
-        isolate: true,
-      },
-    },
-
-    // Increase memory limit for OCR tests
-    maxWorkers: 1,
   },
 
   // Resolve workspace packages for testing

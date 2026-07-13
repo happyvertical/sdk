@@ -48,6 +48,9 @@ jobs:
           node-version: '24.18.0'
           github-packages-token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Validate CI scripts and shared test configuration
+        run: pnpm test:ci-scripts
+
       - name: Run exhaustive build, typecheck, lint, tests, and optional adapters
         id: exhaustive
         if: inputs.mode == 'full'
@@ -71,8 +74,18 @@ jobs:
             echo 'Affected mode requires a pull_request base SHA'
             exit 1
           fi
+
+          package_filter="...[$BASE_SHA]"
+          if [ -n "$(git diff --name-only "$BASE_SHA"...HEAD -- \
+            vite.config.base.ts \
+            vitest.package.config.ts \
+            vitest.shared.ts \
+            vitest.setup.ts)" ]; then
+            package_filter='./packages/*'
+          fi
+
           pnpm turbo run build typecheck lint test test:optional \
-            --filter="...[$BASE_SHA]" --filter='!@happyvertical/docs' \
+            --filter="$package_filter" --filter='!@happyvertical/docs' \
             --concurrency=2
 
       - name: Set validation result

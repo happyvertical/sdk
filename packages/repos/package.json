@@ -15,8 +15,8 @@
     "have-repos-context": "./dist/cli/claude-context.js"
   },
   "scripts": {
-    "test": "npx vitest run --passWithNoTests",
-    "test:watch": "npx vitest",
+    "test": "vitest --config ../../vitest.package.config.ts run --passWithNoTests",
+    "test:watch": "vitest --config ../../vitest.package.config.ts",
     "build": "vite build",
     "build:watch": "vite build --watch",
     "clean": "rm -rf dist",

@@ -16,9 +16,9 @@
     }
   },
   "scripts": {
-    "test": "npx vitest run",
-    "test:watch": "npx vitest",
-    "test:bench": "npx vitest bench",
+    "test": "vitest --config ../../vitest.package.config.ts run",
+    "test:watch": "vitest --config ../../vitest.package.config.ts",
+    "test:bench": "vitest --config ../../vitest.package.config.ts bench",
     "build": "vite build",
     "build:rust": "napi build --platform --release || echo 'Rust build skipped (toolchain not available)'",
     "build:rust:debug": "napi build --platform || echo 'Rust build skipped'",
