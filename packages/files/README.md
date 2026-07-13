@@ -140,8 +140,10 @@ so an extractor cannot select a different path or character encoding from the
 one inspected. PKWARE and ASi Unix extra fields are likewise rejected because
 they can supply link targets;
 libarchive's `xl` field is rejected because it can override the inspected file
-type. These alternate-metadata cases, along with contradictory Unix file and
-directory attributes, use
+type. Unix file-type bits are honored only for Unix- or Darwin-origin central
+headers; file-type bits claimed by DOS, NTFS, or other creator systems are
+rejected. These alternate-metadata cases, along with contradictory Unix file
+and directory attributes, use
 `UnsupportedZipFeatureError` with the `ambiguous-metadata` feature. This API is
 a metadata preflight, not an extraction API; consumers that later extract an
 accepted archive must still use an extraction destination and library with

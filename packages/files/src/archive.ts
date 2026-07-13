@@ -39,6 +39,8 @@ const UNIX_REGULAR_FILE_TYPE = 0o100000;
 const UNIX_SYMLINK_TYPE = 0o120000;
 const DOS_DIRECTORY_ATTRIBUTE = 0x10;
 const WINDOWS_REPARSE_POINT_ATTRIBUTE = 0x400;
+const UNIX_CREATOR_SYSTEM = 3;
+const DARWIN_CREATOR_SYSTEM = 19;
 const WINDOWS_RESERVED_DEVICE_BASENAME =
   /^(?:aux|con|conin\$|conout\$|nul|prn|com[1-9\u00b9\u00b2\u00b3]|lpt[1-9\u00b9\u00b2\u00b3])$/iu;
 
@@ -271,6 +273,7 @@ export function inspectZipManifest(
       );
     }
 
+    const versionMadeBy = view.getUint16(offset + 4, true);
     const flags = view.getUint16(offset + 8, true);
     const compressionMethod = view.getUint16(offset + 10, true);
     const crc32 = view.getUint32(offset + 16, true);
@@ -324,11 +327,23 @@ export function inspectZipManifest(
 
     const unixMode = (externalAttributes >>> 16) & 0xffff;
     const unixFileType = unixMode & UNIX_FILE_TYPE_MASK;
+    const creatorSystem = versionMadeBy >>> 8;
     if ((externalAttributes & WINDOWS_REPARSE_POINT_ATTRIBUTE) !== 0) {
       throw new UnsafeZipEntryError(
         'reparse-point',
         rawPath,
         `ZIP entry "${rawPath}" is a Windows reparse point, which is not allowed.`,
+      );
+    }
+    if (
+      unixFileType !== 0 &&
+      creatorSystem !== UNIX_CREATOR_SYSTEM &&
+      creatorSystem !== DARWIN_CREATOR_SYSTEM
+    ) {
+      throw new UnsupportedZipFeatureError(
+        'ambiguous-metadata',
+        `ZIP entry "${rawPath}" declares Unix file-type metadata from a non-Unix creator system.`,
+        rawPath,
       );
     }
     if (unixFileType === UNIX_SYMLINK_TYPE) {
