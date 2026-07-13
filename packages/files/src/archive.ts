@@ -7,7 +7,6 @@
  */
 
 const CENTRAL_DIRECTORY_SIGNATURE = 0x02014b50;
-const DATA_DESCRIPTOR_SIGNATURE = 0x08074b50;
 const END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06054b50;
 const LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50;
 const ZIP64_END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06064b50;
@@ -872,13 +871,10 @@ function validateLocalHeader(
     );
   }
 
-  if (
-    (localFlags & DATA_DESCRIPTOR_FLAG) !== 0 &&
-    entry.compressionMethod !== 0
-  ) {
+  if ((localFlags & DATA_DESCRIPTOR_FLAG) !== 0) {
     throw new UnsupportedZipFeatureError(
       'ambiguous-metadata',
-      `Compressed ZIP entry "${entry.rawPath}" uses a data descriptor whose payload boundary cannot be verified without decompression.`,
+      `ZIP entry "${entry.rawPath}" uses a data descriptor whose payload boundary cannot be verified without decompression or extractor-specific scanning.`,
       entry.rawPath,
     );
   }
@@ -908,25 +904,13 @@ function validateLocalHeader(
 
   assertExtraFields(data, localNameEnd, localExtraEnd, 'local file header');
 
-  if ((localFlags & DATA_DESCRIPTOR_FLAG) === 0) {
-    if (
-      localCrc32 !== entry.centralCrc32 ||
-      localCompressedSize !== entry.compressedSize ||
-      localUncompressedSize !== entry.uncompressedSize
-    ) {
-      throw new InvalidZipArchiveError(
-        'ZIP local file sizes do not match the central-directory entry.',
-      );
-    }
-  } else if (
-    (localCrc32 !== 0 && localCrc32 !== entry.centralCrc32) ||
-    (localCompressedSize !== 0 &&
-      localCompressedSize !== entry.compressedSize) ||
-    (localUncompressedSize !== 0 &&
-      localUncompressedSize !== entry.uncompressedSize)
+  if (
+    localCrc32 !== entry.centralCrc32 ||
+    localCompressedSize !== entry.compressedSize ||
+    localUncompressedSize !== entry.uncompressedSize
   ) {
     throw new InvalidZipArchiveError(
-      'ZIP local file metadata does not match its data descriptor.',
+      'ZIP local file sizes do not match the central-directory entry.',
     );
   }
 
@@ -936,59 +920,7 @@ function validateLocalHeader(
     );
   }
 
-  const localDataEnd = localExtraEnd + entry.compressedSize;
-  if ((localFlags & DATA_DESCRIPTOR_FLAG) !== 0) {
-    return validateDataDescriptor(view, localDataEnd, entry);
-  }
-  return localDataEnd;
-}
-
-function validateDataDescriptor(
-  view: DataView,
-  offset: number,
-  entry: {
-    centralDirectoryOffset: number;
-    centralCrc32: number;
-    compressedSize: number;
-    uncompressedSize: number;
-  },
-): number {
-  assertRange(
-    offset,
-    12,
-    entry.centralDirectoryOffset,
-    'ZIP data descriptor is missing or truncated.',
-  );
-
-  const firstValue = view.getUint32(offset, true);
-  const unsignedMatches =
-    firstValue === entry.centralCrc32 &&
-    view.getUint32(offset + 4, true) === entry.compressedSize &&
-    view.getUint32(offset + 8, true) === entry.uncompressedSize;
-
-  if (firstValue !== DATA_DESCRIPTOR_SIGNATURE) {
-    if (unsignedMatches) {
-      return offset + 12;
-    }
-    throw new InvalidZipArchiveError(
-      'ZIP data descriptor does not match its central-directory entry.',
-    );
-  }
-
-  const hasSignedRange = 16 <= entry.centralDirectoryOffset - offset;
-  const signedMatches =
-    hasSignedRange &&
-    view.getUint32(offset + 4, true) === entry.centralCrc32 &&
-    view.getUint32(offset + 8, true) === entry.compressedSize &&
-    view.getUint32(offset + 12, true) === entry.uncompressedSize;
-
-  if (signedMatches === unsignedMatches) {
-    throw new InvalidZipArchiveError(
-      'ZIP data descriptor is ambiguous or does not match its central-directory entry.',
-    );
-  }
-
-  return signedMatches ? offset + 16 : offset + 12;
+  return localExtraEnd + entry.compressedSize;
 }
 
 function assertExtraFields(

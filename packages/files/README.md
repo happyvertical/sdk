@@ -127,15 +127,12 @@ central-directory work while disambiguating end records in hostile comments.
 Policy is deliberately strict: ZIP64, encrypted, multi-disk, malformed,
 truncated, ambiguous-end-record, and non-UTF-8-name archives are rejected with
 typed errors. Stored entries must also declare identical compressed and
-uncompressed sizes, and each local header, compressed payload, and optional
-classic data descriptor must occupy a distinct range. Those referenced ranges
-must collectively cover every byte before the central directory, so archive
-preambles, padding gaps, and local entries omitted from the central directory
-are rejected. Signed and unsigned 32-bit data descriptors are cross-checked
-against their central-directory entry; missing, truncated, or inconsistent
-descriptors are rejected. Data descriptors on compressed entries are also
-rejected because their payload boundary cannot be verified without
-decompression; classic descriptors remain supported for stored entries. Entry
+uncompressed sizes, and each local header and compressed payload must occupy a
+distinct range. Those referenced ranges must collectively cover every byte
+before the central directory, so archive preambles, padding gaps, and local
+entries omitted from the central directory are rejected. Data descriptors are
+rejected for both stored and compressed entries because their payload boundary
+cannot be verified without decompression or extractor-specific scanning. Entry
 names use strict UTF-8 decoding whether or not the UTF-8 flag is set. Leading
 UTF-8 BOMs are rejected because filename decoders disagree on whether the BOM
 is part of the extracted path; common macOS ZIPs with valid UTF-8 names remain
