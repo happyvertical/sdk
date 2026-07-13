@@ -123,19 +123,20 @@ with non-negative safe integers. The entry limit also bounds cumulative
 central-directory work while disambiguating end records in hostile comments.
 
 Policy is deliberately strict: ZIP64, encrypted, multi-disk, malformed,
-truncated, and non-UTF-8-name archives are rejected with typed errors. Stored
-entries must also declare identical compressed and uncompressed sizes, and
-each local header, compressed payload, and optional classic data descriptor
-must occupy a distinct range before the central directory. Signed and unsigned
-32-bit data descriptors are cross-checked against their central-directory
-entry; missing, truncated, or inconsistent descriptors are rejected. Entry
-names use strict UTF-8 decoding whether or not the UTF-8 flag is set, so common
-macOS ZIPs with valid names remain compatible. Info-ZIP and Xceed Unicode path
-extra fields are rejected so an extractor cannot select a different path from
-the one inspected. PKWARE and ASi Unix extra fields are likewise rejected
-because they can supply link targets; libarchive's `xl` field is rejected
-because it can override the inspected file type. These alternate-metadata
-cases, along with contradictory Unix file and directory attributes, use
+truncated, ambiguous-end-record, and non-UTF-8-name archives are rejected with
+typed errors. Stored entries must also declare identical compressed and
+uncompressed sizes, and each local header, compressed payload, and optional
+classic data descriptor must occupy a distinct range before the central
+directory. Signed and unsigned 32-bit data descriptors are cross-checked
+against their central-directory entry; missing, truncated, or inconsistent
+descriptors are rejected. Entry names use strict UTF-8 decoding whether or not
+the UTF-8 flag is set, so common macOS ZIPs with valid names remain compatible.
+Info-ZIP and Xceed Unicode path extra fields are rejected so an extractor
+cannot select a different path from the one inspected. PKWARE and ASi Unix
+extra fields are likewise rejected because they can supply link targets;
+libarchive's `xl` field is rejected because it can override the inspected file
+type. These alternate-metadata cases, along with contradictory Unix file and
+directory attributes, use
 `UnsupportedZipFeatureError` with the `ambiguous-metadata` feature. This API is
 a metadata preflight, not an extraction API; consumers that later extract an
 accepted archive must still use an extraction destination and library with

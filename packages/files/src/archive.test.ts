@@ -745,6 +745,21 @@ describe('inspectZipManifest', () => {
     expect(inspectZipManifest(data).entries[0]?.path).toBe('valid.txt');
   });
 
+  it('rejects a plausible empty EOCD smuggled in a valid ZIP comment', () => {
+    const forgedEndRecord = new Uint8Array(22);
+    const forgedView = new DataView(forgedEndRecord.buffer);
+    const forgedOffset = buildZip([{ name: 'hidden.txt' }]).length;
+    forgedView.setUint32(0, 0x06054b50, true);
+    forgedView.setUint32(16, forgedOffset, true);
+
+    const error = inspectError(
+      buildZip([{ name: 'hidden.txt' }], { comment: forgedEndRecord }),
+    );
+
+    expect(error).toBeInstanceOf(InvalidZipArchiveError);
+    expect(error.message).toContain('multiple structurally valid');
+  });
+
   it('falls back from forged ZIP64 markers at the end of a valid comment', () => {
     const baseLength = buildZip([{ name: 'valid.txt' }]).length;
     const forgedSentinel = new Uint8Array(22);

@@ -566,6 +566,7 @@ function findEndOfCentralDirectory(
     maxEntries,
     remainingEntryChecks: Math.min(maxEntries, 0xfffe) + 1,
   };
+  let endRecord: EndOfCentralDirectory | undefined;
 
   for (
     let offset = view.byteLength - END_OF_CENTRAL_DIRECTORY_SIZE;
@@ -594,8 +595,17 @@ function findEndOfCentralDirectory(
       centralDirectoryOffset: view.getUint32(offset + 16, true),
     };
     if (isStructurallyPlausibleEndRecord(view, candidate, validationBudget)) {
-      return candidate;
+      if (endRecord) {
+        throw new InvalidZipArchiveError(
+          'ZIP archive contains multiple structurally valid end-of-central-directory records.',
+        );
+      }
+      endRecord = candidate;
     }
+  }
+
+  if (endRecord) {
+    return endRecord;
   }
 
   throw new InvalidZipArchiveError(
