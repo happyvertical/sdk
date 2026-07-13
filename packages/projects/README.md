@@ -130,6 +130,9 @@ Get project details including fields and statuses.
 
 Add an issue or pull request to the project.
 
+The GitHub adapter returns the created item's identity and content type. Use
+`listItems()` when content metadata, status, or provider fields are required.
+
 **Parameters:**
 - `contentId: string` - Node ID of the issue or PR (from @happyvertical/repos)
 
@@ -146,6 +149,9 @@ Remove an item from the project.
 
 Get a specific project item.
 
+The GitHub adapter returns item identity and content type only. Use
+`listItems()` for the enriched content metadata, status, and provider fields.
+
 **Parameters:**
 - `itemId: string` - Project item ID
 
@@ -153,10 +159,18 @@ Get a specific project item.
 
 ##### `listItems(filters?: ItemFilters): Promise<ProjectItem[]>`
 
-List all items in the project.
+List items in the project. The GitHub adapter follows Projects V2 pagination,
+skips deleted or inaccessible content, and returns each item's content type,
+status, provider field values, and top-level `title`, `url`, and `assignees`
+metadata for provider-neutral rendering. Provider fields remain separately
+keyed by their original names, even when a field has the same name as top-level
+metadata. Results default to at most 100 items and are fetched in pages sized to
+stay below GitHub's GraphQL node limit. A `limit` of 0 returns no items.
+The GitHub adapter currently applies only `limit` and `cursor`; callers should
+apply `status`, `assignees`, or `labels` filters to the returned items.
 
 **Parameters:**
-- `filters?: ItemFilters` - Optional filters (limit, cursor, status)
+- `filters?: ItemFilters` - Optional filters (`limit` defaults to 100)
 
 **Returns:** Array of project items
 
