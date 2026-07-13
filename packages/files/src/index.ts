@@ -24,6 +24,7 @@
  * @packageDocumentation
  */
 
+export * from './archive';
 export type {
   FetchToFileOptions,
   WriteResponseToFileOptions,
