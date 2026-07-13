@@ -77,6 +77,63 @@ const buf = await fetchBuffer('https://example.com/image.png');
 await fetchToFile('https://example.com/file.zip', './downloads/file.zip');
 ```
 
+### Secure ZIP Manifest Inspection
+
+Inspect untrusted ZIP metadata before deciding whether to accept an upload:
+
+```typescript
+import {
+  inspectZipManifest,
+  ZipManifestError,
+  ZipManifestLimitError,
+} from '@happyvertical/files';
+
+try {
+  const manifest = inspectZipManifest(zipBytes, {
+    maxEntries: 2_000,
+    maxEntryUncompressedBytes: 50 * 1024 * 1024,
+    maxTotalUncompressedBytes: 500 * 1024 * 1024,
+  });
+
+  const files = manifest.entries
+    .filter((entry) => entry.type === 'file')
+    .map(({ path, size }) => ({ path, size }));
+} catch (error) {
+  if (error instanceof ZipManifestLimitError) {
+    console.error(error.limit, error.actual, error.maximum);
+  } else if (error instanceof ZipManifestError) {
+    console.error(error.code, error.message);
+  }
+}
+```
+
+`inspectZipManifest()` reads and cross-checks central-directory and local-header
+metadata only. It does not decompress or materialize file bodies. Paths are
+returned with `/` separators and `.`/empty segments removed; names containing
+ordinary spaces remain valid. The whole archive is rejected for parent
+traversal, absolute/drive-qualified paths, NUL bytes, symlinks, Unix special
+files, or normalized path collisions.
+
+Default limits are 10,000 entries, 200 MiB per entry, 2 GiB aggregate declared
+uncompressed size, and 1,024 encoded path bytes. Entry count includes directory
+entries, and aggregate size includes every entry. All limits are configurable
+with non-negative safe integers. The entry limit also bounds cumulative
+central-directory work while disambiguating end records in hostile comments.
+
+Policy is deliberately strict: ZIP64, encrypted, multi-disk, malformed,
+truncated, and non-UTF-8-name archives are rejected with typed errors. Raw
+entry names use strict UTF-8 decoding whether or not the UTF-8 flag is set, so
+common macOS ZIPs with valid names remain compatible. Info-ZIP and Xceed
+Unicode path extra fields are rejected so an extractor cannot select a
+different path from the one inspected. PKWARE and ASi Unix extra fields are
+likewise rejected because they can supply link targets; libarchive's `xl`
+field is rejected because it can override the inspected file type. These
+alternate-metadata cases use
+`UnsupportedZipFeatureError` with the `ambiguous-metadata` feature. This API is
+a metadata preflight, not an extraction API; consumers that later extract an
+accepted archive must still use an extraction destination and library with
+equivalent path and symlink protections.
+
 ### Error Handling
 
 ```typescript
@@ -125,6 +182,8 @@ const files = await listFiles('/path/to/dir', { match: /\.json$/ });
 **Interface methods**: `exists`, `read`, `write`, `delete`, `copy`, `move`, `createDirectory`, `list`, `getStats`, `getMimeType`, `upload`, `download`, `downloadWithCache`, `cache.get/set/clear`, `getCapabilities`
 
 **Fetch**: `fetchText`, `fetchJSON`, `fetchBuffer`, `fetchToFile`, `addRateLimit`, `getRateLimit`
+
+**Archive inspection**: `inspectZipManifest`, `DEFAULT_ZIP_MANIFEST_LIMITS`, `ZipManifestError`, `InvalidZipArchiveError`, `UnsafeZipEntryError`, `ZipManifestLimitError`, `UnsupportedZipFeatureError`
 
 **Errors**: `FilesystemError`, `FileNotFoundError`, `PermissionError`, `DirectoryNotEmptyError`, `InvalidPathError`
 
