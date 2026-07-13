@@ -1,5 +1,12 @@
 # @happyvertical/files
 
+## 0.78.3
+
+### Patch Changes
+
+- 3d18b5d: Reject ZIP data descriptors for stored as well as compressed entries because zero-decompression inspection cannot verify their payload boundary.
+  - @happyvertical/utils@0.78.3
+
 ## 0.78.2
 
 ### Patch Changes
