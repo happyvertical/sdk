@@ -38,6 +38,8 @@ const UNIX_REGULAR_FILE_TYPE = 0o100000;
 const UNIX_SYMLINK_TYPE = 0o120000;
 const DOS_DIRECTORY_ATTRIBUTE = 0x10;
 const WINDOWS_REPARSE_POINT_ATTRIBUTE = 0x400;
+const WINDOWS_RESERVED_DEVICE_BASENAME =
+  /^(?:aux|con|conin\$|conout\$|nul|prn|com[1-9\u00b9\u00b2\u00b3]|lpt[1-9\u00b9\u00b2\u00b3])$/iu;
 
 const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
 
@@ -121,9 +123,11 @@ export type ZipUnsafeEntryReason =
   | 'nul-byte'
   | 'path-conflict'
   | 'path-traversal'
+  | 'portable-path-collision'
   | 'reparse-point'
   | 'special-file'
-  | 'symlink';
+  | 'symlink'
+  | 'windows-reserved-path';
 
 /** An entry is unsafe to expose to an extraction workflow. */
 export class UnsafeZipEntryError extends ZipManifestError {
@@ -198,9 +202,9 @@ interface ResolvedZipManifestLimits {
  * ZIP64, encrypted, and multi-disk archives are rejected. Entry paths are
  * normalized and checked for traversal, absolute/drive-qualified forms, NTFS
  * alternate data streams, NUL bytes, Unix symlinks and special files, Windows
- * reparse points, and post-normalization collisions. Local entry ranges,
- * declared entry sizes, and end-record validation work are bounded and
- * cross-checked before a manifest is returned.
+ * reparse points and reserved names, and portable case/normalization
+ * collisions. Local entry ranges, declared entry sizes, and end-record
+ * validation work are bounded and cross-checked before a manifest is returned.
  */
 export function inspectZipManifest(
   data: Uint8Array,
@@ -246,6 +250,7 @@ export function inspectZipManifest(
   const entries: ZipManifestEntry[] = [];
   const localEntryRanges: LocalEntryRange[] = [];
   const normalizedPaths = new Set<string>();
+  const portablePaths = new Map<string, string>();
   let totalUncompressedBytes = 0;
   let fileCount = 0;
   let directoryCount = 0;
@@ -380,7 +385,18 @@ export function inspectZipManifest(
       );
     }
 
+    const portableKey = portablePathKey(path);
+    const existingPortablePath = portablePaths.get(portableKey);
+    if (existingPortablePath !== undefined) {
+      throw new UnsafeZipEntryError(
+        'portable-path-collision',
+        rawPath,
+        `ZIP entry "${rawPath}" collides with "${existingPortablePath}" on a case-insensitive or Unicode-normalizing filesystem.`,
+      );
+    }
+
     normalizedPaths.add(path);
+    portablePaths.set(portableKey, path);
 
     const localDataEnd = validateLocalHeader(data, view, {
       centralDirectoryOffset: endRecord.centralDirectoryOffset,
@@ -481,21 +497,27 @@ function assertNoOverlappingLocalEntryRanges(
 function assertNoFileDescendantConflicts(
   entries: readonly ZipManifestEntry[],
 ): void {
-  const sortedEntries = [...entries].sort((left, right) =>
-    left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
-  );
+  const sortedEntries = entries
+    .map((entry) => ({ entry, portableKey: portablePathKey(entry.path) }))
+    .sort((left, right) =>
+      left.portableKey < right.portableKey
+        ? -1
+        : left.portableKey > right.portableKey
+          ? 1
+          : 0,
+    );
 
-  for (const entry of sortedEntries) {
+  for (const { entry, portableKey } of sortedEntries) {
     if (entry.type !== 'file') {
       continue;
     }
 
-    const descendantPrefix = `${entry.path}/`;
+    const descendantPrefix = `${portableKey}/`;
     let low = 0;
     let high = sortedEntries.length;
     while (low < high) {
       const middle = low + Math.floor((high - low) / 2);
-      if (sortedEntries[middle].path < descendantPrefix) {
+      if (sortedEntries[middle].portableKey < descendantPrefix) {
         low = middle + 1;
       } else {
         high = middle;
@@ -503,11 +525,11 @@ function assertNoFileDescendantConflicts(
     }
 
     const descendant = sortedEntries[low];
-    if (descendant?.path.startsWith(descendantPrefix)) {
+    if (descendant?.portableKey.startsWith(descendantPrefix)) {
       throw new UnsafeZipEntryError(
         'path-conflict',
         entry.path,
-        `ZIP file entry "${entry.path}" conflicts with descendant entry "${descendant.path}".`,
+        `ZIP file entry "${entry.path}" conflicts with descendant entry "${descendant.entry.path}".`,
       );
     }
   }
@@ -1052,6 +1074,28 @@ function normalizeEntryPath(rawPath: string): string {
     );
   }
 
+  for (const segment of segments) {
+    if (segment === '' || segment === '.') {
+      continue;
+    }
+    if (/[. ]$/u.test(segment)) {
+      throw new UnsafeZipEntryError(
+        'windows-reserved-path',
+        rawPath,
+        `ZIP entry "${rawPath}" contains a path segment ending in a dot or space, which is not portable to Windows.`,
+      );
+    }
+
+    const basename = segment.split('.', 1)[0].replace(/[. ]+$/u, '');
+    if (WINDOWS_RESERVED_DEVICE_BASENAME.test(basename)) {
+      throw new UnsafeZipEntryError(
+        'windows-reserved-path',
+        rawPath,
+        `ZIP entry "${rawPath}" contains the Windows-reserved device name "${segment}".`,
+      );
+    }
+  }
+
   const normalizedPath = segments
     .filter((segment) => segment !== '' && segment !== '.')
     .join('/');
@@ -1063,6 +1107,10 @@ function normalizeEntryPath(rawPath: string): string {
     );
   }
   return normalizedPath;
+}
+
+function portablePathKey(path: string): string {
+  return path.normalize('NFC').toUpperCase().toLowerCase().normalize('NFC');
 }
 
 function assertRange(

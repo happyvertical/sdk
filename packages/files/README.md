@@ -113,8 +113,9 @@ returned with `/` separators and `.`/empty segments removed; names containing
 ordinary spaces remain valid. The whole archive is rejected for parent
 traversal, absolute/drive-qualified paths, NTFS alternate data stream paths
 containing colons, NUL bytes, Unix symlinks and special files, Windows reparse
-points, normalized path collisions, file/descendant path conflicts, or
-overlapping local entry ranges.
+points and reserved device names, path segments ending in dots or spaces,
+case-insensitive or Unicode-normalization path collisions, file/descendant path
+conflicts, or overlapping local entry ranges.
 
 Default limits are 10,000 entries, 200 MiB per entry, 2 GiB aggregate declared
 uncompressed size, and 1,024 encoded path bytes. Entry count includes directory
