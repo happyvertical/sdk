@@ -684,22 +684,10 @@ jobs:
       packages: read
 
   required-ci:
-    name: >-
-      ${{
-        (github.event_name == 'merge_group' ||
-        (github.event_name == 'pull_request' &&
-        (contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) ||
-        (github.event.action == 'edited' && github.event.changes.base != null)))) &&
-        'Required CI' ||
-        'Lifecycle Required CI Event'
-      }}
-    if: >-
-      always() &&
-      (github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request' &&
-      (contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) ||
-      (github.event.action == 'edited' && github.event.changes.base != null))))
+    name: Required CI
+    if: always()
     needs:
+      - lifecycle
       - changeset-check
       - validate-commits
       - validate-workflows
@@ -713,13 +701,22 @@ jobs:
       - publish-dry-run
     runs-on: ubuntu-latest
     permissions:
+      actions: read
+      checks: read
       contents: read
+      pull-requests: read
     steps:
       - name: Verify event-appropriate required job set
         env:
+          GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
+          BASE_CHANGED: ${{ github.event.changes.base != null }}
+          PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           HEAD_REF: ${{ github.head_ref }}
           MERGE_QUEUE_ENABLED: ${{ vars.CI_MERGE_QUEUE_ENABLED }}
+          LIFECYCLE: ${{ needs.lifecycle.result }}
           CHANGESET: ${{ needs.changeset-check.result }}
           COMMITS: ${{ needs.validate-commits.result }}
           WORKFLOWS: ${{ needs.validate-workflows.result }}
@@ -734,12 +731,40 @@ jobs:
           DOCS: ${{ needs.docs-build.result }}
           PACK: ${{ needs.publish-dry-run.result }}
         run: |
+          set -euo pipefail
           require_success() {
             if [ "$2" != success ]; then
               echo "$1 must succeed, got: $2"
               exit 1
             fi
           }
+
+          require_success 'Lifecycle policy' "$LIFECYCLE"
+
+          full_validation=false
+          if [ "$EVENT_NAME" = merge_group ]; then
+            full_validation=true
+          elif [ "$EVENT_NAME" = pull_request ] && {
+            [[ "$EVENT_ACTION" =~ ^(opened|synchronize|reopened)$ ]] ||
+              { [ "$EVENT_ACTION" = edited ] && [ "$BASE_CHANGED" = true ]; }
+          }; then
+            full_validation=true
+          fi
+
+          if [ "$full_validation" = false ]; then
+            head_sha="$EVENT_HEAD_SHA"
+            if [ "$EVENT_NAME" = workflow_dispatch ]; then
+              head_sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
+            fi
+            prior=$(gh api "repos/$GITHUB_REPOSITORY/commits/$head_sha/check-runs?check_name=Required%20CI&filter=all&per_page=100" \
+              --jq '[.check_runs[] | select(.name == "Required CI" and .status == "completed" and .conclusion == "success")] | length')
+            if [ "$prior" -lt 1 ]; then
+              echo "::error::No prior successful full Required CI exists for $head_sha"
+              exit 1
+            fi
+            echo "Preserved prior successful Required CI for $head_sha after lifecycle-only event."
+            exit 0
+          fi
 
           require_success 'PostgreSQL scope detection' "$POSTGRES_SCOPE"
           require_success 'Validate Changes' "$TEST"
