@@ -29,13 +29,7 @@ concurrency:
       'lifecycle' ||
       'validation'
     }}
-  cancel-in-progress: >-
-    ${{ !(
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' &&
-      !contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
-      !(github.event.action == 'edited' && github.event.changes.base != null))
-    ) }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -690,9 +684,14 @@ jobs:
       contents: read
       packages: read
 
-  required-ci:
-    name: Required CI
-    if: always()
+  validation-gate:
+    name: Required CI / validation
+    if: >-
+      always() &&
+      (github.event_name == 'merge_group' ||
+      (github.event_name == 'pull_request' &&
+      (contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) ||
+      (github.event.action == 'edited' && github.event.changes.base != null))))
     needs:
       - lifecycle
       - changeset-check
@@ -749,41 +748,6 @@ jobs:
 
           require_success 'Lifecycle policy' "$LIFECYCLE"
 
-          full_validation=false
-          if [ "$EVENT_NAME" = merge_group ]; then
-            full_validation=true
-          elif [ "$EVENT_NAME" = pull_request ] && {
-            [[ "$EVENT_ACTION" =~ ^(opened|synchronize|reopened)$ ]] ||
-              { [ "$EVENT_ACTION" = edited ] && [ "$BASE_CHANGED" = true ]; }
-          }; then
-            full_validation=true
-          fi
-
-          if [ "$full_validation" = false ]; then
-            if [ "$EVENT_NAME" = pull_request ] && [ "$EVENT_ACTION" = edited ] && [ "$TITLE_CHANGED" = true ]; then
-              require_success 'Conventional commits' "$COMMITS"
-            fi
-            head_sha="$EVENT_HEAD_SHA"
-            if [ "$EVENT_NAME" = workflow_dispatch ]; then
-              head_sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
-            fi
-            checks=$(gh api "repos/$GITHUB_REPOSITORY/commits/$head_sha/check-runs?check_name=Required%20CI&filter=all&per_page=100")
-            other_pending=$(printf '%s\n' "$checks" | jq --arg current_run "/actions/runs/$GITHUB_RUN_ID/" \
-              '[.check_runs[] | select(.name == "Required CI" and .status != "completed") | select(((.details_url // "") | contains($current_run)) | not)] | length')
-            if [ "$other_pending" -gt 0 ]; then
-              echo "::error::Another Required CI is still running for $head_sha"
-              exit 1
-            fi
-            latest=$(printf '%s\n' "$checks" | jq -r \
-              '[.check_runs[] | select(.name == "Required CI" and .status == "completed")] | sort_by(.completed_at) | reverse | .[0].conclusion // "missing"')
-            if [ "$latest" != success ]; then
-              echo "::error::Latest completed Required CI for $head_sha must pass, got: $latest"
-              exit 1
-            fi
-            echo "Preserved the latest successful Required CI for $head_sha after lifecycle-only event."
-            exit 0
-          fi
-
           require_success 'PostgreSQL scope detection' "$POSTGRES_SCOPE"
           require_success 'Validate Changes' "$TEST"
           require_success 'Documentation Build' "$DOCS"
@@ -818,7 +782,69 @@ jobs:
             require_success 'Publish Dry Run' "$PACK"
           fi
 
-          echo "Required CI passed for $EVENT_NAME"
+          echo "Validation baseline passed for $EVENT_NAME"
+
+  metadata-gate:
+    name: Required CI / metadata
+    if: >-
+      always() &&
+      (github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+      !contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
+      !(github.event.action == 'edited' && github.event.changes.base != null)))
+    needs: [lifecycle, validate-commits]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      checks: read
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Preserve validation baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_ACTION: ${{ github.event.action }}
+          TITLE_CHANGED: ${{ github.event.changes.title != null }}
+          PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          LIFECYCLE: ${{ needs.lifecycle.result }}
+          COMMITS: ${{ needs.validate-commits.result }}
+        run: |
+          set -euo pipefail
+          [ "$LIFECYCLE" = success ] || { echo "::error::Lifecycle policy failed: $LIFECYCLE"; exit 1; }
+          if [ "$EVENT_ACTION" = edited ] && [ "$TITLE_CHANGED" = true ] && [ "$COMMITS" != success ]; then
+            echo "::error::Conventional title validation failed: $COMMITS"
+            exit 1
+          fi
+          head_sha="$EVENT_HEAD_SHA"
+          if [ "${{ github.event_name }}" = workflow_dispatch ]; then
+            head_sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .head.sha)
+          fi
+          checks=$(gh api "repos/$GITHUB_REPOSITORY/commits/$head_sha/check-runs?check_name=Required%20CI%20%2F%20validation&filter=all&per_page=100")
+          pending=$(printf '%s\n' "$checks" | jq --arg current_run "/actions/runs/$GITHUB_RUN_ID/" '[.check_runs[] | select(.name == "Required CI / validation" and .status != "completed") | select(((.details_url // "") | contains($current_run)) | not)] | length')
+          latest=$(printf '%s\n' "$checks" | jq -r '[.check_runs[] | select(.name == "Required CI / validation" and .status == "completed" and .conclusion != "skipped")] | sort_by(.completed_at) | reverse | .[0].conclusion // "missing"')
+          if [ "$pending" -gt 0 ] || [ "$latest" != success ]; then
+            echo "::error::Validation baseline for $head_sha is pending=$pending latest=$latest"
+            exit 1
+          fi
+
+  required-ci:
+    name: Required CI
+    if: always()
+    needs: [validation-gate, metadata-gate]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the event-appropriate gate
+        env:
+          VALIDATION: ${{ needs.validation-gate.result }}
+          METADATA: ${{ needs.metadata-gate.result }}
+        run: |
+          if { [ "$VALIDATION" = success ] && [ "$METADATA" = skipped ]; } ||
+             { [ "$VALIDATION" = skipped ] && [ "$METADATA" = success ]; }; then
+            exit 0
+          fi
+          echo "::error::Expected exactly one successful gate; validation=$VALIDATION metadata=$METADATA"
+          exit 1
 
   dependabot:
     name: Dependabot Automation
