@@ -1021,6 +1021,21 @@ describe('inspectZipManifest', () => {
     }
   });
 
+  it('rejects PKWARE alternate filename encodings in local and central metadata', () => {
+    const alternateEncodingExtra = extraField(0x0008, encoder.encode('IBM037'));
+
+    for (const data of [
+      buildZip([{ name: 'safe.txt', centralExtra: alternateEncodingExtra }]),
+      buildZip([{ name: 'safe.txt', localExtra: alternateEncodingExtra }]),
+    ]) {
+      const error = inspectError(data);
+      expect(error).toBeInstanceOf(UnsupportedZipFeatureError);
+      expect((error as UnsupportedZipFeatureError).feature).toBe(
+        'ambiguous-metadata',
+      );
+    }
+  });
+
   it('rejects ZIP64 chains and extra fields explicitly', () => {
     const sentinel = mutateZip(buildZip([]), (view, { endRecord }) => {
       view.setUint16(endRecord + 8, 0xffff, true);

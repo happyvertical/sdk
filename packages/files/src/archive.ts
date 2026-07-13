@@ -13,6 +13,7 @@ const LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50;
 const ZIP64_END_OF_CENTRAL_DIRECTORY_SIGNATURE = 0x06064b50;
 const ZIP64_END_OF_CENTRAL_DIRECTORY_LOCATOR_SIGNATURE = 0x07064b50;
 const ZIP64_EXTRA_FIELD_ID = 0x0001;
+const PKWARE_EXTENDED_LANGUAGE_ENCODING_EXTRA_FIELD_ID = 0x0008;
 const PKWARE_UNIX_EXTRA_FIELD_ID = 0x000d;
 const STRONG_ENCRYPTION_EXTRA_FIELD_ID = 0x0017;
 const XCEED_UNICODE_PATH_EXTRA_FIELD_ID = 0x554e;
@@ -993,12 +994,13 @@ function assertExtraFields(
       throw encryptionError();
     }
     if (
+      headerId === PKWARE_EXTENDED_LANGUAGE_ENCODING_EXTRA_FIELD_ID ||
       headerId === XCEED_UNICODE_PATH_EXTRA_FIELD_ID ||
       headerId === UNICODE_PATH_EXTRA_FIELD_ID
     ) {
       throw new UnsupportedZipFeatureError(
         'ambiguous-metadata',
-        'ZIP Unicode path extra fields are not supported because entry names must have one unambiguous representation.',
+        'ZIP alternate path-encoding extra fields are not supported because entry names must have one unambiguous representation.',
       );
     }
     if (

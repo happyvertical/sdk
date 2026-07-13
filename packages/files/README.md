@@ -135,9 +135,10 @@ are rejected. Signed and unsigned 32-bit data descriptors are cross-checked
 against their central-directory entry; missing, truncated, or inconsistent
 descriptors are rejected. Entry names use strict UTF-8 decoding whether or not
 the UTF-8 flag is set, so common macOS ZIPs with valid names remain compatible.
-Info-ZIP and Xceed Unicode path extra fields are rejected so an extractor
-cannot select a different path from the one inspected. PKWARE and ASi Unix
-extra fields are likewise rejected because they can supply link targets;
+PKWARE alternate-encoding, Info-ZIP, and Xceed path extra fields are rejected
+so an extractor cannot select a different path or character encoding from the
+one inspected. PKWARE and ASi Unix extra fields are likewise rejected because
+they can supply link targets;
 libarchive's `xl` field is rejected because it can override the inspected file
 type. These alternate-metadata cases, along with contradictory Unix file and
 directory attributes, use
