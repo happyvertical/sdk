@@ -316,6 +316,40 @@ describe('inspectZipManifest', () => {
     expect(error.entryPath).toBe(name);
   });
 
+  it.each([
+    'CON',
+    'con.txt',
+    'dir/NUL.txt',
+    'AUX.md',
+    'COM1',
+    'LPT9.log',
+    'CONIN$',
+    'dir/file.',
+    'dir/file ',
+  ])('rejects Windows-reserved path %s', (name) => {
+    const error = inspectError(buildZip([{ name }]));
+
+    expect(error).toBeInstanceOf(UnsafeZipEntryError);
+    expect((error as UnsafeZipEntryError).reason).toBe('windows-reserved-path');
+    expect(error.entryPath).toBe(name);
+  });
+
+  it('allows names that only resemble Windows device names', () => {
+    const manifest = inspectZipManifest(
+      buildZip([
+        { name: 'COM10.txt' },
+        { name: 'computer.txt' },
+        { name: 'null.txt' },
+      ]),
+    );
+
+    expect(manifest.entries.map((entry) => entry.path)).toEqual([
+      'COM10.txt',
+      'computer.txt',
+      'null.txt',
+    ]);
+  });
+
   it('rejects an actual NUL byte while allowing ordinary spaces', () => {
     const error = inspectError(buildZip([{ name: 'safe name\0hidden.txt' }]));
 
@@ -463,6 +497,19 @@ describe('inspectZipManifest', () => {
   });
 
   it.each([
+    ['case-only aliases', 'Readme.md', 'readme.md'],
+    ['Unicode-normalization aliases', 'caf\u00e9.txt', 'cafe\u0301.txt'],
+  ])('rejects portable path collisions: %s', (_label, first, second) => {
+    const error = inspectError(buildZip([{ name: first }, { name: second }]));
+
+    expect(error).toBeInstanceOf(UnsafeZipEntryError);
+    expect((error as UnsafeZipEntryError).reason).toBe(
+      'portable-path-collision',
+    );
+    expect(error.entryPath).toBe(second);
+  });
+
+  it.each([
     [
       'file before descendant',
       [{ name: 'folder' }, { name: 'folder/file.txt' }],
@@ -473,6 +520,15 @@ describe('inspectZipManifest', () => {
     ],
   ])('rejects file and descendant path conflicts: %s', (_label, entries) => {
     const error = inspectError(buildZip(entries));
+
+    expect(error).toBeInstanceOf(UnsafeZipEntryError);
+    expect((error as UnsafeZipEntryError).reason).toBe('path-conflict');
+  });
+
+  it('rejects case-insensitive file and descendant path conflicts', () => {
+    const error = inspectError(
+      buildZip([{ name: 'Folder' }, { name: 'folder/file.txt' }]),
+    );
 
     expect(error).toBeInstanceOf(UnsafeZipEntryError);
     expect((error as UnsafeZipEntryError).reason).toBe('path-conflict');
