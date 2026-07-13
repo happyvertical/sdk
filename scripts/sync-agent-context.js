@@ -10,7 +10,6 @@ const GENERATED_END = '<!-- END AGENT:GENERATED -->';
 const rootDir = process.cwd();
 const packagesDir = join(rootDir, 'packages');
 const rootAgentPath = join(rootDir, 'AGENT.md');
-const rootClaudePath = join(rootDir, 'CLAUDE.md');
 const manifestPath = join(rootDir, 'ecosystem-manifest.json');
 
 const checkMode = process.argv.includes('--check');
@@ -743,8 +742,7 @@ async function main() {
     join(rootDir, 'pnpm-workspace.yaml'),
     'utf8',
   );
-  const rootSource =
-    (await readIfExists(rootAgentPath)) || (await readIfExists(rootClaudePath));
+  const rootSource = await readIfExists(rootAgentPath);
   const rootDescription =
     sanitizeInlineMarkdown(
       firstParagraph(parseMarkdownSections(rootSource).intro),
@@ -766,7 +764,6 @@ async function main() {
   ].join('');
 
   await writeTextFile(rootAgentPath, rootAgentWithNotes);
-  await removeIfExists(rootClaudePath);
 
   for (const pkg of packages) {
     const packageDir = join(packagesDir, pkg.shortName);

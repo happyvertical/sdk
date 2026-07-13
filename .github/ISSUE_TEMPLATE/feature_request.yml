@@ -86,7 +86,7 @@ body:
 
         ## 📋 SOP Checklist (for implementer)
 
-        This checklist ensures proper workflow adherence per [CLAUDE.md SOPs](../../CLAUDE.md).
+        This checklist ensures proper workflow adherence per [AGENTS.md SOPs](../../AGENTS.md).
 
   - type: checkboxes
     id: sop-start-work
