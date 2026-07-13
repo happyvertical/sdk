@@ -111,8 +111,9 @@ try {
 metadata only. It does not decompress or materialize file bodies. Paths are
 returned with `/` separators and `.`/empty segments removed; names containing
 ordinary spaces remain valid. The whole archive is rejected for parent
-traversal, absolute/drive-qualified paths, NUL bytes, symlinks, Unix special
-files, normalized path collisions, or file/descendant path conflicts.
+traversal, absolute/drive-qualified paths, NTFS alternate data stream paths
+containing colons, NUL bytes, symlinks, Unix special files, normalized path
+collisions, or file/descendant path conflicts.
 
 Default limits are 10,000 entries, 200 MiB per entry, 2 GiB aggregate declared
 uncompressed size, and 1,024 encoded path bytes. Entry count includes directory

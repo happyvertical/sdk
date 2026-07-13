@@ -112,6 +112,7 @@ export class InvalidZipArchiveError extends ZipManifestError {
 
 export type ZipUnsafeEntryReason =
   | 'absolute-path'
+  | 'alternate-data-stream'
   | 'drive-qualified-path'
   | 'duplicate-path'
   | 'empty-path'
@@ -192,10 +193,10 @@ interface ResolvedZipManifestLimits {
  * Inspect a ZIP archive without decompressing entry bodies.
  *
  * ZIP64, encrypted, and multi-disk archives are rejected. Entry paths are
- * normalized and checked for traversal, absolute/drive-qualified forms, NUL
- * bytes, symlinks, Unix special files, and post-normalization collisions. The
- * declared entry sizes and end-record validation work are bounded before a
- * manifest is returned.
+ * normalized and checked for traversal, absolute/drive-qualified forms, NTFS
+ * alternate data streams, NUL bytes, symlinks, Unix special files, and
+ * post-normalization collisions. The declared entry sizes and end-record
+ * validation work are bounded before a manifest is returned.
  */
 export function inspectZipManifest(
   data: Uint8Array,
@@ -904,6 +905,13 @@ function normalizeEntryPath(rawPath: string): string {
       'drive-qualified-path',
       rawPath,
       `ZIP entry "${rawPath}" uses a drive-qualified path.`,
+    );
+  }
+  if (unifiedPath.includes(':')) {
+    throw new UnsafeZipEntryError(
+      'alternate-data-stream',
+      rawPath,
+      `ZIP entry "${rawPath}" contains a colon that can select an NTFS alternate data stream.`,
     );
   }
   if (unifiedPath.startsWith('/')) {
