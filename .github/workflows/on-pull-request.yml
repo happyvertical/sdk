@@ -26,10 +26,10 @@ concurrency:
       (github.event_name == 'pull_request' &&
       !contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
       !(github.event.action == 'edited' && github.event.changes.base != null))) &&
-      'lifecycle' ||
+      format('lifecycle-{0}', github.run_id) ||
       'validation'
     }}
-  cancel-in-progress: ${{ !(github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && !contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) && !(github.event.action == 'edited' && github.event.changes.base != null))) }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
