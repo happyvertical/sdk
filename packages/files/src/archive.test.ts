@@ -1084,11 +1084,18 @@ describe('inspectZipManifest', () => {
     }
   });
 
-  it('preserves a leading UTF-8 BOM as part of an entry path', () => {
-    expect(
-      inspectZipManifest(buildZip([{ name: '\ufeffsafe.txt' }])).entries[0]
-        ?.path,
-    ).toBe('\ufeffsafe.txt');
+  it.each([
+    '\ufeffsafe.txt',
+    '\ufeff../outside.txt',
+    '\ufeff/etc/passwd',
+  ])('rejects a leading UTF-8 BOM as ambiguous filename metadata: %s', (name) => {
+    const error = inspectError(buildZip([{ name }]));
+
+    expect(error).toBeInstanceOf(UnsupportedZipFeatureError);
+    expect((error as UnsupportedZipFeatureError).feature).toBe(
+      'ambiguous-metadata',
+    );
+    expect(error.message).toContain('UTF-8 BOM');
   });
 
   it('rejects PKWARE alternate filename encodings in local and central metadata', () => {
