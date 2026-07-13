@@ -38,7 +38,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          fetch-depth: 0
+          # Affected validation needs the PR merge commit plus its base/head parents.
+          # Neither mode needs every branch and tag from the repository history.
+          fetch-depth: ${{ inputs.mode == 'affected' && '2' || '1' }}
 
       - name: Setup environment
         uses: ./.github/actions/setup-environment
