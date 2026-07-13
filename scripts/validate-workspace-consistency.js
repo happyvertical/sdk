@@ -88,7 +88,8 @@ function validateWorkspacePackages(errors) {
   for (const { manifestPath, manifest } of manifests) {
     if (
       typeof manifest.name === 'string' &&
-      manifest.name.startsWith(INTERNAL_SCOPE)
+      manifest.name.startsWith(INTERNAL_SCOPE) &&
+      manifest.private !== true
     ) {
       internalVersions.set(manifest.name, {
         manifestPath,
@@ -153,7 +154,7 @@ function main() {
   }
 
   console.log(
-    '✅ Workspace consistency validated: internal package versions are aligned and in-repo dependencies use workspace:*',
+    '✅ Workspace consistency validated: published internal package versions are aligned and in-repo dependencies use workspace:*',
   );
 }
 
