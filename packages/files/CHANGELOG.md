@@ -1,5 +1,12 @@
 # @happyvertical/files
 
+## 0.78.2
+
+### Patch Changes
+
+- 28b109b: Add a bounded, zero-decompression `inspectZipManifest()` API with normalized file and directory metadata, typed malformed/unsafe/limit/unsupported-feature failures, configurable entry and size limits, and explicit rejection of traversal paths, symlinks, NUL bytes, non-portable Windows names, path aliases, alternate filename encodings, leading UTF-8 BOMs, creator-OS metadata conflicts, unverifiable compressed data descriptors, hidden local entries, ZIP64, encrypted, and multi-disk archives.
+  - @happyvertical/utils@0.78.2
+
 ## 0.78.1
 
 ### Patch Changes
