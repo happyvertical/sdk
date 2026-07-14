@@ -12,7 +12,7 @@ suites.
   detection, and result-only aggregation. These jobs do not install
   the workspace.
 - `arc-happyvertical-node` runs Node-only builds, tests, documentation, and
-  package validation. It provides Node 24.18.0, pnpm 11.11.0, native build
+  package validation. It provides Node 24.18.0, pnpm 11.13.0, native build
   prerequisites, PostgreSQL client tools, and an 8 GiB memory limit. It does
   not provide Docker or deployment tooling.
 - `arc-happyvertical` remains the compatibility runner for Docker service
