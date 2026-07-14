@@ -38,10 +38,10 @@
   "devDependencies": {
     "@types/node": "25.0.10",
     "@types/pluralize": "^0.0.33",
-    "typescript": "^5.9.3",
-    "vite": "7.3.2",
+    "typescript": "5.9.3",
+    "vite": "8.1.4",
     "vite-plugin-dts": "4.5.4",
-    "vitest": "^4.1.5"
+    "vitest": "4.1.10"
   },
   "bin": {
     "have-utils-context": "./dist/cli/claude-context.js"
