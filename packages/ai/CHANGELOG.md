@@ -1,5 +1,15 @@
 # @happyvertical/ai
 
+## 0.79.0
+
+### Minor Changes
+
+- abdb04b: Add provider-wide generation ceilings, single-attempt defaults, composed request cancellation, bounded reasoning controls, and prompt-free request lifecycle events.
+
+### Patch Changes
+
+- @happyvertical/utils@0.79.0
+
 ## 0.78.3
 
 ### Patch Changes
