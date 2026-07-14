@@ -9,6 +9,84 @@
 export type GeminiThinkingLevel = 'minimal' | 'low' | 'medium' | 'high';
 
 /**
+ * Cost and output limits applied to every generative request.
+ *
+ * Provider instances merge partial overrides with the exported safe defaults.
+ */
+export interface AIGenerationLimits {
+  /** Maximum text tokens a single request may generate. */
+  maxOutputTokens: number;
+
+  /** Maximum reasoning/thinking tokens a single request may generate. */
+  maxReasoningTokens: number;
+
+  /** Maximum images a single image-generation request may produce. */
+  maxImagesPerRequest: number;
+
+  /** Behavior when a request exceeds one of the configured limits. */
+  onExceeded: 'error' | 'clamp';
+}
+
+/** Provider-neutral reasoning controls for a single generation request. */
+export interface AIReasoningOptions {
+  effort?: 'none' | GeminiThinkingLevel;
+  maxTokens?: number;
+  includeThoughts?: boolean;
+}
+
+/** Request-scoped cancellation, timeout, and reasoning controls. */
+export interface AIRequestControls {
+  /** Caller cancellation signal. Provider timeouts are composed with this signal. */
+  signal?: AbortSignal;
+
+  /** Request timeout in milliseconds. Overrides the provider default. */
+  timeout?: number;
+
+  /** Provider-neutral reasoning controls. */
+  reasoning?: AIReasoningOptions;
+
+  /** Sanitized dimensions attached to lifecycle and usage events. */
+  usageTags?: Record<string, string>;
+}
+
+/** Operations reported through {@link AIRequestEvent}. */
+export type AIRequestOperation =
+  | 'chat'
+  | 'complete'
+  | 'message'
+  | 'embed'
+  | 'embedImage'
+  | 'describeImage'
+  | 'generateImage'
+  | 'stream';
+
+/** Terminal lifecycle state for a provider request. */
+export type AIRequestStatus =
+  | 'succeeded'
+  | 'failed'
+  | 'timed_out'
+  | 'aborted'
+  | 'rejected';
+
+/**
+ * Prompt-free request lifecycle event.
+ *
+ * This intentionally excludes request and response content and credentials.
+ */
+export interface AIRequestEvent {
+  provider: string;
+  model: string;
+  operation: AIRequestOperation;
+  status: AIRequestStatus;
+  attempts: number;
+  requestedMaxOutputTokens?: number;
+  effectiveMaxOutputTokens?: number;
+  duration: number;
+  errorCode?: string;
+  tags?: Record<string, string>;
+}
+
+/**
  * Supported AI provider types
  */
 export const AI_PROVIDER_TYPES = [
@@ -135,7 +213,7 @@ export interface AIMessage {
 /**
  * Options for chat completion requests
  */
-export interface ChatOptions {
+export interface ChatOptions extends AIRequestControls {
   /**
    * Model to use for completion
    */
@@ -224,12 +302,14 @@ export interface ChatOptions {
    *
    * Ollama also accepts `false` to explicitly disable visible/internal thinking
    * for models that support it.
+   * @deprecated Use `reasoning.effort` and `reasoning.maxTokens` instead.
    */
   thinkingLevel?: GeminiThinkingLevel | false;
 
   /**
    * Whether to include the model's internal thoughts in the response
    * Only applicable for Gemini 3 models with thinking enabled
+   * @deprecated Use `reasoning.includeThoughts` instead.
    */
   includeThoughts?: boolean;
 
@@ -243,7 +323,7 @@ export interface ChatOptions {
 /**
  * Options for text completion requests (non-chat models)
  */
-export interface CompletionOptions {
+export interface CompletionOptions extends AIRequestControls {
   /**
    * Model to use for completion
    */
@@ -347,7 +427,7 @@ export interface ImageEmbeddingOptions {
 /**
  * Options for image description generation
  */
-export interface ImageDescriptionOptions {
+export interface ImageDescriptionOptions extends AIRequestControls {
   /**
    * Model to use for image description
    * - OpenAI: defaults to 'gpt-4o'
@@ -369,7 +449,7 @@ export interface ImageDescriptionOptions {
 /**
  * Options for image generation
  */
-export interface ImageGenerationOptions {
+export interface ImageGenerationOptions extends AIRequestControls {
   /**
    * Model to use for image generation
    * - OpenAI: 'dall-e-3' (default), 'dall-e-2'
@@ -454,7 +534,7 @@ export interface ImageGenerationResponse {
  * Options for simple message requests (convenience method)
  * This provides a simpler interface than chat() for single-turn interactions
  */
-export interface MessageOptions {
+export interface MessageOptions extends AIRequestControls {
   /**
    * Model to use for completion
    */
@@ -1078,15 +1158,7 @@ export interface UsageEvent {
   model: string;
 
   /** Operation type that generated this usage */
-  operation:
-    | 'chat'
-    | 'complete'
-    | 'message'
-    | 'embed'
-    | 'embedImage'
-    | 'describeImage'
-    | 'generateImage'
-    | 'stream';
+  operation: AIRequestOperation;
 
   /** Token usage breakdown, if available from the provider */
   usage?: TokenUsage;
@@ -1546,6 +1618,12 @@ export interface BaseAIOptions {
   maxRetries?: number;
 
   /**
+   * Per-request generation guardrails. Partial overrides are merged with the
+   * package defaults; raising a ceiling must therefore be deliberate.
+   */
+  generationLimits?: Partial<AIGenerationLimits>;
+
+  /**
    * Custom headers
    */
   headers?: Record<string, string>;
@@ -1565,6 +1643,12 @@ export interface BaseAIOptions {
    * @param event - Usage event with provider, model, operation, tokens, and timing
    */
   onUsage?: (event: UsageEvent) => void;
+
+  /**
+   * Callback invoked once for every terminal request outcome, including local
+   * limit rejection and timeout. Prompt and response content are never emitted.
+   */
+  onRequest?: (event: AIRequestEvent) => void;
 
   /**
    * Global tags to include in every usage event.
@@ -1682,6 +1766,9 @@ export interface GeminiOptions extends BaseAIOptions {
    * - 'high': Maximizes reasoning depth (default for Gemini 3)
    *
    * Note: Only works with Gemini 3 models. Gemini 2.5 uses thinkingBudget instead.
+   *
+   * @deprecated Use request-level `reasoning` controls instead. This alias is
+   * normalized through `generationLimits.maxReasoningTokens`.
    */
   thinkingLevel?: GeminiThinkingLevel;
 }

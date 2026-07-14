@@ -4,6 +4,13 @@
 
 import crypto from 'node:crypto';
 import { extractRetryAfterSeconds } from '../rate-limit';
+import {
+  normalizeBaseAIOptions,
+  normalizeChatOptions,
+  normalizeImageGenerationOptions,
+  type PreparedRequestControls,
+  prepareRequestControls,
+} from '../safety';
 import type {
   AICapabilities,
   AIInterface,
@@ -15,7 +22,6 @@ import type {
   EmbeddingOptions,
   EmbeddingResponse,
   GeminiOptions,
-  GeminiThinkingLevel,
   ImageDescriptionOptions,
   ImageEmbeddingOptions,
   ImageGenerationOptions,
@@ -46,10 +52,10 @@ export class GeminiProvider implements AIInterface {
   private client: any; // GoogleGenAI instance from @google/genai
 
   constructor(options: GeminiOptions) {
-    this.options = {
+    this.options = normalizeBaseAIOptions({
       defaultModel: 'gemini-2.5-flash',
       ...options,
-    };
+    });
 
     // Initialize Google Generative AI client
     this.initializeClientSync();
@@ -97,12 +103,20 @@ export class GeminiProvider implements AIInterface {
         project: this.options.projectId,
         location: this.options.location,
         apiKey: this.options.apiKey, // Optional for Vertex AI with ADC
+        httpOptions: {
+          timeout: this.options.timeout,
+          retryOptions: { attempts: (this.options.maxRetries || 0) + 1 },
+        },
       };
     }
 
     // Default to Google AI Studio mode with API key
     return {
       apiKey: this.options.apiKey,
+      httpOptions: {
+        timeout: this.options.timeout,
+        retryOptions: { attempts: (this.options.maxRetries || 0) + 1 },
+      },
     };
   }
 
@@ -111,14 +125,17 @@ export class GeminiProvider implements AIInterface {
     options: ChatOptions = {},
   ): Promise<AIResponse> {
     const startTime = Date.now();
+    let controls: PreparedRequestControls | undefined;
     try {
       await this.ensureClient();
 
       const model = options.model || this.options.defaultModel;
+      options = normalizeChatOptions(this.options, options, 'gemini', model);
+      controls = prepareRequestControls(this.options, options);
       const requestConfig: Record<string, any> = {
         model,
         contents: this.messagesToGeminiFormat(messages),
-        config: this.buildGenerateContentConfig(options),
+        config: this.buildGenerateContentConfig(options, controls),
       };
 
       // Call new SDK API: ai.models.generateContent()
@@ -172,7 +189,25 @@ export class GeminiProvider implements AIInterface {
         toolCalls: toolCalls && toolCalls.length > 0 ? toolCalls : undefined,
       };
     } catch (error) {
+      if (controls?.didTimeout()) {
+        throw new AIError(
+          `AI request timed out after ${controls.timeout}ms`,
+          'AI_TIMEOUT',
+          'gemini',
+          options.model,
+        );
+      }
+      if (options.signal?.aborted) {
+        throw new AIError(
+          'AI request aborted by caller',
+          'AI_ABORTED',
+          'gemini',
+          options.model,
+        );
+      }
       throw this.mapError(error);
+    } finally {
+      controls?.cleanup();
     }
   }
 
@@ -189,6 +224,9 @@ export class GeminiProvider implements AIInterface {
       stop: options.stop,
       stream: options.stream,
       onProgress: options.onProgress,
+      signal: options.signal,
+      timeout: options.timeout,
+      reasoning: options.reasoning,
       usageTags: options.usageTags,
     });
   }
@@ -235,6 +273,9 @@ export class GeminiProvider implements AIInterface {
       tools: options.tools,
       toolChoice: options.toolChoice,
       onProgress: options.onProgress,
+      signal: options.signal,
+      timeout: options.timeout,
+      reasoning: options.reasoning,
       usageTags: options.usageTags,
     });
 
@@ -323,6 +364,7 @@ export class GeminiProvider implements AIInterface {
    */
   private async imageToGeminiFormat(
     image: string | Buffer,
+    signal?: AbortSignal,
   ): Promise<{ inlineData: { mimeType: string; data: string } }> {
     let mimeType = 'image/png';
     let base64Data: string;
@@ -344,7 +386,7 @@ export class GeminiProvider implements AIInterface {
       }
     } else {
       // Fetch from URL
-      const response = await fetch(image);
+      const response = await fetch(image, { signal });
       if (!response.ok) {
         throw new AIError(
           `Failed to fetch image: ${response.status} ${response.statusText}`,
@@ -379,25 +421,51 @@ export class GeminiProvider implements AIInterface {
     prompt?: string,
     options: ImageDescriptionOptions = {},
   ): Promise<string> {
+    let controls: PreparedRequestControls | undefined;
     try {
       await this.ensureClient();
 
       const defaultPrompt =
         'Describe this image for a search index. Include objects, mood, lighting, and any visible text.';
 
-      const imageData = await this.imageToGeminiFormat(image);
+      const model =
+        options.model || this.options.defaultModel || 'gemini-2.5-flash';
+      const normalized = normalizeChatOptions(
+        this.options,
+        { ...options, maxTokens: options.maxTokens ?? 500 },
+        'gemini',
+        model,
+      );
+      controls = prepareRequestControls(this.options, normalized);
+      const imageData = await this.imageToGeminiFormat(image, controls.signal);
 
       const response = await this.client.models.generateContent({
-        model: options.model || this.options.defaultModel || 'gemini-2.5-flash',
+        model,
         contents: [{ text: prompt || defaultPrompt }, imageData],
-        config: {
-          maxOutputTokens: options.maxTokens || 500,
-        },
+        config: this.buildGenerateContentConfig(normalized, controls),
       });
 
       return response.text || '';
     } catch (error) {
+      if (controls?.didTimeout()) {
+        throw new AIError(
+          `AI request timed out after ${controls.timeout}ms`,
+          'AI_TIMEOUT',
+          'gemini',
+          options.model,
+        );
+      }
+      if (options.signal?.aborted) {
+        throw new AIError(
+          'AI request aborted by caller',
+          'AI_ABORTED',
+          'gemini',
+          options.model,
+        );
+      }
       throw this.mapError(error);
+    } finally {
+      controls?.cleanup();
     }
   }
 
@@ -461,13 +529,26 @@ export class GeminiProvider implements AIInterface {
     prompt: string,
     options: ImageGenerationOptions = {},
   ): Promise<ImageGenerationResponse> {
+    let controls: PreparedRequestControls | undefined;
     try {
       await this.ensureClient();
 
       const model = options.model || 'imagen-3.0-generate-002';
+      options = normalizeImageGenerationOptions(
+        this.options,
+        options,
+        'gemini',
+        model,
+      );
+      controls = prepareRequestControls(this.options, options);
 
       const config: Record<string, any> = {
-        numberOfImages: options.n || 1,
+        numberOfImages: options.n,
+        abortSignal: controls.signal,
+        httpOptions: {
+          timeout: controls.timeout,
+          retryOptions: { attempts: (this.options.maxRetries || 0) + 1 },
+        },
       };
 
       if (options.aspectRatio) {
@@ -516,7 +597,25 @@ export class GeminiProvider implements AIInterface {
         model,
       };
     } catch (error) {
+      if (controls?.didTimeout()) {
+        throw new AIError(
+          `AI request timed out after ${controls.timeout}ms`,
+          'AI_TIMEOUT',
+          'gemini',
+          options.model,
+        );
+      }
+      if (options.signal?.aborted) {
+        throw new AIError(
+          'AI request aborted by caller',
+          'AI_ABORTED',
+          'gemini',
+          options.model,
+        );
+      }
       throw this.mapError(error);
+    } finally {
+      controls?.cleanup();
     }
   }
 
@@ -525,14 +624,17 @@ export class GeminiProvider implements AIInterface {
     options: ChatOptions = {},
   ): AsyncIterable<string> {
     const startTime = Date.now();
+    let controls: PreparedRequestControls | undefined;
     try {
       await this.ensureClient();
 
       const model = options.model || this.options.defaultModel;
+      options = normalizeChatOptions(this.options, options, 'gemini', model);
+      controls = prepareRequestControls(this.options, options);
       const stream = await this.client.models.generateContentStream({
         model,
         contents: this.messagesToGeminiFormat(messages),
-        config: this.buildGenerateContentConfig(options),
+        config: this.buildGenerateContentConfig(options, controls),
       });
 
       let usage: TokenUsage | undefined;
@@ -567,7 +669,25 @@ export class GeminiProvider implements AIInterface {
         options.usageTags,
       );
     } catch (error) {
+      if (controls?.didTimeout()) {
+        throw new AIError(
+          `AI request timed out after ${controls.timeout}ms`,
+          'AI_TIMEOUT',
+          'gemini',
+          options.model,
+        );
+      }
+      if (options.signal?.aborted) {
+        throw new AIError(
+          'AI request aborted by caller',
+          'AI_ABORTED',
+          'gemini',
+          options.model,
+        );
+      }
       throw this.mapError(error);
+    } finally {
+      controls?.cleanup();
     }
   }
 
@@ -737,18 +857,16 @@ export class GeminiProvider implements AIInterface {
     return { functionCallingConfig: { mode: 'AUTO' } };
   }
 
-  /**
-   * Map thinking level from our type to SDK's expected format
-   * The SDK expects uppercase values: MINIMAL, LOW, MEDIUM, HIGH
-   */
-  private mapThinkingLevel(level: GeminiThinkingLevel): string {
-    return level.toUpperCase();
-  }
-
   private buildGenerateContentConfig(
     options: ChatOptions,
+    controls: PreparedRequestControls,
   ): Record<string, any> {
     const config: Record<string, any> = {
+      abortSignal: controls.signal,
+      httpOptions: {
+        timeout: controls.timeout,
+        retryOptions: { attempts: (this.options.maxRetries || 0) + 1 },
+      },
       maxOutputTokens: options.maxTokens,
       temperature: options.temperature,
       topP: options.topP,
@@ -779,15 +897,11 @@ export class GeminiProvider implements AIInterface {
       config.toolConfig = this.mapToolChoice(options.toolChoice);
     }
 
-    const thinkingLevel = options.thinkingLevel || this.options.thinkingLevel;
-    if (thinkingLevel || options.includeThoughts !== undefined) {
+    const reasoning = options.reasoning;
+    if (reasoning?.maxTokens !== undefined && reasoning.maxTokens > 0) {
       config.thinkingConfig = {
-        ...(thinkingLevel && {
-          thinkingLevel: this.mapThinkingLevel(thinkingLevel),
-        }),
-        ...(options.includeThoughts !== undefined && {
-          includeThoughts: options.includeThoughts,
-        }),
+        thinkingBudget: reasoning.maxTokens,
+        includeThoughts: reasoning.includeThoughts,
       };
     }
 

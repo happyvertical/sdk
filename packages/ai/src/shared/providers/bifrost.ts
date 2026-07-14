@@ -1,5 +1,9 @@
 import { ValidationError } from '@happyvertical/utils';
 
+import {
+  normalizeChatOptions,
+  normalizeImageGenerationOptions,
+} from '../safety';
 import type {
   AICapabilities,
   AIMessage,
@@ -282,9 +286,15 @@ export class BifrostProvider extends OpenAIProvider {
     messages: AIMessage[],
     options: ChatOptions = {},
   ): Promise<AIResponse> {
+    const safe = normalizeChatOptions(
+      this.options,
+      options,
+      'bifrost',
+      options.model || this.options.defaultModel,
+    );
     return super.chat(messages, {
-      ...options,
-      model: await this.resolveModel('chat', options.model),
+      ...safe,
+      model: await this.resolveModel('chat', safe.model),
     });
   }
 
@@ -292,9 +302,15 @@ export class BifrostProvider extends OpenAIProvider {
     messages: AIMessage[],
     options: ChatOptions = {},
   ): AsyncIterable<string> {
+    const safe = normalizeChatOptions(
+      this.options,
+      options,
+      'bifrost',
+      options.model || this.options.defaultModel,
+    );
     yield* super.stream(messages, {
-      ...options,
-      model: await this.resolveModel('chat', options.model),
+      ...safe,
+      model: await this.resolveModel('chat', safe.model),
     });
   }
 
@@ -303,9 +319,15 @@ export class BifrostProvider extends OpenAIProvider {
     prompt?: string,
     options: ImageDescriptionOptions = {},
   ): Promise<string> {
+    const safe = normalizeChatOptions(
+      this.options,
+      options,
+      'bifrost',
+      options.model || this.options.defaultModel,
+    );
     return super.describeImage(image, prompt, {
-      ...options,
-      model: await this.resolveModel('vision', options.model),
+      ...safe,
+      model: await this.resolveModel('vision', safe.model),
     });
   }
 
@@ -333,9 +355,15 @@ export class BifrostProvider extends OpenAIProvider {
     prompt: string,
     options: ImageGenerationOptions = {},
   ): Promise<ImageGenerationResponse> {
+    const safe = normalizeImageGenerationOptions(
+      this.options,
+      options,
+      'bifrost',
+      options.model,
+    );
     return super.generateImage(prompt, {
-      ...options,
-      model: await this.resolveModel('image_generation', options.model),
+      ...safe,
+      model: await this.resolveModel('image_generation', safe.model),
     });
   }
 }

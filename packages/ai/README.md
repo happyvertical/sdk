@@ -146,6 +146,64 @@ console.log(key.key);
 
 LiteLLM uses the same SDK surface, mapping projects to LiteLLM teams and virtual keys to `/key/generate`.
 
+## Generation Safety
+
+Every generative provider constructor applies the same safe defaults, including
+instances created directly instead of through `getAI()`:
+
+- 4,096 output tokens per request
+- 1,024 reasoning tokens per request
+- one generated image per request
+- a 120-second provider timeout
+- zero provider retries (one total upstream attempt)
+- local rejection with `AI_LIMIT_EXCEEDED` before transport when a ceiling is exceeded
+
+Reasoning is opt-in. The 1,024-token default is a ceiling for explicitly
+requested reasoning, not an automatically enabled thinking budget.
+
+An approved workload can raise a client-level ceiling explicitly. Prefer a
+workload-specific client so the wider limit is not shared accidentally.
+
+```typescript
+const ai = await getAI({
+  type: 'bifrost',
+  apiKey: process.env.BIFROST_API_KEY!,
+  baseUrl: process.env.BIFROST_BASE_URL!,
+  defaultModel: 'gemini-2.5-flash',
+  timeout: 105_000,
+  maxRetries: 0,
+  generationLimits: {
+    maxOutputTokens: 8192,
+    maxReasoningTokens: 1024,
+  },
+  usageTags: {
+    app: 'writer',
+    environment: 'production',
+    feature: 'long-form',
+  },
+  onRequest: (event) => telemetry.record(event),
+});
+
+const controller = new AbortController();
+const result = await ai.message('Write the approved long-form response', {
+  maxTokens: 8192,
+  timeout: 105_000,
+  signal: controller.signal,
+  reasoning: { effort: 'low', maxTokens: 1024 },
+});
+```
+
+`signal` and the SDK timeout are composed and propagated to the provider. A
+client abort is useful for correctness, but it does not guarantee that a remote
+provider stops work or billing. Token ceilings and single attempts are the
+primary cost controls.
+
+`onRequest` receives one prompt-free terminal event for success, failure,
+timeout, caller abort, or local rejection. Events include requested and
+effective token ceilings plus sanitized `usageTags`; prompts, responses, and
+credentials are never included. Legacy `thinkingLevel` options remain available
+as deprecated aliases and are normalized through the reasoning ceiling.
+
 ## Opt-In Rate-Limit Pacing
 
 Use `rateLimit` when multiple calls share the same provider budget and you want
@@ -166,7 +224,7 @@ const ai = await getAI({
     key: 'gemini:shared-batch-key',
     cooldownMs: 2000,
     initialDelayMs: 15000,
-    maxAttempts: 3,
+    maxAttempts: 2,
   },
 });
 ```
@@ -176,8 +234,8 @@ const ai = await getAI({
 - `initialDelayMs` is the fallback retry delay when the provider omits `Retry-After`
 - `maxAttempts` counts the first call plus any rate-limit retries
 
-When `rateLimit` is omitted, or `enabled: false` is set explicitly, `getAI()`
-behaves exactly as it did before.
+When `rateLimit` is omitted, or `enabled: false` is set explicitly, no
+in-process retry wrapper is applied. Provider retries still default to zero.
 
 ### `rateLimit` Options
 
@@ -187,7 +245,7 @@ behaves exactly as it did before.
 | `key` | `string` | derived | Shared budget key; clients with the same key coordinate with each other |
 | `cooldownMs` | `number` | `0` | Minimum delay after a successful call before the next call with the same key |
 | `initialDelayMs` | `number` | `5000` | Fallback retry delay when the provider does not return `Retry-After` |
-| `maxAttempts` | `number` | `3` | Total attempts, including the initial call |
+| `maxAttempts` | `number` | `1` | Total attempts, including the initial call; increase explicitly only for an approved workload |
 | `requestsPerMinute` | `number` | provider-specific | Used by `qwen3-tts` local token-bucket limiting |
 | `maxConcurrent` | `number` | provider-specific | Used by `qwen3-tts` local concurrency limiting |
 
@@ -208,7 +266,7 @@ const ai = await getAI({
     key: 'praeco:multi-site-analysis',
     cooldownMs: 2000,
     initialDelayMs: 15000,
-    maxAttempts: 3,
+    maxAttempts: 2,
   },
 });
 

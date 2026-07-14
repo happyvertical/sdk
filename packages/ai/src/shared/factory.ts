@@ -7,6 +7,7 @@ import { loadEnvConfig, ValidationError } from '@happyvertical/utils';
 
 import type { AIClientOptions } from './client';
 import { createRateLimitedAI } from './rate-limit';
+import { createObservedAI, normalizeBaseAIOptions } from './safety';
 import type {
   AIInterface,
   AIProviderType,
@@ -218,6 +219,8 @@ export async function getAI(
     (options as any).defaultModel = (options as any).model;
   }
 
+  options = normalizeBaseAIOptions(options as GetAIOptions);
+
   let client: AIInterface;
 
   if (isOpenAIOptions(options)) {
@@ -257,7 +260,7 @@ export async function getAI(
     });
   }
 
-  return createRateLimitedAI(client, options);
+  return createObservedAI(createRateLimitedAI(client, options), options);
 }
 
 /**
