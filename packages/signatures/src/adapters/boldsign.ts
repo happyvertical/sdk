@@ -1384,8 +1384,6 @@ function mapBoldSignWebhookStatus(
   switch (eventType.trim().toLowerCase()) {
     case 'sent':
       return 'sent';
-    case 'delivered':
-      return 'delivered';
     case 'viewed':
       return 'viewed';
     case 'signed':

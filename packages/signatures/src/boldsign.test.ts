@@ -891,16 +891,19 @@ describe('BoldSign webhook verification', () => {
     ).toThrow(SignatureTenantMismatchError);
   });
 
-  it('rejects unknown signed event types before normalization', () => {
+  it('rejects signed event types outside the documented allowlist', () => {
     const provider = adapter(vi.fn());
-    const payload = webhookPayload('FutureEvent');
 
-    expect(() =>
-      provider.parseWebhook({
-        payload,
-        signature: webhookSignature(payload),
-      }),
-    ).toThrow('Unsupported BoldSign webhook event type');
+    for (const type of ['Delivered', 'FutureEvent']) {
+      const payload = webhookPayload(type);
+
+      expect(() =>
+        provider.parseWebhook({
+          payload,
+          signature: webhookSignature(payload),
+        }),
+      ).toThrow('Unsupported BoldSign webhook event type');
+    }
   });
 
   it('exposes stable replay keys and timestamps for duplicate and reordered events', () => {
