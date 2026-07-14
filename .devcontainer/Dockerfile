@@ -51,7 +51,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
     && apt-get install -y nodejs
 
 # Install pnpm globally
-RUN npm install -g pnpm@latest
+RUN npm install -g pnpm@11.13.0
 
 # Set working directory
 WORKDIR /workspaces
