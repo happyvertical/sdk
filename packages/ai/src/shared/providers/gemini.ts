@@ -897,10 +897,11 @@ export class GeminiProvider implements AIInterface {
       config.toolConfig = this.mapToolChoice(options.toolChoice);
     }
 
-    if (options.reasoning) {
+    const reasoning = options.reasoning;
+    if (reasoning?.maxTokens !== undefined && reasoning.maxTokens > 0) {
       config.thinkingConfig = {
-        thinkingBudget: options.reasoning.maxTokens,
-        includeThoughts: options.reasoning.includeThoughts,
+        thinkingBudget: reasoning.maxTokens,
+        includeThoughts: reasoning.includeThoughts,
       };
     }
 

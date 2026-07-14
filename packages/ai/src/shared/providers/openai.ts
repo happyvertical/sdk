@@ -245,8 +245,9 @@ export class OpenAIProvider implements AIInterface {
         };
       };
       if (
-        this.profile.providerName === 'bifrost' ||
-        this.profile.providerName === 'litellm'
+        (this.profile.providerName === 'bifrost' ||
+          this.profile.providerName === 'litellm') &&
+        (options.reasoning?.maxTokens || 0) > 0
       ) {
         request.reasoning = {
           effort: options.reasoning?.effort,
@@ -514,11 +515,13 @@ export class OpenAIProvider implements AIInterface {
     prompt?: string,
     options: ImageDescriptionOptions = {},
   ): Promise<string> {
+    let controls: PreparedRequestControls | undefined;
     try {
       const defaultPrompt =
         'Describe this image for a search index. Include objects, mood, lighting, and any visible text.';
 
-      const imageUrl = await this.imageToBase64(image, options.signal);
+      controls = prepareRequestControls(this.options, options);
+      const imageUrl = await this.imageToBase64(image, controls.signal);
 
       const response = await this.chat(
         [
@@ -542,8 +545,8 @@ export class OpenAIProvider implements AIInterface {
             this.options.defaultModel ||
             this.profile.defaultModel,
           maxTokens: options.maxTokens ?? 500,
-          signal: options.signal,
-          timeout: options.timeout,
+          signal: controls.signal,
+          timeout: controls.timeout,
           reasoning: options.reasoning,
           usageTags: options.usageTags,
         },
@@ -551,7 +554,25 @@ export class OpenAIProvider implements AIInterface {
 
       return response.content;
     } catch (error) {
+      if (controls?.didTimeout()) {
+        throw new AIError(
+          `AI request timed out after ${controls.timeout}ms`,
+          'AI_TIMEOUT',
+          this.profile.providerName,
+          options.model,
+        );
+      }
+      if (options.signal?.aborted) {
+        throw new AIError(
+          'AI request aborted by caller',
+          'AI_ABORTED',
+          this.profile.providerName,
+          options.model,
+        );
+      }
       throw this.mapError(error);
+    } finally {
+      controls?.cleanup();
     }
   }
 
@@ -737,8 +758,9 @@ export class OpenAIProvider implements AIInterface {
         };
       };
       if (
-        this.profile.providerName === 'bifrost' ||
-        this.profile.providerName === 'litellm'
+        (this.profile.providerName === 'bifrost' ||
+          this.profile.providerName === 'litellm') &&
+        (options.reasoning?.maxTokens || 0) > 0
       ) {
         request.reasoning = {
           effort: options.reasoning?.effort,

@@ -39,6 +39,13 @@ describe('AI generation safety defaults', () => {
     });
   });
 
+  it('keeps reasoning disabled until the caller explicitly opts in', () => {
+    expect(normalizeChatOptions({}, {}).reasoning.maxTokens).toBe(0);
+    expect(
+      normalizeChatOptions({}, { reasoning: {} }).reasoning.maxTokens,
+    ).toBe(1024);
+  });
+
   it('rejects excessive output and reasoning before transport', () => {
     expect(() =>
       normalizeChatOptions({}, { maxTokens: 4097 }, 'openai', 'gpt-4o'),
@@ -79,7 +86,9 @@ describe('provider contracts', () => {
     });
     (provider as any).client = { chat: { completions: { create } } };
 
-    await provider.chat([{ role: 'user', content: 'hello' }]);
+    await provider.chat([{ role: 'user', content: 'hello' }], {
+      reasoning: { maxTokens: 1024 },
+    });
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({ max_tokens: 4096 }),
       expect.objectContaining({
@@ -108,12 +117,36 @@ describe('provider contracts', () => {
     });
     (provider as any).client = { chat: { completions: { create } } };
 
-    await provider.chat([{ role: 'user', content: 'hello' }]);
+    await provider.chat([{ role: 'user', content: 'hello' }], {
+      reasoning: { maxTokens: 1024 },
+    });
 
     expect(create.mock.calls[0][0]).toMatchObject({
       max_tokens: 4096,
       reasoning: { max_tokens: 1024 },
     });
+  });
+
+  it('does not enable Anthropic thinking when reasoning is omitted', async () => {
+    const create = vi.fn().mockResolvedValue({
+      content: [{ type: 'text', text: 'ok' }],
+      model: 'claude-test',
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 1, output_tokens: 1 },
+    });
+    const provider = new AnthropicProvider({
+      type: 'anthropic',
+      apiKey: 'test',
+      defaultModel: 'claude-test',
+    });
+    (provider as any).client = { messages: { create } };
+
+    await provider.chat([{ role: 'user', content: 'hello' }], {
+      maxTokens: 500,
+      temperature: 0.2,
+    });
+
+    expect(create.mock.calls[0][0]).not.toHaveProperty('thinking');
   });
 
   it('maps bounded output and reasoning into Anthropic native fields', async () => {
@@ -130,7 +163,9 @@ describe('provider contracts', () => {
     });
     (provider as any).client = { messages: { create } };
 
-    await provider.chat([{ role: 'user', content: 'hello' }]);
+    await provider.chat([{ role: 'user', content: 'hello' }], {
+      reasoning: { maxTokens: 1024 },
+    });
 
     expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -154,7 +189,9 @@ describe('provider contracts', () => {
     });
     (provider as any).client = { models: { generateContent } };
 
-    await provider.chat([{ role: 'user', content: 'hello' }]);
+    await provider.chat([{ role: 'user', content: 'hello' }], {
+      reasoning: { maxTokens: 1024 },
+    });
 
     expect(generateContent.mock.calls[0][0].config).toMatchObject({
       maxOutputTokens: 4096,
@@ -270,6 +307,45 @@ describe('attempt and cancellation controls', () => {
     expect(receivedSignal?.aborted).toBe(true);
     expect(active).toBe(false);
     expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies the SDK timeout while fetching a remote image', async () => {
+    let active = false;
+    let receivedSignal: AbortSignal | undefined;
+    global.fetch = vi.fn(
+      (_input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          active = true;
+          receivedSignal = init?.signal as AbortSignal;
+          receivedSignal.addEventListener(
+            'abort',
+            () => {
+              active = false;
+              reject(new DOMException('aborted', 'AbortError'));
+            },
+            { once: true },
+          );
+        }),
+    ) as typeof fetch;
+    const events: AIRequestEvent[] = [];
+    const providerOptions = {
+      type: 'openai' as const,
+      apiKey: 'test',
+      defaultModel: 'gpt-4o',
+      timeout: 10,
+      onRequest: (event: AIRequestEvent) => events.push(event),
+    };
+    const provider = new OpenAIProvider(providerOptions);
+    const observed = createObservedAI(provider, providerOptions);
+
+    await expect(
+      observed.describeImage('https://images.example.test/slow.png'),
+    ).rejects.toMatchObject({ code: 'AI_TIMEOUT' });
+    expect(receivedSignal?.aborted).toBe(true);
+    expect(active).toBe(false);
+    expect(events).toMatchObject([
+      { operation: 'describeImage', status: 'timed_out' },
+    ]);
   });
 });
 

@@ -215,12 +215,14 @@ describe('LiteLLM Provider', () => {
       expect.objectContaining({
         model: 'claude-3-5-sonnet',
         max_tokens: 4096,
-        reasoning: expect.objectContaining({ max_tokens: 1024 }),
       }),
       expect.objectContaining({
         signal: expect.any(AbortSignal),
         timeout: 120_000,
       }),
+    );
+    expect(createChatCompletion.mock.calls[0][0]).not.toHaveProperty(
+      'reasoning',
     );
   });
 
@@ -1371,15 +1373,15 @@ describe('Bedrock Provider', () => {
       expect.objectContaining({
         modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
         inferenceConfig: expect.objectContaining({ maxTokens: 4096 }),
-        additionalModelRequestFields: {
-          thinking: { type: 'enabled', budget_tokens: 1024 },
-        },
         toolConfig: expect.objectContaining({
           tools: [expect.any(Object)],
           toolChoice: { auto: {} },
         }),
       }),
       expect.objectContaining({ abortSignal: expect.any(AbortSignal) }),
+    );
+    expect(converse.mock.calls[0][0]).not.toHaveProperty(
+      'additionalModelRequestFields',
     );
     expect(response.finishReason).toBe('tool_calls');
     expect(response.toolCalls?.[0]).toEqual({

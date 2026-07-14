@@ -168,10 +168,15 @@ export function normalizeChatOptions<
         thinkingLevel?: ChatOptions['thinkingLevel'];
       }
     ).thinkingLevel;
-  const requestedReasoning =
-    options.reasoning?.maxTokens ??
-    reasoningTokensForEffort(options.reasoning?.effort ?? legacyEffort) ??
-    limits.maxReasoningTokens;
+  const reasoningWasRequested =
+    options.reasoning !== undefined ||
+    legacyEffort !== undefined ||
+    options.includeThoughts === true;
+  const requestedReasoning = reasoningWasRequested
+    ? (options.reasoning?.maxTokens ??
+      reasoningTokensForEffort(options.reasoning?.effort ?? legacyEffort) ??
+      limits.maxReasoningTokens)
+    : 0;
 
   return {
     ...options,

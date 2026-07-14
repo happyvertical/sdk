@@ -158,6 +158,9 @@ instances created directly instead of through `getAI()`:
 - zero provider retries (one total upstream attempt)
 - local rejection with `AI_LIMIT_EXCEEDED` before transport when a ceiling is exceeded
 
+Reasoning is opt-in. The 1,024-token default is a ceiling for explicitly
+requested reasoning, not an automatically enabled thinking budget.
+
 An approved workload can raise a client-level ceiling explicitly. Prefer a
 workload-specific client so the wider limit is not shared accidentally.
 
