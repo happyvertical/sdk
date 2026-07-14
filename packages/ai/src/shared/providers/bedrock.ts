@@ -2,6 +2,13 @@
  * AWS Bedrock provider implementation
  */
 
+import {
+  normalizeBaseAIOptions,
+  normalizeChatOptions,
+  normalizeImageGenerationOptions,
+  type PreparedRequestControls,
+  prepareRequestControls,
+} from '../safety';
 import type {
   AICapabilities,
   AIInterface,
@@ -46,10 +53,10 @@ export class BedrockProvider implements AIInterface {
   private client: any; // Will be BedrockRuntimeClient instance from @aws-sdk/client-bedrock-runtime
 
   constructor(options: BedrockOptions) {
-    this.options = {
+    this.options = normalizeBaseAIOptions({
       defaultModel: BEDROCK_DEFAULT_CHAT_MODEL,
       ...options,
-    };
+    });
 
     // Initialize AWS Bedrock client
     this.initializeClientSync();
@@ -64,6 +71,7 @@ export class BedrockProvider implements AIInterface {
             region: this.options.region,
             credentials: this.options.credentials,
             endpoint: this.options.endpoint,
+            maxAttempts: (this.options.maxRetries || 0) + 1,
           });
         })
         .catch(() => {
@@ -84,6 +92,7 @@ export class BedrockProvider implements AIInterface {
           region: this.options.region,
           credentials: this.options.credentials,
           endpoint: this.options.endpoint,
+          maxAttempts: (this.options.maxRetries || 0) + 1,
         });
       } catch (_error) {
         throw new AIError(
@@ -100,13 +109,22 @@ export class BedrockProvider implements AIInterface {
     options: ChatOptions = {},
   ): Promise<AIResponse> {
     const startTime = Date.now();
+    let controls: PreparedRequestControls | undefined;
     try {
       await this.ensureClient();
 
       const modelId = options.model || this.options.defaultModel;
+      options = normalizeChatOptions(this.options, options, 'bedrock', modelId);
+      controls = prepareRequestControls(this.options, options);
       const response = this.mapConverseResponse(
         await this.client.converse(
-          await this.buildConverseRequest(messages, options, modelId!),
+          await this.buildConverseRequest(
+            messages,
+            options,
+            modelId!,
+            controls.signal,
+          ),
+          { abortSignal: controls.signal },
         ),
         modelId!,
       );
@@ -122,7 +140,25 @@ export class BedrockProvider implements AIInterface {
       );
       return response;
     } catch (error) {
+      if (controls?.didTimeout()) {
+        throw new AIError(
+          `AI request timed out after ${controls.timeout}ms`,
+          'AI_TIMEOUT',
+          'bedrock',
+          options.model,
+        );
+      }
+      if (options.signal?.aborted) {
+        throw new AIError(
+          'AI request aborted by caller',
+          'AI_ABORTED',
+          'bedrock',
+          options.model,
+        );
+      }
       throw this.mapError(error);
+    } finally {
+      controls?.cleanup();
     }
   }
 
@@ -139,6 +175,9 @@ export class BedrockProvider implements AIInterface {
       stop: options.stop,
       stream: options.stream,
       onProgress: options.onProgress,
+      signal: options.signal,
+      timeout: options.timeout,
+      reasoning: options.reasoning,
       usageTags: options.usageTags,
     });
   }
@@ -171,6 +210,9 @@ export class BedrockProvider implements AIInterface {
       tools: options.tools,
       toolChoice: options.toolChoice,
       onProgress: options.onProgress,
+      signal: options.signal,
+      timeout: options.timeout,
+      reasoning: options.reasoning,
       usageTags: options.usageTags,
     });
 
@@ -293,7 +335,7 @@ export class BedrockProvider implements AIInterface {
     prompt?: string,
     options: ImageDescriptionOptions = {},
   ): Promise<string> {
-    const imageUrl = await this.imageToDataUrl(image);
+    const imageUrl = await this.imageToDataUrl(image, options.signal);
     const response = await this.chat(
       [
         {
@@ -314,7 +356,11 @@ export class BedrockProvider implements AIInterface {
       ],
       {
         model: options.model || this.options.defaultModel,
-        maxTokens: options.maxTokens || 500,
+        maxTokens: options.maxTokens ?? 500,
+        signal: options.signal,
+        timeout: options.timeout,
+        reasoning: options.reasoning,
+        usageTags: options.usageTags,
       },
     );
 
@@ -325,30 +371,44 @@ export class BedrockProvider implements AIInterface {
     prompt: string,
     options: ImageGenerationOptions = {},
   ): Promise<ImageGenerationResponse> {
+    let controls: PreparedRequestControls | undefined;
     try {
       await this.ensureClient();
 
       const model = options.model || BEDROCK_IMAGE_GENERATION_MODEL;
+      options = normalizeImageGenerationOptions(
+        this.options,
+        options,
+        'bedrock',
+        model,
+      );
+      controls = prepareRequestControls(this.options, options);
       const size = this.resolveImageSize(options);
-      const response = await this.client.invokeModel({
-        modelId: model,
-        contentType: 'application/json',
-        accept: 'application/json',
-        body: JSON.stringify({
-          taskType: 'TEXT_IMAGE',
-          textToImageParams: {
-            text: prompt,
-            ...(options.imageInput && {
-              conditionImage: await this.imageToBase64(options.imageInput),
-            }),
-          },
-          imageGenerationConfig: {
-            numberOfImages: options.n || 1,
-            quality: this.mapImageQuality(options.quality),
-            ...size,
-          },
-        }),
-      });
+      const response = await this.client.invokeModel(
+        {
+          modelId: model,
+          contentType: 'application/json',
+          accept: 'application/json',
+          body: JSON.stringify({
+            taskType: 'TEXT_IMAGE',
+            textToImageParams: {
+              text: prompt,
+              ...(options.imageInput && {
+                conditionImage: await this.imageToBase64(
+                  options.imageInput,
+                  controls.signal,
+                ),
+              }),
+            },
+            imageGenerationConfig: {
+              numberOfImages: options.n,
+              quality: this.mapImageQuality(options.quality),
+              ...size,
+            },
+          }),
+        },
+        { abortSignal: controls.signal },
+      );
 
       const payload = await this.parseInvokeModelBody(response.body);
       if (payload.error) {
@@ -374,7 +434,25 @@ export class BedrockProvider implements AIInterface {
         model,
       };
     } catch (error) {
+      if (controls?.didTimeout()) {
+        throw new AIError(
+          `AI request timed out after ${controls.timeout}ms`,
+          'AI_TIMEOUT',
+          'bedrock',
+          options.model,
+        );
+      }
+      if (options.signal?.aborted) {
+        throw new AIError(
+          'AI request aborted by caller',
+          'AI_ABORTED',
+          'bedrock',
+          options.model,
+        );
+      }
       throw this.mapError(error);
+    } finally {
+      controls?.cleanup();
     }
   }
 
@@ -383,12 +461,21 @@ export class BedrockProvider implements AIInterface {
     options: ChatOptions = {},
   ): AsyncIterable<string> {
     const startTime = Date.now();
+    let controls: PreparedRequestControls | undefined;
     try {
       await this.ensureClient();
 
       const modelId = options.model || this.options.defaultModel;
+      options = normalizeChatOptions(this.options, options, 'bedrock', modelId);
+      controls = prepareRequestControls(this.options, options);
       const response = await this.client.converseStream(
-        await this.buildConverseRequest(messages, options, modelId!),
+        await this.buildConverseRequest(
+          messages,
+          options,
+          modelId!,
+          controls.signal,
+        ),
+        { abortSignal: controls.signal },
       );
 
       let usage: TokenUsage | undefined;
@@ -421,7 +508,25 @@ export class BedrockProvider implements AIInterface {
         options.usageTags,
       );
     } catch (error) {
+      if (controls?.didTimeout()) {
+        throw new AIError(
+          `AI request timed out after ${controls.timeout}ms`,
+          'AI_TIMEOUT',
+          'bedrock',
+          options.model,
+        );
+      }
+      if (options.signal?.aborted) {
+        throw new AIError(
+          'AI request aborted by caller',
+          'AI_ABORTED',
+          'bedrock',
+          options.model,
+        );
+      }
       throw this.mapError(error);
+    } finally {
+      controls?.cleanup();
     }
   }
 
@@ -626,9 +731,12 @@ export class BedrockProvider implements AIInterface {
     messages: AIMessage[],
     options: ChatOptions,
     modelId: string,
+    signal?: AbortSignal,
   ): Promise<Record<string, any>> {
-    const { system, bedrockMessages } =
-      await this.mapMessagesToBedrock(messages);
+    const { system, bedrockMessages } = await this.mapMessagesToBedrock(
+      messages,
+      signal,
+    );
     const systemPrompt =
       options.responseFormat?.type === 'json_object'
         ? [
@@ -641,7 +749,7 @@ export class BedrockProvider implements AIInterface {
 
     const inferenceConfig = Object.fromEntries(
       Object.entries({
-        maxTokens: options.maxTokens || 4096,
+        maxTokens: options.maxTokens,
         temperature: options.temperature,
         topP: options.topP,
         stopSequences: Array.isArray(options.stop)
@@ -658,6 +766,14 @@ export class BedrockProvider implements AIInterface {
       ...(Object.keys(inferenceConfig).length > 0 && { inferenceConfig }),
       ...(systemPrompt && { system: [{ text: systemPrompt }] }),
     };
+    if ((options.reasoning?.maxTokens || 0) > 0) {
+      request.additionalModelRequestFields = {
+        thinking: {
+          type: 'enabled',
+          budget_tokens: options.reasoning?.maxTokens,
+        },
+      };
+    }
 
     const toolConfig = this.mapToolConfig(options);
     if (toolConfig) {
@@ -667,7 +783,10 @@ export class BedrockProvider implements AIInterface {
     return request;
   }
 
-  private async mapMessagesToBedrock(messages: AIMessage[]): Promise<{
+  private async mapMessagesToBedrock(
+    messages: AIMessage[],
+    signal?: AbortSignal,
+  ): Promise<{
     system?: string;
     bedrockMessages: Array<{ role: 'user' | 'assistant'; content: any[] }>;
   }> {
@@ -694,7 +813,10 @@ export class BedrockProvider implements AIInterface {
             continue;
           }
 
-          const image = await this.imageUrlToBedrockImage(part.image_url.url);
+          const image = await this.imageUrlToBedrockImage(
+            part.image_url.url,
+            signal,
+          );
           content.push({ image });
         }
       }
@@ -854,15 +976,21 @@ export class BedrockProvider implements AIInterface {
     return undefined;
   }
 
-  private async imageUrlToBedrockImage(imageUrl: string): Promise<any> {
-    const { bytes, mimeType } = await this.imageToBytes(imageUrl);
+  private async imageUrlToBedrockImage(
+    imageUrl: string,
+    signal?: AbortSignal,
+  ): Promise<any> {
+    const { bytes, mimeType } = await this.imageToBytes(imageUrl, signal);
     return {
       format: this.mimeTypeToBedrockImageFormat(mimeType),
       source: { bytes },
     };
   }
 
-  private async imageToDataUrl(image: string | Buffer): Promise<string> {
+  private async imageToDataUrl(
+    image: string | Buffer,
+    signal?: AbortSignal,
+  ): Promise<string> {
     if (Buffer.isBuffer(image)) {
       return `data:image/png;base64,${image.toString('base64')}`;
     }
@@ -870,11 +998,14 @@ export class BedrockProvider implements AIInterface {
       return image;
     }
 
-    const { bytes, mimeType } = await this.imageToBytes(image);
+    const { bytes, mimeType } = await this.imageToBytes(image, signal);
     return `data:${mimeType};base64,${Buffer.from(bytes).toString('base64')}`;
   }
 
-  private async imageToBase64(image: string | Buffer): Promise<string> {
+  private async imageToBase64(
+    image: string | Buffer,
+    signal?: AbortSignal,
+  ): Promise<string> {
     if (Buffer.isBuffer(image)) {
       return image.toString('base64');
     }
@@ -890,12 +1021,13 @@ export class BedrockProvider implements AIInterface {
       return match[2];
     }
 
-    const { bytes } = await this.imageToBytes(image);
+    const { bytes } = await this.imageToBytes(image, signal);
     return Buffer.from(bytes).toString('base64');
   }
 
   private async imageToBytes(
     image: string,
+    signal?: AbortSignal,
   ): Promise<{ bytes: Uint8Array; mimeType: string }> {
     if (image.startsWith('data:')) {
       const match = image.match(/^data:([^;]+);base64,(.+)$/);
@@ -913,7 +1045,7 @@ export class BedrockProvider implements AIInterface {
       };
     }
 
-    const response = await fetch(image);
+    const response = await fetch(image, { signal });
     if (!response.ok) {
       throw new AIError(
         `Failed to fetch image: ${response.status} ${response.statusText}`,

@@ -2,6 +2,12 @@
  * Hugging Face provider implementation
  */
 
+import {
+  normalizeBaseAIOptions,
+  normalizeChatOptions,
+  type PreparedRequestControls,
+  prepareRequestControls,
+} from '../safety';
 import type {
   AICapabilities,
   AIInterface,
@@ -41,12 +47,12 @@ export class HuggingFaceProvider implements AIInterface {
   private baseUrl: string;
 
   constructor(options: HuggingFaceOptions) {
-    this.options = {
+    this.options = normalizeBaseAIOptions({
       defaultModel: 'microsoft/DialoGPT-medium',
       useCache: true,
       waitForModel: true,
       ...options,
-    };
+    });
 
     this.baseUrl =
       this.options.endpoint || 'https://api-inference.huggingface.co';
@@ -57,30 +63,43 @@ export class HuggingFaceProvider implements AIInterface {
     options: ChatOptions = {},
   ): Promise<AIResponse> {
     const startTime = Date.now();
+    let controls: PreparedRequestControls | undefined;
     try {
       // Convert messages to a single prompt for text generation models
       const prompt = this.messagesToPrompt(messages);
       const model =
         options.model || this.options.model || this.options.defaultModel;
+      options = normalizeChatOptions(
+        this.options,
+        options,
+        'huggingface',
+        model,
+      );
+      controls = prepareRequestControls(this.options, options);
 
-      const response = await this.makeRequest(`/models/${model}`, {
-        inputs: prompt,
-        parameters: {
-          max_new_tokens: options.maxTokens || 512,
-          temperature: options.temperature || 1.0,
-          top_p: options.topP || 1.0,
-          do_sample: (options.temperature && options.temperature > 0) || false,
-          stop_sequences: Array.isArray(options.stop)
-            ? options.stop
-            : options.stop
-              ? [options.stop]
-              : undefined,
+      const response = await this.makeRequest(
+        `/models/${model}`,
+        {
+          inputs: prompt,
+          parameters: {
+            max_new_tokens: options.maxTokens,
+            temperature: options.temperature ?? 1.0,
+            top_p: options.topP ?? 1.0,
+            do_sample:
+              (options.temperature && options.temperature > 0) || false,
+            stop_sequences: Array.isArray(options.stop)
+              ? options.stop
+              : options.stop
+                ? [options.stop]
+                : undefined,
+          },
+          options: {
+            use_cache: this.options.useCache,
+            wait_for_model: this.options.waitForModel,
+          },
         },
-        options: {
-          use_cache: this.options.useCache,
-          wait_for_model: this.options.waitForModel,
-        },
-      });
+        controls.signal,
+      );
 
       if (Array.isArray(response) && response[0]?.generated_text) {
         const generatedText = response[0].generated_text;
@@ -110,7 +129,25 @@ export class HuggingFaceProvider implements AIInterface {
         'huggingface',
       );
     } catch (error) {
+      if (controls?.didTimeout()) {
+        throw new AIError(
+          `AI request timed out after ${controls.timeout}ms`,
+          'AI_TIMEOUT',
+          'huggingface',
+          options.model,
+        );
+      }
+      if (options.signal?.aborted) {
+        throw new AIError(
+          'AI request aborted by caller',
+          'AI_ABORTED',
+          'huggingface',
+          options.model,
+        );
+      }
       throw this.mapError(error);
+    } finally {
+      controls?.cleanup();
     }
   }
 
@@ -127,6 +164,9 @@ export class HuggingFaceProvider implements AIInterface {
       stop: options.stop,
       stream: options.stream,
       onProgress: options.onProgress,
+      signal: options.signal,
+      timeout: options.timeout,
+      reasoning: options.reasoning,
       usageTags: options.usageTags,
     });
   }
@@ -159,6 +199,9 @@ export class HuggingFaceProvider implements AIInterface {
       tools: options.tools,
       toolChoice: options.toolChoice,
       onProgress: options.onProgress,
+      signal: options.signal,
+      timeout: options.timeout,
+      reasoning: options.reasoning,
       usageTags: options.usageTags,
     });
 
@@ -273,6 +316,14 @@ export class HuggingFaceProvider implements AIInterface {
     const chunkSize = 10;
 
     for (let i = 0; i < content.length; i += chunkSize) {
+      if (options.signal?.aborted) {
+        throw new AIError(
+          'AI request aborted by caller',
+          'AI_ABORTED',
+          'huggingface',
+          options.model,
+        );
+      }
       const chunk = content.slice(i, i + chunkSize);
       if (options.onProgress) {
         options.onProgress(chunk);
@@ -441,7 +492,11 @@ export class HuggingFaceProvider implements AIInterface {
       .join('\n')}\nAssistant:`;
   }
 
-  private async makeRequest(endpoint: string, data: any): Promise<any> {
+  private async makeRequest(
+    endpoint: string,
+    data: any,
+    signal?: AbortSignal,
+  ): Promise<any> {
     const url = `${this.baseUrl}${endpoint}`;
 
     const response = await fetch(url, {
@@ -452,6 +507,7 @@ export class HuggingFaceProvider implements AIInterface {
         ...this.options.headers,
       },
       body: JSON.stringify(data),
+      signal,
     });
 
     if (!response.ok) {

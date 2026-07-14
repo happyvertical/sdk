@@ -163,6 +163,22 @@ describe('shared AI rate limiting', () => {
     expect(chat).toHaveBeenCalledTimes(1);
   });
 
+  it('uses one in-process attempt when maxAttempts is omitted', async () => {
+    const chat = vi.fn(async () => {
+      throw new RateLimitError('gemini');
+    });
+    const ai = createRateLimitedAI(createTestAI({ chat }), {
+      type: 'gemini',
+      apiKey: 'test-key',
+      rateLimit: { enabled: true },
+    });
+
+    await expect(
+      ai.chat([{ role: 'user', content: 'hello' }]),
+    ).rejects.toBeInstanceOf(RateLimitError);
+    expect(chat).toHaveBeenCalledTimes(1);
+  });
+
   it('serializes successful calls that share the same budget key', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(0);

@@ -207,7 +207,7 @@ function normalizeRateLimitConfig(
     key: rateLimit?.key?.trim() || deriveBudgetKey(options),
     maxAttempts: Math.max(
       1,
-      normalizeNonNegativeInteger(rateLimit?.maxAttempts, 3),
+      normalizeNonNegativeInteger(rateLimit?.maxAttempts, 1),
     ),
   };
 }

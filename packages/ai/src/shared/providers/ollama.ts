@@ -8,6 +8,13 @@
 
 import { ValidationError } from '@happyvertical/utils';
 
+import {
+  normalizeBaseAIOptions,
+  normalizeChatOptions,
+  normalizeImageGenerationOptions,
+  type PreparedRequestControls,
+  prepareRequestControls,
+} from '../safety';
 import type {
   AICapabilities,
   AIInterface,
@@ -363,10 +370,10 @@ export class OllamaProvider implements AIInterface {
 
   constructor(options: OllamaOptions) {
     this.host = normalizeHost(options.baseUrl);
-    this.options = {
+    this.options = normalizeBaseAIOptions({
       ...options,
       baseUrl: this.host,
-    };
+    });
     this.configuredDefaultModel = options.defaultModel;
   }
 
@@ -389,27 +396,6 @@ export class OllamaProvider implements AIInterface {
       headers.set('Authorization', `Bearer ${this.options.apiKey}`);
     }
     return headers;
-  }
-
-  private async fetchWithTimeout(
-    url: string,
-    init: RequestInit,
-  ): Promise<Response> {
-    const controller = new AbortController();
-    const timeout =
-      typeof this.options.timeout === 'number' ? this.options.timeout : 0;
-    const timer = timeout
-      ? setTimeout(() => controller.abort(), timeout)
-      : undefined;
-
-    try {
-      return await fetch(url, {
-        ...init,
-        signal: controller.signal,
-      });
-    } finally {
-      if (timer) clearTimeout(timer);
-    }
   }
 
   private async buildHttpError(response: Response): Promise<AIError> {
@@ -457,15 +443,16 @@ export class OllamaProvider implements AIInterface {
   private async requestJson<T>(
     path: string,
     body?: Record<string, unknown>,
-    options: { compatibility?: boolean } = {},
+    options: { compatibility?: boolean; signal?: AbortSignal } = {},
   ): Promise<T> {
     const baseUrl = options.compatibility
       ? this.compatibilityBaseUrl
       : this.nativeBaseUrl;
-    const response = await this.fetchWithTimeout(`${baseUrl}${path}`, {
+    const response = await fetch(`${baseUrl}${path}`, {
       method: body ? 'POST' : 'GET',
       headers: this.buildHeaders(),
       body: body ? JSON.stringify(body) : undefined,
+      signal: options.signal,
     });
 
     if (!response.ok) {
@@ -478,15 +465,14 @@ export class OllamaProvider implements AIInterface {
   private async requestStream(
     path: string,
     body: Record<string, unknown>,
+    signal: AbortSignal,
   ): Promise<Response> {
-    const response = await this.fetchWithTimeout(
-      `${this.nativeBaseUrl}${path}`,
-      {
-        method: 'POST',
-        headers: this.buildHeaders(true),
-        body: JSON.stringify(body),
-      },
-    );
+    const response = await fetch(`${this.nativeBaseUrl}${path}`, {
+      method: 'POST',
+      headers: this.buildHeaders(true),
+      body: JSON.stringify(body),
+      signal,
+    });
 
     if (!response.ok) {
       throw await this.buildHttpError(response);
@@ -620,7 +606,10 @@ export class OllamaProvider implements AIInterface {
     );
   }
 
-  private async imageToBase64Payload(image: string | Buffer): Promise<string> {
+  private async imageToBase64Payload(
+    image: string | Buffer,
+    signal?: AbortSignal,
+  ): Promise<string> {
     if (Buffer.isBuffer(image)) {
       return image.toString('base64');
     }
@@ -630,7 +619,7 @@ export class OllamaProvider implements AIInterface {
       return commaIndex === -1 ? image : image.slice(commaIndex + 1);
     }
 
-    const response = await fetch(image);
+    const response = await fetch(image, { signal });
     if (!response.ok) {
       throw new AIError(
         `Failed to fetch image: ${response.status} ${response.statusText}`,
@@ -643,7 +632,10 @@ export class OllamaProvider implements AIInterface {
     return Buffer.from(arrayBuffer).toString('base64');
   }
 
-  private async imageToDataUrl(image: string | Buffer): Promise<string> {
+  private async imageToDataUrl(
+    image: string | Buffer,
+    signal?: AbortSignal,
+  ): Promise<string> {
     if (Buffer.isBuffer(image)) {
       return `data:image/png;base64,${image.toString('base64')}`;
     }
@@ -652,7 +644,7 @@ export class OllamaProvider implements AIInterface {
       return image;
     }
 
-    const response = await fetch(image);
+    const response = await fetch(image, { signal });
     if (!response.ok) {
       throw new AIError(
         `Failed to fetch image: ${response.status} ${response.statusText}`,
@@ -681,6 +673,7 @@ export class OllamaProvider implements AIInterface {
 
   private async mapMessagesToOllama(
     messages: AIMessage[],
+    signal?: AbortSignal,
   ): Promise<OllamaMessage[]> {
     const mappedMessages = await Promise.all(
       messages.map(async (message) => {
@@ -700,7 +693,7 @@ export class OllamaProvider implements AIInterface {
           if (imageParts.length > 0) {
             mapped.images = await Promise.all(
               imageParts.map((part) =>
-                this.imageToBase64Payload(part.image_url.url),
+                this.imageToBase64Payload(part.image_url.url, signal),
               ),
             );
           }
@@ -792,8 +785,16 @@ export class OllamaProvider implements AIInterface {
   }
 
   private mapThink(
-    options: Pick<ChatOptions, 'thinkingLevel'>,
+    options: Pick<ChatOptions, 'thinkingLevel' | 'reasoning'>,
   ): boolean | string | undefined {
+    if (options.reasoning?.maxTokens === 0) {
+      return false;
+    }
+    if (options.reasoning?.effort) {
+      return options.reasoning.effort === 'none'
+        ? false
+        : options.reasoning.effort;
+    }
     if (!Object.hasOwn(options, 'thinkingLevel')) {
       return undefined;
     }
@@ -806,23 +807,35 @@ export class OllamaProvider implements AIInterface {
     options: ChatOptions = {},
   ): Promise<AIResponse> {
     const startTime = Date.now();
+    let controls: PreparedRequestControls | undefined;
     try {
+      options = normalizeChatOptions(
+        this.options,
+        options,
+        'ollama',
+        options.model || this.options.defaultModel,
+      );
+      controls = prepareRequestControls(this.options, options);
       const model = await this.resolveModel(
         this.isVisionRequest(messages) ? 'vision' : 'chat',
         options.model,
       );
 
-      const response = await this.requestJson<OllamaChatResponse>('/chat', {
-        model,
-        messages: await this.mapMessagesToOllama(messages),
-        stream: false,
-        format:
-          options.responseFormat?.type === 'json_object' ? 'json' : undefined,
-        tools: this.mapTools(options.tools, options.toolChoice),
-        think: this.mapThink(options),
-        keep_alive: this.options.keepAlive,
-        options: this.buildRuntimeOptions(options),
-      });
+      const response = await this.requestJson<OllamaChatResponse>(
+        '/chat',
+        {
+          model,
+          messages: await this.mapMessagesToOllama(messages, controls.signal),
+          stream: false,
+          format:
+            options.responseFormat?.type === 'json_object' ? 'json' : undefined,
+          tools: this.mapTools(options.tools, options.toolChoice),
+          think: this.mapThink(options),
+          keep_alive: this.options.keepAlive,
+          options: this.buildRuntimeOptions(options),
+        },
+        { signal: controls.signal },
+      );
 
       const usage = mapUsage(response.prompt_eval_count, response.eval_count);
 
@@ -859,7 +872,25 @@ export class OllamaProvider implements AIInterface {
         toolCalls: toolCalls && toolCalls.length > 0 ? toolCalls : undefined,
       };
     } catch (error) {
+      if (controls?.didTimeout()) {
+        throw new AIError(
+          `AI request timed out after ${controls.timeout}ms`,
+          'AI_TIMEOUT',
+          'ollama',
+          options.model,
+        );
+      }
+      if (options.signal?.aborted) {
+        throw new AIError(
+          'AI request aborted by caller',
+          'AI_ABORTED',
+          'ollama',
+          options.model,
+        );
+      }
       throw this.mapError(error);
+    } finally {
+      controls?.cleanup();
     }
   }
 
@@ -868,7 +899,15 @@ export class OllamaProvider implements AIInterface {
     options: CompletionOptions = {},
   ): Promise<AIResponse> {
     const startTime = Date.now();
+    let controls: PreparedRequestControls | undefined;
     try {
+      options = normalizeChatOptions(
+        this.options,
+        options,
+        'ollama',
+        options.model || this.options.defaultModel,
+      );
+      controls = prepareRequestControls(this.options, options);
       const model = await this.resolveModel('chat', options.model);
       const response = await this.requestJson<OllamaGenerateResponse>(
         '/generate',
@@ -879,6 +918,7 @@ export class OllamaProvider implements AIInterface {
           keep_alive: this.options.keepAlive,
           options: this.buildRuntimeOptions(options),
         },
+        { signal: controls.signal },
       );
 
       const usage = mapUsage(response.prompt_eval_count, response.eval_count);
@@ -900,7 +940,25 @@ export class OllamaProvider implements AIInterface {
         finishReason: mapFinishReason(response.done_reason),
       };
     } catch (error) {
+      if (controls?.didTimeout()) {
+        throw new AIError(
+          `AI request timed out after ${controls.timeout}ms`,
+          'AI_TIMEOUT',
+          'ollama',
+          options.model,
+        );
+      }
+      if (options.signal?.aborted) {
+        throw new AIError(
+          'AI request aborted by caller',
+          'AI_ABORTED',
+          'ollama',
+          options.model,
+        );
+      }
       throw this.mapError(error);
+    } finally {
+      controls?.cleanup();
     }
   }
 
@@ -924,6 +982,9 @@ export class OllamaProvider implements AIInterface {
       tools: options.tools,
       toolChoice: options.toolChoice,
       onProgress: options.onProgress,
+      signal: options.signal,
+      timeout: options.timeout,
+      reasoning: options.reasoning,
       usageTags: options.usageTags,
     });
 
@@ -1001,7 +1062,7 @@ export class OllamaProvider implements AIInterface {
     const defaultPrompt =
       'Describe this image for a search index. Include objects, mood, lighting, and any visible text.';
 
-    const imageUrl = await this.imageToDataUrl(image);
+    const imageUrl = await this.imageToDataUrl(image, options.signal);
     const response = await this.chat(
       [
         {
@@ -1023,8 +1084,11 @@ export class OllamaProvider implements AIInterface {
       ],
       {
         model: options.model,
-        maxTokens: options.maxTokens || 500,
-        thinkingLevel: false,
+        maxTokens: options.maxTokens ?? 500,
+        reasoning: options.reasoning || { effort: 'none', maxTokens: 0 },
+        signal: options.signal,
+        timeout: options.timeout,
+        usageTags: options.usageTags,
       },
     );
 
@@ -1035,7 +1099,15 @@ export class OllamaProvider implements AIInterface {
     prompt: string,
     options: ImageGenerationOptions = {},
   ): Promise<ImageGenerationResponse> {
+    let controls: PreparedRequestControls | undefined;
     try {
+      options = normalizeImageGenerationOptions(
+        this.options,
+        options,
+        'ollama',
+        options.model,
+      );
+      controls = prepareRequestControls(this.options, options);
       if (options.imageInput) {
         throw new AIError(
           'Ollama image generation does not support imageInput in this adapter yet.',
@@ -1058,13 +1130,13 @@ export class OllamaProvider implements AIInterface {
         {
           model,
           prompt,
-          n: options.n || 1,
+          n: options.n,
           size: options.size || '1024x1024',
           response_format: 'b64_json',
           quality: options.quality,
           style: options.style,
         },
-        { compatibility: true },
+        { compatibility: true, signal: controls.signal },
       );
 
       const images = (response.data || []).map((item) => {
@@ -1084,7 +1156,25 @@ export class OllamaProvider implements AIInterface {
         model,
       };
     } catch (error) {
+      if (controls?.didTimeout()) {
+        throw new AIError(
+          `AI request timed out after ${controls.timeout}ms`,
+          'AI_TIMEOUT',
+          'ollama',
+          options.model,
+        );
+      }
+      if (options.signal?.aborted) {
+        throw new AIError(
+          'AI request aborted by caller',
+          'AI_ABORTED',
+          'ollama',
+          options.model,
+        );
+      }
       throw this.mapError(error);
+    } finally {
+      controls?.cleanup();
     }
   }
 
@@ -1093,23 +1183,35 @@ export class OllamaProvider implements AIInterface {
     options: ChatOptions = {},
   ): AsyncIterable<string> {
     const startTime = Date.now();
+    let controls: PreparedRequestControls | undefined;
     try {
+      options = normalizeChatOptions(
+        this.options,
+        options,
+        'ollama',
+        options.model || this.options.defaultModel,
+      );
+      controls = prepareRequestControls(this.options, options);
       const model = await this.resolveModel(
         this.isVisionRequest(messages) ? 'vision' : 'chat',
         options.model,
       );
 
-      const response = await this.requestStream('/chat', {
-        model,
-        messages: await this.mapMessagesToOllama(messages),
-        stream: true,
-        format:
-          options.responseFormat?.type === 'json_object' ? 'json' : undefined,
-        tools: this.mapTools(options.tools, options.toolChoice),
-        think: this.mapThink(options),
-        keep_alive: this.options.keepAlive,
-        options: this.buildRuntimeOptions(options),
-      });
+      const response = await this.requestStream(
+        '/chat',
+        {
+          model,
+          messages: await this.mapMessagesToOllama(messages, controls.signal),
+          stream: true,
+          format:
+            options.responseFormat?.type === 'json_object' ? 'json' : undefined,
+          tools: this.mapTools(options.tools, options.toolChoice),
+          think: this.mapThink(options),
+          keep_alive: this.options.keepAlive,
+          options: this.buildRuntimeOptions(options),
+        },
+        controls.signal,
+      );
 
       let finalUsage: TokenUsage | undefined;
       let finalModel = model;
@@ -1146,7 +1248,25 @@ export class OllamaProvider implements AIInterface {
         options.usageTags,
       );
     } catch (error) {
+      if (controls?.didTimeout()) {
+        throw new AIError(
+          `AI request timed out after ${controls.timeout}ms`,
+          'AI_TIMEOUT',
+          'ollama',
+          options.model,
+        );
+      }
+      if (options.signal?.aborted) {
+        throw new AIError(
+          'AI request aborted by caller',
+          'AI_ABORTED',
+          'ollama',
+          options.model,
+        );
+      }
       throw this.mapError(error);
+    } finally {
+      controls?.cleanup();
     }
   }
 

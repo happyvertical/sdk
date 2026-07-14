@@ -7,6 +7,12 @@
  */
 
 import { extractRetryAfterSeconds } from '../rate-limit';
+import {
+  normalizeBaseAIOptions,
+  normalizeChatOptions,
+  type PreparedRequestControls,
+  prepareRequestControls,
+} from '../safety';
 import type {
   AICapabilities,
   AIInterface,
@@ -58,11 +64,11 @@ export class AnthropicProvider implements AIInterface {
    * @param options - Configuration options for the Anthropic provider
    */
   constructor(options: AnthropicOptions) {
-    this.options = {
+    this.options = normalizeBaseAIOptions({
       defaultModel: 'claude-3-5-sonnet-20241022',
       anthropicVersion: '2023-06-01',
       ...options,
-    };
+    });
 
     // Initialize Anthropic client
     this.initializeClientSync();
@@ -144,6 +150,7 @@ export class AnthropicProvider implements AIInterface {
     options: ChatOptions = {},
   ): Promise<AIResponse> {
     const startTime = Date.now();
+    let controls: PreparedRequestControls | undefined;
     try {
       await this.ensureClient();
 
@@ -151,12 +158,14 @@ export class AnthropicProvider implements AIInterface {
         this.mapMessagesToAnthropic(messages);
 
       const model = options.model || this.options.defaultModel;
+      options = normalizeChatOptions(this.options, options, 'anthropic', model);
+      controls = prepareRequestControls(this.options, options);
 
       // Build request parameters
       const requestParams: Record<string, any> = {
         model,
         messages: anthropicMessages,
-        max_tokens: options.maxTokens || 4096,
+        max_tokens: options.maxTokens,
         temperature: options.temperature,
         top_p: options.topP,
         stop_sequences: Array.isArray(options.stop)
@@ -176,6 +185,12 @@ export class AnthropicProvider implements AIInterface {
         tool_choice: this.mapToolChoice(options.toolChoice),
         stream: false,
       };
+      if ((options.reasoning?.maxTokens || 0) > 0) {
+        requestParams.thinking = {
+          type: 'enabled',
+          budget_tokens: options.reasoning?.maxTokens,
+        };
+      }
 
       // Add response format if specified
       if (options.responseFormat?.type === 'json_object') {
@@ -186,7 +201,10 @@ export class AnthropicProvider implements AIInterface {
           : jsonInstruction.trim();
       }
 
-      const response = await this.client.messages.create(requestParams);
+      const response = await this.client.messages.create(requestParams, {
+        signal: controls.signal,
+        timeout: controls.timeout,
+      });
 
       // Extract text content and tool calls from response
       const textContent = response.content
@@ -228,7 +246,25 @@ export class AnthropicProvider implements AIInterface {
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       };
     } catch (error) {
+      if (controls?.didTimeout()) {
+        throw new AIError(
+          `AI request timed out after ${controls.timeout}ms`,
+          'AI_TIMEOUT',
+          'anthropic',
+          options.model,
+        );
+      }
+      if (options.signal?.aborted) {
+        throw new AIError(
+          'AI request aborted by caller',
+          'AI_ABORTED',
+          'anthropic',
+          options.model,
+        );
+      }
       throw this.mapError(error);
+    } finally {
+      controls?.cleanup();
     }
   }
 
@@ -245,6 +281,9 @@ export class AnthropicProvider implements AIInterface {
       stop: options.stop,
       stream: options.stream,
       onProgress: options.onProgress,
+      signal: options.signal,
+      timeout: options.timeout,
+      reasoning: options.reasoning,
       usageTags: options.usageTags,
     });
   }
@@ -291,6 +330,9 @@ export class AnthropicProvider implements AIInterface {
       tools: options.tools,
       toolChoice: options.toolChoice,
       onProgress: options.onProgress,
+      signal: options.signal,
+      timeout: options.timeout,
+      reasoning: options.reasoning,
       usageTags: options.usageTags,
     });
 
@@ -350,6 +392,7 @@ export class AnthropicProvider implements AIInterface {
     options: ChatOptions = {},
   ): AsyncIterable<string> {
     const startTime = Date.now();
+    let controls: PreparedRequestControls | undefined;
     try {
       await this.ensureClient();
 
@@ -357,11 +400,13 @@ export class AnthropicProvider implements AIInterface {
         this.mapMessagesToAnthropic(messages);
 
       const model = options.model || this.options.defaultModel;
+      options = normalizeChatOptions(this.options, options, 'anthropic', model);
+      controls = prepareRequestControls(this.options, options);
 
-      const stream = await this.client.messages.create({
+      const requestParams: Record<string, any> = {
         model,
         messages: anthropicMessages,
-        max_tokens: options.maxTokens || 4096,
+        max_tokens: options.maxTokens,
         temperature: options.temperature,
         top_p: options.topP,
         stop_sequences: Array.isArray(options.stop)
@@ -371,6 +416,16 @@ export class AnthropicProvider implements AIInterface {
             : undefined,
         system: system || undefined,
         stream: true,
+      };
+      if ((options.reasoning?.maxTokens || 0) > 0) {
+        requestParams.thinking = {
+          type: 'enabled',
+          budget_tokens: options.reasoning?.maxTokens,
+        };
+      }
+      const stream = await this.client.messages.create(requestParams, {
+        signal: controls.signal,
+        timeout: controls.timeout,
       });
 
       for await (const chunk of stream) {
@@ -395,7 +450,25 @@ export class AnthropicProvider implements AIInterface {
         options.usageTags,
       );
     } catch (error) {
+      if (controls?.didTimeout()) {
+        throw new AIError(
+          `AI request timed out after ${controls.timeout}ms`,
+          'AI_TIMEOUT',
+          'anthropic',
+          options.model,
+        );
+      }
+      if (options.signal?.aborted) {
+        throw new AIError(
+          'AI request aborted by caller',
+          'AI_ABORTED',
+          'anthropic',
+          options.model,
+        );
+      }
       throw this.mapError(error);
+    } finally {
+      controls?.cleanup();
     }
   }
 

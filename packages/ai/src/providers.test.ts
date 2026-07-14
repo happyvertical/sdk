@@ -212,7 +212,15 @@ describe('LiteLLM Provider', () => {
     await provider.chat([{ role: 'user', content: 'Hello' }]);
 
     expect(createChatCompletion).toHaveBeenCalledWith(
-      expect.objectContaining({ model: 'claude-3-5-sonnet' }),
+      expect.objectContaining({
+        model: 'claude-3-5-sonnet',
+        max_tokens: 4096,
+        reasoning: expect.objectContaining({ max_tokens: 1024 }),
+      }),
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+        timeout: 120_000,
+      }),
     );
   });
 
@@ -318,6 +326,10 @@ describe('LiteLLM Provider', () => {
 
     expect(generateImage).toHaveBeenCalledWith(
       expect.objectContaining({ model: 'gpt-image-1' }),
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+        timeout: 120_000,
+      }),
     );
   });
 
@@ -1358,11 +1370,16 @@ describe('Bedrock Provider', () => {
     expect(converse).toHaveBeenCalledWith(
       expect.objectContaining({
         modelId: 'anthropic.claude-3-5-sonnet-20241022-v2:0',
+        inferenceConfig: expect.objectContaining({ maxTokens: 4096 }),
+        additionalModelRequestFields: {
+          thinking: { type: 'enabled', budget_tokens: 1024 },
+        },
         toolConfig: expect.objectContaining({
           tools: [expect.any(Object)],
           toolChoice: { auto: {} },
         }),
       }),
+      expect.objectContaining({ abortSignal: expect.any(AbortSignal) }),
     );
     expect(response.finishReason).toBe('tool_calls');
     expect(response.toolCalls?.[0]).toEqual({
@@ -1469,6 +1486,7 @@ describe('Bedrock Provider', () => {
       expect.objectContaining({
         modelId: 'amazon.titan-image-generator-v2:0',
       }),
+      expect.objectContaining({ abortSignal: expect.any(AbortSignal) }),
     );
     expect(response.images[0]?.data).toBeTypeOf('string');
   });

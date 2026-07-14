@@ -9,6 +9,13 @@
 
 import OpenAI from 'openai';
 import { extractRetryAfterSeconds } from '../rate-limit';
+import {
+  normalizeBaseAIOptions,
+  normalizeChatOptions,
+  normalizeImageGenerationOptions,
+  type PreparedRequestControls,
+  prepareRequestControls,
+} from '../safety';
 import type {
   AICapabilities,
   AIInterface,
@@ -144,8 +151,8 @@ export interface OpenAICompatibleOptions extends BaseAIOptions {
  */
 export class OpenAIProvider implements AIInterface {
   private client: OpenAI;
-  private options: OpenAICompatibleOptions;
-  private readonly profile: OpenAICompatibleProfile;
+  protected options: OpenAICompatibleOptions;
+  protected readonly profile: OpenAICompatibleProfile;
 
   /**
    * Creates a new OpenAI provider instance
@@ -156,10 +163,10 @@ export class OpenAIProvider implements AIInterface {
     profile: OpenAICompatibleProfile = OPENAI_PROFILE,
   ) {
     this.profile = profile;
-    this.options = {
+    this.options = normalizeBaseAIOptions({
       defaultModel: this.profile.defaultModel,
       ...options,
-    };
+    });
 
     this.client = new OpenAI({
       apiKey: this.options.apiKey,
@@ -196,10 +203,18 @@ export class OpenAIProvider implements AIInterface {
     options: ChatOptions = {},
   ): Promise<AIResponse> {
     const startTime = Date.now();
+    let controls: PreparedRequestControls | undefined;
     try {
       const model =
         options.model || this.options.defaultModel || this.profile.defaultModel;
-      const response = await this.client.chat.completions.create({
+      options = normalizeChatOptions(
+        this.options,
+        options,
+        this.profile.providerName,
+        model,
+      );
+      controls = prepareRequestControls(this.options, options);
+      const request = {
         model,
         messages: this.mapMessagesToOpenAI(messages),
         max_tokens: options.maxTokens,
@@ -222,6 +237,26 @@ export class OpenAIProvider implements AIInterface {
         response_format: options.responseFormat,
         seed: options.seed,
         stream: false,
+      } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming & {
+        reasoning?: {
+          effort?: string;
+          max_tokens?: number;
+          include_thoughts?: boolean;
+        };
+      };
+      if (
+        this.profile.providerName === 'bifrost' ||
+        this.profile.providerName === 'litellm'
+      ) {
+        request.reasoning = {
+          effort: options.reasoning?.effort,
+          max_tokens: options.reasoning?.maxTokens,
+          include_thoughts: options.reasoning?.includeThoughts,
+        };
+      }
+      const response = await this.client.chat.completions.create(request, {
+        signal: controls.signal,
+        timeout: controls.timeout,
       });
 
       const choice = response.choices[0];
@@ -261,7 +296,25 @@ export class OpenAIProvider implements AIInterface {
           })),
       };
     } catch (error) {
+      if (controls?.didTimeout()) {
+        throw new AIError(
+          `AI request timed out after ${controls.timeout}ms`,
+          'AI_TIMEOUT',
+          this.profile.providerName,
+          options.model,
+        );
+      }
+      if (options.signal?.aborted) {
+        throw new AIError(
+          'AI request aborted by caller',
+          'AI_ABORTED',
+          this.profile.providerName,
+          options.model,
+        );
+      }
       throw this.mapError(error);
+    } finally {
+      controls?.cleanup();
     }
   }
 
@@ -294,6 +347,9 @@ export class OpenAIProvider implements AIInterface {
       stop: options.stop,
       stream: options.stream,
       onProgress: options.onProgress,
+      signal: options.signal,
+      timeout: options.timeout,
+      reasoning: options.reasoning,
       usageTags: options.usageTags,
     });
   }
@@ -346,6 +402,9 @@ export class OpenAIProvider implements AIInterface {
       tools: options.tools,
       toolChoice: options.toolChoice,
       onProgress: options.onProgress,
+      signal: options.signal,
+      timeout: options.timeout,
+      reasoning: options.reasoning,
       usageTags: options.usageTags,
     });
 
@@ -413,7 +472,10 @@ export class OpenAIProvider implements AIInterface {
    * @returns base64 data URL string
    * @private
    */
-  private async imageToBase64(image: string | Buffer): Promise<string> {
+  private async imageToBase64(
+    image: string | Buffer,
+    signal?: AbortSignal,
+  ): Promise<string> {
     if (Buffer.isBuffer(image)) {
       return `data:image/png;base64,${image.toString('base64')}`;
     }
@@ -421,7 +483,7 @@ export class OpenAIProvider implements AIInterface {
       return image; // Already base64 data URL
     }
     // It's a URL - fetch and convert
-    const response = await fetch(image);
+    const response = await fetch(image, { signal });
     if (!response.ok) {
       throw new AIError(
         `Failed to fetch image: ${response.status} ${response.statusText}`,
@@ -456,7 +518,7 @@ export class OpenAIProvider implements AIInterface {
       const defaultPrompt =
         'Describe this image for a search index. Include objects, mood, lighting, and any visible text.';
 
-      const imageUrl = await this.imageToBase64(image);
+      const imageUrl = await this.imageToBase64(image, options.signal);
 
       const response = await this.chat(
         [
@@ -479,7 +541,11 @@ export class OpenAIProvider implements AIInterface {
             options.model ||
             this.options.defaultModel ||
             this.profile.defaultModel,
-          maxTokens: options.maxTokens || 500,
+          maxTokens: options.maxTokens ?? 500,
+          signal: options.signal,
+          timeout: options.timeout,
+          reasoning: options.reasoning,
+          usageTags: options.usageTags,
         },
       );
 
@@ -537,13 +603,21 @@ export class OpenAIProvider implements AIInterface {
     prompt: string,
     options: ImageGenerationOptions = {},
   ): Promise<ImageGenerationResponse> {
+    let controls: PreparedRequestControls | undefined;
     try {
       const model = options.model || 'dall-e-3';
+      options = normalizeImageGenerationOptions(
+        this.options,
+        options,
+        this.profile.providerName,
+        model,
+      );
+      controls = prepareRequestControls(this.options, options);
 
       const requestParams: OpenAI.Images.ImageGenerateParams = {
         model,
         prompt,
-        n: model === 'dall-e-3' ? 1 : options.n || 1,
+        n: model === 'dall-e-3' ? 1 : options.n,
         size:
           (options.size as OpenAI.Images.ImageGenerateParams['size']) ||
           '1024x1024',
@@ -560,7 +634,10 @@ export class OpenAIProvider implements AIInterface {
         }
       }
 
-      const response = await this.client.images.generate(requestParams);
+      const response = await this.client.images.generate(requestParams, {
+        signal: controls.signal,
+        timeout: controls.timeout,
+      });
 
       const images = (response.data || []).map((item) => {
         let data: Buffer | string;
@@ -587,7 +664,25 @@ export class OpenAIProvider implements AIInterface {
         model,
       };
     } catch (error) {
+      if (controls?.didTimeout()) {
+        throw new AIError(
+          `AI request timed out after ${controls.timeout}ms`,
+          'AI_TIMEOUT',
+          this.profile.providerName,
+          options.model,
+        );
+      }
+      if (options.signal?.aborted) {
+        throw new AIError(
+          'AI request aborted by caller',
+          'AI_ABORTED',
+          this.profile.providerName,
+          options.model,
+        );
+      }
       throw this.mapError(error);
+    } finally {
+      controls?.cleanup();
     }
   }
 
@@ -612,10 +707,18 @@ export class OpenAIProvider implements AIInterface {
     options: ChatOptions = {},
   ): AsyncIterable<string> {
     const startTime = Date.now();
+    let controls: PreparedRequestControls | undefined;
     try {
       const model =
         options.model || this.options.defaultModel || this.profile.defaultModel;
-      const stream = await this.client.chat.completions.create({
+      options = normalizeChatOptions(
+        this.options,
+        options,
+        this.profile.providerName,
+        model,
+      );
+      controls = prepareRequestControls(this.options, options);
+      const request = {
         model,
         messages: this.mapMessagesToOpenAI(messages),
         max_tokens: options.maxTokens,
@@ -626,6 +729,26 @@ export class OpenAIProvider implements AIInterface {
         presence_penalty: options.presencePenalty,
         user: options.user,
         stream: true,
+      } as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming & {
+        reasoning?: {
+          effort?: string;
+          max_tokens?: number;
+          include_thoughts?: boolean;
+        };
+      };
+      if (
+        this.profile.providerName === 'bifrost' ||
+        this.profile.providerName === 'litellm'
+      ) {
+        request.reasoning = {
+          effort: options.reasoning?.effort,
+          max_tokens: options.reasoning?.maxTokens,
+          include_thoughts: options.reasoning?.includeThoughts,
+        };
+      }
+      const stream = await this.client.chat.completions.create(request, {
+        signal: controls.signal,
+        timeout: controls.timeout,
       });
 
       for await (const chunk of stream) {
@@ -648,7 +771,25 @@ export class OpenAIProvider implements AIInterface {
         options.usageTags,
       );
     } catch (error) {
+      if (controls?.didTimeout()) {
+        throw new AIError(
+          `AI request timed out after ${controls.timeout}ms`,
+          'AI_TIMEOUT',
+          this.profile.providerName,
+          options.model,
+        );
+      }
+      if (options.signal?.aborted) {
+        throw new AIError(
+          'AI request aborted by caller',
+          'AI_ABORTED',
+          this.profile.providerName,
+          options.model,
+        );
+      }
       throw this.mapError(error);
+    } finally {
+      controls?.cleanup();
     }
   }
 
