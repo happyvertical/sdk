@@ -3,7 +3,7 @@
   "path": "packages/logger",
   "position": {
     "index": 18,
-    "count": 31
+    "count": 32
   },
   "description": "Structured logging for HAVE SDK with signal adapter",
   "provides": [

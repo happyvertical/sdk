@@ -7,7 +7,7 @@ Standardized caching interface supporting Memory, File, and Redis backends
 ## Package Map
 - Package: `@happyvertical/cache`
 - Hierarchy path: `@happyvertical/sdk > packages > cache`
-- Workspace position: `5 of 31` local packages
+- Workspace position: `5 of 32` local packages
 - Internal dependencies: `@happyvertical/utils`
 - Internal dependents: `@happyvertical/geo`, `@happyvertical/translator`
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`

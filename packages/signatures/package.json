@@ -1,0 +1,62 @@
+{
+  "name": "@happyvertical/signatures",
+  "version": "0.79.0",
+  "description": "Provider-neutral e-signature workflows with a BoldSign adapter",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./boldsign": {
+      "types": "./dist/adapters/boldsign.d.ts",
+      "import": "./dist/adapters/boldsign.js"
+    }
+  },
+  "scripts": {
+    "test": "vitest --config ../../vitest.package.config.ts run",
+    "test:watch": "vitest --config ../../vitest.package.config.ts",
+    "build": "vite build",
+    "build:watch": "vite build --watch",
+    "typecheck": "tsc --noEmit",
+    "docs": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules",
+    "clean": "rm -rf dist docs"
+  },
+  "keywords": [
+    "esignature",
+    "signature",
+    "boldsign",
+    "agreements"
+  ],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "AGENT.md",
+    "metadata.json"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/happyvertical/sdk.git",
+    "directory": "packages/signatures"
+  },
+  "bugs": {
+    "url": "https://github.com/happyvertical/sdk/issues"
+  },
+  "homepage": "https://github.com/happyvertical/sdk/tree/main/packages/signatures#readme",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "24.12.2",
+    "@vitest/coverage-v8": "4.1.5",
+    "typescript": "^5.9.3",
+    "vite": "7.3.2",
+    "vite-plugin-dts": "4.5.4",
+    "vitest": "^4.1.5"
+  }
+}

@@ -88,6 +88,7 @@ These packages form the foundation everything else builds on.
 | Package | Description |
 |---------|-------------|
 | [**@happyvertical/payments**](./packages/payments/README.md) | Payment backend abstraction with adapters for Base USDC, BTCPay Server, and Stripe Checkout. Quote payment options, status polling, x402 verification, refunds, and payouts. |
+| [**@happyvertical/signatures**](./packages/signatures/README.md) | Provider-neutral e-signature requests, verified webhooks, cancellation/expiry, and hashed execution evidence, with BoldSign as the first adapter. |
 
 ### World Knowledge
 
