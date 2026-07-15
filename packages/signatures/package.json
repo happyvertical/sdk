@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/signatures",
-  "version": "0.79.0",
+  "version": "0.80.0",
   "description": "Provider-neutral e-signature workflows with a BoldSign adapter",
   "type": "module",
   "main": "./dist/index.js",
