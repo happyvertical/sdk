@@ -98,6 +98,7 @@ export default {
         'repos',
         'sdk-mcp',
         'secrets',
+        'signatures',
         'social',
         'speech',
         'sql',

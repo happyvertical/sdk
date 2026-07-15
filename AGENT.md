@@ -6,10 +6,10 @@
 
 ## Workspace Map
 - Package docs standard: `AGENT.md`
-- Local workspace packages: `31`
+- Local workspace packages: `32`
 - External catalog packages: `@happyvertical/ocr`, `@happyvertical/pdf`, `@happyvertical/spider`
 - Generated manifest: `ecosystem-manifest.json`
-- Top-level package order: `accounting`, `ai`, `analytics`, `auth`, `cache`, `comfyui`, `directory`, `documents`, `email`, `encryption`, `files`, `geo`, `github-actions`, `graphql`, `images`, `jobs`, `json`, `logger`, `messages`, `payments`, `projects`, `repos`, `sdk-mcp`, `secrets`, `social`, `speech`, `sql`, `translator`, `utils`, `video`, `weather`
+- Top-level package order: `accounting`, `ai`, `analytics`, `auth`, `cache`, `comfyui`, `directory`, `documents`, `email`, `encryption`, `files`, `geo`, `github-actions`, `graphql`, `images`, `jobs`, `json`, `logger`, `messages`, `payments`, `projects`, `repos`, `sdk-mcp`, `secrets`, `signatures`, `social`, `speech`, `sql`, `translator`, `utils`, `video`, `weather`
 
 ## Build & Test
 ```bash

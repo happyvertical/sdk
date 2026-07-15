@@ -7,7 +7,7 @@ Standardized translation interface supporting Google Translate, DeepL, and Libre
 ## Package Map
 - Package: `@happyvertical/translator`
 - Hierarchy path: `@happyvertical/sdk > packages > translator`
-- Workspace position: `28 of 31` local packages
+- Workspace position: `29 of 32` local packages
 - Internal dependencies: `@happyvertical/cache`, `@happyvertical/utils`
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`

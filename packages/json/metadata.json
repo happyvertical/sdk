@@ -3,7 +3,7 @@
   "path": "packages/json",
   "position": {
     "index": 17,
-    "count": 31
+    "count": 32
   },
   "description": "High-performance JSON parsing and serialization with Rust SIMD acceleration and automatic fallback",
   "provides": [

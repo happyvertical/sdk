@@ -7,7 +7,7 @@ Low-level email protocol operations with adapter-based architecture
 ## Package Map
 - Package: `@happyvertical/email`
 - Hierarchy path: `@happyvertical/sdk > packages > email`
-- Workspace position: `9 of 31` local packages
+- Workspace position: `9 of 32` local packages
 - Internal dependencies: `@happyvertical/logger`, `@happyvertical/utils`
 - Internal dependents: `@happyvertical/messages`
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`

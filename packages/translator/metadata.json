@@ -2,8 +2,8 @@
   "name": "@happyvertical/translator",
   "path": "packages/translator",
   "position": {
-    "index": 28,
-    "count": 31
+    "index": 29,
+    "count": 32
   },
   "description": "Standardized translation interface supporting Google Translate, DeepL, and LibreTranslate",
   "provides": [

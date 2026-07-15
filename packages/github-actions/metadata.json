@@ -3,7 +3,7 @@
   "path": "packages/github-actions",
   "position": {
     "index": 13,
-    "count": 31
+    "count": 32
   },
   "description": "Reusable GitHub Actions utilities for issue triage, PR validation, and workflow automation",
   "provides": [

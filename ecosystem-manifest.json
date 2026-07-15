@@ -3,7 +3,7 @@
   "workspace": {
     "name": "@happyvertical/sdk",
     "path": ".",
-    "packageCount": 31,
+    "packageCount": 32,
     "localPackageOrder": [
       "accounting",
       "ai",
@@ -29,6 +29,7 @@
       "repos",
       "sdk-mcp",
       "secrets",
+      "signatures",
       "social",
       "speech",
       "sql",
@@ -54,7 +55,7 @@
       },
       "position": {
         "index": 1,
-        "count": 31
+        "count": 32
       },
       "description": "Multi-provider accounting integration for AR/AP sync and audit with QuickBooks, Stripe, and more",
       "commands": {
@@ -99,7 +100,7 @@
       },
       "position": {
         "index": 2,
-        "count": 31
+        "count": 32
       },
       "description": "Standardized AI interface supporting OpenAI, LiteLLM, Bifrost, Ollama, Anthropic, Gemini, Bedrock, Hugging Face, Claude CLI, and Qwen3-TTS",
       "commands": {
@@ -149,7 +150,7 @@
       },
       "position": {
         "index": 3,
-        "count": 31
+        "count": 32
       },
       "description": "Unified analytics interface for Google Analytics 4, Plausible, and more",
       "commands": {
@@ -194,7 +195,7 @@
       },
       "position": {
         "index": 4,
-        "count": 31
+        "count": 32
       },
       "description": "Unified authentication interface supporting Keycloak, AWS Cognito, and Nostr with OAuth2/OIDC and public key identity",
       "commands": {
@@ -241,7 +242,7 @@
       },
       "position": {
         "index": 5,
-        "count": 31
+        "count": 32
       },
       "description": "Standardized caching interface supporting Memory, File, and Redis backends",
       "commands": {
@@ -291,7 +292,7 @@
       },
       "position": {
         "index": 6,
-        "count": 31
+        "count": 32
       },
       "description": "ComfyUI API client for workflow orchestration and video generation",
       "commands": {
@@ -335,7 +336,7 @@
       },
       "position": {
         "index": 7,
-        "count": 31
+        "count": 32
       },
       "description": "Unified directory services with adapter-based architecture (Kanidm, Stalwart, PostgreSQL, AWS)",
       "commands": {
@@ -384,7 +385,7 @@
       },
       "position": {
         "index": 8,
-        "count": 31
+        "count": 32
       },
       "description": "Multi-part document processing with support for PDF, HTML, and Markdown",
       "commands": {
@@ -433,7 +434,7 @@
       },
       "position": {
         "index": 9,
-        "count": 31
+        "count": 32
       },
       "description": "Low-level email protocol operations with adapter-based architecture",
       "commands": {
@@ -487,7 +488,7 @@
       },
       "position": {
         "index": 10,
-        "count": 31
+        "count": 32
       },
       "description": "Unified encryption and cryptography operations with adapter-based architecture",
       "commands": {
@@ -536,7 +537,7 @@
       },
       "position": {
         "index": 11,
-        "count": 31
+        "count": 32
       },
       "description": "File system utilities for local and remote file operations",
       "commands": {
@@ -586,7 +587,7 @@
       },
       "position": {
         "index": 12,
-        "count": 31
+        "count": 32
       },
       "description": "Standardized geographical information interface supporting Google Maps and OpenStreetMap",
       "commands": {
@@ -632,7 +633,7 @@
       },
       "position": {
         "index": 13,
-        "count": 31
+        "count": 32
       },
       "description": "Reusable GitHub Actions utilities for issue triage, PR validation, and workflow automation",
       "commands": {
@@ -677,7 +678,7 @@
       },
       "position": {
         "index": 14,
-        "count": 31
+        "count": 32
       },
       "description": "GitHub GraphQL client for SDK packages",
       "commands": {
@@ -721,7 +722,7 @@
       },
       "position": {
         "index": 15,
-        "count": 31
+        "count": 32
       },
       "description": "Image processing utilities with adapter pattern for scaling from static to enterprise",
       "commands": {
@@ -769,7 +770,7 @@
       },
       "position": {
         "index": 16,
-        "count": 31
+        "count": 32
       },
       "description": "Job queue abstraction with multiple backend adapters (SQLite, PostgreSQL, Bull, SQS)",
       "commands": {
@@ -818,7 +819,7 @@
       },
       "position": {
         "index": 17,
-        "count": 31
+        "count": 32
       },
       "description": "High-performance JSON parsing and serialization with Rust SIMD acceleration and automatic fallback",
       "commands": {
@@ -861,7 +862,7 @@
       },
       "position": {
         "index": 18,
-        "count": 31
+        "count": 32
       },
       "description": "Structured logging for HAVE SDK with signal adapter",
       "commands": {
@@ -913,7 +914,7 @@
       },
       "position": {
         "index": 19,
-        "count": 31
+        "count": 32
       },
       "description": "Unified multi-channel messaging with adapter-based architecture (Slack, Twitter, Email)",
       "commands": {
@@ -961,7 +962,7 @@
       },
       "position": {
         "index": 20,
-        "count": 31
+        "count": 32
       },
       "description": "Payment backend abstraction with adapters for Base USDC, BTCPay Server, and Stripe",
       "commands": {
@@ -1006,7 +1007,7 @@
       },
       "position": {
         "index": 21,
-        "count": 31
+        "count": 32
       },
       "description": "Standardized project management interface for GitHub Projects, Jira, ZenHub, and Linear",
       "commands": {
@@ -1052,7 +1053,7 @@
       },
       "position": {
         "index": 22,
-        "count": 31
+        "count": 32
       },
       "description": "Standardized repository interface for GitHub, GitLab, Bitbucket, and Azure DevOps",
       "commands": {
@@ -1100,7 +1101,7 @@
       },
       "position": {
         "index": 23,
-        "count": 31
+        "count": 32
       },
       "description": "MCP server for HAVE SDK - Routes queries to package experts using AGENT.md files",
       "commands": {
@@ -1148,7 +1149,7 @@
       },
       "position": {
         "index": 24,
-        "count": 31
+        "count": 32
       },
       "description": "Envelope encryption for per-tenant secret management with pluggable backends",
       "commands": {
@@ -1183,6 +1184,50 @@
       ]
     },
     {
+      "name": "@happyvertical/signatures",
+      "shortName": "signatures",
+      "path": "packages/signatures",
+      "docs": {
+        "agent": "packages/signatures/AGENT.md",
+        "metadata": "packages/signatures/metadata.json"
+      },
+      "position": {
+        "index": 25,
+        "count": 32
+      },
+      "description": "Provider-neutral e-signature workflows with a BoldSign adapter",
+      "commands": {
+        "build": "pnpm --filter @happyvertical/signatures build",
+        "test": "pnpm --filter @happyvertical/signatures test",
+        "typecheck": "pnpm --filter @happyvertical/signatures typecheck",
+        "clean": "pnpm --filter @happyvertical/signatures clean"
+      },
+      "correctionLoops": [
+        "If Vite or TypeScript reports missing packages, run `pnpm install` at the repo root and rerun `pnpm --filter @happyvertical/signatures build`.",
+        "If tests or exports fail after API, type, or bundle changes, run `pnpm --filter @happyvertical/signatures clean` followed by `pnpm --filter @happyvertical/signatures build` and `pnpm --filter @happyvertical/signatures test`.",
+        "If failures span multiple packages or Turborepo ordering looks wrong, run `pnpm build` and `pnpm typecheck` from the repo root before retrying package-scoped commands."
+      ],
+      "provides": [
+        "Provider-neutral e-signature workflows with a BoldSign adapter"
+      ],
+      "implements": [
+        "BoldSign"
+      ],
+      "requires": {
+        "workspace": [],
+        "externalHappyVertical": [],
+        "external": []
+      },
+      "dependents": [],
+      "stability": {
+        "level": "experimental",
+        "reason": "Marked as preview or experimental in package guidance."
+      },
+      "keywords": [
+        "signatures"
+      ]
+    },
+    {
       "name": "@happyvertical/social",
       "shortName": "social",
       "path": "packages/social",
@@ -1191,8 +1236,8 @@
         "metadata": "packages/social/metadata.json"
       },
       "position": {
-        "index": 25,
-        "count": 31
+        "index": 26,
+        "count": 32
       },
       "description": "Social platform adapters for publishing to YouTube, Threads, X, and Bluesky",
       "commands": {
@@ -1235,8 +1280,8 @@
         "metadata": "packages/speech/metadata.json"
       },
       "position": {
-        "index": 26,
-        "count": 31
+        "index": 27,
+        "count": 32
       },
       "description": "Speech provider abstraction for STT and TTS backends",
       "commands": {
@@ -1282,8 +1327,8 @@
         "metadata": "packages/sql/metadata.json"
       },
       "position": {
-        "index": 27,
-        "count": 31
+        "index": 28,
+        "count": 32
       },
       "description": "Database interface with support for SQLite, PostgreSQL, and DuckDB",
       "commands": {
@@ -1335,8 +1380,8 @@
         "metadata": "packages/translator/metadata.json"
       },
       "position": {
-        "index": 28,
-        "count": 31
+        "index": 29,
+        "count": 32
       },
       "description": "Standardized translation interface supporting Google Translate, DeepL, and LibreTranslate",
       "commands": {
@@ -1382,8 +1427,8 @@
         "metadata": "packages/utils/metadata.json"
       },
       "position": {
-        "index": 29,
-        "count": 31
+        "index": 30,
+        "count": 32
       },
       "description": "Foundation utilities for ID generation, date parsing, URL handling, string conversion, error handling, and logging",
       "commands": {
@@ -1451,8 +1496,8 @@
         "metadata": "packages/video/metadata.json"
       },
       "position": {
-        "index": 30,
-        "count": 31
+        "index": 31,
+        "count": 32
       },
       "description": "Video processing utilities with adapter pattern for composition and transcoding",
       "commands": {
@@ -1498,8 +1543,8 @@
         "metadata": "packages/weather/metadata.json"
       },
       "position": {
-        "index": 31,
-        "count": 31
+        "index": 32,
+        "count": 32
       },
       "description": "Weather data provider abstraction for HAppyVertical SDK",
       "commands": {
@@ -1818,6 +1863,16 @@
       "type": "provides",
       "from": "@happyvertical/secrets",
       "to": "Envelope encryption for per-tenant secret management with pluggable backends"
+    },
+    {
+      "type": "implements",
+      "from": "@happyvertical/signatures",
+      "to": "BoldSign"
+    },
+    {
+      "type": "provides",
+      "from": "@happyvertical/signatures",
+      "to": "Provider-neutral e-signature workflows with a BoldSign adapter"
     },
     {
       "type": "requires",

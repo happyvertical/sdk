@@ -7,7 +7,7 @@ Standardized AI interface supporting OpenAI, LiteLLM, Bifrost, Ollama, Anthropic
 ## Package Map
 - Package: `@happyvertical/ai`
 - Hierarchy path: `@happyvertical/sdk > packages > ai`
-- Workspace position: `2 of 31` local packages
+- Workspace position: `2 of 32` local packages
 - Internal dependencies: `@happyvertical/utils`
 - Internal dependents: `@happyvertical/sdk-mcp`
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`

@@ -7,7 +7,7 @@ Standardized geographical information interface supporting Google Maps and OpenS
 ## Package Map
 - Package: `@happyvertical/geo`
 - Hierarchy path: `@happyvertical/sdk > packages > geo`
-- Workspace position: `12 of 31` local packages
+- Workspace position: `12 of 32` local packages
 - Internal dependencies: `@happyvertical/cache`, `@happyvertical/utils`
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`
