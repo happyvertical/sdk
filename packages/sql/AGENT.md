@@ -7,7 +7,7 @@ Database interface with support for SQLite, PostgreSQL, and DuckDB
 ## Package Map
 - Package: `@happyvertical/sql`
 - Hierarchy path: `@happyvertical/sdk > packages > sql`
-- Workspace position: `27 of 31` local packages
+- Workspace position: `28 of 32` local packages
 - Internal dependencies: `@happyvertical/utils`
 - Internal dependents: `@happyvertical/jobs`, `@happyvertical/secrets`
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`

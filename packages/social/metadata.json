@@ -2,8 +2,8 @@
   "name": "@happyvertical/social",
   "path": "packages/social",
   "position": {
-    "index": 25,
-    "count": 31
+    "index": 26,
+    "count": 32
   },
   "description": "Social platform adapters for publishing to YouTube, Threads, X, and Bluesky",
   "provides": [

@@ -7,7 +7,7 @@ Multi-provider accounting integration for AR/AP sync and audit with QuickBooks, 
 ## Package Map
 - Package: `@happyvertical/accounting`
 - Hierarchy path: `@happyvertical/sdk > packages > accounting`
-- Workspace position: `1 of 31` local packages
+- Workspace position: `1 of 32` local packages
 - Internal dependencies: `@happyvertical/utils`
 - Internal dependents: none
 - Knowledge graph files: `AGENT.md`, `metadata.json`, `ecosystem-manifest.json`

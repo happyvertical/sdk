@@ -1,0 +1,28 @@
+{
+  "name": "@happyvertical/signatures",
+  "path": "packages/signatures",
+  "position": {
+    "index": 25,
+    "count": 32
+  },
+  "description": "Provider-neutral e-signature workflows with a BoldSign adapter",
+  "provides": [
+    "Provider-neutral e-signature workflows with a BoldSign adapter"
+  ],
+  "implements": [
+    "BoldSign"
+  ],
+  "requires": {
+    "workspace": [],
+    "externalHappyVertical": [],
+    "external": []
+  },
+  "dependents": [],
+  "stability": {
+    "level": "experimental",
+    "reason": "Marked as preview or experimental in package guidance."
+  },
+  "keywords": [
+    "signatures"
+  ]
+}
