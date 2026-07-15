@@ -1,5 +1,11 @@
 # @happyvertical/images
 
+## 0.80.1
+
+### Patch Changes
+
+- 85cca70: Upgrade Video and Images validation to Sharp 0.35.3 and Jobs validation to BullMQ 5.80.4.
+
 ## 0.80.0
 
 ## 0.79.0
