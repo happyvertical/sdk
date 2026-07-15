@@ -15,15 +15,17 @@ suites.
   package validation. It provides Node 24.18.0, pnpm 11.13.0, native build
   prerequisites, PostgreSQL client tools, and an 8 GiB memory limit. It does
   not provide Docker or deployment tooling.
-- `arc-happyvertical` remains the compatibility runner for Docker service
-  containers and as the rollout fallback.
+- `ci-linux-x64` is the shared general Linux pool for Docker service
+  containers and as the rollout fallback. Jobs may run on ARC or a warm PXE
+  host; job state is cleaned between JIT identities while safe caches may be
+  retained.
 - Matrix-native jobs such as `build-json-native.yml` retain their hosted OS
   runners.
 
 Set `CI_NODE_RUNNER_ENABLED=true` only after the node-runner smoke workflow
 passes. Clearing the variable immediately routes ordinary Node jobs back to
-`arc-happyvertical`. Compatibility runners use a cold, job-isolated pnpm store
-so pnpm 11's SQLite store index is never shared by concurrent fallback pods.
+`ci-linux-x64`. Each runner keeps the workspace and pnpm store isolated from
+concurrent jobs; safe caches may survive sequential jobs on a warm PXE host.
 
 The runner workspace and `PNPM_STORE_DIR` must share a filesystem. The smoke
 workflow verifies matching device IDs and confirms that installed dependency
@@ -88,7 +90,7 @@ databases older than six hours.
 The shared credential must be a least-privilege CI role able to create/drop
 only disposable CI databases and unable to connect to production databases.
 The manual `service-container` workflow option is the rollback path and stays
-on `arc-happyvertical`, where Docker is available.
+on `ci-linux-x64`, where Docker is available.
 
 Set `CI_POSTGRES_ENABLED=true` only after a shared-backend manual run succeeds.
 Clear it to remove the lane from the required set without weakening the normal

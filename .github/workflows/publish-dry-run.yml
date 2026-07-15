@@ -14,7 +14,7 @@ env:
 jobs:
   prepare:
     name: Prepare Versioned Workspace
-    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'arc-happyvertical' }}
+    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'ci-linux-x64' }}
     timeout-minutes: 30
     outputs:
       validate: ${{ steps.version.outputs.validate }}
@@ -70,7 +70,7 @@ jobs:
     name: Pack Validation (${{ matrix.shard }}/2)
     needs: prepare
     if: needs.prepare.outputs.validate == 'true'
-    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'arc-happyvertical' }}
+    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'ci-linux-x64' }}
     timeout-minutes: 30
     strategy:
       fail-fast: false

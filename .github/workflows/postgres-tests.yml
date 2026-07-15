@@ -46,7 +46,7 @@ jobs:
   service-container:
     name: Registered PostgreSQL Suites (Fallback)
     if: github.event_name == 'workflow_dispatch' && inputs.backend == 'service-container'
-    runs-on: arc-happyvertical
+    runs-on: ci-linux-x64
     timeout-minutes: 30
     services:
       postgres:
