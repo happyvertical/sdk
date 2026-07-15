@@ -36,6 +36,10 @@ async function createTwoFrameAnimatedWebp(): Promise<Buffer> {
 }
 
 describe('video package', () => {
+  it('runs against Sharp 0.35.3', () => {
+    expect(sharp.versions.sharp).toBe('0.35.3');
+  });
+
   describe('exports', () => {
     it('should export FFmpegProcessor class', () => {
       expect(FFmpegProcessor).toBeDefined();
