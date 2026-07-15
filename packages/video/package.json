@@ -23,7 +23,7 @@
     "@happyvertical/images": "workspace:*",
     "@happyvertical/logger": "workspace:*",
     "@happyvertical/utils": "workspace:*",
-    "sharp": "^0.34.5"
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
     "@types/node": "25.0.10",

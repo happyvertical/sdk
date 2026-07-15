@@ -17,6 +17,8 @@ import type {
   ThumbnailOptions,
 } from '../shared/types.js';
 
+type SharpConstructor = typeof import('sharp').default;
+
 /**
  * Sharp adapter for high-performance image processing
  *
@@ -33,7 +35,7 @@ import type {
  * ```
  */
 export class SharpAdapter implements ImageProcessorInterface {
-  private sharp: typeof import('sharp') | null = null;
+  private sharp: SharpConstructor | null = null;
   // biome-ignore lint/correctness/noUnusedPrivateClassMembers: Stored for API compatibility and future extensibility
   private options: SharpOptions;
 
@@ -48,7 +50,7 @@ export class SharpAdapter implements ImageProcessorInterface {
   /**
    * Lazily load sharp module
    */
-  private async getSharp(): Promise<typeof import('sharp')> {
+  private async getSharp(): Promise<SharpConstructor> {
     if (!this.sharp) {
       try {
         this.sharp = (await import('sharp')).default;

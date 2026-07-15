@@ -40,7 +40,7 @@
   "devDependencies": {
     "@types/node": "25.0.10",
     "jimp": "^1.6.1",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.3",
     "typescript": "5.9.3",
     "vite": "8.1.4",
     "vite-plugin-dts": "4.5.4",

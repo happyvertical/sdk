@@ -4,6 +4,7 @@
 
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ImgproxyAdapter } from './adapters/imgproxy.js';
 import { JimpAdapter } from './adapters/jimp.js';
@@ -140,20 +141,13 @@ afterAll(async () => {
 // ============================================================================
 
 describe('SharpAdapter', () => {
-  let adapter: SharpAdapter;
-  let sharpAvailable = false;
+  const adapter = new SharpAdapter();
 
-  beforeAll(async () => {
-    try {
-      await import('sharp');
-      sharpAvailable = true;
-      adapter = new SharpAdapter();
-    } catch {
-      // Sharp not available
-    }
+  it('runs against Sharp 0.35.3', () => {
+    expect(sharp.versions.sharp).toBe('0.35.3');
   });
 
-  describe.skipIf(!sharpAvailable)('getDimensions', () => {
+  describe('getDimensions', () => {
     it('should get dimensions from file path', async () => {
       const dims = await adapter.getDimensions(TEST_IMAGE_PATH);
       expect(dims.width).toBeGreaterThan(0);
@@ -174,7 +168,7 @@ describe('SharpAdapter', () => {
     });
   });
 
-  describe.skipIf(!sharpAvailable)('thumbnail', () => {
+  describe('thumbnail', () => {
     it('should generate thumbnail', async () => {
       const output = join(OUTPUT_DIR, 'sharp-thumb.png');
       await adapter.thumbnail(TEST_IMAGE_PATH, output, {
@@ -200,7 +194,7 @@ describe('SharpAdapter', () => {
     });
   });
 
-  describe.skipIf(!sharpAvailable)('convert', () => {
+  describe('convert', () => {
     it('should convert PNG to JPEG', async () => {
       const output = join(OUTPUT_DIR, 'sharp-converted.jpg');
       await adapter.convert(TEST_IMAGE_PATH, output, { format: 'jpeg' });
@@ -221,7 +215,7 @@ describe('SharpAdapter', () => {
     });
   });
 
-  describe.skipIf(!sharpAvailable)('getMetadata', () => {
+  describe('getMetadata', () => {
     it('should get metadata from file', async () => {
       const metadata = await adapter.getMetadata(TEST_IMAGE_PATH);
 
@@ -239,7 +233,7 @@ describe('SharpAdapter', () => {
     });
   });
 
-  describe.skipIf(!sharpAvailable)('hash', () => {
+  describe('hash', () => {
     it('should compute perceptual hash', async () => {
       const hash = await adapter.hash(TEST_IMAGE_PATH, 'perceptual');
 
@@ -269,7 +263,7 @@ describe('SharpAdapter', () => {
     });
   });
 
-  describe.skipIf(!sharpAvailable)('resize', () => {
+  describe('resize', () => {
     it('should resize with cover fit', async () => {
       const output = join(OUTPUT_DIR, 'sharp-resize-cover.png');
       await adapter.resize(TEST_IMAGE_PATH, output, {

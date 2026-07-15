@@ -29,3 +29,6 @@ catalog:
   '@happyvertical/ocr': ^0.60.39
   '@happyvertical/pdf': ^0.65
   '@happyvertical/spider': ^1.1
+
+minimumReleaseAgeExclude:
+  - bullmq@5.80.4
