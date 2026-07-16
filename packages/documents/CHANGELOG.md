@@ -1,5 +1,13 @@
 # @happyvertical/documents
 
+## 0.80.2
+
+### Patch Changes
+
+- 85efa0a: Accept the released `@happyvertical/ocr` 0.61 family in published dependency metadata.
+  - @happyvertical/files@0.80.2
+  - @happyvertical/utils@0.80.2
+
 ## 0.80.1
 
 ### Patch Changes

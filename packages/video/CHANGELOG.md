@@ -1,5 +1,13 @@
 # @happyvertical/video
 
+## 0.80.2
+
+### Patch Changes
+
+- @happyvertical/images@0.80.2
+- @happyvertical/logger@0.80.2
+- @happyvertical/utils@0.80.2
+
 ## 0.80.1
 
 ### Patch Changes
