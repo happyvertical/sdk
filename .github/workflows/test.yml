@@ -30,7 +30,7 @@ jobs:
     # Keep this name stable: the main-branch ruleset requires
     # "Validate Changes / Run Tests" from the calling workflow.
     name: Run Tests
-    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'arc-happyvertical' }}
+    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'ci-linux-x64' }}
     timeout-minutes: 40
     outputs:
       success: ${{ steps.result.outputs.success }}

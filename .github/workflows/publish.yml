@@ -66,7 +66,7 @@ permissions:
 jobs:
   prepare-release:
     name: Prepare Release
-    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'arc-happyvertical' }}
+    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'ci-linux-x64' }}
     timeout-minutes: 30
     outputs:
       previous-version: ${{ steps.prepare.outputs.previous_version }}
@@ -169,7 +169,7 @@ jobs:
     name: Release Pack Validation (${{ matrix.shard }}/2)
     needs: prepare-release
     if: needs.prepare-release.outputs.should-publish == 'true'
-    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'arc-happyvertical' }}
+    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'ci-linux-x64' }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -208,7 +208,7 @@ jobs:
     name: Publish Verified Release
     needs: [prepare-release, pack-release]
     if: needs.prepare-release.outputs.should-publish == 'true' && needs.pack-release.result == 'success'
-    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'arc-happyvertical' }}
+    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'ci-linux-x64' }}
     timeout-minutes: 30
     concurrency:
       group: release-publish-${{ github.repository }}-${{ github.ref }}
@@ -331,7 +331,7 @@ jobs:
 
   sync-smrt:
     name: Sync SMRT SDK Dependencies
-    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'arc-happyvertical' }}
+    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'ci-linux-x64' }}
     needs: release
     if: needs.release.outputs.published == 'true'
     permissions:
@@ -401,7 +401,7 @@ jobs:
     name: Deploy Documentation
     needs: release
     if: inputs.skip-docs != true
-    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'arc-happyvertical' }}
+    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'ci-linux-x64' }}
     permissions:
       contents: read
       pages: write
