@@ -74,7 +74,6 @@ jobs:
             package-suffix: win32-x64-msvc
 
     runs-on: ${{ matrix.os }}
-    name: Build ${{ matrix.package-suffix }}
 
     steps:
       - name: Checkout repository

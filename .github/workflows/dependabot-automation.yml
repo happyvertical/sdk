@@ -1,0 +1,86 @@
+name: Dependabot Automation
+
+# Repository-owned dependabot automation, separated from the validation
+# workflow: validation jobs must run unconditionally under the agent
+# policy, while this actor-gated helper only approves; merging still
+# requires the full set of required checks.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  dependabot:
+    name: Dependabot Automation
+    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'ci-linux-x64' }}
+    if: github.actor == 'dependabot[bot]'
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Validate security requirements
+        run: |
+          if [ -z "${{ secrets.GITHUB_TOKEN }}" ]; then
+            echo "::error::GITHUB_TOKEN is not available"
+            exit 1
+          fi
+          echo "✅ Security requirements validated"
+          echo "::notice::Processing dependabot PR with enhanced security checks"
+
+      - name: Setup Environment
+        uses: ./.github/actions/setup-environment
+        with:
+          node-version: '24.18.0'
+          github-packages-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Security scan for dependency changes
+        run: |
+          echo "::notice::Checking for security vulnerabilities in dependencies"
+          echo "Dependency update type: ${{ steps.metadata.outputs.update-type }}"
+          echo "Package ecosystem: ${{ steps.metadata.outputs.package-ecosystem }}"
+          echo "Package name: ${{ steps.metadata.outputs.dependency-names }}"
+          pnpm audit || {
+            echo "::error::Security vulnerabilities found in dependencies"
+            exit 1
+          }
+          echo "✅ No security vulnerabilities detected"
+
+      - name: Approve PR with security validation
+        if: ${{ steps.metadata.outputs.update-type != 'version-update:semver-major' }}
+        run: |
+          echo "::notice::Approving dependabot PR after security validation"
+          gh pr review --approve "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Enable auto-merge for minor and patch updates
+        if: |
+          steps.metadata.outputs.update-type == 'version-update:semver-minor' ||
+          steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        run: |
+          echo "::notice::Enabling auto-merge for ${{ steps.metadata.outputs.update-type }} update"
+          gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Require manual review for major updates
+        if: steps.metadata.outputs.update-type == 'version-update:semver-major'
+        run: |
+          echo "Major version update detected. Manual review required."
+          echo "This PR will not be automatically approved or merged."
+          gh pr comment "$PR_URL" \
+            --body "Major version update detected. Manual review required."
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
