@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/logger",
-  "version": "0.80.2",
+  "version": "0.80.3",
   "description": "Structured logging for HAVE SDK with signal adapter",
   "type": "module",
   "main": "./dist/index.js",

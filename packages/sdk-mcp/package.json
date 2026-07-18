@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/sdk-mcp",
-  "version": "0.80.2",
+  "version": "0.80.3",
   "description": "MCP server for HAVE SDK - Routes queries to package experts using AGENT.md files",
   "type": "module",
   "main": "./dist/index.js",

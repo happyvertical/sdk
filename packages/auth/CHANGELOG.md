@@ -1,5 +1,12 @@
 # @happyvertical/auth
 
+## 0.80.3
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.80.3
+
 ## 0.80.2
 
 ### Patch Changes

@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.80.3
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - migrate generation 5 lifecycle (#1105)
+
 ## 0.80.2
 
 ## 0.80.1
