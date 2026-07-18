@@ -175,6 +175,8 @@ npx changeset                 # create changeset for PR
 
 ### Contribution Rules
 - **Branching:** Feature branches only, never push directly to `main`.
+- **Merging:** Lifecycle-protected pull requests use the managed merge queue so
+  the synthetic merge revision is revalidated before it reaches `main`.
 - **Commits:** Conventional commits enforced by `commitlint` + `lefthook`.
 - **Changesets:** All PRs require a changeset (`npx changeset`) or a `skip-changeset` label.
 - **TypeScript:** Pre-push hooks run `typecheck`. Fix all types before pushing.
