@@ -49,6 +49,7 @@ jobs:
           fetch-depth: 0
 
       - name: Check for skip conditions
+        if: github.event_name == 'pull_request'
         id: skip-check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -63,7 +64,7 @@ jobs:
           fi
 
       - name: Setup Environment
-        if: steps.skip-check.outputs.skip != 'true'
+        if: github.event_name == 'pull_request' && steps.skip-check.outputs.skip != 'true'
         uses: ./.github/actions/setup-environment
         with:
           node-version: '24.18.0'
@@ -71,7 +72,7 @@ jobs:
           github-packages-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check for changeset
-        if: steps.skip-check.outputs.skip != 'true'
+        if: github.event_name == 'pull_request' && steps.skip-check.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_BRANCH: ${{ github.event.pull_request.head.ref }}
@@ -187,11 +188,13 @@ jobs:
       # because that composite action installs apt packages and the
       # complete workspace dependency graph on the self-hosted runner.
       - name: Setup Node.js for PR title validation
+        if: github.event_name == 'pull_request'
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: '24.18.0'
 
       - name: Install commitlint dependencies
+        if: github.event_name == 'pull_request'
         run: |
           npm install --prefix "$RUNNER_TEMP/commitlint" --no-save \
             --ignore-scripts --no-audit --no-fund \
@@ -199,6 +202,7 @@ jobs:
             @commitlint/config-conventional@20.5.0
 
       - name: Validate PR title for squash merge
+        if: github.event_name == 'pull_request'
         # PR title is user-controlled metadata. Two non-obvious risks
         # the previous form had:
         #   (1) Interpolating the title directly into a shell script
@@ -231,6 +235,7 @@ jobs:
               --config commitlint.config.mjs
 
       - name: Determine version bump
+        if: github.event_name == 'pull_request'
         id: version
         run: |
           base_ref="${{ github.event.pull_request.base.ref }}"
@@ -256,6 +261,7 @@ jobs:
           fi
 
       - name: Comment on PR
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
