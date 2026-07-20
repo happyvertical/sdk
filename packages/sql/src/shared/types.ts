@@ -954,16 +954,21 @@ export interface DatabaseInterface {
    * Executes a callback within a database transaction
    * Automatically commits on success or rolls back on error
    *
-   * Calling `transaction()` again on the `tx` handed to a callback re-enters
-   * the transaction already in progress; it never opens a second one. What that
-   * means depends on whether the engine has savepoints:
+   * Calling `transaction()` again on the `tx` handed to a callback is
+   * adapter-specific — do not assume one behaviour across adapters:
    *
-   * - **SQLite** — the nested scope runs under a `SAVEPOINT`. It reads the
-   *   enclosing transaction's uncommitted rows, and if it throws, only its own
-   *   work is rolled back; the enclosing transaction stays usable.
-   * - **DuckDB and JSON** — no `SAVEPOINT` exists, so nesting throws
+   * - **SQLite** (both the libsql and native-capabilities paths) — the nested
+   *   scope re-enters the transaction already in progress under a `SAVEPOINT`.
+   *   It reads the enclosing transaction's uncommitted rows, and if it throws,
+   *   only its own work is rolled back; the enclosing transaction stays usable.
+   * - **DuckDB and JSON** — the engine has no `SAVEPOINT`, so nesting throws
    *   {@link NestedTransactionError} without touching the connection. The
    *   enclosing transaction is unaffected and can continue.
+   * - **PostgreSQL** — nesting currently checks out a second pooled connection
+   *   and begins an *independent* transaction, which cannot see the enclosing
+   *   transaction's uncommitted rows and can deadlock against it undetectably.
+   *   Do not nest on PostgreSQL. Tracked by
+   *   {@link https://github.com/happyvertical/sdk/issues/1108 | issue #1108}.
    *
    * Code that must run on every adapter should take the transaction as a
    * parameter rather than opening a nested one.

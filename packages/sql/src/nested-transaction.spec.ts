@@ -132,6 +132,57 @@ describe('nested transactions', () => {
     });
   });
 
+  // `capabilities` routes getDatabase() to sqlite-native.ts, a separate
+  // implementation with its own transaction handling, so it needs its own
+  // coverage rather than being assumed equivalent to the libsql path.
+  describe('sqlite native capabilities path (savepoint re-entry)', () => {
+    it('sees the enclosing transaction and does not end it', async () => {
+      const db = await getDatabase({
+        type: 'sqlite',
+        url: ':memory:',
+        capabilities: { vector: true },
+      });
+      await db.query('CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)');
+
+      await txOf(db)(async (tx) => {
+        await tx.query(`INSERT INTO t VALUES (1, 'outer')`);
+        const seen = await txOf(tx)(async (inner) => {
+          const rows = await inner.query('SELECT v FROM t WHERE id = 1');
+          await inner.query(`INSERT INTO t VALUES (2, 'inner')`);
+          return rows.rows[0]?.v;
+        });
+        expect(seen).toBe('outer');
+        await tx.query(`INSERT INTO t VALUES (3, 'after')`);
+      });
+
+      const rows = await db.query('SELECT id FROM t ORDER BY id');
+      expect(rows.rows.map((r) => r.id)).toEqual([1, 2, 3]);
+    });
+
+    it('rolls the nested scope back without losing the enclosing work', async () => {
+      const db = await getDatabase({
+        type: 'sqlite',
+        url: ':memory:',
+        capabilities: { vector: true },
+      });
+      await db.query('CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)');
+
+      await txOf(db)(async (tx) => {
+        await tx.query(`INSERT INTO t VALUES (1, 'outer')`);
+        await expect(
+          txOf(tx)(async (inner) => {
+            await inner.query(`INSERT INTO t VALUES (2, 'inner')`);
+            throw new Error('__nested_failed__');
+          }),
+        ).rejects.toThrow('__nested_failed__');
+        await tx.query(`INSERT INTO t VALUES (3, 'after')`);
+      });
+
+      const rows = await db.query('SELECT id FROM t ORDER BY id');
+      expect(rows.rows.map((r) => r.id)).toEqual([1, 3]);
+    });
+  });
+
   // DuckDB has no SAVEPOINT, so there is no way to re-enter the current
   // transaction; nesting has to be refused rather than silently reinterpreted.
   for (const type of ['duckdb', 'json'] as const) {

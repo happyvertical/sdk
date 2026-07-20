@@ -1318,17 +1318,66 @@ async function createNativeSqliteDatabase(
       list: (where) => list(tableName, where),
     });
 
+    // Names nested savepoints. Only ever appended to an identifier the adapter
+    // generates, never caller input.
+    let savepointSequence = 0;
+
+    /**
+     * Re-enters the transaction already in progress under a savepoint.
+     *
+     * This is what the transaction-scoped interface exposes as `transaction`.
+     * Handing it the top-level `transaction` instead — the previous behaviour —
+     * sent a nested call into a second BEGIN on the one shared connection; that
+     * throws, and the nested call's own ROLLBACK then discarded the *enclosing*
+     * transaction's work while later writes committed in autocommit.
+     */
+    const nestedTransaction = async <T>(
+      callback: (tx: DatabaseInterface) => Promise<T>,
+    ): Promise<T> => {
+      savepointSequence += 1;
+      const name = `hv_sp_${savepointSequence}`;
+      database.exec(`SAVEPOINT ${name}`);
+      try {
+        const result = await callback(
+          buildDatabaseInterface(upsertInCurrentTransaction, nestedTransaction),
+        );
+        database.exec(`RELEASE SAVEPOINT ${name}`);
+        return result;
+      } catch (error) {
+        try {
+          // ROLLBACK TO leaves the savepoint defined, so release it too or it
+          // accumulates for the life of the transaction.
+          database.exec(`ROLLBACK TO SAVEPOINT ${name}`);
+          database.exec(`RELEASE SAVEPOINT ${name}`);
+        } catch {
+          // The enclosing transaction is already unwinding; its teardown owns
+          // the connection from here.
+        }
+        throw error;
+      }
+    };
+
     const transaction = async <T>(
       callback: (tx: DatabaseInterface) => Promise<T>,
     ): Promise<T> => {
       try {
         database.exec('BEGIN TRANSACTION');
-        const txDb = buildDatabaseInterface(upsertInCurrentTransaction);
+        const txDb = buildDatabaseInterface(
+          upsertInCurrentTransaction,
+          nestedTransaction,
+        );
         const result = await callback(txDb);
         database.exec('COMMIT');
         return result;
       } catch (error) {
-        database.exec('ROLLBACK');
+        // A failing ROLLBACK must not replace the caller's error: SQLite
+        // reports "cannot rollback - no transaction is active" whenever the
+        // transaction is already gone, which says nothing about what failed.
+        try {
+          database.exec('ROLLBACK');
+        } catch {
+          // Nothing left to roll back.
+        }
         throw error;
       }
     };
@@ -1354,7 +1403,12 @@ async function createNativeSqliteDatabase(
       };
 
       return {
-        ...buildDatabaseInterface(upsertInCurrentTransaction),
+        // The handle is inside a transaction for the same reason a callback
+        // scope is, so it re-enters via savepoint too.
+        ...buildDatabaseInterface(
+          upsertInCurrentTransaction,
+          nestedTransaction,
+        ),
         commit,
         rollback,
         isActive: () => active,
@@ -1488,6 +1542,7 @@ async function createNativeSqliteDatabase(
 
     function buildDatabaseInterface(
       upsertImpl: DatabaseInterface['upsert'],
+      transactionImpl: DatabaseInterface['transaction'] = transaction,
     ): DatabaseInterface {
       return {
         url,
@@ -1513,7 +1568,7 @@ async function createNativeSqliteDatabase(
         xx,
         syncSchema,
         initializeSchemas,
-        transaction,
+        transaction: transactionImpl,
         beginTransaction,
         getTableSchema,
         alterTable,
