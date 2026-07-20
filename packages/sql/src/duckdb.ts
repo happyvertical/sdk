@@ -24,7 +24,7 @@ import type {
   TransactionHandle,
   UpsertOptions,
 } from './shared/types';
-import { resolveSchemas } from './shared/types';
+import { NestedTransactionError, resolveSchemas } from './shared/types';
 import { buildWhere, formatDbError } from './shared/utils';
 
 /**
@@ -1369,40 +1369,65 @@ export async function getDatabase(
     try {
       await connection.run('BEGIN TRANSACTION');
 
-      // Create a transaction-scoped database interface
-      const txDb: DatabaseInterface = {
-        url,
-        client: connection,
-        insert,
-        get,
-        list,
-        update,
-        upsert,
-        getOrInsert,
-        delete: deleteRecords,
-        count,
-        table,
-        many,
-        single,
-        pluck,
-        execute,
-        query,
-        oo,
-        oO,
-        ox,
-        xx,
-        tableExists,
-        syncSchema,
-        transaction,
-      };
-
-      const result = await callback(txDb);
+      const result = await callback(createTransactionScope());
       await connection.run('COMMIT');
       return result;
     } catch (error) {
-      await connection.run('ROLLBACK');
+      // A failing ROLLBACK must not replace the caller's error: DuckDB reports
+      // "cannot rollback - no transaction is active" whenever the transaction
+      // is already gone, which says nothing about what actually failed.
+      try {
+        await connection.run('ROLLBACK');
+      } catch {
+        // Nothing left to roll back.
+      }
       throw error;
     }
+  };
+
+  /**
+   * Builds the transaction-scoped interface handed to a transaction callback.
+   *
+   * The only difference from the top-level interface is `transaction`, which
+   * refuses to nest. DuckDB has no SAVEPOINT, so there is no way to re-enter
+   * the transaction already in progress; re-exposing the top-level
+   * `transaction` (the previous behaviour) sent the nested call into a second
+   * BEGIN on the same connection, which throws and then rolls back the
+   * *enclosing* transaction, silently discarding its work.
+   */
+  const createTransactionScope = (): DatabaseInterface => {
+    const txDb: DatabaseInterface = {
+      url,
+      client: connection,
+      insert,
+      get,
+      list,
+      update,
+      upsert,
+      getOrInsert,
+      delete: deleteRecords,
+      count,
+      table,
+      many,
+      single,
+      pluck,
+      execute,
+      query,
+      oo,
+      oO,
+      ox,
+      xx,
+      tableExists,
+      syncSchema,
+      transaction: async () => {
+        throw new NestedTransactionError(
+          'Nested transactions are not supported by this adapter because its engine has no SAVEPOINT. Pass the existing transaction to the callee instead of opening a new one.',
+          { adapter: 'duckdb' },
+        );
+      },
+    };
+
+    return txDb;
   };
 
   /**
@@ -1436,31 +1461,11 @@ export async function getDatabase(
 
     const isActive = (): boolean => active;
 
-    // Create a transaction-scoped database interface with commit/rollback
+    // Create a transaction-scoped database interface with commit/rollback.
+    // The handle is inside a transaction for the same reason a callback
+    // scope is, so it gets the same non-nesting `transaction`.
     const txHandle: TransactionHandle = {
-      url,
-      client: connection,
-      insert,
-      get,
-      list,
-      update,
-      upsert,
-      getOrInsert,
-      delete: deleteRecords,
-      count,
-      table,
-      many,
-      single,
-      pluck,
-      execute,
-      query,
-      oo,
-      oO,
-      ox,
-      xx,
-      tableExists,
-      syncSchema,
-      transaction,
+      ...createTransactionScope(),
       commit,
       rollback,
       isActive,
