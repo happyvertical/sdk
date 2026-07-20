@@ -1,6 +1,24 @@
 import { describe, expect, it } from 'vitest';
 import { getDatabase } from './index';
+import type { DatabaseInterface } from './shared/types';
 import { NestedTransactionError } from './shared/types';
+
+/**
+ * `transaction` and `beginTransaction` are optional on DatabaseInterface, so
+ * narrow rather than assert: an adapter that stopped exposing them should fail
+ * these tests loudly instead of skipping them.
+ */
+function txOf(db: DatabaseInterface) {
+  const fn = db.transaction;
+  if (!fn) throw new Error('adapter does not expose transaction()');
+  return fn.bind(db);
+}
+
+function beginOf(db: DatabaseInterface) {
+  const fn = db.beginTransaction;
+  if (!fn) throw new Error('adapter does not expose beginTransaction()');
+  return fn.bind(db);
+}
 
 /**
  * Issue #1109 — on the single-connection adapters a nested `tx.transaction()`
@@ -15,10 +33,10 @@ describe('nested transactions', () => {
       const db = await getDatabase({ type: 'sqlite', url: ':memory:' });
       await db.query('CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)');
 
-      await db.transaction!(async (tx) => {
+      await txOf(db)(async (tx) => {
         await tx.query(`INSERT INTO t VALUES (1, 'outer')`);
 
-        const seen = await tx.transaction!(async (inner) => {
+        const seen = await txOf(tx)(async (inner) => {
           const rows = await inner.query('SELECT v FROM t WHERE id = 1');
           await inner.query(`INSERT INTO t VALUES (2, 'inner')`);
           return rows.rows[0]?.v;
@@ -38,10 +56,10 @@ describe('nested transactions', () => {
       const db = await getDatabase({ type: 'sqlite', url: ':memory:' });
       await db.query('CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)');
 
-      await db.transaction!(async (tx) => {
+      await txOf(db)(async (tx) => {
         await tx.query(`INSERT INTO t VALUES (1, 'outer')`);
         await expect(
-          tx.transaction!(async (inner) => {
+          txOf(tx)(async (inner) => {
             await inner.query(`INSERT INTO t VALUES (2, 'inner')`);
             throw new Error('__nested_failed__');
           }),
@@ -61,9 +79,9 @@ describe('nested transactions', () => {
       await db.query('CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)');
 
       await expect(
-        db.transaction!(async (tx) => {
+        txOf(db)(async (tx) => {
           await tx.query(`INSERT INTO t VALUES (1, 'outer')`);
-          await tx.transaction!(async (inner) => {
+          await txOf(tx)(async (inner) => {
             await inner.query(`INSERT INTO t VALUES (2, 'inner')`);
           });
           throw new Error('__outer_failed__');
@@ -78,15 +96,15 @@ describe('nested transactions', () => {
       const db = await getDatabase({ type: 'sqlite', url: ':memory:' });
       await db.query('CREATE TABLE t (id INTEGER PRIMARY KEY)');
 
-      await db.transaction!(async (tx) => {
+      await txOf(db)(async (tx) => {
         await tx.query('INSERT INTO t VALUES (1)');
-        await tx.transaction!(async (a) => {
+        await txOf(tx)(async (a) => {
           await a.query('INSERT INTO t VALUES (2)');
-          await a.transaction!(async (b) => {
+          await txOf(a)(async (b) => {
             await b.query('INSERT INTO t VALUES (3)');
           });
           await expect(
-            a.transaction!(async (c) => {
+            txOf(a)(async (c) => {
               await c.query('INSERT INTO t VALUES (4)');
               throw new Error('__deep_failed__');
             }),
@@ -102,9 +120,9 @@ describe('nested transactions', () => {
       const db = await getDatabase({ type: 'sqlite', url: ':memory:' });
       await db.query('CREATE TABLE t (id INTEGER PRIMARY KEY)');
 
-      const tx = await db.beginTransaction!();
+      const tx = await beginOf(db)();
       await tx.query('INSERT INTO t VALUES (1)');
-      await tx.transaction!(async (inner) => {
+      await txOf(tx)(async (inner) => {
         await inner.query('INSERT INTO t VALUES (2)');
       });
       await tx.commit();
@@ -125,12 +143,12 @@ describe('nested transactions', () => {
         const t = `nest_usable_${type}`;
         await db.query(`CREATE TABLE ${t} (id INTEGER PRIMARY KEY, v TEXT)`);
 
-        await db.transaction!(async (tx) => {
+        await txOf(db)(async (tx) => {
           await tx.query(`INSERT INTO ${t} VALUES (1, 'outer')`);
 
-          await expect(
-            tx.transaction!(async () => undefined),
-          ).rejects.toBeInstanceOf(NestedTransactionError);
+          await expect(txOf(tx)(async () => undefined)).rejects.toBeInstanceOf(
+            NestedTransactionError,
+          );
 
           // The refusal never touched the connection, so the enclosing
           // transaction is intact and still accepts writes.
@@ -147,7 +165,7 @@ describe('nested transactions', () => {
         await db.query(`CREATE TABLE ${t} (id INTEGER PRIMARY KEY)`);
 
         await expect(
-          db.transaction!(async (tx) => {
+          txOf(db)(async (tx) => {
             await tx.query(`INSERT INTO ${t} VALUES (1)`);
             throw new Error('__outer_failed__');
           }),
