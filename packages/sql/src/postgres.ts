@@ -1,5 +1,5 @@
 import { DatabaseError, loadEnvConfig } from '@happyvertical/utils';
-import { Pool } from 'pg';
+import { Pool, type PoolClient } from 'pg';
 import { DatabaseSchemaManager } from './schema-manager';
 import {
   generateAddColumnStatement,
@@ -1653,6 +1653,55 @@ async function createDatabase(
     }
   };
 
+  // Names nested savepoints. Only ever appended to an identifier the adapter
+  // generates, never caller input.
+  let savepointSequence = 0;
+
+  /**
+   * Builds the `transaction` exposed on a transaction-scoped interface.
+   *
+   * Re-entering runs the callback under a SAVEPOINT on the *same* connection,
+   * which is what callers assume nesting already did. Re-exposing the top-level
+   * `transaction` here (the previous behaviour) checked out a second pooled
+   * connection and began an independent transaction, so the nested work could
+   * not see the enclosing transaction's uncommitted rows, and if the enclosing
+   * transaction held a lock the nested one needed, the two deadlocked in a way
+   * PostgreSQL cannot detect: the outer connection is blocked on a promise
+   * rather than on a lock, so `deadlock_timeout` never fires and the process
+   * hangs until some unrelated timeout.
+   *
+   * @param txClient - The client running the enclosing transaction
+   * @param scopeFor - Builds the interface handed to the nested callback
+   */
+  const createNestedTransaction = (
+    txClient: PoolClient,
+    scopeFor: () => DatabaseInterface,
+  ) => {
+    return async <T>(
+      callback: (tx: DatabaseInterface) => Promise<T>,
+    ): Promise<T> => {
+      savepointSequence += 1;
+      const name = `hv_sp_${savepointSequence}`;
+      await txClient.query(`SAVEPOINT ${name}`);
+      try {
+        const result = await callback(scopeFor());
+        await txClient.query(`RELEASE SAVEPOINT ${name}`);
+        return result;
+      } catch (error) {
+        try {
+          // ROLLBACK TO leaves the savepoint defined, so release it too or it
+          // accumulates for the life of the transaction.
+          await txClient.query(`ROLLBACK TO SAVEPOINT ${name}`);
+          await txClient.query(`RELEASE SAVEPOINT ${name}`);
+        } catch {
+          // The enclosing transaction is already unwinding; its own teardown
+          // owns the connection from here.
+        }
+        throw error;
+      }
+    };
+  };
+
   /**
    * Executes a callback within a database transaction
    * Automatically commits on success or rolls back on error
@@ -1850,7 +1899,7 @@ async function createDatabase(
         },
         tableExists,
         syncSchema,
-        transaction,
+        transaction: createNestedTransaction(txClient, () => txDb),
       };
 
       const result = await callback(txDb);
@@ -2077,7 +2126,7 @@ async function createDatabase(
       },
       tableExists,
       syncSchema,
-      transaction,
+      transaction: createNestedTransaction(txClient, () => txHandle),
       commit,
       rollback,
       isActive,
