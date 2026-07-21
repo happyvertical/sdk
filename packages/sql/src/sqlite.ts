@@ -5,9 +5,11 @@ import {
   generateAddColumnStatement,
   generateCreateIndexStatement,
   validateColumnName,
+  validateColumnNames,
   validateIndexName,
   validateTableName,
 } from './shared/alter-utils';
+import { createTransactionLock } from './shared/transaction-lock';
 import type {
   ColumnDefinition,
   ColumnDefinitionWithName,
@@ -183,6 +185,27 @@ export interface SqliteOptions {
   capabilities?: SqliteCapabilitiesOptions;
 
   /**
+   * How long a queued transaction waits for the connection, in milliseconds.
+   *
+   * Applies to the single-connection adapters — SQLite (both the LibSQL and
+   * native paths), DuckDB and JSON. Those drive one connection, so transactions
+   * run one at a time and an overlapping `transaction()` waits its turn.
+   * PostgreSQL pools and ignores this.
+   *
+   * The clock starts when the call queues, not when the connection frees, so
+   * this bounds the total wait rather than any single transaction: raise it for
+   * workloads with long transactions *or* with sustained bursts on one
+   * connection. Must be positive and finite.
+   *
+   * Read once, when the connection is created. Adapters that cache connections
+   * hand a later `getDatabase()` for the same database the existing one, which
+   * keeps the timeout the first caller asked for.
+   *
+   * @default 30000
+   */
+  transactionQueueTimeout?: number;
+
+  /**
    * Schema definitions for tables.
    * Accepts a record or a lazy function (see SchemasOption).
    *
@@ -308,6 +331,14 @@ export async function getDatabase(
   // Create a new connection promise
   const connectionPromise = (async () => {
     const client = await createLibSQLClient(options);
+
+    // One lock per connection. Nothing else in this closure escapes to another
+    // caller, and `getDatabase` hands cached callers this same closure, so
+    // "created here" and "per connection" are the same scope.
+    const connectionLock = createTransactionLock(
+      'sqlite',
+      options.transactionQueueTimeout,
+    );
 
     // Initialize tables from provided schemas (resolves lazy function if needed)
     const resolvedSchemas = resolveSchemas(options.schemas);
@@ -462,6 +493,12 @@ export async function getDatabase(
       ) {
         let transaction: Awaited<ReturnType<Client['transaction']>> | undefined;
 
+        // This opens a transaction on the shared connection like any other, so
+        // it takes the same lock — otherwise a null-aware upsert overlapping a
+        // `transaction()` call reintroduces exactly the corruption the lock
+        // exists to prevent. Acquired per attempt so the retry backoff below
+        // waits without holding the connection.
+        const releaseConnection = await connectionLock.acquire();
         try {
           transaction = await client.transaction('write');
 
@@ -486,6 +523,7 @@ export async function getDatabase(
           }
         } finally {
           transaction?.close();
+          releaseConnection();
         }
 
         if (
@@ -501,6 +539,22 @@ export async function getDatabase(
       }
 
       throw lastError;
+    };
+
+    /**
+     * Rejects hostile table/column identifiers before an upsert builds SQL.
+     *
+     * Called from the public entry points rather than from `executeUpsert`, so
+     * the failure reaches the caller naming the bad identifier instead of being
+     * flattened into the wrapper's generic "Failed to upsert record into table".
+     */
+    const validateUpsertIdentifiers = (
+      table: string,
+      conflictColumns: string[],
+      data: Record<string, any>,
+    ): void => {
+      validateTableName(table);
+      validateColumnNames([...conflictColumns, ...Object.keys(data)]);
     };
 
     const executeUpsert = async (
@@ -552,6 +606,7 @@ export async function getDatabase(
       table: string,
       data: Record<string, any> | Record<string, any>[],
     ): Promise<QueryResult> => {
+      validateTableName(table);
       let sql: string;
       let values: any[];
 
@@ -564,6 +619,7 @@ export async function getDatabase(
           (record) => serializeRecord(record),
         );
         const keys = resolveInsertColumns(table, serializedRecords);
+        validateColumnNames(keys);
         const placeholders = serializedRecords
           .map(() => `(${keys.map(() => '?').join(', ')})`)
           .join(', ');
@@ -578,6 +634,7 @@ export async function getDatabase(
         // Serialize the single record
         const serializedData = serializeRecord(data);
         const keys = Object.keys(serializedData);
+        validateColumnNames(keys);
         const placeholders = keys.map(() => '?').join(', ');
         sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
         values = Object.values(serializedData);
@@ -607,6 +664,7 @@ export async function getDatabase(
       table: string,
       where: Record<string, any>,
     ): Promise<Record<string, any> | null> => {
+      validateTableName(table);
       const { sql: whereClause, values } = buildWhere(where, 1, 'sqlite');
       if (!whereClause) {
         throw new DatabaseError(
@@ -641,6 +699,7 @@ export async function getDatabase(
       table: string,
       where: Record<string, any>,
     ): Promise<Record<string, any>[]> => {
+      validateTableName(table);
       const { sql: whereClause, values } = buildWhere(where, 1, 'sqlite');
       const sql = `SELECT * FROM ${table} ${whereClause}`;
       try {
@@ -670,9 +729,11 @@ export async function getDatabase(
       where: Record<string, any>,
       data: Record<string, any>,
     ): Promise<QueryResult> => {
+      validateTableName(table);
       // Serialize the data to update
       const serializedData = serializeRecord(data);
       const keys = Object.keys(serializedData);
+      validateColumnNames(keys);
       const values = Object.values(serializedData);
       const setClause = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
       const { sql: whereClause, values: whereValues } = buildWhere(
@@ -719,6 +780,7 @@ export async function getDatabase(
       data: Record<string, any>,
       options?: UpsertOptions,
     ): Promise<QueryResult> => {
+      validateUpsertIdentifiers(table, conflictColumns, data);
       try {
         return await executeUpsert(table, conflictColumns, data, options, true);
       } catch (e) {
@@ -748,6 +810,7 @@ export async function getDatabase(
       data: Record<string, any>,
       options?: UpsertOptions,
     ): Promise<QueryResult> => {
+      validateUpsertIdentifiers(table, conflictColumns, data);
       try {
         return await executeUpsert(
           table,
@@ -1010,25 +1073,31 @@ export async function getDatabase(
      */
     const transaction = async <T>(
       callback: (tx: DatabaseInterface) => Promise<T>,
-    ): Promise<T> => {
-      try {
-        await client.execute({ sql: 'BEGIN TRANSACTION', args: [] });
-
-        const result = await callback(createTransactionScope());
-        await client.execute({ sql: 'COMMIT', args: [] });
-        return result;
-      } catch (error) {
-        // A failing ROLLBACK must not replace the caller's error — SQLite
-        // reports "cannot rollback - no transaction is active" whenever the
-        // transaction is already gone, which says nothing about what failed.
+    ): Promise<T> =>
+      // Held across the whole BEGIN … COMMIT/ROLLBACK span. Without it two
+      // overlapping calls raced on the one connection: the second BEGIN threw,
+      // its catch ran ROLLBACK, and that rollback ended the *first*
+      // transaction — half of its writes durable, half lost, and its promise
+      // rejected, so the caller was told nothing had happened.
+      connectionLock.run(async () => {
         try {
-          await client.execute({ sql: 'ROLLBACK', args: [] });
-        } catch {
-          // Nothing left to roll back.
+          await client.execute({ sql: 'BEGIN TRANSACTION', args: [] });
+
+          const result = await callback(createTransactionScope());
+          await client.execute({ sql: 'COMMIT', args: [] });
+          return result;
+        } catch (error) {
+          // A failing ROLLBACK must not replace the caller's error — SQLite
+          // reports "cannot rollback - no transaction is active" whenever the
+          // transaction is already gone, which says nothing about what failed.
+          try {
+            await client.execute({ sql: 'ROLLBACK', args: [] });
+          } catch {
+            // Nothing left to roll back.
+          }
+          throw error;
         }
-        throw error;
-      }
-    };
+      });
 
     /**
      * Builds the transaction-scoped interface handed to a transaction callback.
@@ -1112,25 +1181,52 @@ export async function getDatabase(
      * @returns Promise resolving to a TransactionHandle
      */
     const beginTransaction = async (): Promise<TransactionHandle> => {
-      await client.execute({ sql: 'BEGIN TRANSACTION', args: [] });
+      // The handle owns the connection until the caller ends it, so the lock
+      // is held across the gap rather than around a single call. A handle that
+      // is never committed or rolled back therefore blocks every later
+      // transaction until the queue timeout reports it.
+      const releaseConnection = await connectionLock.acquire();
+      try {
+        await client.execute({ sql: 'BEGIN TRANSACTION', args: [] });
+      } catch (error) {
+        // No transaction was opened, so there is no handle to end it and
+        // nothing left to release the connection.
+        releaseConnection();
+        throw error;
+      }
 
       let active = true;
 
-      const commit = async (): Promise<void> => {
+      // COMMIT and ROLLBACK can both throw, and the transaction is over either
+      // way, so the connection goes back before the error is rethrown.
+      const end = async (command: 'COMMIT' | 'ROLLBACK'): Promise<void> => {
         if (!active) {
           throw new DatabaseError('Transaction already ended', {});
         }
-        await client.execute({ sql: 'COMMIT', args: [] });
-        active = false;
+        try {
+          await client.execute({ sql: command, args: [] });
+        } catch (error) {
+          // COMMIT can fail and leave the transaction *open* — SQLite documents
+          // exactly that for SQLITE_BUSY. Releasing the connection then would hand
+          // the next queued caller a connection still inside a transaction: its
+          // BEGIN would throw, and its catch would ROLLBACK, discarding this
+          // transaction's work. So normalize before releasing, the way the pooled
+          // adapter's discardTxClient does.
+          try {
+            await client.execute({ sql: 'ROLLBACK', args: [] });
+          } catch {
+            // Already gone; nothing left to normalize.
+          }
+          throw error;
+        } finally {
+          active = false;
+          releaseConnection();
+        }
       };
 
-      const rollback = async (): Promise<void> => {
-        if (!active) {
-          throw new DatabaseError('Transaction already ended', {});
-        }
-        await client.execute({ sql: 'ROLLBACK', args: [] });
-        active = false;
-      };
+      const commit = (): Promise<void> => end('COMMIT');
+
+      const rollback = (): Promise<void> => end('ROLLBACK');
 
       const isActive = (): boolean => active;
 

@@ -144,6 +144,47 @@ try {
 }
 ```
 
+On the single-connection adapters — SQLite (both the LibSQL and native paths),
+DuckDB and JSON — a connection can only be in one transaction at a time, so
+**transactions are serialized per connection**: an overlapping `transaction()`
+waits for the one in progress instead of interleaving with it. A call that waits
+longer than `transactionQueueTimeout` (30s by default) rejects rather than
+stalling indefinitely.
+
+```typescript
+const db = await getDatabase({
+  type: 'sqlite',
+  url: 'file:app.db',
+  transactionQueueTimeout: 60_000, // longer transactions, or heavier bursts
+});
+```
+
+Two consequences worth knowing:
+
+- A `beginTransaction()` handle owns the connection until you commit or roll it
+  back. End it in a `finally` — a handle that is never ended holds the
+  connection for the life of the process, and every later transaction on it
+  fails with the queue timeout.
+- Inside a `transaction()` callback, use the `tx` you were handed. Calling a
+  top-level `db.*` method that opens its own transaction makes it wait on the
+  connection its own caller is holding.
+
+PostgreSQL pools its connections, so transactions there run concurrently and
+never queue.
+
+### Identifiers
+
+Table and column names are interpolated into SQL rather than bound as
+parameters, so every CRUD method validates them: an identifier must match
+`[a-zA-Z_][a-zA-Z0-9_]*`. Qualified names (`schema.table`), quoted names and
+anything containing whitespace are rejected. Values are always parameterized and
+are unaffected.
+
+Note that `buildWhere` treats a condition key carrying an explicit operator
+suffix (`'price >'`, `'name like'`) as SQL expression text and does **not**
+validate it. That is deliberate, and it means those keys must stay
+developer-controlled — never build them from request input.
+
 ### WHERE Clause Building
 
 ```typescript

@@ -70,6 +70,27 @@ export interface DatabaseOptions {
    * Authentication token for the database connection
    */
   authToken?: string;
+
+  /**
+   * How long a queued transaction waits for the connection, in milliseconds.
+   *
+   * Applies to the single-connection adapters — SQLite (both the LibSQL and
+   * native paths), DuckDB and JSON. Those drive one connection, so transactions
+   * run one at a time and an overlapping `transaction()` waits its turn.
+   * PostgreSQL pools and ignores this.
+   *
+   * The clock starts when the call queues, not when the connection frees, so
+   * this bounds the total wait rather than any single transaction: raise it for
+   * workloads with long transactions *or* with sustained bursts on one
+   * connection. Must be positive and finite.
+   *
+   * Read once, when the connection is created. Adapters that cache connections
+   * hand a later `getDatabase()` for the same database the existing one, which
+   * keeps the timeout the first caller asked for.
+   *
+   * @default 30000
+   */
+  transactionQueueTimeout?: number;
 }
 
 /**
@@ -148,6 +169,27 @@ export interface JSONOptions {
    * @default 'immediate'
    */
   writeStrategy?: 'immediate' | 'manual' | 'none';
+
+  /**
+   * How long a queued transaction waits for the connection, in milliseconds.
+   *
+   * Applies to the single-connection adapters — SQLite (both the LibSQL and
+   * native paths), DuckDB and JSON. Those drive one connection, so transactions
+   * run one at a time and an overlapping `transaction()` waits its turn.
+   * PostgreSQL pools and ignores this.
+   *
+   * The clock starts when the call queues, not when the connection frees, so
+   * this bounds the total wait rather than any single transaction: raise it for
+   * workloads with long transactions *or* with sustained bursts on one
+   * connection. Must be positive and finite.
+   *
+   * Read once, when the connection is created. Adapters that cache connections
+   * hand a later `getDatabase()` for the same database the existing one, which
+   * keeps the timeout the first caller asked for.
+   *
+   * @default 30000
+   */
+  transactionQueueTimeout?: number;
 
   /**
    * Explicit schema definitions for tables
@@ -964,14 +1006,23 @@ export interface DatabaseInterface {
    * - **DuckDB and JSON** — the engine has no `SAVEPOINT`, so nesting throws
    *   {@link NestedTransactionError} without touching the connection. The
    *   enclosing transaction is unaffected and can continue.
-   * - **PostgreSQL** — nesting currently checks out a second pooled connection
-   *   and begins an *independent* transaction, which cannot see the enclosing
-   *   transaction's uncommitted rows and can deadlock against it undetectably.
-   *   Do not nest on PostgreSQL. Tracked by
-   *   {@link https://github.com/happyvertical/sdk/issues/1108 | issue #1108}.
+   * - **PostgreSQL** — the nested scope re-enters the enclosing transaction
+   *   under a `SAVEPOINT` on the same pooled connection, like SQLite. It used
+   *   to check out a second connection and begin an independent transaction,
+   *   which could not see the enclosing transaction's uncommitted rows and
+   *   could deadlock against it undetectably; that was fixed in #1108.
    *
    * Code that must run on every adapter should take the transaction as a
    * parameter rather than opening a nested one.
+   *
+   * **Transactions are serialized per connection on the single-connection
+   * adapters** — SQLite (both paths), DuckDB and JSON drive one connection, and
+   * a connection can only be in one transaction at a time, so a concurrent
+   * `transaction()` waits for the one in progress rather than corrupting it. A
+   * queued call that waits longer than `transactionQueueTimeout` (30s by
+   * default) rejects rather than stalling indefinitely. Re-entrant calls do not
+   * queue — they take the savepoint or refusal path described above.
+   * PostgreSQL pools, so its transactions run concurrently and never queue.
    *
    * @param callback - Function to execute within transaction
    * @returns Promise resolving to callback result
@@ -1000,18 +1051,31 @@ export interface DatabaseInterface {
    * Unlike transaction(), this gives you explicit control over commit/rollback.
    * Ideal for test isolation where you want to rollback after each test.
    *
+   * On the single-connection adapters — SQLite (both paths), DuckDB and JSON —
+   * the handle owns the connection until {@link TransactionHandle.commit} or
+   * {@link TransactionHandle.rollback} is called, so every other transaction on
+   * that connection waits in the meantime. **A handle that is never ended holds
+   * the connection for the life of the process**, and later transactions then
+   * fail with the queue-timeout error instead of proceeding. End the handle in
+   * a `finally`, and in per-test setup guard the teardown, because an
+   * assertion that throws between `beginTransaction()` and the teardown would
+   * otherwise strand it.
+   *
    * @returns Promise resolving to a TransactionHandle
    *
    * @example Test isolation pattern
    * ```typescript
-   * let tx: TransactionHandle;
+   * let tx: TransactionHandle | undefined;
    *
    * beforeEach(async () => {
    *   tx = await db.beginTransaction();
    * });
    *
    * afterEach(async () => {
-   *   await tx.rollback(); // Discard all test changes
+   *   // Guarded: if beforeEach threw, there is no handle to end, and an
+   *   // unguarded rollback would mask that failure with its own.
+   *   await tx?.rollback(); // Discard all test changes
+   *   tx = undefined;
    * });
    *
    * it('creates user', async () => {
