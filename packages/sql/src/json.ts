@@ -156,6 +156,16 @@ async function createJSONConnection(options: JSONOptions) {
  * This function only loads data - it assumes the table already exists with proper schema.
  * Used after DDL creates the table to load persisted JSON data.
  *
+ * An unreadable or malformed file is tolerated with a warning - the table
+ * structure is what matters and there is no data to lose.
+ *
+ * A failure to insert records that DID parse is logged loudly rather than
+ * swallowed with the old dismissive "that's okay" warning: the resulting empty
+ * table is a real surprise the caller should see (issue #1132). It is logged
+ * rather than thrown so that one unloadable table cannot abort the load of every
+ * other table sharing the same data directory or syncSchema() call - both of
+ * those paths already load each table independently.
+ *
  * @param connection - DuckDB connection
  * @param tableName - Name of the table to load data into
  * @param filePath - Path to the JSON file
@@ -165,21 +175,42 @@ async function loadJSONData(
   tableName: string,
   filePath: string,
 ): Promise<void> {
+  let records: unknown;
+
   try {
     const { readFile } = await import('node:fs/promises');
     const jsonContent = await readFile(filePath, 'utf-8');
-    const records = JSON.parse(jsonContent);
+    records = JSON.parse(jsonContent);
+  } catch (error) {
+    // Missing, empty, or malformed file - table structure is what matters
+    console.warn(
+      `[json-adapter] Could not read data for ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return;
+  }
 
-    if (Array.isArray(records) && records.length > 0) {
-      await insertRecordsWithCast(connection, tableName, records);
+  if (!Array.isArray(records) || records.length === 0) {
+    return;
+  }
+
+  try {
+    const inserted = await insertRecordsWithCast(
+      connection,
+      tableName,
+      records,
+    );
+    if (inserted > 0) {
       console.log(
-        `[json-adapter] Loaded ${records.length} records into ${tableName} from JSON`,
+        `[json-adapter] Loaded ${inserted} records into ${tableName} from JSON`,
       );
     }
   } catch (error) {
-    // If load fails (e.g., empty file, parse error), that's okay - table structure is what matters
-    console.warn(
-      `[json-adapter] Could not load data for ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
+    // Pass the raw error as a second argument so its context (the underlying
+    // DuckDB cause, e.g. a NOT NULL violation) is rendered, not just the wrapper
+    // message - diagnosability is the point of surfacing this (issue #1132)
+    console.error(
+      `[json-adapter] Failed to load data for ${tableName}; the table will be empty:`,
+      error,
     );
   }
 }
@@ -516,45 +547,157 @@ async function createTableFromSchema(
 }
 
 /**
+ * Reads the column names of an existing table, keyed by lowercase name
+ *
+ * @param connection - DuckDB connection
+ * @param tableName - Name of the table to describe
+ * @returns Map of lowercase column name to the column's declared name
+ */
+async function getTableColumns(
+  connection: any,
+  tableName: string,
+): Promise<Map<string, string>> {
+  const reader = await connection.runAndReadAll(
+    'SELECT column_name FROM information_schema.columns WHERE table_name = $1 ORDER BY ordinal_position',
+    [tableName],
+  );
+
+  return new Map(
+    reader
+      .getRowObjects()
+      .map((row: any) => [
+        String(row.column_name).toLowerCase(),
+        String(row.column_name),
+      ]),
+  );
+}
+
+/**
  * Inserts records with proper CAST handling for empty strings
  *
  * This helper avoids using read_json() with auto_detect, which causes DuckDB
  * to re-infer column types from data (causing ANY type for empty strings).
  * Instead, it uses parameterized INSERT with CAST to maintain table schema.
  *
- * Unlike `insert()`, this loads records that came out of a JSON file on disk
- * rather than from a caller, so it deliberately does not use
- * `resolveInsertColumns`: optional fields are ordinary in a JSON document, and
- * rejecting the batch would turn a file that partially loads into one that
- * loads nothing at all — silently, because `loadJSONData` swallows the failure
- * as a warning. Keys beyond the first record's are dropped and absent ones
- * bind NULL, which is the pre-existing behavior.
+ * Used only for loading a JSON data file, where records having different key
+ * sets is normal input rather than a caller error: a document with an optional
+ * field omits that key entirely on the records that lack it. Columns are
+ * therefore unioned across ALL records and any record missing a key binds NULL.
+ * Deriving them from the first record alone bound `undefined` for a missing key
+ * (which DuckDB rejects, losing every row) and dropped keys the first record
+ * did not have (losing the column silently). See issue #1132.
+ *
+ * The caller-facing insert() API is a separate implementation (it resolves
+ * columns through `resolveInsertColumns`) and is not affected by this
+ * file-loading tolerance.
  *
  * @param connection - DuckDB connection
  * @param tableName - Name of the table to insert into
  * @param records - Array of records to insert
+ * @returns Number of records inserted (0 if there was nothing loadable)
+ * @throws DatabaseError if the resolved records cannot be inserted
  */
 async function insertRecordsWithCast(
   connection: any,
   tableName: string,
-  records: Record<string, any>[],
-): Promise<void> {
-  if (records.length === 0) return;
+  records: unknown[],
+): Promise<number> {
+  if (records.length === 0) return 0;
 
-  const keys = Object.keys(records[0]);
+  // Only object records contribute columns AND rows. A non-object element
+  // (e.g. a `null` hole in the array) must be skipped entirely - iterating it
+  // for values would emit a phantom all-NULL row.
+  const objectRecords = records.filter(
+    (record): record is Record<string, any> =>
+      record != null && typeof record === 'object' && !Array.isArray(record),
+  );
+
+  if (objectRecords.length === 0) {
+    return 0;
+  }
+
+  // Union keys across every record, preserving first-appearance order
+  const unionedKeys: string[] = [];
+  const seenKeys = new Set<string>();
+  for (const record of objectRecords) {
+    for (const key of Object.keys(record)) {
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        unionedKeys.push(key);
+      }
+    }
+  }
+
+  if (unionedKeys.length === 0) {
+    console.warn(
+      `[json-adapter] Skipping data load for ${tableName}: records have no fields`,
+    );
+    return 0;
+  }
+
+  // Resolve keys against the table's real columns. A JSON field with no
+  // matching column cannot be inserted; report it instead of failing the whole
+  // load, so one stray field does not cost every row. Column matching is
+  // case-insensitive (DuckDB folds identifier case), so track which columns are
+  // already claimed - two case-variant keys (`id` and `ID`) must not both emit
+  // the same column, which would produce a duplicate-column INSERT.
+  const tableColumns = await getTableColumns(connection, tableName);
+  const keys: string[] = [];
+  const columnNames: string[] = [];
+  const unmatchedKeys: string[] = [];
+  const claimedColumns = new Set<string>();
+
+  for (const key of unionedKeys) {
+    const column = tableColumns.get(key.toLowerCase());
+    if (column === undefined || claimedColumns.has(column.toLowerCase())) {
+      // No matching column, or a differently-cased key already claimed it
+      unmatchedKeys.push(key);
+    } else {
+      claimedColumns.add(column.toLowerCase());
+      keys.push(key);
+      columnNames.push(column);
+    }
+  }
+
+  if (unmatchedKeys.length > 0) {
+    console.warn(
+      `[json-adapter] Ignoring ${unmatchedKeys.length} field(s) in ${tableName} data with no matching column: ${unmatchedKeys.join(', ')}`,
+    );
+  }
+
+  if (keys.length === 0) {
+    throw new DatabaseError(
+      `No fields in the ${tableName} data file match a column on the table`,
+      {
+        tableName,
+        fields: unionedKeys,
+        columns: [...tableColumns.values()],
+      },
+    );
+  }
+
+  // A record that carries none of the matched keys would insert a row of all
+  // NULLs - which is not data the file meant to provide and can violate a NOT
+  // NULL / PRIMARY KEY column, failing the whole batch. Skip such records so a
+  // stray record, like a stray field, does not cost the rest of the load.
+  // (keys is non-empty here, and every key came from some record, so at least
+  // that record survives - insertableRecords cannot be empty.)
+  const insertableRecords = objectRecords.filter((record) =>
+    keys.some((key) => key in record),
+  );
 
   // Build placeholders - schema has NOT NULL DEFAULT '' to prevent ANY type
   const values: any[] = [];
   let paramIdx = 1;
 
-  const placeholders = records
+  const placeholders = insertableRecords
     .map((record) => {
       const rowPlaceholders = keys.map((key) => {
         const value = record[key];
 
-        // `undefined` is what a record missing this key yields. DuckDB cannot
-        // bind it ("Cannot create values of type ANY"), which would fail the
-        // whole load, so treat it as NULL exactly as duckdb.ts does.
+        // `undefined` covers a key this record omits; binding it directly makes
+        // DuckDB reject the whole INSERT ("Cannot create values of type ANY"),
+        // so bind NULL for the missing field, exactly as duckdb.ts does.
         if (value === null || value === undefined) {
           return 'NULL';
         } else if (value === '' && typeof value === 'string') {
@@ -588,9 +731,23 @@ async function insertRecordsWithCast(
     })
     .join(', ');
 
-  const sql = `INSERT INTO ${tableName} (${keys.join(', ')}) VALUES ${placeholders}`;
+  // Use the table's own column names - they came from information_schema, so
+  // no JSON-supplied identifier reaches the statement
+  const columnList = columnNames.map((name) => `"${name}"`).join(', ');
+  const sql = `INSERT INTO "${tableName}" (${columnList}) VALUES ${placeholders}`;
 
-  await connection.run(sql, values);
+  try {
+    await connection.run(sql, values);
+  } catch (e) {
+    throw new DatabaseError('Failed to load records into table', {
+      tableName,
+      recordCount: insertableRecords.length,
+      columns: columnNames,
+      originalError: formatDbError(e),
+    });
+  }
+
+  return insertableRecords.length;
 }
 
 /**
@@ -1782,7 +1939,9 @@ export async function getDatabase(
             // Check if there's pending JSON data for this table (deferred loading)
             const pendingFile = pendingJSONFiles.get(tableName);
             if (pendingFile) {
-              // Table was just created by DDL - now load the JSON data
+              // Table was just created by DDL - now load the JSON data.
+              // loadJSONData logs an unloadable file rather than throwing, so a
+              // single bad table does not abort the rest of this schema sync
               await loadJSONData(connection, tableName, pendingFile);
               pendingJSONFiles.delete(tableName);
             } else if (writeStrategy !== 'none') {
