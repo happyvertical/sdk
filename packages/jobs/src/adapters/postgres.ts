@@ -308,8 +308,12 @@ export class PostgresJobStore extends BaseJobStore {
     };
 
     for (const [key, value] of Object.entries(updates)) {
+      // `hasOwn`, not `if (!fieldMap[key])`: the fieldMap literal inherits
+      // from Object.prototype, so keys like 'constructor' resolve to a truthy
+      // inherited value whose column would be interpolated into the SET clause.
+      // An own-property check drops unknown keys instead of injecting them.
+      if (!Object.hasOwn(fieldMap, key)) continue;
       const column = fieldMap[key];
-      if (!column) continue;
 
       setClause.push(`${column} = $${paramIndex}`);
 
@@ -343,15 +347,22 @@ export class PostgresJobStore extends BaseJobStore {
     const job = await this.get(id);
     if (!job) throw new Error(`Job not found after update: ${id}`);
 
-    if (updates.status === 'completed') {
+    // Emit events based on status changes. Read `status` only when it is an
+    // own key of `updates`: a bare `updates.status` traverses the prototype
+    // chain, so a polluted Object.prototype.status could make an unrelated
+    // update emit a spurious lifecycle event.
+    const statusUpdate = Object.hasOwn(updates, 'status')
+      ? updates.status
+      : undefined;
+    if (statusUpdate === 'completed') {
       await this.emitEvent('job.completed', job, {
         resultPointer: job.resultPointer ?? undefined,
       });
-    } else if (updates.status === 'failed') {
+    } else if (statusUpdate === 'failed') {
       await this.emitEvent('job.failed', job, {
         error: job.lastError ?? undefined,
       });
-    } else if (updates.status === 'cancelled') {
+    } else if (statusUpdate === 'cancelled') {
       await this.emitEvent('job.cancelled', job);
     }
 
