@@ -2,6 +2,7 @@
  * Shared SQL utilities that work in both browser and Node.js environments
  */
 
+import { DatabaseError } from '@happyvertical/utils';
 import type { WhereClause } from './types.js';
 
 /**
@@ -39,6 +40,79 @@ export function formatDbError(error: unknown): string {
   if (dbError.errno !== undefined) parts.push(`errno=${dbError.errno}`);
 
   return parts.length > 0 ? parts.join(', ') : String(error);
+}
+
+/**
+ * Resolves the column list for a multi-row INSERT and rejects batches whose
+ * records disagree on it.
+ *
+ * A batch INSERT emits one column list for the whole statement, so it can only
+ * come from the first record. That leaves two ways for a later record to be
+ * written wrongly, both of them silent:
+ *
+ * - Its keys are the same but in a different insertion order. Callers that
+ *   bound values with `Object.values(record)` bound them by position, so the
+ *   values cross-assigned into each other's columns. Projecting each record
+ *   through the returned column list — `keys.map((key) => record[key])` — is
+ *   what makes key order irrelevant, and every caller must do it.
+ * - Its key set genuinely differs. An extra key has no column to go to and a
+ *   missing one has no value, so the record cannot be expressed by this
+ *   statement at all. Guessing (dropping the extra, writing NULL for the
+ *   missing) is what makes the failure invisible, so this throws instead.
+ *
+ * A key whose value is `undefined` counts as absent. Adapters that serialize
+ * records first drop such keys before this point while the rest pass them
+ * through, so comparing raw key lists would make the same batch throw on some
+ * adapters and silently write NULL on others. Only the comparison ignores them;
+ * the returned column list is untouched, so each adapter keeps its own
+ * single-record handling of `undefined`.
+ *
+ * @param table - Table being inserted into, for error context
+ * @param records - Non-empty batch, as the adapter will bind it
+ * @returns Column list taken from the first record
+ * @throws DatabaseError if any later record's key set differs from the first's
+ */
+export function resolveInsertColumns(
+  table: string,
+  records: Record<string, any>[],
+): string[] {
+  const definedKeys = (record: Record<string, any>) =>
+    new Set(Object.keys(record).filter((key) => record[key] !== undefined));
+
+  const keys = Object.keys(records[0]);
+  const expected = definedKeys(records[0]);
+
+  for (let index = 1; index < records.length; index++) {
+    const recordKeys = definedKeys(records[index]);
+    const missing = [...expected].filter((key) => !recordKeys.has(key));
+    const extra = [...recordKeys].filter((key) => !expected.has(key));
+
+    if (missing.length === 0 && extra.length === 0) {
+      continue;
+    }
+
+    const problems = [
+      missing.length > 0 ? `missing ${missing.join(', ')}` : '',
+      extra.length > 0 ? `unexpected ${extra.join(', ')}` : '',
+    ].filter(Boolean);
+
+    throw new DatabaseError(
+      `Batch insert records must all have the same keys; record ${index} has ${problems.join(
+        ' and ',
+      )} relative to record 0 (${[...expected].join(', ')})`,
+      {
+        table,
+        recordIndex: index,
+        expectedKeys: keys,
+        recordKeys: [...recordKeys],
+        missing,
+        extra,
+        hint: 'A batch INSERT writes one column list for every row, taken from the first record, so record 0 defines the columns even when it is the one that looks wrong. A key whose value is undefined counts as absent. Split records with differing keys into separate insert() calls, or fill the gaps explicitly with null.',
+      },
+    );
+  }
+
+  return keys;
 }
 
 /**

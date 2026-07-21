@@ -29,7 +29,11 @@ import type {
   UpsertOptions,
 } from './shared/types';
 import { NestedTransactionError, resolveSchemas } from './shared/types';
-import { buildWhere, formatDbError } from './shared/utils';
+import {
+  buildWhere,
+  formatDbError,
+  resolveInsertColumns,
+} from './shared/utils';
 
 /**
  * Creates tables from provided schema definitions
@@ -318,7 +322,7 @@ export async function getDatabase(
       return { operation: 'insert', affected: 0 };
     }
 
-    const keys = Object.keys(records[0]);
+    const keys = resolveInsertColumns(table, records);
     validateColumnNames(keys);
     const values: any[] = [];
     let paramIdx = 1;

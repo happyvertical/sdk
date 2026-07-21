@@ -26,7 +26,11 @@ import type {
   VectorSearchOptions,
   VectorSearchResult,
 } from './shared/types';
-import { buildWhere, formatDbError } from './shared/utils';
+import {
+  buildWhere,
+  formatDbError,
+  resolveInsertColumns,
+} from './shared/utils';
 
 /**
  * Configuration options for PostgreSQL database connections
@@ -1187,9 +1191,12 @@ async function createDatabase(
       validateTableName(table);
       // If data is an array, we need to handle multiple rows
       if (Array.isArray(data)) {
+        if (data.length === 0) {
+          return { operation: 'insert', affected: 0 };
+        }
         // Serialize all records in the array
         const serializedRecords = data.map((record) => serialize(record));
-        const keys = Object.keys(serializedRecords[0]);
+        const keys = resolveInsertColumns(table, serializedRecords);
         validateColumnNames(keys);
         const placeholders = serializedRecords
           .map(
@@ -1200,9 +1207,11 @@ async function createDatabase(
         const query = `INSERT INTO ${table} (${keys.join(
           ', ',
         )}) VALUES ${placeholders}`;
-        const values = serializedRecords.reduce<any[]>(
-          (acc, row) => acc.concat(Object.values(row)),
-          [],
+        // Project through `keys` rather than each record's own key order, so a
+        // record whose keys were inserted in a different order still binds each
+        // value to its own column.
+        const values = serializedRecords.flatMap((row) =>
+          keys.map((key) => row[key]),
         );
         const result = await executor.query(query, values);
         return { operation: 'insert', affected: result.rowCount ?? 0 };

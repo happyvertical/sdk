@@ -37,7 +37,11 @@ import type {
   WhereClause,
 } from './shared/types.js';
 import { NestedTransactionError, resolveSchemas } from './shared/types.js';
-import { buildWhere, formatDbError } from './shared/utils.js';
+import {
+  buildWhere,
+  formatDbError,
+  resolveInsertColumns,
+} from './shared/utils.js';
 import type { SqliteOptions } from './sqlite.js';
 
 type NativeDatabase = any;
@@ -889,7 +893,10 @@ async function createNativeSqliteDatabase(
       const records = (Array.isArray(data) ? data : [data]).map(
         serializeRecord,
       );
-      const keys = Object.keys(records[0]);
+      if (records.length === 0) {
+        return { operation: 'insert', affected: 0 };
+      }
+      const keys = resolveInsertColumns(table, records);
       validateColumnNames(keys);
       const placeholders = records
         .map(() => `(${keys.map(() => '?').join(', ')})`)
