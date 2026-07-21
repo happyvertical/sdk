@@ -111,6 +111,14 @@ await postsTable.insert({ id: 'p4', title: 'Scoped' });
 const p = await postsTable.get({ id: 'p4' });
 ```
 
+A batch `insert()` writes one column list for every row, taken from the first
+record, so every record in the batch must have the same keys. Key *order* does
+not matter — each record is projected through the column list — but a record
+with an extra or missing key is rejected with a `DatabaseError` rather than
+silently dropping the extra or writing `NULL` for the missing one. Split records
+of differing shapes into separate `insert()` calls, or fill the gaps with an
+explicit `null`.
+
 `upsert()` treats `NULL` values in conflict columns as matching existing `NULL`
 values so nullable composite keys update the existing row instead of inserting a
 duplicate. Pass `{ nullsDistinct: true }` as the fourth argument to preserve the

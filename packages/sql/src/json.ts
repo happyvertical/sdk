@@ -13,7 +13,11 @@ import type {
   UpsertOptions,
 } from './shared/types';
 import { NestedTransactionError, resolveSchemas } from './shared/types';
-import { buildWhere, formatDbError } from './shared/utils';
+import {
+  buildWhere,
+  formatDbError,
+  resolveInsertColumns,
+} from './shared/utils';
 
 /**
  * Extend globalThis to include our connection cache properties.
@@ -512,6 +516,14 @@ async function createTableFromSchema(
  * to re-infer column types from data (causing ANY type for empty strings).
  * Instead, it uses parameterized INSERT with CAST to maintain table schema.
  *
+ * Unlike `insert()`, this loads records that came out of a JSON file on disk
+ * rather than from a caller, so it deliberately does not use
+ * `resolveInsertColumns`: optional fields are ordinary in a JSON document, and
+ * rejecting the batch would turn a file that partially loads into one that
+ * loads nothing at all — silently, because `loadJSONData` swallows the failure
+ * as a warning. Keys beyond the first record's are dropped and absent ones
+ * bind NULL, which is the pre-existing behavior.
+ *
  * @param connection - DuckDB connection
  * @param tableName - Name of the table to insert into
  * @param records - Array of records to insert
@@ -534,7 +546,10 @@ async function insertRecordsWithCast(
       const rowPlaceholders = keys.map((key) => {
         const value = record[key];
 
-        if (value === null) {
+        // `undefined` is what a record missing this key yields. DuckDB cannot
+        // bind it ("Cannot create values of type ANY"), which would fail the
+        // whole load, so treat it as NULL exactly as duckdb.ts does.
+        if (value === null || value === undefined) {
           return 'NULL';
         } else if (value === '' && typeof value === 'string') {
           // CAST empty strings to TEXT to prevent DuckDB ANY type inference on parameters
@@ -662,7 +677,7 @@ export async function getDatabase(
         return { operation: 'insert', affected: 0 };
       }
 
-      const keys = Object.keys(records[0]);
+      const keys = resolveInsertColumns(table, records);
 
       // Build placeholders with CAST for empty strings
       const values: any[] = [];
@@ -673,7 +688,9 @@ export async function getDatabase(
           const rowPlaceholders = keys.map((key) => {
             const value = record[key];
 
-            if (value === null) {
+            // DuckDB cannot bind `undefined`, so map it to NULL as duckdb.ts
+            // does rather than failing the insert.
+            if (value === null || value === undefined) {
               return 'NULL';
             } else if (value === '' && typeof value === 'string') {
               // CAST empty strings to TEXT to prevent DuckDB ANY type inference

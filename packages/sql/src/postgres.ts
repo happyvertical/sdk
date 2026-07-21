@@ -25,7 +25,11 @@ import type {
   VectorSearchOptions,
   VectorSearchResult,
 } from './shared/types';
-import { buildWhere, formatDbError } from './shared/utils';
+import {
+  buildWhere,
+  formatDbError,
+  resolveInsertColumns,
+} from './shared/utils';
 
 /**
  * Configuration options for PostgreSQL database connections
@@ -1031,9 +1035,12 @@ async function createDatabase(
   ): Promise<BaseQueryResult> => {
     // If data is an array, we need to handle multiple rows
     if (Array.isArray(data)) {
+      if (data.length === 0) {
+        return { operation: 'insert', affected: 0 };
+      }
       // Serialize all records in the array
       const serializedRecords = data.map((record) => serializeRecord(record));
-      const keys = Object.keys(serializedRecords[0]);
+      const keys = resolveInsertColumns(table, serializedRecords);
       const placeholders = serializedRecords
         .map(
           (_, i) =>
@@ -1043,9 +1050,11 @@ async function createDatabase(
       const query = `INSERT INTO ${table} (${keys.join(
         ', ',
       )}) VALUES ${placeholders}`;
-      const values = serializedRecords.reduce<any[]>(
-        (acc, row) => acc.concat(Object.values(row)),
-        [],
+      // Project through `keys` rather than the record's own key order, so a
+      // record whose keys were inserted in a different order still binds each
+      // value to its own column.
+      const values = serializedRecords.flatMap((row) =>
+        keys.map((key) => row[key]),
       );
       const result = await client.query(query, values);
       return { operation: 'insert', affected: result.rowCount ?? 0 };
@@ -1812,7 +1821,10 @@ async function createDatabase(
         insert: async (table, data) => {
           // Reuse insert logic but with transaction client
           if (Array.isArray(data)) {
-            const keys = Object.keys(data[0]);
+            if (data.length === 0) {
+              return { operation: 'insert', affected: 0 };
+            }
+            const keys = resolveInsertColumns(table, data);
             const placeholders = data
               .map(
                 (_, i) =>
@@ -1820,10 +1832,7 @@ async function createDatabase(
               )
               .join(', ');
             const query = `INSERT INTO ${table} (${keys.join(', ')}) VALUES ${placeholders}`;
-            const values = data.reduce(
-              (acc, row) => acc.concat(Object.values(row)),
-              [] as any[],
-            );
+            const values = data.flatMap((row) => keys.map((key) => row[key]));
             const result = await txClient.query(query, values);
             return { operation: 'insert', affected: result.rowCount ?? 0 };
           }
@@ -2062,7 +2071,10 @@ async function createDatabase(
       client: txClient,
       insert: async (table, data) => {
         if (Array.isArray(data)) {
-          const keys = Object.keys(data[0]);
+          if (data.length === 0) {
+            return { operation: 'insert', affected: 0 };
+          }
+          const keys = resolveInsertColumns(table, data);
           const placeholders = data
             .map(
               (_, i) =>
@@ -2070,10 +2082,7 @@ async function createDatabase(
             )
             .join(', ');
           const query = `INSERT INTO ${table} (${keys.join(', ')}) VALUES ${placeholders}`;
-          const values = data.reduce(
-            (acc, row) => acc.concat(Object.values(row)),
-            [] as any[],
-          );
+          const values = data.flatMap((row) => keys.map((key) => row[key]));
           const result = await txClient.query(query, values);
           return { operation: 'insert', affected: result.rowCount ?? 0 };
         }

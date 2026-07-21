@@ -22,7 +22,11 @@ import type {
   UpsertOptions,
 } from './shared/types';
 import { resolveSchemas } from './shared/types';
-import { buildWhere, formatDbError } from './shared/utils';
+import {
+  buildWhere,
+  formatDbError,
+  resolveInsertColumns,
+} from './shared/utils';
 
 /**
  * Connection cache for in-memory databases with memoryId
@@ -552,21 +556,24 @@ export async function getDatabase(
       let values: any[];
 
       if (Array.isArray(data)) {
+        if (data.length === 0) {
+          return { operation: 'insert', affected: 0 };
+        }
         // Serialize all records in the array
         const serializedRecords: Array<Record<string, any>> = data.map(
           (record) => serializeRecord(record),
         );
-        const keys = Object.keys(serializedRecords[0]);
+        const keys = resolveInsertColumns(table, serializedRecords);
         const placeholders = serializedRecords
           .map(() => `(${keys.map(() => '?').join(', ')})`)
           .join(', ');
         sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES ${placeholders}`;
-        // Flatten all values into a single array for batch insert
-        const flattenedValues: any[] = [];
-        for (const record of serializedRecords) {
-          flattenedValues.push(...Object.values(record));
-        }
-        values = flattenedValues;
+        // Project through `keys` rather than each record's own key order, so a
+        // record whose keys were inserted in a different order still binds each
+        // value to its own column.
+        values = serializedRecords.flatMap((record) =>
+          keys.map((key) => record[key]),
+        );
       } else {
         // Serialize the single record
         const serializedData = serializeRecord(data);
