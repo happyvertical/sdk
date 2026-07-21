@@ -541,7 +541,7 @@ export async function getDatabase(
     const paramIdx = { value: 1 };
     const assignments = keys.map((key) => {
       const valueExpr = buildDuckDBValueExpression(data[key], values, paramIdx);
-      return `"${key}" = ${valueExpr}`;
+      return `"${escapeQuotedIdentifier(key)}" = ${valueExpr}`;
     });
     const { sql: whereClause, values: whereValues } = buildWhere(
       conflictWhere,
@@ -585,13 +585,13 @@ export async function getDatabase(
     options?: UpsertOptions,
   ): Promise<QueryResult> => {
     validateTableName(table);
-    // conflictColumns must be plain identifiers: they also become the keys of
-    // the `conflictWhere` object below, and `buildWhere` requires that shape.
-    // The data columns only ever reach quoted positions, so they are escaped
-    // rather than restricted — this adapter is pointed at arbitrary JSON, and
-    // its columns are that JSON's keys, so `Full Name` and `user-id` are
-    // ordinary here and worked before.
-    validateColumnNames(conflictColumns);
+    // Conflict columns reach two very different positions. In the plain
+    // `ON CONFLICT(...)` path below they are quoted, so a name that needs
+    // quotes — `Full Name`, `user-id`, whatever the source data called its
+    // keys — is ordinary and has always worked; escaping keeps it working
+    // while making it impossible to leave the quotes. In the null-aware path
+    // they become `buildWhere` keys instead, which requires a plain identifier
+    // and rejects them there, as it did before this change.
     // Validate that all conflict columns are present in the data
     const missingColumns = conflictColumns.filter((col) => !(col in data));
 
@@ -701,7 +701,9 @@ export async function getDatabase(
 
     // Quote ALL column names to match DuckDB's schema generation
     // SchemaGenerator always quotes column names, so UPSERT must match
-    const conflict = conflictColumns.map((col) => `"${col}"`).join(', ');
+    const conflict = conflictColumns
+      .map((col) => `"${escapeQuotedIdentifier(col)}"`)
+      .join(', ');
     const quotedKeys = keys
       .map((key) => `"${escapeQuotedIdentifier(key)}"`)
       .join(', ');

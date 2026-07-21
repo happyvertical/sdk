@@ -387,6 +387,19 @@ function toVectorLiteral(embedding: number[]): string {
  */
 const VECTOR_INDEX_TYPES = new Set(['hnsw', 'ivfflat']);
 
+/**
+ * `metric` needs the same treatment as `type`, for a less obvious reason.
+ *
+ * It never reaches SQL directly — `vectorOpsClass`/`vectorOperator` map it
+ * through a closed switch with a safe default, so an unknown metric produces a
+ * valid operator class. But it is also concatenated into the *generated index
+ * name*, which is then interpolated into a quoted identifier, so a metric
+ * carrying a `"` still ends that identifier. The safe-default mapping is what
+ * makes this easy to miss: the part of the metric that looks dangerous is
+ * handled, and the part that is actually dangerous is somewhere else.
+ */
+const VECTOR_METRICS = new Set(['cosine', 'l2', 'ip']);
+
 function createVectorCapabilities(pool: Pool): VectorCapabilities {
   return {
     async ensureColumn(
@@ -432,6 +445,14 @@ function createVectorCapabilities(pool: Pool): VectorCapabilities {
           column,
           type: indexType,
           supported: [...VECTOR_INDEX_TYPES],
+        });
+      }
+      if (!VECTOR_METRICS.has(metric)) {
+        throw new DatabaseError('Unsupported vector metric', {
+          table,
+          column,
+          metric,
+          supported: [...VECTOR_METRICS],
         });
       }
       const opsClass = vectorOpsClass(metric);

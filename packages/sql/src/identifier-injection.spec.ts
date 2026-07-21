@@ -215,6 +215,14 @@ describe('identifier validation', () => {
           );
           expect(stored.rows[0]?.n).toBe('Ada');
 
+          // A conflict column needing quotes is ordinary here too — it reaches
+          // the quoted ON CONFLICT position, not a buildWhere key.
+          await db.query(`CREATE UNIQUE INDEX ${t}_fn ON ${t} ("Full Name")`);
+          await db.upsert(t, ['Full Name'], { id: 1, 'Full Name': 'Ada' });
+          expect(
+            (await db.query(`SELECT COUNT(*) AS c FROM ${t}`)).rows[0]?.c,
+          ).toBeDefined();
+
           // A name carrying a quote cannot end the identifier and start SQL.
           // It is escaped, so the statement fails on the unknown column rather
           // than executing anything the caller smuggled in.
@@ -387,6 +395,16 @@ describe('identifier validation', () => {
           type: 'btree (v); CREATE TABLE pwned (x int); --' as never,
         }),
       ).rejects.toThrow(/[Uu]nsupported vector index type/);
+
+      // `metric` never reaches SQL directly — it is mapped through a closed
+      // switch with a safe default — but it *is* concatenated into the
+      // generated index name, which is then interpolated as a quoted
+      // identifier. The safe mapping is what makes this easy to miss.
+      await expect(
+        vector.ensureIndex(table, 'v', {
+          metric: 'cosine" ON t; CREATE TABLE pwned (x int); --' as never,
+        }),
+      ).rejects.toThrow(/[Uu]nsupported vector metric/);
 
       await expect(
         vector.upsertVector(
