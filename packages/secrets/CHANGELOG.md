@@ -1,5 +1,13 @@
 # @happyvertical/secrets
 
+## 0.80.6
+
+### Patch Changes
+
+- Updated dependencies [2e114bd]
+  - @happyvertical/sql@0.80.6
+  - @happyvertical/utils@0.80.6
+
 ## 0.80.5
 
 ### Patch Changes
