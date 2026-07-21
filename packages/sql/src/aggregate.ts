@@ -2,7 +2,9 @@ import type { WhereClause } from './shared/types.js';
 import {
   buildWhere,
   parseConditionKey,
+  raw,
   type SqlAdapterType,
+  unwrapRawKey,
 } from './shared/utils.js';
 
 export type AggregateTimeBucketUnit =
@@ -151,32 +153,22 @@ function selectExpression(
   return { expression, alias, groupingCandidate: false };
 }
 
-function validateWhereShape(where: AggregateSpec['where']): void {
-  if (!where) return;
-  const validateKey = (key: string) => {
-    const { field } = parseConditionKey(key);
-    if (field) validateSqlIdentifier(field);
-  };
-  if (Array.isArray(where)) {
-    for (const andGroup of where) {
-      for (const condition of andGroup) {
-        for (const key of Object.keys(condition)) validateKey(key);
-      }
-    }
-    return;
-  }
-  for (const key of Object.keys(where)) validateKey(key);
-}
-
 function expandHavingKey(
   key: string,
   expressionByAlias: Map<string, string>,
 ): string {
+  // A key the caller already wrapped in raw() is used verbatim: raw() means
+  // "this exact SQL", so it deliberately bypasses select-alias expansion.
+  if (unwrapRawKey(key).isRaw) return key;
+
   const parsed = parseConditionKey(key);
   const expression =
     expressionByAlias.get(parsed.field) ?? validateSqlIdentifier(parsed.field);
 
-  return `${expression} ${parsed.operator}`;
+  // The caller's key is validated above (as an alias or a plain identifier);
+  // what comes out is a select expression such as `SUM(total) >`, which only
+  // buildWhere's raw channel accepts.
+  return raw(`${expression} ${parsed.operator}`);
 }
 
 function expandHaving(
@@ -243,8 +235,6 @@ export function buildAggregate(
       'AggregateSpec.select must contain at least one expression',
     );
   }
-
-  validateWhereShape(spec.where);
 
   const expressionByAlias = new Map<string, string>();
   const groupingAliases: string[] = [];

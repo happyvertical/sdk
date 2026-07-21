@@ -357,6 +357,17 @@ const { sql, values } = buildWhere({
 const products = await db.many`SELECT * FROM products ${sql}`;
 ```
 
+Condition keys are validated as plain SQL identifiers. Expression keys must be
+wrapped in `raw()`, which asserts the SQL is caller-authored rather than derived
+from a request:
+
+```typescript
+import { buildWhere, raw } from '@happyvertical/sql';
+
+buildWhere({ [raw('LOWER(status) =')]: 'paid' });
+// WHERE LOWER(status) = $1
+```
+
 ### Schema Synchronization
 
 ```typescript

@@ -207,7 +207,7 @@ export function validateColumnName(column: string): string {
 }
 
 // Import utilities from shared utils
-import { buildWhere, formatDbError } from './shared/utils';
+import { buildWhere, formatDbError, raw } from './shared/utils';
 
 export {
   type AggregateBuildResult,
@@ -218,8 +218,8 @@ export {
   bucketExpr,
   buildAggregate,
 } from './aggregate.js';
-export type { SqlAdapterType } from './shared/utils';
-export { buildWhere, formatDbError };
+export type { RawSqlKey, SqlAdapterType } from './shared/utils';
+export { buildWhere, formatDbError, raw };
 
 // Import DuckDB schema transformation utilities
 import { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils';
@@ -272,6 +272,7 @@ export default {
   syncSchema,
   tableExists,
   buildWhere,
+  raw,
 };
 
 /** @internal */
