@@ -731,6 +731,10 @@ export async function getDatabase(
       }
     };
 
+    // Names nested savepoints. Only ever appended to an identifier the adapter
+    // generates, never caller input.
+    let savepointSequence = 0;
+
     const upsertInCurrentTransaction = async (
       table: string,
       conflictColumns: string[],
@@ -1003,41 +1007,93 @@ export async function getDatabase(
       try {
         await client.execute({ sql: 'BEGIN TRANSACTION', args: [] });
 
-        // Create a transaction-scoped database interface
-        // SQLite doesn't have separate transaction clients, so we reuse the same client
-        const txDb: DatabaseInterface = {
-          url,
-          client,
-          insert,
-          get,
-          list,
-          update,
-          upsert: upsertInCurrentTransaction,
-          getOrInsert,
-          delete: deleteRecords,
-          count,
-          table,
-          many,
-          single,
-          pluck,
-          execute,
-          query,
-          oo: many,
-          oO: single,
-          ox: pluck,
-          xx: execute,
-          tableExists,
-          syncSchema,
-          transaction,
-        };
-
-        const result = await callback(txDb);
+        const result = await callback(createTransactionScope());
         await client.execute({ sql: 'COMMIT', args: [] });
         return result;
       } catch (error) {
-        await client.execute({ sql: 'ROLLBACK', args: [] });
+        // A failing ROLLBACK must not replace the caller's error — SQLite
+        // reports "cannot rollback - no transaction is active" whenever the
+        // transaction is already gone, which says nothing about what failed.
+        try {
+          await client.execute({ sql: 'ROLLBACK', args: [] });
+        } catch {
+          // Nothing left to roll back.
+        }
         throw error;
       }
+    };
+
+    /**
+     * Builds the transaction-scoped interface handed to a transaction callback.
+     *
+     * The only difference from the top-level interface is `transaction`: this
+     * one re-enters the transaction already in progress under a savepoint
+     * instead of issuing a second BEGIN. SQLite shares one connection, so the
+     * old behaviour of re-exposing the top-level `transaction` sent a nested
+     * call into `BEGIN` on a connection that was already in a transaction; that
+     * throws, and the nested call's own ROLLBACK then discarded the *enclosing*
+     * transaction's work while later writes silently committed in autocommit.
+     */
+    const createTransactionScope = (): DatabaseInterface => {
+      // SQLite doesn't have separate transaction clients, so we reuse the same client
+      const txDb: DatabaseInterface = {
+        url,
+        client,
+        insert,
+        get,
+        list,
+        update,
+        upsert: upsertInCurrentTransaction,
+        getOrInsert,
+        delete: deleteRecords,
+        count,
+        table,
+        many,
+        single,
+        pluck,
+        execute,
+        query,
+        oo: many,
+        oO: single,
+        ox: pluck,
+        xx: execute,
+        tableExists,
+        syncSchema,
+        transaction: async <T>(
+          callback: (tx: DatabaseInterface) => Promise<T>,
+        ): Promise<T> => {
+          savepointSequence += 1;
+          const name = `hv_sp_${savepointSequence}`;
+          await client.execute({ sql: `SAVEPOINT ${name}`, args: [] });
+          try {
+            const result = await callback(createTransactionScope());
+            await client.execute({
+              sql: `RELEASE SAVEPOINT ${name}`,
+              args: [],
+            });
+            return result;
+          } catch (error) {
+            try {
+              // ROLLBACK TO leaves the savepoint in place, so release it as
+              // well or it accumulates for the life of the transaction.
+              await client.execute({
+                sql: `ROLLBACK TO SAVEPOINT ${name}`,
+                args: [],
+              });
+              await client.execute({
+                sql: `RELEASE SAVEPOINT ${name}`,
+                args: [],
+              });
+            } catch {
+              // The enclosing transaction is already unwinding; let its own
+              // teardown deal with the connection.
+            }
+            throw error;
+          }
+        },
+      };
+
+      return txDb;
     };
 
     /**
@@ -1071,31 +1127,12 @@ export async function getDatabase(
 
       const isActive = (): boolean => active;
 
-      // Create a transaction-scoped database interface with commit/rollback
+      // Create a transaction-scoped database interface with commit/rollback.
+      // The handle is inside a transaction for the same reason a callback scope
+      // is, so it gets the same savepoint-based nesting rather than the
+      // top-level `transaction`.
       const txHandle: TransactionHandle = {
-        url,
-        client,
-        insert,
-        get,
-        list,
-        update,
-        upsert: upsertInCurrentTransaction,
-        getOrInsert,
-        delete: deleteRecords,
-        count,
-        table,
-        many,
-        single,
-        pluck,
-        execute,
-        query,
-        oo: many,
-        oO: single,
-        ox: pluck,
-        xx: execute,
-        tableExists,
-        syncSchema,
-        transaction,
+        ...createTransactionScope(),
         commit,
         rollback,
         isActive,

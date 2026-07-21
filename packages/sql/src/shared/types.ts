@@ -1,3 +1,34 @@
+import { DatabaseError } from '@happyvertical/utils';
+
+/**
+ * Error thrown when `transaction()` is called on a transaction-scoped interface
+ * belonging to an adapter whose engine has no savepoints.
+ *
+ * DuckDB — and therefore the JSON adapter built on it — does not implement
+ * `SAVEPOINT`, so there is no way to re-enter the current transaction. Adapters
+ * that can re-enter (PostgreSQL, SQLite) do so under a savepoint and never
+ * throw this.
+ *
+ * The alternative would be to open a second, independent transaction, which is
+ * what these adapters used to do; on a shared connection that silently
+ * destroyed the enclosing transaction's uncommitted work.
+ *
+ * @example Ensuring a helper works on every adapter
+ * ```typescript
+ * // Take the transaction as a parameter rather than opening a nested one.
+ * async function recordClick(db: DatabaseInterface, id: string) {
+ *   await db.update('links', { id }, { clicks: 1 });
+ * }
+ * await db.transaction(async (tx) => recordClick(tx, id));
+ * ```
+ */
+export class NestedTransactionError extends DatabaseError {
+  constructor(message: string, context?: Record<string, unknown>) {
+    super(message, context);
+    this.name = 'NestedTransactionError';
+  }
+}
+
 /**
  * WHERE clause input for database queries
  *
@@ -923,8 +954,41 @@ export interface DatabaseInterface {
    * Executes a callback within a database transaction
    * Automatically commits on success or rolls back on error
    *
+   * Calling `transaction()` again on the `tx` handed to a callback is
+   * adapter-specific — do not assume one behaviour across adapters:
+   *
+   * - **SQLite** (both the libsql and native-capabilities paths) — the nested
+   *   scope re-enters the transaction already in progress under a `SAVEPOINT`.
+   *   It reads the enclosing transaction's uncommitted rows, and if it throws,
+   *   only its own work is rolled back; the enclosing transaction stays usable.
+   * - **DuckDB and JSON** — the engine has no `SAVEPOINT`, so nesting throws
+   *   {@link NestedTransactionError} without touching the connection. The
+   *   enclosing transaction is unaffected and can continue.
+   * - **PostgreSQL** — nesting currently checks out a second pooled connection
+   *   and begins an *independent* transaction, which cannot see the enclosing
+   *   transaction's uncommitted rows and can deadlock against it undetectably.
+   *   Do not nest on PostgreSQL. Tracked by
+   *   {@link https://github.com/happyvertical/sdk/issues/1108 | issue #1108}.
+   *
+   * Code that must run on every adapter should take the transaction as a
+   * parameter rather than opening a nested one.
+   *
    * @param callback - Function to execute within transaction
    * @returns Promise resolving to callback result
+   * @throws {NestedTransactionError} When nesting on an adapter without
+   *   savepoint support
+   *
+   * @example Portable across all adapters
+   * ```typescript
+   * async function recordClick(db: DatabaseInterface, id: string) {
+   *   await db.update('links', { id }, { clicks: 1 });
+   * }
+   *
+   * await db.transaction(async (tx) => {
+   *   await tx.query('SELECT * FROM links WHERE id = $1 FOR UPDATE', id);
+   *   await recordClick(tx, id); // reuses tx; never opens its own
+   * });
+   * ```
    */
   transaction?: <T>(
     callback: (tx: DatabaseInterface) => Promise<T>,
