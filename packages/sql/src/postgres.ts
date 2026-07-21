@@ -1002,333 +1002,6 @@ async function createDatabase(
   };
 
   /**
-   * Inserts one or more records into a table
-   *
-   * @param table - Table name
-   * @param data - Single record or array of records to insert
-   * @returns Promise resolving to operation result
-   * @throws Error if the insert operation fails
-   *
-   * @example Single record insert:
-   * ```typescript
-   * await db.insert('users', {
-   *   name: 'John Doe',
-   *   email: 'john@example.com'
-   * });
-   * ```
-   *
-   * @example Multiple record insert:
-   * ```typescript
-   * await db.insert('users', [
-   *   { name: 'John', email: 'john@example.com' },
-   *   { name: 'Jane', email: 'jane@example.com' }
-   * ]);
-   * ```
-   */
-  const insert = async (
-    table: string,
-    data: Record<string, any> | Record<string, any>[],
-  ): Promise<BaseQueryResult> => {
-    // If data is an array, we need to handle multiple rows
-    if (Array.isArray(data)) {
-      // Serialize all records in the array
-      const serializedRecords = data.map((record) => serializeRecord(record));
-      const keys = Object.keys(serializedRecords[0]);
-      const placeholders = serializedRecords
-        .map(
-          (_, i) =>
-            `(${keys.map((_, j) => `$${i * keys.length + j + 1}`).join(', ')})`,
-        )
-        .join(', ');
-      const query = `INSERT INTO ${table} (${keys.join(
-        ', ',
-      )}) VALUES ${placeholders}`;
-      const values = serializedRecords.reduce<any[]>(
-        (acc, row) => acc.concat(Object.values(row)),
-        [],
-      );
-      const result = await client.query(query, values);
-      return { operation: 'insert', affected: result.rowCount ?? 0 };
-    }
-    // If data is an object, we handle a single row
-    const serializedData = serializeRecord(data);
-    const keys = Object.keys(serializedData);
-    const values = Object.values(serializedData);
-    const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-    const query = `INSERT INTO ${table} (${keys.join(
-      ', ',
-    )}) VALUES (${placeholders})`;
-    const result = await client.query(query, values);
-    return { operation: 'insert', affected: result.rowCount ?? 0 };
-  };
-
-  /**
-   * Retrieves a single record matching the where criteria
-   *
-   * @param table - Table name
-   * @param where - Criteria to match records
-   * @returns Promise resolving to query result
-   */
-  const get = async (
-    table: string,
-    where: Record<string, any>,
-  ): Promise<Record<string, any> | null> => {
-    const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
-    if (!whereClause) {
-      throw new DatabaseError(
-        'GET requires at least one WHERE condition to prevent returning an arbitrary record',
-        { table },
-      );
-    }
-
-    const query = `SELECT * FROM ${table} ${whereClause}`;
-    try {
-      const result = await client.query(query, values);
-      return result.rows[0] || null;
-    } catch (e) {
-      throw new DatabaseError('Failed to retrieve record from table', {
-        table,
-        sql: query,
-        values,
-        originalError: formatDbError(e),
-      });
-    }
-  };
-
-  /**
-   * Retrieves multiple records matching the where criteria
-   *
-   * @param table - Table name
-   * @param where - Criteria to match records
-   * @returns Promise resolving to array of records
-   */
-  const list = async (
-    table: string,
-    where: Record<string, any>,
-  ): Promise<Record<string, any>[]> => {
-    const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
-    const query = `SELECT * FROM ${table} ${whereClause}`;
-    try {
-      const result = await client.query(query, values);
-      return result.rows;
-    } catch (e) {
-      throw new DatabaseError('Failed to list records from table', {
-        table,
-        sql: query,
-        values,
-        originalError: formatDbError(e),
-      });
-    }
-  };
-
-  /**
-   * Updates records matching the where criteria
-   *
-   * @param table - Table name
-   * @param where - Criteria to match records to update
-   * @param data - New data to set
-   * @returns Promise resolving to operation result
-   */
-  const update = async (
-    table: string,
-    where: Record<string, any>,
-    data: Record<string, any>,
-  ): Promise<BaseQueryResult> => {
-    // Serialize the data to update
-    const serializedData = serializeRecord(data);
-    const keys = Object.keys(serializedData);
-    const values = Object.values(serializedData);
-    const setClause = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
-    const { sql: whereClause, values: whereValues } = buildWhere(
-      where,
-      values.length + 1,
-      'postgres',
-    );
-    if (!whereClause) {
-      throw new DatabaseError(
-        'UPDATE requires at least one WHERE condition to prevent accidental update of all records',
-        { table },
-      );
-    }
-
-    const sql = `UPDATE ${table} SET ${setClause} ${whereClause}`;
-    try {
-      const result = await client.query(sql, [...values, ...whereValues]);
-      return { operation: 'update', affected: result.rowCount ?? 0 };
-    } catch (e) {
-      throw new DatabaseError('Failed to update records in table', {
-        table,
-        sql,
-        values: [...values, ...whereValues],
-        originalError: formatDbError(e),
-      });
-    }
-  };
-
-  /**
-   * Inserts a record or updates it if it already exists (UPSERT)
-   *
-   * @param table - Table name
-   * @param conflictColumns - Columns that define the uniqueness constraint
-   * @param data - Data to insert or update
-   * @returns Promise resolving to operation result
-   * @throws Error if the upsert operation fails
-   */
-  const upsert = async (
-    table: string,
-    conflictColumns: string[],
-    data: Record<string, any>,
-    options?: UpsertOptions,
-  ): Promise<BaseQueryResult> => {
-    try {
-      return await executePostgresUpsert(
-        client,
-        table,
-        conflictColumns,
-        data,
-        options,
-        true,
-      );
-    } catch (e) {
-      if (
-        e instanceof DatabaseError &&
-        e.message === 'Conflict columns missing from data'
-      ) {
-        throw e;
-      }
-
-      throw new DatabaseError('Failed to upsert record into table', {
-        table,
-        values: data,
-        conflictColumns,
-        originalError: formatDbError(e),
-      });
-    }
-  };
-
-  /**
-   * Gets a record matching the where criteria or inserts it if not found
-   *
-   * @param table - Table name
-   * @param where - Criteria to match existing record
-   * @returns Promise resolving to the query result or insert result
-   */
-  const getOrInsert = async (
-    table: string,
-    where: Record<string, any>,
-    data: Record<string, any>,
-  ): Promise<Record<string, any>> => {
-    const result = await get(table, where);
-    if (result) return result;
-    await insert(table, data);
-
-    const inserted = await get(table, where);
-    if (!inserted) {
-      throw new DatabaseError('Failed to insert and retrieve record', {
-        table,
-        where,
-        data,
-      });
-    }
-    return inserted;
-  };
-
-  /**
-   * Deletes records from a table matching the where criteria
-   *
-   * @param table - Table name
-   * @param where - Criteria to match records for deletion
-   * @returns Promise resolving to operation result with count of deleted rows
-   * @throws Error if the delete operation fails
-   */
-  const deleteRecords = async (
-    table: string,
-    where: Record<string, any>,
-  ): Promise<BaseQueryResult> => {
-    validateTableName(table);
-
-    const keys = Object.keys(where);
-    if (keys.length === 0) {
-      throw new DatabaseError(
-        'DELETE requires at least one WHERE condition to prevent accidental deletion of all records',
-        { table },
-      );
-    }
-
-    const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
-
-    try {
-      const result = await client.query(
-        `DELETE FROM ${table} ${whereClause}`,
-        values,
-      );
-
-      return { operation: 'delete', affected: result.rowCount ?? 0 };
-    } catch (e) {
-      throw new DatabaseError('Failed to delete records from table', {
-        table,
-        where,
-        originalError: formatDbError(e),
-      });
-    }
-  };
-
-  /**
-   * Counts records in a table matching the where criteria
-   *
-   * @param table - Table name
-   * @param where - Criteria to match records (optional, counts all if omitted)
-   * @returns Promise resolving to count of matching records
-   * @throws Error if the count operation fails
-   */
-  const count = async (
-    table: string,
-    where?: Record<string, any>,
-  ): Promise<number> => {
-    validateTableName(table);
-
-    try {
-      if (!where || Object.keys(where).length === 0) {
-        // Count all records
-        const result = await client.query(
-          `SELECT COUNT(*) as count FROM ${table}`,
-        );
-        return Number(result.rows[0]?.count) || 0;
-      }
-
-      // Count with conditions
-      const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
-
-      const result = await client.query(
-        `SELECT COUNT(*) as count FROM ${table} ${whereClause}`,
-        values,
-      );
-
-      return Number(result.rows[0]?.count) || 0;
-    } catch (e) {
-      throw new DatabaseError('Failed to count records in table', {
-        table,
-        where,
-        originalError: formatDbError(e),
-      });
-    }
-  };
-
-  /**
-   * Creates a table-specific interface for simplified table operations
-   *
-   * @param tableName - Table name
-   * @returns TableMethods interface for the specified table
-   */
-  const table = (tableName: string): TableInterface => {
-    return {
-      insert: (data) => insert(tableName, data),
-      get: (data) => get(tableName, data),
-      list: (data) => list(tableName, data),
-    };
-  };
-
-  /**
    * Template and values extracted from a tagged template literal
    */
   interface SqlTemplate {
@@ -1364,133 +1037,540 @@ async function createDatabase(
   };
 
   /**
-   * Executes a SQL query using template literals and returns a single value
+   * Builds the complete set of query methods bound to one PostgreSQL client.
    *
-   * @param strings - Template strings
-   * @param vars - Variables to interpolate into the query
-   * @returns Promise resolving to a single value (first column of first row)
+   * The pool-backed interface and every transaction-scoped interface are
+   * instantiated from this one factory, so there is exactly one implementation
+   * of each method. The transaction interfaces used to be hand-maintained
+   * copies of these bodies, and both had drifted:
+   *
+   * - they called the client bare, so a failure inside a transaction threw the
+   *   raw `pg` error rather than `DatabaseError`, and `instanceof` answered
+   *   differently depending on whether the call was in a transaction. `pg`
+   *   exports its own class also named `DatabaseError`, so nothing a developer
+   *   would check by eye showed the difference (#1115);
+   * - they re-exposed `tableExists` and `syncSchema` from the enclosing scope,
+   *   which close over the *pool*. Both therefore ran on a different connection
+   *   than the transaction, so `tx.tableExists()` could not see a table created
+   *   in the same transaction and `tx.syncSchema()` committed its DDL
+   *   immediately, surviving a rollback (#1111).
+   *
+   * Binding a client is the only difference between the two, so it is the only
+   * thing this factory parameterizes.
+   *
+   * @param executor - Pool or checked-out client every statement runs on
+   * @param inTransaction - Whether `executor` is already inside a transaction
    */
-  const pluck = async (
-    strings: TemplateStringsArray,
-    ...vars: any[]
-  ): Promise<any> => {
-    const { sql, values } = parseTemplate(strings, ...vars);
-    try {
-      const result = await client.query(sql, values);
-      const firstRow = result.rows[0];
-      if (!firstRow) return null;
-      // Return the first column value from the first row
-      return Object.values(firstRow)[0];
-    } catch (e) {
-      throw new DatabaseError('Failed to execute pluck query', {
-        sql,
-        values,
-        originalError: formatDbError(e),
-      });
-    }
-  };
+  const createClientMethods = (
+    executor: PostgresQueryExecutor,
+    inTransaction: boolean,
+  ) => {
+    /**
+     * Inserts one or more records into a table
+     *
+     * @param table - Table name
+     * @param data - Single record or array of records to insert
+     * @returns Promise resolving to operation result
+     * @throws Error if the insert operation fails
+     *
+     * @example Single record insert:
+     * ```typescript
+     * await db.insert('users', {
+     *   name: 'John Doe',
+     *   email: 'john@example.com'
+     * });
+     * ```
+     *
+     * @example Multiple record insert:
+     * ```typescript
+     * await db.insert('users', [
+     *   { name: 'John', email: 'john@example.com' },
+     *   { name: 'Jane', email: 'jane@example.com' }
+     * ]);
+     * ```
+     */
+    const insert = async (
+      table: string,
+      data: Record<string, any> | Record<string, any>[],
+    ): Promise<BaseQueryResult> => {
+      // If data is an array, we need to handle multiple rows
+      if (Array.isArray(data)) {
+        // Serialize all records in the array
+        const serializedRecords = data.map((record) => serializeRecord(record));
+        const keys = Object.keys(serializedRecords[0]);
+        const placeholders = serializedRecords
+          .map(
+            (_, i) =>
+              `(${keys.map((_, j) => `$${i * keys.length + j + 1}`).join(', ')})`,
+          )
+          .join(', ');
+        const query = `INSERT INTO ${table} (${keys.join(
+          ', ',
+        )}) VALUES ${placeholders}`;
+        const values = serializedRecords.reduce<any[]>(
+          (acc, row) => acc.concat(Object.values(row)),
+          [],
+        );
+        const result = await executor.query(query, values);
+        return { operation: 'insert', affected: result.rowCount ?? 0 };
+      }
+      // If data is an object, we handle a single row
+      const serializedData = serializeRecord(data);
+      const keys = Object.keys(serializedData);
+      const values = Object.values(serializedData);
+      const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
+      const query = `INSERT INTO ${table} (${keys.join(
+        ', ',
+      )}) VALUES (${placeholders})`;
+      const result = await executor.query(query, values);
+      return { operation: 'insert', affected: result.rowCount ?? 0 };
+    };
 
-  /**
-   * Executes a SQL query using template literals and returns a single row
-   *
-   * @param strings - Template strings
-   * @param vars - Variables to interpolate into the query
-   * @returns Promise resolving to a single result record or null
-   */
-  const single = async (
-    strings: TemplateStringsArray,
-    ...vars: any[]
-  ): Promise<Record<string, any> | null> => {
-    const { sql, values } = parseTemplate(strings, ...vars);
-    try {
-      const result = await client.query(sql, values);
-      return result.rows[0] || null;
-    } catch (e) {
-      throw new DatabaseError('Failed to execute single query', {
-        sql,
-        values,
-        originalError: formatDbError(e),
-      });
-    }
-  };
+    /**
+     * Retrieves a single record matching the where criteria
+     *
+     * @param table - Table name
+     * @param where - Criteria to match records
+     * @returns Promise resolving to query result
+     */
+    const get = async (
+      table: string,
+      where: Record<string, any>,
+    ): Promise<Record<string, any> | null> => {
+      const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
+      if (!whereClause) {
+        throw new DatabaseError(
+          'GET requires at least one WHERE condition to prevent returning an arbitrary record',
+          { table },
+        );
+      }
 
-  /**
-   * Executes a SQL query using template literals and returns multiple rows
-   *
-   * @param strings - Template strings
-   * @param vars - Variables to interpolate into the query
-   * @returns Promise resolving to array of result records
-   */
-  const many = async (
-    strings: TemplateStringsArray,
-    ...vars: any[]
-  ): Promise<Record<string, any>[]> => {
-    const { sql, values } = parseTemplate(strings, ...vars);
-    try {
-      const result = await client.query(sql, values);
-      return result.rows;
-    } catch (e) {
-      throw new DatabaseError('Failed to execute many query', {
-        sql,
-        values,
-        originalError: formatDbError(e),
-      });
-    }
-  };
+      const query = `SELECT * FROM ${table} ${whereClause}`;
+      try {
+        const result = await executor.query(query, values);
+        return result.rows[0] || null;
+      } catch (e) {
+        throw new DatabaseError('Failed to retrieve record from table', {
+          table,
+          sql: query,
+          values,
+          originalError: formatDbError(e),
+        });
+      }
+    };
 
-  /**
-   * Executes a SQL query using template literals without returning results
-   *
-   * @param strings - Template strings
-   * @param vars - Variables to interpolate into the query
-   * @returns Promise that resolves when the query completes
-   */
-  const execute = async (
-    strings: TemplateStringsArray,
-    ...vars: any[]
-  ): Promise<void> => {
-    const { sql, values } = parseTemplate(strings, ...vars);
-    try {
-      await client.query(sql, values);
-    } catch (e) {
-      throw new DatabaseError('Failed to execute query', {
-        sql,
-        values,
-        originalError: formatDbError(e),
-      });
-    }
-  };
+    /**
+     * Retrieves multiple records matching the where criteria
+     *
+     * @param table - Table name
+     * @param where - Criteria to match records
+     * @returns Promise resolving to array of records
+     */
+    const list = async (
+      table: string,
+      where: Record<string, any>,
+    ): Promise<Record<string, any>[]> => {
+      const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
+      const query = `SELECT * FROM ${table} ${whereClause}`;
+      try {
+        const result = await executor.query(query, values);
+        return result.rows;
+      } catch (e) {
+        throw new DatabaseError('Failed to list records from table', {
+          table,
+          sql: query,
+          values,
+          originalError: formatDbError(e),
+        });
+      }
+    };
 
-  /**
-   * Executes a raw SQL query with parameterized values
-   *
-   * Uses PostgreSQL-native placeholders ($1, $2, ...). Legacy ? placeholders
-   * are converted only when the placeholder count matches the supplied values,
-   * so Postgres operators such as JSONB ? remain intact.
-   *
-   * @param sql - SQL query string
-   * @param values - Variables to use as parameters
-   * @returns Promise resolving to query result with rows and count
-   */
-  const query = async (
-    sql: string,
-    ...values: any[]
-  ): Promise<{ rows: Record<string, any>[]; rowCount: number }> => {
-    const query = normalizePostgresRawQuery(sql, values);
-    try {
-      const result = await client.query(query.sql, query.values);
+    /**
+     * Updates records matching the where criteria
+     *
+     * @param table - Table name
+     * @param where - Criteria to match records to update
+     * @param data - New data to set
+     * @returns Promise resolving to operation result
+     */
+    const update = async (
+      table: string,
+      where: Record<string, any>,
+      data: Record<string, any>,
+    ): Promise<BaseQueryResult> => {
+      // Serialize the data to update
+      const serializedData = serializeRecord(data);
+      const keys = Object.keys(serializedData);
+      const values = Object.values(serializedData);
+      const setClause = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
+      const { sql: whereClause, values: whereValues } = buildWhere(
+        where,
+        values.length + 1,
+        'postgres',
+      );
+      if (!whereClause) {
+        throw new DatabaseError(
+          'UPDATE requires at least one WHERE condition to prevent accidental update of all records',
+          { table },
+        );
+      }
+
+      const sql = `UPDATE ${table} SET ${setClause} ${whereClause}`;
+      try {
+        const result = await executor.query(sql, [...values, ...whereValues]);
+        return { operation: 'update', affected: result.rowCount ?? 0 };
+      } catch (e) {
+        throw new DatabaseError('Failed to update records in table', {
+          table,
+          sql,
+          values: [...values, ...whereValues],
+          originalError: formatDbError(e),
+        });
+      }
+    };
+
+    /**
+     * Inserts a record or updates it if it already exists (UPSERT)
+     *
+     * @param table - Table name
+     * @param conflictColumns - Columns that define the uniqueness constraint
+     * @param data - Data to insert or update
+     * @returns Promise resolving to operation result
+     * @throws Error if the upsert operation fails
+     */
+    const upsert = async (
+      table: string,
+      conflictColumns: string[],
+      data: Record<string, any>,
+      options?: UpsertOptions,
+    ): Promise<BaseQueryResult> => {
+      try {
+        return await executePostgresUpsert(
+          executor,
+          table,
+          conflictColumns,
+          data,
+          options,
+          // A transaction-scoped upsert is already inside a transaction; opening
+          // a second one on another pooled connection would deadlock against it.
+          !inTransaction,
+        );
+      } catch (e) {
+        if (
+          e instanceof DatabaseError &&
+          e.message === 'Conflict columns missing from data'
+        ) {
+          throw e;
+        }
+
+        throw new DatabaseError('Failed to upsert record into table', {
+          table,
+          values: data,
+          conflictColumns,
+          originalError: formatDbError(e),
+        });
+      }
+    };
+
+    /**
+     * Gets a record matching the where criteria or inserts it if not found
+     *
+     * @param table - Table name
+     * @param where - Criteria to match existing record
+     * @returns Promise resolving to the query result or insert result
+     */
+    const getOrInsert = async (
+      table: string,
+      where: Record<string, any>,
+      data: Record<string, any>,
+    ): Promise<Record<string, any>> => {
+      const result = await get(table, where);
+      if (result) return result;
+      await insert(table, data);
+
+      const inserted = await get(table, where);
+      if (!inserted) {
+        throw new DatabaseError('Failed to insert and retrieve record', {
+          table,
+          where,
+          data,
+        });
+      }
+      return inserted;
+    };
+
+    /**
+     * Deletes records from a table matching the where criteria
+     *
+     * @param table - Table name
+     * @param where - Criteria to match records for deletion
+     * @returns Promise resolving to operation result with count of deleted rows
+     * @throws Error if the delete operation fails
+     */
+    const deleteRecords = async (
+      table: string,
+      where: Record<string, any>,
+    ): Promise<BaseQueryResult> => {
+      validateTableName(table);
+
+      const keys = Object.keys(where);
+      if (keys.length === 0) {
+        throw new DatabaseError(
+          'DELETE requires at least one WHERE condition to prevent accidental deletion of all records',
+          { table },
+        );
+      }
+
+      const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
+
+      try {
+        const result = await executor.query(
+          `DELETE FROM ${table} ${whereClause}`,
+          values,
+        );
+
+        return { operation: 'delete', affected: result.rowCount ?? 0 };
+      } catch (e) {
+        throw new DatabaseError('Failed to delete records from table', {
+          table,
+          where,
+          originalError: formatDbError(e),
+        });
+      }
+    };
+
+    /**
+     * Counts records in a table matching the where criteria
+     *
+     * @param table - Table name
+     * @param where - Criteria to match records (optional, counts all if omitted)
+     * @returns Promise resolving to count of matching records
+     * @throws Error if the count operation fails
+     */
+    const count = async (
+      table: string,
+      where?: Record<string, any>,
+    ): Promise<number> => {
+      validateTableName(table);
+
+      try {
+        if (!where || Object.keys(where).length === 0) {
+          // Count all records
+          const result = await executor.query(
+            `SELECT COUNT(*) as count FROM ${table}`,
+          );
+          return Number(result.rows[0]?.count) || 0;
+        }
+
+        // Count with conditions
+        const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
+
+        const result = await executor.query(
+          `SELECT COUNT(*) as count FROM ${table} ${whereClause}`,
+          values,
+        );
+
+        return Number(result.rows[0]?.count) || 0;
+      } catch (e) {
+        throw new DatabaseError('Failed to count records in table', {
+          table,
+          where,
+          originalError: formatDbError(e),
+        });
+      }
+    };
+
+    /**
+     * Creates a table-specific interface for simplified table operations
+     *
+     * @param tableName - Table name
+     * @returns TableMethods interface for the specified table
+     */
+    const table = (tableName: string): TableInterface => {
       return {
-        rows: result.rows,
-        rowCount: result.rowCount ?? 0,
+        insert: (data) => insert(tableName, data),
+        get: (data) => get(tableName, data),
+        list: (data) => list(tableName, data),
       };
-    } catch (e) {
-      throw new DatabaseError('Failed to execute raw query', {
-        sql: query.sql,
-        values: query.values,
-        originalError: formatDbError(e),
-      });
-    }
+    };
+
+    /**
+     * Executes a SQL query using template literals and returns a single value
+     *
+     * @param strings - Template strings
+     * @param vars - Variables to interpolate into the query
+     * @returns Promise resolving to a single value (first column of first row)
+     */
+    const pluck = async (
+      strings: TemplateStringsArray,
+      ...vars: any[]
+    ): Promise<any> => {
+      const { sql, values } = parseTemplate(strings, ...vars);
+      try {
+        const result = await executor.query(sql, values);
+        const firstRow = result.rows[0];
+        if (!firstRow) return null;
+        // Return the first column value from the first row
+        return Object.values(firstRow)[0];
+      } catch (e) {
+        throw new DatabaseError('Failed to execute pluck query', {
+          sql,
+          values,
+          originalError: formatDbError(e),
+        });
+      }
+    };
+
+    /**
+     * Executes a SQL query using template literals and returns a single row
+     *
+     * @param strings - Template strings
+     * @param vars - Variables to interpolate into the query
+     * @returns Promise resolving to a single result record or null
+     */
+    const single = async (
+      strings: TemplateStringsArray,
+      ...vars: any[]
+    ): Promise<Record<string, any> | null> => {
+      const { sql, values } = parseTemplate(strings, ...vars);
+      try {
+        const result = await executor.query(sql, values);
+        return result.rows[0] || null;
+      } catch (e) {
+        throw new DatabaseError('Failed to execute single query', {
+          sql,
+          values,
+          originalError: formatDbError(e),
+        });
+      }
+    };
+
+    /**
+     * Executes a SQL query using template literals and returns multiple rows
+     *
+     * @param strings - Template strings
+     * @param vars - Variables to interpolate into the query
+     * @returns Promise resolving to array of result records
+     */
+    const many = async (
+      strings: TemplateStringsArray,
+      ...vars: any[]
+    ): Promise<Record<string, any>[]> => {
+      const { sql, values } = parseTemplate(strings, ...vars);
+      try {
+        const result = await executor.query(sql, values);
+        return result.rows;
+      } catch (e) {
+        throw new DatabaseError('Failed to execute many query', {
+          sql,
+          values,
+          originalError: formatDbError(e),
+        });
+      }
+    };
+
+    /**
+     * Executes a SQL query using template literals without returning results
+     *
+     * @param strings - Template strings
+     * @param vars - Variables to interpolate into the query
+     * @returns Promise that resolves when the query completes
+     */
+    const execute = async (
+      strings: TemplateStringsArray,
+      ...vars: any[]
+    ): Promise<void> => {
+      const { sql, values } = parseTemplate(strings, ...vars);
+      try {
+        await executor.query(sql, values);
+      } catch (e) {
+        throw new DatabaseError('Failed to execute query', {
+          sql,
+          values,
+          originalError: formatDbError(e),
+        });
+      }
+    };
+
+    /**
+     * Executes a raw SQL query with parameterized values
+     *
+     * Uses PostgreSQL-native placeholders ($1, $2, ...). Legacy ? placeholders
+     * are converted only when the placeholder count matches the supplied values,
+     * so Postgres operators such as JSONB ? remain intact.
+     *
+     * @param sql - SQL query string
+     * @param values - Variables to use as parameters
+     * @returns Promise resolving to query result with rows and count
+     */
+    const query = async (
+      sql: string,
+      ...values: any[]
+    ): Promise<{ rows: Record<string, any>[]; rowCount: number }> => {
+      const query = normalizePostgresRawQuery(sql, values);
+      try {
+        const result = await executor.query(query.sql, query.values);
+        return {
+          rows: result.rows,
+          rowCount: result.rowCount ?? 0,
+        };
+      } catch (e) {
+        throw new DatabaseError('Failed to execute raw query', {
+          sql: query.sql,
+          values: query.values,
+          originalError: formatDbError(e),
+        });
+      }
+    };
+
+    // Shorthand aliases for query methods
+    const oo = many; // (o)bjective-(o)bjects: returns multiple rows
+    const oO = single; // (o)bjective-(O)bject: returns a single row
+    const ox = pluck; // (o)bjective-(x): returns a single value
+    const xx = execute; // (x)ecute-(x)ecute: executes without returning
+
+    return {
+      insert,
+      get,
+      list,
+      update,
+      upsert,
+      getOrInsert,
+      delete: deleteRecords,
+      count,
+      table,
+      many,
+      single,
+      pluck,
+      execute,
+      query,
+      oo,
+      oO,
+      ox,
+      xx,
+    };
   };
+
+  const {
+    insert,
+    get,
+    list,
+    update,
+    upsert,
+    getOrInsert,
+    delete: deleteRecords,
+    count,
+    table,
+    many,
+    single,
+    pluck,
+    execute,
+    query,
+    oo,
+    oO,
+    ox,
+    xx,
+  } = createClientMethods(client, false);
 
   /**
    * Acquire a pinned connection from the pool for session-scoped state such as
@@ -1809,181 +1889,7 @@ async function createDatabase(
       const txDb: DatabaseInterface = {
         url,
         client: txClient,
-        insert: async (table, data) => {
-          // Reuse insert logic but with transaction client
-          if (Array.isArray(data)) {
-            const keys = Object.keys(data[0]);
-            const placeholders = data
-              .map(
-                (_, i) =>
-                  `(${keys.map((_, j) => `$${i * keys.length + j + 1}`).join(', ')})`,
-              )
-              .join(', ');
-            const query = `INSERT INTO ${table} (${keys.join(', ')}) VALUES ${placeholders}`;
-            const values = data.reduce(
-              (acc, row) => acc.concat(Object.values(row)),
-              [] as any[],
-            );
-            const result = await txClient.query(query, values);
-            return { operation: 'insert', affected: result.rowCount ?? 0 };
-          }
-          const keys = Object.keys(data);
-          const values = Object.values(data);
-          const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-          const query = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
-          const result = await txClient.query(query, values);
-          return { operation: 'insert', affected: result.rowCount ?? 0 };
-        },
-        get: async (table, where) => {
-          const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
-          if (!whereClause) {
-            throw new DatabaseError(
-              'GET requires at least one WHERE condition to prevent returning an arbitrary record',
-              { table },
-            );
-          }
-
-          const query = `SELECT * FROM ${table} ${whereClause}`;
-          const result = await txClient.query(query, values);
-          return result.rows[0] || null;
-        },
-        list: async (table, where) => {
-          const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
-          const query = `SELECT * FROM ${table} ${whereClause}`;
-          const result = await txClient.query(query, values);
-          return result.rows;
-        },
-        update: async (table, where, data) => {
-          const keys = Object.keys(data);
-          const values = Object.values(data);
-          const setClause = keys
-            .map((key, i) => `${key} = $${i + 1}`)
-            .join(', ');
-          const { sql: whereClause, values: whereValues } = buildWhere(
-            where,
-            values.length + 1,
-            'postgres',
-          );
-          if (!whereClause) {
-            throw new DatabaseError(
-              'UPDATE requires at least one WHERE condition to prevent accidental update of all records',
-              { table },
-            );
-          }
-
-          const sql = `UPDATE ${table} SET ${setClause} ${whereClause}`;
-          const result = await txClient.query(sql, [...values, ...whereValues]);
-          return { operation: 'update', affected: result.rowCount ?? 0 };
-        },
-        upsert: async (table, conflictColumns, data, options) =>
-          executePostgresUpsert(
-            txClient,
-            table,
-            conflictColumns,
-            data,
-            options,
-            false,
-          ),
-        getOrInsert: async (table, where, data) => {
-          const result = await txDb.get(table, where);
-          if (result) return result;
-          await txDb.insert(table, data);
-          const inserted = await txDb.get(table, where);
-          if (!inserted) {
-            throw new DatabaseError('Failed to insert and retrieve record', {
-              table,
-              where,
-              data,
-            });
-          }
-          return inserted;
-        },
-        delete: async (table, where) => {
-          validateTableName(table);
-          const keys = Object.keys(where);
-          if (keys.length === 0) {
-            throw new DatabaseError(
-              'DELETE requires at least one WHERE condition to prevent accidental deletion of all records',
-              { table },
-            );
-          }
-          const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
-          const result = await txClient.query(
-            `DELETE FROM ${table} ${whereClause}`,
-            values,
-          );
-          return { operation: 'delete', affected: result.rowCount ?? 0 };
-        },
-        count: async (table, where) => {
-          validateTableName(table);
-          if (!where || Object.keys(where).length === 0) {
-            const result = await txClient.query(
-              `SELECT COUNT(*) as count FROM ${table}`,
-            );
-            return Number(result.rows[0]?.count) || 0;
-          }
-          const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
-          const result = await txClient.query(
-            `SELECT COUNT(*) as count FROM ${table} ${whereClause}`,
-            values,
-          );
-          return Number(result.rows[0]?.count) || 0;
-        },
-        table: (tableName) => ({
-          insert: (data) => txDb.insert(tableName, data),
-          get: (data) => txDb.get(tableName, data),
-          list: (data) => txDb.list(tableName, data),
-        }),
-        many: async (strings, ...vars) => {
-          const { sql, values } = parseTemplate(strings, ...vars);
-          const result = await txClient.query(sql, values);
-          return result.rows;
-        },
-        single: async (strings, ...vars) => {
-          const { sql, values } = parseTemplate(strings, ...vars);
-          const result = await txClient.query(sql, values);
-          return result.rows[0] || null;
-        },
-        pluck: async (strings, ...vars) => {
-          const { sql, values } = parseTemplate(strings, ...vars);
-          const result = await txClient.query(sql, values);
-          const firstRow = result.rows[0];
-          if (!firstRow) return null;
-          return Object.values(firstRow)[0];
-        },
-        execute: async (strings, ...vars) => {
-          const { sql, values } = parseTemplate(strings, ...vars);
-          await txClient.query(sql, values);
-        },
-        query: async (sql, ...values) => {
-          const query = normalizePostgresRawQuery(sql, values);
-          const result = await txClient.query(query.sql, query.values);
-          return {
-            rows: result.rows,
-            rowCount: result.rowCount ?? 0,
-          };
-        },
-        oo: async (strings, ...vars) => {
-          const { sql, values } = parseTemplate(strings, ...vars);
-          const result = await txClient.query(sql, values);
-          return result.rows;
-        },
-        oO: async (strings, ...vars) => {
-          const { sql, values } = parseTemplate(strings, ...vars);
-          const result = await txClient.query(sql, values);
-          return result.rows[0] || null;
-        },
-        ox: async (strings, ...vars) => {
-          const { sql, values } = parseTemplate(strings, ...vars);
-          const result = await txClient.query(sql, values);
-          const firstRow = result.rows[0];
-          if (!firstRow) return null;
-          return Object.values(firstRow)[0];
-        },
-        xx: async (strings, ...vars) => {
-          const { sql, values } = parseTemplate(strings, ...vars);
-          await txClient.query(sql, values);
-        },
+        ...createClientMethods(txClient, true),
         tableExists,
         syncSchema,
         transaction: createNestedTransaction(txClient, () => txDb),
@@ -2060,178 +1966,7 @@ async function createDatabase(
     const txHandle: TransactionHandle = {
       url,
       client: txClient,
-      insert: async (table, data) => {
-        if (Array.isArray(data)) {
-          const keys = Object.keys(data[0]);
-          const placeholders = data
-            .map(
-              (_, i) =>
-                `(${keys.map((_, j) => `$${i * keys.length + j + 1}`).join(', ')})`,
-            )
-            .join(', ');
-          const query = `INSERT INTO ${table} (${keys.join(', ')}) VALUES ${placeholders}`;
-          const values = data.reduce(
-            (acc, row) => acc.concat(Object.values(row)),
-            [] as any[],
-          );
-          const result = await txClient.query(query, values);
-          return { operation: 'insert', affected: result.rowCount ?? 0 };
-        }
-        const keys = Object.keys(data);
-        const values = Object.values(data);
-        const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-        const query = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
-        const result = await txClient.query(query, values);
-        return { operation: 'insert', affected: result.rowCount ?? 0 };
-      },
-      get: async (table, where) => {
-        const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
-        if (!whereClause) {
-          throw new DatabaseError(
-            'GET requires at least one WHERE condition to prevent returning an arbitrary record',
-            { table },
-          );
-        }
-
-        const query = `SELECT * FROM ${table} ${whereClause}`;
-        const result = await txClient.query(query, values);
-        return result.rows[0] || null;
-      },
-      list: async (table, where) => {
-        const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
-        const query = `SELECT * FROM ${table} ${whereClause}`;
-        const result = await txClient.query(query, values);
-        return result.rows;
-      },
-      update: async (table, where, data) => {
-        const keys = Object.keys(data);
-        const values = Object.values(data);
-        const setClause = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
-        const { sql: whereClause, values: whereValues } = buildWhere(
-          where,
-          values.length + 1,
-          'postgres',
-        );
-        if (!whereClause) {
-          throw new DatabaseError(
-            'UPDATE requires at least one WHERE condition to prevent accidental update of all records',
-            { table },
-          );
-        }
-
-        const sql = `UPDATE ${table} SET ${setClause} ${whereClause}`;
-        const result = await txClient.query(sql, [...values, ...whereValues]);
-        return { operation: 'update', affected: result.rowCount ?? 0 };
-      },
-      upsert: async (table, conflictColumns, data, options) =>
-        executePostgresUpsert(
-          txClient,
-          table,
-          conflictColumns,
-          data,
-          options,
-          false,
-        ),
-      getOrInsert: async (table, where, data) => {
-        const result = await txHandle.get(table, where);
-        if (result) return result;
-        await txHandle.insert(table, data);
-        const inserted = await txHandle.get(table, where);
-        if (!inserted) {
-          throw new DatabaseError('Failed to insert and retrieve record', {
-            table,
-            where,
-            data,
-          });
-        }
-        return inserted;
-      },
-      delete: async (table, where) => {
-        validateTableName(table);
-        const keys = Object.keys(where);
-        if (keys.length === 0) {
-          throw new DatabaseError(
-            'DELETE requires at least one WHERE condition to prevent accidental deletion of all records',
-            { table },
-          );
-        }
-        const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
-        const result = await txClient.query(
-          `DELETE FROM ${table} ${whereClause}`,
-          values,
-        );
-        return { operation: 'delete', affected: result.rowCount ?? 0 };
-      },
-      count: async (table, where) => {
-        validateTableName(table);
-        if (!where || Object.keys(where).length === 0) {
-          const result = await txClient.query(
-            `SELECT COUNT(*) as count FROM ${table}`,
-          );
-          return Number(result.rows[0]?.count) || 0;
-        }
-        const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
-        const result = await txClient.query(
-          `SELECT COUNT(*) as count FROM ${table} ${whereClause}`,
-          values,
-        );
-        return Number(result.rows[0]?.count) || 0;
-      },
-      table: (tableName) => ({
-        insert: (data) => txHandle.insert(tableName, data),
-        get: (data) => txHandle.get(tableName, data),
-        list: (data) => txHandle.list(tableName, data),
-      }),
-      many: async (strings, ...vars) => {
-        const { sql, values } = parseTemplate(strings, ...vars);
-        const result = await txClient.query(sql, values);
-        return result.rows;
-      },
-      single: async (strings, ...vars) => {
-        const { sql, values } = parseTemplate(strings, ...vars);
-        const result = await txClient.query(sql, values);
-        return result.rows[0] || null;
-      },
-      pluck: async (strings, ...vars) => {
-        const { sql, values } = parseTemplate(strings, ...vars);
-        const result = await txClient.query(sql, values);
-        const firstRow = result.rows[0];
-        if (!firstRow) return null;
-        return Object.values(firstRow)[0];
-      },
-      execute: async (strings, ...vars) => {
-        const { sql, values } = parseTemplate(strings, ...vars);
-        await txClient.query(sql, values);
-      },
-      query: async (sql, ...values) => {
-        const query = normalizePostgresRawQuery(sql, values);
-        const result = await txClient.query(query.sql, query.values);
-        return {
-          rows: result.rows,
-          rowCount: result.rowCount ?? 0,
-        };
-      },
-      oo: async (strings, ...vars) => {
-        const { sql, values } = parseTemplate(strings, ...vars);
-        const result = await txClient.query(sql, values);
-        return result.rows;
-      },
-      oO: async (strings, ...vars) => {
-        const { sql, values } = parseTemplate(strings, ...vars);
-        const result = await txClient.query(sql, values);
-        return result.rows[0] || null;
-      },
-      ox: async (strings, ...vars) => {
-        const { sql, values } = parseTemplate(strings, ...vars);
-        const result = await txClient.query(sql, values);
-        const firstRow = result.rows[0];
-        if (!firstRow) return null;
-        return Object.values(firstRow)[0];
-      },
-      xx: async (strings, ...vars) => {
-        const { sql, values } = parseTemplate(strings, ...vars);
-        await txClient.query(sql, values);
-      },
+      ...createClientMethods(txClient, true),
       tableExists,
       syncSchema,
       transaction: createNestedTransaction(txClient, () => txHandle),
@@ -2242,12 +1977,6 @@ async function createDatabase(
 
     return txHandle;
   };
-
-  // Shorthand aliases for query methods
-  const oo = many; // (o)bjective-(o)bjects: returns multiple rows
-  const oO = single; // (o)bjective-(O)bject: returns a single row
-  const ox = pluck; // (o)bjective-(x): returns a single value
-  const xx = execute; // (x)ecute-(x)ecute: executes without returning
 
   /**
    * Initialize database schemas from JSON manifest
