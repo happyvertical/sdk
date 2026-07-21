@@ -2,6 +2,7 @@ import { mkdir, readdir } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import { DatabaseError } from '@happyvertical/utils';
 import { DatabaseSchemaManager } from './schema-manager';
+import { validateColumnNames } from './shared/alter-utils';
 import { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils';
 import { createTransactionLock } from './shared/transaction-lock';
 import type {
@@ -673,6 +674,7 @@ export async function getDatabase(
       }
 
       const keys = Object.keys(records[0]);
+      validateColumnNames(keys);
 
       // Build placeholders with CAST for empty strings
       const values: any[] = [];
@@ -826,6 +828,7 @@ export async function getDatabase(
       }
 
       const keys = Object.keys(data);
+      validateColumnNames(keys);
       const setClause = keys
         .map((key, idx) => `${key} = $${idx + 1}`)
         .join(', ');
@@ -967,6 +970,8 @@ export async function getDatabase(
           { table, writeStrategy },
         );
       }
+
+      validateColumnNames([...conflictColumns, ...Object.keys(data)]);
 
       // Validate that all conflict columns are present in the data
       const missingColumns = conflictColumns.filter((col) => !(col in data));

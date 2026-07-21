@@ -7,6 +7,7 @@ import {
   generateAddColumnStatement,
   generateCreateIndexStatement,
   validateColumnName,
+  validateColumnNames,
   validateIndexName,
   validateTableName,
 } from './shared/alter-utils.js';
@@ -884,10 +885,12 @@ async function createNativeSqliteDatabase(
       table: string,
       data: Record<string, any> | Record<string, any>[],
     ): Promise<QueryResult> => {
+      validateTableName(table);
       const records = (Array.isArray(data) ? data : [data]).map(
         serializeRecord,
       );
       const keys = Object.keys(records[0]);
+      validateColumnNames(keys);
       const placeholders = records
         .map(() => `(${keys.map(() => '?').join(', ')})`)
         .join(', ');
@@ -913,6 +916,7 @@ async function createNativeSqliteDatabase(
       table: string,
       where: WhereClause,
     ): Promise<Record<string, any> | null> => {
+      validateTableName(table);
       const { sql: whereClause, values } = buildQuestionWhere(where);
       if (!whereClause) {
         throw new DatabaseError(
@@ -939,6 +943,7 @@ async function createNativeSqliteDatabase(
       table: string,
       where: WhereClause,
     ): Promise<Record<string, any>[]> => {
+      validateTableName(table);
       const { sql: whereClause, values } = buildQuestionWhere(where);
       const sql = `SELECT * FROM ${table} ${whereClause}`;
       try {
@@ -958,8 +963,10 @@ async function createNativeSqliteDatabase(
       where: WhereClause,
       data: Record<string, any>,
     ): Promise<QueryResult> => {
+      validateTableName(table);
       const serializedData = serializeRecord(data);
       const keys = Object.keys(serializedData);
+      validateColumnNames(keys);
       const values = Object.values(serializedData);
       const setClause = keys.map((key) => `${key} = ?`).join(', ');
       const { sql: whereClause, values: whereValues } =
@@ -1066,6 +1073,22 @@ async function createNativeSqliteDatabase(
       return { operation: 'upsert', affected: insertResult.rowCount };
     };
 
+    /**
+     * Rejects hostile table/column identifiers before an upsert builds SQL.
+     *
+     * Called from the public entry points rather than from `executeUpsert`, so
+     * the failure reaches the caller naming the bad identifier instead of being
+     * flattened into the wrapper's generic "Failed to upsert record into table".
+     */
+    const validateUpsertIdentifiers = (
+      table: string,
+      conflictColumns: string[],
+      data: Record<string, any>,
+    ): void => {
+      validateTableName(table);
+      validateColumnNames([...conflictColumns, ...Object.keys(data)]);
+    };
+
     const executeUpsert = async (
       table: string,
       conflictColumns: string[],
@@ -1129,6 +1152,7 @@ async function createNativeSqliteDatabase(
       data: Record<string, any>,
       upsertOptions?: UpsertOptions,
     ): Promise<QueryResult> => {
+      validateUpsertIdentifiers(table, conflictColumns, data);
       try {
         return await executeUpsert(
           table,
@@ -1155,8 +1179,10 @@ async function createNativeSqliteDatabase(
       conflictColumns: string[],
       data: Record<string, any>,
       upsertOptions?: UpsertOptions,
-    ): Promise<QueryResult> =>
-      executeUpsert(table, conflictColumns, data, upsertOptions, false);
+    ): Promise<QueryResult> => {
+      validateUpsertIdentifiers(table, conflictColumns, data);
+      return executeUpsert(table, conflictColumns, data, upsertOptions, false);
+    };
 
     const getOrInsert = async (
       table: string,

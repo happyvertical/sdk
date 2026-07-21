@@ -7,6 +7,7 @@ import {
   generateAddColumnStatement,
   generateCreateIndexStatement,
   validateColumnName,
+  validateColumnNames,
   validateIndexName,
   validateTableName,
 } from './shared/alter-utils';
@@ -304,6 +305,7 @@ export async function getDatabase(
     table: string,
     data: Record<string, any> | Record<string, any>[],
   ): Promise<QueryResult> => {
+    validateTableName(table);
     const records = Array.isArray(data) ? data : [data];
 
     if (records.length === 0) {
@@ -311,6 +313,7 @@ export async function getDatabase(
     }
 
     const keys = Object.keys(records[0]);
+    validateColumnNames(keys);
     const values: any[] = [];
     let paramIdx = 1;
 
@@ -386,6 +389,7 @@ export async function getDatabase(
     table: string,
     where: Record<string, any>,
   ): Promise<Record<string, any> | null> => {
+    validateTableName(table);
     const { sql: whereClause, values } = buildWhere(where, 1, 'duckdb');
     const sql = `SELECT * FROM ${table} ${whereClause} LIMIT 1`;
 
@@ -415,6 +419,7 @@ export async function getDatabase(
     table: string,
     where: Record<string, any>,
   ): Promise<Record<string, any>[]> => {
+    validateTableName(table);
     const { sql: whereClause, values } = buildWhere(where, 1, 'duckdb');
     const sql = `SELECT * FROM ${table} ${whereClause}`;
 
@@ -445,7 +450,9 @@ export async function getDatabase(
     where: Record<string, any>,
     data: Record<string, any>,
   ): Promise<QueryResult> => {
+    validateTableName(table);
     const keys = Object.keys(data);
+    validateColumnNames(keys);
     const setClause = keys.map((key, idx) => `${key} = $${idx + 1}`).join(', ');
     const { sql: whereClause, values: whereValues } = buildWhere(
       where,
@@ -571,6 +578,8 @@ export async function getDatabase(
     data: Record<string, any>,
     options?: UpsertOptions,
   ): Promise<QueryResult> => {
+    validateTableName(table);
+    validateColumnNames([...conflictColumns, ...Object.keys(data)]);
     // Validate that all conflict columns are present in the data
     const missingColumns = conflictColumns.filter((col) => !(col in data));
 

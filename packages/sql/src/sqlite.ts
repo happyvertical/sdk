@@ -5,6 +5,7 @@ import {
   generateAddColumnStatement,
   generateCreateIndexStatement,
   validateColumnName,
+  validateColumnNames,
   validateIndexName,
   validateTableName,
 } from './shared/alter-utils';
@@ -526,6 +527,22 @@ export async function getDatabase(
       throw lastError;
     };
 
+    /**
+     * Rejects hostile table/column identifiers before an upsert builds SQL.
+     *
+     * Called from the public entry points rather than from `executeUpsert`, so
+     * the failure reaches the caller naming the bad identifier instead of being
+     * flattened into the wrapper's generic "Failed to upsert record into table".
+     */
+    const validateUpsertIdentifiers = (
+      table: string,
+      conflictColumns: string[],
+      data: Record<string, any>,
+    ): void => {
+      validateTableName(table);
+      validateColumnNames([...conflictColumns, ...Object.keys(data)]);
+    };
+
     const executeUpsert = async (
       table: string,
       conflictColumns: string[],
@@ -575,6 +592,7 @@ export async function getDatabase(
       table: string,
       data: Record<string, any> | Record<string, any>[],
     ): Promise<QueryResult> => {
+      validateTableName(table);
       let sql: string;
       let values: any[];
 
@@ -584,6 +602,7 @@ export async function getDatabase(
           (record) => serializeRecord(record),
         );
         const keys = Object.keys(serializedRecords[0]);
+        validateColumnNames(keys);
         const placeholders = serializedRecords
           .map(() => `(${keys.map(() => '?').join(', ')})`)
           .join(', ');
@@ -598,6 +617,7 @@ export async function getDatabase(
         // Serialize the single record
         const serializedData = serializeRecord(data);
         const keys = Object.keys(serializedData);
+        validateColumnNames(keys);
         const placeholders = keys.map(() => '?').join(', ');
         sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
         values = Object.values(serializedData);
@@ -627,6 +647,7 @@ export async function getDatabase(
       table: string,
       where: Record<string, any>,
     ): Promise<Record<string, any> | null> => {
+      validateTableName(table);
       const { sql: whereClause, values } = buildWhere(where, 1, 'sqlite');
       if (!whereClause) {
         throw new DatabaseError(
@@ -661,6 +682,7 @@ export async function getDatabase(
       table: string,
       where: Record<string, any>,
     ): Promise<Record<string, any>[]> => {
+      validateTableName(table);
       const { sql: whereClause, values } = buildWhere(where, 1, 'sqlite');
       const sql = `SELECT * FROM ${table} ${whereClause}`;
       try {
@@ -690,9 +712,11 @@ export async function getDatabase(
       where: Record<string, any>,
       data: Record<string, any>,
     ): Promise<QueryResult> => {
+      validateTableName(table);
       // Serialize the data to update
       const serializedData = serializeRecord(data);
       const keys = Object.keys(serializedData);
+      validateColumnNames(keys);
       const values = Object.values(serializedData);
       const setClause = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
       const { sql: whereClause, values: whereValues } = buildWhere(
@@ -739,6 +763,7 @@ export async function getDatabase(
       data: Record<string, any>,
       options?: UpsertOptions,
     ): Promise<QueryResult> => {
+      validateUpsertIdentifiers(table, conflictColumns, data);
       try {
         return await executeUpsert(table, conflictColumns, data, options, true);
       } catch (e) {
@@ -768,6 +793,7 @@ export async function getDatabase(
       data: Record<string, any>,
       options?: UpsertOptions,
     ): Promise<QueryResult> => {
+      validateUpsertIdentifiers(table, conflictColumns, data);
       try {
         return await executeUpsert(
           table,

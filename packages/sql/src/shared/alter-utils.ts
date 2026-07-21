@@ -252,6 +252,25 @@ export function validateColumnName(columnName: string): void {
 }
 
 /**
+ * Validates every identifier in a column list to prevent SQL injection
+ *
+ * Column names reaching the CRUD methods come from `Object.keys(data)` and the
+ * caller's `conflictColumns`, both of which are interpolated into SQL. They are
+ * checked rather than quoted deliberately: the accepted shape has no character
+ * that can end an identifier, so quoting adds nothing to safety, and quoting a
+ * name on PostgreSQL makes it case-sensitive, which would silently change which
+ * column an existing caller addresses.
+ *
+ * @param columnNames - Column names to validate
+ * @throws Error if any column name contains invalid characters
+ */
+export function validateColumnNames(columnNames: string[]): void {
+  for (const columnName of columnNames) {
+    validateColumnName(columnName);
+  }
+}
+
+/**
  * Validates an index name to prevent SQL injection
  *
  * @param indexName - Index name to validate

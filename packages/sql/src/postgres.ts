@@ -5,6 +5,7 @@ import {
   generateAddColumnStatement,
   generateCreateIndexStatement,
   validateColumnName,
+  validateColumnNames,
   validateIndexName,
   validateTableName,
 } from './shared/alter-utils';
@@ -1093,11 +1094,13 @@ async function createDatabase(
       table: string,
       data: Record<string, any> | Record<string, any>[],
     ): Promise<BaseQueryResult> => {
+      validateTableName(table);
       // If data is an array, we need to handle multiple rows
       if (Array.isArray(data)) {
         // Serialize all records in the array
         const serializedRecords = data.map((record) => serializeRecord(record));
         const keys = Object.keys(serializedRecords[0]);
+        validateColumnNames(keys);
         const placeholders = serializedRecords
           .map(
             (_, i) =>
@@ -1117,6 +1120,7 @@ async function createDatabase(
       // If data is an object, we handle a single row
       const serializedData = serializeRecord(data);
       const keys = Object.keys(serializedData);
+      validateColumnNames(keys);
       const values = Object.values(serializedData);
       const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
       const query = `INSERT INTO ${table} (${keys.join(
@@ -1137,6 +1141,7 @@ async function createDatabase(
       table: string,
       where: Record<string, any>,
     ): Promise<Record<string, any> | null> => {
+      validateTableName(table);
       const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
       if (!whereClause) {
         throw new DatabaseError(
@@ -1170,6 +1175,7 @@ async function createDatabase(
       table: string,
       where: Record<string, any>,
     ): Promise<Record<string, any>[]> => {
+      validateTableName(table);
       const { sql: whereClause, values } = buildWhere(where, 1, 'postgres');
       const query = `SELECT * FROM ${table} ${whereClause}`;
       try {
@@ -1198,9 +1204,11 @@ async function createDatabase(
       where: Record<string, any>,
       data: Record<string, any>,
     ): Promise<BaseQueryResult> => {
+      validateTableName(table);
       // Serialize the data to update
       const serializedData = serializeRecord(data);
       const keys = Object.keys(serializedData);
+      validateColumnNames(keys);
       const values = Object.values(serializedData);
       const setClause = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
       const { sql: whereClause, values: whereValues } = buildWhere(
@@ -1244,6 +1252,8 @@ async function createDatabase(
       data: Record<string, any>,
       options?: UpsertOptions,
     ): Promise<BaseQueryResult> => {
+      validateTableName(table);
+      validateColumnNames([...conflictColumns, ...Object.keys(data)]);
       try {
         return await executePostgresUpsert(
           executor,
@@ -1284,6 +1294,7 @@ async function createDatabase(
       where: Record<string, any>,
       data: Record<string, any>,
     ): Promise<Record<string, any>> => {
+      validateTableName(table);
       const result = await get(table, where);
       if (result) return result;
       await insert(table, data);
