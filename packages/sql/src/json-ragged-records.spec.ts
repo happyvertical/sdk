@@ -279,6 +279,25 @@ describe('JSON adapter ragged data files (Issue #1132)', () => {
         { id: 'b', name: 'second', note: null },
       ]);
     });
+
+    it('loads when the data file name casing differs from the table identifier', async () => {
+      // Data file `Items.json` backs a table created as lowercase `items`.
+      // DuckDB addresses it case-insensitively, so the column lookup must too -
+      // otherwise every field reads as unmatched and the table loads empty.
+      writeData('Items', MISSING_KEY_RECORDS);
+      writeFileSync(
+        join(testDataDir, 'Items.schema.sql'),
+        'CREATE TABLE items (id TEXT PRIMARY KEY, name TEXT, note TEXT);',
+      );
+
+      const db = await getDatabase({ type: 'json', url: testDataDir });
+      const rows = await db.many`SELECT * FROM items ORDER BY id`;
+
+      expect(rows).toEqual([
+        { id: 'a', name: 'first', note: 'has note' },
+        { id: 'b', name: 'second', note: null },
+      ]);
+    });
   });
 
   describe('fields with no matching column', () => {

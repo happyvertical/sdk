@@ -549,6 +549,11 @@ async function createTableFromSchema(
 /**
  * Reads the column names of an existing table, keyed by lowercase name
  *
+ * The table-name predicate is case-insensitive: DuckDB resolves identifiers
+ * case-insensitively, so a data file named `Items.json` can back a table
+ * created as `items`. Matching table_name exactly would find no columns and
+ * make the loader wrongly report that every field is unmatched (issue #1132).
+ *
  * @param connection - DuckDB connection
  * @param tableName - Name of the table to describe
  * @returns Map of lowercase column name to the column's declared name
@@ -558,7 +563,7 @@ async function getTableColumns(
   tableName: string,
 ): Promise<Map<string, string>> {
   const reader = await connection.runAndReadAll(
-    'SELECT column_name FROM information_schema.columns WHERE table_name = $1 ORDER BY ordinal_position',
+    'SELECT column_name FROM information_schema.columns WHERE LOWER(table_name) = LOWER($1) ORDER BY ordinal_position',
     [tableName],
   );
 
