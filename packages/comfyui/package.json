@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/comfyui",
-  "version": "0.80.4",
+  "version": "0.80.5",
   "description": "ComfyUI API client for workflow orchestration and video generation",
   "type": "module",
   "main": "./dist/index.js",
