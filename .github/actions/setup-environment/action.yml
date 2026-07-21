@@ -168,8 +168,30 @@ runs:
           echo 'ONNX/native dependencies are preinstalled; skipping apt'
           exit 0
         fi
-        sudo apt-get update
-        sudo apt-get install -y \
+
+        # Runners that do not ship apt (the NixOS pxe-farm hosts, for example)
+        # provision these dependencies in the image, so there is nothing to do
+        # here. Falling through to apt on those hosts failed setup with
+        # "sudo: command not found" and took the whole job down before it
+        # reached any repository code. A build step that genuinely lacks a
+        # library still fails on its own, with an error that names it.
+        if ! command -v apt-get >/dev/null 2>&1; then
+          echo 'apt-get unavailable; relying on image-provided native dependencies'
+          exit 0
+        fi
+
+        # Root containers have apt but no sudo.
+        sudo=''
+        if [ "$(id -u)" -ne 0 ]; then
+          if ! command -v sudo >/dev/null 2>&1; then
+            echo '::error::apt-get requires root privileges but sudo is unavailable'
+            exit 1
+          fi
+          sudo=sudo
+        fi
+
+        $sudo apt-get update
+        $sudo apt-get install -y \
           libstdc++6 libc6-dev build-essential gcc g++ cmake libgomp1 libprotobuf-dev
 
     - name: Install project dependencies
