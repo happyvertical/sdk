@@ -3,6 +3,7 @@ import { basename, extname, join } from 'node:path';
 import { DatabaseError } from '@happyvertical/utils';
 import { DatabaseSchemaManager } from './schema-manager';
 import { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils';
+import { createTransactionLock } from './shared/transaction-lock';
 import type {
   DatabaseInterface,
   JSONOptions,
@@ -633,6 +634,15 @@ export async function getDatabase(
       await createJSONConnection(options);
     const writeStrategy = options.writeStrategy || 'immediate';
     const { url } = options;
+
+    // One lock per connection. `getDatabase` hands cached callers this same
+    // closure, so "created here" and "per connection" are the same scope —
+    // including across duplicated module copies, since the connection cache
+    // itself lives on globalThis.
+    const connectionLock = createTransactionLock(
+      'json',
+      options.transactionQueueTimeout,
+    );
 
     /**
      * Inserts one or more records into a table
@@ -1818,25 +1828,31 @@ export async function getDatabase(
      */
     const transaction = async <T>(
       callback: (tx: DatabaseInterface) => Promise<T>,
-    ): Promise<T> => {
-      try {
-        await connection.run('BEGIN TRANSACTION');
-
-        const result = await callback(createTransactionScope());
-        await connection.run('COMMIT');
-        return result;
-      } catch (error) {
-        // A failing ROLLBACK must not replace the caller's error: DuckDB reports
-        // "cannot rollback - no transaction is active" whenever the transaction
-        // is already gone, which says nothing about what actually failed.
+    ): Promise<T> =>
+      // Held across the whole BEGIN … COMMIT/ROLLBACK span. Without it two
+      // overlapping calls raced on the one connection: the second BEGIN threw,
+      // its catch ran ROLLBACK, and that rollback ended the *first* transaction
+      // — half of its writes durable, half lost, and its promise rejected, so
+      // the caller was told nothing had happened.
+      connectionLock.run(async () => {
         try {
-          await connection.run('ROLLBACK');
-        } catch {
-          // Nothing left to roll back.
+          await connection.run('BEGIN TRANSACTION');
+
+          const result = await callback(createTransactionScope());
+          await connection.run('COMMIT');
+          return result;
+        } catch (error) {
+          // A failing ROLLBACK must not replace the caller's error: DuckDB reports
+          // "cannot rollback - no transaction is active" whenever the transaction
+          // is already gone, which says nothing about what actually failed.
+          try {
+            await connection.run('ROLLBACK');
+          } catch {
+            // Nothing left to roll back.
+          }
+          throw error;
         }
-        throw error;
-      }
-    };
+      });
 
     /**
      * Builds the transaction-scoped interface handed to a transaction callback.
@@ -1892,25 +1908,39 @@ export async function getDatabase(
      * @returns Promise resolving to a TransactionHandle
      */
     const beginTransaction = async (): Promise<TransactionHandle> => {
-      await connection.run('BEGIN TRANSACTION');
+      // The handle owns the connection until the caller ends it, so the lock is
+      // held across the gap rather than around a single call. A handle that is
+      // never committed or rolled back therefore blocks every later transaction
+      // until the queue timeout reports it.
+      const releaseConnection = await connectionLock.acquire();
+      try {
+        await connection.run('BEGIN TRANSACTION');
+      } catch (error) {
+        // No transaction was opened, so there is no handle to end it and nothing
+        // left to release the connection.
+        releaseConnection();
+        throw error;
+      }
 
       let active = true;
 
-      const commit = async (): Promise<void> => {
+      // COMMIT and ROLLBACK can both throw, and the transaction is over either
+      // way, so the connection goes back before the error is rethrown.
+      const end = async (command: 'COMMIT' | 'ROLLBACK'): Promise<void> => {
         if (!active) {
           throw new DatabaseError('Transaction already ended', {});
         }
-        await connection.run('COMMIT');
-        active = false;
+        try {
+          await connection.run(command);
+        } finally {
+          active = false;
+          releaseConnection();
+        }
       };
 
-      const rollback = async (): Promise<void> => {
-        if (!active) {
-          throw new DatabaseError('Transaction already ended', {});
-        }
-        await connection.run('ROLLBACK');
-        active = false;
-      };
+      const commit = (): Promise<void> => end('COMMIT');
+
+      const rollback = (): Promise<void> => end('ROLLBACK');
 
       const isActive = (): boolean => active;
 

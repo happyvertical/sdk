@@ -70,6 +70,17 @@ export interface DatabaseOptions {
    * Authentication token for the database connection
    */
   authToken?: string;
+
+  /**
+   * How long a queued transaction waits for the connection, in milliseconds.
+   *
+   * This adapter drives one connection, so transactions run one at a time and
+   * an overlapping `transaction()` waits its turn. Raise this if a workload has
+   * transactions that legitimately run longer than the default.
+   *
+   * @default 30000
+   */
+  transactionQueueTimeout?: number;
 }
 
 /**
@@ -148,6 +159,17 @@ export interface JSONOptions {
    * @default 'immediate'
    */
   writeStrategy?: 'immediate' | 'manual' | 'none';
+
+  /**
+   * How long a queued transaction waits for the connection, in milliseconds.
+   *
+   * This adapter drives one connection, so transactions run one at a time and
+   * an overlapping `transaction()` waits its turn. Raise this if a workload has
+   * transactions that legitimately run longer than the default.
+   *
+   * @default 30000
+   */
+  transactionQueueTimeout?: number;
 
   /**
    * Explicit schema definitions for tables
