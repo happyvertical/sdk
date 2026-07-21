@@ -2,7 +2,11 @@ import { mkdir, readdir } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import { DatabaseError } from '@happyvertical/utils';
 import { DatabaseSchemaManager } from './schema-manager';
-import { validateColumnNames } from './shared/alter-utils';
+import {
+  escapeQuotedIdentifier,
+  escapeStringLiteral,
+  validateColumnNames,
+} from './shared/alter-utils';
 import { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils';
 import { createTransactionLock } from './shared/transaction-lock';
 import type {
@@ -265,7 +269,7 @@ async function loadJSONTables(
             // until syncSchema() is called to upgrade the schema
             try {
               await connection.run(
-                `CREATE TABLE IF NOT EXISTS "${tableName}" AS SELECT * FROM read_json_auto('${filePath}')`,
+                `CREATE TABLE IF NOT EXISTS "${escapeQuotedIdentifier(tableName)}" AS SELECT * FROM read_json_auto('${escapeStringLiteral(filePath)}')`,
               );
               inferredSchemaTables.add(tableName);
               console.log(
@@ -918,7 +922,7 @@ export async function getDatabase(
       const paramIdx = { value: 1 };
       const assignments = keys.map((key) => {
         const valueExpr = buildJSONValueExpression(data[key], values, paramIdx);
-        return `"${key}" = ${valueExpr}`;
+        return `"${escapeQuotedIdentifier(key)}" = ${valueExpr}`;
       });
       const { sql: whereClause, values: whereValues } = buildWhere(
         conflictWhere,
@@ -971,7 +975,13 @@ export async function getDatabase(
         );
       }
 
-      validateColumnNames([...conflictColumns, ...Object.keys(data)]);
+      // conflictColumns must be plain identifiers: they also become the keys of
+      // the `conflictWhere` object below, and `buildWhere` requires that shape.
+      // The data columns only ever reach quoted positions, so they are escaped
+      // rather than restricted — this adapter is pointed at arbitrary JSON, and
+      // its columns are that JSON's keys, so `Full Name` and `user-id` are
+      // ordinary here and worked before.
+      validateColumnNames(conflictColumns);
 
       // Validate that all conflict columns are present in the data
       const missingColumns = conflictColumns.filter((col) => !(col in data));
@@ -1085,14 +1095,16 @@ export async function getDatabase(
       // Quote ALL column names to match DuckDB's schema generation
       // SchemaGenerator always quotes column names, so UPSERT must match
       const conflict = conflictColumns.map((col) => `"${col}"`).join(', ');
-      const quotedKeys = keys.map((key) => `"${key}"`).join(', ');
+      const quotedKeys = keys
+        .map((key) => `"${escapeQuotedIdentifier(key)}"`)
+        .join(', ');
 
       // Quote column names in UPDATE SET clause to match schema and ON CONFLICT
       // Extract the value expression from each updateSetPart (everything after '=')
       const quotedUpdateSetParts = keys.map((key, i) => {
         const part = updateSetParts[i];
         const valueExpr = part.substring(part.indexOf('=') + 1).trim();
-        return `"${key}" = ${valueExpr}`;
+        return `"${escapeQuotedIdentifier(key)}" = ${valueExpr}`;
       });
 
       const sql = `INSERT INTO "${table}" (${quotedKeys}) VALUES (${placeholders.join(', ')}) ON CONFLICT(${conflict}) DO UPDATE SET ${quotedUpdateSetParts.join(', ')}`;
@@ -1257,6 +1269,13 @@ export async function getDatabase(
      * @returns Promise resolving to boolean indicating if the table exists
      */
     const tableExists = async (tableName: string): Promise<boolean> => {
+      // The name is interpolated into a statement, and this engine executes
+      // every statement in the string it is given, so an unvalidated name here
+      // is a DDL/DML sink rather than a read oracle — the `catch` below
+      // swallows the error, not the execution. Validation runs outside the try
+      // for that reason: a rejected identifier must be reported, not reported
+      // as `false`.
+      validateTableName(tableName);
       try {
         // Try to query the table
         await connection.runAndReadAll(`SELECT * FROM ${tableName} LIMIT 1`);
@@ -1286,6 +1305,14 @@ export async function getDatabase(
       table: string,
       dataDir: string,
     ): Promise<void> => {
+      // Every caller-facing path into this function takes a table name, and it
+      // is interpolated into a COPY statement's identifier and into the target
+      // file path. Unvalidated, `exportTable('t") TO $$/etc/x$$; DROP ...; --')`
+      // both writes a file outside the data directory and runs the trailing
+      // statements. Validate at this choke point so the internal callers that
+      // pass catalog-derived names are covered too.
+      validateTableName(table);
+
       const filePath = join(dataDir, `${table}.json`);
       const schemaPath = join(dataDir, `${table}.schema.sql`);
 
@@ -1418,7 +1445,7 @@ export async function getDatabase(
           `[json-adapter] Inferring schema for ${tableName} from JSON file`,
         );
         await connection.run(
-          `CREATE TABLE "${tableName}" AS SELECT * FROM read_json_auto('${filePath}')`,
+          `CREATE TABLE "${tableName}" AS SELECT * FROM read_json_auto('${escapeStringLiteral(filePath)}')`,
         );
 
         // Remove from pending files if it was deferred
@@ -1937,6 +1964,19 @@ export async function getDatabase(
         }
         try {
           await connection.run(command);
+        } catch (error) {
+          // COMMIT can fail and leave the transaction *open* — SQLite documents
+          // exactly that for SQLITE_BUSY. Releasing the connection then would hand
+          // the next queued caller a connection still inside a transaction: its
+          // BEGIN would throw, and its catch would ROLLBACK, discarding this
+          // transaction's work. So normalize before releasing, the way the pooled
+          // adapter's discardTxClient does.
+          try {
+            await connection.run('ROLLBACK');
+          } catch {
+            // Already gone; nothing left to normalize.
+          }
+          throw error;
         } finally {
           active = false;
           releaseConnection();

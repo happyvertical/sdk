@@ -271,6 +271,56 @@ export function validateColumnNames(columnNames: string[]): void {
 }
 
 /**
+ * Escapes an identifier for interpolation inside double quotes
+ *
+ * For the positions that already quote the identifier — the DuckDB and JSON
+ * upsert statements, which quote to match their schema generator — quoting is
+ * what makes the identifier safe, so the only thing that has to be handled is
+ * a quote character inside the name. Doubling it is the SQL escape.
+ *
+ * This is deliberately more permissive than {@link validateColumnName}: those
+ * adapters accept column names that are not plain identifiers (`Full Name`,
+ * `user-id`, `2024_total`), which matters most for the JSON adapter, whose
+ * columns come straight from the keys of whatever JSON it was pointed at.
+ * Rejecting them would break working code to fix an injection that quoting
+ * already prevents.
+ *
+ * @param identifier - Identifier to place inside double quotes
+ * @returns The identifier with embedded quotes doubled
+ * @throws Error if the identifier is empty or contains a NUL byte
+ */
+export function escapeQuotedIdentifier(identifier: string): string {
+  if (identifier.length === 0 || identifier.includes('\0')) {
+    throw new Error(
+      `Invalid column name: ${JSON.stringify(identifier)}. Column names must be non-empty and must not contain a NUL byte.`,
+    );
+  }
+  return identifier.replaceAll('"', '""');
+}
+
+/**
+ * Escapes a value for interpolation inside a single-quoted SQL string literal
+ *
+ * The DuckDB-backed adapters read JSON through `read_json_auto('<path>')`, and
+ * a file path is not something an identifier validator can check — paths
+ * legitimately contain spaces, dots and, on Linux and macOS, quotes. Doubling
+ * the quote is the SQL escape, and it is what keeps a file named `x'.json`
+ * from ending the literal and starting a statement.
+ *
+ * @param value - Value to place inside single quotes
+ * @returns The value with embedded single quotes doubled
+ * @throws Error if the value contains a NUL byte
+ */
+export function escapeStringLiteral(value: string): string {
+  if (value.includes('\0')) {
+    throw new Error(
+      `Invalid SQL string literal: ${JSON.stringify(value)}. Values must not contain a NUL byte.`,
+    );
+  }
+  return value.replaceAll("'", "''");
+}
+
+/**
  * Validates an index name to prevent SQL injection
  *
  * @param indexName - Index name to validate

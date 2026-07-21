@@ -378,6 +378,15 @@ function toVectorLiteral(embedding: number[]): string {
  * @param pool - PostgreSQL connection pool
  * @returns VectorCapabilities implementation
  */
+/**
+ * `type` is interpolated into `USING <type>`, which cannot be parameterized and
+ * is not an identifier the quoting helpers cover. `VectorIndexOptions.type`
+ * constrains it at compile time only, so anything reaching this at runtime —
+ * a JavaScript caller, or a `filter as VectorIndexOptions` on parsed JSON — has
+ * to be checked against the values pgvector actually offers.
+ */
+const VECTOR_INDEX_TYPES = new Set(['hnsw', 'ivfflat']);
+
 function createVectorCapabilities(pool: Pool): VectorCapabilities {
   return {
     async ensureColumn(
@@ -391,6 +400,8 @@ function createVectorCapabilities(pool: Pool): VectorCapabilities {
           { dimensions },
         );
       }
+      validateTableName(table);
+      validateColumnName(column);
       try {
         await pool.query('CREATE EXTENSION IF NOT EXISTS vector');
         await pool.query(
@@ -411,9 +422,21 @@ function createVectorCapabilities(pool: Pool): VectorCapabilities {
       column: string,
       options?: VectorIndexOptions,
     ): Promise<void> {
+      validateTableName(table);
+      validateColumnName(column);
       const metric = options?.metric || 'cosine';
       const indexType = options?.type || 'hnsw';
+      if (!VECTOR_INDEX_TYPES.has(indexType)) {
+        throw new DatabaseError('Unsupported vector index type', {
+          table,
+          column,
+          type: indexType,
+          supported: [...VECTOR_INDEX_TYPES],
+        });
+      }
       const opsClass = vectorOpsClass(metric);
+      // Every part is now either a validated identifier or one of a closed set,
+      // so the generated name cannot carry SQL of its own.
       const indexName = `idx_${table}_${column}_${metric}_${indexType}`;
 
       try {
@@ -436,7 +459,10 @@ function createVectorCapabilities(pool: Pool): VectorCapabilities {
       column: string,
       embedding: number[],
     ): Promise<void> {
+      validateTableName(table);
+      validateColumnName(column);
       const keys = Object.keys(where);
+      validateColumnNames(keys);
       const values = Object.values(where);
       const conditions = keys
         .map((key, i) => `"${key}" IS NOT DISTINCT FROM $${i + 1}`)
@@ -464,6 +490,8 @@ function createVectorCapabilities(pool: Pool): VectorCapabilities {
       embedding: number[],
       options?: VectorSearchOptions,
     ): Promise<VectorSearchResult[]> {
+      validateTableName(table);
+      validateColumnName(column);
       const metric = options?.metric || 'cosine';
       const limit = options?.limit || 10;
       const op = vectorOperator(metric);
@@ -473,6 +501,10 @@ function createVectorCapabilities(pool: Pool): VectorCapabilities {
 
       let whereClause = `"${column}" IS NOT NULL`;
       if (options?.where) {
+        // `options.where` is raw SQL by design, the same documented
+        // developer-controlled boundary as `buildWhere`'s operator-suffix keys.
+        // It is not validated here; use `options.params` for anything that came
+        // from outside the process.
         whereClause += ` AND (${options.where})`;
         if (options.params) {
           queryParams.push(...options.params);
@@ -702,6 +734,18 @@ async function createDatabase(
   /**
    * Serializes all values in an object for database storage
    */
+  /**
+   * The serializer the transaction-scoped interfaces have always used: none.
+   *
+   * Identity, deliberately — not even the `undefined`-dropping the pool-backed
+   * `serializeRecord` does. Those copies bound `undefined` straight through to
+   * `pg`, which stores NULL, whereas dropping the key omits the column and lets
+   * its default apply. Preserving that is the point of this parameter.
+   */
+  const passThroughRecord = (
+    record: Record<string, any>,
+  ): Record<string, any> => record;
+
   const serializeRecord = (
     record: Record<string, any>,
   ): Record<string, any> => {
@@ -1059,12 +1103,37 @@ async function createDatabase(
    * Binding a client is the only difference between the two, so it is the only
    * thing this factory parameterizes.
    *
+   * One thing is deliberately NOT unified: how `insert` and `update` serialize
+   * values. The pool-backed methods run every value through `serializeRecord`,
+   * which JSON-stringifies objects and arrays; the transaction-scoped copies
+   * never did, so they handed the raw value to `pg`. That is not a cosmetic
+   * difference — it decides what lands in the column, and no single answer is
+   * right for both shapes:
+   *
+   * ```
+   *                    text[] column     jsonb column
+   *   raw JS array     accepted          "invalid input syntax for type json"
+   *   JSON string      "malformed        accepted
+   *                     array literal"
+   * ```
+   *
+   * So collapsing the two would have silently broken array-column writes inside
+   * a transaction while fixing jsonb-array writes, or the reverse — and would
+   * have corrupted `bytea` writes, where a Buffer would become the JSON of a
+   * Buffer with no error anywhere. Neither belongs in a fix for the error
+   * contract, so the serializer is a parameter: each interface keeps exactly
+   * the behaviour it had, and the difference is stated here instead of being an
+   * accident of two copies drifting apart.
+   *
    * @param executor - Pool or checked-out client every statement runs on
    * @param inTransaction - Whether `executor` is already inside a transaction
+   * @param serialize - Applied to each record before `insert`/`update` builds
+   *   its SQL. Pass-through for the transaction-scoped interfaces.
    */
   const createClientMethods = (
     executor: PostgresQueryExecutor,
     inTransaction: boolean,
+    serialize: (record: Record<string, any>) => Record<string, any>,
   ) => {
     /**
      * Inserts one or more records into a table
@@ -1098,7 +1167,7 @@ async function createDatabase(
       // If data is an array, we need to handle multiple rows
       if (Array.isArray(data)) {
         // Serialize all records in the array
-        const serializedRecords = data.map((record) => serializeRecord(record));
+        const serializedRecords = data.map((record) => serialize(record));
         const keys = Object.keys(serializedRecords[0]);
         validateColumnNames(keys);
         const placeholders = serializedRecords
@@ -1118,7 +1187,7 @@ async function createDatabase(
         return { operation: 'insert', affected: result.rowCount ?? 0 };
       }
       // If data is an object, we handle a single row
-      const serializedData = serializeRecord(data);
+      const serializedData = serialize(data);
       const keys = Object.keys(serializedData);
       validateColumnNames(keys);
       const values = Object.values(serializedData);
@@ -1206,7 +1275,7 @@ async function createDatabase(
     ): Promise<BaseQueryResult> => {
       validateTableName(table);
       // Serialize the data to update
-      const serializedData = serializeRecord(data);
+      const serializedData = serialize(data);
       const keys = Object.keys(serializedData);
       validateColumnNames(keys);
       const values = Object.values(serializedData);
@@ -1556,6 +1625,38 @@ async function createDatabase(
      * @param schema - SQL schema definition with CREATE TABLE and CREATE INDEX statements
      * @returns Promise that resolves when schema is synchronized
      */
+    /**
+     * Runs a step whose failure `syncSchema` deliberately tolerates.
+     *
+     * Logging and continuing is self-contained on the pool. Inside a
+     * transaction it is not: a failed statement puts PostgreSQL in the aborted
+     * state, and `COMMIT` on an aborted transaction *succeeds* — it reports a
+     * ROLLBACK command tag and no error. The caller is told the transaction
+     * committed while every write in it was discarded, which is the silent
+     * data loss this whole epic is about, re-entering through the schema path.
+     *
+     * A savepoint scopes the failure to the step, which is what "log it and
+     * continue" was always supposed to mean.
+     */
+    const runTolerated = async <T>(work: () => Promise<T>): Promise<T> => {
+      if (!inTransaction) {
+        return work();
+      }
+      savepointSequence += 1;
+      const name = `hv_sync_${savepointSequence}`;
+      await executor.query(`SAVEPOINT ${name}`);
+      try {
+        const result = await work();
+        await executor.query(`RELEASE SAVEPOINT ${name}`);
+        return result;
+      } catch (error) {
+        // ROLLBACK TO leaves the savepoint defined, so release it too.
+        await executor.query(`ROLLBACK TO SAVEPOINT ${name}`);
+        await executor.query(`RELEASE SAVEPOINT ${name}`);
+        throw error;
+      }
+    };
+
     const syncSchema = async (schema: string): Promise<void> => {
       const commands = schema
         .trim()
@@ -1630,23 +1731,25 @@ async function createDatabase(
                 }
 
                 try {
-                  // Check if column exists
-                  const columnExists = await executor.query(
-                    `SELECT EXISTS (
-                      SELECT 1 FROM information_schema.columns
-                      WHERE table_name = $1
-                      AND column_name = $2
-                      AND table_schema = 'public'
-                    )`,
-                    [tableName, columnName],
-                  );
+                  await runTolerated(async () => {
+                    // Check if column exists
+                    const columnExists = await executor.query(
+                      `SELECT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = $1
+                        AND column_name = $2
+                        AND table_schema = 'public'
+                      )`,
+                      [tableName, columnName],
+                    );
 
-                  if (!columnExists.rows[0].exists) {
-                    // Column doesn't exist, add it
-                    // Quote the table name for safety
-                    const alterCommand = `ALTER TABLE "${tableName}" ADD COLUMN ${columnDef}`;
-                    await executor.query(alterCommand);
-                  }
+                    if (!columnExists.rows[0].exists) {
+                      // Column doesn't exist, add it
+                      // Quote the table name for safety
+                      const alterCommand = `ALTER TABLE "${tableName}" ADD COLUMN ${columnDef}`;
+                      await executor.query(alterCommand);
+                    }
+                  });
                 } catch (error) {
                   // If there's an error checking/adding the column, log it but continue
                   console.error(
@@ -1669,7 +1772,7 @@ async function createDatabase(
           // Use pre-fetched batch result instead of per-index query
           if (!existingIndexes.has(indexName)) {
             try {
-              await executor.query(trimmedCommand);
+              await runTolerated(() => executor.query(trimmedCommand));
               // Track newly created index for idempotency within this call
               existingIndexes.add(indexName);
             } catch (error) {
@@ -1690,7 +1793,7 @@ async function createDatabase(
           !trimmedCommand.toUpperCase().includes('CREATE TABLE')
         ) {
           try {
-            await executor.query(trimmedCommand);
+            await runTolerated(() => executor.query(trimmedCommand));
           } catch (error) {
             // Log but don't fail - the statement may have already been executed
             console.warn(
@@ -1753,7 +1856,7 @@ async function createDatabase(
     xx,
     tableExists,
     syncSchema,
-  } = createClientMethods(client, false);
+  } = createClientMethods(client, false, serializeRecord);
 
   /**
    * Acquire a pinned connection from the pool for session-scoped state such as
@@ -1904,7 +2007,7 @@ async function createDatabase(
       const txDb: DatabaseInterface = {
         url,
         client: txClient,
-        ...createClientMethods(txClient, true),
+        ...createClientMethods(txClient, true, passThroughRecord),
         transaction: createNestedTransaction(txClient, () => txDb),
       };
 
@@ -1979,7 +2082,7 @@ async function createDatabase(
     const txHandle: TransactionHandle = {
       url,
       client: txClient,
-      ...createClientMethods(txClient, true),
+      ...createClientMethods(txClient, true, passThroughRecord),
       transaction: createNestedTransaction(txClient, () => txHandle),
       commit,
       rollback,

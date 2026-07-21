@@ -59,6 +59,16 @@ export function createTransactionLock(
   adapter: string,
   timeoutMs: number = DEFAULT_TRANSACTION_QUEUE_TIMEOUT_MS,
 ): TransactionLock {
+  // The timer is measured from enqueue, not from when the lock frees, so this
+  // bounds the total wait rather than any one holder. A caller that expects
+  // sustained bursts on one connection should raise it: a hundred queued
+  // 400ms transactions exceed 30s even though none of them is stuck.
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new DatabaseError(
+      'transactionQueueTimeout must be a positive, finite number of milliseconds',
+      { adapter, timeoutMs },
+    );
+  }
   // Resolves when the transaction currently holding the connection ends.
   let tail: Promise<void> = Promise.resolve();
 
@@ -82,7 +92,7 @@ export function createTransactionLock(
         timer = setTimeout(() => {
           reject(
             new DatabaseError(
-              `Timed out after ${timeoutMs}ms waiting for the ${adapter} connection's current transaction to finish. This connection runs one transaction at a time; a transaction that is never committed or rolled back holds it indefinitely.`,
+              `Timed out after ${timeoutMs}ms waiting for the ${adapter} connection's current transaction to finish. This connection runs one transaction at a time. Usually one of: a beginTransaction() handle that was never committed or rolled back; a top-level db.* call that opens its own transaction being made inside a transaction callback, which waits on the connection its own caller holds (use the tx-scoped method instead); or simply more queued transactions than transactionQueueTimeout allows for.`,
               { adapter, timeoutMs },
             ),
           );

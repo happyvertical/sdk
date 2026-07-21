@@ -827,7 +827,7 @@ async function createNativeSqliteDatabase(
   // this same closure, so "created here" and "per connection" are the same
   // scope.
   const connectionLock = createTransactionLock(
-    'sqlite',
+    'sqlite (native)',
     options.transactionQueueTimeout,
   );
 
@@ -1476,6 +1476,19 @@ async function createNativeSqliteDatabase(
         }
         try {
           database.exec(command);
+        } catch (error) {
+          // COMMIT can fail and leave the transaction *open* — SQLite documents
+          // exactly that for SQLITE_BUSY. Releasing the connection then would hand
+          // the next queued caller a connection still inside a transaction: its
+          // BEGIN would throw, and its catch would ROLLBACK, discarding this
+          // transaction's work. So normalize before releasing, the way the pooled
+          // adapter's discardTxClient does.
+          try {
+            database.exec('ROLLBACK');
+          } catch {
+            // Already gone; nothing left to normalize.
+          }
+          throw error;
         } finally {
           active = false;
           releaseConnection();

@@ -183,9 +183,19 @@ export interface SqliteOptions {
   /**
    * How long a queued transaction waits for the connection, in milliseconds.
    *
-   * This adapter drives one connection, so transactions run one at a time and
-   * an overlapping `transaction()` waits its turn. Raise this if a workload has
-   * transactions that legitimately run longer than the default.
+   * Applies to the single-connection adapters — SQLite (both the LibSQL and
+   * native paths), DuckDB and JSON. Those drive one connection, so transactions
+   * run one at a time and an overlapping `transaction()` waits its turn.
+   * PostgreSQL pools and ignores this.
+   *
+   * The clock starts when the call queues, not when the connection frees, so
+   * this bounds the total wait rather than any single transaction: raise it for
+   * workloads with long transactions *or* with sustained bursts on one
+   * connection. Must be positive and finite.
+   *
+   * Read once, when the connection is created. Adapters that cache connections
+   * hand a later `getDatabase()` for the same database the existing one, which
+   * keeps the timeout the first caller asked for.
    *
    * @default 30000
    */
@@ -1188,6 +1198,19 @@ export async function getDatabase(
         }
         try {
           await client.execute({ sql: command, args: [] });
+        } catch (error) {
+          // COMMIT can fail and leave the transaction *open* — SQLite documents
+          // exactly that for SQLITE_BUSY. Releasing the connection then would hand
+          // the next queued caller a connection still inside a transaction: its
+          // BEGIN would throw, and its catch would ROLLBACK, discarding this
+          // transaction's work. So normalize before releasing, the way the pooled
+          // adapter's discardTxClient does.
+          try {
+            await client.execute({ sql: 'ROLLBACK', args: [] });
+          } catch {
+            // Already gone; nothing left to normalize.
+          }
+          throw error;
         } finally {
           active = false;
           releaseConnection();

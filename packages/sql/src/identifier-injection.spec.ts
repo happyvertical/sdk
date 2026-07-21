@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -47,13 +47,17 @@ async function checkPostgreSQLConnection(): Promise<boolean> {
  */
 describe('identifier validation', () => {
   let dir: string;
+  /** Somewhere outside the adapter's data directory, to prove nothing escapes. */
+  let escapeDir: string;
 
   beforeAll(async () => {
     dir = await mkdtemp(join(tmpdir(), 'hv-sql-injection-'));
+    escapeDir = await mkdtemp(join(tmpdir(), 'hv-sql-injection-escape-'));
   });
 
   afterAll(async () => {
     await rm(dir, { recursive: true, force: true });
+    await rm(escapeDir, { recursive: true, force: true });
   });
 
   // Each entry is a table name a caller might have taken from outside the
@@ -92,6 +96,7 @@ describe('identifier validation', () => {
     {
       name: 'duckdb',
       options: () => ({ type: 'duckdb' as const, url: ':memory:' }),
+      quotesUpsertColumns: true,
     },
     {
       name: 'json',
@@ -104,6 +109,7 @@ describe('identifier validation', () => {
         url: dir,
         dbid: randomUUID(),
       }),
+      quotesUpsertColumns: true,
     },
   ];
 
@@ -155,7 +161,15 @@ describe('identifier validation', () => {
         30000,
       );
 
-      it.each(columnNameCalls)(
+      it.each(
+        // DuckDB and JSON quote column names in `upsert` to match their schema
+        // generator, so that path escapes rather than restricts — covered by
+        // its own assertions below. Everywhere else the name is interpolated
+        // bare and must be rejected.
+        adapter.quotesUpsertColumns
+          ? columnNameCalls.filter(([name]) => name !== 'upsert')
+          : columnNameCalls,
+      )(
         '%s rejects a hostile column name',
         async (_name, call) => {
           const db = await getDatabase(adapter.options());
@@ -183,6 +197,41 @@ describe('identifier validation', () => {
         ).rejects.toThrow(/[Ii]nvalid table name/);
       }, 30000);
 
+      if (adapter.quotesUpsertColumns) {
+        it('neutralizes a hostile column name in the quoted upsert path', async () => {
+          const db = await getDatabase(adapter.options());
+          const t = `inject_q_${randomUUID().replace(/-/g, '')}`;
+          // This adapter quotes upsert columns, so a name needing quotes is
+          // ordinary here — the JSON adapter's columns are whatever keys its
+          // JSON had. Escaping keeps those working while still making it
+          // impossible to leave the quotes.
+          await db.query(
+            `CREATE TABLE ${t} (id INTEGER PRIMARY KEY, "Full Name" TEXT)`,
+          );
+
+          await db.upsert(t, ['id'], { id: 1, 'Full Name': 'Ada' });
+          const stored = await db.query(
+            `SELECT "Full Name" AS n FROM ${t} WHERE id = 1`,
+          );
+          expect(stored.rows[0]?.n).toBe('Ada');
+
+          // A name carrying a quote cannot end the identifier and start SQL.
+          // It is escaped, so the statement fails on the unknown column rather
+          // than executing anything the caller smuggled in.
+          await expect(
+            db.upsert(t, ['id'], {
+              id: 2,
+              'x"); CREATE TABLE pwned_upsert (y INTEGER); --': 'z',
+            }),
+          ).rejects.toThrow();
+
+          const leaked = await db.query(
+            `SELECT table_name FROM information_schema.tables WHERE table_name = 'pwned_upsert'`,
+          );
+          expect(leaked.rows).toHaveLength(0);
+        }, 30000);
+      }
+
       it('still accepts ordinary identifiers', async () => {
         const db = await getDatabase(adapter.options());
         const t = `inject_ok_${randomUUID().replace(/-/g, '')}`;
@@ -202,6 +251,58 @@ describe('identifier validation', () => {
         // as a bound parameter and has never worked, which is a separate defect
         // from this one and is tracked on its own.
         expect(await db.count(t, { id: 1 })).toBe(1);
+      }, 30000);
+    });
+  }
+
+  // `exportTable` is not a CRUD method, but it is the same defect with a worse
+  // payload: the table name is interpolated both into a `COPY ... TO '<path>'`
+  // statement and into the destination path, so an unvalidated name wrote a
+  // file anywhere the process could reach *and* ran the statements after it.
+  const exporters = [
+    // For json the url IS the data directory; for duckdb the url is a database
+    // file and the export target is `dataDir`.
+    {
+      name: 'json',
+      options: () => ({ type: 'json' as const, url: dir, dbid: randomUUID() }),
+    },
+    {
+      name: 'duckdb',
+      options: () => ({
+        type: 'duckdb' as const,
+        url: ':memory:',
+        dataDir: dir,
+        writeStrategy: 'manual' as const,
+      }),
+    },
+  ];
+
+  for (const exporter of exporters) {
+    describe(`${exporter.name} exportTable`, () => {
+      it('rejects a table name that would escape the COPY statement', async () => {
+        const db = (await getDatabase(
+          exporter.options(),
+        )) as DatabaseInterface & {
+          exportTable: (table: string) => Promise<void>;
+        };
+        const t = `export_${randomUUID().replace(/-/g, '')}`;
+        await db.query(`CREATE TABLE ${t} (id INTEGER, secret TEXT)`);
+        await db.query(`INSERT INTO ${t} VALUES (1, 'topsecret')`);
+
+        const target = join(escapeDir, 'exfil.json');
+        // Dollar-quoting avoids the single quotes that would otherwise break
+        // the quoted lookups exportTable runs before the COPY.
+        const hostile = `${t}") TO $$${target}$$; CREATE TABLE pwned_export (x INTEGER); --`;
+
+        await expect(db.exportTable(hostile)).rejects.toThrow(
+          /[Ii]nvalid table name/,
+        );
+
+        await expect(readFile(target, 'utf-8')).rejects.toThrow();
+        const leaked = await db.query(
+          `SELECT table_name FROM information_schema.tables WHERE table_name = 'pwned_export'`,
+        );
+        expect(leaked.rows).toHaveLength(0);
       }, 30000);
     });
   }
@@ -262,6 +363,52 @@ describe('identifier validation', () => {
       },
       30000,
     );
+
+    // The vector capability builds DDL from a table name, a column name and an
+    // index type, none of which were validated. `USING ${indexType}` is the
+    // sharpest of the three: it is not an identifier position, so no amount of
+    // quoting would have helped — only an allowlist does.
+    it('rejects hostile identifiers in the vector capability', async () => {
+      if (!postgresAvailable) return;
+
+      const vector = db.vector;
+      if (!vector) throw new Error('adapter does not expose vector');
+
+      await expect(
+        vector.ensureColumn(`${table}" ADD COLUMN injected text; --`, 'emb', 3),
+      ).rejects.toThrow(/[Ii]nvalid table name/);
+
+      await expect(
+        vector.ensureIndex(`${table}") ; CREATE TABLE pwned (x int); --`, 'v'),
+      ).rejects.toThrow(/[Ii]nvalid table name/);
+
+      await expect(
+        vector.ensureIndex(table, 'v', {
+          type: 'btree (v); CREATE TABLE pwned (x int); --' as never,
+        }),
+      ).rejects.toThrow(/[Uu]nsupported vector index type/);
+
+      await expect(
+        vector.upsertVector(
+          table,
+          { id: 1 },
+          'v"; DROP TABLE x; --',
+          [1, 2, 3],
+        ),
+      ).rejects.toThrow(/[Ii]nvalid column name/);
+
+      const leaked = await db.query(
+        `SELECT tablename FROM pg_tables WHERE tablename = 'pwned'`,
+      );
+      expect(leaked.rows).toHaveLength(0);
+      const columns = await db.query(
+        `SELECT column_name FROM information_schema.columns WHERE table_name = $1`,
+        table,
+      );
+      expect(columns.rows.some((r) => r.column_name === 'injected')).toBe(
+        false,
+      );
+    }, 30000);
 
     it('rejects the injected clause inside a transaction too', async () => {
       if (!postgresAvailable) return;

@@ -1,5 +1,16 @@
 import { randomUUID } from 'node:crypto';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from 'vitest';
 import { getDatabase } from './index';
 import type { DatabaseInterface } from './shared/types';
 
@@ -60,6 +71,18 @@ async function checkPostgreSQLConnection(): Promise<boolean> {
  * everywhere, so an adapter cannot answer the same question differently.
  */
 describe('transaction-scoped schema methods stay inside the transaction', () => {
+  // The JSON adapter mkdir()s its url unconditionally, so ':memory:' would
+  // create a directory of that name in the package root.
+  let dir: string;
+
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'hv-sql-tx-scope-'));
+  });
+
+  afterAll(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
   describe('postgres', () => {
     let postgresAvailable = false;
     let db: Awaited<ReturnType<typeof getDatabase>>;
@@ -127,6 +150,29 @@ describe('transaction-scoped schema methods stay inside the transaction', () => 
       expect(await tableExistsOf(db)(table)).toBe(false);
     }, 30000);
 
+    it('does not let a tolerated syncSchema failure discard the transaction', async () => {
+      if (!postgresAvailable) return;
+
+      await db.query(`CREATE TABLE ${table} (id int primary key)`);
+
+      // `syncSchema` logs and continues past a failed index or column — fine on
+      // the pool, where the failure is self-contained. Bound to the
+      // transaction's client it is not: the failed statement aborts the
+      // transaction, and PostgreSQL answers COMMIT on an aborted transaction
+      // with a ROLLBACK tag and no error. Without scoping each tolerated step
+      // to a savepoint, this resolves normally and the insert is gone.
+      await txOf(db)(async (tx) => {
+        await tx.query(`INSERT INTO ${table} VALUES (1)`);
+        await syncSchemaOf(tx)(
+          `CREATE INDEX idx_${table}_missing ON ${table} (column_that_does_not_exist)`,
+        );
+        await tx.query(`INSERT INTO ${table} VALUES (2)`);
+      });
+
+      const rows = await db.query(`SELECT id FROM ${table} ORDER BY id`);
+      expect(rows.rows.map((r) => Number(r.id))).toEqual([1, 2]);
+    }, 30000);
+
     it('syncSchema() DDL persists when the transaction commits', async () => {
       if (!postgresAvailable) return;
 
@@ -146,7 +192,11 @@ describe('transaction-scoped schema methods stay inside the transaction', () => 
   for (const type of ['sqlite', 'duckdb', 'json'] as const) {
     describe(type, () => {
       it('tableExists() sees a table created in the same transaction', async () => {
-        const db = await getDatabase({ type, url: ':memory:' });
+        const db = await getDatabase(
+          type === 'json'
+            ? { type, url: dir, dbid: randomUUID() }
+            : { type, url: ':memory:' },
+        );
         // These adapters cache their in-memory connection, so a table name
         // reused across runs would be answered from the previous run's state.
         const t = `txscope_seen_${type}_${randomUUID().replace(/-/g, '')}`;

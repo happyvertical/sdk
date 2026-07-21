@@ -188,6 +188,76 @@ describe('postgres transaction error contract', () => {
     expect(error).not.toBeInstanceOf(PgDatabaseError);
   }, 30000);
 
+  it('keeps each interface writing values the way it always has', async () => {
+    if (!postgresAvailable) return;
+
+    // Building both interfaces from one factory made it tempting to unify how
+    // `insert` serializes values too. It must not be: the pool-backed methods
+    // JSON-stringify objects and arrays, the transaction-scoped ones never did,
+    // and PostgreSQL accepts exactly one of those per column type —
+    //
+    //                  text[] column                  jsonb column
+    //   raw JS array   accepted                       invalid input syntax
+    //   JSON string    malformed array literal        accepted
+    //
+    // so collapsing them silently breaks one shape of write. This pins both.
+    const shapes = `${table}_shapes`;
+    await db.query(
+      `CREATE TABLE ${shapes} (id int primary key, tags text[], meta jsonb)`,
+    );
+    try {
+      // Transaction-scoped: raw values, so an array column works.
+      await txOf(db)((tx) => tx.insert(shapes, { id: 1, tags: ['a', 'b'] }));
+
+      // Pool-backed: serialized, so a jsonb column takes an array.
+      await db.insert(shapes, { id: 2, meta: ['a', 'b'] });
+
+      const rows = await db.query(
+        `SELECT id, tags, meta FROM ${shapes} ORDER BY id`,
+      );
+      expect(rows.rows[0].tags).toEqual(['a', 'b']);
+      expect(rows.rows[1].meta).toEqual(['a', 'b']);
+    } finally {
+      await db.query(`DROP TABLE IF EXISTS ${shapes}`);
+    }
+  }, 30000);
+
+  it('returns the connection when COMMIT itself throws', async () => {
+    if (!postgresAvailable) return;
+
+    // COMMIT throws in ordinary operation — a deferred constraint is the
+    // easiest way to make it do so on demand. It is the teardown path most
+    // likely to leak, because the failure happens *after* the work succeeded,
+    // and a leak here is invisible until the pool is exhausted. The pool is
+    // capped at 4, so a leak per failed commit shows up within a few rounds.
+    const deferred = `${table}_deferred`;
+    await db.query(
+      `CREATE TABLE ${deferred} (id int, CONSTRAINT ${deferred}_uq UNIQUE (id) DEFERRABLE INITIALLY DEFERRED)`,
+    );
+    try {
+      for (let round = 0; round < 6; round++) {
+        await expect(
+          txOf(db)(async (tx) => {
+            await tx.query(`INSERT INTO ${deferred} VALUES (1)`);
+            await tx.query(`INSERT INTO ${deferred} VALUES (1)`);
+          }),
+        ).rejects.toThrow(/duplicate key/);
+      }
+
+      // If any of those six had stranded its client, the pool would be empty
+      // and this would hang rather than fail.
+      const after = await txOf(db)(async (tx) => {
+        const rows = await tx.query(
+          `SELECT count(*)::int AS n FROM ${deferred}`,
+        );
+        return rows.rows[0].n;
+      });
+      expect(after).toBe(0);
+    } finally {
+      await db.query(`DROP TABLE IF EXISTS ${deferred}`);
+    }
+  }, 30000);
+
   it('raises a constraint violation identically inside and outside', async () => {
     if (!postgresAvailable) return;
 
