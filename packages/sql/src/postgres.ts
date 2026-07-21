@@ -644,6 +644,19 @@ async function createDatabase(
         },
   );
 
+  // An idle pooled client that loses its backend (restart, failover, proxy
+  // idle timeout, TCP reset) emits 'error' on the pool. Without a listener Node
+  // treats that as an unhandled 'error' event and terminates the process, so
+  // routine database maintenance would crash every consumer of this adapter.
+  // pg has already removed the client from the pool by this point; absorb the
+  // event and let the pool carry on with its remaining connections.
+  pool.on('error', (error) => {
+    console.warn(
+      'Warning: PostgreSQL pool client error (connection discarded):',
+      error instanceof Error ? error.message : String(error),
+    );
+  });
+
   // Wrap pool.end() to evict from cache so stale pools are never returned.
   // This fixes the "Cannot use a pool after calling end on the pool" error
   // when tests or shutdown code calls db.client.end() and subsequent calls
@@ -841,12 +854,84 @@ async function createDatabase(
     return { operation: 'upsert', affected: insertResult.rowCount ?? 0 };
   };
 
+  /**
+   * Absorbs 'error' events for the clients currently checked out for a
+   * transaction, keyed by client so the listener can be removed on release.
+   */
+  const txErrorAbsorbers = new WeakMap<PoolClient, () => void>();
+  const releasedTxClients = new WeakSet<PoolClient>();
+
+  /**
+   * Checks out a pooled client for a transaction.
+   *
+   * pg-pool drops its own idle 'error' listener while a client is checked out,
+   * so a backend that dies mid-transaction would emit an unhandled 'error' and
+   * terminate the process. Absorb it here — the failure still reaches the
+   * caller as a rejected query — and drop the listener again on release so
+   * repeated checkouts of the same client cannot accumulate them.
+   */
+  const acquireTxClient = async (): Promise<PoolClient> => {
+    const txClient = await client.connect();
+    // The pool hands back the same client objects, so the release guard has to
+    // be reset per checkout — otherwise every reuse after the first would be
+    // treated as already released and stay checked out forever.
+    releasedTxClients.delete(txClient);
+    const absorb = () => {};
+    txClient.on('error', absorb);
+    txErrorAbsorbers.set(txClient, absorb);
+    return txClient;
+  };
+
+  /**
+   * Returns a transaction client to the pool exactly once.
+   *
+   * Every teardown path must run this, including the ones reached by a throwing
+   * COMMIT or ROLLBACK — a client that is never released stays checked out for
+   * the life of the process, and enough of them exhaust the pool. Releasing
+   * twice throws, so the released clients are tracked rather than assumed.
+   *
+   * @param txClient - The pooled client backing a transaction
+   * @param destroy - Destroy the connection instead of reusing it, for when the
+   *   transaction state could not be cleaned up
+   */
+  const releaseTxClient = (txClient: PoolClient, destroy = false): void => {
+    if (releasedTxClients.has(txClient)) return;
+    releasedTxClients.add(txClient);
+    const absorb = txErrorAbsorbers.get(txClient);
+    if (absorb) {
+      txClient.off('error', absorb);
+      txErrorAbsorbers.delete(txClient);
+    }
+    txClient.release(destroy || undefined);
+  };
+
+  /**
+   * Rolls back a failed transaction and returns its client to the pool.
+   *
+   * The connection may still be inside a transaction, so ROLLBACK is attempted
+   * to normalize it. If that works the connection is clean and worth reusing;
+   * if it does not, the state is unknown and the connection is destroyed rather
+   * than handed to unrelated code later.
+   *
+   * @returns The rollback failure, if the connection could not be normalized
+   */
+  const discardTxClient = async (txClient: PoolClient): Promise<unknown> => {
+    try {
+      await txClient.query('ROLLBACK');
+      releaseTxClient(txClient);
+      return undefined;
+    } catch (rollbackError) {
+      releaseTxClient(txClient, true);
+      return rollbackError;
+    }
+  };
+
   const executeNullAwarePostgresUpsertInTransaction = async (
     table: string,
     conflictColumns: string[],
     serializedData: Record<string, any>,
   ): Promise<BaseQueryResult> => {
-    const txClient = await client.connect();
+    const txClient = await acquireTxClient();
 
     try {
       await txClient.query('BEGIN');
@@ -857,12 +942,14 @@ async function createDatabase(
         serializedData,
       );
       await txClient.query('COMMIT');
+      releaseTxClient(txClient);
       return result;
     } catch (error) {
-      await txClient.query('ROLLBACK');
+      const rollbackError = await discardTxClient(txClient);
+      if (rollbackError !== undefined && error instanceof Error) {
+        error.cause ??= rollbackError;
+      }
       throw error;
-    } finally {
-      txClient.release();
     }
   };
 
@@ -1713,7 +1800,7 @@ async function createDatabase(
     callback: (tx: DatabaseInterface) => Promise<T>,
   ): Promise<T> => {
     // Get a client from the pool for the transaction
-    const txClient = await client.connect();
+    const txClient = await acquireTxClient();
 
     try {
       await txClient.query('BEGIN');
@@ -1904,12 +1991,17 @@ async function createDatabase(
 
       const result = await callback(txDb);
       await txClient.query('COMMIT');
+      releaseTxClient(txClient);
       return result;
     } catch (error) {
-      await txClient.query('ROLLBACK');
+      // Never let a failing ROLLBACK replace the caller's error. On a dead
+      // connection the rollback throws "Connection terminated unexpectedly",
+      // which would otherwise be the only thing the caller ever sees.
+      const rollbackError = await discardTxClient(txClient);
+      if (rollbackError !== undefined && error instanceof Error) {
+        error.cause ??= rollbackError;
+      }
       throw error;
-    } finally {
-      txClient.release();
     }
   };
 
@@ -1923,28 +2015,44 @@ async function createDatabase(
    */
   const beginTransaction = async (): Promise<TransactionHandle> => {
     // Get a client from the pool for the transaction
-    const txClient = await client.connect();
-    await txClient.query('BEGIN');
+    const txClient = await acquireTxClient();
+    try {
+      await txClient.query('BEGIN');
+    } catch (error) {
+      // BEGIN failed, so there is no transaction for the caller to end and no
+      // handle to release the client — return it here or it is stranded.
+      releaseTxClient(txClient, true);
+      throw error;
+    }
 
     let active = true;
 
-    const commit = async (): Promise<void> => {
+    // COMMIT and ROLLBACK both throw in ordinary operation — deferred
+    // constraint violations, serialization failures, a connection lost at
+    // commit time. The transaction is over either way, so end it and return the
+    // client before rethrowing; leaving it checked out would strand a pooled
+    // connection permanently and eventually deadlock the pool.
+    const end = async (command: 'COMMIT' | 'ROLLBACK'): Promise<void> => {
       if (!active) {
         throw new DatabaseError('Transaction already ended', {});
       }
-      await txClient.query('COMMIT');
-      active = false;
-      txClient.release();
+      try {
+        await txClient.query(command);
+        active = false;
+        releaseTxClient(txClient);
+      } catch (error) {
+        active = false;
+        const rollbackError = await discardTxClient(txClient);
+        if (rollbackError !== undefined && error instanceof Error) {
+          error.cause ??= rollbackError;
+        }
+        throw error;
+      }
     };
 
-    const rollback = async (): Promise<void> => {
-      if (!active) {
-        throw new DatabaseError('Transaction already ended', {});
-      }
-      await txClient.query('ROLLBACK');
-      active = false;
-      txClient.release();
-    };
+    const commit = (): Promise<void> => end('COMMIT');
+
+    const rollback = (): Promise<void> => end('ROLLBACK');
 
     const isActive = (): boolean => active;
 
