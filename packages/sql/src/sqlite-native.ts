@@ -7,9 +7,11 @@ import {
   generateAddColumnStatement,
   generateCreateIndexStatement,
   validateColumnName,
+  validateColumnNames,
   validateIndexName,
   validateTableName,
 } from './shared/alter-utils.js';
+import { createTransactionLock } from './shared/transaction-lock.js';
 import type {
   ColumnDefinition,
   ColumnDefinitionWithName,
@@ -34,7 +36,7 @@ import type {
   VectorSearchResult,
   WhereClause,
 } from './shared/types.js';
-import { resolveSchemas } from './shared/types.js';
+import { NestedTransactionError, resolveSchemas } from './shared/types.js';
 import { buildWhere, formatDbError } from './shared/utils.js';
 import type { SqliteOptions } from './sqlite.js';
 
@@ -821,6 +823,14 @@ async function createNativeSqliteDatabase(
     allowExtension: wantsVector,
   });
 
+  // One lock per connection. `getNativeSqliteDatabase` hands cached callers
+  // this same closure, so "created here" and "per connection" are the same
+  // scope.
+  const connectionLock = createTransactionLock(
+    'sqlite (native)',
+    options.transactionQueueTimeout,
+  );
+
   try {
     if (wantsVector) {
       await loadSqliteVectorExtension(database);
@@ -875,10 +885,12 @@ async function createNativeSqliteDatabase(
       table: string,
       data: Record<string, any> | Record<string, any>[],
     ): Promise<QueryResult> => {
+      validateTableName(table);
       const records = (Array.isArray(data) ? data : [data]).map(
         serializeRecord,
       );
       const keys = Object.keys(records[0]);
+      validateColumnNames(keys);
       const placeholders = records
         .map(() => `(${keys.map(() => '?').join(', ')})`)
         .join(', ');
@@ -904,6 +916,7 @@ async function createNativeSqliteDatabase(
       table: string,
       where: WhereClause,
     ): Promise<Record<string, any> | null> => {
+      validateTableName(table);
       const { sql: whereClause, values } = buildQuestionWhere(where);
       if (!whereClause) {
         throw new DatabaseError(
@@ -930,6 +943,7 @@ async function createNativeSqliteDatabase(
       table: string,
       where: WhereClause,
     ): Promise<Record<string, any>[]> => {
+      validateTableName(table);
       const { sql: whereClause, values } = buildQuestionWhere(where);
       const sql = `SELECT * FROM ${table} ${whereClause}`;
       try {
@@ -949,8 +963,10 @@ async function createNativeSqliteDatabase(
       where: WhereClause,
       data: Record<string, any>,
     ): Promise<QueryResult> => {
+      validateTableName(table);
       const serializedData = serializeRecord(data);
       const keys = Object.keys(serializedData);
+      validateColumnNames(keys);
       const values = Object.values(serializedData);
       const setClause = keys.map((key) => `${key} = ?`).join(', ');
       const { sql: whereClause, values: whereValues } =
@@ -1057,6 +1073,22 @@ async function createNativeSqliteDatabase(
       return { operation: 'upsert', affected: insertResult.rowCount };
     };
 
+    /**
+     * Rejects hostile table/column identifiers before an upsert builds SQL.
+     *
+     * Called from the public entry points rather than from `executeUpsert`, so
+     * the failure reaches the caller naming the bad identifier instead of being
+     * flattened into the wrapper's generic "Failed to upsert record into table".
+     */
+    const validateUpsertIdentifiers = (
+      table: string,
+      conflictColumns: string[],
+      data: Record<string, any>,
+    ): void => {
+      validateTableName(table);
+      validateColumnNames([...conflictColumns, ...Object.keys(data)]);
+    };
+
     const executeUpsert = async (
       table: string,
       conflictColumns: string[],
@@ -1087,6 +1119,11 @@ async function createNativeSqliteDatabase(
         .join('|')}`;
 
       return withNativeNullAwareUpsertLock(lockKey, async () => {
+        // This opens a transaction on the shared connection like any other, so
+        // it takes the same lock — otherwise a null-aware upsert overlapping a
+        // `transaction()` call reintroduces exactly the corruption the lock
+        // exists to prevent.
+        const releaseConnection = await connectionLock.acquire();
         try {
           database.exec('BEGIN IMMEDIATE');
           const result = executeNullAwareUpsertAttempt(
@@ -1103,6 +1140,8 @@ async function createNativeSqliteDatabase(
             // Preserve the original failure.
           }
           throw error;
+        } finally {
+          releaseConnection();
         }
       });
     };
@@ -1113,6 +1152,7 @@ async function createNativeSqliteDatabase(
       data: Record<string, any>,
       upsertOptions?: UpsertOptions,
     ): Promise<QueryResult> => {
+      validateUpsertIdentifiers(table, conflictColumns, data);
       try {
         return await executeUpsert(
           table,
@@ -1139,8 +1179,10 @@ async function createNativeSqliteDatabase(
       conflictColumns: string[],
       data: Record<string, any>,
       upsertOptions?: UpsertOptions,
-    ): Promise<QueryResult> =>
-      executeUpsert(table, conflictColumns, data, upsertOptions, false);
+    ): Promise<QueryResult> => {
+      validateUpsertIdentifiers(table, conflictColumns, data);
+      return executeUpsert(table, conflictColumns, data, upsertOptions, false);
+    };
 
     const getOrInsert = async (
       table: string,
@@ -1339,7 +1381,11 @@ async function createNativeSqliteDatabase(
       database.exec(`SAVEPOINT ${name}`);
       try {
         const result = await callback(
-          buildDatabaseInterface(upsertInCurrentTransaction, nestedTransaction),
+          buildDatabaseInterface(
+            upsertInCurrentTransaction,
+            nestedTransaction,
+            refuseNestedBeginTransaction,
+          ),
         );
         database.exec(`RELEASE SAVEPOINT ${name}`);
         return result;
@@ -1359,48 +1405,99 @@ async function createNativeSqliteDatabase(
 
     const transaction = async <T>(
       callback: (tx: DatabaseInterface) => Promise<T>,
-    ): Promise<T> => {
-      try {
-        database.exec('BEGIN TRANSACTION');
-        const txDb = buildDatabaseInterface(
-          upsertInCurrentTransaction,
-          nestedTransaction,
-        );
-        const result = await callback(txDb);
-        database.exec('COMMIT');
-        return result;
-      } catch (error) {
-        // A failing ROLLBACK must not replace the caller's error: SQLite
-        // reports "cannot rollback - no transaction is active" whenever the
-        // transaction is already gone, which says nothing about what failed.
+    ): Promise<T> =>
+      // Held across the whole BEGIN … COMMIT/ROLLBACK span. Without it two
+      // overlapping calls raced on the one connection: the second BEGIN threw,
+      // its catch ran ROLLBACK, and that rollback ended the *first*
+      // transaction — half of its writes durable, half lost, and its promise
+      // rejected, so the caller was told nothing had happened.
+      connectionLock.run(async () => {
         try {
-          database.exec('ROLLBACK');
-        } catch {
-          // Nothing left to roll back.
+          database.exec('BEGIN TRANSACTION');
+          const txDb = buildDatabaseInterface(
+            upsertInCurrentTransaction,
+            nestedTransaction,
+            refuseNestedBeginTransaction,
+          );
+          const result = await callback(txDb);
+          database.exec('COMMIT');
+          return result;
+        } catch (error) {
+          // A failing ROLLBACK must not replace the caller's error: SQLite
+          // reports "cannot rollback - no transaction is active" whenever the
+          // transaction is already gone, which says nothing about what failed.
+          try {
+            database.exec('ROLLBACK');
+          } catch {
+            // Nothing left to roll back.
+          }
+          throw error;
         }
-        throw error;
-      }
+      });
+
+    /**
+     * The `beginTransaction` exposed on a transaction-scoped interface.
+     *
+     * Unlike `transaction`, a manual handle has no savepoint equivalent: it
+     * would have to own the connection until the caller ends it, which the
+     * enclosing transaction already does. Issuing a second BEGIN threw before
+     * transactions were serialized; now it would instead wait on a lock its own
+     * caller holds, so refuse explicitly rather than deadlock.
+     */
+    const refuseNestedBeginTransaction = async (): Promise<never> => {
+      throw new NestedTransactionError(
+        'beginTransaction() cannot be called inside a transaction. Use the transaction you already have, or nest with transaction() to re-enter it under a savepoint.',
+        { adapter: 'sqlite-native' },
+      );
     };
 
     const beginTransaction = async (): Promise<TransactionHandle> => {
-      database.exec('BEGIN TRANSACTION');
+      // The handle owns the connection until the caller ends it, so the lock is
+      // held across the gap rather than around a single call. A handle that is
+      // never committed or rolled back therefore blocks every later transaction
+      // until the queue timeout reports it.
+      const releaseConnection = await connectionLock.acquire();
+      try {
+        database.exec('BEGIN TRANSACTION');
+      } catch (error) {
+        // No transaction was opened, so there is no handle to end it and
+        // nothing left to release the connection.
+        releaseConnection();
+        throw error;
+      }
+
       let active = true;
 
-      const commit = async (): Promise<void> => {
+      // COMMIT and ROLLBACK can both throw, and the transaction is over either
+      // way, so the connection goes back before the error is rethrown.
+      const end = (command: 'COMMIT' | 'ROLLBACK'): void => {
         if (!active) {
           throw new DatabaseError('Transaction already ended', {});
         }
-        database.exec('COMMIT');
-        active = false;
+        try {
+          database.exec(command);
+        } catch (error) {
+          // COMMIT can fail and leave the transaction *open* — SQLite documents
+          // exactly that for SQLITE_BUSY. Releasing the connection then would hand
+          // the next queued caller a connection still inside a transaction: its
+          // BEGIN would throw, and its catch would ROLLBACK, discarding this
+          // transaction's work. So normalize before releasing, the way the pooled
+          // adapter's discardTxClient does.
+          try {
+            database.exec('ROLLBACK');
+          } catch {
+            // Already gone; nothing left to normalize.
+          }
+          throw error;
+        } finally {
+          active = false;
+          releaseConnection();
+        }
       };
 
-      const rollback = async (): Promise<void> => {
-        if (!active) {
-          throw new DatabaseError('Transaction already ended', {});
-        }
-        database.exec('ROLLBACK');
-        active = false;
-      };
+      const commit = async (): Promise<void> => end('COMMIT');
+
+      const rollback = async (): Promise<void> => end('ROLLBACK');
 
       return {
         // The handle is inside a transaction for the same reason a callback
@@ -1408,6 +1505,7 @@ async function createNativeSqliteDatabase(
         ...buildDatabaseInterface(
           upsertInCurrentTransaction,
           nestedTransaction,
+          refuseNestedBeginTransaction,
         ),
         commit,
         rollback,
@@ -1543,6 +1641,7 @@ async function createNativeSqliteDatabase(
     function buildDatabaseInterface(
       upsertImpl: DatabaseInterface['upsert'],
       transactionImpl: DatabaseInterface['transaction'] = transaction,
+      beginTransactionImpl: DatabaseInterface['beginTransaction'] = beginTransaction,
     ): DatabaseInterface {
       return {
         url,
@@ -1569,7 +1668,7 @@ async function createNativeSqliteDatabase(
         syncSchema,
         initializeSchemas,
         transaction: transactionImpl,
-        beginTransaction,
+        beginTransaction: beginTransactionImpl,
         getTableSchema,
         alterTable,
         close,

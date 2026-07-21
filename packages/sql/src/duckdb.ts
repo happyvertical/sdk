@@ -4,13 +4,17 @@ import { basename, extname, join } from 'node:path';
 import { DatabaseError } from '@happyvertical/utils';
 import { DatabaseSchemaManager } from './schema-manager';
 import {
+  escapeQuotedIdentifier,
+  escapeStringLiteral,
   generateAddColumnStatement,
   generateCreateIndexStatement,
   validateColumnName,
+  validateColumnNames,
   validateIndexName,
   validateTableName,
 } from './shared/alter-utils';
 import { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils';
+import { createTransactionLock } from './shared/transaction-lock';
 import type {
   ColumnDefinition,
   ColumnDefinitionWithName,
@@ -205,8 +209,12 @@ async function registerJSONFiles(connection: any, dataDir: string) {
 
       // Create view that reads from JSON file
       // DuckDB automatically infers schema with ISO date/timestamp parsing
+      // Both halves come from a file in the data directory: the view name from
+      // its basename, the path from its location. Anyone who can drop a file
+      // there would otherwise get DDL execution at getDatabase() time.
+      validateTableName(tableName);
       await connection.run(
-        `CREATE OR REPLACE VIEW ${tableName} AS SELECT * FROM read_json('${filePath}', auto_detect=true, format='auto', timestampformat='iso', dateformat='iso')`,
+        `CREATE OR REPLACE VIEW ${tableName} AS SELECT * FROM read_json('${escapeStringLiteral(filePath)}', auto_detect=true, format='auto', timestampformat='iso', dateformat='iso')`,
       );
     }
   } catch (error) {
@@ -283,6 +291,14 @@ export async function getDatabase(
   // Use resolved URL to reflect actual database location
   const url = resolveDuckDBUrl(options.url || ':memory:');
 
+  // One lock per connection. This adapter creates a fresh DuckDB instance and
+  // connection per call and caches nothing, so the lock's scope is exactly the
+  // connection it was created alongside.
+  const connectionLock = createTransactionLock(
+    'duckdb',
+    options.transactionQueueTimeout,
+  );
+
   /**
    * Inserts one or more records into a table
    *
@@ -295,6 +311,7 @@ export async function getDatabase(
     table: string,
     data: Record<string, any> | Record<string, any>[],
   ): Promise<QueryResult> => {
+    validateTableName(table);
     const records = Array.isArray(data) ? data : [data];
 
     if (records.length === 0) {
@@ -302,6 +319,7 @@ export async function getDatabase(
     }
 
     const keys = Object.keys(records[0]);
+    validateColumnNames(keys);
     const values: any[] = [];
     let paramIdx = 1;
 
@@ -377,6 +395,7 @@ export async function getDatabase(
     table: string,
     where: Record<string, any>,
   ): Promise<Record<string, any> | null> => {
+    validateTableName(table);
     const { sql: whereClause, values } = buildWhere(where, 1, 'duckdb');
     const sql = `SELECT * FROM ${table} ${whereClause} LIMIT 1`;
 
@@ -406,6 +425,7 @@ export async function getDatabase(
     table: string,
     where: Record<string, any>,
   ): Promise<Record<string, any>[]> => {
+    validateTableName(table);
     const { sql: whereClause, values } = buildWhere(where, 1, 'duckdb');
     const sql = `SELECT * FROM ${table} ${whereClause}`;
 
@@ -436,7 +456,9 @@ export async function getDatabase(
     where: Record<string, any>,
     data: Record<string, any>,
   ): Promise<QueryResult> => {
+    validateTableName(table);
     const keys = Object.keys(data);
+    validateColumnNames(keys);
     const setClause = keys.map((key, idx) => `${key} = $${idx + 1}`).join(', ');
     const { sql: whereClause, values: whereValues } = buildWhere(
       where,
@@ -519,7 +541,7 @@ export async function getDatabase(
     const paramIdx = { value: 1 };
     const assignments = keys.map((key) => {
       const valueExpr = buildDuckDBValueExpression(data[key], values, paramIdx);
-      return `"${key}" = ${valueExpr}`;
+      return `"${escapeQuotedIdentifier(key)}" = ${valueExpr}`;
     });
     const { sql: whereClause, values: whereValues } = buildWhere(
       conflictWhere,
@@ -562,6 +584,14 @@ export async function getDatabase(
     data: Record<string, any>,
     options?: UpsertOptions,
   ): Promise<QueryResult> => {
+    validateTableName(table);
+    // Conflict columns reach two very different positions. In the plain
+    // `ON CONFLICT(...)` path below they are quoted, so a name that needs
+    // quotes — `Full Name`, `user-id`, whatever the source data called its
+    // keys — is ordinary and has always worked; escaping keeps it working
+    // while making it impossible to leave the quotes. In the null-aware path
+    // they become `buildWhere` keys instead, which requires a plain identifier
+    // and rejects them there, as it did before this change.
     // Validate that all conflict columns are present in the data
     const missingColumns = conflictColumns.filter((col) => !(col in data));
 
@@ -671,15 +701,19 @@ export async function getDatabase(
 
     // Quote ALL column names to match DuckDB's schema generation
     // SchemaGenerator always quotes column names, so UPSERT must match
-    const conflict = conflictColumns.map((col) => `"${col}"`).join(', ');
-    const quotedKeys = keys.map((key) => `"${key}"`).join(', ');
+    const conflict = conflictColumns
+      .map((col) => `"${escapeQuotedIdentifier(col)}"`)
+      .join(', ');
+    const quotedKeys = keys
+      .map((key) => `"${escapeQuotedIdentifier(key)}"`)
+      .join(', ');
 
     // Quote column names in UPDATE SET clause to match schema and ON CONFLICT
     // Extract the value expression from each updateSetPart (everything after '=')
     const quotedUpdateSetParts = keys.map((key, i) => {
       const part = updateSetParts[i];
       const valueExpr = part.substring(part.indexOf('=') + 1).trim();
-      return `"${key}" = ${valueExpr}`;
+      return `"${escapeQuotedIdentifier(key)}" = ${valueExpr}`;
     });
 
     const sql = `INSERT INTO ${table} (${quotedKeys}) VALUES (${placeholders.join(', ')}) ON CONFLICT(${conflict}) DO UPDATE SET ${quotedUpdateSetParts.join(', ')}`;
@@ -827,6 +861,12 @@ export async function getDatabase(
    * @returns Promise resolving to boolean indicating if the table exists
    */
   const tableExists = async (tableName: string): Promise<boolean> => {
+    // The name is interpolated into a statement, and this engine executes every
+    // statement in the string it is given, so an unvalidated name here is a
+    // DDL/DML sink rather than a read oracle — the `catch` below swallows the
+    // error, not the execution. Validation runs outside the try for that
+    // reason: a rejected identifier must be reported, not reported as `false`.
+    validateTableName(tableName);
     try {
       // Try to query the table - simpler and works for both tables and views
       await connection.runAndReadAll(`SELECT * FROM ${tableName} LIMIT 1`);
@@ -848,6 +888,14 @@ export async function getDatabase(
     table: string,
     dataDir: string,
   ): Promise<void> => {
+    // Every caller-facing path into this function takes a table name, and it is
+    // interpolated into a COPY statement and into the target file path.
+    // Unvalidated, `exportTable('t TO $$/etc/x$$; DROP ...; --')` both writes a
+    // file outside the data directory and runs the trailing statements.
+    // Validate at this choke point so the internal callers that pass
+    // catalog-derived names are covered too.
+    validateTableName(table);
+
     const filePath = join(dataDir, `${table}.json`);
     await connection.run(
       `COPY (SELECT * FROM ${table}) TO '${filePath}' (FORMAT JSON, ARRAY true)`,
@@ -1365,25 +1413,31 @@ export async function getDatabase(
    */
   const transaction = async <T>(
     callback: (tx: DatabaseInterface) => Promise<T>,
-  ): Promise<T> => {
-    try {
-      await connection.run('BEGIN TRANSACTION');
-
-      const result = await callback(createTransactionScope());
-      await connection.run('COMMIT');
-      return result;
-    } catch (error) {
-      // A failing ROLLBACK must not replace the caller's error: DuckDB reports
-      // "cannot rollback - no transaction is active" whenever the transaction
-      // is already gone, which says nothing about what actually failed.
+  ): Promise<T> =>
+    // Held across the whole BEGIN … COMMIT/ROLLBACK span. Without it two
+    // overlapping calls raced on the one connection: the second BEGIN threw,
+    // its catch ran ROLLBACK, and that rollback ended the *first* transaction
+    // — half of its writes durable, half lost, and its promise rejected, so
+    // the caller was told nothing had happened.
+    connectionLock.run(async () => {
       try {
-        await connection.run('ROLLBACK');
-      } catch {
-        // Nothing left to roll back.
+        await connection.run('BEGIN TRANSACTION');
+
+        const result = await callback(createTransactionScope());
+        await connection.run('COMMIT');
+        return result;
+      } catch (error) {
+        // A failing ROLLBACK must not replace the caller's error: DuckDB reports
+        // "cannot rollback - no transaction is active" whenever the transaction
+        // is already gone, which says nothing about what actually failed.
+        try {
+          await connection.run('ROLLBACK');
+        } catch {
+          // Nothing left to roll back.
+        }
+        throw error;
       }
-      throw error;
-    }
-  };
+    });
 
   /**
    * Builds the transaction-scoped interface handed to a transaction callback.
@@ -1439,25 +1493,52 @@ export async function getDatabase(
    * @returns Promise resolving to a TransactionHandle
    */
   const beginTransaction = async (): Promise<TransactionHandle> => {
-    await connection.run('BEGIN TRANSACTION');
+    // The handle owns the connection until the caller ends it, so the lock is
+    // held across the gap rather than around a single call. A handle that is
+    // never committed or rolled back therefore blocks every later transaction
+    // until the queue timeout reports it.
+    const releaseConnection = await connectionLock.acquire();
+    try {
+      await connection.run('BEGIN TRANSACTION');
+    } catch (error) {
+      // No transaction was opened, so there is no handle to end it and nothing
+      // left to release the connection.
+      releaseConnection();
+      throw error;
+    }
 
     let active = true;
 
-    const commit = async (): Promise<void> => {
+    // COMMIT and ROLLBACK can both throw, and the transaction is over either
+    // way, so the connection goes back before the error is rethrown.
+    const end = async (command: 'COMMIT' | 'ROLLBACK'): Promise<void> => {
       if (!active) {
         throw new DatabaseError('Transaction already ended', {});
       }
-      await connection.run('COMMIT');
-      active = false;
+      try {
+        await connection.run(command);
+      } catch (error) {
+        // COMMIT can fail and leave the transaction *open* — SQLite documents
+        // exactly that for SQLITE_BUSY. Releasing the connection then would hand
+        // the next queued caller a connection still inside a transaction: its
+        // BEGIN would throw, and its catch would ROLLBACK, discarding this
+        // transaction's work. So normalize before releasing, the way the pooled
+        // adapter's discardTxClient does.
+        try {
+          await connection.run('ROLLBACK');
+        } catch {
+          // Already gone; nothing left to normalize.
+        }
+        throw error;
+      } finally {
+        active = false;
+        releaseConnection();
+      }
     };
 
-    const rollback = async (): Promise<void> => {
-      if (!active) {
-        throw new DatabaseError('Transaction already ended', {});
-      }
-      await connection.run('ROLLBACK');
-      active = false;
-    };
+    const commit = (): Promise<void> => end('COMMIT');
+
+    const rollback = (): Promise<void> => end('ROLLBACK');
 
     const isActive = (): boolean => active;
 
