@@ -922,9 +922,15 @@ export async function getDatabase(
 
       try {
         if (!where || Object.keys(where).length === 0) {
-          // Count all records
-          const result = await pluck`SELECT COUNT(*) FROM ${table}`;
-          return Number(result) || 0;
+          // Count all records. Built as a plain string rather than through the
+          // `pluck` tagged template, which would bind the table name as a
+          // parameter and emit `SELECT COUNT(*) FROM ?`. Interpolating the
+          // identifier is safe because validateTableName ran above.
+          const result = await client.execute({
+            sql: `SELECT COUNT(*) as count FROM ${table}`,
+            args: [],
+          });
+          return Number(result.rows[0]?.count) || 0;
         }
 
         // Count with conditions
