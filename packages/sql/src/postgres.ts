@@ -1523,6 +1523,174 @@ async function createDatabase(
       }
     };
 
+    /**
+     * Checks if a table exists in the database
+     *
+     * @param tableName - Name of the table to check
+     * @returns Promise resolving to boolean indicating if the table exists
+     */
+    const tableExists = async (tableName: string): Promise<boolean> => {
+      const result = await executor.query(
+        `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = $1 AND table_schema = 'public')`,
+        [tableName],
+      );
+      return result.rows[0].exists;
+    };
+
+    /**
+     * Synchronizes database schema with provided SQL DDL
+     * Creates tables if they don't exist and adds missing columns
+     * Also executes CREATE INDEX statements
+     *
+     * @param schema - SQL schema definition with CREATE TABLE and CREATE INDEX statements
+     * @returns Promise that resolves when schema is synchronized
+     */
+    const syncSchema = async (schema: string): Promise<void> => {
+      const commands = schema
+        .trim()
+        .split(';')
+        .filter((command) => command.trim() !== '');
+
+      // Match CREATE INDEX statements (Issue #867)
+      // Supports: CREATE INDEX, CREATE UNIQUE INDEX, with IF NOT EXISTS
+      const createIndexRegex =
+        /CREATE (UNIQUE )?INDEX (IF NOT EXISTS )?"?(\w+)"? ON "?(\w+)"?\s*\(([^)]+)\)/i;
+
+      // Pre-scan commands to collect all index names for batch existence check (Issue #798)
+      const indexNames: string[] = [];
+      for (const command of commands) {
+        const indexMatch = command.trim().match(createIndexRegex);
+        if (indexMatch) {
+          indexNames.push(indexMatch[3]);
+        }
+      }
+
+      // Batch query to check which indexes already exist
+      const existingIndexes = new Set<string>();
+      if (indexNames.length > 0) {
+        const result = await executor.query(
+          `SELECT indexname FROM pg_indexes
+           WHERE schemaname = 'public' AND indexname = ANY($1::text[])`,
+          [indexNames],
+        );
+        for (const row of result.rows) {
+          existingIndexes.add(row.indexname);
+        }
+      }
+
+      for (const command of commands) {
+        const trimmedCommand = command.trim();
+
+        // Match CREATE TABLE with optional quotes around table name
+        // Supports: CREATE TABLE foo, CREATE TABLE "foo", CREATE TABLE IF NOT EXISTS "foo"
+        const createTableRegex =
+          /CREATE TABLE (IF NOT EXISTS )?"?(\w+)"? \(([\s\S]+)\)/i;
+        const tableMatch = trimmedCommand.match(createTableRegex);
+
+        if (tableMatch) {
+          const tableName = tableMatch[2];
+          const columns = tableMatch[3].trim().split(',\n');
+
+          // Check if table exists
+          const exists = await tableExists(tableName);
+
+          if (!exists) {
+            // Table doesn't exist, create it
+            await executor.query(trimmedCommand);
+          } else {
+            // Table exists, check for missing columns
+            for (const column of columns) {
+              const columnDef = column.trim();
+              // Match column name with optional quotes: "id" or id
+              const columnMatch = columnDef.match(/"?(\w+)"?\s+(\w+[^,]*)/);
+
+              if (columnMatch) {
+                const columnName = columnMatch[1];
+
+                // Skip constraint definitions
+                if (
+                  columnName.toUpperCase() === 'PRIMARY' ||
+                  columnName.toUpperCase() === 'FOREIGN' ||
+                  columnName.toUpperCase() === 'UNIQUE' ||
+                  columnName.toUpperCase() === 'CHECK' ||
+                  columnName.toUpperCase() === 'CONSTRAINT'
+                ) {
+                  continue;
+                }
+
+                try {
+                  // Check if column exists
+                  const columnExists = await executor.query(
+                    `SELECT EXISTS (
+                      SELECT 1 FROM information_schema.columns
+                      WHERE table_name = $1
+                      AND column_name = $2
+                      AND table_schema = 'public'
+                    )`,
+                    [tableName, columnName],
+                  );
+
+                  if (!columnExists.rows[0].exists) {
+                    // Column doesn't exist, add it
+                    // Quote the table name for safety
+                    const alterCommand = `ALTER TABLE "${tableName}" ADD COLUMN ${columnDef}`;
+                    await executor.query(alterCommand);
+                  }
+                } catch (error) {
+                  // If there's an error checking/adding the column, log it but continue
+                  console.error(
+                    `Error adding column ${columnName} to ${tableName}:`,
+                    error,
+                  );
+                }
+              }
+            }
+          }
+          continue;
+        }
+
+        const indexMatch = trimmedCommand.match(createIndexRegex);
+
+        if (indexMatch) {
+          const indexName = indexMatch[3];
+          const indexTableName = indexMatch[4];
+
+          // Use pre-fetched batch result instead of per-index query
+          if (!existingIndexes.has(indexName)) {
+            try {
+              await executor.query(trimmedCommand);
+              // Track newly created index for idempotency within this call
+              existingIndexes.add(indexName);
+            } catch (error) {
+              // Log error but continue - index creation failures shouldn't block schema sync
+              console.warn(
+                `Warning: Failed to create index ${indexName} on ${indexTableName}:`,
+                error instanceof Error ? error.message : String(error),
+              );
+            }
+          }
+          continue;
+        }
+
+        // For any other DDL statements (like other CREATE commands), try to execute them
+        // This provides forward compatibility for future DDL types
+        if (
+          trimmedCommand.toUpperCase().startsWith('CREATE ') &&
+          !trimmedCommand.toUpperCase().includes('CREATE TABLE')
+        ) {
+          try {
+            await executor.query(trimmedCommand);
+          } catch (error) {
+            // Log but don't fail - the statement may have already been executed
+            console.warn(
+              `Warning: DDL statement may have failed:`,
+              error instanceof Error ? error.message : String(error),
+            );
+          }
+        }
+      }
+    };
+
     // Shorthand aliases for query methods
     const oo = many; // (o)bjective-(o)bjects: returns multiple rows
     const oO = single; // (o)bjective-(O)bject: returns a single row
@@ -1548,6 +1716,8 @@ async function createDatabase(
       oO,
       ox,
       xx,
+      tableExists,
+      syncSchema,
     };
   };
 
@@ -1570,6 +1740,8 @@ async function createDatabase(
     oO,
     ox,
     xx,
+    tableExists,
+    syncSchema,
   } = createClientMethods(client, false);
 
   /**
@@ -1652,174 +1824,6 @@ async function createDatabase(
     };
   };
 
-  /**
-   * Checks if a table exists in the database
-   *
-   * @param tableName - Name of the table to check
-   * @returns Promise resolving to boolean indicating if the table exists
-   */
-  const tableExists = async (tableName: string): Promise<boolean> => {
-    const result = await client.query(
-      `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = $1 AND table_schema = 'public')`,
-      [tableName],
-    );
-    return result.rows[0].exists;
-  };
-
-  /**
-   * Synchronizes database schema with provided SQL DDL
-   * Creates tables if they don't exist and adds missing columns
-   * Also executes CREATE INDEX statements
-   *
-   * @param schema - SQL schema definition with CREATE TABLE and CREATE INDEX statements
-   * @returns Promise that resolves when schema is synchronized
-   */
-  const syncSchema = async (schema: string): Promise<void> => {
-    const commands = schema
-      .trim()
-      .split(';')
-      .filter((command) => command.trim() !== '');
-
-    // Match CREATE INDEX statements (Issue #867)
-    // Supports: CREATE INDEX, CREATE UNIQUE INDEX, with IF NOT EXISTS
-    const createIndexRegex =
-      /CREATE (UNIQUE )?INDEX (IF NOT EXISTS )?"?(\w+)"? ON "?(\w+)"?\s*\(([^)]+)\)/i;
-
-    // Pre-scan commands to collect all index names for batch existence check (Issue #798)
-    const indexNames: string[] = [];
-    for (const command of commands) {
-      const indexMatch = command.trim().match(createIndexRegex);
-      if (indexMatch) {
-        indexNames.push(indexMatch[3]);
-      }
-    }
-
-    // Batch query to check which indexes already exist
-    const existingIndexes = new Set<string>();
-    if (indexNames.length > 0) {
-      const result = await client.query(
-        `SELECT indexname FROM pg_indexes
-         WHERE schemaname = 'public' AND indexname = ANY($1::text[])`,
-        [indexNames],
-      );
-      for (const row of result.rows) {
-        existingIndexes.add(row.indexname);
-      }
-    }
-
-    for (const command of commands) {
-      const trimmedCommand = command.trim();
-
-      // Match CREATE TABLE with optional quotes around table name
-      // Supports: CREATE TABLE foo, CREATE TABLE "foo", CREATE TABLE IF NOT EXISTS "foo"
-      const createTableRegex =
-        /CREATE TABLE (IF NOT EXISTS )?"?(\w+)"? \(([\s\S]+)\)/i;
-      const tableMatch = trimmedCommand.match(createTableRegex);
-
-      if (tableMatch) {
-        const tableName = tableMatch[2];
-        const columns = tableMatch[3].trim().split(',\n');
-
-        // Check if table exists
-        const exists = await tableExists(tableName);
-
-        if (!exists) {
-          // Table doesn't exist, create it
-          await client.query(trimmedCommand);
-        } else {
-          // Table exists, check for missing columns
-          for (const column of columns) {
-            const columnDef = column.trim();
-            // Match column name with optional quotes: "id" or id
-            const columnMatch = columnDef.match(/"?(\w+)"?\s+(\w+[^,]*)/);
-
-            if (columnMatch) {
-              const columnName = columnMatch[1];
-
-              // Skip constraint definitions
-              if (
-                columnName.toUpperCase() === 'PRIMARY' ||
-                columnName.toUpperCase() === 'FOREIGN' ||
-                columnName.toUpperCase() === 'UNIQUE' ||
-                columnName.toUpperCase() === 'CHECK' ||
-                columnName.toUpperCase() === 'CONSTRAINT'
-              ) {
-                continue;
-              }
-
-              try {
-                // Check if column exists
-                const columnExists = await client.query(
-                  `SELECT EXISTS (
-                    SELECT 1 FROM information_schema.columns
-                    WHERE table_name = $1
-                    AND column_name = $2
-                    AND table_schema = 'public'
-                  )`,
-                  [tableName, columnName],
-                );
-
-                if (!columnExists.rows[0].exists) {
-                  // Column doesn't exist, add it
-                  // Quote the table name for safety
-                  const alterCommand = `ALTER TABLE "${tableName}" ADD COLUMN ${columnDef}`;
-                  await client.query(alterCommand);
-                }
-              } catch (error) {
-                // If there's an error checking/adding the column, log it but continue
-                console.error(
-                  `Error adding column ${columnName} to ${tableName}:`,
-                  error,
-                );
-              }
-            }
-          }
-        }
-        continue;
-      }
-
-      const indexMatch = trimmedCommand.match(createIndexRegex);
-
-      if (indexMatch) {
-        const indexName = indexMatch[3];
-        const indexTableName = indexMatch[4];
-
-        // Use pre-fetched batch result instead of per-index query
-        if (!existingIndexes.has(indexName)) {
-          try {
-            await client.query(trimmedCommand);
-            // Track newly created index for idempotency within this call
-            existingIndexes.add(indexName);
-          } catch (error) {
-            // Log error but continue - index creation failures shouldn't block schema sync
-            console.warn(
-              `Warning: Failed to create index ${indexName} on ${indexTableName}:`,
-              error instanceof Error ? error.message : String(error),
-            );
-          }
-        }
-        continue;
-      }
-
-      // For any other DDL statements (like other CREATE commands), try to execute them
-      // This provides forward compatibility for future DDL types
-      if (
-        trimmedCommand.toUpperCase().startsWith('CREATE ') &&
-        !trimmedCommand.toUpperCase().includes('CREATE TABLE')
-      ) {
-        try {
-          await client.query(trimmedCommand);
-        } catch (error) {
-          // Log but don't fail - the statement may have already been executed
-          console.warn(
-            `Warning: DDL statement may have failed:`,
-            error instanceof Error ? error.message : String(error),
-          );
-        }
-      }
-    }
-  };
-
   // Names nested savepoints. Only ever appended to an identifier the adapter
   // generates, never caller input.
   let savepointSequence = 0;
@@ -1890,8 +1894,6 @@ async function createDatabase(
         url,
         client: txClient,
         ...createClientMethods(txClient, true),
-        tableExists,
-        syncSchema,
         transaction: createNestedTransaction(txClient, () => txDb),
       };
 
@@ -1967,8 +1969,6 @@ async function createDatabase(
       url,
       client: txClient,
       ...createClientMethods(txClient, true),
-      tableExists,
-      syncSchema,
       transaction: createNestedTransaction(txClient, () => txHandle),
       commit,
       rollback,
