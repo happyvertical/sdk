@@ -211,9 +211,30 @@ buildWhere([
 // WHERE (status = $1 AND price > $2) OR (status = $3 AND priority = $4)
 ```
 
-Condition keys with explicit operator suffixes are emitted as SQL
-field/expression text. Keep those keys developer-controlled; do not pass
-end-user input as condition keys.
+Every condition key is validated as a plain SQL identifier, with or without an
+operator suffix, so mapping untrusted input into a key throws instead of
+emitting attacker-controlled SQL. To use expression text as a key, wrap it in
+`raw()`:
+
+```typescript
+import { buildWhere, raw } from '@happyvertical/sql';
+
+buildWhere({
+  status: 'active',              // validated as an identifier
+  [raw('LOWER(name) like')]: '%shirt%',  // caller-authored SQL
+});
+```
+
+`raw()` asserts that the caller, not the request, authored that SQL — never
+build its argument from end-user input. It marks a key rather than sanitizing
+it: it stops an expression key being used by accident, but a caller that maps an
+entire attacker-controlled string into a key can still reach raw SQL, so keep
+validating at your own trust boundary. Enforcement is at runtime — `WhereClause`
+keys are plain `string`, so TypeScript will not flag an unmarked expression key.
+
+The same validation applies to every adapter method that takes a `where`
+(`get`, `list`, `update`, `delete`, `count`, `getOrInsert`), not just to
+`buildWhere` itself.
 
 ### Aggregate Query Building
 
@@ -363,7 +384,7 @@ shipping it beyond development or test environments.
 
 **Interface** (`DatabaseInterface`): `many`, `single`, `pluck`, `execute`, `query`, `insert`, `get`, `list`, `update`, `upsert`, `getOrInsert`, `delete`, `count`, `table`, `tableExists`, `syncSchema`, `transaction`, `beginTransaction`, `vector`, `notifications`, `close`.
 
-**Utilities**: `buildWhere`, `syncSchema`, `tableExists`, `escapeSqlValue`, `validateColumnName`, `formatDbError`, `convertUniqueIndexesToInlineConstraints`.
+**Utilities**: `buildWhere`, `raw`, `syncSchema`, `tableExists`, `escapeSqlValue`, `validateColumnName`, `formatDbError`, `convertUniqueIndexesToInlineConstraints`.
 
 **Schema**: `DatabaseSchemaManager` for JSON manifest-based schema initialization with dependency resolution.
 

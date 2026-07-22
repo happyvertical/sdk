@@ -4,6 +4,7 @@ import {
   bucketExpr,
   buildAggregate,
   getDatabase,
+  raw,
   syncSchema,
 } from './index.js';
 
@@ -325,5 +326,71 @@ describe('aggregate SQL builder', () => {
         having: { 'count = count OR count': 1 },
       }),
     ).toThrow('Invalid SQL identifier');
+    expect(() =>
+      buildAggregate({
+        from: 'orders',
+        select: [{ fn: 'count', as: 'count' }],
+        where: { 'tenant_id = tenant_id OR status >': 'paid' },
+      }),
+    ).toThrow('Invalid SQL identifier');
+  });
+
+  it('accepts raw() expression keys in where', () => {
+    const result = buildAggregate({
+      from: 'orders',
+      select: [{ fn: 'count', as: 'order_count' }],
+      where: { [raw('LOWER(status) =')]: 'paid' },
+    });
+
+    expect(result.sql).toBe(
+      'SELECT COUNT(*) AS order_count FROM orders WHERE LOWER(status) = $1',
+    );
+    expect(result.values).toEqual(['paid']);
+  });
+
+  it('accepts raw() expression keys in having, verbatim', () => {
+    // `having` is typed WhereClause like `where`, so raw() has to work here too
+    // — and must not fall through to identifier validation.
+    const result = buildAggregate({
+      from: 'orders',
+      select: [
+        { column: 'customer_id' },
+        { fn: 'sum', column: 'total', as: 'revenue' },
+      ],
+      having: { [raw('MIN(total) >')]: 5 },
+    });
+
+    expect(result.sql).toBe(
+      'SELECT customer_id AS customer_id, SUM(total) AS revenue FROM orders GROUP BY customer_id HAVING MIN(total) > $1',
+    );
+    expect(result.values).toEqual([5]);
+  });
+
+  it('expands select aliases in having but leaves raw() keys alone', () => {
+    const spec = {
+      from: 'orders',
+      select: [
+        { column: 'customer_id' },
+        { fn: 'sum', column: 'total', as: 'revenue' },
+      ],
+    } as const;
+
+    // An alias key is expanded to its select expression...
+    expect(
+      buildAggregate({
+        ...spec,
+        select: [...spec.select],
+        having: { 'revenue >': 1 },
+      }).sql,
+    ).toContain('HAVING SUM(total) > $1');
+
+    // ...while a raw() key is emitted exactly as written.
+    expect(
+      buildAggregate({
+        ...spec,
+        select: [...spec.select],
+        having: { [raw('revenue >')]: 1 },
+      }).sql,
+    ).toContain('HAVING revenue > $1');
   });
 });

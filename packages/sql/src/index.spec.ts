@@ -1,10 +1,11 @@
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { buildWhere, getDatabase, syncSchema } from './index';
+import { buildWhere, getDatabase, raw, syncSchema } from './index';
 
 const _TMP_DIR = path.resolve(`${tmpdir()}/kissd`);
 const deletedAt = 'deleted_at';
+const tenantId = 'tenant_id';
 
 it.skip('should be able to get the adapter for a postgres database', async () => {
   const db = await getDatabase({
@@ -172,11 +173,11 @@ it('should handle IN clauses with arrays', () => {
   ]);
 });
 
-it('should handle expression fields with spaces', () => {
+it('should handle expression fields wrapped in raw()', () => {
   const result = buildWhere({
-    'COUNT(DISTINCT user_id) >=': 2,
-    'SUM(total_amount) >': 100,
-    'LOWER(status) =': 'paid',
+    [raw('COUNT(DISTINCT user_id) >=')]: 2,
+    [raw('SUM(total_amount) >')]: 100,
+    [raw('LOWER(status) =')]: 'paid',
   });
 
   expect(result.sql).toBe(
@@ -189,6 +190,125 @@ it('should reject unsafe implicit equality keys', () => {
   expect(() =>
     buildWhere({ 'tenant_id = tenant_id OR status': 'paid' }),
   ).toThrow('Invalid SQL identifier');
+});
+
+describe('raw() expression keys', () => {
+  it('rejects expression keys that carry an operator suffix', () => {
+    // A trailing operator used to suppress identifier validation for the whole
+    // key, so everything before it reached the query as SQL text. Each of these
+    // was accepted before the raw() marker existed.
+    expect(() => buildWhere({ "name = '' OR 1=1 --  =": 'x' })).toThrow(
+      'Invalid SQL identifier',
+    );
+    expect(() => buildWhere({ 'COUNT(DISTINCT unminted_a) >=': 2 })).toThrow(
+      'Invalid SQL identifier',
+    );
+    expect(() =>
+      buildWhere([[{ 'tenant_id = tenant_id OR status >': 'paid' }]]),
+    ).toThrow('Invalid SQL identifier');
+  });
+
+  it('still accepts plain identifiers with and without operator suffixes', () => {
+    const result = buildWhere({
+      status: 'paid',
+      'price >': 100,
+      'orders.total <=': 5,
+    });
+
+    expect(result.sql).toBe(
+      'WHERE status = $1 AND price > $2 AND orders.total <= $3',
+    );
+    expect(result.values).toEqual(['paid', 100, 5]);
+  });
+
+  it('points the caller at raw() when validation fails', () => {
+    expect(() => buildWhere({ 'LOWER(unminted_b) =': 'paid' })).toThrow(
+      /raw\(\)/,
+    );
+  });
+
+  it('marks per key, so minting one expression does not change a plain key', () => {
+    // The marker lives on the returned key, not in a global registry, so wrapping
+    // an expression never retroactively makes the bare string raw elsewhere.
+    const expression = 'LOWER(unminted_c) =';
+    raw(expression);
+
+    expect(() => buildWhere({ [expression]: 'x' })).toThrow(
+      'Invalid SQL identifier',
+    );
+  });
+
+  it('cannot be reached by an unmarked key, whatever its shape', () => {
+    // The marker is the only thing that grants raw access; no bare prefix does.
+    const forged = ['raw:', 'raw(', 'hv-sql-raw', '__raw__', 'RAW '];
+
+    for (const prefix of forged) {
+      expect(() => buildWhere({ [`${prefix}1=1 OR name =`]: 'x' })).toThrow(
+        'Invalid SQL identifier',
+      );
+    }
+  });
+
+  it('keeps the emitted SQL and error messages free of the marker', () => {
+    // The marker is stripped before the field reaches SQL, and a validation
+    // failure echoes only the caller's own key text, never the marker.
+    expect(buildWhere({ [raw('LOWER(status) =')]: 'paid' }).sql).toBe(
+      'WHERE LOWER(status) = $1',
+    );
+
+    let message = '';
+    try {
+      buildWhere({ 'SUM(total) >=': 1 });
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toContain('SUM(total)');
+    expect(message).not.toContain('hv-sql-raw');
+  });
+
+  it('is idempotent, so double wrapping cannot nest a marker', () => {
+    expect(raw(raw('LOWER(status) ='))).toBe(raw('LOWER(status) ='));
+    expect(buildWhere({ [raw(raw('LOWER(status) ='))]: 'paid' }).sql).toBe(
+      'WHERE LOWER(status) = $1',
+    );
+  });
+
+  it('supports raw keys on the NULL, IN, Date and 2D-array paths', () => {
+    expect(buildWhere({ [raw('LOWER(status)')]: null }).sql).toBe(
+      'WHERE LOWER(status) IS NULL',
+    );
+    expect(buildWhere({ [raw('LOWER(status) !=')]: null }).sql).toBe(
+      'WHERE LOWER(status) IS NOT NULL',
+    );
+
+    const inClause = buildWhere({ [raw('LOWER(status) in')]: ['a', 'b'] });
+    expect(inClause.sql).toBe('WHERE LOWER(status) IN ($1, $2)');
+    expect(inClause.values).toEqual(['a', 'b']);
+
+    const when = new Date('2026-01-01T00:00:00.000Z');
+    expect(
+      buildWhere({ [raw('date(created_at) >')]: when }, 1, 'duckdb').sql,
+    ).toBe('WHERE date(created_at) > CAST($1 AS TIMESTAMP)');
+    expect(
+      buildWhere({ [raw('date(created_at) >')]: when }, 1, 'postgres').sql,
+    ).toBe('WHERE date(created_at) > $1');
+
+    expect(
+      buildWhere([[{ [raw('LOWER(status) =')]: 'paid' }, { [tenantId]: 't1' }]])
+        .sql,
+    ).toBe('WHERE (LOWER(status) = $1 AND tenant_id = $2)');
+  });
+
+  it('rejects an empty expression', () => {
+    expect(() => raw('   ')).toThrow('non-empty SQL expression');
+  });
+
+  it('parameterizes values behind a raw key', () => {
+    const result = buildWhere({ [raw('LOWER(name) like')]: '%o%' });
+
+    expect(result.sql).toBe('WHERE LOWER(name) LIKE $1');
+    expect(result.values).toEqual(['%o%']);
+  });
 });
 
 it('should reject empty IN clauses', () => {

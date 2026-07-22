@@ -134,10 +134,98 @@ function isSimpleSqlIdentifier(field: string): boolean {
   return /^[a-zA-Z0-9_.]+$/.test(field);
 }
 
+declare const rawSqlKeyBrand: unique symbol;
+
+/**
+ * A WHERE-clause key produced by {@link raw}: SQL text the caller vouches for,
+ * exempt from the identifier validation `buildWhere` applies to every other key.
+ */
+export type RawSqlKey = string & { readonly [rawSqlKeyBrand]: true };
+
+/**
+ * Marks a condition key as caller-authored SQL text.
+ *
+ * A fixed, non-secret sentinel rather than a random per-process token. A random
+ * token has to travel inside the key, which means it reaches every place a key
+ * is echoed — error messages, logs, each adapter's `DatabaseError` context — and
+ * one disclosure would let a caller mint raw keys for the life of the process.
+ * A registry of minted expressions avoids that but is not referentially
+ * transparent: it would make `raw('revenue >')` in one query change what the
+ * plain key `'revenue >'` means in every other one.
+ *
+ * The NUL delimiters cannot appear in an identifier or in SQL a developer would
+ * write, so the marker never collides with a legitimate key.
+ */
+const RAW_KEY_PREFIX = '\u0000hv-sql-raw\u0000';
+
+/**
+ * Marks a WHERE-clause key as SQL expression text rather than an identifier.
+ *
+ * {@link buildWhere} validates every condition key as a plain identifier. Wrap a
+ * key in `raw()` to opt one condition out of that check:
+ *
+ * ```typescript
+ * buildWhere({
+ *   status: 'paid',                 // validated as an identifier
+ *   [raw('SUM(total) >')]: 100,     // caller-authored SQL, not validated
+ * });
+ * ```
+ *
+ * Never build the argument from end-user input. `raw()` is an assertion that
+ * the caller, not the request, authored this SQL.
+ *
+ * The returned key carries a marker, so it is a distinct string from the bare
+ * expression: minting `raw('revenue >')` never changes what the plain key
+ * `'revenue >'` means anywhere else.
+ *
+ * The marker is a fixed sentinel, not a secret. It stops an expression key being
+ * used by accident — the shape of the key no longer grants raw access, a call to
+ * `raw()` does — but a caller that controls a whole key string verbatim,
+ * including the NUL-delimited marker, can still reproduce it. Validate at your
+ * own trust boundary; do not rely on this as the only barrier against hostile
+ * input.
+ *
+ * Enforcement is at runtime: `WhereClause` keys are plain `string`, so a
+ * computed key widens and TypeScript will not reject an unmarked expression key
+ * at the call site.
+ *
+ * A trailing operator is recognised only if it is one of `=`, `!=`, `>`, `>=`,
+ * `<`, `<=`, `like`, `in`, `not in`. Any other trailing token is treated as part
+ * of the expression and `=` is appended, so `raw('name ILIKE')` silently emits
+ * `name ILIKE = $1`, which the database then rejects. Fold an unsupported
+ * operator into the expression instead: `raw('LOWER(name) like')`.
+ *
+ * @param expression - SQL field or expression text, optionally ending in a
+ *   supported operator (for example `SUM(total) >`)
+ * @returns A branded key for use in a {@link WhereClause}
+ * @throws If the expression is empty
+ */
+export function raw(expression: string): RawSqlKey {
+  // Unwrap first so raw(raw(x)) === raw(x) and a marker can never nest into the
+  // emitted SQL.
+  const trimmed = unwrapRawKey(expression).key.trim();
+  if (!trimmed) {
+    throw new Error('raw() requires a non-empty SQL expression');
+  }
+  return `${RAW_KEY_PREFIX}${trimmed}` as RawSqlKey;
+}
+
+/**
+ * Splits the raw marker off a condition key.
+ * @internal
+ */
+export function unwrapRawKey(fullKey: string): {
+  key: string;
+  isRaw: boolean;
+} {
+  return fullKey.startsWith(RAW_KEY_PREFIX)
+    ? { key: fullKey.slice(RAW_KEY_PREFIX.length), isRaw: true }
+    : { key: fullKey, isRaw: false };
+}
+
 export function parseConditionKey(fullKey: string): {
   field: string;
   operator: string;
-  explicitOperator: boolean;
 } {
   const trimmed = fullKey.trim();
   const lower = trimmed.toLowerCase();
@@ -148,12 +236,14 @@ export function parseConditionKey(fullKey: string): {
       return {
         field: trimmed.slice(0, -(operator.length + 1)).trim(),
         operator,
-        explicitOperator: true,
       };
     }
   }
 
-  return { field: trimmed, operator: '=', explicitOperator: false };
+  // Deliberately no `explicitOperator` flag: "key ends in an operator" was the
+  // condition that used to suppress identifier validation, and that was the
+  // vulnerability. Nothing should gate trust on the shape of the key again.
+  return { field: trimmed, operator: '=' };
 }
 
 /**
@@ -171,9 +261,13 @@ const buildCondition = (
   currIndex: { value: number },
   adapterType?: SqlAdapterType,
 ): { sql: string; values: any[] } => {
-  const { field, operator, explicitOperator } = parseConditionKey(fullKey);
-  if (!explicitOperator && !isSimpleSqlIdentifier(field)) {
-    throw new Error(`Invalid SQL identifier: ${field}`);
+  const { key, isRaw } = unwrapRawKey(fullKey);
+  const { field, operator } = parseConditionKey(key);
+  if (!isRaw && !isSimpleSqlIdentifier(field)) {
+    throw new Error(
+      `Invalid SQL identifier: ${field}. Condition keys must be plain ` +
+        'identifiers; wrap developer-authored SQL expressions in raw().',
+    );
   }
   const sqlOperator =
     VALID_OPERATORS[operator as keyof typeof VALID_OPERATORS] || '=';
@@ -222,11 +316,18 @@ const buildCondition = (
  *   - `'sqlite'` / `'postgres'` / `undefined`: Passes ISO strings directly
  *     (these adapters handle ISO timestamp strings natively).
  *
- * Keys with explicit operator suffixes are treated as SQL field/expression
- * text. Keep those keys developer-controlled; do not pass end-user input as a
- * condition key.
+ * Every condition key is validated as a plain SQL identifier, with or without
+ * an operator suffix. To use expression text as a key, wrap it in {@link raw}:
+ *
+ * ```typescript
+ * buildWhere({ [raw('LOWER(status) =')]: 'paid' });
+ * ```
+ *
+ * `raw()` is the only way to reach expression text, so mapping untrusted input
+ * into a condition key throws rather than emitting attacker-controlled SQL.
  *
  * @returns Object containing the SQL clause and array of values
+ * @throws If a key that is not wrapped in {@link raw} is not a plain identifier
  *
  * @example Basic Usage (Object format - AND-only):
  * ```typescript
