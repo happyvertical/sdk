@@ -175,9 +175,11 @@ never queue.
 ### Identifiers
 
 Table and column names are interpolated into SQL rather than bound as
-parameters, so every CRUD method validates them: an identifier must match
-`[a-zA-Z_][a-zA-Z0-9_]*`. Qualified names (`schema.table`), quoted names and
-anything containing whitespace are rejected. Values are always parameterized and
+parameters, so every CRUD method validates them: an identifier must be a string
+matching `[a-zA-Z_][a-zA-Z0-9_]*`. Qualified names (`schema.table`), quoted names
+and anything containing whitespace are rejected. A non-string — including an
+object with a `toString` — is rejected outright rather than coerced, so the value
+validated is always the value interpolated. Values are always parameterized and
 are unaffected.
 
 Note that `buildWhere` treats a condition key carrying an explicit operator

@@ -471,7 +471,10 @@ export async function getDatabase(
     );
 
     const sql = `UPDATE ${table} SET ${setClause} ${whereClause}`;
-    const values = [...Object.values(data), ...whereValues];
+    // Read values through the validated key list rather than a second
+    // enumeration of `data`, so a hostile Proxy cannot return values that
+    // disagree in order or membership with the `keys` driving `setClause`.
+    const values = [...keys.map((key) => data[key]), ...whereValues];
 
     try {
       await connection.run(sql, values);
@@ -589,6 +592,12 @@ export async function getDatabase(
     options?: UpsertOptions,
   ): Promise<QueryResult> => {
     validateTableName(table);
+    // Snapshot the record once. Every read below — the presence check, the
+    // column list, the value list, and the null-aware branch — must see the
+    // same keys and values, or a hostile object could present one shape to the
+    // checks and another to the interpolated `keys`. A plain-object copy cannot
+    // observe how many times it is read.
+    const record = { ...data };
     // Conflict columns reach two very different positions. In the plain
     // `ON CONFLICT(...)` path below they are quoted, so a name that needs
     // quotes — `Full Name`, `user-id`, whatever the source data called its
@@ -597,27 +606,27 @@ export async function getDatabase(
     // they become `buildWhere` keys instead, which requires a plain identifier
     // and rejects them there, as it did before this change.
     // Validate that all conflict columns are present in the data
-    const missingColumns = conflictColumns.filter((col) => !(col in data));
+    const missingColumns = conflictColumns.filter((col) => !(col in record));
 
     if (missingColumns.length > 0) {
       throw new DatabaseError('Conflict columns missing from data', {
         table,
         conflictColumns,
         missingColumns,
-        availableColumns: Object.keys(data),
+        availableColumns: Object.keys(record),
         hint: 'All columns specified in ON CONFLICT must be present in the data being inserted. Undefined values should be replaced with null or an appropriate default.',
       });
     }
 
     if (
       !options?.nullsDistinct &&
-      conflictColumns.some((col) => data[col] === null)
+      conflictColumns.some((col) => record[col] === null)
     ) {
-      return executeNullAwareDuckDBUpsert(table, conflictColumns, data);
+      return executeNullAwareDuckDBUpsert(table, conflictColumns, record);
     }
 
-    const keys = Object.keys(data);
-    const dataValues = Object.values(data);
+    const keys = Object.keys(record);
+    const dataValues = Object.values(record);
 
     // Build placeholders and values with proper type handling for DuckDB
     // DuckDB cannot infer types from empty strings or certain values, so we need explicit CAST

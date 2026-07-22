@@ -226,13 +226,24 @@ export function generateCreateIndexStatement(
 /**
  * Validates a table name to prevent SQL injection
  *
+ * The argument must be a primitive string. `RegExp.prototype.test` coerces its
+ * argument with `toString`, so an object whose `toString` returns a valid name
+ * on the call the validator makes and a different one on the call the caller's
+ * `${table}` interpolation makes would pass here and then reach SQL. Rejecting
+ * non-strings up front closes that gap: the value validated is the value
+ * interpolated, because a primitive string cannot observe how many times it is
+ * read.
+ *
  * @param tableName - Table name to validate
- * @throws Error if table name contains invalid characters
+ * @throws Error if the value is not a string or contains invalid characters
  */
 export function validateTableName(tableName: string): void {
-  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)) {
+  if (
+    typeof tableName !== 'string' ||
+    !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableName)
+  ) {
     throw new Error(
-      `Invalid table name: ${tableName}. Table names must start with a letter or underscore and contain only alphanumeric characters and underscores.`,
+      `Invalid table name: ${tableName}. Table names must be a string that starts with a letter or underscore and contains only alphanumeric characters and underscores.`,
     );
   }
 }
@@ -240,13 +251,21 @@ export function validateTableName(tableName: string): void {
 /**
  * Validates a column name to prevent SQL injection
  *
+ * Rejects non-strings for the same reason as {@link validateTableName}: a value
+ * whose `toString` differs between the validation read and the interpolation
+ * read would otherwise slip a different identifier into SQL than the one
+ * checked here.
+ *
  * @param columnName - Column name to validate
- * @throws Error if column name contains invalid characters
+ * @throws Error if the value is not a string or contains invalid characters
  */
 export function validateColumnName(columnName: string): void {
-  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(columnName)) {
+  if (
+    typeof columnName !== 'string' ||
+    !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(columnName)
+  ) {
     throw new Error(
-      `Invalid column name: ${columnName}. Column names must start with a letter or underscore and contain only alphanumeric characters and underscores.`,
+      `Invalid column name: ${columnName}. Column names must be a string that starts with a letter or underscore and contains only alphanumeric characters and underscores.`,
     );
   }
 }
@@ -327,9 +346,12 @@ export function escapeStringLiteral(value: string): string {
  * @throws Error if index name contains invalid characters
  */
 export function validateIndexName(indexName: string): void {
-  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(indexName)) {
+  if (
+    typeof indexName !== 'string' ||
+    !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(indexName)
+  ) {
     throw new Error(
-      `Invalid index name: ${indexName}. Index names must start with a letter or underscore and contain only alphanumeric characters and underscores.`,
+      `Invalid index name: ${indexName}. Index names must be a string that starts with a letter or underscore and contains only alphanumeric characters and underscores.`,
     );
   }
 }

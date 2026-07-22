@@ -762,7 +762,10 @@ async function insertRecordsWithCast(
  * @throws DatabaseError if table name is invalid
  */
 function validateTableName(table: string): void {
-  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(table)) {
+  // Reject non-strings before the regex: `test` coerces via `toString`, so an
+  // object with a stateful `toString` could pass here and interpolate a
+  // different name into SQL. See shared/alter-utils.ts:validateTableName.
+  if (typeof table !== 'string' || !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(table)) {
     throw new DatabaseError(`Invalid table name: ${table}`, { table });
   }
 }
@@ -1021,10 +1024,15 @@ export async function getDatabase(
         'json',
       );
 
+      // Read values through the validated key list rather than a second
+      // enumeration of `data`. `Object.values` on a hostile Proxy could return
+      // values in a different order (or for different keys) than the `keys`
+      // that drive `setClause`, binding each value to the wrong column.
       // Convert Date objects to ISO strings for DuckDB (issue #319)
-      const dataValues = Object.values(data).map((value) =>
-        value instanceof Date ? value.toISOString() : value,
-      );
+      const dataValues = keys.map((key) => {
+        const value = data[key];
+        return value instanceof Date ? value.toISOString() : value;
+      });
 
       const sql = `UPDATE "${table}" SET ${setClause} ${whereClause}`;
       const values = [...dataValues, ...whereValues];
@@ -1154,6 +1162,12 @@ export async function getDatabase(
         );
       }
 
+      // Snapshot the record once. Every read below — the presence check, the
+      // column list, the value list, and the null-aware branch — must see the
+      // same keys and values, or a hostile object could present one shape to
+      // the checks and another to the interpolated `keys`. A plain-object copy
+      // cannot observe how many times it is read.
+      const record = { ...data };
       // Conflict columns reach two very different positions. In the plain
       // `ON CONFLICT(...)` path below they are quoted, so a name that needs
       // quotes — `Full Name`, `user-id`, whatever the source JSON called its
@@ -1162,27 +1176,27 @@ export async function getDatabase(
       // they become `buildWhere` keys instead, which requires a plain
       // identifier and rejects them there, as it did before this change.
       // Validate that all conflict columns are present in the data
-      const missingColumns = conflictColumns.filter((col) => !(col in data));
+      const missingColumns = conflictColumns.filter((col) => !(col in record));
 
       if (missingColumns.length > 0) {
         throw new DatabaseError('Conflict columns missing from data', {
           table,
           conflictColumns,
           missingColumns,
-          availableColumns: Object.keys(data),
+          availableColumns: Object.keys(record),
           hint: 'All columns specified in ON CONFLICT must be present in the data being inserted. Undefined values should be replaced with null or an appropriate default.',
         });
       }
 
       if (
         !options?.nullsDistinct &&
-        conflictColumns.some((col) => data[col] === null)
+        conflictColumns.some((col) => record[col] === null)
       ) {
-        return executeNullAwareJSONUpsert(table, conflictColumns, data);
+        return executeNullAwareJSONUpsert(table, conflictColumns, record);
       }
 
-      const keys = Object.keys(data);
-      const dataValues = Object.values(data);
+      const keys = Object.keys(record);
+      const dataValues = Object.values(record);
 
       // Build placeholders - schema has NOT NULL DEFAULT '' to prevent ANY type
       const placeholders: string[] = [];
