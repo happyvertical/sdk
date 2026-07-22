@@ -12,6 +12,7 @@ import { createTransactionLock } from './shared/transaction-lock';
 import type {
   DatabaseInterface,
   JSONOptions,
+  JSONTableLoadError,
   QueryResult,
   SchemaInitializationOptions,
   TableInterface,
@@ -109,6 +110,22 @@ async function createJSONConnection(options: JSONOptions) {
   // Track tables created with inferred schemas (need DROP before syncSchema())
   const inferredSchemaTables = new Set<string>();
 
+  // Accumulate data-load failures so calling code can detect a table that was
+  // created but left empty because its data could not be inserted (issue #1139)
+  const tableLoadErrors: JSONTableLoadError[] = [];
+  const reportLoadError = (info: JSONTableLoadError): void => {
+    tableLoadErrors.push(info);
+    // A caller callback must never break loading of the remaining tables
+    try {
+      options.onTableLoadError?.(info);
+    } catch (callbackError) {
+      console.error(
+        '[json-adapter] onTableLoadError callback threw:',
+        callbackError,
+      );
+    }
+  };
+
   try {
     // Dynamic import to avoid bundling
     const duckdbModule = '@duckdb/node-api';
@@ -134,10 +151,17 @@ async function createJSONConnection(options: JSONOptions) {
         pendingJSONFiles,
         eagerLoadTables,
         inferredSchemaTables,
+        reportLoadError,
       );
     }
 
-    return { connection, pendingJSONFiles, inferredSchemaTables };
+    return {
+      connection,
+      pendingJSONFiles,
+      inferredSchemaTables,
+      tableLoadErrors,
+      reportLoadError,
+    };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     throw new DatabaseError(
@@ -169,11 +193,13 @@ async function createJSONConnection(options: JSONOptions) {
  * @param connection - DuckDB connection
  * @param tableName - Name of the table to load data into
  * @param filePath - Path to the JSON file
+ * @param reportLoadError - Sink invoked when parsed records fail to insert (issue #1139)
  */
 async function loadJSONData(
   connection: any,
   tableName: string,
   filePath: string,
+  reportLoadError?: (info: JSONTableLoadError) => void,
 ): Promise<void> {
   let records: unknown;
 
@@ -212,6 +238,9 @@ async function loadJSONData(
       `[json-adapter] Failed to load data for ${tableName}; the table will be empty:`,
       error,
     );
+    // Also surface it to calling code, which cannot otherwise tell an empty
+    // table apart from a table that failed to load (issue #1139)
+    reportLoadError?.({ table: tableName, filePath, error });
   }
 }
 
@@ -239,6 +268,7 @@ async function loadJSONData(
  * @param pendingJSONFiles - Map to store JSON files pending deferred loading
  * @param eagerLoadTables - Whether to eagerly create tables with inferred schemas
  * @param inferredSchemaTables - Set to track tables created with inferred schemas
+ * @param reportLoadError - Sink for per-table data-load failures (issue #1139)
  */
 async function loadJSONTables(
   connection: any,
@@ -247,6 +277,7 @@ async function loadJSONTables(
   pendingJSONFiles: Map<string, string> = new Map(),
   eagerLoadTables: boolean = true,
   inferredSchemaTables: Set<string> = new Set(),
+  reportLoadError?: (info: JSONTableLoadError) => void,
 ) {
   try {
     const files = await readdir(dataDir);
@@ -269,7 +300,7 @@ async function loadJSONTables(
         await createTableFromSchema(connection, tableName, schema);
 
         // Load JSON data into properly-typed table
-        await loadJSONData(connection, tableName, filePath);
+        await loadJSONData(connection, tableName, filePath, reportLoadError);
       } else {
         // Check for schema file first (preserves constraints like PRIMARY KEY, UNIQUE, etc.)
         const schemaPath = join(dataDir, `${tableName}.schema.sql`);
@@ -289,7 +320,12 @@ async function loadJSONTables(
           try {
             const schemaDDL = await readFile(schemaPath, 'utf-8');
             await connection.run(schemaDDL);
-            await loadJSONData(connection, tableName, filePath);
+            await loadJSONData(
+              connection,
+              tableName,
+              filePath,
+              reportLoadError,
+            );
           } catch (error) {
             console.warn(
               `[json-adapter] Could not load ${tableName} with schema file: ${error instanceof Error ? error.message : String(error)}`,
@@ -311,6 +347,13 @@ async function loadJSONTables(
                 `[json-adapter] Eagerly created ${tableName} with inferred schema (no UNIQUE constraints)`,
               );
             } catch (error) {
+              // Deliberately NOT reported via reportLoadError (issue #1139):
+              // CREATE TABLE AS SELECT is atomic, so any read_json_auto failure
+              // leaves NO table — which surfaces loudly as a missing-table error
+              // when queried, unlike the silent present-but-empty case that
+              // getTableLoadErrors()/onTableLoadError target. If this branch ever
+              // gains something like read_json(..., ignore_errors := true) that
+              // could leave a partially-created/empty table, revisit that scope.
               console.warn(
                 `[json-adapter] Could not eagerly load ${tableName}: ${error instanceof Error ? error.message : String(error)}`,
               );
@@ -812,8 +855,13 @@ export async function getDatabase(
 
   // Create a new connection promise
   const connectionPromise = (async () => {
-    const { connection, pendingJSONFiles, inferredSchemaTables } =
-      await createJSONConnection(options);
+    const {
+      connection,
+      pendingJSONFiles,
+      inferredSchemaTables,
+      tableLoadErrors,
+      reportLoadError,
+    } = await createJSONConnection(options);
     const writeStrategy = options.writeStrategy || 'immediate';
     const { url } = options;
 
@@ -1595,6 +1643,33 @@ export async function getDatabase(
     };
 
     /**
+     * Returns the table-load failures collected for this connection
+     *
+     * A JSON data file that parses but whose records cannot be inserted into a
+     * table created for it (a renamed/dropped column, a NOT NULL / PRIMARY KEY
+     * violation, or a file whose fields match no column) leaves that table
+     * present-but-empty and is logged to stderr; calling code otherwise cannot
+     * tell it apart from a legitimately empty one. This exposes those failures
+     * so a caller can detect and react to them (issue #1139).
+     *
+     * Scope: this covers loads into a table created from a provided schema, a
+     * `.schema.sql` file, or deferred `syncSchema()` / `execute()` DDL. A file
+     * with no schema at all is loaded by DuckDB's own inference; if that fails
+     * the table is simply not created, which already surfaces as an error when
+     * you query it, so it is not reported here.
+     *
+     * The list accumulates across the connection's lifetime — covering both
+     * connection-time and later deferred loads — and is append-only (a later
+     * successful reload of the same table does not remove an earlier failure).
+     * A fresh array is returned each call, so mutating it does not affect the
+     * adapter's state. Because connections are cached per URL, callers sharing a
+     * URL share this list.
+     *
+     * @returns Table-load failures, oldest first
+     */
+    const getTableLoadErrors = (): JSONTableLoadError[] => [...tableLoadErrors];
+
+    /**
      * Creates a table by inferring schema from a JSON file
      *
      * This utility is for users who want automatic schema inference from JSON.
@@ -1783,7 +1858,12 @@ export async function getDatabase(
           const pendingFile = pendingJSONFiles.get(tableName);
           if (pendingFile) {
             // Table was just created by DDL - now load the JSON data
-            await loadJSONData(connection, tableName, pendingFile);
+            await loadJSONData(
+              connection,
+              tableName,
+              pendingFile,
+              reportLoadError,
+            );
             pendingJSONFiles.delete(tableName);
           } else if (writeStrategy !== 'none') {
             // No pending data - export empty table (preserves SMRT system tables)
@@ -1947,7 +2027,12 @@ export async function getDatabase(
               // Table was just created by DDL - now load the JSON data.
               // loadJSONData logs an unloadable file rather than throwing, so a
               // single bad table does not abort the rest of this schema sync
-              await loadJSONData(connection, tableName, pendingFile);
+              await loadJSONData(
+                connection,
+                tableName,
+                pendingFile,
+                reportLoadError,
+              );
               pendingJSONFiles.delete(tableName);
             } else if (writeStrategy !== 'none') {
               // No pending data - export empty table (preserves SMRT system tables)
@@ -2214,12 +2299,14 @@ export async function getDatabase(
       // JSON-specific methods
       exportTable,
       inferSchemaFromJSON,
+      getTableLoadErrors,
     } as DatabaseInterface & {
       exportTable: (table: string) => Promise<void>;
       inferSchemaFromJSON: (
         tableName: string,
         jsonPath?: string,
       ) => Promise<void>;
+      getTableLoadErrors: () => JSONTableLoadError[];
     };
   })();
 
