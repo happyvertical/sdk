@@ -1086,24 +1086,28 @@ async function createNativeSqliteDatabase(
      * Called from the public entry points rather than from `executeUpsert`, so
      * the failure reaches the caller naming the bad identifier instead of being
      * flattened into the wrapper's generic "Failed to upsert record into table".
+     *
+     * Validates the keys of the already-serialized snapshot — the exact array
+     * the executors interpolate — not a fresh enumeration of the caller's
+     * `data`. Enumerating `data` again could disagree with the snapshot if it is
+     * a Proxy whose `ownKeys` trap returns different keys on successive reads.
      */
     const validateUpsertIdentifiers = (
       table: string,
       conflictColumns: string[],
-      data: Record<string, any>,
+      serializedData: Record<string, any>,
     ): void => {
       validateTableName(table);
-      validateColumnNames([...conflictColumns, ...Object.keys(data)]);
+      validateColumnNames([...conflictColumns, ...Object.keys(serializedData)]);
     };
 
     const executeUpsert = async (
       table: string,
       conflictColumns: string[],
-      data: Record<string, any>,
+      serializedData: Record<string, any>,
       upsertOptions: UpsertOptions | undefined,
       acquireTransaction: boolean,
     ): Promise<QueryResult> => {
-      const serializedData = serializeRecord(data);
       validateUpsertConflictColumns(table, conflictColumns, serializedData);
 
       if (
@@ -1159,12 +1163,17 @@ async function createNativeSqliteDatabase(
       data: Record<string, any>,
       upsertOptions?: UpsertOptions,
     ): Promise<QueryResult> => {
-      validateUpsertIdentifiers(table, conflictColumns, data);
+      // Snapshot the record and the conflict columns once and thread both
+      // through validation and SQL, so neither a hostile record nor a hostile
+      // conflict-column array can present different identifiers to each.
+      const serializedData = serializeRecord(data);
+      const conflictCols = [...conflictColumns];
+      validateUpsertIdentifiers(table, conflictCols, serializedData);
       try {
         return await executeUpsert(
           table,
-          conflictColumns,
-          data,
+          conflictCols,
+          serializedData,
           upsertOptions,
           true,
         );
@@ -1187,8 +1196,19 @@ async function createNativeSqliteDatabase(
       data: Record<string, any>,
       upsertOptions?: UpsertOptions,
     ): Promise<QueryResult> => {
-      validateUpsertIdentifiers(table, conflictColumns, data);
-      return executeUpsert(table, conflictColumns, data, upsertOptions, false);
+      // Snapshot the record and the conflict columns once and thread both
+      // through validation and SQL, so neither a hostile record nor a hostile
+      // conflict-column array can present different identifiers to each.
+      const serializedData = serializeRecord(data);
+      const conflictCols = [...conflictColumns];
+      validateUpsertIdentifiers(table, conflictCols, serializedData);
+      return executeUpsert(
+        table,
+        conflictCols,
+        serializedData,
+        upsertOptions,
+        false,
+      );
     };
 
     const getOrInsert = async (

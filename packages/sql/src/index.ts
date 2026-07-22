@@ -199,8 +199,11 @@ export function escapeSqlValue(value: any): string {
  * @throws Error if the column name contains invalid characters
  */
 export function validateColumnName(column: string): string {
+  // Reject non-strings before the regex. `test` coerces via `toString`, so an
+  // object whose `toString` differs between this read and a later interpolation
+  // read would pass validation and then reach SQL as a different identifier.
   // Only allow alphanumeric characters, underscores, and dots (for table.column notation)
-  if (!/^[a-zA-Z0-9_.]+$/.test(column)) {
+  if (typeof column !== 'string' || !/^[a-zA-Z0-9_.]+$/.test(column)) {
     throw new Error(`Invalid column name: ${column}`);
   }
   return column;

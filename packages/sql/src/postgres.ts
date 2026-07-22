@@ -1027,11 +1027,10 @@ async function createDatabase(
     executor: PostgresQueryExecutor,
     table: string,
     conflictColumns: string[],
-    data: Record<string, any>,
+    serializedData: Record<string, any>,
     options: UpsertOptions | undefined,
     acquireTransaction: boolean,
   ): Promise<BaseQueryResult> => {
-    const serializedData = serializeRecord(data);
     validateUpsertConflictColumns(table, conflictColumns, serializedData);
 
     if (
@@ -1352,13 +1351,22 @@ async function createDatabase(
       options?: UpsertOptions,
     ): Promise<BaseQueryResult> => {
       validateTableName(table);
-      validateColumnNames([...conflictColumns, ...Object.keys(data)]);
+      // Snapshot both identifier sources once and validate the snapshots — the
+      // exact arrays the executors interpolate — outside the try. `data` is
+      // serialized (a plain-object snapshot) and `conflictColumns` is copied,
+      // so neither a hostile record nor a hostile conflict-column array can
+      // present different identifiers to the check and the unquoted SQL, and an
+      // invalid identifier surfaces by name rather than as the generic wrapper
+      // below. Conflict columns are interpolated bare into `ON CONFLICT(...)`.
+      const serializedData = serializeRecord(data);
+      const conflictCols = [...conflictColumns];
+      validateColumnNames([...conflictCols, ...Object.keys(serializedData)]);
       try {
         return await executePostgresUpsert(
           executor,
           table,
-          conflictColumns,
-          data,
+          conflictCols,
+          serializedData,
           options,
           // A transaction-scoped upsert is already inside a transaction; opening
           // a second one on another pooled connection would deadlock against it.

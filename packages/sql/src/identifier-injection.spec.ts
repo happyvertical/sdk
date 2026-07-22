@@ -3,7 +3,13 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { getDatabase } from './index';
+import { getDatabase, validateColumnName } from './index';
+import {
+  validateColumnName as validateColumnNameStrict,
+  validateColumnNames,
+  validateIndexName,
+  validateTableName,
+} from './shared/alter-utils';
 import type { DatabaseInterface } from './shared/types';
 
 function postgresTestOptions(overrides: Record<string, unknown> = {}) {
@@ -238,6 +244,38 @@ describe('identifier validation', () => {
           );
           expect(leaked.rows).toHaveLength(0);
         }, 30000);
+
+        it('escapes a conflict column whose object methods are spoofed', async () => {
+          const db = await getDatabase(adapter.options());
+          const t = `inject_cc_${randomUUID().replace(/-/g, '')}`;
+          await db.query(`CREATE TABLE ${t} (id INTEGER PRIMARY KEY, v TEXT)`);
+          await db.insert(t, { id: 1, v: 'orig' });
+
+          // These adapters quote conflict columns rather than validating them,
+          // so the escape is the only barrier. A crafted object reads as `id`
+          // for the presence check and for `String()`, but its own
+          // `replaceAll`/`includes`/`length` would let it return unescaped SQL
+          // if `escapeQuotedIdentifier` trusted them. Coercing the conflict
+          // columns to primitives once — and hardening the escape — means those
+          // methods never run.
+          const spoofed = {
+            toString: () => 'id',
+            includes: () => false,
+            replaceAll: () => `id"); DROP TABLE ${t}; --`,
+            length: 2,
+          } as unknown as string;
+
+          await db.upsert(t, [spoofed], { id: 1, v: 'new' });
+
+          // The upsert targeted the real `id` column, the benign update applied,
+          // and the table the payload named still exists.
+          const rows = await db.query(`SELECT v FROM ${t} WHERE id = 1`);
+          expect(rows.rows[0]?.v).toBe('new');
+          const survived = await db.query(
+            `SELECT table_name FROM information_schema.tables WHERE table_name = '${t}'`,
+          );
+          expect(survived.rows).toHaveLength(1);
+        }, 30000);
       }
 
       it('still accepts ordinary identifiers', async () => {
@@ -260,6 +298,132 @@ describe('identifier validation', () => {
         // from this one and is tracked on its own.
         expect(await db.count(t, { id: 1 })).toBe(1);
       }, 30000);
+    });
+  }
+
+  // #1130 — the validators coerced their argument to a string with a regex
+  // `test`, and the upsert paths validated one enumeration of the record and
+  // then interpolated another. A value that answered differently on the second
+  // read — an object with a stateful `toString`, or a Proxy whose `ownKeys`
+  // trap returns different keys on each call — could pass validation and then
+  // reach SQL. The validators now reject non-strings outright, and each upsert
+  // enumerates the caller's object exactly once, so the validated identifiers
+  // are the interpolated identifiers.
+  for (const adapter of adapters) {
+    describe(`${adapter.name} (stateful identifiers, #1130)`, () => {
+      it('rejects a table name whose toString changes between reads', async () => {
+        const db = await getDatabase(adapter.options());
+        const t = `twoface_${randomUUID().replace(/-/g, '')}`;
+        await db.query(`CREATE TABLE ${t} (id INTEGER PRIMARY KEY, v TEXT)`);
+
+        // Valid the first time it is coerced, hostile the second.
+        let reads = 0;
+        const twoFaced = {
+          toString: () => (reads++ === 0 ? t : `${t} WHERE 1=1 --`),
+        } as unknown as string;
+
+        await expect(db.get(twoFaced, { id: 1 })).rejects.toThrow(
+          /[Ii]nvalid table name/,
+        );
+        await expect(
+          db.upsert(twoFaced, ['id'], { id: 1, v: 'x' }),
+        ).rejects.toThrow(/[Ii]nvalid table name/);
+      }, 30000);
+
+      it('enumerates an upsert record exactly once', async () => {
+        const db = await getDatabase(adapter.options());
+        const t = `proxy_${randomUUID().replace(/-/g, '')}`;
+        await db.query(`CREATE TABLE ${t} (id INTEGER PRIMARY KEY, v TEXT)`);
+
+        // A column name that, taken from a second enumeration and interpolated,
+        // would run its own statement. It is exposed only on the *second*
+        // `ownKeys` call, so a single enumeration never sees it.
+        const hostile = `v); DROP TABLE ${t}; --`;
+        const target: Record<string, any> = { id: 1, v: 'x', [hostile]: 'z' };
+        let ownKeysCalls = 0;
+        const proxy = new Proxy(target, {
+          ownKeys() {
+            ownKeysCalls++;
+            return ownKeysCalls === 1 ? ['id', 'v'] : Reflect.ownKeys(target);
+          },
+        });
+
+        await db.upsert(t, ['id'], proxy as Record<string, any>);
+
+        // The one enumeration governs both validation and SQL, so the hostile
+        // branch is never reached. Assert it directly rather than relying on a
+        // later statement happening to fail: the record enumerated once, the
+        // benign upsert applied, and the table the payload targeted survives.
+        expect(ownKeysCalls).toBe(1);
+        const rows = await db.query(`SELECT id, v FROM ${t} WHERE id = 1`);
+        expect(rows.rows).toHaveLength(1);
+        expect(rows.rows[0]?.v).toBe('x');
+        expect(
+          (await db.query(`SELECT COUNT(*) AS c FROM ${t}`)).rows[0]?.c,
+        ).toBeDefined();
+      }, 30000);
+
+      it('binds update values to the validated columns, not a second enumeration', async () => {
+        const db = await getDatabase(adapter.options());
+        const t = `updbind_${randomUUID().replace(/-/g, '')}`;
+        await db.query(
+          `CREATE TABLE ${t} (id INTEGER PRIMARY KEY, a TEXT, b TEXT)`,
+        );
+        await db.insert(t, { id: 1, a: 'A0', b: 'B0' });
+
+        // The column list is taken from the first enumeration; a second one
+        // that reorders the keys would, if values came from it, bind each value
+        // to the wrong column. Values must be read through the validated keys.
+        const target: Record<string, any> = { a: 'AAA', b: 'BBB' };
+        let enumerations = 0;
+        const proxy = new Proxy(target, {
+          ownKeys() {
+            enumerations++;
+            return enumerations === 1 ? ['a', 'b'] : ['b', 'a'];
+          },
+        });
+
+        await db.update(t, { id: 1 }, proxy as Record<string, any>);
+
+        const row = await db.get(t, { id: 1 });
+        expect(row?.a).toBe('AAA');
+        expect(row?.b).toBe('BBB');
+      }, 30000);
+
+      // DuckDB and JSON quote conflict columns, so a divergent conflict-column
+      // array is escaped rather than able to inject; only the bare-interpolation
+      // adapters need this.
+      if (!adapter.quotesUpsertColumns) {
+        it('snapshots conflict columns so a divergent array cannot inject', async () => {
+          const db = await getDatabase(adapter.options());
+          const t = `cc_${randomUUID().replace(/-/g, '')}`;
+          await db.query(`CREATE TABLE ${t} (id INTEGER PRIMARY KEY, v TEXT)`);
+          await db.insert(t, { id: 1, v: 'orig' });
+
+          // Benign the first time it is read (the snapshot), hostile if read
+          // again to build the bare `ON CONFLICT(...)` list.
+          let idReads = 0;
+          const conflictProxy = new Proxy(['id'], {
+            get(inner, prop, receiver) {
+              if (prop === '0') {
+                idReads++;
+                return idReads === 1 ? 'id' : `id); DROP TABLE ${t}; --`;
+              }
+              return Reflect.get(inner, prop, receiver);
+            },
+          });
+
+          await db.upsert(t, conflictProxy as unknown as string[], {
+            id: 1,
+            v: 'new',
+          });
+
+          // The snapshot read governs the SQL, so the benign upsert applied and
+          // the table the payload targeted still exists.
+          const rows = await db.query(`SELECT v FROM ${t} WHERE id = 1`);
+          expect(rows.rows[0]?.v).toBe('new');
+        }, 30000);
+      }
     });
   }
 
@@ -445,5 +609,80 @@ describe('identifier validation', () => {
         }),
       ).rejects.toThrow(/[Ii]nvalid table name/);
     }, 30000);
+  });
+});
+
+/**
+ * #1130 — every identifier validator gated on `regex.test(value)`, which coerces
+ * its argument to a string. That let five non-string shapes through, two of
+ * which are the injection vector: a boxed `String` and an object with a stateful
+ * `toString` both coerce to a valid identifier for the check and can present a
+ * different one to the interpolation that follows. The validators now reject any
+ * non-string up front, so the value checked is the value used.
+ */
+describe('validators reject non-string identifiers (#1130)', () => {
+  const stateful = () => {
+    let reads = 0;
+    return {
+      toString: () => (reads++ === 0 ? 'users' : 'users; DROP TABLE t; --'),
+    };
+  };
+
+  // Each of these coerces to a valid identifier, so the pre-#1130 regex accepted
+  // it. `null`/`undefined` become the perfectly legal identifiers "null" and
+  // "undefined"; the boxed String, the array and the stateful object coerce to
+  // "users".
+  const nonStrings: Array<[string, unknown]> = [
+    ['null', null],
+    ['undefined', undefined],
+    ['a number', 123],
+    ['a boxed String', new String('users')],
+    ['a single-element array', ['users']],
+    ['a stateful toString object', stateful()],
+  ];
+
+  it.each(nonStrings)('validateTableName rejects %s', (_label, value) => {
+    expect(() => validateTableName(value as string)).toThrow(
+      /[Ii]nvalid table name/,
+    );
+  });
+
+  it.each(
+    nonStrings,
+  )('validateColumnName (alter-utils) rejects %s', (_label, value) => {
+    expect(() => validateColumnNameStrict(value as string)).toThrow(
+      /[Ii]nvalid column name/,
+    );
+  });
+
+  it.each(nonStrings)('validateIndexName rejects %s', (_label, value) => {
+    expect(() => validateIndexName(value as string)).toThrow(
+      /[Ii]nvalid index name/,
+    );
+  });
+
+  it.each(
+    nonStrings,
+  )('validateColumnNames rejects %s inside the list', (_label, value) => {
+    expect(() => validateColumnNames(['ok', value as string])).toThrow(
+      /[Ii]nvalid column name/,
+    );
+  });
+
+  it.each(
+    nonStrings,
+  )('the public validateColumnName rejects %s', (_label, value) => {
+    expect(() => validateColumnName(value as string)).toThrow(
+      /[Ii]nvalid column name/,
+    );
+  });
+
+  it('still accepts ordinary string identifiers', () => {
+    expect(() => validateTableName('users')).not.toThrow();
+    expect(() => validateColumnNameStrict('full_name')).not.toThrow();
+    expect(() => validateIndexName('idx_users_email')).not.toThrow();
+    expect(() => validateColumnNames(['a', 'b_2', '_c'])).not.toThrow();
+    // The public one is dotted-notation aware and returns its argument.
+    expect(validateColumnName('table.column')).toBe('table.column');
   });
 });

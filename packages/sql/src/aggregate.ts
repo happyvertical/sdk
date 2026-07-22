@@ -66,7 +66,10 @@ const VALID_BUCKET_UNITS = new Set<AggregateTimeBucketUnit>([
 ]);
 
 function validateSqlIdentifier(identifier: string): string {
-  if (!/^[a-zA-Z0-9_.]+$/.test(identifier)) {
+  // Reject non-strings before the regex. `test` coerces via `toString`, so a
+  // value whose `toString` differs across reads could pass here and interpolate
+  // a different identifier into the aggregate SQL than the one validated.
+  if (typeof identifier !== 'string' || !/^[a-zA-Z0-9_.]+$/.test(identifier)) {
     throw new Error(`Invalid SQL identifier: ${identifier}`);
   }
   return identifier;
