@@ -1,5 +1,19 @@
 # @happyvertical/sql
 
+## 0.84.0
+
+### Minor Changes
+
+- 867a83c: **Breaking:** the identifier validators now reject non-string arguments instead of coercing them. `validateTableName`, `validateColumnName`, `validateIndexName` and the aggregate identifier check gated on `regex.test(value)`, which calls `toString` on its argument. Five non-string shapes therefore passed validation by coercing to a legal identifier — `null` → `"null"`, `undefined` → `"undefined"`, a boxed `new String('users')`, a single-element array `['users']`, and any object with a conforming `toString`. Passing one of those to an SDK method that names a table or column now throws `Invalid table name` / `Invalid column name` rather than silently coercing. TypeScript callers are unaffected — the parameters were always typed `string`.
+
+  This closes a validate-then-interpolate gap: because validation coerced the value and the SQL was built from a _second_ coercion of the same value, an object whose `toString` returned a benign name on the first read and a hostile one on the second passed the check and then reached SQL. It was a near-miss rather than a live exploit — it needs a crafted object identity that `JSON.parse` cannot produce, so request-shaped input could not reach it — but validation and interpolation must agree on the identifier, which is the whole point of the identifier work in #1114.
+
+  The `upsert` paths on all five adapters had the same shape for column lists: they validated one enumeration of `Object.keys(data)` and then re-enumerated the record when building SQL, so a `Proxy` with an `ownKeys` trap could present different keys to each. Each adapter now serializes/snapshots the record once and threads that single enumeration through both validation and SQL. On PostgreSQL and both SQLite adapters the same divergence existed for `conflictColumns` — validated through a copy, then interpolated bare into `ON CONFLICT(...)` from the live array — so those are now snapshotted once and threaded through too. The DuckDB and JSON `update` paths, which read column names and values from two separate enumerations, now read values through the validated key list so a hostile object cannot bind values to the wrong columns.
+
+### Patch Changes
+
+- @happyvertical/utils@0.84.0
+
 ## 0.83.0
 
 ### Minor Changes
