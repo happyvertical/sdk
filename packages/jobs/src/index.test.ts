@@ -382,6 +382,126 @@ describe('@happyvertical/jobs', () => {
 
         expect(events).toContain('job.completed');
       });
+
+      it('should ignore update keys that resolve only through the prototype chain', async () => {
+        const job = await store.enqueue({
+          queue: 'original',
+          payload: {
+            objectType: 'Test',
+            objectId: null,
+            method: 't',
+            args: {},
+          },
+        });
+
+        // constructor / __proto__ / toString are absent from the fieldMap
+        // literal's own keys but resolve to truthy inherited members. A falsy
+        // guard would interpolate e.g. `function Object() {…} = ?` into the SET
+        // clause; the own-property guard treats them as unknown fields and
+        // drops them. Parsed from JSON so the collisions are real own keys.
+        const updated = await store.update(
+          job.id,
+          JSON.parse(
+            '{"constructor": 1, "__proto__": 1, "toString": 1}',
+          ) as Partial<Job>,
+        );
+
+        expect(updated.id).toBe(job.id);
+        expect(updated.queue).toBe('original');
+        expect(updated.status).toBe('pending');
+      });
+
+      it('should not let a polluted Object.prototype reach the update SET clause', async () => {
+        const job = await store.enqueue({
+          queue: 'original',
+          payload: {
+            objectType: 'Test',
+            objectId: null,
+            method: 't',
+            args: {},
+          },
+        });
+
+        // Simulate prototype pollution elsewhere in the process: an inherited
+        // key whose value is a crafted SQL fragment. A bracket lookup reads it
+        // through the chain, so a falsy guard would splice it straight into the
+        // SET clause and rewrite an unrelated column. Kept non-enumerable so
+        // the pollution cannot leak into unrelated iteration mid-test.
+        Object.defineProperty(Object.prototype, 'evilCol', {
+          value: "queue = 'pwned', status",
+          configurable: true,
+          enumerable: false,
+          writable: true,
+        });
+        try {
+          await store.update(job.id, {
+            evilCol: 'x',
+          } as unknown as Partial<Job>);
+
+          const reread = await store.get(job.id);
+          expect(reread?.queue).toBe('original');
+        } finally {
+          delete (Object.prototype as { evilCol?: unknown }).evilCol;
+        }
+      });
+
+      it('should keep valid update fields while dropping inherited keys', async () => {
+        const job = await store.enqueue({
+          queue: 'original',
+          payload: {
+            objectType: 'Test',
+            objectId: null,
+            method: 't',
+            args: {},
+          },
+        });
+
+        // A real field alongside an inherited-only key exercises the executed
+        // SQL path (not the empty-SET early return): the valid column is
+        // written and the inherited key is dropped rather than injected.
+        const updated = await store.update(
+          job.id,
+          JSON.parse(
+            '{"status": "completed", "constructor": 1}',
+          ) as Partial<Job>,
+        );
+
+        expect(updated.status).toBe('completed');
+        expect(updated.queue).toBe('original');
+      });
+
+      it('should not emit a status event for a status from the prototype chain', async () => {
+        const job = await store.enqueue({
+          payload: {
+            objectType: 'Test',
+            objectId: null,
+            method: 't',
+            args: {},
+          },
+        });
+
+        const events: string[] = [];
+        store.subscribe((event) => {
+          events.push(event.type);
+        });
+
+        // The event branch reads `updates.status`, which traverses the
+        // prototype chain. A polluted Object.prototype.status must not make an
+        // unrelated update (no own `status` key) look like a completion.
+        Object.defineProperty(Object.prototype, 'status', {
+          value: 'completed',
+          configurable: true,
+          enumerable: false,
+          writable: true,
+        });
+        try {
+          await store.update(job.id, { priority: 10 });
+        } finally {
+          delete (Object.prototype as { status?: unknown }).status;
+        }
+
+        expect(events).not.toContain('job.completed');
+      });
     });
 
     describe('list', () => {
