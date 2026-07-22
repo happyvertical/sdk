@@ -1,5 +1,50 @@
 # @happyvertical/sql
 
+## 0.83.0
+
+### Minor Changes
+
+- f3a5a10: Make JSON-adapter data-file load failures observable to calling code. When a `.json` data file parses but its records cannot be inserted into the table created for it — a renamed or dropped column, a `NOT NULL` / `PRIMARY KEY` violation, or a file whose fields match no column — the adapter still keeps that table (present but empty) and loads every other table, but the failure was previously only visible as a `console.error` on stderr, so calling code could not tell an empty table apart from one that failed to load. The JSON adapter now exposes a `getTableLoadErrors()` method returning the `{ table, filePath, error }` failures (accumulated across the connection's lifetime, covering both connection-time and deferred `syncSchema()` / `execute()` loads), and accepts an `onTableLoadError` callback in `JSONOptions` for real-time notification. A new `JSONTableLoadError` type is exported.
+
+  This is additive and JSON-specific — the shared `DatabaseInterface` is unchanged. The JSON adapter is the only one that loads a data file into a constrained table (where a bad file yields the silent present-but-empty case); the DuckDB adapter exposes JSON files as views, and the others have no connection-time file load. Because connections are cached per URL, `getTableLoadErrors()` reflects the shared connection's failures; the `onTableLoadError` callback is registered only for the `getDatabase()` call that first opens a URL.
+
+### Patch Changes
+
+- @happyvertical/utils@0.83.0
+
+## 0.82.0
+
+### Minor Changes
+
+- e806b9f: **Breaking:** condition keys are now validated as plain SQL identifiers whether or not they carry an operator suffix. Previously a key ending in a recognised operator (`>`, `like`, `in`, …) suppressed identifier validation for the whole key, so everything before the operator was emitted as raw SQL — `{ "name = '' OR 1=1 --  =": x }` was accepted and injected. Keys _without_ an operator suffix were already validated, which made the escape hatch easy to cross by accident: the same condition object was safe or unsafe depending on whether the caller appended an operator.
+
+  Expression keys now require the new `raw()` marker, which states that the SQL is caller-authored:
+
+  ```typescript
+  import { buildWhere, raw } from "@happyvertical/sql";
+
+  buildWhere({ "LOWER(status) =": "paid" }); // now throws
+  buildWhere({ [raw("LOWER(status) =")]: "paid" }); // WHERE LOWER(status) = $1
+  ```
+
+  `raw()` prefixes the expression with a fixed, non-secret marker that `buildWhere` strips before emitting SQL. The point is worth stating plainly: this stops an expression key being used _by accident_ — the shape of the key no longer grants raw access, only a call to `raw()` does — but it is not a sanitizer. A caller that maps an entire attacker-controlled string into a key, marker included, can still reach raw SQL, so continue to validate at your own trust boundary. The marker holds no secret, so keys stay readable in errors, logs and `DatabaseError` context, and wrapping one expression never changes what an unmarked key means elsewhere.
+
+  This also removes an inconsistency inside the package: `buildAggregate` already validated where-keys regardless of operator suffix and rejected the expression shape `buildWhere` accepted. Both builders now behave the same, `buildAggregate` composes its `HAVING` expressions through `raw()`, and a `raw()` key in `having` is emitted verbatim instead of being expanded as a select alias.
+
+  **Scope of the break.** This is not limited to callers of `buildWhere` and `buildAggregate`. Every adapter routes the caller's `where` through `buildWhere`, so `get`, `list`, `update`, `delete`, `count` and `getOrInsert` on the PostgreSQL, SQLite, sqlite-native, DuckDB and JSON adapters are affected too — `db.list('users', { 'LOWER(email) =': x })` now throws. (`upsert` matches on `conflictColumns`, not a `where`, so it is unaffected.)
+
+  To migrate, wrap developer-authored expression keys in `raw()`. Plain identifiers, with or without operator suffixes (`'price >'`, `'orders.total <='`), are unaffected. Note that enforcement is at runtime: `WhereClause` keys are plain `string`, so TypeScript will not flag an unmarked expression key at the call site.
+
+### Patch Changes
+
+- 0a09b0e: Restore CI coverage for the PostgreSQL pgvector adapter and fix three vector specs that bound the table name as a parameter.
+
+  `postgres-vector.spec.ts` early-returns every test when the `vector` extension is unavailable, so it reported green without asserting anything. The service-container Postgres job ran `postgres:18-alpine` (no pgvector), so the adapter had no real CI coverage; it now runs a digest-pinned `pgvector/pgvector:pg17` image so the suite executes.
+
+  With the suite running, three `upsertVector` verification queries failed: they built `SELECT ... FROM "${testTable}"` through the `single` tagged template, which parameterizes the table name (`FROM "$1"`) so Postgres rejects it. They now build the SQL as a plain string via `db.query(...)`, matching the passing queries in the same file.
+
+  - @happyvertical/utils@0.82.0
+
 ## 0.81.0
 
 ### Minor Changes

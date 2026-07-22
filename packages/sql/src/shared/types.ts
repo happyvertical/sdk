@@ -138,6 +138,28 @@ export interface DuckDBOptions extends DatabaseOptions {
 }
 
 /**
+ * A JSON data file that parsed but whose records could not be loaded into the
+ * table — e.g. a renamed or dropped column, a NOT NULL / PRIMARY KEY violation,
+ * or a file whose fields match no column on the table.
+ *
+ * The JSON adapter keeps the table (empty) and continues loading every other
+ * table, logging the failure to stderr. This record makes the same failure
+ * observable to calling code so a table that silently stays empty can be
+ * detected. See issue #1139.
+ */
+export interface JSONTableLoadError {
+  /** Name of the table whose data file failed to load */
+  table: string;
+  /** Path to the JSON data file that could not be loaded */
+  filePath: string;
+  /**
+   * The underlying failure. Typically a `DatabaseError` whose `context`
+   * carries the engine-level cause (e.g. the DuckDB constraint message).
+   */
+  error: unknown;
+}
+
+/**
  * JSON database adapter options (DuckDB-backed)
  *
  * Uses DuckDB's in-memory engine to query JSON files directly.
@@ -264,6 +286,35 @@ export interface JSONOptions {
    * });
    */
   clearCache?: boolean;
+
+  /**
+   * Called when a JSON data file parses but its records cannot be loaded into a
+   * table that was created for it — from a provided schema, a `.schema.sql`
+   * file, or deferred `syncSchema()` / `execute()` DDL — leaving that table
+   * present but empty (renamed/dropped column, NOT NULL / PRIMARY KEY violation,
+   * or a file whose fields match no column). Every other table still loads.
+   *
+   * This targets the *silent* failure: a present-but-empty table a query cannot
+   * tell apart from a legitimately empty one. A file with no schema at all is
+   * loaded by DuckDB's own inference; if that fails the table is simply not
+   * created, which already surfaces as an error when you query it, so it is not
+   * reported here.
+   *
+   * Fires for both connection-time and deferred (`syncSchema()` / `execute()`)
+   * loads. Without it, such a failure is only visible as a `console.error` on
+   * stderr. The same failures are also retrievable after the fact via the
+   * adapter's `getTableLoadErrors()` method.
+   *
+   * Registered once, on the `getDatabase()` call that creates the connection.
+   * The JSON adapter caches connections per URL, so a later `getDatabase()` for
+   * the same directory returns the existing connection and does *not* re-wire a
+   * different `onTableLoadError` — read `getTableLoadErrors()` on the returned
+   * adapter instead, which reflects the shared connection's failures.
+   *
+   * A callback that throws is caught and ignored so it cannot break loading of
+   * the remaining tables. See issue #1139.
+   */
+  onTableLoadError?: (info: JSONTableLoadError) => void;
 }
 
 /**

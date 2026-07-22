@@ -1,5 +1,19 @@
 # @happyvertical/social
 
+## 0.83.0
+
+### Patch Changes
+
+- @happyvertical/logger@0.83.0
+- @happyvertical/utils@0.83.0
+
+## 0.82.0
+
+### Patch Changes
+
+- @happyvertical/logger@0.82.0
+- @happyvertical/utils@0.82.0
+
 ## 0.81.0
 
 ### Patch Changes
