@@ -1,5 +1,11 @@
 # @happyvertical/analytics
 
+## 0.82.0
+
+### Patch Changes
+
+- @happyvertical/utils@0.82.0
+
 ## 0.81.0
 
 ### Patch Changes
