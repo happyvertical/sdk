@@ -1,5 +1,0 @@
----
-'@happyvertical/sql': patch
----
-
-Fix `count()` throwing on the LibSQL SQLite adapter whenever it is called without a `where` clause. (The native SQLite path, used when a `capabilities` option is set, was unaffected.) The no-condition branch built its query through the `pluck` tagged template, which parameterizes every interpolation, so the table name was bound as a value and the adapter emitted `SELECT COUNT(*) FROM ?` — SQLite rejects a parameter in identifier position, surfacing as `DatabaseError: Failed to count records in table`. `db.count(table)` and `db.count(table, {})` had therefore never worked on that adapter; the branch that takes conditions built its SQL correctly, and the no-condition shape was only ever exercised against the JSON adapter, which builds it correctly too, so nothing covered the adapter that got it wrong. The query is now built the same way the conditional branch builds it, which is safe because `validateTableName()` already runs on the table name first. Adds coverage for the no-`where` call shape across every adapter.

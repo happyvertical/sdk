@@ -1,5 +1,13 @@
 # @happyvertical/messages
 
+## 0.81.0
+
+### Patch Changes
+
+- @happyvertical/email@0.81.0
+- @happyvertical/logger@0.81.0
+- @happyvertical/utils@0.81.0
+
 ## 0.80.6
 
 ### Patch Changes
