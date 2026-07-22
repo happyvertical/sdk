@@ -309,12 +309,19 @@ export function validateColumnNames(columnNames: string[]): void {
  * @throws Error if the identifier is empty or contains a NUL byte
  */
 export function escapeQuotedIdentifier(identifier: string): string {
-  if (identifier.length === 0 || identifier.includes('\0')) {
+  // Coerce to a primitive string first. The escape's safety rests on
+  // `replaceAll`/`includes` being the real `String` methods, but a crafted
+  // object could supply its own that return unescaped SQL while its `toString`
+  // reads as a benign name elsewhere. Coercing once runs its `toString` here
+  // and pins an immutable primitive for the length check and the escape, so the
+  // value escaped is the value returned.
+  const value = String(identifier);
+  if (value.length === 0 || value.includes('\0')) {
     throw new Error(
-      `Invalid column name: ${JSON.stringify(identifier)}. Column names must be non-empty and must not contain a NUL byte.`,
+      `Invalid column name: ${JSON.stringify(value)}. Column names must be non-empty and must not contain a NUL byte.`,
     );
   }
-  return identifier.replaceAll('"', '""');
+  return value.replaceAll('"', '""');
 }
 
 /**
@@ -331,12 +338,16 @@ export function escapeQuotedIdentifier(identifier: string): string {
  * @throws Error if the value contains a NUL byte
  */
 export function escapeStringLiteral(value: string): string {
-  if (value.includes('\0')) {
+  // Coerce to a primitive string first, for the same reason as
+  // {@link escapeQuotedIdentifier}: the escape must run on an immutable
+  // primitive, not on an object that could supply its own `replaceAll`.
+  const text = String(value);
+  if (text.includes('\0')) {
     throw new Error(
-      `Invalid SQL string literal: ${JSON.stringify(value)}. Values must not contain a NUL byte.`,
+      `Invalid SQL string literal: ${JSON.stringify(text)}. Values must not contain a NUL byte.`,
     );
   }
-  return value.replaceAll("'", "''");
+  return text.replaceAll("'", "''");
 }
 
 /**

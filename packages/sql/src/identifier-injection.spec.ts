@@ -244,6 +244,38 @@ describe('identifier validation', () => {
           );
           expect(leaked.rows).toHaveLength(0);
         }, 30000);
+
+        it('escapes a conflict column whose object methods are spoofed', async () => {
+          const db = await getDatabase(adapter.options());
+          const t = `inject_cc_${randomUUID().replace(/-/g, '')}`;
+          await db.query(`CREATE TABLE ${t} (id INTEGER PRIMARY KEY, v TEXT)`);
+          await db.insert(t, { id: 1, v: 'orig' });
+
+          // These adapters quote conflict columns rather than validating them,
+          // so the escape is the only barrier. A crafted object reads as `id`
+          // for the presence check and for `String()`, but its own
+          // `replaceAll`/`includes`/`length` would let it return unescaped SQL
+          // if `escapeQuotedIdentifier` trusted them. Coercing the conflict
+          // columns to primitives once — and hardening the escape — means those
+          // methods never run.
+          const spoofed = {
+            toString: () => 'id',
+            includes: () => false,
+            replaceAll: () => `id"); DROP TABLE ${t}; --`,
+            length: 2,
+          } as unknown as string;
+
+          await db.upsert(t, [spoofed], { id: 1, v: 'new' });
+
+          // The upsert targeted the real `id` column, the benign update applied,
+          // and the table the payload named still exists.
+          const rows = await db.query(`SELECT v FROM ${t} WHERE id = 1`);
+          expect(rows.rows[0]?.v).toBe('new');
+          const survived = await db.query(
+            `SELECT table_name FROM information_schema.tables WHERE table_name = '${t}'`,
+          );
+          expect(survived.rows).toHaveLength(1);
+        }, 30000);
       }
 
       it('still accepts ordinary identifiers', async () => {

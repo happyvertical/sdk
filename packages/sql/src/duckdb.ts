@@ -598,6 +598,13 @@ export async function getDatabase(
     // checks and another to the interpolated `keys`. A plain-object copy cannot
     // observe how many times it is read.
     const record = { ...data };
+    // Coerce the conflict columns to primitive strings once, for the same
+    // reason as `record`. These are not validated (they are quoted, so names
+    // that need quotes keep working), only escaped — and `escapeQuotedIdentifier`
+    // must run on a primitive. Coercing here also pins the value the presence
+    // check below sees to the value the `ON CONFLICT` list escapes, so a crafted
+    // object cannot read as `id` for the check and as unescaped SQL for the SQL.
+    const conflictCols = conflictColumns.map((col) => String(col));
     // Conflict columns reach two very different positions. In the plain
     // `ON CONFLICT(...)` path below they are quoted, so a name that needs
     // quotes — `Full Name`, `user-id`, whatever the source data called its
@@ -606,12 +613,12 @@ export async function getDatabase(
     // they become `buildWhere` keys instead, which requires a plain identifier
     // and rejects them there, as it did before this change.
     // Validate that all conflict columns are present in the data
-    const missingColumns = conflictColumns.filter((col) => !(col in record));
+    const missingColumns = conflictCols.filter((col) => !(col in record));
 
     if (missingColumns.length > 0) {
       throw new DatabaseError('Conflict columns missing from data', {
         table,
-        conflictColumns,
+        conflictColumns: conflictCols,
         missingColumns,
         availableColumns: Object.keys(record),
         hint: 'All columns specified in ON CONFLICT must be present in the data being inserted. Undefined values should be replaced with null or an appropriate default.',
@@ -620,9 +627,9 @@ export async function getDatabase(
 
     if (
       !options?.nullsDistinct &&
-      conflictColumns.some((col) => record[col] === null)
+      conflictCols.some((col) => record[col] === null)
     ) {
-      return executeNullAwareDuckDBUpsert(table, conflictColumns, record);
+      return executeNullAwareDuckDBUpsert(table, conflictCols, record);
     }
 
     const keys = Object.keys(record);
@@ -714,7 +721,7 @@ export async function getDatabase(
 
     // Quote ALL column names to match DuckDB's schema generation
     // SchemaGenerator always quotes column names, so UPSERT must match
-    const conflict = conflictColumns
+    const conflict = conflictCols
       .map((col) => `"${escapeQuotedIdentifier(col)}"`)
       .join(', ');
     const quotedKeys = keys
@@ -745,7 +752,7 @@ export async function getDatabase(
         table,
         sql,
         values,
-        conflictColumns,
+        conflictColumns: conflictCols,
         originalError: formatDbError(e),
       });
     }
