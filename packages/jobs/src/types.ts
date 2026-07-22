@@ -151,9 +151,12 @@ export interface JobFilter {
   limit?: number;
   /** Offset for pagination */
   offset?: number;
-  /** Order by field */
+  /** Order by field; an unrecognized field falls back to `createdAt` */
   orderBy?: 'createdAt' | 'runAt' | 'priority' | 'attempts';
-  /** Order direction */
+  /**
+   * Order direction, case-insensitive and trimmed; omitted or blank means
+   * `desc`. Any other value throws.
+   */
   orderDir?: 'asc' | 'desc';
 }
 

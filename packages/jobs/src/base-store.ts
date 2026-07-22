@@ -20,6 +20,11 @@ import type {
 const TABLE_NAME_PATTERN = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 
 /**
+ * Directions accepted in an ORDER BY clause
+ */
+const VALID_DIRECTIONS = new Set(['ASC', 'DESC']);
+
+/**
  * Validate table name to prevent SQL injection
  * @throws Error if table name contains invalid characters
  */
@@ -193,6 +198,11 @@ export abstract class BaseJobStore implements JobStore {
 
   /**
    * Build ORDER BY clause for filters
+   *
+   * Both halves are interpolated rather than bound, and `JobFilter`'s literal
+   * types are erased at runtime, so both are resolved against an allowlist.
+   *
+   * @throws Error if the order direction is neither blank nor `asc`/`desc`
    */
   protected buildOrderBy(filter: JobFilter): string {
     const field = filter.orderBy ?? 'createdAt';
@@ -205,7 +215,35 @@ export abstract class BaseJobStore implements JobStore {
       attempts: 'attempts',
     };
 
-    return `ORDER BY ${fieldMap[field] ?? 'created_at'} ${dir.toUpperCase()}`;
+    // `hasOwn`, not `fieldMap[field] ?? …`: a plain object literal inherits
+    // from Object.prototype, so 'constructor' and friends resolve to a truthy
+    // inherited value and never reach the fallback. The `typeof` conjunct
+    // keeps the check and the read from coercing a non-string key twice — a
+    // stateful `toString` could otherwise return a different key to each.
+    const column =
+      typeof field === 'string' && Object.hasOwn(fieldMap, field)
+        ? fieldMap[field]
+        : 'created_at';
+
+    if (typeof dir !== 'string') {
+      // Report the type, not the value: interpolating a symbol or a
+      // null-prototype object would itself throw a TypeError.
+      throw new Error(`Invalid job order direction: ${typeof dir}`);
+    }
+
+    // A blank direction — `?orderDir=` from an unfilled field — means
+    // unspecified, not hostile; the `??` above only catches null/undefined.
+    const trimmedDir = dir.trim();
+    const normalizedDir = trimmedDir === '' ? 'DESC' : trimmedDir.toUpperCase();
+    if (!VALID_DIRECTIONS.has(normalizedDir)) {
+      // Quoted and bounded: the raw value reaches logs, where an unescaped
+      // newline would let a caller forge a log line.
+      throw new Error(
+        `Invalid job order direction: ${JSON.stringify(trimmedDir.slice(0, 32))}`,
+      );
+    }
+
+    return `ORDER BY ${column} ${normalizedDir}`;
   }
 
   /**

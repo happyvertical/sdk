@@ -1,0 +1,7 @@
+---
+'@happyvertical/jobs': patch
+---
+
+Resolve both halves of the `ORDER BY` clause in `BaseJobStore.buildOrderBy` against an allowlist, so only allowlisted text is interpolated. `JobFilter`'s literal types are erased at runtime, so a JavaScript caller — or TypeScript casting parsed JSON to `JobFilter`, the usual shape for a "list jobs" endpoint — controls both. `orderDir` was uppercased and concatenated straight in: `'desc, (SELECT name FROM sqlite_master)'` produced `ORDER BY created_at DESC, (SELECT NAME FROM SQLITE_MASTER)` and `list()` executed it. `orderBy` was looked up via `fieldMap[field] ?? 'created_at'` on a plain object literal, which inherits from `Object.prototype`, so `'constructor'` resolved to a truthy inherited value, the fallback never fired, and a stringified native function reached the statement — a broken query alone, but an injection sink under prototype pollution. The direction is now checked against `ASC`/`DESC` and the field lookup uses `Object.hasOwn`; `list()` throws `Invalid job order direction` for anything else. Both fixes are in the shared base method, so they cover the PostgreSQL and SQLite adapters.
+
+Behavior change: a blank or whitespace-only `orderDir` is now treated as unspecified and sorts `DESC`, matching an omitted `orderDir`. It previously emitted no direction token, which both engines default to `ASC`, so blank and omitted disagreed. Callers passing `?orderDir=` from an unfilled form field will see rows in the opposite order from 0.80.6.

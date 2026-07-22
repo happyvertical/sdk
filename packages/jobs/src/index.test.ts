@@ -420,6 +420,98 @@ describe('@happyvertical/jobs', () => {
         expect(page2).toHaveLength(1);
         expect(page2[0].id).not.toBe(page1[0].id);
       });
+
+      // Queue 'c' is enqueued last but sorts lowest, so ordering by priority
+      // is distinguishable from ordering by created_at — otherwise a mapping
+      // that collapsed to the created_at fallback would still look correct.
+      // The other two jobs tie at the default priority, and ORDER BY on a
+      // tied key is not defined across adapters, so nothing asserts on them.
+      const enqueueLowest = () =>
+        store.enqueue({
+          queue: 'c',
+          payload: { objectType: 'Z', objectId: null, method: 'z', args: {} },
+          priority: 'low',
+        });
+
+      it('should actually reverse order between asc and desc', async () => {
+        await enqueueLowest();
+
+        const asc = await store.list({ orderBy: 'priority', orderDir: 'asc' });
+        const desc = await store.list({
+          orderBy: 'priority',
+          orderDir: 'desc',
+        });
+
+        expect(asc).toHaveLength(3);
+        expect(asc[0].queue).toBe('c');
+        expect(desc.at(-1)?.queue).toBe('c');
+      });
+
+      it('should treat a blank order direction as unspecified', async () => {
+        await enqueueLowest();
+
+        // Blank sorts the same as omitted. It previously emitted no direction
+        // token, which both engines default to ASC, so blank and omitted
+        // disagreed; they now agree on DESC.
+        const omitted = await store.list({ orderBy: 'priority' });
+        expect(omitted.at(-1)?.queue).toBe('c');
+
+        for (const orderDir of ['', '   ', '\t\n']) {
+          const blank = await store.list({
+            orderBy: 'priority',
+            orderDir: orderDir as never,
+          });
+          expect(blank.at(-1)?.queue).toBe('c');
+        }
+
+        // Padding around a real direction is tolerated.
+        const padded = await store.list({
+          orderBy: 'priority',
+          orderDir: ' asc ' as never,
+        });
+        expect(padded[0].queue).toBe('c');
+      });
+
+      it('should reject an order direction outside the allowlist', async () => {
+        // orderDir is typed 'asc' | 'desc', but the type is erased at runtime:
+        // a JavaScript caller or a `parsedJson as JobFilter` cast can supply
+        // anything, and the direction is interpolated rather than bound.
+        // The first three execute as valid SQL against the unfixed code.
+        const hostile = [
+          'asc, 1=1',
+          'desc; DROP TABLE _jobs--',
+          'desc, (SELECT name FROM sqlite_master)',
+          'DESCENDING',
+        ];
+
+        for (const orderDir of hostile) {
+          await expect(
+            store.list({ orderDir: orderDir as never }),
+          ).rejects.toThrow('Invalid job order direction');
+        }
+
+        // Non-string input is reported as a bad direction rather than
+        // surfacing a TypeError from coercing it.
+        for (const orderDir of [1, Symbol('evil'), Object.create(null)]) {
+          await expect(
+            store.list({ orderDir: orderDir as never }),
+          ).rejects.toThrow('Invalid job order direction');
+        }
+
+        // The table the injected payload targeted is still intact.
+        await expect(store.list({})).resolves.toHaveLength(2);
+      });
+
+      it('should not resolve the order field through the prototype chain', async () => {
+        // orderBy is looked up in a plain object literal, so inherited keys
+        // like 'constructor' resolve to a truthy value and would bypass a
+        // `?? 'created_at'` fallback.
+        for (const orderBy of ['constructor', '__proto__', 'toString']) {
+          await expect(
+            store.list({ orderBy: orderBy as never }),
+          ).resolves.toHaveLength(2);
+        }
+      });
     });
 
     describe('cancel', () => {
