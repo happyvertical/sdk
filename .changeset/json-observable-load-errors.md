@@ -1,0 +1,7 @@
+---
+'@happyvertical/sql': minor
+---
+
+Make JSON-adapter data-file load failures observable to calling code. When a `.json` data file parses but its records cannot be inserted into the table created for it — a renamed or dropped column, a `NOT NULL` / `PRIMARY KEY` violation, or a file whose fields match no column — the adapter still keeps that table (present but empty) and loads every other table, but the failure was previously only visible as a `console.error` on stderr, so calling code could not tell an empty table apart from one that failed to load. The JSON adapter now exposes a `getTableLoadErrors()` method returning the `{ table, filePath, error }` failures (accumulated across the connection's lifetime, covering both connection-time and deferred `syncSchema()` / `execute()` loads), and accepts an `onTableLoadError` callback in `JSONOptions` for real-time notification. A new `JSONTableLoadError` type is exported.
+
+This is additive and JSON-specific — the shared `DatabaseInterface` is unchanged. The JSON adapter is the only one that loads a data file into a constrained table (where a bad file yields the silent present-but-empty case); the DuckDB adapter exposes JSON files as views, and the others have no connection-time file load. Because connections are cached per URL, `getTableLoadErrors()` reflects the shared connection's failures; the `onTableLoadError` callback is registered only for the `getDatabase()` call that first opens a URL.
