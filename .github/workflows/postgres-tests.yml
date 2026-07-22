@@ -50,7 +50,7 @@ jobs:
     timeout-minutes: 30
     services:
       postgres:
-        image: postgres:18-alpine@sha256:52098013b4b64a746626437d38afc03cabff6cdeb4d3d92e2342aa95f0ce56ea
+        image: pgvector/pgvector:pg17@sha256:d2ef61f42ef767baa5a1475393303cc235bcd92febd9d7014eddb48b41f3bad0
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres

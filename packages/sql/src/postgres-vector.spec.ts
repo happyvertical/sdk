@@ -188,13 +188,13 @@ describe('postgres vector capabilities (pgvector)', () => {
       );
 
       // Verify vector was stored
-      const result = await db.single`
-        SELECT id, embedding::text FROM "${testTable}" WHERE id = 'row-1'
-      `;
-      expect(result).toBeTruthy();
-      expect(result?.embedding).toContain('0.1');
-      expect(result?.embedding).toContain('0.2');
-      expect(result?.embedding).toContain('0.3');
+      const { rows } = await db.query(
+        `SELECT id, embedding::text FROM "${testTable}" WHERE id = 'row-1'`,
+      );
+      expect(rows[0]).toBeTruthy();
+      expect(rows[0]?.embedding).toContain('0.1');
+      expect(rows[0]?.embedding).toContain('0.2');
+      expect(rows[0]?.embedding).toContain('0.3');
     });
 
     it('should update an existing vector', async () => {
@@ -216,12 +216,12 @@ describe('postgres vector capabilities (pgvector)', () => {
         [0.4, 0.5, 0.6],
       );
 
-      const result = await db.single`
-        SELECT embedding::text FROM "${testTable}" WHERE id = 'row-1'
-      `;
-      expect(result?.embedding).toContain('0.4');
-      expect(result?.embedding).toContain('0.5');
-      expect(result?.embedding).toContain('0.6');
+      const { rows } = await db.query(
+        `SELECT embedding::text FROM "${testTable}" WHERE id = 'row-1'`,
+      );
+      expect(rows[0]?.embedding).toContain('0.4');
+      expect(rows[0]?.embedding).toContain('0.5');
+      expect(rows[0]?.embedding).toContain('0.6');
     });
 
     it('should match null values in vector update where clauses', async () => {
@@ -241,12 +241,12 @@ describe('postgres vector capabilities (pgvector)', () => {
         [0.7, 0.8, 0.9],
       );
 
-      const result = await db.single`
-        SELECT embedding::text FROM "${testTable}" WHERE id = 'row-null-category'
-      `;
-      expect(result?.embedding).toContain('0.7');
-      expect(result?.embedding).toContain('0.8');
-      expect(result?.embedding).toContain('0.9');
+      const { rows } = await db.query(
+        `SELECT embedding::text FROM "${testTable}" WHERE id = 'row-null-category'`,
+      );
+      expect(rows[0]?.embedding).toContain('0.7');
+      expect(rows[0]?.embedding).toContain('0.8');
+      expect(rows[0]?.embedding).toContain('0.9');
     });
   });
 
