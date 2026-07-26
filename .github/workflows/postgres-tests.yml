@@ -8,6 +8,11 @@ on:
         required: false
         type: string
         default: shared
+      checkout_ref:
+        description: 'Trusted caller-selected revision to validate'
+        required: false
+        type: string
+        default: ''
   workflow_dispatch:
     inputs:
       backend:
@@ -22,6 +27,9 @@ on:
 permissions:
   contents: read
   packages: read
+
+env:
+  CHECKOUT_REF: ${{ inputs.checkout_ref || github.sha }}
 
 jobs:
   shared:
@@ -44,6 +52,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
       - name: Setup environment
         uses: ./.github/actions/setup-environment
         with:
@@ -74,6 +84,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
       - name: Setup environment
         uses: ./.github/actions/setup-environment
         with:

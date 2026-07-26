@@ -1,7 +1,9 @@
 name: Pull Request Validation
 
 on:
-  pull_request:
+  # GitHub loads this workflow from the trusted base branch. That keeps runner
+  # selection out of a contributor-controlled merge commit.
+  pull_request_target:
     branches: [main, dependency-updates]
     types: [opened, synchronize, reopened]
   merge_group:
@@ -13,13 +15,13 @@ concurrency:
       github.event.merge_group.head_sha ||
       github.ref
     }}-${{
-      (github.event_name == 'pull_request' &&
+      (github.event_name == 'pull_request_target' &&
       github.event.action == 'edited' &&
       github.event.changes.title != null &&
       github.event.changes.base == null) &&
       'title' ||
       (github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' &&
+      (github.event_name == 'pull_request_target' &&
       !contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
       !(github.event.action == 'edited' && github.event.changes.base != null))) &&
       'lifecycle' ||
@@ -32,9 +34,17 @@ permissions:
   pull-requests: read
   packages: read
 
-# Every self-hosted job in this workflow must keep the same-repository guard.
-# GitHub evaluates a job-level `if` before allocating its runner, so fork PRs
-# are skipped before they can reach the brokered pool.
+env:
+  # Reusable workflows receive the reviewed head only for repository-owned
+  # branches. Fork PR jobs are skipped before self-hosted allocation.
+  CHECKOUT_REF: >-
+    ${{ github.event_name == 'pull_request_target' &&
+    github.event.pull_request.head.repo.full_name == github.repository &&
+    github.event.pull_request.head.sha || github.sha }}
+
+# Every self-hosted job in this trusted-base wrapper keeps the same-repository
+# guard. GitHub evaluates a job-level `if` before allocating its runner, so
+# fork PRs are skipped before they can reach the brokered pool.
 jobs:
 
   changeset-check:
@@ -42,7 +52,7 @@ jobs:
     runs-on: arc-happyvertical
     if: >-
       github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request' &&
+      (github.event_name == 'pull_request_target' &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
       github.event.pull_request.head.repo.full_name == github.repository)
 
@@ -50,10 +60,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
+          ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 0
 
       - name: Check for skip conditions
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request_target'
         id: skip-check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -68,7 +79,7 @@ jobs:
           fi
 
       - name: Setup Environment
-        if: github.event_name == 'pull_request' && steps.skip-check.outputs.skip != 'true'
+        if: github.event_name == 'pull_request_target' && steps.skip-check.outputs.skip != 'true'
         uses: ./.github/actions/setup-environment
         with:
           node-version: '24.18.0'
@@ -76,7 +87,7 @@ jobs:
           github-packages-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check for changeset
-        if: github.event_name == 'pull_request' && steps.skip-check.outputs.skip != 'true'
+        if: github.event_name == 'pull_request_target' && steps.skip-check.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_BRANCH: ${{ github.event.pull_request.head.ref }}
@@ -168,7 +179,7 @@ jobs:
     name: Validate Conventional Commits
     if: >-
       github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request' &&
+      (github.event_name == 'pull_request_target' &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: arc-happyvertical
@@ -181,6 +192,7 @@ jobs:
       - name: Checkout PR branch
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
+          ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 0
 
       - name: Validate commit messages
@@ -193,13 +205,13 @@ jobs:
       # because that composite action installs apt packages and the
       # complete workspace dependency graph on the self-hosted runner.
       - name: Setup Node.js for PR title validation
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request_target'
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: '24.18.0'
 
       - name: Install commitlint dependencies
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request_target'
         run: |
           npm install --prefix "$RUNNER_TEMP/commitlint" --no-save \
             --ignore-scripts --no-audit --no-fund \
@@ -207,7 +219,7 @@ jobs:
             @commitlint/config-conventional@20.5.0
 
       - name: Validate PR title for squash merge
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request_target'
         # PR title is user-controlled metadata. Two non-obvious risks
         # the previous form had:
         #   (1) Interpolating the title directly into a shell script
@@ -240,7 +252,7 @@ jobs:
               --config commitlint.config.mjs
 
       - name: Determine version bump
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request_target'
         id: version
         run: |
           base_ref="${{ github.event.pull_request.base.ref }}"
@@ -266,7 +278,7 @@ jobs:
           fi
 
       - name: Comment on PR
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request_target'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
@@ -332,7 +344,7 @@ jobs:
     name: Validate Workflow Files
     if: >-
       github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request' &&
+      (github.event_name == 'pull_request_target' &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: arc-happyvertical
@@ -340,6 +352,8 @@ jobs:
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
 
       - name: Get changed workflow files
         id: changed-files
@@ -384,7 +398,7 @@ jobs:
     name: Check for stale @have/ references
     if: >-
       github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request' &&
+      (github.event_name == 'pull_request_target' &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: arc-happyvertical
@@ -392,6 +406,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
 
       - name: Get changed markdown files
         id: changed-md
@@ -422,7 +438,7 @@ jobs:
     name: Check documentation coverage
     if: >-
       github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request' &&
+      (github.event_name == 'pull_request_target' &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: arc-happyvertical
@@ -431,6 +447,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
+          ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 0
 
       - name: Get changed files
@@ -482,12 +499,16 @@ jobs:
     name: Validate Changes
     if: >-
       github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request' &&
+      (github.event_name == 'pull_request_target' &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
       github.event.pull_request.head.repo.full_name == github.repository)
     uses: ./.github/workflows/test.yml
     with:
       mode: ${{ github.event_name == 'merge_group' && 'full' || (vars.CI_MERGE_QUEUE_ENABLED == 'true' && 'affected' || 'full') }}
+      checkout_ref: >-
+        ${{ github.event_name == 'pull_request_target' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        github.event.pull_request.head.sha || github.sha }}
     permissions:
       contents: read
       packages: read
@@ -496,7 +517,7 @@ jobs:
     name: Validate Documentation Build
     if: >-
       github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request' &&
+      (github.event_name == 'pull_request_target' &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: arc-happyvertical
@@ -504,10 +525,12 @@ jobs:
     steps:
       - name: Checkout PR branch
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
 
       - name: Get changed files
         id: changed-files
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request_target'
         uses: tj-actions/changed-files@48d8f15b2aaa3d255ca5af3eba4870f807ce6b3c # v45
         with:
           files: |
@@ -544,7 +567,7 @@ jobs:
     name: Secret Scan
     if: >-
       github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request' &&
+      (github.event_name == 'pull_request_target' &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: arc-happyvertical
@@ -552,6 +575,7 @@ jobs:
       - name: Checkout PR history
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
+          ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 0
       - name: Install Gitleaks CLI
         env:
@@ -578,7 +602,7 @@ jobs:
     name: Detect PostgreSQL Test Scope
     if: >-
       github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request' &&
+      (github.event_name == 'pull_request_target' &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
       github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: arc-happyvertical
@@ -587,9 +611,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ env.CHECKOUT_REF }}
       - name: Detect PostgreSQL-sensitive changes
         id: filter
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request_target'
         uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3
         with:
           filters: |
@@ -614,10 +640,15 @@ jobs:
     needs: postgres-scope
     if: >-
       github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request' &&
+      (github.event_name == 'pull_request_target' &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
       github.event.pull_request.head.repo.full_name == github.repository)
     uses: ./.github/workflows/postgres-tests.yml
+    with:
+      checkout_ref: >-
+        ${{ github.event_name == 'pull_request_target' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        github.event.pull_request.head.sha || github.sha }}
     permissions:
       contents: read
       packages: read
@@ -626,10 +657,15 @@ jobs:
     name: Publish Dry Run
     if: >-
       github.event_name == 'merge_group' ||
-      (github.event_name == 'pull_request' &&
+      (github.event_name == 'pull_request_target' &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
       github.event.pull_request.head.repo.full_name == github.repository)
     uses: ./.github/workflows/publish-dry-run.yml
+    with:
+      checkout_ref: >-
+        ${{ github.event_name == 'pull_request_target' &&
+        github.event.pull_request.head.repo.full_name == github.repository &&
+        github.event.pull_request.head.sha || github.sha }}
     permissions:
       contents: read
       packages: read

@@ -1,36 +1,44 @@
 # SDK continuous integration
 
-SDK separates hosted metadata/security checks from Node workspace validation.
-No validation family is removed: pull requests run affected closures after the
-rollout flag is enabled, while merge groups run the exhaustive build,
-typecheck, lint, test, optional-adapter, documentation, package, and PostgreSQL
-suites.
+SDK routes portable CI for trusted repository work through the provider-neutral
+`arc-happyvertical` broker alias. No validation family is removed: pull
+requests run affected closures after the rollout flag is enabled, while merge
+groups run the exhaustive build, typecheck, lint, test, optional-adapter,
+documentation, package, and PostgreSQL suites.
 
 ## Runner selection
 
-- `ubuntu-latest` runs commit/workflow policy, naming, secret scanning, scope
-  detection, and result-only aggregation. These jobs do not install
-  the workspace.
-- `arc-happyvertical-node` runs Node-only builds, tests, documentation, and
-  package validation. It provides Node 24.18.0, pnpm 11.13.0, native build
-  prerequisites, PostgreSQL client tools, and an 8 GiB memory limit. It does
-  not provide Docker or deployment tooling.
-- `ci-linux-x64` is the shared general Linux pool for Docker service
-  containers and as the rollout fallback. Jobs may run on ARC or a warm PXE
-  host; job state is cleaned between JIT identities while safe caches may be
-  retained.
+- `arc-happyvertical` is the sole workflow-facing selector for portable,
+  repository-owned Linux CI. Runner-pool policy chooses its backing capacity;
+  workflows must not name a provider-specific backing label.
 - Matrix-native jobs such as `build-json-native.yml` retain their hosted OS
   runners.
+- The public `shared-direct-publish.yml` reusable workflow remains hosted so
+  arbitrary external callers are never routed into HappyVertical capacity.
 
-Set `CI_NODE_RUNNER_ENABLED=true` only after the node-runner smoke workflow
-passes. Clearing the variable immediately routes ordinary Node jobs back to
-`ci-linux-x64`. Each runner keeps the workspace and pnpm store isolated from
-concurrent jobs; safe caches may survive sequential jobs on a warm PXE host.
+Each brokered runner keeps the workspace and pnpm store isolated from
+concurrent jobs; safe caches may survive sequential jobs on a warm host.
 
-The runner workspace and `PNPM_STORE_DIR` must share a filesystem. The smoke
-workflow verifies matching device IDs and confirms that installed dependency
-files have hardlink counts above one. The persistent store is never restored
-through GitHub Actions; hosted runners may use an Actions-backed pnpm store.
+The runner workspace and the pnpm store derived by `pnpm store path` must share
+a filesystem. The smoke workflow verifies matching device IDs, confirms that
+installed dependency files have hardlink counts above one, and validates the
+digest-pinned PostgreSQL/pgvector service contract. The persistent store is
+never restored through GitHub Actions.
+
+## Trusted-base public pull requests
+
+The brokered PR, lifecycle, and Dependabot workflows use
+`pull_request_target`, so GitHub loads runner selection from the trusted base
+branch rather than contributor-controlled merge YAML. Only a same-repository
+PR explicitly checks out `github.event.pull_request.head.sha`; that SHA is
+passed into reusable validation workflows as `checkout_ref`. Merge groups use
+their synthetic `github.sha` normally.
+
+An external fork never gets an `arc-happyvertical` job: each job is guarded by
+the same-repository test before GitHub allocates a runner, and fork code is
+never checked out in this path. Broker-side admission independently denies fork
+events before reservation. This boundary is intentional; do not replace it
+with a job-level guard in an ordinary `pull_request` workflow.
 
 ## Turbo cache behavior
 
@@ -60,10 +68,10 @@ coverage rules to a package `vitest.config.ts`, not to its test command.
 - `true`: pull requests use Turbo's affected package/dependency closure. The
   merge group runs the complete release-confidence suite and publish dry run.
 
-`Required CI` is always present. It rejects failed, cancelled, or unexpectedly
-skipped jobs, using a different explicit job set for `pull_request` and
-`merge_group`. Pull-request runs cancel superseded commits; merge-group runs do
-not cancel each other.
+`Required CI` is always present for trusted PR and merge-group work. It rejects
+failed, cancelled, or unexpectedly skipped jobs using an explicit job set.
+`pull_request_target` runs cancel superseded commits; merge-group runs do not
+cancel each other.
 
 Observe `Required CI` alongside the existing required checks for ten successful
 representative pull requests before changing repository rules. The
@@ -89,8 +97,8 @@ databases older than six hours.
 
 The shared credential must be a least-privilege CI role able to create/drop
 only disposable CI databases and unable to connect to production databases.
-The manual `service-container` workflow option is the rollback path and stays
-on `ci-linux-x64`, where Docker is available.
+The manual `service-container` workflow option is the rollback path and runs
+through the broker, whose selected capacity must support service containers.
 
 Set `CI_POSTGRES_ENABLED=true` only after a shared-backend manual run succeeds.
 Clear it to remove the lane from the required set without weakening the normal
@@ -140,8 +148,7 @@ at least 30% fewer self-hosted runner-minutes per pull request.
 
 Rollback order:
 
-1. Clear `CI_MERGE_QUEUE_ENABLED`, `CI_POSTGRES_ENABLED`, and
-   `CI_NODE_RUNNER_ENABLED` as needed.
+1. Clear `CI_MERGE_QUEUE_ENABLED` and `CI_POSTGRES_ENABLED` as needed.
 2. Restore the previous required-context list and disable the merge queue.
 3. Use the PostgreSQL service-container fallback if the shared service is the
    failing phase.
