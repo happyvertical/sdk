@@ -48,13 +48,13 @@
     "@happyvertical/pdf": "catalog:",
     "@happyvertical/spider": "catalog:",
     "@happyvertical/utils": "workspace:*",
-    "uuid": "^13.0.0"
+    "uuid": "^14.0.1"
   },
   "devDependencies": {
-    "@types/node": "25.0.10",
-    "typescript": "^5.9.3",
-    "vite": "7.3.2",
-    "vitest": "^4.1.5"
+    "@types/node": "25.9.5",
+    "typescript": "5.9.3",
+    "vite": "8.1.4",
+    "vitest": "4.1.5"
   },
   "keywords": [
     "documents",

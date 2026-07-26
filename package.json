@@ -54,32 +54,32 @@
     "deps:all": "npm run deps:graph && npm run deps:modules"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.4.12",
-    "@changesets/cli": "2.31.0",
-    "@commitlint/cli": "^20.5.0",
-    "@commitlint/config-conventional": "^20.5.0",
-    "@jpisnice/shadcn-ui-mcp-server": "1.1.4",
+    "@biomejs/biome": "2.5.3",
+    "@changesets/cli": "2.31.1",
+    "@commitlint/cli": "^21.2.1",
+    "@commitlint/config-conventional": "^21.2.0",
+    "@jpisnice/shadcn-ui-mcp-server": "2.0.0",
     "chokidar": "^5.0.0",
-    "concurrently": "9.2.1",
-    "dependency-cruiser": "^17.3.10",
+    "concurrently": "10.0.4",
+    "dependency-cruiser": "^18.1.0",
     "express": "^5.2.1",
-    "lefthook": "^2.1.6",
+    "lefthook": "2.1.6",
     "livereload": "^0.10.3",
     "patch-package": "^8.0.1",
-    "turbo": "2.9.6",
-    "typedoc": "^0.28.19",
-    "typedoc-plugin-markdown": "^4.11.0",
-    "typescript": "^5.9.3",
-    "vite": "7.3.2",
-    "vite-plugin-dts": "4.5.4",
-    "vitest": "4.1.5"
+    "turbo": "2.10.5",
+    "typedoc": "^0.28.20",
+    "typedoc-plugin-markdown": "^4.12.0",
+    "typescript": "5.9.3",
+    "vite": "8.1.4",
+    "vite-plugin-dts": "5.0.3",
+    "vitest": "4.1.10"
   },
   "resolutions": {
-    "@types/node": "24.12.2"
+    "@types/node": "24.13.3"
   },
   "pnpm": {
     "overrides": {
-      "rollup": "4.60.2",
+      "rollup": "4.62.2",
       "@happyvertical/ai": "workspace:*",
       "@happyvertical/cache": "workspace:*",
       "@happyvertical/files": "workspace:*",
@@ -91,5 +91,5 @@
     "node": ">=24",
     "pnpm": ">=9"
   },
-  "packageManager": "pnpm@9.15.9"
+  "packageManager": "pnpm@11.11.0"
 }

@@ -45,13 +45,13 @@
   },
   "dependencies": {
     "@happyvertical/utils": "workspace:*",
-    "googleapis": "^170.1.0"
+    "googleapis": "^173.0.0"
   },
   "devDependencies": {
-    "@types/node": "25.0.10",
-    "typescript": "^5.9.3",
-    "vite": "7.3.2",
-    "vite-plugin-dts": "4.5.4",
-    "vitest": "^4.1.5"
+    "@types/node": "25.9.5",
+    "typescript": "5.9.3",
+    "vite": "8.1.4",
+    "vite-plugin-dts": "5.0.3",
+    "vitest": "4.1.5"
   }
 }
