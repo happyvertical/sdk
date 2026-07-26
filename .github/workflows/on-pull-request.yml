@@ -36,7 +36,7 @@ jobs:
 
   changeset-check:
     name: Check for Changeset
-    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'ci-linux-x64' }}
+    runs-on: ubuntu-latest
     if: >-
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request' &&
@@ -489,7 +489,7 @@ jobs:
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request' &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
-    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'ci-linux-x64' }}
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout PR branch
