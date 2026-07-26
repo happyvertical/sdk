@@ -1,4 +1,4 @@
-name: Node Runner Smoke Test
+name: Brokered Runner Smoke Test
 
 on:
   workflow_dispatch:
@@ -9,31 +9,42 @@ permissions:
 
 jobs:
   smoke:
-    name: Node Runner Shadow Validation
+    name: Brokered Runner Validation
     runs-on: arc-happyvertical
     timeout-minutes: 15
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17@sha256:d2ef61f42ef767baa5a1475393303cc235bcd92febd9d7014eddb48b41f3bad0
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Verify runner contract
-        run: |
-          set -euo pipefail
-          test "$(node --version)" = 'v24.18.0'
-          test "$(pnpm --version)" = '11.13.0'
-          command -v psql
-          test ! -S /var/run/docker.sock
-          test -r "$CI_POSTGRES_BASE_URL_FILE"
 
       - name: Setup environment
         uses: ./.github/actions/setup-environment
         with:
           github-packages-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Verify node-local hardlink layout
+      - name: Verify brokered runner contract
         run: |
           set -euo pipefail
-          test "$(stat -c '%d' "$PNPM_STORE_DIR")" = "$(stat -c '%d' "$GITHUB_WORKSPACE")"
+          test "$(node --version)" = 'v24.18.0'
+          test "$(pnpm --version)" = '11.13.0'
+          command -v psql
+
+      - name: Verify pnpm hardlink layout
+        run: |
+          set -euo pipefail
+          store_dir=$(pnpm store path --silent)
+          test "$(stat -c '%d' "$store_dir")" = "$(stat -c '%d' "$GITHUB_WORKSPACE")"
           linked_file=$(find node_modules/.pnpm -type f -links +1 -print -quit)
           test -n "$linked_file"
           test "$(stat -c '%h' "$linked_file")" -gt 1
@@ -41,3 +52,5 @@ jobs:
 
       - name: Verify disposable PostgreSQL lifecycle
         run: node scripts/run-with-ci-postgres.mjs -- psql --command 'SELECT current_database()'
+        env:
+          CI_POSTGRES_BASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
