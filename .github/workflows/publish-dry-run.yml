@@ -14,7 +14,7 @@ env:
 jobs:
   prepare:
     name: Prepare Versioned Workspace
-    runs-on: ubuntu-latest
+    runs-on: arc-happyvertical
     timeout-minutes: 30
     outputs:
       validate: ${{ steps.version.outputs.validate }}
@@ -69,7 +69,7 @@ jobs:
   pack:
     needs: prepare
     if: needs.prepare.outputs.validate == 'true'
-    runs-on: ubuntu-latest
+    runs-on: arc-happyvertical
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -107,7 +107,7 @@ jobs:
     name: Version And Pack Validation
     needs: [prepare, pack]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: arc-happyvertical
     timeout-minutes: 5
     steps:
       - name: Checkout repository

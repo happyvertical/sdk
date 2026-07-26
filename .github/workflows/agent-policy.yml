@@ -32,7 +32,11 @@ concurrency:
 jobs:
   lifecycle:
     name: lifecycle / diagnostic
-    runs-on: ubuntu-latest
+    # A fork PR is rejected before GitHub can allocate the brokered runner.
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: arc-happyvertical
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5

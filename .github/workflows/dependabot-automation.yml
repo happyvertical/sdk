@@ -11,8 +11,11 @@ on:
 jobs:
   dependabot:
     name: Dependabot Automation
-    runs-on: ubuntu-latest
-    if: github.actor == 'dependabot[bot]'
+    # Dependabot branches are repository-owned; fork PRs never get ARC work.
+    if: >-
+      github.actor == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: arc-happyvertical
     permissions:
       contents: write
       pull-requests: write

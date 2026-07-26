@@ -27,7 +27,7 @@ jobs:
   shared:
     name: Registered PostgreSQL Suites (Shared)
     if: inputs.backend != 'service-container' && (github.event_name == 'workflow_dispatch' || vars.CI_POSTGRES_ENABLED == 'true')
-    runs-on: ubuntu-latest
+    runs-on: arc-happyvertical
     timeout-minutes: 30
     services:
       postgres:
@@ -57,7 +57,7 @@ jobs:
   service-container:
     name: Registered PostgreSQL Suites (Fallback)
     if: github.event_name == 'workflow_dispatch' && inputs.backend == 'service-container'
-    runs-on: ubuntu-latest
+    runs-on: arc-happyvertical
     timeout-minutes: 30
     services:
       postgres:

@@ -30,7 +30,7 @@ jobs:
     # Keep this name stable: the main-branch ruleset requires
     # "Validate Changes / Run Tests" from the calling workflow.
     name: Run Tests
-    runs-on: ubuntu-latest
+    runs-on: arc-happyvertical
     timeout-minutes: 40
     outputs:
       success: ${{ steps.result.outputs.success }}
