@@ -4,6 +4,13 @@
 
 import { GraphQLClient, type IGraphQLClient } from '@happyvertical/graphql';
 import type {
+  CheckRun,
+  CommitStatus,
+  CreateCheckRunInput,
+  CreateCommitStatusInput,
+  UpdateCheckRunInput,
+} from '../forge/types.js';
+import type {
   Branch,
   Comment,
   CreateFromTemplateOptions,
@@ -544,6 +551,169 @@ export class GitHubRepository implements IRepository {
       // 404 means directory doesn't exist
       return [];
     }
+  }
+
+  /**
+   * Publishes one GitHub commit status.
+   * @param input Exact commit SHA and status attributes.
+   * @returns Normalized published status.
+   */
+  async createCommitStatus(
+    input: CreateCommitStatusInput,
+  ): Promise<CommitStatus> {
+    const data = (await this.rest.post(
+      `/repos/${this.owner}/${this.repo}/statuses/${encodeURIComponent(input.sha)}`,
+      {
+        state: input.state,
+        context: input.context,
+        description: input.description,
+        target_url: input.targetUrl,
+      },
+    )) as Record<string, unknown>;
+    return this.mapCommitStatus(data);
+  }
+
+  /**
+   * Returns complete commit-status history across GitHub pages.
+   * @param sha Exact commit SHA.
+   * @returns Every normalized status for the commit.
+   */
+  async listCommitStatuses(sha: string): Promise<readonly CommitStatus[]> {
+    const statuses: CommitStatus[] = [];
+    let page = 1;
+    while (true) {
+      const data = (await this.rest.get(
+        `/repos/${this.owner}/${this.repo}/commits/${encodeURIComponent(sha)}/statuses?per_page=100&page=${page}`,
+      )) as Record<string, unknown>[];
+      statuses.push(...data.map((status) => this.mapCommitStatus(status)));
+      if (data.length < 100) return statuses;
+      page += 1;
+    }
+  }
+
+  /**
+   * Publishes one GitHub check run.
+   * @param input Check identity, exact head SHA, state, and output.
+   * @returns Normalized published check run.
+   */
+  async createCheckRun(input: CreateCheckRunInput): Promise<CheckRun> {
+    const data = (await this.rest.post(
+      `/repos/${this.owner}/${this.repo}/check-runs`,
+      this.mapCheckRunInput(input),
+    )) as Record<string, unknown>;
+    return this.mapCheckRun(data);
+  }
+
+  /**
+   * Changes one GitHub check run.
+   * @param id GitHub check-run ID.
+   * @param input Attributes to change.
+   * @returns Normalized updated check run.
+   */
+  async updateCheckRun(
+    id: string,
+    input: UpdateCheckRunInput,
+  ): Promise<CheckRun> {
+    const data = (await this.rest.patch(
+      `/repos/${this.owner}/${this.repo}/check-runs/${encodeURIComponent(id)}`,
+      this.mapCheckRunInput(input),
+    )) as Record<string, unknown>;
+    return this.mapCheckRun(data);
+  }
+
+  /**
+   * Returns complete GitHub check history, including reruns.
+   * @param sha Exact commit SHA.
+   * @returns Every normalized check run for the commit.
+   */
+  async listCheckRuns(sha: string): Promise<readonly CheckRun[]> {
+    const checkRuns: CheckRun[] = [];
+    let page = 1;
+    let totalCount: number | undefined;
+    while (true) {
+      const data = (await this.rest.get(
+        `/repos/${this.owner}/${this.repo}/commits/${encodeURIComponent(sha)}/check-runs?filter=all&per_page=100&page=${page}`,
+      )) as {
+        check_runs?: Record<string, unknown>[];
+        total_count?: number;
+      };
+      const pageRuns = data.check_runs ?? [];
+      totalCount ??= data.total_count;
+      checkRuns.push(...pageRuns.map((checkRun) => this.mapCheckRun(checkRun)));
+      if (
+        pageRuns.length < 100 ||
+        (totalCount !== undefined && checkRuns.length >= totalCount)
+      ) {
+        return checkRuns;
+      }
+      page += 1;
+    }
+  }
+
+  private mapCommitStatus(data: Record<string, unknown>): CommitStatus {
+    return {
+      id: String(data.id ?? data.node_id ?? ''),
+      sha: String(data.sha ?? ''),
+      state: String(data.state ?? ''),
+      context: String(data.context ?? ''),
+      description:
+        typeof data.description === 'string' ? data.description : undefined,
+      targetUrl:
+        typeof data.target_url === 'string' ? data.target_url : undefined,
+      createdAt:
+        typeof data.created_at === 'string'
+          ? new Date(data.created_at)
+          : undefined,
+      raw: data,
+    };
+  }
+
+  private mapCheckRunInput(
+    input: CreateCheckRunInput | UpdateCheckRunInput,
+  ): Record<string, unknown> {
+    return {
+      ...('name' in input ? { name: input.name } : {}),
+      ...('headSha' in input ? { head_sha: input.headSha } : {}),
+      status: input.status,
+      conclusion: input.conclusion,
+      details_url: input.detailsUrl,
+      external_id: input.externalId,
+      started_at:
+        input.startedAt instanceof Date
+          ? input.startedAt.toISOString()
+          : input.startedAt,
+      completed_at:
+        input.completedAt instanceof Date
+          ? input.completedAt.toISOString()
+          : input.completedAt,
+      output: input.output,
+    };
+  }
+
+  private mapCheckRun(data: Record<string, unknown>): CheckRun {
+    return {
+      id: String(data.id ?? data.node_id ?? ''),
+      name: String(data.name ?? ''),
+      headSha: String(data.head_sha ?? ''),
+      status: (data.status ?? 'queued') as CheckRun['status'],
+      conclusion:
+        typeof data.conclusion === 'string'
+          ? (data.conclusion as CheckRun['conclusion'])
+          : undefined,
+      detailsUrl:
+        typeof data.details_url === 'string' ? data.details_url : undefined,
+      externalId:
+        typeof data.external_id === 'string' ? data.external_id : undefined,
+      startedAt:
+        typeof data.started_at === 'string'
+          ? new Date(data.started_at)
+          : undefined,
+      completedAt:
+        typeof data.completed_at === 'string'
+          ? new Date(data.completed_at)
+          : undefined,
+      raw: data,
+    };
   }
 
   // Repository Creation from Template

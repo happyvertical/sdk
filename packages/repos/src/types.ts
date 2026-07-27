@@ -98,6 +98,21 @@ export interface SearchFilters {
 
 export type MergeMethod = 'merge' | 'squash' | 'rebase';
 
+export type {
+  CheckRun,
+  CreateCheckRunInput,
+  CreateCommitStatusInput,
+  UpdateCheckRunInput,
+} from './forge/types.js';
+
+import type {
+  CheckRun,
+  CommitStatus,
+  CreateCheckRunInput,
+  CreateCommitStatusInput,
+  UpdateCheckRunInput,
+} from './forge/types.js';
+
 /**
  * Options for creating a repository from a template
  */
@@ -191,4 +206,16 @@ export interface IRepository {
   // File Content
   getFileContent(path: string, ref?: string): Promise<string | null>;
   listDirectoryFiles(path: string, ref?: string): Promise<string[]>;
+
+  // Additive forge status/check operations. Optional for legacy adapters.
+  /** Publishes one provider commit status. */
+  createCommitStatus?(input: CreateCommitStatusInput): Promise<CommitStatus>;
+  /** Returns complete commit-status history across provider pages. */
+  listCommitStatuses?(sha: string): Promise<readonly CommitStatus[]>;
+  /** Publishes one provider check run. */
+  createCheckRun?(input: CreateCheckRunInput): Promise<CheckRun>;
+  /** Changes one provider check run. */
+  updateCheckRun?(id: string, input: UpdateCheckRunInput): Promise<CheckRun>;
+  /** Returns complete check history, including reruns, across provider pages. */
+  listCheckRuns?(sha: string): Promise<readonly CheckRun[]>;
 }
