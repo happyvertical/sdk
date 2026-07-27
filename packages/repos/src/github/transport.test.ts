@@ -111,6 +111,28 @@ describe('GitHubTransport', () => {
     });
     expect(failure.message).not.toContain('secret-token');
   });
+
+  it('normalizes failures while consuming a response body', async () => {
+    const response = new Response(null, {
+      status: 200,
+      headers: { 'x-github-request-id': 'stream-request' },
+    });
+    vi.spyOn(response, 'text').mockRejectedValue(new Error('stream closed'));
+    const transport = new GitHubTransport({
+      token: 'token',
+      fetch: vi.fn(async () => response),
+    });
+
+    await expect(
+      transport.request({ method: 'GET', path: '/stream' }),
+    ).rejects.toMatchObject<Partial<ForgeError>>({
+      code: 'TRANSPORT_ERROR',
+      provider: 'github',
+      requestId: 'stream-request',
+      status: 200,
+      retryable: true,
+    });
+  });
 });
 
 describe('GitHubForgeProvider contract', () => {

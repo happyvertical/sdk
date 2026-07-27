@@ -75,10 +75,18 @@ export function createGitHubAppJwt(
     iss: String(credentials.appId),
   });
   const unsigned = `${header}.${payload}`;
-  const signer = createSign('RSA-SHA256');
-  signer.update(unsigned);
-  signer.end();
-  return `${unsigned}.${signer.sign(credentials.privateKey, 'base64url')}`;
+  try {
+    const signer = createSign('RSA-SHA256');
+    signer.update(unsigned);
+    signer.end();
+    return `${unsigned}.${signer.sign(credentials.privateKey, 'base64url')}`;
+  } catch (cause) {
+    throw new ForgeError(
+      'GitHub App private key could not sign a JWT',
+      'CONFIGURATION_ERROR',
+      { cause, provider: 'github' },
+    );
+  }
 }
 
 /**
@@ -219,6 +227,13 @@ export class GitHubAppAuth {
       this.authorizationRequests.set(key, pending);
     }
     await pending;
+    if (this.revokedInstallations.has(installationId)) {
+      throw new ForgeError(
+        'GitHub App installation authority has been revoked',
+        'AUTHENTICATION_FAILED',
+        { provider: 'github' },
+      );
+    }
     return cached.token;
   }
 

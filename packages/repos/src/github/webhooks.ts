@@ -139,6 +139,7 @@ function occurrence(payload: Record<string, unknown>): Date | undefined {
     object(payload.review).submitted_at,
     object(payload.check_run).completed_at,
     object(payload.check_run).started_at,
+    payload.created_at,
     object(payload.status).created_at,
     object(payload.deployment_status).created_at,
     object(payload.deployment).created_at,
@@ -156,6 +157,7 @@ function occurrence(payload: Record<string, unknown>): Date | undefined {
 function normalizeObservation(
   event: string,
   payload: Record<string, unknown>,
+  action?: string,
 ): ForgeObservation {
   if (event === 'ping') {
     return {
@@ -192,7 +194,7 @@ function normalizeObservation(
   }
   if (event === 'pull_request') {
     const pullRequestRef = pullRequest(payload.pull_request);
-    return pullRequestRef.merged
+    return action === 'closed' && pullRequestRef.merged
       ? {
           kind: 'merge',
           pullRequest: pullRequestRef,
@@ -300,17 +302,18 @@ export function normalizeGitHubWebhook(
   receivedAt = new Date(),
 ): ForgeEventEnvelope {
   const payload = object(raw);
+  const action = optionalString(payload.action);
   return {
     provider: 'github',
     deliveryId,
     event,
-    action: optionalString(payload.action),
+    action,
     occurredAt: occurrence(payload),
     receivedAt,
     installation: installation(payload.installation),
     repository: repository(payload.repository),
     actor: actor(payload.sender),
-    observation: normalizeObservation(event, payload),
+    observation: normalizeObservation(event, payload, action),
     raw,
   };
 }

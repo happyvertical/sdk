@@ -191,6 +191,7 @@ describe('GitHubWebhookVerifier', () => {
     [
       'pull_request',
       {
+        action: 'closed',
         pull_request: {
           number: 9,
           state: 'closed',
@@ -215,6 +216,57 @@ describe('GitHubWebhookVerifier', () => {
       verifier.verifyAndNormalize(fixture.rawBody, fixture.headers).observation
         .kind,
     ).toBe(kind);
+  });
+
+  it('only emits merge observations for closed merged pull requests', () => {
+    const verifier = new GitHubWebhookVerifier({ secrets: 'secret' });
+    const pullRequest = {
+      number: 9,
+      state: 'closed',
+      merged: true,
+      merge_commit_sha: 'merge',
+      head: { sha: 'head' },
+      base: { sha: 'base' },
+    };
+    const labeled = createGitHubWebhookFixture({
+      secret: 'secret',
+      deliveryId: 'post-merge-label',
+      event: 'pull_request',
+      payload: { action: 'labeled', pull_request: pullRequest },
+    });
+    const closed = createGitHubWebhookFixture({
+      secret: 'secret',
+      deliveryId: 'merge-close',
+      event: 'pull_request',
+      payload: { action: 'closed', pull_request: pullRequest },
+    });
+
+    expect(
+      verifier.verifyAndNormalize(labeled.rawBody, labeled.headers).observation
+        .kind,
+    ).toBe('pull_request');
+    expect(
+      verifier.verifyAndNormalize(closed.rawBody, closed.headers).observation
+        .kind,
+    ).toBe('merge');
+  });
+
+  it('uses the top-level status timestamp for ordered observations', () => {
+    const verifier = new GitHubWebhookVerifier({ secrets: 'secret' });
+    const fixture = createGitHubWebhookFixture({
+      secret: 'secret',
+      deliveryId: 'status-timestamp',
+      event: 'status',
+      payload: {
+        sha: 'abc',
+        state: 'success',
+        created_at: '2026-07-27T01:23:45.000Z',
+      },
+    });
+
+    expect(
+      verifier.verifyAndNormalize(fixture.rawBody, fixture.headers).occurredAt,
+    ).toEqual(new Date('2026-07-27T01:23:45.000Z'));
   });
 
   it('normalizes check suites and deployment status fields without losing raw payloads', () => {

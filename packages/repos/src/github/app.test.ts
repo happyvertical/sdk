@@ -36,6 +36,15 @@ describe('GitHub App authentication', () => {
     ).toBe(true);
   });
 
+  it('normalizes malformed private keys as configuration errors', () => {
+    expect(() =>
+      createGitHubAppJwt(
+        { appId: 42, privateKey: 'not an RSA private key' },
+        new Date('2026-07-27T00:00:00.000Z'),
+      ),
+    ).toThrowError(expect.objectContaining({ code: 'CONFIGURATION_ERROR' }));
+  });
+
   it('isolates concurrent installation credentials and repository authority', async () => {
     const authorizations: string[] = [];
     const fetch = vi.fn(
@@ -514,6 +523,66 @@ describe('GitHub App authentication', () => {
     releaseOldScope?.();
     await expect(oldTokenScope).resolves.toMatchObject({
       repository: { fullName: 'org/repo-b' },
+    });
+  });
+
+  it('fails a scope check that finishes after failed remote revocation', async () => {
+    let releaseScope: (() => void) | undefined;
+    const scopeGate = new Promise<void>((resolve) => {
+      releaseScope = resolve;
+    });
+    let scopeStarted = false;
+    const auth = new GitHubAppAuth({
+      appId: 42,
+      privateKey: privateKeyPem,
+      now: () => new Date('2026-07-27T01:00:00.000Z'),
+      fetch: vi.fn(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url.includes('/access_tokens')) {
+          return Response.json({
+            token: 'installation-token',
+            expires_at: '2026-07-27T02:00:00.000Z',
+          });
+        }
+        if (url.endsWith('/installation/token')) {
+          return Response.json({ message: 'Unavailable' }, { status: 503 });
+        }
+        if (url.endsWith('/repos/org/repo-a')) {
+          return Response.json({
+            name: 'repo-a',
+            full_name: 'org/repo-a',
+            owner: { login: 'org' },
+          });
+        }
+        if (url.endsWith('/repos/org/repo-b')) {
+          scopeStarted = true;
+          await scopeGate;
+          return Response.json({
+            name: 'repo-b',
+            full_name: 'org/repo-b',
+            owner: { login: 'org' },
+          });
+        }
+        throw new Error(`Unexpected ${url}`);
+      }),
+    });
+    const context = await auth.createInstallationContext({
+      installationId: 1,
+      owner: 'org',
+      repo: 'repo-a',
+    });
+    const pendingScope = auth.createInstallationContext({
+      installationId: 1,
+      owner: 'org',
+      repo: 'repo-b',
+    });
+    await vi.waitFor(() => expect(scopeStarted).toBe(true));
+    await expect(context.revoke()).rejects.toMatchObject({
+      code: 'PROVIDER_ERROR',
+    });
+    releaseScope?.();
+    await expect(pendingScope).rejects.toMatchObject({
+      code: 'AUTHENTICATION_FAILED',
     });
   });
 });

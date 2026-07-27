@@ -127,7 +127,23 @@ export class GitHubTransport implements ForgeTransport {
       status: response.status,
       rateLimit,
     };
-    const text = response.status === 204 ? '' : await response.text();
+    let text: string;
+    try {
+      text = response.status === 204 ? '' : await response.text();
+    } catch (cause) {
+      throw new ForgeError(
+        'GitHub transport response body failed',
+        'TRANSPORT_ERROR',
+        {
+          cause,
+          provider: 'github',
+          status: response.status,
+          requestId,
+          rateLimit,
+          retryable: true,
+        },
+      );
+    }
     let data: unknown;
     try {
       data = text === '' ? undefined : JSON.parse(text);
