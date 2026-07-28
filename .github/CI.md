@@ -87,22 +87,50 @@ already proven by the merge group and performs release/deployment work only.
 
 ## PostgreSQL isolation
 
+`postgres-tests.yml` provisions its own PostgreSQL for every run: a
+digest-pinned `pgvector/pgvector:pg17` service container on the brokered
+runner, reached over `localhost` with throwaway `postgres`/`postgres`
+credentials. There is exactly one backend, so the workflow offers no backend
+choice and has no fallback lane.
+
+The container is created and destroyed with the job, and that is the entire
+data-retention model. Nothing outlives the run, so there is no shared
+credential to scope, no long-lived database reachable from CI, and no
+abandoned-database cleanup to schedule. The `postgres`/`postgres` credentials
+are public constants checked into the workflow, not secrets: they grant
+superuser inside that one throwaway container and are worth nothing as a secret.
+Because a service container is now the only backend, the runner capacity the
+broker selects must support service containers.
+
 PostgreSQL-sensitive packages register one `test:postgres` script. The wrapper
-reads `CI_POSTGRES_BASE_URL` (or its runner-mounted file), creates a unique
+takes the maintenance connection from `CI_POSTGRES_BASE_URL`, creates a unique
 `sdk_ci_<epoch>_<run>_<attempt>_<package>_<pid>` database, exports the normal
-SDK/SQLOO/libpq variables, and force-drops the database in `finally`.
+SDK/SQLOO/libpq variables, and force-drops it in `finally`. The unique name is
+what keeps concurrent suites off each other's data — they all connect as the
+same superuser, so this is namespacing, not privilege separation. The drop
+merely reclaims, is not a retention control (the container goes away either
+way), and if it fails it only writes to stderr — no Actions annotation, and the
+suite still passes — so a leak shows up in the raw log body and nowhere else.
 PostgreSQL Turbo tasks are uncached and the workflow limits concurrency to two.
-The nightly workflow runs the complete registry and removes abandoned SDK CI
-databases older than six hours.
 
-The shared credential must be a least-privilege CI role able to create/drop
-only disposable CI databases and unable to connect to production databases.
-The manual `service-container` workflow option is the rollback path and runs
-through the broker, whose selected capacity must support service containers.
+`CI_POSTGRES_BASE_URL` is the only managed source. The wrapper otherwise
+accepts an unmanaged `DATABASE_URL`, used exactly as given with no database
+created or dropped, so point it only at a disposable local server. There is no
+runner-mounted-credential fallback: a silent fallback to a shared server would
+leak `sdk_ci_*` databases that nothing reclaims. The wrapper masks both URLs in
+Actions logs, though for CI that is cosmetic — the connection string is a
+literal in the workflow.
 
-Set `CI_POSTGRES_ENABLED=true` only after a shared-backend manual run succeeds.
-Clear it to remove the lane from the required set without weakening the normal
-SQLite/unit suites.
+Every trigger runs the complete registry; this lane has no affected-closure
+mode, so `postgres-scope` only decides whether a skipped result is forgiven,
+never which suites execute.
+
+`CI_POSTGRES_ENABLED` gates the reusable call and the nightly schedule alike, so
+while it is unset the lane never runs automatically and `Required CI` accepts
+its skipped result. Set it to `true` only after a manual `workflow_dispatch`
+run succeeds; dispatch runs the lane regardless of the variable. Clear it to
+remove the lane from the required set without weakening the normal SQLite/unit
+suites.
 
 ## Release artifact provenance
 
@@ -148,9 +176,11 @@ at least 30% fewer self-hosted runner-minutes per pull request.
 
 Rollback order:
 
-1. Clear `CI_MERGE_QUEUE_ENABLED` and `CI_POSTGRES_ENABLED` as needed.
+1. Clear `CI_MERGE_QUEUE_ENABLED` and `CI_POSTGRES_ENABLED` as needed. Clearing
+   `CI_POSTGRES_ENABLED` stops every automatic PostgreSQL run — pull request,
+   merge group, and nightly — and there is no alternate backend to fail over
+   to. Manual `workflow_dispatch` still runs the lane, as does the
+   dispatch-only brokered runner smoke test.
 2. Restore the previous required-context list and disable the merge queue.
-3. Use the PostgreSQL service-container fallback if the shared service is the
-   failing phase.
-4. Use manual `publish-mode=changesets` only when artifact publication itself
+3. Use manual `publish-mode=changesets` only when artifact publication itself
    is the failing phase.
