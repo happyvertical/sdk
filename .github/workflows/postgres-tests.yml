@@ -3,24 +3,12 @@ name: PostgreSQL Tests
 on:
   workflow_call:
     inputs:
-      backend:
-        description: 'shared or service-container'
-        required: false
-        type: string
-        default: shared
       checkout_ref:
         description: 'Trusted caller-selected revision to validate'
         required: false
         type: string
         default: ''
   workflow_dispatch:
-    inputs:
-      backend:
-        description: 'PostgreSQL backend'
-        required: true
-        type: choice
-        default: shared
-        options: [shared, service-container]
   schedule:
     - cron: '0 8 * * *'
 
@@ -32,41 +20,12 @@ env:
   CHECKOUT_REF: ${{ inputs.checkout_ref || github.sha }}
 
 jobs:
-  shared:
-    name: Registered PostgreSQL Suites (Shared)
-    if: inputs.backend != 'service-container' && (github.event_name == 'workflow_dispatch' || vars.CI_POSTGRES_ENABLED == 'true')
-    runs-on: arc-happyvertical
-    timeout-minutes: 30
-    services:
-      postgres:
-        image: pgvector/pgvector:pg17@sha256:d2ef61f42ef767baa5a1475393303cc235bcd92febd9d7014eddb48b41f3bad0
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-        ports: ['5432:5432']
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-        with:
-          ref: ${{ env.CHECKOUT_REF }}
-      - name: Setup environment
-        uses: ./.github/actions/setup-environment
-        with:
-          github-packages-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Run registered PostgreSQL suites
-        run: pnpm turbo run test:postgres --concurrency=2
-        env:
-          CI_POSTGRES_BASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
-          NODE_ENV: test
-
-  service-container:
-    name: Registered PostgreSQL Suites (Fallback)
-    if: github.event_name == 'workflow_dispatch' && inputs.backend == 'service-container'
+  # One backend only: every run provisions its own PostgreSQL service
+  # container, so there is nothing to select between and no shared state to
+  # clean up afterwards.
+  postgres:
+    name: Registered PostgreSQL Suites
+    if: github.event_name == 'workflow_dispatch' || vars.CI_POSTGRES_ENABLED == 'true'
     runs-on: arc-happyvertical
     timeout-minutes: 30
     services:
