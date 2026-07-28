@@ -145,6 +145,28 @@ interface WeatherForecast {
 | `OPENWEATHER_API_KEY` | string | OpenWeatherMap API key |
 | `HAVE_WEATHER_TIMEOUT` | number | Request timeout (ms) |
 
+## Testing
+
+The default suite is offline and deterministic. Provider responses come from
+recorded fixtures in `src/__tests__/fixtures/`, so no test in `test` reaches the
+network:
+
+```bash
+pnpm turbo run test --filter=@happyvertical/weather
+```
+
+Coverage against the real services lives in `*.optional.test.ts` and is skipped
+unless you opt in. OpenWeatherMap gates on its API key; Environment Canada needs
+no key, so it gates on an explicit flag:
+
+```bash
+ENVIRONMENT_CANADA_INTEGRATION=1 pnpm --filter @happyvertical/weather test:optional
+```
+
+Run the live suite after re-recording a fixture, to confirm the upstream payload
+still matches the shape the offline suite asserts. See
+`src/__tests__/fixtures/README.md` for how each fixture was recorded.
+
 ## Provider Comparison
 
 | Feature | Environment Canada | OpenWeatherMap | OWM One Call |
