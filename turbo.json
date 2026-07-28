@@ -43,7 +43,6 @@
       "dependsOn": ["^build"],
       "env": [
         "CI_POSTGRES_BASE_URL",
-        "CI_POSTGRES_BASE_URL_FILE",
         "DATABASE_URL",
         "TEST_DB_URL",
         "TEST_DB_ADAPTER",
