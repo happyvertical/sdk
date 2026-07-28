@@ -47,9 +47,13 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           ref: ${{ env.CHECKOUT_REF }}
-          # Affected validation needs the PR merge commit plus its base/head parents.
-          # Neither mode needs every branch and tag from the repository history.
-          fetch-depth: ${{ inputs.mode == 'affected' && '2' || '1' }}
+          # Affected validation diffs against the PR base SHA, so that commit must
+          # be present. This checkout is pinned to the head ref, not the merge ref,
+          # so a shallow depth only reaches the base on a single-commit PR; depth 0
+          # is what keeps it reachable for any branch. Tested against 'full' rather
+          # than 'affected' so the '0' never lands in the middle of the
+          # short-circuit, where a falsy cast would silently select depth 1.
+          fetch-depth: ${{ inputs.mode == 'full' && '1' || '0' }}
 
       - name: Setup environment
         uses: ./.github/actions/setup-environment
