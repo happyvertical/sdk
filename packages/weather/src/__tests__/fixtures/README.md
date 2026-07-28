@@ -1,8 +1,8 @@
 # Environment Canada test fixtures
 
 Recorded responses from the MSC Geomet API, used so the Environment Canada
-provider specs run offline and deterministically. No live request is made by
-the default `test` task.
+provider specs run offline and deterministically — those specs make no live
+request from the default `test` task.
 
 ## `environment-canada-citypage-calgary.json`
 
