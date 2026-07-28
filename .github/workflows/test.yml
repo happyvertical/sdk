@@ -8,6 +8,11 @@ on:
         required: false
         type: string
         default: full
+      checkout_ref:
+        description: 'Trusted caller-selected revision to validate'
+        required: false
+        type: string
+        default: ''
     outputs:
       success:
         description: 'Whether the selected validation suite passed'
@@ -25,12 +30,15 @@ permissions:
   contents: read
   packages: read
 
+env:
+  CHECKOUT_REF: ${{ inputs.checkout_ref || github.sha }}
+
 jobs:
   validate:
     # Keep this name stable: the main-branch ruleset requires
     # "Validate Changes / Run Tests" from the calling workflow.
     name: Run Tests
-    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'ci-linux-x64' }}
+    runs-on: arc-happyvertical
     timeout-minutes: 40
     outputs:
       success: ${{ steps.result.outputs.success }}
@@ -38,6 +46,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
+          ref: ${{ env.CHECKOUT_REF }}
           # Affected validation needs the PR merge commit plus its base/head parents.
           # Neither mode needs every branch and tag from the repository history.
           fetch-depth: ${{ inputs.mode == 'affected' && '2' || '1' }}
