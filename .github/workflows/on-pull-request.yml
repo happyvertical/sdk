@@ -36,7 +36,7 @@ jobs:
 
   changeset-check:
     name: Check for Changeset
-    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'ci-linux-x64' }}
+    runs-on: arc-happyvertical
     if: >-
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request' &&
@@ -209,7 +209,7 @@ jobs:
         #       lets a title with command substitution execute the
         #       substitution at the runner's shell — real command
         #       injection, especially on the self-hosted
-        #       ci-linux-x64 runner this workflow runs on. Pass
+        #       arc-happyvertical runner this workflow runs on. Pass
         #       via env: instead, then quote the variable expansion.
         #   (2) scripts/validate-conventional-commits.js uses a
         #       hardcoded regex with permissive scope and a 50-char
@@ -489,7 +489,7 @@ jobs:
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request' &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
-    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'ci-linux-x64' }}
+    runs-on: arc-happyvertical
 
     steps:
       - name: Checkout PR branch
