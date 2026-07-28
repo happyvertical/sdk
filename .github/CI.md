@@ -27,12 +27,17 @@ never restored through GitHub Actions.
 
 ## Trusted-base public pull requests
 
-The brokered PR, lifecycle, and Dependabot workflows use
-`pull_request_target`, so GitHub loads runner selection from the trusted base
-branch rather than contributor-controlled merge YAML. Only a same-repository
-PR explicitly checks out `github.event.pull_request.head.sha`; that SHA is
-passed into reusable validation workflows as `checkout_ref`. Merge groups use
-their synthetic `github.sha` normally.
+The brokered PR and Dependabot workflows use `pull_request_target`, so GitHub
+loads runner selection from the trusted base branch rather than
+contributor-controlled merge YAML. Only a same-repository PR explicitly checks
+out `github.event.pull_request.head.sha`; that SHA is passed into reusable
+validation workflows as `checkout_ref`. Merge groups use their synthetic
+`github.sha` normally.
+
+The lifecycle workflow stays on plain `pull_request` by design — the agent
+policy audits `on.pull_request.types` and rejects a narrowed trigger set — and
+is hosted, so it never reaches brokered capacity. See "External fork pull
+requests" for what that means on a fork.
 
 An external fork never gets an `arc-happyvertical` job: each job is guarded by
 the same-repository test before GitHub allocates a runner, and fork code is
@@ -71,7 +76,8 @@ coverage rules to a package `vitest.config.ts`, not to its test command.
 `Required CI` is always present for trusted PR and merge-group work. It rejects
 failed, cancelled, or unexpectedly skipped jobs using an explicit job set.
 `pull_request_target` runs cancel superseded commits; merge-group runs do not
-cancel each other.
+cancel each other. External fork pull requests are the designed exception, and
+cannot pass it; see "External fork pull requests".
 
 Observe `Required CI` alongside the existing required checks for ten successful
 representative pull requests before changing repository rules. The
