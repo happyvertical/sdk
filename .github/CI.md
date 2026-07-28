@@ -65,6 +65,22 @@ from silently using Vitest's 5-second default on a contended runner.
 plain and locally overridden package configs. Add package-specific discovery or
 coverage rules to a package `vitest.config.ts`, not to its test command.
 
+## Network isolation in the default suites
+
+CI runs `test` and `test:optional` in the same step, so neither may depend on
+live egress. A suite that calls a real service must gate itself on an explicit
+opt-in and skip when it is absent — an API key where one exists
+(`OPENWEATHER_API_KEY`, `KANIDM_SERVER_URL`), otherwise a named flag
+(`ENVIRONMENT_CANADA_INTEGRATION`, `OLLAMA_INTEGRATION`, `MATOMO_INTEGRATION`),
+in the same spirit as `CI_POSTGRES_ENABLED`. Naming a file `*.optional.test.ts`
+is not itself a gate.
+
+Everything else stubs the transport. Record the upstream payload into a fixture
+beside the suite and serve it through `vi.stubGlobal('fetch', ...)`; the
+repository intentionally carries no `nock` or `msw` dependency. An unmocked
+suite fails whenever the runner's egress is blocked or the upstream rate-limits,
+which reads as a defect in whatever pull request happened to be running.
+
 ## Pull requests, merge groups, and Required CI
 
 `CI_MERGE_QUEUE_ENABLED` stages the cutover:

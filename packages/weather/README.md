@@ -145,6 +145,35 @@ interface WeatherForecast {
 | `OPENWEATHER_API_KEY` | string | OpenWeatherMap API key |
 | `HAVE_WEATHER_TIMEOUT` | number | Request timeout (ms) |
 
+## Testing
+
+The default suite is offline and deterministic, with one key-gated exception.
+Provider responses come from recorded fixtures in `src/__tests__/fixtures/`, so
+on a clean environment no test in `test` reaches the network:
+
+```bash
+pnpm turbo run test --filter=@happyvertical/weather
+```
+
+The exception is `google-weather.spec.ts`. It gates on `GOOGLE_API_KEY`, per the
+repository rule that a suite needing a real service gates on a key where one
+exists — see "Network isolation in the default suites" in `.github/CI.md`. With
+the key unset, its live block skips and the offline guarantee holds; that is how
+CI runs it. With the key exported, it calls the live Google Weather API from
+`test`.
+
+Coverage against the other live services lives in `*.optional.test.ts` and is
+skipped unless you opt in. OpenWeatherMap gates on its API key; Environment
+Canada needs no key, so it gates on an explicit flag:
+
+```bash
+ENVIRONMENT_CANADA_INTEGRATION=1 pnpm --filter @happyvertical/weather test:optional
+```
+
+Run the live suite after re-recording a fixture, to confirm the upstream payload
+still matches the shape the offline suite asserts. See
+`src/__tests__/fixtures/README.md` for how each fixture was recorded.
+
 ## Provider Comparison
 
 | Feature | Environment Canada | OpenWeatherMap | OWM One Call |
