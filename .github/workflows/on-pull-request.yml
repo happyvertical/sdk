@@ -38,8 +38,7 @@ env:
   # Reusable workflows receive the reviewed head only for repository-owned
   # branches. Fork PR jobs are skipped before self-hosted allocation.
   CHECKOUT_REF: >-
-    ${{ github.event_name == 'pull_request_target' &&
-    github.event.pull_request.head.repo.full_name == github.repository &&
+    ${{ github.event.pull_request.head.repo.full_name == github.repository &&
     github.event.pull_request.head.sha || github.sha }}
 
 # Every self-hosted job in this trusted-base wrapper keeps the same-repository
@@ -53,8 +52,8 @@ jobs:
     if: >-
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request_target' &&
-      contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
-      github.event.pull_request.head.repo.full_name == github.repository)
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
 
     steps:
       - name: Checkout
@@ -180,8 +179,8 @@ jobs:
     if: >-
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request_target' &&
-      contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
-      github.event.pull_request.head.repo.full_name == github.repository)
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
     runs-on: arc-happyvertical
     permissions:
       contents: read
@@ -345,8 +344,8 @@ jobs:
     if: >-
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request_target' &&
-      contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
-      github.event.pull_request.head.repo.full_name == github.repository)
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
     runs-on: arc-happyvertical
 
     steps:
@@ -399,8 +398,8 @@ jobs:
     if: >-
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request_target' &&
-      contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
-      github.event.pull_request.head.repo.full_name == github.repository)
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
     runs-on: arc-happyvertical
 
     steps:
@@ -439,8 +438,8 @@ jobs:
     if: >-
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request_target' &&
-      contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
-      github.event.pull_request.head.repo.full_name == github.repository)
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
     runs-on: arc-happyvertical
 
     steps:
@@ -500,15 +499,12 @@ jobs:
     if: >-
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request_target' &&
-      contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
-      github.event.pull_request.head.repo.full_name == github.repository)
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
     uses: ./.github/workflows/test.yml
     with:
       mode: ${{ github.event_name == 'merge_group' && 'full' || (vars.CI_MERGE_QUEUE_ENABLED == 'true' && 'affected' || 'full') }}
-      checkout_ref: >-
-        ${{ github.event_name == 'pull_request_target' &&
-        github.event.pull_request.head.repo.full_name == github.repository &&
-        github.event.pull_request.head.sha || github.sha }}
+      checkout_ref: ${{ github.event.pull_request.head.sha || github.sha }}
     permissions:
       contents: read
       packages: read
@@ -518,8 +514,8 @@ jobs:
     if: >-
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request_target' &&
-      contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
-      github.event.pull_request.head.repo.full_name == github.repository)
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
     runs-on: arc-happyvertical
 
     steps:
@@ -568,8 +564,8 @@ jobs:
     if: >-
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request_target' &&
-      contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
-      github.event.pull_request.head.repo.full_name == github.repository)
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
     runs-on: arc-happyvertical
     steps:
       - name: Checkout PR history
@@ -603,8 +599,8 @@ jobs:
     if: >-
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request_target' &&
-      contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
-      github.event.pull_request.head.repo.full_name == github.repository)
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
     runs-on: arc-happyvertical
     outputs:
       required: ${{ github.event_name == 'merge_group' && 'true' || steps.filter.outputs.postgres }}
@@ -641,14 +637,11 @@ jobs:
     if: >-
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request_target' &&
-      contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
-      github.event.pull_request.head.repo.full_name == github.repository)
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
     uses: ./.github/workflows/postgres-tests.yml
     with:
-      checkout_ref: >-
-        ${{ github.event_name == 'pull_request_target' &&
-        github.event.pull_request.head.repo.full_name == github.repository &&
-        github.event.pull_request.head.sha || github.sha }}
+      checkout_ref: ${{ github.event.pull_request.head.sha || github.sha }}
     permissions:
       contents: read
       packages: read
@@ -658,25 +651,24 @@ jobs:
     if: >-
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request_target' &&
-      contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action) &&
-      github.event.pull_request.head.repo.full_name == github.repository)
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
     uses: ./.github/workflows/publish-dry-run.yml
     with:
-      checkout_ref: >-
-        ${{ github.event_name == 'pull_request_target' &&
-        github.event.pull_request.head.repo.full_name == github.repository &&
-        github.event.pull_request.head.sha || github.sha }}
+      checkout_ref: ${{ github.event.pull_request.head.sha || github.sha }}
     permissions:
       contents: read
       packages: read
 
   required-ci:
+    # Hosted, and always runs — including on fork pull requests, where every
+    # protected job is skipped before any self-hosted allocation. The loop below
+    # then fails on the skipped results, so a fork cannot satisfy the required
+    # gate by having validation silently not run.
     name: Required CI
-    if: >-
-      always() && (github.event_name == 'merge_group' ||
-      github.event.pull_request.head.repo.full_name == github.repository)
+    if: always()
     needs: [changeset-check, validate-commits, validate-workflows, check-naming, doc-coverage, test, docs-build, secret-scan, postgres-scope, postgres-tests, publish-dry-run]
-    runs-on: arc-happyvertical
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Require full validation success
