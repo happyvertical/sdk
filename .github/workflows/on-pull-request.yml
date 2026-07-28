@@ -367,7 +367,11 @@ jobs:
           files="${{ steps.changed-files.outputs.all_changed_files }}"
           echo "Changed files: $files"
 
-          python3 -m pip install --user yamllint
+          # The brokered image marks its Python as externally managed (PEP 668),
+          # so a bare --user install is refused where the previous hosted runner
+          # allowed it. The runner is ephemeral and runs one job, so opting out
+          # of the guard for a --user install touches nothing that outlives it.
+          python3 -m pip install --user --break-system-packages yamllint
 
           for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
             echo "  Checking $file..."
