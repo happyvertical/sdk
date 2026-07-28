@@ -27,12 +27,17 @@ never restored through GitHub Actions.
 
 ## Trusted-base public pull requests
 
-The brokered PR, lifecycle, and Dependabot workflows use
-`pull_request_target`, so GitHub loads runner selection from the trusted base
-branch rather than contributor-controlled merge YAML. Only a same-repository
-PR explicitly checks out `github.event.pull_request.head.sha`; that SHA is
-passed into reusable validation workflows as `checkout_ref`. Merge groups use
-their synthetic `github.sha` normally.
+The brokered PR and Dependabot workflows use `pull_request_target`, so GitHub
+loads runner selection from the trusted base branch rather than
+contributor-controlled merge YAML. Only a same-repository PR explicitly checks
+out `github.event.pull_request.head.sha`; that SHA is passed into reusable
+validation workflows as `checkout_ref`. Merge groups use their synthetic
+`github.sha` normally.
+
+The lifecycle workflow stays on plain `pull_request` by design — the agent
+policy audits `on.pull_request.types` and rejects a narrowed trigger set — and
+is hosted, so it never reaches brokered capacity. See "External fork pull
+requests" for what that means on a fork.
 
 An external fork never gets an `arc-happyvertical` job: each job is guarded by
 the same-repository test before GitHub allocates a runner, and fork code is
@@ -71,7 +76,8 @@ coverage rules to a package `vitest.config.ts`, not to its test command.
 `Required CI` is always present for trusted PR and merge-group work. It rejects
 failed, cancelled, or unexpectedly skipped jobs using an explicit job set.
 `pull_request_target` runs cancel superseded commits; merge-group runs do not
-cancel each other.
+cancel each other. External fork pull requests are the designed exception, and
+cannot pass it; see "External fork pull requests".
 
 Observe `Required CI` alongside the existing required checks for ten successful
 representative pull requests before changing repository rules. The
@@ -84,6 +90,66 @@ repository-settings cutover is manual:
 
 When merge-queue mode is enabled, the post-merge orchestrator skips validation
 already proven by the merge group and performs release/deployment work only.
+
+## External fork pull requests
+
+A pull request opened from a fork receives no validation of its code, by
+design, and `Required CI` can never pass on one. Every protected job is guarded
+by the same-repository test described under "Trusted-base public pull
+requests", so on a fork pull request all of them skip; `required-ci` is a
+hosted `always()` fan-in that rejects a skipped result, so it fails. The runner
+target contract independently fixes `public_fork_pull_requests: "deny"` as a
+schema constant — not a tunable default — so untrusted fork code is never
+admitted to the root-capable pool even if a job-level guard were removed. The
+contract ships in the agent-policy artifact as
+`contracts/runner-target-contract-v2.json`.
+
+`Required CI` is the fork guard, and it is the check that fails here.
+`lifecycle`, the other required check, is hosted, triggers on plain
+`pull_request`, and is deliberately not guarded, so it still runs on a fork
+pull request — but it validates claim and pull-request lifecycle state rather
+than the code, so it is no part of the fork guard and ordinarily passes. If it
+does fail, read it on its own terms: most often a commit message carries a
+closing keyword the pull request body does not declare, or the change edits
+managed policy files. Its message says what to correct.
+
+A red `Required CI` here is the policy working as intended, not a CI fault. Do
+not report it as broken infrastructure, and do not weaken the guard to make it
+pass. Two things look like workarounds and are not:
+
+- "Allow edits by maintainers" does not help. Pushing to the contributor's
+  fork branch leaves `github.event.pull_request.head.repo.full_name` pointing
+  at the fork, so the pull request is still a fork pull request and the
+  same-repository test still excludes it.
+- Admin bypass is not the answer. Merging past the required check lands fork
+  code that nothing has built, tested, or scanned, which is precisely what the
+  required check exists to prevent.
+
+The supported route is to bring an accepted outside change into this
+repository, where it is no longer untrusted:
+
+1. Review the fork diff as ordinary content, and tell the contributor that the
+   failing check is policy rather than a defect in their change.
+2. Open and claim a tracker issue, as `AGENTS.md` requires for any other
+   implementation work in this repository.
+3. Re-create the branch inside `happyvertical/sdk` — push the reviewed commits
+   to a repository branch, rewording or squashing them to satisfy
+   `validate-commits` — or re-author the change.
+4. Credit the original author with a `Co-authored-by:` trailer on any commit
+   whose original authorship the rewording would otherwise drop.
+5. Add the changeset the change needs, or apply `skip-changeset`; an outside
+   contributor will usually not have supplied one.
+6. Open the in-repo pull request, which validates normally, then close the
+   fork pull request with a pointer to it.
+
+If external contributions are ever wanted with automation attached, the
+follow-on is a maintainer-triggered re-validation path: a label or
+`workflow_dispatch` that validates one specific, reviewed fork SHA, still
+resolving workflow definitions from the trusted base ref. That keeps trusting a
+commit an explicit maintainer action rather than an automatic consequence of
+opening a pull request, and it is why the invariant above is scoped to the fork
+pull-request event rather than to fork commits in general. That path does not
+exist today; until it does, in-repo re-creation is the only supported option.
 
 ## PostgreSQL isolation
 
