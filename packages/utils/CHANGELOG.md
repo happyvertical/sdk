@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.85.1
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - await cache directory creation before the first file write (#1170) (cache)
+
 ## 0.85.0
 
 ## 0.84.0
