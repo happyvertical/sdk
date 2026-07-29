@@ -23,6 +23,13 @@ inputs:
     description: 'GitHub Packages token override; defaults to the workflow token'
     required: false
     default: ''
+  allow-ephemeral-store:
+    description: >-
+      Accept a cold per-job pnpm store on a self-hosted runner that does not
+      export PNPM_STORE_DIR. Unset, the CI_ALLOW_EPHEMERAL_PNPM_STORE
+      environment variable decides and a missing store is a hard error.
+    required: false
+    default: ''
 
 outputs:
   pnpm-cache-hit:
@@ -31,6 +38,9 @@ outputs:
   store-path:
     description: 'pnpm store path'
     value: ${{ steps.pnpm-store.outputs.path }}
+  use-actions-cache:
+    description: 'Whether the pnpm store is backed by the hosted Actions cache'
+    value: ${{ steps.pnpm-store-strategy.outputs.use-actions-cache }}
 
 runs:
   using: 'composite'
@@ -121,22 +131,14 @@ runs:
     - name: Determine pnpm store strategy
       id: pnpm-store-strategy
       shell: bash
-      run: |
-        if [[ "${RUNNER_NAME:-}" == arc-happyvertical-node-* ]] && \
-          [ -n "${PNPM_STORE_DIR:-}" ]; then
-          echo "store-root=$PNPM_STORE_DIR" >> "$GITHUB_OUTPUT"
-          echo "use-actions-cache=false" >> "$GITHUB_OUTPUT"
-          echo "Using the node-local persistent pnpm store"
-        elif [ "${RUNNER_ENVIRONMENT:-}" = self-hosted ]; then
-          store_root="$RUNNER_TEMP/pnpm-store-${GITHUB_RUN_ID}-${GITHUB_JOB}-${GITHUB_RUN_ATTEMPT}"
-          echo "store-root=$store_root" >> "$GITHUB_OUTPUT"
-          echo "use-actions-cache=false" >> "$GITHUB_OUTPUT"
-          echo "Using an isolated compatibility-runner pnpm store"
-        else
-          echo "store-root=$HOME/.local/share/pnpm/store" >> "$GITHUB_OUTPUT"
-          echo "use-actions-cache=true" >> "$GITHUB_OUTPUT"
-          echo "Using a hosted-runner pnpm cache"
-        fi
+      # Passed under its own name so the script owns the precedence. Binding
+      # the input straight onto CI_ALLOW_EPHEMERAL_PNPM_STORE would clobber an
+      # inherited value with an empty string whenever the input is unset.
+      env:
+        INPUT_ALLOW_EPHEMERAL_STORE: ${{ inputs.allow-ephemeral-store }}
+      # Invoked through bash so the step does not depend on the executable bit
+      # surviving checkout.
+      run: bash "$GITHUB_ACTION_PATH/select-pnpm-store.sh"
 
     - name: Configure pnpm store directory
       shell: bash

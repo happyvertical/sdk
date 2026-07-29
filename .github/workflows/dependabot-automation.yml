@@ -5,14 +5,19 @@ name: Dependabot Automation
 # policy, while this actor-gated helper only approves; merging still
 # requires the full set of required checks.
 on:
-  pull_request:
+  # Load runner selection from the trusted base branch before granting the
+  # repository-owned Dependabot path its write-scoped token.
+  pull_request_target:
     types: [opened, synchronize, reopened]
 
 jobs:
   dependabot:
     name: Dependabot Automation
-    runs-on: ${{ vars.CI_NODE_RUNNER_ENABLED == 'true' && 'arc-happyvertical-node' || 'ci-linux-x64' }}
-    if: github.actor == 'dependabot[bot]'
+    # Dependabot branches are repository-owned; fork PRs never get ARC work.
+    if: >-
+      github.actor == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: arc-happyvertical
     permissions:
       contents: write
       pull-requests: write
@@ -20,6 +25,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Validate security requirements
         run: |
