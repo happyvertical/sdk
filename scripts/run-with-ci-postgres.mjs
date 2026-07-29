@@ -1,10 +1,8 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-const DEFAULT_URL_FILE = '/var/run/ci-services/postgres/url';
 const LIBPQ_PARAMETER_ENV = {
   application_name: 'PGAPPNAME',
   channel_binding: 'PGCHANNELBINDING',
@@ -100,22 +98,20 @@ function run(command, args, options = {}) {
   return result.status ?? 1;
 }
 
-function resolveBaseUrl() {
+// `CI_POSTGRES_BASE_URL` is a maintenance connection we may create and drop
+// databases on; `DATABASE_URL` is used exactly as given. There is deliberately
+// no runner-mounted-file fallback: every CI run provisions its own throwaway
+// PostgreSQL container and sets the variable explicitly, so a silent fallback
+// to a shared server would leak databases that nothing reclaims.
+export function resolveBaseUrl() {
   if (process.env.CI_POSTGRES_BASE_URL) {
     return { managed: true, url: process.env.CI_POSTGRES_BASE_URL };
-  }
-  const urlFile = process.env.CI_POSTGRES_BASE_URL_FILE || DEFAULT_URL_FILE;
-  try {
-    const url = readFileSync(urlFile, 'utf8').trim();
-    if (url) return { managed: true, url };
-  } catch (error) {
-    if (error?.code !== 'ENOENT') throw error;
   }
   if (process.env.DATABASE_URL) {
     return { managed: false, url: process.env.DATABASE_URL };
   }
   throw new Error(
-    `PostgreSQL tests require CI_POSTGRES_BASE_URL, ${urlFile}, or DATABASE_URL`,
+    'PostgreSQL tests require CI_POSTGRES_BASE_URL or DATABASE_URL',
   );
 }
 
@@ -151,7 +147,9 @@ export async function main(argv = process.argv.slice(2)) {
       ]);
       if (status !== 0) {
         console.error(
-          `Failed to drop ${databaseName}; the janitor will remove it after six hours`,
+          `Failed to drop ${databaseName}; nothing will reclaim it later. ` +
+            'CI discards the service container with the job; drop it by hand ' +
+            'on a local server.',
         );
       }
     }

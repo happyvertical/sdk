@@ -699,9 +699,10 @@ jobs:
           PUBLISH_DRY_RUN: ${{ needs.publish-dry-run.result }}
         run: |
           set -euo pipefail
-          # The reusable PostgreSQL workflow scopes its suites internally; a
-          # skipped run is a pass only when scope detection says the change
-          # does not require them.
+          # The reusable PostgreSQL workflow always runs the complete registry;
+          # it skips entirely when CI_POSTGRES_ENABLED is unset. So a skipped
+          # run is a pass only when the lane is disabled, or when scope
+          # detection says the change does not require it.
           if [ "$POSTGRES_TESTS" != success ]; then
             if { [ "$POSTGRES_REQUIRED" = "true" ] && [ "$POSTGRES_ENABLED" = "true" ]; } || [ "$POSTGRES_TESTS" != skipped ]; then
               echo "::error::PostgreSQL validation did not succeed: required=$POSTGRES_REQUIRED result=$POSTGRES_TESTS"
