@@ -25,7 +25,74 @@ export {
   RepositoryErrorCode,
 } from './errors.js';
 export { getRepository } from './factory.js';
+export type { ForgeErrorCode } from './forge/errors.js';
+export {
+  ForgeError,
+  ForgeSignatureError,
+} from './forge/errors.js';
+export type {
+  CheckRun,
+  CheckRunOutput,
+  CommitStatus,
+  CreateCheckRunInput,
+  CreateCommitStatusInput,
+  ForgeActor,
+  ForgeAvailabilityObservation,
+  ForgeCheckConclusion,
+  ForgeCheckObservation,
+  ForgeCheckStatus,
+  ForgeDeploymentObservation,
+  ForgeEventEnvelope,
+  ForgeInstallationObservation,
+  ForgeInstallationRef,
+  ForgeMergeGroupObservation,
+  ForgeMergeObservation,
+  ForgeObservation,
+  ForgeOperations,
+  ForgeProvider,
+  ForgePullRequestObservation,
+  ForgePullRequestRef,
+  ForgePushObservation,
+  ForgeRateLimit,
+  ForgeRepositoryObservation,
+  ForgeRepositoryRef,
+  ForgeResponse,
+  ForgeResponseMetadata,
+  ForgeReviewObservation,
+  ForgeStatusObservation,
+  ForgeTransport,
+  ForgeTransportRequest,
+  ForgeUnknownObservation,
+  UpdateCheckRunInput,
+} from './forge/types.js';
+export type {
+  GitHubAppAuthOptions,
+  GitHubAppCredentials,
+  GitHubInstallationContext,
+  GitHubInstallationScope,
+} from './github/app.js';
+export {
+  createGitHubAppJwt,
+  GitHubAppAuth,
+} from './github/app.js';
+export type { GitHubWebhookFixture } from './github/fixtures.js';
+export { createGitHubWebhookFixture } from './github/fixtures.js';
+export type { GitHubForgeProviderOptions } from './github/forge.js';
+export { GitHubForgeProvider } from './github/forge.js';
 export { GitHubRepository } from './github/index.js';
+export type {
+  GitHubTokenSource,
+  GitHubTransportOptions,
+} from './github/transport.js';
+export { GitHubTransport } from './github/transport.js';
+export type {
+  GitHubWebhookHeaders,
+  GitHubWebhookVerifierOptions,
+} from './github/webhooks.js';
+export {
+  GitHubWebhookVerifier,
+  normalizeGitHubWebhook,
+} from './github/webhooks.js';
 export type { IssueTemplate, TemplateField } from './parsing.js';
 export {
   detectTemplateFromLabels,
