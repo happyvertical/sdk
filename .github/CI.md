@@ -16,14 +16,60 @@ documentation, package, and PostgreSQL suites.
 - The public `shared-direct-publish.yml` reusable workflow remains hosted so
   arbitrary external callers are never routed into HappyVertical capacity.
 
-Each brokered runner keeps the workspace and pnpm store isolated from
-concurrent jobs; safe caches may survive sequential jobs on a warm host.
+Each brokered runner keeps the workspace isolated from concurrent jobs. The
+node-local pnpm store is deliberately not isolated: every job landing on a node
+shares it, which is what makes reuse possible and why a runner that advertises no
+persistent store is treated as a fault below. Only the per-job fallback store is
+job-scoped. Safe caches may survive sequential jobs on a warm host.
 
 The runner workspace and the pnpm store derived by `pnpm store path` must share
 a filesystem. The smoke workflow verifies matching device IDs, confirms that
 installed dependency files have hardlink counts above one, and validates the
 digest-pinned PostgreSQL/pgvector service contract. The persistent store is
 never restored through GitHub Actions.
+
+`.github/actions/setup-environment/select-pnpm-store.sh` picks between the
+three stores. A self-hosted runner that exports `PNPM_STORE_DIR` gets the
+node-local persistent store; a hosted runner gets the Actions-backed cache.
+Selection keys on `RUNNER_ENVIRONMENT` and that export only — never on
+`RUNNER_NAME`. Runner names are provider-specific and the runner contract
+forbids naming a provider-specific backing label, so a name-based gate silently
+stops matching whenever a pool is renamed or consolidated.
+`scripts/select-pnpm-store.test.mjs`, under `pnpm test:ci-scripts`, gates that
+decision table on every pull request.
+
+### A self-hosted runner without `PNPM_STORE_DIR` fails the job
+
+`PNPM_STORE_DIR` is **not** part of the runner target contract, so no provider
+is obligated to export it. Every `arc-runners-happyvertical` variant and the
+Landgraf broker provider do export it today, but a provider that quietly
+stopped would cost a cold store on every job while every check stayed green —
+the same silent degradation that made this bug invisible for as long as it was.
+happyvertical/have-config#335 proposes raising it into the contract, which
+would make the guarantee real rather than conventional.
+
+So that case is a hard error, not a fallback. Two opt-outs accept a cold per-job
+store under `$RUNNER_TEMP` instead, and the job then warns — naming the runner
+and which opt-out applied — rather than failing:
+
+- `allow-ephemeral-store: true` passed to `setup-environment`, for a single
+  workflow that knowingly runs without a persistent store. It needs no
+  infrastructure access and wins over the environment variable.
+- `CI_ALLOW_EPHEMERAL_PNPM_STORE=true` exported from the runner or set in a
+  workflow `env:` block, for recovering fleet-wide without a code change if a
+  provider stops exporting `PNPM_STORE_DIR`.
+
+Only the exact string `true` opts out. Anything else fails closed, and the
+error names all three remedies.
+
+The device-ID and hardlink-count checks prove the store and workspace can
+hardlink; they cannot prove reuse, because pnpm hardlinks into `node_modules`
+on every install regardless of whether the store was already populated. So each
+smoke job also asserts `use-actions-cache=false` and a resolved store path under
+`PNPM_STORE_DIR`, and the `store-reuse` job reports whether the store arrived
+warm from the preceding job. Warmth is reported rather than gated: the broker
+spans several nodes and issues ephemeral JIT identities, so a later job may
+legitimately land on an untouched node.
 
 ## Trusted-base public pull requests
 
