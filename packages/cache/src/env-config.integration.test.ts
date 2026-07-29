@@ -2,6 +2,9 @@
  * Integration tests for environment variable configuration in @happyvertical/cache
  */
 
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getCache } from './index';
 import type { CacheAdapter } from './shared/types';
@@ -10,18 +13,28 @@ describe('Cache Environment Variable Configuration', () => {
   // Store original env to restore after tests
   const originalEnv = { ...process.env };
 
-  beforeEach(() => {
+  // Each test gets its own directory outside the repository, so a failed
+  // assertion cannot leave a cache directory in the working tree and tests
+  // cannot collide over a shared cwd-relative path.
+  let scratchDir: string;
+  const cacheDir = (name: string) => join(scratchDir, name);
+
+  beforeEach(async () => {
     // Clear cache-related env vars before each test
     for (const key of Object.keys(process.env)) {
       if (key.startsWith('HAVE_CACHE_')) {
         delete process.env[key];
       }
     }
+
+    scratchDir = await mkdtemp(join(tmpdir(), 'have-cache-env-'));
   });
 
   afterEach(async () => {
     // Restore original env
     process.env = { ...originalEnv };
+
+    await rm(scratchDir, { recursive: true, force: true });
   });
 
   describe('memory provider configuration', () => {
@@ -98,15 +111,16 @@ describe('Cache Environment Variable Configuration', () => {
 
   describe('file provider configuration', () => {
     it('should create file cache from environment variables', async () => {
+      const dir = cacheDir('test-cache-env');
       process.env.HAVE_CACHE_PROVIDER = 'file';
-      process.env.HAVE_CACHE_CACHE_DIR = './test-cache-env';
+      process.env.HAVE_CACHE_CACHE_DIR = dir;
       process.env.HAVE_CACHE_NAMESPACE = 'file-test';
       process.env.HAVE_CACHE_COMPRESSION = 'true';
       process.env.HAVE_CACHE_DEFAULT_TTL = '300';
 
       const cache = await getCache({
         provider: 'file',
-        cacheDir: './test-cache-env',
+        cacheDir: dir,
       });
 
       await cache.set('file-key', { data: 'file-value' });
@@ -114,10 +128,6 @@ describe('Cache Environment Variable Configuration', () => {
       expect(result).toEqual({ data: 'file-value' });
 
       await cache.close();
-
-      // Cleanup
-      const fs = await import('node:fs/promises');
-      await fs.rm('./test-cache-env', { recursive: true, force: true });
     });
 
     it('should merge env vars with user options for file cache', async () => {
@@ -126,7 +136,7 @@ describe('Cache Environment Variable Configuration', () => {
 
       const cache = await getCache({
         provider: 'file',
-        cacheDir: './test-cache-merge',
+        cacheDir: cacheDir('test-cache-merge'),
         namespace: 'merge-test',
       });
 
@@ -134,10 +144,6 @@ describe('Cache Environment Variable Configuration', () => {
       expect(await cache.get('merge-key')).toBe('merge-value');
 
       await cache.close();
-
-      // Cleanup
-      const fs = await import('node:fs/promises');
-      await fs.rm('./test-cache-merge', { recursive: true, force: true });
     });
   });
 
@@ -197,17 +203,13 @@ describe('Cache Environment Variable Configuration', () => {
 
       const cache = await getCache({
         provider: 'file',
-        cacheDir: './test-cache-bool',
+        cacheDir: cacheDir('test-cache-bool'),
       });
 
       await cache.set('bool-test', 'bool-data');
       expect(await cache.get('bool-test')).toBe('bool-data');
 
       await cache.close();
-
-      // Cleanup
-      const fs = await import('node:fs/promises');
-      await fs.rm('./test-cache-bool', { recursive: true, force: true });
     });
 
     it('should handle false boolean values', async () => {
@@ -215,17 +217,13 @@ describe('Cache Environment Variable Configuration', () => {
 
       const cache = await getCache({
         provider: 'file',
-        cacheDir: './test-cache-no-compress',
+        cacheDir: cacheDir('test-cache-no-compress'),
       });
 
       await cache.set('no-compress', 'data');
       expect(await cache.get('no-compress')).toBe('data');
 
       await cache.close();
-
-      // Cleanup
-      const fs = await import('node:fs/promises');
-      await fs.rm('./test-cache-no-compress', { recursive: true, force: true });
     });
   });
 
@@ -349,24 +347,21 @@ describe('Cache Environment Variable Configuration', () => {
     });
 
     it('should support development file cache configuration', async () => {
+      const dir = cacheDir('dev-cache');
       process.env.HAVE_CACHE_PROVIDER = 'file';
-      process.env.HAVE_CACHE_CACHE_DIR = './dev-cache';
+      process.env.HAVE_CACHE_CACHE_DIR = dir;
       process.env.HAVE_CACHE_COMPRESSION = 'false'; // Fast dev mode
       process.env.HAVE_CACHE_DEFAULT_TTL = '300'; // 5 minutes
 
       const cache = await getCache({
         provider: 'file',
-        cacheDir: './dev-cache',
+        cacheDir: dir,
       });
 
       await cache.set('dev-key', { debug: true, data: 'test' });
       expect(await cache.get('dev-key')).toEqual({ debug: true, data: 'test' });
 
       await cache.close();
-
-      // Cleanup
-      const fs = await import('node:fs/promises');
-      await fs.rm('./dev-cache', { recursive: true, force: true });
     });
   });
 });
