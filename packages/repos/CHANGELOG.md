@@ -1,5 +1,18 @@
 # @happyvertical/repos
 
+## 0.85.0
+
+### Minor Changes
+
+- 4652135: Add provider-neutral forge transport, event, error, rate-limit, status, and
+  check contracts with request-scoped GitHub App installation authentication,
+  raw-body webhook verification, GitHub event normalization, and a GitHub forge
+  adapter.
+
+### Patch Changes
+
+- @happyvertical/graphql@0.85.0
+
 ## 0.84.0
 
 ### Patch Changes
