@@ -53,6 +53,7 @@ export class FileProvider implements CacheProvider {
   private fileExtension: string;
   private checkPeriod: number;
   private checkInterval?: NodeJS.Timeout;
+  private cacheDirReady?: Promise<void>;
   private stats: {
     hits: number;
     misses: number;
@@ -73,7 +74,9 @@ export class FileProvider implements CacheProvider {
       evictions: 0,
     };
 
-    // Ensure cache directory exists
+    // Start creating the cache directory now so the first operation rarely has
+    // to wait. Every filesystem operation still awaits it, because the
+    // constructor cannot.
     this.ensureCacheDir();
 
     // Start background cleanup
@@ -133,6 +136,17 @@ export class FileProvider implements CacheProvider {
     if (!isValidKey(key)) {
       throw new CacheKeyError(key, 'file');
     }
+
+    // The only operation that creates a file from nothing, so the only one
+    // that can outrun directory creation. Reads tolerate a missing directory,
+    // and the write-backs in get()/touch() only run after a successful read,
+    // which already proves the directory exists. Any new operation that writes
+    // without reading first must await this too.
+    //
+    // This settles initialization, not the directory's continued existence:
+    // once creation has succeeded the memo is fulfilled, so a directory
+    // deleted externally afterwards is not recreated here.
+    await this.ensureCacheDir();
 
     const fullKey = formatKey(this.namespace, key);
     const filePath = this.getFilePath(fullKey);
@@ -234,6 +248,10 @@ export class FileProvider implements CacheProvider {
       // Clear all cache files
       try {
         await rm(this.cacheDir, { recursive: true, force: true });
+
+        // The directory this provider memoized no longer exists, so drop the
+        // memo and create it again rather than awaiting the settled promise.
+        this.cacheDirReady = undefined;
         await this.ensureCacheDir();
         this.stats.hits = 0;
         this.stats.misses = 0;
@@ -416,9 +434,30 @@ export class FileProvider implements CacheProvider {
   }
 
   /**
-   * Ensures cache directory exists
+   * Ensures cache directory exists.
+   *
+   * Creation is started once and memoized, so concurrent operations share a
+   * single `mkdir` and every caller awaits the same result. The constructor
+   * cannot await, so operations must: otherwise a write issued right after
+   * construction can reach `writeFile` before the directory exists and fail
+   * with ENOENT.
    */
-  private async ensureCacheDir(): Promise<void> {
+  private ensureCacheDir(): Promise<void> {
+    if (!this.cacheDirReady) {
+      this.cacheDirReady = this.createCacheDir();
+
+      // Keep a failed creation from surfacing as an unhandled rejection when
+      // the constructor kicks it off, and let a later operation retry it.
+      // Callers awaiting this promise still observe the error.
+      this.cacheDirReady.catch(() => {
+        this.cacheDirReady = undefined;
+      });
+    }
+
+    return this.cacheDirReady;
+  }
+
+  private async createCacheDir(): Promise<void> {
     try {
       await mkdir(this.cacheDir, { recursive: true });
     } catch (error: any) {
@@ -558,7 +597,9 @@ export class FileProvider implements CacheProvider {
    */
   private startCleanup(): void {
     this.checkInterval = setInterval(() => {
-      this.removeExpiredFiles();
+      // Background sweep: nothing awaits this, so swallow failures rather than
+      // letting them surface as an unhandled rejection in an unrelated caller.
+      this.removeExpiredFiles().catch(() => {});
     }, this.checkPeriod);
 
     // Don't block process exit
