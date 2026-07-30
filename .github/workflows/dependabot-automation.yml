@@ -10,6 +10,13 @@ on:
   pull_request_target:
     types: [opened, synchronize, reopened]
 
+# Pull-request validation: a newer push supersedes the older run. Keyed on the
+# pull-request number so successive pushes to the same Dependabot branch
+# collide instead of each holding a runner slot.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   dependabot:
     name: Dependabot Automation
