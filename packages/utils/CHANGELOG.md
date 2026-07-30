@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.85.2
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - stop a second merge to main cancelling an in-flight publish (#1177) (ci)
+
 ## 0.85.1
 
 ### Patch Changes

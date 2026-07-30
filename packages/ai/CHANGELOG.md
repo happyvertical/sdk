@@ -1,5 +1,12 @@
 # @happyvertical/ai
 
+## 0.85.2
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.85.2
+
 ## 0.85.1
 
 ### Patch Changes

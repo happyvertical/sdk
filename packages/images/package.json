@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/images",
-  "version": "0.85.1",
+  "version": "0.85.2",
   "description": "Image processing utilities with adapter pattern for scaling from static to enterprise",
   "type": "module",
   "main": "./dist/index.js",

@@ -1,5 +1,7 @@
 # @happyvertical/speech
 
+## 0.85.2
+
 ## 0.85.1
 
 ## 0.85.0
