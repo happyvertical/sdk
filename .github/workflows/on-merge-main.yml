@@ -7,8 +7,19 @@ on:
 concurrency:
   # Keep release-generated pushes from cancelling the original merge-to-main run
   # that created them. Those follow-up runs are intentionally skipped below.
+  # The github.sha key is deliberate here: it is unique per push, so a release
+  # commit lands in its own group and can never contend with anything.
   group: "${{ startsWith(github.event.head_commit.message, 'chore(release): v') && format('on-merge-main-release-{0}', github.sha) || 'on-merge-main' }}"
-  cancel-in-progress: true
+  # Never cancel a RUNNING release. This workflow orchestrates
+  # test -> build -> publish, so cancelling it can abort a release mid-flight —
+  # between `npm publish`, `git tag -f`, `git push origin HEAD:main`, and
+  # `gh release create` — and leave the registry or the tag half-written.
+  # Successive merges to main queue behind the running one instead; a slow
+  # release beats a torn one. Note GitHub still keeps only one *pending* run per
+  # group, so a third merge evicts the queued second one — that costs an
+  # intermediate commit its CI record, but the release itself is not lost,
+  # because changesets accumulate and the surviving run publishes from HEAD.
+  cancel-in-progress: false
 
 permissions:
   contents: write
