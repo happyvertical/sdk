@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.85.3
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - sync generation-21 agent policy kernel (#1174) (ci)
+
 ## 0.85.2
 
 ### Patch Changes
