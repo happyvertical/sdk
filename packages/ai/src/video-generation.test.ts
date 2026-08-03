@@ -904,6 +904,173 @@ describe('BytePlus ModelArk video generation (Seedance)', () => {
       expect(callTimestamps).toHaveLength(2);
       expect(Date.now() - start).toBeLessThan(300);
     });
+
+    it('never lets activeRequests exceed maxConcurrent under contention that interleaves the slot-wait and token-wait loops (TOCTOU)', async () => {
+      let inFlight = 0;
+      let maxObservedInFlight = 0;
+      const releasers: Array<() => void> = [];
+
+      const fetchMock = vi.fn(async () => {
+        inFlight += 1;
+        maxObservedInFlight = Math.max(maxObservedInFlight, inFlight);
+        await new Promise<void>((resolve) => releasers.push(resolve));
+        inFlight -= 1;
+        return jsonResponse({ id: `task-${releasers.length}` });
+      });
+      global.fetch = fetchMock as any;
+
+      const provider = new ByteplusModelArkProvider({
+        type: 'byteplus-modelark',
+        apiKey: 'modelark-key-toctou',
+        // Only 2 burst tokens and only 2 concurrent slots for 5 submitters:
+        // callers 3-5 must wait on BOTH the slot-wait loop and the
+        // token-wait loop, and slots free up (via the release loop below)
+        // while other callers are still mid-wait for a token — exactly the
+        // interleaving window the TOCTOU bug required.
+        rateLimit: { maxConcurrent: 2, requestsPerMinute: 120 },
+      });
+
+      const submissionCount = 5;
+      const submissions = Array.from({ length: submissionCount }, (_, index) =>
+        provider.submitVideoGenerationJob({ prompt: `p${index}` }),
+      );
+
+      // Release fetches as they actually arrive rather than on a fixed
+      // schedule: under heavy rate-limit contention, later callers may not
+      // reach fetch() until well after earlier ones have been released, so
+      // a fixed-cadence release loop can run out of scheduled releases
+      // before a late caller ever starts (and then hang forever waiting on
+      // a release that never comes). Polling for a releaser to appear
+      // instead makes this robust to however long the limiter makes each
+      // caller wait.
+      let released = 0;
+      const releaseLoop = (async () => {
+        while (released < submissionCount) {
+          if (releasers.length > 0) {
+            releasers.shift()?.();
+            released += 1;
+            // Hold each response open briefly so multiple submissions can
+            // genuinely overlap in-flight (exercising real concurrency),
+            // rather than releasing so fast that submissions never overlap.
+            await new Promise((resolve) => setTimeout(resolve, 20));
+          } else {
+            await new Promise((resolve) => setTimeout(resolve, 10));
+          }
+        }
+      })();
+
+      await Promise.all([...submissions, releaseLoop]);
+
+      expect(fetchMock).toHaveBeenCalledTimes(submissionCount);
+      // The core assertion: at no point did more than maxConcurrent (2)
+      // submissions have an in-flight fetch simultaneously.
+      expect(maxObservedInFlight).toBeLessThanOrEqual(2);
+    }, 15000);
+  });
+
+  describe('abort-signal handling', () => {
+    it('honors an already-aborted signal at submit time: no fetch call, and the limiter slot/token is not consumed', async () => {
+      const fetchMock = vi.fn(async () => jsonResponse({ id: 'ok' }));
+      global.fetch = fetchMock as any;
+
+      const provider = new ByteplusModelArkProvider({
+        type: 'byteplus-modelark',
+        apiKey: 'modelark-key-preaborted',
+      });
+
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(
+        provider.submitVideoGenerationJob({
+          prompt: 'x',
+          signal: controller.signal,
+        }),
+      ).rejects.toMatchObject({ code: 'AI_ABORTED' });
+      expect(fetchMock).not.toHaveBeenCalled();
+
+      // The burst-capacity bucket (2 tokens) must still be full — the
+      // aborted attempt must not have consumed a token or a concurrency
+      // slot. Two legitimate submits right after should both clear
+      // near-instantly, proving nothing was consumed.
+      const start = Date.now();
+      await provider.submitVideoGenerationJob({ prompt: 'y' });
+      await provider.submitVideoGenerationJob({ prompt: 'z' });
+      expect(Date.now() - start).toBeLessThan(300);
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('aborting while waiting for a concurrency slot never calls fetch', async () => {
+      let releaseFirst: (() => void) | undefined;
+      const blockingFetch = vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            releaseFirst = () => resolve(jsonResponse({ id: 'blocking' }));
+          }),
+      );
+      global.fetch = blockingFetch as any;
+
+      const provider = new ByteplusModelArkProvider({
+        type: 'byteplus-modelark',
+        apiKey: 'modelark-key-abort-slot-wait',
+        rateLimit: { maxConcurrent: 1 },
+      });
+
+      // Occupy the single concurrency slot with a submission whose fetch
+      // never resolves, forcing the next submission to wait in
+      // acquire()'s slot-wait loop.
+      const first = provider.submitVideoGenerationJob({ prompt: 'first' });
+      await vi.waitFor(() => expect(blockingFetch).toHaveBeenCalledTimes(1));
+
+      const controller = new AbortController();
+      const second = provider.submitVideoGenerationJob({
+        prompt: 'second',
+        signal: controller.signal,
+      });
+
+      // Let the second call enter the slot-wait loop, then abort it while
+      // it is still waiting for a concurrency slot (well before the
+      // loop's own 100ms poll interval would naturally wake it).
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      controller.abort();
+
+      await expect(second).rejects.toMatchObject({ code: 'AI_ABORTED' });
+      expect(blockingFetch).toHaveBeenCalledTimes(1); // second never reached fetch
+
+      releaseFirst?.();
+      await first;
+    });
+
+    it('aborting while waiting for a token refill never calls fetch', async () => {
+      const fetchMock = vi.fn(async () => jsonResponse({ id: 'ok' }));
+      global.fetch = fetchMock as any;
+
+      const provider = new ByteplusModelArkProvider({
+        type: 'byteplus-modelark',
+        apiKey: 'modelark-key-abort-token-wait',
+        // No slot contention (maxConcurrent is generous); the bottleneck
+        // is the 2-token burst bucket refilling slowly.
+        rateLimit: { requestsPerMinute: 12, maxConcurrent: 10 },
+      });
+
+      // Drain the burst capacity with two quick, unaborted submits.
+      await provider.submitVideoGenerationJob({ prompt: 'first' });
+      await provider.submitVideoGenerationJob({ prompt: 'second' });
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+
+      // A third submission now has to wait for a token refill (~5s at
+      // this rate); abort it while it is still waiting.
+      const controller = new AbortController();
+      const third = provider.submitVideoGenerationJob({
+        prompt: 'third',
+        signal: controller.signal,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      controller.abort();
+
+      await expect(third).rejects.toMatchObject({ code: 'AI_ABORTED' });
+      expect(fetchMock).toHaveBeenCalledTimes(2); // third never reached fetch
+    });
   });
 
   it('participates in the shared createRateLimitedAI submit-time pacing wrapper', async () => {
@@ -960,6 +1127,28 @@ describe('openai-compat-video provider', () => {
           apiKey: 'key',
         } as any),
     ).toThrow(/baseUrl/i);
+  });
+
+  it('honors an already-aborted signal at submit time: no fetch call', async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock as any;
+
+    const provider = new OpenAICompatVideoProvider({
+      type: 'openai-compat-video',
+      baseUrl: 'https://gateway.example.com/v1',
+      apiKey: 'gw-key',
+    });
+
+    const controller = new AbortController();
+    controller.abort();
+
+    await expect(
+      provider.submitVideoGenerationJob({
+        prompt: 'x',
+        signal: controller.signal,
+      }),
+    ).rejects.toMatchObject({ code: 'AI_ABORTED' });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('submits a job using the OpenAI videos request shape', async () => {

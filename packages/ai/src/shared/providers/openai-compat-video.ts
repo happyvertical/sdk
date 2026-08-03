@@ -187,6 +187,14 @@ export class OpenAICompatVideoProvider implements AIInterface {
       allowNotFound?: boolean;
     } = {},
   ): Promise<Response> {
+    if (options.signal?.aborted) {
+      throw new AIError(
+        'openai-compat-video request aborted by caller',
+        'AI_ABORTED',
+        'openai-compat-video',
+      );
+    }
+
     const url = new URL(`${this.baseUrl}${path}`);
     for (const [key, value] of Object.entries(options.query ?? {})) {
       url.searchParams.set(key, String(value));
@@ -201,8 +209,18 @@ export class OpenAICompatVideoProvider implements AIInterface {
           controller.abort();
         }, timeoutMs)
       : undefined;
-    const onExternalAbort = () => controller.abort();
-    options.signal?.addEventListener('abort', onExternalAbort, { once: true });
+    // Mirrors `prepareRequestControls`'s pattern (packages/ai/src/shared/safety.ts):
+    // addEventListener on an already-aborted signal never fires, so an
+    // already-aborted `signal` must invoke the abort immediately instead of
+    // only listening for a future 'abort' event.
+    const onExternalAbort = () => controller.abort(options.signal?.reason);
+    if (options.signal?.aborted) {
+      onExternalAbort();
+    } else {
+      options.signal?.addEventListener('abort', onExternalAbort, {
+        once: true,
+      });
+    }
 
     try {
       const headers: Record<string, string> = {

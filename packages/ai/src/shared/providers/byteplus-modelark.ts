@@ -105,6 +105,30 @@ interface ModelArkTaskResponse {
 }
 
 /**
+ * Resolve after `ms` milliseconds, or as soon as `signal` aborts —
+ * whichever comes first. Never rejects; callers re-check `signal.aborted`
+ * themselves immediately after, so a single check covers both "timed out
+ * normally" and "woke up early because of an abort."
+ */
+function delayOrAbort(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve) => {
+    if (signal?.aborted) {
+      resolve();
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      { once: true },
+    );
+  });
+}
+
+/**
  * Local token-bucket + concurrency limiter for submit-time throttling.
  *
  * ModelArk documents Seedance account limits of QPS 2 / 3 *concurrent
@@ -140,7 +164,34 @@ class SubmitRateLimiter {
     this.maxConcurrent = options.maxConcurrent ?? 3;
   }
 
-  async acquire(): Promise<void> {
+  /**
+   * Acquire a submit slot + token, honoring `signal` throughout the wait.
+   *
+   * The concurrency slot and the token are checked and committed together
+   * in one synchronous section (no `await` between the check and the
+   * `tokens -=`/`activeRequests +=` mutations below), so a waiter can never
+   * observe a stale "slot available" snapshot from before another waiter's
+   * own commit — closing the TOCTOU window where two callers could both
+   * pass the checks and push `activeRequests` past `maxConcurrent`.
+   *
+   * An aborted `signal` — whether already aborted at entry or aborted
+   * while waiting for a slot/token — throws before any token is consumed
+   * or `activeRequests` is incremented, so an aborted submission never
+   * silently proceeds to create a billable job.
+   */
+  async acquire(signal?: AbortSignal): Promise<void> {
+    const throwIfAborted = () => {
+      if (signal?.aborted) {
+        throw new AIError(
+          'ModelArk submission aborted by caller while waiting for the rate limiter',
+          'AI_ABORTED',
+          'byteplus-modelark',
+        );
+      }
+    };
+
+    throwIfAborted();
+
     const now = Date.now();
     const elapsed = (now - this.lastRefill) / 1000;
     this.tokens = Math.min(
@@ -149,23 +200,31 @@ class SubmitRateLimiter {
     );
     this.lastRefill = now;
 
-    while (this.activeRequests >= this.maxConcurrent) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
+    for (;;) {
+      throwIfAborted();
 
-    while (this.tokens < 1) {
-      const waitTime = ((1 - this.tokens) / this.refillRate) * 1000;
-      await new Promise((resolve) => setTimeout(resolve, waitTime));
-      const elapsedNow = (Date.now() - this.lastRefill) / 1000;
-      this.tokens = Math.min(
-        this.maxTokens,
-        this.tokens + elapsedNow * this.refillRate,
-      );
-      this.lastRefill = Date.now();
-    }
+      if (this.activeRequests < this.maxConcurrent && this.tokens >= 1) {
+        this.tokens -= 1;
+        this.activeRequests += 1;
+        return;
+      }
 
-    this.tokens -= 1;
-    this.activeRequests += 1;
+      if (this.activeRequests >= this.maxConcurrent) {
+        await delayOrAbort(100, signal);
+      } else {
+        const waitTime = Math.max(
+          1,
+          ((1 - this.tokens) / this.refillRate) * 1000,
+        );
+        await delayOrAbort(waitTime, signal);
+        const elapsedNow = (Date.now() - this.lastRefill) / 1000;
+        this.tokens = Math.min(
+          this.maxTokens,
+          this.tokens + elapsedNow * this.refillRate,
+        );
+        this.lastRefill = Date.now();
+      }
+    }
   }
 
   release(): void {
@@ -281,6 +340,14 @@ export class ByteplusModelArkProvider implements AIInterface {
       timeout?: number;
     } = {},
   ): Promise<T> {
+    if (options.signal?.aborted) {
+      throw new AIError(
+        'ModelArk request aborted by caller',
+        'AI_ABORTED',
+        'byteplus-modelark',
+      );
+    }
+
     const url = new URL(`${this.baseUrl}${path}`);
     for (const [key, value] of Object.entries(options.query ?? {})) {
       url.searchParams.set(key, String(value));
@@ -295,8 +362,18 @@ export class ByteplusModelArkProvider implements AIInterface {
           controller.abort();
         }, timeoutMs)
       : undefined;
-    const onExternalAbort = () => controller.abort();
-    options.signal?.addEventListener('abort', onExternalAbort, { once: true });
+    // Mirrors `prepareRequestControls`'s pattern (packages/ai/src/shared/safety.ts):
+    // addEventListener on an already-aborted signal never fires, so an
+    // already-aborted `signal` must invoke the abort immediately instead of
+    // only listening for a future 'abort' event.
+    const onExternalAbort = () => controller.abort(options.signal?.reason);
+    if (options.signal?.aborted) {
+      onExternalAbort();
+    } else {
+      options.signal?.addEventListener('abort', onExternalAbort, {
+        once: true,
+      });
+    }
 
     try {
       let response: Response;
@@ -403,7 +480,7 @@ export class ByteplusModelArkProvider implements AIInterface {
     options: VideoGenerationOptions,
   ): Promise<VideoGenerationJob> {
     const startTime = Date.now();
-    await this.submitLimiter.acquire();
+    await this.submitLimiter.acquire(options.signal);
 
     try {
       const hasReferenceImages = (options.referenceImages?.length ?? 0) > 0;
