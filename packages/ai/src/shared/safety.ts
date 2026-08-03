@@ -332,7 +332,8 @@ export function requestEventBase(options: {
     attempts: normalized.maxRetries + 1,
     requestedMaxOutputTokens: options.callOptions?.maxTokens,
     effectiveMaxOutputTokens:
-      options.operation === 'generateImage'
+      options.operation === 'generateImage' ||
+      VIDEO_GENERATION_OPERATIONS.has(options.operation)
         ? undefined
         : (options.effectiveMaxOutputTokens ??
           normalized.generationLimits.maxOutputTokens),
@@ -347,6 +348,29 @@ const OBSERVED_OPERATIONS = new Set<AIRequestOperation>([
   'describeImage',
   'generateImage',
   'stream',
+  'submitVideoGenerationJob',
+  'getVideoGenerationJob',
+  'fetchVideoGenerationResult',
+  'cancelVideoGenerationJob',
+]);
+
+/**
+ * `getVideoGenerationJob` / `fetchVideoGenerationResult` /
+ * `cancelVideoGenerationJob` take a `VideoGenerationJob` handle as their
+ * first (and only) argument rather than a chat-shaped `options` object as
+ * the second argument. The handle still carries a `model` field, so
+ * `callOptionsFor` reads it from the same position as `submitVideoGenerationJob`'s
+ * `options` (index 0) rather than index 1.
+ */
+const VIDEO_HANDLE_OPERATIONS = new Set<AIRequestOperation>([
+  'getVideoGenerationJob',
+  'fetchVideoGenerationResult',
+  'cancelVideoGenerationJob',
+]);
+
+const VIDEO_GENERATION_OPERATIONS = new Set<AIRequestOperation>([
+  'submitVideoGenerationJob',
+  ...VIDEO_HANDLE_OPERATIONS,
 ]);
 
 function callOptionsFor(
@@ -359,7 +383,13 @@ function callOptionsFor(
       usageTags?: Record<string, string>;
     })
   | undefined {
-  const index = operation === 'describeImage' ? 2 : 1;
+  const index =
+    operation === 'describeImage'
+      ? 2
+      : operation === 'submitVideoGenerationJob' ||
+          VIDEO_HANDLE_OPERATIONS.has(operation)
+        ? 0
+        : 1;
   const value = args[index];
   return value && typeof value === 'object'
     ? (value as AIRequestControls & {
@@ -386,13 +416,20 @@ function effectiveOutputTokens(
       })
     | undefined,
 ): number | undefined {
-  if (operation === 'generateImage') {
-    normalizeImageGenerationOptions(
-      providerOptions,
-      callOptions || {},
-      providerName(providerOptions),
-      callOptions?.model,
-    );
+  if (
+    operation === 'generateImage' ||
+    VIDEO_GENERATION_OPERATIONS.has(operation)
+  ) {
+    // maxTokens/reasoning concepts don't apply to video-generation jobs;
+    // avoid attaching a misleading chat-shaped token ceiling to the event.
+    if (operation === 'generateImage') {
+      normalizeImageGenerationOptions(
+        providerOptions,
+        callOptions || {},
+        providerName(providerOptions),
+        callOptions?.model,
+      );
+    }
     return undefined;
   }
 

@@ -66,6 +66,7 @@ describe('OpenAI Provider', () => {
       fineTuning: true,
       imageEmbeddings: true,
       imageGeneration: true,
+      videoGeneration: false,
       tts: false,
       voiceCloning: false,
       voiceDesign: false,
@@ -129,6 +130,7 @@ describe('LiteLLM Provider', () => {
       fineTuning: false,
       imageEmbeddings: true,
       imageGeneration: true,
+      videoGeneration: false,
       tts: false,
       voiceCloning: false,
       voiceDesign: false,
@@ -512,6 +514,7 @@ describe('Bifrost Provider', () => {
       fineTuning: false,
       imageEmbeddings: true,
       imageGeneration: true,
+      videoGeneration: false,
       tts: false,
       voiceCloning: false,
       voiceDesign: false,
@@ -714,6 +717,7 @@ describe('Ollama Provider', () => {
       fineTuning: false,
       imageEmbeddings: true,
       imageGeneration: true,
+      videoGeneration: false,
       tts: false,
       voiceCloning: false,
       voiceDesign: false,
@@ -1065,7 +1069,7 @@ describe('Ollama Provider', () => {
 
       expect(result.images).toHaveLength(1);
       expect(Buffer.isBuffer(result.images[0]?.data)).toBe(true);
-      expect((result.images[0]?.data as Buffer).toString()).toBe('image-bytes');
+      expect((result.images[0]!.data as Buffer).toString()).toBe('image-bytes');
     } finally {
       global.fetch = originalFetch;
     }
@@ -1164,6 +1168,7 @@ describe('Gemini Provider', () => {
       fineTuning: false,
       imageEmbeddings: true,
       imageGeneration: true,
+      videoGeneration: true,
       tts: false,
       voiceCloning: false,
       voiceDesign: false,
@@ -1177,6 +1182,7 @@ describe('Gemini Provider', () => {
         'vision',
         'image_embedding',
         'image_generation',
+        'video_generation',
       ],
     });
   });
@@ -1302,6 +1308,7 @@ describe('Bedrock Provider', () => {
       fineTuning: true,
       imageEmbeddings: true,
       imageGeneration: true,
+      videoGeneration: false,
       tts: false,
       voiceCloning: false,
       voiceDesign: false,
@@ -1541,6 +1548,7 @@ describe('Claude CLI Provider', () => {
       fineTuning: false,
       imageEmbeddings: false,
       imageGeneration: false,
+      videoGeneration: false,
       tts: false,
       voiceCloning: false,
       voiceDesign: false,

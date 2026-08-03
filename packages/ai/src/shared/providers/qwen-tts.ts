@@ -28,6 +28,10 @@ import type {
   Qwen3TTSOptions,
   TTSOptions,
   TTSResponse,
+  VideoGenerationJob,
+  VideoGenerationOptions,
+  VideoGenerationResult,
+  VideoGenerationStatusResult,
   Voice,
   VoiceCloneOptions,
   VoiceDesignOptions,
@@ -519,15 +523,66 @@ export class Qwen3TTSProvider implements AIInterface {
     );
   }
 
-  async *stream(
+  async submitVideoGenerationJob(
+    _options: VideoGenerationOptions,
+  ): Promise<VideoGenerationJob> {
+    throw new AIError(
+      'Video generation is not supported by Qwen3-TTS provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'qwen3-tts',
+    );
+  }
+
+  async getVideoGenerationJob(
+    _handle: VideoGenerationJob,
+  ): Promise<VideoGenerationStatusResult> {
+    throw new AIError(
+      'Video generation is not supported by Qwen3-TTS provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'qwen3-tts',
+    );
+  }
+
+  async fetchVideoGenerationResult(
+    _handle: VideoGenerationJob,
+  ): Promise<VideoGenerationResult> {
+    throw new AIError(
+      'Video generation is not supported by Qwen3-TTS provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'qwen3-tts',
+    );
+  }
+
+  async cancelVideoGenerationJob(_handle: VideoGenerationJob): Promise<void> {
+    throw new AIError(
+      'Video generation is not supported by Qwen3-TTS provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'qwen3-tts',
+    );
+  }
+
+  async validateVideoGenerationAccess(): Promise<boolean> {
+    throw new AIError(
+      'Video generation is not supported by Qwen3-TTS provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'qwen3-tts',
+    );
+  }
+
+  stream(
     _messages: AIMessage[],
     _options?: ChatOptions,
   ): AsyncIterable<string> {
-    throw new AIError(
+    const error = new AIError(
       'Chat streaming is not supported by Qwen3-TTS provider.',
       'NOT_IMPLEMENTED',
       'qwen3-tts',
     );
+    return {
+      [Symbol.asyncIterator]: () => ({
+        next: () => Promise.reject(error),
+      }),
+    };
   }
 
   async countTokens(_text: string): Promise<number> {
@@ -572,6 +627,7 @@ export class Qwen3TTSProvider implements AIInterface {
       fineTuning: false,
       imageEmbeddings: false,
       imageGeneration: false,
+      videoGeneration: false,
       tts: true,
       voiceCloning: true,
       voiceDesign: true,
