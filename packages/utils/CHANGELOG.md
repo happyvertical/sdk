@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.85.4
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - resolve @happyvertical/pdf to 0.65.9 for pre-AVX2 safety (#1184) (deps)
+
 ## 0.85.3
 
 ### Patch Changes
