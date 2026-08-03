@@ -10,8 +10,8 @@ catalogs:
       specifier: ^0.61.1
       version: 0.61.1
     '@happyvertical/pdf':
-      specifier: ^0.65
-      version: 0.65.5
+      specifier: ^0.65.9
+      version: 0.65.9
     '@happyvertical/spider':
       specifier: ^1.1
       version: 1.1.13
@@ -370,7 +370,7 @@ importers:
         version: 0.61.1(@types/node@24.12.2)
       '@happyvertical/pdf':
         specifier: 'catalog:'
-        version: 0.65.5(@types/node@24.12.2)
+        version: 0.65.9(@types/node@24.12.2)
       '@happyvertical/spider':
         specifier: 'catalog:'
         version: 1.1.13(@types/node@24.12.2)
@@ -3288,8 +3288,8 @@ packages:
     resolution: {integrity: sha512-MO5j/m5lec3Sj6PEkIqBWfyNUu0rX8tF8t+TDV0EQVtVrZnrWNJE5Xz02civa+4ZN1W5UXlTsysd7nOfn5Kr+Q==}
     engines: {node: '>=24', pnpm: '>=11.13.0'}
 
-  '@happyvertical/pdf@0.65.5':
-    resolution: {integrity: sha512-8XvncVUOFyYmsKgLWb1O1k9QLLr33QTDkRMo+2idAXvUfOb4zhNlGTzVm+QkJEoWiHLebc/licF9Qqbri6mFiw==}
+  '@happyvertical/pdf@0.65.9':
+    resolution: {integrity: sha512-FnyCI8N8YQeeuKUQdiiPoKkN4U4Hqgf/N+7Vw1HMAw0vmoliNGlPJBZcqzl6hX4N3ZdXYNP6pqiVHGmPiDiBhw==}
     engines: {node: '>=24', pnpm: '>=11.13.0'}
 
   '@happyvertical/spider@1.1.13':
@@ -7441,6 +7441,7 @@ packages:
   cron-parser@4.9.0:
     resolution: {integrity: sha512-p0SaNjrHOnQeR8/VnfGbmg9te2kfyYSQ7Sc/j/6DtPL3JQvKxmjO9TSjNFpujqV3vEYYBvNNvXSxzyksBWAx1Q==}
     engines: {node: '>=12.0.0'}
+    deprecated: v4 is no longer maintained, upgrade to v5
 
   cross-fetch@4.1.0:
     resolution: {integrity: sha512-uKm5PU+MHTootlWEY+mZ4vvXoCn4fLQxT9dSc1sXVMSFkINTJVN8cAQROpwcKm8bJ/c7rgZVIBWzH5T78sNZZw==}
@@ -17429,7 +17430,7 @@ snapshots:
       - '@types/node'
       - encoding
 
-  '@happyvertical/pdf@0.65.5(@types/node@24.12.2)':
+  '@happyvertical/pdf@0.65.9(@types/node@24.12.2)':
     dependencies:
       '@happyvertical/ocr': 0.61.1(@types/node@24.12.2)
       '@happyvertical/utils': link:packages/utils

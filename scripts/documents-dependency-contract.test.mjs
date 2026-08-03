@@ -75,7 +75,7 @@ test('Documents catalog ranges accept the audited released dependency family', (
   const catalog = readCatalog();
   const releasedDependencies = {
     '@happyvertical/ocr': '0.61.1',
-    '@happyvertical/pdf': '0.65.5',
+    '@happyvertical/pdf': '0.65.9',
     '@happyvertical/spider': '1.1.13',
   };
 
