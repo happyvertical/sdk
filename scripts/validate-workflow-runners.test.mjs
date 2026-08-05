@@ -80,6 +80,9 @@ test('extracts flow-list matrix os, inline comments, and block runs-on', () => {
     '    runs-on:',
     '      - self-hosted',
     '      - windows-2019',
+    '  d:',
+    '    runs-on:',
+    '    - macos-13',
     '    steps:',
     '      - run: echo done',
   ].join('\n');
@@ -89,6 +92,26 @@ test('extracts flow-list matrix os, inline comments, and block runs-on', () => {
     { line: 8, label: 'macos-13' },
     { line: 11, label: 'self-hosted' },
     { line: 12, label: 'windows-2019' },
+    { line: 15, label: 'macos-13' },
+  ]);
+});
+
+test('extracts block-sequence matrix os entries', () => {
+  const source = [
+    'jobs:',
+    '  a:',
+    '    strategy:',
+    '      matrix:',
+    '        os:',
+    '          - macos-13',
+    '          - ubuntu-latest',
+    '    runs-on: ${{ matrix.os }}',
+    '    steps:',
+    '      - run: echo done',
+  ].join('\n');
+  assert.deepEqual(extractRunnerLabels(source), [
+    { line: 6, label: 'macos-13' },
+    { line: 7, label: 'ubuntu-latest' },
   ]);
 });
 

@@ -69,8 +69,8 @@ function parseLabelValues(raw) {
 /**
  * Extracts runner label references from workflow YAML source. Handles
  * `runs-on:` scalars, flow lists, and block sequences, plus matrix `os:`
- * entries in scalar and flow-list form. Values containing `${{` expressions
- * are skipped because they are not static labels.
+ * entries in scalar, flow-list, and block-sequence form. Values containing
+ * `${{` expressions are skipped because they are not static labels.
  *
  * @param {string} source workflow file contents
  * @returns {Array<{ line: number, label: string }>}
@@ -83,7 +83,7 @@ export function extractRunnerLabels(source) {
     const text = lines[index];
     if (blockIndent >= 0) {
       const item = text.match(/^(\s*)-\s+(.+?)\s*$/);
-      if (item && item[1].length > blockIndent) {
+      if (item && item[1].length >= blockIndent) {
         for (const label of parseLabelValues(item[2])) {
           found.push({ line: index + 1, label });
         }
@@ -102,9 +102,13 @@ export function extractRunnerLabels(source) {
       }
       continue;
     }
-    const matrixOs = text.match(/^\s*-?\s*os:\s*(.+?)\s*$/);
+    const matrixOs = text.match(/^(\s*)-?\s*os:\s*(.*?)\s*$/);
     if (matrixOs) {
-      for (const label of parseLabelValues(matrixOs[1])) {
+      if (matrixOs[2] === '') {
+        blockIndent = matrixOs[1].length;
+        continue;
+      }
+      for (const label of parseLabelValues(matrixOs[2])) {
         found.push({ line: index + 1, label });
       }
     }
