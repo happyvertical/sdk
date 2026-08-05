@@ -15,7 +15,11 @@ import { join } from 'node:path';
 /**
  * GitHub-hosted runner labels that have been retired. A label counts as
  * retired when it equals one of these or extends one with a variant suffix
- * (for example `macos-13-xlarge`).
+ * (for example `macos-13-xlarge`). This blocklist must be updated when
+ * GitHub announces a runner-image retirement; the freshly downloaded
+ * actionlint in the Validate Workflow Files job remains the authoritative
+ * backstop for forms this scanner cannot see (for example labels computed
+ * from matrix expressions).
  */
 export const RETIRED_RUNNER_LABELS = [
   'macos-11',
@@ -23,6 +27,7 @@ export const RETIRED_RUNNER_LABELS = [
   'macos-13',
   'ubuntu-18.04',
   'ubuntu-20.04',
+  'windows-2016',
   'windows-2019',
 ];
 
@@ -39,9 +44,33 @@ export function isRetiredRunnerLabel(label) {
 }
 
 /**
+ * Splits a raw YAML scalar or flow-list value into individual labels,
+ * stripping inline comments and quotes. Returns an empty array for values
+ * containing `${{` expressions because they are not static labels.
+ *
+ * @param {string} raw raw value text after the YAML key
+ * @returns {string[]}
+ */
+function parseLabelValues(raw) {
+  let text = raw.replace(/\s+#.*$/, '').trim();
+  if (text.includes('${{')) return [];
+  if (text.startsWith('[')) {
+    const end = text.indexOf(']');
+    text = text.slice(1, end === -1 ? undefined : end);
+    return text
+      .split(',')
+      .map((part) => part.trim().replace(/^['"]|['"]$/g, ''))
+      .filter(Boolean);
+  }
+  const label = text.replace(/^['"]|['"]$/g, '');
+  return label ? [label] : [];
+}
+
+/**
  * Extracts runner label references from workflow YAML source. Handles
- * `runs-on:` scalars/flow lists and matrix `- os:` entries. Values containing
- * `${{` expressions are skipped because they are not static labels.
+ * `runs-on:` scalars, flow lists, and block sequences, plus matrix `os:`
+ * entries in scalar and flow-list form. Values containing `${{` expressions
+ * are skipped because they are not static labels.
  *
  * @param {string} source workflow file contents
  * @returns {Array<{ line: number, label: string }>}
@@ -49,27 +78,33 @@ export function isRetiredRunnerLabel(label) {
 export function extractRunnerLabels(source) {
   const found = [];
   const lines = source.split('\n');
+  let blockIndent = -1;
   for (let index = 0; index < lines.length; index += 1) {
     const text = lines[index];
-    const runsOn = text.match(/^\s*runs-on:\s*(.+?)\s*$/);
-    if (runsOn) {
-      const raw = runsOn[1];
-      const labels = raw.startsWith('[')
-        ? raw
-            .slice(1, raw.indexOf(']') === -1 ? undefined : raw.indexOf(']'))
-            .split(',')
-            .map((part) => part.trim().replace(/^['"]|['"]$/g, ''))
-        : [raw.replace(/^['"]|['"]$/g, '')];
-      for (const label of labels) {
-        if (label && !label.includes('${{')) {
+    if (blockIndent >= 0) {
+      const item = text.match(/^(\s*)-\s+(.+?)\s*$/);
+      if (item && item[1].length > blockIndent) {
+        for (const label of parseLabelValues(item[2])) {
           found.push({ line: index + 1, label });
         }
+        continue;
       }
+      blockIndent = -1;
+    }
+    const runsOn = text.match(/^(\s*)runs-on:\s*(.*?)\s*$/);
+    if (runsOn) {
+      if (runsOn[2] === '') {
+        blockIndent = runsOn[1].length;
+        continue;
+      }
+      for (const label of parseLabelValues(runsOn[2])) {
+        found.push({ line: index + 1, label });
+      }
+      continue;
     }
     const matrixOs = text.match(/^\s*-?\s*os:\s*(.+?)\s*$/);
     if (matrixOs) {
-      const label = matrixOs[1].replace(/^['"]|['"]$/g, '');
-      if (label && !label.includes('${{')) {
+      for (const label of parseLabelValues(matrixOs[1])) {
         found.push({ line: index + 1, label });
       }
     }

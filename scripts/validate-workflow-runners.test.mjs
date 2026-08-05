@@ -19,6 +19,7 @@ test('flags exactly the retired GitHub-hosted runner labels', () => {
     'macos-13-xlarge',
     'ubuntu-18.04',
     'ubuntu-20.04',
+    'windows-2016',
     'windows-2019',
   ]) {
     assert.equal(isRetiredRunnerLabel(retired), true, retired);
@@ -62,6 +63,32 @@ test('extracts runs-on scalars, flow lists, and matrix os entries', () => {
     { line: 5, label: 'arc-happyvertical' },
     { line: 11, label: 'macos-13' },
     { line: 13, label: 'macos-15-intel' },
+  ]);
+});
+
+test('extracts flow-list matrix os, inline comments, and block runs-on', () => {
+  const source = [
+    'jobs:',
+    '  a:',
+    '    strategy:',
+    '      matrix:',
+    '        os: [macos-13, "macos-15-intel"]',
+    '    runs-on: ${{ matrix.os }}',
+    '  b:',
+    '    runs-on: macos-13 # keep pinned for now',
+    '  c:',
+    '    runs-on:',
+    '      - self-hosted',
+    '      - windows-2019',
+    '    steps:',
+    '      - run: echo done',
+  ].join('\n');
+  assert.deepEqual(extractRunnerLabels(source), [
+    { line: 5, label: 'macos-13' },
+    { line: 5, label: 'macos-15-intel' },
+    { line: 8, label: 'macos-13' },
+    { line: 11, label: 'self-hosted' },
+    { line: 12, label: 'windows-2019' },
   ]);
 });
 
