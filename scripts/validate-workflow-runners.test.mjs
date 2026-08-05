@@ -134,6 +134,26 @@ test('block regions tolerate comments and do not mask include os entries', () =>
   ]);
 });
 
+test('handles CRLF line endings in every supported form', () => {
+  const source = [
+    'jobs:',
+    '  a:',
+    '    runs-on: macos-13',
+    '    strategy:',
+    '      matrix:',
+    '        os:',
+    '          - macos-13',
+    '',
+    '        include:',
+    '          - os: macos-13',
+  ].join('\r\n');
+  assert.deepEqual(extractRunnerLabels(source), [
+    { line: 3, label: 'macos-13' },
+    { line: 7, label: 'macos-13' },
+    { line: 10, label: 'macos-13' },
+  ]);
+});
+
 test('repository workflows reference no retired runner labels', () => {
   assert.deepEqual(findRetiredRunnerLabels(WORKFLOWS_DIR), []);
 });

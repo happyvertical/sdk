@@ -77,7 +77,7 @@ function parseLabelValues(raw) {
  */
 export function extractRunnerLabels(source) {
   const found = [];
-  const lines = source.split('\n');
+  const lines = source.replace(/\r\n/g, '\n').split('\n');
   let blockIndent = -1;
   for (let index = 0; index < lines.length; index += 1) {
     const text = lines[index];
