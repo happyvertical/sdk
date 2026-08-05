@@ -36,6 +36,10 @@ import type {
   TokenUsage,
   TTSOptions,
   TTSResponse,
+  VideoGenerationJob,
+  VideoGenerationOptions,
+  VideoGenerationResult,
+  VideoGenerationStatusResult,
   Voice,
   VoiceCloneOptions,
   VoiceDesignOptions,
@@ -81,6 +85,7 @@ const OPENAI_PROFILE: OpenAICompatibleProfile = {
     fineTuning: true,
     imageEmbeddings: true,
     imageGeneration: true,
+    videoGeneration: false,
     tts: false,
     voiceCloning: false,
     voiceDesign: false,
@@ -705,6 +710,57 @@ export class OpenAIProvider implements AIInterface {
     } finally {
       controls?.cleanup();
     }
+  }
+
+  // ============================================================================
+  // Video Generation Methods (Not supported - use gemini, byteplus-modelark,
+  // or openai-compat-video provider)
+  // ============================================================================
+
+  async submitVideoGenerationJob(
+    _options: VideoGenerationOptions,
+  ): Promise<VideoGenerationJob> {
+    throw new AIError(
+      `Video generation is not supported by ${this.profile.providerLabel} provider. Use gemini, byteplus-modelark, or openai-compat-video provider.`,
+      'NOT_IMPLEMENTED',
+      this.profile.providerName,
+    );
+  }
+
+  async getVideoGenerationJob(
+    _handle: VideoGenerationJob,
+  ): Promise<VideoGenerationStatusResult> {
+    throw new AIError(
+      `Video generation is not supported by ${this.profile.providerLabel} provider. Use gemini, byteplus-modelark, or openai-compat-video provider.`,
+      'NOT_IMPLEMENTED',
+      this.profile.providerName,
+    );
+  }
+
+  async fetchVideoGenerationResult(
+    _handle: VideoGenerationJob,
+  ): Promise<VideoGenerationResult> {
+    throw new AIError(
+      `Video generation is not supported by ${this.profile.providerLabel} provider. Use gemini, byteplus-modelark, or openai-compat-video provider.`,
+      'NOT_IMPLEMENTED',
+      this.profile.providerName,
+    );
+  }
+
+  async cancelVideoGenerationJob(_handle: VideoGenerationJob): Promise<void> {
+    throw new AIError(
+      `Video generation is not supported by ${this.profile.providerLabel} provider. Use gemini, byteplus-modelark, or openai-compat-video provider.`,
+      'NOT_IMPLEMENTED',
+      this.profile.providerName,
+    );
+  }
+
+  async validateVideoGenerationAccess(): Promise<boolean> {
+    throw new AIError(
+      `Video generation is not supported by ${this.profile.providerLabel} provider. Use gemini, byteplus-modelark, or openai-compat-video provider.`,
+      'NOT_IMPLEMENTED',
+      this.profile.providerName,
+    );
   }
 
   /**

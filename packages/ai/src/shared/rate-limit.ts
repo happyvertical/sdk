@@ -15,6 +15,7 @@ const RATE_LIMITED_METHODS = new Set<keyof AIInterface>([
   'cloneVoice',
   'designVoice',
   'getVoices',
+  'submitVideoGenerationJob',
 ]);
 
 const MAX_BUDGET_COORDINATORS = 128;

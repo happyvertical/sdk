@@ -1,6 +1,6 @@
 # @happyvertical/ai
 
-Unified interface for AI model interactions across multiple providers. Supports OpenAI, LiteLLM, Bifrost, Ollama, Anthropic Claude, Google Gemini, AWS Bedrock, Hugging Face, Claude CLI, and Qwen3-TTS with a consistent API for chat, completions, embeddings, streaming, function calling, image operations, text-to-speech, and gateway admin provisioning where available.
+Unified interface for AI model interactions across multiple providers. Supports OpenAI, LiteLLM, Bifrost, Ollama, Anthropic Claude, Google Gemini, AWS Bedrock, Hugging Face, Claude CLI, Qwen3-TTS, and video-generation providers (Gemini Veo, BytePlus ModelArk/Seedance, OpenAI-compatible `/v1/videos` gateways) with a consistent API for chat, completions, embeddings, streaming, function calling, image operations, asynchronous video generation, text-to-speech, and gateway admin provisioning where available.
 
 ## Installation
 
@@ -99,7 +99,86 @@ const cli = await getAI({ type: 'claude-cli', defaultModel: 'sonnet' });
 
 // Qwen3-TTS (text-to-speech only)
 const tts = await getAI({ type: 'qwen3-tts', endpoint: 'http://localhost:8880' });
+
+// BytePlus ModelArk / Seedance (video generation only)
+const modelark = await getAI({
+  type: 'byteplus-modelark',
+  apiKey: process.env.MODELARK_API_KEY!, // or ARK_API_KEY
+});
+
+// OpenAI-compatible /v1/videos gateway (video generation only)
+const video = await getAI({
+  type: 'openai-compat-video',
+  baseUrl: process.env.OPENAI_COMPAT_VIDEO_BASE_URL || 'https://llm.happyvertical.com/v1',
+  apiKey: process.env.OPENAI_COMPAT_VIDEO_API_KEY!,
+});
 ```
+
+## Video Generation
+
+Video generation is asynchronous: `submitVideoGenerationJob` returns a JSON-serializable
+handle immediately, and the render itself runs as a provider-side job that you poll with
+`getVideoGenerationJob`. Persist the handle (it has no closures or client instances) to
+resume polling after a restart, and always call `cancelVideoGenerationJob` on abort so you
+are not billed for orphaned renders.
+
+```typescript
+const ai = await getAI({ type: 'gemini', apiKey: process.env.GEMINI_API_KEY! });
+
+const job = await ai.submitVideoGenerationJob({
+  prompt: 'A drone shot flying over a coastal cliff at sunrise',
+  durationSeconds: 8,
+  resolution: '1080p',
+  aspectRatio: '16:9',
+});
+
+// Persist `job` (plain JSON) and resume polling later, even after a process restart.
+let status = await ai.getVideoGenerationJob(job);
+while (status.status === 'queued' || status.status === 'running') {
+  await new Promise((resolve) => setTimeout(resolve, 5000));
+  status = await ai.getVideoGenerationJob(job);
+}
+
+if (status.status === 'succeeded') {
+  const result = await ai.fetchVideoGenerationResult(job);
+  if (result.data) fs.writeFileSync('output.mp4', result.data);
+}
+
+// On abort/step cancellation (best-effort — see below):
+await ai.cancelVideoGenerationJob(job).catch((error) => {
+  console.warn('Could not cancel video job', job.jobId, error);
+});
+```
+
+Supported providers: `gemini` (Veo, via `@google/genai` long-running operations),
+`byteplus-modelark` (Seedance, raw-HTTP ModelArk task API), and `openai-compat-video`
+(thin adapter over a `/v1/videos`-shaped REST surface — LiteLLM's Veo passthrough,
+Sora-shaped gateways). Providers without video support throw `NOT_IMPLEMENTED`, and
+`ai.getCapabilities()` reports `videoGeneration: false` for them.
+
+**Cancellation is best-effort, not a guarantee.** Gemini has no cancel endpoint for
+video-generation operations at all and always throws; ModelArk can only cancel a task
+that hasn't started rendering yet (`queued`) and rejects cancellation of a `running`
+one. Callers must catch and tolerate a `cancelVideoGenerationJob` failure rather than
+treating it as fatal.
+
+`byteplus-modelark` locally throttles `submitVideoGenerationJob` to approximate
+Seedance's documented account limits (QPS 2, small burst / 3 concurrent
+*submissions* — pass `rateLimit: { requestsPerMinute, maxConcurrent }` to override the
+defaults). This limiter is shared across provider instances constructed with the same
+`apiKey`, since a fresh instance is often constructed per pipeline step. It bounds
+concurrent submit HTTP requests, not the lifetime of the render tasks those
+submissions create — ModelArk doesn't expose a way to observe when a task actually
+finishes rendering, so task-lifetime concurrency isn't tracked. `submitVideoGenerationJob`
+is also registered with the shared [rate-limit pacing wrapper](#opt-in-rate-limit-pacing),
+so `rateLimit.enabled` works the same way it does for `chat`.
+
+Every provider exposes a cheap `validateVideoGenerationAccess()` auth-shaped check
+(a low-cost call — the exact shape is provider-specific: a model/task list for
+Gemini/ModelArk, a single-resource probe for `openai-compat-video` since LiteLLM's
+list route requires a parameter this generic adapter can't supply). It is not free —
+callers on a hot path must cache the result themselves rather than calling it on every
+iteration.
 
 ## Gateway Admin
 
@@ -300,6 +379,8 @@ for (const site of sites) {
 - `GEMINI_API_KEY`, `GOOGLE_API_KEY`
 - `HF_TOKEN`
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION`
+- `MODELARK_API_KEY` / `ARK_API_KEY`, `MODELARK_BASE_URL`
+- `OPENAI_COMPAT_VIDEO_BASE_URL`, `OPENAI_COMPAT_VIDEO_API_KEY`
 
 ## API Overview
 
@@ -322,6 +403,11 @@ All providers implement `AIInterface`:
 | `embedImage(image, options?)` | Image embeddings (Gemini and Bedrock native, OpenAI and Ollama via describe-then-embed) |
 | `describeImage(image, prompt?, options?)` | Image description via vision models |
 | `generateImage(prompt, options?)` | Image generation (DALL-E, Imagen, Titan Image Generator, Ollama-compatible image models) |
+| `submitVideoGenerationJob(options)` | Submit an async video-generation job, returning a serializable handle |
+| `getVideoGenerationJob(handle)` | Poll job status (`queued`\|`running`\|`succeeded`\|`failed`\|`cancelled`) |
+| `fetchVideoGenerationResult(handle)` | Fetch the generated video once the job has succeeded |
+| `cancelVideoGenerationJob(handle)` | Cancel an in-flight video-generation job |
+| `validateVideoGenerationAccess()` | Cheap auth-shaped check for video-generation access (cache the result) |
 | `countTokens(text)` | Token count estimation |
 | `getModels()` | List available models |
 | `getCapabilities()` | Query provider capabilities |

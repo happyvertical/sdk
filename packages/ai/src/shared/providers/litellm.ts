@@ -31,6 +31,7 @@ const LITELLM_CAPABILITIES: AICapabilities = {
   fineTuning: false,
   imageEmbeddings: true,
   imageGeneration: true,
+  videoGeneration: false,
   tts: false,
   voiceCloning: false,
   voiceDesign: false,

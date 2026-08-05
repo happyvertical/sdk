@@ -14,12 +14,14 @@ import type {
   AnthropicOptions,
   BedrockOptions,
   BifrostOptions,
+  ByteplusModelArkOptions,
   ClaudeCliOptions,
   GeminiOptions,
   GetAIOptions,
   HuggingFaceOptions,
   LiteLLMOptions,
   OllamaOptions,
+  OpenAICompatVideoOptions,
   OpenAIOptions,
   Qwen3TTSOptions,
 } from './types';
@@ -140,6 +142,28 @@ function isQwen3TTSOptions(
 }
 
 /**
+ * Checks if the options are for the OpenAI-compatible video-generation provider
+ * @param options - The AI provider options to check
+ * @returns True if options are for the openai-compat-video provider
+ */
+function isOpenAICompatVideoOptions(
+  options: GetAIOptions | AIClientOptions,
+): options is OpenAICompatVideoOptions {
+  return options.type === 'openai-compat-video';
+}
+
+/**
+ * Checks if the options are for the BytePlus ModelArk (Seedance) provider
+ * @param options - The AI provider options to check
+ * @returns True if options are for the byteplus-modelark provider
+ */
+function isByteplusModelArkOptions(
+  options: GetAIOptions | AIClientOptions,
+): options is ByteplusModelArkOptions {
+  return options.type === 'byteplus-modelark';
+}
+
+/**
  * Creates an AI provider instance based on the provided options.
  * Universal version that works in both browser and Node.js environments.
  *
@@ -253,6 +277,16 @@ export async function getAI(
   } else if (isQwen3TTSOptions(options)) {
     const { Qwen3TTSProvider } = await import('./providers/qwen-tts.js');
     client = new Qwen3TTSProvider(options);
+  } else if (isOpenAICompatVideoOptions(options)) {
+    const { OpenAICompatVideoProvider } = await import(
+      './providers/openai-compat-video.js'
+    );
+    client = new OpenAICompatVideoProvider(options);
+  } else if (isByteplusModelArkOptions(options)) {
+    const { ByteplusModelArkProvider } = await import(
+      './providers/byteplus-modelark.js'
+    );
+    client = new ByteplusModelArkProvider(options);
   } else {
     throw new ValidationError('Unsupported AI provider type', {
       supportedTypes: [...AI_PROVIDER_TYPES],
