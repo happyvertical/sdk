@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.85.5
+
+### Patch Changes
+
+- ### Features
+
+  - add async video-generation jobs across providers (#1182) (ai)
+
 ## 0.85.4
 
 ### Patch Changes

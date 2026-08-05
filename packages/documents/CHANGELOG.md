@@ -1,5 +1,13 @@
 # @happyvertical/documents
 
+## 0.85.5
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.85.5
+  - @happyvertical/files@0.85.5
+
 ## 0.85.4
 
 ### Patch Changes
