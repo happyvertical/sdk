@@ -82,8 +82,13 @@ export function extractRunnerLabels(source) {
   for (let index = 0; index < lines.length; index += 1) {
     const text = lines[index];
     if (blockIndent >= 0) {
+      // Blank and comment-only lines do not terminate a YAML block sequence.
+      if (/^[^\S\r\n]*(#.*)?$/.test(text)) continue;
       const item = text.match(/^(\s*)-\s+(.+?)\s*$/);
-      if (item && item[1].length >= blockIndent) {
+      // A dash item that opens an `os:` mapping entry (matrix include form)
+      // belongs to the matrixOs branch, not the block region.
+      const isOsEntry = item && /^os:([^\S\r\n].*)?$/.test(item[2]);
+      if (item && item[1].length >= blockIndent && !isOsEntry) {
         for (const label of parseLabelValues(item[2])) {
           found.push({ line: index + 1, label });
         }
@@ -102,13 +107,15 @@ export function extractRunnerLabels(source) {
       }
       continue;
     }
-    const matrixOs = text.match(/^(\s*)-?\s*os:\s*(.*?)\s*$/);
+    const matrixOs = text.match(
+      /^[^\S\r\n]*(?:-[^\S\r\n]*)?os:[^\S\r\n]*(.*?)[^\S\r\n]*$/,
+    );
     if (matrixOs) {
-      if (matrixOs[2] === '') {
-        blockIndent = matrixOs[1].length;
+      if (matrixOs[1] === '') {
+        blockIndent = text.match(/^[^\S\r\n]*/)[0].length;
         continue;
       }
-      for (const label of parseLabelValues(matrixOs[2])) {
+      for (const label of parseLabelValues(matrixOs[1])) {
         found.push({ line: index + 1, label });
       }
     }

@@ -115,6 +115,25 @@ test('extracts block-sequence matrix os entries', () => {
   ]);
 });
 
+test('block regions tolerate comments and do not mask include os entries', () => {
+  const source = [
+    'matrix:',
+    '  os:',
+    '    # keep the old image until the migration lands',
+    '    - macos-13',
+    '',
+    '    - ubuntu-latest',
+    '  include:',
+    '    - os: macos-13',
+    '      target: x86_64-apple-darwin',
+  ].join('\n');
+  assert.deepEqual(extractRunnerLabels(source), [
+    { line: 4, label: 'macos-13' },
+    { line: 6, label: 'ubuntu-latest' },
+    { line: 8, label: 'macos-13' },
+  ]);
+});
+
 test('repository workflows reference no retired runner labels', () => {
   assert.deepEqual(findRetiredRunnerLabels(WORKFLOWS_DIR), []);
 });
