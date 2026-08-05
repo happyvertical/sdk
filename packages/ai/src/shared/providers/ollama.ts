@@ -34,6 +34,10 @@ import type {
   TokenUsage,
   TTSOptions,
   TTSResponse,
+  VideoGenerationJob,
+  VideoGenerationOptions,
+  VideoGenerationResult,
+  VideoGenerationStatusResult,
   Voice,
   VoiceCloneOptions,
   VoiceDesignOptions,
@@ -62,6 +66,7 @@ const OLLAMA_CAPABILITIES: AICapabilities = {
   fineTuning: false,
   imageEmbeddings: true,
   imageGeneration: true,
+  videoGeneration: false,
   tts: false,
   voiceCloning: false,
   voiceDesign: false,
@@ -1326,6 +1331,57 @@ export class OllamaProvider implements AIInterface {
 
   async getCapabilities(): Promise<AICapabilities> {
     return { ...OLLAMA_CAPABILITIES };
+  }
+
+  // ============================================================================
+  // Video Generation Methods (Not supported - use gemini, byteplus-modelark,
+  // or openai-compat-video provider)
+  // ============================================================================
+
+  async submitVideoGenerationJob(
+    _options: VideoGenerationOptions,
+  ): Promise<VideoGenerationJob> {
+    throw new AIError(
+      'Video generation is not supported by the Ollama provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'ollama',
+    );
+  }
+
+  async getVideoGenerationJob(
+    _handle: VideoGenerationJob,
+  ): Promise<VideoGenerationStatusResult> {
+    throw new AIError(
+      'Video generation is not supported by the Ollama provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'ollama',
+    );
+  }
+
+  async fetchVideoGenerationResult(
+    _handle: VideoGenerationJob,
+  ): Promise<VideoGenerationResult> {
+    throw new AIError(
+      'Video generation is not supported by the Ollama provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'ollama',
+    );
+  }
+
+  async cancelVideoGenerationJob(_handle: VideoGenerationJob): Promise<void> {
+    throw new AIError(
+      'Video generation is not supported by the Ollama provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'ollama',
+    );
+  }
+
+  async validateVideoGenerationAccess(): Promise<boolean> {
+    throw new AIError(
+      'Video generation is not supported by the Ollama provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'ollama',
+    );
   }
 
   async synthesizeSpeech(

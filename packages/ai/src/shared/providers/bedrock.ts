@@ -28,6 +28,10 @@ import type {
   TokenUsage,
   TTSOptions,
   TTSResponse,
+  VideoGenerationJob,
+  VideoGenerationOptions,
+  VideoGenerationResult,
+  VideoGenerationStatusResult,
   Voice,
   VoiceCloneOptions,
   VoiceDesignOptions,
@@ -658,6 +662,7 @@ export class BedrockProvider implements AIInterface {
       fineTuning: true, // Via Bedrock fine-tuning
       imageEmbeddings: true,
       imageGeneration: true,
+      videoGeneration: false,
       tts: false,
       voiceCloning: false,
       voiceDesign: false,
@@ -673,6 +678,57 @@ export class BedrockProvider implements AIInterface {
         'image_generation',
       ],
     };
+  }
+
+  // ============================================================================
+  // Video Generation Methods (Not supported - use gemini, byteplus-modelark,
+  // or openai-compat-video provider)
+  // ============================================================================
+
+  async submitVideoGenerationJob(
+    _options: VideoGenerationOptions,
+  ): Promise<VideoGenerationJob> {
+    throw new AIError(
+      'Video generation is not supported by Bedrock provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'bedrock',
+    );
+  }
+
+  async getVideoGenerationJob(
+    _handle: VideoGenerationJob,
+  ): Promise<VideoGenerationStatusResult> {
+    throw new AIError(
+      'Video generation is not supported by Bedrock provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'bedrock',
+    );
+  }
+
+  async fetchVideoGenerationResult(
+    _handle: VideoGenerationJob,
+  ): Promise<VideoGenerationResult> {
+    throw new AIError(
+      'Video generation is not supported by Bedrock provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'bedrock',
+    );
+  }
+
+  async cancelVideoGenerationJob(_handle: VideoGenerationJob): Promise<void> {
+    throw new AIError(
+      'Video generation is not supported by Bedrock provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'bedrock',
+    );
+  }
+
+  async validateVideoGenerationAccess(): Promise<boolean> {
+    throw new AIError(
+      'Video generation is not supported by Bedrock provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'bedrock',
+    );
   }
 
   // ============================================================================

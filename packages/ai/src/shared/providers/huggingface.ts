@@ -27,6 +27,10 @@ import type {
   TokenUsage,
   TTSOptions,
   TTSResponse,
+  VideoGenerationJob,
+  VideoGenerationOptions,
+  VideoGenerationResult,
+  VideoGenerationStatusResult,
   Voice,
   VoiceCloneOptions,
   VoiceDesignOptions,
@@ -413,12 +417,64 @@ export class HuggingFaceProvider implements AIInterface {
       fineTuning: true, // Via Hugging Face training API
       imageEmbeddings: false,
       imageGeneration: false, // Stable Diffusion exists but not implemented
+      videoGeneration: false,
       tts: false,
       voiceCloning: false,
       voiceDesign: false,
       maxContextLength: 2048,
       supportedOperations: ['chat', 'completion', 'embedding', 'streaming'],
     };
+  }
+
+  // ============================================================================
+  // Video Generation Methods (Not supported - use gemini, byteplus-modelark,
+  // or openai-compat-video provider)
+  // ============================================================================
+
+  async submitVideoGenerationJob(
+    _options: VideoGenerationOptions,
+  ): Promise<VideoGenerationJob> {
+    throw new AIError(
+      'Video generation is not supported by HuggingFace provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'huggingface',
+    );
+  }
+
+  async getVideoGenerationJob(
+    _handle: VideoGenerationJob,
+  ): Promise<VideoGenerationStatusResult> {
+    throw new AIError(
+      'Video generation is not supported by HuggingFace provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'huggingface',
+    );
+  }
+
+  async fetchVideoGenerationResult(
+    _handle: VideoGenerationJob,
+  ): Promise<VideoGenerationResult> {
+    throw new AIError(
+      'Video generation is not supported by HuggingFace provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'huggingface',
+    );
+  }
+
+  async cancelVideoGenerationJob(_handle: VideoGenerationJob): Promise<void> {
+    throw new AIError(
+      'Video generation is not supported by HuggingFace provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'huggingface',
+    );
+  }
+
+  async validateVideoGenerationAccess(): Promise<boolean> {
+    throw new AIError(
+      'Video generation is not supported by HuggingFace provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'huggingface',
+    );
   }
 
   // ============================================================================

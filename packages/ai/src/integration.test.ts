@@ -116,6 +116,7 @@ describe('HuggingFace Provider Integration', () => {
       fineTuning: true,
       imageEmbeddings: false,
       imageGeneration: false,
+      videoGeneration: false,
       tts: false,
       voiceCloning: false,
       voiceDesign: false,

@@ -34,6 +34,10 @@ import type {
   TokenUsage,
   TTSOptions,
   TTSResponse,
+  VideoGenerationJob,
+  VideoGenerationOptions,
+  VideoGenerationResult,
+  VideoGenerationStatusResult,
   Voice,
   VoiceCloneOptions,
   VoiceDesignOptions,
@@ -775,12 +779,64 @@ export class ClaudeCliProvider implements AIInterface {
       fineTuning: false,
       imageEmbeddings: false,
       imageGeneration: false,
+      videoGeneration: false,
       tts: false,
       voiceCloning: false,
       voiceDesign: false,
       maxContextLength: 200000,
       supportedOperations: ['chat', 'completion', 'streaming'],
     };
+  }
+
+  // ============================================================================
+  // Video Generation Methods (Not supported - use gemini, byteplus-modelark,
+  // or openai-compat-video provider)
+  // ============================================================================
+
+  async submitVideoGenerationJob(
+    _options: VideoGenerationOptions,
+  ): Promise<VideoGenerationJob> {
+    throw new AIError(
+      'Video generation is not supported by Claude CLI provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'claude-cli',
+    );
+  }
+
+  async getVideoGenerationJob(
+    _handle: VideoGenerationJob,
+  ): Promise<VideoGenerationStatusResult> {
+    throw new AIError(
+      'Video generation is not supported by Claude CLI provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'claude-cli',
+    );
+  }
+
+  async fetchVideoGenerationResult(
+    _handle: VideoGenerationJob,
+  ): Promise<VideoGenerationResult> {
+    throw new AIError(
+      'Video generation is not supported by Claude CLI provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'claude-cli',
+    );
+  }
+
+  async cancelVideoGenerationJob(_handle: VideoGenerationJob): Promise<void> {
+    throw new AIError(
+      'Video generation is not supported by Claude CLI provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'claude-cli',
+    );
+  }
+
+  async validateVideoGenerationAccess(): Promise<boolean> {
+    throw new AIError(
+      'Video generation is not supported by Claude CLI provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'claude-cli',
+    );
   }
 
   // ============================================================================

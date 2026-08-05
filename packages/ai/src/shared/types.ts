@@ -58,7 +58,11 @@ export type AIRequestOperation =
   | 'embedImage'
   | 'describeImage'
   | 'generateImage'
-  | 'stream';
+  | 'stream'
+  | 'submitVideoGenerationJob'
+  | 'getVideoGenerationJob'
+  | 'fetchVideoGenerationResult'
+  | 'cancelVideoGenerationJob';
 
 /** Terminal lifecycle state for a provider request. */
 export type AIRequestStatus =
@@ -100,6 +104,8 @@ export const AI_PROVIDER_TYPES = [
   'bedrock',
   'claude-cli',
   'qwen3-tts',
+  'openai-compat-video',
+  'byteplus-modelark',
 ] as const;
 
 /**
@@ -1090,6 +1096,12 @@ export interface AICapabilities {
   imageGeneration: boolean;
 
   /**
+   * Whether the provider supports asynchronous video-generation jobs
+   * (submitVideoGenerationJob / getVideoGenerationJob / fetchVideoGenerationResult / cancelVideoGenerationJob)
+   */
+  videoGeneration: boolean;
+
+  /**
    * Whether the provider supports text-to-speech synthesis
    */
   tts: boolean;
@@ -1400,6 +1412,123 @@ export interface AIInterface {
     options?: ImageGenerationOptions,
   ): Promise<ImageGenerationResponse>;
 
+  // ============================================================================
+  // Video Generation Methods (async job abstraction)
+  // ============================================================================
+
+  /**
+   * Submit an asynchronous video-generation job.
+   *
+   * Returns a JSON-serializable handle rather than the finished video: video
+   * generation runs as a long-lived provider-side job, so callers persist the
+   * handle and poll {@link AIInterface.getVideoGenerationJob} (optionally
+   * across process restarts) until the job completes.
+   *
+   * @param options - Prompt, reference media, and generation parameters
+   * @returns Promise resolving to a serializable job handle
+   * @throws {AIError} When video generation is not supported or the request fails
+   *
+   * @example
+   * ```typescript
+   * const job = await ai.submitVideoGenerationJob({
+   *   prompt: 'A drone shot flying over a coastal cliff at sunrise',
+   *   durationSeconds: 8,
+   *   resolution: '1080p',
+   * });
+   * // Persist `job` (it is plain JSON) and resume polling later, even after a restart.
+   * ```
+   */
+  submitVideoGenerationJob(
+    options: VideoGenerationOptions,
+  ): Promise<VideoGenerationJob>;
+
+  /**
+   * Check the status of a previously submitted video-generation job.
+   *
+   * @param handle - The job handle returned by {@link AIInterface.submitVideoGenerationJob}
+   * @returns Promise resolving to the current status, and the result once succeeded
+   * @throws {AIError} When video generation is not supported or the status check fails
+   *
+   * @example
+   * ```typescript
+   * const status = await ai.getVideoGenerationJob(job);
+   * if (status.status === 'succeeded') {
+   *   console.log(status.result?.url);
+   * }
+   * ```
+   */
+  getVideoGenerationJob(
+    handle: VideoGenerationJob,
+  ): Promise<VideoGenerationStatusResult>;
+
+  /**
+   * Fetch the result of a completed video-generation job.
+   *
+   * @param handle - The job handle returned by {@link AIInterface.submitVideoGenerationJob}
+   * @returns Promise resolving to the generated video's location/bytes and metadata
+   * @throws {AIError} When video generation is not supported, the job has not
+   * succeeded yet, or the request fails
+   *
+   * @example
+   * ```typescript
+   * const result = await ai.fetchVideoGenerationResult(job);
+   * if (result.data) fs.writeFileSync('output.mp4', result.data);
+   * ```
+   */
+  fetchVideoGenerationResult(
+    handle: VideoGenerationJob,
+  ): Promise<VideoGenerationResult>;
+
+  /**
+   * Cancel an in-flight video-generation job.
+   *
+   * **Cancellation is best-effort across every provider, not a guarantee.**
+   * Consumers should call this on step abort or lease loss so they are not
+   * billed for orphaned renders, but must be prepared for it to fail and
+   * tolerate that failure rather than treating it as fatal:
+   * - Some providers have no cancel endpoint at all for video-generation
+   *   jobs (e.g. Gemini/Veo) and always throw.
+   * - Some providers can only cancel a job that hasn't started rendering
+   *   yet (e.g. ModelArk/Seedance can cancel a `queued` task but rejects
+   *   cancellation of a `running` one).
+   * - Some gateway-shaped providers may not implement cancellation at all,
+   *   depending on the backend they proxy to.
+   *
+   * In every failure case, implementations throw {@link AIError} describing
+   * why rather than silently succeeding.
+   *
+   * @param handle - The job handle returned by {@link AIInterface.submitVideoGenerationJob}
+   * @throws {AIError} When video generation is not supported, or cancellation
+   * is unsupported/rejected by the provider (best-effort — callers must
+   * tolerate this)
+   *
+   * @example
+   * ```typescript
+   * controller.signal.addEventListener('abort', () => {
+   *   ai.cancelVideoGenerationJob(job).catch((error) => {
+   *     // Best-effort: log and move on, don't treat this as fatal.
+   *     console.warn('Could not cancel video job', job.jobId, error);
+   *   });
+   * });
+   * ```
+   */
+  cancelVideoGenerationJob(handle: VideoGenerationJob): Promise<void>;
+
+  /**
+   * Perform a cheap, auth-shaped call to confirm video-generation access is
+   * configured correctly (e.g. a list-shaped API call), without submitting a
+   * billed generation job.
+   *
+   * This is intentionally minimal, not free: providers without a dedicated
+   * health endpoint reuse a low-cost listing call. Callers on a hot path
+   * (e.g. a capability check per task) must cache the result themselves
+   * rather than calling this on every iteration.
+   *
+   * @returns Promise resolving to true when access looks valid
+   * @throws {AIError} When video generation is not supported or credentials are invalid
+   */
+  validateVideoGenerationAccess(): Promise<boolean>;
+
   /**
    * Stream a chat completion, yielding text chunks as they arrive.
    *
@@ -1561,8 +1690,8 @@ export interface AIInterface {
  * The pacing wrapper activates only when one of the pacing fields
  * (`enabled`, `key`, `cooldownMs`, `initialDelayMs`, `maxAttempts`) is set.
  *
- * `qwen3-tts` also uses `requestsPerMinute` and `maxConcurrent` from this
- * object for its local token bucket limiter.
+ * `qwen3-tts` and `byteplus-modelark` also use `requestsPerMinute` and
+ * `maxConcurrent` from this object for their local token bucket limiters.
  */
 export interface AIRateLimitOptions {
   /**
@@ -1862,6 +1991,56 @@ export interface Qwen3TTSOptions extends BaseAIOptions {
 }
 
 /**
+ * OpenAI-compatible video-generation provider options.
+ *
+ * Thin adapter over a `/v1/videos`-shaped REST surface (create / retrieve /
+ * cancel / download content), the shape used by LiteLLM's video passthrough
+ * and Sora-shaped gateways. Only video-generation methods are implemented;
+ * chat, embeddings, and other operations throw `NOT_IMPLEMENTED` — use the
+ * `openai` or `litellm` provider types for those against the same gateway.
+ */
+export interface OpenAICompatVideoOptions extends BaseAIOptions {
+  type: 'openai-compat-video';
+  apiKey?: string;
+  /**
+   * Base URL for the gateway's OpenAI-compatible API root, e.g.
+   * `https://llm.happyvertical.com/v1`. Required (directly or via the
+   * `OPENAI_COMPAT_VIDEO_BASE_URL` environment variable).
+   */
+  baseUrl?: string;
+}
+
+/**
+ * BytePlus ModelArk (Seedance) video-generation provider options.
+ *
+ * Raw-HTTP provider following the `qwen3-tts` precedent: no vendor SDK, just
+ * the ModelArk video-generation task API (create task / poll / fetch).
+ */
+export interface ByteplusModelArkOptions extends BaseAIOptions {
+  type: 'byteplus-modelark';
+  /**
+   * ModelArk API key. Falls back to `MODELARK_API_KEY` or the
+   * BytePlus-documented `ARK_API_KEY` environment variable.
+   */
+  apiKey?: string;
+  /**
+   * ModelArk API root. Defaults to
+   * `https://ark.ap-southeast.bytepluses.com/api/v3`.
+   */
+  baseUrl?: string;
+  /**
+   * Rate limiting configuration for the local submit-time limiter, shared
+   * across provider instances constructed with the same `apiKey` (or the
+   * same explicit `rateLimit.key`). Reads `requestsPerMinute` /
+   * `maxConcurrent`. Defaults approximate the documented Seedance account
+   * limits of QPS 2 / 3 concurrent *submissions* — `maxConcurrent` bounds
+   * concurrent submit HTTP requests, not the lifetime of the render tasks
+   * they create, which this package has no way to observe.
+   */
+  rateLimit?: AIRateLimitOptions;
+}
+
+/**
  * Union type for all provider options
  */
 export type GetAIOptions =
@@ -1874,7 +2053,9 @@ export type GetAIOptions =
   | HuggingFaceOptions
   | BedrockOptions
   | ClaudeCliOptions
-  | Qwen3TTSOptions;
+  | Qwen3TTSOptions
+  | OpenAICompatVideoOptions
+  | ByteplusModelArkOptions;
 
 /**
  * Base error class for all AI operations.
@@ -1987,6 +2168,228 @@ export class ContentFilterError extends AIError {
     );
     this.name = 'ContentFilterError';
   }
+}
+
+// ============================================================================
+// Video Generation Types
+// ============================================================================
+
+/**
+ * Lifecycle status of an asynchronous video-generation job.
+ */
+export type VideoGenerationStatus =
+  | 'queued'
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled';
+
+/**
+ * A reference image supplied to guide video generation (image-to-video,
+ * first/last frame, subject/style conditioning).
+ */
+export interface VideoGenerationReferenceImage {
+  /**
+   * Image as a URL, base64 data URL, or raw bytes.
+   */
+  image: string | Buffer;
+
+  /**
+   * MIME type of `image`, required when `image` is a Buffer.
+   */
+  mimeType?: string;
+
+  /**
+   * Provider-specific reference role, e.g. `'first_frame'`, `'last_frame'`,
+   * `'reference_image'`, `'style'`, or `'asset'`. Providers that don't
+   * recognize a role fall back to their default reference behavior.
+   */
+  role?: string;
+}
+
+/**
+ * Options for submitting an asynchronous video-generation job.
+ */
+export interface VideoGenerationOptions extends AIRequestControls {
+  /**
+   * Model to use for video generation (provider-specific id).
+   */
+  model?: string;
+
+  /**
+   * Text description of the desired video. Optional for providers that
+   * support pure image-to-video generation from `referenceImages` alone.
+   */
+  prompt?: string;
+
+  /**
+   * Explicit statement of what should NOT appear in the generated video.
+   * Support varies by provider; unsupported providers ignore this field.
+   */
+  negativePrompt?: string;
+
+  /**
+   * Reference image(s) for image-to-video or style/subject conditioning.
+   */
+  referenceImages?: VideoGenerationReferenceImage[];
+
+  /**
+   * Duration of the generated clip in seconds.
+   */
+  durationSeconds?: number;
+
+  /**
+   * Resolution label such as `'720p'` or `'1080p'` (provider-dependent).
+   */
+  resolution?: string;
+
+  /**
+   * Aspect ratio such as `'16:9'`, `'9:16'`, or `'1:1'`.
+   */
+  aspectRatio?: string;
+
+  /**
+   * Frames per second for the generated video. Support varies by provider.
+   */
+  fps?: number;
+
+  /**
+   * Random seed for deterministic generation where supported.
+   */
+  seed?: number;
+
+  /**
+   * Custom tags to attach to the usage event emitted for this job.
+   * Merged over any global `usageTags` from provider options.
+   */
+  usageTags?: Record<string, string>;
+}
+
+/**
+ * Serializable handle for an in-flight or completed video-generation job.
+ *
+ * Consumers persist this (e.g. as JSON in a database checkpoint) so they can
+ * resume polling after a process restart. Every field is plain
+ * JSON-serializable data — no closures, streams, or provider client
+ * instances — so the handle round-trips through `JSON.stringify` /
+ * `JSON.parse` unchanged.
+ *
+ * `jobId` and `provider` are the load-bearing fields every provider needs to
+ * resume polling; `raw` may carry provider-specific resume context (e.g.
+ * which auth mode a job was submitted under) that is opaque to callers but
+ * required for a provider to correctly service the resumed request.
+ * Consumers must persist and pass back the **whole** handle verbatim —
+ * reconstructing a handle from just `jobId` (dropping `raw`) is not
+ * guaranteed to work.
+ */
+export interface VideoGenerationJob {
+  /**
+   * Provider-assigned job or operation identifier.
+   */
+  jobId: string;
+
+  /**
+   * Provider that created the job (e.g. `'gemini'`, `'byteplus-modelark'`).
+   */
+  provider: string;
+
+  /**
+   * Model used for the job.
+   */
+  model: string;
+
+  /**
+   * ISO-8601 timestamp for when the job was submitted.
+   */
+  createdAt: string;
+
+  /**
+   * Provider-specific data needed to resume polling (e.g. an operation
+   * resource name shape, or routing hints). Opaque to callers; always
+   * JSON-serializable.
+   */
+  raw?: Record<string, unknown>;
+}
+
+/**
+ * Result of a completed video-generation job.
+ */
+export interface VideoGenerationResult {
+  /**
+   * Temporary or permanent URL to the generated video, when the provider
+   * returns a downloadable link instead of inline bytes.
+   */
+  url?: string;
+
+  /**
+   * Raw generated video bytes, when the provider returns inline data
+   * instead of (or in addition to) a URL.
+   */
+  data?: Buffer;
+
+  /**
+   * MIME type of the generated video (e.g. `'video/mp4'`).
+   */
+  mimeType: string;
+
+  /**
+   * Duration of the generated video in seconds, where reported.
+   */
+  durationSeconds?: number;
+
+  /**
+   * Width of the generated video in pixels, where reported.
+   */
+  width?: number;
+
+  /**
+   * Height of the generated video in pixels, where reported.
+   */
+  height?: number;
+}
+
+/**
+ * Status snapshot for a video-generation job, as returned by
+ * {@link AIInterface.getVideoGenerationJob}.
+ */
+export interface VideoGenerationStatusResult {
+  /**
+   * Current lifecycle status of the job.
+   */
+  status: VideoGenerationStatus;
+
+  /**
+   * Provider-reported progress percentage (0-100), where available.
+   */
+  progress?: number;
+
+  /**
+   * Human-readable error message, populated when `status` is `'failed'`.
+   */
+  error?: string;
+
+  /**
+   * The provider's raw, unrecognized status string. Only set when the
+   * provider reported a status value this package doesn't have an explicit
+   * mapping for. Providers must never invent a terminal state (`'failed'`
+   * or `'succeeded'`) for a status they don't understand — an unrecognized
+   * value is mapped to `'running'` with the original string preserved here,
+   * so a mid-render status a provider adds later (e.g. a new gateway
+   * synonym for "processing") never gets misread as a failure that would
+   * cause a caller to resubmit and double-bill.
+   */
+  rawStatus?: string;
+
+  /**
+   * Populated once `status` is `'succeeded'`. For providers whose status
+   * endpoint returns the payload inline, this is equivalent to calling
+   * {@link AIInterface.fetchVideoGenerationResult} with the same handle.
+   * Providers whose result requires a separate download (e.g. large binary
+   * content behind its own endpoint) may populate metadata here (mimeType,
+   * durationSeconds, width, height) while leaving `url`/`data` unset until
+   * `fetchVideoGenerationResult` is called explicitly.
+   */
+  result?: VideoGenerationResult;
 }
 
 // ============================================================================

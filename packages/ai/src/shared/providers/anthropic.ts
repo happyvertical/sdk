@@ -32,6 +32,10 @@ import type {
   TokenUsage,
   TTSOptions,
   TTSResponse,
+  VideoGenerationJob,
+  VideoGenerationOptions,
+  VideoGenerationResult,
+  VideoGenerationStatusResult,
   Voice,
   VoiceCloneOptions,
   VoiceDesignOptions,
@@ -540,6 +544,7 @@ export class AnthropicProvider implements AIInterface {
       fineTuning: false,
       imageEmbeddings: false,
       imageGeneration: false,
+      videoGeneration: false,
       tts: false,
       voiceCloning: false,
       voiceDesign: false,
@@ -552,6 +557,57 @@ export class AnthropicProvider implements AIInterface {
         'vision',
       ],
     };
+  }
+
+  // ============================================================================
+  // Video Generation Methods (Not supported - use gemini, byteplus-modelark,
+  // or openai-compat-video provider)
+  // ============================================================================
+
+  async submitVideoGenerationJob(
+    _options: VideoGenerationOptions,
+  ): Promise<VideoGenerationJob> {
+    throw new AIError(
+      'Video generation is not supported by Anthropic provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'anthropic',
+    );
+  }
+
+  async getVideoGenerationJob(
+    _handle: VideoGenerationJob,
+  ): Promise<VideoGenerationStatusResult> {
+    throw new AIError(
+      'Video generation is not supported by Anthropic provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'anthropic',
+    );
+  }
+
+  async fetchVideoGenerationResult(
+    _handle: VideoGenerationJob,
+  ): Promise<VideoGenerationResult> {
+    throw new AIError(
+      'Video generation is not supported by Anthropic provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'anthropic',
+    );
+  }
+
+  async cancelVideoGenerationJob(_handle: VideoGenerationJob): Promise<void> {
+    throw new AIError(
+      'Video generation is not supported by Anthropic provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'anthropic',
+    );
+  }
+
+  async validateVideoGenerationAccess(): Promise<boolean> {
+    throw new AIError(
+      'Video generation is not supported by Anthropic provider. Use gemini, byteplus-modelark, or openai-compat-video provider.',
+      'NOT_IMPLEMENTED',
+      'anthropic',
+    );
   }
 
   // ============================================================================
