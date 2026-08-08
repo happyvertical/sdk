@@ -30,6 +30,34 @@ export {
   ForgeError,
   ForgeSignatureError,
 } from './forge/errors.js';
+export {
+  BuzzRelayClient,
+  BUZZ_FIXTURE_PUBKEYS,
+  BUZZ_FORGE_KINDS,
+  channelIdFromEvent,
+  computeNostrEventId,
+  createApprovalFixture,
+  createBuzzConvergenceSequences,
+  createBuzzFixtureEvent,
+  createMembersFixture,
+  createPatchFixture,
+  createRefUpdateFixture,
+  createRepositoryAnnouncementFixture,
+  createStatusFixture,
+  normalizeBuzzEvent,
+  resolveBuzzChannelRole,
+  roleMeetsFloor,
+  verifyAndNormalizeBuzzEvent,
+  verifyNostrEventSignature,
+} from './buzz/index.js';
+export type {
+  BuzzChannelRole,
+  BuzzForgeKind,
+  BuzzRelayClientOptions,
+  BuzzRelaySubscription,
+  BuzzRoleResolution,
+  NostrForgeEvent,
+} from './buzz/index.js';
 export type {
   CheckRun,
   CheckRunOutput,
