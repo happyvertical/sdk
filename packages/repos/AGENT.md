@@ -27,7 +27,7 @@ pnpm --filter @happyvertical/repos clean
 ## Ecosystem Relationships
 - Provides: Standardized repository interface for GitHub, GitLab, Bitbucket, and Azure DevOps
 - Implements: none
-- Requires: @happyvertical/graphql, js-yaml
+- Requires: @happyvertical/graphql, js-yaml, nostr-tools
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
 
