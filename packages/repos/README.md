@@ -123,6 +123,27 @@ an observation. The exported `createGitHubWebhookFixture()` helper creates exact
 deterministic bytes and signatures for duplicate, redelivery, delayed, and
 out-of-order integration scenarios.
 
+### Buzz forge relay
+
+`BuzzRelayClient` polls configured Buzz/Nostr relays and normalizes supported
+forge kinds into provider-neutral `ForgeEventEnvelope` values. Production
+events are verified with `nostr-tools` before normalization; the
+`allowUnverifiedFixtures` option is solely for deterministic test fixtures.
+When `channelIds` is set, accepted events must have a matching `channel` or
+`h` tag. Kind-7 approvals need pull-request metadata or their referenced
+kind-1617 patch; pass a kind-39002 members event and `roleFloor` to enforce
+channel roles.
+
+```typescript
+import { BuzzRelayClient } from '@happyvertical/repos';
+
+const buzz = new BuzzRelayClient({
+  relays: ['https://relay.example/buzz'],
+  channelIds: ['channel-hv'],
+});
+const events = await buzz.pollOnce();
+```
+
 ### Errors and provider metadata
 
 New forge APIs throw `ForgeError`, which exposes `code`, `provider`, `status`,

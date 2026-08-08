@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { verifyEvent } from 'nostr-tools';
 import { ForgeError, ForgeSignatureError } from '../forge/errors.js';
 import type {
   CheckRun,
@@ -50,16 +51,6 @@ function tagValue(event: NostrForgeEvent, name: string): string | undefined {
   return undefined;
 }
 
-function allTagValues(event: NostrForgeEvent, name: string): string[] {
-  const values: string[] = [];
-  for (const tag of event.tags) {
-    if (tag[0] === name && typeof tag[1] === 'string' && tag[1] !== '') {
-      values.push(tag[1]);
-    }
-  }
-  return values;
-}
-
 function optionalJson(content: string): Record<string, unknown> {
   if (!content) return {};
   try {
@@ -82,9 +73,7 @@ function actorFromPubkey(pubkey: string): ForgeActor {
 
 function repositoryFromEvent(event: NostrForgeEvent): ForgeRepositoryRef {
   const owner =
-    tagValue(event, 'p') ??
-    tagValue(event, 'owner') ??
-    event.pubkey;
+    tagValue(event, 'p') ?? tagValue(event, 'owner') ?? event.pubkey;
   const name =
     tagValue(event, 'd') ??
     tagValue(event, 'repo') ??
@@ -118,7 +107,9 @@ function pullRequestFromEvent(event: NostrForgeEvent): ForgePullRequestRef {
     '';
   const stateTag = tagValue(event, 'status') ?? tagValue(event, 'state');
   const state =
-    stateTag === 'closed' || stateTag === 'merged' || event.kind === BUZZ_FORGE_KINDS.statusClosed
+    stateTag === 'closed' ||
+    stateTag === 'merged' ||
+    event.kind === BUZZ_FORGE_KINDS.statusClosed
       ? 'closed'
       : 'open';
   return {
@@ -139,6 +130,27 @@ function pullRequestFromEvent(event: NostrForgeEvent): ForgePullRequestRef {
         : tagValue(event, 'merge-commit'),
     url: tagValue(event, 'url'),
   };
+}
+
+function pullRequestForReaction(
+  event: NostrForgeEvent,
+  referencedPatchEvent?: NostrForgeEvent,
+): ForgePullRequestRef {
+  const pullRequest = pullRequestFromEvent(event);
+  if (pullRequest.number > 0) return pullRequest;
+  const targetId = tagValue(event, 'e');
+  if (
+    targetId &&
+    referencedPatchEvent?.id === targetId &&
+    referencedPatchEvent.kind === BUZZ_FORGE_KINDS.patch
+  ) {
+    return pullRequestFromEvent(referencedPatchEvent);
+  }
+  throw new ForgeError(
+    'Buzz approval reaction must include pull-request metadata or its referenced patch event',
+    'INVALID_INPUT',
+    { provider: 'buzz' },
+  );
 }
 
 function checkFromStatusEvent(event: NostrForgeEvent): CheckRun {
@@ -188,7 +200,8 @@ function checkFromStatusEvent(event: NostrForgeEvent): CheckRun {
     conclusion,
     detailsUrl: tagValue(event, 'url'),
     startedAt: new Date(event.created_at * 1000),
-    completedAt: status === 'completed' ? new Date(event.created_at * 1000) : undefined,
+    completedAt:
+      status === 'completed' ? new Date(event.created_at * 1000) : undefined,
     raw: event as unknown as Record<string, unknown>,
   };
 }
@@ -243,6 +256,7 @@ export function normalizeBuzzEvent(
   options: {
     roleFloor?: BuzzChannelRole;
     membersEvent?: NostrForgeEvent;
+    referencedPatchEvent?: NostrForgeEvent;
   } = {},
 ): ForgeEventEnvelope {
   const repository = repositoryFromEvent(event);
@@ -267,6 +281,7 @@ function normalizeObservation(
   options: {
     roleFloor?: BuzzChannelRole;
     membersEvent?: NostrForgeEvent;
+    referencedPatchEvent?: NostrForgeEvent;
   },
 ): ForgeObservation {
   switch (event.kind) {
@@ -298,7 +313,10 @@ function normalizeObservation(
         afterSha,
         forced: body.forced === true,
         created: body.created === true,
-        deleted: body.deleted === true || afterSha === '' || afterSha === '0'.repeat(40),
+        deleted:
+          body.deleted === true ||
+          afterSha === '' ||
+          afterSha === '0'.repeat(40),
       };
     }
     case BUZZ_FORGE_KINDS.patch:
@@ -328,7 +346,9 @@ function normalizeObservation(
     }
     case BUZZ_FORGE_KINDS.reaction: {
       const body = optionalJson(event.content);
-      const content = event.content.trim() || (typeof body.content === 'string' ? body.content : '');
+      const content =
+        event.content.trim() ||
+        (typeof body.content === 'string' ? body.content : '');
       const isApproval =
         content === '✅' ||
         content === '+' ||
@@ -339,33 +359,42 @@ function normalizeObservation(
         tagValue(event, 'e') ??
         (typeof body.commitSha === 'string' ? body.commitSha : undefined);
       let author = actorFromPubkey(event.pubkey);
+      const pullRequest = pullRequestForReaction(
+        event,
+        options.referencedPatchEvent,
+      );
       if (options.membersEvent) {
-        const resolved = resolveBuzzChannelRole(options.membersEvent, event.pubkey);
-        if (resolved) {
-          author = {
-            ...author,
-            type: `role:${resolved.role}`,
+        const resolved = resolveBuzzChannelRole(
+          options.membersEvent,
+          event.pubkey,
+        );
+        if (!resolved) {
+          throw new ForgeError(
+            'Buzz approval actor is not a member of the configured channel',
+            'AUTHORITY_MISMATCH',
+            { provider: 'buzz' },
+          );
+        }
+        author = { ...author, type: `role:${resolved.role}` };
+        const floor = options.roleFloor ?? 'member';
+        if (!roleMeetsFloor(resolved.role, floor)) {
+          return {
+            kind: 'review',
+            pullRequest,
+            review: {
+              id: event.id,
+              state: 'COMMENTED',
+              body: content,
+              commitSha,
+              submittedAt: new Date(event.created_at * 1000),
+              author,
+            },
           };
-          const floor = options.roleFloor ?? 'member';
-          if (!roleMeetsFloor(resolved.role, floor)) {
-            return {
-              kind: 'review',
-              pullRequest: pullRequestFromEvent(event),
-              review: {
-                id: event.id,
-                state: 'COMMENTED',
-                body: content,
-                commitSha,
-                submittedAt: new Date(event.created_at * 1000),
-                author,
-              },
-            };
-          }
         }
       }
       return {
         kind: 'review',
-        pullRequest: pullRequestFromEvent(event),
+        pullRequest,
         review: {
           id: event.id,
           state: isApproval ? 'APPROVED' : 'COMMENTED',
@@ -393,7 +422,9 @@ export function verifyNostrEventSignature(
   options: { allowUnverifiedFixtures?: boolean } = {},
 ): void {
   if (!event.id || !event.pubkey || !event.sig) {
-    throw new ForgeSignatureError('Buzz forge event is missing id, pubkey, or sig');
+    throw new ForgeSignatureError(
+      'Buzz forge event is missing id, pubkey, or sig',
+    );
   }
   const expectedId = computeNostrEventId({
     pubkey: event.pubkey,
@@ -403,48 +434,23 @@ export function verifyNostrEventSignature(
     content: event.content,
   });
   if (expectedId !== event.id) {
-    throw new ForgeSignatureError('Buzz forge event id does not match NIP-01 digest');
-  }
-  // Dynamic import path is resolved at call time so the package remains
-  // usable when optional schnorr verification is not installed.
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const nostrTools = requireNostrTools();
-    if (nostrTools && typeof nostrTools.verifyEvent === 'function') {
-      const ok = nostrTools.verifyEvent(event as never);
-      if (!ok) {
-        throw new ForgeSignatureError('Buzz forge event Schnorr signature is invalid');
-      }
-      return;
-    }
-  } catch (error) {
-    if (error instanceof ForgeSignatureError) throw error;
+    throw new ForgeSignatureError(
+      'Buzz forge event id does not match NIP-01 digest',
+    );
   }
   if (options.allowUnverifiedFixtures) {
     // Fixture path: id digest already matched; signature bytes are placeholders.
     if (event.sig.length < 64) {
-      throw new ForgeSignatureError('Buzz forge fixture signature is malformed');
+      throw new ForgeSignatureError(
+        'Buzz forge fixture signature is malformed',
+      );
     }
     return;
   }
-  throw new ForgeError(
-    'Schnorr verification requires the optional nostr-tools dependency',
-    'CONFIGURATION_ERROR',
-    { provider: 'buzz', retryable: false },
-  );
-}
-
-function requireNostrTools(): { verifyEvent?: (event: unknown) => boolean } | null {
-  try {
-    // Optional peer: present when the consumer installs nostr-tools.
-    // Use Function to avoid bundlers rewriting the require.
-    // eslint-disable-next-line no-new-func
-    const req = new Function('m', 'return require(m)') as (m: string) => {
-      verifyEvent?: (event: unknown) => boolean;
-    };
-    return req('nostr-tools');
-  } catch {
-    return null;
+  if (!verifyEvent(event as never)) {
+    throw new ForgeSignatureError(
+      'Buzz forge event Schnorr signature is invalid',
+    );
   }
 }
 
@@ -458,6 +464,7 @@ export function verifyAndNormalizeBuzzEvent(
   options: {
     roleFloor?: BuzzChannelRole;
     membersEvent?: NostrForgeEvent;
+    referencedPatchEvent?: NostrForgeEvent;
     allowUnverifiedFixtures?: boolean;
   } = {},
 ): ForgeEventEnvelope {
@@ -467,14 +474,11 @@ export function verifyAndNormalizeBuzzEvent(
   return normalizeBuzzEvent(event, receivedAt, {
     roleFloor: options.roleFloor,
     membersEvent: options.membersEvent,
+    referencedPatchEvent: options.referencedPatchEvent,
   });
 }
 
 /** Extract a channel id from common buzz tags when present. */
 export function channelIdFromEvent(event: NostrForgeEvent): string | undefined {
-  return (
-    tagValue(event, 'channel') ??
-    tagValue(event, 'h') ??
-    allTagValues(event, 'e')[0]
-  );
+  return tagValue(event, 'channel') ?? tagValue(event, 'h');
 }

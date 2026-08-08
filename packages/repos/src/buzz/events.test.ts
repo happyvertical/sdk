@@ -86,6 +86,9 @@ describe('buzz forge normalize', () => {
     const envelope = normalizeBuzzEvent(approval, new Date(), {
       membersEvent: members,
       roleFloor: 'admin',
+      referencedPatchEvent: createPatchFixture({
+        id: 'merge-request-event-id',
+      }),
     });
     expect(envelope.observation).toMatchObject({
       kind: 'review',
@@ -116,14 +119,31 @@ describe('buzz forge normalize', () => {
     expect(envelope.observation.kind).toBe('push');
   });
 
-  it('requires schnorr verification outside the fixture path when nostr-tools is absent', () => {
+  it('requires a valid Schnorr signature outside the explicit fixture path', () => {
     const event = createRefUpdateFixture();
     try {
       verifyNostrEventSignature(event);
-      // If nostr-tools is installed and verifies the placeholder, that is fine.
+      // Placeholder fixture signatures must not pass production verification.
     } catch (error) {
       expect(error).toBeInstanceOf(ForgeError);
     }
+  });
+
+  it('rejects an approval actor missing from a supplied member list', () => {
+    expect(() =>
+      normalizeBuzzEvent(createApprovalFixture(), new Date(), {
+        membersEvent: createMembersFixture({ members: [] }),
+        referencedPatchEvent: createPatchFixture({
+          id: 'merge-request-event-id',
+        }),
+      }),
+    ).toThrow(ForgeError);
+  });
+
+  it('requires pull-request metadata or the referenced patch for reactions', () => {
+    expect(() => normalizeBuzzEvent(createApprovalFixture())).toThrow(
+      ForgeError,
+    );
   });
 });
 
@@ -133,7 +153,9 @@ describe('buzz forge fixtures and relay ingest', () => {
     const b = createBuzzConvergenceSequences();
     expect(a.canonical.map((e) => e.id)).toEqual(b.canonical.map((e) => e.id));
     expect(a.duplicate.length).toBe(a.canonical.length * 2);
-    expect(a.outOfOrder.map((e) => e.id)).not.toEqual(a.canonical.map((e) => e.id));
+    expect(a.outOfOrder.map((e) => e.id)).not.toEqual(
+      a.canonical.map((e) => e.id),
+    );
     expect(a.replay.length).toBe(a.canonical.length * 2);
   });
 
@@ -150,5 +172,17 @@ describe('buzz forge fixtures and relay ingest', () => {
     });
     expect(first.length).toBe(sequences.canonical.length);
     expect(second.length).toBe(0);
+  });
+
+  it('requires an explicit matching channel tag when channels are configured', () => {
+    const client = new BuzzRelayClient({
+      relays: ['https://relay.example/http'],
+      channelIds: ['channel-hv'],
+    });
+    expect(
+      client.ingestEvents([createRefUpdateFixture()], {
+        allowUnverifiedFixtures: true,
+      }),
+    ).toEqual([]);
   });
 });

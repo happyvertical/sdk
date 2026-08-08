@@ -72,8 +72,7 @@ export function createRefUpdateFixture(
     owner?: string;
   } = {},
 ): NostrForgeEvent {
-  const head =
-    options.head ?? '1111111111111111111111111111111111111111';
+  const head = options.head ?? '1111111111111111111111111111111111111111';
   const previous =
     options.previous ?? '0000000000000000000000000000000000000000';
   const owner = options.owner ?? FIXTURE_PUBKEY;
@@ -89,7 +88,11 @@ export function createRefUpdateFixture(
     ],
     content:
       options.content ??
-      JSON.stringify({ ref: options.ref ?? 'refs/heads/main', head, before: previous }),
+      JSON.stringify({
+        ref: options.ref ?? 'refs/heads/main',
+        head,
+        before: previous,
+      }),
   });
 }
 
@@ -100,8 +103,7 @@ export function createPatchFixture(
     repoId?: string;
   } = {},
 ): NostrForgeEvent {
-  const headSha =
-    options.headSha ?? '2222222222222222222222222222222222222222';
+  const headSha = options.headSha ?? '2222222222222222222222222222222222222222';
   return createBuzzFixtureEvent(BUZZ_FORGE_KINDS.patch, {
     ...options,
     tags: options.tags ?? [
@@ -131,8 +133,7 @@ export function createStatusFixture(
   } = {},
 ): NostrForgeEvent {
   const kind = options.kind ?? BUZZ_FORGE_KINDS.statusOpen;
-  const headSha =
-    options.headSha ?? '2222222222222222222222222222222222222222';
+  const headSha = options.headSha ?? '2222222222222222222222222222222222222222';
   return createBuzzFixtureEvent(kind, {
     ...options,
     pubkey: options.pubkey ?? FIXTURE_ATTESTOR,
@@ -141,7 +142,9 @@ export function createStatusFixture(
       ['p', FIXTURE_PUBKEY],
       ['commit', headSha],
       ['context', options.context ?? 'ci'],
-      ...(options.conclusion ? ([['conclusion', options.conclusion]] as const) : []),
+      ...(options.conclusion
+        ? ([['conclusion', options.conclusion]] as const)
+        : []),
     ],
     content:
       options.content ??
@@ -157,13 +160,14 @@ export function createApprovalFixture(
   options: BuzzFixtureOptions & {
     content?: string;
     headSha?: string;
+    targetEventId?: string;
   } = {},
 ): NostrForgeEvent {
   return createBuzzFixtureEvent(BUZZ_FORGE_KINDS.reaction, {
     ...options,
     pubkey: options.pubkey ?? FIXTURE_REACTOR,
     tags: options.tags ?? [
-      ['e', 'merge-request-event-id'],
+      ['e', options.targetEventId ?? 'merge-request-event-id'],
       ['p', FIXTURE_PUBKEY],
       ['commit', options.headSha ?? '2222222222222222222222222222222222222222'],
     ],
@@ -202,7 +206,9 @@ export function createBuzzConvergenceSequences(): {
   outOfOrder: NostrForgeEvent[];
   replay: NostrForgeEvent[];
 } {
-  const repo = createRepositoryAnnouncementFixture({ created_at: 1_725_000_000 });
+  const repo = createRepositoryAnnouncementFixture({
+    created_at: 1_725_000_000,
+  });
   const pushH1 = createRefUpdateFixture({
     created_at: 1_725_000_010,
     head: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
@@ -221,6 +227,7 @@ export function createBuzzConvergenceSequences(): {
   const approval = createApprovalFixture({
     created_at: 1_725_000_040,
     headSha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    targetEventId: patch.id,
   });
   const merge = createStatusFixture({
     kind: BUZZ_FORGE_KINDS.statusApplied,
