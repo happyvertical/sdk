@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.86.1
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - serialize sibling nested savepoints (#1191) (sql)
+
 ## 0.86.0
 
 ## 0.85.5

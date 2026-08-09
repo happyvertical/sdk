@@ -1,5 +1,11 @@
 # @happyvertical/repos
 
+## 0.86.1
+
+### Patch Changes
+
+- @happyvertical/graphql@0.86.1
+
 ## 0.86.0
 
 ### Minor Changes

@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/weather",
-  "version": "0.86.0",
+  "version": "0.86.1",
   "description": "Weather data provider abstraction for HAppyVertical SDK",
   "type": "module",
   "main": "./dist/index.js",
