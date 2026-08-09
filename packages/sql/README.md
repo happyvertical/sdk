@@ -170,7 +170,9 @@ Two consequences worth knowing:
   connection its own caller is holding.
 
 PostgreSQL pools its connections, so transactions there run concurrently and
-never queue.
+never queue. Nested scopes on one PostgreSQL transaction use savepoints; if
+sibling nested scopes are started concurrently, they serialize so PostgreSQL's
+stack-ordered savepoint lifecycle remains intact.
 
 ### Identifiers
 

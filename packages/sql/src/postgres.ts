@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { DatabaseError, loadEnvConfig } from '@happyvertical/utils';
 import { Pool, type PoolClient } from 'pg';
 import { DatabaseSchemaManager } from './schema-manager';
@@ -2000,7 +2001,18 @@ async function createDatabase(
     txClient: PoolClient,
     scopeFor: () => DatabaseInterface,
   ) => {
-    return async <T>(
+    // PostgreSQL permits nested savepoints, but a sibling savepoint cannot be
+    // released while a later sibling is still open: releasing the earlier one
+    // implicitly discards the later savepoint. Each scope gets its own queue:
+    // child scopes are queued behind their parent, while work inside a child
+    // gets a fresh queue for its own children.
+    interface NestedScope {
+      tail: Promise<void>;
+    }
+    const nestedScope = new AsyncLocalStorage<NestedScope>();
+    const rootScope: NestedScope = { tail: Promise.resolve() };
+
+    const runScope = async <T>(
       callback: (tx: DatabaseInterface) => Promise<T>,
     ): Promise<T> => {
       savepointSequence += 1;
@@ -2022,6 +2034,20 @@ async function createDatabase(
         }
         throw error;
       }
+    };
+
+    return async <T>(
+      callback: (tx: DatabaseInterface) => Promise<T>,
+    ): Promise<T> => {
+      const parentScope = nestedScope.getStore() ?? rootScope;
+      const current = parentScope.tail.then(() =>
+        nestedScope.run({ tail: Promise.resolve() }, () => runScope(callback)),
+      );
+      parentScope.tail = current.then(
+        () => undefined,
+        () => undefined,
+      );
+      return current;
     };
   };
 
