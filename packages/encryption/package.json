@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/encryption",
-  "version": "0.85.5",
+  "version": "0.86.0",
   "description": "Unified encryption and cryptography operations with adapter-based architecture",
   "type": "module",
   "main": "./dist/index.js",

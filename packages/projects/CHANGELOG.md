@@ -1,5 +1,13 @@
 # @happyvertical/projects
 
+## 0.86.0
+
+### Patch Changes
+
+- Updated dependencies [f31afff]
+  - @happyvertical/repos@0.86.0
+  - @happyvertical/graphql@0.86.0
+
 ## 0.85.5
 
 ### Patch Changes
