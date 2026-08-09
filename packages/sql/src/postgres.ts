@@ -2009,10 +2009,16 @@ async function createDatabase(
     interface NestedScope {
       tail: Promise<void>;
     }
+    type NestedTransaction = (<T>(
+      callback: (tx: DatabaseInterface) => Promise<T>,
+    ) => Promise<T>) & {
+      drain: () => Promise<void>;
+    };
     const nestedScope = new AsyncLocalStorage<NestedScope>();
     const rootScope: NestedScope = { tail: Promise.resolve() };
 
     const runScope = async <T>(
+      scope: NestedScope,
       callback: (tx: DatabaseInterface) => Promise<T>,
     ): Promise<T> => {
       savepointSequence += 1;
@@ -2020,9 +2026,15 @@ async function createDatabase(
       await txClient.query(`SAVEPOINT ${name}`);
       try {
         const result = await callback(scopeFor());
+        // A callback may start nested work without awaiting it. Its savepoint
+        // must remain open until that work is finished.
+        await scope.tail;
         await txClient.query(`RELEASE SAVEPOINT ${name}`);
         return result;
       } catch (error) {
+        // Promise.all rejects as soon as one sibling fails, but queued siblings
+        // are still tied to this savepoint. Let them finish before unwinding.
+        await scope.tail;
         try {
           // ROLLBACK TO leaves the savepoint defined, so release it too or it
           // accumulates for the life of the transaction.
@@ -2036,12 +2048,13 @@ async function createDatabase(
       }
     };
 
-    return async <T>(
+    const transaction: NestedTransaction = async <T>(
       callback: (tx: DatabaseInterface) => Promise<T>,
     ): Promise<T> => {
       const parentScope = nestedScope.getStore() ?? rootScope;
+      const scope: NestedScope = { tail: Promise.resolve() };
       const current = parentScope.tail.then(() =>
-        nestedScope.run({ tail: Promise.resolve() }, () => runScope(callback)),
+        nestedScope.run(scope, () => runScope(scope, callback)),
       );
       parentScope.tail = current.then(
         () => undefined,
@@ -2049,6 +2062,8 @@ async function createDatabase(
       );
       return current;
     };
+    transaction.drain = () => rootScope.tail;
+    return transaction;
   };
 
   /**
@@ -2064,22 +2079,31 @@ async function createDatabase(
     // Get a client from the pool for the transaction
     const txClient = await acquireTxClient();
 
+    let nestedTransaction:
+      | ReturnType<typeof createNestedTransaction>
+      | undefined;
     try {
       await txClient.query('BEGIN');
 
       // Create a transaction-scoped database interface
-      const txDb: DatabaseInterface = {
+      let txDb!: DatabaseInterface;
+      nestedTransaction = createNestedTransaction(txClient, () => txDb);
+      txDb = {
         url,
         client: txClient,
         ...createClientMethods(txClient, true, passThroughRecord),
-        transaction: createNestedTransaction(txClient, () => txDb),
+        transaction: nestedTransaction,
       };
 
       const result = await callback(txDb);
+      await nestedTransaction.drain();
       await txClient.query('COMMIT');
       releaseTxClient(txClient);
       return result;
     } catch (error) {
+      // Promise.all may reject before queued nested scopes finish. Do not
+      // release this client until their savepoint work has drained.
+      await nestedTransaction?.drain();
       // Never let a failing ROLLBACK replace the caller's error. On a dead
       // connection the rollback throws "Connection terminated unexpectedly",
       // which would otherwise be the only thing the caller ever sees.
@@ -2112,6 +2136,9 @@ async function createDatabase(
     }
 
     let active = true;
+    let nestedTransaction:
+      | ReturnType<typeof createNestedTransaction>
+      | undefined;
 
     // COMMIT and ROLLBACK both throw in ordinary operation — deferred
     // constraint violations, serialization failures, a connection lost at
@@ -2123,6 +2150,7 @@ async function createDatabase(
         throw new DatabaseError('Transaction already ended', {});
       }
       try {
+        await nestedTransaction?.drain();
         await txClient.query(command);
         active = false;
         releaseTxClient(txClient);
@@ -2143,11 +2171,13 @@ async function createDatabase(
     const isActive = (): boolean => active;
 
     // Create a transaction-scoped database interface with commit/rollback
-    const txHandle: TransactionHandle = {
+    let txHandle!: TransactionHandle;
+    nestedTransaction = createNestedTransaction(txClient, () => txHandle);
+    txHandle = {
       url,
       client: txClient,
       ...createClientMethods(txClient, true, passThroughRecord),
-      transaction: createNestedTransaction(txClient, () => txHandle),
+      transaction: nestedTransaction,
       commit,
       rollback,
       isActive,
