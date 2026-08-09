@@ -16,7 +16,8 @@
     ],
     "externalHappyVertical": [],
     "external": [
-      "js-yaml"
+      "js-yaml",
+      "nostr-tools"
     ]
   },
   "dependents": [
