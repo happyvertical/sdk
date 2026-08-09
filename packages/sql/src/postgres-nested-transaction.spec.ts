@@ -171,6 +171,83 @@ describe('postgres nested transactions', () => {
     expect(rows.rows.map((r) => r.id)).toEqual([1, 2, 3]);
   }, 30000);
 
+  it('serializes overlapping nested scopes on the enclosing client', async () => {
+    if (!postgresAvailable) return;
+
+    await txOf(db)(async (tx) => {
+      await Promise.all([
+        txOf(tx)(async (first) => {
+          await first.query(`INSERT INTO ${table} VALUES (1, 'first')`);
+        }),
+        txOf(tx)(async (second) => {
+          await second.query(`INSERT INTO ${table} VALUES (2, 'second')`);
+        }),
+      ]);
+    });
+
+    const rows = await db.query(`SELECT id FROM ${table} ORDER BY id`);
+    expect(rows.rows.map((r) => r.id)).toEqual([1, 2]);
+  }, 30000);
+
+  it('serializes siblings started from within a nested scope', async () => {
+    if (!postgresAvailable) return;
+
+    await txOf(db)(async (tx) => {
+      await txOf(tx)(async (parent) => {
+        await Promise.all([
+          txOf(parent)(async (first) => {
+            await first.query(`INSERT INTO ${table} VALUES (1, 'first')`);
+          }),
+          txOf(parent)(async (second) => {
+            await second.query(`INSERT INTO ${table} VALUES (2, 'second')`);
+          }),
+        ]);
+      });
+    });
+
+    const rows = await db.query(`SELECT id FROM ${table} ORDER BY id`);
+    expect(rows.rows.map((r) => r.id)).toEqual([1, 2]);
+  }, 30000);
+
+  it('drains a queued sibling before rolling the outer transaction back', async () => {
+    if (!postgresAvailable) return;
+
+    let startSecond!: () => void;
+    let continueSecond!: () => void;
+    const secondStarted = new Promise<void>((resolve) => {
+      startSecond = resolve;
+    });
+    const allowSecond = new Promise<void>((resolve) => {
+      continueSecond = resolve;
+    });
+    let outerSettled = false;
+
+    const outer = txOf(db)(async (tx) => {
+      const first = txOf(tx)(async () => {
+        throw new Error('__first_sibling_failed__');
+      });
+      const second = txOf(tx)(async (later) => {
+        startSecond();
+        await allowSecond;
+        await later.query(`INSERT INTO ${table} VALUES (2, 'second')`);
+      });
+      await Promise.all([first, second]);
+    });
+    void outer.catch(() => {
+      outerSettled = true;
+    });
+
+    await secondStarted;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(outerSettled).toBe(false);
+
+    continueSecond();
+    await expect(outer).rejects.toThrow('__first_sibling_failed__');
+
+    const rows = await db.query(`SELECT id FROM ${table}`);
+    expect(rows.rows).toHaveLength(0);
+  }, 30000);
+
   it('nests on a beginTransaction handle without checking out a second connection', async () => {
     if (!postgresAvailable || !db.beginTransaction) return;
 

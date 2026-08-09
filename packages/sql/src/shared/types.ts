@@ -1073,7 +1073,9 @@ export interface DatabaseInterface {
    * queued call that waits longer than `transactionQueueTimeout` (30s by
    * default) rejects rather than stalling indefinitely. Re-entrant calls do not
    * queue — they take the savepoint or refusal path described above.
-   * PostgreSQL pools, so its transactions run concurrently and never queue.
+   * PostgreSQL pools, so top-level transactions run concurrently. Nested scopes
+   * on one PostgreSQL transaction use a scope-local queue: concurrently started
+   * siblings serialize, while each child gets its own queue for further nesting.
    *
    * @param callback - Function to execute within transaction
    * @returns Promise resolving to callback result
