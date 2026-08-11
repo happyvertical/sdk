@@ -9,11 +9,15 @@ import {
   validateIndexName,
   validateTableName,
 } from './shared/alter-utils';
+import { validateDatabaseCacheOptions } from './shared/connection-cache';
+import { redactDatabaseUrl } from './shared/redact-database-url';
+import { getCachedSqliteDatabase } from './shared/sqlite-connection-cache';
 import { createTransactionLock } from './shared/transaction-lock';
 import type {
   ColumnDefinition,
   ColumnDefinitionWithName,
   DatabaseInterface,
+  DatabaseOptions,
   IndexDefinition,
   QueryResult,
   SchemaInitializationOptions,
@@ -34,13 +38,6 @@ import {
  * Connection cache for in-memory databases with memoryId
  * Enables sharing of :memory: databases across multiple getDatabase() calls
  */
-const memoryConnectionCache = new Map<string, DatabaseInterface>();
-
-/**
- * Pending connection promises to handle concurrent getDatabase() calls
- * Prevents creating duplicate connections when parallel calls happen
- */
-const pendingConnections = new Map<string, Promise<DatabaseInterface>>();
 const NULL_AWARE_UPSERT_MAX_ATTEMPTS = 8;
 const NULL_AWARE_UPSERT_BASE_DELAY_MS = 25;
 const nullAwareUpsertLocks = new Map<string, Promise<void>>();
@@ -125,19 +122,22 @@ async function createLibSQLClient(options: SqliteOptions): Promise<Client> {
     const { createClient } = await import(/* @vite-ignore */ libsqlClient);
     return createClient({ url: libsqlUrl, authToken, encryptionKey });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorMessage = redactDatabaseUrl(
+      error instanceof Error ? error.message : String(error),
+    );
+    const safeUrl = redactDatabaseUrl(libsqlUrl);
 
     // Provide helpful error messages for common issues
     if (errorMessage?.includes('URL_SCHEME_NOT_SUPPORTED')) {
       throw new DatabaseError(
-        `Unsupported URL scheme. Use ':memory:' for in-memory databases or 'libsql://' for remote LibSQL databases. Original: ${url}, Converted: ${libsqlUrl}`,
-        { url: libsqlUrl, originalError: errorMessage },
+        `Unsupported URL scheme. Use ':memory:' for in-memory databases or 'libsql://' for remote LibSQL databases. URL: ${safeUrl}`,
+        { url: safeUrl, originalError: errorMessage },
       );
     }
 
     // Re-throw other errors with context
     throw new DatabaseError(`Failed to create LibSQL client: ${errorMessage}`, {
-      url: libsqlUrl,
+      url: safeUrl,
       originalError: errorMessage,
     });
   }
@@ -146,7 +146,7 @@ async function createLibSQLClient(options: SqliteOptions): Promise<Client> {
 /**
  * Configuration options for SQLite database connections
  */
-export interface SqliteOptions {
+export interface SqliteOptions extends DatabaseOptions {
   /**
    * Connection URL for SQLite database
    * Supported schemes:
@@ -168,8 +168,8 @@ export interface SqliteOptions {
 
   /**
    * Unique identifier for in-memory databases to enable connection sharing
-   * When multiple getDatabase() calls use the same dbid, they receive
-   * the same database connection instance.
+   * Calls using the same dbid and the same LibSQL/native adapter path receive
+   * the same database connection instance. `clearCache` evicts both paths.
    *
    * Auto-generated for :memory: databases if not provided.
    */
@@ -301,11 +301,12 @@ async function createTablesFromSchemas(
 export async function getDatabase(
   options: SqliteOptions = {},
 ): Promise<DatabaseInterface> {
+  validateDatabaseCacheOptions(options);
   const url = options.url || ':memory:';
 
   // Auto-generate dbid for :memory: databases if not provided
   // Mutate options object to ensure child objects reuse the same connection
-  if (url === ':memory:' && !options.dbid) {
+  if (url === ':memory:' && !options.dbid && options.cache !== false) {
     options.dbid = generateDbId();
   }
 
@@ -314,22 +315,16 @@ export async function getDatabase(
     return sqliteNative.getNativeSqliteDatabase(options);
   }
 
-  // Check if we have a cached connection for this dbid
-  if (options.dbid) {
-    const cached = memoryConnectionCache.get(options.dbid);
-    if (cached) {
-      return cached;
-    }
+  return getCachedSqliteDatabase('libsql', options, () =>
+    createDatabase(options, url),
+  );
+}
 
-    // Check if there's a pending connection for this dbid
-    const pending = pendingConnections.get(options.dbid);
-    if (pending) {
-      return pending;
-    }
-  }
-
-  // Create a new connection promise
-  const connectionPromise = (async () => {
+async function createDatabase(
+  options: SqliteOptions,
+  url: string,
+): Promise<DatabaseInterface> {
+  return (async () => {
     const client = await createLibSQLClient(options);
 
     // One lock per connection. Nothing else in this closure escapes to another
@@ -343,7 +338,19 @@ export async function getDatabase(
     // Initialize tables from provided schemas (resolves lazy function if needed)
     const resolvedSchemas = resolveSchemas(options.schemas);
     if (resolvedSchemas && Object.keys(resolvedSchemas).length > 0) {
-      await createTablesFromSchemas(client, resolvedSchemas);
+      try {
+        await createTablesFromSchemas(client, resolvedSchemas);
+      } catch (error) {
+        try {
+          client.close();
+        } catch (cleanupError) {
+          throw new AggregateError(
+            [error, cleanupError],
+            'LibSQL schema initialization and cleanup failed',
+          );
+        }
+        throw error;
+      }
     }
 
     /**
@@ -1646,7 +1653,8 @@ export async function getDatabase(
       },
     };
 
-    return {
+    let closed = false;
+    const db: DatabaseInterface = {
       url,
       client,
       query,
@@ -1674,28 +1682,12 @@ export async function getDatabase(
       beginTransaction,
       getTableSchema,
       alterTable,
+      close: async () => {
+        if (closed) return;
+        client.close();
+        closed = true;
+      },
     };
-  })();
-
-  // Store the pending connection promise if dbid exists
-  if (options.dbid) {
-    pendingConnections.set(options.dbid, connectionPromise);
-  }
-
-  try {
-    // Wait for the connection to be established
-    const db = await connectionPromise;
-
-    // Cache the connection for reuse if dbid exists
-    if (options.dbid) {
-      memoryConnectionCache.set(options.dbid, db);
-    }
-
     return db;
-  } finally {
-    // Clean up pending connection promise
-    if (options.dbid) {
-      pendingConnections.delete(options.dbid);
-    }
-  }
+  })();
 }

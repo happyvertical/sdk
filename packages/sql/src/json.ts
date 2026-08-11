@@ -7,7 +7,13 @@ import {
   escapeStringLiteral,
   validateColumnNames,
 } from './shared/alter-utils';
+import { ConnectionCache } from './shared/connection-cache';
+import {
+  createDuckDBResourceCloser,
+  throwWithDuckDBCleanup,
+} from './shared/duckdb-resources';
 import { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils';
+import { redactDatabaseUrl } from './shared/redact-database-url';
 import { createTransactionLock } from './shared/transaction-lock';
 import type {
   DatabaseInterface,
@@ -36,12 +42,8 @@ import {
  */
 declare global {
   // eslint-disable-next-line no-var
-  var __haveSqlMemoryConnectionCache:
-    | Map<string, DatabaseInterface>
-    | undefined;
-  // eslint-disable-next-line no-var
-  var __haveSqlPendingConnections:
-    | Map<string, Promise<DatabaseInterface>>
+  var __haveSqlJSONConnectionCache:
+    | ConnectionCache<DatabaseInterface>
     | undefined;
 }
 
@@ -55,33 +57,20 @@ declare global {
  *
  * @see https://github.com/happyvertical/sdk/issues/678
  */
-globalThis.__haveSqlMemoryConnectionCache ??= new Map<
-  string,
-  DatabaseInterface
->();
-const memoryConnectionCache = globalThis.__haveSqlMemoryConnectionCache;
-
-/**
- * Pending connection promises to handle concurrent getDatabase() calls
- * Prevents creating duplicate connections when parallel calls happen.
- *
- * Uses globalThis to ensure cache is shared across all module instances.
- *
- * @see https://github.com/happyvertical/sdk/issues/678
- */
-globalThis.__haveSqlPendingConnections ??= new Map<
-  string,
-  Promise<DatabaseInterface>
->();
-const pendingConnections = globalThis.__haveSqlPendingConnections;
+globalThis.__haveSqlJSONConnectionCache ??=
+  new ConnectionCache<DatabaseInterface>();
+const memoryConnectionCache = globalThis.__haveSqlJSONConnectionCache;
 
 /**
  * Clears all cached connections
  * Useful for testing to ensure test isolation
  */
-export function clearConnectionCache(): void {
-  memoryConnectionCache.clear();
-  pendingConnections.clear();
+export async function clearConnectionCache(): Promise<void> {
+  await memoryConnectionCache.clear(closeJSONDatabase);
+}
+
+async function closeJSONDatabase(db: DatabaseInterface): Promise<void> {
+  await db.close?.();
 }
 
 /**
@@ -126,14 +115,16 @@ async function createJSONConnection(options: JSONOptions) {
     }
   };
 
+  let instance: any;
+  let connection: any;
   try {
     // Dynamic import to avoid bundling
     const duckdbModule = '@duckdb/node-api';
     const { DuckDBInstance } = await import(/* @vite-ignore */ duckdbModule);
 
     // Always use in-memory database - no persistent files
-    const instance = await DuckDBInstance.create(':memory:');
-    const connection = await instance.connect();
+    instance = await DuckDBInstance.create(':memory:');
+    connection = await instance.connect();
 
     // Ensure data directory exists
     try {
@@ -156,6 +147,7 @@ async function createJSONConnection(options: JSONOptions) {
     }
 
     return {
+      instance,
       connection,
       pendingJSONFiles,
       inferredSchemaTables,
@@ -163,13 +155,19 @@ async function createJSONConnection(options: JSONOptions) {
       reportLoadError,
     };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    throw new DatabaseError(
+    const errorMessage = redactDatabaseUrl(
+      error instanceof Error ? error.message : String(error),
+    );
+    const databaseError = new DatabaseError(
       `Failed to create JSON database connection: ${errorMessage}`,
       {
-        url,
+        url: redactDatabaseUrl(url),
         originalError: errorMessage,
       },
+    );
+    return throwWithDuckDBCleanup(
+      databaseError,
+      createDuckDBResourceCloser(connection, instance),
     );
   }
 }
@@ -837,28 +835,20 @@ export async function getDatabase(
   const cacheKey =
     options.dbid ||
     `json:${options.url}:${options.writeStrategy || 'immediate'}:${options.autoRegister !== false}`;
+  return memoryConnectionCache.getOrCreate(
+    cacheKey,
+    options,
+    () => createJSONDatabase(options),
+    closeJSONDatabase,
+  );
+}
 
-  // If clearCache option is true, clear any cached connection for this key
-  if (options.clearCache) {
-    memoryConnectionCache.delete(cacheKey);
-    pendingConnections.delete(cacheKey);
-  }
-
-  // Check if we have a cached connection for this cache key
-  const cached = memoryConnectionCache.get(cacheKey);
-  if (cached) {
-    return cached;
-  }
-
-  // Check if there's a pending connection for this cache key
-  const pending = pendingConnections.get(cacheKey);
-  if (pending) {
-    return pending;
-  }
-
-  // Create a new connection promise
-  const connectionPromise = (async () => {
+async function createJSONDatabase(
+  options: JSONOptions,
+): Promise<DatabaseInterface> {
+  return (async () => {
     const {
+      instance,
       connection,
       pendingJSONFiles,
       inferredSchemaTables,
@@ -2290,7 +2280,8 @@ export async function getDatabase(
       return txHandle;
     };
 
-    return {
+    const closeResources = createDuckDBResourceCloser(connection, instance);
+    const db = {
       url,
       requiresSchemaCheck: true,
       client: connection,
@@ -2321,6 +2312,10 @@ export async function getDatabase(
       exportTable,
       inferSchemaFromJSON,
       getTableLoadErrors,
+      close: async () => {
+        memoryConnectionCache.forget(db);
+        await closeResources();
+      },
     } as DatabaseInterface & {
       exportTable: (table: string) => Promise<void>;
       inferSchemaFromJSON: (
@@ -2329,21 +2324,6 @@ export async function getDatabase(
       ) => Promise<void>;
       getTableLoadErrors: () => JSONTableLoadError[];
     };
-  })();
-
-  // Store the pending connection promise for concurrent requests
-  pendingConnections.set(cacheKey, connectionPromise);
-
-  try {
-    // Wait for the connection to be established
-    const db = await connectionPromise;
-
-    // Cache the connection for reuse
-    memoryConnectionCache.set(cacheKey, db);
-
     return db;
-  } finally {
-    // Clean up pending connection promise
-    pendingConnections.delete(cacheKey);
-  }
+  })();
 }

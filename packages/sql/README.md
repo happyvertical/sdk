@@ -50,6 +50,44 @@ const jsonDb = await getDatabase({
 });
 ```
 
+### Connection caching and cleanup
+
+PostgreSQL, JSON, and explicitly identified SQLite connections are shared by
+default. Pass `cache: false` when a caller needs a distinct adapter that is
+never read from or inserted into the shared cache:
+
+```typescript
+const isolated = await getDatabase({
+  type: 'postgres',
+  url: process.env.DATABASE_URL,
+  cache: false,
+});
+
+try {
+  await isolated.query('SELECT 1');
+} finally {
+  await isolated.close?.();
+}
+```
+
+`clearCache: true` preserves the existing evict-then-cache behavior: it waits
+for the matching cached or initializing adapter to close, then returns a fresh
+cached adapter. Combine it with `cache: false` to evict first and return an
+uncached replacement. A concurrent initializer caught by eviction is closed
+and cannot repopulate the cache.
+
+An explicit `dbid` is an opaque, stable caller-owned cache identity and must be
+non-empty. Without
+one, PostgreSQL derives a credential- and pool-option-sensitive identity using
+a process-keyed digest; connection URLs, usernames, passwords, and option names
+are not stored in readable cache keys. SQLite caches only connections with a
+`dbid` (automatically assigned to the default `:memory:` path). JSON derives an
+identity from its directory and behavior options.
+
+DuckDB already creates a fresh adapter for every call, so `cache` and
+`clearCache` are accepted for uniform configuration but do not change its
+behavior. Call `close()` on uncached and DuckDB adapters when finished.
+
 Configuration is also loaded from `HAVE_SQL_*` environment variables (e.g. `HAVE_SQL_TYPE`, `HAVE_SQL_URL`). User-provided options take precedence.
 
 ### Template Literal Queries

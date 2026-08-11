@@ -60,7 +60,33 @@ export type WhereClause = Record<string, any> | Record<string, any>[][];
 /**
  * Common database connection options
  */
-export interface DatabaseOptions {
+export interface DatabaseCacheOptions {
+  /**
+   * Stable, caller-supplied cache identity. When omitted, adapters derive an
+   * identity from their effective connection configuration.
+   */
+  dbid?: string;
+
+  /**
+   * Whether this request may reuse and retain a shared adapter.
+   * Set to `false` for a distinct connection that is never inserted into the
+   * shared cache. Existing cached connections are left untouched.
+   *
+   * @default true for adapters that support caching
+   */
+  cache?: boolean;
+
+  /**
+   * Evict and close the matching cached adapter before serving this request.
+   * Eviction waits for both resource closure and any in-flight initializer.
+   * The replacement is cached unless `cache` is also `false`.
+   *
+   * @default false
+   */
+  clearCache?: boolean;
+}
+
+export interface DatabaseOptions extends DatabaseCacheOptions {
   /**
    * Database connection URL
    */
@@ -131,6 +157,18 @@ export interface DuckDBOptions extends DatabaseOptions {
   persistent?: boolean;
 
   /**
+   * Accepted for uniform configuration. DuckDB creates a fresh adapter on
+   * every call, so this option does not change its behavior.
+   */
+  cache?: boolean;
+
+  /**
+   * Accepted for uniform configuration. DuckDB has no shared cache to evict,
+   * so this option does not change its behavior.
+   */
+  clearCache?: boolean;
+
+  /**
    * Explicit schema definitions for tables
    * When provided, these schemas will be used for table creation
    */
@@ -165,7 +203,7 @@ export interface JSONTableLoadError {
  * Uses DuckDB's in-memory engine to query JSON files directly.
  * No WAL files or persistent database files are created.
  */
-export interface JSONOptions {
+export interface JSONOptions extends DatabaseOptions {
   /**
    * Database type identifier
    */
@@ -265,9 +303,9 @@ export interface JSONOptions {
   eagerLoadTables?: boolean;
 
   /**
-   * Force a fresh database connection, bypassing the connection cache
+   * Evict and close the existing database connection before creating a fresh one
    *
-   * When true, clears any cached connection for this URL before creating a new one.
+   * The new adapter is cached unless `cache` is also false. Eviction is awaited.
    * Useful when you need to reload the database from disk after external changes.
    *
    * @default false

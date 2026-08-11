@@ -13,7 +13,13 @@ import {
   validateIndexName,
   validateTableName,
 } from './shared/alter-utils';
+import { validateDatabaseCacheOptions } from './shared/connection-cache';
+import {
+  createDuckDBResourceCloser,
+  throwWithDuckDBCleanup,
+} from './shared/duckdb-resources';
 import { convertUniqueIndexesToInlineConstraints } from './shared/duckdb-schema-utils';
+import { redactDatabaseUrl } from './shared/redact-database-url';
 import { createTransactionLock } from './shared/transaction-lock';
 import type {
   ColumnDefinition,
@@ -162,14 +168,16 @@ async function createDuckDBConnection(options: DuckDBOptions) {
   // Resolve URL to prevent file leakage from :memory:* patterns
   const resolvedUrl = resolveDuckDBUrl(url);
 
+  let instance: Awaited<ReturnType<any>> | undefined;
+  let connection: any;
   try {
     // Dynamic import to avoid bundling
     const duckdbModule = '@duckdb/node-api';
     const { DuckDBInstance } = await import(/* @vite-ignore */ duckdbModule);
 
     // Create DuckDB instance with resolved URL
-    const instance = await DuckDBInstance.create(resolvedUrl);
-    const connection = await instance.connect();
+    instance = await DuckDBInstance.create(resolvedUrl);
+    connection = await instance.connect();
 
     // Create tables from provided schemas first
     if (schemas && Object.keys(schemas).length > 0) {
@@ -181,15 +189,21 @@ async function createDuckDBConnection(options: DuckDBOptions) {
       await registerJSONFiles(connection, dataDir);
     }
 
-    return connection;
+    return { connection, instance };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    throw new DatabaseError(
+    const errorMessage = redactDatabaseUrl(
+      error instanceof Error ? error.message : String(error),
+    );
+    const databaseError = new DatabaseError(
       `Failed to create DuckDB connection: ${errorMessage}`,
       {
-        url,
+        url: redactDatabaseUrl(url),
         originalError: errorMessage,
       },
+    );
+    return throwWithDuckDBCleanup(
+      databaseError,
+      createDuckDBResourceCloser(connection, instance),
     );
   }
 }
@@ -289,7 +303,8 @@ function convertBigInts(obj: any): any {
 export async function getDatabase(
   options: DuckDBOptions = {},
 ): Promise<DatabaseInterface> {
-  const connection = await createDuckDBConnection(options);
+  validateDatabaseCacheOptions(options);
+  const { connection, instance } = await createDuckDBConnection(options);
   const writeStrategy = options.writeStrategy || 'none';
   const dataDir = options.dataDir || './data';
   // Use resolved URL to reflect actual database location
@@ -302,6 +317,7 @@ export async function getDatabase(
     'duckdb',
     options.transactionQueueTimeout,
   );
+  const closeResources = createDuckDBResourceCloser(connection, instance);
 
   /**
    * Inserts one or more records into a table
@@ -1604,6 +1620,9 @@ export async function getDatabase(
     beginTransaction,
     getTableSchema,
     alterTable,
+    close: async () => {
+      await closeResources();
+    },
     // DuckDB-specific export method
     exportTable,
   } as DatabaseInterface & { exportTable: (table: string) => Promise<void> };

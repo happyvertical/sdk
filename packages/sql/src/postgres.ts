@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { DatabaseError, loadEnvConfig } from '@happyvertical/utils';
+import { webcrypto } from 'node:crypto';
+import { DatabaseError } from '@happyvertical/utils';
 import { Pool, type PoolClient } from 'pg';
 import { DatabaseSchemaManager } from './schema-manager';
 import {
@@ -10,10 +11,15 @@ import {
   validateIndexName,
   validateTableName,
 } from './shared/alter-utils';
+import {
+  ConnectionCache,
+  validateDatabaseCacheOptions,
+} from './shared/connection-cache';
 import type {
   QueryResult as BaseQueryResult,
   ColumnDefinition,
   ColumnDefinitionWithName,
+  DatabaseCacheOptions,
   DatabaseInterface,
   IndexDefinition,
   SchemaInitializationOptions,
@@ -36,7 +42,7 @@ import {
 /**
  * Configuration options for PostgreSQL database connections
  */
-export interface PostgresOptions {
+export interface PostgresOptions extends DatabaseCacheOptions {
   /**
    * Connection URL for PostgreSQL
    */
@@ -68,9 +74,10 @@ export interface PostgresOptions {
   port?: number;
 
   /**
-   * Cache key for connection pooling.
+   * Opaque caller-owned cache identity for connection pooling.
    * If provided, the same dbid returns the same cached connection.
-   * When omitted, a key is derived from the connection URL.
+   * When omitted, a keyed digest is derived from effective connection and pool
+   * options, including credentials, without retaining them in readable keys.
    */
   dbid?: string;
 
@@ -97,8 +104,25 @@ export interface PostgresOptions {
  * Keyed by dbid (or derived from connection URL).
  * Prevents creating multiple pg.Pool instances for the same database.
  */
-const connectionCache = new Map<string, DatabaseInterface>();
-const pendingConnections = new Map<string, Promise<DatabaseInterface>>();
+declare global {
+  // A non-extractable process-local HMAC key keeps password-bearing cache
+  // identities resistant to offline guessing even if cache keys are inspected.
+  // eslint-disable-next-line no-var
+  var __haveSqlPostgresCacheHmacKey: Promise<CryptoKey> | undefined;
+  // eslint-disable-next-line no-var
+  var __haveSqlPostgresConnectionCache:
+    | ConnectionCache<DatabaseInterface>
+    | undefined;
+}
+
+globalThis.__haveSqlPostgresCacheHmacKey ??= webcrypto.subtle.generateKey(
+  { name: 'HMAC', hash: 'SHA-256' },
+  false,
+  ['sign'],
+) as Promise<CryptoKey>;
+globalThis.__haveSqlPostgresConnectionCache ??=
+  new ConnectionCache<DatabaseInterface>();
+const connectionCache = globalThis.__haveSqlPostgresConnectionCache;
 
 type PostgresQueryExecutor = {
   query: (
@@ -111,9 +135,115 @@ type PostgresQueryExecutor = {
  * Clears the PostgreSQL connection cache.
  * Useful for test isolation and reconnection scenarios.
  */
-export function clearPostgresConnectionCache(): void {
-  connectionCache.clear();
-  pendingConnections.clear();
+export async function clearPostgresConnectionCache(): Promise<void> {
+  await connectionCache.clear(closePostgresDatabase);
+}
+
+async function closePostgresDatabase(db: DatabaseInterface): Promise<void> {
+  if (db.close) {
+    await db.close();
+    return;
+  }
+  await db.client.end();
+}
+
+type EffectivePostgresConfig = {
+  url?: string;
+  database?: string;
+  host?: string;
+  user?: string;
+  password?: string;
+  port: number;
+  max: number;
+};
+
+function resolvePostgresConfig(
+  options: PostgresOptions,
+): EffectivePostgresConfig {
+  const preferred = <T>(option: T | undefined, environment: T | undefined) =>
+    option !== undefined ? option : environment;
+  const envPort = process.env.HAVE_SQL_PORT;
+  const primary = {
+    url: preferred(options.url, process.env.HAVE_SQL_URL),
+    database: preferred(options.database, process.env.HAVE_SQL_DATABASE),
+    host: preferred(options.host, process.env.HAVE_SQL_HOST),
+    user: preferred(options.user, process.env.HAVE_SQL_USER),
+    password: preferred(options.password, process.env.HAVE_SQL_PASSWORD),
+    port: preferred(
+      options.port,
+      envPort === undefined ? undefined : Number(envPort),
+    ),
+  };
+  const useLegacy =
+    !primary.url && !primary.host && !primary.database && !primary.user;
+  const legacy = <T>(value: T | undefined, environment: T | undefined) =>
+    value !== undefined || !useLegacy ? value : environment;
+  const legacyPort = process.env.SQLOO_PORT;
+
+  const port =
+    legacy(
+      primary.port,
+      legacyPort === undefined ? undefined : Number(legacyPort),
+    ) ?? 5432;
+  const max = options.max ?? 20;
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    throw new Error('PostgreSQL port must be an integer between 1 and 65535');
+  }
+  if (!Number.isInteger(max) || max < 1) {
+    throw new Error('PostgreSQL pool max must be a positive integer');
+  }
+
+  return {
+    url: legacy(primary.url, process.env.SQLOO_URL),
+    database: legacy(primary.database, process.env.SQLOO_DATABASE),
+    host: legacy(primary.host, process.env.SQLOO_HOST),
+    user: legacy(primary.user, process.env.SQLOO_USER),
+    password: legacy(primary.password, process.env.SQLOO_PASSWORD),
+    port,
+    max,
+  };
+}
+
+async function derivePostgresConnectionCacheKey(
+  options: PostgresOptions,
+  effective: EffectivePostgresConfig,
+): Promise<string | undefined> {
+  if (options.dbid) {
+    return options.dbid;
+  }
+
+  const identity = JSON.stringify({
+    url: effective.url ?? null,
+    host: effective.host ?? 'localhost',
+    port: effective.port,
+    database: effective.database ?? null,
+    user: effective.user ?? null,
+    password: effective.password ?? null,
+    max: effective.max,
+  });
+  const hmacKey = await globalThis.__haveSqlPostgresCacheHmacKey;
+  if (!hmacKey) {
+    throw new Error('PostgreSQL cache identity key was not initialized');
+  }
+  const signature = await webcrypto.subtle.sign(
+    'HMAC',
+    hmacKey,
+    new TextEncoder().encode(
+      `@happyvertical/sql:postgres-cache:v1\0${identity}`,
+    ),
+  );
+  return `pg:hmac-sha256:v1:${Buffer.from(signature).toString('hex')}`;
+}
+
+/** @internal Exported for adversarial identity tests. */
+export async function getPostgresConnectionCacheKey(
+  options: PostgresOptions,
+): Promise<string | undefined> {
+  validateDatabaseCacheOptions(options);
+  return derivePostgresConnectionCacheKey(
+    options,
+    resolvePostgresConfig(options),
+  );
 }
 
 /**
@@ -585,99 +715,23 @@ function createVectorCapabilities(pool: Pool): VectorCapabilities {
 export async function getDatabase(
   options: PostgresOptions = {},
 ): Promise<DatabaseInterface> {
-  // --- Connection cache: return existing pool for same dbid/URL ---
-  // Derive cache key from explicit dbid, options, or env vars so that
-  // env-only callers also benefit from caching/deduplication.
-  const envUrl = process.env.HAVE_SQL_URL || process.env.SQLOO_URL || null;
-  const envDatabase =
-    process.env.HAVE_SQL_DATABASE || process.env.SQLOO_DATABASE || null;
-  const envHost =
-    process.env.HAVE_SQL_HOST || process.env.SQLOO_HOST || 'localhost';
-  const envUser = process.env.HAVE_SQL_USER || process.env.SQLOO_USER || '';
-  const envPortRaw = process.env.HAVE_SQL_PORT || process.env.SQLOO_PORT;
-  const envPort = envPortRaw ? Number(envPortRaw) || 5432 : 5432;
-
-  const derivedHost = options.host || envHost;
-  const derivedPort = options.port || envPort;
-  const derivedDatabase = options.database || envDatabase;
-  const derivedUser = options.user || envUser;
-
-  const cacheKey =
-    options.dbid ||
-    options.url ||
-    (derivedDatabase
-      ? `pg:${derivedUser ? `${derivedUser}@` : ''}${derivedHost}:${derivedPort}/${derivedDatabase}`
-      : envUrl || null);
-
-  if (cacheKey) {
-    const cached = connectionCache.get(cacheKey);
-    if (cached) {
-      return cached;
-    }
-
-    // Deduplicate concurrent calls for the same key
-    const pending = pendingConnections.get(cacheKey);
-    if (pending) return pending;
-  }
-
-  const connectionPromise = createDatabase(options, cacheKey);
-
-  if (cacheKey) {
-    pendingConnections.set(cacheKey, connectionPromise);
-    connectionPromise.finally(() => {
-      if (cacheKey) pendingConnections.delete(cacheKey);
-    });
-  }
-
-  return connectionPromise;
+  validateDatabaseCacheOptions(options);
+  const effective = resolvePostgresConfig(options);
+  const cacheKey = await derivePostgresConnectionCacheKey(options, effective);
+  return connectionCache.getOrCreate(
+    cacheKey,
+    options,
+    () => createDatabase(effective),
+    closePostgresDatabase,
+  );
 }
 
 /**
  * Internal: creates the actual database connection and caches it.
  */
 async function createDatabase(
-  options: PostgresOptions,
-  cacheKey: string | null,
+  config: EffectivePostgresConfig,
 ): Promise<DatabaseInterface> {
-  // Load HAVE_SQL_* environment variables first
-  const config = loadEnvConfig(options, {
-    packageName: 'sql',
-    schema: {
-      url: 'string',
-      database: 'string',
-      host: 'string',
-      port: 'number',
-      user: 'string',
-      password: 'string',
-    },
-  });
-
-  // For backward compatibility, fall back to SQLOO_* if HAVE_SQL_* not set
-  // Only check legacy vars if the new ones aren't present
-  if (!config.url && !config.host && !config.database && !config.user) {
-    const legacyConfig = loadEnvConfig(
-      {},
-      {
-        prefix: 'SQLOO',
-        schema: {
-          url: 'string',
-          database: 'string',
-          host: 'string',
-          port: 'number',
-          user: 'string',
-          password: 'string',
-        },
-      },
-    );
-
-    // Merge legacy config, but don't override user options or HAVE_SQL_* vars
-    for (const [key, value] of Object.entries(legacyConfig)) {
-      if ((config as any)[key] === undefined && value !== undefined) {
-        (config as any)[key] = value;
-      }
-    }
-  }
-
   // Apply defaults
   const { database, host = 'localhost', user, password, port = 5432 } = config;
 
@@ -689,7 +743,7 @@ async function createDatabase(
   // Create a connection pool with explicit max to prevent exhaustion.
   // pg defaults to 10 which is too low for SMRT apps that sync 30+ table
   // schemas on startup. Default to 20 but allow callers to override.
-  const poolMax = options.max ?? 20;
+  const poolMax = config.max;
   const pool = new Pool(
     config.url
       ? { connectionString: config.url as string, max: poolMax }
@@ -721,19 +775,23 @@ async function createDatabase(
   // when tests or shutdown code calls db.client.end() and subsequent calls
   // to getDatabase() would otherwise return the ended pool.
   const originalEnd = pool.end.bind(pool);
-  const evictFromCache = () => {
-    for (const [key, cached] of connectionCache.entries()) {
-      if (cached.client === pool) {
-        connectionCache.delete(key);
-      }
+  let db: DatabaseInterface;
+  let endPromise: Promise<void> | undefined;
+  const evictFromCache = () => connectionCache.forget(db);
+  (pool as any).end = (callback?: (error?: Error) => void) => {
+    if (!endPromise) {
+      evictFromCache();
+      endPromise = originalEnd();
     }
-  };
-  (pool as any).end = (callback?: () => void) => {
-    evictFromCache();
     if (callback) {
-      return originalEnd(callback);
+      endPromise.then(
+        () => callback(),
+        (error) =>
+          callback(error instanceof Error ? error : new Error(String(error))),
+      );
+      return;
     }
-    return originalEnd();
+    return endPromise;
   };
 
   const client = pool;
@@ -2430,7 +2488,7 @@ async function createDatabase(
     },
   };
 
-  const db: DatabaseInterface = {
+  db = {
     url,
     client,
     insert,
@@ -2460,11 +2518,10 @@ async function createDatabase(
     getTableSchema,
     alterTable,
     vector: createVectorCapabilities(pool),
+    close: async () => {
+      await pool.end();
+    },
   };
-
-  // Cache the connection for reuse by subsequent calls with the same dbid/URL
-  const finalCacheKey = cacheKey || url;
-  connectionCache.set(finalCacheKey, db);
 
   return db;
 }
