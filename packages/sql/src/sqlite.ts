@@ -102,13 +102,27 @@ async function createLibSQLClient(options: SqliteOptions): Promise<Client> {
 
   // Normalize URLs: add file:// prefix for local paths
   let libsqlUrl = url;
-  if (
-    url !== ':memory:' &&
-    !url.startsWith('http://') &&
-    !url.startsWith('https://') &&
-    !url.startsWith('libsql://') &&
-    !url.startsWith('file:')
-  ) {
+  const remoteUrl = url.replace(/[\t\n\r]/g, '').trim();
+  const hasRemoteScheme = /^(?:https?|libsql):/i.test(remoteUrl);
+  if (hasRemoteScheme) {
+    libsqlUrl = remoteUrl;
+    let parsedRemoteUrl: URL;
+    try {
+      parsedRemoteUrl = new URL(remoteUrl);
+    } catch {
+      const safeUrl = redactDatabaseUrl(remoteUrl);
+      throw new DatabaseError(`Invalid remote database URL: ${safeUrl}`, {
+        url: safeUrl,
+      });
+    }
+    if (!/^(?:https?|libsql):\/\//i.test(remoteUrl) || !parsedRemoteUrl.host) {
+      const safeUrl = redactDatabaseUrl(remoteUrl);
+      throw new DatabaseError(`Invalid remote database URL: ${safeUrl}`, {
+        url: safeUrl,
+      });
+    }
+  }
+  if (url !== ':memory:' && !hasRemoteScheme && !url.startsWith('file:')) {
     // Local file path - resolve to absolute and add file:// prefix
     const { resolve } = await import('node:path');
     const absolutePath = resolve(url);

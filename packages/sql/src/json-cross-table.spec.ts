@@ -22,8 +22,8 @@ describe('JSON adapter cross-table queries', () => {
     mkdirSync(testDataDir, { recursive: true });
   });
 
-  afterEach(() => {
-    clearConnectionCache();
+  afterEach(async () => {
+    await clearConnectionCache();
     rmSync(testDataDir, { recursive: true, force: true });
   });
 

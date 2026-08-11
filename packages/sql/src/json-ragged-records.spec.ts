@@ -62,8 +62,8 @@ describe('JSON adapter ragged data files (Issue #1132)', () => {
     testDataDir = mkdtempSync(join(tmpdir(), 'json-ragged-'));
   });
 
-  afterEach(() => {
-    clearConnectionCache();
+  afterEach(async () => {
+    await clearConnectionCache();
     rmSync(testDataDir, { recursive: true, force: true });
   });
 
@@ -439,7 +439,7 @@ describe('JSON adapter ragged data files (Issue #1132)', () => {
       });
       await db.insert('items', { id: 'c', name: 'third', note: null });
 
-      clearConnectionCache();
+      await clearConnectionCache();
 
       const reopened = await getDatabase({
         type: 'json',

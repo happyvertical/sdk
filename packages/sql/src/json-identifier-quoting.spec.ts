@@ -33,7 +33,7 @@ describe('JSON adapter identifier quoting (Issue #509)', () => {
 
   afterEach(async () => {
     // Clear connection cache to ensure test isolation
-    clearConnectionCache();
+    await clearConnectionCache();
     // Clean up test directory
     rmSync(testDataDir, { recursive: true, force: true });
   });

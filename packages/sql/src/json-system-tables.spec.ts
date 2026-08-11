@@ -18,9 +18,9 @@ describe('JSON adapter system tables persistence', () => {
     mkdirSync(testDataDir, { recursive: true });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     // Clear connection cache to ensure test isolation
-    clearConnectionCache();
+    await clearConnectionCache();
     // Clean up test data directory
     rmSync(testDataDir, { recursive: true, force: true });
   });
@@ -200,7 +200,7 @@ describe('JSON adapter system tables persistence', () => {
     console.log('Files after CREATE TABLE (no inserts):', files1);
 
     // Step 2: Clear cache and reopen database (simulates app restart)
-    clearConnectionCache();
+    await clearConnectionCache();
     const db2 = await getDatabase({
       type: 'json',
       url: testDataDir,
@@ -279,7 +279,7 @@ describe('JSON adapter system tables persistence', () => {
     expect(files).toContain('_smrt_signals.json');
 
     // Step 3: Clear cache and reopen database (simulates app restart)
-    clearConnectionCache();
+    await clearConnectionCache();
     const db2 = await getDatabase({
       type: 'json',
       url: testDataDir,

@@ -53,7 +53,7 @@ describe('JSON adapter tests', () => {
 
   afterEach(async () => {
     // Clear connection cache to ensure test isolation
-    clearConnectionCache();
+    await clearConnectionCache();
     // Clean up test data directory
     rmSync(testDataDir, { recursive: true, force: true });
   });
@@ -142,7 +142,7 @@ describe('JSON adapter tests', () => {
     );
 
     // Clear cache and reload database to pick up new table
-    clearConnectionCache();
+    await clearConnectionCache();
     db = await getDatabase({
       type: 'json',
       url: testDataDir,
@@ -444,7 +444,7 @@ describe('JSON adapter tests', () => {
     expect(events[0].created_at).toBeDefined(); // TIMESTAMP returned as object
 
     // Clean up
-    clearConnectionCache();
+    await clearConnectionCache();
     rmSync(timestampDir, { recursive: true, force: true });
   });
 
@@ -471,7 +471,7 @@ describe('JSON adapter tests', () => {
       );
 
       // Clear cache to pick up new JSON file
-      clearConnectionCache();
+      await clearConnectionCache();
       const testDb = await getDatabase({
         type: 'json',
         url: testDataDir,
@@ -593,7 +593,7 @@ describe('JSON adapter tests', () => {
       );
 
       // Clear cache to pick up new JSON file
-      clearConnectionCache();
+      await clearConnectionCache();
       // Use eagerLoadTables: false to test deferred loading + syncSchema behavior
       const testDb = await getDatabase({
         type: 'json',
@@ -816,7 +816,7 @@ describe('JSON adapter tests', () => {
   describe('SchemaProvider support', () => {
     it('should create tables from provided schemas', async () => {
       // Clear cache to get fresh connection after modifying underlying files
-      clearConnectionCache();
+      await clearConnectionCache();
       if (db) {
         rmSync(testDataDir, { recursive: true, force: true });
       }
@@ -881,7 +881,7 @@ describe('JSON adapter tests', () => {
 
     it('should handle schemas without indexes', async () => {
       // Clear cache to get fresh connection after modifying underlying files
-      clearConnectionCache();
+      await clearConnectionCache();
       if (db) {
         rmSync(testDataDir, { recursive: true, force: true });
       }
@@ -918,7 +918,7 @@ describe('JSON adapter tests', () => {
     it('should handle schemas with empty strings correctly', async () => {
       // This test verifies the fix for Issue #228
       // Clear cache to get fresh connection after modifying underlying files
-      clearConnectionCache();
+      await clearConnectionCache();
       if (db) {
         rmSync(testDataDir, { recursive: true, force: true });
       }
@@ -975,7 +975,7 @@ describe('JSON adapter tests', () => {
 
     it('should allow manual table creation when autoRegister is false', async () => {
       // Clear cache to get fresh connection after modifying underlying files
-      clearConnectionCache();
+      await clearConnectionCache();
       if (db) {
         rmSync(testDataDir, { recursive: true, force: true });
       }
@@ -1065,7 +1065,7 @@ describe('JSON adapter tests', () => {
       await (db as any).exportTable('councils');
 
       // Clear cache and recreate database from JSON files (simulates app restart)
-      clearConnectionCache();
+      await clearConnectionCache();
       db = await getDatabase({
         type: 'json',
         url: testDataDir,

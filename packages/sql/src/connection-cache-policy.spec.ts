@@ -665,6 +665,101 @@ describe('adapter resource semantics', () => {
     }
   });
 
+  it('redacts whitespace-bearing credentials in malformed URLs', () => {
+    const secret = 'abc def';
+    const redacted = redactDatabaseUrl(`https://user:${secret}@[invalid/path`);
+    expect(redacted).not.toContain(secret);
+    expect(redacted).not.toContain('user:');
+  });
+
+  it('does not expose whitespace-bearing LibSQL credentials in adapter errors', async () => {
+    const secret = 'adapter secret';
+    let caught: unknown;
+    try {
+      await getDatabase({
+        type: 'sqlite',
+        cache: false,
+        url: `https://user:${secret}@[invalid`,
+      });
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(JSON.stringify(caught)).not.toContain(secret);
+    expect(String(caught)).not.toContain(secret);
+  });
+
+  it.each([
+    't%6fken',
+    'p%61ssword',
+    'se%63ret',
+    'api_%6bey',
+  ])('redacts malformed URL values for encoded credential key %s', async (encodedKey) => {
+    const secret = 'encoded-query-secret';
+    const malformedUrl = `libsql://[invalid?${encodedKey}=${secret}`;
+    expect(redactDatabaseUrl(malformedUrl)).not.toContain(secret);
+
+    let caught: unknown;
+    try {
+      await getDatabase({
+        type: 'sqlite',
+        cache: false,
+        url: malformedUrl,
+      });
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(JSON.stringify(caught)).not.toContain(secret);
+    expect(String(caught)).not.toContain(secret);
+  });
+
+  it.each([
+    'libsql://[invalid?token=LEFTSECRET@RIGHTSECRET',
+    'libsql://[invalid#LEFTSECRET@RIGHTSECRET',
+  ])('redacts malformed secret suffix containing @ in %s', async (url) => {
+    expect(redactDatabaseUrl(url)).not.toContain('LEFTSECRET');
+    expect(redactDatabaseUrl(url)).not.toContain('RIGHTSECRET');
+
+    let caught: unknown;
+    try {
+      await getDatabase({ type: 'sqlite', cache: false, url });
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(JSON.stringify(caught)).not.toContain('LEFTSECRET');
+    expect(JSON.stringify(caught)).not.toContain('RIGHTSECRET');
+    expect(String(caught)).not.toContain('LEFTSECRET');
+    expect(String(caught)).not.toContain('RIGHTSECRET');
+  });
+
+  it.each([
+    ['libsql:/user:ONESLASHSECRET@[invalid', 'ONESLASHSECRET'],
+    ['https:/user:HTTPSECRET@[invalid', 'HTTPSECRET'],
+    [' libsql:/user:LEADSECRET@[invalid', 'LEADSECRET'],
+    ['\tlibsql:/user:TABSECRET@[invalid', 'TABSECRET'],
+    ['libsql:///user:TRIPLESECRET@host', 'TRIPLESECRET'],
+    ['libsql:////user:FOURSECRET@host', 'FOURSECRET'],
+    ['libsql:///user:ENCSECRET%40host', 'ENCSECRET'],
+    ['lib\nsql:/user:INNERSECRET@[invalid', 'INNERSECRET'],
+    ['ht\ttps:/user:INNERSECRET@[invalid', 'INNERSECRET'],
+    ['lib\rsql:/user:INNERSECRET@[invalid', 'INNERSECRET'],
+    ['libsql\n:/user:INNERSECRET@[invalid', 'INNERSECRET'],
+  ])('does not reclassify malformed remote URL %s as a local file', async (url, secret) => {
+    expect(redactDatabaseUrl(url)).not.toContain(secret);
+
+    let caught: unknown;
+    try {
+      await getDatabase({ type: 'sqlite', cache: false, url });
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(JSON.stringify(caught)).not.toContain(secret);
+    expect(String(caught)).not.toContain(secret);
+  });
+
   it('does not expose malformed LibSQL URL credentials in adapter errors', async () => {
     const secret = 'synthetic-libsql-secret';
     let caught: unknown;

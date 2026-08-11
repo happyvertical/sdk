@@ -76,6 +76,9 @@ cached adapter. Combine it with `cache: false` to evict first and return an
 uncached replacement. A concurrent initializer caught by eviction is closed
 and cannot repopulate the cache.
 
+The JSON adapter's exported `clearConnectionCache()` helper is asynchronous:
+always `await clearConnectionCache()` before opening a replacement connection.
+
 An explicit `dbid` is an opaque, stable caller-owned cache identity and must be
 non-empty. Without
 one, PostgreSQL derives a credential- and pool-option-sensitive identity using

@@ -48,7 +48,7 @@ describe('JSON adapter numeric field export (Issue #694)', () => {
   });
 
   afterEach(async () => {
-    clearConnectionCache();
+    await clearConnectionCache();
     rmSync(testDataDir, { recursive: true, force: true });
   });
 

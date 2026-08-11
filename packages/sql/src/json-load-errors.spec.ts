@@ -36,9 +36,9 @@ describe('JSON adapter observable data-load errors (Issue #1139)', () => {
     errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     errorSpy.mockRestore();
-    clearConnectionCache();
+    await clearConnectionCache();
     rmSync(dir, { recursive: true, force: true });
   });
 

@@ -25,7 +25,10 @@ import type { DatabaseInterface } from './shared/types';
 interface Adapter {
   name: string;
   /** Returns the database plus anything the test must clean up afterwards. */
-  create: () => Promise<{ db: DatabaseInterface; cleanup: () => void }>;
+  create: () => Promise<{
+    db: DatabaseInterface;
+    cleanup: () => void | Promise<void>;
+  }>;
 }
 
 const noCleanup = () => {};
@@ -65,16 +68,16 @@ const ADAPTERS: Adapter[] = [
     name: 'json',
     create: async () => {
       const dir = mkdtempSync(join(tmpdir(), 'insert-column-binding-'));
-      const cleanup = () => {
-        clearConnectionCache();
+      const cleanup = async () => {
+        await clearConnectionCache();
         rmSync(dir, { recursive: true, force: true });
       };
-      clearConnectionCache();
+      await clearConnectionCache();
       try {
         return { db: await getDatabase({ type: 'json', url: dir }), cleanup };
       } catch (error) {
         // The caller never received `cleanup`, so drop the temp dir here.
-        cleanup();
+        await cleanup();
         throw error;
       }
     },
@@ -86,8 +89,8 @@ describe('batch insert column binding', () => {
     describe(adapter.name, () => {
       let cleanup = noCleanup;
 
-      afterEach(() => {
-        cleanup();
+      afterEach(async () => {
+        await cleanup();
         cleanup = noCleanup;
       });
 
@@ -246,13 +249,13 @@ describe('batch insert column binding', () => {
   describe('json startup loader (exempt from validation)', () => {
     let dir: string;
 
-    beforeEach(() => {
+    beforeEach(async () => {
       dir = mkdtempSync(join(tmpdir(), 'insert-column-binding-loader-'));
-      clearConnectionCache();
+      await clearConnectionCache();
     });
 
-    afterEach(() => {
-      clearConnectionCache();
+    afterEach(async () => {
+      await clearConnectionCache();
       rmSync(dir, { recursive: true, force: true });
     });
 

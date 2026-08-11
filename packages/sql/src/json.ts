@@ -62,8 +62,8 @@ globalThis.__haveSqlJSONConnectionCache ??=
 const memoryConnectionCache = globalThis.__haveSqlJSONConnectionCache;
 
 /**
- * Clears all cached connections
- * Useful for testing to ensure test isolation
+ * Clears and closes all cached connections.
+ * Callers must await completion before opening a replacement connection.
  */
 export async function clearConnectionCache(): Promise<void> {
   await memoryConnectionCache.clear(closeJSONDatabase);
