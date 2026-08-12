@@ -26,11 +26,11 @@ describe('JSON adapter STI column handling (Issue #518)', () => {
   beforeEach(async () => {
     // Create clean test data directory
     mkdirSync(testDataDir, { recursive: true });
-    clearConnectionCache();
+    await clearConnectionCache();
   });
 
   afterEach(async () => {
-    clearConnectionCache();
+    await clearConnectionCache();
     rmSync(testDataDir, { recursive: true, force: true });
   });
 

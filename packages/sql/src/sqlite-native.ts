@@ -11,6 +11,7 @@ import {
   validateIndexName,
   validateTableName,
 } from './shared/alter-utils.js';
+import { getCachedSqliteDatabase } from './shared/sqlite-connection-cache.js';
 import { createTransactionLock } from './shared/transaction-lock.js';
 import type {
   ColumnDefinition,
@@ -46,9 +47,50 @@ import type { SqliteOptions } from './sqlite.js';
 
 type NativeDatabase = any;
 type NativeStatement = any;
+type NativeCloseable = { close?: () => void };
 
-const nativeMemoryConnectionCache = new Map<string, DatabaseInterface>();
-const nativePendingConnections = new Map<string, Promise<DatabaseInterface>>();
+/** @internal Best-effort, retryable closer used by native SQLite. */
+export function createNativeSqliteCloser(
+  notificationCloseables: Set<NativeCloseable>,
+  honkerDb: NativeCloseable | null,
+  database: { close(): void },
+): () => Promise<void> {
+  const completed = new Set<object>();
+  let active: Promise<void> | undefined;
+  return async () => {
+    active ??= (async () => {
+      const resources: NativeCloseable[] = [
+        ...notificationCloseables,
+        ...(honkerDb ? [honkerDb] : []),
+        database,
+      ];
+      const errors: unknown[] = [];
+      for (const resource of resources) {
+        if (completed.has(resource)) continue;
+        try {
+          resource.close?.();
+          completed.add(resource);
+          notificationCloseables.delete(resource);
+        } catch (error) {
+          errors.push(error);
+        }
+      }
+      if (errors.length === 1) throw errors[0];
+      if (errors.length > 1) {
+        throw new AggregateError(
+          errors,
+          'Failed to close native SQLite resources',
+        );
+      }
+    })();
+    try {
+      await active;
+    } finally {
+      active = undefined;
+    }
+  };
+}
+
 const nativeNullAwareUpsertLocks = new Map<string, Promise<void>>();
 let nodeSqliteModulePromise: Promise<any> | null = null;
 // sqlite-vector's ESM wrapper uses dynamic require for platform packages.
@@ -769,35 +811,9 @@ export async function getNativeSqliteDatabase(
 ): Promise<DatabaseInterface> {
   const url = options.url || ':memory:';
 
-  if (options.dbid) {
-    const cached = nativeMemoryConnectionCache.get(options.dbid);
-    if (cached) {
-      return cached;
-    }
-
-    const pending = nativePendingConnections.get(options.dbid);
-    if (pending) {
-      return pending;
-    }
-  }
-
-  const connectionPromise = createNativeSqliteDatabase(options, url);
-
-  if (options.dbid) {
-    nativePendingConnections.set(options.dbid, connectionPromise);
-  }
-
-  try {
-    const db = await connectionPromise;
-    if (options.dbid) {
-      nativeMemoryConnectionCache.set(options.dbid, db);
-    }
-    return db;
-  } finally {
-    if (options.dbid) {
-      nativePendingConnections.delete(options.dbid);
-    }
-  }
+  return getCachedSqliteDatabase('native', options, () =>
+    createNativeSqliteDatabase(options, url),
+  );
 }
 
 async function createNativeSqliteDatabase(
@@ -834,6 +850,7 @@ async function createNativeSqliteDatabase(
     'sqlite (native)',
     options.transactionQueueTimeout,
   );
+  let closeResources: (() => Promise<void>) | undefined;
 
   try {
     if (wantsVector) {
@@ -845,7 +862,6 @@ async function createNativeSqliteDatabase(
         ? await openHonkerDatabase(location.filePath, notificationsOptions)
         : null;
     const notificationCloseables = new Set<{ close?: () => void }>();
-    let closed = false;
 
     const vectorCapabilities = wantsVector
       ? createVectorCapabilities(database, vectorOptions)
@@ -1649,21 +1665,12 @@ async function createNativeSqliteDatabase(
       },
     };
 
-    const close = async (): Promise<void> => {
-      if (closed) {
-        return;
-      }
-      closed = true;
-      for (const closeable of notificationCloseables) {
-        closeable.close?.();
-      }
-      notificationCloseables.clear();
-      honkerDb?.close?.();
-      database.close();
-      if (options.dbid) {
-        nativeMemoryConnectionCache.delete(options.dbid);
-      }
-    };
+    const close = createNativeSqliteCloser(
+      notificationCloseables,
+      honkerDb,
+      database,
+    );
+    closeResources = close;
 
     function buildDatabaseInterface(
       upsertImpl: DatabaseInterface['upsert'],
@@ -1715,9 +1722,13 @@ async function createNativeSqliteDatabase(
     return db;
   } catch (error) {
     try {
-      database.close();
-    } catch (_closeError) {
-      // Preserve the original failure.
+      if (closeResources) await closeResources();
+      else database.close();
+    } catch (cleanupError) {
+      throw new AggregateError(
+        [error, cleanupError],
+        'Native SQLite initialization and cleanup failed',
+      );
     }
     throw error;
   }

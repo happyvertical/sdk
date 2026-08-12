@@ -213,7 +213,7 @@ describe('JSON adapter UPSERT with UNIQUE constraints (Issue #316)', () => {
 
   it('should work with simple single-column UNIQUE constraint', async () => {
     // Clear cache to get fresh connection for new schema
-    clearConnectionCache();
+    await clearConnectionCache();
     // Create empty JSON file for products table
     await writeFile(join(testDataDir, 'products.json'), '[]', 'utf-8');
 
@@ -352,7 +352,7 @@ describe('JSON adapter UPSERT with UNIQUE constraints (Issue #316)', () => {
   });
 
   it('should update one row when a composite conflict column is null', async () => {
-    clearConnectionCache();
+    await clearConnectionCache();
     const nullableTestDir = join(process.cwd(), '.test-json-nullable-upsert');
     await mkdir(nullableTestDir, { recursive: true });
     await writeFile(
@@ -427,7 +427,7 @@ describe('JSON adapter UPSERT with UNIQUE constraints (Issue #316)', () => {
   });
 
   it('should preserve database-native null-distinct upsert behavior when requested', async () => {
-    clearConnectionCache();
+    await clearConnectionCache();
     const optOutTestDir = join(
       process.cwd(),
       '.test-json-nullable-upsert-opt-out',

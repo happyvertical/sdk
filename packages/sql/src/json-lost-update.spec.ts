@@ -34,11 +34,11 @@ describe('JSON adapter lost update bug (Issues #533/#534)', () => {
     // Use unique directory per test run
     testDataDir = join(process.cwd(), `.test-lost-update-${Date.now()}`);
     await mkdir(testDataDir, { recursive: true });
-    clearConnectionCache();
+    await clearConnectionCache();
   });
 
   afterEach(async () => {
-    clearConnectionCache();
+    await clearConnectionCache();
     try {
       await rm(testDataDir, { recursive: true, force: true });
     } catch {
@@ -179,7 +179,7 @@ describe('JSON adapter lost update bug (Issues #533/#534)', () => {
     await db1.upsert('test', ['id'], { id: '1', value: 'first' });
 
     // Clear cache
-    clearConnectionCache();
+    await clearConnectionCache();
 
     // Create new connection - should be fresh
     const db2 = await getDatabase({

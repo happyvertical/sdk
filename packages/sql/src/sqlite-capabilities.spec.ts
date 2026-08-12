@@ -36,7 +36,8 @@ describe('sqlite optional native capabilities', () => {
 
     expect(db.vector).toBeUndefined();
     expect(db.notifications).toBeUndefined();
-    expect(db.close).toBeUndefined();
+    expect(db.close).toBeTypeOf('function');
+    await db.close?.();
   });
 
   it('rejects remote LibSQL URLs when vector capability is enabled', async () => {
