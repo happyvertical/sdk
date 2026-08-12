@@ -1,5 +1,12 @@
 # @happyvertical/projects
 
+## 0.86.2
+
+### Patch Changes
+
+- @happyvertical/graphql@0.86.2
+- @happyvertical/repos@0.86.2
+
 ## 0.86.1
 
 ### Patch Changes
