@@ -44,7 +44,7 @@ jobs:
       success: ${{ steps.result.outputs.success }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ env.CHECKOUT_REF }}
           # Affected validation diffs against the PR base SHA, so that commit must
