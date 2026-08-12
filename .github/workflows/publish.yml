@@ -344,6 +344,8 @@ jobs:
         with:
           app-id: ${{ secrets.HAVE_RELEASE_APP_ID }}
           private-key: ${{ secrets.HAVE_RELEASE_APP_PRIVATE_KEY }}
+          owner: happyvertical
+          repositories: smrt
       - name: Checkout SDK repository
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Checkout SMRT repository
