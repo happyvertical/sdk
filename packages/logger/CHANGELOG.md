@@ -1,5 +1,13 @@
 # @happyvertical/logger
 
+## 0.86.4
+
+### Patch Changes
+
+- 7515331: Make environment-backed configuration and universal temporary-directory helpers safe when imported in browsers without a Node.js `process` global.
+- Updated dependencies [7515331]
+  - @happyvertical/utils@0.86.4
+
 ## 0.86.3
 
 ### Patch Changes
