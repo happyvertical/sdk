@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.86.3
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - make connection caching credential safe (#1194) (sql)
+
 ## 0.86.2
 
 ### Patch Changes
