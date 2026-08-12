@@ -389,10 +389,17 @@ jobs:
       - name: Validate with actionlint
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          bash <(curl -sSfL \
-            https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          # actionlint is part of the brokered runner tool contract. Using the
+          # image copy keeps validation deterministic and avoids an
+          # unauthenticated download during every workflow-changing PR.
+          if ! command -v actionlint >/dev/null 2>&1; then
+            echo '::error::actionlint is missing from the runner image; it is part of the runner tool contract'
+            exit 1
+          fi
+          actionlint --version
+
           for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
-            ./actionlint -config-file .github/actionlint.yaml \
+            actionlint -config-file .github/actionlint.yaml \
               -ignore 'SC2086|SC2094|SC2129' "$file"
           done
 
