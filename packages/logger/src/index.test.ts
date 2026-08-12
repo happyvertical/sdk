@@ -33,6 +33,20 @@ describe('createLogger', () => {
   });
 
   describe('basic functionality', () => {
+    it('should create a logger when process is unavailable in a browser', () => {
+      const nodeProcess = globalThis.process;
+      vi.stubGlobal('process', undefined);
+
+      try {
+        const logger = createLogger(true);
+
+        expect(logger).toBeInstanceOf(ConsoleLogger);
+        expect(() => logger.info('browser log')).not.toThrow();
+      } finally {
+        vi.stubGlobal('process', nodeProcess);
+      }
+    });
+
     it('should create console logger with info level when config is true', () => {
       const logger = createLogger(true);
 

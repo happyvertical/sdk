@@ -746,9 +746,9 @@ export const addInterval = add;
  */
 export const getTempDirectory = (subfolder?: string): string => {
   // Use Node.js os.tmpdir() or fallback
-  const tmpBase = process?.env
-    ? process.env.TMPDIR || process.env.TMP || process.env.TEMP || '/tmp'
-    : '/tmp';
+  const environment = typeof process !== 'undefined' ? process.env : undefined;
+  const tmpBase =
+    environment?.TMPDIR || environment?.TMP || environment?.TEMP || '/tmp';
 
   const basePath = `${tmpBase}/.have-sdk`;
   return subfolder ? `${basePath}/${subfolder}` : basePath;

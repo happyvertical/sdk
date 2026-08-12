@@ -184,6 +184,8 @@ export function loadEnvConfig<T extends Record<string, any>>(
 
   // Start with user options (highest precedence)
   const config: Record<string, any> = { ...userOptions };
+  const environment =
+    typeof process !== 'undefined' && process.env ? process.env : {};
 
   // Determine which fields to scan for
   const fieldsToScan = allowUnknown
@@ -191,7 +193,7 @@ export function loadEnvConfig<T extends Record<string, any>>(
       new Set([
         ...Object.keys(schema),
         // Also scan environment for any matching vars
-        ...Object.keys(process.env)
+        ...Object.keys(environment)
           .filter((key) => envPrefix && key.startsWith(envPrefix))
           .map((key) => {
             const fieldName = key.slice(envPrefix.length);
@@ -213,7 +215,7 @@ export function loadEnvConfig<T extends Record<string, any>>(
       ? envPrefix + toScreamingSnakeCase(fieldName)
       : fieldName;
 
-    const envValue = process.env[envVarName];
+    const envValue = environment[envVarName];
 
     // Skip if env var not set
     if (envValue === undefined) {
