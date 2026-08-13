@@ -366,8 +366,8 @@ export class SeevioProvider implements AIInterface {
             'SEEVIO_RESULT_DOWNLOAD_FAILED',
             'seevio',
           );
-        const contentType = response.headers.get('content-type') || 'video/mp4';
-        if (!contentType.toLowerCase().startsWith('video/'))
+        const contentType = response.headers.get('content-type');
+        if (!contentType?.toLowerCase().startsWith('video/'))
           throw new AIError(
             `Seevio result download returned non-video content type ${contentType}`,
             'SEEVIO_RESULT_MIME_INVALID',
@@ -491,11 +491,12 @@ export class SeevioProvider implements AIInterface {
     ] as const) {
       const durations = references
         .filter((reference) => reference.type === type)
-        .map((reference) => reference.durationSeconds);
-      if (
-        durations.every((duration) => duration !== undefined) &&
-        durations.reduce((total, duration) => total + (duration ?? 0), 0) > 30
-      ) {
+        .flatMap((reference) =>
+          reference.durationSeconds === undefined
+            ? []
+            : [reference.durationSeconds],
+        );
+      if (durations.reduce((total, duration) => total + duration, 0) > 30) {
         throw new ValidationError(
           `Seevio ${label} reference durations must total no more than 30 seconds`,
           { provider: 'seevio' },
@@ -507,6 +508,9 @@ export class SeevioProvider implements AIInterface {
 
   private async pollTask(jobId: string): Promise<SeevioTask> {
     const now = Date.now();
+    for (const [knownJobId, expiry] of this.nextPollAt) {
+      if (expiry <= now) this.nextPollAt.delete(knownJobId);
+    }
     const next = this.nextPollAt.get(jobId);
     if (next && now < next)
       throw new AIError(
@@ -514,7 +518,14 @@ export class SeevioProvider implements AIInterface {
         'VIDEO_POLL_TOO_FREQUENT',
         'seevio',
       );
-    this.nextPollAt.set(jobId, now + MIN_POLL_INTERVAL_MS);
+    const expiry = now + MIN_POLL_INTERVAL_MS;
+    this.nextPollAt.set(jobId, expiry);
+    const cleanup = setTimeout(() => {
+      if (this.nextPollAt.get(jobId) === expiry) this.nextPollAt.delete(jobId);
+    }, MIN_POLL_INTERVAL_MS);
+    // Let idle Node workers exit rather than keeping the process alive for a
+    // cadence cleanup timer. Browser timer handles do not expose `unref`.
+    if (typeof cleanup === 'object' && 'unref' in cleanup) cleanup.unref();
     const task = await this.request<SeevioTask>(
       `/v1/tasks/${encodeURIComponent(jobId)}`,
     );

@@ -25,6 +25,7 @@ import {
   AIError,
   type AIInterface,
   AuthenticationError,
+  RateLimitError,
   type VideoGenerationJob,
 } from './shared/types';
 
@@ -1113,6 +1114,33 @@ describe('BytePlus ModelArk video generation (Seedance)', () => {
       vi.useRealTimers();
     }
   });
+
+  it('preserves configured video-submit retries for non-Seevio providers', async () => {
+    let attempts = 0;
+    const stub: Partial<AIInterface> = {
+      submitVideoGenerationJob: vi.fn(async () => {
+        attempts += 1;
+        if (attempts === 1) throw new RateLimitError('byteplus-modelark', 0);
+        return {
+          jobId: 'job',
+          provider: 'byteplus-modelark',
+          model: 'seedance-1-0-lite-t2v-250428',
+          createdAt: new Date().toISOString(),
+        };
+      }),
+    };
+    const ai = createRateLimitedAI(stub as AIInterface, {
+      type: 'byteplus-modelark',
+      apiKey: 'test-key',
+      rateLimit: { enabled: true, initialDelayMs: 0, maxAttempts: 2 },
+    });
+    await expect(
+      ai.submitVideoGenerationJob({ prompt: 'retry' }),
+    ).resolves.toMatchObject({
+      jobId: 'job',
+    });
+    expect(attempts).toBe(2);
+  });
 });
 
 describe('Seevio video generation (Seedance 2.5)', () => {
@@ -1253,6 +1281,7 @@ describe('Seevio video generation (Seedance 2.5)', () => {
             url: 'https://assets.example.com/b.mp4',
             durationSeconds: 20,
           },
+          { type: 'video', url: 'https://assets.example.com/unknown.mp4' },
         ],
       }),
     ).rejects.toMatchObject({ name: 'ValidationError' });
@@ -1477,6 +1506,7 @@ describe('Seevio video generation (Seedance 2.5)', () => {
       };
       await provider.getVideoGenerationJob(handle);
       vi.advanceTimersByTime(10_000);
+      expect((provider as any).nextPollAt.size).toBe(0);
       await expect(
         provider.fetchVideoGenerationResult(handle),
       ).resolves.toMatchObject({
@@ -1670,6 +1700,26 @@ describe('Seevio video generation (Seedance 2.5)', () => {
     });
     await expect(
       mimeProvider.fetchVideoGenerationResult(handle),
+    ).rejects.toMatchObject({ code: 'SEEVIO_RESULT_MIME_INVALID' });
+
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: 'task',
+          status: 'completed',
+          data: { results: ['https://cdn.seevio.ai/render.mp4'] },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response('not a video', { status: 200 }),
+      ) as any;
+    const missingTypeProvider = new SeevioProvider({
+      type: 'seevio',
+      apiKey: 'seevio-key',
+    });
+    await expect(
+      missingTypeProvider.fetchVideoGenerationResult(handle),
     ).rejects.toMatchObject({ code: 'SEEVIO_RESULT_MIME_INVALID' });
   });
 

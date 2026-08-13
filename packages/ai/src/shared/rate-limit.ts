@@ -351,6 +351,9 @@ export function createRateLimitedAI<T extends AIInterface>(
   }
 
   const wrappedMethods = new Map<PropertyKey, unknown>();
+  // Seevio does not document idempotency for billed video-task submission.
+  // Existing providers retain their established pacing-retry behavior.
+  const allowSeevioSubmitRetry = options.type !== 'seevio';
 
   return new Proxy(client, {
     get(target, property, receiver) {
@@ -376,11 +379,7 @@ export function createRateLimitedAI<T extends AIInterface>(
               () => Reflect.apply(value, target, args) as Promise<unknown>,
               coordinator,
               config,
-              // A video-submit response can be lost after the provider has
-              // accepted and billed the task. Providers without documented
-              // idempotency must never turn that ambiguity into a duplicate
-              // paid submission, even when generic pacing retries are enabled.
-              property !== 'submitVideoGenerationJob',
+              property !== 'submitVideoGenerationJob' || allowSeevioSubmitRetry,
             ),
           );
         });
