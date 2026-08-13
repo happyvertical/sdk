@@ -20,6 +20,7 @@ import type {
   OllamaOptions,
   OpenAICompatVideoOptions,
   OpenAIOptions,
+  SeevioOptions,
 } from '../shared/types';
 import { AI_PROVIDER_TYPES } from '../shared/types';
 
@@ -45,12 +46,13 @@ export { getAI } from '../shared/factory';
  * - AWS_* → AWS Bedrock credentials
  * - OPENAI_COMPAT_VIDEO_BASE_URL / OPENAI_COMPAT_VIDEO_API_KEY → openai-compat-video gateway config (checked last)
  * - MODELARK_API_KEY / ARK_API_KEY / MODELARK_BASE_URL → BytePlus ModelArk (Seedance) config (checked last)
+ * - SEEVIO_API_KEY / SEEVIO_BASE_URL → Seevio Seedance config (checked last)
  *
  * The two video-only provider types above are intentionally checked *after*
  * every general-purpose provider: they throw `NOT_IMPLEMENTED` for chat()
  * and everything else, so their env signals must never hijack a bare
  * `getAIAuto()` call away from a general-purpose provider. Prefer explicit
- * `type: 'byteplus-modelark'` / `type: 'openai-compat-video'` when you want
+ * `type: 'byteplus-modelark'` / `type: 'openai-compat-video'` / `type: 'seevio'` when you want
  * one of these on purpose.
  *
  * @param options - Configuration options that may contain provider-specific credentials
@@ -120,6 +122,14 @@ export async function getAIAuto(
         apiKey: config.apiKey || process.env.OPENAI_COMPAT_VIDEO_API_KEY,
         baseUrl: config.baseUrl || process.env.OPENAI_COMPAT_VIDEO_BASE_URL,
       } as OpenAICompatVideoOptions);
+    }
+
+    if (config.type === 'seevio') {
+      return getAIUniversal({
+        ...config,
+        apiKey: config.apiKey || process.env.SEEVIO_API_KEY,
+        baseUrl: config.baseUrl || process.env.SEEVIO_BASE_URL,
+      } as SeevioOptions);
     }
 
     if (config.type === 'bifrost') {
@@ -292,6 +302,9 @@ export async function getAIAuto(
   const hasOpenAICompatVideoSignal = Boolean(
     process.env.OPENAI_COMPAT_VIDEO_BASE_URL,
   );
+  const hasSeevioSignal = Boolean(
+    process.env.SEEVIO_API_KEY || process.env.SEEVIO_BASE_URL,
+  );
 
   if (hasModelArkSignal && !config.type) {
     return getAIUniversal({
@@ -312,6 +325,15 @@ export async function getAIAuto(
       apiKey: config.apiKey || process.env.OPENAI_COMPAT_VIDEO_API_KEY,
       baseUrl: config.baseUrl || process.env.OPENAI_COMPAT_VIDEO_BASE_URL,
     } as OpenAICompatVideoOptions);
+  }
+
+  if (hasSeevioSignal && !config.type) {
+    return getAIUniversal({
+      ...config,
+      type: 'seevio',
+      apiKey: config.apiKey || process.env.SEEVIO_API_KEY,
+      baseUrl: config.baseUrl || process.env.SEEVIO_BASE_URL,
+    } as SeevioOptions);
   }
 
   throw new ValidationError(
@@ -341,6 +363,8 @@ export async function getAIAuto(
         'MODELARK_API_KEY',
         'ARK_API_KEY',
         'MODELARK_BASE_URL',
+        'SEEVIO_API_KEY',
+        'SEEVIO_BASE_URL',
       ],
     },
   );

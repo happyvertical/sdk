@@ -233,6 +233,7 @@ async function invokeWithPacing<T>(
   execute: () => Promise<T>,
   coordinator: BudgetCoordinator,
   config: NormalizedRateLimitConfig,
+  allowRetry = true,
 ): Promise<T> {
   let attempt = 1;
 
@@ -247,7 +248,7 @@ async function invokeWithPacing<T>(
       if (error instanceof RateLimitError) {
         coordinator.delayFor(getRetryDelayMs(error, config));
 
-        if (error.retryable && attempt < config.maxAttempts) {
+        if (allowRetry && error.retryable && attempt < config.maxAttempts) {
           attempt += 1;
           continue;
         }
@@ -375,6 +376,11 @@ export function createRateLimitedAI<T extends AIInterface>(
               () => Reflect.apply(value, target, args) as Promise<unknown>,
               coordinator,
               config,
+              // A video-submit response can be lost after the provider has
+              // accepted and billed the task. Providers without documented
+              // idempotency must never turn that ambiguity into a duplicate
+              // paid submission, even when generic pacing retries are enabled.
+              property !== 'submitVideoGenerationJob',
             ),
           );
         });
