@@ -1260,6 +1260,38 @@ describe('Seevio video generation (Seedance 2.5)', () => {
     ]);
   });
 
+  it('honors an abort that races listener registration', async () => {
+    let aborted = false;
+    const signal = {
+      get aborted() {
+        return aborted;
+      },
+      reason: new DOMException('aborted', 'AbortError'),
+      addEventListener() {
+        aborted = true;
+      },
+      removeEventListener() {},
+    } as unknown as AbortSignal;
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) =>
+      init?.signal?.aborted
+        ? Promise.reject(new DOMException('aborted', 'AbortError'))
+        : Promise.resolve(jsonResponse({ taskId: 'unexpected' })),
+    );
+    global.fetch = fetchMock as any;
+    const provider = new SeevioProvider({
+      type: 'seevio',
+      apiKey: 'seevio-key',
+    });
+
+    await expect(
+      provider.submitVideoGenerationJob({ prompt: 'x', signal }),
+    ).rejects.toMatchObject({ code: 'AI_ABORTED' });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect((fetchMock.mock.calls[0][1] as RequestInit).signal?.aborted).toBe(
+      true,
+    );
+  });
+
   it('rejects reference video or audio durations over Seevio’s 30-second category limit before POST', async () => {
     const fetchMock = vi.fn();
     global.fetch = fetchMock as any;

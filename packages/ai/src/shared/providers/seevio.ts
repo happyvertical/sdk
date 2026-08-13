@@ -246,6 +246,10 @@ export class SeevioProvider implements AIInterface {
     }, timeoutMs);
     const abort = () => controller.abort(options.signal?.reason);
     options.signal?.addEventListener('abort', abort, { once: true });
+    // An abort may occur between the preflight check and listener
+    // registration. Re-check after registration so that race still reaches
+    // the fetch signal rather than allowing a paid request to continue.
+    if (options.signal?.aborted) abort();
     try {
       let response: Response;
       try {
