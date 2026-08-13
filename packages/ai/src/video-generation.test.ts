@@ -10,6 +10,7 @@ import { writeFile } from 'node:fs/promises';
 import { GenerateVideosOperation } from '@google/genai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getAIAuto } from './node/factory';
+import { getAI } from './shared/factory';
 import {
   __resetByteplusModelArkRateLimitersForTests,
   ByteplusModelArkProvider,
@@ -17,12 +18,14 @@ import {
 import { GeminiProvider } from './shared/providers/gemini';
 import { OpenAIProvider } from './shared/providers/openai';
 import { OpenAICompatVideoProvider } from './shared/providers/openai-compat-video';
+import { SeevioProvider } from './shared/providers/seevio';
 import { createRateLimitedAI } from './shared/rate-limit';
 import { createObservedAI } from './shared/safety';
 import {
   AIError,
   type AIInterface,
   AuthenticationError,
+  RateLimitError,
   type VideoGenerationJob,
 } from './shared/types';
 
@@ -1110,6 +1113,675 @@ describe('BytePlus ModelArk video generation (Seedance)', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('preserves configured video-submit retries for non-Seevio providers', async () => {
+    let attempts = 0;
+    const stub: Partial<AIInterface> = {
+      submitVideoGenerationJob: vi.fn(async () => {
+        attempts += 1;
+        if (attempts === 1) throw new RateLimitError('byteplus-modelark', 0);
+        return {
+          jobId: 'job',
+          provider: 'byteplus-modelark',
+          model: 'seedance-1-0-lite-t2v-250428',
+          createdAt: new Date().toISOString(),
+        };
+      }),
+    };
+    const ai = createRateLimitedAI(stub as AIInterface, {
+      type: 'byteplus-modelark',
+      apiKey: 'test-key',
+      rateLimit: { enabled: true, initialDelayMs: 0, maxAttempts: 2 },
+    });
+    await expect(
+      ai.submitVideoGenerationJob({ prompt: 'retry' }),
+    ).resolves.toMatchObject({
+      jobId: 'job',
+    });
+    expect(attempts).toBe(2);
+  });
+});
+
+describe('Seevio video generation (Seedance 2.5)', () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('is selectable through the provider-neutral factory', async () => {
+    await expect(
+      getAI({ type: 'seevio', apiKey: 'seevio-key' }),
+    ).resolves.toBeInstanceOf(SeevioProvider);
+  });
+
+  it('submits the documented, pinned Seedance 2.5 request without retry metadata', async () => {
+    global.fetch = vi.fn(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        expect(String(input)).toBe(
+          'https://api.seevio.ai/v1/videos/generations',
+        );
+        expect(init?.method).toBe('POST');
+        expect(new Headers(init?.headers).get('Authorization')).toBe(
+          'Bearer seevio-key',
+        );
+        expect(JSON.parse(String(init?.body))).toEqual({
+          model: 'seedance-2-5',
+          input: {
+            prompt: 'A cinematic sunrise',
+            generation_type: 'text-to-video',
+            duration: 5,
+            aspect_ratio: '16:9',
+            resolution: '720p',
+            generate_audio: true,
+            return_last_frame: false,
+          },
+        });
+        return jsonResponse({ taskId: 'seevio-task-1', credits: 100 });
+      },
+    ) as any;
+
+    const provider = new SeevioProvider({
+      type: 'seevio',
+      apiKey: 'seevio-key',
+    });
+    const job = await provider.submitVideoGenerationJob({
+      prompt: 'A cinematic sunrise',
+      aspectRatio: '16:9',
+    });
+
+    expect(job).toEqual({
+      jobId: 'seevio-task-1',
+      provider: 'seevio',
+      model: 'seedance-2-5',
+      createdAt: expect.any(String),
+      raw: { credits: 100, billingStatus: 'reserved' },
+    });
+    expect(JSON.parse(JSON.stringify(job))).toEqual(job);
+  });
+
+  it('normalizes first/last-frame and multimodal references without changing the generic input contract', async () => {
+    const bodies: unknown[] = [];
+    global.fetch = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        return jsonResponse({ taskId: `task-${bodies.length}` });
+      },
+    ) as any;
+    const provider = new SeevioProvider({
+      type: 'seevio',
+      apiKey: 'seevio-key',
+    });
+
+    await provider.submitVideoGenerationJob({
+      prompt: 'animate product',
+      referenceImages: [
+        { image: 'https://assets.example.com/first.jpg' },
+        { image: 'https://assets.example.com/last.jpg' },
+      ],
+    });
+    await provider.submitVideoGenerationJob({
+      prompt: 'use the product and motion',
+      referenceMedia: [
+        { type: 'image', url: 'https://assets.example.com/product.jpg' },
+        {
+          type: 'video',
+          url: 'https://assets.example.com/motion.mp4',
+          durationSeconds: 4,
+        },
+        {
+          type: 'audio',
+          url: 'https://assets.example.com/music.mp3',
+          durationSeconds: 5,
+        },
+      ],
+    });
+
+    expect(bodies).toEqual([
+      expect.objectContaining({
+        input: expect.objectContaining({
+          generation_type: 'image-to-video',
+          aspect_ratio: 'adaptive',
+          image_urls: [
+            'https://assets.example.com/first.jpg',
+            'https://assets.example.com/last.jpg',
+          ],
+        }),
+      }),
+      expect.objectContaining({
+        input: expect.objectContaining({
+          generation_type: 'reference-to-video',
+          image_urls: ['https://assets.example.com/product.jpg'],
+          video_urls: ['https://assets.example.com/motion.mp4'],
+          audio_urls: ['https://assets.example.com/music.mp3'],
+        }),
+      }),
+    ]);
+  });
+
+  it('honors an abort that races listener registration', async () => {
+    let aborted = false;
+    const signal = {
+      get aborted() {
+        return aborted;
+      },
+      reason: new DOMException('aborted', 'AbortError'),
+      addEventListener() {
+        aborted = true;
+      },
+      removeEventListener() {},
+    } as unknown as AbortSignal;
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) =>
+      init?.signal?.aborted
+        ? Promise.reject(new DOMException('aborted', 'AbortError'))
+        : Promise.resolve(jsonResponse({ taskId: 'unexpected' })),
+    );
+    global.fetch = fetchMock as any;
+    const provider = new SeevioProvider({
+      type: 'seevio',
+      apiKey: 'seevio-key',
+    });
+
+    await expect(
+      provider.submitVideoGenerationJob({ prompt: 'x', signal }),
+    ).rejects.toMatchObject({ code: 'AI_ABORTED' });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect((fetchMock.mock.calls[0][1] as RequestInit).signal?.aborted).toBe(
+      true,
+    );
+  });
+
+  it('rejects reference video or audio durations over Seevio’s 30-second category limit before POST', async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock as any;
+    const provider = new SeevioProvider({
+      type: 'seevio',
+      apiKey: 'seevio-key',
+    });
+    await expect(
+      provider.submitVideoGenerationJob({
+        prompt: 'x',
+        referenceMedia: [
+          {
+            type: 'video',
+            url: 'https://assets.example.com/a.mp4',
+            durationSeconds: 20,
+          },
+          {
+            type: 'video',
+            url: 'https://assets.example.com/b.mp4',
+            durationSeconds: 20,
+          },
+          { type: 'video', url: 'https://assets.example.com/unknown.mp4' },
+        ],
+      }),
+    ).rejects.toMatchObject({ name: 'ValidationError' });
+    await expect(
+      provider.submitVideoGenerationJob({
+        prompt: 'x',
+        referenceMedia: [
+          {
+            type: 'audio',
+            url: 'https://assets.example.com/a.mp3',
+            durationSeconds: 20,
+          },
+          {
+            type: 'audio',
+            url: 'https://assets.example.com/b.mp3',
+            durationSeconds: 20,
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({ name: 'ValidationError' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects unpinned models, local media, invalid image-mode ratio, and unsupported seed before a paid POST', async () => {
+    const fetchMock = vi.fn();
+    global.fetch = fetchMock as any;
+    const provider = new SeevioProvider({
+      type: 'seevio',
+      apiKey: 'seevio-key',
+    });
+
+    await expect(
+      provider.submitVideoGenerationJob({ prompt: 'x', model: 'latest' }),
+    ).rejects.toMatchObject({ name: 'ValidationError' });
+    await expect(
+      provider.submitVideoGenerationJob({
+        prompt: 'x',
+        referenceImages: [{ image: Buffer.from([1]) }],
+      }),
+    ).rejects.toMatchObject({ name: 'ValidationError' });
+    await expect(
+      provider.submitVideoGenerationJob({
+        prompt: 'x',
+        referenceImages: [{ image: 'https://assets.example.com/x.jpg' }],
+        aspectRatio: '16:9',
+      }),
+    ).rejects.toMatchObject({ name: 'ValidationError' });
+    await expect(
+      provider.submitVideoGenerationJob({ prompt: 'x', seed: 1 }),
+    ).rejects.toMatchObject({ name: 'ValidationError' });
+    await expect(
+      provider.submitVideoGenerationJob({
+        prompt: 'x',
+        referenceMedia: [
+          {
+            type: 'image',
+            url: 'https://user:password@assets.example.com/x.jpg',
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({ name: 'ValidationError' });
+    await expect(
+      provider.submitVideoGenerationJob({
+        prompt: 'x',
+        referenceMedia: [{ type: 'image', url: 'https://127.0.0.1/x.jpg' }],
+      }),
+    ).rejects.toMatchObject({ name: 'ValidationError' });
+    await expect(
+      provider.submitVideoGenerationJob({
+        prompt: 'x',
+        referenceMedia: [{ type: 'image', url: 'https://localhost/x.jpg' }],
+      }),
+    ).rejects.toMatchObject({ name: 'ValidationError' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('maps task state, credit reservation, expiry, and reviewed result URLs', async () => {
+    global.fetch = vi.fn().mockResolvedValue(
+      jsonResponse({
+        id: 'seevio-task-1',
+        status: 'completed',
+        model: 'seedance-2-5',
+        billing_status: 'charged',
+        credits: 100,
+        data: {
+          results: ['https://cdn.seevio.ai/renders/video.mp4'],
+          video_expires_at: '2026-08-14T00:00:00Z',
+          last_frame_url: 'https://cdn.seevio.ai/renders/final.jpg',
+        },
+      }),
+    ) as any;
+    const provider = new SeevioProvider({
+      type: 'seevio',
+      apiKey: 'seevio-key',
+    });
+    await expect(
+      provider.getVideoGenerationJob({
+        jobId: 'seevio-task-1',
+        provider: 'seevio',
+        model: 'seedance-2-5',
+        createdAt: new Date().toISOString(),
+      }),
+    ).resolves.toEqual({
+      status: 'succeeded',
+      result: {
+        url: 'https://cdn.seevio.ai/renders/video.mp4',
+        mimeType: 'video/mp4',
+        expiresAt: '2026-08-14T00:00:00Z',
+        lastFrameUrl: 'https://cdn.seevio.ai/renders/final.jpg',
+      },
+      billing: { status: 'charged', credits: 100 },
+    });
+  });
+
+  it('enforces the documented 10-second polling cadence before another network request', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    try {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(jsonResponse({ id: 'task', status: 'queued' }));
+      global.fetch = fetchMock as any;
+      const provider = new SeevioProvider({
+        type: 'seevio',
+        apiKey: 'seevio-key',
+      });
+      const handle = {
+        jobId: 'task',
+        provider: 'seevio',
+        model: 'seedance-2-5',
+        createdAt: new Date().toISOString(),
+      };
+      await provider.getVideoGenerationJob(handle);
+      await expect(
+        provider.getVideoGenerationJob(handle),
+      ).rejects.toMatchObject({ code: 'VIDEO_POLL_TOO_FREQUENT' });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('reuses a completed task snapshot for immediate result download without a second task poll', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: 'task',
+          status: 'completed',
+          data: { results: ['https://cdn.seevio.ai/render.mp4'] },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1]), {
+          status: 200,
+          headers: { 'content-type': 'video/mp4' },
+        }),
+      );
+    global.fetch = fetchMock as any;
+    const provider = new SeevioProvider({
+      type: 'seevio',
+      apiKey: 'seevio-key',
+    });
+    const handle = {
+      jobId: 'task',
+      provider: 'seevio',
+      model: 'seedance-2-5',
+      createdAt: new Date().toISOString(),
+    };
+    await expect(provider.getVideoGenerationJob(handle)).resolves.toMatchObject(
+      {
+        status: 'succeeded',
+      },
+    );
+    await expect(
+      provider.fetchVideoGenerationResult(handle),
+    ).resolves.toMatchObject({
+      data: Buffer.from([1]),
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[1][0])).toBe(
+      'https://cdn.seevio.ai/render.mp4',
+    );
+  });
+
+  it('expires a completed handoff snapshot after 10 seconds and fetches a fresh authenticated task state', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    try {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(
+          jsonResponse({
+            id: 'task',
+            status: 'completed',
+            data: { results: ['https://cdn.seevio.ai/old.mp4'] },
+          }),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({
+            id: 'task',
+            status: 'completed',
+            data: { results: ['https://cdn.seevio.ai/fresh.mp4'] },
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(new Uint8Array([2]), {
+            status: 200,
+            headers: { 'content-type': 'video/mp4' },
+          }),
+        );
+      global.fetch = fetchMock as any;
+      const provider = new SeevioProvider({
+        type: 'seevio',
+        apiKey: 'seevio-key',
+      });
+      const handle = {
+        jobId: 'task',
+        provider: 'seevio',
+        model: 'seedance-2-5',
+        createdAt: new Date().toISOString(),
+      };
+      await provider.getVideoGenerationJob(handle);
+      vi.advanceTimersByTime(10_000);
+      expect((provider as any).nextPollAt.size).toBe(0);
+      await expect(
+        provider.fetchVideoGenerationResult(handle),
+      ).resolves.toMatchObject({
+        url: 'https://cdn.seevio.ai/fresh.mp4',
+        data: Buffer.from([2]),
+      });
+      expect(String(fetchMock.mock.calls[1][0])).toBe(
+        'https://api.seevio.ai/v1/tasks/task',
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('uses an unbilled GET probe and classifies authenticated 404 as access', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: { code: 'not_found' } }), {
+        status: 404,
+      }),
+    );
+    global.fetch = fetchMock as any;
+    const provider = new SeevioProvider({
+      type: 'seevio',
+      apiKey: 'seevio-key',
+    });
+    await expect(provider.validateVideoGenerationAccess()).resolves.toBe(true);
+    expect(String(fetchMock.mock.calls[0][0])).toMatch(
+      /^https:\/\/api\.seevio\.ai\/v1\/tasks\/have-ai-access-probe-/,
+    );
+    expect(fetchMock.mock.calls[0][1]?.method).toBe('GET');
+  });
+
+  it('preserves 401, 403, 402, and 429 as distinct normalized errors', async () => {
+    const cases = [
+      [401, 'AUTH_ERROR'],
+      [403, 'SEEVIO_FORBIDDEN'],
+      [402, 'INSUFFICIENT_CREDITS'],
+      [429, 'RATE_LIMIT'],
+    ] as const;
+    for (const [httpStatus, code] of cases) {
+      global.fetch = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: { message: 'nope' } }), {
+          status: httpStatus,
+          headers: httpStatus === 429 ? { 'retry-after': '3' } : undefined,
+        }),
+      ) as any;
+      const provider = new SeevioProvider({
+        type: 'seevio',
+        apiKey: 'seevio-key',
+      });
+      await expect(
+        provider.validateVideoGenerationAccess(),
+      ).rejects.toMatchObject({ code });
+    }
+  });
+
+  it('never retries a billable POST after a rate limit, even if generic pacing permits retries', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ error: { message: 'slow down' } }), {
+        status: 429,
+        headers: { 'retry-after': '0' },
+      }),
+    );
+    global.fetch = fetchMock as any;
+    const provider = createRateLimitedAI(
+      new SeevioProvider({ type: 'seevio', apiKey: 'seevio-key' }),
+      {
+        type: 'seevio',
+        apiKey: 'seevio-key',
+        rateLimit: { enabled: true, maxAttempts: 2 },
+      },
+    );
+    await expect(
+      provider.submitVideoGenerationJob({ prompt: 'x' }),
+    ).rejects.toMatchObject({ code: 'RATE_LIMIT' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('validates each redirect before downloading a completed video and rejects unreviewed targets', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: 'task',
+          status: 'completed',
+          data: { results: ['https://cdn.seevio.ai/render.mp4'] },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 302,
+          headers: { location: 'https://cdn.seevio.ai/signed/render.mp4' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(new Uint8Array([1, 2, 3]), {
+          status: 200,
+          headers: { 'content-type': 'video/mp4' },
+        }),
+      );
+    global.fetch = fetchMock as any;
+    const provider = new SeevioProvider({
+      type: 'seevio',
+      apiKey: 'seevio-key',
+    });
+    const handle = {
+      jobId: 'task',
+      provider: 'seevio',
+      model: 'seedance-2-5',
+      createdAt: new Date().toISOString(),
+    };
+    await expect(
+      provider.fetchVideoGenerationResult(handle),
+    ).resolves.toMatchObject({
+      url: 'https://cdn.seevio.ai/signed/render.mp4',
+      mimeType: 'video/mp4',
+      data: Buffer.from([1, 2, 3]),
+    });
+    expect(fetchMock.mock.calls[1][1]?.redirect).toBe('manual');
+
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: 'task-2',
+          status: 'completed',
+          data: { results: ['https://cdn.seevio.ai/render.mp4'] },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 302,
+          headers: { location: 'https://evil.example/render.mp4' },
+        }),
+      ) as any;
+    await expect(
+      provider.fetchVideoGenerationResult({ ...handle, jobId: 'task-2' }),
+    ).rejects.toMatchObject({ code: 'UNTRUSTED_RESULT_URL' });
+  });
+
+  it('rejects an oversized or non-video download before buffering it', async () => {
+    const handle = {
+      jobId: 'task',
+      provider: 'seevio',
+      model: 'seedance-2-5',
+      createdAt: new Date().toISOString(),
+    };
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: 'task',
+          status: 'completed',
+          data: { results: ['https://cdn.seevio.ai/render.mp4'] },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(null, {
+          status: 200,
+          headers: { 'content-type': 'video/mp4', 'content-length': '11' },
+        }),
+      ) as any;
+    const provider = new SeevioProvider({
+      type: 'seevio',
+      apiKey: 'seevio-key',
+      maxResultBytes: 10,
+    });
+    await expect(
+      provider.fetchVideoGenerationResult(handle),
+    ).rejects.toMatchObject({ code: 'SEEVIO_RESULT_TOO_LARGE' });
+
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: 'task',
+          status: 'completed',
+          data: { results: ['https://cdn.seevio.ai/render.mp4'] },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response('not a video', {
+          status: 200,
+          headers: { 'content-type': 'text/html' },
+        }),
+      ) as any;
+    const mimeProvider = new SeevioProvider({
+      type: 'seevio',
+      apiKey: 'seevio-key',
+      maxResultBytes: 10,
+    });
+    await expect(
+      mimeProvider.fetchVideoGenerationResult(handle),
+    ).rejects.toMatchObject({ code: 'SEEVIO_RESULT_MIME_INVALID' });
+
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: 'task',
+          status: 'completed',
+          data: { results: ['https://cdn.seevio.ai/render.mp4'] },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response('not a video', { status: 200 }),
+      ) as any;
+    const missingTypeProvider = new SeevioProvider({
+      type: 'seevio',
+      apiKey: 'seevio-key',
+    });
+    await expect(
+      missingTypeProvider.fetchVideoGenerationResult(handle),
+    ).rejects.toMatchObject({ code: 'SEEVIO_RESULT_MIME_INVALID' });
+  });
+
+  it('reports cancellation as explicitly unsupported', async () => {
+    const provider = new SeevioProvider({
+      type: 'seevio',
+      apiKey: 'seevio-key',
+    });
+    await expect(
+      provider.cancelVideoGenerationJob({
+        jobId: 'task',
+        provider: 'seevio',
+        model: 'seedance-2-5',
+        createdAt: new Date().toISOString(),
+      }),
+    ).rejects.toMatchObject({ code: 'NOT_IMPLEMENTED' });
+  });
+
+  it('does not advertise unsupported cancellation as a capability', async () => {
+    const provider = new SeevioProvider({
+      type: 'seevio',
+      apiKey: 'seevio-key',
+    });
+    await expect(provider.getCapabilities()).resolves.toMatchObject({
+      supportedOperations: [
+        'submitVideoGenerationJob',
+        'getVideoGenerationJob',
+        'fetchVideoGenerationResult',
+      ],
+    });
   });
 });
 

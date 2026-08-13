@@ -233,6 +233,7 @@ async function invokeWithPacing<T>(
   execute: () => Promise<T>,
   coordinator: BudgetCoordinator,
   config: NormalizedRateLimitConfig,
+  allowRetry = true,
 ): Promise<T> {
   let attempt = 1;
 
@@ -247,7 +248,7 @@ async function invokeWithPacing<T>(
       if (error instanceof RateLimitError) {
         coordinator.delayFor(getRetryDelayMs(error, config));
 
-        if (error.retryable && attempt < config.maxAttempts) {
+        if (allowRetry && error.retryable && attempt < config.maxAttempts) {
           attempt += 1;
           continue;
         }
@@ -350,6 +351,9 @@ export function createRateLimitedAI<T extends AIInterface>(
   }
 
   const wrappedMethods = new Map<PropertyKey, unknown>();
+  // Seevio does not document idempotency for billed video-task submission.
+  // Existing providers retain their established pacing-retry behavior.
+  const allowSeevioSubmitRetry = options.type !== 'seevio';
 
   return new Proxy(client, {
     get(target, property, receiver) {
@@ -375,6 +379,7 @@ export function createRateLimitedAI<T extends AIInterface>(
               () => Reflect.apply(value, target, args) as Promise<unknown>,
               coordinator,
               config,
+              property !== 'submitVideoGenerationJob' || allowSeevioSubmitRetry,
             ),
           );
         });

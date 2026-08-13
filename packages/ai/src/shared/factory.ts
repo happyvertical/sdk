@@ -24,6 +24,7 @@ import type {
   OpenAICompatVideoOptions,
   OpenAIOptions,
   Qwen3TTSOptions,
+  SeevioOptions,
 } from './types';
 import { AI_PROVIDER_TYPES } from './types';
 
@@ -163,6 +164,13 @@ function isByteplusModelArkOptions(
   return options.type === 'byteplus-modelark';
 }
 
+/** Checks if options select Seevio's native Seedance task API. */
+function isSeevioOptions(
+  options: GetAIOptions | AIClientOptions,
+): options is SeevioOptions {
+  return options.type === 'seevio';
+}
+
 /**
  * Creates an AI provider instance based on the provided options.
  * Universal version that works in both browser and Node.js environments.
@@ -287,6 +295,9 @@ export async function getAI(
       './providers/byteplus-modelark.js'
     );
     client = new ByteplusModelArkProvider(options);
+  } else if (isSeevioOptions(options)) {
+    const { SeevioProvider } = await import('./providers/seevio.js');
+    client = new SeevioProvider(options);
   } else {
     throw new ValidationError('Unsupported AI provider type', {
       supportedTypes: [...AI_PROVIDER_TYPES],

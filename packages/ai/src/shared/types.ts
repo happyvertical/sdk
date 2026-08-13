@@ -106,6 +106,7 @@ export const AI_PROVIDER_TYPES = [
   'qwen3-tts',
   'openai-compat-video',
   'byteplus-modelark',
+  'seevio',
 ] as const;
 
 /**
@@ -2041,6 +2042,29 @@ export interface ByteplusModelArkOptions extends BaseAIOptions {
 }
 
 /**
+ * Seevio Seedance video-generation provider options.
+ *
+ * This provider is intentionally distinct from BytePlus ModelArk: Seevio
+ * exposes its own asynchronous task API and credit-reservation semantics.
+ */
+export interface SeevioOptions extends BaseAIOptions {
+  /** Selects Seevio's native asynchronous video API. */
+  type: 'seevio';
+  /** API key. Falls back to `SEEVIO_API_KEY` in the Node factory. */
+  apiKey?: string;
+  /** API root. Defaults to `https://api.seevio.ai`. */
+  baseUrl?: string;
+  /**
+   * Reviewed HTTPS origins that may serve generated videos. Defaults to the
+   * official `https://cdn.seevio.ai` origin. Redirect targets are checked
+   * against this same allow-list before bytes are downloaded.
+   */
+  resultUrlOrigins?: string[];
+  /** Maximum generated-video download size in bytes. Defaults to 200 MiB. */
+  maxResultBytes?: number;
+}
+
+/**
  * Union type for all provider options
  */
 export type GetAIOptions =
@@ -2055,7 +2079,8 @@ export type GetAIOptions =
   | ClaudeCliOptions
   | Qwen3TTSOptions
   | OpenAICompatVideoOptions
-  | ByteplusModelArkOptions;
+  | ByteplusModelArkOptions
+  | SeevioOptions;
 
 /**
  * Base error class for all AI operations.
@@ -2207,6 +2232,18 @@ export interface VideoGenerationReferenceImage {
   role?: string;
 }
 
+/** A URL-based image, video, or audio asset used to guide video generation. */
+export interface VideoGenerationReferenceMedia {
+  /** Media category understood by providers that support multimodal references. */
+  type: 'image' | 'video' | 'audio';
+  /** Public URL the provider can retrieve. */
+  url: string;
+  /** Optional media MIME type retained for provider-specific validation. */
+  mimeType?: string;
+  /** Optional playback duration used by providers with media-duration limits. */
+  durationSeconds?: number;
+}
+
 /**
  * Options for submitting an asynchronous video-generation job.
  */
@@ -2234,6 +2271,14 @@ export interface VideoGenerationOptions extends AIRequestControls {
   referenceImages?: VideoGenerationReferenceImage[];
 
   /**
+   * Provider-neutral URL-based image, video, and audio reference assets.
+   * Existing `referenceImages` remains supported for providers that accept
+   * bytes or data URLs; providers such as Seevio that retrieve public assets
+   * directly require HTTPS URLs here.
+   */
+  referenceMedia?: VideoGenerationReferenceMedia[];
+
+  /**
    * Duration of the generated clip in seconds.
    */
   durationSeconds?: number;
@@ -2247,6 +2292,12 @@ export interface VideoGenerationOptions extends AIRequestControls {
    * Aspect ratio such as `'16:9'`, `'9:16'`, or `'1:1'`.
    */
   aspectRatio?: string;
+
+  /** Whether a provider that supports native audio should generate it. */
+  generateAudio?: boolean;
+
+  /** Whether a provider that supports it should return a final-frame URL. */
+  returnLastFrame?: boolean;
 
   /**
    * Frames per second for the generated video. Support varies by provider.
@@ -2346,6 +2397,22 @@ export interface VideoGenerationResult {
    * Height of the generated video in pixels, where reported.
    */
   height?: number;
+
+  /** Time at which a temporary result URL expires, when the provider reports it. */
+  expiresAt?: string;
+
+  /** Optional URL for a returned final frame, when requested and supported. */
+  lastFrameUrl?: string;
+}
+
+/** Provider-neutral credit reservation and settlement metadata for a video job. */
+export interface VideoGenerationBillingMetadata {
+  /** Credits reserved or settled for the task, when the provider reports them. */
+  credits?: number;
+  /** Normalized reservation lifecycle state. */
+  status?: 'reserved' | 'charged' | 'refunded' | 'refund_failed';
+  /** An unrecognized provider billing state retained for diagnostics. */
+  rawStatus?: string;
 }
 
 /**
@@ -2390,6 +2457,9 @@ export interface VideoGenerationStatusResult {
    * `fetchVideoGenerationResult` is called explicitly.
    */
   result?: VideoGenerationResult;
+
+  /** Provider-reported credit reservation or settlement metadata. */
+  billing?: VideoGenerationBillingMetadata;
 }
 
 // ============================================================================
