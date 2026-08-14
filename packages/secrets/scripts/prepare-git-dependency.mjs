@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, realpath, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 
 const packageDirectory = new URL('..', import.meta.url);
@@ -13,10 +13,16 @@ if (build.status !== 0) process.exit(build.status ?? 1);
 
 const git = spawnSync(
   'git',
-  ['-C', repositoryDirectory.pathname, 'rev-parse', '--is-inside-work-tree'],
-  { stdio: 'ignore' },
+  ['-C', repositoryDirectory.pathname, 'rev-parse', '--show-toplevel'],
+  { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
 );
-if (git.status === 0) process.exit(0);
+if (
+  git.status === 0 &&
+  (await realpath(git.stdout.trim())) ===
+    (await realpath(repositoryDirectory.pathname))
+) {
+  process.exit(0);
+}
 
 const manifestUrl = new URL('package.json', packageDirectory);
 const manifest = JSON.parse(await readFile(manifestUrl, 'utf8'));
