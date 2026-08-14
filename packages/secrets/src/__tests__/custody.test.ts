@@ -1147,7 +1147,7 @@ describe('credential custody', () => {
         ].join(';'),
       ],
       environmentVariable: 'CUSTODY_TEST_TOKEN',
-      timeoutMs: 50,
+      timeoutMs: 500,
     });
 
     expect(result.timedOut).toBe(true);
