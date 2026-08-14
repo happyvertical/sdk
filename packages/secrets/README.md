@@ -55,11 +55,11 @@ const store = await getSecretStore({
 await store.createTenantKey('tenant-123');
 
 // Encrypt a secret
-const envelope = await store.encrypt('tenant-123', 'api-key', 'sk_live_xxx');
+const envelope = await store.encrypt('tenant-123', 'api-key', 'synthetic-secret');
 
 // Decrypt the secret
 const { value } = await store.decrypt('tenant-123', envelope);
-console.log(value); // 'sk_live_xxx'
+// Use value without logging or retaining plaintext.
 ```
 
 ## Core Concepts
@@ -214,6 +214,131 @@ try {
   }
 }
 ```
+
+## Credential custody orchestration
+
+`CredentialCustody` coordinates a provider-neutral issuer, verifier, optional
+secret sink, and receipt ledger. It supports two explicit modes:
+
+- `ephemeral` keeps opaque `SecretMaterial` in memory for a bounded lifetime,
+  automatically revokes it at expiry, and never stores it in a sink.
+- `durable` requires a `CredentialSecretSink`, then completes
+  issue → store → retrieve → verify before returning a lease. Any failure
+  removes the stored value when present and revokes the issued credential.
+
+```typescript
+import {
+  CredentialCustody,
+  type CredentialReceiptAttestor,
+  type CredentialIssuer,
+  type CredentialCustodyFinalizer,
+  type CredentialSecretSink,
+  type CredentialVerifier,
+  type CustodyLedger,
+} from '@happyvertical/secrets';
+
+const custody = new CredentialCustody({
+  issuer: myIssuer satisfies CredentialIssuer,
+  verifier: myVerifier satisfies CredentialVerifier,
+  sink: mySink satisfies CredentialSecretSink,
+  ledger: myLedger satisfies CustodyLedger,
+  attestor: myAttestor satisfies CredentialReceiptAttestor,
+  finalizer: myFinalizer satisfies CredentialCustodyFinalizer,
+});
+
+const lease = await custody.issue({
+  mode: 'durable',
+  subject: 'deployment-agent',
+  attribution: {
+    actor: 'automation',
+    runtime: 'scheduler',
+    session: 'job-123',
+  },
+  metadata: { purpose: 'repository-maintenance' },
+});
+
+await lease.withEnvironment('SERVICE_CREDENTIAL', async () => {
+  // The variable exists only for this callback and is restored afterward.
+  await runAuthenticatedOperation();
+});
+
+const child = await lease.withChildProcess({
+  command: 'service-cli',
+  args: ['verify'],
+  environmentVariable: 'SERVICE_CREDENTIAL',
+  timeoutMs: 30_000,
+});
+```
+
+The returned `CustodyReceipt` contains identifiers, attribution, verification
+state, sink reference, rotation lineage, and an Ed25519 attestation only.
+Plaintext is represented by
+`SecretMaterial`, whose string, JSON, and inspection forms are always redacted.
+Adapters can access it only inside `SecretMaterial.use(...)` and should avoid
+copying or retaining the supplied string. Both `SecretMaterial.use(...)` and
+`withEnvironment(...)` return `Promise<void>` so callback code cannot return
+plaintext through the custody API. Environment callbacks are serialized and
+always restore the prior value. Because JavaScript callbacks cannot be forcibly
+cancelled, expiring credentials fail closed for `withEnvironment(...)`; use
+`withChildProcess(...)` for bounded execution.
+
+Attestation binds every receipt field—including the stable sink tuple
+`sinkName`, `reference`, `version`, and `storedAt`—to an internal SHA-256
+commitment of the credential. The commitment is signed but is not included in
+the receipt. `CredentialCustodyOptions.attestor` is required, so unsigned
+issuance fails closed. `Ed25519CustodyReceiptAttestor` accepts a Node `KeyObject`
+private key; remote signers can implement `CredentialReceiptAttestor` without
+exposing their key.
+
+Consumers verify a presented credential without issuer or sink access by
+constructing its `SecretMaterial` and calling
+`verifyCustodyReceiptAttestation(receipt, material, publicKey)`. Resolve
+`receipt.attestation.keyId` only through trusted configuration, never from
+receipt-supplied key material. Import a trusted PEM/SPKI public key with Node's
+`createPublicKey(...)`; verification requires the resulting public `KeyObject`.
+Always destroy the temporary `SecretMaterial` after verification.
+
+The required `CredentialCustodyFinalizer` is a staged, idempotent transaction.
+The signed receipt is first recorded as `finalization-pending`; `prepare` then
+receives it with bounded `SecretMaterial`. The receipt binds the finalizer name
+and SDK-generated `finalizationId`. `commit` activates the prepared record, and
+the ledger atomically marks it issued while recording any predecessor cleanup.
+Only then does rotation retire the predecessor. Cleanup failure keeps the new
+credential active and is retried by `recoverPendingRollbacks()`. The finalizer's
+`status` resolves crash ambiguity; `abort` and issuer/sink cleanup run
+independently. Implement `prepare`, `commit`, `abort`, and `status` idempotently
+by `finalizationId`. Fresh pending transactions are protected from concurrent
+takeover for `finalizationTakeoverMs` (30 seconds by default); a one-shot
+recovery call schedules takeover automatically at that deadline.
+
+Prefer `withChildProcess(...)` for command-line consumers. It injects the
+credential into the child environment without mutating the parent, disables
+shell interpretation, bounds runtime and captured output, owns a detached
+process group so descendants are terminated, and exact/token-redacts stdout
+and stderr before returning them. Process-group custody currently fails closed
+on Windows, where the required POSIX group semantics are unavailable.
+
+Use `rotate(receiptId, request)` to issue and verify a replacement before
+retiring its predecessor. `reconcile()` compares active durable receipts with
+the sink inventory; `recoverOrphans(report)` removes unowned sink records while
+retaining attributable history in the ledger. Missing records can be replaced
+through `rotate`, preserving `replacesReceiptId` and `rotationRootReceiptId`.
+The ledger's `recordIssuance` operation atomically persists the receipt with a
+`finalization-pending` event and rejects duplicate or branching replacements.
+`commitIssuance` idempotently appends the `issued` event and, for rotation, the
+`retirement-pending` event in the same transaction. Issuer revocation
+and exact-version sink removal must be idempotent so failed cleanup can retry.
+Sinks must also implement idempotent `removeByCredentialId(...)` for ambiguous
+store failures, and every inventory entry must identify its credential.
+Orphan recovery re-runs reconciliation and applies a configurable age grace
+before deleting an unchanged sink version. Failed pre-receipt rollback records a
+non-secret pending event, retries automatically, and can be resumed after a
+restart with `recoverPendingRollbacks()`.
+
+`redactCredentialText` and `redactCredentialValues` remove common bearer-token
+shapes and known plaintext values from strings, structured outputs, errors, and
+metadata. `CustodyError` serializes only its safe code, stage, redacted message,
+and redacted details; underlying provider causes are intentionally not retained.
 
 ## License
 

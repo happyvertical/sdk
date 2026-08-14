@@ -62,7 +62,7 @@ export function isAzureKeyVaultOptions(
  * });
  *
  * // Encrypt a secret
- * const envelope = await store.encrypt('tenant-123', 'api-key', 'sk_live_xxx');
+ * const envelope = await store.encrypt('tenant-123', 'api-key', 'synthetic-secret');
  *
  * // Decrypt
  * const decrypted = await store.decrypt('tenant-123', envelope);
