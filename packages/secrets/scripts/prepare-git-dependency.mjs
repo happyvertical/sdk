@@ -7,9 +7,13 @@ const repositoryDirectory = new URL('../../..', import.meta.url);
 const build = spawnSync(
   'pnpm',
   ['--dir', repositoryDirectory.pathname, '--filter', '@happyvertical/secrets', 'build'],
-  { stdio: 'inherit' },
+  { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
 );
-if (build.status !== 0) process.exit(build.status ?? 1);
+if (build.status !== 0) {
+  process.stderr.write(build.stdout ?? '');
+  process.stderr.write(build.stderr ?? '');
+  process.exit(build.status ?? 1);
+}
 
 const git = spawnSync(
   'git',
