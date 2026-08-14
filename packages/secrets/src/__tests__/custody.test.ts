@@ -2,6 +2,7 @@ import { generateKeyPairSync, randomUUID } from 'node:crypto';
 import { inspect } from 'node:util';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  type CredentialChildProcessOptions,
   CredentialCustody,
   type CredentialIssueRequest,
   type CredentialIssuer,
@@ -881,6 +882,7 @@ describe('credential custody', () => {
 
     await expect(
       lease.withChildProcess({
+        trust: 'cooperative-process-group',
         command: process.execPath,
         args: ['-e', 'process.exit(0)'],
         environmentVariable: 'CUSTODY_TEST_TOKEN',
@@ -973,6 +975,7 @@ describe('credential custody', () => {
       ).rejects.toMatchObject({ code: 'REENTRANT_ENVIRONMENT_INJECTION' });
       await expect(
         nestedLease.withChildProcess({
+          trust: 'cooperative-process-group',
           command: process.execPath,
           environmentVariable: 'UNRELATED_CUSTODY_TOKEN',
         }),
@@ -1038,6 +1041,7 @@ describe('credential custody', () => {
     });
 
     const result = await lease.withChildProcess({
+      trust: 'cooperative-process-group',
       command: process.execPath,
       args: [
         '-e',
@@ -1081,6 +1085,7 @@ describe('credential custody', () => {
     );
     await ready;
     const childResult = lease.withChildProcess({
+      trust: 'cooperative-process-group',
       command: process.execPath,
       args: [
         '-e',
@@ -1104,6 +1109,7 @@ describe('credential custody', () => {
     });
 
     const result = await lease.withChildProcess({
+      trust: 'cooperative-process-group',
       command: process.execPath,
       args: ['-e', "process.stdout.write('synthetic-credential-fragment')"],
       environmentVariable: 'CUSTODY_TEST_TOKEN',
@@ -1122,11 +1128,26 @@ describe('credential custody', () => {
     });
     await expect(
       lease.withChildProcess({
+        trust: 'cooperative-process-group',
         command: process.execPath,
         environmentVariable: 'CUSTODY_TEST_TOKEN',
         maxOutputBytes: Number.NaN,
       }),
     ).rejects.toMatchObject({ code: 'INVALID_CHILD_PROCESS_BOUNDS' });
+  });
+
+  it('requires explicit cooperative process-group trust', async () => {
+    const lease = await custody.issue({
+      mode: 'durable',
+      subject: 'service-account-1',
+      attribution: ATTRIBUTION,
+    });
+    await expect(
+      lease.withChildProcess({
+        command: process.execPath,
+        environmentVariable: 'CUSTODY_TEST_TOKEN',
+      } as CredentialChildProcessOptions),
+    ).rejects.toMatchObject({ code: 'INVALID_CHILD_PROCESS_OPTIONS' });
   });
 
   it('terminates an over-time child process group', async () => {
@@ -1137,6 +1158,7 @@ describe('credential custody', () => {
     });
 
     const result = await lease.withChildProcess({
+      trust: 'cooperative-process-group',
       command: process.execPath,
       args: [
         '-e',
@@ -1162,6 +1184,7 @@ describe('credential custody', () => {
       attribution: ATTRIBUTION,
     });
     const result = await lease.withChildProcess({
+      trust: 'cooperative-process-group',
       command: process.execPath,
       args: [
         '-e',

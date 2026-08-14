@@ -263,6 +263,7 @@ await lease.withEnvironment('SERVICE_CREDENTIAL', async () => {
 });
 
 const child = await lease.withChildProcess({
+  trust: 'cooperative-process-group',
   command: 'service-cli',
   args: ['verify'],
   environmentVariable: 'SERVICE_CREDENTIAL',
@@ -311,12 +312,18 @@ by `finalizationId`. Fresh pending transactions are protected from concurrent
 takeover for `finalizationTakeoverMs` (30 seconds by default); a one-shot
 recovery call schedules takeover automatically at that deadline.
 
-Prefer `withChildProcess(...)` for command-line consumers. It injects the
+Prefer `withChildProcess(...)` for trusted command-line consumers. It requires
+the explicit `trust: 'cooperative-process-group'` acknowledgement, injects the
 credential into the child environment without mutating the parent, disables
 shell interpretation, bounds runtime and captured output, owns a detached
-process group so descendants are terminated, and exact/token-redacts stdout
-and stderr before returning them. Process-group custody currently fails closed
-on Windows, where the required POSIX group semantics are unavailable.
+process group so descendants are terminated, confirms that group is gone
+before returning, and exact/token-redacts stdout and stderr. The trusted
+command and every credential-bearing descendant must remain in that group;
+daemonizing, calling `setsid`, or spawning a detached child violates this
+boundary because portable POSIX process groups cannot contain a process that
+creates a new session. Use only audited executables that honor this contract.
+Process-group custody fails closed on Windows, where the required POSIX group
+semantics are unavailable.
 
 Use `rotate(receiptId, request)` to issue and verify a replacement before
 retiring its predecessor. `reconcile()` compares active durable receipts with

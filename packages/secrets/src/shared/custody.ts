@@ -501,6 +501,11 @@ export interface CredentialLease {
 }
 
 export interface CredentialChildProcessOptions {
+  /**
+   * Acknowledges that the command and every credential-bearing descendant are
+   * trusted to remain in the SDK-owned POSIX process group.
+   */
+  trust: 'cooperative-process-group';
   command: string;
   args?: readonly string[];
   environmentVariable: string;
@@ -1894,6 +1899,7 @@ export async function runCredentialChildProcess(
   bounds?: { expiresAt?: string },
 ): Promise<CredentialChildProcessResult> {
   if (
+    options.trust !== 'cooperative-process-group' ||
     !options.command ||
     !ENVIRONMENT_VARIABLE.test(options.environmentVariable)
   ) {
@@ -1973,6 +1979,20 @@ export async function runCredentialChildProcess(
           }
           child.kill(signal);
         };
+        const waitForGroupExit = async (): Promise<boolean> => {
+          if (!child.pid) return true;
+          const deadline = Date.now() + 2_000;
+          while (Date.now() < deadline) {
+            try {
+              process.kill(-child.pid, 0);
+            } catch (cause) {
+              if ((cause as NodeJS.ErrnoException).code === 'ESRCH')
+                return true;
+            }
+            await new Promise((next) => setTimeout(next, 10));
+          }
+          return false;
+        };
         const beginTermination = (): void => {
           terminateGroup('SIGTERM');
           if (!escalationTimer) {
@@ -2019,7 +2039,7 @@ export async function runCredentialChildProcess(
             ),
           );
         });
-        child.once('close', (exitCode, signal) => {
+        child.once('close', async (exitCode, signal) => {
           if (settled) return;
           settled = true;
           clearTimeout(timer);
@@ -2028,6 +2048,16 @@ export async function runCredentialChildProcess(
           // Kill the original process group before returning any output.
           terminateGroup('SIGTERM');
           terminateGroup('SIGKILL');
+          if (!(await waitForGroupExit())) {
+            reject(
+              new CustodyError(
+                'CREDENTIAL_CHILD_PROCESS_CLEANUP_FAILED',
+                'inject',
+                'Credential child process group cleanup could not be verified',
+              ),
+            );
+            return;
+          }
           resolve({
             exitCode,
             signal,
