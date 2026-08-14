@@ -323,7 +323,9 @@ daemonizing, calling `setsid`, or spawning a detached child violates this
 boundary because portable POSIX process groups cannot contain a process that
 creates a new session. Use only audited executables that honor this contract.
 Process-group custody fails closed on Windows, where the required POSIX group
-semantics are unavailable.
+semantics are unavailable. If group cleanup cannot be verified, the lease is
+immediately invalidated and finalizer/issuer/sink cleanup runs through the same
+persisted, restart-safe rollback path used by failed issuance.
 
 Use `rotate(receiptId, request)` to issue and verify a replacement before
 retiring its predecessor. `reconcile()` compares active durable receipts with
@@ -335,6 +337,12 @@ The ledger's `recordIssuance` operation atomically persists the receipt with a
 `commitIssuance` idempotently appends the `issued` event and, for rotation, the
 `retirement-pending` event in the same transaction. Issuer revocation
 and exact-version sink removal must be idempotent so failed cleanup can retry.
+`appendEvent` is idempotent by `eventId`: exact replay succeeds, while binding
+the same identifier to different content fails closed.
+Transient finalizer-status or ledger-commit errors retain
+`finalization-pending` state and retry ambiguity resolution; only an explicit
+non-committed finalizer status triggers rollback. Sink identity comparison uses
+the full attested `sinkName`, `reference`, `version`, and `storedAt` tuple.
 Sinks must also implement idempotent `removeByCredentialId(...)` for ambiguous
 store failures, and every inventory entry must identify its credential.
 Orphan recovery re-runs reconciliation and applies a configurable age grace

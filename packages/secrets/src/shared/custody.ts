@@ -376,6 +376,10 @@ export interface CustodyLedger {
     event: CustodyEvent,
     followup?: CustodyEvent,
   ): Promise<void>;
+  /**
+   * Idempotently appends an event by eventId. Replaying the same event must
+   * succeed; reusing an eventId for different content must fail closed.
+   */
   appendEvent(event: CustodyEvent): Promise<void>;
   listReceipts(): Promise<CustodyReceipt[]>;
   listEvents(): Promise<CustodyEvent[]>;
@@ -444,6 +448,17 @@ export class InMemoryCustodyLedger implements CustodyLedger {
   }
 
   async appendEvent(event: CustodyEvent): Promise<void> {
+    const existing = this.#events.find(
+      (item) => item.eventId === event.eventId,
+    );
+    if (existing) {
+      if (sameCustodyEvent(existing, event)) return;
+      throw new CustodyError(
+        'CUSTODY_EVENT_ID_CONFLICT',
+        'record',
+        'Custody event ID is already bound to different content',
+      );
+    }
     this.#events.push(structuredClone(event));
   }
 
@@ -1101,14 +1116,9 @@ export class CredentialCustody {
         }
       } catch {
         failures.push(receipt.finalizationId);
-        this.#scheduleRollback(
+        this.#scheduleFinalizationTakeover(
           receipt.finalizationId,
-          receipt.credentialId,
-          receipt.sink,
-          'revoke',
-          receipt.mode === 'durable',
-          receipt,
-          true,
+          this.#now().getTime() + this.#ephemeralRevokeRetryMs,
         );
       }
     }
@@ -1143,12 +1153,17 @@ export class CredentialCustody {
         .filter((event) => event.type === 'rollback-complete')
         .map((event) => event.recoveryId),
     );
-    for (const pending of events.filter(
-      (event) =>
-        event.type === 'rollback-pending' &&
-        event.recoveryId &&
-        !completed.has(event.recoveryId),
-    )) {
+    const pendingRollbacks = new Map(
+      events
+        .filter(
+          (event) =>
+            event.type === 'rollback-pending' &&
+            event.recoveryId &&
+            !completed.has(event.recoveryId),
+        )
+        .map((event) => [event.recoveryId, event]),
+    );
+    for (const pending of pendingRollbacks.values()) {
       if (!pending.credentialId || !pending.recoveryId) continue;
       const timer = this.#pendingTimers.get(pending.recoveryId);
       if (timer) clearTimeout(timer);
@@ -1173,7 +1188,10 @@ export class CredentialCustody {
           pending.credentialId,
           pending.sinkReference,
         );
-        if (pending.receiptId) terminalIds.add(pending.receiptId);
+        if (pending.receiptId) {
+          terminalIds.add(pending.receiptId);
+          this.#leaseInvalidators.delete(pending.receiptId);
+        }
       } catch {
         failures.push(pending.recoveryId);
         this.#scheduleRollback(
@@ -1490,6 +1508,15 @@ export class CredentialCustody {
           return await runCredentialChildProcess(material, options, {
             expiresAt: receipt.expiresAt,
           });
+        } catch (cause) {
+          if (
+            cause instanceof CustodyError &&
+            cause.code === 'CREDENTIAL_CHILD_PROCESS_CLEANUP_FAILED'
+          ) {
+            invalidate();
+            await this.#recoverChildProcessCleanupFailure(receipt);
+          }
+          throw cause;
         } finally {
           if (!ephemeralMaterial) material.destroy();
         }
@@ -1610,6 +1637,95 @@ export class CredentialCustody {
     }
   }
 
+  async #recoverChildProcessCleanupFailure(
+    receipt: CustodyReceipt,
+  ): Promise<void> {
+    const reason = 'child process cleanup could not be verified';
+    try {
+      await this.#abortAndRevoke(receipt, reason);
+      this.#leaseInvalidators.delete(receipt.receiptId);
+      return;
+    } catch (cause) {
+      const recoveryId = randomUUID();
+      const pendingEvent: CustodyEvent = {
+        ...this.#event(
+          'rollback-pending',
+          receipt.receiptId,
+          receipt.sink?.reference,
+          reason,
+        ),
+        eventId: recoveryId,
+        recoveryId,
+        credentialId: receipt.credentialId,
+        requiresSink: receipt.mode === 'durable',
+        finalizationReceipt: structuredClone(receipt),
+      };
+      await this.#persistRollbackIntent(pendingEvent);
+      this.#scheduleRollback(
+        recoveryId,
+        receipt.credentialId,
+        receipt.sink,
+        'inject',
+        receipt.mode === 'durable',
+        receipt,
+        true,
+      );
+      try {
+        this.#onBackgroundError?.(
+          new CustodyError(
+            'CREDENTIAL_CHILD_PROCESS_CLEANUP_PENDING',
+            'revoke',
+            'Credential revocation is pending after child process cleanup failure',
+            { cause, details: { recoveryId } },
+          ),
+        );
+      } catch {
+        // Observability cannot interrupt cleanup retry.
+      }
+    }
+  }
+
+  async #persistRollbackIntent(event: CustodyEvent): Promise<void> {
+    for (;;) {
+      try {
+        await this.#ledger.appendEvent(event);
+        return;
+      } catch (cause) {
+        try {
+          if (
+            (await this.#ledger.listEvents()).some(
+              (existing) =>
+                existing.eventId === event.eventId &&
+                sameCustodyEvent(existing, event),
+            )
+          ) {
+            return;
+          }
+        } catch {
+          // Retry persistence when acknowledgement state is unavailable.
+        }
+        try {
+          this.#onBackgroundError?.(
+            new CustodyError(
+              'ROLLBACK_INTENT_PERSISTENCE_FAILED',
+              'record',
+              'Credential rollback intent persistence is retrying',
+              { cause, details: { recoveryId: event.recoveryId } },
+            ),
+          );
+        } catch {
+          // Observability cannot interrupt durable recovery persistence.
+        }
+        await new Promise<void>((resolve) => {
+          // This timer deliberately remains referenced: returning or allowing
+          // normal process exit before the recovery identity is durable would
+          // strand a credential that may have escaped child-process custody.
+          setTimeout(resolve, this.#ephemeralRevokeRetryMs);
+        });
+      }
+    }
+  }
+
   #scheduleRollback(
     recoveryId: string,
     credentialId: string,
@@ -1645,6 +1761,11 @@ export class CredentialCustody {
             sinkRecord?.reference,
           ),
         )
+        .then(() => {
+          if (receiptRecorded && finalizationReceipt) {
+            this.#leaseInvalidators.delete(finalizationReceipt.receiptId);
+          }
+        })
         .catch((cause) => {
           try {
             this.#onBackgroundError?.(
@@ -2228,6 +2349,12 @@ function canonicalize(value: unknown): unknown {
   return value;
 }
 
+function sameCustodyEvent(left: CustodyEvent, right: CustodyEvent): boolean {
+  return (
+    JSON.stringify(canonicalize(left)) === JSON.stringify(canonicalize(right))
+  );
+}
+
 function assertAttribution(attribution: CustodyAttribution): void {
   assertSafeIdentifier(attribution.actor, 'attribution.actor', 'issue');
   assertSafeIdentifier(attribution.runtime, 'attribution.runtime', 'issue');
@@ -2310,7 +2437,8 @@ function sameSinkRecord(
   return (
     left.sinkName === right.sinkName &&
     left.reference === right.reference &&
-    left.version === right.version
+    left.version === right.version &&
+    left.storedAt === right.storedAt
   );
 }
 
@@ -2319,6 +2447,7 @@ function sinkIdentity(record: SecretSinkRecord, credentialId?: string): string {
     record.sinkName,
     record.reference,
     record.version,
+    record.storedAt,
     credentialId ?? '',
   ].join('\u0000');
 }

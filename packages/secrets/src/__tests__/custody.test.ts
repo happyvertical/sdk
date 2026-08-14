@@ -183,6 +183,8 @@ class FakeSink implements CredentialSecretSink {
 class FlakyLedger implements CustodyLedger {
   readonly inner = new InMemoryCustodyLedger();
   failEventType?: CustodyEvent['type'];
+  failEventAfterWriteType?: CustodyEvent['type'];
+  conflictingReadbackOnce = false;
 
   async recordIssuance(
     receipt: CustodyReceipt,
@@ -204,6 +206,12 @@ class FlakyLedger implements CustodyLedger {
       this.failEventType = undefined;
       throw new Error('synthetic ledger failure');
     }
+    if (event.type === this.failEventAfterWriteType) {
+      this.failEventAfterWriteType = undefined;
+      await this.inner.appendEvent(event);
+      this.conflictingReadbackOnce = true;
+      throw new Error('synthetic ledger acknowledgement loss');
+    }
     await this.inner.appendEvent(event);
   }
 
@@ -212,7 +220,14 @@ class FlakyLedger implements CustodyLedger {
   }
 
   async listEvents(): Promise<CustodyEvent[]> {
-    return this.inner.listEvents();
+    const events = await this.inner.listEvents();
+    if (!this.conflictingReadbackOnce) return events;
+    this.conflictingReadbackOnce = false;
+    return events.map((event) =>
+      event.type === 'rollback-pending'
+        ? { ...event, credentialId: 'conflicting-credential' }
+        : event,
+    );
   }
 }
 
@@ -728,6 +743,74 @@ describe('credential custody', () => {
     ).toEqual(['finalization-pending', 'issued']);
   });
 
+  it('accepts exact event replay and rejects conflicting event IDs', async () => {
+    const event: CustodyEvent = {
+      eventId: randomUUID(),
+      type: 'orphan-detected',
+      occurredAt: '2026-08-14T17:00:00.000Z',
+      credentialId: 'orphan-credential',
+    };
+    await ledger.appendEvent(event);
+    await ledger.appendEvent(structuredClone(event));
+    expect(await ledger.listEvents()).toHaveLength(1);
+
+    await expect(
+      ledger.appendEvent({ ...event, credentialId: 'different-credential' }),
+    ).rejects.toMatchObject({ code: 'CUSTODY_EVENT_ID_CONFLICT' });
+    expect(await ledger.listEvents()).toHaveLength(1);
+  });
+
+  it('retries ambiguous finalization status without revoking custody', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-14T17:00:00.000Z'));
+    const issuedLease = await custody.issue({
+      mode: 'durable',
+      subject: 'service-account-1',
+      attribution: ATTRIBUTION,
+    });
+    const restartLedger = new InMemoryCustodyLedger();
+    await restartLedger.recordIssuance(issuedLease.receipt, {
+      eventId: issuedLease.receipt.finalizationId,
+      type: 'finalization-pending',
+      occurredAt: new Date().toISOString(),
+      receiptId: issuedLease.receipt.receiptId,
+    });
+    let statusAttempts = 0;
+    const restarted = new CredentialCustody({
+      issuer,
+      verifier,
+      sink,
+      ledger: restartLedger,
+      attestor: TEST_ATTESTOR,
+      finalizer: {
+        ...TEST_FINALIZER,
+        async status() {
+          statusAttempts += 1;
+          if (statusAttempts === 1) {
+            throw new Error('synthetic transient status failure');
+          }
+          return 'committed';
+        },
+      },
+      ephemeralRevokeRetryMs: 500,
+    });
+
+    await restarted.recoverPendingRollbacks();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(issuer.revoked).toEqual([]);
+    expect(sink.values.size).toBe(1);
+    expect(
+      (await restartLedger.listEvents()).map((event) => event.type),
+    ).toEqual(['finalization-pending']);
+
+    await vi.advanceTimersByTimeAsync(500);
+    expect(statusAttempts).toBe(2);
+    expect(issuer.revoked).toEqual([]);
+    expect(
+      (await restartLedger.listEvents()).map((event) => event.type),
+    ).toEqual(['finalization-pending', 'issued']);
+  });
+
   it('resumes a persisted pre-receipt rollback after restart', async () => {
     vi.useFakeTimers();
     verifier.verified = false;
@@ -1059,6 +1142,140 @@ describe('credential custody', () => {
     });
     expect(process.env.CUSTODY_TEST_TOKEN).toBeUndefined();
   });
+
+  it.each([
+    'durable',
+    'ephemeral',
+  ] as const)('invalidates and durably retries %s custody when child cleanup is unverified', async (mode) => {
+    const lease = await custody.issue({
+      mode,
+      subject: mode === 'durable' ? 'service-account-1' : 'throwaway-agent',
+      attribution: ATTRIBUTION,
+    });
+    issuer.revokeFailure = new Error('synthetic transient revoke failure');
+    const originalKill = process.kill.bind(process);
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation(((
+      pid: number,
+      signal?: NodeJS.Signals | number,
+    ) => {
+      if (pid < 0 && signal === 0) return true;
+      return originalKill(pid, signal);
+    }) as typeof process.kill);
+
+    try {
+      await expect(
+        lease.withChildProcess({
+          trust: 'cooperative-process-group',
+          command: process.execPath,
+          args: ['-e', 'process.exit(0)'],
+          environmentVariable: 'CUSTODY_TEST_TOKEN',
+        }),
+      ).rejects.toMatchObject({
+        code: 'CREDENTIAL_CHILD_PROCESS_CLEANUP_FAILED',
+      });
+    } finally {
+      killSpy.mockRestore();
+    }
+
+    await expect(
+      lease.withEnvironment('CUSTODY_TEST_TOKEN', () => undefined),
+    ).rejects.toMatchObject({ code: 'CREDENTIAL_REVOKED' });
+    const pending = (await ledger.listEvents()).find(
+      (event) =>
+        event.type === 'rollback-pending' &&
+        event.receiptId === lease.receipt.receiptId,
+    );
+    expect(pending?.recoveryId).toBeDefined();
+
+    issuer.revokeFailure = undefined;
+    await custody.recoverPendingRollbacks();
+    expect(
+      (await ledger.listEvents()).some(
+        (event) =>
+          event.type === 'rollback-complete' &&
+          event.recoveryId === pending?.recoveryId,
+      ),
+    ).toBe(true);
+    expect(
+      issuer.revoked.filter(
+        (entry) => entry.credentialId === lease.receipt.credentialId,
+      ),
+    ).toHaveLength(2);
+    if (mode === 'durable') expect(sink.values.size).toBe(0);
+  }, 10_000);
+
+  it('persists child-cleanup recovery identity before returning', async () => {
+    const retryLedger = new FlakyLedger();
+    const backgroundErrors: CustodyError[] = [];
+    const retryingCustody = new CredentialCustody({
+      issuer,
+      verifier,
+      sink,
+      ledger: retryLedger,
+      attestor: TEST_ATTESTOR,
+      finalizer: TEST_FINALIZER,
+      ephemeralRevokeRetryMs: 10,
+      onBackgroundError: (error) => backgroundErrors.push(error),
+    });
+    const lease = await retryingCustody.issue({
+      mode: 'durable',
+      subject: 'service-account-1',
+      attribution: ATTRIBUTION,
+    });
+    issuer.revokeFailure = new Error('synthetic transient revoke failure');
+    retryLedger.failEventAfterWriteType = 'rollback-pending';
+    const originalKill = process.kill.bind(process);
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation(((
+      pid: number,
+      signal?: NodeJS.Signals | number,
+    ) => {
+      if (pid < 0 && signal === 0) return true;
+      return originalKill(pid, signal);
+    }) as typeof process.kill);
+
+    try {
+      await expect(
+        lease.withChildProcess({
+          trust: 'cooperative-process-group',
+          command: process.execPath,
+          args: ['-e', 'process.exit(0)'],
+          environmentVariable: 'CUSTODY_TEST_TOKEN',
+        }),
+      ).rejects.toMatchObject({
+        code: 'CREDENTIAL_CHILD_PROCESS_CLEANUP_FAILED',
+      });
+    } finally {
+      killSpy.mockRestore();
+    }
+
+    expect(
+      backgroundErrors.some(
+        (error) => error.code === 'ROLLBACK_INTENT_PERSISTENCE_FAILED',
+      ),
+    ).toBe(true);
+    const pending = (await retryLedger.listEvents()).find(
+      (event) =>
+        event.type === 'rollback-pending' &&
+        event.receiptId === lease.receipt.receiptId,
+    );
+    expect(pending?.recoveryId).toBeDefined();
+    expect(
+      (await retryLedger.listEvents()).filter(
+        (event) => event.type === 'rollback-pending',
+      ),
+    ).toHaveLength(1);
+
+    issuer.revokeFailure = undefined;
+    await retryingCustody.recoverPendingRollbacks();
+    expect(sink.values.size).toBe(0);
+    expect(
+      (await retryLedger.listEvents()).some(
+        (event) =>
+          event.type === 'rollback-complete' &&
+          event.recoveryId === pending?.recoveryId,
+      ),
+    ).toBe(true);
+  }, 10_000);
 
   it('does not snapshot another in-flight environment credential into a child', async () => {
     const lease = await custody.issue({
@@ -1415,7 +1632,37 @@ describe('credential custody', () => {
     expect(issuer.revoked).toEqual([]);
   });
 
-  it('treats sink version or credential ownership mismatches fail closed', async () => {
+  it('does not authorize orphan recovery from a stale storedAt identity', async () => {
+    const orphan: SecretSinkInventoryEntry = {
+      sinkName: sink.name,
+      reference: 'orphan-record',
+      version: '1',
+      storedAt: '2026-08-14T17:00:01.000Z',
+      credentialId: 'orphan-credential',
+    };
+    sink.values.set(orphan.reference, SYNTHETIC_SECRET);
+    sink.credentialIds.set(orphan.reference, orphan.credentialId);
+    sink.inventoryOverride = [
+      { ...orphan, storedAt: '2026-08-14T17:00:02.000Z' },
+    ];
+
+    await custody.recoverOrphans({
+      checkedAt: '2026-08-14T17:05:00.000Z',
+      missing: [],
+      orphaned: [orphan],
+    });
+
+    expect(sink.values.has(orphan.reference)).toBe(true);
+    expect(sink.removed).toEqual([]);
+    expect(issuer.revoked).toEqual([]);
+    expect(
+      (await ledger.listEvents()).some(
+        (event) => event.type === 'orphan-removed',
+      ),
+    ).toBe(false);
+  });
+
+  it('treats sink tuple or credential ownership mismatches fail closed', async () => {
     const lease = await custody.issue({
       mode: 'durable',
       subject: 'service-account-1',
@@ -1430,6 +1677,17 @@ describe('credential custody', () => {
     const report = await custody.reconcile();
     expect(report.missing).toHaveLength(1);
     expect(report.orphaned).toHaveLength(1);
+
+    sink.inventoryOverride = [
+      {
+        ...owned,
+        storedAt: '2026-08-14T17:00:02.000Z',
+        credentialId: lease.receipt.credentialId,
+      },
+    ];
+    const timestampReport = await custody.reconcile();
+    expect(timestampReport.missing).toHaveLength(1);
+    expect(timestampReport.orphaned).toHaveLength(1);
   });
 
   it('retains an orphan until issuer revocation can be retried', async () => {
