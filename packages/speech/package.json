@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/speech",
-  "version": "0.86.4",
+  "version": "0.87.0",
   "description": "Speech provider abstraction for STT and TTS backends",
   "type": "module",
   "main": "./dist/index.js",

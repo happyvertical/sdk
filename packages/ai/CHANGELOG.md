@@ -1,5 +1,17 @@
 # @happyvertical/ai
 
+## 0.87.0
+
+### Minor Changes
+
+- 0a950d7: Add the provider-neutral Seevio asynchronous video adapter, pinned to Seedance
+  2.5, with multimodal reference media, safe result downloads, and normalized
+  credit reservation status.
+
+### Patch Changes
+
+- @happyvertical/utils@0.87.0
+
 ## 0.86.4
 
 ### Patch Changes
