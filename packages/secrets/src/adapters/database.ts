@@ -50,7 +50,7 @@ const DEFAULT_ROTATION_PERIOD_MS = 90 * 24 * 60 * 60 * 1000;
  * await store.initialize();
  *
  * // Encrypt a secret for a tenant
- * const envelope = await store.encrypt('tenant-123', 'api-key', 'sk_live_xxx');
+ * const envelope = await store.encrypt('tenant-123', 'api-key', 'synthetic-secret');
  *
  * // Decrypt
  * const { value } = await store.decrypt('tenant-123', envelope);
