@@ -1,5 +1,23 @@
 # @happyvertical/secrets
 
+## 0.88.0
+
+### Minor Changes
+
+- ad6904d: Add provider-neutral fail-closed credential custody orchestration with explicit
+  ephemeral and durable modes, opaque secret material, attributable non-secret
+  receipts, rotation and reconciliation history, bounded environment injection,
+  bounded child-process injection and cleanup, structured errors, and token
+  redaction. Receipts carry required Ed25519 attestations bound to the submitted
+  credential and complete canonical custody locator.
+  Issuance also requires a staged prepare/commit/abort finalizer with a durable
+  recovery identity, keeping downstream activation inside the rollback boundary.
+
+### Patch Changes
+
+- @happyvertical/sql@0.88.0
+- @happyvertical/utils@0.88.0
+
 ## 0.87.0
 
 ### Patch Changes

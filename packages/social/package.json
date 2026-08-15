@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/social",
-  "version": "0.87.0",
+  "version": "0.88.0",
   "description": "Social platform adapters for publishing to YouTube, Facebook Pages, Threads, X, and Bluesky",
   "type": "module",
   "main": "./dist/index.js",
