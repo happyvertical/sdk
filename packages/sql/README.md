@@ -21,11 +21,15 @@ const db = await getDatabase({ type: 'sqlite', url: ':memory:' });
 // SQLite (file)
 const fileDb = await getDatabase({ type: 'sqlite', url: 'file:./app.db' });
 
-// Local file with atomic no-follow acquisition (macOS and Linux)
+// Local file under an application-custodied data directory (macOS and Linux)
 const secureFileDb = await getDatabase({
   type: 'sqlite',
   url: './data/app.db',
-  secureFile: true,
+  secureFile: {
+    driver: 'sqlite3',
+    custody: 'trusted-parent',
+    root: './data',
+  },
 });
 
 // LibSQL/Turso (remote)
@@ -102,24 +106,40 @@ Configuration is also loaded from `HAVE_SQL_*` environment variables (e.g. `HAVE
 
 ### Secure local SQLite acquisition
 
-Use `secureFile: true` when a local application must not follow symbolic links
-while opening or creating its database. This selects the `sqlite3` driver and
-passes SQLite's `SQLITE_OPEN_NOFOLLOW` flag directly to `sqlite3_open_v2()`.
-SQLite resolves the complete pathname under that flag, so a symlink in either
-the database leaf or any ancestor is rejected at the instant the database is
-opened or created, before the symlink target is read or written. Pre-opening or
-post-opening `lstat()` checks cannot strengthen that acquisition boundary: the
-pathname can change between any separate check and the driver's atomic open.
+Secure mode requires an explicit custody contract:
 
-The guarantee applies to acquisition, not to the directory entry for the
-entire connection lifetime. SQLite retains its acquired file handle, so a
-same-user process that renames the pathname after the open cannot redirect that
+```typescript
+secureFile: {
+  driver: 'sqlite3',
+  custody: 'trusted-parent',
+  root: './data', // optional; defaults to the database's direct parent
+}
+```
+
+Boolean `true` fails closed. Before loading the driver, the adapter verifies
+that the database is beneath the custody root, that static path components are
+real directories rather than symlinks, and that the root plus database-parent
+chain is owned by the current uid with no group/world write permission. An
+existing leaf must likewise be a current-user-owned regular file with no
+group/world write permission. Ancestors above the custody root may not allow
+replacement by another principal (a sticky shared parent such as `/tmp` is
+accepted). The application must create and retain custody of this directory;
+mode `0700` is the conventional choice.
+
+After custody validation, the `sqlite3` driver passes SQLite's
+`SQLITE_OPEN_NOFOLLOW` flag directly to `sqlite3_open_v2()` for atomic leaf
+acquisition. This protects against static symlink mistakes and mutation by
+other principals that cannot write the custodied parent. It does **not** claim
+protection against a hostile process running as the same account: that process
+can already read, rewrite, unlink, or replace an unencrypted user-owned database
+and its directory. A security boundary between same-account processes requires
+OS sandbox separation plus a descriptor-relative/custom-VFS SQLite driver;
+`@libsql/client`, `node:sqlite`, and the public `sqlite3` binding expose no such
+portable boundary.
+
+SQLite retains its acquired file handle, so a later rename cannot redirect that
 handle, but a later connection to the original pathname may see a different
-file. Applications that allow a mutually untrusted process to rename database
-paths while they are open must additionally protect the containing directory;
-the public `sqlite3` binding exposes neither its native file descriptor nor
-`sqlite3_file_control()`, so this adapter cannot pin or revalidate that directory
-entry without a private driver reach-in.
+file. Keep the custody contract in force for the full connection lifetime.
 
 The secure path is supported on macOS and Linux. It fails closed on other
 platforms and when combined with remote LibSQL URLs, `:memory:`, LibSQL
@@ -127,7 +147,11 @@ authentication or encryption, or the optional `node:sqlite` capability path.
 Those backends do not expose the same no-follow acquisition boundary. Omit
 `secureFile` to retain the existing LibSQL pathname behavior.
 
-Every component must be a real path component. For example, macOS exposes
+The secure `sqlite3` adapter rejects JavaScript `bigint` parameters explicitly
+because that binding otherwise converts them to `NULL`. Bind a safely
+representable number or an explicitly typed decimal/text value instead.
+
+Every static component must be a real path component. For example, macOS exposes
 `/var` as a symlink, so use the resolved `/private/var/...` path when secure
 acquisition is intentional. The `sqlite3` native dependency is built or loaded
 through pnpm's allow-listed install script; applications packaging this mode

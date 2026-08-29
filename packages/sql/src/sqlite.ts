@@ -184,7 +184,20 @@ export interface SecureSqliteFileOptions {
    *
    * @default 'sqlite3'
    */
-  driver?: 'sqlite3';
+  driver: 'sqlite3';
+
+  /**
+   * Assert that the application controls the database parent directory.
+   * The adapter verifies current-user ownership, non-writable group/other
+   * permissions, and static symlink absence before acquisition.
+   */
+  custody: 'trusted-parent';
+
+  /**
+   * Optional application data root. Defaults to the database's direct parent.
+   * Every database parent at or below this root must satisfy the custody check.
+   */
+  root?: string;
 }
 
 /**
@@ -231,13 +244,12 @@ export interface SqliteOptions extends DatabaseOptions {
   /**
    * Require atomic no-follow acquisition for a local file-backed database.
    *
-   * This selects the sqlite3 driver and passes `SQLITE_OPEN_NOFOLLOW` to
-   * `sqlite3_open_v2()`, rejecting symbolic links in the database leaf or any
-   * ancestor at acquisition. The acquired handle cannot be redirected by a
-   * later pathname rename, but callers needing a stable directory entry for
-   * the entire connection lifetime must protect the containing directory. It
-   * is supported on macOS and Linux only. Memory databases, remote LibSQL URLs,
-   * encryption, and optional native capabilities fail closed when enabled.
+   * This requires an explicit `trusted-parent` custody assertion, verifies the
+   * application data root/parent chain, then passes `SQLITE_OPEN_NOFOLLOW` to
+   * `sqlite3_open_v2()` for atomic leaf acquisition. It protects against static
+   * symlinks and mutation by principals that cannot write the custodied parent.
+   * It does not claim protection from a hostile same-account process, which can
+   * directly replace or rewrite an unencrypted user-owned database.
    *
    * Existing pathname behavior is unchanged when omitted or false.
    */
@@ -370,13 +382,28 @@ export async function getDatabase(
   }
 
   if (options.secureFile) {
-    const secureOptions =
-      typeof options.secureFile === 'object' ? options.secureFile : {};
-    if (secureOptions.driver && secureOptions.driver !== 'sqlite3') {
+    if (options.secureFile === true) {
+      throw new DatabaseError(
+        'Secure SQLite acquisition requires an explicit trusted-parent custody contract',
+        {
+          hint: "Use secureFile: { driver: 'sqlite3', custody: 'trusted-parent' } after placing the database beneath a current-user-owned parent with no group/world write permission.",
+        },
+      );
+    }
+    const secureOptions = options.secureFile;
+    if (secureOptions.driver !== 'sqlite3') {
       throw new DatabaseError(
         `Unsupported secure SQLite driver: ${String(secureOptions.driver)}`,
         {
-          hint: "Use secureFile: true or secureFile: { driver: 'sqlite3' }.",
+          hint: "Use secureFile: { driver: 'sqlite3', custody: 'trusted-parent' }.",
+        },
+      );
+    }
+    if (secureOptions.custody !== 'trusted-parent') {
+      throw new DatabaseError(
+        'Secure SQLite acquisition requires trusted-parent custody',
+        {
+          hint: "Set custody: 'trusted-parent' only when the application controls the database parent directory.",
         },
       );
     }
@@ -398,7 +425,12 @@ export async function getDatabase(
     }
 
     return getCachedSqliteDatabase('secure', options, () =>
-      createDatabase(options, url, () => createSecureSqliteClient(url)),
+      createDatabase(options, url, () =>
+        createSecureSqliteClient(url, {
+          custody: secureOptions.custody,
+          root: secureOptions.root,
+        }),
+      ),
     );
   }
 

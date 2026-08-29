@@ -1,4 +1,5 @@
 import {
+  chmod,
   mkdir,
   mkdtemp,
   readFile,
@@ -18,6 +19,11 @@ import {
 } from './secure-sqlite-client';
 
 const tempRoots = new Set<string>();
+const trustedParent = { custody: 'trusted-parent' } as const;
+const secureFile = {
+  driver: 'sqlite3',
+  custody: 'trusted-parent',
+} as const;
 
 async function makeTempRoot(): Promise<string> {
   // macOS exposes /var as a symlink. Use its real path because secure
@@ -34,6 +40,10 @@ async function loadSqlite3Driver() {
   return imported.default as any;
 }
 
+function createTrustedClient(url: string, runtime?: SecureSqliteRuntime) {
+  return createSecureSqliteClient(url, trustedParent, runtime);
+}
+
 afterEach(async () => {
   await Promise.all(
     [...tempRoots].map((root) => rm(root, { recursive: true, force: true })),
@@ -42,13 +52,106 @@ afterEach(async () => {
 });
 
 describe('secure SQLite file acquisition', () => {
+  it('requires an explicit trusted-parent custody contract', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'app.db');
+
+    await expect(
+      getDatabase({
+        type: 'sqlite',
+        url: databasePath,
+        secureFile: true,
+        cache: false,
+      }),
+    ).rejects.toThrow('explicit trusted-parent custody contract');
+
+    await expect(
+      getDatabase({
+        type: 'sqlite',
+        url: databasePath,
+        secureFile: { driver: 'sqlite3' } as any,
+        cache: false,
+      }),
+    ).rejects.toThrow('requires trusted-parent custody');
+    await expect(
+      getDatabase({
+        type: 'sqlite',
+        url: databasePath,
+        secureFile: { custody: 'trusted-parent' } as any,
+        cache: false,
+      }),
+    ).rejects.toThrow('Unsupported secure SQLite driver');
+    await expect(readFile(databasePath)).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+  });
+
+  it('enforces the declared custody root for nested databases', async () => {
+    const root = await makeTempRoot();
+    const nested = join(root, 'nested');
+    await mkdir(nested, { mode: 0o700 });
+    const databasePath = join(nested, 'app.db');
+
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: databasePath,
+      secureFile: { ...secureFile, root },
+      cache: false,
+    });
+    await db.execute`CREATE TABLE rooted (id INTEGER PRIMARY KEY)`;
+    await db.close?.();
+
+    await expect(
+      getDatabase({
+        type: 'sqlite',
+        url: databasePath,
+        secureFile: { ...secureFile, root: join(root, 'other') },
+        cache: false,
+      }),
+    ).rejects.toThrow('must be beneath its trusted custody root');
+  });
+
+  it('rejects custody owned by another uid before loading the driver', async () => {
+    const root = await makeTempRoot();
+    let driverLoaded = false;
+
+    await expect(
+      createSecureSqliteClient(join(root, 'app.db'), trustedParent, {
+        platform: process.platform,
+        currentUid: () => (process.getuid?.() ?? 0) + 1,
+        loadDriver: async () => {
+          driverLoaded = true;
+          return loadSqlite3Driver();
+        },
+      }),
+    ).rejects.toThrow('not owned by the current user');
+    expect(driverLoaded).toBe(false);
+  });
+
+  it('rejects group/world-writable custody before loading the driver', async () => {
+    const root = await makeTempRoot();
+    await chmod(root, 0o770);
+    let driverLoaded = false;
+
+    await expect(
+      createSecureSqliteClient(join(root, 'app.db'), trustedParent, {
+        platform: process.platform,
+        loadDriver: async () => {
+          driverLoaded = true;
+          return loadSqlite3Driver();
+        },
+      }),
+    ).rejects.toThrow('group/world writable');
+    expect(driverLoaded).toBe(false);
+  });
+
   it('creates, transacts, closes, and reopens a regular database', async () => {
     const root = await makeTempRoot();
     const databasePath = join(root, 'app.db');
     const db = await getDatabase({
       type: 'sqlite',
       url: databasePath,
-      secureFile: true,
+      secureFile,
       cache: false,
     });
 
@@ -72,7 +175,7 @@ describe('secure SQLite file acquisition', () => {
     const reopened = await getDatabase({
       type: 'sqlite',
       url: databasePath,
-      secureFile: { driver: 'sqlite3' },
+      secureFile,
       cache: false,
     });
     expect(
@@ -97,10 +200,10 @@ describe('secure SQLite file acquisition', () => {
       getDatabase({
         type: 'sqlite',
         url: databasePath,
-        secureFile: true,
+        secureFile,
         cache: false,
       }),
-    ).rejects.toThrow('Secure SQLite acquisition rejected');
+    ).rejects.toThrow('database leaf must be a regular file');
     expect(await readFile(target, 'utf8')).toBe('untouched');
   });
 
@@ -115,10 +218,10 @@ describe('secure SQLite file acquisition', () => {
       getDatabase({
         type: 'sqlite',
         url: join(linkedDirectory, 'app.db'),
-        secureFile: true,
+        secureFile,
         cache: false,
       }),
-    ).rejects.toThrow('Secure SQLite acquisition rejected');
+    ).rejects.toThrow('custody chain must contain only real directories');
     await expect(readFile(join(realDirectory, 'app.db'))).rejects.toMatchObject(
       {
         code: 'ENOENT',
@@ -145,7 +248,7 @@ describe('secure SQLite file acquisition', () => {
     };
 
     await expect(
-      createSecureSqliteClient(databasePath, runtime),
+      createSecureSqliteClient(databasePath, trustedParent, runtime),
     ).rejects.toThrow('Secure SQLite acquisition rejected');
     expect(await readFile(target, 'utf8')).toBe('untouched');
     expect(await readFile(displacedPath, 'utf8')).toBe('original');
@@ -157,7 +260,7 @@ describe('secure SQLite file acquisition', () => {
     const displacedPath = join(root, 'acquired.db');
     const replacementPath = join(root, 'replacement.db');
 
-    const original = await createSecureSqliteClient(databasePath);
+    const original = await createTrustedClient(databasePath);
     await original.execute(
       'CREATE TABLE identity_marker (value TEXT NOT NULL)',
     );
@@ -166,7 +269,7 @@ describe('secure SQLite file acquisition', () => {
     );
     await original.close();
 
-    const replacement = await createSecureSqliteClient(replacementPath);
+    const replacement = await createTrustedClient(replacementPath);
     await replacement.execute(
       'CREATE TABLE identity_marker (value TEXT NOT NULL)',
     );
@@ -175,28 +278,32 @@ describe('secure SQLite file acquisition', () => {
     );
     await replacement.close();
 
-    const acquired = await createSecureSqliteClient(databasePath, {
-      platform: process.platform,
-      loadDriver: loadSqlite3Driver,
-      afterDriverOpen: async (acquisitionPath) => {
-        expect(acquisitionPath).toBe(databasePath);
-        await rename(databasePath, displacedPath);
-        await rename(replacementPath, databasePath);
+    const acquired = await createSecureSqliteClient(
+      databasePath,
+      trustedParent,
+      {
+        platform: process.platform,
+        loadDriver: loadSqlite3Driver,
+        afterDriverOpen: async (acquisitionPath) => {
+          expect(acquisitionPath).toBe(databasePath);
+          await rename(databasePath, displacedPath);
+          await rename(replacementPath, databasePath);
+        },
       },
-    });
+    );
 
     expect(
       await acquired.execute('SELECT value FROM identity_marker'),
     ).toMatchObject({ rows: [{ value: 'acquired' }] });
     await acquired.close();
 
-    const currentPath = await createSecureSqliteClient(databasePath);
+    const currentPath = await createTrustedClient(databasePath);
     expect(
       await currentPath.execute('SELECT value FROM identity_marker'),
     ).toMatchObject({ rows: [{ value: 'replacement' }] });
     await currentPath.close();
 
-    const acquiredPath = await createSecureSqliteClient(displacedPath);
+    const acquiredPath = await createTrustedClient(displacedPath);
     expect(
       await acquiredPath.execute('SELECT value FROM identity_marker'),
     ).toMatchObject({ rows: [{ value: 'acquired' }] });
@@ -208,7 +315,7 @@ describe('secure SQLite file acquisition', () => {
     const db = await getDatabase({
       type: 'sqlite',
       url: join(root, 'app.db'),
-      secureFile: true,
+      secureFile,
       cache: false,
     });
     await db.execute`CREATE TABLE jobs (id INTEGER PRIMARY KEY, title TEXT)`;
@@ -242,6 +349,60 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
+  it('queues close behind accepted work and rejects new work while closing', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'app.db');
+    const client = await createTrustedClient(databasePath);
+
+    const acceptedWrite = client.execute(
+      'CREATE TABLE close_race (id INTEGER PRIMARY KEY)',
+    );
+    const closing = client.close();
+
+    await expect(acceptedWrite).resolves.toMatchObject({ rowsAffected: 0 });
+    await expect(
+      client.execute('INSERT INTO close_race (id) VALUES (1)'),
+    ).rejects.toThrow('closing or closed');
+    await expect(closing).resolves.toBeUndefined();
+
+    const reopened = await createTrustedClient(databasePath);
+    expect(
+      await reopened.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'close_race'",
+      ),
+    ).toMatchObject({ rows: [{ name: 'close_race' }] });
+    await reopened.close();
+  });
+
+  it('rejects BigInt parameters instead of silently binding NULL', async () => {
+    const root = await makeTempRoot();
+    const client = await createTrustedClient(join(root, 'app.db'));
+    await client.execute('CREATE TABLE values_table (value INTEGER)');
+
+    await expect(
+      client.execute({
+        sql: 'INSERT INTO values_table (value) VALUES (?)',
+        args: [1n],
+      }),
+    ).rejects.toThrow('BigInt parameters are unsupported');
+    expect(
+      await client.execute('SELECT COUNT(*) AS count FROM values_table'),
+    ).toMatchObject({ rows: [{ count: 0 }] });
+    await client.close();
+  });
+
+  it('preserves lastInsertRowid beyond Number.MAX_SAFE_INTEGER', async () => {
+    const root = await makeTempRoot();
+    const client = await createTrustedClient(join(root, 'app.db'));
+    await client.execute('CREATE TABLE ids (id INTEGER PRIMARY KEY)');
+
+    const inserted = await client.execute(
+      'INSERT INTO ids (id) VALUES (9007199254740993)',
+    );
+    expect(inserted.lastInsertRowid).toBe(9007199254740993n);
+    await client.close();
+  });
+
   it('does not leave a failed acquisition cached', async () => {
     const root = await makeTempRoot();
     const target = join(root, 'target.txt');
@@ -252,11 +413,11 @@ describe('secure SQLite file acquisition', () => {
     const options = {
       type: 'sqlite' as const,
       url: databasePath,
-      secureFile: true,
+      secureFile,
       dbid: 'secure-retry',
     };
     await expect(getDatabase(options)).rejects.toThrow(
-      'Secure SQLite acquisition rejected',
+      'database leaf must be a regular file',
     );
 
     await rm(databasePath);
@@ -269,7 +430,7 @@ describe('secure SQLite file acquisition', () => {
   it('fails closed on unsupported platforms before loading the driver', async () => {
     let driverLoaded = false;
     await expect(
-      createSecureSqliteClient('/tmp/app.db', {
+      createSecureSqliteClient('/tmp/app.db', trustedParent, {
         platform: 'win32',
         loadDriver: async () => {
           driverLoaded = true;
@@ -281,8 +442,9 @@ describe('secure SQLite file acquisition', () => {
   });
 
   it('fails closed with an actionable error when the secure driver cannot load', async () => {
+    const root = await makeTempRoot();
     await expect(
-      createSecureSqliteClient('/tmp/app.db', {
+      createSecureSqliteClient(join(root, 'app.db'), trustedParent, {
         platform: process.platform,
         loadDriver: async () => {
           throw new Error('native binding unavailable');
@@ -296,7 +458,7 @@ describe('secure SQLite file acquisition', () => {
       getDatabase({
         type: 'sqlite',
         url: 'libsql://example.turso.io',
-        secureFile: true,
+        secureFile,
         cache: false,
       }),
     ).rejects.toThrow('requires a local file-backed database');
@@ -305,7 +467,7 @@ describe('secure SQLite file acquisition', () => {
       getDatabase({
         type: 'sqlite',
         url: ':memory:',
-        secureFile: true,
+        secureFile,
         cache: false,
       }),
     ).rejects.toThrow('requires a local file-backed database');
@@ -314,7 +476,7 @@ describe('secure SQLite file acquisition', () => {
       getDatabase({
         type: 'sqlite',
         url: './app.db',
-        secureFile: true,
+        secureFile,
         capabilities: { vector: true },
         cache: false,
       }),

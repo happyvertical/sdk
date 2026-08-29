@@ -1,4 +1,5 @@
-import { resolve } from 'node:path';
+import { lstat } from 'node:fs/promises';
+import { dirname, parse, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseError } from '@happyvertical/utils';
 
@@ -13,7 +14,7 @@ export interface SecureSqliteStatement {
 export interface SecureSqliteResult {
   rows: Record<string, unknown>[];
   rowsAffected: number;
-  lastInsertRowid?: number;
+  lastInsertRowid?: bigint;
 }
 
 export interface SecureSqliteTransactionClient {
@@ -32,6 +33,11 @@ export interface SecureSqliteClient {
   ): Promise<SecureSqliteResult>;
   transaction(mode?: string): Promise<SecureSqliteTransactionClient>;
   close(): Promise<void>;
+}
+
+export interface SecureSqliteCustodyOptions {
+  custody: 'trusted-parent';
+  root?: string;
 }
 
 interface Sqlite3Database {
@@ -63,17 +69,169 @@ export interface SecureSqliteRuntime {
   platform: NodeJS.Platform;
   beforeDriverOpen?: (filePath: string) => void | Promise<void>;
   afterDriverOpen?: (filePath: string) => void | Promise<void>;
+  currentUid?: () => number;
   loadDriver: () => Promise<Sqlite3Module>;
 }
 
 const defaultRuntime: SecureSqliteRuntime = {
   platform: process.platform,
+  currentUid: () => {
+    if (!process.getuid) {
+      throw new Error('process.getuid() is unavailable');
+    }
+    return process.getuid();
+  },
   loadDriver: async () => {
     const moduleName = 'sqlite3';
     const imported = await import(/* @vite-ignore */ moduleName);
     return (imported.default ?? imported) as Sqlite3Module;
   },
 };
+
+const GROUP_OR_WORLD_WRITE = 0o022;
+const STICKY_BIT = 0o1000;
+
+function pathComponents(path: string): string[] {
+  const root = parse(path).root;
+  const components = path.slice(root.length).split(sep).filter(Boolean);
+  const paths = [root];
+  for (const component of components) {
+    paths.push(resolve(paths.at(-1) ?? root, component));
+  }
+  return paths;
+}
+
+async function validateTrustedParentCustody(
+  filePath: string,
+  options: SecureSqliteCustodyOptions,
+  runtime: SecureSqliteRuntime,
+): Promise<void> {
+  if (options.custody !== 'trusted-parent') {
+    throw new DatabaseError(
+      'Secure SQLite acquisition requires trusted-parent custody',
+      {},
+    );
+  }
+
+  let currentUid: number;
+  try {
+    currentUid = (runtime.currentUid ?? defaultRuntime.currentUid)?.() ?? -1;
+  } catch (error) {
+    throw new DatabaseError(
+      'Secure SQLite acquisition cannot verify the current user',
+      { originalError: error instanceof Error ? error.message : String(error) },
+    );
+  }
+
+  const databaseParent = dirname(filePath);
+  const custodyRoot = resolve(options.root ?? databaseParent);
+  const relativeDatabasePath = relative(custodyRoot, filePath);
+  if (
+    !relativeDatabasePath ||
+    relativeDatabasePath === '..' ||
+    relativeDatabasePath.startsWith(`..${sep}`) ||
+    parse(relativeDatabasePath).root
+  ) {
+    throw new DatabaseError(
+      'Secure SQLite database must be beneath its trusted custody root',
+      { path: filePath, custodyRoot },
+    );
+  }
+
+  const custodyRelative = relative(custodyRoot, databaseParent);
+  const custodiedParents = new Set([
+    custodyRoot,
+    ...pathComponents(databaseParent).filter((path) => {
+      const child = relative(custodyRoot, path);
+      return child === '' || (!child.startsWith(`..${sep}`) && child !== '..');
+    }),
+  ]);
+
+  if (
+    custodyRelative === '..' ||
+    custodyRelative.startsWith(`..${sep}`) ||
+    parse(custodyRelative).root
+  ) {
+    throw new DatabaseError(
+      'Secure SQLite parent must be beneath its trusted custody root',
+      { path: databaseParent, custodyRoot },
+    );
+  }
+
+  for (const componentPath of pathComponents(databaseParent)) {
+    let stats: Awaited<ReturnType<typeof lstat>>;
+    try {
+      stats = await lstat(componentPath);
+    } catch (error) {
+      throw new DatabaseError(
+        'Secure SQLite custody chain contains an inaccessible component',
+        {
+          path: componentPath,
+          originalError: error instanceof Error ? error.message : String(error),
+        },
+      );
+    }
+
+    if (stats.isSymbolicLink() || !stats.isDirectory()) {
+      throw new DatabaseError(
+        'Secure SQLite custody chain must contain only real directories',
+        { path: componentPath },
+      );
+    }
+
+    const isCustodied = custodiedParents.has(componentPath);
+    if (isCustodied) {
+      if (stats.uid !== currentUid) {
+        throw new DatabaseError(
+          'Secure SQLite custody directory is not owned by the current user',
+          {
+            path: componentPath,
+            expectedUid: currentUid,
+            actualUid: stats.uid,
+          },
+        );
+      }
+      if ((stats.mode & GROUP_OR_WORLD_WRITE) !== 0) {
+        throw new DatabaseError(
+          'Secure SQLite custody directory is group/world writable',
+          { path: componentPath },
+        );
+      }
+    } else if (
+      (stats.mode & GROUP_OR_WORLD_WRITE) !== 0 &&
+      (stats.mode & STICKY_BIT) === 0
+    ) {
+      throw new DatabaseError(
+        'Secure SQLite ancestor permits replacement by another principal',
+        { path: componentPath },
+      );
+    }
+  }
+
+  try {
+    const leaf = await lstat(filePath);
+    if (leaf.isSymbolicLink() || !leaf.isFile()) {
+      throw new DatabaseError(
+        'Secure SQLite database leaf must be a regular file',
+        { path: filePath },
+      );
+    }
+    if (leaf.uid !== currentUid) {
+      throw new DatabaseError(
+        'Secure SQLite database leaf is not owned by the current user',
+        { path: filePath, expectedUid: currentUid, actualUid: leaf.uid },
+      );
+    }
+    if ((leaf.mode & GROUP_OR_WORLD_WRITE) !== 0) {
+      throw new DatabaseError(
+        'Secure SQLite database leaf is group/world writable',
+        { path: filePath },
+      );
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+  }
+}
 
 function resolveSecureFilePath(url: string): string {
   if (
@@ -120,6 +278,14 @@ function allSqlite3(
 ): Promise<Record<string, unknown>[]> {
   const sql = typeof statement === 'string' ? statement : statement.sql;
   const args = typeof statement === 'string' ? [] : (statement.args ?? []);
+  if (args.some((value) => typeof value === 'bigint')) {
+    throw new DatabaseError(
+      'BigInt parameters are unsupported by the secure sqlite3 driver',
+      {
+        hint: 'Use a safely representable number or an explicitly typed decimal/text column. BigInt is rejected rather than silently binding NULL.',
+      },
+    );
+  }
 
   return new Promise((resolveResult, reject) => {
     database.all(sql, args, (error, rows) => {
@@ -148,15 +314,21 @@ function createClient(database: Sqlite3Database): SecureSqliteClient {
   let closePromise: Promise<void> | undefined;
   let executionTail = Promise.resolve();
   let totalChanges = 0;
+  let state: 'open' | 'closing' | 'closed' = 'open';
 
   const execute = (
     statement: string | SecureSqliteStatement,
   ): Promise<SecureSqliteResult> => {
+    if (state !== 'open') {
+      return Promise.reject(
+        new DatabaseError('Secure SQLite client is closing or closed', {}),
+      );
+    }
     const pending = executionTail.then(async () => {
       const rows = await allSqlite3(database, statement);
       const [metrics] = await allSqlite3(
         database,
-        'SELECT total_changes() AS totalChanges, changes() AS rowsAffected, last_insert_rowid() AS lastInsertRowid',
+        'SELECT total_changes() AS totalChanges, changes() AS rowsAffected, CAST(last_insert_rowid() AS TEXT) AS lastInsertRowid',
       );
       const nextTotalChanges = Number(metrics?.totalChanges ?? totalChanges);
       const changed = nextTotalChanges > totalChanges;
@@ -166,7 +338,7 @@ function createClient(database: Sqlite3Database): SecureSqliteClient {
         rows,
         rowsAffected: changed ? Number(metrics?.rowsAffected ?? 0) : 0,
         ...(changed
-          ? { lastInsertRowid: Number(metrics?.lastInsertRowid ?? 0) }
+          ? { lastInsertRowid: BigInt(String(metrics?.lastInsertRowid ?? '0')) }
           : {}),
       };
     });
@@ -201,10 +373,16 @@ function createClient(database: Sqlite3Database): SecureSqliteClient {
       };
     },
     close: async () => {
-      closePromise ??= closeSqlite3(database);
+      if (state === 'closed') return;
+      if (!closePromise) {
+        state = 'closing';
+        closePromise = executionTail.then(() => closeSqlite3(database));
+      }
       try {
         await closePromise;
+        state = 'closed';
       } catch (error) {
+        state = 'open';
         closePromise = undefined;
         throw error;
       }
@@ -213,20 +391,20 @@ function createClient(database: Sqlite3Database): SecureSqliteClient {
 }
 
 /**
- * Atomically opens a local SQLite file without following symbolic links.
+ * Opens a local SQLite file under an explicit trusted-parent custody contract.
  *
- * The sqlite3 driver passes `SQLITE_OPEN_NOFOLLOW` directly to
- * `sqlite3_open_v2()`. SQLite's VFS resolves the complete pathname under that
- * flag and rejects a symbolic link in either the leaf or any ancestor at the
- * instant the driver opens or creates the database. The returned SQLite handle
- * remains bound to that acquired file even if another process later renames
- * the pathname; callers that require a stable directory entry for the entire
- * connection lifetime must additionally protect the containing directory.
+ * Static path components and their ownership/mode are checked before driver
+ * acquisition. The sqlite3 driver then passes `SQLITE_OPEN_NOFOLLOW` directly
+ * to `sqlite3_open_v2()` for atomic no-follow acquisition of the leaf. This
+ * protects against static symlinks and mutation by principals that cannot
+ * write the custodied parent; it is not a boundary against hostile processes
+ * running as the same account.
  *
- * @internal Call through `getDatabase({ type: 'sqlite', secureFile: true })`.
+ * @internal Call through `getDatabase()` with typed `secureFile` custody.
  */
 export async function createSecureSqliteClient(
   url: string,
+  options: SecureSqliteCustodyOptions,
   runtime: SecureSqliteRuntime = defaultRuntime,
 ): Promise<SecureSqliteClient> {
   if (runtime.platform !== 'darwin' && runtime.platform !== 'linux') {
@@ -239,6 +417,7 @@ export async function createSecureSqliteClient(
   }
 
   const filePath = resolveSecureFilePath(url);
+  await validateTrustedParentCustody(filePath, options, runtime);
   let sqlite3: Sqlite3Module;
   try {
     sqlite3 = await runtime.loadDriver();
