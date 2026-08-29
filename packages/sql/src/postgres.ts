@@ -1810,8 +1810,19 @@ async function createDatabase(
             // Table exists, check for missing columns
             for (const column of columns) {
               const columnDef = column.trim();
+              // Table constraints are not column definitions. In particular,
+              // a quoted constraint name would otherwise let the unanchored
+              // column matcher start at that name and generate an invalid
+              // ADD COLUMN statement.
+              if (
+                /^(?:CONSTRAINT\s+(?:"(?:[^"]|"")*"|\w+)\s+)?(?:PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|CHECK|EXCLUDE)\b/i.test(
+                  columnDef,
+                )
+              ) {
+                continue;
+              }
               // Match column name with optional quotes: "id" or id
-              const columnMatch = columnDef.match(/"?(\w+)"?\s+(\w+[^,]*)/);
+              const columnMatch = columnDef.match(/^"?(\w+)"?\s+(\w+[^,]*)/);
 
               if (columnMatch) {
                 const columnName = columnMatch[1];
