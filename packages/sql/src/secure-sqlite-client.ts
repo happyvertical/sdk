@@ -403,12 +403,87 @@ export function toPublicRowCount(value: number | bigint): number {
   return Number(exact);
 }
 
+/**
+ * node:sqlite treats `$1` as a named parameter and therefore will not bind it
+ * from the positional argument list used by the existing LibSQL-compatible
+ * adapter. SQLite's equivalent `?1` form is positional. Translate only tokens
+ * in executable SQL, leaving quoted text, identifiers, and comments untouched.
+ */
+function normalizeNodeSqlitePlaceholders(sql: string): string {
+  let normalized = '';
+  let index = 0;
+  let quote: "'" | '"' | '`' | ']' | undefined;
+
+  while (index < sql.length) {
+    const char = sql[index];
+    const next = sql[index + 1];
+
+    if (quote) {
+      normalized += char;
+      if (char === quote) {
+        if (next === quote && quote !== ']') {
+          normalized += next;
+          index += 2;
+          continue;
+        }
+        quote = undefined;
+      }
+      index += 1;
+      continue;
+    }
+
+    if (char === "'" || char === '"' || char === '`' || char === '[') {
+      quote = char === '[' ? ']' : char;
+      normalized += char;
+      index += 1;
+      continue;
+    }
+
+    if (char === '-' && next === '-') {
+      const end = sql.indexOf('\n', index + 2);
+      if (end === -1) return normalized + sql.slice(index);
+      normalized += sql.slice(index, end + 1);
+      index = end + 1;
+      continue;
+    }
+
+    if (char === '/' && next === '*') {
+      const end = sql.indexOf('*/', index + 2);
+      if (end === -1) return normalized + sql.slice(index);
+      normalized += sql.slice(index, end + 2);
+      index = end + 2;
+      continue;
+    }
+
+    if (
+      char === '$' &&
+      /[0-9]/.test(next ?? '') &&
+      !/[A-Za-z0-9_$]/.test(sql[index - 1] ?? '')
+    ) {
+      let end = index + 2;
+      while (/[0-9]/.test(sql[end] ?? '')) end += 1;
+      normalized += `?${sql.slice(index + 1, end)}`;
+      index = end;
+      continue;
+    }
+
+    normalized += char;
+    index += 1;
+  }
+
+  return normalized;
+}
+
 function executeNodeSqlite(
   database: NodeSqliteDatabase,
   statement: string | SecureSqliteStatement,
 ): SecureSqliteResult {
-  const sql = typeof statement === 'string' ? statement : statement.sql;
-  const args = typeof statement === 'string' ? [] : (statement.args ?? []);
+  const sql = normalizeNodeSqlitePlaceholders(
+    typeof statement === 'string' ? statement : statement.sql,
+  );
+  const args = (
+    typeof statement === 'string' ? [] : (statement.args ?? [])
+  ).map((value) => (typeof value === 'boolean' ? Number(value) : value));
   const prepared = database.prepare(sql);
   prepared.setReadBigInts(true);
 

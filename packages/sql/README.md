@@ -148,9 +148,11 @@ authentication or encryption, or optional native capabilities. Omit
 
 Every secure prepared statement enables exact BigInt reads. Safe SQLite integer
 columns retain legacy JavaScript `number` results; integers outside the safe
-range are returned as `bigint`, and `bigint` parameters bind exactly. The public
-row-count contract remains `number`, so an exact `changes` metric above
-`Number.MAX_SAFE_INTEGER` fails explicitly instead of rounding.
+range are returned as `bigint`, and `bigint` parameters bind exactly. Boolean
+parameters are normalized to SQLite integers (`1`/`0`) at the driver boundary;
+objects and arrays continue through the adapter's JSON serialization unchanged.
+The public row-count contract remains `number`, so an exact `changes` metric
+above `Number.MAX_SAFE_INTEGER` fails explicitly instead of rounding.
 
 Every static component must be a real path component. For example, macOS exposes
 `/var` as a symlink, so use the resolved `/private/var/...` path when secure
@@ -275,10 +277,11 @@ Two consequences worth knowing:
   top-level `db.*` method that opens its own transaction makes it wait on the
   connection its own caller is holding.
 
-PostgreSQL pools its connections, so transactions there run concurrently and
-never queue. Nested scopes on one PostgreSQL transaction use savepoints; if
-sibling nested scopes are started concurrently, they serialize so PostgreSQL's
-stack-ordered savepoint lifecycle remains intact.
+Nested SQLite and PostgreSQL scopes use savepoints. If sibling nested scopes are
+started concurrently on one transaction, they serialize so the stack-ordered
+savepoint lifecycle remains intact. The enclosing commit or rollback drains all
+accepted child scopes before ending the transaction. PostgreSQL pools separate
+connections, so top-level transactions there run concurrently and never queue.
 
 ### Identifiers
 

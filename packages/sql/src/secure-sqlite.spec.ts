@@ -18,6 +18,7 @@ import {
   type SecureSqliteRuntime,
   toPublicRowCount,
 } from './secure-sqlite-client';
+import type { DatabaseInterface } from './shared/types';
 
 const tempRoots = new Set<string>();
 const trustedParent = { custody: 'trusted-parent' } as const;
@@ -50,6 +51,12 @@ function deferred() {
     resolve = resolvePromise;
   });
   return { promise, resolve };
+}
+
+function txOf(db: DatabaseInterface) {
+  const transaction = db.transaction;
+  if (!transaction) throw new Error('transaction unavailable');
+  return transaction.bind(db);
 }
 
 afterEach(async () => {
@@ -664,6 +671,184 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
+  it('normalizes boolean parameters across public SQLite operations', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query(`
+      CREATE TABLE boolean_values (
+        id TEXT PRIMARY KEY,
+        active INTEGER NOT NULL,
+        visible INTEGER NOT NULL,
+        payload TEXT NOT NULL
+      )
+    `);
+
+    await db.insert('boolean_values', {
+      id: 'one',
+      active: true,
+      visible: false,
+      payload: { nested: true },
+    });
+    await db.update('boolean_values', { active: true }, { visible: true });
+    await db.upsert('boolean_values', ['id'], {
+      id: 'one',
+      active: false,
+      visible: true,
+      payload: { nested: false },
+    });
+
+    expect(await db.get('boolean_values', { active: false })).toEqual({
+      id: 'one',
+      active: 0,
+      visible: 1,
+      payload: '{"nested":false}',
+    });
+    expect(
+      (await db.query('SELECT id FROM boolean_values WHERE visible = ?', true))
+        .rows,
+    ).toEqual([{ id: 'one' }]);
+    expect(
+      await db.single`SELECT id FROM boolean_values WHERE active = ${false}`,
+    ).toEqual({ id: 'one' });
+    expect(
+      (
+        await db.query(
+          "SELECT '$1' AS literal, id FROM boolean_values /* $2 */ WHERE id = $1",
+          'one',
+        )
+      ).rows,
+    ).toEqual([{ literal: '$1', id: 'one' }]);
+    await db.close?.();
+  });
+
+  it('serializes concurrent nested callback transactions and drains failures', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'app.db');
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: databasePath,
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE sibling_callbacks (id INTEGER PRIMARY KEY)');
+
+    await txOf(db)(async (outer) => {
+      await Promise.all([
+        txOf(outer)(async (first) => {
+          await first.query('INSERT INTO sibling_callbacks (id) VALUES (1)');
+        }),
+        txOf(outer)(async (second) => {
+          await second.query('INSERT INTO sibling_callbacks (id) VALUES (2)');
+        }),
+      ]);
+    });
+
+    const secondStarted = deferred();
+    const continueSecond = deferred();
+    let outerSettled = false;
+    const rollingBack = txOf(db)(async (outer) => {
+      const first = txOf(outer)(async () => {
+        throw new Error('first sibling failed');
+      });
+      const second = txOf(outer)(async (later) => {
+        secondStarted.resolve();
+        await continueSecond.promise;
+        await later.query('INSERT INTO sibling_callbacks (id) VALUES (3)');
+      });
+      await Promise.all([first, second]);
+    });
+    void rollingBack.then(
+      () => {
+        outerSettled = true;
+      },
+      () => {
+        outerSettled = true;
+      },
+    );
+    await secondStarted.promise;
+
+    let closeSettled = false;
+    const closing = db.close?.().finally(() => {
+      closeSettled = true;
+    });
+    if (!closing) throw new Error('close unavailable');
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(outerSettled).toBe(false);
+    expect(closeSettled).toBe(false);
+
+    continueSecond.resolve();
+    await expect(rollingBack).rejects.toThrow('first sibling failed');
+    await expect(closing).resolves.toBeUndefined();
+
+    const reopened = await getDatabase({
+      type: 'sqlite',
+      url: databasePath,
+      secureFile,
+      cache: false,
+    });
+    expect(
+      (await reopened.query('SELECT id FROM sibling_callbacks ORDER BY id'))
+        .rows,
+    ).toEqual([{ id: 1 }, { id: 2 }]);
+    await reopened.close?.();
+  });
+
+  it('serializes and drains concurrent nested manual transactions', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE sibling_manual (id INTEGER PRIMARY KEY)');
+    const handle = await db.beginTransaction?.();
+    if (!handle) throw new Error('beginTransaction unavailable');
+
+    await Promise.all([
+      txOf(handle)(async (first) => {
+        await first.query('INSERT INTO sibling_manual (id) VALUES (1)');
+      }),
+      txOf(handle)(async (second) => {
+        await second.query('INSERT INTO sibling_manual (id) VALUES (2)');
+      }),
+    ]);
+    await expect(
+      txOf(handle)(async (failed) => {
+        await failed.query('INSERT INTO sibling_manual (id) VALUES (3)');
+        throw new Error('manual child failed');
+      }),
+    ).rejects.toThrow('manual child failed');
+
+    const childStarted = deferred();
+    const continueChild = deferred();
+    const child = txOf(handle)(async (nested) => {
+      childStarted.resolve();
+      await continueChild.promise;
+      await nested.query('INSERT INTO sibling_manual (id) VALUES (4)');
+    });
+    await childStarted.promise;
+    let commitSettled = false;
+    const committing = handle.commit().finally(() => {
+      commitSettled = true;
+    });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(commitSettled).toBe(false);
+    continueChild.resolve();
+    await expect(child).resolves.toBeUndefined();
+    await expect(committing).resolves.toBeUndefined();
+
+    expect(
+      (await db.query('SELECT id FROM sibling_manual ORDER BY id')).rows,
+    ).toEqual([{ id: 1 }, { id: 2 }, { id: 4 }]);
+    await db.close?.();
+  });
+
   it('keeps null-aware upserts inside callback transaction reservations', async () => {
     const root = await makeTempRoot();
     const db = await getDatabase({
@@ -767,6 +952,74 @@ describe('secure SQLite file acquisition', () => {
     ).toEqual([{ id: 'committed', value: 'one' }]);
     await db.close?.();
   }, 2_000);
+
+  it('supports composite bigint and null conflict values in every transaction route', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query(`
+      CREATE TABLE bigint_nullable (
+        id TEXT PRIMARY KEY,
+        scope INTEGER NOT NULL,
+        tenant_id TEXT,
+        value TEXT,
+        UNIQUE(scope, tenant_id)
+      )
+    `);
+
+    const topLevel = 9007199254740993n;
+    await db.upsert('bigint_nullable', ['scope', 'tenant_id'], {
+      id: 'top-one',
+      scope: topLevel,
+      tenant_id: null,
+      value: 'one',
+    });
+    await db.upsert('bigint_nullable', ['scope', 'tenant_id'], {
+      id: 'top-two',
+      scope: topLevel,
+      tenant_id: null,
+      value: 'two',
+    });
+
+    await txOf(db)(async (tx) => {
+      await tx.upsert('bigint_nullable', ['scope', 'tenant_id'], {
+        id: 'callback',
+        scope: 9007199254740995n,
+        tenant_id: null,
+        value: 'callback',
+      });
+    });
+
+    const manual = await db.beginTransaction?.();
+    if (!manual) throw new Error('beginTransaction unavailable');
+    await manual.upsert('bigint_nullable', ['scope', 'tenant_id'], {
+      id: 'manual',
+      scope: 9007199254740997n,
+      tenant_id: null,
+      value: 'manual',
+    });
+    await manual.rollback();
+
+    expect(
+      (
+        await db.query(
+          'SELECT id, scope, value FROM bigint_nullable ORDER BY scope',
+        )
+      ).rows,
+    ).toEqual([
+      { id: 'top-two', scope: topLevel, value: 'two' },
+      {
+        id: 'callback',
+        scope: 9007199254740995n,
+        value: 'callback',
+      },
+    ]);
+    await db.close?.();
+  });
 
   it('reserves the connection for a manual transaction handle', async () => {
     const root = await makeTempRoot();
