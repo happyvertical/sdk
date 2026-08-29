@@ -27,7 +27,7 @@ pnpm --filter @happyvertical/sql clean
 ## Ecosystem Relationships
 - Provides: Database interface with support for SQLite, PostgreSQL, and DuckDB
 - Implements: none
-- Requires: @happyvertical/utils, @duckdb/node-api, @libsql/client, @russellthehippo/honker-node, @sqliteai/sqlite-vector, pg, sqlite-vss
+- Requires: @happyvertical/utils, @duckdb/node-api, @libsql/client, @russellthehippo/honker-node, @sqliteai/sqlite-vector, pg, sqlite-vss, sqlite3
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
 

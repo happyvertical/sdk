@@ -20,6 +20,7 @@ allowBuilds:
   onnxruntime-node: true
   protobufjs: true
   sharp: true
+  sqlite3: true
   tesseract.js: true
 
 # Centralized versions for external @happyvertical packages not in this monorepo.

@@ -21,6 +21,13 @@ const db = await getDatabase({ type: 'sqlite', url: ':memory:' });
 // SQLite (file)
 const fileDb = await getDatabase({ type: 'sqlite', url: 'file:./app.db' });
 
+// Local file with atomic no-follow acquisition (macOS and Linux)
+const secureFileDb = await getDatabase({
+  type: 'sqlite',
+  url: './data/app.db',
+  secureFile: true,
+});
+
 // LibSQL/Turso (remote)
 const tursoDb = await getDatabase({
   type: 'sqlite',
@@ -92,6 +99,29 @@ DuckDB already creates a fresh adapter for every call, so `cache` and
 behavior. Call `close()` on uncached and DuckDB adapters when finished.
 
 Configuration is also loaded from `HAVE_SQL_*` environment variables (e.g. `HAVE_SQL_TYPE`, `HAVE_SQL_URL`). User-provided options take precedence.
+
+### Secure local SQLite acquisition
+
+Use `secureFile: true` when a local application must not follow symbolic links
+while opening or creating its database. This selects the `sqlite3` driver and
+passes SQLite's `SQLITE_OPEN_NOFOLLOW` flag directly to `sqlite3_open_v2()`.
+SQLite resolves the complete pathname under that flag, so a symlink in either
+the database leaf or any ancestor is rejected before the database target is
+opened, created, read, or written. Pre-opening `lstat()` checks alone do not
+provide this guarantee because the pathname can change before the driver opens
+it.
+
+The secure path is supported on macOS and Linux. It fails closed on other
+platforms and when combined with remote LibSQL URLs, `:memory:`, LibSQL
+authentication or encryption, or the optional `node:sqlite` capability path.
+Those backends do not expose the same no-follow acquisition boundary. Omit
+`secureFile` to retain the existing LibSQL pathname behavior.
+
+Every component must be a real path component. For example, macOS exposes
+`/var` as a symlink, so use the resolved `/private/var/...` path when secure
+acquisition is intentional. The `sqlite3` native dependency is built or loaded
+through pnpm's allow-listed install script; applications packaging this mode
+must include its platform binary.
 
 ### Template Literal Queries
 
@@ -418,7 +448,7 @@ shipping it beyond development or test environments.
 
 | Adapter | `type` | Backend | Notes |
 |---------|--------|---------|-------|
-| SQLite | `'sqlite'` | LibSQL (`@libsql/client`) by default; native `node:sqlite` when capabilities are enabled | Supports `:memory:`, file, and remote Turso URLs by default. Native capabilities are local-only |
+| SQLite | `'sqlite'` | LibSQL (`@libsql/client`) by default; native `node:sqlite` for capabilities; `sqlite3` for `secureFile` | Supports `:memory:`, file, and remote Turso URLs by default. Native capabilities are local-only; secure no-follow files are macOS/Linux-only |
 | PostgreSQL | `'postgres'` | `pg` Pool | Connection pooling, pgvector support |
 | DuckDB | `'duckdb'` | `@duckdb/node-api` | JSON file auto-registration, write-back strategies |
 | JSON | `'json'` | DuckDB in-memory | Queries JSON files as tables, connection caching |

@@ -1,6 +1,7 @@
 import { DatabaseError } from '@happyvertical/utils';
 import type { Client } from '@libsql/client';
 import { DatabaseSchemaManager } from './schema-manager';
+import { createSecureSqliteClient } from './secure-sqlite-client';
 import {
   generateAddColumnStatement,
   generateCreateIndexStatement,
@@ -42,7 +43,21 @@ const NULL_AWARE_UPSERT_MAX_ATTEMPTS = 8;
 const NULL_AWARE_UPSERT_BASE_DELAY_MS = 25;
 const nullAwareUpsertLocks = new Map<string, Promise<void>>();
 
-type SqliteExecutor = Pick<Client, 'execute'>;
+interface SqliteTransactionClientLike {
+  readonly closed: boolean;
+  execute(statement: any): Promise<any>;
+  commit(): Promise<void>;
+  rollback(): Promise<void>;
+  close(): void;
+}
+
+interface SqliteClientLike {
+  execute(statement: any): Promise<any>;
+  transaction(mode?: any): Promise<SqliteTransactionClientLike>;
+  close(): void | Promise<void>;
+}
+
+type SqliteExecutor = Pick<SqliteClientLike, 'execute'>;
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -97,7 +112,9 @@ function generateDbId(): string {
  * @param options - SQLite connection options
  * @returns Promise resolving to a LibSQL client instance
  */
-async function createLibSQLClient(options: SqliteOptions): Promise<Client> {
+async function createLibSQLClient(
+  options: SqliteOptions,
+): Promise<SqliteClientLike> {
   const { url = ':memory:', authToken, encryptionKey } = options;
 
   // Normalize URLs: add file:// prefix for local paths
@@ -134,7 +151,7 @@ async function createLibSQLClient(options: SqliteOptions): Promise<Client> {
     // Use explicit external import to avoid bundling
     const libsqlClient = '@libsql/client';
     const { createClient } = await import(/* @vite-ignore */ libsqlClient);
-    return createClient({ url: libsqlUrl, authToken, encryptionKey });
+    return createClient({ url: libsqlUrl, authToken, encryptionKey }) as Client;
   } catch (error) {
     const errorMessage = redactDatabaseUrl(
       error instanceof Error ? error.message : String(error),
@@ -155,6 +172,19 @@ async function createLibSQLClient(options: SqliteOptions): Promise<Client> {
       originalError: errorMessage,
     });
   }
+}
+
+/**
+ * Options for the atomic, no-follow SQLite file acquisition boundary.
+ */
+export interface SecureSqliteFileOptions {
+  /**
+   * Driver that owns the secure acquisition. Only sqlite3 currently exposes
+   * SQLite's `SQLITE_OPEN_NOFOLLOW` contract.
+   *
+   * @default 'sqlite3'
+   */
+  driver?: 'sqlite3';
 }
 
 /**
@@ -197,6 +227,19 @@ export interface SqliteOptions extends DatabaseOptions {
    * capabilities are only supported for local SQLite databases.
    */
   capabilities?: SqliteCapabilitiesOptions;
+
+  /**
+   * Require atomic no-follow acquisition for a local file-backed database.
+   *
+   * This selects the sqlite3 driver and passes `SQLITE_OPEN_NOFOLLOW` to
+   * `sqlite3_open_v2()`, rejecting symbolic links in the database leaf or any
+   * ancestor. It is supported on macOS and Linux only. Memory databases,
+   * remote LibSQL URLs, encryption, and optional native capabilities fail
+   * closed when this option is enabled.
+   *
+   * Existing pathname behavior is unchanged when omitted or false.
+   */
+  secureFile?: boolean | SecureSqliteFileOptions;
 
   /**
    * How long a queued transaction waits for the connection, in milliseconds.
@@ -324,6 +367,39 @@ export async function getDatabase(
     options.dbid = generateDbId();
   }
 
+  if (options.secureFile) {
+    const secureOptions =
+      typeof options.secureFile === 'object' ? options.secureFile : {};
+    if (secureOptions.driver && secureOptions.driver !== 'sqlite3') {
+      throw new DatabaseError(
+        `Unsupported secure SQLite driver: ${String(secureOptions.driver)}`,
+        {
+          hint: "Use secureFile: true or secureFile: { driver: 'sqlite3' }.",
+        },
+      );
+    }
+    if (options.authToken || options.encryptionKey) {
+      throw new DatabaseError(
+        'Secure SQLite acquisition does not support LibSQL authentication or encryption options',
+        {
+          hint: 'Remove authToken/encryptionKey for a local secure file, or disable secureFile to use LibSQL features.',
+        },
+      );
+    }
+    if (hasNativeSqliteCapabilities(options)) {
+      throw new DatabaseError(
+        'Secure SQLite acquisition cannot be combined with native SQLite capabilities',
+        {
+          hint: 'The node:sqlite capability adapter does not expose SQLITE_OPEN_NOFOLLOW. Disable capabilities or secureFile.',
+        },
+      );
+    }
+
+    return getCachedSqliteDatabase('secure', options, () =>
+      createDatabase(options, url, () => createSecureSqliteClient(url)),
+    );
+  }
+
   if (hasNativeSqliteCapabilities(options)) {
     const sqliteNative = await import('./sqlite-native.js');
     return sqliteNative.getNativeSqliteDatabase(options);
@@ -337,9 +413,11 @@ export async function getDatabase(
 async function createDatabase(
   options: SqliteOptions,
   url: string,
+  clientFactory: () => Promise<SqliteClientLike> = () =>
+    createLibSQLClient(options),
 ): Promise<DatabaseInterface> {
   return (async () => {
-    const client = await createLibSQLClient(options);
+    const client = await clientFactory();
 
     // One lock per connection. Nothing else in this closure escapes to another
     // caller, and `getDatabase` hands cached callers this same closure, so
@@ -356,7 +434,7 @@ async function createDatabase(
         await createTablesFromSchemas(client, resolvedSchemas);
       } catch (error) {
         try {
-          client.close();
+          await client.close();
         } catch (cleanupError) {
           throw new AggregateError(
             [error, cleanupError],
@@ -512,7 +590,7 @@ async function createDatabase(
         attempt < NULL_AWARE_UPSERT_MAX_ATTEMPTS;
         attempt++
       ) {
-        let transaction: Awaited<ReturnType<Client['transaction']>> | undefined;
+        let transaction: SqliteTransactionClientLike | undefined;
 
         // This opens a transaction on the shared connection like any other, so
         // it takes the same lock — otherwise a null-aware upsert overlapping a
@@ -1698,7 +1776,7 @@ async function createDatabase(
       alterTable,
       close: async () => {
         if (closed) return;
-        client.close();
+        await client.close();
         closed = true;
       },
     };

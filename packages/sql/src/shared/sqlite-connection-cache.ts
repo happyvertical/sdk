@@ -1,7 +1,7 @@
 import { ConnectionCache } from './connection-cache';
 import type { DatabaseInterface, DatabaseOptions } from './types';
 
-export type SqliteAdapterPath = 'libsql' | 'native';
+export type SqliteAdapterPath = 'libsql' | 'native' | 'secure';
 
 const sqliteConnectionCache = new ConnectionCache<DatabaseInterface>();
 type SqliteCacheGroup = {
@@ -31,6 +31,10 @@ async function clearSqliteCacheGroup(dbid: string): Promise<void> {
         ),
         sqliteConnectionCache.evict(
           cacheKey(dbid, 'native'),
+          closeSqliteDatabase,
+        ),
+        sqliteConnectionCache.evict(
+          cacheKey(dbid, 'secure'),
           closeSqliteDatabase,
         ),
       ]);
