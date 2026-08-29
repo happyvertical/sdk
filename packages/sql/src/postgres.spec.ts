@@ -1441,6 +1441,54 @@ describe('postgres syncSchema with quoted identifiers (Issue #860)', () => {
     expect(columnNames).not.toContain(constraintName);
   });
 
+  it('adds a column named exclude', async () => {
+    if (!postgresAvailable) return;
+
+    await db.client.query(`
+      CREATE TABLE "${testTableName}" (
+        id TEXT PRIMARY KEY NOT NULL
+      )
+    `);
+
+    const schema = `CREATE TABLE IF NOT EXISTS "${testTableName}" (
+      id TEXT PRIMARY KEY NOT NULL,
+      exclude TEXT
+    );`;
+
+    await db.syncSchema(schema);
+
+    const columns = await db.many`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = ${testTableName}
+    `;
+    expect(columns.map((column) => column.column_name)).toContain('exclude');
+  });
+
+  it('adds quoted column names with non-word characters', async () => {
+    if (!postgresAvailable) return;
+
+    await db.client.query(`
+      CREATE TABLE "${testTableName}" (
+        id TEXT PRIMARY KEY NOT NULL
+      )
+    `);
+
+    const schema = `CREATE TABLE IF NOT EXISTS "${testTableName}" (
+      id TEXT PRIMARY KEY NOT NULL,
+      "display-name" TEXT
+    );`;
+
+    await db.syncSchema(schema);
+
+    const columns = await db.many`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = ${testTableName}
+    `;
+    expect(columns.map((column) => column.column_name)).toContain(
+      'display-name',
+    );
+  });
+
   it('should handle multiple CREATE TABLE statements with quoted identifiers', async () => {
     if (!postgresAvailable) return;
 

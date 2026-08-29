@@ -1815,17 +1815,22 @@ async function createDatabase(
               // column matcher start at that name and generate an invalid
               // ADD COLUMN statement.
               if (
-                /^(?:CONSTRAINT\s+(?:"(?:[^"]|"")*"|\w+)\s+)?(?:PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|CHECK|EXCLUDE)\b/i.test(
+                /^(?:CONSTRAINT\s+(?:"(?:[^"]|"")*"|\w+)\s+)?(?:(?:PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|CHECK)\b|EXCLUDE(?=\s+(?:USING\b|\()))/i.test(
                   columnDef,
                 )
               ) {
                 continue;
               }
               // Match column name with optional quotes: "id" or id
-              const columnMatch = columnDef.match(/^"?(\w+)"?\s+(\w+[^,]*)/);
+              const columnMatch = columnDef.match(
+                /^("(?:[^"]|"")*"|\w+)\s+\w+[^,]*/,
+              );
 
               if (columnMatch) {
-                const columnName = columnMatch[1];
+                const identifier = columnMatch[1];
+                const columnName = identifier.startsWith('"')
+                  ? identifier.slice(1, -1).replace(/""/g, '"')
+                  : identifier;
 
                 // Skip constraint definitions
                 if (
