@@ -10,7 +10,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { getDatabase } from './index';
 import {
@@ -43,6 +43,14 @@ async function loadSqlite3Driver() {
 
 function createTrustedClient(url: string, runtime?: SecureSqliteRuntime) {
   return createSecureSqliteClient(url, trustedParent, runtime);
+}
+
+function deferred() {
+  let resolve: () => void = () => {};
+  const promise = new Promise<void>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
 }
 
 afterEach(async () => {
@@ -233,7 +241,8 @@ describe('secure SQLite file acquisition', () => {
     await expect(
       createSecureSqliteClient(join(root, 'app.db'), trustedParent, {
         platform: process.platform,
-        currentUid: () => (process.getuid?.() ?? 0) + 1,
+        pathOwnerUid: (path, actualUid) =>
+          path === root ? actualUid + 1 : actualUid,
         loadDriver: async () => {
           driverLoaded = true;
           return loadSqlite3Driver();
@@ -241,6 +250,52 @@ describe('secure SQLite file acquisition', () => {
       }),
     ).rejects.toThrow('not owned by the current user');
     expect(driverLoaded).toBe(false);
+  });
+
+  it('allows only current-user or root-owned ancestors above custody', async () => {
+    const root = await makeTempRoot();
+    const ancestor = dirname(root);
+    const currentUid = process.getuid?.() ?? 501;
+    let driverLoaded = false;
+
+    await expect(
+      createSecureSqliteClient(join(root, 'foreign.db'), trustedParent, {
+        platform: 'linux',
+        currentUid: () => currentUid,
+        pathOwnerUid: (path, actualUid) =>
+          path === ancestor ? currentUid + 1 : actualUid,
+        loadDriver: async () => {
+          driverLoaded = true;
+          return loadSqlite3Driver();
+        },
+      }),
+    ).rejects.toThrow('ancestor is owned by an untrusted user');
+    expect(driverLoaded).toBe(false);
+
+    const rootOwned = await createSecureSqliteClient(
+      join(root, 'root-owned.db'),
+      trustedParent,
+      {
+        platform: 'linux',
+        currentUid: () => currentUid,
+        pathOwnerUid: (path, actualUid) => (path === ancestor ? 0 : actualUid),
+        loadDriver: loadSqlite3Driver,
+      },
+    );
+    await rootOwned.close();
+
+    const userOwned = await createSecureSqliteClient(
+      join(root, 'user-owned.db'),
+      trustedParent,
+      {
+        platform: 'linux',
+        currentUid: () => currentUid,
+        pathOwnerUid: (path, actualUid) =>
+          path === ancestor ? currentUid : actualUid,
+        loadDriver: loadSqlite3Driver,
+      },
+    );
+    await userOwned.close();
   });
 
   it('rejects group/world-writable custody before loading the driver', async () => {
@@ -487,6 +542,162 @@ describe('secure SQLite file acquisition', () => {
       ),
     ).toMatchObject({ rows: [{ name: 'close_race' }] });
     await reopened.close();
+  });
+
+  it('keeps an outsider write outside a paused transaction rollback', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'app.db');
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: databasePath,
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE reservation (id INTEGER PRIMARY KEY)');
+    const transactionStarted = deferred();
+    const resumeTransaction = deferred();
+
+    const rollingBack = db.transaction?.(async (tx) => {
+      await tx.query('INSERT INTO reservation (id) VALUES (1)');
+      transactionStarted.resolve();
+      await resumeTransaction.promise;
+      throw new Error('rollback owner');
+    });
+    if (!rollingBack) throw new Error('transaction unavailable');
+    await transactionStarted.promise;
+
+    let outsiderSettled = false;
+    const outsider = db
+      .query('INSERT INTO reservation (id) VALUES (2)')
+      .finally(() => {
+        outsiderSettled = true;
+      });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(outsiderSettled).toBe(false);
+
+    resumeTransaction.resolve();
+    await expect(rollingBack).rejects.toThrow('rollback owner');
+    await expect(outsider).resolves.toMatchObject({ rowCount: 1 });
+    expect((await db.query('SELECT id FROM reservation')).rows).toEqual([
+      { id: 2 },
+    ]);
+    await db.close?.();
+  });
+
+  it('waits to close until a paused transaction commits', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'app.db');
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: databasePath,
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE close_reservation (id INTEGER PRIMARY KEY)');
+    const transactionStarted = deferred();
+    const resumeTransaction = deferred();
+
+    const committing = db.transaction?.(async (tx) => {
+      await tx.query('INSERT INTO close_reservation (id) VALUES (1)');
+      transactionStarted.resolve();
+      await resumeTransaction.promise;
+      await tx.query('INSERT INTO close_reservation (id) VALUES (2)');
+    });
+    if (!committing) throw new Error('transaction unavailable');
+    await transactionStarted.promise;
+
+    let closeSettled = false;
+    const closing = db.close?.().finally(() => {
+      closeSettled = true;
+    });
+    if (!closing) throw new Error('close unavailable');
+    await expect(
+      db.query('INSERT INTO close_reservation (id) VALUES (3)'),
+    ).rejects.toThrow('Failed to execute raw query');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(closeSettled).toBe(false);
+
+    resumeTransaction.resolve();
+    await expect(committing).resolves.toBeUndefined();
+    await expect(closing).resolves.toBeUndefined();
+
+    const reopened = await getDatabase({
+      type: 'sqlite',
+      url: databasePath,
+      secureFile,
+      cache: false,
+    });
+    expect(
+      (await reopened.query('SELECT id FROM close_reservation ORDER BY id'))
+        .rows,
+    ).toEqual([{ id: 1 }, { id: 2 }]);
+    await reopened.close?.();
+  });
+
+  it('preserves commit, rollback, and nested savepoint behavior', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE nested_reservation (id INTEGER PRIMARY KEY)');
+
+    await db.transaction?.(async (outer) => {
+      await outer.query('INSERT INTO nested_reservation (id) VALUES (1)');
+      await outer.transaction?.(async (inner) => {
+        await inner.query('INSERT INTO nested_reservation (id) VALUES (2)');
+      });
+      await expect(
+        outer.transaction?.(async (inner) => {
+          await inner.query('INSERT INTO nested_reservation (id) VALUES (3)');
+          throw new Error('nested rollback');
+        }),
+      ).rejects.toThrow('nested rollback');
+      await outer.query('INSERT INTO nested_reservation (id) VALUES (4)');
+    });
+
+    await expect(
+      db.transaction?.(async (tx) => {
+        await tx.query('INSERT INTO nested_reservation (id) VALUES (5)');
+        throw new Error('outer rollback');
+      }),
+    ).rejects.toThrow('outer rollback');
+    expect(
+      (await db.query('SELECT id FROM nested_reservation ORDER BY id')).rows,
+    ).toEqual([{ id: 1 }, { id: 2 }, { id: 4 }]);
+    await db.close?.();
+  });
+
+  it('reserves the connection for a manual transaction handle', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE manual_reservation (id INTEGER PRIMARY KEY)');
+    const handle = await db.beginTransaction?.();
+    if (!handle) throw new Error('beginTransaction unavailable');
+    await handle.query('INSERT INTO manual_reservation (id) VALUES (1)');
+
+    let outsiderSettled = false;
+    const outsider = db
+      .query('INSERT INTO manual_reservation (id) VALUES (2)')
+      .finally(() => {
+        outsiderSettled = true;
+      });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(outsiderSettled).toBe(false);
+
+    await handle.rollback();
+    await expect(outsider).resolves.toMatchObject({ rowCount: 1 });
+    expect((await db.query('SELECT id FROM manual_reservation')).rows).toEqual([
+      { id: 2 },
+    ]);
+    await db.close?.();
   });
 
   it('rejects BigInt parameters instead of silently binding NULL', async () => {

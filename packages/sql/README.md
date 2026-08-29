@@ -126,9 +126,10 @@ leaf must also have no access control list; ACL inspection errors fail closed.
 The adapter invokes `/bin/ls -lde -- <path>` directly with an argument vector,
 never through a shell, and rejects the stable `+` ACL permission marker.
 Ancestors above the custody root may not allow replacement by another principal
-(a sticky shared parent such as `/tmp` is accepted). The application must create
-and retain custody of this directory; mode `0700` with no ACL is the conventional
-choice.
+and must be owned either by the current uid or privileged uid `0` (the explicit
+system-root exception). A sticky root-owned shared parent such as `/tmp` is
+accepted. The application must create and retain custody of this directory;
+mode `0700` with no ACL is the conventional choice.
 
 After custody validation, the `sqlite3` driver passes SQLite's
 `SQLITE_OPEN_NOFOLLOW` flag directly to `sqlite3_open_v2()` for atomic leaf
@@ -158,8 +159,28 @@ representable number or an explicitly typed decimal/text value instead.
 Every static component must be a real path component. For example, macOS exposes
 `/var` as a symlink, so use the resolved `/private/var/...` path when secure
 acquisition is intentional. The `sqlite3` native dependency is built or loaded
-through pnpm's allow-listed install script; applications packaging this mode
-must include its platform binary.
+only when secure mode is requested; it is an optional peer so ordinary LibSQL
+consumers do not install a native binding. Install the exact peer explicitly:
+
+```bash
+npm install sqlite3@6.0.1
+# or
+pnpm add sqlite3@6.0.1
+```
+
+pnpm consumers must also approve its native install script in their own
+workspace (the SDK repository's approval does not propagate to consumers):
+
+```yaml
+# pnpm-workspace.yaml
+allowBuilds:
+  sqlite3: true
+```
+
+Then run `pnpm install` (or `pnpm rebuild sqlite3`) for each target platform and
+include the resulting platform binary in packaged applications. If the peer is
+absent or its native build was not approved, secure mode fails closed with an
+actionable driver-loading error; default LibSQL use remains unaffected.
 
 ### Template Literal Queries
 

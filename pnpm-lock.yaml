@@ -971,9 +971,6 @@ importers:
       sqlite-vss:
         specifier: ^0.1.2
         version: 0.1.2
-      sqlite3:
-        specifier: 6.0.1
-        version: 6.0.1
     devDependencies:
       '@types/node':
         specifier: 24.12.2
@@ -981,6 +978,9 @@ importers:
       '@types/pg':
         specifier: ^8.20.0
         version: 8.20.0
+      sqlite3:
+        specifier: 6.0.1
+        version: 6.0.1
       typescript:
         specifier: 5.9.3
         version: 5.9.3

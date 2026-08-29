@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { DatabaseError } from '@happyvertical/utils';
 import type { Client } from '@libsql/client';
 import { DatabaseSchemaManager } from './schema-manager';
@@ -52,6 +53,7 @@ interface SqliteTransactionClientLike {
 }
 
 interface SqliteClientLike {
+  readonly transactionReservation?: 'exclusive';
   execute(statement: any): Promise<any>;
   transaction(mode?: any): Promise<SqliteTransactionClientLike>;
   close(): void | Promise<void>;
@@ -189,7 +191,8 @@ export interface SecureSqliteFileOptions {
   /**
    * Assert that the application controls the database parent directory.
    * The adapter verifies current-user ownership, non-writable group/other
-   * permissions, static symlink absence, and no macOS ACL before acquisition.
+   * permissions, current-user/root ancestor ownership, static symlink absence,
+   * and no macOS ACL before acquisition.
    */
   custody: 'trusted-parent';
 
@@ -460,6 +463,9 @@ async function createDatabase(
       'sqlite',
       options.transactionQueueTimeout,
     );
+    const executorContext = new AsyncLocalStorage<SqliteExecutor>();
+    const currentExecutor = (): SqliteExecutor =>
+      executorContext.getStore() ?? client;
 
     // Initialize tables from provided schemas (resolves lazy function if needed)
     const resolvedSchemas = resolveSchemas(options.schemas);
@@ -565,7 +571,7 @@ async function createDatabase(
       const conflict = conflictColumns.join(', ');
       const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
 
-      const result = await client.execute({ sql, args: values });
+      const result = await currentExecutor().execute({ sql, args: values });
       return { operation: 'upsert', affected: result.rowsAffected };
     };
 
@@ -777,7 +783,10 @@ async function createDatabase(
         values = Object.values(serializedData);
       }
       try {
-        const result = await client.execute({ sql: sql, args: values });
+        const result = await currentExecutor().execute({
+          sql: sql,
+          args: values,
+        });
         return { operation: 'insert', affected: result.rowsAffected };
       } catch (e) {
         throw new DatabaseError('Failed to insert records into table', {
@@ -812,7 +821,10 @@ async function createDatabase(
 
       const sql = `SELECT * FROM ${table} ${whereClause}`;
       try {
-        const result = await client.execute({ sql: sql, args: values });
+        const result = await currentExecutor().execute({
+          sql: sql,
+          args: values,
+        });
         return result.rows[0] || null;
       } catch (e) {
         throw new DatabaseError('Failed to retrieve record from table', {
@@ -840,7 +852,7 @@ async function createDatabase(
       const { sql: whereClause, values } = buildWhere(where, 1, 'sqlite');
       const sql = `SELECT * FROM ${table} ${whereClause}`;
       try {
-        const result = await client.execute({ sql, args: values });
+        const result = await currentExecutor().execute({ sql, args: values });
         return result.rows;
       } catch (e) {
         throw new DatabaseError('Failed to list records from table', {
@@ -887,7 +899,7 @@ async function createDatabase(
 
       const sql = `UPDATE ${table} SET ${setClause} ${whereClause}`;
       try {
-        const result = await client.execute({
+        const result = await currentExecutor().execute({
           sql,
           args: [...values, ...whereValues],
         });
@@ -1043,7 +1055,7 @@ async function createDatabase(
       const { sql: whereClause, values } = buildWhere(where, 1, 'sqlite');
 
       try {
-        await client.execute({
+        await currentExecutor().execute({
           sql: `DELETE FROM ${table} ${whereClause}`,
           args: values,
         });
@@ -1079,7 +1091,7 @@ async function createDatabase(
           // `pluck` tagged template, which would bind the table name as a
           // parameter and emit `SELECT COUNT(*) FROM ?`. Interpolating the
           // identifier is safe because validateTableName ran above.
-          const result = await client.execute({
+          const result = await currentExecutor().execute({
             sql: `SELECT COUNT(*) as count FROM ${table}`,
             args: [],
           });
@@ -1089,7 +1101,7 @@ async function createDatabase(
         // Count with conditions
         const { sql: whereClause, values } = buildWhere(where, 1, 'sqlite');
 
-        const result = await client.execute({
+        const result = await currentExecutor().execute({
           sql: `SELECT COUNT(*) as count FROM ${table} ${whereClause}`,
           args: values,
         });
@@ -1210,7 +1222,7 @@ async function createDatabase(
             '[sqlite.syncSchema] Executing:',
             `${command.substring(0, 50)}...`,
           );
-          await client.execute(command);
+          await currentExecutor().execute(command);
           console.log('[sqlite.syncSchema] Successfully executed command');
         } catch (error) {
           console.error(
@@ -1239,22 +1251,43 @@ async function createDatabase(
       // transaction — half of its writes durable, half lost, and its promise
       // rejected, so the caller was told nothing had happened.
       connectionLock.run(async () => {
-        try {
-          await client.execute({ sql: 'BEGIN TRANSACTION', args: [] });
+        if (client.transactionReservation !== 'exclusive') {
+          try {
+            await client.execute({ sql: 'BEGIN TRANSACTION', args: [] });
+            const result = await callback(createTransactionScope(client));
+            await client.execute({ sql: 'COMMIT', args: [] });
+            return result;
+          } catch (error) {
+            try {
+              await client.execute({ sql: 'ROLLBACK', args: [] });
+            } catch {
+              // Nothing left to roll back.
+            }
+            throw error;
+          }
+        }
 
-          const result = await callback(createTransactionScope());
-          await client.execute({ sql: 'COMMIT', args: [] });
+        const transactionClient = await client.transaction('write');
+        try {
+          const result = await callback(
+            createTransactionScope(transactionClient),
+          );
+          await transactionClient.commit();
           return result;
         } catch (error) {
           // A failing ROLLBACK must not replace the caller's error — SQLite
           // reports "cannot rollback - no transaction is active" whenever the
           // transaction is already gone, which says nothing about what failed.
-          try {
-            await client.execute({ sql: 'ROLLBACK', args: [] });
-          } catch {
-            // Nothing left to roll back.
+          if (!transactionClient.closed) {
+            try {
+              await transactionClient.rollback();
+            } catch {
+              // Nothing left to roll back.
+            }
           }
           throw error;
+        } finally {
+          transactionClient.close();
         }
       });
 
@@ -1269,40 +1302,70 @@ async function createDatabase(
      * throws, and the nested call's own ROLLBACK then discarded the *enclosing*
      * transaction's work while later writes silently committed in autocommit.
      */
-    const createTransactionScope = (): DatabaseInterface => {
-      // SQLite doesn't have separate transaction clients, so we reuse the same client
+    const createTransactionScope = (
+      transactionClient: SqliteExecutor,
+    ): DatabaseInterface => {
+      const bind = <T extends (...args: any[]) => any>(fn: T): T =>
+        ((...args: Parameters<T>) =>
+          executorContext.run(transactionClient, () => fn(...args))) as T;
+      const scopedInsert = bind(insert);
+      const scopedGet = bind(get);
+      const scopedList = bind(list);
+      const scopedUpdate = bind(update);
+      const scopedUpsert = bind(upsertInCurrentTransaction);
+      const scopedGetOrInsert = bind(getOrInsert);
+      const scopedDelete = bind(deleteRecords);
+      const scopedCount = bind(count);
+      const scopedMany = bind(many);
+      const scopedSingle = bind(single);
+      const scopedPluck = bind(pluck);
+      const scopedExecute = bind(execute);
+      const scopedQuery = bind(query);
+      const scopedTableExists = bind(tableExists);
+      const scopedSyncSchema = bind(syncSchema);
+      const scopedTable = (tableName: string): TableInterface => ({
+        insert: (data) => scopedInsert(tableName, data),
+        get: (where) => scopedGet(tableName, where),
+        list: (where) => scopedList(tableName, where),
+      });
+
       const txDb: DatabaseInterface = {
         url,
-        client,
-        insert,
-        get,
-        list,
-        update,
-        upsert: upsertInCurrentTransaction,
-        getOrInsert,
-        delete: deleteRecords,
-        count,
-        table,
-        many,
-        single,
-        pluck,
-        execute,
-        query,
-        oo: many,
-        oO: single,
-        ox: pluck,
-        xx: execute,
-        tableExists,
-        syncSchema,
+        client: transactionClient,
+        insert: scopedInsert,
+        get: scopedGet,
+        list: scopedList,
+        update: scopedUpdate,
+        upsert: scopedUpsert,
+        getOrInsert: scopedGetOrInsert,
+        delete: scopedDelete,
+        count: scopedCount,
+        table: scopedTable,
+        many: scopedMany,
+        single: scopedSingle,
+        pluck: scopedPluck,
+        execute: scopedExecute,
+        query: scopedQuery,
+        oo: scopedMany,
+        oO: scopedSingle,
+        ox: scopedPluck,
+        xx: scopedExecute,
+        tableExists: scopedTableExists,
+        syncSchema: scopedSyncSchema,
         transaction: async <T>(
           callback: (tx: DatabaseInterface) => Promise<T>,
         ): Promise<T> => {
           savepointSequence += 1;
           const name = `hv_sp_${savepointSequence}`;
-          await client.execute({ sql: `SAVEPOINT ${name}`, args: [] });
+          await transactionClient.execute({
+            sql: `SAVEPOINT ${name}`,
+            args: [],
+          });
           try {
-            const result = await callback(createTransactionScope());
-            await client.execute({
+            const result = await callback(
+              createTransactionScope(transactionClient),
+            );
+            await transactionClient.execute({
               sql: `RELEASE SAVEPOINT ${name}`,
               args: [],
             });
@@ -1311,11 +1374,11 @@ async function createDatabase(
             try {
               // ROLLBACK TO leaves the savepoint in place, so release it as
               // well or it accumulates for the life of the transaction.
-              await client.execute({
+              await transactionClient.execute({
                 sql: `ROLLBACK TO SAVEPOINT ${name}`,
                 args: [],
               });
-              await client.execute({
+              await transactionClient.execute({
                 sql: `RELEASE SAVEPOINT ${name}`,
                 args: [],
               });
@@ -1345,8 +1408,13 @@ async function createDatabase(
       // is never committed or rolled back therefore blocks every later
       // transaction until the queue timeout reports it.
       const releaseConnection = await connectionLock.acquire();
+      let transactionClient: SqliteTransactionClientLike | undefined;
       try {
-        await client.execute({ sql: 'BEGIN TRANSACTION', args: [] });
+        if (client.transactionReservation === 'exclusive') {
+          transactionClient = await client.transaction('write');
+        } else {
+          await client.execute({ sql: 'BEGIN TRANSACTION', args: [] });
+        }
       } catch (error) {
         // No transaction was opened, so there is no handle to end it and
         // nothing left to release the connection.
@@ -1363,7 +1431,15 @@ async function createDatabase(
           throw new DatabaseError('Transaction already ended', {});
         }
         try {
-          await client.execute({ sql: command, args: [] });
+          if (transactionClient) {
+            if (command === 'COMMIT') {
+              await transactionClient.commit();
+            } else {
+              await transactionClient.rollback();
+            }
+          } else {
+            await client.execute({ sql: command, args: [] });
+          }
         } catch (error) {
           // COMMIT can fail and leave the transaction *open* — SQLite documents
           // exactly that for SQLITE_BUSY. Releasing the connection then would hand
@@ -1371,14 +1447,23 @@ async function createDatabase(
           // BEGIN would throw, and its catch would ROLLBACK, discarding this
           // transaction's work. So normalize before releasing, the way the pooled
           // adapter's discardTxClient does.
-          try {
-            await client.execute({ sql: 'ROLLBACK', args: [] });
-          } catch {
-            // Already gone; nothing left to normalize.
+          if (transactionClient && !transactionClient.closed) {
+            try {
+              await transactionClient.rollback();
+            } catch {
+              // Already gone; nothing left to normalize.
+            }
+          } else if (!transactionClient) {
+            try {
+              await client.execute({ sql: 'ROLLBACK', args: [] });
+            } catch {
+              // Already gone; nothing left to normalize.
+            }
           }
           throw error;
         } finally {
           active = false;
+          transactionClient?.close();
           releaseConnection();
         }
       };
@@ -1394,7 +1479,7 @@ async function createDatabase(
       // is, so it gets the same savepoint-based nesting rather than the
       // top-level `transaction`.
       const txHandle: TransactionHandle = {
-        ...createTransactionScope(),
+        ...createTransactionScope(transactionClient ?? client),
         commit,
         rollback,
         isActive,
@@ -1446,7 +1531,7 @@ async function createDatabase(
     ): Promise<any> => {
       const { sql, values } = parseTemplate(strings, ...vars);
       try {
-        const result = await client.execute({ sql, args: values });
+        const result = await currentExecutor().execute({ sql, args: values });
         return result.rows[0]?.[Object.keys(result.rows[0])[0]] ?? null;
       } catch (e) {
         throw new DatabaseError('Failed to execute pluck query', {
@@ -1471,7 +1556,7 @@ async function createDatabase(
     ): Promise<Record<string, any> | null> => {
       const { sql, values } = parseTemplate(strings, ...vars);
       try {
-        const result = await client.execute({ sql, args: values });
+        const result = await currentExecutor().execute({ sql, args: values });
         return result.rows[0] || null;
       } catch (e) {
         throw new DatabaseError('Failed to execute single query', {
@@ -1496,7 +1581,7 @@ async function createDatabase(
     ): Promise<Record<string, any>[]> => {
       const { sql, values } = parseTemplate(strings, ...vars);
       try {
-        const result = await client.execute({ sql, args: values });
+        const result = await currentExecutor().execute({ sql, args: values });
         return result.rows;
       } catch (e) {
         throw new DatabaseError('Failed to execute many query', {
@@ -1521,7 +1606,7 @@ async function createDatabase(
     ): Promise<void> => {
       const { sql, values } = parseTemplate(strings, ...vars);
       try {
-        await client.execute({ sql, args: values });
+        await currentExecutor().execute({ sql, args: values });
       } catch (e) {
         throw new DatabaseError('Failed to execute query', {
           sql,
@@ -1543,7 +1628,7 @@ async function createDatabase(
       const sql = str;
       const args = Array.isArray(values[0]) ? values[0] : values;
       try {
-        const result = await client.execute({ sql, args });
+        const result = await currentExecutor().execute({ sql, args });
         return {
           command: sql.split(' ')[0].toUpperCase(),
           rowCount: result.rowsAffected ?? result.rows.length,
@@ -1737,7 +1822,7 @@ async function createDatabase(
 
         try {
           const sql = generateAddColumnStatement(table, column, 'sqlite');
-          await client.execute({ sql, args: [] });
+          await currentExecutor().execute({ sql, args: [] });
         } catch (e) {
           throw new DatabaseError('Failed to add column to table', {
             table,
@@ -1768,7 +1853,7 @@ async function createDatabase(
 
         try {
           const sql = generateCreateIndexStatement(table, index);
-          await client.execute({ sql, args: [] });
+          await currentExecutor().execute({ sql, args: [] });
         } catch (e) {
           throw new DatabaseError('Failed to create index on table', {
             table,

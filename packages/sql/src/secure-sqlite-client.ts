@@ -29,6 +29,7 @@ export interface SecureSqliteTransactionClient {
 }
 
 export interface SecureSqliteClient {
+  readonly transactionReservation: 'exclusive';
   execute(
     statement: string | SecureSqliteStatement,
   ): Promise<SecureSqliteResult>;
@@ -71,6 +72,7 @@ export interface SecureSqliteRuntime {
   beforeDriverOpen?: (filePath: string) => void | Promise<void>;
   afterDriverOpen?: (filePath: string) => void | Promise<void>;
   currentUid?: () => number;
+  pathOwnerUid?: (filePath: string, actualUid: number) => number;
   inspectDarwinAcl?: (filePath: string) => Promise<boolean>;
   loadDriver: () => Promise<Sqlite3Module>;
 }
@@ -252,15 +254,17 @@ async function validateTrustedParentCustody(
     }
     await validateDarwinAcl(componentPath, runtime);
 
+    const componentUid =
+      runtime.pathOwnerUid?.(componentPath, stats.uid) ?? stats.uid;
     const isCustodied = custodiedParents.has(componentPath);
     if (isCustodied) {
-      if (stats.uid !== currentUid) {
+      if (componentUid !== currentUid) {
         throw new DatabaseError(
           'Secure SQLite custody directory is not owned by the current user',
           {
             path: componentPath,
             expectedUid: currentUid,
-            actualUid: stats.uid,
+            actualUid: componentUid,
           },
         );
       }
@@ -270,14 +274,26 @@ async function validateTrustedParentCustody(
           { path: componentPath },
         );
       }
-    } else if (
-      (stats.mode & GROUP_OR_WORLD_WRITE) !== 0 &&
-      (stats.mode & STICKY_BIT) === 0
-    ) {
-      throw new DatabaseError(
-        'Secure SQLite ancestor permits replacement by another principal',
-        { path: componentPath },
-      );
+    } else {
+      if (componentUid !== currentUid && componentUid !== 0) {
+        throw new DatabaseError(
+          'Secure SQLite ancestor is owned by an untrusted user',
+          {
+            path: componentPath,
+            expectedUid: currentUid,
+            actualUid: componentUid,
+          },
+        );
+      }
+      if (
+        (stats.mode & GROUP_OR_WORLD_WRITE) !== 0 &&
+        (stats.mode & STICKY_BIT) === 0
+      ) {
+        throw new DatabaseError(
+          'Secure SQLite ancestor permits replacement by another principal',
+          { path: componentPath },
+        );
+      }
     }
   }
 
@@ -289,10 +305,11 @@ async function validateTrustedParentCustody(
         { path: filePath },
       );
     }
-    if (leaf.uid !== currentUid) {
+    const leafUid = runtime.pathOwnerUid?.(filePath, leaf.uid) ?? leaf.uid;
+    if (leafUid !== currentUid) {
       throw new DatabaseError(
         'Secure SQLite database leaf is not owned by the current user',
-        { path: filePath, expectedUid: currentUid, actualUid: leaf.uid },
+        { path: filePath, expectedUid: currentUid, actualUid: leafUid },
       );
     }
     if ((leaf.mode & GROUP_OR_WORLD_WRITE) !== 0) {
@@ -385,37 +402,64 @@ function closeSqlite3(database: Sqlite3Database): Promise<void> {
 }
 
 function createClient(database: Sqlite3Database): SecureSqliteClient {
+  interface ReservationOwner {
+    active: boolean;
+    tail: Promise<void>;
+  }
+
   let closePromise: Promise<void> | undefined;
   let executionTail = Promise.resolve();
   let totalChanges = 0;
   let state: 'open' | 'closing' | 'closed' = 'open';
 
-  const execute = (
+  const executeStatement = async (
     statement: string | SecureSqliteStatement,
   ): Promise<SecureSqliteResult> => {
+    const rows = await allSqlite3(database, statement);
+    const [metrics] = await allSqlite3(
+      database,
+      'SELECT total_changes() AS totalChanges, changes() AS rowsAffected, CAST(last_insert_rowid() AS TEXT) AS lastInsertRowid',
+    );
+    const nextTotalChanges = Number(metrics?.totalChanges ?? totalChanges);
+    const changed = nextTotalChanges > totalChanges;
+    totalChanges = nextTotalChanges;
+
+    return {
+      rows,
+      rowsAffected: changed ? Number(metrics?.rowsAffected ?? 0) : 0,
+      ...(changed
+        ? { lastInsertRowid: BigInt(String(metrics?.lastInsertRowid ?? '0')) }
+        : {}),
+    };
+  };
+
+  const enqueue = (
+    statement: string | SecureSqliteStatement,
+    owner?: ReservationOwner,
+  ): Promise<SecureSqliteResult> => {
+    if (owner) {
+      if (!owner.active || state === 'closed') {
+        return Promise.reject(
+          new DatabaseError(
+            'Secure SQLite transaction reservation is closed',
+            {},
+          ),
+        );
+      }
+      const pending = owner.tail.then(() => executeStatement(statement));
+      owner.tail = pending.then(
+        () => undefined,
+        () => undefined,
+      );
+      return pending;
+    }
+
     if (state !== 'open') {
       return Promise.reject(
         new DatabaseError('Secure SQLite client is closing or closed', {}),
       );
     }
-    const pending = executionTail.then(async () => {
-      const rows = await allSqlite3(database, statement);
-      const [metrics] = await allSqlite3(
-        database,
-        'SELECT total_changes() AS totalChanges, changes() AS rowsAffected, CAST(last_insert_rowid() AS TEXT) AS lastInsertRowid',
-      );
-      const nextTotalChanges = Number(metrics?.totalChanges ?? totalChanges);
-      const changed = nextTotalChanges > totalChanges;
-      totalChanges = nextTotalChanges;
-
-      return {
-        rows,
-        rowsAffected: changed ? Number(metrics?.rowsAffected ?? 0) : 0,
-        ...(changed
-          ? { lastInsertRowid: BigInt(String(metrics?.lastInsertRowid ?? '0')) }
-          : {}),
-      };
-    });
+    const pending = executionTail.then(() => executeStatement(statement));
 
     executionTail = pending.then(
       () => undefined,
@@ -424,26 +468,95 @@ function createClient(database: Sqlite3Database): SecureSqliteClient {
     return pending;
   };
 
+  const acquireReservation = async (): Promise<{
+    owner: ReservationOwner;
+    release: () => Promise<void>;
+  }> => {
+    if (state !== 'open') {
+      throw new DatabaseError('Secure SQLite client is closing or closed', {});
+    }
+
+    const owner: ReservationOwner = {
+      active: false,
+      tail: Promise.resolve(),
+    };
+    let markAcquired: () => void = () => {};
+    let markReleased: () => void = () => {};
+    const acquired = new Promise<void>((resolveAcquired) => {
+      markAcquired = resolveAcquired;
+    });
+    const released = new Promise<void>((resolveReleased) => {
+      markReleased = resolveReleased;
+    });
+    const reservation = executionTail.then(async () => {
+      owner.active = true;
+      markAcquired();
+      await released;
+      await owner.tail;
+      owner.active = false;
+    });
+    executionTail = reservation.then(
+      () => undefined,
+      () => undefined,
+    );
+
+    await acquired;
+    let releaseStarted = false;
+    return {
+      owner,
+      release: async () => {
+        if (!releaseStarted) {
+          releaseStarted = true;
+          markReleased();
+        }
+        await reservation;
+      },
+    };
+  };
+
+  const execute = (
+    statement: string | SecureSqliteStatement,
+  ): Promise<SecureSqliteResult> => enqueue(statement);
+
   return {
+    transactionReservation: 'exclusive',
     execute,
     transaction: async () => {
-      await execute('BEGIN IMMEDIATE');
+      const { owner, release } = await acquireReservation();
+      try {
+        await enqueue('BEGIN IMMEDIATE', owner);
+      } catch (error) {
+        await release();
+        throw error;
+      }
       let transactionClosed = false;
 
       const end = async (sql: 'COMMIT' | 'ROLLBACK'): Promise<void> => {
         if (transactionClosed) return;
-        await execute(sql);
-        transactionClosed = true;
+        if (sql === 'COMMIT') {
+          await enqueue(sql, owner);
+          transactionClosed = true;
+          await release();
+          return;
+        }
+        try {
+          await enqueue(sql, owner);
+        } finally {
+          transactionClosed = true;
+          await release();
+        }
       };
 
       return {
         get closed() {
           return transactionClosed;
         },
-        execute,
+        execute: (statement) => enqueue(statement, owner),
         commit: () => end('COMMIT'),
         rollback: () => end('ROLLBACK'),
-        close: () => {},
+        close: () => {
+          if (!transactionClosed) void end('ROLLBACK').catch(() => {});
+        },
       };
     },
     close: async () => {
