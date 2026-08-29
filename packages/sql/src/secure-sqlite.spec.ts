@@ -670,6 +670,110 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
+  it('keeps null-aware upserts inside callback transaction reservations', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query(`
+        CREATE TABLE callback_nullable_reservation (
+          id TEXT PRIMARY KEY,
+          slug TEXT NOT NULL,
+          tenant_id TEXT,
+          value TEXT,
+          UNIQUE(slug, tenant_id)
+        )
+      `);
+
+    await db.transaction?.(async (tx) => {
+      await tx.upsert('callback_nullable_reservation', ['slug', 'tenant_id'], {
+        id: 'committed',
+        slug: 'shared',
+        tenant_id: null,
+        value: 'one',
+      });
+      await tx.upsert('callback_nullable_reservation', ['slug', 'tenant_id'], {
+        id: 'updated',
+        slug: 'shared',
+        tenant_id: null,
+        value: 'two',
+      });
+    });
+
+    await expect(
+      db.transaction?.(async (tx) => {
+        await tx.upsert(
+          'callback_nullable_reservation',
+          ['slug', 'tenant_id'],
+          {
+            id: 'rolled-back',
+            slug: 'shared',
+            tenant_id: null,
+            value: 'three',
+          },
+        );
+        throw new Error('rollback callback upsert');
+      }),
+    ).rejects.toThrow('rollback callback upsert');
+
+    expect(
+      (await db.query('SELECT id, value FROM callback_nullable_reservation'))
+        .rows,
+    ).toEqual([{ id: 'updated', value: 'two' }]);
+    await db.close?.();
+  }, 2_000);
+
+  it('keeps null-aware upserts inside manual transaction reservations', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query(`
+        CREATE TABLE manual_nullable_reservation (
+          id TEXT PRIMARY KEY,
+          slug TEXT NOT NULL,
+          tenant_id TEXT,
+          value TEXT,
+          UNIQUE(slug, tenant_id)
+        )
+      `);
+
+    const committed = await db.beginTransaction?.();
+    if (!committed) throw new Error('beginTransaction unavailable');
+    await committed.upsert(
+      'manual_nullable_reservation',
+      ['slug', 'tenant_id'],
+      { id: 'committed', slug: 'shared', tenant_id: null, value: 'one' },
+    );
+    await committed.commit();
+
+    const rolledBack = await db.beginTransaction?.();
+    if (!rolledBack) throw new Error('beginTransaction unavailable');
+    await rolledBack.upsert(
+      'manual_nullable_reservation',
+      ['slug', 'tenant_id'],
+      {
+        id: 'rolled-back',
+        slug: 'shared',
+        tenant_id: null,
+        value: 'two',
+      },
+    );
+    await rolledBack.rollback();
+
+    expect(
+      (await db.query('SELECT id, value FROM manual_nullable_reservation'))
+        .rows,
+    ).toEqual([{ id: 'committed', value: 'one' }]);
+    await db.close?.();
+  }, 2_000);
+
   it('reserves the connection for a manual transaction handle', async () => {
     const root = await makeTempRoot();
     const db = await getDatabase({

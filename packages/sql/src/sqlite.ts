@@ -719,7 +719,7 @@ async function createDatabase(
 
       if (!acquireTransaction) {
         return executeNullAwareUpsertAttempt(
-          client,
+          currentExecutor(),
           table,
           conflictColumns,
           serializedData,
