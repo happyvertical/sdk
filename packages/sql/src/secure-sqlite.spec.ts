@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { getDatabase } from './index';
 import {
   createSecureSqliteClient,
+  parseDarwinAclListing,
   type SecureSqliteRuntime,
 } from './secure-sqlite-client';
 
@@ -52,6 +53,120 @@ afterEach(async () => {
 });
 
 describe('secure SQLite file acquisition', () => {
+  it('parses macOS ACL markers without confusing extended attributes', () => {
+    expect(
+      parseDarwinAclListing(
+        'drwx------+ 2 user staff 64 Aug 29 15:07 /data\n 0: group:everyone allow write',
+      ),
+    ).toBe(true);
+    expect(
+      parseDarwinAclListing('drwx------@ 2 user staff 64 Aug 29 15:07 /data'),
+    ).toBe(false);
+    expect(
+      parseDarwinAclListing('drwx------  2 user staff 64 Aug 29 15:07 /data'),
+    ).toBe(false);
+    expect(() => parseDarwinAclListing('unexpected output')).toThrow(
+      'unrecognized listing',
+    );
+  });
+
+  it('rejects a macOS ACL before loading the driver', async () => {
+    const root = await makeTempRoot();
+    let driverLoaded = false;
+
+    await expect(
+      createSecureSqliteClient(join(root, 'app.db'), trustedParent, {
+        platform: 'darwin',
+        inspectDarwinAcl: async (path) => path === root,
+        loadDriver: async () => {
+          driverLoaded = true;
+          return loadSqlite3Driver();
+        },
+      }),
+    ).rejects.toThrow('contains a macOS access control list');
+    expect(driverLoaded).toBe(false);
+  });
+
+  it('rejects a macOS ACL on an existing database leaf', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'app.db');
+    await writeFile(databasePath, '');
+    await chmod(databasePath, 0o600);
+    let driverLoaded = false;
+
+    await expect(
+      createSecureSqliteClient(databasePath, trustedParent, {
+        platform: 'darwin',
+        inspectDarwinAcl: async (path) => path === databasePath,
+        loadDriver: async () => {
+          driverLoaded = true;
+          return loadSqlite3Driver();
+        },
+      }),
+    ).rejects.toThrow('contains a macOS access control list');
+    expect(driverLoaded).toBe(false);
+  });
+
+  it('fails closed when macOS ACL inspection fails', async () => {
+    const root = await makeTempRoot();
+    let driverLoaded = false;
+
+    await expect(
+      createSecureSqliteClient(join(root, 'app.db'), trustedParent, {
+        platform: 'darwin',
+        inspectDarwinAcl: async (path) => {
+          if (path === root) throw new Error('inspection unavailable');
+          return false;
+        },
+        loadDriver: async () => {
+          driverLoaded = true;
+          return loadSqlite3Driver();
+        },
+      }),
+    ).rejects.toThrow('cannot inspect macOS access control lists');
+    expect(driverLoaded).toBe(false);
+  });
+
+  it('checks clean macOS custody components and an existing leaf', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'app.db');
+    await writeFile(databasePath, '');
+    await chmod(databasePath, 0o600);
+    const inspected = new Set<string>();
+
+    const client = await createSecureSqliteClient(databasePath, trustedParent, {
+      platform: 'darwin',
+      inspectDarwinAcl: async (path) => {
+        inspected.add(path);
+        return false;
+      },
+      loadDriver: loadSqlite3Driver,
+    });
+    await client.close();
+
+    expect(inspected.has(root)).toBe(true);
+    expect(inspected.has(databasePath)).toBe(true);
+  });
+
+  it('does not inspect macOS ACLs on non-Darwin platforms', async () => {
+    const root = await makeTempRoot();
+    let inspected = false;
+    const client = await createSecureSqliteClient(
+      join(root, 'app.db'),
+      trustedParent,
+      {
+        platform: 'linux',
+        inspectDarwinAcl: async () => {
+          inspected = true;
+          throw new Error('must not run');
+        },
+        loadDriver: loadSqlite3Driver,
+      },
+    );
+    await client.close();
+    expect(inspected).toBe(false);
+  });
+
   it('requires an explicit trusted-parent custody contract', async () => {
     const root = await makeTempRoot();
     const databasePath = join(root, 'app.db');

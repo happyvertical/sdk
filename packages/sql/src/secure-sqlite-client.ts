@@ -1,3 +1,4 @@
+import { execFile } from 'node:child_process';
 import { lstat } from 'node:fs/promises';
 import { dirname, parse, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -70,7 +71,45 @@ export interface SecureSqliteRuntime {
   beforeDriverOpen?: (filePath: string) => void | Promise<void>;
   afterDriverOpen?: (filePath: string) => void | Promise<void>;
   currentUid?: () => number;
+  inspectDarwinAcl?: (filePath: string) => Promise<boolean>;
   loadDriver: () => Promise<Sqlite3Module>;
+}
+
+/** @internal Parses the stable permission marker emitted by macOS `/bin/ls`. */
+export function parseDarwinAclListing(listing: string): boolean {
+  const permissionMarker = /^[bcdlps-][rwxStTs-]{9}([+@ ])/.exec(listing)?.[1];
+  if (!permissionMarker) {
+    throw new Error('macOS ACL inspection returned an unrecognized listing');
+  }
+  return permissionMarker === '+';
+}
+
+function inspectDarwinAcl(filePath: string): Promise<boolean> {
+  return new Promise((resolveInspection, reject) => {
+    execFile(
+      '/bin/ls',
+      ['-lde', '--', filePath],
+      {
+        encoding: 'utf8',
+        env: {
+          // biome-ignore lint/style/useNamingConvention: standard POSIX locale variable
+          LC_ALL: 'C',
+        },
+        timeout: 5_000,
+      },
+      (error, stdout) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        try {
+          resolveInspection(parseDarwinAclListing(stdout));
+        } catch (parseError) {
+          reject(parseError);
+        }
+      },
+    );
+  });
 }
 
 const defaultRuntime: SecureSqliteRuntime = {
@@ -81,6 +120,7 @@ const defaultRuntime: SecureSqliteRuntime = {
     }
     return process.getuid();
   },
+  inspectDarwinAcl,
   loadDriver: async () => {
     const moduleName = 'sqlite3';
     const imported = await import(/* @vite-ignore */ moduleName);
@@ -99,6 +139,38 @@ function pathComponents(path: string): string[] {
     paths.push(resolve(paths.at(-1) ?? root, component));
   }
   return paths;
+}
+
+async function validateDarwinAcl(
+  filePath: string,
+  runtime: SecureSqliteRuntime,
+): Promise<void> {
+  if (runtime.platform !== 'darwin') return;
+
+  let hasAcl: boolean;
+  try {
+    const inspect = runtime.inspectDarwinAcl ?? defaultRuntime.inspectDarwinAcl;
+    if (!inspect) throw new Error('macOS ACL inspector is unavailable');
+    hasAcl = await inspect(filePath);
+  } catch (error) {
+    throw new DatabaseError(
+      'Secure SQLite acquisition cannot inspect macOS access control lists',
+      {
+        path: filePath,
+        originalError: error instanceof Error ? error.message : String(error),
+      },
+    );
+  }
+
+  if (hasAcl) {
+    throw new DatabaseError(
+      'Secure SQLite custody path contains a macOS access control list',
+      {
+        path: filePath,
+        hint: 'Remove the ACL from the application-custodied path before requesting secure acquisition.',
+      },
+    );
+  }
 }
 
 async function validateTrustedParentCustody(
@@ -178,6 +250,7 @@ async function validateTrustedParentCustody(
         { path: componentPath },
       );
     }
+    await validateDarwinAcl(componentPath, runtime);
 
     const isCustodied = custodiedParents.has(componentPath);
     if (isCustodied) {
@@ -228,6 +301,7 @@ async function validateTrustedParentCustody(
         { path: filePath },
       );
     }
+    await validateDarwinAcl(filePath, runtime);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }

@@ -121,10 +121,14 @@ that the database is beneath the custody root, that static path components are
 real directories rather than symlinks, and that the root plus database-parent
 chain is owned by the current uid with no group/world write permission. An
 existing leaf must likewise be a current-user-owned regular file with no
-group/world write permission. Ancestors above the custody root may not allow
-replacement by another principal (a sticky shared parent such as `/tmp` is
-accepted). The application must create and retain custody of this directory;
-mode `0700` is the conventional choice.
+group/world write permission. On macOS, every inspected component and existing
+leaf must also have no access control list; ACL inspection errors fail closed.
+The adapter invokes `/bin/ls -lde -- <path>` directly with an argument vector,
+never through a shell, and rejects the stable `+` ACL permission marker.
+Ancestors above the custody root may not allow replacement by another principal
+(a sticky shared parent such as `/tmp` is accepted). The application must create
+and retain custody of this directory; mode `0700` with no ACL is the conventional
+choice.
 
 After custody validation, the `sqlite3` driver passes SQLite's
 `SQLITE_OPEN_NOFOLLOW` flag directly to `sqlite3_open_v2()` for atomic leaf

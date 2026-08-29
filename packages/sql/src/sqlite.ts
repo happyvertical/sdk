@@ -189,7 +189,7 @@ export interface SecureSqliteFileOptions {
   /**
    * Assert that the application controls the database parent directory.
    * The adapter verifies current-user ownership, non-writable group/other
-   * permissions, and static symlink absence before acquisition.
+   * permissions, static symlink absence, and no macOS ACL before acquisition.
    */
   custody: 'trusted-parent';
 
