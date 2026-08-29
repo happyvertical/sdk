@@ -106,10 +106,20 @@ Use `secureFile: true` when a local application must not follow symbolic links
 while opening or creating its database. This selects the `sqlite3` driver and
 passes SQLite's `SQLITE_OPEN_NOFOLLOW` flag directly to `sqlite3_open_v2()`.
 SQLite resolves the complete pathname under that flag, so a symlink in either
-the database leaf or any ancestor is rejected before the database target is
-opened, created, read, or written. Pre-opening `lstat()` checks alone do not
-provide this guarantee because the pathname can change before the driver opens
-it.
+the database leaf or any ancestor is rejected at the instant the database is
+opened or created, before the symlink target is read or written. Pre-opening or
+post-opening `lstat()` checks cannot strengthen that acquisition boundary: the
+pathname can change between any separate check and the driver's atomic open.
+
+The guarantee applies to acquisition, not to the directory entry for the
+entire connection lifetime. SQLite retains its acquired file handle, so a
+same-user process that renames the pathname after the open cannot redirect that
+handle, but a later connection to the original pathname may see a different
+file. Applications that allow a mutually untrusted process to rename database
+paths while they are open must additionally protect the containing directory;
+the public `sqlite3` binding exposes neither its native file descriptor nor
+`sqlite3_file_control()`, so this adapter cannot pin or revalidate that directory
+entry without a private driver reach-in.
 
 The secure path is supported on macOS and Linux. It fails closed on other
 platforms and when combined with remote LibSQL URLs, `:memory:`, LibSQL

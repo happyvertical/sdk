@@ -233,9 +233,11 @@ export interface SqliteOptions extends DatabaseOptions {
    *
    * This selects the sqlite3 driver and passes `SQLITE_OPEN_NOFOLLOW` to
    * `sqlite3_open_v2()`, rejecting symbolic links in the database leaf or any
-   * ancestor. It is supported on macOS and Linux only. Memory databases,
-   * remote LibSQL URLs, encryption, and optional native capabilities fail
-   * closed when this option is enabled.
+   * ancestor at acquisition. The acquired handle cannot be redirected by a
+   * later pathname rename, but callers needing a stable directory entry for
+   * the entire connection lifetime must protect the containing directory. It
+   * is supported on macOS and Linux only. Memory databases, remote LibSQL URLs,
+   * encryption, and optional native capabilities fail closed when enabled.
    *
    * Existing pathname behavior is unchanged when omitted or false.
    */

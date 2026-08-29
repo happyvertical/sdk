@@ -1,4 +1,3 @@
-import { lstat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseError } from '@happyvertical/utils';
@@ -35,21 +34,11 @@ export interface SecureSqliteClient {
   close(): Promise<void>;
 }
 
-interface Sqlite3StatementContext {
-  changes?: number;
-  lastID?: number;
-}
-
 interface Sqlite3Database {
   all(
     sql: string,
     params: unknown[],
     callback: (error: Error | null, rows: Record<string, unknown>[]) => void,
-  ): void;
-  run(
-    sql: string,
-    params: unknown[],
-    callback: (this: Sqlite3StatementContext, error: Error | null) => void,
   ): void;
   close(callback: (error: Error | null) => void): void;
 }
@@ -73,6 +62,7 @@ interface Sqlite3Module {
 export interface SecureSqliteRuntime {
   platform: NodeJS.Platform;
   beforeDriverOpen?: (filePath: string) => void | Promise<void>;
+  afterDriverOpen?: (filePath: string) => void | Promise<void>;
   loadDriver: () => Promise<Sqlite3Module>;
 }
 
@@ -124,36 +114,12 @@ function resolveSecureFilePath(url: string): string {
   return resolve(url);
 }
 
-function isWriteStatement(sql: string): boolean {
-  return /^\s*(?:ALTER|ATTACH|BEGIN|COMMIT|CREATE|DELETE|DETACH|DROP|END|INSERT|REINDEX|RELEASE|REPLACE|ROLLBACK|SAVEPOINT|UPDATE|VACUUM)\b/i.test(
-    sql,
-  );
-}
-
-function executeSqlite3(
+function allSqlite3(
   database: Sqlite3Database,
   statement: string | SecureSqliteStatement,
-): Promise<SecureSqliteResult> {
+): Promise<Record<string, unknown>[]> {
   const sql = typeof statement === 'string' ? statement : statement.sql;
   const args = typeof statement === 'string' ? [] : (statement.args ?? []);
-
-  if (isWriteStatement(sql)) {
-    return new Promise((resolveResult, reject) => {
-      database.run(sql, args, function onRun(error) {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolveResult({
-          rows: [],
-          rowsAffected: this.changes ?? 0,
-          ...(this.lastID === undefined
-            ? {}
-            : { lastInsertRowid: this.lastID }),
-        });
-      });
-    });
-  }
 
   return new Promise((resolveResult, reject) => {
     database.all(sql, args, (error, rows) => {
@@ -161,7 +127,7 @@ function executeSqlite3(
         reject(error);
         return;
       }
-      resolveResult({ rows, rowsAffected: 0 });
+      resolveResult(rows);
     });
   });
 }
@@ -180,16 +146,47 @@ function closeSqlite3(database: Sqlite3Database): Promise<void> {
 
 function createClient(database: Sqlite3Database): SecureSqliteClient {
   let closePromise: Promise<void> | undefined;
+  let executionTail = Promise.resolve();
+  let totalChanges = 0;
+
+  const execute = (
+    statement: string | SecureSqliteStatement,
+  ): Promise<SecureSqliteResult> => {
+    const pending = executionTail.then(async () => {
+      const rows = await allSqlite3(database, statement);
+      const [metrics] = await allSqlite3(
+        database,
+        'SELECT total_changes() AS totalChanges, changes() AS rowsAffected, last_insert_rowid() AS lastInsertRowid',
+      );
+      const nextTotalChanges = Number(metrics?.totalChanges ?? totalChanges);
+      const changed = nextTotalChanges > totalChanges;
+      totalChanges = nextTotalChanges;
+
+      return {
+        rows,
+        rowsAffected: changed ? Number(metrics?.rowsAffected ?? 0) : 0,
+        ...(changed
+          ? { lastInsertRowid: Number(metrics?.lastInsertRowid ?? 0) }
+          : {}),
+      };
+    });
+
+    executionTail = pending.then(
+      () => undefined,
+      () => undefined,
+    );
+    return pending;
+  };
 
   return {
-    execute: (statement) => executeSqlite3(database, statement),
+    execute,
     transaction: async () => {
-      await executeSqlite3(database, 'BEGIN IMMEDIATE');
+      await execute('BEGIN IMMEDIATE');
       let transactionClosed = false;
 
       const end = async (sql: 'COMMIT' | 'ROLLBACK'): Promise<void> => {
         if (transactionClosed) return;
-        await executeSqlite3(database, sql);
+        await execute(sql);
         transactionClosed = true;
       };
 
@@ -197,7 +194,7 @@ function createClient(database: Sqlite3Database): SecureSqliteClient {
         get closed() {
           return transactionClosed;
         },
-        execute: (statement) => executeSqlite3(database, statement),
+        execute,
         commit: () => end('COMMIT'),
         rollback: () => end('ROLLBACK'),
         close: () => {},
@@ -220,8 +217,11 @@ function createClient(database: Sqlite3Database): SecureSqliteClient {
  *
  * The sqlite3 driver passes `SQLITE_OPEN_NOFOLLOW` directly to
  * `sqlite3_open_v2()`. SQLite's VFS resolves the complete pathname under that
- * flag and rejects a symbolic link in either the leaf or any ancestor before
- * opening or creating the database.
+ * flag and rejects a symbolic link in either the leaf or any ancestor at the
+ * instant the driver opens or creates the database. The returned SQLite handle
+ * remains bound to that acquired file even if another process later renames
+ * the pathname; callers that require a stable directory entry for the entire
+ * connection lifetime must additionally protect the containing directory.
  *
  * @internal Call through `getDatabase({ type: 'sqlite', secureFile: true })`.
  */
@@ -280,13 +280,7 @@ export async function createSecureSqliteClient(
   });
 
   try {
-    const acquired = await lstat(filePath);
-    if (!acquired.isFile() || acquired.isSymbolicLink()) {
-      throw new DatabaseError(
-        'Secure SQLite acquisition requires a regular database file',
-        { path: filePath },
-      );
-    }
+    await runtime.afterDriverOpen?.(filePath);
   } catch (error) {
     await closeSqlite3(database).catch(() => {});
     throw error;

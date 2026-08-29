@@ -151,6 +151,97 @@ describe('secure SQLite file acquisition', () => {
     expect(await readFile(displacedPath, 'utf8')).toBe('original');
   });
 
+  it('keeps the acquired handle bound when the pathname is replaced after open', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'app.db');
+    const displacedPath = join(root, 'acquired.db');
+    const replacementPath = join(root, 'replacement.db');
+
+    const original = await createSecureSqliteClient(databasePath);
+    await original.execute(
+      'CREATE TABLE identity_marker (value TEXT NOT NULL)',
+    );
+    await original.execute(
+      "INSERT INTO identity_marker (value) VALUES ('acquired')",
+    );
+    await original.close();
+
+    const replacement = await createSecureSqliteClient(replacementPath);
+    await replacement.execute(
+      'CREATE TABLE identity_marker (value TEXT NOT NULL)',
+    );
+    await replacement.execute(
+      "INSERT INTO identity_marker (value) VALUES ('replacement')",
+    );
+    await replacement.close();
+
+    const acquired = await createSecureSqliteClient(databasePath, {
+      platform: process.platform,
+      loadDriver: loadSqlite3Driver,
+      afterDriverOpen: async (acquisitionPath) => {
+        expect(acquisitionPath).toBe(databasePath);
+        await rename(databasePath, displacedPath);
+        await rename(replacementPath, databasePath);
+      },
+    });
+
+    expect(
+      await acquired.execute('SELECT value FROM identity_marker'),
+    ).toMatchObject({ rows: [{ value: 'acquired' }] });
+    await acquired.close();
+
+    const currentPath = await createSecureSqliteClient(databasePath);
+    expect(
+      await currentPath.execute('SELECT value FROM identity_marker'),
+    ).toMatchObject({ rows: [{ value: 'replacement' }] });
+    await currentPath.close();
+
+    const acquiredPath = await createSecureSqliteClient(displacedPath);
+    expect(
+      await acquiredPath.execute('SELECT value FROM identity_marker'),
+    ).toMatchObject({ rows: [{ value: 'acquired' }] });
+    await acquiredPath.close();
+  });
+
+  it('reports affected rows for CTE and comment-prefixed writes', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile: true,
+      cache: false,
+    });
+    await db.execute`CREATE TABLE jobs (id INTEGER PRIMARY KEY, title TEXT)`;
+    await db.execute`INSERT INTO jobs (id, title) VALUES (1, 'one'), (2, 'two'), (3, 'three')`;
+
+    const cteInsert = await db.query(`
+      WITH new_jobs(id, title) AS (VALUES (4, 'four'), (5, 'five'))
+      INSERT INTO jobs SELECT id, title FROM new_jobs
+    `);
+    expect(cteInsert.rowCount).toBe(2);
+
+    const cteUpdate = await db.query(`
+      WITH selected(id) AS (VALUES (1), (2))
+      UPDATE jobs SET title = 'updated'
+      WHERE id IN (SELECT id FROM selected)
+    `);
+    expect(cteUpdate.rowCount).toBe(2);
+
+    const cteDelete = await db.query(`
+      WITH selected(id) AS (VALUES (5))
+      DELETE FROM jobs WHERE id IN (SELECT id FROM selected)
+    `);
+    expect(cteDelete.rowCount).toBe(1);
+
+    const commentDelete = await db.query(`
+      /* a valid write may begin with a comment */
+      DELETE FROM jobs WHERE id = 3
+    `);
+    expect(commentDelete.rowCount).toBe(1);
+    expect(await db.count('jobs')).toBe(3);
+    await db.close?.();
+  });
+
   it('does not leave a failed acquisition cached', async () => {
     const root = await makeTempRoot();
     const target = join(root, 'target.txt');
