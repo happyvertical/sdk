@@ -63,8 +63,7 @@
   },
   "peerDependencies": {
     "@russellthehippo/honker-node": "^0.3.3",
-    "@sqliteai/sqlite-vector": "^1.0.0",
-    "sqlite3": "6.0.1"
+    "@sqliteai/sqlite-vector": "^1.0.0"
   },
   "peerDependenciesMeta": {
     "@russellthehippo/honker-node": {
@@ -72,15 +71,11 @@
     },
     "@sqliteai/sqlite-vector": {
       "optional": true
-    },
-    "sqlite3": {
-      "optional": true
     }
   },
   "devDependencies": {
     "@types/node": "25.0.10",
     "@types/pg": "^8.20.0",
-    "sqlite3": "6.0.1",
     "typescript": "5.9.3",
     "vite": "8.1.4",
     "vite-plugin-dts": "4.5.4",

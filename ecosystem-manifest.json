@@ -1357,8 +1357,7 @@
           "@russellthehippo/honker-node",
           "@sqliteai/sqlite-vector",
           "pg",
-          "sqlite-vss",
-          "sqlite3"
+          "sqlite-vss"
         ]
       },
       "dependents": [

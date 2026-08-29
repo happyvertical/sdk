@@ -61,6 +61,68 @@ interface SqliteClientLike {
 
 type SqliteExecutor = Pick<SqliteClientLike, 'execute'>;
 
+interface InvocationBarrier {
+  run<T>(work: () => Promise<T>): Promise<T>;
+  close(work: () => void | Promise<void>): Promise<void>;
+}
+
+/**
+ * Orders secure adapter calls at public invocation time.
+ *
+ * The reservation is appended before this function returns a promise. A later
+ * `close()` therefore cannot overtake an operation while it awaits an internal
+ * transaction/upsert lock before publishing work to the driver queue.
+ */
+function createInvocationBarrier(): InvocationBarrier {
+  let tail = Promise.resolve();
+  let closePromise: Promise<void> | undefined;
+  let state: 'open' | 'closing' | 'closed' = 'open';
+
+  const run = <T>(work: () => Promise<T>): Promise<T> => {
+    if (state !== 'open') {
+      return Promise.reject(
+        new DatabaseError('Secure SQLite adapter is closing or closed', {}),
+      );
+    }
+
+    const previous = tail;
+    let release: () => void = () => {};
+    const current = new Promise<void>((resolveCurrent) => {
+      release = resolveCurrent;
+    });
+    tail = previous.then(
+      () => current,
+      () => current,
+    );
+
+    return previous.then(work, work).finally(release);
+  };
+
+  const close = (work: () => void | Promise<void>): Promise<void> => {
+    if (state === 'closed') return Promise.resolve();
+    if (closePromise) return closePromise;
+
+    state = 'closing';
+    closePromise = tail.then(work, work).then(
+      () => {
+        state = 'closed';
+      },
+      (error) => {
+        state = 'open';
+        closePromise = undefined;
+        throw error;
+      },
+    );
+    tail = closePromise.then(
+      () => undefined,
+      () => undefined,
+    );
+    return closePromise;
+  };
+
+  return { run, close };
+}
+
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -176,17 +238,14 @@ async function createLibSQLClient(
   }
 }
 
-/**
- * Options for the atomic, no-follow SQLite file acquisition boundary.
- */
+/** Options for the trusted-parent SQLite file acquisition boundary. */
 export interface SecureSqliteFileOptions {
   /**
-   * Driver that owns the secure acquisition. Only sqlite3 currently exposes
-   * SQLite's `SQLITE_OPEN_NOFOLLOW` contract.
+   * Built-in driver that owns the secure acquisition and exact integer path.
    *
-   * @default 'sqlite3'
+   * @default 'node:sqlite'
    */
-  driver: 'sqlite3';
+  driver: 'node:sqlite';
 
   /**
    * Assert that the application controls the database parent directory.
@@ -245,14 +304,14 @@ export interface SqliteOptions extends DatabaseOptions {
   capabilities?: SqliteCapabilitiesOptions;
 
   /**
-   * Require atomic no-follow acquisition for a local file-backed database.
+   * Require trusted-parent acquisition for a local file-backed database.
    *
    * This requires an explicit `trusted-parent` custody assertion, verifies the
-   * application data root/parent chain, then passes `SQLITE_OPEN_NOFOLLOW` to
-   * `sqlite3_open_v2()` for atomic leaf acquisition. It protects against static
-   * symlinks and mutation by principals that cannot write the custodied parent.
-   * It does not claim protection from a hostile same-account process, which can
-   * directly replace or rewrite an unencrypted user-owned database.
+   * application data root/parent chain and rejects static symlinks before the
+   * built-in `node:sqlite` driver opens the file. Other principals cannot
+   * replace a path under the custodied parent. It does not claim protection
+   * from a hostile same-account process, which can directly replace or rewrite
+   * an unencrypted user-owned database.
    *
    * Existing pathname behavior is unchanged when omitted or false.
    */
@@ -389,16 +448,16 @@ export async function getDatabase(
       throw new DatabaseError(
         'Secure SQLite acquisition requires an explicit trusted-parent custody contract',
         {
-          hint: "Use secureFile: { driver: 'sqlite3', custody: 'trusted-parent' } after placing the database beneath a current-user-owned parent with no group/world write permission.",
+          hint: "Use secureFile: { driver: 'node:sqlite', custody: 'trusted-parent' } after placing the database beneath a current-user-owned parent with no group/world write permission.",
         },
       );
     }
     const secureOptions = options.secureFile;
-    if (secureOptions.driver !== 'sqlite3') {
+    if (secureOptions.driver !== 'node:sqlite') {
       throw new DatabaseError(
         `Unsupported secure SQLite driver: ${String(secureOptions.driver)}`,
         {
-          hint: "Use secureFile: { driver: 'sqlite3', custody: 'trusted-parent' }.",
+          hint: "Use secureFile: { driver: 'node:sqlite', custody: 'trusted-parent' }.",
         },
       );
     }
@@ -422,7 +481,7 @@ export async function getDatabase(
       throw new DatabaseError(
         'Secure SQLite acquisition cannot be combined with native SQLite capabilities',
         {
-          hint: 'The node:sqlite capability adapter does not expose SQLITE_OPEN_NOFOLLOW. Disable capabilities or secureFile.',
+          hint: 'Use either secureFile custody or optional native capabilities for a connection, not both.',
         },
       );
     }
@@ -1865,6 +1924,11 @@ async function createDatabase(
     };
 
     let closed = false;
+    const rawClose = async () => {
+      if (closed) return;
+      await client.close();
+      closed = true;
+    };
     const db: DatabaseInterface = {
       url,
       client,
@@ -1893,12 +1957,58 @@ async function createDatabase(
       beginTransaction,
       getTableSchema,
       alterTable,
-      close: async () => {
-        if (closed) return;
-        await client.close();
-        closed = true;
-      },
+      close: rawClose,
     };
-    return db;
+
+    if (client.transactionReservation !== 'exclusive') return db;
+
+    const barrier = createInvocationBarrier();
+    const reserve = <T extends (...args: any[]) => Promise<any>>(fn: T): T =>
+      ((...args: Parameters<T>) => barrier.run(() => fn(...args))) as T;
+    const reservedTable = (tableName: string): TableInterface => {
+      const scoped = table(tableName);
+      return {
+        insert: reserve(scoped.insert),
+        get: reserve(scoped.get),
+        list: reserve(scoped.list),
+      };
+    };
+    const reservedAlterTable = {
+      addColumn: reserve(alterTable.addColumn),
+      addIndex: reserve(alterTable.addIndex),
+    };
+    const reservedTransaction: typeof transaction = <T>(
+      callback: (tx: DatabaseInterface) => Promise<T>,
+    ) => barrier.run(() => transaction(callback));
+
+    return {
+      ...db,
+      query: reserve(query),
+      insert: reserve(insert),
+      update: reserve(update),
+      upsert: reserve(upsert),
+      get: reserve(get),
+      list: reserve(list),
+      getOrInsert: reserve(getOrInsert),
+      delete: reserve(deleteRecords),
+      count: reserve(count),
+      table: reservedTable,
+      tableExists: reserve(tableExists),
+      many: reserve(many),
+      single: reserve(single),
+      pluck: reserve(pluck),
+      execute: reserve(execute),
+      oo: reserve(oo),
+      oO: reserve(oO),
+      ox: reserve(ox),
+      xx: reserve(xx),
+      syncSchema: reserve(syncSchema),
+      initializeSchemas: reserve(initializeSchemas),
+      transaction: reservedTransaction,
+      beginTransaction: reserve(beginTransaction),
+      getTableSchema: reserve(getTableSchema),
+      alterTable: reservedAlterTable,
+      close: () => barrier.close(rawClose),
+    };
   })();
 }

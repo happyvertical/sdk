@@ -4,9 +4,6 @@ import { dirname, parse, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseError } from '@happyvertical/utils';
 
-/** SQLite's public SQLITE_OPEN_NOFOLLOW flag. */
-const SQLITE_OPEN_NOFOLLOW = 0x01000000;
-
 export interface SecureSqliteStatement {
   sql: string;
   args?: unknown[];
@@ -42,39 +39,35 @@ export interface SecureSqliteCustodyOptions {
   root?: string;
 }
 
-interface Sqlite3Database {
-  all(
-    sql: string,
-    params: unknown[],
-    callback: (error: Error | null, rows: Record<string, unknown>[]) => void,
-  ): void;
-  close(callback: (error: Error | null) => void): void;
+interface NodeSqliteStatement {
+  all(...args: unknown[]): Record<string, unknown>[];
+  columns(): Array<{ name: string }>;
+  run(...args: unknown[]): {
+    changes: number | bigint;
+    lastInsertRowid: number | bigint;
+  };
+  setReadBigInts(enabled: boolean): void;
 }
 
-interface Sqlite3Module {
-  // biome-ignore lint/style/useNamingConvention: mirrors sqlite3's public API
-  Database: new (
+interface NodeSqliteDatabase {
+  prepare(sql: string): NodeSqliteStatement;
+  close(): void;
+}
+
+interface NodeSqliteModule {
+  // biome-ignore lint/style/useNamingConvention: mirrors node:sqlite's public API
+  DatabaseSync: new (
     filename: string,
-    mode: number,
-    callback: (error: Error | null) => void,
-  ) => Sqlite3Database;
-  // biome-ignore lint/style/useNamingConvention: mirrors sqlite3's public API
-  OPEN_CREATE: number;
-  // biome-ignore lint/style/useNamingConvention: mirrors sqlite3's public API
-  OPEN_FULLMUTEX: number;
-  // biome-ignore lint/style/useNamingConvention: mirrors sqlite3's public API
-  OPEN_READWRITE: number;
+  ) => NodeSqliteDatabase;
 }
 
 /** @internal Deterministic acquisition seam used by the integration tests. */
 export interface SecureSqliteRuntime {
   platform: NodeJS.Platform;
-  beforeDriverOpen?: (filePath: string) => void | Promise<void>;
-  afterDriverOpen?: (filePath: string) => void | Promise<void>;
   currentUid?: () => number;
   pathOwnerUid?: (filePath: string, actualUid: number) => number;
   inspectDarwinAcl?: (filePath: string) => Promise<boolean>;
-  loadDriver: () => Promise<Sqlite3Module>;
+  loadDriver: () => Promise<NodeSqliteModule>;
 }
 
 /** @internal Parses the stable permission marker emitted by macOS `/bin/ls`. */
@@ -124,9 +117,8 @@ const defaultRuntime: SecureSqliteRuntime = {
   },
   inspectDarwinAcl,
   loadDriver: async () => {
-    const moduleName = 'sqlite3';
-    const imported = await import(/* @vite-ignore */ moduleName);
-    return (imported.default ?? imported) as Sqlite3Module;
+    const moduleName = 'node:sqlite';
+    return (await import(/* @vite-ignore */ moduleName)) as NodeSqliteModule;
   },
 };
 
@@ -363,45 +355,117 @@ function resolveSecureFilePath(url: string): string {
   return resolve(url);
 }
 
-function allSqlite3(
-  database: Sqlite3Database,
-  statement: string | SecureSqliteStatement,
-): Promise<Record<string, unknown>[]> {
-  const sql = typeof statement === 'string' ? statement : statement.sql;
-  const args = typeof statement === 'string' ? [] : (statement.args ?? []);
-  if (args.some((value) => typeof value === 'bigint')) {
+function normalizeExactInteger(value: unknown): unknown {
+  if (typeof value !== 'bigint') return value;
+  if (
+    value >= BigInt(Number.MIN_SAFE_INTEGER) &&
+    value <= BigInt(Number.MAX_SAFE_INTEGER)
+  ) {
+    return Number(value);
+  }
+  return value;
+}
+
+function normalizeExactRow(
+  row: Record<string, unknown>,
+): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(row).map(([key, value]) => [
+      key,
+      normalizeExactInteger(value),
+    ]),
+  );
+}
+
+function toExactBigInt(value: number | bigint, metric: string): bigint {
+  if (typeof value === 'bigint') return value;
+  if (!Number.isSafeInteger(value)) {
     throw new DatabaseError(
-      'BigInt parameters are unsupported by the secure sqlite3 driver',
+      `Secure SQLite returned an inexact ${metric} metric`,
+      { metric, value },
+    );
+  }
+  return BigInt(value);
+}
+
+/** @internal Exact public-contract range guard used by deterministic tests. */
+export function toPublicRowCount(value: number | bigint): number {
+  const exact = toExactBigInt(value, 'changes');
+  if (exact < 0n || exact > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new DatabaseError(
+      'Secure SQLite changes exceed the public safe-integer row-count range',
       {
-        hint: 'Use a safely representable number or an explicitly typed decimal/text column. BigInt is rejected rather than silently binding NULL.',
+        changes: exact.toString(),
+        maxSafeInteger: Number.MAX_SAFE_INTEGER,
       },
     );
   }
-
-  return new Promise((resolveResult, reject) => {
-    database.all(sql, args, (error, rows) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolveResult(rows);
-    });
-  });
+  return Number(exact);
 }
 
-function closeSqlite3(database: Sqlite3Database): Promise<void> {
-  return new Promise((resolveClose, reject) => {
-    database.close((error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolveClose();
-    });
-  });
+function executeNodeSqlite(
+  database: NodeSqliteDatabase,
+  statement: string | SecureSqliteStatement,
+): SecureSqliteResult {
+  const sql = typeof statement === 'string' ? statement : statement.sql;
+  const args = typeof statement === 'string' ? [] : (statement.args ?? []);
+  const prepared = database.prepare(sql);
+  prepared.setReadBigInts(true);
+
+  if (prepared.columns().length > 0) {
+    const beforeStatement = database.prepare(
+      'SELECT total_changes() AS totalChanges',
+    );
+    beforeStatement.setReadBigInts(true);
+    const before = toExactBigInt(
+      beforeStatement.all()[0]?.totalChanges as number | bigint,
+      'totalChanges',
+    );
+    const rows = prepared.all(...args).map(normalizeExactRow);
+    const afterStatement = database.prepare(
+      'SELECT total_changes() AS totalChanges, changes() AS changes, last_insert_rowid() AS lastInsertRowid',
+    );
+    afterStatement.setReadBigInts(true);
+    const metrics = afterStatement.all()[0];
+    const after = toExactBigInt(
+      metrics?.totalChanges as number | bigint,
+      'totalChanges',
+    );
+    const changed = after > before;
+    const rowsAffected = changed
+      ? toPublicRowCount(metrics?.changes as number | bigint)
+      : 0;
+    return {
+      rows,
+      rowsAffected,
+      ...(changed
+        ? {
+            lastInsertRowid: toExactBigInt(
+              metrics?.lastInsertRowid as number | bigint,
+              'lastInsertRowid',
+            ),
+          }
+        : {}),
+    };
+  }
+
+  const result = prepared.run(...args);
+  const rowsAffected = toPublicRowCount(result.changes);
+  return {
+    rows: [],
+    rowsAffected,
+    ...(rowsAffected > 0
+      ? {
+          lastInsertRowid: toExactBigInt(
+            result.lastInsertRowid,
+            'lastInsertRowid',
+          ),
+        }
+      : {}),
+  };
 }
 
-function createClient(database: Sqlite3Database): SecureSqliteClient {
+function createClient(database: NodeSqliteDatabase): SecureSqliteClient {
   interface ReservationOwner {
     active: boolean;
     tail: Promise<void>;
@@ -409,28 +473,12 @@ function createClient(database: Sqlite3Database): SecureSqliteClient {
 
   let closePromise: Promise<void> | undefined;
   let executionTail = Promise.resolve();
-  let totalChanges = 0;
   let state: 'open' | 'closing' | 'closed' = 'open';
 
   const executeStatement = async (
     statement: string | SecureSqliteStatement,
   ): Promise<SecureSqliteResult> => {
-    const rows = await allSqlite3(database, statement);
-    const [metrics] = await allSqlite3(
-      database,
-      'SELECT total_changes() AS totalChanges, changes() AS rowsAffected, CAST(last_insert_rowid() AS TEXT) AS lastInsertRowid',
-    );
-    const nextTotalChanges = Number(metrics?.totalChanges ?? totalChanges);
-    const changed = nextTotalChanges > totalChanges;
-    totalChanges = nextTotalChanges;
-
-    return {
-      rows,
-      rowsAffected: changed ? Number(metrics?.rowsAffected ?? 0) : 0,
-      ...(changed
-        ? { lastInsertRowid: BigInt(String(metrics?.lastInsertRowid ?? '0')) }
-        : {}),
-    };
+    return executeNodeSqlite(database, statement);
   };
 
   const enqueue = (
@@ -563,7 +611,7 @@ function createClient(database: Sqlite3Database): SecureSqliteClient {
       if (state === 'closed') return;
       if (!closePromise) {
         state = 'closing';
-        closePromise = executionTail.then(() => closeSqlite3(database));
+        closePromise = executionTail.then(() => database.close());
       }
       try {
         await closePromise;
@@ -580,12 +628,10 @@ function createClient(database: Sqlite3Database): SecureSqliteClient {
 /**
  * Opens a local SQLite file under an explicit trusted-parent custody contract.
  *
- * Static path components and their ownership/mode are checked before driver
- * acquisition. The sqlite3 driver then passes `SQLITE_OPEN_NOFOLLOW` directly
- * to `sqlite3_open_v2()` for atomic no-follow acquisition of the leaf. This
- * protects against static symlinks and mutation by principals that cannot
- * write the custodied parent; it is not a boundary against hostile processes
- * running as the same account.
+ * Static path components and their ownership/mode are checked before the
+ * built-in `node:sqlite` driver opens the file. Other principals cannot replace
+ * a path beneath the caller-custodied parent. Hostile processes running as the
+ * same account are explicitly outside this boundary.
  *
  * @internal Call through `getDatabase()` with typed `secureFile` custody.
  */
@@ -598,58 +644,37 @@ export async function createSecureSqliteClient(
     throw new DatabaseError(
       `Secure SQLite acquisition is unsupported on ${runtime.platform}`,
       {
-        hint: 'secureFile requires the sqlite3 Unix VFS on macOS or Linux. Disable secureFile only if pathname acquisition is acceptable.',
+        hint: 'secureFile requires built-in node:sqlite on macOS or Linux. Disable secureFile only if trusted-parent custody is not required.',
       },
     );
   }
 
   const filePath = resolveSecureFilePath(url);
   await validateTrustedParentCustody(filePath, options, runtime);
-  let sqlite3: Sqlite3Module;
+  let nodeSqlite: NodeSqliteModule;
   try {
-    sqlite3 = await runtime.loadDriver();
+    nodeSqlite = await runtime.loadDriver();
   } catch (error) {
     throw new DatabaseError(
-      'Secure SQLite acquisition could not load the sqlite3 driver',
+      'Secure SQLite acquisition could not load the node:sqlite driver',
       {
-        hint: 'Install @happyvertical/sql with its sqlite3 native dependency and allow its platform install script, or disable secureFile only if pathname acquisition is acceptable.',
+        hint: 'Run @happyvertical/sql on its supported Node.js version with built-in node:sqlite available.',
         originalError: error instanceof Error ? error.message : String(error),
       },
     );
   }
-  await runtime.beforeDriverOpen?.(filePath);
-
-  const mode =
-    sqlite3.OPEN_READWRITE |
-    sqlite3.OPEN_CREATE |
-    sqlite3.OPEN_FULLMUTEX |
-    SQLITE_OPEN_NOFOLLOW;
-
-  const database = await new Promise<Sqlite3Database>((resolveOpen, reject) => {
-    let opened: Sqlite3Database;
-    opened = new sqlite3.Database(filePath, mode, (error) => {
-      if (error) {
-        reject(
-          new DatabaseError(
-            'Secure SQLite acquisition rejected the database path',
-            {
-              path: filePath,
-              hint: 'Ensure the database path and every ancestor are real directories/files, not symbolic links, and that the file is writable.',
-              originalError: error.message,
-            },
-          ),
-        );
-        return;
-      }
-      resolveOpen(opened);
-    });
-  });
-
+  let database: NodeSqliteDatabase;
   try {
-    await runtime.afterDriverOpen?.(filePath);
+    database = new nodeSqlite.DatabaseSync(filePath);
   } catch (error) {
-    await closeSqlite3(database).catch(() => {});
-    throw error;
+    throw new DatabaseError(
+      'Secure SQLite acquisition rejected the database path',
+      {
+        path: filePath,
+        hint: 'Ensure the database path and every ancestor are real directories/files, not symbolic links, and that the file is writable.',
+        originalError: error instanceof Error ? error.message : String(error),
+      },
+    );
   }
 
   return createClient(database);

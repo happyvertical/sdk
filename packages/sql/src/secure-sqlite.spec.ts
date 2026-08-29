@@ -4,7 +4,6 @@ import {
   mkdtemp,
   readFile,
   realpath,
-  rename,
   rm,
   symlink,
   writeFile,
@@ -17,12 +16,13 @@ import {
   createSecureSqliteClient,
   parseDarwinAclListing,
   type SecureSqliteRuntime,
+  toPublicRowCount,
 } from './secure-sqlite-client';
 
 const tempRoots = new Set<string>();
 const trustedParent = { custody: 'trusted-parent' } as const;
 const secureFile = {
-  driver: 'sqlite3',
+  driver: 'node:sqlite',
   custody: 'trusted-parent',
 } as const;
 
@@ -36,9 +36,8 @@ async function makeTempRoot(): Promise<string> {
   return root;
 }
 
-async function loadSqlite3Driver() {
-  const imported = await import('sqlite3');
-  return imported.default as any;
+async function loadNodeSqliteDriver() {
+  return (await import('node:sqlite')) as any;
 }
 
 function createTrustedClient(url: string, runtime?: SecureSqliteRuntime) {
@@ -88,7 +87,7 @@ describe('secure SQLite file acquisition', () => {
         inspectDarwinAcl: async (path) => path === root,
         loadDriver: async () => {
           driverLoaded = true;
-          return loadSqlite3Driver();
+          return loadNodeSqliteDriver();
         },
       }),
     ).rejects.toThrow('contains a macOS access control list');
@@ -108,7 +107,7 @@ describe('secure SQLite file acquisition', () => {
         inspectDarwinAcl: async (path) => path === databasePath,
         loadDriver: async () => {
           driverLoaded = true;
-          return loadSqlite3Driver();
+          return loadNodeSqliteDriver();
         },
       }),
     ).rejects.toThrow('contains a macOS access control list');
@@ -128,7 +127,7 @@ describe('secure SQLite file acquisition', () => {
         },
         loadDriver: async () => {
           driverLoaded = true;
-          return loadSqlite3Driver();
+          return loadNodeSqliteDriver();
         },
       }),
     ).rejects.toThrow('cannot inspect macOS access control lists');
@@ -148,7 +147,7 @@ describe('secure SQLite file acquisition', () => {
         inspected.add(path);
         return false;
       },
-      loadDriver: loadSqlite3Driver,
+      loadDriver: loadNodeSqliteDriver,
     });
     await client.close();
 
@@ -168,7 +167,7 @@ describe('secure SQLite file acquisition', () => {
           inspected = true;
           throw new Error('must not run');
         },
-        loadDriver: loadSqlite3Driver,
+        loadDriver: loadNodeSqliteDriver,
       },
     );
     await client.close();
@@ -192,7 +191,7 @@ describe('secure SQLite file acquisition', () => {
       getDatabase({
         type: 'sqlite',
         url: databasePath,
-        secureFile: { driver: 'sqlite3' } as any,
+        secureFile: { driver: 'node:sqlite' } as any,
         cache: false,
       }),
     ).rejects.toThrow('requires trusted-parent custody');
@@ -245,7 +244,7 @@ describe('secure SQLite file acquisition', () => {
           path === root ? actualUid + 1 : actualUid,
         loadDriver: async () => {
           driverLoaded = true;
-          return loadSqlite3Driver();
+          return loadNodeSqliteDriver();
         },
       }),
     ).rejects.toThrow('not owned by the current user');
@@ -266,7 +265,7 @@ describe('secure SQLite file acquisition', () => {
           path === ancestor ? currentUid + 1 : actualUid,
         loadDriver: async () => {
           driverLoaded = true;
-          return loadSqlite3Driver();
+          return loadNodeSqliteDriver();
         },
       }),
     ).rejects.toThrow('ancestor is owned by an untrusted user');
@@ -279,7 +278,7 @@ describe('secure SQLite file acquisition', () => {
         platform: 'linux',
         currentUid: () => currentUid,
         pathOwnerUid: (path, actualUid) => (path === ancestor ? 0 : actualUid),
-        loadDriver: loadSqlite3Driver,
+        loadDriver: loadNodeSqliteDriver,
       },
     );
     await rootOwned.close();
@@ -292,7 +291,7 @@ describe('secure SQLite file acquisition', () => {
         currentUid: () => currentUid,
         pathOwnerUid: (path, actualUid) =>
           path === ancestor ? currentUid : actualUid,
-        loadDriver: loadSqlite3Driver,
+        loadDriver: loadNodeSqliteDriver,
       },
     );
     await userOwned.close();
@@ -308,7 +307,7 @@ describe('secure SQLite file acquisition', () => {
         platform: process.platform,
         loadDriver: async () => {
           driverLoaded = true;
-          return loadSqlite3Driver();
+          return loadNodeSqliteDriver();
         },
       }),
     ).rejects.toThrow('group/world writable');
@@ -399,87 +398,6 @@ describe('secure SQLite file acquisition', () => {
     );
   });
 
-  it('fails closed when the leaf is replaced immediately before driver acquisition', async () => {
-    const root = await makeTempRoot();
-    const databasePath = join(root, 'app.db');
-    const displacedPath = join(root, 'original.db');
-    const target = join(root, 'target.txt');
-    await writeFile(databasePath, 'original');
-    await writeFile(target, 'untouched');
-
-    const runtime: SecureSqliteRuntime = {
-      platform: process.platform,
-      loadDriver: loadSqlite3Driver,
-      beforeDriverOpen: async (acquisitionPath) => {
-        expect(acquisitionPath).toBe(databasePath);
-        await rename(databasePath, displacedPath);
-        await symlink(target, databasePath);
-      },
-    };
-
-    await expect(
-      createSecureSqliteClient(databasePath, trustedParent, runtime),
-    ).rejects.toThrow('Secure SQLite acquisition rejected');
-    expect(await readFile(target, 'utf8')).toBe('untouched');
-    expect(await readFile(displacedPath, 'utf8')).toBe('original');
-  });
-
-  it('keeps the acquired handle bound when the pathname is replaced after open', async () => {
-    const root = await makeTempRoot();
-    const databasePath = join(root, 'app.db');
-    const displacedPath = join(root, 'acquired.db');
-    const replacementPath = join(root, 'replacement.db');
-
-    const original = await createTrustedClient(databasePath);
-    await original.execute(
-      'CREATE TABLE identity_marker (value TEXT NOT NULL)',
-    );
-    await original.execute(
-      "INSERT INTO identity_marker (value) VALUES ('acquired')",
-    );
-    await original.close();
-
-    const replacement = await createTrustedClient(replacementPath);
-    await replacement.execute(
-      'CREATE TABLE identity_marker (value TEXT NOT NULL)',
-    );
-    await replacement.execute(
-      "INSERT INTO identity_marker (value) VALUES ('replacement')",
-    );
-    await replacement.close();
-
-    const acquired = await createSecureSqliteClient(
-      databasePath,
-      trustedParent,
-      {
-        platform: process.platform,
-        loadDriver: loadSqlite3Driver,
-        afterDriverOpen: async (acquisitionPath) => {
-          expect(acquisitionPath).toBe(databasePath);
-          await rename(databasePath, displacedPath);
-          await rename(replacementPath, databasePath);
-        },
-      },
-    );
-
-    expect(
-      await acquired.execute('SELECT value FROM identity_marker'),
-    ).toMatchObject({ rows: [{ value: 'acquired' }] });
-    await acquired.close();
-
-    const currentPath = await createTrustedClient(databasePath);
-    expect(
-      await currentPath.execute('SELECT value FROM identity_marker'),
-    ).toMatchObject({ rows: [{ value: 'replacement' }] });
-    await currentPath.close();
-
-    const acquiredPath = await createTrustedClient(displacedPath);
-    expect(
-      await acquiredPath.execute('SELECT value FROM identity_marker'),
-    ).toMatchObject({ rows: [{ value: 'acquired' }] });
-    await acquiredPath.close();
-  });
-
   it('reports affected rows for CTE and comment-prefixed writes', async () => {
     const root = await makeTempRoot();
     const db = await getDatabase({
@@ -542,6 +460,82 @@ describe('secure SQLite file acquisition', () => {
       ),
     ).toMatchObject({ rows: [{ name: 'close_race' }] });
     await reopened.close();
+  });
+
+  it('does not let close overtake an already-invoked transaction', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'app.db');
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: databasePath,
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE invocation_order (id INTEGER PRIMARY KEY)');
+
+    const acceptedTransaction = db.transaction(async (tx) => {
+      await tx.query('INSERT INTO invocation_order (id) VALUES (1)');
+    });
+    const closing = db.close?.();
+    if (!closing) throw new Error('close unavailable');
+
+    await expect(acceptedTransaction).resolves.toBeUndefined();
+    await expect(closing).resolves.toBeUndefined();
+    await expect(
+      db.query('INSERT INTO invocation_order (id) VALUES (2)'),
+    ).rejects.toThrow('closing or closed');
+
+    const reopened = await getDatabase({
+      type: 'sqlite',
+      url: databasePath,
+      secureFile,
+      cache: false,
+    });
+    expect(
+      (await reopened.query('SELECT id FROM invocation_order')).rows,
+    ).toEqual([{ id: 1 }]);
+    await reopened.close?.();
+  });
+
+  it('does not let close overtake an already-invoked multi-step upsert', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'app.db');
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: databasePath,
+      secureFile,
+      cache: false,
+    });
+    await db.query(`
+      CREATE TABLE invocation_upsert (
+        id TEXT PRIMARY KEY,
+        slug TEXT NOT NULL,
+        tenant_id TEXT,
+        UNIQUE(slug, tenant_id)
+      )
+    `);
+
+    const acceptedUpsert = db.upsert(
+      'invocation_upsert',
+      ['slug', 'tenant_id'],
+      { id: 'kept', slug: 'shared', tenant_id: null },
+    );
+    const closing = db.close?.();
+    if (!closing) throw new Error('close unavailable');
+
+    await expect(acceptedUpsert).resolves.toMatchObject({ affected: 1 });
+    await expect(closing).resolves.toBeUndefined();
+
+    const reopened = await getDatabase({
+      type: 'sqlite',
+      url: databasePath,
+      secureFile,
+      cache: false,
+    });
+    expect(
+      (await reopened.query('SELECT id FROM invocation_upsert')).rows,
+    ).toEqual([{ id: 'kept' }]);
+    await reopened.close?.();
   });
 
   it('keeps an outsider write outside a paused transaction rollback', async () => {
@@ -613,7 +607,7 @@ describe('secure SQLite file acquisition', () => {
     if (!closing) throw new Error('close unavailable');
     await expect(
       db.query('INSERT INTO close_reservation (id) VALUES (3)'),
-    ).rejects.toThrow('Failed to execute raw query');
+    ).rejects.toThrow('closing or closed');
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(closeSettled).toBe(false);
 
@@ -804,21 +798,25 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
-  it('rejects BigInt parameters instead of silently binding NULL', async () => {
+  it('binds and reads SQLite integers without losing precision', async () => {
     const root = await makeTempRoot();
     const client = await createTrustedClient(join(root, 'app.db'));
     await client.execute('CREATE TABLE values_table (value INTEGER)');
 
-    await expect(
-      client.execute({
-        sql: 'INSERT INTO values_table (value) VALUES (?)',
-        args: [1n],
-      }),
-    ).rejects.toThrow('BigInt parameters are unsupported');
+    await client.execute({
+      sql: 'INSERT INTO values_table (value) VALUES (?), (?)',
+      args: [1n, 9007199254740993n],
+    });
     expect(
-      await client.execute('SELECT COUNT(*) AS count FROM values_table'),
-    ).toMatchObject({ rows: [{ count: 0 }] });
+      await client.execute('SELECT value FROM values_table ORDER BY value'),
+    ).toMatchObject({ rows: [{ value: 1 }, { value: 9007199254740993n }] });
     await client.close();
+  });
+
+  it('fails rather than rounding a row count outside the public range', () => {
+    expect(() =>
+      toPublicRowCount(BigInt(Number.MAX_SAFE_INTEGER) + 1n),
+    ).toThrow('exceed the public safe-integer row-count range');
   });
 
   it('preserves lastInsertRowid beyond Number.MAX_SAFE_INTEGER', async () => {
@@ -864,7 +862,7 @@ describe('secure SQLite file acquisition', () => {
         platform: 'win32',
         loadDriver: async () => {
           driverLoaded = true;
-          return loadSqlite3Driver();
+          return loadNodeSqliteDriver();
         },
       }),
     ).rejects.toThrow('unsupported on win32');
@@ -880,7 +878,7 @@ describe('secure SQLite file acquisition', () => {
           throw new Error('native binding unavailable');
         },
       }),
-    ).rejects.toThrow('could not load the sqlite3 driver');
+    ).rejects.toThrow('could not load the node:sqlite driver');
   });
 
   it('rejects backends and options that cannot preserve the guarantee', async () => {

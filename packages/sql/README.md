@@ -26,7 +26,7 @@ const secureFileDb = await getDatabase({
   type: 'sqlite',
   url: './data/app.db',
   secureFile: {
-    driver: 'sqlite3',
+    driver: 'node:sqlite',
     custody: 'trusted-parent',
     root: './data',
   },
@@ -110,7 +110,7 @@ Secure mode requires an explicit custody contract:
 
 ```typescript
 secureFile: {
-  driver: 'sqlite3',
+  driver: 'node:sqlite',
   custody: 'trusted-parent',
   root: './data', // optional; defaults to the database's direct parent
 }
@@ -131,56 +131,32 @@ system-root exception). A sticky root-owned shared parent such as `/tmp` is
 accepted. The application must create and retain custody of this directory;
 mode `0700` with no ACL is the conventional choice.
 
-After custody validation, the `sqlite3` driver passes SQLite's
-`SQLITE_OPEN_NOFOLLOW` flag directly to `sqlite3_open_v2()` for atomic leaf
-acquisition. This protects against static symlink mistakes and mutation by
-other principals that cannot write the custodied parent. It does **not** claim
-protection against a hostile process running as the same account: that process
-can already read, rewrite, unlink, or replace an unencrypted user-owned database
-and its directory. A security boundary between same-account processes requires
-OS sandbox separation plus a descriptor-relative/custom-VFS SQLite driver;
-`@libsql/client`, `node:sqlite`, and the public `sqlite3` binding expose no such
-portable boundary.
-
-SQLite retains its acquired file handle, so a later rename cannot redirect that
-handle, but a later connection to the original pathname may see a different
-file. Keep the custody contract in force for the full connection lifetime.
+After custody validation, the adapter opens the path with Node's built-in
+`node:sqlite` driver. Static ancestor and leaf symlinks are rejected. Under the
+contract, other principals cannot replace entries beneath the current-user-owned
+custody root, so there is no cross-principal pathname race between validation
+and open. This is not an atomic path boundary against a hostile process
+running as the same account: that process can already read, rewrite, unlink, or
+replace an unencrypted user-owned database and its directory. Separating
+same-account processes requires OS sandboxing plus a descriptor-relative/custom
+SQLite VFS. Keep the custody contract in force for the full connection lifetime.
 
 The secure path is supported on macOS and Linux. It fails closed on other
 platforms and when combined with remote LibSQL URLs, `:memory:`, LibSQL
-authentication or encryption, or the optional `node:sqlite` capability path.
-Those backends do not expose the same no-follow acquisition boundary. Omit
-`secureFile` to retain the existing LibSQL pathname behavior.
+authentication or encryption, or optional native capabilities. Omit
+`secureFile` to retain the existing LibSQL behavior.
 
-The secure `sqlite3` adapter rejects JavaScript `bigint` parameters explicitly
-because that binding otherwise converts them to `NULL`. Bind a safely
-representable number or an explicitly typed decimal/text value instead.
+Every secure prepared statement enables exact BigInt reads. Safe SQLite integer
+columns retain legacy JavaScript `number` results; integers outside the safe
+range are returned as `bigint`, and `bigint` parameters bind exactly. The public
+row-count contract remains `number`, so an exact `changes` metric above
+`Number.MAX_SAFE_INTEGER` fails explicitly instead of rounding.
 
 Every static component must be a real path component. For example, macOS exposes
 `/var` as a symlink, so use the resolved `/private/var/...` path when secure
-acquisition is intentional. The `sqlite3` native dependency is built or loaded
-only when secure mode is requested; it is an optional peer so ordinary LibSQL
-consumers do not install a native binding. Install the exact peer explicitly:
-
-```bash
-npm install sqlite3@6.0.1
-# or
-pnpm add sqlite3@6.0.1
-```
-
-pnpm consumers must also approve its native install script in their own
-workspace (the SDK repository's approval does not propagate to consumers):
-
-```yaml
-# pnpm-workspace.yaml
-allowBuilds:
-  sqlite3: true
-```
-
-Then run `pnpm install` (or `pnpm rebuild sqlite3`) for each target platform and
-include the resulting platform binary in packaged applications. If the peer is
-absent or its native build was not approved, secure mode fails closed with an
-actionable driver-loading error; default LibSQL use remains unaffected.
+acquisition is intentional. Secure mode requires the package's supported Node
+runtime with built-in `node:sqlite`; it installs no additional native peer.
+Default LibSQL use remains unchanged.
 
 ### Template Literal Queries
 
@@ -507,7 +483,7 @@ shipping it beyond development or test environments.
 
 | Adapter | `type` | Backend | Notes |
 |---------|--------|---------|-------|
-| SQLite | `'sqlite'` | LibSQL (`@libsql/client`) by default; native `node:sqlite` for capabilities; `sqlite3` for `secureFile` | Supports `:memory:`, file, and remote Turso URLs by default. Native capabilities are local-only; secure no-follow files are macOS/Linux-only |
+| SQLite | `'sqlite'` | LibSQL (`@libsql/client`) by default; built-in `node:sqlite` for capabilities and `secureFile` | Supports `:memory:`, file, and remote Turso URLs by default. Native capabilities are local-only; trusted-parent secure files are macOS/Linux-only |
 | PostgreSQL | `'postgres'` | `pg` Pool | Connection pooling, pgvector support |
 | DuckDB | `'duckdb'` | `@duckdb/node-api` | JSON file auto-registration, write-back strategies |
 | JSON | `'json'` | DuckDB in-memory | Queries JSON files as tables, connection caching |
