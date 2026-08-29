@@ -135,15 +135,11 @@ function validateNodeVersion(runtime: SecureSqliteRuntime): void {
       version,
     );
   const parsed = match?.slice(1, 4).map(Number);
-  const isMinimumPrerelease =
-    Boolean(match?.[4]) &&
-    parsed?.[0] === MINIMUM_NODE_VERSION[0] &&
-    parsed?.[1] === MINIMUM_NODE_VERSION[1] &&
-    parsed?.[2] === MINIMUM_NODE_VERSION[2];
+  const isPrerelease = Boolean(match?.[4]);
   if (
     !parsed ||
     parsed.some((part) => !Number.isSafeInteger(part)) ||
-    isMinimumPrerelease ||
+    isPrerelease ||
     parsed[0] < MINIMUM_NODE_VERSION[0] ||
     (parsed[0] === MINIMUM_NODE_VERSION[0] &&
       parsed[1] < MINIMUM_NODE_VERSION[1]) ||

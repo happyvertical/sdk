@@ -108,6 +108,8 @@ describe('secure SQLite file acquisition', () => {
       '24.17.99',
       '24.18',
       '24.18.0-rc.1',
+      '24.19.0-rc.1',
+      '25.0.0-beta.1',
     ]) {
       let driverLoaded = false;
       await expect(
