@@ -871,6 +871,61 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
+  it('propagates detached nested failures while preserving observed savepoint recovery', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE nested_observation (id INTEGER PRIMARY KEY)');
+
+    await expect(
+      txOf(db)(async (outer) => {
+        await outer.insert('nested_observation', { id: 1 });
+        void txOf(outer)(async (inner) => {
+          await inner.insert('nested_observation', { id: 2 });
+          void inner.insert('nested_observation', { id: 2 });
+        });
+      }),
+    ).rejects.toThrow();
+    expect(await db.count('nested_observation')).toBe(0);
+
+    const manual = await db.beginTransaction?.();
+    if (!manual) throw new Error('beginTransaction unavailable');
+    await manual.insert('nested_observation', { id: 3 });
+    void txOf(manual)(async (inner) => {
+      await inner.insert('nested_observation', { id: 4 });
+      void inner.insert('nested_observation', { id: 4 });
+    });
+    await expect(manual.commit()).rejects.toThrow();
+    expect(await db.count('nested_observation')).toBe(0);
+
+    await txOf(db)(async (outer) => {
+      await outer.insert('nested_observation', { id: 5 });
+      void txOf(outer)(async (inner) => {
+        await inner.insert('nested_observation', { id: 6 });
+      });
+    });
+
+    await txOf(db)(async (outer) => {
+      await outer.insert('nested_observation', { id: 7 });
+      await expect(
+        txOf(outer)(async (inner) => {
+          await inner.insert('nested_observation', { id: 8 });
+          throw new Error('observed nested rollback');
+        }),
+      ).rejects.toThrow('observed nested rollback');
+      await outer.insert('nested_observation', { id: 9 });
+    });
+
+    expect(
+      (await db.query('SELECT id FROM nested_observation ORDER BY id')).rows,
+    ).toEqual([{ id: 5 }, { id: 6 }, { id: 7 }, { id: 9 }]);
+    await db.close?.();
+  });
+
   it('prevents nested savepoint work from escaping its callback lifetime', async () => {
     const root = await makeTempRoot();
     const db = await getDatabase({

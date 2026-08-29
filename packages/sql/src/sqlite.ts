@@ -1372,11 +1372,30 @@ async function createDatabase(
       interface NestedScope {
         accepting: boolean;
         tail: Promise<void>;
+        children: Set<{
+          observed: boolean;
+          error?: unknown;
+        }>;
       }
       const scopeContext = new AsyncLocalStorage<NestedScope>();
       const rootScope: NestedScope = {
         accepting: true,
         tail: Promise.resolve(),
+        children: new Set(),
+      };
+
+      const drainNestedScope = async (scope: NestedScope): Promise<void> => {
+        await scope.tail;
+        const failures = [...scope.children]
+          .filter((child) => !child.observed && 'error' in child)
+          .map((child) => child.error);
+        if (failures.length === 1) throw failures[0];
+        if (failures.length > 1) {
+          throw new AggregateError(
+            failures,
+            'Accepted nested transactions failed',
+          );
+        }
       };
 
       const runScope = async <T>(
@@ -1397,7 +1416,7 @@ async function createDatabase(
           await callbackScope.sealAndDrain();
           // A rejected sibling must not let a later queued savepoint outlive
           // this scope.
-          await scope.tail;
+          await drainNestedScope(scope);
         };
         try {
           const result = await callback(callbackScope.database);
@@ -1446,19 +1465,47 @@ async function createDatabase(
         const scope: NestedScope = {
           accepting: true,
           tail: Promise.resolve(),
+          children: new Set(),
         };
+        const child = { observed: false } as {
+          observed: boolean;
+          error?: unknown;
+        };
+        parentScope.children.add(child);
         const current = parentScope.tail.then(() =>
           scopeContext.run(scope, () => runScope(scope, callback)),
         );
+        void current.catch((error) => {
+          child.error = error;
+        });
         parentScope.tail = current.then(
           () => undefined,
           () => undefined,
         );
-        return current;
+        // A plain thenable lets us distinguish an explicitly awaited/caught
+        // savepoint rollback from a detached nested transaction. Promise.resolve
+        // must not wrap this at the transaction-scope boundary, because that
+        // assimilation itself would falsely mark detached work as observed.
+        return {
+          // biome-ignore lint/suspicious/noThenProperty: Promise-compatible observation is intentional here.
+          then: (onFulfilled, onRejected) => {
+            child.observed = true;
+            return current.then(onFulfilled, onRejected);
+          },
+          catch: (onRejected) => {
+            child.observed = true;
+            return current.catch(onRejected);
+          },
+          finally: (onFinally) => {
+            child.observed = true;
+            return current.finally(onFinally);
+          },
+          [Symbol.toStringTag]: 'Promise',
+        } as Promise<T>;
       }) as NestedTransaction;
       nestedTransaction.drain = () => {
         rootScope.accepting = false;
-        return rootScope.tail;
+        return drainNestedScope(rootScope);
       };
       return nestedTransaction;
     };
@@ -1639,11 +1686,21 @@ async function createDatabase(
         };
       };
 
-      // A nested transaction is an explicit savepoint boundary: callers may
-      // catch its rollback and continue the outer transaction. Its own scoped
-      // operations are tracked by the child scope, so do not poison the parent
-      // merely because that explicit savepoint rejected.
-      const scopedTransaction = bind(nestedTransaction, false);
+      // Do not assimilate the coordinator's observation-aware thenable here.
+      // Awaited/caught savepoint rollback is recoverable; detached failure is
+      // retained by the nested coordinator and propagated during root drain.
+      const scopedTransaction = (<T>(
+        callback: (tx: DatabaseInterface) => Promise<T>,
+      ): Promise<T> => {
+        if (!accepting) {
+          return Promise.reject(
+            new DatabaseError('Transaction scope is ending or ended', {}),
+          );
+        }
+        return executorContext.run(transactionClient, () =>
+          nestedTransaction(callback),
+        );
+      }) as typeof nestedTransaction;
 
       const txDb: DatabaseInterface = {
         url,
