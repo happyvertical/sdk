@@ -1333,9 +1333,13 @@ async function createDatabase(
       callback: (tx: DatabaseInterface) => Promise<T>,
     ) => Promise<T>) & { drain: () => Promise<void> };
 
+    interface TransactionScope {
+      database: DatabaseInterface;
+      sealAndDrain: () => Promise<void>;
+    }
+
     const createNestedTransaction = (
       transactionClient: SqliteExecutor,
-      scopeFor: () => DatabaseInterface,
     ): NestedTransaction => {
       interface NestedScope {
         accepting: boolean;
@@ -1357,9 +1361,14 @@ async function createDatabase(
           sql: `SAVEPOINT ${name}`,
           args: [],
         });
+        const callbackScope = createTransactionScope(
+          transactionClient,
+          nestedTransaction,
+        );
         try {
-          const result = await callback(scopeFor());
+          const result = await callback(callbackScope.database);
           scope.accepting = false;
+          await callbackScope.sealAndDrain();
           await scope.tail;
           await transactionClient.execute({
             sql: `RELEASE SAVEPOINT ${name}`,
@@ -1368,6 +1377,7 @@ async function createDatabase(
           return result;
         } catch (error) {
           scope.accepting = false;
+          await callbackScope.sealAndDrain();
           // Promise.all rejects before later queued siblings settle. Their
           // savepoint work must drain before this scope unwinds.
           await scope.tail;
@@ -1434,22 +1444,21 @@ async function createDatabase(
       connectionLock.run(async () => {
         if (client.transactionReservation !== 'exclusive') {
           let nestedTransaction: NestedTransaction | undefined;
+          let transactionScope: TransactionScope | undefined;
           try {
             await client.execute({ sql: 'BEGIN TRANSACTION', args: [] });
-            let transactionScope!: DatabaseInterface;
-            nestedTransaction = createNestedTransaction(
-              client,
-              () => transactionScope,
-            );
+            nestedTransaction = createNestedTransaction(client);
             transactionScope = createTransactionScope(
               client,
               nestedTransaction,
             );
-            const result = await callback(transactionScope);
+            const result = await callback(transactionScope.database);
+            await transactionScope.sealAndDrain();
             await nestedTransaction.drain();
             await client.execute({ sql: 'COMMIT', args: [] });
             return result;
           } catch (error) {
+            await transactionScope?.sealAndDrain();
             await nestedTransaction?.drain();
             try {
               await client.execute({ sql: 'ROLLBACK', args: [] });
@@ -1462,21 +1471,20 @@ async function createDatabase(
 
         const transactionClient = await client.transaction('write');
         let nestedTransaction: NestedTransaction | undefined;
+        let transactionScope: TransactionScope | undefined;
         try {
-          let transactionScope!: DatabaseInterface;
-          nestedTransaction = createNestedTransaction(
-            transactionClient,
-            () => transactionScope,
-          );
+          nestedTransaction = createNestedTransaction(transactionClient);
           transactionScope = createTransactionScope(
             transactionClient,
             nestedTransaction,
           );
-          const result = await callback(transactionScope);
+          const result = await callback(transactionScope.database);
+          await transactionScope.sealAndDrain();
           await nestedTransaction.drain();
           await transactionClient.commit();
           return result;
         } catch (error) {
+          await transactionScope?.sealAndDrain();
           await nestedTransaction?.drain();
           // A failing ROLLBACK must not replace the caller's error — SQLite
           // reports "cannot rollback - no transaction is active" whenever the
@@ -1508,10 +1516,26 @@ async function createDatabase(
     const createTransactionScope = (
       transactionClient: SqliteExecutor,
       nestedTransaction: NestedTransaction,
-    ): DatabaseInterface => {
-      const bind = <T extends (...args: any[]) => any>(fn: T): T =>
-        ((...args: Parameters<T>) =>
-          executorContext.run(transactionClient, () => fn(...args))) as T;
+    ): TransactionScope => {
+      let accepting = true;
+      const pending = new Set<Promise<unknown>>();
+      const bind = <T extends (...args: any[]) => Promise<any>>(fn: T): T =>
+        ((...args: Parameters<T>) => {
+          if (!accepting) {
+            return Promise.reject(
+              new DatabaseError('Transaction scope is ending or ended', {}),
+            );
+          }
+          const operation = Promise.resolve(
+            executorContext.run(transactionClient, () => fn(...args)),
+          );
+          pending.add(operation);
+          void operation.then(
+            () => pending.delete(operation),
+            () => pending.delete(operation),
+          );
+          return operation;
+        }) as T;
       const scopedInsert = bind(insert);
       const scopedGet = bind(get);
       const scopedList = bind(list);
@@ -1527,11 +1551,22 @@ async function createDatabase(
       const scopedQuery = bind(query);
       const scopedTableExists = bind(tableExists);
       const scopedSyncSchema = bind(syncSchema);
-      const scopedTable = (tableName: string): TableInterface => ({
-        insert: (data) => scopedInsert(tableName, data),
-        get: (where) => scopedGet(tableName, where),
-        list: (where) => scopedList(tableName, where),
-      });
+      const scopedTable = (tableName: string): TableInterface => {
+        if (!accepting) {
+          const reject = () =>
+            Promise.reject(
+              new DatabaseError('Transaction scope is ending or ended', {}),
+            );
+          return { insert: reject, get: reject, list: reject };
+        }
+        return {
+          insert: (data) => scopedInsert(tableName, data),
+          get: (where) => scopedGet(tableName, where),
+          list: (where) => scopedList(tableName, where),
+        };
+      };
+
+      const scopedTransaction = bind(nestedTransaction);
 
       const txDb: DatabaseInterface = {
         url,
@@ -1556,10 +1591,18 @@ async function createDatabase(
         xx: scopedExecute,
         tableExists: scopedTableExists,
         syncSchema: scopedSyncSchema,
-        transaction: nestedTransaction,
+        transaction: scopedTransaction,
       };
 
-      return txDb;
+      return {
+        database: txDb,
+        sealAndDrain: async () => {
+          accepting = false;
+          while (pending.size > 0) {
+            await Promise.allSettled([...pending]);
+          }
+        },
+      };
     };
 
     /**
@@ -1592,6 +1635,7 @@ async function createDatabase(
 
       let active = true;
       let nestedTransaction: NestedTransaction | undefined;
+      let transactionScope: TransactionScope | undefined;
 
       // COMMIT and ROLLBACK can both throw, and the transaction is over either
       // way, so the connection goes back before the error is rethrown.
@@ -1599,7 +1643,9 @@ async function createDatabase(
         if (!active) {
           throw new DatabaseError('Transaction already ended', {});
         }
+        active = false;
         try {
+          await transactionScope?.sealAndDrain();
           await nestedTransaction?.drain();
           if (transactionClient) {
             if (command === 'COMMIT') {
@@ -1632,7 +1678,6 @@ async function createDatabase(
           }
           throw error;
         } finally {
-          active = false;
           transactionClient?.close();
           releaseConnection();
         }
@@ -1648,11 +1693,11 @@ async function createDatabase(
       // The handle is inside a transaction for the same reason a callback scope
       // is, so it gets the same savepoint-based nesting rather than the
       // top-level `transaction`.
-      let txHandle!: TransactionHandle;
       const executor = transactionClient ?? client;
-      nestedTransaction = createNestedTransaction(executor, () => txHandle);
-      txHandle = {
-        ...createTransactionScope(executor, nestedTransaction),
+      nestedTransaction = createNestedTransaction(executor);
+      transactionScope = createTransactionScope(executor, nestedTransaction);
+      const txHandle: TransactionHandle = {
+        ...transactionScope.database,
         commit,
         rollback,
         isActive,

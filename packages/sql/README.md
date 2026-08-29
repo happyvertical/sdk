@@ -141,10 +141,12 @@ replace an unencrypted user-owned database and its directory. Separating
 same-account processes requires OS sandboxing plus a descriptor-relative/custom
 SQLite VFS. Keep the custody contract in force for the full connection lifetime.
 
-The secure path is supported on macOS and Linux. It fails closed on other
-platforms and when combined with remote LibSQL URLs, `:memory:`, LibSQL
+The secure path is supported on macOS and Linux with Node.js 24.18.0 or newer.
+The runtime version is checked before `node:sqlite` is imported or the database
+is opened. Secure mode fails closed on older or malformed runtime versions,
+other platforms, and when combined with remote LibSQL URLs, `:memory:`, LibSQL
 authentication or encryption, or optional native capabilities. Omit
-`secureFile` to retain the existing LibSQL behavior.
+`secureFile` to retain the existing LibSQL behavior on older consumers.
 
 Every secure prepared statement enables exact BigInt reads. Safe SQLite integer
 columns retain legacy JavaScript `number` results; integers outside the safe
@@ -282,6 +284,10 @@ started concurrently on one transaction, they serialize so the stack-ordered
 savepoint lifecycle remains intact. The enclosing commit or rollback drains all
 accepted child scopes before ending the transaction. PostgreSQL pools separate
 connections, so top-level transactions there run concurrently and never queue.
+Every SQLite transaction-scoped operation is registered when its public method
+is called. Ending a callback or invoking a manual handle's commit/rollback
+seals the scope synchronously, drains operations already accepted, and rejects
+later operations so work cannot escape into autocommit after the transaction.
 
 ### Identifiers
 

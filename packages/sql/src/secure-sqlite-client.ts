@@ -64,6 +64,7 @@ interface NodeSqliteModule {
 /** @internal Deterministic acquisition seam used by the integration tests. */
 export interface SecureSqliteRuntime {
   platform: NodeJS.Platform;
+  nodeVersion?: string;
   currentUid?: () => number;
   pathOwnerUid?: (filePath: string, actualUid: number) => number;
   inspectDarwinAcl?: (filePath: string) => Promise<boolean>;
@@ -109,6 +110,7 @@ function inspectDarwinAcl(filePath: string): Promise<boolean> {
 
 const defaultRuntime: SecureSqliteRuntime = {
   platform: process.platform,
+  nodeVersion: process.versions.node,
   currentUid: () => {
     if (!process.getuid) {
       throw new Error('process.getuid() is unavailable');
@@ -124,6 +126,38 @@ const defaultRuntime: SecureSqliteRuntime = {
 
 const GROUP_OR_WORLD_WRITE = 0o022;
 const STICKY_BIT = 0o1000;
+const MINIMUM_NODE_VERSION = [24, 18, 0] as const;
+
+function validateNodeVersion(runtime: SecureSqliteRuntime): void {
+  const version = runtime.nodeVersion ?? defaultRuntime.nodeVersion ?? '';
+  const match =
+    /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(
+      version,
+    );
+  const parsed = match?.slice(1, 4).map(Number);
+  const isMinimumPrerelease =
+    Boolean(match?.[4]) &&
+    parsed?.[0] === MINIMUM_NODE_VERSION[0] &&
+    parsed?.[1] === MINIMUM_NODE_VERSION[1] &&
+    parsed?.[2] === MINIMUM_NODE_VERSION[2];
+  if (
+    !parsed ||
+    parsed.some((part) => !Number.isSafeInteger(part)) ||
+    isMinimumPrerelease ||
+    parsed[0] < MINIMUM_NODE_VERSION[0] ||
+    (parsed[0] === MINIMUM_NODE_VERSION[0] &&
+      parsed[1] < MINIMUM_NODE_VERSION[1]) ||
+    (parsed[0] === MINIMUM_NODE_VERSION[0] &&
+      parsed[1] === MINIMUM_NODE_VERSION[1] &&
+      parsed[2] < MINIMUM_NODE_VERSION[2])
+  ) {
+    throw new DatabaseError('Secure SQLite requires Node.js 24.18.0 or newer', {
+      actualVersion: version || 'unknown',
+      minimumVersion: MINIMUM_NODE_VERSION.join('.'),
+      hint: 'Upgrade the runtime before requesting trusted-parent secure SQLite. Default LibSQL mode remains available on older supported runtimes.',
+    });
+  }
+}
 
 function pathComponents(path: string): string[] {
   const root = parse(path).root;
@@ -715,6 +749,7 @@ export async function createSecureSqliteClient(
   options: SecureSqliteCustodyOptions,
   runtime: SecureSqliteRuntime = defaultRuntime,
 ): Promise<SecureSqliteClient> {
+  validateNodeVersion(runtime);
   if (runtime.platform !== 'darwin' && runtime.platform !== 'linux') {
     throw new DatabaseError(
       `Secure SQLite acquisition is unsupported on ${runtime.platform}`,

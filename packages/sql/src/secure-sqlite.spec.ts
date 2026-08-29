@@ -59,6 +59,41 @@ function txOf(db: DatabaseInterface) {
   return transaction.bind(db);
 }
 
+async function expectEveryScopeRouteClosed(db: DatabaseInterface) {
+  const sql = Object.assign(['SELECT 1'], {
+    raw: ['SELECT 1'],
+  }) as unknown as TemplateStringsArray;
+  const operations: Promise<unknown>[] = [
+    db.insert('closed_scope', { id: 1 }),
+    db.get('closed_scope', { id: 1 }),
+    db.list('closed_scope', { id: 1 }),
+    db.update('closed_scope', { id: 1 }, { id: 2 }),
+    db.upsert('closed_scope', ['id'], { id: 1 }),
+    db.getOrInsert('closed_scope', { id: 1 }, { id: 1 }),
+    db.delete('closed_scope', { id: 1 }),
+    db.count('closed_scope'),
+    db.table('closed_scope').insert({ id: 1 }),
+    db.many(sql),
+    db.single(sql),
+    db.pluck(sql),
+    db.execute(sql),
+    db.query('SELECT 1'),
+    db.oo(sql),
+    db.oO(sql),
+    db.ox(sql),
+    db.xx(sql),
+    db.tableExists('closed_scope'),
+    txOf(db)(async () => undefined),
+  ];
+  if (db.syncSchema) operations.push(db.syncSchema('SELECT 1'));
+
+  await Promise.all(
+    operations.map((operation) =>
+      expect(operation).rejects.toThrow('Transaction scope is ending or ended'),
+    ),
+  );
+}
+
 afterEach(async () => {
   await Promise.all(
     [...tempRoots].map((root) => rm(root, { recursive: true, force: true })),
@@ -67,6 +102,42 @@ afterEach(async () => {
 });
 
 describe('secure SQLite file acquisition', () => {
+  it('enforces the secure Node runtime floor before loading the driver', async () => {
+    for (const nodeVersion of [
+      '22.22.3',
+      '24.17.99',
+      '24.18',
+      '24.18.0-rc.1',
+    ]) {
+      let driverLoaded = false;
+      await expect(
+        createSecureSqliteClient('/unused/app.db', trustedParent, {
+          platform: 'linux',
+          nodeVersion,
+          loadDriver: async () => {
+            driverLoaded = true;
+            return loadNodeSqliteDriver();
+          },
+        }),
+      ).rejects.toThrow('requires Node.js 24.18.0 or newer');
+      expect(driverLoaded).toBe(false);
+    }
+
+    const root = await makeTempRoot();
+    for (const nodeVersion of ['24.18.0', '24.19.7', '25.0.0']) {
+      const client = await createTrustedClient(
+        join(root, `node-${nodeVersion}.db`),
+        {
+          platform: process.platform,
+          nodeVersion,
+          loadDriver: loadNodeSqliteDriver,
+        },
+      );
+      await client.execute('SELECT 1');
+      await client.close();
+    }
+  });
+
   it('parses macOS ACL markers without confusing extended attributes', () => {
     expect(
       parseDarwinAclListing(
@@ -633,6 +704,146 @@ describe('secure SQLite file acquisition', () => {
         .rows,
     ).toEqual([{ id: 1 }, { id: 2 }]);
     await reopened.close?.();
+  });
+
+  it('drains accepted callback operations and rejects detached late work', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE scope_lifetime (id INTEGER PRIMARY KEY)');
+
+    let lateAfterReturn: Promise<unknown> | undefined;
+    const lateAfterReturnCreated = deferred();
+    await txOf(db)(async (tx) => {
+      void tx.table('scope_lifetime').insert({ id: 1 });
+      queueMicrotask(() => {
+        queueMicrotask(() => {
+          lateAfterReturn = tx.query(
+            'INSERT INTO scope_lifetime (id) VALUES (4)',
+          );
+          void lateAfterReturn.catch(() => {});
+          lateAfterReturnCreated.resolve();
+        });
+      });
+    });
+    await lateAfterReturnCreated.promise;
+    await expect(lateAfterReturn).rejects.toThrow(
+      'Transaction scope is ending or ended',
+    );
+
+    let lateOperation: Promise<unknown> | undefined;
+    const lateCreated = deferred();
+    await expect(
+      txOf(db)(async (tx) => {
+        void tx.query('INSERT INTO scope_lifetime (id) VALUES (2)');
+        queueMicrotask(() => {
+          queueMicrotask(() => {
+            lateOperation = tx.query(
+              'INSERT INTO scope_lifetime (id) VALUES (3)',
+            );
+            void lateOperation.catch(() => {});
+            lateCreated.resolve();
+          });
+        });
+        throw new Error('rollback callback scope');
+      }),
+    ).rejects.toThrow('rollback callback scope');
+    await lateCreated.promise;
+    await expect(lateOperation).rejects.toThrow(
+      'Transaction scope is ending or ended',
+    );
+
+    expect(
+      (await db.query('SELECT id FROM scope_lifetime ORDER BY id')).rows,
+    ).toEqual([{ id: 1 }]);
+    await db.close?.();
+  });
+
+  it('seals and drains manual handles when commit or rollback starts', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query(
+      'CREATE TABLE manual_scope_lifetime (id INTEGER PRIMARY KEY)',
+    );
+
+    const committed = await db.beginTransaction?.();
+    if (!committed) throw new Error('beginTransaction unavailable');
+    const acceptedCommit = committed.query(
+      'INSERT INTO manual_scope_lifetime (id) VALUES (1)',
+    );
+    const committing = committed.commit();
+    await expect(
+      committed.query('INSERT INTO manual_scope_lifetime (id) VALUES (2)'),
+    ).rejects.toThrow('Transaction scope is ending or ended');
+    await expect(acceptedCommit).resolves.toMatchObject({ rowCount: 1 });
+    await expect(committing).resolves.toBeUndefined();
+    await expectEveryScopeRouteClosed(committed);
+
+    const rolledBack = await db.beginTransaction?.();
+    if (!rolledBack) throw new Error('beginTransaction unavailable');
+    const acceptedRollback = rolledBack.insert('manual_scope_lifetime', {
+      id: 3,
+    });
+    const rollingBack = rolledBack.rollback();
+    await expect(
+      rolledBack.table('manual_scope_lifetime').insert({ id: 4 }),
+    ).rejects.toThrow('Transaction scope is ending or ended');
+    await expect(acceptedRollback).resolves.toMatchObject({ affected: 1 });
+    await expect(rollingBack).resolves.toBeUndefined();
+
+    expect(
+      (await db.query('SELECT id FROM manual_scope_lifetime ORDER BY id')).rows,
+    ).toEqual([{ id: 1 }]);
+    await db.close?.();
+  });
+
+  it('prevents nested savepoint work from escaping its callback lifetime', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query(
+      'CREATE TABLE nested_scope_lifetime (id INTEGER PRIMARY KEY)',
+    );
+    let lateNested: Promise<unknown> | undefined;
+    const lateCreated = deferred();
+
+    await txOf(db)(async (outer) => {
+      await txOf(outer)(async (inner) => {
+        void inner.query('INSERT INTO nested_scope_lifetime (id) VALUES (1)');
+        queueMicrotask(() => {
+          queueMicrotask(() => {
+            lateNested = inner.query(
+              'INSERT INTO nested_scope_lifetime (id) VALUES (2)',
+            );
+            void lateNested.catch(() => {});
+            lateCreated.resolve();
+          });
+        });
+      });
+      await lateCreated.promise;
+      await expect(lateNested).rejects.toThrow(
+        'Transaction scope is ending or ended',
+      );
+      await outer.query('INSERT INTO nested_scope_lifetime (id) VALUES (3)');
+    });
+
+    expect(
+      (await db.query('SELECT id FROM nested_scope_lifetime ORDER BY id')).rows,
+    ).toEqual([{ id: 1 }, { id: 3 }]);
+    await db.close?.();
   });
 
   it('preserves commit, rollback, and nested savepoint behavior', async () => {
