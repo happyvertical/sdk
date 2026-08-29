@@ -131,7 +131,7 @@ const MINIMUM_NODE_VERSION = [24, 18, 0] as const;
 function validateNodeVersion(runtime: SecureSqliteRuntime): void {
   const version = runtime.nodeVersion ?? defaultRuntime.nodeVersion ?? '';
   const match =
-    /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(
+    /^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/.exec(
       version,
     );
   const parsed = match?.slice(1, 4).map(Number);

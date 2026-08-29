@@ -19,6 +19,7 @@ import {
   toPublicRowCount,
 } from './secure-sqlite-client';
 import type { DatabaseInterface } from './shared/types';
+import { toSafeSqliteCount } from './sqlite';
 
 const tempRoots = new Set<string>();
 const trustedParent = { custody: 'trusted-parent' } as const;
@@ -110,6 +111,9 @@ describe('secure SQLite file acquisition', () => {
       '24.18.0-rc.1',
       '24.19.0-rc.1',
       '25.0.0-beta.1',
+      '024.18.0',
+      '24.018.0',
+      '24.18.00',
     ]) {
       let driverLoaded = false;
       await expect(
@@ -808,6 +812,65 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
+  it('rolls back when accepted unawaited work fails in callback, nested, and manual scopes', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE accepted_failure (id INTEGER PRIMARY KEY)');
+
+    await expect(
+      txOf(db)(async (tx) => {
+        await tx.insert('accepted_failure', { id: 1 });
+        void tx.insert('accepted_failure', { id: 1 });
+      }),
+    ).rejects.toThrow();
+    expect(await db.count('accepted_failure')).toBe(0);
+
+    await expect(
+      txOf(db)(async (outer) => {
+        await outer.insert('accepted_failure', { id: 2 });
+        await txOf(outer)(async (inner) => {
+          await inner.insert('accepted_failure', { id: 3 });
+          void inner.insert('accepted_failure', { id: 3 });
+        });
+      }),
+    ).rejects.toThrow();
+    expect(await db.count('accepted_failure')).toBe(0);
+
+    const manual = await db.beginTransaction?.();
+    if (!manual) throw new Error('beginTransaction unavailable');
+    await manual.insert('accepted_failure', { id: 4 });
+    void manual.insert('accepted_failure', { id: 4 });
+    await expect(manual.commit()).rejects.toThrow();
+    expect(await db.count('accepted_failure')).toBe(0);
+
+    let combinedFailure: unknown;
+    try {
+      await txOf(db)(async (tx) => {
+        await tx.insert('accepted_failure', { id: 5 });
+        void tx.insert('accepted_failure', { id: 5 });
+        throw new Error('primary callback failure');
+      });
+    } catch (error) {
+      combinedFailure = error;
+    }
+    expect(combinedFailure).toBeInstanceOf(AggregateError);
+    expect(
+      (combinedFailure as AggregateError).errors.some(
+        (error) =>
+          error instanceof Error &&
+          error.message === 'primary callback failure',
+      ),
+    ).toBe(true);
+    expect(await db.count('accepted_failure')).toBe(0);
+
+    await db.close?.();
+  });
+
   it('prevents nested savepoint work from escaping its callback lifetime', async () => {
     const root = await makeTempRoot();
     const db = await getDatabase({
@@ -1166,6 +1229,97 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   }, 2_000);
 
+  it('serializes concurrent nullable upserts in callback, nested, and manual scopes', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query(`
+      CREATE TABLE concurrent_nullable_scope (
+        id TEXT PRIMARY KEY,
+        scope INTEGER NOT NULL,
+        tenant_id TEXT,
+        value TEXT,
+        UNIQUE(scope, tenant_id)
+      )
+    `);
+
+    await txOf(db)(async (tx) => {
+      await Promise.all([
+        tx.upsert('concurrent_nullable_scope', ['scope', 'tenant_id'], {
+          id: 'callback-one',
+          scope: 9007199254740993n,
+          tenant_id: null,
+          value: 'one',
+        }),
+        tx.upsert('concurrent_nullable_scope', ['scope', 'tenant_id'], {
+          id: 'callback-two',
+          scope: 9007199254740993n,
+          tenant_id: null,
+          value: 'two',
+        }),
+      ]);
+      await txOf(tx)(async (nested) => {
+        await Promise.all([
+          nested.upsert('concurrent_nullable_scope', ['scope', 'tenant_id'], {
+            id: 'nested-one',
+            scope: 9007199254740995n,
+            tenant_id: null,
+            value: 'one',
+          }),
+          nested.upsert('concurrent_nullable_scope', ['scope', 'tenant_id'], {
+            id: 'nested-two',
+            scope: 9007199254740995n,
+            tenant_id: null,
+            value: 'two',
+          }),
+        ]);
+      });
+    });
+
+    const manual = await db.beginTransaction?.();
+    if (!manual) throw new Error('beginTransaction unavailable');
+    await Promise.all([
+      manual.upsert('concurrent_nullable_scope', ['scope', 'tenant_id'], {
+        id: 'manual-one',
+        scope: 9007199254740997n,
+        tenant_id: null,
+        value: 'one',
+      }),
+      manual.upsert('concurrent_nullable_scope', ['scope', 'tenant_id'], {
+        id: 'manual-two',
+        scope: 9007199254740997n,
+        tenant_id: null,
+        value: 'two',
+      }),
+    ]);
+    expect(
+      (
+        await manual.query(
+          'SELECT id, value FROM concurrent_nullable_scope WHERE scope = ?',
+          [9007199254740997n],
+        )
+      ).rows,
+    ).toEqual([{ id: 'manual-two', value: 'two' }]);
+    await manual.rollback();
+
+    expect(
+      (
+        await db.query(
+          'SELECT id, value FROM concurrent_nullable_scope ORDER BY scope',
+        )
+      ).rows,
+    ).toEqual([
+      { id: 'callback-two', value: 'two' },
+      { id: 'nested-two', value: 'two' },
+    ]);
+    expect(await db.count('concurrent_nullable_scope')).toBe(2);
+    await db.close?.();
+  });
+
   it('supports composite bigint and null conflict values in every transaction route', async () => {
     const root = await makeTempRoot();
     const db = await getDatabase({
@@ -1264,6 +1418,40 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
+  it('starts transactionQueueTimeout before an earlier outsider clears the invocation barrier', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+      transactionQueueTimeout: 50,
+    });
+    await db.query('CREATE TABLE timeout_order (id INTEGER PRIMARY KEY)');
+    const manual = await db.beginTransaction?.();
+    if (!manual) throw new Error('beginTransaction unavailable');
+
+    const outsider = db.query('INSERT INTO timeout_order (id) VALUES (1)');
+    let callbackRan = false;
+    const started = Date.now();
+    const timedOut = txOf(db)(async (tx) => {
+      callbackRan = true;
+      await tx.query('INSERT INTO timeout_order (id) VALUES (2)');
+    });
+    await expect(timedOut).rejects.toThrow('Timed out after 50ms');
+    expect(Date.now() - started).toBeLessThan(500);
+    expect(callbackRan).toBe(false);
+
+    await manual.rollback();
+    await expect(outsider).resolves.toMatchObject({ rowCount: 1 });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(callbackRan).toBe(false);
+    expect((await db.query('SELECT id FROM timeout_order')).rows).toEqual([
+      { id: 1 },
+    ]);
+    await db.close?.();
+  });
+
   it('binds and reads SQLite integers without losing precision', async () => {
     const root = await makeTempRoot();
     const client = await createTrustedClient(join(root, 'app.db'));
@@ -1283,6 +1471,10 @@ describe('secure SQLite file acquisition', () => {
     expect(() =>
       toPublicRowCount(BigInt(Number.MAX_SAFE_INTEGER) + 1n),
     ).toThrow('exceed the public safe-integer row-count range');
+    expect(() =>
+      toSafeSqliteCount(BigInt(Number.MAX_SAFE_INTEGER) + 1n),
+    ).toThrow('SQLite count exceeds the safe integer range');
+    expect(toSafeSqliteCount(3n)).toBe(3);
   });
 
   it('preserves lastInsertRowid beyond Number.MAX_SAFE_INTEGER', async () => {

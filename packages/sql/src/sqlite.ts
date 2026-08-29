@@ -128,6 +128,28 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export function toSafeSqliteCount(value: unknown): number {
+  const count = typeof value === 'bigint' ? value : BigInt(String(value ?? 0));
+  if (count < 0n || count > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new DatabaseError('SQLite count exceeds the safe integer range', {
+      value: String(value),
+      maximum: Number.MAX_SAFE_INTEGER,
+    });
+  }
+  return Number(count);
+}
+
+function combineTransactionFailures(
+  primary: unknown,
+  secondary: unknown,
+): AggregateError {
+  return new AggregateError(
+    [primary, secondary],
+    'Transaction callback and accepted transaction work both failed',
+    { cause: primary },
+  );
+}
+
 function isRetriableSqliteTransactionError(error: unknown): boolean {
   const formatted = formatDbError(error).toLowerCase();
   return (
@@ -804,11 +826,16 @@ async function createDatabase(
       }
 
       if (!acquireTransaction) {
-        return executeNullAwareUpsertAttempt(
-          currentExecutor(),
-          table,
-          conflictColumns,
-          serializedData,
+        const executor = currentExecutor();
+        return withNullAwareUpsertLock(
+          buildNullAwareUpsertLockKey(table, conflictColumns, serializedData),
+          () =>
+            executeNullAwareUpsertAttempt(
+              executor,
+              table,
+              conflictColumns,
+              serializedData,
+            ),
         );
       }
 
@@ -1181,7 +1208,7 @@ async function createDatabase(
             sql: `SELECT COUNT(*) as count FROM ${table}`,
             args: [],
           });
-          return Number(result.rows[0]?.count) || 0;
+          return toSafeSqliteCount(result.rows[0]?.count);
         }
 
         // Count with conditions
@@ -1192,8 +1219,9 @@ async function createDatabase(
           args: values,
         });
 
-        return Number(result.rows[0]?.count) || 0;
+        return toSafeSqliteCount(result.rows[0]?.count);
       } catch (e) {
+        if (e instanceof DatabaseError) throw e;
         throw new DatabaseError('Failed to count records in table', {
           table,
           where,
@@ -1365,11 +1393,16 @@ async function createDatabase(
           transactionClient,
           nestedTransaction,
         );
+        const drainScope = async (): Promise<void> => {
+          await callbackScope.sealAndDrain();
+          // A rejected sibling must not let a later queued savepoint outlive
+          // this scope.
+          await scope.tail;
+        };
         try {
           const result = await callback(callbackScope.database);
           scope.accepting = false;
-          await callbackScope.sealAndDrain();
-          await scope.tail;
+          await drainScope();
           await transactionClient.execute({
             sql: `RELEASE SAVEPOINT ${name}`,
             args: [],
@@ -1377,10 +1410,14 @@ async function createDatabase(
           return result;
         } catch (error) {
           scope.accepting = false;
-          await callbackScope.sealAndDrain();
-          // Promise.all rejects before later queued siblings settle. Their
-          // savepoint work must drain before this scope unwinds.
-          await scope.tail;
+          let failure = error;
+          try {
+            await drainScope();
+          } catch (drainError) {
+            if (drainError !== error) {
+              failure = combineTransactionFailures(error, drainError);
+            }
+          }
           try {
             await transactionClient.execute({
               sql: `ROLLBACK TO SAVEPOINT ${name}`,
@@ -1393,7 +1430,7 @@ async function createDatabase(
           } catch {
             // The enclosing transaction is already unwinding.
           }
-          throw error;
+          throw failure;
         }
       };
 
@@ -1435,13 +1472,16 @@ async function createDatabase(
      */
     const transaction = async <T>(
       callback: (tx: DatabaseInterface) => Promise<T>,
-    ): Promise<T> =>
+      preAcquiredLock?: Promise<() => void>,
+    ): Promise<T> => {
       // Held across the whole BEGIN … COMMIT/ROLLBACK span. Without it two
       // overlapping calls raced on the one connection: the second BEGIN threw,
       // its catch ran ROLLBACK, and that rollback ended the *first*
       // transaction — half of its writes durable, half lost, and its promise
       // rejected, so the caller was told nothing had happened.
-      connectionLock.run(async () => {
+      const releaseConnection = await (preAcquiredLock ??
+        connectionLock.acquire());
+      try {
         if (client.transactionReservation !== 'exclusive') {
           let nestedTransaction: NestedTransaction | undefined;
           let transactionScope: TransactionScope | undefined;
@@ -1458,14 +1498,25 @@ async function createDatabase(
             await client.execute({ sql: 'COMMIT', args: [] });
             return result;
           } catch (error) {
-            await transactionScope?.sealAndDrain();
-            await nestedTransaction?.drain();
+            let failure = error;
+            try {
+              await transactionScope?.sealAndDrain();
+            } catch (drainError) {
+              if (drainError !== error) {
+                failure = combineTransactionFailures(failure, drainError);
+              }
+            }
+            try {
+              await nestedTransaction?.drain();
+            } catch (drainError) {
+              failure = combineTransactionFailures(failure, drainError);
+            }
             try {
               await client.execute({ sql: 'ROLLBACK', args: [] });
             } catch {
               // Nothing left to roll back.
             }
-            throw error;
+            throw failure;
           }
         }
 
@@ -1484,8 +1535,19 @@ async function createDatabase(
           await transactionClient.commit();
           return result;
         } catch (error) {
-          await transactionScope?.sealAndDrain();
-          await nestedTransaction?.drain();
+          let failure = error;
+          try {
+            await transactionScope?.sealAndDrain();
+          } catch (drainError) {
+            if (drainError !== error) {
+              failure = combineTransactionFailures(failure, drainError);
+            }
+          }
+          try {
+            await nestedTransaction?.drain();
+          } catch (drainError) {
+            failure = combineTransactionFailures(failure, drainError);
+          }
           // A failing ROLLBACK must not replace the caller's error — SQLite
           // reports "cannot rollback - no transaction is active" whenever the
           // transaction is already gone, which says nothing about what failed.
@@ -1496,11 +1558,14 @@ async function createDatabase(
               // Nothing left to roll back.
             }
           }
-          throw error;
+          throw failure;
         } finally {
           transactionClient.close();
         }
-      });
+      } finally {
+        releaseConnection();
+      }
+    };
 
     /**
      * Builds the transaction-scoped interface handed to a transaction callback.
@@ -1519,7 +1584,12 @@ async function createDatabase(
     ): TransactionScope => {
       let accepting = true;
       const pending = new Set<Promise<unknown>>();
-      const bind = <T extends (...args: any[]) => Promise<any>>(fn: T): T =>
+      const failures: unknown[] = [];
+      let drainPromise: Promise<void> | undefined;
+      const bind = <T extends (...args: any[]) => Promise<any>>(
+        fn: T,
+        trackFailure = true,
+      ): T =>
         ((...args: Parameters<T>) => {
           if (!accepting) {
             return Promise.reject(
@@ -1532,7 +1602,10 @@ async function createDatabase(
           pending.add(operation);
           void operation.then(
             () => pending.delete(operation),
-            () => pending.delete(operation),
+            (error) => {
+              pending.delete(operation);
+              if (trackFailure) failures.push(error);
+            },
           );
           return operation;
         }) as T;
@@ -1566,7 +1639,11 @@ async function createDatabase(
         };
       };
 
-      const scopedTransaction = bind(nestedTransaction);
+      // A nested transaction is an explicit savepoint boundary: callers may
+      // catch its rollback and continue the outer transaction. Its own scoped
+      // operations are tracked by the child scope, so do not poison the parent
+      // merely because that explicit savepoint rejected.
+      const scopedTransaction = bind(nestedTransaction, false);
 
       const txDb: DatabaseInterface = {
         url,
@@ -1598,9 +1675,19 @@ async function createDatabase(
         database: txDb,
         sealAndDrain: async () => {
           accepting = false;
-          while (pending.size > 0) {
-            await Promise.allSettled([...pending]);
-          }
+          drainPromise ??= (async () => {
+            while (pending.size > 0) {
+              await Promise.allSettled([...pending]);
+            }
+            if (failures.length === 1) throw failures[0];
+            if (failures.length > 1) {
+              throw new AggregateError(
+                failures,
+                'Accepted transaction operations failed',
+              );
+            }
+          })();
+          return drainPromise;
         },
       };
     };
@@ -1645,8 +1732,20 @@ async function createDatabase(
         }
         active = false;
         try {
-          await transactionScope?.sealAndDrain();
-          await nestedTransaction?.drain();
+          let drainFailure: unknown;
+          try {
+            await transactionScope?.sealAndDrain();
+          } catch (error) {
+            drainFailure = error;
+          }
+          try {
+            await nestedTransaction?.drain();
+          } catch (error) {
+            drainFailure = drainFailure
+              ? combineTransactionFailures(drainFailure, error)
+              : error;
+          }
+          if (drainFailure) throw drainFailure;
           if (transactionClient) {
             if (command === 'COMMIT') {
               await transactionClient.commit();
@@ -2138,7 +2237,36 @@ async function createDatabase(
     };
     const reservedTransaction: typeof transaction = <T>(
       callback: (tx: DatabaseInterface) => Promise<T>,
-    ) => barrier.run(() => transaction(callback));
+    ) => {
+      // Start the transaction-lock timeout at invocation, not when the root
+      // operation barrier eventually reaches this call. A manual transaction
+      // can hold the driver reservation while an earlier ordinary operation is
+      // queued behind it; waiting for that operation before registering this
+      // lock made transactionQueueTimeout ineffective.
+      const acquisition = connectionLock.acquire().then(
+        (release) => ({ release }) as const,
+        (error: unknown) => ({ error }) as const,
+      );
+      const queued = barrier.run(async () => {
+        const outcome = await acquisition;
+        if ('error' in outcome) throw outcome.error;
+        return transaction(callback, Promise.resolve(outcome.release));
+      });
+      const guardedQueued = queued.catch((error) => {
+        // barrier.run can reject before invoking its callback when close has
+        // already started. Release a lock that was acquired speculatively at
+        // invocation so a rejected late call cannot strand the mutex.
+        void acquisition.then((outcome) => {
+          if ('release' in outcome) outcome.release();
+        });
+        throw error;
+      });
+      const timeout = acquisition.then((outcome) => {
+        if ('error' in outcome) throw outcome.error;
+        return new Promise<T>(() => {});
+      });
+      return Promise.race([guardedQueued, timeout]);
+    };
 
     return {
       ...db,
