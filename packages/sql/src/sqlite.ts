@@ -325,6 +325,16 @@ function withRejectionObservation<T>(
                 throw error;
               }
             });
+            // Detached intrinsic chains are still owned by transaction
+            // draining. Attach a non-observing rejection sink immediately so
+            // a rethrow cannot escape as process-level unhandledRejection.
+            suppressIntrinsicRecovery(() => {
+              void Promise.prototype.then.call(
+                this,
+                undefined,
+                () => undefined,
+              );
+            });
             if (tracksRecovery) {
               // Register synchronously: transaction draining may begin before
               // an asynchronous recovery handler resolves the derived promise.

@@ -1491,6 +1491,26 @@ describe('secure SQLite file acquisition', () => {
       }),
     ).rejects.toThrow('nested rethrow');
     expect(await db.count('rethrown_failure')).toBe(0);
+
+    const unhandled: unknown[] = [];
+    const recordUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', recordUnhandled);
+    try {
+      await expect(
+        txOf(db)(async (tx) => {
+          await tx.insert('rethrown_failure', { id: 5 });
+          const failed = tx.insert('rethrown_failure', { id: 5 });
+          void Promise.prototype.then.call(failed, undefined, () => {
+            throw new Error('detached intrinsic rethrow');
+          });
+        }),
+      ).rejects.toThrow();
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', recordUnhandled);
+    }
+    expect(await db.count('rethrown_failure')).toBe(0);
     await db.close?.();
   });
 
