@@ -237,12 +237,13 @@ interface PromiseObservation {
   pendingIntrinsicSpeciesReads?: Set<symbol>;
 }
 
-function recordIntrinsicSpeciesRead(observation: PromiseObservation): void {
+function recordIntrinsicSpeciesRead(observation: PromiseObservation): symbol {
   const pending = observation.pendingIntrinsicSpeciesReads ?? new Set<symbol>();
   observation.pendingIntrinsicSpeciesReads = pending;
   const token = Symbol();
   pending.add(token);
   queueMicrotask(() => pending.delete(token));
+  return token;
 }
 
 function consumeIntrinsicSpeciesRead(observation: PromiseObservation): boolean {
@@ -609,6 +610,7 @@ function withRejectionObservation<T>(
     });
     const createIntrinsicDerivedPromise = (
       parentObservation: PromiseObservation,
+      speciesReadToken?: symbol,
     ): PromiseConstructor => {
       const tracksRecovery =
         (parentObservation.suppressIntrinsicRecovery ?? 0) === 0;
@@ -628,6 +630,11 @@ function withRejectionObservation<T>(
             reject: (reason?: any) => void,
           ) => void,
         ) {
+          if (speciesReadToken !== undefined) {
+            parentObservation.pendingIntrinsicSpeciesReads?.delete(
+              speciesReadToken,
+            );
+          }
           let finishHandling: () => void = () => {};
           const handling = new Promise<void>((resolveHandling) => {
             finishHandling = resolveHandling;
@@ -684,8 +691,8 @@ function withRejectionObservation<T>(
           Object.defineProperty(speciesOwner, Symbol.species, {
             configurable: true,
             get: () => {
-              recordIntrinsicSpeciesRead(branch);
-              return createIntrinsicDerivedPromise(branch);
+              const token = recordIntrinsicSpeciesRead(branch);
+              return createIntrinsicDerivedPromise(branch, token);
             },
           });
           Object.defineProperty(this, 'constructor', {
@@ -770,8 +777,8 @@ function withRejectionObservation<T>(
 
     class ObservedPromise extends Promise<U> {
       static get [Symbol.species](): PromiseConstructor {
-        recordIntrinsicSpeciesRead(observation);
-        return createIntrinsicDerivedPromise(observation);
+        const token = recordIntrinsicSpeciesRead(observation);
+        return createIntrinsicDerivedPromise(observation, token);
       }
 
       constructor() {

@@ -1749,6 +1749,16 @@ describe('secure SQLite file acquisition', () => {
         }),
       ).rejects.toThrow();
       expect(await db.count('branch_recovery')).toBe(0);
+
+      await expect(
+        txOf(db)(async (tx) => {
+          await tx.insert('branch_recovery', { id: 4 });
+          const failed = tx.insert('branch_recovery', { id: 4 });
+          void Promise.prototype.then.call(failed, undefined, () => undefined);
+          void Promise.resolve(failed);
+        }),
+      ).rejects.toThrow();
+      expect(await db.count('branch_recovery')).toBe(0);
       await db.close?.();
     }
 
@@ -1769,6 +1779,21 @@ describe('secure SQLite file acquisition', () => {
     await expect(manual.commit()).rejects.toThrow();
     expect(await db.count('branch_recovery')).toBe(0);
 
+    const nativeSiblingManual = await db.beginTransaction?.();
+    if (!nativeSiblingManual) throw new Error('beginTransaction unavailable');
+    await nativeSiblingManual.insert('branch_recovery', { id: 5 });
+    const manualNativeFailure = nativeSiblingManual.insert('branch_recovery', {
+      id: 5,
+    });
+    void Promise.prototype.then.call(
+      manualNativeFailure,
+      undefined,
+      () => undefined,
+    );
+    void Promise.resolve(manualNativeFailure);
+    await expect(nativeSiblingManual.commit()).rejects.toThrow();
+    expect(await db.count('branch_recovery')).toBe(0);
+
     await expect(
       txOf(db)(async (outer) => {
         await txOf(outer)(async (inner) => {
@@ -1776,6 +1801,24 @@ describe('secure SQLite file acquisition', () => {
           const nestedFailure = inner.insert('branch_recovery', { id: 3 });
           void nestedFailure.catch(() => undefined);
           void nestedFailure.then((value) => value);
+        });
+      }),
+    ).rejects.toThrow();
+    expect(await db.count('branch_recovery')).toBe(0);
+
+    await expect(
+      txOf(db)(async (outer) => {
+        await txOf(outer)(async (inner) => {
+          await inner.insert('branch_recovery', { id: 6 });
+          const nestedNativeFailure = inner.insert('branch_recovery', {
+            id: 6,
+          });
+          void Promise.prototype.then.call(
+            nestedNativeFailure,
+            undefined,
+            () => undefined,
+          );
+          void Promise.resolve(nestedNativeFailure);
         });
       }),
     ).rejects.toThrow();
