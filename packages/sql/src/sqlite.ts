@@ -15,7 +15,10 @@ import {
 import { validateDatabaseCacheOptions } from './shared/connection-cache';
 import { redactDatabaseUrl } from './shared/redact-database-url';
 import { getCachedSqliteDatabase } from './shared/sqlite-connection-cache';
-import { createTransactionLock } from './shared/transaction-lock';
+import {
+  createTransactionLock,
+  DEFAULT_TRANSACTION_QUEUE_TIMEOUT_MS,
+} from './shared/transaction-lock';
 import type {
   ColumnDefinition,
   ColumnDefinitionWithName,
@@ -148,6 +151,43 @@ function combineTransactionFailures(
     'Transaction callback and accepted transaction work both failed',
     { cause: primary },
   );
+}
+
+interface PromiseObservation {
+  observed: boolean;
+}
+
+/**
+ * Returns a Promise-compatible chain that records when rejection is actually
+ * consumed. Fulfillment-only `then()` and `finally()` preserve the marker on
+ * their derived chain; a later `catch()` therefore still counts, while a
+ * detached derived rejection remains visible to transaction draining.
+ */
+function withRejectionObservation<T>(
+  source: Promise<T>,
+  observation: PromiseObservation,
+): Promise<T> {
+  const wrap = <U>(promise: Promise<U>): Promise<U> => {
+    // The transaction owns detached rejection reporting. Prevent the native
+    // derived Promise from also surfacing as an unhandledRejection while its
+    // shared observation record remains deliberately unhandled.
+    void promise.catch(() => {});
+    return {
+      // biome-ignore lint/suspicious/noThenProperty: Promise-compatible observation is intentional here.
+      then: (onFulfilled, onRejected) => {
+        if (typeof onRejected === 'function') observation.observed = true;
+        return wrap(promise.then(onFulfilled, onRejected));
+      },
+      catch: (onRejected) => {
+        if (typeof onRejected === 'function') observation.observed = true;
+        return wrap(promise.catch(onRejected));
+      },
+      finally: (onFinally) => wrap(promise.finally(onFinally)),
+      [Symbol.toStringTag]: 'Promise',
+    } as Promise<U>;
+  };
+
+  return wrap(source);
 }
 
 function isRetriableSqliteTransactionError(error: unknown): boolean {
@@ -721,13 +761,16 @@ async function createDatabase(
       table: string,
       conflictColumns: string[],
       serializedData: Record<string, any>,
+      lockKey: string,
     ): Promise<QueryResult> => {
       if (url === ':memory:') {
-        return executeNullAwareUpsertAttempt(
-          client,
-          table,
-          conflictColumns,
-          serializedData,
+        return withNullAwareUpsertLock(lockKey, () =>
+          executeNullAwareUpsertAttempt(
+            client,
+            table,
+            conflictColumns,
+            serializedData,
+          ),
         );
       }
 
@@ -747,17 +790,19 @@ async function createDatabase(
         // waits without holding the connection.
         const releaseConnection = await connectionLock.acquire();
         try {
-          transaction = await client.transaction('write');
+          return await withNullAwareUpsertLock(lockKey, async () => {
+            transaction = await client.transaction('write');
 
-          const result = await executeNullAwareUpsertAttempt(
-            transaction,
-            table,
-            conflictColumns,
-            serializedData,
-          );
+            const result = await executeNullAwareUpsertAttempt(
+              transaction,
+              table,
+              conflictColumns,
+              serializedData,
+            );
 
-          await transaction.commit();
-          return result;
+            await transaction.commit();
+            return result;
+          });
         } catch (error) {
           lastError = error;
 
@@ -839,14 +884,11 @@ async function createDatabase(
         );
       }
 
-      return withNullAwareUpsertLock(
+      return executeNullAwareUpsertWithRetry(
+        table,
+        conflictColumns,
+        serializedData,
         buildNullAwareUpsertLockKey(table, conflictColumns, serializedData),
-        () =>
-          executeNullAwareUpsertWithRetry(
-            table,
-            conflictColumns,
-            serializedData,
-          ),
       );
     };
 
@@ -1482,26 +1524,10 @@ async function createDatabase(
           () => undefined,
           () => undefined,
         );
-        // A plain thenable lets us distinguish an explicitly awaited/caught
-        // savepoint rollback from a detached nested transaction. Promise.resolve
-        // must not wrap this at the transaction-scope boundary, because that
-        // assimilation itself would falsely mark detached work as observed.
-        return {
-          // biome-ignore lint/suspicious/noThenProperty: Promise-compatible observation is intentional here.
-          then: (onFulfilled, onRejected) => {
-            child.observed = true;
-            return current.then(onFulfilled, onRejected);
-          },
-          catch: (onRejected) => {
-            child.observed = true;
-            return current.catch(onRejected);
-          },
-          finally: (onFinally) => {
-            child.observed = true;
-            return current.finally(onFinally);
-          },
-          [Symbol.toStringTag]: 'Promise',
-        } as Promise<T>;
+        // Preserve rejection observation through fulfillment-only `.then()`
+        // and `.finally()` chains. Only a rejection handler (including the one
+        // installed by `await`) makes a failed savepoint recoverable.
+        return withRejectionObservation(current, child);
       }) as NestedTransaction;
       nestedTransaction.drain = () => {
         rootScope.accepting = false;
@@ -1556,7 +1582,9 @@ async function createDatabase(
             try {
               await nestedTransaction?.drain();
             } catch (drainError) {
-              failure = combineTransactionFailures(failure, drainError);
+              if (drainError !== failure) {
+                failure = combineTransactionFailures(failure, drainError);
+              }
             }
             try {
               await client.execute({ sql: 'ROLLBACK', args: [] });
@@ -1593,7 +1621,9 @@ async function createDatabase(
           try {
             await nestedTransaction?.drain();
           } catch (drainError) {
-            failure = combineTransactionFailures(failure, drainError);
+            if (drainError !== failure) {
+              failure = combineTransactionFailures(failure, drainError);
+            }
           }
           // A failing ROLLBACK must not replace the caller's error — SQLite
           // reports "cannot rollback - no transaction is active" whenever the
@@ -1631,7 +1661,7 @@ async function createDatabase(
     ): TransactionScope => {
       let accepting = true;
       const pending = new Set<Promise<unknown>>();
-      const failures: unknown[] = [];
+      const operations = new Set<PromiseObservation & { error?: unknown }>();
       let drainPromise: Promise<void> | undefined;
       const bind = <T extends (...args: any[]) => Promise<any>>(
         fn: T,
@@ -1646,15 +1676,19 @@ async function createDatabase(
           const operation = Promise.resolve(
             executorContext.run(transactionClient, () => fn(...args)),
           );
+          const tracked = { observed: false } as PromiseObservation & {
+            error?: unknown;
+          };
+          operations.add(tracked);
           pending.add(operation);
           void operation.then(
             () => pending.delete(operation),
             (error) => {
               pending.delete(operation);
-              if (trackFailure) failures.push(error);
+              if (trackFailure) tracked.error = error;
             },
           );
-          return operation;
+          return withRejectionObservation(operation, tracked);
         }) as T;
       const scopedInsert = bind(insert);
       const scopedGet = bind(get);
@@ -1736,6 +1770,11 @@ async function createDatabase(
             while (pending.size > 0) {
               await Promise.allSettled([...pending]);
             }
+            const failures = [...operations]
+              .filter(
+                (operation) => !operation.observed && 'error' in operation,
+              )
+              .map((operation) => operation.error);
             if (failures.length === 1) throw failures[0];
             if (failures.length > 1) {
               throw new AggregateError(
@@ -2295,34 +2334,50 @@ async function createDatabase(
     const reservedTransaction: typeof transaction = <T>(
       callback: (tx: DatabaseInterface) => Promise<T>,
     ) => {
-      // Start the transaction-lock timeout at invocation, not when the root
-      // operation barrier eventually reaches this call. A manual transaction
-      // can hold the driver reservation while an earlier ordinary operation is
-      // queued behind it; waiting for that operation before registering this
-      // lock made transactionQueueTimeout ineffective.
-      const acquisition = connectionLock.acquire().then(
-        (release) => ({ release }) as const,
-        (error: unknown) => ({ error }) as const,
-      );
+      // Start the deadline at invocation, but do not enqueue on connectionLock
+      // until this call reaches its barrier turn. Speculatively taking the
+      // connection while an earlier retrying upsert owns the barrier reverses
+      // the normal connection -> nullable-key order and deadlocks both calls.
+      const timeoutMs =
+        options.transactionQueueTimeout ?? DEFAULT_TRANSACTION_QUEUE_TIMEOUT_MS;
+      let expired = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const deadline = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          expired = true;
+          reject(
+            new DatabaseError(
+              `Timed out after ${timeoutMs}ms waiting for the sqlite connection's current transaction to finish`,
+              { adapter: 'sqlite', timeoutMs },
+            ),
+          );
+        }, timeoutMs);
+      });
       const queued = barrier.run(async () => {
-        const outcome = await acquisition;
-        if ('error' in outcome) throw outcome.error;
-        return transaction(callback, Promise.resolve(outcome.release));
+        if (expired) return deadline;
+        const acquisition = connectionLock.acquire();
+        try {
+          const release = await Promise.race([acquisition, deadline]);
+          if (expired) {
+            release();
+            return deadline;
+          }
+          return transaction(callback, Promise.resolve(release));
+        } catch (error) {
+          // A deadline can win while acquire() remains queued. Give that future
+          // turn back immediately so a timed-out invocation never runs later or
+          // strands callers behind it.
+          if (expired)
+            void acquisition.then(
+              (release) => release(),
+              () => {},
+            );
+          throw error;
+        }
       });
-      const guardedQueued = queued.catch((error) => {
-        // barrier.run can reject before invoking its callback when close has
-        // already started. Release a lock that was acquired speculatively at
-        // invocation so a rejected late call cannot strand the mutex.
-        void acquisition.then((outcome) => {
-          if ('release' in outcome) outcome.release();
-        });
-        throw error;
+      return Promise.race([queued, deadline]).finally(() => {
+        if (timer) clearTimeout(timer);
       });
-      const timeout = acquisition.then((outcome) => {
-        if ('error' in outcome) throw outcome.error;
-        return new Promise<T>(() => {});
-      });
-      return Promise.race([guardedQueued, timeout]);
     };
 
     return {

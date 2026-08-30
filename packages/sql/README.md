@@ -123,7 +123,10 @@ chain is owned by the current uid with no group/world write permission. An
 existing leaf must likewise be a current-user-owned regular file with no
 group/world write permission. A missing leaf is created exclusively with mode
 `0600` before driver acquisition, independent of a permissive process umask, and
-is removed if the driver cannot acquire it. On macOS, every inspected component
+is removed if the driver cannot acquire it and its device/inode identity is
+still unchanged. If identity inspection itself fails, acquisition fails closed
+and leaves the restrictive empty leaf in place rather than risking deletion of
+a replacement. On macOS, every inspected component
 and existing leaf must also have no access control list; ACL inspection errors
 fail closed.
 The adapter invokes `/bin/ls -lde -- <path>` directly with an argument vector,

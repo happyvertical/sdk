@@ -68,6 +68,7 @@ export interface SecureSqliteRuntime {
   currentUid?: () => number;
   pathOwnerUid?: (filePath: string, actualUid: number) => number;
   inspectDarwinAcl?: (filePath: string) => Promise<boolean>;
+  openLeaf?: typeof open;
   loadDriver: () => Promise<NodeSqliteModule>;
 }
 
@@ -355,10 +356,11 @@ interface SecureLeafIdentity {
 
 async function createSecureLeaf(
   filePath: string,
+  runtime: SecureSqliteRuntime,
 ): Promise<SecureLeafIdentity | undefined> {
   let handle: Awaited<ReturnType<typeof open>>;
   try {
-    handle = await open(filePath, 'wx', 0o600);
+    handle = await (runtime.openLeaf ?? open)(filePath, 'wx', 0o600);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'EEXIST') return undefined;
     throw new DatabaseError(
@@ -370,26 +372,44 @@ async function createSecureLeaf(
     );
   }
 
+  let identity: SecureLeafIdentity | undefined;
+  let acquisitionError: unknown;
   try {
     const stats = await handle.stat();
-    await handle.close();
-    return { dev: stats.dev, ino: stats.ino };
+    identity = { dev: stats.dev, ino: stats.ino };
   } catch (error) {
-    let cleanupError: string | undefined;
-    try {
-      await unlink(filePath);
-    } catch (cleanupFailure) {
-      cleanupError =
-        cleanupFailure instanceof Error
-          ? cleanupFailure.message
-          : String(cleanupFailure);
-    }
+    acquisitionError = error;
+  }
+  try {
+    await handle.close();
+  } catch (error) {
+    acquisitionError = acquisitionError
+      ? new AggregateError(
+          [acquisitionError, error],
+          'Secure SQLite leaf inspection and close failed',
+        )
+      : error;
+  }
+
+  if (acquisitionError) {
+    // If fstat failed, there is no trustworthy pathname identity with which to
+    // decide whether cleanup is still deleting the file we created. Leave the
+    // restrictive empty leaf behind rather than unlinking a replacement.
+    const cleanupError = identity
+      ? await removeCreatedLeafIfUnchanged(filePath, identity)
+      : undefined;
     throw new DatabaseError('Secure SQLite could not close the created leaf', {
       path: filePath,
-      originalError: error instanceof Error ? error.message : String(error),
+      originalError:
+        acquisitionError instanceof Error
+          ? acquisitionError.message
+          : String(acquisitionError),
+      ...(!identity ? { cleanupSkipped: 'leaf identity unavailable' } : {}),
       ...(cleanupError ? { cleanupError } : {}),
     });
   }
+
+  return identity;
 }
 
 async function removeCreatedLeafIfUnchanged(
@@ -838,7 +858,7 @@ export async function createSecureSqliteClient(
   }
   let createdLeaf: SecureLeafIdentity | undefined;
   if (!leafExisted) {
-    createdLeaf = await createSecureLeaf(filePath);
+    createdLeaf = await createSecureLeaf(filePath, runtime);
     // An EEXIST race or inherited platform ACL must still satisfy the complete
     // custody contract before the driver sees the path. Other principals
     // cannot create beneath a validated trusted parent; hostile same-UID

@@ -4,6 +4,7 @@ import {
   lstat,
   mkdir,
   mkdtemp,
+  open,
   readFile,
   realpath,
   rm,
@@ -524,6 +525,71 @@ describe('secure SQLite file acquisition', () => {
     expect(await readFile(databasePath, 'utf8')).toBe('replacement');
   });
 
+  it('closes the created leaf and leaves it in place when identity inspection fails', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'failed-stat.db');
+    let closeCalls = 0;
+
+    await expect(
+      createSecureSqliteClient(databasePath, trustedParent, {
+        platform: process.platform,
+        openLeaf: async (...args) => {
+          const handle = await open(...args);
+          return new Proxy(handle, {
+            get(target, property) {
+              if (property === 'stat') {
+                return async () => {
+                  throw new Error('fstat failed');
+                };
+              }
+              if (property === 'close') {
+                return async () => {
+                  closeCalls += 1;
+                  await target.close();
+                };
+              }
+              const value = Reflect.get(target, property, target);
+              return typeof value === 'function' ? value.bind(target) : value;
+            },
+          });
+        },
+        loadDriver: loadNodeSqliteDriver,
+      }),
+    ).rejects.toThrow('could not close the created leaf');
+    expect(closeCalls).toBe(1);
+    expect((await lstat(databasePath)).isFile()).toBe(true);
+  });
+
+  it('identity-guards cleanup when closing the created leaf fails after replacement', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'replaced-during-close.db');
+
+    await expect(
+      createSecureSqliteClient(databasePath, trustedParent, {
+        platform: process.platform,
+        openLeaf: async (...args) => {
+          const handle = await open(...args);
+          return new Proxy(handle, {
+            get(target, property) {
+              if (property === 'close') {
+                return async () => {
+                  await target.close();
+                  rmSync(databasePath);
+                  writeFileSync(databasePath, 'replacement', { mode: 0o600 });
+                  throw new Error('close failed after replacement');
+                };
+              }
+              const value = Reflect.get(target, property, target);
+              return typeof value === 'function' ? value.bind(target) : value;
+            },
+          });
+        },
+        loadDriver: loadNodeSqliteDriver,
+      }),
+    ).rejects.toThrow('could not close the created leaf');
+    expect(await readFile(databasePath, 'utf8')).toBe('replacement');
+  });
+
   it('rejects a symlinked database leaf without touching its target', async () => {
     const root = await makeTempRoot();
     const target = join(root, 'target.txt');
@@ -1005,6 +1071,80 @@ describe('secure SQLite file acquisition', () => {
     expect(
       (await db.query('SELECT id FROM nested_observation ORDER BY id')).rows,
     ).toEqual([{ id: 5 }, { id: 6 }, { id: 7 }, { id: 9 }]);
+    await db.close?.();
+  });
+
+  it('commits after callers handle statement failures in callback and manual transactions', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE handled_failure (id INTEGER PRIMARY KEY)');
+
+    await txOf(db)(async (tx) => {
+      await tx.insert('handled_failure', { id: 1 });
+      await expect(tx.insert('handled_failure', { id: 1 })).rejects.toThrow();
+      await tx.insert('handled_failure', { id: 2 });
+    });
+
+    const manual = await db.beginTransaction?.();
+    if (!manual) throw new Error('beginTransaction unavailable');
+    await manual.insert('handled_failure', { id: 3 });
+    await manual.insert('handled_failure', { id: 3 }).catch(() => undefined);
+    await manual.insert('handled_failure', { id: 4 });
+    await manual.commit();
+
+    expect(
+      (await db.query('SELECT id FROM handled_failure ORDER BY id')).rows,
+    ).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }]);
+    await db.close?.();
+  });
+
+  it('does not treat fulfillment-only nested chains as rejection handling', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query(
+      'CREATE TABLE chained_nested_failure (id INTEGER PRIMARY KEY)',
+    );
+
+    await expect(
+      txOf(db)(async (outer) => {
+        await outer.insert('chained_nested_failure', { id: 1 });
+        void txOf(outer)(async (inner) => {
+          await inner.insert('chained_nested_failure', { id: 2 });
+          throw new Error('finally child failed');
+        }).finally(() => undefined);
+      }),
+    ).rejects.toThrow('finally child failed');
+    expect(await db.count('chained_nested_failure')).toBe(0);
+
+    await expect(
+      txOf(db)(async (outer) => {
+        await outer.insert('chained_nested_failure', { id: 3 });
+        void txOf(outer)(async () => {
+          throw new Error('then child failed');
+        }).then(() => undefined);
+      }),
+    ).rejects.toThrow('then child failed');
+    expect(await db.count('chained_nested_failure')).toBe(0);
+
+    await txOf(db)(async (outer) => {
+      await outer.insert('chained_nested_failure', { id: 4 });
+      await txOf(outer)(async () => {
+        throw new Error('caught chained child');
+      })
+        .finally(() => undefined)
+        .catch(() => undefined);
+    });
+    expect(await db.count('chained_nested_failure')).toBe(1);
     await db.close?.();
   });
 
@@ -1586,6 +1726,89 @@ describe('secure SQLite file acquisition', () => {
     expect((await db.query('SELECT id FROM timeout_order')).rows).toEqual([
       { id: 1 },
     ]);
+    await db.close?.();
+  });
+
+  it('uses connection-before-key ordering for nullable upserts outside and inside a transaction', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'libsql-lock-order.db'),
+      cache: false,
+      transactionQueueTimeout: 500,
+    });
+    await db.query(
+      'CREATE TABLE nullable_lock_order (id TEXT PRIMARY KEY, slug TEXT, tenant_id TEXT, value TEXT)',
+    );
+    const manual = await db.beginTransaction?.();
+    if (!manual) throw new Error('beginTransaction unavailable');
+
+    const outsider = db.upsert('nullable_lock_order', ['slug', 'tenant_id'], {
+      id: 'outside',
+      slug: 'shared',
+      tenant_id: null,
+      value: 'outside',
+    });
+    await manual.upsert('nullable_lock_order', ['slug', 'tenant_id'], {
+      id: 'inside',
+      slug: 'shared',
+      tenant_id: null,
+      value: 'inside',
+    });
+    await manual.commit();
+    await expect(outsider).resolves.toMatchObject({ operation: 'upsert' });
+
+    expect(await db.count('nullable_lock_order')).toBe(1);
+    expect(
+      await db.single`SELECT id, value FROM nullable_lock_order WHERE slug = ${'shared'} AND tenant_id IS NULL`,
+    ).toEqual({ id: 'outside', value: 'outside' });
+    await db.close?.();
+  });
+
+  it('does not let a transaction reserve the connection ahead of a retrying secure upsert', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'secure-retry-order.db');
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: databasePath,
+      secureFile,
+      cache: false,
+      transactionQueueTimeout: 1_000,
+    });
+    await db.query(
+      'CREATE TABLE secure_retry_order (id TEXT PRIMARY KEY, slug TEXT, tenant_id TEXT, value TEXT)',
+    );
+    const { DatabaseSync } = await import('node:sqlite');
+    const external = new DatabaseSync(databasePath);
+    external.exec('BEGIN EXCLUSIVE');
+
+    const upsert = db.upsert('secure_retry_order', ['slug', 'tenant_id'], {
+      id: 'upsert',
+      slug: 'shared',
+      tenant_id: null,
+      value: 'upsert',
+    });
+    const transaction = txOf(db)(async (tx) => {
+      await tx.insert('secure_retry_order', {
+        id: 'transaction',
+        slug: 'other',
+        tenant_id: null,
+        value: 'transaction',
+      });
+    });
+    setTimeout(() => external.exec('COMMIT'), 80);
+
+    await Promise.race([
+      Promise.all([upsert, transaction]),
+      new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error('secure lock-order deadlock')),
+          2_000,
+        ),
+      ),
+    ]);
+    external.close();
+    expect(await db.count('secure_retry_order')).toBe(2);
     await db.close?.();
   });
 
