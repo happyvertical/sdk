@@ -906,8 +906,8 @@ async function createDatabase(
           if (transaction && !transaction.closed) {
             try {
               await transaction.rollback();
-            } catch (_rollbackError) {
-              // Preserve the original failure; rollback errors are secondary here.
+            } catch (rollbackError) {
+              lastError = combineTransactionFailures(lastError, rollbackError);
             }
           }
         } finally {
@@ -1501,7 +1501,18 @@ async function createDatabase(
     ) => Promise<T>) & {
       drain: () => Promise<void>;
       runOperation: <T>(operation: () => Promise<T>) => Promise<T>;
+      runNested: <T>(
+        callback: (tx: DatabaseInterface) => Promise<T>,
+      ) => Promise<T>;
     };
+
+    type TransactionOperationRunner = <T>(
+      operation: () => Promise<T>,
+    ) => Promise<T>;
+
+    type NestedTransactionRunner = <T>(
+      callback: (tx: DatabaseInterface) => Promise<T>,
+    ) => Promise<T>;
 
     interface TransactionScope {
       database: DatabaseInterface;
@@ -1544,6 +1555,30 @@ async function createDatabase(
         return current;
       };
 
+      const assertBoundScope = (scope: NestedScope): void => {
+        const ambientScope = scopeContext.getStore();
+        if (ambientScope && ambientScope !== scope) {
+          throw new DatabaseError(
+            'A parent transaction handle cannot run inside a nested transaction callback',
+            {
+              hint: 'Use the nested callback transaction handle, or wait for the nested transaction to settle before using its parent handle.',
+            },
+          );
+        }
+      };
+
+      const runBoundOperation = <T>(
+        scope: NestedScope,
+        operation: () => Promise<T>,
+      ): Promise<T> => {
+        try {
+          assertBoundScope(scope);
+          return enqueueInScope(scope, operation);
+        } catch (error) {
+          return Promise.reject(error);
+        }
+      };
+
       const drainNestedScope = async (scope: NestedScope): Promise<void> => {
         await scope.tail;
         while ([...scope.children].some((child) => child.handlers.size > 0)) {
@@ -1576,6 +1611,15 @@ async function createDatabase(
         const callbackScope = createTransactionScope(
           transactionClient,
           nestedTransaction,
+          (operation) => runBoundOperation(scope, operation),
+          (nestedCallback) => {
+            try {
+              assertBoundScope(scope);
+              return startNested(scope, nestedCallback);
+            } catch (error) {
+              return Promise.reject(error);
+            }
+          },
         );
         const drainScope = async (): Promise<void> => {
           await callbackScope.sealAndDrain();
@@ -1620,10 +1664,10 @@ async function createDatabase(
         }
       };
 
-      const nestedTransaction = (<T>(
+      const startNested = <T>(
+        parentScope: NestedScope,
         callback: (tx: DatabaseInterface) => Promise<T>,
       ): Promise<T> => {
-        const parentScope = scopeContext.getStore() ?? rootScope;
         if (!parentScope.accepting) {
           return Promise.reject(
             new DatabaseError('Nested transaction scope is ending', {}),
@@ -1650,15 +1694,32 @@ async function createDatabase(
         // and `.finally()` chains. Only a rejection handler (including the one
         // installed by `await`) makes a failed savepoint recoverable.
         return withRejectionObservation(current, child);
-      }) as NestedTransaction;
+      };
+
+      const nestedTransaction = (<T>(
+        callback: (tx: DatabaseInterface) => Promise<T>,
+      ): Promise<T> =>
+        startNested(
+          scopeContext.getStore() ?? rootScope,
+          callback,
+        )) as NestedTransaction;
       nestedTransaction.drain = () => {
         rootScope.accepting = false;
         return drainNestedScope(rootScope);
       };
       nestedTransaction.runOperation = <T>(
         operation: () => Promise<T>,
-      ): Promise<T> =>
-        enqueueInScope(scopeContext.getStore() ?? rootScope, operation);
+      ): Promise<T> => runBoundOperation(rootScope, operation);
+      nestedTransaction.runNested = <T>(
+        callback: (tx: DatabaseInterface) => Promise<T>,
+      ): Promise<T> => {
+        try {
+          assertBoundScope(rootScope);
+          return startNested(rootScope, callback);
+        } catch (error) {
+          return Promise.reject(error);
+        }
+      };
       return nestedTransaction;
     };
 
@@ -1757,8 +1818,8 @@ async function createDatabase(
           if (!transactionClient.closed) {
             try {
               await transactionClient.rollback();
-            } catch {
-              // Nothing left to roll back.
+            } catch (rollbackError) {
+              failure = combineTransactionFailures(failure, rollbackError);
             }
           }
           throw failure;
@@ -1784,6 +1845,8 @@ async function createDatabase(
     const createTransactionScope = (
       transactionClient: SqliteExecutor,
       nestedTransaction: NestedTransaction,
+      runOperation: TransactionOperationRunner = nestedTransaction.runOperation,
+      runNested: NestedTransactionRunner = nestedTransaction.runNested,
     ): TransactionScope => {
       const isSecureTransaction = client.transactionReservation === 'exclusive';
       const scopedExecutor: SqliteExecutor = isSecureTransaction
@@ -1812,9 +1875,7 @@ async function createDatabase(
             Promise.resolve(
               executorContext.run(scopedExecutor, () => fn(...args)),
             );
-          const operation = isSecureTransaction
-            ? nestedTransaction.runOperation(run)
-            : run();
+          const operation = isSecureTransaction ? runOperation(run) : run();
           const tracked = {
             observed: false,
             handlers: new Set<Promise<void>>(),
@@ -1873,9 +1934,7 @@ async function createDatabase(
             new DatabaseError('Transaction scope is ending or ended', {}),
           );
         }
-        return executorContext.run(scopedExecutor, () =>
-          nestedTransaction(callback),
-        );
+        return executorContext.run(scopedExecutor, () => runNested(callback));
       }) as typeof nestedTransaction;
 
       const scopedClient = {
@@ -2030,20 +2089,21 @@ async function createDatabase(
           // BEGIN would throw, and its catch would ROLLBACK, discarding this
           // transaction's work. So normalize before releasing, the way the pooled
           // adapter's discardTxClient does.
+          let failure = error;
           if (transactionClient && !transactionClient.closed) {
             try {
               await transactionClient.rollback();
-            } catch {
-              // Already gone; nothing left to normalize.
+            } catch (rollbackError) {
+              failure = combineTransactionFailures(failure, rollbackError);
             }
           } else if (!transactionClient) {
             try {
               await client.execute({ sql: 'ROLLBACK', args: [] });
-            } catch {
-              // Already gone; nothing left to normalize.
+            } catch (rollbackError) {
+              failure = combineTransactionFailures(failure, rollbackError);
             }
           }
-          throw error;
+          throw failure;
         } finally {
           transactionClient?.close();
           releaseConnection();
@@ -2491,17 +2551,28 @@ async function createDatabase(
     const barrier = createInvocationBarrier();
     const reserve = <T extends (...args: any[]) => Promise<any>>(fn: T): T =>
       ((...args: Parameters<T>) => barrier.run(() => fn(...args))) as T;
+    const managedRootExecutor: SqliteExecutor = {
+      execute: (statement: any) => {
+        rejectManagedTransactionControl(statement);
+        return client.execute(statement);
+      },
+    };
+    const reserveManaged = <T extends (...args: any[]) => Promise<any>>(
+      fn: T,
+    ): T =>
+      reserve(((...args: Parameters<T>) =>
+        executorContext.run(managedRootExecutor, () => fn(...args))) as T);
     const reservedTable = (tableName: string): TableInterface => {
       const scoped = table(tableName);
       return {
-        insert: reserve(scoped.insert),
-        get: reserve(scoped.get),
-        list: reserve(scoped.list),
+        insert: reserveManaged(scoped.insert),
+        get: reserveManaged(scoped.get),
+        list: reserveManaged(scoped.list),
       };
     };
     const reservedAlterTable = {
-      addColumn: reserve(alterTable.addColumn),
-      addIndex: reserve(alterTable.addIndex),
+      addColumn: reserveManaged(alterTable.addColumn),
+      addIndex: reserveManaged(alterTable.addIndex),
     };
     const reserveTransactionEntry = <T>(
       work: (preAcquiredLock: Promise<() => void>) => Promise<T>,
@@ -2571,7 +2642,10 @@ async function createDatabase(
       );
     const reservedClient = {
       transactionReservation: 'exclusive' as const,
-      execute: reserve(client.execute.bind(client)),
+      execute: reserve((statement: any) => {
+        rejectManagedTransactionControl(statement);
+        return client.execute(statement);
+      }),
       transaction: () =>
         Promise.reject(
           new DatabaseError(
@@ -2585,30 +2659,30 @@ async function createDatabase(
     return {
       ...db,
       client: reservedClient,
-      query: reserve(query),
-      insert: reserve(insert),
-      update: reserve(update),
-      upsert: reserve(upsert),
-      get: reserve(get),
-      list: reserve(list),
-      getOrInsert: reserve(getOrInsert),
-      delete: reserve(deleteRecords),
-      count: reserve(count),
+      query: reserveManaged(query),
+      insert: reserveManaged(insert),
+      update: reserveManaged(update),
+      upsert: reserveManaged(upsert),
+      get: reserveManaged(get),
+      list: reserveManaged(list),
+      getOrInsert: reserveManaged(getOrInsert),
+      delete: reserveManaged(deleteRecords),
+      count: reserveManaged(count),
       table: reservedTable,
-      tableExists: reserve(tableExists),
-      many: reserve(many),
-      single: reserve(single),
-      pluck: reserve(pluck),
-      execute: reserve(execute),
-      oo: reserve(oo),
-      oO: reserve(oO),
-      ox: reserve(ox),
-      xx: reserve(xx),
-      syncSchema: reserve(syncSchema),
-      initializeSchemas: reserve(initializeSchemas),
+      tableExists: reserveManaged(tableExists),
+      many: reserveManaged(many),
+      single: reserveManaged(single),
+      pluck: reserveManaged(pluck),
+      execute: reserveManaged(execute),
+      oo: reserveManaged(oo),
+      oO: reserveManaged(oO),
+      ox: reserveManaged(ox),
+      xx: reserveManaged(xx),
+      syncSchema: reserveManaged(syncSchema),
+      initializeSchemas: reserveManaged(initializeSchemas),
       transaction: reservedTransaction,
       beginTransaction: reservedBeginTransaction,
-      getTableSchema: reserve(getTableSchema),
+      getTableSchema: reserveManaged(getTableSchema),
       alterTable: reservedAlterTable,
       close: () => barrier.close(rawClose),
     };

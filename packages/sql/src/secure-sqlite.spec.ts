@@ -1643,6 +1643,126 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
+  it('rejects captured parent handles inside nested callback contexts', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE captured_parent (id INTEGER PRIMARY KEY)');
+
+    await txOf(db)(async (outer) => {
+      await txOf(outer)(async (inner) => {
+        await inner.query('INSERT INTO captured_parent (id) VALUES (1)');
+        await outer
+          .query('INSERT INTO captured_parent (id) VALUES (2)')
+          .catch((error) => {
+            expect(error).toMatchObject({
+              message:
+                'A parent transaction handle cannot run inside a nested transaction callback',
+            });
+          });
+        await txOf(outer)(async () => undefined).catch((error) => {
+          expect(error).toMatchObject({
+            message:
+              'A parent transaction handle cannot run inside a nested transaction callback',
+          });
+        });
+        throw new Error('child rollback');
+      }).catch((error) => {
+        expect(error).toMatchObject({ message: 'child rollback' });
+      });
+      await outer.query('INSERT INTO captured_parent (id) VALUES (3)');
+    });
+
+    expect((await db.query('SELECT id FROM captured_parent')).rows).toEqual([
+      { id: 3 },
+    ]);
+    await db.close?.();
+  });
+
+  it('rejects transaction-control SQL on every secure root raw route', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE root_control (id INTEGER PRIMARY KEY)');
+
+    await expect(db.query('/* disguised */ BEGIN')).rejects.toThrow(
+      'Failed to execute raw query',
+    );
+    await expect(db.execute`-- disguised
+      SAVEPOINT external`).rejects.toThrow('Failed to execute query');
+    await expect(db.client.execute('; ROLLBACK')).rejects.toThrow(
+      'Transaction-control SQL is managed',
+    );
+
+    await db.query('INSERT INTO root_control (id) VALUES (1)');
+    expect((await db.query('SELECT id FROM root_control')).rows).toEqual([
+      { id: 1 },
+    ]);
+    await db.close?.();
+  });
+
+  it('poisons the secure client when rollback cannot normalize the connection', async () => {
+    const root = await makeTempRoot();
+    let inTransaction = false;
+    let closeCalls = 0;
+    const client = await createSecureSqliteClient(
+      join(root, 'rollback-failure.db'),
+      trustedParent,
+      {
+        platform: process.platform,
+        nodeVersion: '24.18.0',
+        loadDriver: async () =>
+          ({
+            // biome-ignore lint/style/useNamingConvention: mirrors node:sqlite's public API
+            DatabaseSync: class {
+              get isTransaction() {
+                return inTransaction;
+              }
+
+              prepare(sql: string) {
+                return {
+                  setReadBigInts: () => {},
+                  columns: () => [],
+                  all: () => [],
+                  run: () => {
+                    if (/^BEGIN/i.test(sql)) inTransaction = true;
+                    if (/^ROLLBACK/i.test(sql)) {
+                      throw new Error('rollback I/O failure');
+                    }
+                    return { changes: 0n, lastInsertRowid: 0n };
+                  },
+                };
+              }
+
+              close() {
+                closeCalls += 1;
+                inTransaction = false;
+              }
+            },
+          }) as any,
+      },
+    );
+    const transaction = await client.transaction();
+
+    await expect(transaction.rollback()).rejects.toThrow(
+      'rollback I/O failure',
+    );
+    expect(closeCalls).toBe(1);
+    await expect(client.execute('SELECT 1')).rejects.toThrow(
+      'closing or closed',
+    );
+    await expect(client.close()).resolves.toBeUndefined();
+    expect(closeCalls).toBe(1);
+  });
+
   it('normalizes boolean parameters across public SQLite operations', async () => {
     const root = await makeTempRoot();
     const db = await getDatabase({

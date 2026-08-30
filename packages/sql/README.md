@@ -169,11 +169,16 @@ after a transaction scope ends reject without reaching SQLite. Use
 `database.transaction()` or `database.beginTransaction()` for transaction
 control—direct `client.transaction()` and transaction-scoped `client.close()`
 fail closed. Raw `BEGIN`, `COMMIT`, `END`, `ROLLBACK`, `SAVEPOINT`, and
-`RELEASE` statements are likewise rejected inside a managed secure scope so
-they cannot bypass callback/manual rollback or invalidate an owned savepoint.
+`RELEASE` statements are likewise rejected through root and transaction-scoped
+database/client routes so they cannot create an untracked transaction, bypass
+callback/manual rollback, or invalidate an owned savepoint. A parent transaction
+handle also rejects when invoked from inside a nested callback; use the nested
+callback's handle or wait for the child to settle before reusing its parent.
 If SQLite itself ends a transaction through a statement policy
 such as `ON CONFLICT ROLLBACK`, already-accepted later work rejects before
-execution and commit reports the automatic rollback.
+execution and commit reports the automatic rollback. If an explicit rollback
+fails, the secure client is invalidated and rejects later work rather than
+returning a connection with uncertain transaction state to service.
 
 Every static component must be a real path component. For example, macOS exposes
 `/var` as a symlink, so use the resolved `/private/var/...` path when secure

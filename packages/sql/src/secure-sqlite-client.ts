@@ -853,9 +853,31 @@ function createClient(database: NodeSqliteDatabase): SecureSqliteClient {
         }
         try {
           await enqueue(sql, owner);
-        } finally {
           transactionClosed = true;
           await releaseReservation();
+        } catch (rollbackError) {
+          // A failed rollback leaves SQLite's transaction state uncertain. Do
+          // not return this connection to service: close it after the accepted
+          // owner queue drains and propagate every cleanup failure.
+          transactionClosed = true;
+          state = 'closing';
+          let closeError: unknown;
+          try {
+            await releaseReservation();
+            database.close();
+          } catch (error) {
+            closeError = error;
+          } finally {
+            state = 'closed';
+          }
+          if (closeError) {
+            throw new AggregateError(
+              [rollbackError, closeError],
+              'Secure SQLite rollback and connection invalidation both failed',
+              { cause: rollbackError },
+            );
+          }
+          throw rollbackError;
         }
       };
 
