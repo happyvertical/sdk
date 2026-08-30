@@ -1,4 +1,8 @@
-import { AsyncLocalStorage } from 'node:async_hooks';
+import {
+  AsyncLocalStorage,
+  createHook,
+  executionAsyncId,
+} from 'node:async_hooks';
 import { createHash } from 'node:crypto';
 import { DatabaseError } from '@happyvertical/utils';
 import type { Client } from '@libsql/client';
@@ -222,19 +226,86 @@ function combineTransactionFailures(
 interface PromiseObservation {
   observed: boolean;
   handlers: Set<Promise<void>>;
-  nativeTransfers: Set<unknown>;
-  unhandledNativeTransfers: Set<unknown>;
+  nativeTransfers: Set<Promise<unknown>>;
+  unhandledNativeTransfers: Set<Promise<unknown>>;
+  nativeTrackingActive?: boolean;
   suppressIntrinsicRecovery?: number;
 }
 
 const activeNativeTransferObservations = new Set<PromiseObservation>();
+const nativePromiseResources = new Map<number, Promise<unknown>>();
+const nativePromiseTriggers = new Map<number, number>();
+const nativePromiseIds = new WeakMap<Promise<unknown>, number>();
+const nativePromiseReasons = new WeakMap<Promise<unknown>, unknown>();
+const nativePromiseWatermarks = new WeakMap<Promise<unknown>, number>();
+let latestNativePromiseId = 0;
+let nativePromiseTrackingUsers = 0;
+const nativePromiseHook = createHook({
+  init(asyncId, type, triggerAsyncId, resource) {
+    if (type === 'PROMISE') {
+      latestNativePromiseId = Math.max(latestNativePromiseId, asyncId);
+      nativePromiseResources.set(asyncId, resource as Promise<unknown>);
+      nativePromiseTriggers.set(asyncId, triggerAsyncId);
+      nativePromiseIds.set(resource as Promise<unknown>, asyncId);
+    }
+  },
+  destroy(asyncId) {
+    nativePromiseResources.delete(asyncId);
+    nativePromiseTriggers.delete(asyncId);
+  },
+});
 let nativeTransferListenerInstalled = false;
-const recordUnhandledNativeTransfer = (reason: unknown) => {
+function promisesAreRelated(
+  rejectedPromise: Promise<unknown>,
+  transferPromise: Promise<unknown>,
+): boolean {
+  const rejectedId = nativePromiseIds.get(rejectedPromise);
+  const transferId = nativePromiseIds.get(transferPromise);
+  if (rejectedId === undefined || transferId === undefined) return false;
+  if (rejectedId > (nativePromiseWatermarks.get(transferPromise) ?? -1)) {
+    return false;
+  }
+  if (rejectedId === transferId) return true;
+
+  const isAncestor = (ancestor: number, descendant: number): boolean => {
+    let current = descendant;
+    while (nativePromiseTriggers.has(current)) {
+      current = nativePromiseTriggers.get(current) ?? 0;
+      if (current === ancestor) return true;
+      if (current === 0) break;
+    }
+    return false;
+  };
+  if (
+    isAncestor(rejectedId, transferId) ||
+    isAncestor(transferId, rejectedId)
+  ) {
+    return true;
+  }
+
+  // Promise combinators allocate their result immediately before per-element
+  // adoption promises under the same async trigger.
+  return (
+    rejectedId === transferId - 1 &&
+    nativePromiseTriggers.get(rejectedId) ===
+      nativePromiseTriggers.get(transferId)
+  );
+}
+
+const recordUnhandledNativeTransfer = (
+  reason: unknown,
+  rejectedPromise: Promise<unknown>,
+) => {
   let matched = false;
   for (const observation of activeNativeTransferObservations) {
-    if (observation.nativeTransfers.has(reason)) {
-      observation.unhandledNativeTransfers.add(reason);
-      matched = true;
+    for (const transferPromise of observation.nativeTransfers) {
+      if (
+        Object.is(nativePromiseReasons.get(transferPromise), reason) &&
+        promisesAreRelated(rejectedPromise, transferPromise)
+      ) {
+        observation.unhandledNativeTransfers.add(transferPromise);
+        matched = true;
+      }
     }
   }
   // Merely observing a transaction-owned rejection must not suppress Node's
@@ -251,14 +322,43 @@ const recordUnhandledNativeTransfer = (reason: unknown) => {
   }
 };
 
+function retainNativePromiseTracking(observation: PromiseObservation): void {
+  if (observation.nativeTrackingActive) return;
+  observation.nativeTrackingActive = true;
+  nativePromiseTrackingUsers += 1;
+  if (nativePromiseTrackingUsers === 1) nativePromiseHook.enable();
+}
+
+function releaseNativePromiseTracking(observation: PromiseObservation): void {
+  if (!observation.nativeTrackingActive) return;
+  observation.nativeTrackingActive = false;
+  nativePromiseTrackingUsers -= 1;
+  if (nativePromiseTrackingUsers === 0) {
+    nativePromiseHook.disable();
+    nativePromiseResources.clear();
+    nativePromiseTriggers.clear();
+  }
+}
+
 function recordNativePromiseTransfer(
   observation: PromiseObservation,
   reason: unknown,
 ): void {
-  observation.nativeTransfers.add(reason);
+  const executionId = executionAsyncId();
+  const adoptionId = nativePromiseTriggers.get(executionId) ?? executionId;
+  const adoptingPromise = nativePromiseResources.get(adoptionId);
+  // If Node cannot identify the adopting promise, leave the failed operation
+  // unobserved so transaction draining fails closed.
+  if (!adoptingPromise) return;
+  observation.nativeTransfers.add(adoptingPromise);
+  nativePromiseReasons.set(adoptingPromise, reason);
+  nativePromiseWatermarks.set(adoptingPromise, latestNativePromiseId);
   activeNativeTransferObservations.add(observation);
   if (!nativeTransferListenerInstalled) {
-    process.on('unhandledRejection', recordUnhandledNativeTransfer);
+    process.prependListener(
+      'unhandledRejection',
+      recordUnhandledNativeTransfer,
+    );
     nativeTransferListenerInstalled = true;
   }
 }
@@ -266,10 +366,15 @@ function recordNativePromiseTransfer(
 async function settleNativePromiseTransfers(
   observations: Iterable<PromiseObservation>,
 ): Promise<void> {
-  const transferred = [...observations].filter(
+  const observed = [...observations];
+  const transferred = observed.filter(
     (observation) => observation.nativeTransfers.size > 0,
   );
-  if (transferred.length === 0) return;
+  if (transferred.length === 0) {
+    for (const observation of observed)
+      releaseNativePromiseTracking(observation);
+    return;
+  }
 
   // Native adoption does not expose the adopting Promise. The listener is
   // installed when rejection transfers, so this checkpoint distinguishes a
@@ -280,13 +385,14 @@ async function settleNativePromiseTransfers(
   for (const observation of transferred) {
     if (
       [...observation.nativeTransfers].every(
-        (reason) => !observation.unhandledNativeTransfers.has(reason),
+        (promise) => !observation.unhandledNativeTransfers.has(promise),
       )
     ) {
       observation.observed = true;
     }
     activeNativeTransferObservations.delete(observation);
   }
+  for (const observation of observed) releaseNativePromiseTracking(observation);
   if (
     nativeTransferListenerInstalled &&
     activeNativeTransferObservations.size === 0
@@ -326,6 +432,7 @@ function withRejectionObservation<T>(
   source: Promise<T>,
   observation: PromiseObservation,
 ): Promise<T> {
+  retainNativePromiseTracking(observation);
   const wrap = <U>(promise: Promise<U>): Promise<U> => {
     const suppressIntrinsicRecovery = <V>(callback: () => V): V => {
       observation.suppressIntrinsicRecovery =
@@ -1866,8 +1973,8 @@ async function createDatabase(
         children: Set<{
           observed: boolean;
           handlers: Set<Promise<void>>;
-          nativeTransfers: Set<unknown>;
-          unhandledNativeTransfers: Set<unknown>;
+          nativeTransfers: Set<Promise<unknown>>;
+          unhandledNativeTransfers: Set<Promise<unknown>>;
           error?: unknown;
         }>;
       }

@@ -1679,6 +1679,89 @@ describe('secure SQLite file acquisition', () => {
     }
   });
 
+  it('respects an application once listener for unrelated rejections', async () => {
+    const previousUnhandled = process.listeners('unhandledRejection');
+    process.removeAllListeners('unhandledRejection');
+    let applicationHandled = 0;
+    process.once('unhandledRejection', () => {
+      applicationHandled += 1;
+    });
+    let captured: Error | undefined;
+    process.setUncaughtExceptionCaptureCallback((error) => {
+      captured = error;
+    });
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'once-rejection.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE failures (id INTEGER PRIMARY KEY)');
+    const tx = await db.beginTransaction?.();
+    if (!tx) throw new Error('beginTransaction unavailable');
+    try {
+      await tx.insert('failures', { id: 1 });
+      await tx.insert('failures', { id: 1 }).catch(() => undefined);
+      void Promise.reject(new Error('application-handled-once'));
+      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(applicationHandled).toBe(1);
+      expect(captured).toBeUndefined();
+      await tx.commit();
+    } finally {
+      process.setUncaughtExceptionCaptureCallback(null);
+      process.removeAllListeners('unhandledRejection');
+      for (const listener of previousUnhandled) {
+        process.on('unhandledRejection', listener);
+      }
+      await db.close?.();
+    }
+  });
+
+  it('distinguishes an unrelated rejected promise that reuses a transaction error', async () => {
+    const previousUnhandled = process.listeners('unhandledRejection');
+    process.removeAllListeners('unhandledRejection');
+    let unrelatedUnhandled = 0;
+    process.on('unhandledRejection', () => {
+      unrelatedUnhandled += 1;
+    });
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'shared-reason.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE failures (id INTEGER PRIMARY KEY)');
+    try {
+      await txOf(db)(async (tx) => {
+        await tx.insert('failures', { id: 1 });
+        let rejectUnrelated: (reason: unknown) => void = () => {};
+        const unrelated = new Promise<never>((_resolve, reject) => {
+          rejectUnrelated = reject;
+        });
+        void unrelated;
+        let sharedReason: unknown;
+        try {
+          await tx.insert('failures', { id: 1 });
+        } catch (error) {
+          sharedReason = error;
+        }
+        rejectUnrelated(sharedReason);
+        await new Promise((resolve) => setImmediate(resolve));
+      });
+      expect(unrelatedUnhandled).toBe(1);
+      expect(await db.count('failures')).toBe(1);
+    } finally {
+      process.removeAllListeners('unhandledRejection');
+      for (const listener of previousUnhandled) {
+        process.on('unhandledRejection', listener);
+      }
+      await db.close?.();
+    }
+  });
+
   it('commits ordinary caught await failures on default and secure SQLite', async () => {
     const root = await makeTempRoot();
     const databases = [
