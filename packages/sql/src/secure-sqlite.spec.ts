@@ -1514,7 +1514,7 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
-  it('does not mistake Promise assimilation for explicit failure recovery', async () => {
+  it('recognizes failure recovery through assimilated Promise chains', async () => {
     const root = await makeTempRoot();
     const db = await getDatabase({
       type: 'sqlite',
@@ -1524,15 +1524,13 @@ describe('secure SQLite file acquisition', () => {
     });
     await db.query('CREATE TABLE assimilated_failure (id INTEGER PRIMARY KEY)');
 
-    await expect(
-      txOf(db)(async (tx) => {
-        await tx.insert('assimilated_failure', { id: 1 });
-        void Promise.resolve(tx.insert('assimilated_failure', { id: 1 })).catch(
-          () => undefined,
-        );
-      }),
-    ).rejects.toThrow();
-    expect(await db.count('assimilated_failure')).toBe(0);
+    await txOf(db)(async (tx) => {
+      await tx.insert('assimilated_failure', { id: 1 });
+      void Promise.resolve(tx.insert('assimilated_failure', { id: 1 })).catch(
+        () => undefined,
+      );
+    });
+    expect(await db.count('assimilated_failure')).toBe(1);
 
     const manual = await db.beginTransaction?.();
     if (!manual) throw new Error('beginTransaction unavailable');
@@ -1540,22 +1538,50 @@ describe('secure SQLite file acquisition', () => {
     void Promise.all([manual.insert('assimilated_failure', { id: 2 })]).catch(
       () => undefined,
     );
-    await expect(manual.commit()).rejects.toThrow();
-    expect(await db.count('assimilated_failure')).toBe(0);
+    await manual.commit();
+    expect(await db.count('assimilated_failure')).toBe(2);
 
-    await expect(
-      txOf(db)(async (outer) => {
-        await outer.insert('assimilated_failure', { id: 3 });
-        await txOf(outer)(async (inner) => {
+    await txOf(db)(async (outer) => {
+      await outer.insert('assimilated_failure', { id: 3 });
+      await txOf(outer)(async (inner) => {
+        await inner.insert('assimilated_failure', { id: 4 });
+        void (async () => {
           await inner.insert('assimilated_failure', { id: 4 });
-          void (async () => {
-            await inner.insert('assimilated_failure', { id: 4 });
-          })().catch(() => undefined);
-        });
-      }),
-    ).rejects.toThrow();
-    expect(await db.count('assimilated_failure')).toBe(0);
+        })().catch(() => undefined);
+      });
+    });
+    expect(await db.count('assimilated_failure')).toBe(4);
     await db.close?.();
+  });
+
+  it('commits ordinary caught await failures on default and secure SQLite', async () => {
+    const root = await makeTempRoot();
+    const databases = [
+      await getDatabase({ type: 'sqlite', url: ':memory:', cache: false }),
+      await getDatabase({
+        type: 'sqlite',
+        url: join(root, 'caught-await.db'),
+        secureFile,
+        cache: false,
+      }),
+    ];
+
+    for (const db of databases) {
+      await db.query('CREATE TABLE caught_await (id INTEGER PRIMARY KEY)');
+      await txOf(db)(async (tx) => {
+        await tx.insert('caught_await', { id: 1 });
+        try {
+          await tx.insert('caught_await', { id: 1 });
+        } catch (error) {
+          expect(error).toBeInstanceOf(Error);
+        }
+        await tx.insert('caught_await', { id: 2 });
+      });
+      expect(
+        (await db.query('SELECT id FROM caught_await ORDER BY id')).rows,
+      ).toEqual([{ id: 1 }, { id: 2 }]);
+      await db.close?.();
+    }
   });
 
   it('recognizes explicit native then handlers as failure recovery', async () => {

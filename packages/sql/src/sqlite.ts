@@ -358,16 +358,28 @@ function withRejectionObservation<T>(
               | ((reason: any) => TResult2 | PromiseLike<TResult2>)
               | null,
           ): Promise<TResult1 | TResult2> {
+            const transfersToNativePromise = isNativePromiseAssimilation(
+              onFulfilled,
+              onRejected,
+            );
             const explicitlyHandlesRejection =
-              typeof onRejected === 'function' &&
-              !isNativePromiseAssimilation(onFulfilled, onRejected);
+              typeof onRejected === 'function' && !transfersToNativePromise;
             const handleRejected = explicitlyHandlesRejection
               ? async (reason: any) => {
                   const recovered = await onRejected(reason);
                   observation.observed = true;
                   return recovered;
                 }
-              : onRejected;
+              : transfersToNativePromise && typeof onRejected === 'function'
+                ? (reason: any) => {
+                    // Await/Promise assimilation transfers rejection to a
+                    // native Promise. If that rejection escapes an await, the
+                    // enclosing transaction callback still rejects normally;
+                    // if the caller catches it, this operation is recovered.
+                    observation.observed = true;
+                    return onRejected(reason);
+                  }
+                : onRejected;
             const derived = suppressIntrinsicRecovery(
               () =>
                 Promise.prototype.then.call(
@@ -433,20 +445,28 @@ function withRejectionObservation<T>(
       ): Promise<TResult1 | TResult2> {
         // Promise assimilation (`await`, `Promise.resolve`, `Promise.all`, and
         // async helper adoption) supplies a pair of native resolving functions.
-        // Those functions only transfer the rejection to another promise; they
-        // do not prove that the derived rejection is observed. Fail closed and
-        // keep the operation unobserved unless the caller installs an explicit
-        // rejection handler on this chain.
+        // Those functions transfer rejection to a native Promise. The
+        // enclosing callback still rejects if an await is not caught; a caught
+        // await is therefore valid recovery and must not be rolled back again
+        // by detached-operation draining.
+        const transfersToNativePromise = isNativePromiseAssimilation(
+          onFulfilled,
+          onRejected,
+        );
         const explicitlyHandlesRejection =
-          typeof onRejected === 'function' &&
-          !isNativePromiseAssimilation(onFulfilled, onRejected);
+          typeof onRejected === 'function' && !transfersToNativePromise;
         const handleRejected = explicitlyHandlesRejection
           ? async (reason: any) => {
               const recovered = await onRejected(reason);
               observation.observed = true;
               return recovered;
             }
-          : onRejected;
+          : transfersToNativePromise && typeof onRejected === 'function'
+            ? (reason: any) => {
+                observation.observed = true;
+                return onRejected(reason);
+              }
+            : onRejected;
         const derived = suppressIntrinsicRecovery(
           () =>
             Promise.prototype.then.call(
