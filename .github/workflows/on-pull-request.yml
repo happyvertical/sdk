@@ -35,24 +35,28 @@ permissions:
   packages: read
 
 env:
-  # Reusable workflows receive the reviewed head only for repository-owned
-  # branches. Fork PR jobs are skipped before self-hosted allocation.
+  # Direct hosted checks use the reviewed head only for repository-owned
+  # branches. Forks retain the trusted base, while reusable validation jobs
+  # remain guarded and therefore cannot execute fork code.
   CHECKOUT_REF: >-
     ${{ github.event.pull_request.head.repo.full_name == github.repository &&
     github.event.pull_request.head.sha || github.sha }}
+  VALIDATE_REVIEWED_HEAD: >-
+    ${{ github.event_name == 'merge_group' ||
+    github.event.pull_request.head.repo.full_name == github.repository }}
+  PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+  PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
 
-# Every self-hosted job in this trusted-base wrapper keeps the same-repository
-# guard. GitHub evaluates a job-level `if` before allocating its runner, so
-# fork PRs are skipped before they can reach the brokered pool.
+# Reusable validation jobs keep the same-repository guard. Direct hosted jobs
+# always use CHECKOUT_REF, which resolves to the trusted base for fork PRs.
 jobs:
 
   changeset-check:
     name: Check for Changeset
-    runs-on: arc-happyvertical
+    runs-on: ubuntu-latest
     if: >-
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request_target' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
 
     steps:
@@ -63,7 +67,9 @@ jobs:
           fetch-depth: 0
 
       - name: Check for skip conditions
-        if: github.event_name == 'pull_request_target'
+        if: >-
+          github.event_name == 'pull_request_target' &&
+          env.VALIDATE_REVIEWED_HEAD == 'true'
         id: skip-check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -78,7 +84,10 @@ jobs:
           fi
 
       - name: Setup Environment
-        if: github.event_name == 'pull_request_target' && steps.skip-check.outputs.skip != 'true'
+        if: >-
+          github.event_name == 'pull_request_target' &&
+          env.VALIDATE_REVIEWED_HEAD == 'true' &&
+          steps.skip-check.outputs.skip != 'true'
         uses: ./.github/actions/setup-environment
         with:
           node-version: '24.18.0'
@@ -86,10 +95,13 @@ jobs:
           github-packages-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check for changeset
-        if: github.event_name == 'pull_request_target' && steps.skip-check.outputs.skip != 'true'
+        if: >-
+          github.event_name == 'pull_request_target' &&
+          env.VALIDATE_REVIEWED_HEAD == 'true' &&
+          steps.skip-check.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_BRANCH: ${{ github.event.pull_request.head.ref }}
+          PR_BRANCH: ${{ env.PR_HEAD_REF }}
         run: |
           PR_NUM="${{ github.event.pull_request.number }}"
           if gh pr view "$PR_NUM" --json labels \
@@ -107,7 +119,7 @@ jobs:
           echo "🔍 Checking for conventional commits..."
 
           BASE_SHA="${{ github.event.pull_request.base.sha }}"
-          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          HEAD_SHA="${{ env.PR_HEAD_SHA }}"
 
           RELEASEABLE_COMMITS=$(git log \
             $BASE_SHA..$HEAD_SHA --pretty=format:"%s" --no-merges | \
@@ -179,9 +191,8 @@ jobs:
     if: >-
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request_target' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
-    runs-on: arc-happyvertical
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
@@ -195,6 +206,7 @@ jobs:
           fetch-depth: 0
 
       - name: Validate commit messages
+        if: env.VALIDATE_REVIEWED_HEAD == 'true'
         uses: wagoid/commitlint-github-action@b948419dd99f3fd78a6548d48f94e3df7f6bf3ed # v6
         with:
           configFile: commitlint.config.mjs
@@ -202,15 +214,19 @@ jobs:
       # PR title validation only needs commitlint, not the full
       # workspace setup. Avoid ./.github/actions/setup-environment here
       # because that composite action installs apt packages and the
-      # complete workspace dependency graph on the self-hosted runner.
+      # complete workspace dependency graph.
       - name: Setup Node.js for PR title validation
-        if: github.event_name == 'pull_request_target'
+        if: >-
+          github.event_name == 'pull_request_target' &&
+          env.VALIDATE_REVIEWED_HEAD == 'true'
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: '24.18.0'
 
       - name: Install commitlint dependencies
-        if: github.event_name == 'pull_request_target'
+        if: >-
+          github.event_name == 'pull_request_target' &&
+          env.VALIDATE_REVIEWED_HEAD == 'true'
         run: |
           npm install --prefix "$RUNNER_TEMP/commitlint" --no-save \
             --ignore-scripts --no-audit --no-fund \
@@ -218,14 +234,15 @@ jobs:
             @commitlint/config-conventional@20.5.0
 
       - name: Validate PR title for squash merge
-        if: github.event_name == 'pull_request_target'
+        if: >-
+          github.event_name == 'pull_request_target' &&
+          env.VALIDATE_REVIEWED_HEAD == 'true'
         # PR title is user-controlled metadata. Two non-obvious risks
         # the previous form had:
         #   (1) Interpolating the title directly into a shell script
         #       lets a title with command substitution execute the
         #       substitution at the runner's shell — real command
-        #       injection, especially on the brokered
-        #       arc-happyvertical runner this workflow runs on. Pass
+        #       injection, especially in this trusted-base workflow. Pass
         #       via env: instead, then quote the variable expansion.
         #   (2) scripts/validate-conventional-commits.js uses a
         #       hardcoded regex with permissive scope and a 50-char
@@ -251,12 +268,14 @@ jobs:
               --config commitlint.config.mjs
 
       - name: Determine version bump
-        if: github.event_name == 'pull_request_target'
+        if: >-
+          github.event_name == 'pull_request_target' &&
+          env.VALIDATE_REVIEWED_HEAD == 'true'
         id: version
         run: |
           base_ref="${{ github.event.pull_request.base.ref }}"
           base_sha="${{ github.event.pull_request.base.sha }}"
-          head_sha="${{ github.event.pull_request.head.sha }}"
+          head_sha="${{ env.PR_HEAD_SHA }}"
           commits=$(git log "$base_sha..$head_sha" --no-merges --pretty=format:"%s")
 
           bump="patch"
@@ -277,7 +296,9 @@ jobs:
           fi
 
       - name: Comment on PR
-        if: github.event_name == 'pull_request_target'
+        if: >-
+          github.event_name == 'pull_request_target' &&
+          env.VALIDATE_REVIEWED_HEAD == 'true'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
@@ -344,9 +365,8 @@ jobs:
     if: >-
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request_target' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
-    runs-on: arc-happyvertical
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout PR branch
@@ -367,15 +387,12 @@ jobs:
           files="${{ steps.changed-files.outputs.all_changed_files }}"
           echo "Changed files: $files"
 
-          # yamllint ships in the brokered runner image, which verifies
-          # `which yamllint` at build time. Installing it here shadowed that
-          # copy with a `pip install --user`, which the image's externally
-          # managed Python (PEP 668) refuses outright — so once the job moved
-          # to arc-happyvertical, every pull request touching a workflow file
-          # failed this check. Use the tool the runner contract provides.
+          # GitHub-hosted images may not retain yamllint indefinitely. Install
+          # the Ubuntu package when needed instead of relying on an image-only
+          # tool contract or a PEP 668-blocked user-level pip install.
           if ! command -v yamllint >/dev/null 2>&1; then
-            echo '::error::yamllint is missing from the runner image; it is part of the runner tool contract'
-            exit 1
+            sudo apt-get update
+            sudo apt-get install --yes yamllint
           fi
           yamllint --version
 
@@ -408,9 +425,8 @@ jobs:
     if: >-
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request_target' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
-    runs-on: arc-happyvertical
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -448,9 +464,8 @@ jobs:
     if: >-
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request_target' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
-    runs-on: arc-happyvertical
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -524,9 +539,8 @@ jobs:
     if: >-
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request_target' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
-    runs-on: arc-happyvertical
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout PR branch
@@ -574,9 +588,8 @@ jobs:
     if: >-
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request_target' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
-    runs-on: arc-happyvertical
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout PR history
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -597,9 +610,10 @@ jobs:
           mkdir -p "$RUNNER_TEMP/bin"
           install "$RUNNER_TEMP/gitleaks" "$RUNNER_TEMP/bin/gitleaks"
       - name: Scan introduced commits
+        if: env.VALIDATE_REVIEWED_HEAD == 'true'
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_SHA: ${{ env.PR_HEAD_SHA }}
         run: |
           "$RUNNER_TEMP/bin/gitleaks" git --no-banner --redact \
             --log-opts="$BASE_SHA..$HEAD_SHA" .
@@ -609,9 +623,8 @@ jobs:
     if: >-
       github.event_name == 'merge_group' ||
       (github.event_name == 'pull_request_target' &&
-      github.event.pull_request.head.repo.full_name == github.repository &&
       contains(fromJSON('["opened","synchronize","reopened"]'), github.event.action))
-    runs-on: arc-happyvertical
+    runs-on: ubuntu-latest
     outputs:
       required: ${{ github.event_name == 'merge_group' && 'true' || steps.filter.outputs.postgres }}
     steps:
@@ -671,10 +684,10 @@ jobs:
       packages: read
 
   required-ci:
-    # Hosted, and always runs — including on fork pull requests, where every
-    # protected job is skipped before any self-hosted allocation. The loop below
-    # then fails on the skipped results, so a fork cannot satisfy the required
-    # gate by having validation silently not run.
+    # Always runs — including on fork pull requests, where protected reusable
+    # validation jobs are skipped before allocation. The loop below then fails
+    # on the skipped result, so a fork cannot satisfy the required gate by
+    # having code validation silently not run.
     name: Required CI
     if: always()
     needs: [changeset-check, validate-commits, validate-workflows, check-naming, doc-coverage, test, docs-build, secret-scan, postgres-scope, postgres-tests, publish-dry-run]

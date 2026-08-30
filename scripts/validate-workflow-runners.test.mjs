@@ -34,7 +34,6 @@ test('flags exactly the retired GitHub-hosted runner labels', () => {
     'ubuntu-latest',
     'windows-2022',
     'windows-2025',
-    'arc-happyvertical',
     'self-hosted',
   ]) {
     assert.equal(isRetiredRunnerLabel(live), false, live);
@@ -47,7 +46,7 @@ test('extracts runs-on scalars, flow lists, and matrix os entries', () => {
     '  a:',
     '    runs-on: ubuntu-24.04',
     '  b:',
-    '    runs-on: [self-hosted, arc-happyvertical]',
+    '    runs-on: [self-hosted, ubuntu-latest]',
     '  c:',
     '    runs-on: ${{ matrix.os }}',
     '    strategy:',
@@ -60,7 +59,7 @@ test('extracts runs-on scalars, flow lists, and matrix os entries', () => {
   assert.deepEqual(extractRunnerLabels(source), [
     { line: 3, label: 'ubuntu-24.04' },
     { line: 5, label: 'self-hosted' },
-    { line: 5, label: 'arc-happyvertical' },
+    { line: 5, label: 'ubuntu-latest' },
     { line: 11, label: 'macos-13' },
     { line: 13, label: 'macos-15-intel' },
   ]);

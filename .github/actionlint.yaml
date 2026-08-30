@@ -1,7 +1,1 @@
-self-hosted-runner:
-  labels:
-    - arc-happyvertical
-    # The native matrix is a specialized macOS lane, not a brokered runner.
-    - macos-13
-
 config-variables: null
