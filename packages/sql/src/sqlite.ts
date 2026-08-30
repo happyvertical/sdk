@@ -718,7 +718,10 @@ async function createDatabase(
       const material = JSON.stringify({
         url,
         table,
-        conflicts: conflictColumns,
+        // SQLite accepts equivalent composite conflict targets in either
+        // column order. Canonicalize that caller-provided order so every
+        // spelling of one logical constraint shares the same lock.
+        conflicts: [...conflictColumns].sort(),
       });
       return `sqlite-null-aware:${createHash('sha256').update(material).digest('hex')}`;
     };

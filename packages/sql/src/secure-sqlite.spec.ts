@@ -1732,7 +1732,7 @@ describe('secure SQLite file acquisition', () => {
       ]);
       await txOf(tx)(async (nested) => {
         await Promise.all([
-          nested.upsert('concurrent_nullable_scope', ['scope', 'tenant_id'], {
+          nested.upsert('concurrent_nullable_scope', ['tenant_id', 'scope'], {
             id: 'nested-one',
             scope: true,
             tenant_id: null,
