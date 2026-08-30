@@ -29,6 +29,18 @@ function beginOf(db: DatabaseInterface) {
  */
 describe('nested transactions', () => {
   describe('sqlite (savepoint re-entry)', () => {
+    it('returns native Promise instances for nested transactions', async () => {
+      const db = await getDatabase({ type: 'sqlite', url: ':memory:' });
+
+      await txOf(db)(async (tx) => {
+        const nested = txOf(tx)(async () => 42);
+        expect(nested).toBeInstanceOf(Promise);
+        await expect(
+          Promise.prototype.then.call(nested, (value) => value),
+        ).resolves.toBe(42);
+      });
+    });
+
     it('sees the enclosing transaction and does not end it', async () => {
       const db = await getDatabase({ type: 'sqlite', url: ':memory:' });
       await db.query('CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)');

@@ -1261,6 +1261,35 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
+  it('returns native Promise instances for secure scoped operations and nesting', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE native_promises (id INTEGER PRIMARY KEY)');
+
+    await txOf(db)(async (tx) => {
+      const operation = tx.insert('native_promises', { id: 1 });
+      expect(operation).toBeInstanceOf(Promise);
+      await Promise.prototype.then.call(operation, (value) => value);
+
+      const nested = txOf(tx)(async (inner) => {
+        await inner.insert('native_promises', { id: 2 });
+        return 42;
+      });
+      expect(nested).toBeInstanceOf(Promise);
+      await expect(
+        Promise.prototype.then.call(nested, (value) => value),
+      ).resolves.toBe(42);
+    });
+
+    expect(await db.count('native_promises')).toBe(2);
+    await db.close?.();
+  });
+
   it('commits after callers handle statement failures in callback and manual transactions', async () => {
     const root = await makeTempRoot();
     const db = await getDatabase({

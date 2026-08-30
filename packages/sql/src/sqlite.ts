@@ -233,7 +233,7 @@ function isNativePromiseAssimilation(
 }
 
 /**
- * Returns a Promise-compatible chain that records when rejection is actually
+ * Returns a native Promise chain that records when rejection is actually
  * consumed. Fulfillment-only `then()` and `finally()` preserve the marker on
  * their derived chain; a later `catch()` therefore still counts, while a
  * detached derived rejection remains visible to transaction draining.
@@ -247,9 +247,22 @@ function withRejectionObservation<T>(
     // derived Promise from also surfacing as an unhandledRejection while its
     // shared observation record remains deliberately unhandled.
     void promise.catch(() => {});
-    return {
-      // biome-ignore lint/suspicious/noThenProperty: Promise-compatible observation is intentional here.
-      then: (onFulfilled, onRejected) => {
+    class ObservedPromise extends Promise<U> {
+      static get [Symbol.species](): PromiseConstructor {
+        return Promise;
+      }
+
+      constructor() {
+        super((resolve, reject) => {
+          Promise.prototype.then.call(promise, resolve, reject);
+        });
+      }
+
+      // biome-ignore lint/suspicious/noThenProperty: this is an actual Promise subclass preserving the public Promise contract.
+      override then<TResult1 = U, TResult2 = never>(
+        onFulfilled?: ((value: U) => TResult1 | PromiseLike<TResult1>) | null,
+        onRejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
+      ): Promise<TResult1 | TResult2> {
         // Promise assimilation (`await`, `Promise.resolve`, `Promise.all`, and
         // async helper adoption) supplies a pair of native resolving functions.
         // Those functions only transfer the rejection to another promise; they
@@ -266,7 +279,11 @@ function withRejectionObservation<T>(
               return recovered;
             }
           : onRejected;
-        const derived = promise.then(onFulfilled, handleRejected);
+        const derived = Promise.prototype.then.call(
+          this,
+          onFulfilled,
+          handleRejected,
+        ) as Promise<TResult1 | TResult2>;
         if (explicitlyHandlesRejection) {
           const handling = derived.then(
             () => undefined,
@@ -276,17 +293,28 @@ function withRejectionObservation<T>(
           void handling.finally(() => observation.handlers.delete(handling));
         }
         return wrap(derived);
-      },
-      catch: (onRejected) => {
+      }
+
+      override catch<TResult = never>(
+        onRejected?: ((reason: any) => TResult | PromiseLike<TResult>) | null,
+      ): Promise<U | TResult> {
         if (typeof onRejected !== 'function') {
-          return wrap(promise.catch(onRejected));
+          return wrap(
+            Promise.prototype.then.call(this, undefined, onRejected) as Promise<
+              U | TResult
+            >,
+          );
         }
         const handleRejected = async (reason: any) => {
           const recovered = await onRejected(reason);
           observation.observed = true;
           return recovered;
         };
-        const derived = promise.catch(handleRejected);
+        const derived = Promise.prototype.then.call(
+          this,
+          undefined,
+          handleRejected,
+        ) as Promise<U | TResult>;
         const handling = derived.then(
           () => undefined,
           () => undefined,
@@ -294,10 +322,33 @@ function withRejectionObservation<T>(
         observation.handlers.add(handling);
         void handling.finally(() => observation.handlers.delete(handling));
         return wrap(derived);
-      },
-      finally: (onFinally) => wrap(promise.finally(onFinally)),
-      [Symbol.toStringTag]: 'Promise',
-    } as Promise<U>;
+      }
+
+      override finally(onFinally?: (() => void) | null): Promise<U> {
+        if (typeof onFinally !== 'function') {
+          return wrap(
+            Promise.prototype.then.call(
+              this,
+              onFinally,
+              onFinally,
+            ) as Promise<U>,
+          );
+        }
+        const derived = Promise.prototype.then.call(
+          this,
+          (value: U) => Promise.resolve(onFinally()).then(() => value),
+          (reason: unknown) =>
+            Promise.resolve(onFinally()).then(() => {
+              throw reason;
+            }),
+        ) as Promise<U>;
+        return wrap(derived);
+      }
+    }
+
+    const observed = new ObservedPromise();
+    void Promise.prototype.then.call(observed, undefined, () => undefined);
+    return observed;
   };
 
   return wrap(source);
