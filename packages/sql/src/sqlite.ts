@@ -175,12 +175,23 @@ function withRejectionObservation<T>(
     return {
       // biome-ignore lint/suspicious/noThenProperty: Promise-compatible observation is intentional here.
       then: (onFulfilled, onRejected) => {
-        if (typeof onRejected === 'function') observation.observed = true;
-        return wrap(promise.then(onFulfilled, onRejected));
+        const handleRejected =
+          typeof onRejected === 'function'
+            ? async (reason: any) => {
+                const recovered = await onRejected(reason);
+                observation.observed = true;
+                return recovered;
+              }
+            : onRejected;
+        return wrap(promise.then(onFulfilled, handleRejected));
       },
       catch: (onRejected) => {
-        if (typeof onRejected === 'function') observation.observed = true;
-        return wrap(promise.catch(onRejected));
+        const handleRejected = async (reason: any) => {
+          const recovered = await onRejected(reason);
+          observation.observed = true;
+          return recovered;
+        };
+        return wrap(promise.catch(handleRejected));
       },
       finally: (onFinally) => wrap(promise.finally(onFinally)),
       [Symbol.toStringTag]: 'Promise',
@@ -1796,12 +1807,15 @@ async function createDatabase(
      *
      * @returns Promise resolving to a TransactionHandle
      */
-    const beginTransaction = async (): Promise<TransactionHandle> => {
+    const beginTransaction = async (
+      preAcquiredLock?: Promise<() => void>,
+    ): Promise<TransactionHandle> => {
       // The handle owns the connection until the caller ends it, so the lock
       // is held across the gap rather than around a single call. A handle that
       // is never committed or rolled back therefore blocks every later
       // transaction until the queue timeout reports it.
-      const releaseConnection = await connectionLock.acquire();
+      const releaseConnection = await (preAcquiredLock ??
+        connectionLock.acquire());
       let transactionClient: SqliteTransactionClientLike | undefined;
       try {
         if (client.transactionReservation === 'exclusive') {
@@ -2331,9 +2345,9 @@ async function createDatabase(
       addColumn: reserve(alterTable.addColumn),
       addIndex: reserve(alterTable.addIndex),
     };
-    const reservedTransaction: typeof transaction = <T>(
-      callback: (tx: DatabaseInterface) => Promise<T>,
-    ) => {
+    const reserveTransactionEntry = <T>(
+      work: (preAcquiredLock: Promise<() => void>) => Promise<T>,
+    ): Promise<T> => {
       // Start the deadline at invocation, but do not enqueue on connectionLock
       // until this call reaches its barrier turn. Speculatively taking the
       // connection while an earlier retrying upsert owns the barrier reverses
@@ -2362,7 +2376,7 @@ async function createDatabase(
             release();
             return deadline;
           }
-          return transaction(callback, Promise.resolve(release));
+          return work(Promise.resolve(release));
         } catch (error) {
           // A deadline can win while acquire() remains queued. Give that future
           // turn back immediately so a timed-out invocation never runs later or
@@ -2379,6 +2393,16 @@ async function createDatabase(
         if (timer) clearTimeout(timer);
       });
     };
+    const reservedTransaction: typeof transaction = <T>(
+      callback: (tx: DatabaseInterface) => Promise<T>,
+    ) =>
+      reserveTransactionEntry((preAcquiredLock) =>
+        transaction(callback, preAcquiredLock),
+      );
+    const reservedBeginTransaction: typeof beginTransaction = () =>
+      reserveTransactionEntry((preAcquiredLock) =>
+        beginTransaction(preAcquiredLock),
+      );
 
     return {
       ...db,
@@ -2404,7 +2428,7 @@ async function createDatabase(
       syncSchema: reserve(syncSchema),
       initializeSchemas: reserve(initializeSchemas),
       transaction: reservedTransaction,
-      beginTransaction: reserve(beginTransaction),
+      beginTransaction: reservedBeginTransaction,
       getTableSchema: reserve(getTableSchema),
       alterTable: reservedAlterTable,
       close: () => barrier.close(rawClose),

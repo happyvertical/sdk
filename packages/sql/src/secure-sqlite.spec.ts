@@ -1148,6 +1148,47 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
+  it('rolls back detached callback, manual, and nested failures whose handlers rethrow', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE rethrown_failure (id INTEGER PRIMARY KEY)');
+    const rethrow = (error: unknown): never => {
+      throw error;
+    };
+
+    await expect(
+      txOf(db)(async (tx) => {
+        await tx.insert('rethrown_failure', { id: 1 });
+        void tx.insert('rethrown_failure', { id: 1 }).catch(rethrow);
+      }),
+    ).rejects.toThrow();
+    expect(await db.count('rethrown_failure')).toBe(0);
+
+    const manual = await db.beginTransaction?.();
+    if (!manual) throw new Error('beginTransaction unavailable');
+    await manual.insert('rethrown_failure', { id: 2 });
+    void manual.insert('rethrown_failure', { id: 2 }).catch(rethrow);
+    await expect(manual.commit()).rejects.toThrow();
+    expect(await db.count('rethrown_failure')).toBe(0);
+
+    await expect(
+      txOf(db)(async (outer) => {
+        await outer.insert('rethrown_failure', { id: 3 });
+        void txOf(outer)(async (inner) => {
+          await inner.insert('rethrown_failure', { id: 4 });
+          throw new Error('nested rethrow');
+        }).catch(rethrow);
+      }),
+    ).rejects.toThrow('nested rethrow');
+    expect(await db.count('rethrown_failure')).toBe(0);
+    await db.close?.();
+  });
+
   it('prevents nested savepoint work from escaping its callback lifetime', async () => {
     const root = await makeTempRoot();
     const db = await getDatabase({
@@ -1726,6 +1767,38 @@ describe('secure SQLite file acquisition', () => {
     expect((await db.query('SELECT id FROM timeout_order')).rows).toEqual([
       { id: 1 },
     ]);
+    await db.close?.();
+  });
+
+  it('starts manual transactionQueueTimeout before an earlier outsider clears the invocation barrier', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+      transactionQueueTimeout: 50,
+    });
+    await db.query(
+      'CREATE TABLE manual_timeout_order (id INTEGER PRIMARY KEY)',
+    );
+    const manual = await db.beginTransaction?.();
+    if (!manual) throw new Error('beginTransaction unavailable');
+
+    const outsider = db.query(
+      'INSERT INTO manual_timeout_order (id) VALUES (1)',
+    );
+    const started = Date.now();
+    const timedOut = db.beginTransaction?.();
+    if (!timedOut) throw new Error('beginTransaction unavailable');
+    await expect(timedOut).rejects.toThrow('Timed out after 50ms');
+    expect(Date.now() - started).toBeLessThan(500);
+
+    await manual.rollback();
+    await expect(outsider).resolves.toMatchObject({ rowCount: 1 });
+    expect(
+      (await db.query('SELECT id FROM manual_timeout_order')).rows,
+    ).toEqual([{ id: 1 }]);
     await db.close?.();
   });
 
