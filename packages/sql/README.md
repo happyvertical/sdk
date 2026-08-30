@@ -162,6 +162,16 @@ objects and arrays continue through the adapter's JSON serialization unchanged.
 The public row-count contract remains `number`, so an exact `changes` metric
 above `Number.MAX_SAFE_INTEGER` fails explicitly instead of rounding.
 
+Secure connections also guard the public `client.execute()` seam with the same
+invocation and transaction-scope lifetime rules as the database helpers. A
+client call accepted before `close()` drains first; calls made after close or
+after a transaction scope ends reject without reaching SQLite. Use
+`database.transaction()` or `database.beginTransaction()` for transaction
+control—direct `client.transaction()` and transaction-scoped `client.close()`
+fail closed. If SQLite itself ends a transaction through a statement policy
+such as `ON CONFLICT ROLLBACK`, already-accepted later work rejects before
+execution and commit reports the automatic rollback.
+
 Every static component must be a real path component. For example, macOS exposes
 `/var` as a symlink, so use the resolved `/private/var/...` path when secure
 acquisition is intentional. Secure mode requires the package's supported Node

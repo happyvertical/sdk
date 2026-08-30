@@ -895,6 +895,9 @@ describe('secure SQLite file acquisition', () => {
     await expect(
       db.query('INSERT INTO close_reservation (id) VALUES (3)'),
     ).rejects.toThrow('closing or closed');
+    await expect(
+      db.client.execute('INSERT INTO close_reservation (id) VALUES (4)'),
+    ).rejects.toThrow('closing or closed');
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(closeSettled).toBe(false);
 
@@ -913,6 +916,117 @@ describe('secure SQLite file acquisition', () => {
         .rows,
     ).toEqual([{ id: 1 }, { id: 2 }]);
     await reopened.close?.();
+  });
+
+  it('guards public client execution with database and transaction lifetimes', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE guarded_client (id INTEGER PRIMARY KEY)');
+
+    let callbackScope: DatabaseInterface | undefined;
+    await txOf(db)(async (tx) => {
+      callbackScope = tx;
+      await tx.client.execute('INSERT INTO guarded_client (id) VALUES (1)');
+    });
+    if (!callbackScope) throw new Error('callback scope unavailable');
+    await expect(
+      callbackScope.client.execute(
+        'INSERT INTO guarded_client (id) VALUES (2)',
+      ),
+    ).rejects.toThrow('Transaction scope is ending or ended');
+
+    const manual = await db.beginTransaction?.();
+    if (!manual) throw new Error('beginTransaction unavailable');
+    await manual.client.execute('INSERT INTO guarded_client (id) VALUES (3)');
+    await manual.commit();
+    await expect(
+      manual.client.execute('INSERT INTO guarded_client (id) VALUES (4)'),
+    ).rejects.toThrow('Transaction scope is ending or ended');
+
+    expect(
+      (await db.query('SELECT id FROM guarded_client ORDER BY id')).rows,
+    ).toEqual([{ id: 1 }, { id: 3 }]);
+    await db.close?.();
+  });
+
+  it('fails atomically when SQLite automatically rolls a transaction back', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query(`
+      CREATE TABLE automatic_rollback (
+        id INTEGER PRIMARY KEY ON CONFLICT ROLLBACK
+      )
+    `);
+
+    await expect(
+      txOf(db)(async (tx) => {
+        await tx.query('INSERT INTO automatic_rollback (id) VALUES (1)');
+        const conflict = tx.query(
+          'INSERT INTO automatic_rollback (id) VALUES (1)',
+        );
+        const acceptedLater = tx.query(
+          'INSERT INTO automatic_rollback (id) VALUES (2)',
+        );
+        await conflict.catch((error) => {
+          expect(error).toBeInstanceOf(Error);
+        });
+        await acceptedLater.catch((error) => {
+          expect(error).toBeInstanceOf(Error);
+        });
+      }),
+    ).rejects.toThrow();
+    expect(await db.count('automatic_rollback')).toBe(0);
+
+    const manual = await db.beginTransaction?.();
+    if (!manual) throw new Error('beginTransaction unavailable');
+    await manual.query('INSERT INTO automatic_rollback (id) VALUES (3)');
+    const manualConflict = manual.query(
+      'INSERT INTO automatic_rollback (id) VALUES (3)',
+    );
+    const manualLater = manual.query(
+      'INSERT INTO automatic_rollback (id) VALUES (4)',
+    );
+    await manualConflict.catch((error) => {
+      expect(error).toBeInstanceOf(Error);
+    });
+    await manualLater.catch((error) => {
+      expect(error).toBeInstanceOf(Error);
+    });
+    await expect(manual.commit()).rejects.toThrow();
+    expect(await db.count('automatic_rollback')).toBe(0);
+
+    await expect(
+      txOf(db)(async (outer) => {
+        await outer.query('INSERT INTO automatic_rollback (id) VALUES (5)');
+        await txOf(outer)(async (inner) => {
+          await inner.query('INSERT INTO automatic_rollback (id) VALUES (6)');
+          const conflict = inner.query(
+            'INSERT INTO automatic_rollback (id) VALUES (6)',
+          );
+          const acceptedLater = inner.query(
+            'INSERT INTO automatic_rollback (id) VALUES (7)',
+          );
+          await conflict.catch((error) => {
+            expect(error).toBeInstanceOf(Error);
+          });
+          await acceptedLater.catch((error) => {
+            expect(error).toBeInstanceOf(Error);
+          });
+        }).catch(() => undefined);
+      }),
+    ).rejects.toThrow();
+    expect(await db.count('automatic_rollback')).toBe(0);
+    await db.close?.();
   });
 
   it('drains accepted callback operations and rejects detached late work', async () => {
@@ -1732,12 +1846,16 @@ describe('secure SQLite file acquisition', () => {
       ]);
       await txOf(tx)(async (nested) => {
         await Promise.all([
-          nested.upsert('concurrent_nullable_scope', ['tenant_id', 'scope'], {
-            id: 'nested-one',
-            scope: true,
-            tenant_id: null,
-            value: 'one',
-          }),
+          nested.upsert(
+            'Concurrent_Nullable_Scope',
+            ['TENANT_ID', 'SCOPE', 'SCOPE'],
+            {
+              id: 'nested-one',
+              SCOPE: true,
+              TENANT_ID: null,
+              value: 'one',
+            },
+          ),
           nested.upsert('concurrent_nullable_scope', ['scope', 'tenant_id'], {
             id: 'nested-two',
             scope: 1,

@@ -717,11 +717,13 @@ async function createDatabase(
       // Serialize all null-aware attempts for one logical constraint instead.
       const material = JSON.stringify({
         url,
-        table,
+        table: table.toLowerCase(),
         // SQLite accepts equivalent composite conflict targets in either
         // column order. Canonicalize that caller-provided order so every
         // spelling of one logical constraint shares the same lock.
-        conflicts: [...conflictColumns].sort(),
+        conflicts: [
+          ...new Set(conflictColumns.map((column) => column.toLowerCase())),
+        ].sort(),
       });
       return `sqlite-null-aware:${createHash('sha256').update(material).digest('hex')}`;
     };
@@ -1787,9 +1789,28 @@ async function createDatabase(
         );
       }) as typeof nestedTransaction;
 
+      const scopedClient = {
+        transactionReservation: 'exclusive' as const,
+        execute: bind((statement: any) => transactionClient.execute(statement)),
+        transaction: () =>
+          Promise.reject(
+            new DatabaseError(
+              'Use the transaction scope transaction() method instead of client.transaction()',
+              {},
+            ),
+          ),
+        close: () =>
+          Promise.reject(
+            new DatabaseError(
+              'Transaction-scoped SQLite clients cannot be closed directly',
+              {},
+            ),
+          ),
+      };
+
       const txDb: DatabaseInterface = {
         url,
-        client: transactionClient,
+        client: scopedClient,
         insert: scopedInsert,
         get: scopedGet,
         list: scopedList,
@@ -2456,9 +2477,22 @@ async function createDatabase(
       reserveTransactionEntry((preAcquiredLock) =>
         beginTransaction(preAcquiredLock),
       );
+    const reservedClient = {
+      transactionReservation: 'exclusive' as const,
+      execute: reserve(client.execute.bind(client)),
+      transaction: () =>
+        Promise.reject(
+          new DatabaseError(
+            'Use database.transaction() or database.beginTransaction() instead of client.transaction()',
+            {},
+          ),
+        ),
+      close: () => barrier.close(rawClose),
+    };
 
     return {
       ...db,
+      client: reservedClient,
       query: reserve(query),
       insert: reserve(insert),
       update: reserve(update),

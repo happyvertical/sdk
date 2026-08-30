@@ -50,6 +50,7 @@ interface NodeSqliteStatement {
 }
 
 interface NodeSqliteDatabase {
+  readonly isTransaction: boolean;
   prepare(sql: string): NodeSqliteStatement;
   close(): void;
 }
@@ -660,6 +661,7 @@ function executeNodeSqlite(
 function createClient(database: NodeSqliteDatabase): SecureSqliteClient {
   interface ReservationOwner {
     active: boolean;
+    beforeExecute?: () => void;
     tail: Promise<void>;
   }
 
@@ -686,7 +688,16 @@ function createClient(database: NodeSqliteDatabase): SecureSqliteClient {
           ),
         );
       }
-      const pending = owner.tail.then(() => executeStatement(statement));
+      const pending = owner.tail.then(() => {
+        if (!owner.active || state === 'closed') {
+          throw new DatabaseError(
+            'Secure SQLite transaction reservation is closed',
+            {},
+          );
+        }
+        owner.beforeExecute?.();
+        return executeStatement(statement);
+      });
       owner.tail = pending.then(
         () => undefined,
         () => undefined,
@@ -770,20 +781,81 @@ function createClient(database: NodeSqliteDatabase): SecureSqliteClient {
         throw error;
       }
       let transactionClosed = false;
+      let reservationReleased = false;
+      let automaticRollbackError: DatabaseError | undefined;
+
+      const releaseReservation = async (): Promise<void> => {
+        if (reservationReleased) return;
+        reservationReleased = true;
+        await release();
+      };
+
+      const detectAutomaticRollback = (): void => {
+        if (transactionClosed || database.isTransaction) return;
+        transactionClosed = true;
+        automaticRollbackError = new DatabaseError(
+          'Secure SQLite transaction ended automatically',
+          {
+            hint: 'A statement conflict policy such as ON CONFLICT ROLLBACK ended the transaction. No later accepted work was executed.',
+          },
+        );
+        // Release only after every statement already accepted by this owner has
+        // drained. Those later statements observe transactionClosed and reject
+        // before touching SQLite.
+        void releaseReservation().catch(() => {});
+      };
+
+      const executeInTransaction = async (
+        statement: string | SecureSqliteStatement,
+      ): Promise<SecureSqliteResult> => {
+        detectAutomaticRollback();
+        if (transactionClosed) {
+          throw (
+            automaticRollbackError ??
+            new DatabaseError(
+              'Secure SQLite transaction reservation is closed',
+              {},
+            )
+          );
+        }
+        try {
+          return await enqueue(statement, owner);
+        } finally {
+          detectAutomaticRollback();
+        }
+      };
+      owner.beforeExecute = () => {
+        detectAutomaticRollback();
+        if (transactionClosed) {
+          throw (
+            automaticRollbackError ??
+            new DatabaseError(
+              'Secure SQLite transaction reservation is closed',
+              {},
+            )
+          );
+        }
+      };
 
       const end = async (sql: 'COMMIT' | 'ROLLBACK'): Promise<void> => {
-        if (transactionClosed) return;
+        if (transactionClosed) {
+          await releaseReservation();
+          if (sql === 'COMMIT' && automaticRollbackError) {
+            throw automaticRollbackError;
+          }
+          return;
+        }
         if (sql === 'COMMIT') {
           await enqueue(sql, owner);
           transactionClosed = true;
-          await release();
+          await releaseReservation();
           return;
         }
         try {
           await enqueue(sql, owner);
         } finally {
           transactionClosed = true;
-          await release();
+          await releaseReservation();
         }
       };
 
@@ -791,7 +863,7 @@ function createClient(database: NodeSqliteDatabase): SecureSqliteClient {
         get closed() {
           return transactionClosed;
         },
-        execute: (statement) => enqueue(statement, owner),
+        execute: executeInTransaction,
         commit: () => end('COMMIT'),
         rollback: () => end('ROLLBACK'),
         close: () => {
