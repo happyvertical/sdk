@@ -1629,6 +1629,63 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
+  it('keeps rejection recovery local to one derived Promise branch', async () => {
+    const root = await makeTempRoot();
+    for (const options of [
+      { type: 'sqlite' as const, url: ':memory:', cache: false },
+      {
+        type: 'sqlite' as const,
+        url: join(root, 'branch-recovery.db'),
+        secureFile,
+        cache: false,
+      },
+    ]) {
+      const db = await getDatabase(options);
+      await db.query('CREATE TABLE branch_recovery (id INTEGER PRIMARY KEY)');
+      await expect(
+        txOf(db)(async (tx) => {
+          await tx.insert('branch_recovery', { id: 1 });
+          const failed = tx.insert('branch_recovery', { id: 1 });
+          void failed.catch(() => undefined);
+          void failed.then((value) => value);
+          await tx.insert('branch_recovery', { id: 2 });
+        }),
+      ).rejects.toThrow();
+      expect(await db.count('branch_recovery')).toBe(0);
+      await db.close?.();
+    }
+
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'branch-recovery-manual.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE branch_recovery (id INTEGER PRIMARY KEY)');
+    const manual = await db.beginTransaction?.();
+    if (!manual) throw new Error('beginTransaction unavailable');
+    await manual.insert('branch_recovery', { id: 1 });
+    const manualFailure = manual.insert('branch_recovery', { id: 1 });
+    void manualFailure.catch(() => undefined);
+    void manualFailure.then((value) => value);
+    await manual.insert('branch_recovery', { id: 2 });
+    await expect(manual.commit()).rejects.toThrow();
+    expect(await db.count('branch_recovery')).toBe(0);
+
+    await expect(
+      txOf(db)(async (outer) => {
+        await txOf(outer)(async (inner) => {
+          await inner.insert('branch_recovery', { id: 3 });
+          const nestedFailure = inner.insert('branch_recovery', { id: 3 });
+          void nestedFailure.catch(() => undefined);
+          void nestedFailure.then((value) => value);
+        });
+      }),
+    ).rejects.toThrow();
+    expect(await db.count('branch_recovery')).toBe(0);
+    await db.close?.();
+  });
+
   it('recognizes failure recovery through assimilated Promise chains', async () => {
     const root = await makeTempRoot();
     const db = await getDatabase({

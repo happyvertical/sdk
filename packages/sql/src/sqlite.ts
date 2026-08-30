@@ -226,6 +226,7 @@ function combineTransactionFailures(
 interface PromiseObservation {
   observed: boolean;
   error?: unknown;
+  branches?: Set<PromiseObservation>;
   handlers: Set<Promise<void>>;
   nativeTransfers: Set<Promise<unknown>>;
   unhandledNativeTransfers: Set<Promise<unknown>>;
@@ -449,7 +450,7 @@ function recordNativePromiseTransfer(observation: PromiseObservation): void {
 async function settleNativePromiseTransfers(
   observations: Iterable<PromiseObservation>,
 ): Promise<void> {
-  const observed = [...observations];
+  const observed = expandPromiseObservations(observations);
   const transferred = observed.filter(
     (observation) => observation.nativeTransfers.size > 0,
   );
@@ -486,6 +487,17 @@ async function settleNativePromiseTransfers(
   }
 }
 
+function expandPromiseObservations(
+  observations: Iterable<PromiseObservation>,
+): PromiseObservation[] {
+  const expanded = new Set<PromiseObservation>();
+  for (const observation of observations) {
+    expanded.add(observation);
+    for (const branch of observation.branches ?? []) expanded.add(branch);
+  }
+  return [...expanded];
+}
+
 function isNativePromiseAssimilation(
   onFulfilled: unknown,
   onRejected: unknown,
@@ -506,17 +518,19 @@ function isNativePromiseAssimilation(
 }
 
 /**
- * Returns a native Promise chain that records when rejection is actually
- * consumed. Fulfillment-only `then()` and `finally()` preserve the marker on
- * their derived chain; a later `catch()` therefore still counts, while a
- * detached derived rejection remains visible to transaction draining.
+ * Returns a native Promise chain that records rejection handling per derived
+ * branch. A handler transfers responsibility from its parent to a branch-local
+ * observation, so catching one sibling cannot hide another detached failure.
  */
 function withRejectionObservation<T>(
   source: Promise<T>,
-  observation: PromiseObservation,
+  rootObservation: PromiseObservation,
 ): Promise<T> {
-  retainNativePromiseTracking(observation);
-  const wrap = <U>(promise: Promise<U>): Promise<U> => {
+  retainNativePromiseTracking(rootObservation);
+  const wrap = <U>(
+    promise: Promise<U>,
+    observation: PromiseObservation = rootObservation,
+  ): Promise<U> => {
     const suppressIntrinsicRecovery = <V>(callback: () => V): V => {
       observation.suppressIntrinsicRecovery =
         (observation.suppressIntrinsicRecovery ?? 0) + 1;
@@ -526,31 +540,42 @@ function withRejectionObservation<T>(
         observation.suppressIntrinsicRecovery -= 1;
       }
     };
-    const trackFulfillment = <V, R>(
-      handler: ((value: V) => R | PromiseLike<R>) | null | undefined,
-      nativeAssimilation: boolean,
-    ): ((value: V) => R | PromiseLike<R>) | null | undefined => {
-      if (typeof handler !== 'function' || nativeAssimilation) return handler;
-      return (value: V) => {
-        try {
-          const result = handler(value);
-          if (
-            (typeof result === 'object' && result !== null) ||
-            typeof result === 'function'
-          ) {
-            return Promise.resolve(result).catch((error) => {
-              observation.error = error;
-              observation.observed = false;
-              throw error;
-            }) as PromiseLike<R>;
-          }
-          return result;
-        } catch (error) {
-          observation.error = error;
-          observation.observed = false;
-          throw error;
-        }
+    const createBranch = (): PromiseObservation => {
+      const branches = observation.branches ?? new Set<PromiseObservation>();
+      observation.branches = branches;
+      const branch: PromiseObservation = {
+        observed: false,
+        handlers: new Set(),
+        nativeTransfers: new Set(),
+        unhandledNativeTransfers: new Set(),
+        nativeCorrelationIds: new Set(),
+        branches,
       };
+      branches.add(branch);
+      return branch;
+    };
+    const registerBranchOutcome = <V>(
+      promise: Promise<V>,
+      branch: PromiseObservation,
+    ): void => {
+      const handling = suppressIntrinsicRecovery(
+        () =>
+          Promise.prototype.then.call(
+            promise,
+            () => {
+              branch.observed = true;
+            },
+            (error) => {
+              branch.error = error;
+            },
+          ) as Promise<void>,
+      );
+      branch.handlers.add(handling);
+      void Promise.prototype.then.call(
+        handling,
+        () => branch.handlers.delete(handling),
+        () => branch.handlers.delete(handling),
+      );
     };
     // The transaction owns detached rejection reporting. Prevent the native
     // derived Promise from also surfacing as an unhandledRejection while its
@@ -633,9 +658,9 @@ function withRejectionObservation<T>(
           }
 
           // Promise.prototype.then.call() bypasses ObservedPromise.then(), so
-          // keep subsequent native chaining on the same observation record.
-          // The species preserves this boundary so direct native chaining can
-          // span any number of hops without losing the observation record.
+          // keep subsequent native chaining inside the transaction's branch
+          // registry. The species preserves this boundary so direct native
+          // chaining can span any number of hops without losing ownership.
           // biome-ignore lint/suspicious/noThenProperty: this is an actual Promise subclass preserving the public Promise contract.
           override then<TResult1 = unknown, TResult2 = never>(
             onFulfilled?:
@@ -651,18 +676,12 @@ function withRejectionObservation<T>(
             );
             const explicitlyHandlesRejection =
               typeof onRejected === 'function' && !transfersToNativePromise;
-            const explicitlyHandlesFulfillment =
-              typeof onFulfilled === 'function' && !transfersToNativePromise;
-            const handleFulfilled = trackFulfillment(
-              onFulfilled,
-              transfersToNativePromise,
-            );
+            const branch = transfersToNativePromise
+              ? undefined
+              : createBranch();
+            if (branch) observation.observed = true;
             const handleRejected = explicitlyHandlesRejection
-              ? async (reason: any) => {
-                  const recovered = await onRejected(reason);
-                  observation.observed = true;
-                  return recovered;
-                }
+              ? (reason: any) => onRejected(reason)
               : transfersToNativePromise && typeof onRejected === 'function'
                 ? (reason: any) => {
                     // Await/Promise assimilation transfers rejection to a
@@ -677,25 +696,12 @@ function withRejectionObservation<T>(
               () =>
                 Promise.prototype.then.call(
                   this,
-                  handleFulfilled,
+                  onFulfilled,
                   handleRejected,
                 ) as Promise<TResult1 | TResult2>,
             );
-            if (explicitlyHandlesFulfillment || explicitlyHandlesRejection) {
-              const handling = suppressIntrinsicRecovery(
-                () =>
-                  Promise.prototype.then.call(
-                    derived,
-                    () => undefined,
-                    () => undefined,
-                  ) as Promise<void>,
-              );
-              observation.handlers.add(handling);
-              void handling.finally(() =>
-                observation.handlers.delete(handling),
-              );
-            }
-            return wrap(derived);
+            if (branch) registerBranchOutcome(derived, branch);
+            return wrap(derived, branch ?? observation);
           }
 
           override catch<TResult = never>(
@@ -752,18 +758,10 @@ function withRejectionObservation<T>(
         );
         const explicitlyHandlesRejection =
           typeof onRejected === 'function' && !transfersToNativePromise;
-        const explicitlyHandlesFulfillment =
-          typeof onFulfilled === 'function' && !transfersToNativePromise;
-        const handleFulfilled = trackFulfillment(
-          onFulfilled,
-          transfersToNativePromise,
-        );
+        const branch = transfersToNativePromise ? undefined : createBranch();
+        if (branch) observation.observed = true;
         const handleRejected = explicitlyHandlesRejection
-          ? async (reason: any) => {
-              const recovered = await onRejected(reason);
-              observation.observed = true;
-              return recovered;
-            }
+          ? (reason: any) => onRejected(reason)
           : transfersToNativePromise && typeof onRejected === 'function'
             ? (reason: any) => {
                 recordNativePromiseTransfer(observation);
@@ -774,64 +772,18 @@ function withRejectionObservation<T>(
           () =>
             Promise.prototype.then.call(
               this,
-              handleFulfilled,
+              onFulfilled,
               handleRejected,
             ) as Promise<TResult1 | TResult2>,
         );
-        if (explicitlyHandlesFulfillment || explicitlyHandlesRejection) {
-          const handling = suppressIntrinsicRecovery(
-            () =>
-              Promise.prototype.then.call(
-                derived,
-                () => undefined,
-                () => undefined,
-              ) as Promise<void>,
-          );
-          observation.handlers.add(handling);
-          void handling.finally(() => observation.handlers.delete(handling));
-        }
-        return wrap(derived);
+        if (branch) registerBranchOutcome(derived, branch);
+        return wrap(derived, branch ?? observation);
       }
 
       override catch<TResult = never>(
         onRejected?: ((reason: any) => TResult | PromiseLike<TResult>) | null,
       ): Promise<U | TResult> {
-        if (typeof onRejected !== 'function') {
-          return wrap(
-            suppressIntrinsicRecovery(
-              () =>
-                Promise.prototype.then.call(
-                  this,
-                  undefined,
-                  onRejected,
-                ) as Promise<U | TResult>,
-            ),
-          );
-        }
-        const handleRejected = async (reason: any) => {
-          const recovered = await onRejected(reason);
-          observation.observed = true;
-          return recovered;
-        };
-        const derived = suppressIntrinsicRecovery(
-          () =>
-            Promise.prototype.then.call(
-              this,
-              undefined,
-              handleRejected,
-            ) as Promise<U | TResult>,
-        );
-        const handling = suppressIntrinsicRecovery(
-          () =>
-            Promise.prototype.then.call(
-              derived,
-              () => undefined,
-              () => undefined,
-            ) as Promise<void>,
-        );
-        observation.handlers.add(handling);
-        void handling.finally(() => observation.handlers.delete(handling));
-        return wrap(derived);
+        return this.then(undefined, onRejected);
       }
 
       override finally(onFinally?: (() => void) | null): Promise<U> {
@@ -2138,13 +2090,19 @@ async function createDatabase(
 
       const drainNestedScope = async (scope: NestedScope): Promise<void> => {
         await scope.tail;
-        while ([...scope.children].some((child) => child.handlers.size > 0)) {
+        while (
+          expandPromiseObservations(scope.children).some(
+            (child) => child.handlers.size > 0,
+          )
+        ) {
           await Promise.all(
-            [...scope.children].flatMap((child) => [...child.handlers]),
+            expandPromiseObservations(scope.children).flatMap((child) => [
+              ...child.handlers,
+            ]),
           );
         }
         await settleNativePromiseTransfers(scope.children);
-        const failures = [...scope.children]
+        const failures = expandPromiseObservations(scope.children)
           .filter((child) => !child.observed && 'error' in child)
           .map((child) => child.error);
         if (failures.length === 1) throw failures[0];
@@ -2561,13 +2519,19 @@ async function createDatabase(
             while (pending.size > 0) {
               await Promise.allSettled([...pending]);
             }
-            while ([...operations].some((entry) => entry.handlers.size > 0)) {
+            while (
+              expandPromiseObservations(operations).some(
+                (entry) => entry.handlers.size > 0,
+              )
+            ) {
               await Promise.all(
-                [...operations].flatMap((entry) => [...entry.handlers]),
+                expandPromiseObservations(operations).flatMap((entry) => [
+                  ...entry.handlers,
+                ]),
               );
             }
             await settleNativePromiseTransfers(operations);
-            const failures = [...operations]
+            const failures = expandPromiseObservations(operations)
               .filter(
                 (operation) => !operation.observed && 'error' in operation,
               )
