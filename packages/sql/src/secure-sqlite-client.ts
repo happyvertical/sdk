@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { lstat } from 'node:fs/promises';
+import { lstat, open, unlink } from 'node:fs/promises';
 import { dirname, parse, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseError } from '@happyvertical/utils';
@@ -201,7 +201,7 @@ async function validateTrustedParentCustody(
   filePath: string,
   options: SecureSqliteCustodyOptions,
   runtime: SecureSqliteRuntime,
-): Promise<void> {
+): Promise<boolean> {
   if (options.custody !== 'trusted-parent') {
     throw new DatabaseError(
       'Secure SQLite acquisition requires trusted-parent custody',
@@ -341,8 +341,46 @@ async function validateTrustedParentCustody(
       );
     }
     await validateDarwinAcl(filePath, runtime);
+    return true;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    return false;
+  }
+}
+
+async function createSecureLeaf(filePath: string): Promise<boolean> {
+  let handle: Awaited<ReturnType<typeof open>>;
+  try {
+    handle = await open(filePath, 'wx', 0o600);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false;
+    throw new DatabaseError(
+      'Secure SQLite could not create the database leaf',
+      {
+        path: filePath,
+        originalError: error instanceof Error ? error.message : String(error),
+      },
+    );
+  }
+
+  try {
+    await handle.close();
+    return true;
+  } catch (error) {
+    let cleanupError: string | undefined;
+    try {
+      await unlink(filePath);
+    } catch (cleanupFailure) {
+      cleanupError =
+        cleanupFailure instanceof Error
+          ? cleanupFailure.message
+          : String(cleanupFailure);
+    }
+    throw new DatabaseError('Secure SQLite could not close the created leaf', {
+      path: filePath,
+      originalError: error instanceof Error ? error.message : String(error),
+      ...(cleanupError ? { cleanupError } : {}),
+    });
   }
 }
 
@@ -756,7 +794,11 @@ export async function createSecureSqliteClient(
   }
 
   const filePath = resolveSecureFilePath(url);
-  await validateTrustedParentCustody(filePath, options, runtime);
+  const leafExisted = await validateTrustedParentCustody(
+    filePath,
+    options,
+    runtime,
+  );
   let nodeSqlite: NodeSqliteModule;
   try {
     nodeSqlite = await runtime.loadDriver();
@@ -769,16 +811,50 @@ export async function createSecureSqliteClient(
       },
     );
   }
+  let createdLeaf = false;
+  if (!leafExisted) {
+    createdLeaf = await createSecureLeaf(filePath);
+    // An EEXIST race or inherited platform ACL must still satisfy the complete
+    // custody contract before the driver sees the path. Other principals
+    // cannot create beneath a validated trusted parent; hostile same-UID
+    // mutation remains outside the documented boundary.
+    try {
+      await validateTrustedParentCustody(filePath, options, runtime);
+    } catch (error) {
+      if (createdLeaf) {
+        try {
+          await unlink(filePath);
+        } catch {
+          // The custody validation error remains primary; it already denies
+          // driver acquisition and names the rejected path.
+        }
+      }
+      throw error;
+    }
+  }
+
   let database: NodeSqliteDatabase;
   try {
     database = new nodeSqlite.DatabaseSync(filePath);
   } catch (error) {
+    let cleanupError: string | undefined;
+    if (createdLeaf) {
+      try {
+        await unlink(filePath);
+      } catch (cleanupFailure) {
+        cleanupError =
+          cleanupFailure instanceof Error
+            ? cleanupFailure.message
+            : String(cleanupFailure);
+      }
+    }
     throw new DatabaseError(
       'Secure SQLite acquisition rejected the database path',
       {
         path: filePath,
         hint: 'Ensure the database path and every ancestor are real directories/files, not symbolic links, and that the file is writable.',
         originalError: error instanceof Error ? error.message : String(error),
+        ...(cleanupError ? { cleanupError } : {}),
       },
     );
   }

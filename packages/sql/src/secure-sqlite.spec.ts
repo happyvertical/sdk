@@ -1,5 +1,6 @@
 import {
   chmod,
+  lstat,
   mkdir,
   mkdtemp,
   readFile,
@@ -440,6 +441,46 @@ describe('secure SQLite file acquisition', () => {
     await expect(readFile(databasePath)).rejects.toMatchObject({
       code: 'ENOENT',
     });
+  });
+
+  it('creates a new database leaf with restrictive permissions under a permissive umask', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'permissive-umask.db');
+    const previousUmask = process.umask(0o000);
+    let client: Awaited<ReturnType<typeof createTrustedClient>> | undefined;
+
+    try {
+      client = await createTrustedClient(databasePath);
+    } finally {
+      process.umask(previousUmask);
+    }
+
+    try {
+      expect((await lstat(databasePath)).mode & 0o777).toBe(0o600);
+    } finally {
+      await client?.close();
+    }
+  });
+
+  it('removes a securely precreated leaf when driver acquisition fails', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'failed-open.db');
+
+    await expect(
+      createSecureSqliteClient(databasePath, trustedParent, {
+        platform: process.platform,
+        loadDriver: async () =>
+          ({
+            // biome-ignore lint/style/useNamingConvention: mirrors node:sqlite's public API
+            DatabaseSync: class {
+              constructor() {
+                throw new Error('open failed');
+              }
+            },
+          }) as any,
+      }),
+    ).rejects.toThrow('rejected the database path');
+    await expect(lstat(databasePath)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('rejects a symlinked database leaf without touching its target', async () => {

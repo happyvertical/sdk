@@ -121,8 +121,11 @@ that the database is beneath the custody root, that static path components are
 real directories rather than symlinks, and that the root plus database-parent
 chain is owned by the current uid with no group/world write permission. An
 existing leaf must likewise be a current-user-owned regular file with no
-group/world write permission. On macOS, every inspected component and existing
-leaf must also have no access control list; ACL inspection errors fail closed.
+group/world write permission. A missing leaf is created exclusively with mode
+`0600` before driver acquisition, independent of a permissive process umask, and
+is removed if the driver cannot acquire it. On macOS, every inspected component
+and existing leaf must also have no access control list; ACL inspection errors
+fail closed.
 The adapter invokes `/bin/ls -lde -- <path>` directly with an argument vector,
 never through a shell, and rejects the stable `+` ACL permission marker.
 Ancestors above the custody root may not allow replacement by another principal
