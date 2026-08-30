@@ -138,10 +138,15 @@ describe('database error diagnostics', () => {
       'private-key-value-744',
       'database-password-value-744',
       'signing-key-value-744',
+      'short-password-value-744',
+      'camel-pwd-value-744',
+      'dotted-pwd-value-744',
+      'database-user-value-744',
+      'url-user-value-744',
     ];
     const formatted = formatDbError(
       new Error(
-        `driver options {"password":"${credentialValues[0]}","token":"${credentialValues[1]}"}; authToken=${credentialValues[2]}; client_secret=${credentialValues[3]}; privateKey=${credentialValues[4]}; dbPassword: ${credentialValues[5]}; signing_key="${credentialValues[6]}"`,
+        `driver options {"password":"${credentialValues[0]}","token":"${credentialValues[1]}","pwd":"${credentialValues[7]}","username":"${credentialValues[10]}"}; authToken=${credentialValues[2]}; client_secret=${credentialValues[3]}; privateKey=${credentialValues[4]}; dbPassword: ${credentialValues[5]}; signing_key="${credentialValues[6]}"; dbPwd=${credentialValues[8]}; db.pwd=${credentialValues[9]}; postgresql:///app?user=${credentialValues[11]}&password=${credentialValues[7]}`,
       ),
     );
     for (const credential of credentialValues) {
@@ -149,6 +154,42 @@ describe('database error diagnostics', () => {
     }
     expect(formatted).toContain('[redacted]');
     expect(formatDbError('plain driver failure')).toBe('plain driver failure');
+  });
+
+  it('redacts normalized driver values without hiding diagnostic context', () => {
+    const values = [
+      true,
+      new Date('2026-08-30T12:34:56.789Z'),
+      Buffer.from([1, 2, 254, 255]),
+      1e21,
+      { token: 'normalized-json-secret-744', n: 424_242 },
+    ];
+    const driverError = Object.assign(
+      new Error(
+        "Conversion Error: Type INT32 with value 424242 can't be cast to INT8",
+      ),
+      {
+        code: '23505',
+        detail:
+          'Key (payload)=({"token": "normalized-json-secret-744", "n": 424242}) already exists.',
+      },
+    );
+    const error = wrapDatabaseError(
+      'Failed to execute raw query',
+      driverError,
+      {
+        sql: 'INSERT INTO issue_744_values VALUES ($1, $2, $3, $4, $5)',
+        values,
+      },
+    );
+    const rendered = renderErrorSurfaces(error);
+
+    expect(rendered).not.toContain('with value 424242');
+    expect(rendered).not.toContain('normalized-json-secret-744');
+    expect(rendered).not.toContain('({"token":');
+    expect(rendered).toContain('Conversion Error: Type INT32');
+    expect(rendered).toContain("can't be cast to INT8");
+    expect(rendered).toContain('Key (payload)=([redacted]) already exists');
   });
 
   it('redacts numeric values echoed by a real DuckDB diagnostic', async () => {
@@ -208,6 +249,40 @@ describe('database error diagnostics', () => {
     expect(rendered).not.toContain(quotedSecret);
     expect(rendered).not.toContain(numericSecret);
     expect(error.message).toContain('Parser Error');
+    expect(error.context?.sql).toBe('[redacted]');
+  });
+
+  it('redacts normalized schema values in a real DuckDB diagnostic', async () => {
+    const numericSecret = '424_242';
+    const normalizedSecret = '424242';
+    const db = await getDatabase({
+      type: 'duckdb',
+      url: ':memory:',
+      autoRegisterJSON: false,
+    });
+    let caught: unknown;
+
+    try {
+      await db.query('CREATE TABLE issue_744_normalized (id INTEGER)');
+      await db.query('INSERT INTO issue_744_normalized VALUES (1)');
+      await db.alterTable?.addColumn('issue_744_normalized', {
+        name: 'payload',
+        type: 'TINYINT',
+        defaultValue: `CAST(${numericSecret} AS TINYINT)`,
+      });
+    } catch (error) {
+      caught = error;
+    } finally {
+      await db.close?.();
+    }
+
+    expect(caught).toBeInstanceOf(DatabaseError);
+    const error = caught as DatabaseError;
+    const rendered = renderErrorSurfaces(error);
+    expect(rendered).not.toContain(numericSecret);
+    expect(rendered).not.toContain(`with value ${normalizedSecret}`);
+    expect(error.message).toContain('Conversion Error: Type INT32');
+    expect(error.message).toContain("can't be cast");
     expect(error.context?.sql).toBe('[redacted]');
   });
 

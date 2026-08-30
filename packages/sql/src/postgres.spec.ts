@@ -109,6 +109,65 @@ describe('postgres tests', () => {
     expect(JSON.stringify(error)).not.toContain(secret);
   });
 
+  it('redacts PostgreSQL-normalized bound values in duplicate diagnostics', async () => {
+    if (!postgresAvailable) return;
+    const cases = [
+      {
+        name: 'boolean',
+        type: 'boolean',
+        value: true,
+        diagnosticValue: '(t)',
+      },
+      {
+        name: 'date',
+        type: 'date',
+        value: new Date('2026-08-30T12:34:56.789Z'),
+        diagnosticValue: '(2026-08-30)',
+      },
+      {
+        name: 'bytea',
+        type: 'bytea',
+        value: Buffer.from([1, 2, 254, 255]),
+        diagnosticValue: '(\\x0102feff)',
+      },
+      {
+        name: 'numeric',
+        type: 'numeric',
+        value: 1e21,
+        diagnosticValue: '(1000000000000000000000)',
+      },
+    ];
+
+    for (const testCase of cases) {
+      const table = `issue_744_normalized_${testCase.name}`;
+      await db.query(
+        `CREATE TEMP TABLE ${table} (value ${testCase.type} UNIQUE)`,
+      );
+      await db.query(
+        `INSERT INTO ${table} (value) VALUES ($1)`,
+        testCase.value,
+      );
+      const caught = await db
+        .query(`INSERT INTO ${table} (value) VALUES ($1)`, testCase.value)
+        .catch((error: unknown) => error);
+
+      expect(caught).toBeInstanceOf(DatabaseError);
+      const error = caught as DatabaseError;
+      const rendered = [
+        String(error),
+        error.stack,
+        String(error.cause),
+        JSON.stringify(error),
+      ].join('\n');
+      expect(rendered).not.toContain(testCase.diagnosticValue);
+      expect(rendered).toContain(
+        'duplicate key value violates unique constraint',
+      );
+      expect(rendered).toContain('Key (value)=([redacted]) already exists');
+      expect((error.cause as Error & { code?: string }).code).toBe('23505');
+    }
+  });
+
   it('should be able to insert data', async () => {
     if (!postgresAvailable) return;
 

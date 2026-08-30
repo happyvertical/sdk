@@ -45,7 +45,7 @@ const DRIVER_ERROR_FIELDS = [
 const SENSITIVE_CONTEXT_KEY =
   /^(?:args?|parameters?|params?|queries|query|sql|values?)$/i;
 const CREDENTIAL_CONTEXT_KEY =
-  /(?:auth|credential|key|pass|password|secret|token)/i;
+  /(?:auth|credential|key|pass|password|pwd|secret|token|user(?:name)?)/i;
 const DATABASE_URL =
   /\b(?:https?|libsql|postgres|postgresql):\/\/[^\s"'`<>()]+/giu;
 const CREDENTIAL_ASSIGNMENT =
@@ -53,6 +53,10 @@ const CREDENTIAL_ASSIGNMENT =
 const BEARER_CREDENTIAL = /\bbearer\s+[^\s,;]+/giu;
 const SQL_NUMERIC_LITERAL =
   /(?<![\p{L}\p{N}_$])[-+]?(?:\d(?:_?\d)*(?:\.(?:\d(?:_?\d)*)?)?|\.\d(?:_?\d)*)(?:e[-+]?\d(?:_?\d)*)?(?![\p{L}\p{N}_$])/giu;
+const POSTGRES_KEY_VALUE =
+  /(\bKey\s*\([^\r\n)]*\)\s*=\s*\()([\s\S]*?)(\)\s*(?:already exists|is duplicated)\b)/giu;
+const CAST_INPUT_VALUE =
+  /(\bwith value\s+)([\s\S]*?)(\s+(?:can't|cannot)\s+be cast\b)/giu;
 
 function toDriverError(error: unknown): DriverError {
   return error && (typeof error === 'object' || typeof error === 'function')
@@ -99,7 +103,17 @@ function redactDatabaseErrorText(
           ? `${quote}${key}${quote}${delimiter}[redacted]`
           : assignment,
     )
-    .replace(BEARER_CREDENTIAL, 'Bearer [redacted]');
+    .replace(BEARER_CREDENTIAL, 'Bearer [redacted]')
+    .replace(
+      POSTGRES_KEY_VALUE,
+      (_match, prefix: string, _value: string, suffix: string) =>
+        `${prefix}[redacted]${suffix}`,
+    )
+    .replace(
+      CAST_INPUT_VALUE,
+      (_match, prefix: string, _value: string, suffix: string) =>
+        `${prefix}[redacted]${suffix}`,
+    );
 
   for (const secret of [...new Set(knownSecrets)].sort(
     (left, right) => right.length - left.length,
@@ -142,10 +156,21 @@ function collectSensitiveValues(
       value.byteLength,
     );
     if (bytes.length > 0) {
+      const hex = [...bytes]
+        .map((byte) => byte.toString(16).padStart(2, '0'))
+        .join('');
       output.add([...bytes].join(','));
+      output.add(hex);
+      output.add(`\\x${hex}`);
+      output.add(`\\x${hex.toUpperCase()}`);
       output.add(
-        [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join(''),
+        `<Buffer ${[...bytes]
+          .map((byte) => byte.toString(16).padStart(2, '0'))
+          .join(' ')}>`,
       );
+      if (typeof Buffer !== 'undefined') {
+        output.add(Buffer.from(bytes).toString('base64'));
+      }
     }
     return;
   }
@@ -191,6 +216,7 @@ function collectSqlLiterals(sql: string, output: Set<string>): void {
 
   for (const match of sql.matchAll(SQL_NUMERIC_LITERAL)) {
     output.add(match[0]);
+    output.add(match[0].replaceAll('_', ''));
   }
 }
 
