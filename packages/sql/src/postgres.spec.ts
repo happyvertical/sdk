@@ -314,6 +314,33 @@ describe('postgres tests', () => {
     );
   });
 
+  it('redacts failed session-query values while preserving diagnostics', async () => {
+    if (!postgresAvailable) return;
+    const secret = 'session-bound-secret-issue-744';
+    const session = await db.acquireSession?.();
+    if (!session) throw new Error('acquireSession returned no handle');
+    let caught: unknown;
+
+    try {
+      await session.query('SELECT $1::integer AS value', secret);
+    } catch (error) {
+      caught = error;
+    } finally {
+      await session.release();
+    }
+
+    expect(caught).toBeInstanceOf(DatabaseError);
+    const error = caught as DatabaseError;
+    expect(error.message).toContain('invalid input syntax for type integer');
+    expect((error.cause as Error & { code?: string }).code).toBe('22P02');
+    expect(error.context).toMatchObject({
+      sql: '[redacted]',
+      values: '[redacted]',
+    });
+    expect(String(error)).not.toContain(secret);
+    expect(JSON.stringify(error)).not.toContain(secret);
+  });
+
   it('should preserve PostgreSQL JSONB existence operators in raw queries', async () => {
     if (!postgresAvailable) return;
 

@@ -2011,10 +2011,9 @@ async function createDatabase(
             rowCount: result.rowCount ?? 0,
           };
         } catch (e) {
-          throw new DatabaseError('Failed to execute session query', {
+          throw wrapDatabaseError('Failed to execute session query', e, {
             sql: normalized.sql,
             values: normalized.values,
-            originalError: formatDbError(e),
           });
         }
       },

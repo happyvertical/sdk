@@ -49,13 +49,16 @@ describe('database error diagnostics', () => {
   it('redacts statements, values, credentials, and credential-shaped driver text', () => {
     const boundSecret = 'customer-token-issue-744';
     const literalSecret = 'literal-password-issue-744';
+    const dollarSecret = 'dollar-quoted-secret-issue-744';
+    const sql = `SELECT * FROM accounts WHERE token = $1 AND fallback = '${literalSecret}' AND payload = $issue744$${dollarSecret}$issue744$`;
     const driverError = Object.assign(
       new Error(
-        `invalid input ${boundSecret}; password=${literalSecret}; connection postgresql://dbuser:${literalSecret}@db.example/app?token=${boundSecret}`,
+        `invalid input ${boundSecret}; password=${literalSecret}; statement ${sql}; connection postgresql://dbuser:${literalSecret}@db.example/app?token=${boundSecret}`,
       ),
       {
         code: '22023',
-        detail: `Bearer ${boundSecret}`,
+        detail: `Bearer ${boundSecret}; invalid literal ${dollarSecret}`,
+        hint: `Do not retry statement ${sql}`,
       },
     );
 
@@ -63,7 +66,7 @@ describe('database error diagnostics', () => {
       'Failed to execute raw query',
       driverError,
       {
-        sql: `SELECT * FROM accounts WHERE token = $1 AND fallback = '${literalSecret}'`,
+        sql,
         values: [boundSecret],
         operation: 'query',
       },
@@ -78,6 +81,8 @@ describe('database error diagnostics', () => {
 
     expect(rendered).not.toContain(boundSecret);
     expect(rendered).not.toContain(literalSecret);
+    expect(rendered).not.toContain(dollarSecret);
+    expect(rendered).not.toContain(sql);
     expect(rendered).not.toContain('dbuser');
     expect(rendered).toContain('[redacted]');
     expect(error.context).toMatchObject({
@@ -85,6 +90,18 @@ describe('database error diagnostics', () => {
       values: '[redacted]',
       operation: 'query',
     });
+
+    const serialized = JSON.parse(JSON.stringify(error));
+    expect(serialized.cause.message).not.toContain(boundSecret);
+    expect(serialized.cause.message).not.toContain(literalSecret);
+    expect(serialized.cause.message).not.toContain(dollarSecret);
+    expect(serialized.cause.detail).not.toContain(boundSecret);
+    expect(serialized.cause.detail).not.toContain(dollarSecret);
+    expect(serialized.cause.hint).not.toContain(sql);
+    expect(error.cause).not.toBe(driverError);
+    expect(Object.getOwnPropertyDescriptor(error, 'cause')?.enumerable).toBe(
+      false,
+    );
   });
 
   it('sanitizes standalone formatted driver errors and non-Error values', () => {

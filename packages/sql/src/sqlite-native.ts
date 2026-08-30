@@ -1647,8 +1647,15 @@ async function createNativeSqliteDatabase(
       ): Promise<void> => {
         validateTableName(tableName);
         validateColumnName(column.name);
-        const sql = generateAddColumnStatement(tableName, column, 'sqlite');
-        executeNativeQuery(database, sql);
+        try {
+          const sql = generateAddColumnStatement(tableName, column, 'sqlite');
+          executeNativeQuery(database, sql);
+        } catch (error) {
+          throw wrapDatabaseError('Failed to add column to table', error, {
+            table: tableName,
+            column: column.name,
+          });
+        }
       },
 
       addIndex: async (
@@ -1660,8 +1667,15 @@ async function createNativeSqliteDatabase(
         for (const column of index.columns) {
           validateColumnName(column);
         }
-        const sql = generateCreateIndexStatement(tableName, index);
-        executeNativeQuery(database, sql);
+        try {
+          const sql = generateCreateIndexStatement(tableName, index);
+          executeNativeQuery(database, sql);
+        } catch (error) {
+          throw wrapDatabaseError('Failed to create index on table', error, {
+            table: tableName,
+            index: index.name,
+          });
+        }
       },
     };
 

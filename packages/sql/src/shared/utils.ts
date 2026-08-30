@@ -127,9 +127,23 @@ function collectSensitiveValues(
 }
 
 function collectSqlLiterals(sql: string, output: Set<string>): void {
+  // Some drivers include the complete statement in their diagnostics. Treat
+  // an exact echo as sensitive even when it contains no parseable literals.
+  if (sql) output.add(sql);
+
   for (const match of sql.matchAll(/'((?:''|[^'])*)'/gu)) {
     const literal = match[1].replaceAll("''", "'");
     if (literal) output.add(literal);
+  }
+
+  for (const match of sql.matchAll(/\$\$([\s\S]*?)\$\$/gu)) {
+    if (match[1]) output.add(match[1]);
+  }
+
+  for (const match of sql.matchAll(
+    /\$([A-Za-z_][A-Za-z0-9_]*)\$([\s\S]*?)\$\1\$/gu,
+  )) {
+    if (match[2]) output.add(match[2]);
   }
 }
 
