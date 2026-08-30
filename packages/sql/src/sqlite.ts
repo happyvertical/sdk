@@ -278,7 +278,9 @@ function withRejectionObservation<T>(
           (observation.suppressIntrinsicRecovery ?? 0) === 0;
         class IntrinsicDerivedPromise extends Promise<unknown> {
           static get [Symbol.species](): PromiseConstructor {
-            return Promise;
+            return (observation.suppressIntrinsicRecovery ?? 0) > 0
+              ? Promise
+              : (IntrinsicDerivedPromise as unknown as PromiseConstructor);
           }
 
           constructor(
@@ -287,15 +289,45 @@ function withRejectionObservation<T>(
               reject: (reason?: any) => void,
             ) => void,
           ) {
-            super(executor);
+            let finishHandling: () => void = () => {};
+            const handling = new Promise<void>((resolveHandling) => {
+              finishHandling = resolveHandling;
+            });
+            super((resolve, reject) => {
+              try {
+                executor(
+                  (value) => {
+                    if (tracksRecovery) {
+                      // Observe the final adoption outcome rather than merely
+                      // the resolve() call: a rejection handler can return a
+                      // rejected promise, which must remain a failure.
+                      void new Promise<unknown>((resolveValue) =>
+                        resolveValue(value),
+                      ).then(
+                        () => {
+                          observation.observed = true;
+                          finishHandling();
+                        },
+                        () => finishHandling(),
+                      );
+                    } else {
+                      finishHandling();
+                    }
+                    resolve(value);
+                  },
+                  (reason) => {
+                    finishHandling();
+                    reject(reason);
+                  },
+                );
+              } catch (error) {
+                finishHandling();
+                throw error;
+              }
+            });
             if (tracksRecovery) {
-              const handling = Promise.prototype.then.call(
-                this,
-                () => {
-                  if ('error' in observation) observation.observed = true;
-                },
-                () => undefined,
-              ) as Promise<void>;
+              // Register synchronously: transaction draining may begin before
+              // an asynchronous recovery handler resolves the derived promise.
               observation.handlers.add(handling);
               void handling.finally(() =>
                 observation.handlers.delete(handling),
@@ -305,8 +337,8 @@ function withRejectionObservation<T>(
 
           // Promise.prototype.then.call() bypasses ObservedPromise.then(), so
           // keep subsequent native chaining on the same observation record.
-          // The species remains Promise to avoid recursively constructing
-          // monitors while the intrinsic operation allocates its result.
+          // The species preserves this boundary so direct native chaining can
+          // span any number of hops without losing the observation record.
           // biome-ignore lint/suspicious/noThenProperty: this is an actual Promise subclass preserving the public Promise contract.
           override then<TResult1 = unknown, TResult2 = never>(
             onFulfilled?:

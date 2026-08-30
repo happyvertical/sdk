@@ -1346,6 +1346,16 @@ describe('secure SQLite file acquisition', () => {
       ) as Promise<unknown>;
       await fulfillmentOnly.catch(() => undefined);
 
+      const firstIntrinsicHop = Promise.prototype.then.call(
+        tx.insert('intrinsic_chain', { id: 1 }),
+        (value) => value,
+      ) as Promise<unknown>;
+      const secondIntrinsicHop = Promise.prototype.then.call(
+        firstIntrinsicHop,
+        (value) => value,
+      ) as Promise<unknown>;
+      await secondIntrinsicHop.catch(() => undefined);
+
       const rethrown = Promise.prototype.then.call(
         tx.insert('intrinsic_chain', { id: 1 }),
         undefined,
