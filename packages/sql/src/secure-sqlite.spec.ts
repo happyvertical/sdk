@@ -1702,7 +1702,11 @@ describe('secure SQLite file acquisition', () => {
     if (!tx) throw new Error('beginTransaction unavailable');
     try {
       await tx.insert('failures', { id: 1 });
-      await tx.insert('failures', { id: 1 }).catch(() => undefined);
+      try {
+        await tx.insert('failures', { id: 1 });
+      } catch {
+        // The native await adoption is intentionally recovered.
+      }
       void Promise.reject(new Error('application-handled-once'));
       await new Promise((resolve) => setImmediate(resolve));
       await new Promise((resolve) => setImmediate(resolve));
@@ -1710,7 +1714,62 @@ describe('secure SQLite file acquisition', () => {
       expect(captured).toBeUndefined();
       await tx.commit();
     } finally {
+      await tx.rollback().catch(() => undefined);
       process.setUncaughtExceptionCaptureCallback(null);
+      process.removeAllListeners('unhandledRejection');
+      for (const listener of previousUnhandled) {
+        process.on('unhandledRejection', listener);
+      }
+      await db.close?.();
+    }
+  });
+
+  it('preserves warn-mode handling for unrelated rejections', async () => {
+    const previousUnhandled = process.listeners('unhandledRejection');
+    process.removeAllListeners('unhandledRejection');
+    process.execArgv.push('--unhandled-rejections=warn');
+    const warnings: Error[] = [];
+    const recordWarning = (value: Error) => {
+      if (value.message.includes('warn-mode-unrelated')) warnings.push(value);
+    };
+    process.on('warning', recordWarning);
+    let captured: Error | undefined;
+    process.setUncaughtExceptionCaptureCallback((error) => {
+      captured = error;
+    });
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'warn-rejection.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE failures (id INTEGER PRIMARY KEY)');
+    const tx = await db.beginTransaction?.();
+    if (!tx) throw new Error('beginTransaction unavailable');
+    try {
+      await tx.insert('failures', { id: 1 });
+      try {
+        await tx.insert('failures', { id: 1 });
+      } catch {
+        // The native await adoption is intentionally recovered.
+      }
+      void Promise.reject(new Error('warn-mode-unrelated'));
+      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
+      // Mutating execArgv does not change the already-running Node policy, so
+      // any warning here would be a duplicate synthesized by the adapter.
+      expect(warnings).toHaveLength(0);
+      expect(captured).toBeUndefined();
+      await tx.commit();
+    } finally {
+      await tx.rollback().catch(() => undefined);
+      process.setUncaughtExceptionCaptureCallback(null);
+      process.off('warning', recordWarning);
+      process.execArgv.splice(
+        process.execArgv.lastIndexOf('--unhandled-rejections=warn'),
+        1,
+      );
       process.removeAllListeners('unhandledRejection');
       for (const listener of previousUnhandled) {
         process.on('unhandledRejection', listener);
@@ -2713,7 +2772,7 @@ describe('secure SQLite file acquisition', () => {
       txOf(db)(async () => {
         await db.insert('bounded_root_operation', { id: 1 });
       }),
-    ).rejects.toThrow('current operation to finish');
+    ).rejects.toThrow('Cannot use the root SQLite database');
     expect(await db.count('bounded_root_operation')).toBe(0);
 
     const manual = await db.beginTransaction?.();
@@ -2745,7 +2804,7 @@ describe('secure SQLite file acquisition', () => {
           args: [],
         });
       }),
-    ).rejects.toThrow('current operation to finish');
+    ).rejects.toThrow('Cannot use the root SQLite database');
     expect(await db.count('bounded_root_client')).toBe(0);
 
     const manual = await db.beginTransaction?.();
@@ -2759,6 +2818,33 @@ describe('secure SQLite file acquisition', () => {
     await manual.rollback();
     await new Promise((resolve) => setImmediate(resolve));
     expect(await db.count('bounded_root_client')).toBe(0);
+    await db.close?.();
+  });
+
+  it('never executes detached root calls after a callback transaction ends', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'detached-root.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE detached_root (id INTEGER PRIMARY KEY)');
+
+    await expect(
+      txOf(db)(async () => {
+        void db.insert('detached_root', { id: 1 }).catch(() => undefined);
+        void db.client
+          .execute({
+            sql: 'INSERT INTO detached_root (id) VALUES (2)',
+            args: [],
+          })
+          .catch(() => undefined);
+        throw new Error('rollback callback');
+      }),
+    ).rejects.toThrow('rollback callback');
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(await db.count('detached_root')).toBe(0);
     await db.close?.();
   });
 

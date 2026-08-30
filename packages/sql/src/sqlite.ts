@@ -229,24 +229,39 @@ interface PromiseObservation {
   nativeTransfers: Set<Promise<unknown>>;
   unhandledNativeTransfers: Set<Promise<unknown>>;
   nativeTrackingActive?: boolean;
+  nativeCorrelationIncomplete?: boolean;
   suppressIntrinsicRecovery?: number;
 }
 
 const activeNativeTransferObservations = new Set<PromiseObservation>();
-const nativePromiseResources = new Map<number, Promise<unknown>>();
+const trackedPromiseObservations = new Set<PromiseObservation>();
+const nativePromiseResources = new Map<number, WeakRef<Promise<unknown>>>();
 const nativePromiseTriggers = new Map<number, number>();
 const nativePromiseIds = new WeakMap<Promise<unknown>, number>();
 const nativePromiseReasons = new WeakMap<Promise<unknown>, unknown>();
 const nativePromiseWatermarks = new WeakMap<Promise<unknown>, number>();
 let latestNativePromiseId = 0;
 let nativePromiseTrackingUsers = 0;
+const MAX_TRACKED_PROMISE_RESOURCES = 8_192;
 const nativePromiseHook = createHook({
   init(asyncId, type, triggerAsyncId, resource) {
     if (type === 'PROMISE') {
       latestNativePromiseId = Math.max(latestNativePromiseId, asyncId);
-      nativePromiseResources.set(asyncId, resource as Promise<unknown>);
+      nativePromiseResources.set(
+        asyncId,
+        new WeakRef(resource as Promise<unknown>),
+      );
       nativePromiseTriggers.set(asyncId, triggerAsyncId);
       nativePromiseIds.set(resource as Promise<unknown>, asyncId);
+      while (nativePromiseResources.size > MAX_TRACKED_PROMISE_RESOURCES) {
+        const oldest = nativePromiseResources.keys().next().value;
+        if (oldest === undefined) break;
+        nativePromiseResources.delete(oldest);
+        nativePromiseTriggers.delete(oldest);
+        for (const observation of trackedPromiseObservations) {
+          observation.nativeCorrelationIncomplete = true;
+        }
+      }
     }
   },
   destroy(asyncId) {
@@ -255,6 +270,22 @@ const nativePromiseHook = createHook({
   },
 });
 let nativeTransferListenerInstalled = false;
+type UnhandledRejectionMode =
+  | 'none'
+  | 'strict'
+  | 'throw'
+  | 'warn'
+  | 'warn-with-error-code';
+function configuredUnhandledRejectionMode(): UnhandledRejectionMode {
+  const configured = `${process.env.NODE_OPTIONS ?? ''} ${process.execArgv.join(' ')}`;
+  const modes = [
+    ...configured.matchAll(
+      /--unhandled-rejections(?:=|\s+)(warn-with-error-code|none|strict|throw|warn)\b/g,
+    ),
+  ];
+  return (modes.at(-1)?.[1] as UnhandledRejectionMode | undefined) ?? 'throw';
+}
+
 function promisesAreRelated(
   rejectedPromise: Promise<unknown>,
   transferPromise: Promise<unknown>,
@@ -313,6 +344,20 @@ const recordUnhandledNativeTransfer = (
   // listener exists, it already owns that policy; otherwise reproduce the
   // default fail-fast outcome outside this event dispatch.
   if (!matched && process.listenerCount('unhandledRejection') === 1) {
+    const mode = configuredUnhandledRejectionMode();
+    if (mode === 'none') return;
+    // Node emits its own warnings in `warn` mode even when a listener exists.
+    if (mode === 'warn') return;
+    if (mode === 'warn-with-error-code') {
+      process.emitWarning(
+        reason instanceof Error
+          ? (reason.stack ?? reason.message)
+          : String(reason),
+        { type: 'UnhandledPromiseRejectionWarning' },
+      );
+      process.exitCode = 1;
+      return;
+    }
     queueMicrotask(() => {
       if (reason instanceof Error) throw reason;
       throw new Error(`Unhandled promise rejection: ${String(reason)}`, {
@@ -325,6 +370,7 @@ const recordUnhandledNativeTransfer = (
 function retainNativePromiseTracking(observation: PromiseObservation): void {
   if (observation.nativeTrackingActive) return;
   observation.nativeTrackingActive = true;
+  trackedPromiseObservations.add(observation);
   nativePromiseTrackingUsers += 1;
   if (nativePromiseTrackingUsers === 1) nativePromiseHook.enable();
 }
@@ -332,6 +378,7 @@ function retainNativePromiseTracking(observation: PromiseObservation): void {
 function releaseNativePromiseTracking(observation: PromiseObservation): void {
   if (!observation.nativeTrackingActive) return;
   observation.nativeTrackingActive = false;
+  trackedPromiseObservations.delete(observation);
   nativePromiseTrackingUsers -= 1;
   if (nativePromiseTrackingUsers === 0) {
     nativePromiseHook.disable();
@@ -346,7 +393,7 @@ function recordNativePromiseTransfer(
 ): void {
   const executionId = executionAsyncId();
   const adoptionId = nativePromiseTriggers.get(executionId) ?? executionId;
-  const adoptingPromise = nativePromiseResources.get(adoptionId);
+  const adoptingPromise = nativePromiseResources.get(adoptionId)?.deref();
   // If Node cannot identify the adopting promise, leave the failed operation
   // unobserved so transaction draining fails closed.
   if (!adoptingPromise) return;
@@ -384,6 +431,7 @@ async function settleNativePromiseTransfers(
 
   for (const observation of transferred) {
     if (
+      !observation.nativeCorrelationIncomplete &&
       [...observation.nativeTransfers].every(
         (promise) => !observation.unhandledNativeTransfers.has(promise),
       )
@@ -3041,6 +3089,19 @@ async function createDatabase(
       fn: T,
     ): T =>
       ((...args: Parameters<T>) => {
+        if (
+          connectionLock.held &&
+          transactionCallbackContext.getStore() === true
+        ) {
+          return Promise.reject(
+            new DatabaseError(
+              'Cannot use the root SQLite database from inside its active transaction callback',
+              {
+                hint: 'Use the transaction-scoped database passed to the callback.',
+              },
+            ),
+          );
+        }
         const timeoutMs =
           options.transactionQueueTimeout ??
           DEFAULT_TRANSACTION_QUEUE_TIMEOUT_MS;
