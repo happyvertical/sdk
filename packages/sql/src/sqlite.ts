@@ -158,6 +158,18 @@ interface PromiseObservation {
   handlers: Set<Promise<void>>;
 }
 
+function isNativePromiseAssimilation(
+  onFulfilled: unknown,
+  onRejected: unknown,
+): boolean {
+  return (
+    typeof onFulfilled === 'function' &&
+    typeof onRejected === 'function' &&
+    Function.prototype.toString.call(onFulfilled).includes('[native code]') &&
+    Function.prototype.toString.call(onRejected).includes('[native code]')
+  );
+}
+
 /**
  * Returns a Promise-compatible chain that records when rejection is actually
  * consumed. Fulfillment-only `then()` and `finally()` preserve the marker on
@@ -176,16 +188,24 @@ function withRejectionObservation<T>(
     return {
       // biome-ignore lint/suspicious/noThenProperty: Promise-compatible observation is intentional here.
       then: (onFulfilled, onRejected) => {
-        const handleRejected =
-          typeof onRejected === 'function'
-            ? async (reason: any) => {
-                const recovered = await onRejected(reason);
-                observation.observed = true;
-                return recovered;
-              }
-            : onRejected;
+        // Promise assimilation (`await`, `Promise.resolve`, `Promise.all`, and
+        // async helper adoption) supplies a pair of native resolving functions.
+        // Those functions only transfer the rejection to another promise; they
+        // do not prove that the derived rejection is observed. Fail closed and
+        // keep the operation unobserved unless the caller installs an explicit
+        // rejection handler on this chain.
+        const explicitlyHandlesRejection =
+          typeof onRejected === 'function' &&
+          !isNativePromiseAssimilation(onFulfilled, onRejected);
+        const handleRejected = explicitlyHandlesRejection
+          ? async (reason: any) => {
+              const recovered = await onRejected(reason);
+              observation.observed = true;
+              return recovered;
+            }
+          : onRejected;
         const derived = promise.then(onFulfilled, handleRejected);
-        if (typeof onRejected === 'function') {
+        if (explicitlyHandlesRejection) {
           const handling = derived.then(
             () => undefined,
             () => undefined,
@@ -196,6 +216,9 @@ function withRejectionObservation<T>(
         return wrap(derived);
       },
       catch: (onRejected) => {
+        if (typeof onRejected !== 'function') {
+          return wrap(promise.catch(onRejected));
+        }
         const handleRejected = async (reason: any) => {
           const recovered = await onRejected(reason);
           observation.observed = true;

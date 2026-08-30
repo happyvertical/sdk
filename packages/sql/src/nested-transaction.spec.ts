@@ -58,12 +58,12 @@ describe('nested transactions', () => {
 
       await txOf(db)(async (tx) => {
         await tx.query(`INSERT INTO t VALUES (1, 'outer')`);
-        await expect(
-          txOf(tx)(async (inner) => {
-            await inner.query(`INSERT INTO t VALUES (2, 'inner')`);
-            throw new Error('__nested_failed__');
-          }),
-        ).rejects.toThrow('__nested_failed__');
+        await txOf(tx)(async (inner) => {
+          await inner.query(`INSERT INTO t VALUES (2, 'inner')`);
+          throw new Error('__nested_failed__');
+        }).catch((error) => {
+          expect(error).toMatchObject({ message: '__nested_failed__' });
+        });
 
         // The enclosing transaction survives a failed nested scope and can
         // still be used.
@@ -103,12 +103,12 @@ describe('nested transactions', () => {
           await txOf(a)(async (b) => {
             await b.query('INSERT INTO t VALUES (3)');
           });
-          await expect(
-            txOf(a)(async (c) => {
-              await c.query('INSERT INTO t VALUES (4)');
-              throw new Error('__deep_failed__');
-            }),
-          ).rejects.toThrow('__deep_failed__');
+          await txOf(a)(async (c) => {
+            await c.query('INSERT INTO t VALUES (4)');
+            throw new Error('__deep_failed__');
+          }).catch((error) => {
+            expect(error).toMatchObject({ message: '__deep_failed__' });
+          });
         });
       });
 

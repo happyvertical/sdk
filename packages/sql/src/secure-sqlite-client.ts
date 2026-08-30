@@ -69,6 +69,7 @@ export interface SecureSqliteRuntime {
   pathOwnerUid?: (filePath: string, actualUid: number) => number;
   inspectDarwinAcl?: (filePath: string) => Promise<boolean>;
   openLeaf?: typeof open;
+  lstatLeaf?: typeof lstat;
   loadDriver: () => Promise<NodeSqliteModule>;
 }
 
@@ -350,8 +351,8 @@ async function validateTrustedParentCustody(
 }
 
 interface SecureLeafIdentity {
-  dev: number;
-  ino: number;
+  dev: bigint;
+  ino: bigint;
 }
 
 async function createSecureLeaf(
@@ -375,7 +376,7 @@ async function createSecureLeaf(
   let identity: SecureLeafIdentity | undefined;
   let acquisitionError: unknown;
   try {
-    const stats = await handle.stat();
+    const stats = await handle.stat({ bigint: true });
     identity = { dev: stats.dev, ino: stats.ino };
   } catch (error) {
     acquisitionError = error;
@@ -396,7 +397,7 @@ async function createSecureLeaf(
     // decide whether cleanup is still deleting the file we created. Leave the
     // restrictive empty leaf behind rather than unlinking a replacement.
     const cleanupError = identity
-      ? await removeCreatedLeafIfUnchanged(filePath, identity)
+      ? await removeCreatedLeafIfUnchanged(filePath, identity, runtime)
       : undefined;
     throw new DatabaseError('Secure SQLite could not close the created leaf', {
       path: filePath,
@@ -415,9 +416,12 @@ async function createSecureLeaf(
 async function removeCreatedLeafIfUnchanged(
   filePath: string,
   identity: SecureLeafIdentity,
+  runtime: SecureSqliteRuntime,
 ): Promise<string | undefined> {
   try {
-    const current = await lstat(filePath);
+    const current = await (runtime.lstatLeaf ?? lstat)(filePath, {
+      bigint: true,
+    });
     if (current.dev !== identity.dev || current.ino !== identity.ino) {
       return undefined;
     }
@@ -876,9 +880,11 @@ export async function createSecureSqliteClient(
         );
       }
       if (createdLeaf) {
-        let current: Awaited<ReturnType<typeof lstat>>;
+        let current: { dev: bigint; ino: bigint };
         try {
-          current = await lstat(filePath);
+          current = await (runtime.lstatLeaf ?? lstat)(filePath, {
+            bigint: true,
+          });
         } catch (error) {
           throw new DatabaseError(
             'Secure SQLite database leaf changed during acquisition',
@@ -901,7 +907,7 @@ export async function createSecureSqliteClient(
       }
     } catch (error) {
       if (createdLeaf) {
-        await removeCreatedLeafIfUnchanged(filePath, createdLeaf);
+        await removeCreatedLeafIfUnchanged(filePath, createdLeaf, runtime);
       }
       throw error;
     }
@@ -913,7 +919,11 @@ export async function createSecureSqliteClient(
   } catch (error) {
     let cleanupError: string | undefined;
     if (createdLeaf) {
-      cleanupError = await removeCreatedLeafIfUnchanged(filePath, createdLeaf);
+      cleanupError = await removeCreatedLeafIfUnchanged(
+        filePath,
+        createdLeaf,
+        runtime,
+      );
     }
     throw new DatabaseError(
       'Secure SQLite acquisition rejected the database path',

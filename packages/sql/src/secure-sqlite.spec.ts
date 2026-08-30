@@ -525,6 +525,61 @@ describe('secure SQLite file acquisition', () => {
     expect(await readFile(databasePath, 'utf8')).toBe('replacement');
   });
 
+  it('compares cleanup identities as exact bigints', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'bigint-identity.db');
+    const createdIdentity = 9_007_199_254_740_992n;
+    const replacementIdentity = 9_007_199_254_740_993n;
+    let statRequestedBigints = false;
+    let lstatRequestedBigints = false;
+
+    await expect(
+      createSecureSqliteClient(databasePath, trustedParent, {
+        platform: process.platform,
+        openLeaf: async (...args) => {
+          const handle = await open(...args);
+          return new Proxy(handle, {
+            get(target, property) {
+              if (property === 'stat') {
+                return async (options?: { bigint?: boolean }) => {
+                  statRequestedBigints = options?.bigint === true;
+                  return {
+                    ...(await target.stat({ bigint: true })),
+                    dev: createdIdentity,
+                    ino: createdIdentity,
+                  };
+                };
+              }
+              const value = Reflect.get(target, property, target);
+              return typeof value === 'function' ? value.bind(target) : value;
+            },
+          });
+        },
+        lstatLeaf: (async (_path, options?: { bigint?: boolean }) => {
+          lstatRequestedBigints = options?.bigint === true;
+          return {
+            ...(await lstat(databasePath, { bigint: true })),
+            dev: replacementIdentity,
+            ino: replacementIdentity,
+          };
+        }) as typeof lstat,
+        loadDriver: async () =>
+          ({
+            // biome-ignore lint/style/useNamingConvention: mirrors node:sqlite's public API
+            DatabaseSync: class {
+              constructor() {
+                throw new Error('driver rejected leaf');
+              }
+            },
+          }) as any,
+      }),
+    ).rejects.toThrow('leaf changed during acquisition');
+
+    expect(statRequestedBigints).toBe(true);
+    expect(lstatRequestedBigints).toBe(true);
+    expect((await lstat(databasePath)).isFile()).toBe(true);
+  });
+
   it('closes the created leaf and leaves it in place when identity inspection fails', async () => {
     const root = await makeTempRoot();
     const databasePath = join(root, 'failed-stat.db');
@@ -1059,12 +1114,12 @@ describe('secure SQLite file acquisition', () => {
 
     await txOf(db)(async (outer) => {
       await outer.insert('nested_observation', { id: 7 });
-      await expect(
-        txOf(outer)(async (inner) => {
-          await inner.insert('nested_observation', { id: 8 });
-          throw new Error('observed nested rollback');
-        }),
-      ).rejects.toThrow('observed nested rollback');
+      await txOf(outer)(async (inner) => {
+        await inner.insert('nested_observation', { id: 8 });
+        throw new Error('observed nested rollback');
+      }).catch((error) => {
+        expect(error).toMatchObject({ message: 'observed nested rollback' });
+      });
       await outer.insert('nested_observation', { id: 9 });
     });
 
@@ -1086,7 +1141,9 @@ describe('secure SQLite file acquisition', () => {
 
     await txOf(db)(async (tx) => {
       await tx.insert('handled_failure', { id: 1 });
-      await expect(tx.insert('handled_failure', { id: 1 })).rejects.toThrow();
+      await tx.insert('handled_failure', { id: 1 }).catch((error) => {
+        expect(error).toBeInstanceOf(Error);
+      });
       await tx.insert('handled_failure', { id: 2 });
       void tx.insert('handled_failure', { id: 2 }).catch(() => undefined);
     });
@@ -1191,6 +1248,70 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
+  it('does not mistake Promise assimilation for explicit failure recovery', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE assimilated_failure (id INTEGER PRIMARY KEY)');
+
+    await expect(
+      txOf(db)(async (tx) => {
+        await tx.insert('assimilated_failure', { id: 1 });
+        void Promise.resolve(tx.insert('assimilated_failure', { id: 1 })).catch(
+          () => undefined,
+        );
+      }),
+    ).rejects.toThrow();
+    expect(await db.count('assimilated_failure')).toBe(0);
+
+    const manual = await db.beginTransaction?.();
+    if (!manual) throw new Error('beginTransaction unavailable');
+    await manual.insert('assimilated_failure', { id: 2 });
+    void Promise.all([manual.insert('assimilated_failure', { id: 2 })]).catch(
+      () => undefined,
+    );
+    await expect(manual.commit()).rejects.toThrow();
+    expect(await db.count('assimilated_failure')).toBe(0);
+
+    await expect(
+      txOf(db)(async (outer) => {
+        await outer.insert('assimilated_failure', { id: 3 });
+        await txOf(outer)(async (inner) => {
+          await inner.insert('assimilated_failure', { id: 4 });
+          void (async () => {
+            await inner.insert('assimilated_failure', { id: 4 });
+          })().catch(() => undefined);
+        });
+      }),
+    ).rejects.toThrow();
+    expect(await db.count('assimilated_failure')).toBe(0);
+    await db.close?.();
+  });
+
+  it('preserves rejection propagation for catch without a handler', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE empty_catch (id INTEGER PRIMARY KEY)');
+
+    await expect(
+      txOf(db)(async (tx) => {
+        await tx.insert('empty_catch', { id: 1 });
+        await tx.insert('empty_catch', { id: 1 }).catch();
+      }),
+    ).rejects.not.toThrow(TypeError);
+    expect(await db.count('empty_catch')).toBe(0);
+    await db.close?.();
+  });
+
   it('prevents nested savepoint work from escaping its callback lifetime', async () => {
     const root = await makeTempRoot();
     const db = await getDatabase({
@@ -1246,12 +1367,14 @@ describe('secure SQLite file acquisition', () => {
       await outer.transaction?.(async (inner) => {
         await inner.query('INSERT INTO nested_reservation (id) VALUES (2)');
       });
-      await expect(
-        outer.transaction?.(async (inner) => {
+      await outer
+        .transaction?.(async (inner) => {
           await inner.query('INSERT INTO nested_reservation (id) VALUES (3)');
           throw new Error('nested rollback');
-        }),
-      ).rejects.toThrow('nested rollback');
+        })
+        .catch((error) => {
+          expect(error).toMatchObject({ message: 'nested rollback' });
+        });
       await outer.query('INSERT INTO nested_reservation (id) VALUES (4)');
     });
 
@@ -1414,12 +1537,12 @@ describe('secure SQLite file acquisition', () => {
         await second.query('INSERT INTO sibling_manual (id) VALUES (2)');
       }),
     ]);
-    await expect(
-      txOf(handle)(async (failed) => {
-        await failed.query('INSERT INTO sibling_manual (id) VALUES (3)');
-        throw new Error('manual child failed');
-      }),
-    ).rejects.toThrow('manual child failed');
+    await txOf(handle)(async (failed) => {
+      await failed.query('INSERT INTO sibling_manual (id) VALUES (3)');
+      throw new Error('manual child failed');
+    }).catch((error) => {
+      expect(error).toMatchObject({ message: 'manual child failed' });
+    });
 
     const childStarted = deferred();
     const continueChild = deferred();

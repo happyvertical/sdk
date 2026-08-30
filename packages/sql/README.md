@@ -294,6 +294,11 @@ Every SQLite transaction-scoped operation is registered when its public method
 is called. Ending a callback or invoking a manual handle's commit/rollback
 seals the scope synchronously, drains operations already accepted, and rejects
 later operations so work cannot escape into autocommit after the transaction.
+If a SQLite statement failure is intentionally recoverable, attach an explicit
+`.catch(...)` or `.then(..., onRejected)` to the transaction-scoped operation.
+Passing it through `Promise.resolve`, `Promise.all`, or an async helper only
+adopts its rejection and does not prove the derived promise is observed; the
+scope therefore fails closed and rolls back if that operation rejects.
 
 ### Identifiers
 
