@@ -1763,7 +1763,7 @@ async function createDatabase(
       // Match CREATE INDEX statements (Issues #867 and #1040).
       // Named groups keep optional clauses from shifting identifier captures.
       const createIndexRegex =
-        /CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)?(?:IF\s+NOT\s+EXISTS\s+)?"?(?<indexName>\w+)"?\s+ON\s+"?(?<tableName>\w+)"?\s*\([^)]+\)/i;
+        /CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)?(?:IF\s+NOT\s+EXISTS\s+)?"?(?<indexName>\w+)"?\s+ON\s+"?(?<tableName>\w+)"?\s*(?:USING\s+"?\w+"?\s*)?\([^)]+\)/i;
       const parseCreateIndex = (
         command: string,
       ): { indexName: string; tableName: string } | null => {

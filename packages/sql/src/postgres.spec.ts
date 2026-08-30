@@ -1274,20 +1274,22 @@ describe('postgres syncSchema with CREATE INDEX (Issue #867)', () => {
   });
 
   it.each([
-    ['CREATE INDEX CONCURRENTLY', false],
-    ['CREATE INDEX CONCURRENTLY IF NOT EXISTS', false],
-    ['CREATE UNIQUE INDEX CONCURRENTLY', true],
-    ['CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS', true],
-  ])('should apply %s idempotently', async (createIndexClause, expectedUnique) => {
+    ['CREATE INDEX CONCURRENTLY', false, '', '"slug"'],
+    ['CREATE INDEX CONCURRENTLY IF NOT EXISTS', false, '', '"slug"'],
+    ['CREATE UNIQUE INDEX CONCURRENTLY', true, '', '"slug"'],
+    ['CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS', true, '', '"slug"'],
+    ['CREATE INDEX CONCURRENTLY', false, 'USING gin ', '"tags"'],
+  ])('should apply %s idempotently', async (createIndexClause, expectedUnique, indexMethod, indexedColumn) => {
     if (!postgresAvailable) return;
 
     const indexName = `${testTableName}_concurrent_idx`;
     const schema = `
         CREATE TABLE IF NOT EXISTS "${testTableName}" (
           "id" TEXT PRIMARY KEY NOT NULL,
-          "slug" TEXT NOT NULL
+          "slug" TEXT NOT NULL,
+          "tags" TEXT[] NOT NULL DEFAULT '{}'
         );
-        ${createIndexClause} "${indexName}" ON "${testTableName}" ("slug");
+        ${createIndexClause} "${indexName}" ON "${testTableName}" ${indexMethod}(${indexedColumn});
       `;
 
     await db.syncSchema(schema);

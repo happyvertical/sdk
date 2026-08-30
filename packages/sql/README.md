@@ -332,8 +332,8 @@ const exists = await db.tableExists('users');
 ```
 
 On PostgreSQL, `syncSchema()` recognizes `CREATE [UNIQUE] INDEX CONCURRENTLY
-[IF NOT EXISTS]` statements and skips indexes that already exist when a schema
-is applied again.
+[IF NOT EXISTS]` statements, including optional `USING` index methods, and
+skips indexes that already exist when a schema is applied again.
 
 ### Vector Search (PostgreSQL)
 
