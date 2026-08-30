@@ -1292,6 +1292,25 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
+  it('recognizes explicit native then handlers as failure recovery', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE native_handler (id INTEGER PRIMARY KEY)');
+
+    await txOf(db)(async (tx) => {
+      await tx.insert('native_handler', { id: 1 });
+      void tx.insert('native_handler', { id: 1 }).then(String, Number.isNaN);
+    });
+
+    expect(await db.count('native_handler')).toBe(1);
+    await db.close?.();
+  });
+
   it('preserves rejection propagation for catch without a handler', async () => {
     const root = await makeTempRoot();
     const db = await getDatabase({

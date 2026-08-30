@@ -162,11 +162,19 @@ function isNativePromiseAssimilation(
   onFulfilled: unknown,
   onRejected: unknown,
 ): boolean {
+  const anonymousPromiseResolver = (handler: {
+    name: string;
+    length: number;
+  }): boolean =>
+    handler.name === '' &&
+    handler.length === 1 &&
+    Function.prototype.toString.call(handler) ===
+      'function () { [native code] }';
   return (
     typeof onFulfilled === 'function' &&
     typeof onRejected === 'function' &&
-    Function.prototype.toString.call(onFulfilled).includes('[native code]') &&
-    Function.prototype.toString.call(onRejected).includes('[native code]')
+    anonymousPromiseResolver(onFulfilled) &&
+    anonymousPromiseResolver(onRejected)
   );
 }
 
