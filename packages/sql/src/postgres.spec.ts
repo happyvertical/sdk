@@ -907,6 +907,122 @@ describe('postgres nullable-conflict upsert', () => {
     await db.client.end();
   });
 
+  it('quotes a reserved update column in a standard upsert', async () => {
+    if (!postgresAvailable) return;
+
+    const tableName = `reserved_standard_${randomUUID().replace(/-/g, '_')}`;
+
+    try {
+      await db.client.query(`
+        CREATE TABLE ${tableName} (
+          id TEXT PRIMARY KEY,
+          slug TEXT UNIQUE NOT NULL,
+          "end" TEXT NOT NULL
+        )
+      `);
+
+      await db.upsert(tableName, ['slug'], {
+        id: 'item-1',
+        slug: 'shared-item',
+        end: 'Initial',
+      });
+      await db.upsert(tableName, ['slug'], {
+        id: 'item-2',
+        slug: 'shared-item',
+        end: 'Updated',
+      });
+
+      const result = await db.client.query(
+        `SELECT id, "end" FROM ${tableName} WHERE slug = $1`,
+        ['shared-item'],
+      );
+      expect(result.rows).toEqual([{ id: 'item-2', end: 'Updated' }]);
+    } finally {
+      await db.client.query(`DROP TABLE IF EXISTS ${tableName}`);
+    }
+  });
+
+  it('quotes a reserved conflict column in a null-aware upsert', async () => {
+    if (!postgresAvailable) return;
+
+    const tableName = `reserved_nullable_${randomUUID().replace(/-/g, '_')}`;
+
+    try {
+      await db.client.query(`
+        CREATE TABLE ${tableName} (
+          id TEXT PRIMARY KEY,
+          slug TEXT NOT NULL,
+          "end" TEXT,
+          name TEXT,
+          UNIQUE(slug, "end")
+        )
+      `);
+
+      await db.upsert(tableName, ['slug', 'end'], {
+        id: 'item-1',
+        slug: 'shared-item',
+        end: null,
+        name: 'Initial Name',
+      });
+      await db.upsert(tableName, ['slug', 'end'], {
+        id: 'item-2',
+        slug: 'shared-item',
+        end: null,
+        name: 'Updated Name',
+      });
+
+      const result = await db.client.query(
+        `SELECT id, "end", name FROM ${tableName} WHERE slug = $1 AND "end" IS NULL`,
+        ['shared-item'],
+      );
+      expect(result.rows).toEqual([
+        { id: 'item-2', end: null, name: 'Updated Name' },
+      ]);
+    } finally {
+      await db.client.query(`DROP TABLE IF EXISTS ${tableName}`);
+    }
+  });
+
+  it('preserves PostgreSQL folding for mixed-case upsert inputs', async () => {
+    if (!postgresAvailable) return;
+
+    const tableName = `upsert_casefold_${randomUUID().replace(/-/g, '_')}`;
+
+    try {
+      await db.client.query(`
+        CREATE TABLE ${tableName} (
+          id TEXT PRIMARY KEY,
+          mixedcase TEXT UNIQUE NOT NULL,
+          updatedvalue TEXT
+        )
+      `);
+
+      await db.upsert(tableName, ['mixedCase'], {
+        id: 'item-1',
+        mixedCase: 'shared-item',
+        updatedValue: 'Initial',
+      });
+      await db.upsert(tableName, ['mixedCase'], {
+        id: 'item-2',
+        mixedCase: 'shared-item',
+        updatedValue: 'Updated',
+      });
+
+      const result = await db.client.query(
+        `SELECT id, mixedcase, updatedvalue FROM ${tableName}`,
+      );
+      expect(result.rows).toEqual([
+        {
+          id: 'item-2',
+          mixedcase: 'shared-item',
+          updatedvalue: 'Updated',
+        },
+      ]);
+    } finally {
+      await db.client.query(`DROP TABLE IF EXISTS ${tableName}`);
+    }
+  });
+
   it('should update one row when a composite conflict column is null', async () => {
     if (!postgresAvailable) return;
 
