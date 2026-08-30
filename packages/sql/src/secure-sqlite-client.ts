@@ -570,10 +570,11 @@ export function toPublicRowCount(value: number | bigint): number {
 }
 
 /**
- * node:sqlite does not bind named `$...` parameters from the positional array
- * used by the existing LibSQL adapter. Translate executable parameters to
- * SQLite numeric slots while preserving SQLite's first-occurrence allocation
- * and reuse rules. Quoted text, identifiers, and comments remain untouched.
+ * node:sqlite does not bind named parameters from the positional array used by
+ * the existing LibSQL adapter. Translate executable parameters to SQLite
+ * numeric slots while preserving SQLite's first-occurrence allocation and
+ * reuse rules, including Tcl-style `$name::suffix(...)` parameters. Quoted
+ * text, identifiers, and comments remain untouched.
  */
 function normalizeNodeSqlitePlaceholders(sql: string): string {
   let normalized = '';
@@ -641,12 +642,25 @@ function normalizeNodeSqlitePlaceholders(sql: string): string {
     }
 
     if (
-      char === '$' &&
+      (char === '$' || char === ':' || char === '@') &&
       /[A-Za-z0-9_]/.test(next ?? '') &&
-      !/[A-Za-z0-9_$]/.test(sql[index - 1] ?? '')
+      !/[A-Za-z0-9_$:@]/.test(sql[index - 1] ?? '')
     ) {
       let end = index + 2;
       while (/[A-Za-z0-9_]/.test(sql[end] ?? '')) end += 1;
+      if (char === '$') {
+        while (
+          sql.slice(end, end + 2) === '::' &&
+          /[A-Za-z0-9_]/.test(sql[end + 2] ?? '')
+        ) {
+          end += 3;
+          while (/[A-Za-z0-9_]/.test(sql[end] ?? '')) end += 1;
+        }
+        if (sql[end] === '(') {
+          const closingParenthesis = sql.indexOf(')', end + 1);
+          if (closingParenthesis !== -1) end = closingParenthesis + 1;
+        }
+      }
       const token = sql.slice(index, end);
       let parameterIndex = namedParameterIndexes.get(token);
       if (parameterIndex === undefined) {

@@ -2550,6 +2550,14 @@ describe('secure SQLite file acquisition', () => {
       { sql: 'SELECT ? AS first, $1 AS second', args: [11, 22] },
       { sql: 'SELECT $1 AS first, $1 AS second', args: [11] },
       { sql: 'SELECT $1abc AS value', args: [11] },
+      { sql: 'SELECT :foo AS value', args: [11] },
+      { sql: 'SELECT @foo AS value', args: [11] },
+      { sql: 'SELECT $foo::bar AS value', args: [11] },
+      { sql: 'SELECT $foo(bar) AS value', args: [11] },
+      {
+        sql: 'SELECT :foo AS first, @bar AS second, :foo AS repeated',
+        args: [11, 22],
+      },
       {
         sql: "SELECT '$1' AS literal, $2 AS first /* $3 */, $1 AS second",
         args: [11, 22],
