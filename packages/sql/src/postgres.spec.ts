@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { DatabaseError } from '@happyvertical/utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDatabase } from './index';
 
@@ -80,6 +81,32 @@ describe('postgres tests', () => {
       select * from contents
     `;
     expect(result).toEqual(expect.arrayContaining([]));
+  });
+
+  it('surfaces a safe cause for raw query failures', async () => {
+    if (!postgresAvailable) return;
+    const secret = 'postgres-bound-secret-issue-744';
+    let caught: unknown;
+
+    try {
+      await db.query(
+        'SELECT * FROM missing_issue_744_table WHERE token = $1',
+        secret,
+      );
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(DatabaseError);
+    const error = caught as DatabaseError;
+    expect(error.message).toContain('missing_issue_744_table');
+    expect(error.cause).toBeInstanceOf(Error);
+    expect((error.cause as Error & { code?: string }).code).toBe('42P01');
+    expect(error.context).toMatchObject({
+      sql: '[redacted]',
+      values: '[redacted]',
+    });
+    expect(JSON.stringify(error)).not.toContain(secret);
   });
 
   it('should be able to insert data', async () => {

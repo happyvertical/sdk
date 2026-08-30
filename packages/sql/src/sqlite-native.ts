@@ -42,6 +42,7 @@ import {
   buildWhere,
   formatDbError,
   resolveInsertColumns,
+  wrapDatabaseError,
 } from './shared/utils.js';
 import type { SqliteOptions } from './sqlite.js';
 
@@ -883,10 +884,9 @@ async function createNativeSqliteDatabase(
         );
         return { rows: result.rows, rowCount: result.rowCount };
       } catch (error) {
-        throw new DatabaseError('Failed to execute raw query', {
+        throw wrapDatabaseError('Failed to execute raw query', error, {
           sql: normalized.sql,
           values: normalized.args,
-          originalError: formatDbError(error),
         });
       }
     };
