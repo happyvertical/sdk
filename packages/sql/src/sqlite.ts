@@ -531,18 +531,24 @@ function withRejectionObservation<T>(
     promise: Promise<U>,
     observation: PromiseObservation = rootObservation,
   ): Promise<U> => {
-    const suppressIntrinsicRecovery = <V>(callback: () => V): V => {
-      observation.suppressIntrinsicRecovery =
-        (observation.suppressIntrinsicRecovery ?? 0) + 1;
+    const suppressIntrinsicRecovery = <V>(
+      callback: () => V,
+      targetObservation: PromiseObservation = observation,
+    ): V => {
+      targetObservation.suppressIntrinsicRecovery =
+        (targetObservation.suppressIntrinsicRecovery ?? 0) + 1;
       try {
         return callback();
       } finally {
-        observation.suppressIntrinsicRecovery -= 1;
+        targetObservation.suppressIntrinsicRecovery -= 1;
       }
     };
-    const createBranch = (): PromiseObservation => {
-      const branches = observation.branches ?? new Set<PromiseObservation>();
-      observation.branches = branches;
+    const createBranch = (
+      parentObservation: PromiseObservation = observation,
+    ): PromiseObservation => {
+      const branches =
+        parentObservation.branches ?? new Set<PromiseObservation>();
+      parentObservation.branches = branches;
       const branch: PromiseObservation = {
         observed: false,
         handlers: new Set(),
@@ -584,155 +590,163 @@ function withRejectionObservation<T>(
     suppressIntrinsicRecovery(() => {
       void Promise.prototype.then.call(promise, undefined, () => undefined);
     });
-    class ObservedPromise extends Promise<U> {
-      static get [Symbol.species](): PromiseConstructor {
-        const tracksRecovery =
-          (observation.suppressIntrinsicRecovery ?? 0) === 0;
-        class IntrinsicDerivedPromise extends Promise<unknown> {
-          static get [Symbol.species](): PromiseConstructor {
-            return (observation.suppressIntrinsicRecovery ?? 0) > 0
-              ? Promise
-              : (IntrinsicDerivedPromise as unknown as PromiseConstructor);
-          }
+    const createIntrinsicDerivedPromise = (
+      parentObservation: PromiseObservation,
+    ): PromiseConstructor => {
+      const tracksRecovery =
+        (parentObservation.suppressIntrinsicRecovery ?? 0) === 0;
+      const branch = tracksRecovery
+        ? createBranch(parentObservation)
+        : parentObservation;
+      if (tracksRecovery) parentObservation.observed = true;
 
-          constructor(
-            executor: (
-              resolve: (value: unknown | PromiseLike<unknown>) => void,
-              reject: (reason?: any) => void,
-            ) => void,
-          ) {
-            let finishHandling: () => void = () => {};
-            const handling = new Promise<void>((resolveHandling) => {
-              finishHandling = resolveHandling;
-            });
-            super((resolve, reject) => {
-              try {
-                executor(
-                  (value) => {
-                    if (tracksRecovery) {
-                      // Observe the final adoption outcome rather than merely
-                      // the resolve() call: a rejection handler can return a
-                      // rejected promise, which must remain a failure.
-                      void new Promise<unknown>((resolveValue) =>
-                        resolveValue(value),
-                      ).then(
-                        () => {
-                          observation.observed = true;
-                          finishHandling();
-                        },
-                        () => finishHandling(),
-                      );
-                    } else {
-                      finishHandling();
-                    }
-                    resolve(value);
-                  },
-                  (reason) => {
+      class IntrinsicDerivedPromise extends Promise<unknown> {
+        static get [Symbol.species](): PromiseConstructor {
+          return Promise;
+        }
+
+        constructor(
+          executor: (
+            resolve: (value: unknown | PromiseLike<unknown>) => void,
+            reject: (reason?: any) => void,
+          ) => void,
+        ) {
+          let finishHandling: () => void = () => {};
+          const handling = new Promise<void>((resolveHandling) => {
+            finishHandling = resolveHandling;
+          });
+          super((resolve, reject) => {
+            try {
+              executor(
+                (value) => {
+                  if (tracksRecovery) {
+                    // Observe the final adoption outcome rather than merely
+                    // resolve(): a fulfilled handler can return a rejected
+                    // thenable, which must remain a branch-local failure.
+                    void new Promise<unknown>((resolveValue) =>
+                      resolveValue(value),
+                    ).then(
+                      () => {
+                        branch.observed = true;
+                        finishHandling();
+                      },
+                      (error) => {
+                        branch.error = error;
+                        finishHandling();
+                      },
+                    );
+                  } else {
                     finishHandling();
-                    reject(reason);
-                  },
-                );
-              } catch (error) {
-                finishHandling();
-                throw error;
-              }
-            });
-            // Detached intrinsic chains are still owned by transaction
-            // draining. Attach a non-observing rejection sink immediately so
-            // a rethrow cannot escape as process-level unhandledRejection.
-            suppressIntrinsicRecovery(() => {
-              void Promise.prototype.then.call(
-                this,
-                undefined,
-                () => undefined,
-              );
-            });
-            if (tracksRecovery) {
-              // Register synchronously: transaction draining may begin before
-              // an asynchronous recovery handler resolves the derived promise.
-              observation.handlers.add(handling);
-              void handling.finally(() =>
-                observation.handlers.delete(handling),
-              );
-            }
-          }
-
-          // Promise.prototype.then.call() bypasses ObservedPromise.then(), so
-          // keep subsequent native chaining inside the transaction's branch
-          // registry. The species preserves this boundary so direct native
-          // chaining can span any number of hops without losing ownership.
-          // biome-ignore lint/suspicious/noThenProperty: this is an actual Promise subclass preserving the public Promise contract.
-          override then<TResult1 = unknown, TResult2 = never>(
-            onFulfilled?:
-              | ((value: unknown) => TResult1 | PromiseLike<TResult1>)
-              | null,
-            onRejected?:
-              | ((reason: any) => TResult2 | PromiseLike<TResult2>)
-              | null,
-          ): Promise<TResult1 | TResult2> {
-            const transfersToNativePromise = isNativePromiseAssimilation(
-              onFulfilled,
-              onRejected,
-            );
-            const explicitlyHandlesRejection =
-              typeof onRejected === 'function' && !transfersToNativePromise;
-            const branch = transfersToNativePromise
-              ? undefined
-              : createBranch();
-            if (branch) observation.observed = true;
-            const handleRejected = explicitlyHandlesRejection
-              ? (reason: any) => onRejected(reason)
-              : transfersToNativePromise && typeof onRejected === 'function'
-                ? (reason: any) => {
-                    // Await/Promise assimilation transfers rejection to a
-                    // native Promise. If that rejection escapes an await, the
-                    // enclosing transaction callback still rejects normally;
-                    // if the caller catches it, this operation is recovered.
-                    recordNativePromiseTransfer(observation);
-                    return onRejected(reason);
                   }
-                : onRejected;
-            const derived = suppressIntrinsicRecovery(
-              () =>
-                Promise.prototype.then.call(
-                  this,
-                  onFulfilled,
-                  handleRejected,
-                ) as Promise<TResult1 | TResult2>,
-            );
-            if (branch) registerBranchOutcome(derived, branch);
-            return wrap(derived, branch ?? observation);
-          }
-
-          override catch<TResult = never>(
-            onRejected?:
-              | ((reason: any) => TResult | PromiseLike<TResult>)
-              | null,
-          ): Promise<unknown | TResult> {
-            return this.then(undefined, onRejected);
-          }
-
-          override finally(
-            onFinally?: (() => void | PromiseLike<void>) | null,
-          ): Promise<unknown> {
-            if (typeof onFinally !== 'function') {
-              return this.then(
-                (value) => value,
+                  resolve(value);
+                },
                 (reason) => {
-                  throw reason;
+                  if (tracksRecovery) branch.error = reason;
+                  finishHandling();
+                  reject(reason);
                 },
               );
+            } catch (error) {
+              if (tracksRecovery) branch.error = error;
+              finishHandling();
+              throw error;
             }
+          });
+          // Transaction draining owns detached rejection reporting. The sink
+          // prevents a process-level unhandledRejection; branch state above
+          // still fails the transaction unless a later child handles it.
+          void Promise.prototype.then.call(this, undefined, () => undefined);
+          if (tracksRecovery) {
+            branch.handlers.add(handling);
+            void handling.finally(() => branch.handlers.delete(handling));
+          }
+          // Promise.prototype.then.call() reads the source's constructor and
+          // species. Bind that lookup to this branch so every direct intrinsic
+          // child gets independent failure/recovery state.
+          const speciesOwner = function transactionObservedPromiseBranch() {};
+          Object.defineProperty(speciesOwner, Symbol.species, {
+            configurable: true,
+            get: () => createIntrinsicDerivedPromise(branch),
+          });
+          Object.defineProperty(this, 'constructor', {
+            configurable: true,
+            value: speciesOwner,
+          });
+        }
+
+        // biome-ignore lint/suspicious/noThenProperty: this is an actual Promise subclass preserving the public Promise contract.
+        override then<TResult1 = unknown, TResult2 = never>(
+          onFulfilled?:
+            | ((value: unknown) => TResult1 | PromiseLike<TResult1>)
+            | null,
+          onRejected?:
+            | ((reason: any) => TResult2 | PromiseLike<TResult2>)
+            | null,
+        ): Promise<TResult1 | TResult2> {
+          const transfersToNativePromise = isNativePromiseAssimilation(
+            onFulfilled,
+            onRejected,
+          );
+          if (!transfersToNativePromise) {
+            return Promise.prototype.then.call(
+              this,
+              onFulfilled,
+              onRejected,
+            ) as Promise<TResult1 | TResult2>;
+          }
+
+          const handleRejected =
+            typeof onRejected === 'function'
+              ? (reason: any) => {
+                  recordNativePromiseTransfer(branch);
+                  return onRejected(reason);
+                }
+              : onRejected;
+          const derived = suppressIntrinsicRecovery(
+            () =>
+              Promise.prototype.then.call(
+                this,
+                onFulfilled,
+                handleRejected,
+              ) as Promise<TResult1 | TResult2>,
+            branch,
+          );
+          return wrap(derived, branch);
+        }
+
+        override catch<TResult = never>(
+          onRejected?: ((reason: any) => TResult | PromiseLike<TResult>) | null,
+        ): Promise<unknown | TResult> {
+          return this.then(undefined, onRejected);
+        }
+
+        override finally(
+          onFinally?: (() => void | PromiseLike<void>) | null,
+        ): Promise<unknown> {
+          if (typeof onFinally !== 'function') {
             return this.then(
-              (value) => Promise.resolve(onFinally()).then(() => value),
-              (reason) =>
-                Promise.resolve(onFinally()).then(() => {
-                  throw reason;
-                }),
+              (value) => value,
+              (reason) => {
+                throw reason;
+              },
             );
           }
+          return this.then(
+            (value) => Promise.resolve(onFinally()).then(() => value),
+            (reason) =>
+              Promise.resolve(onFinally()).then(() => {
+                throw reason;
+              }),
+          );
         }
-        return IntrinsicDerivedPromise as unknown as PromiseConstructor;
+      }
+
+      return IntrinsicDerivedPromise as unknown as PromiseConstructor;
+    };
+
+    class ObservedPromise extends Promise<U> {
+      static get [Symbol.species](): PromiseConstructor {
+        return createIntrinsicDerivedPromise(observation);
       }
 
       constructor() {

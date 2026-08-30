@@ -1629,6 +1629,83 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
+  it('rolls back detached intrinsic fulfillment failures', async () => {
+    const root = await makeTempRoot();
+    const modes = ['throw', 'reject'] as const;
+    const attachFailure = (
+      operation: Promise<unknown>,
+      mode: 'throw' | 'reject',
+    ): void => {
+      void Promise.prototype.then.call(operation, () => {
+        const error = new Error(`detached intrinsic ${mode}`);
+        if (mode === 'throw') throw error;
+        return Promise.reject(error);
+      });
+    };
+
+    for (const options of [
+      { type: 'sqlite' as const, url: ':memory:', cache: false },
+      {
+        type: 'sqlite' as const,
+        url: join(root, 'intrinsic-fulfillment-callback.db'),
+        secureFile,
+        cache: false,
+      },
+    ]) {
+      const db = await getDatabase(options);
+      await db.query(
+        'CREATE TABLE intrinsic_fulfillment (id INTEGER PRIMARY KEY)',
+      );
+      for (const [index, mode] of modes.entries()) {
+        await expect(
+          txOf(db)(async (tx) => {
+            attachFailure(
+              tx.insert('intrinsic_fulfillment', { id: index + 1 }),
+              mode,
+            );
+          }),
+        ).rejects.toThrow(`detached intrinsic ${mode}`);
+        expect(await db.count('intrinsic_fulfillment')).toBe(0);
+      }
+      await db.close?.();
+    }
+
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'intrinsic-fulfillment-scopes.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query(
+      'CREATE TABLE intrinsic_fulfillment (id INTEGER PRIMARY KEY)',
+    );
+    for (const [index, mode] of modes.entries()) {
+      const manual = await db.beginTransaction?.();
+      if (!manual) throw new Error('beginTransaction unavailable');
+      attachFailure(
+        manual.insert('intrinsic_fulfillment', { id: index + 10 }),
+        mode,
+      );
+      await expect(manual.commit()).rejects.toThrow(
+        `detached intrinsic ${mode}`,
+      );
+      expect(await db.count('intrinsic_fulfillment')).toBe(0);
+
+      await expect(
+        txOf(db)(async (outer) => {
+          await txOf(outer)(async (inner) => {
+            attachFailure(
+              inner.insert('intrinsic_fulfillment', { id: index + 20 }),
+              mode,
+            );
+          });
+        }),
+      ).rejects.toThrow(`detached intrinsic ${mode}`);
+      expect(await db.count('intrinsic_fulfillment')).toBe(0);
+    }
+    await db.close?.();
+  });
+
   it('keeps rejection recovery local to one derived Promise branch', async () => {
     const root = await makeTempRoot();
     for (const options of [
