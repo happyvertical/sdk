@@ -1273,6 +1273,48 @@ describe('postgres syncSchema with CREATE INDEX (Issue #867)', () => {
     expect(indexes).toHaveLength(1);
   });
 
+  it.each([
+    ['CREATE INDEX CONCURRENTLY', false],
+    ['CREATE INDEX CONCURRENTLY IF NOT EXISTS', false],
+    ['CREATE UNIQUE INDEX CONCURRENTLY', true],
+    ['CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS', true],
+  ])('should apply %s idempotently', async (createIndexClause, expectedUnique) => {
+    if (!postgresAvailable) return;
+
+    const indexName = `${testTableName}_concurrent_idx`;
+    const schema = `
+        CREATE TABLE IF NOT EXISTS "${testTableName}" (
+          "id" TEXT PRIMARY KEY NOT NULL,
+          "slug" TEXT NOT NULL
+        );
+        ${createIndexClause} "${indexName}" ON "${testTableName}" ("slug");
+      `;
+
+    await db.syncSchema(schema);
+
+    const indexes = await db.many`
+        SELECT indexdef FROM pg_indexes
+        WHERE schemaname = 'public' AND indexname = ${indexName}
+      `;
+    expect(indexes).toHaveLength(1);
+    expect(indexes[0].indexdef.includes('UNIQUE')).toBe(expectedUnique);
+
+    const querySpy = vi.spyOn(db.client, 'query');
+    try {
+      await db.syncSchema(schema);
+
+      const repeatedIndexDdl = querySpy.mock.calls.filter(([query]) => {
+        return (
+          typeof query === 'string' &&
+          /^CREATE\s+(?:UNIQUE\s+)?INDEX\s+CONCURRENTLY\b/i.test(query)
+        );
+      });
+      expect(repeatedIndexDdl).toHaveLength(0);
+    } finally {
+      querySpy.mockRestore();
+    }
+  });
+
   it('should handle non-unique indexes', async () => {
     if (!postgresAvailable) return;
 

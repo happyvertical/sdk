@@ -1760,17 +1760,24 @@ async function createDatabase(
         .split(';')
         .filter((command) => command.trim() !== '');
 
-      // Match CREATE INDEX statements (Issue #867)
-      // Supports: CREATE INDEX, CREATE UNIQUE INDEX, with IF NOT EXISTS
+      // Match CREATE INDEX statements (Issues #867 and #1040).
+      // Named groups keep optional clauses from shifting identifier captures.
       const createIndexRegex =
-        /CREATE (UNIQUE )?INDEX (IF NOT EXISTS )?"?(\w+)"? ON "?(\w+)"?\s*\(([^)]+)\)/i;
+        /CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)?(?:IF\s+NOT\s+EXISTS\s+)?"?(?<indexName>\w+)"?\s+ON\s+"?(?<tableName>\w+)"?\s*\([^)]+\)/i;
+      const parseCreateIndex = (
+        command: string,
+      ): { indexName: string; tableName: string } | null => {
+        const { indexName, tableName } =
+          command.match(createIndexRegex)?.groups ?? {};
+        return indexName && tableName ? { indexName, tableName } : null;
+      };
 
       // Pre-scan commands to collect all index names for batch existence check (Issue #798)
       const indexNames: string[] = [];
       for (const command of commands) {
-        const indexMatch = command.trim().match(createIndexRegex);
+        const indexMatch = parseCreateIndex(command.trim());
         if (indexMatch) {
-          indexNames.push(indexMatch[3]);
+          indexNames.push(indexMatch.indexName);
         }
       }
 
@@ -1876,11 +1883,10 @@ async function createDatabase(
           continue;
         }
 
-        const indexMatch = trimmedCommand.match(createIndexRegex);
+        const indexMatch = parseCreateIndex(trimmedCommand);
 
         if (indexMatch) {
-          const indexName = indexMatch[3];
-          const indexTableName = indexMatch[4];
+          const { indexName, tableName: indexTableName } = indexMatch;
 
           // Use pre-fetched batch result instead of per-index query
           if (!existingIndexes.has(indexName)) {
