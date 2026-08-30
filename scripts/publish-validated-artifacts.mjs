@@ -5,6 +5,8 @@ import { pathToFileURL } from 'node:url';
 import { verifyPublishArtifacts } from './publish-artifacts-lib.mjs';
 
 const registry = 'https://registry.npmjs.org/';
+const registryVerificationAttempts = 12;
+const registryVerificationDelayMs = 10_000;
 
 function npm(args, { allowNotFound = false } = {}) {
   const result = spawnSync('npm', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: process.env });
@@ -22,7 +24,17 @@ function exists(name, version, runNpm) {
   }) !== null;
 }
 
-export function publishRelease(release, { runNpm = npm, log = console.log } = {}) {
+function waitForRegistry(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+export function publishRelease(release, {
+  runNpm = npm,
+  log = console.log,
+  wait = waitForRegistry,
+  maxAttempts = registryVerificationAttempts,
+  retryDelayMs = registryVerificationDelayMs,
+} = {}) {
   for (const artifact of release.packages) {
     if (exists(artifact.name, artifact.version, runNpm)) {
       log(`Skipping existing ${artifact.name}@${artifact.version}`);
@@ -30,7 +42,19 @@ export function publishRelease(release, { runNpm = npm, log = console.log } = {}
     }
     runNpm(['publish', artifact.path, '--registry', registry, '--access', 'public']);
   }
-  const missing = release.packages.filter((artifact) => !exists(artifact.name, artifact.version, runNpm));
+
+  let missing = [];
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    missing = release.packages.filter((artifact) => !exists(artifact.name, artifact.version, runNpm));
+    if (missing.length === 0) return;
+    if (attempt < maxAttempts) {
+      log(
+        `Waiting for npm registry propagation (attempt ${attempt}/${maxAttempts}): `
+        + missing.map((artifact) => `${artifact.name}@${artifact.version}`).join(', '),
+      );
+      wait(attempt * retryDelayMs);
+    }
+  }
   if (missing.length) throw new Error(`Registry verification failed for: ${missing.map((entry) => entry.name)}`);
 }
 
