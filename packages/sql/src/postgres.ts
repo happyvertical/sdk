@@ -39,6 +39,8 @@ import {
   resolveInsertColumns,
 } from './shared/utils';
 
+const MAX_TIMER_DELAY_MILLIS = 2_147_483_647;
+
 /**
  * Configuration options for PostgreSQL database connections
  */
@@ -90,12 +92,14 @@ export interface PostgresOptions extends DatabaseCacheOptions {
 
   /**
    * Maximum time to wait for a pool connection, in milliseconds.
+   * Must not exceed Node.js's maximum timer delay of 2,147,483,647.
    * Set to 0 to wait indefinitely. When omitted, pg's default is used.
    */
   connectionTimeoutMillis?: number;
 
   /**
    * Maximum time an idle client remains in the pool, in milliseconds.
+   * Must not exceed Node.js's maximum timer delay of 2,147,483,647.
    * Set to 0 to retain idle clients. When omitted, pg's default is used.
    */
   idleTimeoutMillis?: number;
@@ -209,18 +213,22 @@ function resolvePostgresConfig(
   }
   if (
     connectionTimeoutMillis !== undefined &&
-    (!Number.isInteger(connectionTimeoutMillis) || connectionTimeoutMillis < 0)
+    (!Number.isInteger(connectionTimeoutMillis) ||
+      connectionTimeoutMillis < 0 ||
+      connectionTimeoutMillis > MAX_TIMER_DELAY_MILLIS)
   ) {
     throw new Error(
-      'PostgreSQL pool connectionTimeoutMillis must be a non-negative integer',
+      `PostgreSQL pool connectionTimeoutMillis must be an integer between 0 and ${MAX_TIMER_DELAY_MILLIS}`,
     );
   }
   if (
     idleTimeoutMillis !== undefined &&
-    (!Number.isInteger(idleTimeoutMillis) || idleTimeoutMillis < 0)
+    (!Number.isInteger(idleTimeoutMillis) ||
+      idleTimeoutMillis < 0 ||
+      idleTimeoutMillis > MAX_TIMER_DELAY_MILLIS)
   ) {
     throw new Error(
-      'PostgreSQL pool idleTimeoutMillis must be a non-negative integer',
+      `PostgreSQL pool idleTimeoutMillis must be an integer between 0 and ${MAX_TIMER_DELAY_MILLIS}`,
     );
   }
 

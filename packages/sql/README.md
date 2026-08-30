@@ -53,9 +53,9 @@ const jsonDb = await getDatabase({
 ```
 
 PostgreSQL also accepts `max` (20 by default), `connectionTimeoutMillis`, and
-`idleTimeoutMillis`. Lifecycle timeouts must be non-negative integer
-milliseconds; `0` disables the corresponding timeout. Omitted timeout values
-retain `pg`'s defaults.
+`idleTimeoutMillis`. Lifecycle timeouts must be integer milliseconds from `0`
+through Node.js's maximum timer delay of `2,147,483,647`; `0` disables the
+corresponding timeout. Omitted timeout values retain `pg`'s defaults.
 
 ### Connection caching and cleanup
 

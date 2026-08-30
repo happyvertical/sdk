@@ -502,6 +502,10 @@ describe('PostgreSQL cache identity', () => {
       message: 'connectionTimeoutMillis',
     },
     {
+      option: { connectionTimeoutMillis: 2_147_483_648 },
+      message: 'connectionTimeoutMillis',
+    },
+    {
       option: { idleTimeoutMillis: Number.NaN },
       message: 'idleTimeoutMillis',
     },
@@ -511,6 +515,10 @@ describe('PostgreSQL cache identity', () => {
     },
     { option: { idleTimeoutMillis: -1 }, message: 'idleTimeoutMillis' },
     { option: { idleTimeoutMillis: 1.5 }, message: 'idleTimeoutMillis' },
+    {
+      option: { idleTimeoutMillis: 2_147_483_648 },
+      message: 'idleTimeoutMillis',
+    },
     { option: { port: Number.NaN }, message: 'port' },
     { option: { port: 0 }, message: 'port' },
     { option: { port: 65_536 }, message: 'port' },
