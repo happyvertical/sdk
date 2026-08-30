@@ -1088,6 +1088,7 @@ describe('secure SQLite file acquisition', () => {
       await tx.insert('handled_failure', { id: 1 });
       await expect(tx.insert('handled_failure', { id: 1 })).rejects.toThrow();
       await tx.insert('handled_failure', { id: 2 });
+      void tx.insert('handled_failure', { id: 2 }).catch(() => undefined);
     });
 
     const manual = await db.beginTransaction?.();
@@ -1095,6 +1096,7 @@ describe('secure SQLite file acquisition', () => {
     await manual.insert('handled_failure', { id: 3 });
     await manual.insert('handled_failure', { id: 3 }).catch(() => undefined);
     await manual.insert('handled_failure', { id: 4 });
+    void manual.insert('handled_failure', { id: 4 }).catch(() => undefined);
     await manual.commit();
 
     expect(
@@ -1138,7 +1140,7 @@ describe('secure SQLite file acquisition', () => {
 
     await txOf(db)(async (outer) => {
       await outer.insert('chained_nested_failure', { id: 4 });
-      await txOf(outer)(async () => {
+      void txOf(outer)(async () => {
         throw new Error('caught chained child');
       })
         .finally(() => undefined)

@@ -155,6 +155,7 @@ function combineTransactionFailures(
 
 interface PromiseObservation {
   observed: boolean;
+  handlers: Set<Promise<void>>;
 }
 
 /**
@@ -183,7 +184,16 @@ function withRejectionObservation<T>(
                 return recovered;
               }
             : onRejected;
-        return wrap(promise.then(onFulfilled, handleRejected));
+        const derived = promise.then(onFulfilled, handleRejected);
+        if (typeof onRejected === 'function') {
+          const handling = derived.then(
+            () => undefined,
+            () => undefined,
+          );
+          observation.handlers.add(handling);
+          void handling.finally(() => observation.handlers.delete(handling));
+        }
+        return wrap(derived);
       },
       catch: (onRejected) => {
         const handleRejected = async (reason: any) => {
@@ -191,7 +201,14 @@ function withRejectionObservation<T>(
           observation.observed = true;
           return recovered;
         };
-        return wrap(promise.catch(handleRejected));
+        const derived = promise.catch(handleRejected);
+        const handling = derived.then(
+          () => undefined,
+          () => undefined,
+        );
+        observation.handlers.add(handling);
+        void handling.finally(() => observation.handlers.delete(handling));
+        return wrap(derived);
       },
       finally: (onFinally) => wrap(promise.finally(onFinally)),
       [Symbol.toStringTag]: 'Promise',
@@ -1427,6 +1444,7 @@ async function createDatabase(
         tail: Promise<void>;
         children: Set<{
           observed: boolean;
+          handlers: Set<Promise<void>>;
           error?: unknown;
         }>;
       }
@@ -1439,6 +1457,11 @@ async function createDatabase(
 
       const drainNestedScope = async (scope: NestedScope): Promise<void> => {
         await scope.tail;
+        while ([...scope.children].some((child) => child.handlers.size > 0)) {
+          await Promise.all(
+            [...scope.children].flatMap((child) => [...child.handlers]),
+          );
+        }
         const failures = [...scope.children]
           .filter((child) => !child.observed && 'error' in child)
           .map((child) => child.error);
@@ -1520,8 +1543,9 @@ async function createDatabase(
           tail: Promise.resolve(),
           children: new Set(),
         };
-        const child = { observed: false } as {
+        const child = { observed: false, handlers: new Set() } as {
           observed: boolean;
+          handlers: Set<Promise<void>>;
           error?: unknown;
         };
         parentScope.children.add(child);
@@ -1687,7 +1711,10 @@ async function createDatabase(
           const operation = Promise.resolve(
             executorContext.run(transactionClient, () => fn(...args)),
           );
-          const tracked = { observed: false } as PromiseObservation & {
+          const tracked = {
+            observed: false,
+            handlers: new Set<Promise<void>>(),
+          } as PromiseObservation & {
             error?: unknown;
           };
           operations.add(tracked);
@@ -1780,6 +1807,11 @@ async function createDatabase(
           drainPromise ??= (async () => {
             while (pending.size > 0) {
               await Promise.allSettled([...pending]);
+            }
+            while ([...operations].some((entry) => entry.handlers.size > 0)) {
+              await Promise.all(
+                [...operations].flatMap((entry) => [...entry.handlers]),
+              );
             }
             const failures = [...operations]
               .filter(
