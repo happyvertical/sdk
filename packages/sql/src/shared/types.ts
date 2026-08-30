@@ -42,8 +42,11 @@ export class NestedTransactionError extends DatabaseError {
  *
  * @example Object format (backward compatible)
  * ```typescript
- * // WHERE status = 'active' AND price > 100
- * const where = { status: 'active', 'price >': 100 };
+ * // WHERE status = 'active' AND name contains the exact text '100% cotton'
+ * const where = {
+ *   status: 'active',
+ *   'name contains': '100% cotton',
+ * };
  * ```
  *
  * @example 2D array format for OR/AND compound logic
