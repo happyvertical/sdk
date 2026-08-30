@@ -1713,13 +1713,13 @@ describe('secure SQLite file acquisition', () => {
       await Promise.all([
         tx.upsert('concurrent_nullable_scope', ['scope', 'tenant_id'], {
           id: 'callback-one',
-          scope: 9007199254740993n,
+          scope: 2,
           tenant_id: null,
           value: 'one',
         }),
         tx.upsert('concurrent_nullable_scope', ['scope', 'tenant_id'], {
           id: 'callback-two',
-          scope: 9007199254740993n,
+          scope: 2n,
           tenant_id: null,
           value: 'two',
         }),
@@ -1728,13 +1728,13 @@ describe('secure SQLite file acquisition', () => {
         await Promise.all([
           nested.upsert('concurrent_nullable_scope', ['scope', 'tenant_id'], {
             id: 'nested-one',
-            scope: 9007199254740995n,
+            scope: true,
             tenant_id: null,
             value: 'one',
           }),
           nested.upsert('concurrent_nullable_scope', ['scope', 'tenant_id'], {
             id: 'nested-two',
-            scope: 9007199254740995n,
+            scope: 1,
             tenant_id: null,
             value: 'two',
           }),
@@ -1747,13 +1747,13 @@ describe('secure SQLite file acquisition', () => {
     await Promise.all([
       manual.upsert('concurrent_nullable_scope', ['scope', 'tenant_id'], {
         id: 'manual-one',
-        scope: 9007199254740997n,
+        scope: -0,
         tenant_id: null,
         value: 'one',
       }),
       manual.upsert('concurrent_nullable_scope', ['scope', 'tenant_id'], {
         id: 'manual-two',
-        scope: 9007199254740997n,
+        scope: 0,
         tenant_id: null,
         value: 'two',
       }),
@@ -1762,7 +1762,7 @@ describe('secure SQLite file acquisition', () => {
       (
         await manual.query(
           'SELECT id, value FROM concurrent_nullable_scope WHERE scope = ?',
-          [9007199254740997n],
+          [0],
         )
       ).rows,
     ).toEqual([{ id: 'manual-two', value: 'two' }]);
@@ -1775,8 +1775,8 @@ describe('secure SQLite file acquisition', () => {
         )
       ).rows,
     ).toEqual([
-      { id: 'callback-two', value: 'two' },
       { id: 'nested-two', value: 'two' },
+      { id: 'callback-two', value: 'two' },
     ]);
     expect(await db.count('concurrent_nullable_scope')).toBe(2);
     await db.close?.();

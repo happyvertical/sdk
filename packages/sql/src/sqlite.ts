@@ -713,17 +713,25 @@ async function createDatabase(
       data: Record<string, any>,
     ): string => {
       const encodeValue = (value: unknown): string => {
-        if (value === null) return 'null';
-        if (typeof value === 'bigint') return `bigint:${value}`;
+        if (
+          value === null ||
+          (typeof value === 'number' && Number.isNaN(value))
+        )
+          return 'null';
+        if (typeof value === 'bigint') return `integer:${value}`;
+        if (typeof value === 'boolean')
+          return `integer:${BigInt(Number(value))}`;
         if (typeof value === 'number') {
-          if (Number.isNaN(value)) return 'number:NaN';
-          if (Object.is(value, -0)) return 'number:-0';
+          // node:sqlite normalizes booleans at our driver boundary and SQLite
+          // compares integral REAL/INTEGER values numerically. Use the same
+          // identity for 1, 1n, true, 0, -0, and false so equivalent nullable
+          // conflict keys cannot bypass the two-step upsert lock.
+          if (Number.isInteger(value)) return `integer:${BigInt(value)}`;
           return `number:${value}`;
         }
         if (typeof value === 'string') {
           return `string:${value.length}:${value}`;
         }
-        if (typeof value === 'boolean') return `boolean:${Number(value)}`;
         if (value === undefined) return 'undefined';
         // Records have already passed through serializeValue(), but keep this
         // branch fail-closed and type-stable if an adapter extension supplies a
