@@ -50,6 +50,8 @@ const CREDENTIAL_KEY_QUALIFIER =
   /^(?:access|api|auth|client|private|refresh|service|signing)$/i;
 const DATABASE_USER_KEY =
   /^(?:user(?:name)?|(?:database|db|pg|postgres|postgresql)[._-]?user(?:name)?)$/i;
+const DATABASE_URL_USERINFO =
+  /\b((?:https?|libsql|postgres|postgresql):\/\/)[^\s/@]+@/giu;
 const DATABASE_URL =
   /\b(?:https?|libsql|postgres|postgresql):\/\/[^\s"'`<>()]+/giu;
 const CREDENTIAL_ASSIGNMENT =
@@ -141,6 +143,7 @@ function redactDatabaseErrorText(
   knownSecrets: readonly string[],
 ): string {
   let redacted = value
+    .replace(DATABASE_URL_USERINFO, '$1[redacted]@')
     .replace(DATABASE_URL, redactUrl)
     .replace(
       CREDENTIAL_ASSIGNMENT,

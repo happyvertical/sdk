@@ -179,6 +179,22 @@ describe('database error diagnostics', () => {
     });
   });
 
+  it('redacts URL userinfo containing quote punctuation', () => {
+    const username = 'db-user-issue-744';
+    const password = `pa'ss"word-issue-744`;
+    const error = wrapDatabaseError(
+      'Failed to connect',
+      new Error(
+        `connection failed: postgresql://${username}:${password}@db.example/app`,
+      ),
+    );
+    const rendered = renderErrorSurfaces(error);
+
+    expect(rendered).not.toContain(username);
+    expect(rendered).not.toContain(password);
+    expect(rendered).toContain('postgresql://%5Bredacted%5D@db.example/app');
+  });
+
   it('redacts normalized driver values without hiding diagnostic context', () => {
     const values = [
       true,
