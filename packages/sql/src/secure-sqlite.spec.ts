@@ -1275,6 +1275,12 @@ describe('secure SQLite file acquisition', () => {
       const operation = tx.insert('native_promises', { id: 1 });
       expect(operation).toBeInstanceOf(Promise);
       await Promise.prototype.then.call(operation, (value) => value);
+      const failedOperation = tx.insert('native_promises', { id: 1 });
+      await Promise.prototype.then.call(
+        failedOperation,
+        undefined,
+        () => undefined,
+      );
 
       const nested = txOf(tx)(async (inner) => {
         await inner.insert('native_promises', { id: 2 });
@@ -1284,9 +1290,22 @@ describe('secure SQLite file acquisition', () => {
       await expect(
         Promise.prototype.then.call(nested, (value) => value),
       ).resolves.toBe(42);
+
+      const failedNested = txOf(tx)(async (inner) => {
+        await inner.insert('native_promises', { id: 3 });
+        throw new Error('intrinsic recovery');
+      });
+      await Promise.prototype.then.call(
+        failedNested,
+        undefined,
+        () => undefined,
+      );
+      await tx.insert('native_promises', { id: 4 });
     });
 
-    expect(await db.count('native_promises')).toBe(2);
+    expect(
+      (await db.query('SELECT id FROM native_promises ORDER BY id')).rows,
+    ).toEqual([{ id: 1 }, { id: 2 }, { id: 4 }]);
     await db.close?.();
   });
 

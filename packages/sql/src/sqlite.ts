@@ -210,6 +210,7 @@ function combineTransactionFailures(
 interface PromiseObservation {
   observed: boolean;
   handlers: Set<Promise<void>>;
+  suppressIntrinsicRecovery?: number;
 }
 
 function isNativePromiseAssimilation(
@@ -247,9 +248,43 @@ function withRejectionObservation<T>(
     // derived Promise from also surfacing as an unhandledRejection while its
     // shared observation record remains deliberately unhandled.
     void promise.catch(() => {});
+    const suppressIntrinsicRecovery = <V>(callback: () => V): V => {
+      observation.suppressIntrinsicRecovery =
+        (observation.suppressIntrinsicRecovery ?? 0) + 1;
+      try {
+        return callback();
+      } finally {
+        observation.suppressIntrinsicRecovery -= 1;
+      }
+    };
     class ObservedPromise extends Promise<U> {
       static get [Symbol.species](): PromiseConstructor {
-        return Promise;
+        const tracksRecovery =
+          (observation.suppressIntrinsicRecovery ?? 0) === 0;
+        class IntrinsicDerivedPromise extends Promise<unknown> {
+          static get [Symbol.species](): PromiseConstructor {
+            return Promise;
+          }
+
+          constructor(
+            executor: (
+              resolve: (value: unknown | PromiseLike<unknown>) => void,
+              reject: (reason?: any) => void,
+            ) => void,
+          ) {
+            super(executor);
+            if (tracksRecovery) {
+              void Promise.prototype.then.call(
+                this,
+                () => {
+                  if ('error' in observation) observation.observed = true;
+                },
+                () => undefined,
+              );
+            }
+          }
+        }
+        return IntrinsicDerivedPromise as unknown as PromiseConstructor;
       }
 
       constructor() {
@@ -279,11 +314,14 @@ function withRejectionObservation<T>(
               return recovered;
             }
           : onRejected;
-        const derived = Promise.prototype.then.call(
-          this,
-          onFulfilled,
-          handleRejected,
-        ) as Promise<TResult1 | TResult2>;
+        const derived = suppressIntrinsicRecovery(
+          () =>
+            Promise.prototype.then.call(
+              this,
+              onFulfilled,
+              handleRejected,
+            ) as Promise<TResult1 | TResult2>,
+        );
         if (explicitlyHandlesRejection) {
           const handling = derived.then(
             () => undefined,
@@ -300,9 +338,14 @@ function withRejectionObservation<T>(
       ): Promise<U | TResult> {
         if (typeof onRejected !== 'function') {
           return wrap(
-            Promise.prototype.then.call(this, undefined, onRejected) as Promise<
-              U | TResult
-            >,
+            suppressIntrinsicRecovery(
+              () =>
+                Promise.prototype.then.call(
+                  this,
+                  undefined,
+                  onRejected,
+                ) as Promise<U | TResult>,
+            ),
           );
         }
         const handleRejected = async (reason: any) => {
@@ -310,11 +353,14 @@ function withRejectionObservation<T>(
           observation.observed = true;
           return recovered;
         };
-        const derived = Promise.prototype.then.call(
-          this,
-          undefined,
-          handleRejected,
-        ) as Promise<U | TResult>;
+        const derived = suppressIntrinsicRecovery(
+          () =>
+            Promise.prototype.then.call(
+              this,
+              undefined,
+              handleRejected,
+            ) as Promise<U | TResult>,
+        );
         const handling = derived.then(
           () => undefined,
           () => undefined,
@@ -327,27 +373,35 @@ function withRejectionObservation<T>(
       override finally(onFinally?: (() => void) | null): Promise<U> {
         if (typeof onFinally !== 'function') {
           return wrap(
-            Promise.prototype.then.call(
-              this,
-              onFinally,
-              onFinally,
-            ) as Promise<U>,
+            suppressIntrinsicRecovery(
+              () =>
+                Promise.prototype.then.call(
+                  this,
+                  onFinally,
+                  onFinally,
+                ) as Promise<U>,
+            ),
           );
         }
-        const derived = Promise.prototype.then.call(
-          this,
-          (value: U) => Promise.resolve(onFinally()).then(() => value),
-          (reason: unknown) =>
-            Promise.resolve(onFinally()).then(() => {
-              throw reason;
-            }),
-        ) as Promise<U>;
+        const derived = suppressIntrinsicRecovery(
+          () =>
+            Promise.prototype.then.call(
+              this,
+              (value: U) => Promise.resolve(onFinally()).then(() => value),
+              (reason: unknown) =>
+                Promise.resolve(onFinally()).then(() => {
+                  throw reason;
+                }),
+            ) as Promise<U>,
+        );
         return wrap(derived);
       }
     }
 
     const observed = new ObservedPromise();
-    void Promise.prototype.then.call(observed, undefined, () => undefined);
+    suppressIntrinsicRecovery(() =>
+      Promise.prototype.then.call(observed, undefined, () => undefined),
+    );
     return observed;
   };
 
