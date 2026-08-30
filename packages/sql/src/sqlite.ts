@@ -1810,7 +1810,10 @@ async function createDatabase(
 
       const txDb: DatabaseInterface = {
         url,
-        client: scopedClient,
+        client:
+          client.transactionReservation === 'exclusive'
+            ? scopedClient
+            : transactionClient,
         insert: scopedInsert,
         get: scopedGet,
         list: scopedList,

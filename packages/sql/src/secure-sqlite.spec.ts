@@ -954,6 +954,24 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
+  it('preserves the default LibSQL transaction client execute overload', async () => {
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: ':memory:',
+      cache: false,
+    });
+    await db.query('CREATE TABLE libsql_client (id INTEGER PRIMARY KEY)');
+
+    await txOf(db)(async (tx) => {
+      await tx.client.execute('INSERT INTO libsql_client (id) VALUES (?)', [1]);
+    });
+
+    expect(
+      (await db.query('SELECT id FROM libsql_client ORDER BY id')).rows,
+    ).toEqual([{ id: 1 }]);
+    await db.close?.();
+  });
+
   it('fails atomically when SQLite automatically rolls a transaction back', async () => {
     const root = await makeTempRoot();
     const db = await getDatabase({
