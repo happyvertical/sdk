@@ -44,8 +44,12 @@ const DRIVER_ERROR_FIELDS = [
 
 const SENSITIVE_CONTEXT_KEY =
   /^(?:args?|parameters?|params?|queries|query|sql|values?)$/i;
-const CREDENTIAL_CONTEXT_KEY =
-  /(?:auth|credential|key|pass|password|pwd|secret|token|user(?:name)?)/i;
+const CREDENTIAL_KEY_PART =
+  /^(?:credential|credentials|passphrase|password|pwd|secret|token)$/i;
+const CREDENTIAL_KEY_QUALIFIER =
+  /^(?:access|api|auth|client|private|refresh|service|signing)$/i;
+const DATABASE_USER_KEY =
+  /^(?:user(?:name)?|(?:database|db|pg|postgres|postgresql)[._-]?user(?:name)?)$/i;
 const DATABASE_URL =
   /\b(?:https?|libsql|postgres|postgresql):\/\/[^\s"'`<>()]+/giu;
 const CREDENTIAL_ASSIGNMENT =
@@ -57,6 +61,26 @@ const POSTGRES_KEY_VALUE =
   /(\bKey\s*\([^\r\n)]*\)\s*=\s*\()([\s\S]*?)(\)\s*(?:already exists|is duplicated)\b)/giu;
 const CAST_INPUT_VALUE =
   /(\bwith value\s+)([\s\S]*?)(\s+(?:can't|cannot)\s+be cast\b)/giu;
+
+function isCredentialKey(key: string): boolean {
+  if (DATABASE_USER_KEY.test(key)) return true;
+
+  const parts = key
+    .replace(/([\p{Ll}\p{N}])(\p{Lu})/gu, '$1 $2')
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+  if (parts.length === 1 && /^(?:auth|credential|key|pass)$/i.test(parts[0])) {
+    return true;
+  }
+  if (parts.some((part) => CREDENTIAL_KEY_PART.test(part))) return true;
+
+  return parts.some(
+    (part, index) =>
+      /^(?:key|auth)$/i.test(part) &&
+      index > 0 &&
+      CREDENTIAL_KEY_QUALIFIER.test(parts[index - 1]),
+  );
+}
 
 function toDriverError(error: unknown): DriverError {
   return error && (typeof error === 'object' || typeof error === 'function')
@@ -70,7 +94,7 @@ function redactUrl(value: string): string {
     if (url.username) url.username = '[redacted]';
     if (url.password) url.password = '[redacted]';
     for (const key of url.searchParams.keys()) {
-      if (CREDENTIAL_CONTEXT_KEY.test(key)) {
+      if (isCredentialKey(key)) {
         url.searchParams.set(key, '[redacted]');
       }
     }
@@ -99,7 +123,7 @@ function redactDatabaseErrorText(
     .replace(
       CREDENTIAL_ASSIGNMENT,
       (assignment, quote: string, key: string, delimiter: string) =>
-        CREDENTIAL_CONTEXT_KEY.test(key)
+        isCredentialKey(key)
           ? `${quote}${key}${quote}${delimiter}[redacted]`
           : assignment,
     )
@@ -256,7 +280,7 @@ function sanitizeContextValue(
   return Object.fromEntries(
     Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
       key,
-      CREDENTIAL_CONTEXT_KEY.test(key)
+      isCredentialKey(key)
         ? '[redacted]'
         : sanitizeContextValue(entry, knownSecrets, seen),
     ]),
@@ -270,7 +294,7 @@ function sanitizeDatabaseErrorContext(
   return Object.fromEntries(
     Object.entries(context).map(([key, value]) => [
       key,
-      SENSITIVE_CONTEXT_KEY.test(key) || CREDENTIAL_CONTEXT_KEY.test(key)
+      SENSITIVE_CONTEXT_KEY.test(key) || isCredentialKey(key)
         ? '[redacted]'
         : sanitizeContextValue(value, knownSecrets, new WeakSet()),
     ]),

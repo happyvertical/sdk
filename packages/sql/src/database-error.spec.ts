@@ -143,10 +143,12 @@ describe('database error diagnostics', () => {
       'dotted-pwd-value-744',
       'database-user-value-744',
       'url-user-value-744',
+      'camel-database-user-value-744',
+      'snake-database-user-value-744',
     ];
     const formatted = formatDbError(
       new Error(
-        `driver options {"password":"${credentialValues[0]}","token":"${credentialValues[1]}","pwd":"${credentialValues[7]}","username":"${credentialValues[10]}"}; authToken=${credentialValues[2]}; client_secret=${credentialValues[3]}; privateKey=${credentialValues[4]}; dbPassword: ${credentialValues[5]}; signing_key="${credentialValues[6]}"; dbPwd=${credentialValues[8]}; db.pwd=${credentialValues[9]}; postgresql:///app?user=${credentialValues[11]}&password=${credentialValues[7]}`,
+        `driver options {"password":"${credentialValues[0]}","token":"${credentialValues[1]}","pwd":"${credentialValues[7]}","username":"${credentialValues[10]}"}; authToken=${credentialValues[2]}; client_secret=${credentialValues[3]}; privateKey=${credentialValues[4]}; dbPassword: ${credentialValues[5]}; signing_key="${credentialValues[6]}"; dbPwd=${credentialValues[8]}; db.pwd=${credentialValues[9]}; dbUser=${credentialValues[12]}; database_username=${credentialValues[13]}; postgresql:///app?user=${credentialValues[11]}&password=${credentialValues[7]}`,
       ),
     );
     for (const credential of credentialValues) {
@@ -154,6 +156,27 @@ describe('database error diagnostics', () => {
     }
     expect(formatted).toContain('[redacted]');
     expect(formatDbError('plain driver failure')).toBe('plain driver failure');
+  });
+
+  it('preserves actionable non-credential user diagnostics', () => {
+    const error = wrapDatabaseError(
+      'Failed to execute raw query',
+      new Error('userId=42; currentUser=alice; superuserMode=false'),
+      {
+        userId: 42,
+        currentUser: 'alice',
+        superuserMode: false,
+      },
+    );
+
+    expect(error.message).toContain(
+      'userId=42; currentUser=alice; superuserMode=false',
+    );
+    expect(error.context).toMatchObject({
+      userId: 42,
+      currentUser: 'alice',
+      superuserMode: false,
+    });
   });
 
   it('redacts normalized driver values without hiding diagnostic context', () => {
