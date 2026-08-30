@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDatabase } from './index';
 
 async function checkPostgreSQLConnection(): Promise<boolean> {
@@ -1400,6 +1400,93 @@ describe('postgres syncSchema with quoted identifiers (Issue #860)', () => {
     const columnNames = columns.map((c) => c.column_name);
     expect(columnNames).toContain('id');
     expect(columnNames).toContain('description');
+  });
+
+  it('does not treat named deferred foreign keys as missing columns', async () => {
+    if (!postgresAvailable) return;
+
+    await db.client.query(`
+      CREATE TABLE "${testTableName}" (
+        id TEXT PRIMARY KEY NOT NULL,
+        profile_id TEXT
+      )
+    `);
+
+    const constraintName = `${testTableName}_profile_id_profiles_id_fkey`;
+    const schema = `CREATE TABLE IF NOT EXISTS "${testTableName}" (
+      "id" TEXT PRIMARY KEY NOT NULL,
+      "profile_id" TEXT,
+      "description" TEXT DEFAULT '',
+      CONSTRAINT "${constraintName}" FOREIGN KEY ("profile_id")
+        REFERENCES profiles (id) DEFERRABLE INITIALLY DEFERRED
+    );`;
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    try {
+      await db.syncSchema(schema);
+      await db.syncSchema(schema);
+      expect(consoleError).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
+
+    const columns = await db.many`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = ${testTableName}
+    `;
+    const columnNames = columns.map((column) => column.column_name);
+    expect(columnNames).toContain('description');
+    expect(columnNames).not.toContain(constraintName);
+  });
+
+  it('adds a column named exclude', async () => {
+    if (!postgresAvailable) return;
+
+    await db.client.query(`
+      CREATE TABLE "${testTableName}" (
+        id TEXT PRIMARY KEY NOT NULL
+      )
+    `);
+
+    const schema = `CREATE TABLE IF NOT EXISTS "${testTableName}" (
+      id TEXT PRIMARY KEY NOT NULL,
+      exclude TEXT
+    );`;
+
+    await db.syncSchema(schema);
+
+    const columns = await db.many`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = ${testTableName}
+    `;
+    expect(columns.map((column) => column.column_name)).toContain('exclude');
+  });
+
+  it('adds quoted column names with non-word characters', async () => {
+    if (!postgresAvailable) return;
+
+    await db.client.query(`
+      CREATE TABLE "${testTableName}" (
+        id TEXT PRIMARY KEY NOT NULL
+      )
+    `);
+
+    const schema = `CREATE TABLE IF NOT EXISTS "${testTableName}" (
+      id TEXT PRIMARY KEY NOT NULL,
+      "display-name" TEXT
+    );`;
+
+    await db.syncSchema(schema);
+
+    const columns = await db.many`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = ${testTableName}
+    `;
+    expect(columns.map((column) => column.column_name)).toContain(
+      'display-name',
+    );
   });
 
   it('should handle multiple CREATE TABLE statements with quoted identifiers', async () => {
