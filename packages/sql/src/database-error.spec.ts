@@ -3,6 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { getDatabase } from './index';
 import { formatDbError, wrapDatabaseError } from './shared/utils';
 
+function renderErrorSurfaces(error: DatabaseError): string {
+  return [
+    String(error),
+    error.stack,
+    JSON.stringify(error),
+    String(error.cause),
+    JSON.stringify(error.cause),
+  ].join('\n');
+}
+
 describe('database error diagnostics', () => {
   it('preserves useful driver details in message, cause, and JSON', () => {
     const driverError = Object.assign(
@@ -50,15 +60,19 @@ describe('database error diagnostics', () => {
     const boundSecret = 'customer-token-issue-744';
     const literalSecret = 'literal-password-issue-744';
     const dollarSecret = 'dollar-quoted-secret-issue-744';
+    const jsonPassword = 'json-password-value-744';
+    const jsonToken = 'json-token-value-744';
+    const authToken = 'camel-auth-value-744';
+    const clientSecret = 'client-value-744';
     const sql = `SELECT * FROM accounts WHERE token = $1 AND fallback = '${literalSecret}' AND payload = $issue744$${dollarSecret}$issue744$`;
     const driverError = Object.assign(
       new Error(
-        `invalid input ${boundSecret}; password=${literalSecret}; statement ${sql}; connection postgresql://dbuser:${literalSecret}@db.example/app?token=${boundSecret}`,
+        `invalid input ${boundSecret}; password=${literalSecret}; statement ${sql}; connection postgresql://dbuser:${literalSecret}@db.example/app?token=${boundSecret}; options {"password":"${jsonPassword}","token":"${jsonToken}"}`,
       ),
       {
         code: '22023',
-        detail: `Bearer ${boundSecret}; invalid literal ${dollarSecret}`,
-        hint: `Do not retry statement ${sql}`,
+        detail: `Bearer ${boundSecret}; invalid literal ${dollarSecret}; authToken=${authToken}`,
+        hint: `Do not retry statement ${sql}; client_secret=${clientSecret}`,
       },
     );
 
@@ -71,17 +85,15 @@ describe('database error diagnostics', () => {
         operation: 'query',
       },
     );
-    const rendered = [
-      String(error),
-      error.stack,
-      JSON.stringify(error),
-      String(error.cause),
-      JSON.stringify(error.cause),
-    ].join('\n');
+    const rendered = renderErrorSurfaces(error);
 
     expect(rendered).not.toContain(boundSecret);
     expect(rendered).not.toContain(literalSecret);
     expect(rendered).not.toContain(dollarSecret);
+    expect(rendered).not.toContain(jsonPassword);
+    expect(rendered).not.toContain(jsonToken);
+    expect(rendered).not.toContain(authToken);
+    expect(rendered).not.toContain(clientSecret);
     expect(rendered).not.toContain(sql);
     expect(rendered).not.toContain('dbuser');
     expect(rendered).toContain('[redacted]');
@@ -112,7 +124,79 @@ describe('database error diagnostics', () => {
         ),
       ),
     ).not.toContain('secret');
+    const credentialValues = [
+      'json-password-value-744',
+      'json-token-value-744',
+      'camel-auth-value-744',
+      'client-value-744',
+    ];
+    const formatted = formatDbError(
+      new Error(
+        `driver options {"password":"${credentialValues[0]}","token":"${credentialValues[1]}"}; authToken=${credentialValues[2]}; client_secret=${credentialValues[3]}`,
+      ),
+    );
+    for (const credential of credentialValues) {
+      expect(formatted).not.toContain(credential);
+    }
+    expect(formatted).toContain('[redacted]');
     expect(formatDbError('plain driver failure')).toBe('plain driver failure');
+  });
+
+  it('redacts numeric values echoed by a real DuckDB diagnostic', async () => {
+    const numericSecret = 424_242;
+    const db = await getDatabase({
+      type: 'duckdb',
+      url: ':memory:',
+      autoRegisterJSON: false,
+    });
+    let caught: unknown;
+
+    try {
+      await db.query('SELECT CAST(? AS TINYINT) AS value', numericSecret);
+    } catch (error) {
+      caught = error;
+    } finally {
+      await db.close?.();
+    }
+
+    expect(caught).toBeInstanceOf(DatabaseError);
+    const error = caught as DatabaseError;
+    expect(renderErrorSurfaces(error)).not.toContain(String(numericSecret));
+    expect(error.message).toContain('out of range');
+    expect(error.context).toMatchObject({
+      sql: '[redacted]',
+      args: '[redacted]',
+    });
+  });
+
+  it('redacts generated schema SQL echoed by a real DuckDB diagnostic', async () => {
+    const defaultSecret = 'alter-default-value-issue-744';
+    const db = await getDatabase({
+      type: 'duckdb',
+      url: ':memory:',
+      autoRegisterJSON: false,
+    });
+    let caught: unknown;
+
+    try {
+      await db.query('CREATE TABLE issue_744_alter (id INTEGER)');
+      await db.alterTable?.addColumn('issue_744_alter', {
+        name: 'payload',
+        type: 'VARCHAR',
+        defaultValue: defaultSecret,
+        check: 'BROKEN ???',
+      });
+    } catch (error) {
+      caught = error;
+    } finally {
+      await db.close?.();
+    }
+
+    expect(caught).toBeInstanceOf(DatabaseError);
+    const error = caught as DatabaseError;
+    expect(renderErrorSurfaces(error)).not.toContain(defaultSecret);
+    expect(error.message).toContain('Parser Error');
+    expect(error.context?.sql).toBe('[redacted]');
   });
 
   describe.each([

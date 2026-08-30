@@ -49,7 +49,7 @@ const CREDENTIAL_CONTEXT_KEY =
 const DATABASE_URL =
   /\b(?:https?|libsql|postgres|postgresql):\/\/[^\s"'`<>()]+/giu;
 const CREDENTIAL_ASSIGNMENT =
-  /\b(password|passwd|pwd|secret|token|api[-_ ]?key|authorization|credential)(\s*[:=]\s*)(?:"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[^\s,;]+)/giu;
+  /(?<![\p{L}\p{N}_-])(["']?(?:password|passwd|pwd|secret|token|api[-_ ]?key|authorization|credential|auth(?:entication)?(?:[-_ ]?(?:token|key|secret))?|client[-_ ]?(?:secret|token)|access[-_ ]?token|refresh[-_ ]?token)["']?\s*[:=]\s*)(?:"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[^\s,;}\]]+)/giu;
 const BEARER_CREDENTIAL = /\bbearer\s+[^\s,;]+/giu;
 
 function toDriverError(error: unknown): DriverError {
@@ -90,7 +90,7 @@ function redactDatabaseErrorText(
 ): string {
   let redacted = value
     .replace(DATABASE_URL, redactUrl)
-    .replace(CREDENTIAL_ASSIGNMENT, '$1$2[redacted]')
+    .replace(CREDENTIAL_ASSIGNMENT, '$1[redacted]')
     .replace(BEARER_CREDENTIAL, 'Bearer [redacted]');
 
   for (const secret of [...new Set(knownSecrets)].sort(
@@ -111,10 +111,45 @@ function collectSensitiveValues(
     if (value) output.add(value);
     return;
   }
+  if (
+    typeof value === 'number' ||
+    typeof value === 'bigint' ||
+    typeof value === 'boolean'
+  ) {
+    output.add(String(value));
+    return;
+  }
   if (!value || typeof value !== 'object' || seen.has(value)) return;
   seen.add(value);
 
-  if (ArrayBuffer.isView(value)) return;
+  if (value instanceof Date) {
+    output.add(value.toISOString());
+    return;
+  }
+
+  if (ArrayBuffer.isView(value)) {
+    const bytes = new Uint8Array(
+      value.buffer,
+      value.byteOffset,
+      value.byteLength,
+    );
+    if (bytes.length > 0) {
+      output.add([...bytes].join(','));
+      output.add(
+        [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join(''),
+      );
+    }
+    return;
+  }
+
+  try {
+    const serialized = JSON.stringify(value);
+    if (serialized && serialized !== '{}' && serialized !== '[]') {
+      output.add(serialized);
+    }
+  } catch {
+    // Cyclic bind values are still traversed below.
+  }
 
   if (Array.isArray(value)) {
     for (const entry of value) collectSensitiveValues(entry, output, seen);
