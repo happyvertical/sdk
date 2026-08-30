@@ -1804,6 +1804,32 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
+  it('stops the queue deadline after callback and manual transactions acquire the connection', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+      transactionQueueTimeout: 30,
+    });
+    await db.query('CREATE TABLE acquired_deadline (id INTEGER PRIMARY KEY)');
+
+    await txOf(db)(async (tx) => {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      await tx.insert('acquired_deadline', { id: 1 });
+    });
+
+    const manual = await db.beginTransaction?.();
+    if (!manual) throw new Error('beginTransaction unavailable');
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    await manual.insert('acquired_deadline', { id: 2 });
+    await manual.commit();
+
+    expect(await db.count('acquired_deadline')).toBe(2);
+    await db.close?.();
+  });
+
   it('uses connection-before-key ordering for nullable upserts outside and inside a transaction', async () => {
     const root = await makeTempRoot();
     const db = await getDatabase({

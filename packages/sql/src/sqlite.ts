@@ -2408,6 +2408,14 @@ async function createDatabase(
             release();
             return deadline;
           }
+          // transactionQueueTimeout bounds only queue acquisition. Once this
+          // invocation owns the connection, its callback/handle lifetime is
+          // governed by the caller and must not be rejected by the old wait
+          // deadline while it is actively doing work.
+          if (timer) {
+            clearTimeout(timer);
+            timer = undefined;
+          }
           return work(Promise.resolve(release));
         } catch (error) {
           // A deadline can win while acquire() remains queued. Give that future
