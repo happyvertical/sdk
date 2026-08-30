@@ -1,5 +1,13 @@
 # @happyvertical/sql
 
+## 0.88.1
+
+### Patch Changes
+
+- 7cad57d: Fix PostgreSQL schema synchronization so quoted named table constraints are not
+  mistaken for missing columns.
+  - @happyvertical/utils@0.88.1
+
 ## 0.88.0
 
 ### Patch Changes
