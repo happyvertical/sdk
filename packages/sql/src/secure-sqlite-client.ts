@@ -570,15 +570,17 @@ export function toPublicRowCount(value: number | bigint): number {
 }
 
 /**
- * node:sqlite treats `$1` as a named parameter and therefore will not bind it
- * from the positional argument list used by the existing LibSQL-compatible
- * adapter. SQLite's equivalent `?1` form is positional. Translate only tokens
- * in executable SQL, leaving quoted text, identifiers, and comments untouched.
+ * node:sqlite does not bind named `$...` parameters from the positional array
+ * used by the existing LibSQL adapter. Translate executable parameters to
+ * SQLite numeric slots while preserving SQLite's first-occurrence allocation
+ * and reuse rules. Quoted text, identifiers, and comments remain untouched.
  */
 function normalizeNodeSqlitePlaceholders(sql: string): string {
   let normalized = '';
   let index = 0;
   let quote: "'" | '"' | '`' | ']' | undefined;
+  let largestParameterIndex = 0;
+  const namedParameterIndexes = new Map<string, number>();
 
   while (index < sql.length) {
     const char = sql[index];
@@ -621,14 +623,38 @@ function normalizeNodeSqlitePlaceholders(sql: string): string {
       continue;
     }
 
+    if (char === '?') {
+      let end = index + 1;
+      while (/[0-9]/.test(sql[end] ?? '')) end += 1;
+      if (end > index + 1) {
+        largestParameterIndex = Math.max(
+          largestParameterIndex,
+          Number(sql.slice(index + 1, end)),
+        );
+        normalized += sql.slice(index, end);
+      } else {
+        largestParameterIndex += 1;
+        normalized += `?${largestParameterIndex}`;
+      }
+      index = end;
+      continue;
+    }
+
     if (
       char === '$' &&
-      /[0-9]/.test(next ?? '') &&
+      /[A-Za-z0-9_]/.test(next ?? '') &&
       !/[A-Za-z0-9_$]/.test(sql[index - 1] ?? '')
     ) {
       let end = index + 2;
-      while (/[0-9]/.test(sql[end] ?? '')) end += 1;
-      normalized += `?${sql.slice(index + 1, end)}`;
+      while (/[A-Za-z0-9_]/.test(sql[end] ?? '')) end += 1;
+      const token = sql.slice(index, end);
+      let parameterIndex = namedParameterIndexes.get(token);
+      if (parameterIndex === undefined) {
+        largestParameterIndex += 1;
+        parameterIndex = largestParameterIndex;
+        namedParameterIndexes.set(token, parameterIndex);
+      }
+      normalized += `?${parameterIndex}`;
       index = end;
       continue;
     }

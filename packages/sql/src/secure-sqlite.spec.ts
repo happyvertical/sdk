@@ -1582,6 +1582,53 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
+  it('rolls back detached failures thrown by fulfillment handlers', async () => {
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: ':memory:',
+      cache: false,
+    });
+    await db.query('CREATE TABLE fulfilled_failure (id INTEGER PRIMARY KEY)');
+    const failAfterSuccess = () => {
+      throw new Error('detached fulfillment failed');
+    };
+
+    await expect(
+      txOf(db)(async (tx) => {
+        void tx.insert('fulfilled_failure', { id: 1 }).then(failAfterSuccess);
+      }),
+    ).rejects.toThrow('detached fulfillment failed');
+    expect(await db.count('fulfilled_failure')).toBe(0);
+
+    const manual = await db.beginTransaction?.();
+    if (!manual) throw new Error('beginTransaction unavailable');
+    void manual.insert('fulfilled_failure', { id: 2 }).then(failAfterSuccess);
+    await expect(manual.commit()).rejects.toThrow(
+      'detached fulfillment failed',
+    );
+    expect(await db.count('fulfilled_failure')).toBe(0);
+
+    await expect(
+      txOf(db)(async (outer) => {
+        await txOf(outer)(async (inner) => {
+          void inner
+            .insert('fulfilled_failure', { id: 3 })
+            .finally(failAfterSuccess);
+        });
+      }),
+    ).rejects.toThrow('detached fulfillment failed');
+    expect(await db.count('fulfilled_failure')).toBe(0);
+
+    await txOf(db)(async (tx) => {
+      void tx
+        .insert('fulfilled_failure', { id: 4 })
+        .then(failAfterSuccess)
+        .catch(() => undefined);
+    });
+    expect(await db.count('fulfilled_failure')).toBe(1);
+    await db.close?.();
+  });
+
   it('recognizes failure recovery through assimilated Promise chains', async () => {
     const root = await makeTempRoot();
     const db = await getDatabase({
@@ -1713,6 +1760,39 @@ describe('secure SQLite file acquisition', () => {
 
     expect(await db.count('promise_churn')).toBe(2);
     await db.close?.();
+  });
+
+  it('preserves already-caught await recovery during later promise churn', async () => {
+    const root = await makeTempRoot();
+    const options = [
+      { type: 'sqlite' as const, url: ':memory:', cache: false },
+      {
+        type: 'sqlite' as const,
+        url: join(root, 'post-catch-churn.db'),
+        secureFile,
+        cache: false,
+      },
+    ];
+    for (const option of options) {
+      const db = await getDatabase(option);
+      await db.query('CREATE TABLE post_catch_churn (id INTEGER PRIMARY KEY)');
+      await txOf(db)(async (tx) => {
+        await tx.insert('post_catch_churn', { id: 1 });
+        try {
+          await tx.insert('post_catch_churn', { id: 1 });
+        } catch {
+          // Intentionally recovered before unrelated process Promise churn.
+        }
+        for (let index = 0; index < 10_000; index += 1) {
+          void Promise.resolve(index);
+        }
+        await tx.insert('post_catch_churn', { id: 2 });
+      });
+      expect(
+        (await db.query('SELECT id FROM post_catch_churn ORDER BY id')).rows,
+      ).toEqual([{ id: 1 }, { id: 2 }]);
+      await db.close?.();
+    }
   });
 
   it('does not suppress an unrelated unhandled rejection while observing native transfers', async () => {
@@ -1888,6 +1968,45 @@ describe('secure SQLite file acquisition', () => {
         process.execArgv.lastIndexOf('--unhandled-rejections=strict'),
         1,
       );
+      process.removeAllListeners('unhandledRejection');
+      for (const listener of previousUnhandled) {
+        process.on('unhandledRejection', listener);
+      }
+      await db.close?.();
+    }
+  });
+
+  it('preserves the unhandled-rejection uncaught-exception origin', async () => {
+    const previousUnhandled = process.listeners('unhandledRejection');
+    process.removeAllListeners('unhandledRejection');
+    const origins: string[] = [];
+    const recordUncaught = (_error: Error, origin: string) => {
+      origins.push(origin);
+    };
+    process.on('uncaughtException', recordUncaught);
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: ':memory:',
+      cache: false,
+    });
+    await db.query('CREATE TABLE origin_failure (id INTEGER PRIMARY KEY)');
+    const tx = await db.beginTransaction?.();
+    if (!tx) throw new Error('beginTransaction unavailable');
+    try {
+      await tx.insert('origin_failure', { id: 1 });
+      try {
+        await tx.insert('origin_failure', { id: 1 });
+      } catch {
+        // Keep native-transfer observation active until transaction drain.
+      }
+      void Promise.reject(new Error('origin-unrelated'));
+      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(origins).toEqual(['unhandledRejection']);
+      await tx.commit();
+    } finally {
+      await tx.rollback().catch(() => undefined);
+      process.off('uncaughtException', recordUncaught);
       process.removeAllListeners('unhandledRejection');
       for (const listener of previousUnhandled) {
         process.on('unhandledRejection', listener);
@@ -2411,6 +2530,39 @@ describe('secure SQLite file acquisition', () => {
       ).rows,
     ).toEqual([{ literal: '$1', id: 'one' }]);
     await db.close?.();
+  });
+
+  it('preserves LibSQL positional binding for named and mixed placeholders', async () => {
+    const root = await makeTempRoot();
+    const defaultDb = await getDatabase({
+      type: 'sqlite',
+      url: ':memory:',
+      cache: false,
+    });
+    const secureDb = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'placeholder-parity.db'),
+      secureFile,
+      cache: false,
+    });
+    const cases = [
+      { sql: 'SELECT $2 AS first, $1 AS second', args: [11, 22] },
+      { sql: 'SELECT ? AS first, $1 AS second', args: [11, 22] },
+      { sql: 'SELECT $1 AS first, $1 AS second', args: [11] },
+      { sql: 'SELECT $1abc AS value', args: [11] },
+      {
+        sql: "SELECT '$1' AS literal, $2 AS first /* $3 */, $1 AS second",
+        args: [11, 22],
+      },
+    ];
+
+    for (const testCase of cases) {
+      const expected = await defaultDb.query(testCase.sql, testCase.args);
+      await expect(
+        secureDb.query(testCase.sql, testCase.args),
+      ).resolves.toMatchObject({ rows: expected.rows });
+    }
+    await Promise.all([defaultDb.close?.(), secureDb.close?.()]);
   });
 
   it('serializes concurrent nested callback transactions and drains failures', async () => {
