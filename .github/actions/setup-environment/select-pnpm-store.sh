@@ -6,12 +6,10 @@
 # The persistent branch keys on PNPM_STORE_DIR being exported, never on the
 # runner's name. A provider that offers a node-local store advertises it by
 # exporting that variable; one that does not, does not. Runner names are
-# provider-specific and change without notice: this branch previously required
-# `RUNNER_NAME` to match `arc-happyvertical-node-*`, and the runner-pool
-# consolidation renamed every runner serving that label, which made the branch
-# unreachable and silently dropped every self-hosted job onto a cold per-job
-# store. The runner contract sets `provider_specific_targets: forbid` for the
-# same reason.
+# provider-specific and change without notice: a prior name-based branch became
+# unreachable after runner-pool consolidation, silently dropping every
+# self-hosted job onto a cold per-job store. The runner contract sets
+# `provider_specific_targets: forbid` for the same reason.
 #
 # Extracted from the composite action so `scripts/select-pnpm-store.test.mjs`
 # can exercise the decision table directly — the hardlink assertion in

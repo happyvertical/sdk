@@ -1,4 +1,4 @@
-name: Brokered Runner Smoke Test
+name: GitHub-hosted Runner Smoke Test
 
 on:
   workflow_dispatch:
@@ -9,8 +9,8 @@ permissions:
 
 jobs:
   smoke:
-    name: Brokered Runner Validation
-    runs-on: arc-happyvertical
+    name: GitHub-hosted Runner Validation
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
       postgres:
@@ -34,42 +34,36 @@ jobs:
         with:
           github-packages-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Verify brokered runner contract
+      - name: Verify GitHub-hosted runner setup
         run: |
           set -euo pipefail
+          test "${RUNNER_ENVIRONMENT:-}" = 'github-hosted'
           test "$(node --version)" = 'v24.18.0'
           test "$(pnpm --version)" = '11.13.0'
           command -v psql
 
-      - name: Verify persistent pnpm store selection
+      - name: Verify Actions-backed pnpm cache selection
         env:
           STORE_PATH: ${{ steps.setup.outputs.store-path }}
           USE_ACTIONS_CACHE: ${{ steps.setup.outputs.use-actions-cache }}
         run: |
           set -euo pipefail
-          test -n "$PNPM_STORE_DIR"
-          test "$USE_ACTIONS_CACHE" = 'false'
+          test "$USE_ACTIONS_CACHE" = 'true'
+          test -z "${PNPM_STORE_DIR:-}"
 
           # `pnpm store path` appends a store-version segment (.../v11), so the
-          # node-local root is a prefix of the resolved path, not equal to it.
-          # A job that fell through to the per-job compatibility store resolves
-          # under $RUNNER_TEMP instead and fails here. pnpm builds the resolved
-          # path with path.join, which collapses a trailing slash, so strip one
-          # first or the glob would need a literal `//` and never match.
-          store_root="${PNPM_STORE_DIR%/}"
+          # configured hosted cache root is a prefix of the resolved path.
+          store_root="${HOME%/}/.local/share/pnpm/store"
           case "$STORE_PATH" in
             "$store_root" | "$store_root"/*) ;;
             *)
-              echo "::error::pnpm resolved $STORE_PATH, outside the node-local persistent store $PNPM_STORE_DIR"
+              echo "::error::pnpm resolved $STORE_PATH, outside the hosted Actions cache root $store_root"
               exit 1
               ;;
           esac
-          echo "Verified persistent store selection: $STORE_PATH"
+          echo "Verified Actions-backed store selection: $STORE_PATH"
 
-      # Proves the store and workspace share a filesystem so pnpm can hardlink.
-      # This cannot prove the store persisted: pnpm hardlinks into node_modules
-      # on every install, including from a store it just filled from scratch.
-      # The selection check above and the store-reuse job below cover that.
+      # Proves the hosted cache's restored store and workspace can hardlink.
       - name: Verify pnpm hardlink layout
         run: |
           set -euo pipefail
@@ -86,22 +80,11 @@ jobs:
           CI_POSTGRES_BASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
 
   store-reuse:
-    name: Brokered Runner Store Reuse
+    name: GitHub-hosted Actions Cache
     needs: smoke
-    runs-on: arc-happyvertical
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Measure store warmth before install
-        id: warmth
-        run: |
-          set -euo pipefail
-          test -n "$PNPM_STORE_DIR"
-          if [ -n "$(find "$PNPM_STORE_DIR" -type f -print -quit 2>/dev/null)" ]; then
-            echo 'state=warm' >> "$GITHUB_OUTPUT"
-          else
-            echo 'state=cold' >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Checkout repository
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -111,34 +94,20 @@ jobs:
         with:
           github-packages-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Report cross-job store reuse
+      - name: Report Actions cache restore
         env:
-          STORE_PATH: ${{ steps.setup.outputs.store-path }}
+          CACHE_HIT: ${{ steps.setup.outputs.pnpm-cache-hit }}
           USE_ACTIONS_CACHE: ${{ steps.setup.outputs.use-actions-cache }}
-          WARMTH: ${{ steps.warmth.outputs.state }}
         run: |
           set -euo pipefail
+          test "$USE_ACTIONS_CACHE" = 'true'
 
-          # Selection is deterministic and gated, exactly as in the first job.
-          test "$USE_ACTIONS_CACHE" = 'false'
-          store_root="${PNPM_STORE_DIR%/}"
-          case "$STORE_PATH" in
-            "$store_root" | "$store_root"/*) ;;
-            *)
-              echo "::error::pnpm resolved $STORE_PATH, outside the node-local persistent store $PNPM_STORE_DIR"
-              exit 1
-              ;;
-          esac
-
-          # Warmth is reported, not gated. The broker spans several nodes and
-          # hands out ephemeral JIT identities, so this job may legitimately
-          # land on a node the first job never touched. A cold result there is
-          # scheduling, not regression; a warm result is direct evidence that
-          # the store survives across jobs.
-          if [ "$WARMTH" = 'warm' ]; then
-            summary="Store was warm before install on $RUNNER_NAME: reuse confirmed across jobs."
+          # A cache miss is expected on a new key. The workflow still verifies
+          # that the composite action selected the hosted cache strategy.
+          if [ "$CACHE_HIT" = 'true' ]; then
+            summary='pnpm store restored from the GitHub Actions cache.'
           else
-            summary="Store was cold before install on $RUNNER_NAME: this job landed on a node the first job did not use."
+            summary='pnpm store cache miss; GitHub Actions will populate it after this job.'
             echo "::notice::$summary"
           fi
           echo "$summary" >> "$GITHUB_STEP_SUMMARY"
