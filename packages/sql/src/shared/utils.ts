@@ -106,12 +106,34 @@ function redactUrl(value: string): string {
 }
 
 function redactKnownValue(input: string, value: string): string {
-  if (!value) return input;
-  const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const bounded = /^[\p{L}\p{N}_-]+$/u.test(value)
-    ? `(?<![\\p{L}\\p{N}_-])${escaped}(?![\\p{L}\\p{N}_-])`
-    : escaped;
-  return input.replace(new RegExp(bounded, 'gu'), '[redacted]');
+  if (!value || !input.includes(value)) return input;
+  if (!/^[\p{L}\p{N}_-]+$/u.test(value)) {
+    return input.split(value).join('[redacted]');
+  }
+
+  const identifierCharacter = /^[\p{L}\p{N}_-]$/u;
+  let cursor = 0;
+  let redacted = '';
+  let match = input.indexOf(value);
+  while (match !== -1) {
+    const end = match + value.length;
+    const before = [...input.slice(Math.max(0, match - 2), match)].at(-1);
+    const afterCodePoint = input.codePointAt(end);
+    const after =
+      afterCodePoint === undefined
+        ? undefined
+        : String.fromCodePoint(afterCodePoint);
+    const bounded =
+      (!before || !identifierCharacter.test(before)) &&
+      (!after || !identifierCharacter.test(after));
+
+    redacted += input.slice(cursor, match);
+    redacted += bounded ? '[redacted]' : value;
+    cursor = end;
+    match = input.indexOf(value, cursor);
+  }
+
+  return redacted + input.slice(cursor);
 }
 
 function redactDatabaseErrorText(

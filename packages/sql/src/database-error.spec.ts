@@ -215,6 +215,21 @@ describe('database error diagnostics', () => {
     expect(rendered).toContain('Key (payload)=([redacted]) already exists');
   });
 
+  it('redacts oversized bound values without compiling them as regexes', () => {
+    const oversizedSecret = 'x'.repeat(100_000);
+    const error = wrapDatabaseError(
+      'Failed to execute raw query',
+      new Error(`invalid input ${oversizedSecret}`),
+      { values: [oversizedSecret] },
+    );
+
+    expect(error).toBeInstanceOf(DatabaseError);
+    expect(error.message).toBe(
+      'Failed to execute raw query: invalid input [redacted]',
+    );
+    expect(JSON.stringify(error)).not.toContain(oversizedSecret);
+  });
+
   it('redacts numeric values echoed by a real DuckDB diagnostic', async () => {
     const numericSecret = 424_242;
     const db = await getDatabase({
