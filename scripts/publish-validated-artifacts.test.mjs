@@ -34,5 +34,24 @@ test('fails final verification when a published version remains missing', () => 
   assert.throws(() => publishRelease({ releaseVersion: '0.80.0', packages: [release().packages[0]] }, {
     runNpm: (args) => (args[0] === 'publish' ? '' : null),
     log: () => {},
+    maxAttempts: 1,
   }), /Registry verification failed/);
+});
+
+test('waits for eventual npm registry visibility after publishing', () => {
+  let bLookups = 0;
+  const waits = [];
+  publishRelease(release(), {
+    runNpm: (args) => {
+      if (args[0] === 'publish') return '';
+      if (args[1] === '@happyvertical/a@0.80.0') return '0.80.0';
+      bLookups += 1;
+      return bLookups >= 3 ? '0.80.0' : null;
+    },
+    log: () => {},
+    wait: (ms) => waits.push(ms),
+    maxAttempts: 3,
+    retryDelayMs: 25,
+  });
+  assert.deepEqual(waits, [25]);
 });
