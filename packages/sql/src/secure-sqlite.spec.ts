@@ -460,6 +460,28 @@ describe('secure SQLite file acquisition', () => {
     });
   });
 
+  it('preserves legacy LibSQL SQLite pragma and quoted-literal defaults', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'legacy-defaults.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE parents (id INTEGER PRIMARY KEY)');
+    await db.query(
+      'CREATE TABLE children (id INTEGER PRIMARY KEY, parent_id INTEGER REFERENCES parents(id))',
+    );
+
+    await expect(
+      db.query('INSERT INTO children (id, parent_id) VALUES (1, 999)'),
+    ).resolves.toMatchObject({ rowCount: 1 });
+    expect((await db.query('SELECT "legacy literal" AS value')).rows).toEqual([
+      { value: 'legacy literal' },
+    ]);
+    await db.close?.();
+  });
+
   it('creates a new database leaf with restrictive permissions under a permissive umask', async () => {
     const root = await makeTempRoot();
     const databasePath = join(root, 'permissive-umask.db');
@@ -1640,6 +1662,56 @@ describe('secure SQLite file acquisition', () => {
       }),
     ).rejects.toThrow();
     expect(await db.count('detached_native_transfer')).toBe(0);
+
+    const applicationUnhandled = () => {};
+    process.on('unhandledRejection', applicationUnhandled);
+    try {
+      await expect(
+        txOf(db)(async (tx) => {
+          await tx.insert('detached_native_transfer', { id: 5 });
+          void Promise.any([tx.insert('detached_native_transfer', { id: 5 })]);
+        }),
+      ).rejects.toThrow();
+      expect(await db.count('detached_native_transfer')).toBe(0);
+
+      await expect(
+        txOf(db)(async (tx) => {
+          await tx.insert('detached_native_transfer', { id: 6 });
+          void Promise.resolve(
+            tx.insert('detached_native_transfer', { id: 6 }),
+          ).catch(() => {
+            throw new Error('mapped native failure');
+          });
+        }),
+      ).rejects.toThrow();
+      expect(await db.count('detached_native_transfer')).toBe(0);
+    } finally {
+      process.off('unhandledRejection', applicationUnhandled);
+    }
+    await db.close?.();
+  });
+
+  it('preserves caught await recovery during unrelated promise churn', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'promise-churn.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE promise_churn (id INTEGER PRIMARY KEY)');
+
+    await txOf(db)(async (tx) => {
+      await tx.insert('promise_churn', { id: 1 });
+      const duplicate = tx.insert('promise_churn', { id: 1 });
+      for (let index = 0; index < 9_000; index += 1) {
+        void Promise.resolve(index);
+      }
+      await expect(duplicate).rejects.toThrow();
+      await tx.insert('promise_churn', { id: 2 });
+    });
+
+    expect(await db.count('promise_churn')).toBe(2);
     await db.close?.();
   });
 
@@ -1768,6 +1840,52 @@ describe('secure SQLite file acquisition', () => {
       process.off('warning', recordWarning);
       process.execArgv.splice(
         process.execArgv.lastIndexOf('--unhandled-rejections=warn'),
+        1,
+      );
+      process.removeAllListeners('unhandledRejection');
+      for (const listener of previousUnhandled) {
+        process.on('unhandledRejection', listener);
+      }
+      await db.close?.();
+    }
+  });
+
+  it('leaves strict-mode fatal handling to Node', async () => {
+    const previousUnhandled = process.listeners('unhandledRejection');
+    process.removeAllListeners('unhandledRejection');
+    process.execArgv.push('--unhandled-rejections=strict');
+    let captured: Error | undefined;
+    process.setUncaughtExceptionCaptureCallback((error) => {
+      captured = error;
+    });
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'strict-rejection.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE failures (id INTEGER PRIMARY KEY)');
+    const tx = await db.beginTransaction?.();
+    if (!tx) throw new Error('beginTransaction unavailable');
+    try {
+      await tx.insert('failures', { id: 1 });
+      try {
+        await tx.insert('failures', { id: 1 });
+      } catch {
+        // Keep the observer active while checking that it does not synthesize
+        // a second strict-mode uncaught exception.
+      }
+      void Promise.reject(new Error('strict-mode-unrelated'));
+      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(captured).toBeUndefined();
+      await tx.commit();
+    } finally {
+      await tx.rollback().catch(() => undefined);
+      process.setUncaughtExceptionCaptureCallback(null);
+      process.execArgv.splice(
+        process.execArgv.lastIndexOf('--unhandled-rejections=strict'),
         1,
       );
       process.removeAllListeners('unhandledRejection');
@@ -3143,6 +3261,28 @@ describe('secure SQLite file acquisition', () => {
       { id: 1 },
     ]);
     await reopened.close?.();
+  });
+
+  it('keeps a cached adapter when a guarded close is rejected', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'rejected-close.db');
+    const options = {
+      type: 'sqlite' as const,
+      url: databasePath,
+      secureFile,
+      dbid: databasePath,
+    };
+    const first = await getDatabase(options);
+    await first.query('CREATE TABLE rejected_close (id INTEGER PRIMARY KEY)');
+
+    await txOf(first)(async () => {
+      await expect(first.close?.()).rejects.toThrow(
+        'Cannot close the SQLite database',
+      );
+    });
+
+    expect(await getDatabase(options)).toBe(first);
+    await first.close?.();
   });
 
   it('fails closed on unsupported platforms before loading the driver', async () => {

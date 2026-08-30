@@ -327,6 +327,13 @@ detached rejected adoption fails closed and rolls back. `Promise.allSettled`
 intentionally consumes each rejection, so using it permits the transaction to
 commit after the caller inspects those results.
 
+While transaction-scoped Promise observations are active, SQLite temporarily
+enables a process-wide Node Promise lifecycle hook and an
+`unhandledRejection` observer. Both are removed when the accepted work drains;
+another reason to always end a manual `beginTransaction()` handle in `finally`
+is that an abandoned handle can retain this bookkeeping as well as its database
+connection.
+
 ### Identifiers
 
 Table and column names are interpolated into SQL rather than bound as

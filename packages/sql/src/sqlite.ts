@@ -228,6 +228,7 @@ interface PromiseObservation {
   handlers: Set<Promise<void>>;
   nativeTransfers: Set<Promise<unknown>>;
   unhandledNativeTransfers: Set<Promise<unknown>>;
+  nativeCorrelationIds: Set<number>;
   nativeTrackingActive?: boolean;
   nativeCorrelationIncomplete?: boolean;
   suppressIntrinsicRecovery?: number;
@@ -238,7 +239,6 @@ const trackedPromiseObservations = new Set<PromiseObservation>();
 const nativePromiseResources = new Map<number, WeakRef<Promise<unknown>>>();
 const nativePromiseTriggers = new Map<number, number>();
 const nativePromiseIds = new WeakMap<Promise<unknown>, number>();
-const nativePromiseReasons = new WeakMap<Promise<unknown>, unknown>();
 const nativePromiseWatermarks = new WeakMap<Promise<unknown>, number>();
 let latestNativePromiseId = 0;
 let nativePromiseTrackingUsers = 0;
@@ -259,7 +259,9 @@ const nativePromiseHook = createHook({
         nativePromiseResources.delete(oldest);
         nativePromiseTriggers.delete(oldest);
         for (const observation of trackedPromiseObservations) {
-          observation.nativeCorrelationIncomplete = true;
+          if (observation.nativeCorrelationIds.has(oldest)) {
+            observation.nativeCorrelationIncomplete = true;
+          }
         }
       }
     }
@@ -330,10 +332,7 @@ const recordUnhandledNativeTransfer = (
   let matched = false;
   for (const observation of activeNativeTransferObservations) {
     for (const transferPromise of observation.nativeTransfers) {
-      if (
-        Object.is(nativePromiseReasons.get(transferPromise), reason) &&
-        promisesAreRelated(rejectedPromise, transferPromise)
-      ) {
+      if (promisesAreRelated(rejectedPromise, transferPromise)) {
         observation.unhandledNativeTransfers.add(transferPromise);
         matched = true;
       }
@@ -345,7 +344,7 @@ const recordUnhandledNativeTransfer = (
   // default fail-fast outcome outside this event dispatch.
   if (!matched && process.listenerCount('unhandledRejection') === 1) {
     const mode = configuredUnhandledRejectionMode();
-    if (mode === 'none') return;
+    if (mode === 'none' || mode === 'strict') return;
     // Node emits its own warnings in `warn` mode even when a listener exists.
     if (mode === 'warn') return;
     if (mode === 'warn-with-error-code') {
@@ -387,10 +386,7 @@ function releaseNativePromiseTracking(observation: PromiseObservation): void {
   }
 }
 
-function recordNativePromiseTransfer(
-  observation: PromiseObservation,
-  reason: unknown,
-): void {
+function recordNativePromiseTransfer(observation: PromiseObservation): void {
   const executionId = executionAsyncId();
   const adoptionId = nativePromiseTriggers.get(executionId) ?? executionId;
   const adoptingPromise = nativePromiseResources.get(adoptionId)?.deref();
@@ -398,8 +394,14 @@ function recordNativePromiseTransfer(
   // unobserved so transaction draining fails closed.
   if (!adoptingPromise) return;
   observation.nativeTransfers.add(adoptingPromise);
-  nativePromiseReasons.set(adoptingPromise, reason);
   nativePromiseWatermarks.set(adoptingPromise, latestNativePromiseId);
+  let correlationId = adoptionId;
+  observation.nativeCorrelationIds.add(correlationId);
+  while (nativePromiseTriggers.has(correlationId)) {
+    correlationId = nativePromiseTriggers.get(correlationId) ?? 0;
+    if (correlationId === 0) break;
+    observation.nativeCorrelationIds.add(correlationId);
+  }
   activeNativeTransferObservations.add(observation);
   if (!nativeTransferListenerInstalled) {
     process.prependListener(
@@ -460,8 +462,7 @@ function isNativePromiseAssimilation(
   }): boolean =>
     handler.name === '' &&
     handler.length === 1 &&
-    Function.prototype.toString.call(handler) ===
-      'function () { [native code] }';
+    /\{\s*\[native code\]\s*\}/.test(Function.prototype.toString.call(handler));
   return (
     typeof onFulfilled === 'function' &&
     typeof onRejected === 'function' &&
@@ -602,7 +603,7 @@ function withRejectionObservation<T>(
                     // native Promise. If that rejection escapes an await, the
                     // enclosing transaction callback still rejects normally;
                     // if the caller catches it, this operation is recovered.
-                    recordNativePromiseTransfer(observation, reason);
+                    recordNativePromiseTransfer(observation);
                     return onRejected(reason);
                   }
                 : onRejected;
@@ -689,7 +690,7 @@ function withRejectionObservation<T>(
             }
           : transfersToNativePromise && typeof onRejected === 'function'
             ? (reason: any) => {
-                recordNativePromiseTransfer(observation, reason);
+                recordNativePromiseTransfer(observation);
                 return onRejected(reason);
               }
             : onRejected;
@@ -2018,13 +2019,7 @@ async function createDatabase(
       interface NestedScope {
         accepting: boolean;
         tail: Promise<void>;
-        children: Set<{
-          observed: boolean;
-          handlers: Set<Promise<void>>;
-          nativeTransfers: Set<Promise<unknown>>;
-          unhandledNativeTransfers: Set<Promise<unknown>>;
-          error?: unknown;
-        }>;
+        children: Set<PromiseObservation & { error?: unknown }>;
       }
       const scopeContext = new AsyncLocalStorage<NestedScope>();
       const rootScope: NestedScope = {
@@ -2179,6 +2174,7 @@ async function createDatabase(
           handlers: new Set<Promise<void>>(),
           nativeTransfers: new Set<unknown>(),
           unhandledNativeTransfers: new Set<unknown>(),
+          nativeCorrelationIds: new Set<number>(),
         } as PromiseObservation & {
           error?: unknown;
         };
@@ -2387,6 +2383,7 @@ async function createDatabase(
             handlers: new Set<Promise<void>>(),
             nativeTransfers: new Set<unknown>(),
             unhandledNativeTransfers: new Set<unknown>(),
+            nativeCorrelationIds: new Set<number>(),
           } as PromiseObservation & {
             error?: unknown;
           };

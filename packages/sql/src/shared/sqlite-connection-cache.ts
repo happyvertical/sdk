@@ -95,12 +95,12 @@ export async function getCachedSqliteDatabase(
       const originalClose = db.close?.bind(db);
       let closePromise: Promise<void> | undefined;
       db.close = async () => {
-        sqliteConnectionCache.forget(db);
         if (!closePromise) {
           closePromise = originalClose?.() ?? Promise.resolve();
         }
         try {
           await closePromise;
+          sqliteConnectionCache.forget(db);
         } catch (error) {
           closePromise = undefined;
           throw error;

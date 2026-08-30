@@ -60,6 +60,10 @@ interface NodeSqliteModule {
   // biome-ignore lint/style/useNamingConvention: mirrors node:sqlite's public API
   DatabaseSync: new (
     filename: string,
+    options?: {
+      enableForeignKeyConstraints?: boolean;
+      enableDoubleQuotedStringLiterals?: boolean;
+    },
   ) => NodeSqliteDatabase;
 }
 
@@ -1064,7 +1068,12 @@ export async function createSecureSqliteClient(
 
   let database: NodeSqliteDatabase;
   try {
-    database = new nodeSqlite.DatabaseSync(filePath);
+    database = new nodeSqlite.DatabaseSync(filePath, {
+      // Match the legacy LibSQL adapter rather than inheriting node:sqlite's
+      // intentionally stricter defaults.
+      enableForeignKeyConstraints: false,
+      enableDoubleQuotedStringLiterals: true,
+    });
   } catch (error) {
     let cleanupError: string | undefined;
     if (createdLeaf) {
