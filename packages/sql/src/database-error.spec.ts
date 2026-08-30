@@ -178,9 +178,9 @@ describe('database error diagnostics', () => {
     });
   });
 
-  it('redacts generated schema SQL echoed by a real DuckDB diagnostic', async () => {
+  it('redacts generated schema literals echoed by a real DuckDB diagnostic', async () => {
     const quotedSecret = 'alter-default-value-issue-744';
-    const numericSecret = 424_242;
+    const numericSecret = '424_242';
     const db = await getDatabase({
       type: 'duckdb',
       url: ':memory:',
@@ -206,7 +206,7 @@ describe('database error diagnostics', () => {
     const error = caught as DatabaseError;
     const rendered = renderErrorSurfaces(error);
     expect(rendered).not.toContain(quotedSecret);
-    expect(rendered).not.toContain(String(numericSecret));
+    expect(rendered).not.toContain(numericSecret);
     expect(error.message).toContain('Parser Error');
     expect(error.context?.sql).toBe('[redacted]');
   });

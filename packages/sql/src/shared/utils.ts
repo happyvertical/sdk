@@ -52,7 +52,7 @@ const CREDENTIAL_ASSIGNMENT =
   /(?<![\p{L}\p{N}_-])(["']?)([\p{L}\p{N}_.-]+(?: key)?)\1(\s*[:=]\s*)(?:"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[^\s,;}\]]+)/giu;
 const BEARER_CREDENTIAL = /\bbearer\s+[^\s,;]+/giu;
 const SQL_NUMERIC_LITERAL =
-  /(?<![\p{L}\p{N}_$])[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[-+]?\d+)?(?![\p{L}\p{N}_$])/giu;
+  /(?<![\p{L}\p{N}_$])[-+]?(?:\d(?:_?\d)*(?:\.(?:\d(?:_?\d)*)?)?|\.\d(?:_?\d)*)(?:e[-+]?\d(?:_?\d)*)?(?![\p{L}\p{N}_$])/giu;
 
 function toDriverError(error: unknown): DriverError {
   return error && (typeof error === 'object' || typeof error === 'function')
