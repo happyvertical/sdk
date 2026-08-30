@@ -234,6 +234,23 @@ interface PromiseObservation {
   nativeTrackingActive?: boolean;
   nativeCorrelationIncomplete?: boolean;
   suppressIntrinsicRecovery?: number;
+  pendingIntrinsicSpeciesReads?: Set<symbol>;
+}
+
+function recordIntrinsicSpeciesRead(observation: PromiseObservation): void {
+  const pending = observation.pendingIntrinsicSpeciesReads ?? new Set<symbol>();
+  observation.pendingIntrinsicSpeciesReads = pending;
+  const token = Symbol();
+  pending.add(token);
+  queueMicrotask(() => pending.delete(token));
+}
+
+function consumeIntrinsicSpeciesRead(observation: PromiseObservation): boolean {
+  const pending = observation.pendingIntrinsicSpeciesReads;
+  const token = pending?.values().next().value;
+  if (token === undefined) return false;
+  pending?.delete(token);
+  return true;
 }
 
 const activeNativeTransferObservations = new Set<PromiseObservation>();
@@ -666,7 +683,10 @@ function withRejectionObservation<T>(
           const speciesOwner = function transactionObservedPromiseBranch() {};
           Object.defineProperty(speciesOwner, Symbol.species, {
             configurable: true,
-            get: () => createIntrinsicDerivedPromise(branch),
+            get: () => {
+              recordIntrinsicSpeciesRead(branch);
+              return createIntrinsicDerivedPromise(branch);
+            },
           });
           Object.defineProperty(this, 'constructor', {
             configurable: true,
@@ -683,16 +703,19 @@ function withRejectionObservation<T>(
             | ((reason: any) => TResult2 | PromiseLike<TResult2>)
             | null,
         ): Promise<TResult1 | TResult2> {
-          const transfersToNativePromise = isNativePromiseAssimilation(
-            onFulfilled,
-            onRejected,
-          );
+          const followsIntrinsicSpeciesRead =
+            consumeIntrinsicSpeciesRead(branch);
+          const transfersToNativePromise =
+            !followsIntrinsicSpeciesRead &&
+            isNativePromiseAssimilation(onFulfilled, onRejected);
           if (!transfersToNativePromise) {
-            return Promise.prototype.then.call(
+            const derived = Promise.prototype.then.call(
               this,
               onFulfilled,
               onRejected,
             ) as Promise<TResult1 | TResult2>;
+            consumeIntrinsicSpeciesRead(branch);
+            return derived;
           }
 
           const handleRejected =
@@ -711,6 +734,7 @@ function withRejectionObservation<T>(
               ) as Promise<TResult1 | TResult2>,
             branch,
           );
+          consumeIntrinsicSpeciesRead(branch);
           return wrap(derived, branch);
         }
 
@@ -746,6 +770,7 @@ function withRejectionObservation<T>(
 
     class ObservedPromise extends Promise<U> {
       static get [Symbol.species](): PromiseConstructor {
+        recordIntrinsicSpeciesRead(observation);
         return createIntrinsicDerivedPromise(observation);
       }
 
@@ -766,10 +791,11 @@ function withRejectionObservation<T>(
         // enclosing callback still rejects if an await is not caught; a caught
         // await is therefore valid recovery and must not be rolled back again
         // by detached-operation draining.
-        const transfersToNativePromise = isNativePromiseAssimilation(
-          onFulfilled,
-          onRejected,
-        );
+        const followsIntrinsicSpeciesRead =
+          consumeIntrinsicSpeciesRead(observation);
+        const transfersToNativePromise =
+          !followsIntrinsicSpeciesRead &&
+          isNativePromiseAssimilation(onFulfilled, onRejected);
         const explicitlyHandlesRejection =
           typeof onRejected === 'function' && !transfersToNativePromise;
         const branch = transfersToNativePromise ? undefined : createBranch();
@@ -790,6 +816,7 @@ function withRejectionObservation<T>(
               handleRejected,
             ) as Promise<TResult1 | TResult2>,
         );
+        consumeIntrinsicSpeciesRead(observation);
         if (branch) registerBranchOutcome(derived, branch);
         return wrap(derived, branch ?? observation);
       }

@@ -1629,18 +1629,25 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
-  it('rolls back detached intrinsic fulfillment failures', async () => {
+  it('rolls back detached intrinsic fulfillment and finally failures', async () => {
     const root = await makeTempRoot();
     const modes = ['throw', 'reject'] as const;
+    const methods = ['then', 'finally'] as const;
     const attachFailure = (
       operation: Promise<unknown>,
       mode: 'throw' | 'reject',
+      method: 'then' | 'finally',
     ): void => {
-      void Promise.prototype.then.call(operation, () => {
-        const error = new Error(`detached intrinsic ${mode}`);
+      const fail = () => {
+        const error = new Error(`detached intrinsic ${method} ${mode}`);
         if (mode === 'throw') throw error;
         return Promise.reject(error);
-      });
+      };
+      if (method === 'then') {
+        void Promise.prototype.then.call(operation, fail);
+      } else {
+        void Promise.prototype.finally.call(operation, fail);
+      }
     };
 
     for (const options of [
@@ -1656,16 +1663,21 @@ describe('secure SQLite file acquisition', () => {
       await db.query(
         'CREATE TABLE intrinsic_fulfillment (id INTEGER PRIMARY KEY)',
       );
-      for (const [index, mode] of modes.entries()) {
-        await expect(
-          txOf(db)(async (tx) => {
-            attachFailure(
-              tx.insert('intrinsic_fulfillment', { id: index + 1 }),
-              mode,
-            );
-          }),
-        ).rejects.toThrow(`detached intrinsic ${mode}`);
-        expect(await db.count('intrinsic_fulfillment')).toBe(0);
+      for (const [methodIndex, method] of methods.entries()) {
+        for (const [modeIndex, mode] of modes.entries()) {
+          await expect(
+            txOf(db)(async (tx) => {
+              attachFailure(
+                tx.insert('intrinsic_fulfillment', {
+                  id: methodIndex * modes.length + modeIndex + 1,
+                }),
+                mode,
+                method,
+              );
+            }),
+          ).rejects.toThrow(`detached intrinsic ${method} ${mode}`);
+          expect(await db.count('intrinsic_fulfillment')).toBe(0);
+        }
       }
       await db.close?.();
     }
@@ -1679,29 +1691,37 @@ describe('secure SQLite file acquisition', () => {
     await db.query(
       'CREATE TABLE intrinsic_fulfillment (id INTEGER PRIMARY KEY)',
     );
-    for (const [index, mode] of modes.entries()) {
-      const manual = await db.beginTransaction?.();
-      if (!manual) throw new Error('beginTransaction unavailable');
-      attachFailure(
-        manual.insert('intrinsic_fulfillment', { id: index + 10 }),
-        mode,
-      );
-      await expect(manual.commit()).rejects.toThrow(
-        `detached intrinsic ${mode}`,
-      );
-      expect(await db.count('intrinsic_fulfillment')).toBe(0);
+    for (const [methodIndex, method] of methods.entries()) {
+      for (const [modeIndex, mode] of modes.entries()) {
+        const manual = await db.beginTransaction?.();
+        if (!manual) throw new Error('beginTransaction unavailable');
+        attachFailure(
+          manual.insert('intrinsic_fulfillment', {
+            id: methodIndex * modes.length + modeIndex + 10,
+          }),
+          mode,
+          method,
+        );
+        await expect(manual.commit()).rejects.toThrow(
+          `detached intrinsic ${method} ${mode}`,
+        );
+        expect(await db.count('intrinsic_fulfillment')).toBe(0);
 
-      await expect(
-        txOf(db)(async (outer) => {
-          await txOf(outer)(async (inner) => {
-            attachFailure(
-              inner.insert('intrinsic_fulfillment', { id: index + 20 }),
-              mode,
-            );
-          });
-        }),
-      ).rejects.toThrow(`detached intrinsic ${mode}`);
-      expect(await db.count('intrinsic_fulfillment')).toBe(0);
+        await expect(
+          txOf(db)(async (outer) => {
+            await txOf(outer)(async (inner) => {
+              attachFailure(
+                inner.insert('intrinsic_fulfillment', {
+                  id: methodIndex * modes.length + modeIndex + 20,
+                }),
+                mode,
+                method,
+              );
+            });
+          }),
+        ).rejects.toThrow(`detached intrinsic ${method} ${mode}`);
+        expect(await db.count('intrinsic_fulfillment')).toBe(0);
+      }
     }
     await db.close?.();
   });
