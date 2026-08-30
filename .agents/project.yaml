@@ -53,6 +53,6 @@
   },
   "runtime": {
     "agent_validation_workflow": ".github/workflows/on-pull-request.yml",
-    "agent_lifecycle_stage": "diagnostic"
+    "agent_lifecycle_stage": "compatibility"
   }
 }
