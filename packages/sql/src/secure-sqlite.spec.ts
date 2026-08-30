@@ -1763,6 +1763,25 @@ describe('secure SQLite file acquisition', () => {
     expect(closeCalls).toBe(1);
   });
 
+  it('does not poison the client for a concurrent duplicate terminal call', async () => {
+    const root = await makeTempRoot();
+    const client = await createTrustedClient(join(root, 'duplicate-end.db'));
+    await client.execute('CREATE TABLE duplicate_end (id INTEGER PRIMARY KEY)');
+    const transaction = await client.transaction();
+    await transaction.execute('INSERT INTO duplicate_end (id) VALUES (1)');
+
+    const first = transaction.rollback();
+    const duplicate = transaction.rollback();
+    await expect(first).resolves.toBeUndefined();
+    await expect(duplicate).rejects.toThrow('transaction is already ending');
+
+    await client.execute('INSERT INTO duplicate_end (id) VALUES (2)');
+    expect(
+      await client.execute('SELECT id FROM duplicate_end ORDER BY id'),
+    ).toMatchObject({ rows: [{ id: 2 }] });
+    await client.close();
+  });
+
   it('normalizes boolean parameters across public SQLite operations', async () => {
     const root = await makeTempRoot();
     const db = await getDatabase({

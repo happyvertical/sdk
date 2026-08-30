@@ -781,6 +781,7 @@ function createClient(database: NodeSqliteDatabase): SecureSqliteClient {
         throw error;
       }
       let transactionClosed = false;
+      let transactionEnding = false;
       let reservationReleased = false;
       let automaticRollbackError: DatabaseError | undefined;
 
@@ -838,6 +839,12 @@ function createClient(database: NodeSqliteDatabase): SecureSqliteClient {
       };
 
       const end = async (sql: 'COMMIT' | 'ROLLBACK'): Promise<void> => {
+        if (transactionEnding) {
+          throw new DatabaseError(
+            'Secure SQLite transaction is already ending',
+            {},
+          );
+        }
         if (transactionClosed) {
           await releaseReservation();
           if (sql === 'COMMIT' && automaticRollbackError) {
@@ -845,11 +852,16 @@ function createClient(database: NodeSqliteDatabase): SecureSqliteClient {
           }
           return;
         }
+        transactionEnding = true;
         if (sql === 'COMMIT') {
-          await enqueue(sql, owner);
-          transactionClosed = true;
-          await releaseReservation();
-          return;
+          try {
+            await enqueue(sql, owner);
+            transactionClosed = true;
+            await releaseReservation();
+            return;
+          } finally {
+            transactionEnding = false;
+          }
         }
         try {
           await enqueue(sql, owner);
@@ -878,6 +890,8 @@ function createClient(database: NodeSqliteDatabase): SecureSqliteClient {
             );
           }
           throw rollbackError;
+        } finally {
+          transactionEnding = false;
         }
       };
 
