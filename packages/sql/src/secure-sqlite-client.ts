@@ -74,13 +74,31 @@ export interface SecureSqliteRuntime {
   loadDriver: () => Promise<NodeSqliteModule>;
 }
 
-/** @internal Parses the stable permission marker emitted by macOS `/bin/ls`. */
+/**
+ * @internal Parses the stable ACL section emitted by macOS `/bin/ls`.
+ * Returns true only when the ACL grants authority; deny-only ACLs are
+ * restrictive and do not weaken trusted-parent custody.
+ */
 export function parseDarwinAclListing(listing: string): boolean {
   const permissionMarker = /^[bcdlps-][rwxStTs-]{9}([+@ ])/.exec(listing)?.[1];
   if (!permissionMarker) {
     throw new Error('macOS ACL inspection returned an unrecognized listing');
   }
-  return permissionMarker === '+';
+  if (permissionMarker !== '+') return false;
+
+  const aclEntries = listing.split('\n').slice(1).filter(Boolean);
+  if (aclEntries.length === 0) {
+    throw new Error('macOS ACL inspection returned no ACL entries');
+  }
+  let grantsAuthority = false;
+  for (const entry of aclEntries) {
+    const parsed = /^\s+\d+:\s+.+\s+(allow|deny)\s+[A-Za-z_,]+\s*$/.exec(entry);
+    if (!parsed) {
+      throw new Error('macOS ACL inspection returned an unrecognized entry');
+    }
+    if (parsed[1] === 'allow') grantsAuthority = true;
+  }
+  return grantsAuthority;
 }
 
 function inspectDarwinAcl(filePath: string): Promise<boolean> {
@@ -191,10 +209,10 @@ async function validateDarwinAcl(
 
   if (hasAcl) {
     throw new DatabaseError(
-      'Secure SQLite custody path contains a macOS access control list',
+      'Secure SQLite custody path contains a permissive macOS access control list',
       {
         path: filePath,
-        hint: 'Remove the ACL from the application-custodied path before requesting secure acquisition.',
+        hint: 'Remove ACL entries that grant authority from the application-custodied path before requesting secure acquisition.',
       },
     );
   }

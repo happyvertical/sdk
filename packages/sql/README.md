@@ -126,16 +126,18 @@ group/world write permission. A missing leaf is created exclusively with mode
 is removed if the driver cannot acquire it and its device/inode identity is
 still unchanged. If identity inspection itself fails, acquisition fails closed
 and leaves the restrictive empty leaf in place rather than risking deletion of
-a replacement. On macOS, every inspected component
-and existing leaf must also have no access control list; ACL inspection errors
-fail closed.
+a replacement. On macOS, every inspected component and existing leaf must also
+have no ACL entry that grants authority; restrictive deny-only entries
+(including the standard home-directory `group:everyone deny delete` entry) are
+accepted. ACL inspection errors or unrecognized/ambiguous ACL entries fail
+closed.
 The adapter invokes `/bin/ls -lde -- <path>` directly with an argument vector,
-never through a shell, and rejects the stable `+` ACL permission marker.
+never through a shell, and parses every entry behind the stable `+` ACL marker.
 Ancestors above the custody root may not allow replacement by another principal
 and must be owned either by the current uid or privileged uid `0` (the explicit
 system-root exception). A sticky root-owned shared parent such as `/tmp` is
 accepted. The application must create and retain custody of this directory;
-mode `0700` with no ACL is the conventional choice.
+mode `0700` with no permissive ACL is the conventional choice.
 
 After custody validation, the adapter opens the path with Node's built-in
 `node:sqlite` driver. Static ancestor and leaf symlinks are rejected. Under the

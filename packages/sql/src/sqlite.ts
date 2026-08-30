@@ -104,7 +104,7 @@ function firstSqlKeyword(sql: string): string | undefined {
   return undefined;
 }
 
-function rejectManagedTransactionControl(statement: any): void {
+function prepareManagedStatement(statement: any): any {
   const sql = typeof statement === 'string' ? statement : statement?.sql;
   if (
     typeof sql === 'string' &&
@@ -117,6 +117,18 @@ function rejectManagedTransactionControl(statement: any): void {
       },
     );
   }
+
+  // Validate and execute the same immutable statement snapshot. A getter or
+  // Proxy must not be able to present harmless SQL to the transaction-control
+  // guard and different SQL to the queued driver acquisition.
+  if (typeof statement === 'object' && statement !== null) {
+    const args = statement.args;
+    return {
+      sql,
+      args: Array.isArray(args) ? [...args] : args,
+    };
+  }
+  return statement;
 }
 
 interface InvocationBarrier {
@@ -244,10 +256,6 @@ function withRejectionObservation<T>(
   observation: PromiseObservation,
 ): Promise<T> {
   const wrap = <U>(promise: Promise<U>): Promise<U> => {
-    // The transaction owns detached rejection reporting. Prevent the native
-    // derived Promise from also surfacing as an unhandledRejection while its
-    // shared observation record remains deliberately unhandled.
-    void promise.catch(() => {});
     const suppressIntrinsicRecovery = <V>(callback: () => V): V => {
       observation.suppressIntrinsicRecovery =
         (observation.suppressIntrinsicRecovery ?? 0) + 1;
@@ -257,6 +265,13 @@ function withRejectionObservation<T>(
         observation.suppressIntrinsicRecovery -= 1;
       }
     };
+    // The transaction owns detached rejection reporting. Prevent the native
+    // derived Promise from also surfacing as an unhandledRejection while its
+    // shared observation record remains deliberately unhandled. Use the
+    // intrinsic directly so this internal sink never counts as caller recovery.
+    suppressIntrinsicRecovery(() => {
+      void Promise.prototype.then.call(promise, undefined, () => undefined);
+    });
     class ObservedPromise extends Promise<U> {
       static get [Symbol.species](): PromiseConstructor {
         const tracksRecovery =
@@ -286,6 +301,78 @@ function withRejectionObservation<T>(
                 observation.handlers.delete(handling),
               );
             }
+          }
+
+          // Promise.prototype.then.call() bypasses ObservedPromise.then(), so
+          // keep subsequent native chaining on the same observation record.
+          // The species remains Promise to avoid recursively constructing
+          // monitors while the intrinsic operation allocates its result.
+          // biome-ignore lint/suspicious/noThenProperty: this is an actual Promise subclass preserving the public Promise contract.
+          override then<TResult1 = unknown, TResult2 = never>(
+            onFulfilled?:
+              | ((value: unknown) => TResult1 | PromiseLike<TResult1>)
+              | null,
+            onRejected?:
+              | ((reason: any) => TResult2 | PromiseLike<TResult2>)
+              | null,
+          ): Promise<TResult1 | TResult2> {
+            const explicitlyHandlesRejection =
+              typeof onRejected === 'function' &&
+              !isNativePromiseAssimilation(onFulfilled, onRejected);
+            const handleRejected = explicitlyHandlesRejection
+              ? async (reason: any) => {
+                  const recovered = await onRejected(reason);
+                  observation.observed = true;
+                  return recovered;
+                }
+              : onRejected;
+            const derived = suppressIntrinsicRecovery(
+              () =>
+                Promise.prototype.then.call(
+                  this,
+                  onFulfilled,
+                  handleRejected,
+                ) as Promise<TResult1 | TResult2>,
+            );
+            if (explicitlyHandlesRejection) {
+              const handling = derived.then(
+                () => undefined,
+                () => undefined,
+              );
+              observation.handlers.add(handling);
+              void handling.finally(() =>
+                observation.handlers.delete(handling),
+              );
+            }
+            return wrap(derived);
+          }
+
+          override catch<TResult = never>(
+            onRejected?:
+              | ((reason: any) => TResult | PromiseLike<TResult>)
+              | null,
+          ): Promise<unknown | TResult> {
+            return this.then(undefined, onRejected);
+          }
+
+          override finally(
+            onFinally?: (() => void | PromiseLike<void>) | null,
+          ): Promise<unknown> {
+            if (typeof onFinally !== 'function') {
+              return this.then(
+                (value) => value,
+                (reason) => {
+                  throw reason;
+                },
+              );
+            }
+            return this.then(
+              (value) => Promise.resolve(onFinally()).then(() => value),
+              (reason) =>
+                Promise.resolve(onFinally()).then(() => {
+                  throw reason;
+                }),
+            );
           }
         }
         return IntrinsicDerivedPromise as unknown as PromiseConstructor;
@@ -327,9 +414,13 @@ function withRejectionObservation<T>(
             ) as Promise<TResult1 | TResult2>,
         );
         if (explicitlyHandlesRejection) {
-          const handling = derived.then(
-            () => undefined,
-            () => undefined,
+          const handling = suppressIntrinsicRecovery(
+            () =>
+              Promise.prototype.then.call(
+                derived,
+                () => undefined,
+                () => undefined,
+              ) as Promise<void>,
           );
           observation.handlers.add(handling);
           void handling.finally(() => observation.handlers.delete(handling));
@@ -365,9 +456,13 @@ function withRejectionObservation<T>(
               handleRejected,
             ) as Promise<U | TResult>,
         );
-        const handling = derived.then(
-          () => undefined,
-          () => undefined,
+        const handling = suppressIntrinsicRecovery(
+          () =>
+            Promise.prototype.then.call(
+              derived,
+              () => undefined,
+              () => undefined,
+            ) as Promise<void>,
         );
         observation.handlers.add(handling);
         void handling.finally(() => observation.handlers.delete(handling));
@@ -1961,8 +2056,9 @@ async function createDatabase(
       const scopedExecutor: SqliteExecutor = isSecureTransaction
         ? {
             execute: (statement: any) => {
-              rejectManagedTransactionControl(statement);
-              return transactionClient.execute(statement);
+              return transactionClient.execute(
+                prepareManagedStatement(statement),
+              );
             },
           }
         : transactionClient;
@@ -2662,8 +2758,7 @@ async function createDatabase(
       ((...args: Parameters<T>) => barrier.run(() => fn(...args))) as T;
     const managedRootExecutor: SqliteExecutor = {
       execute: (statement: any) => {
-        rejectManagedTransactionControl(statement);
-        return client.execute(statement);
+        return client.execute(prepareManagedStatement(statement));
       },
     };
     const reserveManaged = <T extends (...args: any[]) => Promise<any>>(
@@ -2752,8 +2847,7 @@ async function createDatabase(
     const reservedClient = {
       transactionReservation: 'exclusive' as const,
       execute: reserve((statement: any) => {
-        rejectManagedTransactionControl(statement);
-        return client.execute(statement);
+        return client.execute(prepareManagedStatement(statement));
       }),
       transaction: () =>
         Promise.reject(

@@ -154,6 +154,16 @@ describe('secure SQLite file acquisition', () => {
       ),
     ).toBe(true);
     expect(
+      parseDarwinAclListing(
+        'drwx------+ 2 user staff 64 Aug 29 15:07 /Users/user\n 0: group:everyone deny delete',
+      ),
+    ).toBe(false);
+    expect(
+      parseDarwinAclListing(
+        'drwx------+ 2 user staff 64 Aug 29 15:07 /data\n 0: group:everyone deny delete\n 1: user:guest allow write,delete',
+      ),
+    ).toBe(true);
+    expect(
       parseDarwinAclListing('drwx------@ 2 user staff 64 Aug 29 15:07 /data'),
     ).toBe(false);
     expect(
@@ -162,6 +172,11 @@ describe('secure SQLite file acquisition', () => {
     expect(() => parseDarwinAclListing('unexpected output')).toThrow(
       'unrecognized listing',
     );
+    expect(() =>
+      parseDarwinAclListing(
+        'drwx------+ 2 user staff 64 Aug 29 15:07 /data\n malformed entry',
+      ),
+    ).toThrow('unrecognized entry');
   });
 
   it('rejects a macOS ACL before loading the driver', async () => {
@@ -177,7 +192,7 @@ describe('secure SQLite file acquisition', () => {
           return loadNodeSqliteDriver();
         },
       }),
-    ).rejects.toThrow('contains a macOS access control list');
+    ).rejects.toThrow('contains a permissive macOS access control list');
     expect(driverLoaded).toBe(false);
   });
 
@@ -197,7 +212,7 @@ describe('secure SQLite file acquisition', () => {
           return loadNodeSqliteDriver();
         },
       }),
-    ).rejects.toThrow('contains a macOS access control list');
+    ).rejects.toThrow('contains a permissive macOS access control list');
     expect(driverLoaded).toBe(false);
   });
 
@@ -1312,6 +1327,44 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
+  it('commits after fully awaited intrinsic promise chains recover', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE intrinsic_chain (id INTEGER PRIMARY KEY)');
+
+    await txOf(db)(async (tx) => {
+      await tx.insert('intrinsic_chain', { id: 1 });
+      const failed = tx.insert('intrinsic_chain', { id: 1 });
+      const fulfillmentOnly = Promise.prototype.then.call(
+        failed,
+        (value) => value,
+      ) as Promise<unknown>;
+      await fulfillmentOnly.catch(() => undefined);
+
+      const rethrown = Promise.prototype.then.call(
+        tx.insert('intrinsic_chain', { id: 1 }),
+        undefined,
+        () => {
+          throw new Error('mapped intrinsic failure');
+        },
+      ) as Promise<unknown>;
+      await rethrown.catch((error) => {
+        expect(error).toMatchObject({ message: 'mapped intrinsic failure' });
+      });
+      await tx.insert('intrinsic_chain', { id: 2 });
+    });
+
+    expect(
+      (await db.query('SELECT id FROM intrinsic_chain ORDER BY id')).rows,
+    ).toEqual([{ id: 1 }, { id: 2 }]);
+    await db.close?.();
+  });
+
   it('commits after callers handle statement failures in callback and manual transactions', async () => {
     const root = await makeTempRoot();
     const db = await getDatabase({
@@ -1757,6 +1810,37 @@ describe('secure SQLite file acquisition', () => {
     expect((await db.query('SELECT id FROM root_control')).rows).toEqual([
       { id: 1 },
     ]);
+    await db.close?.();
+  });
+
+  it('validates and executes one immutable transaction-scoped statement snapshot', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE statement_snapshot (id INTEGER PRIMARY KEY)');
+    let sqlReads = 0;
+    const statefulStatement = {
+      get sql() {
+        sqlReads += 1;
+        return sqlReads === 1 ? 'SELECT 1' : 'COMMIT';
+      },
+      args: [],
+    };
+
+    await txOf(db)(async (tx) => {
+      await tx.insert('statement_snapshot', { id: 1 });
+      await tx.client.execute(statefulStatement);
+      await tx.insert('statement_snapshot', { id: 2 });
+    });
+
+    expect(sqlReads).toBe(1);
+    expect(
+      (await db.query('SELECT id FROM statement_snapshot ORDER BY id')).rows,
+    ).toEqual([{ id: 1 }, { id: 2 }]);
     await db.close?.();
   });
 
@@ -2548,6 +2632,28 @@ describe('secure SQLite file acquisition', () => {
     await db.execute`CREATE TABLE recovered (id INTEGER PRIMARY KEY)`;
     expect(await db.tableExists('recovered')).toBe(true);
     await db.close?.();
+  });
+
+  it('evicts an explicitly cached adapter when public client.close is used', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'client-close.db');
+    const options = {
+      type: 'sqlite' as const,
+      url: databasePath,
+      secureFile,
+      dbid: databasePath,
+    };
+    const first = await getDatabase(options);
+    await first.query('CREATE TABLE client_close (id INTEGER PRIMARY KEY)');
+    await first.client.close?.();
+
+    const reopened = await getDatabase(options);
+    expect(reopened).not.toBe(first);
+    await reopened.query('INSERT INTO client_close (id) VALUES (1)');
+    expect((await reopened.query('SELECT id FROM client_close')).rows).toEqual([
+      { id: 1 },
+    ]);
+    await reopened.close?.();
   });
 
   it('fails closed on unsupported platforms before loading the driver', async () => {

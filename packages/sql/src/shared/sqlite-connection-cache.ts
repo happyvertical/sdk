@@ -106,6 +106,12 @@ export async function getCachedSqliteDatabase(
           throw error;
         }
       };
+      // Secure SQLite exposes a guarded public client.close() seam. Route it
+      // through the same cache-aware close boundary so a direct client close
+      // cannot leave a closed adapter cached under an explicit dbid.
+      if ((db.client as any)?.transactionReservation === 'exclusive') {
+        (db.client as any).close = db.close;
+      }
       return db;
     },
     closeSqliteDatabase,
