@@ -274,12 +274,16 @@ function withRejectionObservation<T>(
           ) {
             super(executor);
             if (tracksRecovery) {
-              void Promise.prototype.then.call(
+              const handling = Promise.prototype.then.call(
                 this,
                 () => {
                   if ('error' in observation) observation.observed = true;
                 },
                 () => undefined,
+              ) as Promise<void>;
+              observation.handlers.add(handling);
+              void handling.finally(() =>
+                observation.handlers.delete(handling),
               );
             }
           }

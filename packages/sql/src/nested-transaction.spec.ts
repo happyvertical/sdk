@@ -32,6 +32,7 @@ describe('nested transactions', () => {
     it('returns native Promise instances for nested transactions', async () => {
       const db = await getDatabase({ type: 'sqlite', url: ':memory:' });
       await db.query('CREATE TABLE native_promise (id INTEGER PRIMARY KEY)');
+      let recovered = false;
 
       await txOf(db)(async (tx) => {
         const nested = txOf(tx)(async () => 42);
@@ -45,12 +46,18 @@ describe('nested transactions', () => {
           await inner.query('INSERT INTO native_promise VALUES (2)');
           throw new Error('intrinsic recovery');
         });
-        await Promise.prototype.then.call(failed, undefined, (error) => {
+        void Promise.prototype.then.call(failed, undefined, async (error) => {
           expect(error).toMatchObject({ message: 'intrinsic recovery' });
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          recovered = true;
         });
         await tx.query('INSERT INTO native_promise VALUES (3)');
+        expect(recovered).toBe(false);
       });
 
+      // The enclosing transaction waits for an accepted asynchronous recovery
+      // handler before it decides whether the savepoint failure was handled.
+      expect(recovered).toBe(true);
       expect((await db.query('SELECT id FROM native_promise')).rows).toEqual([
         { id: 1 },
         { id: 3 },

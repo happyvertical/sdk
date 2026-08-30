@@ -1270,17 +1270,18 @@ describe('secure SQLite file acquisition', () => {
       cache: false,
     });
     await db.query('CREATE TABLE native_promises (id INTEGER PRIMARY KEY)');
+    let operationRecovered = false;
+    let nestedRecovered = false;
 
     await txOf(db)(async (tx) => {
       const operation = tx.insert('native_promises', { id: 1 });
       expect(operation).toBeInstanceOf(Promise);
       await Promise.prototype.then.call(operation, (value) => value);
       const failedOperation = tx.insert('native_promises', { id: 1 });
-      await Promise.prototype.then.call(
-        failedOperation,
-        undefined,
-        () => undefined,
-      );
+      void Promise.prototype.then.call(failedOperation, undefined, async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        operationRecovered = true;
+      });
 
       const nested = txOf(tx)(async (inner) => {
         await inner.insert('native_promises', { id: 2 });
@@ -1295,14 +1296,16 @@ describe('secure SQLite file acquisition', () => {
         await inner.insert('native_promises', { id: 3 });
         throw new Error('intrinsic recovery');
       });
-      await Promise.prototype.then.call(
-        failedNested,
-        undefined,
-        () => undefined,
-      );
+      void Promise.prototype.then.call(failedNested, undefined, async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        nestedRecovered = true;
+      });
       await tx.insert('native_promises', { id: 4 });
+      expect(nestedRecovered).toBe(false);
     });
 
+    expect(operationRecovered).toBe(true);
+    expect(nestedRecovered).toBe(true);
     expect(
       (await db.query('SELECT id FROM native_promises ORDER BY id')).rows,
     ).toEqual([{ id: 1 }, { id: 2 }, { id: 4 }]);
