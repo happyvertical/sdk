@@ -65,6 +65,60 @@ interface SqliteClientLike {
 
 type SqliteExecutor = Pick<SqliteClientLike, 'execute'>;
 
+const MANAGED_TRANSACTION_CONTROL_KEYWORDS = new Set([
+  'begin',
+  'commit',
+  'end',
+  'release',
+  'rollback',
+  'savepoint',
+]);
+
+function firstSqlKeyword(sql: string): string | undefined {
+  let offset = 0;
+  while (offset < sql.length) {
+    const remaining = sql.slice(offset);
+    const whitespace = remaining.match(/^\s+/)?.[0];
+    if (whitespace) {
+      offset += whitespace.length;
+      continue;
+    }
+    if (remaining.startsWith('--')) {
+      const newline = remaining.indexOf('\n', 2);
+      if (newline === -1) return undefined;
+      offset += newline + 1;
+      continue;
+    }
+    if (remaining.startsWith('/*')) {
+      const end = remaining.indexOf('*/', 2);
+      if (end === -1) return undefined;
+      offset += end + 2;
+      continue;
+    }
+    if (remaining.startsWith(';')) {
+      offset += 1;
+      continue;
+    }
+    return remaining.match(/^[A-Za-z]+/)?.[0]?.toLowerCase();
+  }
+  return undefined;
+}
+
+function rejectManagedTransactionControl(statement: any): void {
+  const sql = typeof statement === 'string' ? statement : statement?.sql;
+  if (
+    typeof sql === 'string' &&
+    MANAGED_TRANSACTION_CONTROL_KEYWORDS.has(firstSqlKeyword(sql) ?? '')
+  ) {
+    throw new DatabaseError(
+      'Transaction-control SQL is managed by the SQLite transaction scope',
+      {
+        hint: 'Use transaction(), beginTransaction(), commit(), or rollback() instead of issuing BEGIN, COMMIT, ROLLBACK, SAVEPOINT, or RELEASE as raw SQL.',
+      },
+    );
+  }
+}
+
 interface InvocationBarrier {
   run<T>(work: () => Promise<T>): Promise<T>;
   close(work: () => void | Promise<void>): Promise<void>;
@@ -1444,7 +1498,10 @@ async function createDatabase(
      */
     type NestedTransaction = (<T>(
       callback: (tx: DatabaseInterface) => Promise<T>,
-    ) => Promise<T>) & { drain: () => Promise<void> };
+    ) => Promise<T>) & {
+      drain: () => Promise<void>;
+      runOperation: <T>(operation: () => Promise<T>) => Promise<T>;
+    };
 
     interface TransactionScope {
       database: DatabaseInterface;
@@ -1468,6 +1525,23 @@ async function createDatabase(
         accepting: true,
         tail: Promise.resolve(),
         children: new Set(),
+      };
+
+      const enqueueInScope = <T>(
+        scope: NestedScope,
+        operation: () => Promise<T>,
+      ): Promise<T> => {
+        if (!scope.accepting) {
+          return Promise.reject(
+            new DatabaseError('Nested transaction scope is ending', {}),
+          );
+        }
+        const current = scope.tail.then(operation);
+        scope.tail = current.then(
+          () => undefined,
+          () => undefined,
+        );
+        return current;
       };
 
       const drainNestedScope = async (scope: NestedScope): Promise<void> => {
@@ -1537,8 +1611,10 @@ async function createDatabase(
               sql: `RELEASE SAVEPOINT ${name}`,
               args: [],
             });
-          } catch {
-            // The enclosing transaction is already unwinding.
+          } catch (teardownError) {
+            if (teardownError !== failure) {
+              failure = combineTransactionFailures(failure, teardownError);
+            }
           }
           throw failure;
         }
@@ -1564,16 +1640,12 @@ async function createDatabase(
           error?: unknown;
         };
         parentScope.children.add(child);
-        const current = parentScope.tail.then(() =>
+        const current = enqueueInScope(parentScope, () =>
           scopeContext.run(scope, () => runScope(scope, callback)),
         );
         void current.catch((error) => {
           child.error = error;
         });
-        parentScope.tail = current.then(
-          () => undefined,
-          () => undefined,
-        );
         // Preserve rejection observation through fulfillment-only `.then()`
         // and `.finally()` chains. Only a rejection handler (including the one
         // installed by `await`) makes a failed savepoint recoverable.
@@ -1583,6 +1655,10 @@ async function createDatabase(
         rootScope.accepting = false;
         return drainNestedScope(rootScope);
       };
+      nestedTransaction.runOperation = <T>(
+        operation: () => Promise<T>,
+      ): Promise<T> =>
+        enqueueInScope(scopeContext.getStore() ?? rootScope, operation);
       return nestedTransaction;
     };
 
@@ -1709,6 +1785,15 @@ async function createDatabase(
       transactionClient: SqliteExecutor,
       nestedTransaction: NestedTransaction,
     ): TransactionScope => {
+      const isSecureTransaction = client.transactionReservation === 'exclusive';
+      const scopedExecutor: SqliteExecutor = isSecureTransaction
+        ? {
+            execute: (statement: any) => {
+              rejectManagedTransactionControl(statement);
+              return transactionClient.execute(statement);
+            },
+          }
+        : transactionClient;
       let accepting = true;
       const pending = new Set<Promise<unknown>>();
       const operations = new Set<PromiseObservation & { error?: unknown }>();
@@ -1723,9 +1808,13 @@ async function createDatabase(
               new DatabaseError('Transaction scope is ending or ended', {}),
             );
           }
-          const operation = Promise.resolve(
-            executorContext.run(transactionClient, () => fn(...args)),
-          );
+          const run = () =>
+            Promise.resolve(
+              executorContext.run(scopedExecutor, () => fn(...args)),
+            );
+          const operation = isSecureTransaction
+            ? nestedTransaction.runOperation(run)
+            : run();
           const tracked = {
             observed: false,
             handlers: new Set<Promise<void>>(),
@@ -1784,14 +1873,14 @@ async function createDatabase(
             new DatabaseError('Transaction scope is ending or ended', {}),
           );
         }
-        return executorContext.run(transactionClient, () =>
+        return executorContext.run(scopedExecutor, () =>
           nestedTransaction(callback),
         );
       }) as typeof nestedTransaction;
 
       const scopedClient = {
         transactionReservation: 'exclusive' as const,
-        execute: bind((statement: any) => transactionClient.execute(statement)),
+        execute: bind((statement: any) => scopedExecutor.execute(statement)),
         transaction: () =>
           Promise.reject(
             new DatabaseError(

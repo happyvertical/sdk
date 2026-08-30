@@ -1541,6 +1541,108 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
+  it('rejects raw transaction control inside managed secure scopes', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE managed_control (id INTEGER PRIMARY KEY)');
+
+    await expect(
+      txOf(db)(async (tx) => {
+        await tx.query('INSERT INTO managed_control (id) VALUES (1)');
+        await tx.query('/* disguised */ COMMIT');
+      }),
+    ).rejects.toThrow('Failed to execute raw query');
+    expect(await db.count('managed_control')).toBe(0);
+
+    const manual = await db.beginTransaction?.();
+    if (!manual) throw new Error('beginTransaction unavailable');
+    await manual.query('INSERT INTO managed_control (id) VALUES (2)');
+    await manual.client
+      .execute('-- disguised\nRELEASE SAVEPOINT hv_sp_1')
+      .catch((error) => {
+        expect(error).toMatchObject({
+          message:
+            'Transaction-control SQL is managed by the SQLite transaction scope',
+        });
+      });
+    await manual.rollback();
+    expect(await db.count('managed_control')).toBe(0);
+
+    await db.close?.();
+  });
+
+  it('keeps parent operations outside overlapping nested savepoints', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'app.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE nested_parent_order (id INTEGER PRIMARY KEY)');
+
+    const childStarted = deferred();
+    const continueChild = deferred();
+    await txOf(db)(async (outer) => {
+      const child = txOf(outer)(async (inner) => {
+        await inner.query('INSERT INTO nested_parent_order (id) VALUES (1)');
+        childStarted.resolve();
+        await continueChild.promise;
+        throw new Error('child rollback');
+      }).catch((error) => {
+        expect(error).toMatchObject({ message: 'child rollback' });
+      });
+      await childStarted.promise;
+      let parentSettled = false;
+      const parentWrite = outer
+        .query('INSERT INTO nested_parent_order (id) VALUES (2)')
+        .finally(() => {
+          parentSettled = true;
+        });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(parentSettled).toBe(false);
+      continueChild.resolve();
+      await expect(child).resolves.toBeUndefined();
+      await expect(parentWrite).resolves.toMatchObject({ rowCount: 1 });
+    });
+
+    const manual = await db.beginTransaction?.();
+    if (!manual) throw new Error('beginTransaction unavailable');
+    const manualChildStarted = deferred();
+    const continueManualChild = deferred();
+    const manualChild = txOf(manual)(async (inner) => {
+      await inner.query('INSERT INTO nested_parent_order (id) VALUES (3)');
+      manualChildStarted.resolve();
+      await continueManualChild.promise;
+      throw new Error('manual child rollback');
+    }).catch((error) => {
+      expect(error).toMatchObject({ message: 'manual child rollback' });
+    });
+    await manualChildStarted.promise;
+    let manualParentSettled = false;
+    const manualParentWrite = manual
+      .query('INSERT INTO nested_parent_order (id) VALUES (4)')
+      .finally(() => {
+        manualParentSettled = true;
+      });
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(manualParentSettled).toBe(false);
+    continueManualChild.resolve();
+    await expect(manualChild).resolves.toBeUndefined();
+    await expect(manualParentWrite).resolves.toMatchObject({ rowCount: 1 });
+    await manual.commit();
+
+    expect(
+      (await db.query('SELECT id FROM nested_parent_order ORDER BY id')).rows,
+    ).toEqual([{ id: 2 }, { id: 4 }]);
+    await db.close?.();
+  });
+
   it('normalizes boolean parameters across public SQLite operations', async () => {
     const root = await makeTempRoot();
     const db = await getDatabase({

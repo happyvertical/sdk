@@ -168,7 +168,10 @@ client call accepted before `close()` drains first; calls made after close or
 after a transaction scope ends reject without reaching SQLite. Use
 `database.transaction()` or `database.beginTransaction()` for transaction
 control—direct `client.transaction()` and transaction-scoped `client.close()`
-fail closed. If SQLite itself ends a transaction through a statement policy
+fail closed. Raw `BEGIN`, `COMMIT`, `END`, `ROLLBACK`, `SAVEPOINT`, and
+`RELEASE` statements are likewise rejected inside a managed secure scope so
+they cannot bypass callback/manual rollback or invalidate an owned savepoint.
+If SQLite itself ends a transaction through a statement policy
 such as `ON CONFLICT ROLLBACK`, already-accepted later work rejects before
 execution and commit reports the automatic rollback.
 
@@ -297,7 +300,10 @@ Two consequences worth knowing:
 
 Nested SQLite and PostgreSQL scopes use savepoints. If sibling nested scopes are
 started concurrently on one transaction, they serialize so the stack-ordered
-savepoint lifecycle remains intact. The enclosing commit or rollback drains all
+savepoint lifecycle remains intact. While a secure SQLite child savepoint is
+open, operations invoked through its parent scope queue behind that child; a
+child rollback therefore cannot silently remove a successful parent operation.
+The enclosing commit or rollback drains all
 accepted child scopes before ending the transaction. PostgreSQL pools separate
 connections, so top-level transactions there run concurrently and never queue.
 Every SQLite transaction-scoped operation is registered when its public method
