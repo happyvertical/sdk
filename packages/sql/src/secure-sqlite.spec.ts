@@ -595,6 +595,52 @@ describe('secure SQLite file acquisition', () => {
     expect((await lstat(databasePath)).isFile()).toBe(true);
   });
 
+  it('does not remove a replacement when the filesystem reuses its inode', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'reused-inode.db');
+    let createdStats: Awaited<ReturnType<typeof lstat>> | undefined;
+    let leafStatCalls = 0;
+
+    await expect(
+      createSecureSqliteClient(databasePath, trustedParent, {
+        platform: process.platform,
+        openLeaf: async (...args) => {
+          const handle = await open(...args);
+          createdStats = await lstat(databasePath, { bigint: true });
+          return handle;
+        },
+        lstatLeaf: (async (_path, options?: { bigint?: boolean }) => {
+          const current = await lstat(databasePath, { bigint: true });
+          leafStatCalls += 1;
+          expect(options?.bigint).toBe(true);
+          expect(createdStats).toBeDefined();
+          if (leafStatCalls === 1) return current;
+          return {
+            ...current,
+            birthtimeNs:
+              (createdStats?.birthtimeNs ?? current.birthtimeNs) + 1n,
+            ctimeNs: (createdStats?.ctimeNs ?? current.ctimeNs) + 1n,
+            dev: createdStats?.dev ?? current.dev,
+            ino: createdStats?.ino ?? current.ino,
+          };
+        }) as typeof lstat,
+        loadDriver: async () =>
+          ({
+            // biome-ignore lint/style/useNamingConvention: mirrors node:sqlite's public API
+            DatabaseSync: class {
+              constructor() {
+                rmSync(databasePath);
+                writeFileSync(databasePath, 'replacement', { mode: 0o600 });
+                throw new Error('open failed after inode reuse');
+              }
+            },
+          }) as any,
+      }),
+    ).rejects.toThrow('rejected the database path');
+
+    expect(await readFile(databasePath, 'utf8')).toBe('replacement');
+  });
+
   it('closes the created leaf and leaves it in place when identity inspection fails', async () => {
     const root = await makeTempRoot();
     const databasePath = join(root, 'failed-stat.db');

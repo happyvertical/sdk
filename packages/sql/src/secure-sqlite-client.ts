@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import type { BigIntStats } from 'node:fs';
 import { lstat, open, unlink } from 'node:fs/promises';
 import { dirname, parse, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -370,8 +371,33 @@ async function validateTrustedParentCustody(
 }
 
 interface SecureLeafIdentity {
+  birthtimeNs: bigint;
+  ctimeNs: bigint;
   dev: bigint;
   ino: bigint;
+}
+
+function leafIdentity(
+  stats: Pick<BigIntStats, 'birthtimeNs' | 'ctimeNs' | 'dev' | 'ino'>,
+): SecureLeafIdentity {
+  return {
+    birthtimeNs: stats.birthtimeNs,
+    ctimeNs: stats.ctimeNs,
+    dev: stats.dev,
+    ino: stats.ino,
+  };
+}
+
+function sameLeafIdentity(
+  left: SecureLeafIdentity,
+  right: SecureLeafIdentity,
+): boolean {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.birthtimeNs === right.birthtimeNs &&
+    left.ctimeNs === right.ctimeNs
+  );
 }
 
 async function createSecureLeaf(
@@ -396,7 +422,7 @@ async function createSecureLeaf(
   let acquisitionError: unknown;
   try {
     const stats = await handle.stat({ bigint: true });
-    identity = { dev: stats.dev, ino: stats.ino };
+    identity = leafIdentity(stats);
   } catch (error) {
     acquisitionError = error;
   }
@@ -441,7 +467,7 @@ async function removeCreatedLeafIfUnchanged(
     const current = await (runtime.lstatLeaf ?? lstat)(filePath, {
       bigint: true,
     });
-    if (current.dev !== identity.dev || current.ino !== identity.ino) {
+    if (!sameLeafIdentity(leafIdentity(current), identity)) {
       return undefined;
     }
     await unlink(filePath);
@@ -1006,7 +1032,7 @@ export async function createSecureSqliteClient(
         );
       }
       if (createdLeaf) {
-        let current: { dev: bigint; ino: bigint };
+        let current: BigIntStats;
         try {
           current = await (runtime.lstatLeaf ?? lstat)(filePath, {
             bigint: true,
@@ -1021,10 +1047,7 @@ export async function createSecureSqliteClient(
             },
           );
         }
-        if (
-          current.dev !== createdLeaf.dev ||
-          current.ino !== createdLeaf.ino
-        ) {
+        if (!sameLeafIdentity(leafIdentity(current), createdLeaf)) {
           throw new DatabaseError(
             'Secure SQLite database leaf changed during acquisition',
             { path: filePath },
