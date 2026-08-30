@@ -89,6 +89,18 @@ export interface PostgresOptions extends DatabaseCacheOptions {
   max?: number;
 
   /**
+   * Maximum time to wait for a pool connection, in milliseconds.
+   * Set to 0 to wait indefinitely. When omitted, pg's default is used.
+   */
+  connectionTimeoutMillis?: number;
+
+  /**
+   * Maximum time an idle client remains in the pool, in milliseconds.
+   * Set to 0 to retain idle clients. When omitted, pg's default is used.
+   */
+  idleTimeoutMillis?: number;
+
+  /**
    * Schema definitions for tables.
    * Accepts a record or a lazy function (see SchemasOption).
    *
@@ -155,6 +167,8 @@ type EffectivePostgresConfig = {
   password?: string;
   port: number;
   max: number;
+  connectionTimeoutMillis?: number;
+  idleTimeoutMillis?: number;
 };
 
 function resolvePostgresConfig(
@@ -186,11 +200,28 @@ function resolvePostgresConfig(
       legacyPort === undefined ? undefined : Number(legacyPort),
     ) ?? 5432;
   const max = options.max ?? 20;
+  const { connectionTimeoutMillis, idleTimeoutMillis } = options;
   if (!Number.isInteger(port) || port < 1 || port > 65_535) {
     throw new Error('PostgreSQL port must be an integer between 1 and 65535');
   }
   if (!Number.isInteger(max) || max < 1) {
     throw new Error('PostgreSQL pool max must be a positive integer');
+  }
+  if (
+    connectionTimeoutMillis !== undefined &&
+    (!Number.isInteger(connectionTimeoutMillis) || connectionTimeoutMillis < 0)
+  ) {
+    throw new Error(
+      'PostgreSQL pool connectionTimeoutMillis must be a non-negative integer',
+    );
+  }
+  if (
+    idleTimeoutMillis !== undefined &&
+    (!Number.isInteger(idleTimeoutMillis) || idleTimeoutMillis < 0)
+  ) {
+    throw new Error(
+      'PostgreSQL pool idleTimeoutMillis must be a non-negative integer',
+    );
   }
 
   return {
@@ -201,6 +232,8 @@ function resolvePostgresConfig(
     password: legacy(primary.password, process.env.SQLOO_PASSWORD),
     port,
     max,
+    connectionTimeoutMillis,
+    idleTimeoutMillis,
   };
 }
 
@@ -220,6 +253,8 @@ async function derivePostgresConnectionCacheKey(
     user: effective.user ?? null,
     password: effective.password ?? null,
     max: effective.max,
+    connectionTimeoutMillis: effective.connectionTimeoutMillis ?? null,
+    idleTimeoutMillis: effective.idleTimeoutMillis ?? null,
   });
   const hmacKey = await globalThis.__haveSqlPostgresCacheHmacKey;
   if (!hmacKey) {
@@ -743,10 +778,15 @@ async function createDatabase(
   // Create a connection pool with explicit max to prevent exhaustion.
   // pg defaults to 10 which is too low for SMRT apps that sync 30+ table
   // schemas on startup. Default to 20 but allow callers to override.
-  const poolMax = config.max;
+  const { max: poolMax, connectionTimeoutMillis, idleTimeoutMillis } = config;
   const pool = new Pool(
     config.url
-      ? { connectionString: config.url as string, max: poolMax }
+      ? {
+          connectionString: config.url as string,
+          max: poolMax,
+          connectionTimeoutMillis,
+          idleTimeoutMillis,
+        }
       : {
           host: host as string,
           user: user as string,
@@ -754,6 +794,8 @@ async function createDatabase(
           port: port as number,
           database: database as string,
           max: poolMax,
+          connectionTimeoutMillis,
+          idleTimeoutMillis,
         },
   );
 
