@@ -223,7 +223,30 @@ interface PromiseObservation {
   observed: boolean;
   handlers: Set<Promise<void>>;
   nativeTransfers: Set<unknown>;
+  unhandledNativeTransfers: Set<unknown>;
   suppressIntrinsicRecovery?: number;
+}
+
+const activeNativeTransferObservations = new Set<PromiseObservation>();
+let nativeTransferListenerInstalled = false;
+const recordUnhandledNativeTransfer = (reason: unknown) => {
+  for (const observation of activeNativeTransferObservations) {
+    if (observation.nativeTransfers.has(reason)) {
+      observation.unhandledNativeTransfers.add(reason);
+    }
+  }
+};
+
+function recordNativePromiseTransfer(
+  observation: PromiseObservation,
+  reason: unknown,
+): void {
+  observation.nativeTransfers.add(reason);
+  activeNativeTransferObservations.add(observation);
+  if (!nativeTransferListenerInstalled) {
+    process.on('unhandledRejection', recordUnhandledNativeTransfer);
+    nativeTransferListenerInstalled = true;
+  }
 }
 
 async function settleNativePromiseTransfers(
@@ -234,30 +257,28 @@ async function settleNativePromiseTransfers(
   );
   if (transferred.length === 0) return;
 
-  const unhandled = new Set<unknown>();
-  const recordUnhandled = (reason: unknown) => {
-    if (
-      transferred.some((observation) => observation.nativeTransfers.has(reason))
-    ) {
-      unhandled.add(reason);
-    }
-  };
-  process.on('unhandledRejection', recordUnhandled);
-  try {
-    // Native adoption does not expose the adopting Promise. Its rejection
-    // checkpoint distinguishes caught await/combinator recovery from a
-    // detached rejected adoption that the transaction must still own.
-    await new Promise<void>((resolvePromise) => setImmediate(resolvePromise));
-  } finally {
-    process.off('unhandledRejection', recordUnhandled);
-  }
+  // Native adoption does not expose the adopting Promise. The listener is
+  // installed when rejection transfers, so this checkpoint distinguishes a
+  // caught await/combinator from a detached rejection even if the callback
+  // crossed an earlier macrotask before reaching its drain.
+  await new Promise<void>((resolvePromise) => setImmediate(resolvePromise));
 
   for (const observation of transferred) {
     if (
-      [...observation.nativeTransfers].every((reason) => !unhandled.has(reason))
+      [...observation.nativeTransfers].every(
+        (reason) => !observation.unhandledNativeTransfers.has(reason),
+      )
     ) {
       observation.observed = true;
     }
+    activeNativeTransferObservations.delete(observation);
+  }
+  if (
+    nativeTransferListenerInstalled &&
+    activeNativeTransferObservations.size === 0
+  ) {
+    process.off('unhandledRejection', recordUnhandledNativeTransfer);
+    nativeTransferListenerInstalled = false;
   }
 }
 
@@ -412,7 +433,7 @@ function withRejectionObservation<T>(
                     // native Promise. If that rejection escapes an await, the
                     // enclosing transaction callback still rejects normally;
                     // if the caller catches it, this operation is recovered.
-                    observation.nativeTransfers.add(reason);
+                    recordNativePromiseTransfer(observation, reason);
                     return onRejected(reason);
                   }
                 : onRejected;
@@ -499,7 +520,7 @@ function withRejectionObservation<T>(
             }
           : transfersToNativePromise && typeof onRejected === 'function'
             ? (reason: any) => {
-                observation.nativeTransfers.add(reason);
+                recordNativePromiseTransfer(observation, reason);
                 return onRejected(reason);
               }
             : onRejected;
@@ -1831,6 +1852,7 @@ async function createDatabase(
           observed: boolean;
           handlers: Set<Promise<void>>;
           nativeTransfers: Set<unknown>;
+          unhandledNativeTransfers: Set<unknown>;
           error?: unknown;
         }>;
       }
@@ -1986,6 +2008,7 @@ async function createDatabase(
           observed: false,
           handlers: new Set<Promise<void>>(),
           nativeTransfers: new Set<unknown>(),
+          unhandledNativeTransfers: new Set<unknown>(),
         } as PromiseObservation & {
           error?: unknown;
         };
@@ -2187,6 +2210,7 @@ async function createDatabase(
             observed: false,
             handlers: new Set<Promise<void>>(),
             nativeTransfers: new Set<unknown>(),
+            unhandledNativeTransfers: new Set<unknown>(),
           } as PromiseObservation & {
             error?: unknown;
           };
@@ -2858,8 +2882,6 @@ async function createDatabase(
     if (client.transactionReservation !== 'exclusive') return db;
 
     const barrier = createInvocationBarrier();
-    const reserve = <T extends (...args: any[]) => Promise<any>>(fn: T): T =>
-      ((...args: Parameters<T>) => barrier.run(() => fn(...args))) as T;
     const managedRootExecutor: SqliteExecutor = {
       execute: (statement: any) => {
         return client.execute(prepareManagedStatement(statement));
@@ -2981,7 +3003,7 @@ async function createDatabase(
       );
     const reservedClient = {
       transactionReservation: 'exclusive' as const,
-      execute: reserve((statement: any) => {
+      execute: reserveManaged(async (statement: any) => {
         return client.execute(prepareManagedStatement(statement));
       }),
       transaction: () =>

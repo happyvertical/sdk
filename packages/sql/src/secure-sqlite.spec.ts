@@ -1616,6 +1616,7 @@ describe('secure SQLite file acquisition', () => {
       txOf(db)(async (tx) => {
         await tx.insert('detached_native_transfer', { id: 1 });
         void Promise.resolve(tx.insert('detached_native_transfer', { id: 1 }));
+        await new Promise((resolve) => setTimeout(resolve, 10));
       }),
     ).rejects.toThrow();
     expect(await db.count('detached_native_transfer')).toBe(0);
@@ -2604,6 +2605,41 @@ describe('secure SQLite file acquisition', () => {
     await manual.rollback();
     await new Promise((resolve) => setImmediate(resolve));
     expect(await db.count('bounded_root_operation')).toBe(0);
+    await db.close?.();
+  });
+
+  it('bounds root client execution behind callback and manual transactions', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'bounded-root-client.db'),
+      secureFile,
+      cache: false,
+      transactionQueueTimeout: 50,
+    });
+    await db.query('CREATE TABLE bounded_root_client (id INTEGER PRIMARY KEY)');
+
+    await expect(
+      txOf(db)(async () => {
+        await db.client.execute({
+          sql: 'INSERT INTO bounded_root_client (id) VALUES (1)',
+          args: [],
+        });
+      }),
+    ).rejects.toThrow('current operation to finish');
+    expect(await db.count('bounded_root_client')).toBe(0);
+
+    const manual = await db.beginTransaction?.();
+    if (!manual) throw new Error('beginTransaction unavailable');
+    await expect(
+      db.client.execute({
+        sql: 'INSERT INTO bounded_root_client (id) VALUES (2)',
+        args: [],
+      }),
+    ).rejects.toThrow('Timed out after 50ms');
+    await manual.rollback();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(await db.count('bounded_root_client')).toBe(0);
     await db.close?.();
   });
 
