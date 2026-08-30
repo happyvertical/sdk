@@ -1723,6 +1723,12 @@ describe('secure SQLite file acquisition', () => {
           tenant_id: null,
           value: 'two',
         }),
+        tx.upsert('concurrent_nullable_scope', ['scope', 'tenant_id'], {
+          id: 'callback-three',
+          scope: '2',
+          tenant_id: null,
+          value: 'three',
+        }),
       ]);
       await txOf(tx)(async (nested) => {
         await Promise.all([
@@ -1776,7 +1782,7 @@ describe('secure SQLite file acquisition', () => {
       ).rows,
     ).toEqual([
       { id: 'nested-two', value: 'two' },
-      { id: 'callback-two', value: 'two' },
+      { id: 'callback-three', value: 'three' },
     ]);
     expect(await db.count('concurrent_nullable_scope')).toBe(2);
     await db.close?.();

@@ -710,45 +710,16 @@ async function createDatabase(
     const buildNullAwareUpsertLockKey = (
       table: string,
       conflictColumns: string[],
-      data: Record<string, any>,
     ): string => {
-      const encodeValue = (value: unknown): string => {
-        if (
-          value === null ||
-          (typeof value === 'number' && Number.isNaN(value))
-        )
-          return 'null';
-        if (typeof value === 'bigint') return `integer:${value}`;
-        if (typeof value === 'boolean')
-          return `integer:${BigInt(Number(value))}`;
-        if (typeof value === 'number') {
-          // node:sqlite normalizes booleans at our driver boundary and SQLite
-          // compares integral REAL/INTEGER values numerically. Use the same
-          // identity for 1, 1n, true, 0, -0, and false so equivalent nullable
-          // conflict keys cannot bypass the two-step upsert lock.
-          if (Number.isInteger(value)) return `integer:${BigInt(value)}`;
-          return `number:${value}`;
-        }
-        if (typeof value === 'string') {
-          return `string:${value.length}:${value}`;
-        }
-        if (value === undefined) return 'undefined';
-        // Records have already passed through serializeValue(), but keep this
-        // branch fail-closed and type-stable if an adapter extension supplies a
-        // new primitive-like value in the future.
-        return `${typeof value}:${String(value)}`;
-      };
+      // SQLite equality is schema-affinity dependent: an INTEGER column can
+      // treat 1, 1n, true, and the string "1" as the same conflict value. A
+      // value-derived key cannot reproduce that without loading the schema.
+      // Serialize all null-aware attempts for one logical constraint instead.
       const material = JSON.stringify({
         url,
         table,
-        conflicts: conflictColumns.map((column) => [
-          column,
-          encodeValue(data[column]),
-        ]),
+        conflicts: conflictColumns,
       });
-      // Values may contain credentials or candidate data. Keep them out of map
-      // keys, diagnostics, and heap snapshots while retaining a stable,
-      // collision-resistant identity for the in-process lock.
       return `sqlite-null-aware:${createHash('sha256').update(material).digest('hex')}`;
     };
 
@@ -940,7 +911,7 @@ async function createDatabase(
       if (!acquireTransaction) {
         const executor = currentExecutor();
         return withNullAwareUpsertLock(
-          buildNullAwareUpsertLockKey(table, conflictColumns, serializedData),
+          buildNullAwareUpsertLockKey(table, conflictColumns),
           () =>
             executeNullAwareUpsertAttempt(
               executor,
@@ -955,7 +926,7 @@ async function createDatabase(
         table,
         conflictColumns,
         serializedData,
-        buildNullAwareUpsertLockKey(table, conflictColumns, serializedData),
+        buildNullAwareUpsertLockKey(table, conflictColumns),
       );
     };
 
