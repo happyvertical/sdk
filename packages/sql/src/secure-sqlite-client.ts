@@ -348,12 +348,19 @@ async function validateTrustedParentCustody(
   }
 }
 
-async function createSecureLeaf(filePath: string): Promise<boolean> {
+interface SecureLeafIdentity {
+  dev: number;
+  ino: number;
+}
+
+async function createSecureLeaf(
+  filePath: string,
+): Promise<SecureLeafIdentity | undefined> {
   let handle: Awaited<ReturnType<typeof open>>;
   try {
     handle = await open(filePath, 'wx', 0o600);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return false;
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') return undefined;
     throw new DatabaseError(
       'Secure SQLite could not create the database leaf',
       {
@@ -364,8 +371,9 @@ async function createSecureLeaf(filePath: string): Promise<boolean> {
   }
 
   try {
+    const stats = await handle.stat();
     await handle.close();
-    return true;
+    return { dev: stats.dev, ino: stats.ino };
   } catch (error) {
     let cleanupError: string | undefined;
     try {
@@ -381,6 +389,23 @@ async function createSecureLeaf(filePath: string): Promise<boolean> {
       originalError: error instanceof Error ? error.message : String(error),
       ...(cleanupError ? { cleanupError } : {}),
     });
+  }
+}
+
+async function removeCreatedLeafIfUnchanged(
+  filePath: string,
+  identity: SecureLeafIdentity,
+): Promise<string | undefined> {
+  try {
+    const current = await lstat(filePath);
+    if (current.dev !== identity.dev || current.ino !== identity.ino) {
+      return undefined;
+    }
+    await unlink(filePath);
+    return undefined;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    return error instanceof Error ? error.message : String(error);
   }
 }
 
@@ -811,7 +836,7 @@ export async function createSecureSqliteClient(
       },
     );
   }
-  let createdLeaf = false;
+  let createdLeaf: SecureLeafIdentity | undefined;
   if (!leafExisted) {
     createdLeaf = await createSecureLeaf(filePath);
     // An EEXIST race or inherited platform ACL must still satisfy the complete
@@ -819,15 +844,44 @@ export async function createSecureSqliteClient(
     // cannot create beneath a validated trusted parent; hostile same-UID
     // mutation remains outside the documented boundary.
     try {
-      await validateTrustedParentCustody(filePath, options, runtime);
+      const acquiredLeaf = await validateTrustedParentCustody(
+        filePath,
+        options,
+        runtime,
+      );
+      if (!acquiredLeaf) {
+        throw new DatabaseError(
+          'Secure SQLite database leaf disappeared during acquisition',
+          { path: filePath },
+        );
+      }
+      if (createdLeaf) {
+        let current: Awaited<ReturnType<typeof lstat>>;
+        try {
+          current = await lstat(filePath);
+        } catch (error) {
+          throw new DatabaseError(
+            'Secure SQLite database leaf changed during acquisition',
+            {
+              path: filePath,
+              originalError:
+                error instanceof Error ? error.message : String(error),
+            },
+          );
+        }
+        if (
+          current.dev !== createdLeaf.dev ||
+          current.ino !== createdLeaf.ino
+        ) {
+          throw new DatabaseError(
+            'Secure SQLite database leaf changed during acquisition',
+            { path: filePath },
+          );
+        }
+      }
     } catch (error) {
       if (createdLeaf) {
-        try {
-          await unlink(filePath);
-        } catch {
-          // The custody validation error remains primary; it already denies
-          // driver acquisition and names the rejected path.
-        }
+        await removeCreatedLeafIfUnchanged(filePath, createdLeaf);
       }
       throw error;
     }
@@ -839,14 +893,7 @@ export async function createSecureSqliteClient(
   } catch (error) {
     let cleanupError: string | undefined;
     if (createdLeaf) {
-      try {
-        await unlink(filePath);
-      } catch (cleanupFailure) {
-        cleanupError =
-          cleanupFailure instanceof Error
-            ? cleanupFailure.message
-            : String(cleanupFailure);
-      }
+      cleanupError = await removeCreatedLeafIfUnchanged(filePath, createdLeaf);
     }
     throw new DatabaseError(
       'Secure SQLite acquisition rejected the database path',

@@ -1,3 +1,4 @@
+import { rmSync, writeFileSync } from 'node:fs';
 import {
   chmod,
   lstat,
@@ -481,6 +482,46 @@ describe('secure SQLite file acquisition', () => {
       }),
     ).rejects.toThrow('rejected the database path');
     await expect(lstat(databasePath)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('fails closed if a newly created leaf disappears during custody revalidation', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'disappearing.db');
+
+    await expect(
+      createSecureSqliteClient(databasePath, trustedParent, {
+        platform: 'darwin',
+        inspectDarwinAcl: async (path) => {
+          if (path === databasePath) await rm(databasePath);
+          return false;
+        },
+        loadDriver: loadNodeSqliteDriver,
+      }),
+    ).rejects.toThrow('leaf changed during acquisition');
+    await expect(lstat(databasePath)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('does not remove a replacement leaf when driver acquisition fails', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'replaced-before-cleanup.db');
+
+    await expect(
+      createSecureSqliteClient(databasePath, trustedParent, {
+        platform: process.platform,
+        loadDriver: async () =>
+          ({
+            // biome-ignore lint/style/useNamingConvention: mirrors node:sqlite's public API
+            DatabaseSync: class {
+              constructor() {
+                rmSync(databasePath);
+                writeFileSync(databasePath, 'replacement', { mode: 0o600 });
+                throw new Error('open failed after replacement');
+              }
+            },
+          }) as any,
+      }),
+    ).rejects.toThrow('rejected the database path');
+    expect(await readFile(databasePath, 'utf8')).toBe('replacement');
   });
 
   it('rejects a symlinked database leaf without touching its target', async () => {
