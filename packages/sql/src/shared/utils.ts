@@ -49,8 +49,10 @@ const CREDENTIAL_CONTEXT_KEY =
 const DATABASE_URL =
   /\b(?:https?|libsql|postgres|postgresql):\/\/[^\s"'`<>()]+/giu;
 const CREDENTIAL_ASSIGNMENT =
-  /(?<![\p{L}\p{N}_-])(["']?(?:password|passwd|pwd|secret|token|api[-_ ]?key|authorization|credential|auth(?:entication)?(?:[-_ ]?(?:token|key|secret))?|client[-_ ]?(?:secret|token)|access[-_ ]?token|refresh[-_ ]?token)["']?\s*[:=]\s*)(?:"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[^\s,;}\]]+)/giu;
+  /(?<![\p{L}\p{N}_-])(["']?)([\p{L}\p{N}_.-]+(?: key)?)\1(\s*[:=]\s*)(?:"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|[^\s,;}\]]+)/giu;
 const BEARER_CREDENTIAL = /\bbearer\s+[^\s,;]+/giu;
+const SQL_NUMERIC_LITERAL =
+  /(?<![\p{L}\p{N}_$])[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[-+]?\d+)?(?![\p{L}\p{N}_$])/giu;
 
 function toDriverError(error: unknown): DriverError {
   return error && (typeof error === 'object' || typeof error === 'function')
@@ -90,7 +92,13 @@ function redactDatabaseErrorText(
 ): string {
   let redacted = value
     .replace(DATABASE_URL, redactUrl)
-    .replace(CREDENTIAL_ASSIGNMENT, '$1[redacted]')
+    .replace(
+      CREDENTIAL_ASSIGNMENT,
+      (assignment, quote: string, key: string, delimiter: string) =>
+        CREDENTIAL_CONTEXT_KEY.test(key)
+          ? `${quote}${key}${quote}${delimiter}[redacted]`
+          : assignment,
+    )
     .replace(BEARER_CREDENTIAL, 'Bearer [redacted]');
 
   for (const secret of [...new Set(knownSecrets)].sort(
@@ -179,6 +187,10 @@ function collectSqlLiterals(sql: string, output: Set<string>): void {
     /\$([A-Za-z_][A-Za-z0-9_]*)\$([\s\S]*?)\$\1\$/gu,
   )) {
     if (match[2]) output.add(match[2]);
+  }
+
+  for (const match of sql.matchAll(SQL_NUMERIC_LITERAL)) {
+    output.add(match[0]);
   }
 }
 

@@ -64,15 +64,18 @@ describe('database error diagnostics', () => {
     const jsonToken = 'json-token-value-744';
     const authToken = 'camel-auth-value-744';
     const clientSecret = 'client-value-744';
+    const privateKey = 'private-key-value-744';
+    const databasePassword = 'database-password-value-744';
+    const signingKey = 'signing-key-value-744';
     const sql = `SELECT * FROM accounts WHERE token = $1 AND fallback = '${literalSecret}' AND payload = $issue744$${dollarSecret}$issue744$`;
     const driverError = Object.assign(
       new Error(
-        `invalid input ${boundSecret}; password=${literalSecret}; statement ${sql}; connection postgresql://dbuser:${literalSecret}@db.example/app?token=${boundSecret}; options {"password":"${jsonPassword}","token":"${jsonToken}"}`,
+        `invalid input ${boundSecret}; password=${literalSecret}; statement ${sql}; connection postgresql://dbuser:${literalSecret}@db.example/app?token=${boundSecret}; options {"password":"${jsonPassword}","token":"${jsonToken}"}; privateKey=${privateKey}`,
       ),
       {
         code: '22023',
-        detail: `Bearer ${boundSecret}; invalid literal ${dollarSecret}; authToken=${authToken}`,
-        hint: `Do not retry statement ${sql}; client_secret=${clientSecret}`,
+        detail: `Bearer ${boundSecret}; invalid literal ${dollarSecret}; authToken=${authToken}; dbPassword: ${databasePassword}`,
+        hint: `Do not retry statement ${sql}; client_secret=${clientSecret}; signing_key="${signingKey}"`,
       },
     );
 
@@ -94,6 +97,9 @@ describe('database error diagnostics', () => {
     expect(rendered).not.toContain(jsonToken);
     expect(rendered).not.toContain(authToken);
     expect(rendered).not.toContain(clientSecret);
+    expect(rendered).not.toContain(privateKey);
+    expect(rendered).not.toContain(databasePassword);
+    expect(rendered).not.toContain(signingKey);
     expect(rendered).not.toContain(sql);
     expect(rendered).not.toContain('dbuser');
     expect(rendered).toContain('[redacted]');
@@ -129,10 +135,13 @@ describe('database error diagnostics', () => {
       'json-token-value-744',
       'camel-auth-value-744',
       'client-value-744',
+      'private-key-value-744',
+      'database-password-value-744',
+      'signing-key-value-744',
     ];
     const formatted = formatDbError(
       new Error(
-        `driver options {"password":"${credentialValues[0]}","token":"${credentialValues[1]}"}; authToken=${credentialValues[2]}; client_secret=${credentialValues[3]}`,
+        `driver options {"password":"${credentialValues[0]}","token":"${credentialValues[1]}"}; authToken=${credentialValues[2]}; client_secret=${credentialValues[3]}; privateKey=${credentialValues[4]}; dbPassword: ${credentialValues[5]}; signing_key="${credentialValues[6]}"`,
       ),
     );
     for (const credential of credentialValues) {
@@ -170,7 +179,8 @@ describe('database error diagnostics', () => {
   });
 
   it('redacts generated schema SQL echoed by a real DuckDB diagnostic', async () => {
-    const defaultSecret = 'alter-default-value-issue-744';
+    const quotedSecret = 'alter-default-value-issue-744';
+    const numericSecret = 424_242;
     const db = await getDatabase({
       type: 'duckdb',
       url: ':memory:',
@@ -182,9 +192,9 @@ describe('database error diagnostics', () => {
       await db.query('CREATE TABLE issue_744_alter (id INTEGER)');
       await db.alterTable?.addColumn('issue_744_alter', {
         name: 'payload',
-        type: 'VARCHAR',
-        defaultValue: defaultSecret,
-        check: 'BROKEN ???',
+        type: 'INTEGER',
+        defaultValue: numericSecret,
+        check: `payload > ${numericSecret} AND '${quotedSecret}' = '${quotedSecret}' BROKEN`,
       });
     } catch (error) {
       caught = error;
@@ -194,7 +204,9 @@ describe('database error diagnostics', () => {
 
     expect(caught).toBeInstanceOf(DatabaseError);
     const error = caught as DatabaseError;
-    expect(renderErrorSurfaces(error)).not.toContain(defaultSecret);
+    const rendered = renderErrorSurfaces(error);
+    expect(rendered).not.toContain(quotedSecret);
+    expect(rendered).not.toContain(String(numericSecret));
     expect(error.message).toContain('Parser Error');
     expect(error.context?.sql).toBe('[redacted]');
   });
