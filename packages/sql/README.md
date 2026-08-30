@@ -322,8 +322,10 @@ later operations so work cannot escape into autocommit after the transaction.
 If a SQLite statement failure is intentionally recoverable, attach an explicit
 `.catch(...)` or `.then(..., onRejected)` to the transaction-scoped operation.
 Passing it through `Promise.resolve`, `Promise.all`, or an async helper only
-adopts its rejection and does not prove the derived promise is observed; the
-scope therefore fails closed and rolls back if that operation rejects.
+counts as recovery when the derived rejection is itself awaited or caught. A
+detached rejected adoption fails closed and rolls back. `Promise.allSettled`
+intentionally consumes each rejection, so using it permits the transaction to
+commit after the caller inspects those results.
 
 ### Identifiers
 

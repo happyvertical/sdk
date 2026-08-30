@@ -230,10 +230,24 @@ interface PromiseObservation {
 const activeNativeTransferObservations = new Set<PromiseObservation>();
 let nativeTransferListenerInstalled = false;
 const recordUnhandledNativeTransfer = (reason: unknown) => {
+  let matched = false;
   for (const observation of activeNativeTransferObservations) {
     if (observation.nativeTransfers.has(reason)) {
       observation.unhandledNativeTransfers.add(reason);
+      matched = true;
     }
+  }
+  // Merely observing a transaction-owned rejection must not suppress Node's
+  // default fatal handling for an unrelated rejection. If another application
+  // listener exists, it already owns that policy; otherwise reproduce the
+  // default fail-fast outcome outside this event dispatch.
+  if (!matched && process.listenerCount('unhandledRejection') === 1) {
+    queueMicrotask(() => {
+      if (reason instanceof Error) throw reason;
+      throw new Error(`Unhandled promise rejection: ${String(reason)}`, {
+        cause: reason,
+      });
+    });
   }
 };
 
@@ -1022,6 +1036,7 @@ async function createDatabase(
       options.transactionQueueTimeout,
     );
     const executorContext = new AsyncLocalStorage<SqliteExecutor>();
+    const transactionCallbackContext = new AsyncLocalStorage<boolean>();
     const currentExecutor = (): SqliteExecutor =>
       executorContext.getStore() ?? client;
 
@@ -2081,7 +2096,10 @@ async function createDatabase(
               client,
               nestedTransaction,
             );
-            const result = await callback(transactionScope.database);
+            const activeScope = transactionScope;
+            const result = await transactionCallbackContext.run(true, () =>
+              callback(activeScope.database),
+            );
             await transactionScope.sealAndDrain();
             await nestedTransaction.drain();
             await client.execute({ sql: 'COMMIT', args: [] });
@@ -2120,7 +2138,10 @@ async function createDatabase(
             transactionClient,
             nestedTransaction,
           );
-          const result = await callback(transactionScope.database);
+          const activeScope = transactionScope;
+          const result = await transactionCallbackContext.run(true, () =>
+            callback(activeScope.database),
+          );
           await transactionScope.sealAndDrain();
           await nestedTransaction.drain();
           await transactionClient.commit();
@@ -2887,6 +2908,28 @@ async function createDatabase(
         return client.execute(prepareManagedStatement(statement));
       },
     };
+    const reservedClose = (): Promise<void> => {
+      if (
+        connectionLock.held &&
+        transactionCallbackContext.getStore() === true
+      ) {
+        return Promise.reject(
+          new DatabaseError(
+            'Cannot close the SQLite database from inside its active transaction callback',
+            {
+              hint: 'Finish the transaction callback before closing the database.',
+            },
+          ),
+        );
+      }
+      return barrier.close(async () => {
+        if (connectionLock.held) {
+          const releaseConnection = await connectionLock.acquire();
+          releaseConnection();
+        }
+        await rawClose();
+      });
+    };
     const reserveManaged = <T extends (...args: any[]) => Promise<any>>(
       fn: T,
     ): T =>
@@ -3013,7 +3056,7 @@ async function createDatabase(
             {},
           ),
         ),
-      close: () => barrier.close(rawClose),
+      close: reservedClose,
     };
 
     return {
@@ -3044,7 +3087,7 @@ async function createDatabase(
       beginTransaction: reservedBeginTransaction,
       getTableSchema: reserveManaged(getTableSchema),
       alterTable: reservedAlterTable,
-      close: () => barrier.close(rawClose),
+      close: reservedClose,
     };
   })();
 }

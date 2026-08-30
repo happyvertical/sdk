@@ -1643,6 +1643,42 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
+  it('does not suppress an unrelated unhandled rejection while observing native transfers', async () => {
+    const previousUnhandled = process.listeners('unhandledRejection');
+    process.removeAllListeners('unhandledRejection');
+    let captured: Error | undefined;
+    process.setUncaughtExceptionCaptureCallback((error) => {
+      captured = error;
+    });
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'unrelated-rejection.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE failures (id INTEGER PRIMARY KEY)');
+    const tx = await db.beginTransaction?.();
+    if (!tx) throw new Error('beginTransaction unavailable');
+    try {
+      await tx.insert('failures', { id: 1 });
+      void Promise.resolve(tx.insert('failures', { id: 1 }));
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      void Promise.reject(new Error('unrelated-fatal'));
+      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(captured?.message).toBe('unrelated-fatal');
+      await expect(tx.rollback()).rejects.toThrow();
+    } finally {
+      process.setUncaughtExceptionCaptureCallback(null);
+      process.removeAllListeners('unhandledRejection');
+      for (const listener of previousUnhandled) {
+        process.on('unhandledRejection', listener);
+      }
+      await db.close?.();
+    }
+  });
+
   it('commits ordinary caught await failures on default and secure SQLite', async () => {
     const root = await makeTempRoot();
     const databases = [
@@ -2641,6 +2677,79 @@ describe('secure SQLite file acquisition', () => {
     await new Promise((resolve) => setImmediate(resolve));
     expect(await db.count('bounded_root_client')).toBe(0);
     await db.close?.();
+  });
+
+  it('rejects captured root close calls inside callback transactions', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'bounded-root-close.db'),
+      secureFile,
+      cache: false,
+      transactionQueueTimeout: 50,
+    });
+    await db.query('CREATE TABLE bounded_root_close (id INTEGER PRIMARY KEY)');
+
+    await expect(
+      txOf(db)(async () => {
+        await db.close?.();
+      }),
+    ).rejects.toThrow('Cannot close the SQLite database');
+    await expect(
+      txOf(db)(async () => {
+        await db.client.close?.();
+      }),
+    ).rejects.toThrow('Cannot close the SQLite database');
+
+    await expect(
+      db.query('INSERT INTO bounded_root_close (id) VALUES (1)'),
+    ).resolves.toMatchObject({ rowCount: 1 });
+    await db.close?.();
+  });
+
+  it('queues root close behind active manual transactions', async () => {
+    for (const closeViaClient of [false, true]) {
+      const root = await makeTempRoot();
+      const databasePath = join(
+        root,
+        closeViaClient ? 'manual-client-close.db' : 'manual-db-close.db',
+      );
+      const db = await getDatabase({
+        type: 'sqlite',
+        url: databasePath,
+        secureFile,
+        cache: false,
+      });
+      await db.query('CREATE TABLE manual_close (id INTEGER PRIMARY KEY)');
+      const tx = await db.beginTransaction?.();
+      if (!tx) throw new Error('beginTransaction unavailable');
+      await tx.insert('manual_close', { id: 1 });
+
+      const closing = closeViaClient ? db.client.close?.() : db.close?.();
+      if (!closing) throw new Error('close unavailable');
+      await expect(
+        Promise.race([
+          closing.then(() => 'closed'),
+          new Promise<string>((resolve) =>
+            setTimeout(() => resolve('waiting'), 20),
+          ),
+        ]),
+      ).resolves.toBe('waiting');
+      await expect(db.count('manual_close')).rejects.toThrow(
+        'closing or closed',
+      );
+
+      await tx.commit();
+      await expect(closing).resolves.toBeUndefined();
+      const reopened = await getDatabase({
+        type: 'sqlite',
+        url: databasePath,
+        secureFile,
+        cache: false,
+      });
+      expect(await reopened.count('manual_close')).toBe(1);
+      await reopened.close?.();
+    }
   });
 
   it('starts manual transactionQueueTimeout before an earlier outsider clears the invocation barrier', async () => {
