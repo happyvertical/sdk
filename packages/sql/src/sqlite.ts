@@ -222,7 +222,43 @@ function combineTransactionFailures(
 interface PromiseObservation {
   observed: boolean;
   handlers: Set<Promise<void>>;
+  nativeTransfers: Set<unknown>;
   suppressIntrinsicRecovery?: number;
+}
+
+async function settleNativePromiseTransfers(
+  observations: Iterable<PromiseObservation>,
+): Promise<void> {
+  const transferred = [...observations].filter(
+    (observation) => observation.nativeTransfers.size > 0,
+  );
+  if (transferred.length === 0) return;
+
+  const unhandled = new Set<unknown>();
+  const recordUnhandled = (reason: unknown) => {
+    if (
+      transferred.some((observation) => observation.nativeTransfers.has(reason))
+    ) {
+      unhandled.add(reason);
+    }
+  };
+  process.on('unhandledRejection', recordUnhandled);
+  try {
+    // Native adoption does not expose the adopting Promise. Its rejection
+    // checkpoint distinguishes caught await/combinator recovery from a
+    // detached rejected adoption that the transaction must still own.
+    await new Promise<void>((resolvePromise) => setImmediate(resolvePromise));
+  } finally {
+    process.off('unhandledRejection', recordUnhandled);
+  }
+
+  for (const observation of transferred) {
+    if (
+      [...observation.nativeTransfers].every((reason) => !unhandled.has(reason))
+    ) {
+      observation.observed = true;
+    }
+  }
 }
 
 function isNativePromiseAssimilation(
@@ -376,7 +412,7 @@ function withRejectionObservation<T>(
                     // native Promise. If that rejection escapes an await, the
                     // enclosing transaction callback still rejects normally;
                     // if the caller catches it, this operation is recovered.
-                    observation.observed = true;
+                    observation.nativeTransfers.add(reason);
                     return onRejected(reason);
                   }
                 : onRejected;
@@ -463,7 +499,7 @@ function withRejectionObservation<T>(
             }
           : transfersToNativePromise && typeof onRejected === 'function'
             ? (reason: any) => {
-                observation.observed = true;
+                observation.nativeTransfers.add(reason);
                 return onRejected(reason);
               }
             : onRejected;
@@ -1794,6 +1830,7 @@ async function createDatabase(
         children: Set<{
           observed: boolean;
           handlers: Set<Promise<void>>;
+          nativeTransfers: Set<unknown>;
           error?: unknown;
         }>;
       }
@@ -1852,6 +1889,7 @@ async function createDatabase(
             [...scope.children].flatMap((child) => [...child.handlers]),
           );
         }
+        await settleNativePromiseTransfers(scope.children);
         const failures = [...scope.children]
           .filter((child) => !child.observed && 'error' in child)
           .map((child) => child.error);
@@ -1944,9 +1982,11 @@ async function createDatabase(
           tail: Promise.resolve(),
           children: new Set(),
         };
-        const child = { observed: false, handlers: new Set() } as {
-          observed: boolean;
-          handlers: Set<Promise<void>>;
+        const child = {
+          observed: false,
+          handlers: new Set<Promise<void>>(),
+          nativeTransfers: new Set<unknown>(),
+        } as PromiseObservation & {
           error?: unknown;
         };
         parentScope.children.add(child);
@@ -2146,6 +2186,7 @@ async function createDatabase(
           const tracked = {
             observed: false,
             handlers: new Set<Promise<void>>(),
+            nativeTransfers: new Set<unknown>(),
           } as PromiseObservation & {
             error?: unknown;
           };
@@ -2265,6 +2306,7 @@ async function createDatabase(
                 [...operations].flatMap((entry) => [...entry.handlers]),
               );
             }
+            await settleNativePromiseTransfers(operations);
             const failures = [...operations]
               .filter(
                 (operation) => !operation.observed && 'error' in operation,
@@ -2826,8 +2868,39 @@ async function createDatabase(
     const reserveManaged = <T extends (...args: any[]) => Promise<any>>(
       fn: T,
     ): T =>
-      reserve(((...args: Parameters<T>) =>
-        executorContext.run(managedRootExecutor, () => fn(...args))) as T);
+      ((...args: Parameters<T>) => {
+        const timeoutMs =
+          options.transactionQueueTimeout ??
+          DEFAULT_TRANSACTION_QUEUE_TIMEOUT_MS;
+        let expired = false;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const deadline = new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            expired = true;
+            reject(
+              new DatabaseError(
+                `Timed out after ${timeoutMs}ms waiting for the sqlite connection's current operation to finish`,
+                { adapter: 'sqlite', timeoutMs },
+              ),
+            );
+          }, timeoutMs);
+        });
+        const queued = barrier.run(async () => {
+          if (expired) return deadline;
+          if (timer) {
+            clearTimeout(timer);
+            timer = undefined;
+          }
+          if (connectionLock.held) {
+            const releaseConnection = await connectionLock.acquire();
+            releaseConnection();
+          }
+          return executorContext.run(managedRootExecutor, () => fn(...args));
+        });
+        return Promise.race([queued, deadline]).finally(() => {
+          if (timer) clearTimeout(timer);
+        });
+      }) as T;
     const reservedTable = (tableName: string): TableInterface => {
       const scoped = table(tableName);
       return {

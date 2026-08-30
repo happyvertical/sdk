@@ -1600,6 +1600,48 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
+  it('rolls back detached failures transferred to native promises', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'detached-native-transfer.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query(
+      'CREATE TABLE detached_native_transfer (id INTEGER PRIMARY KEY)',
+    );
+
+    await expect(
+      txOf(db)(async (tx) => {
+        await tx.insert('detached_native_transfer', { id: 1 });
+        void Promise.resolve(tx.insert('detached_native_transfer', { id: 1 }));
+      }),
+    ).rejects.toThrow();
+    expect(await db.count('detached_native_transfer')).toBe(0);
+
+    const manual = await db.beginTransaction?.();
+    if (!manual) throw new Error('beginTransaction unavailable');
+    await manual.insert('detached_native_transfer', { id: 2 });
+    void Promise.all([manual.insert('detached_native_transfer', { id: 2 })]);
+    await expect(manual.commit()).rejects.toThrow();
+    expect(await db.count('detached_native_transfer')).toBe(0);
+
+    await expect(
+      txOf(db)(async (outer) => {
+        await outer.insert('detached_native_transfer', { id: 3 });
+        void txOf(outer)(async (inner) => {
+          await inner.insert('detached_native_transfer', { id: 4 });
+          void (async () => {
+            await inner.insert('detached_native_transfer', { id: 4 });
+          })();
+        });
+      }),
+    ).rejects.toThrow();
+    expect(await db.count('detached_native_transfer')).toBe(0);
+    await db.close?.();
+  });
+
   it('commits ordinary caught await failures on default and secure SQLite', async () => {
     const root = await makeTempRoot();
     const databases = [
@@ -2531,6 +2573,37 @@ describe('secure SQLite file acquisition', () => {
     expect((await db.query('SELECT id FROM timeout_order')).rows).toEqual([
       { id: 1 },
     ]);
+    await db.close?.();
+  });
+
+  it('bounds root operations queued behind callback and manual transactions', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'bounded-root-operation.db'),
+      secureFile,
+      cache: false,
+      transactionQueueTimeout: 50,
+    });
+    await db.query(
+      'CREATE TABLE bounded_root_operation (id INTEGER PRIMARY KEY)',
+    );
+
+    await expect(
+      txOf(db)(async () => {
+        await db.insert('bounded_root_operation', { id: 1 });
+      }),
+    ).rejects.toThrow('current operation to finish');
+    expect(await db.count('bounded_root_operation')).toBe(0);
+
+    const manual = await db.beginTransaction?.();
+    if (!manual) throw new Error('beginTransaction unavailable');
+    await expect(
+      db.insert('bounded_root_operation', { id: 2 }),
+    ).rejects.toThrow('Timed out after 50ms');
+    await manual.rollback();
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(await db.count('bounded_root_operation')).toBe(0);
     await db.close?.();
   });
 

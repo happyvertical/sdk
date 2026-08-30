@@ -301,9 +301,11 @@ Two consequences worth knowing:
   back. End it in a `finally` — a handle that is never ended holds the
   connection for the life of the process, and every later transaction on it
   fails with the queue timeout.
-- Inside a `transaction()` callback, use the `tx` you were handed. Calling a
-  top-level `db.*` method that opens its own transaction makes it wait on the
-  connection its own caller is holding.
+- Inside a `transaction()` callback, use the `tx` you were handed. With secure
+  SQLite, calling a top-level `db.*` method makes it wait on the connection its
+  own caller is holding and reject at `transactionQueueTimeout` rather than
+  hang forever. The same bounded wait applies while a manual transaction handle
+  is open.
 
 Nested SQLite and PostgreSQL scopes use savepoints. If sibling nested scopes are
 started concurrently on one transaction, they serialize so the stack-ordered
