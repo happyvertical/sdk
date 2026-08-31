@@ -1745,11 +1745,26 @@ describe('secure SQLite file acquisition', () => {
       };
       const Species = promiseConstructor[Symbol.species];
       if (!Species) throw new Error('transaction Promise species unavailable');
+      if (useProxy) {
+        const proxiedExecutor = new Proxy(
+          (resolve: (value: unknown) => void, _reject: () => void) => {
+            resolve('unrelated success');
+          },
+          {},
+        );
+        expect(proxiedExecutor.name).toBe('');
+        expect(proxiedExecutor.length).toBe(2);
+        expect(Function.prototype.toString.call(proxiedExecutor)).toMatch(
+          /\{\s*\[native code\]\s*\}/,
+        );
+        await new Species(proxiedExecutor);
+        return;
+      }
       const executor = (
         resolve: (value: unknown) => void,
         _reject: () => void,
       ) => resolve('unrelated success');
-      await new Species(useProxy ? new Proxy(executor, {}) : executor);
+      await new Species(executor);
     };
     for (const options of [
       { type: 'sqlite' as const, url: ':memory:', cache: false },
