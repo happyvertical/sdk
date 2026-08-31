@@ -1,5 +1,19 @@
 # @happyvertical/utils
 
+## 0.89.1
+
+## 0.89.0
+
+## 0.88.2
+
+### Patch Changes
+
+- 596e262: Expose sanitized database driver diagnostics through `DatabaseError` messages,
+  native causes, and JSON serialization while redacting SQL statements, bound
+  values, and credential-shaped details.
+
+## 0.88.1
+
 ## 0.88.0
 
 ## 0.87.0

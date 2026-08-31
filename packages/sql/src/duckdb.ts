@@ -39,6 +39,7 @@ import {
   buildWhere,
   formatDbError,
   resolveInsertColumns,
+  wrapDatabaseError,
 } from './shared/utils';
 
 /**
@@ -1122,10 +1123,9 @@ export async function getDatabase(
         rows,
       };
     } catch (e) {
-      throw new DatabaseError('Failed to execute raw query', {
+      throw wrapDatabaseError('Failed to execute raw query', e, {
         sql,
         args,
-        originalError: formatDbError(e),
       });
     }
   };
@@ -1399,14 +1399,15 @@ export async function getDatabase(
       validateTableName(table);
       validateColumnName(column.name);
 
+      let sql: string | undefined;
       try {
-        const sql = generateAddColumnStatement(table, column, 'duckdb');
+        sql = generateAddColumnStatement(table, column, 'duckdb');
         await connection.run(sql);
       } catch (e) {
-        throw new DatabaseError('Failed to add column to table', {
+        throw wrapDatabaseError('Failed to add column to table', e, {
           table,
           column: column.name,
-          originalError: formatDbError(e),
+          ...(sql ? { sql } : {}),
         });
       }
     },
@@ -1427,14 +1428,15 @@ export async function getDatabase(
         validateColumnName(col);
       }
 
+      let sql: string | undefined;
       try {
-        const sql = generateCreateIndexStatement(table, index);
+        sql = generateCreateIndexStatement(table, index);
         await connection.run(sql);
       } catch (e) {
-        throw new DatabaseError('Failed to create index on table', {
+        throw wrapDatabaseError('Failed to create index on table', e, {
           table,
           index: index.name,
-          originalError: formatDbError(e),
+          ...(sql ? { sql } : {}),
         });
       }
     },

@@ -37,7 +37,10 @@ import {
   buildWhere,
   formatDbError,
   resolveInsertColumns,
+  wrapDatabaseError,
 } from './shared/utils';
+
+const MAX_TIMER_DELAY_MILLIS = 2_147_483_647;
 
 /**
  * Configuration options for PostgreSQL database connections
@@ -87,6 +90,20 @@ export interface PostgresOptions extends DatabaseCacheOptions {
    * for applications with many SMRT collections.
    */
   max?: number;
+
+  /**
+   * Maximum time to wait for a pool connection, in milliseconds.
+   * Must not exceed Node.js's maximum timer delay of 2,147,483,647.
+   * Set to 0 to wait indefinitely. When omitted, pg's default is used.
+   */
+  connectionTimeoutMillis?: number;
+
+  /**
+   * Maximum time an idle client remains in the pool, in milliseconds.
+   * Must not exceed Node.js's maximum timer delay of 2,147,483,647.
+   * Set to 0 to retain idle clients. When omitted, pg's default is used.
+   */
+  idleTimeoutMillis?: number;
 
   /**
    * Schema definitions for tables.
@@ -155,6 +172,8 @@ type EffectivePostgresConfig = {
   password?: string;
   port: number;
   max: number;
+  connectionTimeoutMillis?: number;
+  idleTimeoutMillis?: number;
 };
 
 function resolvePostgresConfig(
@@ -186,11 +205,32 @@ function resolvePostgresConfig(
       legacyPort === undefined ? undefined : Number(legacyPort),
     ) ?? 5432;
   const max = options.max ?? 20;
+  const { connectionTimeoutMillis, idleTimeoutMillis } = options;
   if (!Number.isInteger(port) || port < 1 || port > 65_535) {
     throw new Error('PostgreSQL port must be an integer between 1 and 65535');
   }
   if (!Number.isInteger(max) || max < 1) {
     throw new Error('PostgreSQL pool max must be a positive integer');
+  }
+  if (
+    connectionTimeoutMillis !== undefined &&
+    (!Number.isInteger(connectionTimeoutMillis) ||
+      connectionTimeoutMillis < 0 ||
+      connectionTimeoutMillis > MAX_TIMER_DELAY_MILLIS)
+  ) {
+    throw new Error(
+      `PostgreSQL pool connectionTimeoutMillis must be an integer between 0 and ${MAX_TIMER_DELAY_MILLIS}`,
+    );
+  }
+  if (
+    idleTimeoutMillis !== undefined &&
+    (!Number.isInteger(idleTimeoutMillis) ||
+      idleTimeoutMillis < 0 ||
+      idleTimeoutMillis > MAX_TIMER_DELAY_MILLIS)
+  ) {
+    throw new Error(
+      `PostgreSQL pool idleTimeoutMillis must be an integer between 0 and ${MAX_TIMER_DELAY_MILLIS}`,
+    );
   }
 
   return {
@@ -201,6 +241,8 @@ function resolvePostgresConfig(
     password: legacy(primary.password, process.env.SQLOO_PASSWORD),
     port,
     max,
+    connectionTimeoutMillis,
+    idleTimeoutMillis,
   };
 }
 
@@ -220,6 +262,8 @@ async function derivePostgresConnectionCacheKey(
     user: effective.user ?? null,
     password: effective.password ?? null,
     max: effective.max,
+    connectionTimeoutMillis: effective.connectionTimeoutMillis ?? null,
+    idleTimeoutMillis: effective.idleTimeoutMillis ?? null,
   });
   const hmacKey = await globalThis.__haveSqlPostgresCacheHmacKey;
   if (!hmacKey) {
@@ -743,10 +787,15 @@ async function createDatabase(
   // Create a connection pool with explicit max to prevent exhaustion.
   // pg defaults to 10 which is too low for SMRT apps that sync 30+ table
   // schemas on startup. Default to 20 but allow callers to override.
-  const poolMax = config.max;
+  const { max: poolMax, connectionTimeoutMillis, idleTimeoutMillis } = config;
   const pool = new Pool(
     config.url
-      ? { connectionString: config.url as string, max: poolMax }
+      ? {
+          connectionString: config.url as string,
+          max: poolMax,
+          connectionTimeoutMillis,
+          idleTimeoutMillis,
+        }
       : {
           host: host as string,
           user: user as string,
@@ -754,6 +803,8 @@ async function createDatabase(
           port: port as number,
           database: database as string,
           max: poolMax,
+          connectionTimeoutMillis,
+          idleTimeoutMillis,
         },
   );
 
@@ -1692,10 +1743,9 @@ async function createDatabase(
           rowCount: result.rowCount ?? 0,
         };
       } catch (e) {
-        throw new DatabaseError('Failed to execute raw query', {
+        throw wrapDatabaseError('Failed to execute raw query', e, {
           sql: query.sql,
           values: query.values,
-          originalError: formatDbError(e),
         });
       }
     };
@@ -1760,17 +1810,24 @@ async function createDatabase(
         .split(';')
         .filter((command) => command.trim() !== '');
 
-      // Match CREATE INDEX statements (Issue #867)
-      // Supports: CREATE INDEX, CREATE UNIQUE INDEX, with IF NOT EXISTS
+      // Match CREATE INDEX statements (Issues #867 and #1040).
+      // Named groups keep optional clauses from shifting identifier captures.
       const createIndexRegex =
-        /CREATE (UNIQUE )?INDEX (IF NOT EXISTS )?"?(\w+)"? ON "?(\w+)"?\s*\(([^)]+)\)/i;
+        /CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)?(?:IF\s+NOT\s+EXISTS\s+)?"?(?<indexName>\w+)"?\s+ON\s+"?(?<tableName>\w+)"?\s*(?:USING\s+"?\w+"?\s*)?\([^)]+\)/i;
+      const parseCreateIndex = (
+        command: string,
+      ): { indexName: string; tableName: string } | null => {
+        const { indexName, tableName } =
+          command.match(createIndexRegex)?.groups ?? {};
+        return indexName && tableName ? { indexName, tableName } : null;
+      };
 
       // Pre-scan commands to collect all index names for batch existence check (Issue #798)
       const indexNames: string[] = [];
       for (const command of commands) {
-        const indexMatch = command.trim().match(createIndexRegex);
+        const indexMatch = parseCreateIndex(command.trim());
         if (indexMatch) {
-          indexNames.push(indexMatch[3]);
+          indexNames.push(indexMatch.indexName);
         }
       }
 
@@ -1810,11 +1867,27 @@ async function createDatabase(
             // Table exists, check for missing columns
             for (const column of columns) {
               const columnDef = column.trim();
+              // Table constraints are not column definitions. In particular,
+              // a quoted constraint name would otherwise let the unanchored
+              // column matcher start at that name and generate an invalid
+              // ADD COLUMN statement.
+              if (
+                /^(?:CONSTRAINT\s+(?:"(?:[^"]|"")*"|\w+)\s+)?(?:(?:PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|CHECK)\b|EXCLUDE(?=\s+(?:USING\b|\()))/i.test(
+                  columnDef,
+                )
+              ) {
+                continue;
+              }
               // Match column name with optional quotes: "id" or id
-              const columnMatch = columnDef.match(/"?(\w+)"?\s+(\w+[^,]*)/);
+              const columnMatch = columnDef.match(
+                /^("(?:[^"]|"")*"|\w+)\s+\w+[^,]*/,
+              );
 
               if (columnMatch) {
-                const columnName = columnMatch[1];
+                const identifier = columnMatch[1];
+                const columnName = identifier.startsWith('"')
+                  ? identifier.slice(1, -1).replace(/""/g, '"')
+                  : identifier;
 
                 // Skip constraint definitions
                 if (
@@ -1860,11 +1933,10 @@ async function createDatabase(
           continue;
         }
 
-        const indexMatch = trimmedCommand.match(createIndexRegex);
+        const indexMatch = parseCreateIndex(trimmedCommand);
 
         if (indexMatch) {
-          const indexName = indexMatch[3];
-          const indexTableName = indexMatch[4];
+          const { indexName, tableName: indexTableName } = indexMatch;
 
           // Use pre-fetched batch result instead of per-index query
           if (!existingIndexes.has(indexName)) {
@@ -1995,10 +2067,9 @@ async function createDatabase(
             rowCount: result.rowCount ?? 0,
           };
         } catch (e) {
-          throw new DatabaseError('Failed to execute session query', {
+          throw wrapDatabaseError('Failed to execute session query', e, {
             sql: normalized.sql,
             values: normalized.values,
-            originalError: formatDbError(e),
           });
         }
       },
@@ -2447,14 +2518,15 @@ async function createDatabase(
       validateTableName(table);
       validateColumnName(column.name);
 
+      let sql: string | undefined;
       try {
-        const sql = generateAddColumnStatement(table, column, 'postgres');
+        sql = generateAddColumnStatement(table, column, 'postgres');
         await client.query(sql);
       } catch (e) {
-        throw new DatabaseError('Failed to add column to table', {
+        throw wrapDatabaseError('Failed to add column to table', e, {
           table,
           column: column.name,
-          originalError: formatDbError(e),
+          ...(sql ? { sql } : {}),
         });
       }
     },
@@ -2475,14 +2547,15 @@ async function createDatabase(
         validateColumnName(col);
       }
 
+      let sql: string | undefined;
       try {
-        const sql = generateCreateIndexStatement(table, index);
+        sql = generateCreateIndexStatement(table, index);
         await client.query(sql);
       } catch (e) {
-        throw new DatabaseError('Failed to create index on table', {
+        throw wrapDatabaseError('Failed to create index on table', e, {
           table,
           index: index.name,
-          originalError: formatDbError(e),
+          ...(sql ? { sql } : {}),
         });
       }
     },

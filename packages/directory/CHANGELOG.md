@@ -1,5 +1,30 @@
 # @happyvertical/directory
 
+## 0.89.1
+
+### Patch Changes
+
+- @happyvertical/utils@0.89.1
+
+## 0.89.0
+
+### Patch Changes
+
+- @happyvertical/utils@0.89.0
+
+## 0.88.2
+
+### Patch Changes
+
+- Updated dependencies [596e262]
+  - @happyvertical/utils@0.88.2
+
+## 0.88.1
+
+### Patch Changes
+
+- @happyvertical/utils@0.88.1
+
 ## 0.88.0
 
 ### Patch Changes

@@ -1,5 +1,43 @@
 # @happyvertical/sql
 
+## 0.89.1
+
+### Patch Changes
+
+- d26f687: Recognize PostgreSQL `CREATE INDEX CONCURRENTLY` statements during schema synchronization so repeated syncs skip indexes that already exist.
+  - @happyvertical/utils@0.89.1
+
+## 0.89.0
+
+### Minor Changes
+
+- d914770: Add a portable, case-sensitive `contains` WHERE operator for literal text
+  substrings. `like` now emits an explicit backslash escape character on every
+  adapter while preserving `%` and `_` as pattern wildcards.
+
+### Patch Changes
+
+- c882a7f: Forward PostgreSQL connection and idle timeout options to connection pools and include them in derived cache identities.
+  - @happyvertical/utils@0.89.0
+
+## 0.88.2
+
+### Patch Changes
+
+- 596e262: Expose sanitized database driver diagnostics through `DatabaseError` messages,
+  native causes, and JSON serialization while redacting SQL statements, bound
+  values, and credential-shaped details.
+- Updated dependencies [596e262]
+  - @happyvertical/utils@0.88.2
+
+## 0.88.1
+
+### Patch Changes
+
+- 7cad57d: Fix PostgreSQL schema synchronization so quoted named table constraints are not
+  mistaken for missing columns.
+  - @happyvertical/utils@0.88.1
+
 ## 0.88.0
 
 ### Patch Changes

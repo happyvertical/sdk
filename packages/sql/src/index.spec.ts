@@ -61,7 +61,7 @@ it('should handle basic usage with different operators', () => {
   });
 
   expect(result.sql).toBe(
-    'WHERE status = $1 AND price > $2 AND stock <= $3 AND category IN ($4, $5) AND name LIKE $6',
+    "WHERE status = $1 AND price > $2 AND stock <= $3 AND category IN ($4, $5) AND name LIKE $6 ESCAPE '\\'",
   );
   expect(result.values).toEqual(['active', 100, 5, 'A', 'B', '%shirt%']);
 });
@@ -148,9 +148,35 @@ it('should handle LIKE operators for search', () => {
   });
 
   expect(result.sql).toBe(
-    'WHERE title LIKE $1 AND description LIKE $2 AND status = $3',
+    "WHERE title LIKE $1 ESCAPE '\\' AND description LIKE $2 ESCAPE '\\' AND status = $3",
   );
   expect(result.values).toEqual(['%search%', '%search%', 'published']);
+});
+
+it('should emit literal case-sensitive CONTAINS per adapter', () => {
+  expect(buildWhere({ 'title contains': '100%_\\off' }, 1, 'sqlite')).toEqual({
+    sql: 'WHERE instr(title, $1) > 0',
+    values: ['100%_\\off'],
+  });
+
+  for (const adapter of ['postgres', 'duckdb', 'json'] as const) {
+    expect(buildWhere({ 'title contains': 'Needle' }, 3, adapter)).toEqual({
+      sql: 'WHERE strpos(title, $3) > 0',
+      values: ['Needle'],
+    });
+  }
+});
+
+it('should require a dialect and string value for CONTAINS', () => {
+  expect(() => buildWhere({ 'title contains': 'needle' })).toThrow(
+    'CONTAINS requires an adapter type',
+  );
+  expect(() => buildWhere({ 'title contains': null }, 1, 'postgres')).toThrow(
+    'CONTAINS requires a string value',
+  );
+  expect(() => buildWhere({ 'title contains': 42 }, 1, 'sqlite')).toThrow(
+    'CONTAINS requires a string value',
+  );
 });
 
 it('should handle IN clauses with arrays', () => {
@@ -306,7 +332,7 @@ describe('raw() expression keys', () => {
   it('parameterizes values behind a raw key', () => {
     const result = buildWhere({ [raw('LOWER(name) like')]: '%o%' });
 
-    expect(result.sql).toBe('WHERE LOWER(name) LIKE $1');
+    expect(result.sql).toBe("WHERE LOWER(name) LIKE $1 ESCAPE '\\'");
     expect(result.values).toEqual(['%o%']);
   });
 });
@@ -392,7 +418,9 @@ describe('buildWhere 2D array support', () => {
       [{ 'email like': '%@example.com' }],
     ]);
 
-    expect(result.sql).toBe('WHERE (name LIKE $1) OR (email LIKE $2)');
+    expect(result.sql).toBe(
+      "WHERE (name LIKE $1 ESCAPE '\\') OR (email LIKE $2 ESCAPE '\\')",
+    );
     expect(result.values).toEqual(['%john%', '%@example.com']);
   });
 

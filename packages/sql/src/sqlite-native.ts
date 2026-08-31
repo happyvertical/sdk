@@ -42,6 +42,7 @@ import {
   buildWhere,
   formatDbError,
   resolveInsertColumns,
+  wrapDatabaseError,
 } from './shared/utils.js';
 import type { SqliteOptions } from './sqlite.js';
 
@@ -883,10 +884,9 @@ async function createNativeSqliteDatabase(
         );
         return { rows: result.rows, rowCount: result.rowCount };
       } catch (error) {
-        throw new DatabaseError('Failed to execute raw query', {
+        throw wrapDatabaseError('Failed to execute raw query', error, {
           sql: normalized.sql,
           values: normalized.args,
-          originalError: formatDbError(error),
         });
       }
     };
@@ -1647,8 +1647,17 @@ async function createNativeSqliteDatabase(
       ): Promise<void> => {
         validateTableName(tableName);
         validateColumnName(column.name);
-        const sql = generateAddColumnStatement(tableName, column, 'sqlite');
-        executeNativeQuery(database, sql);
+        let sql: string | undefined;
+        try {
+          sql = generateAddColumnStatement(tableName, column, 'sqlite');
+          executeNativeQuery(database, sql);
+        } catch (error) {
+          throw wrapDatabaseError('Failed to add column to table', error, {
+            table: tableName,
+            column: column.name,
+            ...(sql ? { sql } : {}),
+          });
+        }
       },
 
       addIndex: async (
@@ -1660,8 +1669,17 @@ async function createNativeSqliteDatabase(
         for (const column of index.columns) {
           validateColumnName(column);
         }
-        const sql = generateCreateIndexStatement(tableName, index);
-        executeNativeQuery(database, sql);
+        let sql: string | undefined;
+        try {
+          sql = generateCreateIndexStatement(tableName, index);
+          executeNativeQuery(database, sql);
+        } catch (error) {
+          throw wrapDatabaseError('Failed to create index on table', error, {
+            table: tableName,
+            index: index.name,
+            ...(sql ? { sql } : {}),
+          });
+        }
       },
     };
 
