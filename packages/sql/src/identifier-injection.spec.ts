@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getDatabase, validateColumnName } from './index';
 import {
+  quotePostgresColumnName,
   validateColumnName as validateColumnNameStrict,
   validateColumnNames,
   validateIndexName,
@@ -684,5 +685,10 @@ describe('validators reject non-string identifiers (#1130)', () => {
     expect(() => validateColumnNames(['a', 'b_2', '_c'])).not.toThrow();
     // The public one is dotted-notation aware and returns its argument.
     expect(validateColumnName('table.column')).toBe('table.column');
+  });
+
+  it('quotes PostgreSQL columns without changing unquoted case folding', () => {
+    expect(quotePostgresColumnName('end')).toBe('"end"');
+    expect(quotePostgresColumnName('mixed_Case')).toBe('"mixed_case"');
   });
 });

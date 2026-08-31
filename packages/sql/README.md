@@ -248,6 +248,13 @@ object with a `toString` — is rejected outright rather than coerced, so the va
 validated is always the value interpolated. Values are always parameterized and
 are unaffected.
 
+PostgreSQL `upsert()` additionally lowercases each validated column name before
+double-quoting it. PostgreSQL has always folded the adapter's unquoted column
+names to lowercase, so this preserves existing behavior (`mixedCase` still
+addresses `mixedcase`) while allowing reserved words such as `end` in insert,
+conflict and update positions. Delimited, case-sensitive physical names such as
+`"MixedCase"` remain outside the CRUD identifier contract.
+
 `buildWhere` separates a supported operator suffix (`'price >'`,
 `'name contains'`) from the field and then validates the field as an identifier.
 Unsupported suffixes remain part of the field and fail validation rather than
