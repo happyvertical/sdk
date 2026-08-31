@@ -1,5 +1,12 @@
 # @happyvertical/sql
 
+## 0.89.1
+
+### Patch Changes
+
+- d26f687: Recognize PostgreSQL `CREATE INDEX CONCURRENTLY` statements during schema synchronization so repeated syncs skip indexes that already exist.
+  - @happyvertical/utils@0.89.1
+
 ## 0.89.0
 
 ### Minor Changes
