@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { DatabaseError } from '@happyvertical/utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDatabase } from './index';
 
@@ -80,6 +81,122 @@ describe('postgres tests', () => {
       select * from contents
     `;
     expect(result).toEqual(expect.arrayContaining([]));
+  });
+
+  it('surfaces a safe cause for raw query failures', async () => {
+    if (!postgresAvailable) return;
+    const secret = 'postgres-bound-secret-issue-744';
+    let caught: unknown;
+
+    try {
+      await db.query(
+        'SELECT * FROM missing_issue_744_table WHERE token = $1',
+        secret,
+      );
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(DatabaseError);
+    const error = caught as DatabaseError;
+    expect(error.message).toContain('missing_issue_744_table');
+    expect(error.cause).toBeInstanceOf(Error);
+    expect((error.cause as Error & { code?: string }).code).toBe('42P01');
+    expect(error.context).toMatchObject({
+      sql: '[redacted]',
+      values: '[redacted]',
+    });
+    expect(JSON.stringify(error)).not.toContain(secret);
+  });
+
+  it('redacts PostgreSQL-normalized bound values in duplicate diagnostics', async () => {
+    if (!postgresAvailable) return;
+    const cases = [
+      {
+        name: 'boolean',
+        type: 'boolean',
+        value: true,
+        diagnosticValue: '(t)',
+      },
+      {
+        name: 'date',
+        type: 'date',
+        value: new Date('2026-08-30T12:34:56.789Z'),
+        diagnosticValue: '(2026-08-30)',
+      },
+      {
+        name: 'bytea',
+        type: 'bytea',
+        value: Buffer.from([1, 2, 254, 255]),
+        diagnosticValue: '(\\x0102feff)',
+      },
+      {
+        name: 'numeric',
+        type: 'numeric',
+        value: 1e21,
+        diagnosticValue: '(1000000000000000000000)',
+      },
+    ];
+
+    for (const testCase of cases) {
+      const table = `issue_744_normalized_${testCase.name}`;
+      await db.query(
+        `CREATE TEMP TABLE ${table} (value ${testCase.type} UNIQUE)`,
+      );
+      await db.query(
+        `INSERT INTO ${table} (value) VALUES ($1)`,
+        testCase.value,
+      );
+      const caught = await db
+        .query(`INSERT INTO ${table} (value) VALUES ($1)`, testCase.value)
+        .catch((error: unknown) => error);
+
+      expect(caught).toBeInstanceOf(DatabaseError);
+      const error = caught as DatabaseError;
+      const rendered = [
+        String(error),
+        error.stack,
+        String(error.cause),
+        JSON.stringify(error),
+      ].join('\n');
+      expect(rendered).not.toContain(testCase.diagnosticValue);
+      expect(rendered).toContain(
+        'duplicate key value violates unique constraint',
+      );
+      expect(rendered).toContain('Key (value)=([redacted]) already exists');
+      expect((error.cause as Error & { code?: string }).code).toBe('23505');
+    }
+  });
+
+  it('redacts values from PostgreSQL failing-row diagnostics', async () => {
+    if (!postgresAvailable) return;
+    const table = 'issue_744_failing_row';
+    const secret = 'postgres-failing-row-secret-744\nsecond-line)';
+    await db.query(
+      `CREATE TEMP TABLE ${table} (occurred_on date, required text NOT NULL, secret text)`,
+    );
+
+    const caught = await db
+      .query(
+        `INSERT INTO ${table} (occurred_on, required, secret) VALUES ($1, $2, $3)`,
+        new Date('2026-08-30T12:34:56.789Z'),
+        null,
+        secret,
+      )
+      .catch((error: unknown) => error);
+
+    expect(caught).toBeInstanceOf(DatabaseError);
+    const error = caught as DatabaseError;
+    const rendered = [
+      String(error),
+      error.stack,
+      String(error.cause),
+      JSON.stringify(error),
+    ].join('\n');
+    expect(rendered).not.toContain('2026-08-30');
+    expect(rendered).not.toContain(secret);
+    expect(rendered).toContain('Failing row contains ([redacted]).');
+    expect((error.cause as Error & { code?: string }).code).toBe('23502');
   });
 
   it('should be able to insert data', async () => {
@@ -285,6 +402,33 @@ describe('postgres tests', () => {
     await expect(session.query('SELECT 1')).rejects.toThrow(
       /Session has been released/,
     );
+  });
+
+  it('redacts failed session-query values while preserving diagnostics', async () => {
+    if (!postgresAvailable) return;
+    const secret = 'session-bound-secret-issue-744';
+    const session = await db.acquireSession?.();
+    if (!session) throw new Error('acquireSession returned no handle');
+    let caught: unknown;
+
+    try {
+      await session.query('SELECT $1::integer AS value', secret);
+    } catch (error) {
+      caught = error;
+    } finally {
+      await session.release();
+    }
+
+    expect(caught).toBeInstanceOf(DatabaseError);
+    const error = caught as DatabaseError;
+    expect(error.message).toContain('invalid input syntax for type integer');
+    expect((error.cause as Error & { code?: string }).code).toBe('22P02');
+    expect(error.context).toMatchObject({
+      sql: '[redacted]',
+      values: '[redacted]',
+    });
+    expect(String(error)).not.toContain(secret);
+    expect(JSON.stringify(error)).not.toContain(secret);
   });
 
   it('should preserve PostgreSQL JSONB existence operators in raw queries', async () => {

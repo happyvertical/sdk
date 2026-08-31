@@ -110,7 +110,7 @@ describe('postgres transaction error contract', () => {
     expect(inside).not.toBeInstanceOf(PgDatabaseError);
   }, 30000);
 
-  it('keeps the structured context on a failure inside a transaction', async () => {
+  it('keeps safe structured diagnostics on a failure inside a transaction', async () => {
     if (!postgresAvailable) return;
 
     const error = await captureError(() =>
@@ -119,9 +119,11 @@ describe('postgres transaction error contract', () => {
 
     expect(error).toBeInstanceOf(DatabaseError);
     expect(error.context).toMatchObject({
-      sql: 'SELECT * FROM table_that_does_not_exist',
+      sql: '[redacted]',
     });
     expect(String(error.context.originalError)).toContain('does not exist');
+    expect(error.cause).toBeInstanceOf(Error);
+    expect((error.cause as Error & { code?: string }).code).toBe('42P01');
   }, 30000);
 
   it.each([

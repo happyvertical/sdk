@@ -130,6 +130,20 @@ await pgDb.query(`SELECT ('{"db":true}'::jsonb ? 'db') AS has_db`);
 
 For PostgreSQL, a single array argument is treated as a values list unless the SQL shows a single array-typed placeholder, such as `$1::text[]`, `CAST($1 AS text[])`, `ANY($1)`, or the equivalent legacy `?` placeholder form. Transaction handles follow the same raw query behavior as the root database handle.
 
+When a raw query or schema alteration fails, the adapter throws a
+`DatabaseError` whose message includes the database driver's diagnostic. The
+error also carries a native `cause`, and `JSON.stringify(error)` includes a
+shallow cause summary with common driver fields such as `code`, `detail`,
+`hint`, `severity`, and `errno`.
+
+The cause is a sanitized snapshot rather than the original driver object.
+Statements, bound parameter values, connection credentials, and
+credential-shaped driver text are redacted from the message, context, cause,
+stack, and JSON form. This makes the error safe for ordinary application and CI
+logging while keeping migration failures actionable. Use the driver's error
+code and the non-secret diagnostic details for troubleshooting; do not expect
+`error.cause` to have object identity with the driver's thrown error.
+
 ### CRUD Helpers
 
 ```typescript

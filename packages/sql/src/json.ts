@@ -30,6 +30,7 @@ import {
   buildWhere,
   formatDbError,
   resolveInsertColumns,
+  wrapDatabaseError,
 } from './shared/utils';
 
 /**
@@ -1939,10 +1940,9 @@ async function createJSONDatabase(
           rows,
         };
       } catch (e) {
-        throw new DatabaseError('Failed to execute raw query', {
+        throw wrapDatabaseError('Failed to execute raw query', e, {
           sql,
           args,
-          originalError: formatDbError(e),
         });
       }
     };
