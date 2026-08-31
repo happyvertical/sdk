@@ -1395,6 +1395,59 @@ describe('secure SQLite file acquisition', () => {
     await db.close?.();
   });
 
+  it('preserves the Promise constructor contract without recovering unrelated failures', async () => {
+    const root = await makeTempRoot();
+    for (const [index, options] of [
+      { type: 'sqlite' as const, url: ':memory:', cache: false },
+      {
+        type: 'sqlite' as const,
+        url: join(root, 'promise-constructor.db'),
+        secureFile,
+        cache: false,
+      },
+    ].entries()) {
+      const db = await getDatabase(options);
+      await db.query(
+        'CREATE TABLE promise_constructor (id INTEGER PRIMARY KEY)',
+      );
+      const committedId = index * 10 + 1;
+
+      await txOf(db)(async (tx) => {
+        const operation = tx.insert('promise_constructor', {
+          id: committedId,
+        });
+        const Constructor = operation.constructor as PromiseConstructor;
+        await expect(Constructor.resolve('resolved')).resolves.toBe('resolved');
+        await expect(
+          Constructor.reject(new Error('standalone rejection')),
+        ).rejects.toThrow('standalone rejection');
+        await expect(
+          Constructor.all([Promise.resolve(1), Promise.resolve(2)]),
+        ).resolves.toEqual([1, 2]);
+        await expect(
+          new Constructor((resolve) => resolve('constructed')),
+        ).resolves.toBe('constructed');
+        await operation;
+      });
+
+      await expect(
+        txOf(db)(async (tx) => {
+          const failed = tx.insert('promise_constructor', {
+            id: committedId,
+          });
+          const Constructor = failed.constructor as PromiseConstructor;
+          await Constructor.resolve('unrelated success');
+          await Constructor.reject(new Error('unrelated rejection')).catch(
+            () => undefined,
+          );
+          await Constructor.all([Promise.resolve('unrelated aggregate')]);
+        }),
+      ).rejects.toThrow();
+      expect(await db.count('promise_constructor')).toBe(1);
+      await db.close?.();
+    }
+  });
+
   it('commits after fully awaited intrinsic promise chains recover', async () => {
     const root = await makeTempRoot();
     const db = await getDatabase({
@@ -3367,6 +3420,60 @@ describe('secure SQLite file acquisition', () => {
     ).rejects.toThrow('rollback callback');
     await new Promise((resolve) => setImmediate(resolve));
     expect(await db.count('detached_root')).toBe(0);
+    await db.close?.();
+  });
+
+  it('rejects callback-originated root work invoked after the callback ends', async () => {
+    const root = await makeTempRoot();
+    const db = await getDatabase({
+      type: 'sqlite',
+      url: join(root, 'deferred-root.db'),
+      secureFile,
+      cache: false,
+    });
+    await db.query('CREATE TABLE deferred_root (id INTEGER PRIMARY KEY)');
+    let releaseDeferred: () => void = () => {};
+    const deferred = new Promise<void>((resolve) => {
+      releaseDeferred = resolve;
+    });
+    let escaped: Promise<unknown>[] = [];
+
+    await txOf(db)(async (tx) => {
+      await tx.insert('deferred_root', { id: 1 });
+      escaped = [
+        deferred.then(() => db.insert('deferred_root', { id: 2 })),
+        deferred.then(() =>
+          txOf(db)(async (second) => {
+            await second.insert('deferred_root', { id: 3 });
+          }),
+        ),
+        deferred.then(async () => {
+          const manual = await db.beginTransaction?.();
+          if (!manual) throw new Error('beginTransaction unavailable');
+          await manual.insert('deferred_root', { id: 4 });
+          await manual.commit();
+        }),
+        deferred.then(async () => {
+          if (!db.close) throw new Error('close unavailable');
+          await db.close();
+        }),
+      ];
+    });
+
+    releaseDeferred();
+    const outcomes = await Promise.allSettled(escaped);
+    expect(outcomes).toHaveLength(4);
+    for (const outcome of outcomes) {
+      expect(outcome.status).toBe('rejected');
+      if (outcome.status === 'rejected') {
+        expect(outcome.reason).toMatchObject({
+          message: expect.stringContaining('active transaction callback'),
+        });
+      }
+    }
+    expect(await db.count('deferred_root')).toBe(1);
+    await db.insert('deferred_root', { id: 5 });
+    expect(await db.count('deferred_root')).toBe(2);
     await db.close?.();
   });
 

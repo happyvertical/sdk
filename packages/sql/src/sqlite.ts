@@ -564,6 +564,13 @@ function withRejectionObservation<T>(
     promise: Promise<U>,
     observation: PromiseObservation = rootObservation,
   ): Promise<U> => {
+    const createStandaloneObservation = (): PromiseObservation => ({
+      observed: false,
+      handlers: new Set(),
+      nativeTransfers: new Set(),
+      unhandledNativeTransfers: new Set(),
+      nativeCorrelationIds: new Set(),
+    });
     const suppressIntrinsicRecovery = <V>(
       callback: () => V,
       targetObservation: PromiseObservation = observation,
@@ -587,6 +594,24 @@ function withRejectionObservation<T>(
       Promise<unknown>,
       PromiseObservation
     >();
+    const createPromiseSpeciesOwner = (
+      parentObservation: PromiseObservation,
+    ): PromiseConstructor => {
+      const speciesOwner = function transactionObservedPromiseBranch(
+        executor: (
+          resolve: (value: unknown | PromiseLike<unknown>) => void,
+          reject: (reason?: any) => void,
+        ) => void,
+      ): Promise<unknown> {
+        return new Promise(executor);
+      } as unknown as PromiseConstructor;
+      Object.setPrototypeOf(speciesOwner, Promise);
+      Object.defineProperty(speciesOwner, Symbol.species, {
+        configurable: true,
+        get: () => createIntrinsicDerivedPromise(parentObservation),
+      });
+      return speciesOwner;
+    };
     const createIntrinsicDerivedPromise = (
       parentObservation: PromiseObservation,
     ): PromiseConstructor => {
@@ -609,13 +634,7 @@ function withRejectionObservation<T>(
             !suppressed && looksLikeNativePromiseCapabilityExecutor(executor);
           const branch: PromiseObservation = suppressed
             ? parentObservation
-            : {
-                observed: false,
-                handlers: new Set(),
-                nativeTransfers: new Set(),
-                unhandledNativeTransfers: new Set(),
-                nativeCorrelationIds: new Set(),
-              };
+            : createStandaloneObservation();
           let finishHandling: () => void = () => {};
           const handling = new Promise<void>((resolveHandling) => {
             finishHandling = resolveHandling;
@@ -693,14 +712,9 @@ function withRejectionObservation<T>(
           // Promise.prototype.then.call() reads the source's constructor and
           // species. Bind that lookup to this branch so every direct intrinsic
           // child gets independent failure/recovery state.
-          const speciesOwner = function transactionObservedPromiseBranch() {};
-          Object.defineProperty(speciesOwner, Symbol.species, {
-            configurable: true,
-            get: () => createIntrinsicDerivedPromise(branch),
-          });
           Object.defineProperty(this, 'constructor', {
             configurable: true,
-            value: speciesOwner,
+            value: createPromiseSpeciesOwner(branch),
           });
         }
 
@@ -772,13 +786,28 @@ function withRejectionObservation<T>(
     };
 
     class ObservedPromise extends Promise<U> {
+      readonly #observation: PromiseObservation;
+
       static get [Symbol.species](): PromiseConstructor {
         return createIntrinsicDerivedPromise(observation);
       }
 
-      constructor() {
+      constructor(
+        executor?: (
+          resolve: (value: U | PromiseLike<U>) => void,
+          reject: (reason?: any) => void,
+        ) => void,
+      ) {
         super((resolve, reject) => {
-          Promise.prototype.then.call(promise, resolve, reject);
+          if (executor) executor(resolve, reject);
+          else Promise.prototype.then.call(promise, resolve, reject);
+        });
+        this.#observation = executor
+          ? createStandaloneObservation()
+          : observation;
+        Object.defineProperty(this, 'constructor', {
+          configurable: true,
+          value: createPromiseSpeciesOwner(this.#observation),
         });
       }
 
@@ -793,6 +822,7 @@ function withRejectionObservation<T>(
         // enclosing callback still rejects if an await is not caught; a caught
         // await is therefore valid recovery and must not be rolled back again
         // by detached-operation draining.
+        const currentObservation = this.#observation;
         const transfersToNativePromise = isNativePromiseAssimilation(
           onFulfilled,
           onRejected,
@@ -800,22 +830,22 @@ function withRejectionObservation<T>(
         const handleRejected =
           transfersToNativePromise && typeof onRejected === 'function'
             ? (reason: any) => {
-                recordNativePromiseTransfer(observation);
+                recordNativePromiseTransfer(currentObservation);
                 return onRejected(reason);
               }
             : onRejected;
-        const wasObserved = observation.observed;
+        const wasObserved = currentObservation.observed;
         const derived = Promise.prototype.then.call(
           this,
           onFulfilled,
           handleRejected,
         ) as Promise<TResult1 | TResult2>;
         if (transfersToNativePromise) {
-          observation.observed = wasObserved;
+          currentObservation.observed = wasObserved;
           const child = intrinsicPromiseObservations.get(derived);
-          if (child) child.propagateFailureToParent = observation;
+          if (child) child.propagateFailureToParent = currentObservation;
         } else {
-          observation.observed = true;
+          currentObservation.observed = true;
         }
         return derived;
       }
@@ -3127,19 +3157,23 @@ async function createDatabase(
         return client.execute(prepareManagedStatement(statement));
       },
     };
-    const reservedClose = (): Promise<void> => {
-      if (
-        connectionLock.held &&
-        transactionCallbackContext.getStore() === true
-      ) {
-        return Promise.reject(
-          new DatabaseError(
+    const rootCallbackError = (operation: 'close' | 'use'): DatabaseError =>
+      operation === 'close'
+        ? new DatabaseError(
             'Cannot close the SQLite database from inside its active transaction callback',
             {
               hint: 'Finish the transaction callback before closing the database.',
             },
-          ),
-        );
+          )
+        : new DatabaseError(
+            'Cannot use the root SQLite database from inside its active transaction callback',
+            {
+              hint: 'Use the transaction-scoped database passed to the callback.',
+            },
+          );
+    const reservedClose = (): Promise<void> => {
+      if (transactionCallbackContext.getStore() === true) {
+        return Promise.reject(rootCallbackError('close'));
       }
       return barrier.close(async () => {
         if (connectionLock.held) {
@@ -3153,18 +3187,8 @@ async function createDatabase(
       fn: T,
     ): T =>
       ((...args: Parameters<T>) => {
-        if (
-          connectionLock.held &&
-          transactionCallbackContext.getStore() === true
-        ) {
-          return Promise.reject(
-            new DatabaseError(
-              'Cannot use the root SQLite database from inside its active transaction callback',
-              {
-                hint: 'Use the transaction-scoped database passed to the callback.',
-              },
-            ),
-          );
+        if (transactionCallbackContext.getStore() === true) {
+          return Promise.reject(rootCallbackError('use'));
         }
         const timeoutMs =
           options.transactionQueueTimeout ??
@@ -3213,6 +3237,9 @@ async function createDatabase(
     const reserveTransactionEntry = <T>(
       work: (preAcquiredLock: Promise<() => void>) => Promise<T>,
     ): Promise<T> => {
+      if (transactionCallbackContext.getStore() === true) {
+        return Promise.reject(rootCallbackError('use'));
+      }
       // Start the deadline at invocation, but do not enqueue on connectionLock
       // until this call reaches its barrier turn. Speculatively taking the
       // connection while an earlier retrying upsert owns the barrier reverses
