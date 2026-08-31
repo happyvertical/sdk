@@ -106,6 +106,24 @@ afterEach(async () => {
 });
 
 describe('secure SQLite file acquisition', () => {
+  it('rejects an invalid queue timeout before acquiring the database file', async () => {
+    const root = await makeTempRoot();
+    const databasePath = join(root, 'invalid-timeout.db');
+
+    await expect(
+      getDatabase({
+        type: 'sqlite',
+        url: databasePath,
+        secureFile,
+        cache: false,
+        transactionQueueTimeout: 0,
+      }),
+    ).rejects.toThrow(
+      'transactionQueueTimeout must be a positive, finite number',
+    );
+    await expect(lstat(databasePath)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
   it('enforces the secure Node runtime floor before loading the driver', async () => {
     for (const nodeVersion of [
       '22.22.3',

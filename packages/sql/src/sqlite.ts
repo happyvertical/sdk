@@ -1272,8 +1272,6 @@ async function createDatabase(
     createLibSQLClient(options),
 ): Promise<DatabaseInterface> {
   return (async () => {
-    const client = await clientFactory();
-
     // One lock per connection. Nothing else in this closure escapes to another
     // caller, and `getDatabase` hands cached callers this same closure, so
     // "created here" and "per connection" are the same scope.
@@ -1281,6 +1279,10 @@ async function createDatabase(
       'sqlite',
       options.transactionQueueTimeout,
     );
+    // Validate queue configuration before a secure client can create or open
+    // its file. Invalid configuration must not leave an acquired resource.
+    const client = await clientFactory();
+
     const executorContext = new AsyncLocalStorage<SqliteExecutor>();
     const transactionCallbackContext = new AsyncLocalStorage<boolean>();
     const currentExecutor = (): SqliteExecutor =>
