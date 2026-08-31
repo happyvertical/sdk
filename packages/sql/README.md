@@ -32,6 +32,8 @@ const tursoDb = await getDatabase({
 const pgDb = await getDatabase({
   type: 'postgres',
   url: 'postgresql://user:pass@localhost:5432/dbname',
+  connectionTimeoutMillis: 10_000,
+  idleTimeoutMillis: 30_000,
 });
 
 // DuckDB with JSON file auto-registration
@@ -49,6 +51,11 @@ const jsonDb = await getDatabase({
   writeStrategy: 'immediate',
 });
 ```
+
+PostgreSQL also accepts `max` (20 by default), `connectionTimeoutMillis`, and
+`idleTimeoutMillis`. Lifecycle timeouts must be integer milliseconds from `0`
+through Node.js's maximum timer delay of `2,147,483,647`; `0` disables the
+corresponding timeout. Omitted timeout values retain `pg`'s defaults.
 
 ### Connection caching and cleanup
 
@@ -82,10 +89,12 @@ always `await clearConnectionCache()` before opening a replacement connection.
 An explicit `dbid` is an opaque, stable caller-owned cache identity and must be
 non-empty. Without
 one, PostgreSQL derives a credential- and pool-option-sensitive identity using
-a process-keyed digest; connection URLs, usernames, passwords, and option names
-are not stored in readable cache keys. SQLite caches only connections with a
-`dbid` (automatically assigned to the default `:memory:` path). JSON derives an
-identity from its directory and behavior options.
+a process-keyed digest. The pool identity includes `max`,
+`connectionTimeoutMillis`, and `idleTimeoutMillis`; connection URLs, usernames,
+passwords, and option names are not stored in readable cache keys. SQLite
+caches only connections with a `dbid` (automatically assigned to the default
+`:memory:` path). JSON derives an identity from its directory and behavior
+options.
 
 DuckDB already creates a fresh adapter for every call, so `cache` and
 `clearCache` are accepted for uniform configuration but do not change its

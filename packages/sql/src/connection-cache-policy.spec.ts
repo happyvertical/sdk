@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { Pool } from 'pg';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getDatabase } from './index';
 import {
@@ -354,6 +355,61 @@ describe('PostgreSQL cache identity', () => {
     expect(firstKey).not.toContain('max');
   });
 
+  it.each([
+    'connectionTimeoutMillis',
+    'idleTimeoutMillis',
+  ] as const)('includes %s in the implicit pool identity', async (option) => {
+    const base = {
+      url: 'postgresql://cache-user:secret@localhost:5432/cache-db',
+      connectionTimeoutMillis: 1_000,
+      idleTimeoutMillis: 10_000,
+    };
+
+    const firstKey = await getPostgresConnectionCacheKey(base);
+    const changedKey = await getPostgresConnectionCacheKey({
+      ...base,
+      [option]: base[option] + 1,
+    });
+
+    expect(changedKey).not.toBe(firstKey);
+  });
+
+  it.each([
+    {
+      connection: 'URL',
+      options: {
+        url: 'postgresql://pool-user:secret@localhost:5432/pool-db',
+        connectionTimeoutMillis: 1_250,
+        idleTimeoutMillis: 2_500,
+      },
+    },
+    {
+      connection: 'discrete fields',
+      options: {
+        host: 'localhost',
+        database: 'pool-db',
+        user: 'pool-user',
+        password: 'secret',
+        connectionTimeoutMillis: 0,
+        idleTimeoutMillis: 0,
+      },
+    },
+  ])('forwards pool lifecycle options with $connection configuration', async ({
+    options,
+  }) => {
+    const db = await getPostgresDatabase({ ...options, cache: false });
+    const pool = db.client as Pool;
+
+    try {
+      expect(pool.options.connectionTimeoutMillis).toBe(
+        options.connectionTimeoutMillis,
+      );
+      expect(pool.options.idleTimeoutMillis).toBe(options.idleTimeoutMillis);
+    } finally {
+      await db.close?.();
+    }
+  });
+
   it('does not reuse a pool after password rotation or with cache:false', async () => {
     const base = {
       host: 'localhost',
@@ -429,6 +485,40 @@ describe('PostgreSQL cache identity', () => {
   it.each([
     { option: { max: Number.NaN }, message: 'pool max' },
     { option: { max: Number.POSITIVE_INFINITY }, message: 'pool max' },
+    {
+      option: { connectionTimeoutMillis: Number.NaN },
+      message: 'connectionTimeoutMillis',
+    },
+    {
+      option: { connectionTimeoutMillis: Number.POSITIVE_INFINITY },
+      message: 'connectionTimeoutMillis',
+    },
+    {
+      option: { connectionTimeoutMillis: -1 },
+      message: 'connectionTimeoutMillis',
+    },
+    {
+      option: { connectionTimeoutMillis: 1.5 },
+      message: 'connectionTimeoutMillis',
+    },
+    {
+      option: { connectionTimeoutMillis: 2_147_483_648 },
+      message: 'connectionTimeoutMillis',
+    },
+    {
+      option: { idleTimeoutMillis: Number.NaN },
+      message: 'idleTimeoutMillis',
+    },
+    {
+      option: { idleTimeoutMillis: Number.POSITIVE_INFINITY },
+      message: 'idleTimeoutMillis',
+    },
+    { option: { idleTimeoutMillis: -1 }, message: 'idleTimeoutMillis' },
+    { option: { idleTimeoutMillis: 1.5 }, message: 'idleTimeoutMillis' },
+    {
+      option: { idleTimeoutMillis: 2_147_483_648 },
+      message: 'idleTimeoutMillis',
+    },
     { option: { port: Number.NaN }, message: 'port' },
     { option: { port: 0 }, message: 'port' },
     { option: { port: 65_536 }, message: 'port' },
