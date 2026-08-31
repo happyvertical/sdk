@@ -518,6 +518,15 @@ function isNativePromiseAssimilation(
   );
 }
 
+function isNativePromiseCapabilityExecutor(executor: unknown): boolean {
+  return (
+    typeof executor === 'function' &&
+    executor.name === '' &&
+    executor.length === 2 &&
+    /\{\s*\[native code\]\s*\}/.test(Function.prototype.toString.call(executor))
+  );
+}
+
 /**
  * Returns a native Promise chain that records rejection handling per derived
  * branch. A handler transfers responsibility from its parent to a branch-local
@@ -588,11 +597,21 @@ function withRejectionObservation<T>(
             reject: (reason?: any) => void,
           ) => void,
         ) {
+          const suppressed =
+            (parentObservation.suppressIntrinsicRecovery ?? 0) > 0;
           const tracksRecovery =
-            (parentObservation.suppressIntrinsicRecovery ?? 0) === 0;
-          const branch = tracksRecovery
+            !suppressed && isNativePromiseCapabilityExecutor(executor);
+          const branch: PromiseObservation = tracksRecovery
             ? createBranch(parentObservation)
-            : parentObservation;
+            : suppressed
+              ? parentObservation
+              : {
+                  observed: false,
+                  handlers: new Set(),
+                  nativeTransfers: new Set(),
+                  unhandledNativeTransfers: new Set(),
+                  nativeCorrelationIds: new Set(),
+                };
           if (tracksRecovery) parentObservation.observed = true;
           let finishHandling: () => void = () => {};
           const handling = new Promise<void>((resolveHandling) => {
@@ -703,6 +722,8 @@ function withRejectionObservation<T>(
             branch.observed = wasObserved;
             const child = intrinsicPromiseObservations.get(derived);
             if (child) child.propagateFailureToParent = branch;
+          } else {
+            branch.observed = true;
           }
           return derived;
         }
@@ -780,6 +801,8 @@ function withRejectionObservation<T>(
           observation.observed = wasObserved;
           const child = intrinsicPromiseObservations.get(derived);
           if (child) child.propagateFailureToParent = observation;
+        } else {
+          observation.observed = true;
         }
         return derived;
       }

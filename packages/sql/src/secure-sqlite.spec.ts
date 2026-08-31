@@ -1736,6 +1736,16 @@ describe('secure SQLite file acquisition', () => {
       };
       void promiseConstructor[Symbol.species];
     };
+    const constructUnrelatedSpecies = async (
+      promise: Promise<unknown>,
+    ): Promise<void> => {
+      const promiseConstructor = promise.constructor as {
+        [Symbol.species]?: PromiseConstructor;
+      };
+      const Species = promiseConstructor[Symbol.species];
+      if (!Species) throw new Error('transaction Promise species unavailable');
+      await new Species((resolve) => resolve('unrelated success'));
+    };
     for (const options of [
       { type: 'sqlite' as const, url: ':memory:', cache: false },
       {
@@ -1764,6 +1774,7 @@ describe('secure SQLite file acquisition', () => {
           const failed = tx.insert('branch_recovery', { id: 4 });
           void Promise.prototype.then.call(failed, undefined, () => undefined);
           readSpeciesWithoutConstructing(failed);
+          await constructUnrelatedSpecies(failed);
           void Promise.resolve(failed);
         }),
       ).rejects.toThrow();
@@ -1800,6 +1811,7 @@ describe('secure SQLite file acquisition', () => {
       () => undefined,
     );
     readSpeciesWithoutConstructing(manualNativeFailure);
+    await constructUnrelatedSpecies(manualNativeFailure);
     void Promise.resolve(manualNativeFailure);
     await expect(nativeSiblingManual.commit()).rejects.toThrow();
     expect(await db.count('branch_recovery')).toBe(0);
@@ -1829,6 +1841,7 @@ describe('secure SQLite file acquisition', () => {
             () => undefined,
           );
           readSpeciesWithoutConstructing(nestedNativeFailure);
+          await constructUnrelatedSpecies(nestedNativeFailure);
           void Promise.resolve(nestedNativeFailure);
         });
       }),
