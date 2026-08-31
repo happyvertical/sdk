@@ -1,5 +1,9 @@
 import type { DatabaseCacheOptions } from './types';
 
+const CACHED_VALIDATION_CAPABILITY = Symbol.for(
+  '@happyvertical/sql/connection-cache-cached-validation/v1',
+);
+
 type PendingConnection<T> = {
   invalidated: false | 'clear' | 'evict';
   promise: Promise<T>;
@@ -21,6 +25,7 @@ type CacheRequest = {
 
 /** Race-safe async resource cache used by database adapters. */
 export class ConnectionCache<T> {
+  readonly [CACHED_VALIDATION_CAPABILITY] = true;
   readonly #connections = new Map<string, T>();
   readonly #pending = new Map<string, PendingConnection<T>>();
   readonly #evictions = new Map<string, EvictionChain<T>>();
@@ -36,6 +41,7 @@ export class ConnectionCache<T> {
     options: DatabaseCacheOptions,
     create: () => Promise<T>,
     close: (connection: T) => Promise<void>,
+    validateCached?: (connection: T) => Promise<boolean>,
   ): Promise<T> {
     validateDatabaseCacheOptions(options);
     const request =
@@ -60,8 +66,29 @@ export class ConnectionCache<T> {
         this.#throwIfFailedClosure(key);
 
         const cached = this.#connections.get(key);
-        if (cached) {
-          return cached;
+        if (cached !== undefined) {
+          if (!validateCached) return cached;
+
+          // Validation may yield while another caller evicts this entry. Only
+          // return the resource when it remains this key's live cache entry.
+          const isValid = await validateCached(cached);
+          this.#throwIfCancelled(request);
+          if (
+            isValid &&
+            this.#connections.get(key) === cached &&
+            !this.#evictions.has(key)
+          ) {
+            return cached;
+          }
+          if (
+            !isValid &&
+            this.#connections.get(key) === cached &&
+            !this.#evictions.has(key)
+          ) {
+            await this.evict(key, close);
+            this.#throwIfCancelled(request);
+          }
+          continue;
         }
 
         let pending = this.#pending.get(key);
@@ -300,6 +327,148 @@ export class ConnectionCache<T> {
       await eviction.promise;
     }
   }
+}
+
+/**
+ * Adds cached-resource validation to a shared cache created by an older module.
+ *
+ * JSON connection caches live on `globalThis`, so a compatible older SDK copy
+ * can create the shared object before this module loads. Mutating that object
+ * preserves one cache for both module copies while upgrading its four-argument
+ * `getOrCreate` method to the current validation contract.
+ */
+export function enableCachedValidation<T>(
+  cache: ConnectionCache<T>,
+): ConnectionCache<T> {
+  const compatible = cache as ConnectionCache<T> &
+    Record<symbol, boolean | undefined>;
+  if (compatible[CACHED_VALIDATION_CAPABILITY]) return cache;
+
+  const legacyGetOrCreate = cache.getOrCreate.bind(cache) as (
+    key: string | undefined,
+    options: DatabaseCacheOptions,
+    create: () => Promise<T>,
+    close: (connection: T) => Promise<void>,
+  ) => Promise<T>;
+  const legacyClear = cache.clear.bind(cache);
+  const locks = new Map<string, Promise<void>>();
+  let clearGeneration = 0;
+  let activeClear: Promise<void> | undefined;
+
+  const runLocked = async <R>(key: string, work: () => Promise<R>) => {
+    const previous = locks.get(key) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const chain = previous.then(
+      () => current,
+      () => current,
+    );
+    locks.set(key, chain);
+    await previous.catch(() => {});
+    try {
+      return await work();
+    } finally {
+      release();
+      if (locks.get(key) === chain) locks.delete(key);
+    }
+  };
+
+  Object.defineProperty(cache, 'getOrCreate', {
+    configurable: true,
+    value: async (
+      key: string | undefined,
+      options: DatabaseCacheOptions,
+      create: () => Promise<T>,
+      close: (connection: T) => Promise<void>,
+      validateCached?: (connection: T) => Promise<boolean>,
+    ): Promise<T> => {
+      if (!key || options.cache === false) {
+        return legacyGetOrCreate(key, options, create, close);
+      }
+      const requestGeneration = clearGeneration;
+      const throwIfCleared = () => {
+        if (activeClear || requestGeneration !== clearGeneration) {
+          throw new Error(
+            'Database connection initialization was cancelled by cache clear',
+          );
+        }
+      };
+
+      return runLocked(key, async () => {
+        throwIfCleared();
+        let requestOptions = options;
+        while (true) {
+          throwIfCleared();
+          const candidate = await legacyGetOrCreate(
+            key,
+            requestOptions,
+            create,
+            close,
+          );
+          throwIfCleared();
+          if (!validateCached) return candidate;
+
+          const isValid = await validateCached(candidate);
+          throwIfCleared();
+          if (isValid) {
+            // Reacquire under the compatibility lock so an explicit eviction
+            // that completed during validation cannot make us return its old
+            // resource.
+            const confirmed = await legacyGetOrCreate(
+              key,
+              { ...requestOptions, clearCache: false },
+              create,
+              close,
+            );
+            throwIfCleared();
+            if (confirmed === candidate) return candidate;
+          } else {
+            await cache.evict(key, close);
+          }
+          requestOptions = { ...options, clearCache: false };
+        }
+      });
+    },
+    writable: true,
+  });
+  Object.defineProperty(cache, 'clear', {
+    configurable: true,
+    value: async (close: (connection: T) => Promise<void>): Promise<void> => {
+      if (activeClear) return activeClear;
+
+      clearGeneration += 1;
+      const clearing = (async () => {
+        let clearError: unknown;
+        let clearFailed = false;
+        try {
+          await legacyClear(close);
+        } catch (error) {
+          clearFailed = true;
+          clearError = error;
+        }
+        while (locks.size > 0) {
+          await Promise.allSettled([...locks.values()]);
+        }
+        if (clearFailed) throw clearError;
+      })();
+      activeClear = clearing;
+      try {
+        await clearing;
+      } finally {
+        if (activeClear === clearing) activeClear = undefined;
+      }
+    },
+    writable: true,
+  });
+  Object.defineProperty(cache, CACHED_VALIDATION_CAPABILITY, {
+    configurable: false,
+    enumerable: false,
+    value: true,
+    writable: false,
+  });
+  return cache;
 }
 
 export function validateDatabaseCacheOptions(options: DatabaseCacheOptions) {

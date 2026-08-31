@@ -309,7 +309,11 @@ export interface JSONOptions extends DatabaseOptions {
    * Evict and close the existing database connection before creating a fresh one
    *
    * The new adapter is cached unless `cache` is also false. Eviction is awaited.
-   * Useful when you need to reload the database from disk after external changes.
+   * When automatic file registration is enabled, JSON adapters detect changed,
+   * added, or removed `.json` and companion `.schema.sql` files on a later
+   * acquisition. Use this option when a caller needs an unconditional reload
+   * even if those sources are unchanged. Existing references point to the
+   * closed adapter after replacement.
    *
    * @default false
    *
@@ -317,7 +321,7 @@ export interface JSONOptions extends DatabaseOptions {
    * // Initial connection - cached
    * const db1 = await getDatabase({ type: 'json', url: './data' });
    *
-   * // External process adds JSON files...
+   * // Force an unconditional replacement...
    *
    * // Force reload from disk
    * const db2 = await getDatabase({

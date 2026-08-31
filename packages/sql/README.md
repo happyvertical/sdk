@@ -83,6 +83,20 @@ cached adapter. Combine it with `cache: false` to evict first and return an
 uncached replacement. A concurrent initializer caught by eviction is closed
 and cannot repopulate the cache.
 
+With automatic file registration enabled (the default), cached JSON adapters
+also detect external changes to JSON data and companion `.schema.sql` files when
+a later `getDatabase()` call acquires the same cache identity. A changed, added,
+or removed source file causes the old DuckDB adapter to close before one fresh
+shared adapter is created. Existing references point to the closed adapter
+after replacement; acquire the database again before continuing work after an
+external file change. Writes made through the adapter refresh its snapshot and
+do not invalidate the adapter itself when the tracked sources are otherwise
+unchanged. If an external change is already visible before an adapter export,
+the export fails closed so the caller can reacquire the database and retry.
+Freshness checks are not a cross-process file lock: an external process writing
+the same table's JSON or companion schema file at the same instant as an adapter
+export remains last-writer-wins and must be coordinated by the application.
+
 The JSON adapter's exported `clearConnectionCache()` helper is asynchronous:
 always `await clearConnectionCache()` before opening a replacement connection.
 
