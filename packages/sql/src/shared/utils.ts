@@ -61,6 +61,8 @@ const SQL_NUMERIC_LITERAL =
   /(?<![\p{L}\p{N}_$])[-+]?(?:\d(?:_?\d)*(?:\.(?:\d(?:_?\d)*)?)?|\.\d(?:_?\d)*)(?:e[-+]?\d(?:_?\d)*)?(?![\p{L}\p{N}_$])/giu;
 const POSTGRES_KEY_VALUE =
   /(\bKey\s*\([^\r\n)]*\)\s*=\s*\()([\s\S]*?)(\)\s*(?:already exists|is duplicated)\b)/giu;
+const POSTGRES_FAILING_ROW =
+  /(\bFailing row contains\s*\()([^\r\n]*)(\)(?:\.|$))/giu;
 const CAST_INPUT_VALUE =
   /(\bwith value\s+)([\s\S]*?)(\s+(?:can't|cannot)\s+be cast\b)/giu;
 
@@ -159,6 +161,11 @@ function redactDatabaseErrorText(
         `${prefix}[redacted]${suffix}`,
     )
     .replace(
+      POSTGRES_FAILING_ROW,
+      (_match, prefix: string, _value: string, suffix: string) =>
+        `${prefix}[redacted]${suffix}`,
+    )
+    .replace(
       CAST_INPUT_VALUE,
       (_match, prefix: string, _value: string, suffix: string) =>
         `${prefix}[redacted]${suffix}`,
@@ -193,34 +200,38 @@ function collectSensitiveValues(
   if (!value || typeof value !== 'object' || seen.has(value)) return;
   seen.add(value);
 
-  if (value instanceof Date) {
-    output.add(value.toISOString());
-    return;
-  }
-
-  if (ArrayBuffer.isView(value)) {
-    const bytes = new Uint8Array(
-      value.buffer,
-      value.byteOffset,
-      value.byteLength,
-    );
-    if (bytes.length > 0) {
-      const hex = [...bytes]
-        .map((byte) => byte.toString(16).padStart(2, '0'))
-        .join('');
-      output.add([...bytes].join(','));
-      output.add(hex);
-      output.add(`\\x${hex}`);
-      output.add(`\\x${hex.toUpperCase()}`);
-      output.add(
-        `<Buffer ${[...bytes]
-          .map((byte) => byte.toString(16).padStart(2, '0'))
-          .join(' ')}>`,
-      );
-      if (typeof Buffer !== 'undefined') {
-        output.add(Buffer.from(bytes).toString('base64'));
-      }
+  try {
+    if (value instanceof Date) {
+      output.add(value.toISOString());
+      return;
     }
+
+    if (ArrayBuffer.isView(value)) {
+      const bytes = new Uint8Array(
+        value.buffer,
+        value.byteOffset,
+        value.byteLength,
+      );
+      if (bytes.length > 0) {
+        const hex = [...bytes]
+          .map((byte) => byte.toString(16).padStart(2, '0'))
+          .join('');
+        output.add([...bytes].join(','));
+        output.add(hex);
+        output.add(`\\x${hex}`);
+        output.add(`\\x${hex.toUpperCase()}`);
+        output.add(
+          `<Buffer ${[...bytes]
+            .map((byte) => byte.toString(16).padStart(2, '0'))
+            .join(' ')}>`,
+        );
+        if (typeof Buffer !== 'undefined') {
+          output.add(Buffer.from(bytes).toString('base64'));
+        }
+      }
+      return;
+    }
+  } catch {
     return;
   }
 
@@ -233,13 +244,18 @@ function collectSensitiveValues(
     // Cyclic bind values are still traversed below.
   }
 
-  if (Array.isArray(value)) {
-    for (const entry of value) collectSensitiveValues(entry, output, seen);
+  let descriptors: Record<string, PropertyDescriptor>;
+  try {
+    descriptors = Object.getOwnPropertyDescriptors(value);
+  } catch {
+    // A proxy trap must not replace the database failure being reported.
     return;
   }
 
-  for (const entry of Object.values(value as Record<string, unknown>)) {
-    collectSensitiveValues(entry, output, seen);
+  for (const [key, descriptor] of Object.entries(descriptors)) {
+    if (key !== 'length' && 'value' in descriptor) {
+      collectSensitiveValues(descriptor.value, output, seen);
+    }
   }
 }
 

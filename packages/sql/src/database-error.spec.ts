@@ -231,6 +231,64 @@ describe('database error diagnostics', () => {
     expect(rendered).toContain('Key (payload)=([redacted]) already exists');
   });
 
+  it('redacts PostgreSQL failing-row diagnostics', () => {
+    const driverError = Object.assign(
+      new Error('null value in column required'),
+      {
+        code: '23502',
+        detail: 'Failing row contains (42, 2026-08-30, t, customer-secret).',
+      },
+    );
+    const error = wrapDatabaseError(
+      'Failed to execute raw query',
+      driverError,
+      {
+        values: [
+          42,
+          new Date('2026-08-30T12:34:56.789Z'),
+          true,
+          'customer-secret',
+        ],
+      },
+    );
+    const rendered = renderErrorSurfaces(error);
+
+    expect(rendered).not.toContain('(42, 2026-08-30, t, customer-secret)');
+    expect(rendered).toContain('Failing row contains ([redacted]).');
+    expect(rendered).toContain('null value in column required');
+    expect((error.cause as Error & { code?: string }).code).toBe('23502');
+  });
+
+  it('does not let throwing bind accessors mask the driver error', () => {
+    const accessorValue = Object.create(null);
+    Object.defineProperty(accessorValue, 'unsafe', {
+      enumerable: true,
+      get() {
+        throw new Error('getter-secret-issue-744');
+      },
+    });
+    const proxyValue = new Proxy(
+      {},
+      {
+        ownKeys() {
+          throw new Error('proxy-secret-issue-744');
+        },
+      },
+    );
+
+    const error = wrapDatabaseError(
+      'Failed to execute raw query',
+      Object.assign(new Error('database constraint failed'), { code: '23514' }),
+      { values: [accessorValue, proxyValue] },
+    );
+    const rendered = renderErrorSurfaces(error);
+
+    expect(error).toBeInstanceOf(DatabaseError);
+    expect(rendered).toContain('database constraint failed');
+    expect(rendered).not.toContain('getter-secret-issue-744');
+    expect(rendered).not.toContain('proxy-secret-issue-744');
+  });
+
   it('redacts oversized bound values without compiling them as regexes', () => {
     const oversizedSecret = 'x'.repeat(100_000);
     const error = wrapDatabaseError(

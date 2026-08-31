@@ -168,6 +168,37 @@ describe('postgres tests', () => {
     }
   });
 
+  it('redacts values from PostgreSQL failing-row diagnostics', async () => {
+    if (!postgresAvailable) return;
+    const table = 'issue_744_failing_row';
+    const secret = 'postgres-failing-row-secret-744';
+    await db.query(
+      `CREATE TEMP TABLE ${table} (occurred_on date, required text NOT NULL, secret text)`,
+    );
+
+    const caught = await db
+      .query(
+        `INSERT INTO ${table} (occurred_on, required, secret) VALUES ($1, $2, $3)`,
+        new Date('2026-08-30T12:34:56.789Z'),
+        null,
+        secret,
+      )
+      .catch((error: unknown) => error);
+
+    expect(caught).toBeInstanceOf(DatabaseError);
+    const error = caught as DatabaseError;
+    const rendered = [
+      String(error),
+      error.stack,
+      String(error.cause),
+      JSON.stringify(error),
+    ].join('\n');
+    expect(rendered).not.toContain('2026-08-30');
+    expect(rendered).not.toContain(secret);
+    expect(rendered).toContain('Failing row contains ([redacted]).');
+    expect((error.cause as Error & { code?: string }).code).toBe('23502');
+  });
+
   it('should be able to insert data', async () => {
     if (!postgresAvailable) return;
 
