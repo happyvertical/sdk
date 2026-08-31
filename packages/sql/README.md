@@ -239,10 +239,10 @@ object with a `toString` — is rejected outright rather than coerced, so the va
 validated is always the value interpolated. Values are always parameterized and
 are unaffected.
 
-Note that `buildWhere` treats a condition key carrying an explicit operator
-suffix (`'price >'`, `'name like'`) as SQL expression text and does **not**
-validate it. That is deliberate, and it means those keys must stay
-developer-controlled — never build them from request input.
+`buildWhere` separates a supported operator suffix (`'price >'`,
+`'name contains'`) from the field and then validates the field as an identifier.
+Unsupported suffixes remain part of the field and fail validation rather than
+becoming SQL. Use `raw()` only for developer-authored expression text.
 
 ### WHERE Clause Building
 
@@ -260,6 +260,25 @@ const { sql, values } = buildWhere({
 });
 // Use with raw query: db.query(`SELECT * FROM products ${sql}`, values)
 ```
+
+`contains` performs a literal, case-sensitive substring match on text. `%`,
+`_`, and `\` are ordinary characters in its value, so
+`{ 'description contains': '100%_off\\today' }` searches for that exact text;
+it does not provide JSON containment. The value must be a string; an empty
+string matches every non-NULL text value. Adapter methods such as `list()`
+select the dialect automatically. When calling `buildWhere()` directly with
+`contains`, pass the adapter type as its third argument so it can emit the
+correct case-sensitive expression:
+
+```typescript
+buildWhere({ 'description contains': '100% cotton' }, 1, 'sqlite');
+```
+
+`like` remains pattern-based: `%` matches any sequence and `_` matches one
+character. Every adapter now uses an explicit backslash escape character, so
+`\%`, `\_`, and `\\` in the pattern match a literal percent sign, underscore,
+and backslash respectively. Escape the JavaScript string as well; for example,
+`{ 'name like': '%100\\%%' }` matches text containing the literal `100%`.
 
 Supports 2D array format for OR/AND compound logic:
 ```typescript

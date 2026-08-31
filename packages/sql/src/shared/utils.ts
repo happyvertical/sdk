@@ -520,6 +520,7 @@ const VALID_OPERATORS = {
   '<=': '<=',
   '!=': '!=',
   like: 'LIKE',
+  contains: 'CONTAINS',
   in: 'IN',
   'not in': 'NOT IN',
 } as const;
@@ -584,10 +585,11 @@ const RAW_KEY_PREFIX = '\u0000hv-sql-raw\u0000';
  * at the call site.
  *
  * A trailing operator is recognised only if it is one of `=`, `!=`, `>`, `>=`,
- * `<`, `<=`, `like`, `in`, `not in`. Any other trailing token is treated as part
- * of the expression and `=` is appended, so `raw('name ILIKE')` silently emits
- * `name ILIKE = $1`, which the database then rejects. Fold an unsupported
- * operator into the expression instead: `raw('LOWER(name) like')`.
+ * `<`, `<=`, `like`, `contains`, `in`, `not in`. Any other trailing token is
+ * treated as part of the expression and `=` is appended, so
+ * `raw('name ILIKE')` silently emits `name ILIKE = $1`, which the database then
+ * rejects. Fold an unsupported operator into the expression instead:
+ * `raw('LOWER(name) like')`.
  *
  * @param expression - SQL field or expression text, optionally ending in a
  *   supported operator (for example `SUM(total) >`)
@@ -623,7 +625,18 @@ export function parseConditionKey(fullKey: string): {
 } {
   const trimmed = fullKey.trim();
   const lower = trimmed.toLowerCase();
-  const operators = ['not in', 'like', 'in', '!=', '>=', '<=', '>', '<', '='];
+  const operators = [
+    'not in',
+    'contains',
+    'like',
+    'in',
+    '!=',
+    '>=',
+    '<=',
+    '>',
+    '<',
+    '=',
+  ];
 
   for (const operator of operators) {
     if (lower.endsWith(` ${operator}`)) {
@@ -669,7 +682,21 @@ const buildCondition = (
 
   let sql: string;
 
-  if (value === null) {
+  if (sqlOperator === 'CONTAINS') {
+    if (!adapterType) {
+      throw new Error(
+        'CONTAINS requires an adapter type so buildWhere can preserve case-sensitive semantics',
+      );
+    }
+    if (typeof value !== 'string') {
+      throw new Error('CONTAINS requires a string value');
+    }
+
+    const placeholder = `$${currIndex.value++}`;
+    const containsFunction = adapterType === 'sqlite' ? 'instr' : 'strpos';
+    sql = `${containsFunction}(${field}, ${placeholder}) > 0`;
+    values.push(value);
+  } else if (value === null) {
     sql = `${field} IS ${sqlOperator === '=' ? 'NULL' : 'NOT NULL'}`;
   } else if (
     (sqlOperator === 'IN' || sqlOperator === 'NOT IN') &&
@@ -686,13 +713,19 @@ const buildCondition = (
     // SQLite/PostgreSQL handle ISO strings natively without CAST
     const needsCast = adapterType === 'duckdb' || adapterType === 'json';
     if (needsCast) {
-      sql = `${field} ${sqlOperator} CAST($${currIndex.value++} AS TIMESTAMP)`;
+      sql = `${field} ${sqlOperator} CAST($${currIndex.value++} AS TIMESTAMP)${
+        sqlOperator === 'LIKE' ? " ESCAPE '\\'" : ''
+      }`;
     } else {
-      sql = `${field} ${sqlOperator} $${currIndex.value++}`;
+      sql = `${field} ${sqlOperator} $${currIndex.value++}${
+        sqlOperator === 'LIKE' ? " ESCAPE '\\'" : ''
+      }`;
     }
     values.push(value.toISOString());
   } else {
-    sql = `${field} ${sqlOperator} $${currIndex.value++}`;
+    sql = `${field} ${sqlOperator} $${currIndex.value++}${
+      sqlOperator === 'LIKE' ? " ESCAPE '\\'" : ''
+    }`;
     values.push(value);
   }
 
@@ -704,11 +737,14 @@ const buildCondition = (
  *
  * @param where - Conditions as object (AND-only) or 2D array (OR/AND compound)
  * @param startIndex - Starting index for parameter numbering (default: 1)
- * @param adapterType - Database adapter type. Controls Date handling:
+ * @param adapterType - Database adapter type. Controls Date and `contains`
+ *   handling:
  *   - `'duckdb'` / `'json'`: Wraps Date values in `CAST($N AS TIMESTAMP)` to
  *     prevent DuckDB ANY-type inference issues.
  *   - `'sqlite'` / `'postgres'` / `undefined`: Passes ISO strings directly
  *     (these adapters handle ISO timestamp strings natively).
+ *   - Required for `contains`, whose case-sensitive literal substring SQL is
+ *     emitted with adapter-specific functions.
  *
  * Every condition key is validated as a plain SQL identifier, with or without
  * an operator suffix. To use expression text as a key, wrap it in {@link raw}:
@@ -730,7 +766,8 @@ const buildCondition = (
  *   'price >': 100,              // greater than
  *   'stock <=': 5,               // less than or equal
  *   'category in': ['A', 'B'],   // IN clause for arrays
- *   'name like': '%shirt%'       // LIKE for pattern matching
+ *   'name like': '%shirt%',      // LIKE pattern; backslash escapes `%` / `_`
+ *   'notes contains': '100% off' // literal, case-sensitive substring
  * });
  * ```
  *
@@ -786,7 +823,8 @@ const buildCondition = (
  * - Standard comparisons (=, >, >=, <, <=, !=)
  * - NULL checks (IS NULL, IS NOT NULL)
  * - IN clauses for arrays
- * - LIKE for pattern matching
+ * - LIKE for pattern matching with an explicit backslash escape character
+ * - Case-sensitive literal substring matching with `contains`
  * - Object format: Multiple conditions combined with AND
  * - 2D array format: Inner arrays ANDed, outer array ORed
  */
