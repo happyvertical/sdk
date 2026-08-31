@@ -1,5 +1,14 @@
 # @happyvertical/sql
 
+## 0.89.3
+
+### Patch Changes
+
+- faf905b: Reload cached JSON adapters when external JSON or schema files change, while
+  coalescing concurrent refreshes, failing closed before stale adapter exports,
+  and closing the stale DuckDB adapter once.
+  - @happyvertical/utils@0.89.3
+
 ## 0.89.2
 
 ### Patch Changes
