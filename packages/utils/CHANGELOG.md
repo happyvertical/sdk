@@ -1,5 +1,15 @@
 # @happyvertical/utils
 
+## 0.89.3
+
+## 0.89.2
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - quote PostgreSQL upsert columns (#1218) (sql)
+
 ## 0.89.1
 
 ## 0.89.0

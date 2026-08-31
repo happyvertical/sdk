@@ -1,5 +1,21 @@
 # @happyvertical/secrets
 
+## 0.89.3
+
+### Patch Changes
+
+- Updated dependencies [faf905b]
+  - @happyvertical/sql@0.89.3
+  - @happyvertical/utils@0.89.3
+
+## 0.89.2
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.89.2
+  - @happyvertical/sql@0.89.2
+
 ## 0.89.1
 
 ### Patch Changes

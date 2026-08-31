@@ -1,4 +1,4 @@
-import { mkdir, readdir } from 'node:fs/promises';
+import { mkdir, readdir, stat } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import { DatabaseError } from '@happyvertical/utils';
 import { DatabaseSchemaManager } from './schema-manager';
@@ -7,7 +7,10 @@ import {
   escapeStringLiteral,
   validateColumnNames,
 } from './shared/alter-utils';
-import { ConnectionCache } from './shared/connection-cache';
+import {
+  ConnectionCache,
+  enableCachedValidation,
+} from './shared/connection-cache';
 import {
   createDuckDBResourceCloser,
   throwWithDuckDBCleanup,
@@ -61,6 +64,237 @@ declare global {
 globalThis.__haveSqlJSONConnectionCache ??=
   new ConnectionCache<DatabaseInterface>();
 const memoryConnectionCache = globalThis.__haveSqlJSONConnectionCache;
+enableCachedValidation(memoryConnectionCache);
+
+type JSONSourceCacheState = {
+  activeWrites: Set<Promise<void>>;
+  closing: boolean;
+  dataDir: string;
+  fingerprint: string | undefined;
+  sourceWriteTail: Promise<void>;
+  trackExternalChanges: boolean;
+};
+
+const JSON_SOURCE_CACHE_STATE = Symbol.for(
+  '@happyvertical/sql/json-source-cache-state/v1',
+);
+
+type TrackedJSONDatabase = DatabaseInterface &
+  Record<symbol, JSONSourceCacheState | undefined>;
+
+const SOURCE_SNAPSHOT_ATTEMPTS = 3;
+
+function isMissingPathError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    error.code === 'ENOENT'
+  );
+}
+
+async function listJSONSourceFiles(dataDir: string): Promise<string[] | null> {
+  try {
+    return (await readdir(dataDir))
+      .filter((file) => {
+        const lower = file.toLowerCase();
+        return lower.endsWith('.json') || lower.endsWith('.schema.sql');
+      })
+      .sort();
+  } catch (error) {
+    if (isMissingPathError(error)) return null;
+    throw error;
+  }
+}
+
+/**
+ * Captures the JSON adapter's file-backed inputs without reading their contents.
+ * Directory membership plus nanosecond timestamps, size and inode detect edits,
+ * replacements, additions and removals while keeping cache hits inexpensive.
+ */
+async function getJSONSourceFingerprint(dataDir: string): Promise<string> {
+  const statFiles = (files: string[]) =>
+    Promise.all(
+      files.map(async (file) => {
+        const info = await stat(join(dataDir, file), { bigint: true });
+        return [
+          file,
+          info.size.toString(),
+          info.mtimeNs.toString(),
+          info.ctimeNs.toString(),
+          info.ino.toString(),
+        ];
+      }),
+    );
+  const sameFiles = (left: string[], right: string[] | null) =>
+    right !== null &&
+    left.length === right.length &&
+    left.every((file, index) => file === right[index]);
+
+  for (let attempt = 0; attempt < SOURCE_SNAPSHOT_ATTEMPTS; attempt += 1) {
+    const filesBefore = await listJSONSourceFiles(dataDir);
+    if (filesBefore === null) return 'directory:missing';
+
+    try {
+      const entriesBefore = await statFiles(filesBefore);
+      const filesDuring = await listJSONSourceFiles(dataDir);
+      if (!sameFiles(filesBefore, filesDuring)) continue;
+
+      // Re-stat after the membership check. A same-file edit can otherwise
+      // complete after that file's first stat while leaving the name list
+      // unchanged, causing this acquisition to accept stale metadata.
+      const entriesAfter = await statFiles(filesBefore);
+      const filesAfter = await listJSONSourceFiles(dataDir);
+      const fingerprintAfter = JSON.stringify(entriesAfter);
+      if (
+        sameFiles(filesBefore, filesAfter) &&
+        JSON.stringify(entriesBefore) === fingerprintAfter
+      ) {
+        return fingerprintAfter;
+      }
+    } catch (error) {
+      if (!isMissingPathError(error)) throw error;
+    }
+  }
+
+  throw new DatabaseError(
+    'JSON source files changed while checking connection cache freshness',
+    { dataDir },
+  );
+}
+
+function getJSONSourceCacheState(
+  db: DatabaseInterface,
+): JSONSourceCacheState | undefined {
+  return (db as TrackedJSONDatabase)[JSON_SOURCE_CACHE_STATE];
+}
+
+function setJSONSourceCacheState(
+  db: DatabaseInterface,
+  state: JSONSourceCacheState,
+): void {
+  Object.defineProperty(db, JSON_SOURCE_CACHE_STATE, {
+    configurable: false,
+    enumerable: false,
+    value: state,
+    writable: false,
+  });
+}
+
+async function waitForJSONSourceWrites(
+  state: JSONSourceCacheState,
+): Promise<void> {
+  while (state.activeWrites.size > 0) {
+    await Promise.allSettled([...state.activeWrites]);
+  }
+}
+
+async function isCachedJSONDatabaseFresh(
+  db: DatabaseInterface,
+): Promise<boolean> {
+  const state = getJSONSourceCacheState(db);
+  // A cached adapter created by an older module instance has no trustworthy
+  // snapshot, so replace it once and establish the current tracking contract.
+  if (!state) return false;
+  if (!state.trackExternalChanges) return true;
+
+  while (true) {
+    await waitForJSONSourceWrites(state);
+    const fingerprint = await getJSONSourceFingerprint(state.dataDir);
+    if (state.activeWrites.size === 0) {
+      return fingerprint === state.fingerprint;
+    }
+  }
+}
+
+async function trackJSONSourceWrite<T>(
+  db: DatabaseInterface,
+  table: string,
+  write: () => Promise<T>,
+): Promise<T> {
+  const state = getJSONSourceCacheState(db);
+  if (!state) return write();
+  if (state.closing) {
+    throw new DatabaseError('JSON database connection is closing');
+  }
+
+  const previousWrite = state.sourceWriteTail;
+  let releaseWrite!: () => void;
+  const currentWrite = new Promise<void>((resolve) => {
+    releaseWrite = resolve;
+  });
+  state.sourceWriteTail = previousWrite.then(
+    () => currentWrite,
+    () => currentWrite,
+  );
+
+  const operation = (async () => {
+    await previousWrite.catch(() => {});
+    let succeeded = false;
+    let fingerprintBeforeWrite: string | undefined;
+    try {
+      if (state.trackExternalChanges) {
+        fingerprintBeforeWrite = await getJSONSourceFingerprint(state.dataDir);
+        if (fingerprintBeforeWrite !== state.fingerprint) {
+          state.fingerprint = undefined;
+          throw new DatabaseError(
+            'JSON source files changed externally before the adapter could persist its write; acquire a fresh database and retry',
+            { dataDir: state.dataDir, table },
+          );
+        }
+      }
+      const result = await write();
+      succeeded = true;
+      return result;
+    } finally {
+      if (succeeded && state.trackExternalChanges) {
+        try {
+          const fingerprintAfterWrite = await getJSONSourceFingerprint(
+            state.dataDir,
+          );
+          const ownedFiles = new Set([`${table}.json`, `${table}.schema.sql`]);
+          const excludeOwnedFiles = (fingerprint: string) =>
+            JSON.stringify(
+              (JSON.parse(fingerprint) as string[][]).filter(
+                ([file]) => !ownedFiles.has(file),
+              ),
+            );
+
+          // Only the table's own data/schema files may change during this
+          // export. Preserve evidence of any unrelated external mutation so
+          // the waiting cache acquisition replaces this adapter.
+          state.fingerprint =
+            fingerprintBeforeWrite !== undefined &&
+            excludeOwnedFiles(fingerprintBeforeWrite) ===
+              excludeOwnedFiles(fingerprintAfterWrite)
+              ? fingerprintAfterWrite
+              : undefined;
+        } catch (error) {
+          // The write itself succeeded. Mark the snapshot unknown so the next
+          // acquisition replaces this adapter, but do not report a false write
+          // failure after DuckDB has already persisted the data.
+          state.fingerprint = undefined;
+          console.warn(
+            `[json-adapter] Could not refresh source fingerprint: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      } else if (!succeeded) {
+        state.fingerprint = undefined;
+      }
+      releaseWrite();
+    }
+  })();
+  const activeWrite = operation.then(
+    () => undefined,
+    () => undefined,
+  );
+  state.activeWrites.add(activeWrite);
+  try {
+    return await operation;
+  } finally {
+    state.activeWrites.delete(activeWrite);
+  }
+}
 
 /**
  * Clears and closes all cached connections.
@@ -839,8 +1073,57 @@ export async function getDatabase(
   return memoryConnectionCache.getOrCreate(
     cacheKey,
     options,
-    () => createJSONDatabase(options),
+    () => createTrackedJSONDatabase(options),
     closeJSONDatabase,
+    isCachedJSONDatabaseFresh,
+  );
+}
+
+async function createTrackedJSONDatabase(
+  options: JSONOptions,
+): Promise<DatabaseInterface> {
+  const trackExternalChanges = options.autoRegister !== false;
+  const dataDir = options.url;
+
+  if (!trackExternalChanges || !dataDir) {
+    const db = await createJSONDatabase(options);
+    setJSONSourceCacheState(db, {
+      activeWrites: new Set(),
+      closing: false,
+      dataDir: dataDir ?? '',
+      fingerprint: undefined,
+      sourceWriteTail: Promise.resolve(),
+      trackExternalChanges: false,
+    });
+    return db;
+  }
+
+  for (let attempt = 0; attempt < SOURCE_SNAPSHOT_ATTEMPTS; attempt += 1) {
+    const before = await getJSONSourceFingerprint(dataDir);
+    const db = await createJSONDatabase(options);
+    try {
+      const after = await getJSONSourceFingerprint(dataDir);
+      if (before === after) {
+        setJSONSourceCacheState(db, {
+          activeWrites: new Set(),
+          closing: false,
+          dataDir,
+          fingerprint: after,
+          sourceWriteTail: Promise.resolve(),
+          trackExternalChanges: true,
+        });
+        return db;
+      }
+    } catch (error) {
+      await closeJSONDatabase(db);
+      throw error;
+    }
+    await closeJSONDatabase(db);
+  }
+
+  throw new DatabaseError(
+    'JSON source files did not remain stable while creating the database',
+    { dataDir },
   );
 }
 
@@ -858,6 +1141,7 @@ async function createJSONDatabase(
     } = await createJSONConnection(options);
     const writeStrategy = options.writeStrategy || 'immediate';
     const { url } = options;
+    let db!: DatabaseInterface;
 
     // One lock per connection. `getDatabase` hands cached callers this same
     // closure, so "created here" and "per connection" are the same scope —
@@ -953,7 +1237,7 @@ async function createJSONDatabase(
 
         // Handle write-back strategy
         if (writeStrategy === 'immediate') {
-          await exportTableToJSON(connection, table, url);
+          await persistTableToJSON(table);
         }
 
         return { operation: 'insert', affected };
@@ -1081,7 +1365,7 @@ async function createJSONDatabase(
 
         // Handle write-back strategy
         if (writeStrategy === 'immediate') {
-          await exportTableToJSON(connection, table, url);
+          await persistTableToJSON(table);
         }
 
         // DuckDB doesn't return rowsAffected in the same way, estimate from where clause
@@ -1161,7 +1445,7 @@ async function createJSONDatabase(
         await connection.run(sql, [...values, ...whereValues]);
 
         if (writeStrategy === 'immediate') {
-          await exportTableToJSON(connection, table, url);
+          await persistTableToJSON(table);
         }
 
         return { operation: 'upsert', affected: 1 };
@@ -1354,7 +1638,7 @@ async function createJSONDatabase(
 
         // Handle write-back strategy
         if (writeStrategy === 'immediate') {
-          await exportTableToJSON(connection, table, url);
+          await persistTableToJSON(table);
         }
 
         return { operation: 'upsert', affected: 1 };
@@ -1447,7 +1731,7 @@ async function createJSONDatabase(
 
         // Handle write-back strategy
         if (writeStrategy === 'immediate') {
-          await exportTableToJSON(connection, table, url);
+          await persistTableToJSON(table);
         }
 
         return { operation: 'delete', affected: 1 };
@@ -1636,6 +1920,11 @@ async function createJSONDatabase(
       await connection.run(sql);
     };
 
+    const persistTableToJSON = (table: string): Promise<void> =>
+      trackJSONSourceWrite(db, table, () =>
+        exportTableToJSON(connection, table, url),
+      );
+
     /**
      * Manual export method for 'manual' write strategy
      *
@@ -1651,7 +1940,7 @@ async function createJSONDatabase(
           { table, writeStrategy },
         );
       }
-      await exportTableToJSON(connection, table, url);
+      await persistTableToJSON(table);
     };
 
     /**
@@ -1887,7 +2176,7 @@ async function createJSONDatabase(
                 // File exists, don't overwrite
               } catch {
                 // File doesn't exist, export empty table
-                await exportTableToJSON(connection, tableName, url);
+                await persistTableToJSON(tableName);
               }
             } catch (error) {
               console.warn(
@@ -2057,7 +2346,7 @@ async function createJSONDatabase(
                   // File exists, don't overwrite
                 } catch {
                   // File doesn't exist, export empty table
-                  await exportTableToJSON(connection, tableName, url);
+                  await persistTableToJSON(tableName);
                 }
               } catch (error) {
                 console.warn(
@@ -2281,7 +2570,7 @@ async function createJSONDatabase(
     };
 
     const closeResources = createDuckDBResourceCloser(connection, instance);
-    const db = {
+    db = {
       url,
       requiresSchemaCheck: true,
       client: connection,
@@ -2313,6 +2602,11 @@ async function createJSONDatabase(
       inferSchemaFromJSON,
       getTableLoadErrors,
       close: async () => {
+        const state = getJSONSourceCacheState(db);
+        if (state) {
+          state.closing = true;
+          await waitForJSONSourceWrites(state);
+        }
         memoryConnectionCache.forget(db);
         await closeResources();
       },

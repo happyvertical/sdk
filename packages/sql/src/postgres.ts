@@ -6,6 +6,7 @@ import { DatabaseSchemaManager } from './schema-manager';
 import {
   generateAddColumnStatement,
   generateCreateIndexStatement,
+  quotePostgresColumnName,
   validateColumnName,
   validateColumnNames,
   validateIndexName,
@@ -973,12 +974,15 @@ async function createDatabase(
     serializedData: Record<string, any>,
   ) => {
     const keys = Object.keys(serializedData);
+    const columns = keys.map(quotePostgresColumnName);
     const values = Object.values(serializedData);
     const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-    const updateSet = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
-    const conflict = conflictColumns.join(', ');
+    const updateSet = columns
+      .map((column, i) => `${column} = $${i + 1}`)
+      .join(', ');
+    const conflict = conflictColumns.map(quotePostgresColumnName).join(', ');
 
-    return { keys, values, placeholders, updateSet, conflict };
+    return { columns, values, placeholders, updateSet, conflict };
   };
 
   const executeStandardPostgresUpsert = async (
@@ -987,9 +991,9 @@ async function createDatabase(
     conflictColumns: string[],
     serializedData: Record<string, any>,
   ): Promise<BaseQueryResult> => {
-    const { keys, values, placeholders, updateSet, conflict } =
+    const { columns, values, placeholders, updateSet, conflict } =
       buildPostgresUpsertParts(conflictColumns, serializedData);
-    const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
+    const sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
     const result = await executor.query(sql, values);
     return { operation: 'upsert', affected: result.rowCount ?? 0 };
   };
@@ -1000,10 +1004,8 @@ async function createDatabase(
     conflictColumns: string[],
     serializedData: Record<string, any>,
   ): Promise<BaseQueryResult> => {
-    const { keys, values, placeholders } = buildPostgresUpsertParts(
-      conflictColumns,
-      serializedData,
-    );
+    const { columns, values, placeholders, updateSet } =
+      buildPostgresUpsertParts(conflictColumns, serializedData);
     const lockKey = conflictColumns
       .map((col) => `${col}:${JSON.stringify(serializedData[col])}`)
       .join('|');
@@ -1013,10 +1015,12 @@ async function createDatabase(
       [`@happyvertical/sql.upsert:${table}`, lockKey],
     );
 
-    const updateSet = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
     const whereStart = values.length + 1;
     const whereClause = conflictColumns
-      .map((col, i) => `${col} IS NOT DISTINCT FROM $${whereStart + i}`)
+      .map(
+        (col, i) =>
+          `${quotePostgresColumnName(col)} IS NOT DISTINCT FROM $${whereStart + i}`,
+      )
       .join(' AND ');
     const whereValues = conflictColumns.map((col) => serializedData[col]);
     const updateSql = `UPDATE ${table} SET ${updateSet} WHERE ${whereClause}`;
@@ -1029,7 +1033,7 @@ async function createDatabase(
       return { operation: 'upsert', affected: updateResult.rowCount ?? 0 };
     }
 
-    const insertSql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
+    const insertSql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
     const insertResult = await executor.query(insertSql, values);
     return { operation: 'upsert', affected: insertResult.rowCount ?? 0 };
   };
@@ -1465,9 +1469,9 @@ async function createDatabase(
       // exact arrays the executors interpolate — outside the try. `data` is
       // serialized (a plain-object snapshot) and `conflictColumns` is copied,
       // so neither a hostile record nor a hostile conflict-column array can
-      // present different identifiers to the check and the unquoted SQL, and an
+      // present different identifiers to the check and the SQL renderer. An
       // invalid identifier surfaces by name rather than as the generic wrapper
-      // below. Conflict columns are interpolated bare into `ON CONFLICT(...)`.
+      // below; PostgreSQL columns are lowercased and quoted after validation.
       const serializedData = serializeRecord(data);
       const conflictCols = [...conflictColumns];
       validateColumnNames([...conflictCols, ...Object.keys(serializedData)]);
