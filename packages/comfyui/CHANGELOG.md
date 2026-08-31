@@ -1,5 +1,13 @@
 # @happyvertical/comfyui
 
+## 0.88.2
+
+### Patch Changes
+
+- Updated dependencies [596e262]
+  - @happyvertical/utils@0.88.2
+  - @happyvertical/logger@0.88.2
+
 ## 0.88.1
 
 ### Patch Changes
