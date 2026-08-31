@@ -1,5 +1,18 @@
 # @happyvertical/sql
 
+## 0.89.0
+
+### Minor Changes
+
+- d914770: Add a portable, case-sensitive `contains` WHERE operator for literal text
+  substrings. `like` now emits an explicit backslash escape character on every
+  adapter while preserving `%` and `_` as pattern wildcards.
+
+### Patch Changes
+
+- c882a7f: Forward PostgreSQL connection and idle timeout options to connection pools and include them in derived cache identities.
+  - @happyvertical/utils@0.89.0
+
 ## 0.88.2
 
 ### Patch Changes
