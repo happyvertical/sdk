@@ -141,7 +141,8 @@ have no ACL entry that grants authority; restrictive deny-only entries
 accepted. ACL inspection errors or unrecognized/ambiguous ACL entries fail
 closed.
 The adapter invokes `/bin/ls -lde -- <path>` directly with an argument vector,
-never through a shell, and parses every entry behind the stable `+` ACL marker.
+never through a shell, and parses every numbered ACL entry even when macOS's
+extended-attribute `@` marker takes display precedence over the ACL `+` marker.
 Ancestors above the custody root may not allow replacement by another principal
 and must be owned either by the current uid or privileged uid `0` (the explicit
 system-root exception). A sticky root-owned shared parent such as `/tmp` is

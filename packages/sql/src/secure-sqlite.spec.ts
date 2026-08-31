@@ -167,6 +167,16 @@ describe('secure SQLite file acquisition', () => {
       parseDarwinAclListing('drwx------@ 2 user staff 64 Aug 29 15:07 /data'),
     ).toBe(false);
     expect(
+      parseDarwinAclListing(
+        'drwx------@ 2 user staff 64 Aug 29 15:07 /data\n 0: user:guest allow write,delete',
+      ),
+    ).toBe(true);
+    expect(
+      parseDarwinAclListing(
+        'drwx------@ 2 user staff 64 Aug 29 15:07 /data\n 0: group:everyone deny delete',
+      ),
+    ).toBe(false);
+    expect(
       parseDarwinAclListing('drwx------  2 user staff 64 Aug 29 15:07 /data'),
     ).toBe(false);
     expect(() => parseDarwinAclListing('unexpected output')).toThrow(

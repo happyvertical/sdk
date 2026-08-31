@@ -89,11 +89,12 @@ export function parseDarwinAclListing(listing: string): boolean {
   if (!permissionMarker) {
     throw new Error('macOS ACL inspection returned an unrecognized listing');
   }
-  if (permissionMarker !== '+') return false;
-
   const aclEntries = listing.split('\n').slice(1).filter(Boolean);
   if (aclEntries.length === 0) {
-    throw new Error('macOS ACL inspection returned no ACL entries');
+    if (permissionMarker === '+') {
+      throw new Error('macOS ACL inspection returned no ACL entries');
+    }
+    return false;
   }
   let grantsAuthority = false;
   for (const entry of aclEntries) {
