@@ -1417,6 +1417,50 @@ describe('postgres syncSchema with CREATE INDEX (Issue #867)', () => {
     expect(indexes).toHaveLength(1);
   });
 
+  it.each([
+    ['CREATE INDEX CONCURRENTLY', false, '', '"slug"'],
+    ['CREATE INDEX CONCURRENTLY IF NOT EXISTS', false, '', '"slug"'],
+    ['CREATE UNIQUE INDEX CONCURRENTLY', true, '', '"slug"'],
+    ['CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS', true, '', '"slug"'],
+    ['CREATE INDEX CONCURRENTLY', false, 'USING gin ', '"tags"'],
+  ])('should apply %s idempotently', async (createIndexClause, expectedUnique, indexMethod, indexedColumn) => {
+    if (!postgresAvailable) return;
+
+    const indexName = `${testTableName}_concurrent_idx`;
+    const schema = `
+        CREATE TABLE IF NOT EXISTS "${testTableName}" (
+          "id" TEXT PRIMARY KEY NOT NULL,
+          "slug" TEXT NOT NULL,
+          "tags" TEXT[] NOT NULL DEFAULT '{}'
+        );
+        ${createIndexClause} "${indexName}" ON "${testTableName}" ${indexMethod}(${indexedColumn});
+      `;
+
+    await db.syncSchema(schema);
+
+    const indexes = await db.many`
+        SELECT indexdef FROM pg_indexes
+        WHERE schemaname = 'public' AND indexname = ${indexName}
+      `;
+    expect(indexes).toHaveLength(1);
+    expect(indexes[0].indexdef.includes('UNIQUE')).toBe(expectedUnique);
+
+    const querySpy = vi.spyOn(db.client, 'query');
+    try {
+      await db.syncSchema(schema);
+
+      const repeatedIndexDdl = querySpy.mock.calls.filter(([query]) => {
+        return (
+          typeof query === 'string' &&
+          /^CREATE\s+(?:UNIQUE\s+)?INDEX\s+CONCURRENTLY\b/i.test(query)
+        );
+      });
+      expect(repeatedIndexDdl).toHaveLength(0);
+    } finally {
+      querySpy.mockRestore();
+    }
+  });
+
   it('should handle non-unique indexes', async () => {
     if (!postgresAvailable) return;
 
