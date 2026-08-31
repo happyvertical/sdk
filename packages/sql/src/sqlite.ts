@@ -1,6 +1,14 @@
+import {
+  AsyncLocalStorage,
+  createHook,
+  executionAsyncId,
+} from 'node:async_hooks';
+import { createHash } from 'node:crypto';
+import { types as utilTypes } from 'node:util';
 import { DatabaseError } from '@happyvertical/utils';
 import type { Client } from '@libsql/client';
 import { DatabaseSchemaManager } from './schema-manager';
+import { createSecureSqliteClient } from './secure-sqlite-client';
 import {
   generateAddColumnStatement,
   generateCreateIndexStatement,
@@ -12,7 +20,10 @@ import {
 import { validateDatabaseCacheOptions } from './shared/connection-cache';
 import { redactDatabaseUrl } from './shared/redact-database-url';
 import { getCachedSqliteDatabase } from './shared/sqlite-connection-cache';
-import { createTransactionLock } from './shared/transaction-lock';
+import {
+  createTransactionLock,
+  DEFAULT_TRANSACTION_QUEUE_TIMEOUT_MS,
+} from './shared/transaction-lock';
 import type {
   ColumnDefinition,
   ColumnDefinitionWithName,
@@ -43,10 +54,836 @@ const NULL_AWARE_UPSERT_MAX_ATTEMPTS = 8;
 const NULL_AWARE_UPSERT_BASE_DELAY_MS = 25;
 const nullAwareUpsertLocks = new Map<string, Promise<void>>();
 
-type SqliteExecutor = Pick<Client, 'execute'>;
+interface SqliteTransactionClientLike {
+  readonly closed: boolean;
+  execute(statement: any): Promise<any>;
+  commit(): Promise<void>;
+  rollback(): Promise<void>;
+  close(): void;
+}
+
+interface SqliteClientLike {
+  readonly transactionReservation?: 'exclusive';
+  execute(statement: any): Promise<any>;
+  transaction(mode?: any): Promise<SqliteTransactionClientLike>;
+  close(): void | Promise<void>;
+}
+
+type SqliteExecutor = Pick<SqliteClientLike, 'execute'>;
+
+const MANAGED_TRANSACTION_CONTROL_KEYWORDS = new Set([
+  'begin',
+  'commit',
+  'end',
+  'release',
+  'rollback',
+  'savepoint',
+]);
+
+function firstSqlKeyword(sql: string): string | undefined {
+  let offset = 0;
+  while (offset < sql.length) {
+    const remaining = sql.slice(offset);
+    const whitespace = remaining.match(/^\s+/)?.[0];
+    if (whitespace) {
+      offset += whitespace.length;
+      continue;
+    }
+    if (remaining.startsWith('--')) {
+      const newline = remaining.indexOf('\n', 2);
+      if (newline === -1) return undefined;
+      offset += newline + 1;
+      continue;
+    }
+    if (remaining.startsWith('/*')) {
+      const end = remaining.indexOf('*/', 2);
+      if (end === -1) return undefined;
+      offset += end + 2;
+      continue;
+    }
+    if (remaining.startsWith(';')) {
+      offset += 1;
+      continue;
+    }
+    return remaining.match(/^[A-Za-z]+/)?.[0]?.toLowerCase();
+  }
+  return undefined;
+}
+
+function prepareManagedStatement(statement: any): any {
+  const sql = typeof statement === 'string' ? statement : statement?.sql;
+  if (
+    typeof sql === 'string' &&
+    MANAGED_TRANSACTION_CONTROL_KEYWORDS.has(firstSqlKeyword(sql) ?? '')
+  ) {
+    throw new DatabaseError(
+      'Transaction-control SQL is managed by the SQLite transaction scope',
+      {
+        hint: 'Use transaction(), beginTransaction(), commit(), or rollback() instead of issuing BEGIN, COMMIT, ROLLBACK, SAVEPOINT, or RELEASE as raw SQL.',
+      },
+    );
+  }
+
+  // Validate and execute the same immutable statement snapshot. A getter or
+  // Proxy must not be able to present harmless SQL to the transaction-control
+  // guard and different SQL to the queued driver acquisition.
+  if (typeof statement === 'object' && statement !== null) {
+    const args = statement.args;
+    return {
+      sql,
+      args: Array.isArray(args) ? [...args] : args,
+    };
+  }
+  return statement;
+}
+
+interface InvocationBarrier {
+  run<T>(work: () => Promise<T>): Promise<T>;
+  close(work: () => void | Promise<void>): Promise<void>;
+}
+
+/**
+ * Orders secure adapter calls at public invocation time.
+ *
+ * The reservation is appended before this function returns a promise. A later
+ * `close()` therefore cannot overtake an operation while it awaits an internal
+ * transaction/upsert lock before publishing work to the driver queue.
+ */
+function createInvocationBarrier(): InvocationBarrier {
+  let tail = Promise.resolve();
+  let closePromise: Promise<void> | undefined;
+  let state: 'open' | 'closing' | 'closed' = 'open';
+
+  const run = <T>(work: () => Promise<T>): Promise<T> => {
+    if (state !== 'open') {
+      return Promise.reject(
+        new DatabaseError('Secure SQLite adapter is closing or closed', {}),
+      );
+    }
+
+    const previous = tail;
+    let release: () => void = () => {};
+    const current = new Promise<void>((resolveCurrent) => {
+      release = resolveCurrent;
+    });
+    tail = previous.then(
+      () => current,
+      () => current,
+    );
+
+    return previous.then(work, work).finally(release);
+  };
+
+  const close = (work: () => void | Promise<void>): Promise<void> => {
+    if (state === 'closed') return Promise.resolve();
+    if (closePromise) return closePromise;
+
+    state = 'closing';
+    closePromise = tail.then(work, work).then(
+      () => {
+        state = 'closed';
+      },
+      (error) => {
+        state = 'open';
+        closePromise = undefined;
+        throw error;
+      },
+    );
+    tail = closePromise.then(
+      () => undefined,
+      () => undefined,
+    );
+    return closePromise;
+  };
+
+  return { run, close };
+}
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function toSafeSqliteCount(value: unknown): number {
+  const count = typeof value === 'bigint' ? value : BigInt(String(value ?? 0));
+  if (count < 0n || count > BigInt(Number.MAX_SAFE_INTEGER)) {
+    throw new DatabaseError('SQLite count exceeds the safe integer range', {
+      value: String(value),
+      maximum: Number.MAX_SAFE_INTEGER,
+    });
+  }
+  return Number(count);
+}
+
+function combineTransactionFailures(
+  primary: unknown,
+  secondary: unknown,
+): AggregateError {
+  return new AggregateError(
+    [primary, secondary],
+    'Transaction callback and accepted transaction work both failed',
+    { cause: primary },
+  );
+}
+
+interface PromiseObservation {
+  observed: boolean;
+  error?: unknown;
+  branches?: Set<PromiseObservation>;
+  handlers: Set<Promise<void>>;
+  nativeTransfers: Set<Promise<unknown>>;
+  unhandledNativeTransfers: Set<Promise<unknown>>;
+  nativeCorrelationIds: Set<number>;
+  nativeTrackingActive?: boolean;
+  nativeCorrelationIncomplete?: boolean;
+  suppressIntrinsicRecovery?: number;
+  propagateFailureToParent?: PromiseObservation;
+}
+
+const activeNativeTransferObservations = new Set<PromiseObservation>();
+const trackedPromiseObservations = new Set<PromiseObservation>();
+const nativePromiseResources = new Map<number, WeakRef<Promise<unknown>>>();
+const nativePromiseTriggers = new Map<number, number>();
+const nativePromiseIds = new WeakMap<Promise<unknown>, number>();
+const nativePromiseWatermarks = new WeakMap<Promise<unknown>, number>();
+let latestNativePromiseId = 0;
+let nativePromiseTrackingUsers = 0;
+const MAX_TRACKED_PROMISE_RESOURCES = 8_192;
+const nativePromiseHook = createHook({
+  init(asyncId, type, triggerAsyncId, resource) {
+    if (type === 'PROMISE') {
+      latestNativePromiseId = Math.max(latestNativePromiseId, asyncId);
+      nativePromiseResources.set(
+        asyncId,
+        new WeakRef(resource as Promise<unknown>),
+      );
+      nativePromiseTriggers.set(asyncId, triggerAsyncId);
+      nativePromiseIds.set(resource as Promise<unknown>, asyncId);
+      while (nativePromiseResources.size > MAX_TRACKED_PROMISE_RESOURCES) {
+        const oldest = nativePromiseResources.keys().next().value;
+        if (oldest === undefined) break;
+        nativePromiseResources.delete(oldest);
+        nativePromiseTriggers.delete(oldest);
+        for (const observation of trackedPromiseObservations) {
+          if (
+            !observation.observed &&
+            observation.nativeCorrelationIds.has(oldest)
+          ) {
+            observation.nativeCorrelationIncomplete = true;
+          }
+        }
+      }
+    }
+  },
+  destroy(asyncId) {
+    nativePromiseResources.delete(asyncId);
+    nativePromiseTriggers.delete(asyncId);
+  },
+});
+let nativeTransferListenerInstalled = false;
+type UnhandledRejectionMode =
+  | 'none'
+  | 'strict'
+  | 'throw'
+  | 'warn'
+  | 'warn-with-error-code';
+function configuredUnhandledRejectionMode(): UnhandledRejectionMode {
+  const configured = `${process.env.NODE_OPTIONS ?? ''} ${process.execArgv.join(' ')}`;
+  const modes = [
+    ...configured.matchAll(
+      /--unhandled-rejections(?:=|\s+)(warn-with-error-code|none|strict|throw|warn)\b/g,
+    ),
+  ];
+  return (modes.at(-1)?.[1] as UnhandledRejectionMode | undefined) ?? 'throw';
+}
+
+function promisesAreRelated(
+  rejectedPromise: Promise<unknown>,
+  transferPromise: Promise<unknown>,
+): boolean {
+  const rejectedId = nativePromiseIds.get(rejectedPromise);
+  const transferId = nativePromiseIds.get(transferPromise);
+  if (rejectedId === undefined || transferId === undefined) return false;
+  if (rejectedId > (nativePromiseWatermarks.get(transferPromise) ?? -1)) {
+    return false;
+  }
+  if (rejectedId === transferId) return true;
+
+  const isAncestor = (ancestor: number, descendant: number): boolean => {
+    let current = descendant;
+    while (nativePromiseTriggers.has(current)) {
+      current = nativePromiseTriggers.get(current) ?? 0;
+      if (current === ancestor) return true;
+      if (current === 0) break;
+    }
+    return false;
+  };
+  if (
+    isAncestor(rejectedId, transferId) ||
+    isAncestor(transferId, rejectedId)
+  ) {
+    return true;
+  }
+
+  // Promise combinators allocate their result immediately before per-element
+  // adoption promises under the same async trigger.
+  return (
+    rejectedId === transferId - 1 &&
+    nativePromiseTriggers.get(rejectedId) ===
+      nativePromiseTriggers.get(transferId)
+  );
+}
+
+const recordUnhandledNativeTransfer = (
+  reason: unknown,
+  rejectedPromise: Promise<unknown>,
+) => {
+  let matched = false;
+  for (const observation of activeNativeTransferObservations) {
+    for (const transferPromise of observation.nativeTransfers) {
+      if (promisesAreRelated(rejectedPromise, transferPromise)) {
+        observation.unhandledNativeTransfers.add(transferPromise);
+        observation.observed = false;
+        matched = true;
+      }
+    }
+  }
+  // Merely observing a transaction-owned rejection must not suppress Node's
+  // default fatal handling for an unrelated rejection. If another application
+  // listener exists, it already owns that policy; otherwise reproduce the
+  // default fail-fast outcome outside this event dispatch.
+  if (!matched && process.listenerCount('unhandledRejection') === 1) {
+    const mode = configuredUnhandledRejectionMode();
+    if (mode === 'none' || mode === 'strict') return;
+    // Node emits its own warnings in `warn` mode even when a listener exists.
+    if (mode === 'warn') return;
+    if (mode === 'warn-with-error-code') {
+      process.emitWarning(
+        reason instanceof Error
+          ? (reason.stack ?? reason.message)
+          : String(reason),
+        { type: 'UnhandledPromiseRejectionWarning' },
+      );
+      process.exitCode = 1;
+      return;
+    }
+    const error =
+      reason instanceof Error
+        ? reason
+        : new Error(`Unhandled promise rejection: ${String(reason)}`, {
+            cause: reason,
+          });
+    queueMicrotask(() => {
+      // A capture callback is Node's higher-priority uncaught-exception
+      // boundary. Throw normally so Node invokes it without also dispatching
+      // the process event listeners installed by a test runner or host.
+      if (process.hasUncaughtExceptionCaptureCallback()) throw error;
+      if (process.listenerCount('uncaughtException') > 0) {
+        const emitProcessEvent = process.emit as (
+          event: string,
+          ...args: unknown[]
+        ) => boolean;
+        emitProcessEvent.call(
+          process,
+          'uncaughtExceptionMonitor',
+          error,
+          'unhandledRejection',
+        );
+        emitProcessEvent.call(
+          process,
+          'uncaughtException',
+          error,
+          'unhandledRejection',
+        );
+        return;
+      }
+      throw error;
+    });
+  }
+};
+
+function retainNativePromiseTracking(observation: PromiseObservation): void {
+  if (observation.nativeTrackingActive) return;
+  observation.nativeTrackingActive = true;
+  trackedPromiseObservations.add(observation);
+  nativePromiseTrackingUsers += 1;
+  if (nativePromiseTrackingUsers === 1) nativePromiseHook.enable();
+}
+
+function releaseNativePromiseTracking(observation: PromiseObservation): void {
+  if (!observation.nativeTrackingActive) return;
+  observation.nativeTrackingActive = false;
+  trackedPromiseObservations.delete(observation);
+  nativePromiseTrackingUsers -= 1;
+  if (nativePromiseTrackingUsers === 0) {
+    nativePromiseHook.disable();
+    nativePromiseResources.clear();
+    nativePromiseTriggers.clear();
+  }
+}
+
+function recordNativePromiseTransfer(observation: PromiseObservation): void {
+  const executionId = executionAsyncId();
+  const adoptionId = nativePromiseTriggers.get(executionId) ?? executionId;
+  const adoptingPromise = nativePromiseResources.get(adoptionId)?.deref();
+  // If Node cannot identify the adopting promise, leave the failed operation
+  // unobserved so transaction draining fails closed.
+  if (!adoptingPromise) return;
+  observation.nativeTransfers.add(adoptingPromise);
+  // Native adoption is recovery unless its derived Promise later reaches the
+  // unhandled-rejection event. Record that event below before drain commits.
+  observation.observed = true;
+  nativePromiseWatermarks.set(adoptingPromise, latestNativePromiseId);
+  let correlationId = adoptionId;
+  observation.nativeCorrelationIds.add(correlationId);
+  while (nativePromiseTriggers.has(correlationId)) {
+    correlationId = nativePromiseTriggers.get(correlationId) ?? 0;
+    if (correlationId === 0) break;
+    observation.nativeCorrelationIds.add(correlationId);
+  }
+  activeNativeTransferObservations.add(observation);
+  if (!nativeTransferListenerInstalled) {
+    process.prependListener(
+      'unhandledRejection',
+      recordUnhandledNativeTransfer,
+    );
+    nativeTransferListenerInstalled = true;
+  }
+}
+
+async function settleNativePromiseTransfers(
+  observations: Iterable<PromiseObservation>,
+): Promise<void> {
+  const observed = expandPromiseObservations(observations);
+  const transferred = observed.filter(
+    (observation) => observation.nativeTransfers.size > 0,
+  );
+  if (transferred.length === 0) {
+    for (const observation of observed)
+      releaseNativePromiseTracking(observation);
+    return;
+  }
+
+  // Native adoption does not expose the adopting Promise. The listener is
+  // installed when rejection transfers, so this checkpoint distinguishes a
+  // caught await/combinator from a detached rejection even if the callback
+  // crossed an earlier macrotask before reaching its drain.
+  await new Promise<void>((resolvePromise) => setImmediate(resolvePromise));
+
+  for (const observation of transferred) {
+    if (
+      !observation.nativeCorrelationIncomplete &&
+      [...observation.nativeTransfers].every(
+        (promise) => !observation.unhandledNativeTransfers.has(promise),
+      )
+    ) {
+      observation.observed = true;
+    }
+    activeNativeTransferObservations.delete(observation);
+  }
+  for (const observation of observed) releaseNativePromiseTracking(observation);
+  if (
+    nativeTransferListenerInstalled &&
+    activeNativeTransferObservations.size === 0
+  ) {
+    process.off('unhandledRejection', recordUnhandledNativeTransfer);
+    nativeTransferListenerInstalled = false;
+  }
+}
+
+function expandPromiseObservations(
+  observations: Iterable<PromiseObservation>,
+): PromiseObservation[] {
+  const expanded = new Set<PromiseObservation>();
+  for (const observation of observations) {
+    expanded.add(observation);
+    for (const branch of observation.branches ?? []) expanded.add(branch);
+  }
+  return [...expanded];
+}
+
+function isNativePromiseAssimilation(
+  onFulfilled: unknown,
+  onRejected: unknown,
+): boolean {
+  const anonymousPromiseResolver = (handler: {
+    name: string;
+    length: number;
+  }): boolean =>
+    handler.name === '' &&
+    handler.length === 1 &&
+    /\{\s*\[native code\]\s*\}/.test(Function.prototype.toString.call(handler));
+  return (
+    typeof onFulfilled === 'function' &&
+    typeof onRejected === 'function' &&
+    anonymousPromiseResolver(onFulfilled) &&
+    anonymousPromiseResolver(onRejected)
+  );
+}
+
+function looksLikeNativePromiseCapabilityExecutor(executor: unknown): boolean {
+  return (
+    typeof executor === 'function' &&
+    !utilTypes.isProxy(executor) &&
+    executor.name === '' &&
+    executor.length === 2 &&
+    /\{\s*\[native code\]\s*\}/.test(Function.prototype.toString.call(executor))
+  );
+}
+
+function isConsumedPromiseCapabilityExecutor(
+  executor: (
+    resolve: (value: unknown) => void,
+    reject: (reason?: any) => void,
+  ) => void,
+): boolean {
+  try {
+    executor(
+      () => undefined,
+      () => undefined,
+    );
+    return false;
+  } catch (error) {
+    return (
+      error instanceof TypeError &&
+      error.message ===
+        'Promise executor has already been invoked with non-undefined arguments'
+    );
+  }
+}
+
+/**
+ * Returns a native Promise chain that records rejection handling per derived
+ * branch. A handler transfers responsibility from its parent to a branch-local
+ * observation, so catching one sibling cannot hide another detached failure.
+ */
+function withRejectionObservation<T>(
+  source: Promise<T>,
+  rootObservation: PromiseObservation,
+): Promise<T> {
+  retainNativePromiseTracking(rootObservation);
+  const wrap = <U>(
+    promise: Promise<U>,
+    observation: PromiseObservation = rootObservation,
+  ): Promise<U> => {
+    const createStandaloneObservation = (): PromiseObservation => ({
+      observed: false,
+      handlers: new Set(),
+      nativeTransfers: new Set(),
+      unhandledNativeTransfers: new Set(),
+      nativeCorrelationIds: new Set(),
+    });
+    const suppressIntrinsicRecovery = <V>(
+      callback: () => V,
+      targetObservation: PromiseObservation = observation,
+    ): V => {
+      targetObservation.suppressIntrinsicRecovery =
+        (targetObservation.suppressIntrinsicRecovery ?? 0) + 1;
+      try {
+        return callback();
+      } finally {
+        targetObservation.suppressIntrinsicRecovery -= 1;
+      }
+    };
+    // The transaction owns detached rejection reporting. Prevent the native
+    // derived Promise from also surfacing as an unhandledRejection while its
+    // shared observation record remains deliberately unhandled. Use the
+    // intrinsic directly so this internal sink never counts as caller recovery.
+    suppressIntrinsicRecovery(() => {
+      void Promise.prototype.then.call(promise, undefined, () => undefined);
+    });
+    const intrinsicPromiseObservations = new WeakMap<
+      Promise<unknown>,
+      PromiseObservation
+    >();
+    const createPromiseSpeciesOwner = (
+      parentObservation: PromiseObservation,
+    ): PromiseConstructor => {
+      const speciesOwner = function transactionObservedPromiseBranch(
+        executor: (
+          resolve: (value: unknown | PromiseLike<unknown>) => void,
+          reject: (reason?: any) => void,
+        ) => void,
+      ): Promise<unknown> {
+        return new Promise(executor);
+      } as unknown as PromiseConstructor;
+      Object.setPrototypeOf(speciesOwner, Promise);
+      Object.defineProperty(speciesOwner, Symbol.species, {
+        configurable: true,
+        get: () => createIntrinsicDerivedPromise(parentObservation),
+      });
+      return speciesOwner;
+    };
+    const createIntrinsicDerivedPromise = (
+      parentObservation: PromiseObservation,
+    ): PromiseConstructor => {
+      class IntrinsicDerivedPromise extends Promise<unknown> {
+        readonly #observation: PromiseObservation;
+
+        static get [Symbol.species](): PromiseConstructor {
+          return Promise;
+        }
+
+        constructor(
+          executor: (
+            resolve: (value: unknown | PromiseLike<unknown>) => void,
+            reject: (reason?: any) => void,
+          ) => void,
+        ) {
+          const suppressed =
+            (parentObservation.suppressIntrinsicRecovery ?? 0) > 0;
+          const candidateRecovery =
+            !suppressed && looksLikeNativePromiseCapabilityExecutor(executor);
+          const branch: PromiseObservation = suppressed
+            ? parentObservation
+            : createStandaloneObservation();
+          let finishHandling: () => void = () => {};
+          const handling = new Promise<void>((resolveHandling) => {
+            finishHandling = resolveHandling;
+          });
+          super((resolve, reject) => {
+            try {
+              executor(
+                (value) => {
+                  if (candidateRecovery) {
+                    // Observe the final adoption outcome rather than merely
+                    // resolve(): a fulfilled handler can return a rejected
+                    // thenable, which must remain a branch-local failure.
+                    void new Promise<unknown>((resolveValue) =>
+                      resolveValue(value),
+                    ).then(
+                      () => {
+                        branch.observed = true;
+                        finishHandling();
+                      },
+                      (error) => {
+                        branch.error = error;
+                        if (branch.propagateFailureToParent) {
+                          branch.propagateFailureToParent.observed = true;
+                        }
+                        finishHandling();
+                      },
+                    );
+                  } else {
+                    finishHandling();
+                  }
+                  resolve(value);
+                },
+                (reason) => {
+                  if (candidateRecovery) {
+                    branch.error = reason;
+                    if (branch.propagateFailureToParent) {
+                      branch.propagateFailureToParent.observed = true;
+                    }
+                  }
+                  finishHandling();
+                  reject(reason);
+                },
+              );
+            } catch (error) {
+              if (candidateRecovery) {
+                branch.error = error;
+                if (branch.propagateFailureToParent) {
+                  branch.propagateFailureToParent.observed = true;
+                }
+              }
+              finishHandling();
+              throw error;
+            }
+          });
+          const tracksRecovery =
+            candidateRecovery && isConsumedPromiseCapabilityExecutor(executor);
+          if (tracksRecovery) {
+            const branches =
+              parentObservation.branches ?? new Set<PromiseObservation>();
+            parentObservation.branches = branches;
+            branch.branches = branches;
+            branches.add(branch);
+            parentObservation.observed = true;
+          }
+          this.#observation = branch;
+          intrinsicPromiseObservations.set(this, branch);
+          // Transaction draining owns detached rejection reporting. The sink
+          // prevents a process-level unhandledRejection; branch state above
+          // still fails the transaction unless a later child handles it.
+          void Promise.prototype.then.call(this, undefined, () => undefined);
+          if (tracksRecovery) {
+            branch.handlers.add(handling);
+            void handling.finally(() => branch.handlers.delete(handling));
+          }
+          // Promise.prototype.then.call() reads the source's constructor and
+          // species. Bind that lookup to this branch so every direct intrinsic
+          // child gets independent failure/recovery state.
+          Object.defineProperty(this, 'constructor', {
+            configurable: true,
+            value: createPromiseSpeciesOwner(branch),
+          });
+        }
+
+        // biome-ignore lint/suspicious/noThenProperty: this is an actual Promise subclass preserving the public Promise contract.
+        override then<TResult1 = unknown, TResult2 = never>(
+          onFulfilled?:
+            | ((value: unknown) => TResult1 | PromiseLike<TResult1>)
+            | null,
+          onRejected?:
+            | ((reason: any) => TResult2 | PromiseLike<TResult2>)
+            | null,
+        ): Promise<TResult1 | TResult2> {
+          const branch = this.#observation;
+          const transfersToNativePromise = isNativePromiseAssimilation(
+            onFulfilled,
+            onRejected,
+          );
+          const handleRejected =
+            transfersToNativePromise && typeof onRejected === 'function'
+              ? (reason: any) => {
+                  recordNativePromiseTransfer(branch);
+                  return onRejected(reason);
+                }
+              : onRejected;
+          const wasObserved = branch.observed;
+          const derived = Promise.prototype.then.call(
+            this,
+            onFulfilled,
+            handleRejected,
+          ) as Promise<TResult1 | TResult2>;
+          if (transfersToNativePromise) {
+            branch.observed = wasObserved;
+            const child = intrinsicPromiseObservations.get(derived);
+            if (child) child.propagateFailureToParent = branch;
+          } else {
+            branch.observed = true;
+          }
+          return derived;
+        }
+
+        override catch<TResult = never>(
+          onRejected?: ((reason: any) => TResult | PromiseLike<TResult>) | null,
+        ): Promise<unknown | TResult> {
+          return this.then(undefined, onRejected);
+        }
+
+        override finally(
+          onFinally?: (() => void | PromiseLike<void>) | null,
+        ): Promise<unknown> {
+          if (typeof onFinally !== 'function') {
+            return this.then(
+              (value) => value,
+              (reason) => {
+                throw reason;
+              },
+            );
+          }
+          return this.then(
+            (value) => Promise.resolve(onFinally()).then(() => value),
+            (reason) =>
+              Promise.resolve(onFinally()).then(() => {
+                throw reason;
+              }),
+          );
+        }
+      }
+
+      return IntrinsicDerivedPromise as unknown as PromiseConstructor;
+    };
+
+    class ObservedPromise extends Promise<U> {
+      readonly #observation: PromiseObservation;
+
+      static get [Symbol.species](): PromiseConstructor {
+        return createIntrinsicDerivedPromise(observation);
+      }
+
+      constructor(
+        executor?: (
+          resolve: (value: U | PromiseLike<U>) => void,
+          reject: (reason?: any) => void,
+        ) => void,
+      ) {
+        super((resolve, reject) => {
+          if (executor) executor(resolve, reject);
+          else Promise.prototype.then.call(promise, resolve, reject);
+        });
+        this.#observation = executor
+          ? createStandaloneObservation()
+          : observation;
+        Object.defineProperty(this, 'constructor', {
+          configurable: true,
+          value: createPromiseSpeciesOwner(this.#observation),
+        });
+      }
+
+      // biome-ignore lint/suspicious/noThenProperty: this is an actual Promise subclass preserving the public Promise contract.
+      override then<TResult1 = U, TResult2 = never>(
+        onFulfilled?: ((value: U) => TResult1 | PromiseLike<TResult1>) | null,
+        onRejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
+      ): Promise<TResult1 | TResult2> {
+        // Promise assimilation (`await`, `Promise.resolve`, `Promise.all`, and
+        // async helper adoption) supplies a pair of native resolving functions.
+        // Those functions transfer rejection to a native Promise. The
+        // enclosing callback still rejects if an await is not caught; a caught
+        // await is therefore valid recovery and must not be rolled back again
+        // by detached-operation draining.
+        const currentObservation = this.#observation;
+        const transfersToNativePromise = isNativePromiseAssimilation(
+          onFulfilled,
+          onRejected,
+        );
+        const handleRejected =
+          transfersToNativePromise && typeof onRejected === 'function'
+            ? (reason: any) => {
+                recordNativePromiseTransfer(currentObservation);
+                return onRejected(reason);
+              }
+            : onRejected;
+        const wasObserved = currentObservation.observed;
+        const derived = Promise.prototype.then.call(
+          this,
+          onFulfilled,
+          handleRejected,
+        ) as Promise<TResult1 | TResult2>;
+        if (transfersToNativePromise) {
+          currentObservation.observed = wasObserved;
+          const child = intrinsicPromiseObservations.get(derived);
+          if (child) child.propagateFailureToParent = currentObservation;
+        } else {
+          currentObservation.observed = true;
+        }
+        return derived;
+      }
+
+      override catch<TResult = never>(
+        onRejected?: ((reason: any) => TResult | PromiseLike<TResult>) | null,
+      ): Promise<U | TResult> {
+        return this.then(undefined, onRejected);
+      }
+
+      override finally(onFinally?: (() => void) | null): Promise<U> {
+        if (typeof onFinally !== 'function') {
+          return this.then(
+            (value) => value,
+            (reason) => {
+              throw reason;
+            },
+          );
+        }
+        return this.then(
+          (value) => Promise.resolve(onFinally()).then(() => value),
+          (reason) =>
+            Promise.resolve(onFinally()).then(() => {
+              throw reason;
+            }),
+        );
+      }
+    }
+
+    const observed = new ObservedPromise();
+    suppressIntrinsicRecovery(() =>
+      Promise.prototype.then.call(observed, undefined, () => undefined),
+    );
+    return observed;
+  };
+
+  return wrap(source);
 }
 
 function isRetriableSqliteTransactionError(error: unknown): boolean {
@@ -98,7 +935,9 @@ function generateDbId(): string {
  * @param options - SQLite connection options
  * @returns Promise resolving to a LibSQL client instance
  */
-async function createLibSQLClient(options: SqliteOptions): Promise<Client> {
+async function createLibSQLClient(
+  options: SqliteOptions,
+): Promise<SqliteClientLike> {
   const { url = ':memory:', authToken, encryptionKey } = options;
 
   // Normalize URLs: add file:// prefix for local paths
@@ -135,7 +974,7 @@ async function createLibSQLClient(options: SqliteOptions): Promise<Client> {
     // Use explicit external import to avoid bundling
     const libsqlClient = '@libsql/client';
     const { createClient } = await import(/* @vite-ignore */ libsqlClient);
-    return createClient({ url: libsqlUrl, authToken, encryptionKey });
+    return createClient({ url: libsqlUrl, authToken, encryptionKey }) as Client;
   } catch (error) {
     const errorMessage = redactDatabaseUrl(
       error instanceof Error ? error.message : String(error),
@@ -156,6 +995,30 @@ async function createLibSQLClient(options: SqliteOptions): Promise<Client> {
       originalError: errorMessage,
     });
   }
+}
+
+/** Options for the trusted-parent SQLite file acquisition boundary. */
+export interface SecureSqliteFileOptions {
+  /**
+   * Built-in driver that owns the secure acquisition and exact integer path.
+   *
+   * @default 'node:sqlite'
+   */
+  driver: 'node:sqlite';
+
+  /**
+   * Assert that the application controls the database parent directory.
+   * The adapter verifies current-user ownership, non-writable group/other
+   * permissions, current-user/root ancestor ownership, static symlink absence,
+   * and no macOS ACL before acquisition.
+   */
+  custody: 'trusted-parent';
+
+  /**
+   * Optional application data root. Defaults to the database's direct parent.
+   * Every database parent at or below this root must satisfy the custody check.
+   */
+  root?: string;
 }
 
 /**
@@ -198,6 +1061,20 @@ export interface SqliteOptions extends DatabaseOptions {
    * capabilities are only supported for local SQLite databases.
    */
   capabilities?: SqliteCapabilitiesOptions;
+
+  /**
+   * Require trusted-parent acquisition for a local file-backed database.
+   *
+   * This requires an explicit `trusted-parent` custody assertion, verifies the
+   * application data root/parent chain and rejects static symlinks before the
+   * built-in `node:sqlite` driver opens the file. Other principals cannot
+   * replace a path under the custodied parent. It does not claim protection
+   * from a hostile same-account process, which can directly replace or rewrite
+   * an unencrypted user-owned database.
+   *
+   * Existing pathname behavior is unchanged when omitted or false.
+   */
+  secureFile?: boolean | SecureSqliteFileOptions;
 
   /**
    * How long a queued transaction waits for the connection, in milliseconds.
@@ -325,6 +1202,59 @@ export async function getDatabase(
     options.dbid = generateDbId();
   }
 
+  if (options.secureFile) {
+    if (options.secureFile === true) {
+      throw new DatabaseError(
+        'Secure SQLite acquisition requires an explicit trusted-parent custody contract',
+        {
+          hint: "Use secureFile: { driver: 'node:sqlite', custody: 'trusted-parent' } after placing the database beneath a current-user-owned parent with no group/world write permission.",
+        },
+      );
+    }
+    const secureOptions = options.secureFile;
+    if (secureOptions.driver !== 'node:sqlite') {
+      throw new DatabaseError(
+        `Unsupported secure SQLite driver: ${String(secureOptions.driver)}`,
+        {
+          hint: "Use secureFile: { driver: 'node:sqlite', custody: 'trusted-parent' }.",
+        },
+      );
+    }
+    if (secureOptions.custody !== 'trusted-parent') {
+      throw new DatabaseError(
+        'Secure SQLite acquisition requires trusted-parent custody',
+        {
+          hint: "Set custody: 'trusted-parent' only when the application controls the database parent directory.",
+        },
+      );
+    }
+    if (options.authToken || options.encryptionKey) {
+      throw new DatabaseError(
+        'Secure SQLite acquisition does not support LibSQL authentication or encryption options',
+        {
+          hint: 'Remove authToken/encryptionKey for a local secure file, or disable secureFile to use LibSQL features.',
+        },
+      );
+    }
+    if (hasNativeSqliteCapabilities(options)) {
+      throw new DatabaseError(
+        'Secure SQLite acquisition cannot be combined with native SQLite capabilities',
+        {
+          hint: 'Use either secureFile custody or optional native capabilities for a connection, not both.',
+        },
+      );
+    }
+
+    return getCachedSqliteDatabase('secure', options, () =>
+      createDatabase(options, url, () =>
+        createSecureSqliteClient(url, {
+          custody: secureOptions.custody,
+          root: secureOptions.root,
+        }),
+      ),
+    );
+  }
+
   if (hasNativeSqliteCapabilities(options)) {
     const sqliteNative = await import('./sqlite-native.js');
     return sqliteNative.getNativeSqliteDatabase(options);
@@ -338,10 +1268,10 @@ export async function getDatabase(
 async function createDatabase(
   options: SqliteOptions,
   url: string,
+  clientFactory: () => Promise<SqliteClientLike> = () =>
+    createLibSQLClient(options),
 ): Promise<DatabaseInterface> {
   return (async () => {
-    const client = await createLibSQLClient(options);
-
     // One lock per connection. Nothing else in this closure escapes to another
     // caller, and `getDatabase` hands cached callers this same closure, so
     // "created here" and "per connection" are the same scope.
@@ -349,6 +1279,14 @@ async function createDatabase(
       'sqlite',
       options.transactionQueueTimeout,
     );
+    // Validate queue configuration before a secure client can create or open
+    // its file. Invalid configuration must not leave an acquired resource.
+    const client = await clientFactory();
+
+    const executorContext = new AsyncLocalStorage<SqliteExecutor>();
+    const transactionCallbackContext = new AsyncLocalStorage<boolean>();
+    const currentExecutor = (): SqliteExecutor =>
+      executorContext.getStore() ?? client;
 
     // Initialize tables from provided schemas (resolves lazy function if needed)
     const resolvedSchemas = resolveSchemas(options.schemas);
@@ -357,7 +1295,7 @@ async function createDatabase(
         await createTablesFromSchemas(client, resolvedSchemas);
       } catch (error) {
         try {
-          client.close();
+          await client.close();
         } catch (cleanupError) {
           throw new AggregateError(
             [error, cleanupError],
@@ -412,12 +1350,22 @@ async function createDatabase(
     const buildNullAwareUpsertLockKey = (
       table: string,
       conflictColumns: string[],
-      data: Record<string, any>,
     ): string => {
-      const conflictValues = conflictColumns
-        .map((col) => `${col}:${JSON.stringify(data[col])}`)
-        .join('|');
-      return `${url}:${table}:${conflictValues}`;
+      // SQLite equality is schema-affinity dependent: an INTEGER column can
+      // treat 1, 1n, true, and the string "1" as the same conflict value. A
+      // value-derived key cannot reproduce that without loading the schema.
+      // Serialize all null-aware attempts for one logical constraint instead.
+      const material = JSON.stringify({
+        url,
+        table: table.toLowerCase(),
+        // SQLite accepts equivalent composite conflict targets in either
+        // column order. Canonicalize that caller-provided order so every
+        // spelling of one logical constraint shares the same lock.
+        conflicts: [
+          ...new Set(conflictColumns.map((column) => column.toLowerCase())),
+        ].sort(),
+      });
+      return `sqlite-null-aware:${createHash('sha256').update(material).digest('hex')}`;
     };
 
     const validateUpsertConflictColumns = (
@@ -454,7 +1402,7 @@ async function createDatabase(
       const conflict = conflictColumns.join(', ');
       const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
 
-      const result = await client.execute({ sql, args: values });
+      const result = await currentExecutor().execute({ sql, args: values });
       return { operation: 'upsert', affected: result.rowsAffected };
     };
 
@@ -496,13 +1444,16 @@ async function createDatabase(
       table: string,
       conflictColumns: string[],
       serializedData: Record<string, any>,
+      lockKey: string,
     ): Promise<QueryResult> => {
       if (url === ':memory:') {
-        return executeNullAwareUpsertAttempt(
-          client,
-          table,
-          conflictColumns,
-          serializedData,
+        return withNullAwareUpsertLock(lockKey, () =>
+          executeNullAwareUpsertAttempt(
+            client,
+            table,
+            conflictColumns,
+            serializedData,
+          ),
         );
       }
 
@@ -513,7 +1464,7 @@ async function createDatabase(
         attempt < NULL_AWARE_UPSERT_MAX_ATTEMPTS;
         attempt++
       ) {
-        let transaction: Awaited<ReturnType<Client['transaction']>> | undefined;
+        let transaction: SqliteTransactionClientLike | undefined;
 
         // This opens a transaction on the shared connection like any other, so
         // it takes the same lock — otherwise a null-aware upsert overlapping a
@@ -522,25 +1473,27 @@ async function createDatabase(
         // waits without holding the connection.
         const releaseConnection = await connectionLock.acquire();
         try {
-          transaction = await client.transaction('write');
+          return await withNullAwareUpsertLock(lockKey, async () => {
+            transaction = await client.transaction('write');
 
-          const result = await executeNullAwareUpsertAttempt(
-            transaction,
-            table,
-            conflictColumns,
-            serializedData,
-          );
+            const result = await executeNullAwareUpsertAttempt(
+              transaction,
+              table,
+              conflictColumns,
+              serializedData,
+            );
 
-          await transaction.commit();
-          return result;
+            await transaction.commit();
+            return result;
+          });
         } catch (error) {
           lastError = error;
 
           if (transaction && !transaction.closed) {
             try {
               await transaction.rollback();
-            } catch (_rollbackError) {
-              // Preserve the original failure; rollback errors are secondary here.
+            } catch (rollbackError) {
+              lastError = combineTransactionFailures(lastError, rollbackError);
             }
           }
         } finally {
@@ -601,22 +1554,24 @@ async function createDatabase(
       }
 
       if (!acquireTransaction) {
-        return executeNullAwareUpsertAttempt(
-          client,
-          table,
-          conflictColumns,
-          serializedData,
+        const executor = currentExecutor();
+        return withNullAwareUpsertLock(
+          buildNullAwareUpsertLockKey(table, conflictColumns),
+          () =>
+            executeNullAwareUpsertAttempt(
+              executor,
+              table,
+              conflictColumns,
+              serializedData,
+            ),
         );
       }
 
-      return withNullAwareUpsertLock(
-        buildNullAwareUpsertLockKey(table, conflictColumns, serializedData),
-        () =>
-          executeNullAwareUpsertWithRetry(
-            table,
-            conflictColumns,
-            serializedData,
-          ),
+      return executeNullAwareUpsertWithRetry(
+        table,
+        conflictColumns,
+        serializedData,
+        buildNullAwareUpsertLockKey(table, conflictColumns),
       );
     };
 
@@ -666,7 +1621,10 @@ async function createDatabase(
         values = Object.values(serializedData);
       }
       try {
-        const result = await client.execute({ sql: sql, args: values });
+        const result = await currentExecutor().execute({
+          sql: sql,
+          args: values,
+        });
         return { operation: 'insert', affected: result.rowsAffected };
       } catch (e) {
         throw new DatabaseError('Failed to insert records into table', {
@@ -701,7 +1659,10 @@ async function createDatabase(
 
       const sql = `SELECT * FROM ${table} ${whereClause}`;
       try {
-        const result = await client.execute({ sql: sql, args: values });
+        const result = await currentExecutor().execute({
+          sql: sql,
+          args: values,
+        });
         return result.rows[0] || null;
       } catch (e) {
         throw new DatabaseError('Failed to retrieve record from table', {
@@ -729,7 +1690,7 @@ async function createDatabase(
       const { sql: whereClause, values } = buildWhere(where, 1, 'sqlite');
       const sql = `SELECT * FROM ${table} ${whereClause}`;
       try {
-        const result = await client.execute({ sql, args: values });
+        const result = await currentExecutor().execute({ sql, args: values });
         return result.rows;
       } catch (e) {
         throw new DatabaseError('Failed to list records from table', {
@@ -776,7 +1737,7 @@ async function createDatabase(
 
       const sql = `UPDATE ${table} SET ${setClause} ${whereClause}`;
       try {
-        const result = await client.execute({
+        const result = await currentExecutor().execute({
           sql,
           args: [...values, ...whereValues],
         });
@@ -932,7 +1893,7 @@ async function createDatabase(
       const { sql: whereClause, values } = buildWhere(where, 1, 'sqlite');
 
       try {
-        await client.execute({
+        await currentExecutor().execute({
           sql: `DELETE FROM ${table} ${whereClause}`,
           args: values,
         });
@@ -968,23 +1929,24 @@ async function createDatabase(
           // `pluck` tagged template, which would bind the table name as a
           // parameter and emit `SELECT COUNT(*) FROM ?`. Interpolating the
           // identifier is safe because validateTableName ran above.
-          const result = await client.execute({
+          const result = await currentExecutor().execute({
             sql: `SELECT COUNT(*) as count FROM ${table}`,
             args: [],
           });
-          return Number(result.rows[0]?.count) || 0;
+          return toSafeSqliteCount(result.rows[0]?.count);
         }
 
         // Count with conditions
         const { sql: whereClause, values } = buildWhere(where, 1, 'sqlite');
 
-        const result = await client.execute({
+        const result = await currentExecutor().execute({
           sql: `SELECT COUNT(*) as count FROM ${table} ${whereClause}`,
           args: values,
         });
 
-        return Number(result.rows[0]?.count) || 0;
+        return toSafeSqliteCount(result.rows[0]?.count);
       } catch (e) {
+        if (e instanceof DatabaseError) throw e;
         throw new DatabaseError('Failed to count records in table', {
           table,
           where,
@@ -1099,7 +2061,7 @@ async function createDatabase(
             '[sqlite.syncSchema] Executing:',
             `${command.substring(0, 50)}...`,
           );
-          await client.execute(command);
+          await currentExecutor().execute(command);
           console.log('[sqlite.syncSchema] Successfully executed command');
         } catch (error) {
           console.error(
@@ -1113,6 +2075,246 @@ async function createDatabase(
     };
 
     /**
+     * Coordinates nested savepoints for one enclosing transaction.
+     *
+     * SQLite permits nesting, but releasing an earlier sibling savepoint while
+     * a later sibling is open destroys the later savepoint. Each scope owns a
+     * child queue; the root drain also keeps un-awaited accepted children alive
+     * until the enclosing commit or rollback.
+     */
+    type NestedTransaction = (<T>(
+      callback: (tx: DatabaseInterface) => Promise<T>,
+    ) => Promise<T>) & {
+      drain: () => Promise<void>;
+      runOperation: <T>(operation: () => Promise<T>) => Promise<T>;
+      runNested: <T>(
+        callback: (tx: DatabaseInterface) => Promise<T>,
+      ) => Promise<T>;
+    };
+
+    type TransactionOperationRunner = <T>(
+      operation: () => Promise<T>,
+    ) => Promise<T>;
+
+    type NestedTransactionRunner = <T>(
+      callback: (tx: DatabaseInterface) => Promise<T>,
+    ) => Promise<T>;
+
+    interface TransactionScope {
+      database: DatabaseInterface;
+      sealAndDrain: () => Promise<void>;
+    }
+
+    const createNestedTransaction = (
+      transactionClient: SqliteExecutor,
+    ): NestedTransaction => {
+      interface NestedScope {
+        accepting: boolean;
+        tail: Promise<void>;
+        children: Set<PromiseObservation & { error?: unknown }>;
+      }
+      const scopeContext = new AsyncLocalStorage<NestedScope>();
+      const rootScope: NestedScope = {
+        accepting: true,
+        tail: Promise.resolve(),
+        children: new Set(),
+      };
+
+      const enqueueInScope = <T>(
+        scope: NestedScope,
+        operation: () => Promise<T>,
+      ): Promise<T> => {
+        if (!scope.accepting) {
+          return Promise.reject(
+            new DatabaseError('Nested transaction scope is ending', {}),
+          );
+        }
+        const current = scope.tail.then(operation);
+        scope.tail = current.then(
+          () => undefined,
+          () => undefined,
+        );
+        return current;
+      };
+
+      const assertBoundScope = (scope: NestedScope): void => {
+        const ambientScope = scopeContext.getStore();
+        if (ambientScope && ambientScope !== scope) {
+          throw new DatabaseError(
+            'A parent transaction handle cannot run inside a nested transaction callback',
+            {
+              hint: 'Use the nested callback transaction handle, or wait for the nested transaction to settle before using its parent handle.',
+            },
+          );
+        }
+      };
+
+      const runBoundOperation = <T>(
+        scope: NestedScope,
+        operation: () => Promise<T>,
+      ): Promise<T> => {
+        try {
+          assertBoundScope(scope);
+          return enqueueInScope(scope, operation);
+        } catch (error) {
+          return Promise.reject(error);
+        }
+      };
+
+      const drainNestedScope = async (scope: NestedScope): Promise<void> => {
+        await scope.tail;
+        while (
+          expandPromiseObservations(scope.children).some(
+            (child) => child.handlers.size > 0,
+          )
+        ) {
+          await Promise.all(
+            expandPromiseObservations(scope.children).flatMap((child) => [
+              ...child.handlers,
+            ]),
+          );
+        }
+        await settleNativePromiseTransfers(scope.children);
+        const failures = expandPromiseObservations(scope.children)
+          .filter((child) => !child.observed && 'error' in child)
+          .map((child) => child.error);
+        if (failures.length === 1) throw failures[0];
+        if (failures.length > 1) {
+          throw new AggregateError(
+            failures,
+            'Accepted nested transactions failed',
+          );
+        }
+      };
+
+      const runScope = async <T>(
+        scope: NestedScope,
+        callback: (tx: DatabaseInterface) => Promise<T>,
+      ): Promise<T> => {
+        savepointSequence += 1;
+        const name = `hv_sp_${savepointSequence}`;
+        await transactionClient.execute({
+          sql: `SAVEPOINT ${name}`,
+          args: [],
+        });
+        const callbackScope = createTransactionScope(
+          transactionClient,
+          nestedTransaction,
+          (operation) => runBoundOperation(scope, operation),
+          (nestedCallback) => {
+            try {
+              assertBoundScope(scope);
+              return startNested(scope, nestedCallback);
+            } catch (error) {
+              return Promise.reject(error);
+            }
+          },
+        );
+        const drainScope = async (): Promise<void> => {
+          await callbackScope.sealAndDrain();
+          // A rejected sibling must not let a later queued savepoint outlive
+          // this scope.
+          await drainNestedScope(scope);
+        };
+        try {
+          const result = await callback(callbackScope.database);
+          scope.accepting = false;
+          await drainScope();
+          await transactionClient.execute({
+            sql: `RELEASE SAVEPOINT ${name}`,
+            args: [],
+          });
+          return result;
+        } catch (error) {
+          scope.accepting = false;
+          let failure = error;
+          try {
+            await drainScope();
+          } catch (drainError) {
+            if (drainError !== error) {
+              failure = combineTransactionFailures(error, drainError);
+            }
+          }
+          try {
+            await transactionClient.execute({
+              sql: `ROLLBACK TO SAVEPOINT ${name}`,
+              args: [],
+            });
+            await transactionClient.execute({
+              sql: `RELEASE SAVEPOINT ${name}`,
+              args: [],
+            });
+          } catch (teardownError) {
+            if (teardownError !== failure) {
+              failure = combineTransactionFailures(failure, teardownError);
+            }
+          }
+          throw failure;
+        }
+      };
+
+      const startNested = <T>(
+        parentScope: NestedScope,
+        callback: (tx: DatabaseInterface) => Promise<T>,
+      ): Promise<T> => {
+        if (!parentScope.accepting) {
+          return Promise.reject(
+            new DatabaseError('Nested transaction scope is ending', {}),
+          );
+        }
+        const scope: NestedScope = {
+          accepting: true,
+          tail: Promise.resolve(),
+          children: new Set(),
+        };
+        const child = {
+          observed: false,
+          handlers: new Set<Promise<void>>(),
+          nativeTransfers: new Set<unknown>(),
+          unhandledNativeTransfers: new Set<unknown>(),
+          nativeCorrelationIds: new Set<number>(),
+        } as PromiseObservation;
+        parentScope.children.add(child);
+        const current = enqueueInScope(parentScope, () =>
+          scopeContext.run(scope, () => runScope(scope, callback)),
+        );
+        void current.catch((error) => {
+          child.error = error;
+        });
+        // Preserve rejection observation through fulfillment-only `.then()`
+        // and `.finally()` chains. Only a rejection handler (including the one
+        // installed by `await`) makes a failed savepoint recoverable.
+        return withRejectionObservation(current, child);
+      };
+
+      const nestedTransaction = (<T>(
+        callback: (tx: DatabaseInterface) => Promise<T>,
+      ): Promise<T> =>
+        startNested(
+          scopeContext.getStore() ?? rootScope,
+          callback,
+        )) as NestedTransaction;
+      nestedTransaction.drain = () => {
+        rootScope.accepting = false;
+        return drainNestedScope(rootScope);
+      };
+      nestedTransaction.runOperation = <T>(
+        operation: () => Promise<T>,
+      ): Promise<T> => runBoundOperation(rootScope, operation);
+      nestedTransaction.runNested = <T>(
+        callback: (tx: DatabaseInterface) => Promise<T>,
+      ): Promise<T> => {
+        try {
+          assertBoundScope(rootScope);
+          return startNested(rootScope, callback);
+        } catch (error) {
+          return Promise.reject(error);
+        }
+      };
+      return nestedTransaction;
+    };
+
+    /**
      * Executes a callback within a database transaction
      * Automatically commits on success or rolls back on error
      *
@@ -1121,31 +2323,110 @@ async function createDatabase(
      */
     const transaction = async <T>(
       callback: (tx: DatabaseInterface) => Promise<T>,
-    ): Promise<T> =>
+      preAcquiredLock?: Promise<() => void>,
+    ): Promise<T> => {
       // Held across the whole BEGIN … COMMIT/ROLLBACK span. Without it two
       // overlapping calls raced on the one connection: the second BEGIN threw,
       // its catch ran ROLLBACK, and that rollback ended the *first*
       // transaction — half of its writes durable, half lost, and its promise
       // rejected, so the caller was told nothing had happened.
-      connectionLock.run(async () => {
-        try {
-          await client.execute({ sql: 'BEGIN TRANSACTION', args: [] });
+      const releaseConnection = await (preAcquiredLock ??
+        connectionLock.acquire());
+      try {
+        if (client.transactionReservation !== 'exclusive') {
+          let nestedTransaction: NestedTransaction | undefined;
+          let transactionScope: TransactionScope | undefined;
+          try {
+            await client.execute({ sql: 'BEGIN TRANSACTION', args: [] });
+            nestedTransaction = createNestedTransaction(client);
+            transactionScope = createTransactionScope(
+              client,
+              nestedTransaction,
+            );
+            const activeScope = transactionScope;
+            const result = await transactionCallbackContext.run(true, () =>
+              callback(activeScope.database),
+            );
+            await transactionScope.sealAndDrain();
+            await nestedTransaction.drain();
+            await client.execute({ sql: 'COMMIT', args: [] });
+            return result;
+          } catch (error) {
+            let failure = error;
+            try {
+              await transactionScope?.sealAndDrain();
+            } catch (drainError) {
+              if (drainError !== error) {
+                failure = combineTransactionFailures(failure, drainError);
+              }
+            }
+            try {
+              await nestedTransaction?.drain();
+            } catch (drainError) {
+              if (drainError !== failure) {
+                failure = combineTransactionFailures(failure, drainError);
+              }
+            }
+            try {
+              await client.execute({ sql: 'ROLLBACK', args: [] });
+            } catch {
+              // Nothing left to roll back.
+            }
+            throw failure;
+          }
+        }
 
-          const result = await callback(createTransactionScope());
-          await client.execute({ sql: 'COMMIT', args: [] });
+        const transactionClient = await client.transaction('write');
+        let nestedTransaction: NestedTransaction | undefined;
+        let transactionScope: TransactionScope | undefined;
+        try {
+          nestedTransaction = createNestedTransaction(transactionClient);
+          transactionScope = createTransactionScope(
+            transactionClient,
+            nestedTransaction,
+          );
+          const activeScope = transactionScope;
+          const result = await transactionCallbackContext.run(true, () =>
+            callback(activeScope.database),
+          );
+          await transactionScope.sealAndDrain();
+          await nestedTransaction.drain();
+          await transactionClient.commit();
           return result;
         } catch (error) {
+          let failure = error;
+          try {
+            await transactionScope?.sealAndDrain();
+          } catch (drainError) {
+            if (drainError !== error) {
+              failure = combineTransactionFailures(failure, drainError);
+            }
+          }
+          try {
+            await nestedTransaction?.drain();
+          } catch (drainError) {
+            if (drainError !== failure) {
+              failure = combineTransactionFailures(failure, drainError);
+            }
+          }
           // A failing ROLLBACK must not replace the caller's error — SQLite
           // reports "cannot rollback - no transaction is active" whenever the
           // transaction is already gone, which says nothing about what failed.
-          try {
-            await client.execute({ sql: 'ROLLBACK', args: [] });
-          } catch {
-            // Nothing left to roll back.
+          if (!transactionClient.closed) {
+            try {
+              await transactionClient.rollback();
+            } catch (rollbackError) {
+              failure = combineTransactionFailures(failure, rollbackError);
+            }
           }
-          throw error;
+          throw failure;
+        } finally {
+          transactionClient.close();
         }
-      });
+      } finally {
+        releaseConnection();
+      }
+    };
 
     /**
      * Builds the transaction-scoped interface handed to a transaction callback.
@@ -1158,66 +2439,187 @@ async function createDatabase(
      * throws, and the nested call's own ROLLBACK then discarded the *enclosing*
      * transaction's work while later writes silently committed in autocommit.
      */
-    const createTransactionScope = (): DatabaseInterface => {
-      // SQLite doesn't have separate transaction clients, so we reuse the same client
-      const txDb: DatabaseInterface = {
-        url,
-        client,
-        insert,
-        get,
-        list,
-        update,
-        upsert: upsertInCurrentTransaction,
-        getOrInsert,
-        delete: deleteRecords,
-        count,
-        table,
-        many,
-        single,
-        pluck,
-        execute,
-        query,
-        oo: many,
-        oO: single,
-        ox: pluck,
-        xx: execute,
-        tableExists,
-        syncSchema,
-        transaction: async <T>(
-          callback: (tx: DatabaseInterface) => Promise<T>,
-        ): Promise<T> => {
-          savepointSequence += 1;
-          const name = `hv_sp_${savepointSequence}`;
-          await client.execute({ sql: `SAVEPOINT ${name}`, args: [] });
-          try {
-            const result = await callback(createTransactionScope());
-            await client.execute({
-              sql: `RELEASE SAVEPOINT ${name}`,
-              args: [],
-            });
-            return result;
-          } catch (error) {
-            try {
-              // ROLLBACK TO leaves the savepoint in place, so release it as
-              // well or it accumulates for the life of the transaction.
-              await client.execute({
-                sql: `ROLLBACK TO SAVEPOINT ${name}`,
-                args: [],
-              });
-              await client.execute({
-                sql: `RELEASE SAVEPOINT ${name}`,
-                args: [],
-              });
-            } catch {
-              // The enclosing transaction is already unwinding; let its own
-              // teardown deal with the connection.
-            }
-            throw error;
+    const createTransactionScope = (
+      transactionClient: SqliteExecutor,
+      nestedTransaction: NestedTransaction,
+      runOperation: TransactionOperationRunner = nestedTransaction.runOperation,
+      runNested: NestedTransactionRunner = nestedTransaction.runNested,
+    ): TransactionScope => {
+      const isSecureTransaction = client.transactionReservation === 'exclusive';
+      const scopedExecutor: SqliteExecutor = isSecureTransaction
+        ? {
+            execute: (statement: any) => {
+              return transactionClient.execute(
+                prepareManagedStatement(statement),
+              );
+            },
           }
-        },
+        : transactionClient;
+      let accepting = true;
+      const pending = new Set<Promise<unknown>>();
+      const operations = new Set<PromiseObservation & { error?: unknown }>();
+      let drainPromise: Promise<void> | undefined;
+      const bind = <T extends (...args: any[]) => Promise<any>>(
+        fn: T,
+        trackFailure = true,
+      ): T =>
+        ((...args: Parameters<T>) => {
+          if (!accepting) {
+            return Promise.reject(
+              new DatabaseError('Transaction scope is ending or ended', {}),
+            );
+          }
+          const run = () =>
+            Promise.resolve(
+              executorContext.run(scopedExecutor, () => fn(...args)),
+            );
+          const operation = isSecureTransaction ? runOperation(run) : run();
+          const tracked = {
+            observed: false,
+            handlers: new Set<Promise<void>>(),
+            nativeTransfers: new Set<unknown>(),
+            unhandledNativeTransfers: new Set<unknown>(),
+            nativeCorrelationIds: new Set<number>(),
+          } as PromiseObservation;
+          operations.add(tracked);
+          pending.add(operation);
+          void operation.then(
+            () => pending.delete(operation),
+            (error) => {
+              pending.delete(operation);
+              if (trackFailure) tracked.error = error;
+            },
+          );
+          return withRejectionObservation(operation, tracked);
+        }) as T;
+      const scopedInsert = bind(insert);
+      const scopedGet = bind(get);
+      const scopedList = bind(list);
+      const scopedUpdate = bind(update);
+      const scopedUpsert = bind(upsertInCurrentTransaction);
+      const scopedGetOrInsert = bind(getOrInsert);
+      const scopedDelete = bind(deleteRecords);
+      const scopedCount = bind(count);
+      const scopedMany = bind(many);
+      const scopedSingle = bind(single);
+      const scopedPluck = bind(pluck);
+      const scopedExecute = bind(execute);
+      const scopedQuery = bind(query);
+      const scopedTableExists = bind(tableExists);
+      const scopedSyncSchema = bind(syncSchema);
+      const scopedTable = (tableName: string): TableInterface => {
+        if (!accepting) {
+          const reject = () =>
+            Promise.reject(
+              new DatabaseError('Transaction scope is ending or ended', {}),
+            );
+          return { insert: reject, get: reject, list: reject };
+        }
+        return {
+          insert: (data) => scopedInsert(tableName, data),
+          get: (where) => scopedGet(tableName, where),
+          list: (where) => scopedList(tableName, where),
+        };
       };
 
-      return txDb;
+      // Do not assimilate the coordinator's observation-aware thenable here.
+      // Awaited/caught savepoint rollback is recoverable; detached failure is
+      // retained by the nested coordinator and propagated during root drain.
+      const scopedTransaction = (<T>(
+        callback: (tx: DatabaseInterface) => Promise<T>,
+      ): Promise<T> => {
+        if (!accepting) {
+          return Promise.reject(
+            new DatabaseError('Transaction scope is ending or ended', {}),
+          );
+        }
+        return executorContext.run(scopedExecutor, () => runNested(callback));
+      }) as typeof nestedTransaction;
+
+      const scopedClient = {
+        transactionReservation: 'exclusive' as const,
+        execute: bind((statement: any) => scopedExecutor.execute(statement)),
+        transaction: () =>
+          Promise.reject(
+            new DatabaseError(
+              'Use the transaction scope transaction() method instead of client.transaction()',
+              {},
+            ),
+          ),
+        close: () =>
+          Promise.reject(
+            new DatabaseError(
+              'Transaction-scoped SQLite clients cannot be closed directly',
+              {},
+            ),
+          ),
+      };
+
+      const txDb: DatabaseInterface = {
+        url,
+        client:
+          client.transactionReservation === 'exclusive'
+            ? scopedClient
+            : transactionClient,
+        insert: scopedInsert,
+        get: scopedGet,
+        list: scopedList,
+        update: scopedUpdate,
+        upsert: scopedUpsert,
+        getOrInsert: scopedGetOrInsert,
+        delete: scopedDelete,
+        count: scopedCount,
+        table: scopedTable,
+        many: scopedMany,
+        single: scopedSingle,
+        pluck: scopedPluck,
+        execute: scopedExecute,
+        query: scopedQuery,
+        oo: scopedMany,
+        oO: scopedSingle,
+        ox: scopedPluck,
+        xx: scopedExecute,
+        tableExists: scopedTableExists,
+        syncSchema: scopedSyncSchema,
+        transaction: scopedTransaction,
+      };
+
+      return {
+        database: txDb,
+        sealAndDrain: async () => {
+          accepting = false;
+          drainPromise ??= (async () => {
+            while (pending.size > 0) {
+              await Promise.allSettled([...pending]);
+            }
+            while (
+              expandPromiseObservations(operations).some(
+                (entry) => entry.handlers.size > 0,
+              )
+            ) {
+              await Promise.all(
+                expandPromiseObservations(operations).flatMap((entry) => [
+                  ...entry.handlers,
+                ]),
+              );
+            }
+            await settleNativePromiseTransfers(operations);
+            const failures = expandPromiseObservations(operations)
+              .filter(
+                (operation) => !operation.observed && 'error' in operation,
+              )
+              .map((operation) => operation.error);
+            if (failures.length === 1) throw failures[0];
+            if (failures.length > 1) {
+              throw new AggregateError(
+                failures,
+                'Accepted transaction operations failed',
+              );
+            }
+          })();
+          return drainPromise;
+        },
+      };
     };
 
     /**
@@ -1228,14 +2630,22 @@ async function createDatabase(
      *
      * @returns Promise resolving to a TransactionHandle
      */
-    const beginTransaction = async (): Promise<TransactionHandle> => {
+    const beginTransaction = async (
+      preAcquiredLock?: Promise<() => void>,
+    ): Promise<TransactionHandle> => {
       // The handle owns the connection until the caller ends it, so the lock
       // is held across the gap rather than around a single call. A handle that
       // is never committed or rolled back therefore blocks every later
       // transaction until the queue timeout reports it.
-      const releaseConnection = await connectionLock.acquire();
+      const releaseConnection = await (preAcquiredLock ??
+        connectionLock.acquire());
+      let transactionClient: SqliteTransactionClientLike | undefined;
       try {
-        await client.execute({ sql: 'BEGIN TRANSACTION', args: [] });
+        if (client.transactionReservation === 'exclusive') {
+          transactionClient = await client.transaction('write');
+        } else {
+          await client.execute({ sql: 'BEGIN TRANSACTION', args: [] });
+        }
       } catch (error) {
         // No transaction was opened, so there is no handle to end it and
         // nothing left to release the connection.
@@ -1244,6 +2654,8 @@ async function createDatabase(
       }
 
       let active = true;
+      let nestedTransaction: NestedTransaction | undefined;
+      let transactionScope: TransactionScope | undefined;
 
       // COMMIT and ROLLBACK can both throw, and the transaction is over either
       // way, so the connection goes back before the error is rethrown.
@@ -1251,8 +2663,31 @@ async function createDatabase(
         if (!active) {
           throw new DatabaseError('Transaction already ended', {});
         }
+        active = false;
         try {
-          await client.execute({ sql: command, args: [] });
+          let drainFailure: unknown;
+          try {
+            await transactionScope?.sealAndDrain();
+          } catch (error) {
+            drainFailure = error;
+          }
+          try {
+            await nestedTransaction?.drain();
+          } catch (error) {
+            drainFailure = drainFailure
+              ? combineTransactionFailures(drainFailure, error)
+              : error;
+          }
+          if (drainFailure) throw drainFailure;
+          if (transactionClient) {
+            if (command === 'COMMIT') {
+              await transactionClient.commit();
+            } else {
+              await transactionClient.rollback();
+            }
+          } else {
+            await client.execute({ sql: command, args: [] });
+          }
         } catch (error) {
           // COMMIT can fail and leave the transaction *open* — SQLite documents
           // exactly that for SQLITE_BUSY. Releasing the connection then would hand
@@ -1260,14 +2695,23 @@ async function createDatabase(
           // BEGIN would throw, and its catch would ROLLBACK, discarding this
           // transaction's work. So normalize before releasing, the way the pooled
           // adapter's discardTxClient does.
-          try {
-            await client.execute({ sql: 'ROLLBACK', args: [] });
-          } catch {
-            // Already gone; nothing left to normalize.
+          let failure = error;
+          if (transactionClient && !transactionClient.closed) {
+            try {
+              await transactionClient.rollback();
+            } catch (rollbackError) {
+              failure = combineTransactionFailures(failure, rollbackError);
+            }
+          } else if (!transactionClient) {
+            try {
+              await client.execute({ sql: 'ROLLBACK', args: [] });
+            } catch (rollbackError) {
+              failure = combineTransactionFailures(failure, rollbackError);
+            }
           }
-          throw error;
+          throw failure;
         } finally {
-          active = false;
+          transactionClient?.close();
           releaseConnection();
         }
       };
@@ -1282,8 +2726,11 @@ async function createDatabase(
       // The handle is inside a transaction for the same reason a callback scope
       // is, so it gets the same savepoint-based nesting rather than the
       // top-level `transaction`.
+      const executor = transactionClient ?? client;
+      nestedTransaction = createNestedTransaction(executor);
+      transactionScope = createTransactionScope(executor, nestedTransaction);
       const txHandle: TransactionHandle = {
-        ...createTransactionScope(),
+        ...transactionScope.database,
         commit,
         rollback,
         isActive,
@@ -1335,7 +2782,7 @@ async function createDatabase(
     ): Promise<any> => {
       const { sql, values } = parseTemplate(strings, ...vars);
       try {
-        const result = await client.execute({ sql, args: values });
+        const result = await currentExecutor().execute({ sql, args: values });
         return result.rows[0]?.[Object.keys(result.rows[0])[0]] ?? null;
       } catch (e) {
         throw new DatabaseError('Failed to execute pluck query', {
@@ -1360,7 +2807,7 @@ async function createDatabase(
     ): Promise<Record<string, any> | null> => {
       const { sql, values } = parseTemplate(strings, ...vars);
       try {
-        const result = await client.execute({ sql, args: values });
+        const result = await currentExecutor().execute({ sql, args: values });
         return result.rows[0] || null;
       } catch (e) {
         throw new DatabaseError('Failed to execute single query', {
@@ -1385,7 +2832,7 @@ async function createDatabase(
     ): Promise<Record<string, any>[]> => {
       const { sql, values } = parseTemplate(strings, ...vars);
       try {
-        const result = await client.execute({ sql, args: values });
+        const result = await currentExecutor().execute({ sql, args: values });
         return result.rows;
       } catch (e) {
         throw new DatabaseError('Failed to execute many query', {
@@ -1410,7 +2857,7 @@ async function createDatabase(
     ): Promise<void> => {
       const { sql, values } = parseTemplate(strings, ...vars);
       try {
-        await client.execute({ sql, args: values });
+        await currentExecutor().execute({ sql, args: values });
       } catch (e) {
         throw new DatabaseError('Failed to execute query', {
           sql,
@@ -1432,7 +2879,7 @@ async function createDatabase(
       const sql = str;
       const args = Array.isArray(values[0]) ? values[0] : values;
       try {
-        const result = await client.execute({ sql, args });
+        const result = await currentExecutor().execute({ sql, args });
         return {
           command: sql.split(' ')[0].toUpperCase(),
           rowCount: result.rowsAffected ?? result.rows.length,
@@ -1626,7 +3073,7 @@ async function createDatabase(
         let sql: string | undefined;
         try {
           sql = generateAddColumnStatement(table, column, 'sqlite');
-          await client.execute({ sql, args: [] });
+          await currentExecutor().execute({ sql, args: [] });
         } catch (e) {
           throw wrapDatabaseError('Failed to add column to table', e, {
             table,
@@ -1658,7 +3105,7 @@ async function createDatabase(
         let sql: string | undefined;
         try {
           sql = generateCreateIndexStatement(table, index);
-          await client.execute({ sql, args: [] });
+          await currentExecutor().execute({ sql, args: [] });
         } catch (e) {
           throw wrapDatabaseError('Failed to create index on table', e, {
             table,
@@ -1670,6 +3117,11 @@ async function createDatabase(
     };
 
     let closed = false;
+    const rawClose = async () => {
+      if (closed) return;
+      await client.close();
+      closed = true;
+    };
     const db: DatabaseInterface = {
       url,
       client,
@@ -1698,12 +3150,207 @@ async function createDatabase(
       beginTransaction,
       getTableSchema,
       alterTable,
-      close: async () => {
-        if (closed) return;
-        client.close();
-        closed = true;
+      close: rawClose,
+    };
+
+    if (client.transactionReservation !== 'exclusive') return db;
+
+    const barrier = createInvocationBarrier();
+    const managedRootExecutor: SqliteExecutor = {
+      execute: (statement: any) => {
+        return client.execute(prepareManagedStatement(statement));
       },
     };
-    return db;
+    const rootCallbackError = (operation: 'close' | 'use'): DatabaseError =>
+      operation === 'close'
+        ? new DatabaseError(
+            'Cannot close the SQLite database from inside its active transaction callback',
+            {
+              hint: 'Finish the transaction callback before closing the database.',
+            },
+          )
+        : new DatabaseError(
+            'Cannot use the root SQLite database from inside its active transaction callback',
+            {
+              hint: 'Use the transaction-scoped database passed to the callback.',
+            },
+          );
+    const reservedClose = (): Promise<void> => {
+      if (transactionCallbackContext.getStore() === true) {
+        return Promise.reject(rootCallbackError('close'));
+      }
+      return barrier.close(async () => {
+        if (connectionLock.held) {
+          const releaseConnection = await connectionLock.acquire();
+          releaseConnection();
+        }
+        await rawClose();
+      });
+    };
+    const reserveManaged = <T extends (...args: any[]) => Promise<any>>(
+      fn: T,
+    ): T =>
+      ((...args: Parameters<T>) => {
+        if (transactionCallbackContext.getStore() === true) {
+          return Promise.reject(rootCallbackError('use'));
+        }
+        const timeoutMs =
+          options.transactionQueueTimeout ??
+          DEFAULT_TRANSACTION_QUEUE_TIMEOUT_MS;
+        let expired = false;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const deadline = new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            expired = true;
+            reject(
+              new DatabaseError(
+                `Timed out after ${timeoutMs}ms waiting for the sqlite connection's current operation to finish`,
+                { adapter: 'sqlite', timeoutMs },
+              ),
+            );
+          }, timeoutMs);
+        });
+        const queued = barrier.run(async () => {
+          if (expired) return deadline;
+          if (timer) {
+            clearTimeout(timer);
+            timer = undefined;
+          }
+          if (connectionLock.held) {
+            const releaseConnection = await connectionLock.acquire();
+            releaseConnection();
+          }
+          return executorContext.run(managedRootExecutor, () => fn(...args));
+        });
+        return Promise.race([queued, deadline]).finally(() => {
+          if (timer) clearTimeout(timer);
+        });
+      }) as T;
+    const reservedTable = (tableName: string): TableInterface => {
+      const scoped = table(tableName);
+      return {
+        insert: reserveManaged(scoped.insert),
+        get: reserveManaged(scoped.get),
+        list: reserveManaged(scoped.list),
+      };
+    };
+    const reservedAlterTable = {
+      addColumn: reserveManaged(alterTable.addColumn),
+      addIndex: reserveManaged(alterTable.addIndex),
+    };
+    const reserveTransactionEntry = <T>(
+      work: (preAcquiredLock: Promise<() => void>) => Promise<T>,
+    ): Promise<T> => {
+      if (transactionCallbackContext.getStore() === true) {
+        return Promise.reject(rootCallbackError('use'));
+      }
+      // Start the deadline at invocation, but do not enqueue on connectionLock
+      // until this call reaches its barrier turn. Speculatively taking the
+      // connection while an earlier retrying upsert owns the barrier reverses
+      // the normal connection -> nullable-key order and deadlocks both calls.
+      const timeoutMs =
+        options.transactionQueueTimeout ?? DEFAULT_TRANSACTION_QUEUE_TIMEOUT_MS;
+      let expired = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const deadline = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          expired = true;
+          reject(
+            new DatabaseError(
+              `Timed out after ${timeoutMs}ms waiting for the sqlite connection's current transaction to finish`,
+              { adapter: 'sqlite', timeoutMs },
+            ),
+          );
+        }, timeoutMs);
+      });
+      const queued = barrier.run(async () => {
+        if (expired) return deadline;
+        const acquisition = connectionLock.acquire();
+        try {
+          const release = await Promise.race([acquisition, deadline]);
+          if (expired) {
+            release();
+            return deadline;
+          }
+          // transactionQueueTimeout bounds only queue acquisition. Once this
+          // invocation owns the connection, its callback/handle lifetime is
+          // governed by the caller and must not be rejected by the old wait
+          // deadline while it is actively doing work.
+          if (timer) {
+            clearTimeout(timer);
+            timer = undefined;
+          }
+          return work(Promise.resolve(release));
+        } catch (error) {
+          // A deadline can win while acquire() remains queued. Give that future
+          // turn back immediately so a timed-out invocation never runs later or
+          // strands callers behind it.
+          if (expired)
+            void acquisition.then(
+              (release) => release(),
+              () => {},
+            );
+          throw error;
+        }
+      });
+      return Promise.race([queued, deadline]).finally(() => {
+        if (timer) clearTimeout(timer);
+      });
+    };
+    const reservedTransaction: typeof transaction = <T>(
+      callback: (tx: DatabaseInterface) => Promise<T>,
+    ) =>
+      reserveTransactionEntry((preAcquiredLock) =>
+        transaction(callback, preAcquiredLock),
+      );
+    const reservedBeginTransaction: typeof beginTransaction = () =>
+      reserveTransactionEntry((preAcquiredLock) =>
+        beginTransaction(preAcquiredLock),
+      );
+    const reservedClient = {
+      transactionReservation: 'exclusive' as const,
+      execute: reserveManaged(async (statement: any) => {
+        return client.execute(prepareManagedStatement(statement));
+      }),
+      transaction: () =>
+        Promise.reject(
+          new DatabaseError(
+            'Use database.transaction() or database.beginTransaction() instead of client.transaction()',
+            {},
+          ),
+        ),
+      close: reservedClose,
+    };
+
+    return {
+      ...db,
+      client: reservedClient,
+      query: reserveManaged(query),
+      insert: reserveManaged(insert),
+      update: reserveManaged(update),
+      upsert: reserveManaged(upsert),
+      get: reserveManaged(get),
+      list: reserveManaged(list),
+      getOrInsert: reserveManaged(getOrInsert),
+      delete: reserveManaged(deleteRecords),
+      count: reserveManaged(count),
+      table: reservedTable,
+      tableExists: reserveManaged(tableExists),
+      many: reserveManaged(many),
+      single: reserveManaged(single),
+      pluck: reserveManaged(pluck),
+      execute: reserveManaged(execute),
+      oo: reserveManaged(oo),
+      oO: reserveManaged(oO),
+      ox: reserveManaged(ox),
+      xx: reserveManaged(xx),
+      syncSchema: reserveManaged(syncSchema),
+      initializeSchemas: reserveManaged(initializeSchemas),
+      transaction: reservedTransaction,
+      beginTransaction: reservedBeginTransaction,
+      getTableSchema: reserveManaged(getTableSchema),
+      alterTable: reservedAlterTable,
+      close: reservedClose,
+    };
   })();
 }

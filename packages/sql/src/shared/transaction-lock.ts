@@ -13,6 +13,9 @@ export const DEFAULT_TRANSACTION_QUEUE_TIMEOUT_MS = 30_000;
  * Serializes transactions on a connection that cannot hold more than one.
  */
 export interface TransactionLock {
+  /** Whether one caller currently owns the connection. */
+  readonly held: boolean;
+
   /**
    * Takes the connection and returns the function that gives it back.
    *
@@ -71,6 +74,7 @@ export function createTransactionLock(
   }
   // Resolves when the transaction currently holding the connection ends.
   let tail: Promise<void> = Promise.resolve();
+  let held = false;
 
   const acquire = async (): Promise<() => void> => {
     const previous = tail;
@@ -109,9 +113,11 @@ export function createTransactionLock(
     }
 
     let released = false;
+    held = true;
     return () => {
       if (released) return;
       released = true;
+      held = false;
       release();
     };
   };
@@ -125,5 +131,11 @@ export function createTransactionLock(
     }
   };
 
-  return { acquire, run };
+  return {
+    acquire,
+    get held() {
+      return held;
+    },
+    run,
+  };
 }

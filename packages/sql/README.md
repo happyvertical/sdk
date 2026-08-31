@@ -21,6 +21,17 @@ const db = await getDatabase({ type: 'sqlite', url: ':memory:' });
 // SQLite (file)
 const fileDb = await getDatabase({ type: 'sqlite', url: 'file:./app.db' });
 
+// Local file under an application-custodied data directory (macOS and Linux)
+const secureFileDb = await getDatabase({
+  type: 'sqlite',
+  url: './data/app.db',
+  secureFile: {
+    driver: 'node:sqlite',
+    custody: 'trusted-parent',
+    root: './data',
+  },
+});
+
 // LibSQL/Turso (remote)
 const tursoDb = await getDatabase({
   type: 'sqlite',
@@ -115,6 +126,91 @@ DuckDB already creates a fresh adapter for every call, so `cache` and
 behavior. Call `close()` on uncached and DuckDB adapters when finished.
 
 Configuration is also loaded from `HAVE_SQL_*` environment variables (e.g. `HAVE_SQL_TYPE`, `HAVE_SQL_URL`). User-provided options take precedence.
+
+### Secure local SQLite acquisition
+
+Secure mode requires an explicit custody contract:
+
+```typescript
+secureFile: {
+  driver: 'node:sqlite',
+  custody: 'trusted-parent',
+  root: './data', // optional; defaults to the database's direct parent
+}
+```
+
+Boolean `true` fails closed. Before loading the driver, the adapter verifies
+that the database is beneath the custody root, that static path components are
+real directories rather than symlinks, and that the root plus database-parent
+chain is owned by the current uid with no group/world write permission. An
+existing leaf must likewise be a current-user-owned regular file with no
+group/world write permission. A missing leaf is created exclusively with mode
+`0600` before driver acquisition, independent of a permissive process umask, and
+is removed if the driver cannot acquire it and its device/inode identity is
+still unchanged. If identity inspection itself fails, acquisition fails closed
+and leaves the restrictive empty leaf in place rather than risking deletion of
+a replacement. On macOS, every inspected component and existing leaf must also
+have no ACL entry that grants authority; restrictive deny-only entries
+(including the standard home-directory `group:everyone deny delete` entry) are
+accepted. ACL inspection errors or unrecognized/ambiguous ACL entries fail
+closed.
+The adapter invokes `/bin/ls -lde -- <path>` directly with an argument vector,
+never through a shell, and parses every numbered ACL entry even when macOS's
+extended-attribute `@` marker takes display precedence over the ACL `+` marker.
+Ancestors above the custody root may not allow replacement by another principal
+and must be owned either by the current uid or privileged uid `0` (the explicit
+system-root exception). A sticky root-owned shared parent such as `/tmp` is
+accepted. The application must create and retain custody of this directory;
+mode `0700` with no permissive ACL is the conventional choice.
+
+After custody validation, the adapter opens the path with Node's built-in
+`node:sqlite` driver. Static ancestor and leaf symlinks are rejected. Under the
+contract, other principals cannot replace entries beneath the current-user-owned
+custody root, so there is no cross-principal pathname race between validation
+and open. This is not an atomic path boundary against a hostile process
+running as the same account: that process can already read, rewrite, unlink, or
+replace an unencrypted user-owned database and its directory. Separating
+same-account processes requires OS sandboxing plus a descriptor-relative/custom
+SQLite VFS. Keep the custody contract in force for the full connection lifetime.
+
+The secure path is supported on macOS and Linux with Node.js 24.18.0 or newer.
+The runtime version is checked before `node:sqlite` is imported or the database
+is opened. Secure mode fails closed on older or malformed runtime versions,
+other platforms, and when combined with remote LibSQL URLs, `:memory:`, LibSQL
+authentication or encryption, or optional native capabilities. Omit
+`secureFile` to retain the existing LibSQL behavior on older consumers.
+
+Every secure prepared statement enables exact BigInt reads. Safe SQLite integer
+columns retain legacy JavaScript `number` results; integers outside the safe
+range are returned as `bigint`, and `bigint` parameters bind exactly. Boolean
+parameters are normalized to SQLite integers (`1`/`0`) at the driver boundary;
+objects and arrays continue through the adapter's JSON serialization unchanged.
+The public row-count contract remains `number`, so an exact `changes` metric
+above `Number.MAX_SAFE_INTEGER` fails explicitly instead of rounding.
+
+Secure connections also guard the public `client.execute()` seam with the same
+invocation and transaction-scope lifetime rules as the database helpers. A
+client call accepted before `close()` drains first; calls made after close or
+after a transaction scope ends reject without reaching SQLite. Use
+`database.transaction()` or `database.beginTransaction()` for transaction
+control—direct `client.transaction()` and transaction-scoped `client.close()`
+fail closed. Raw `BEGIN`, `COMMIT`, `END`, `ROLLBACK`, `SAVEPOINT`, and
+`RELEASE` statements are likewise rejected through root and transaction-scoped
+database/client routes so they cannot create an untracked transaction, bypass
+callback/manual rollback, or invalidate an owned savepoint. A parent transaction
+handle also rejects when invoked from inside a nested callback; use the nested
+callback's handle or wait for the child to settle before reusing its parent.
+If SQLite itself ends a transaction through a statement policy
+such as `ON CONFLICT ROLLBACK`, already-accepted later work rejects before
+execution and commit reports the automatic rollback. If an explicit rollback
+fails, the secure client is invalidated and rejects later work rather than
+returning a connection with uncertain transaction state to service.
+
+Every static component must be a real path component. For example, macOS exposes
+`/var` as a symlink, so use the resolved `/private/var/...` path when secure
+acquisition is intentional. Secure mode requires the package's supported Node
+runtime with built-in `node:sqlite`; it installs no additional native peer.
+Default LibSQL use remains unchanged.
 
 ### Template Literal Queries
 
@@ -243,14 +339,38 @@ Two consequences worth knowing:
   back. End it in a `finally` — a handle that is never ended holds the
   connection for the life of the process, and every later transaction on it
   fails with the queue timeout.
-- Inside a `transaction()` callback, use the `tx` you were handed. Calling a
-  top-level `db.*` method that opens its own transaction makes it wait on the
-  connection its own caller is holding.
+- Inside a `transaction()` callback, use the `tx` you were handed. With secure
+  SQLite, calling a top-level `db.*` or `db.client.execute()` method is rejected
+  immediately so detached work cannot escape into autocommit after the callback
+  ends. While a manual transaction handle is open, top-level calls wait on its
+  connection and reject at `transactionQueueTimeout` rather than hang forever.
 
-PostgreSQL pools its connections, so transactions there run concurrently and
-never queue. Nested scopes on one PostgreSQL transaction use savepoints; if
-sibling nested scopes are started concurrently, they serialize so PostgreSQL's
-stack-ordered savepoint lifecycle remains intact.
+Nested SQLite and PostgreSQL scopes use savepoints. If sibling nested scopes are
+started concurrently on one transaction, they serialize so the stack-ordered
+savepoint lifecycle remains intact. While a secure SQLite child savepoint is
+open, operations invoked through its parent scope queue behind that child; a
+child rollback therefore cannot silently remove a successful parent operation.
+The enclosing commit or rollback drains all
+accepted child scopes before ending the transaction. PostgreSQL pools separate
+connections, so top-level transactions there run concurrently and never queue.
+Every SQLite transaction-scoped operation is registered when its public method
+is called. Ending a callback or invoking a manual handle's commit/rollback
+seals the scope synchronously, drains operations already accepted, and rejects
+later operations so work cannot escape into autocommit after the transaction.
+If a SQLite statement failure is intentionally recoverable, attach an explicit
+`.catch(...)` or `.then(..., onRejected)` to the transaction-scoped operation.
+Passing it through `Promise.resolve`, `Promise.all`, or an async helper only
+counts as recovery when the derived rejection is itself awaited or caught. A
+detached rejected adoption fails closed and rolls back. `Promise.allSettled`
+intentionally consumes each rejection, so using it permits the transaction to
+commit after the caller inspects those results.
+
+While transaction-scoped Promise observations are active, SQLite temporarily
+enables a process-wide Node Promise lifecycle hook and an
+`unhandledRejection` observer. Both are removed when the accepted work drains;
+another reason to always end a manual `beginTransaction()` handle in `finally`
+is that an abandoned handle can retain this bookkeeping as well as its database
+connection.
 
 ### Identifiers
 
@@ -485,7 +605,7 @@ shipping it beyond development or test environments.
 
 | Adapter | `type` | Backend | Notes |
 |---------|--------|---------|-------|
-| SQLite | `'sqlite'` | LibSQL (`@libsql/client`) by default; native `node:sqlite` when capabilities are enabled | Supports `:memory:`, file, and remote Turso URLs by default. Native capabilities are local-only |
+| SQLite | `'sqlite'` | LibSQL (`@libsql/client`) by default; built-in `node:sqlite` for capabilities and `secureFile` | Supports `:memory:`, file, and remote Turso URLs by default. Native capabilities are local-only; trusted-parent secure files are macOS/Linux-only |
 | PostgreSQL | `'postgres'` | `pg` Pool | Connection pooling, pgvector support |
 | DuckDB | `'duckdb'` | `@duckdb/node-api` | JSON file auto-registration, write-back strategies |
 | JSON | `'json'` | DuckDB in-memory | Queries JSON files as tables, connection caching |

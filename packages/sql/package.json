@@ -41,10 +41,11 @@
   "scripts": {
     "test": "vitest --config ../../vitest.package.config.ts run",
     "test:watch": "vitest --config ../../vitest.package.config.ts",
-    "test:sqlite": "vitest --config ../../vitest.package.config.ts run src/sqlite.spec.ts src/count.spec.ts",
+    "test:sqlite": "vitest --config ../../vitest.package.config.ts run src/sqlite.spec.ts src/secure-sqlite.spec.ts src/count.spec.ts",
     "test:postgres": "node ../../scripts/run-with-ci-postgres.mjs -- vitest --config ../../vitest.package.config.ts run src/postgres.spec.ts src/postgres-vector.spec.ts src/postgres-connection-lifecycle.spec.ts src/postgres-nested-transaction.spec.ts src/postgres-transaction-errors.spec.ts src/transaction-schema-scope.spec.ts src/identifier-injection.spec.ts src/postgres-insert-column-binding.spec.ts src/postgres-count.spec.ts src/contains.spec.ts",
     "test:duckdb": "vitest --config ../../vitest.package.config.ts run src/duckdb.spec.ts src/count.spec.ts",
     "build": "vite build",
+    "typecheck": "tsc --noEmit",
     "build:watch": "vite build --watch",
     "docs": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules",
     "docs:watch": "typedoc --plugin typedoc-plugin-markdown --out docs --entryPoints ./src/index.ts --tsconfig ./tsconfig.json --excludePrivate --excludeInternal --hideGenerator --fileExtension .md --readme none --categorizeByGroup false --includeVersion false --hidePageHeader --hidePageTitle false --outputFileStrategy modules --watch",
