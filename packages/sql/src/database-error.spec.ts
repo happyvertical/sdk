@@ -236,7 +236,8 @@ describe('database error diagnostics', () => {
       new Error('null value in column required'),
       {
         code: '23502',
-        detail: 'Failing row contains (42, 2026-08-30, t, customer-secret).',
+        detail:
+          'Failing row contains (42, 2026-08-30, t, customer-secret\nsecond-line)).',
       },
     );
     const error = wrapDatabaseError(
@@ -253,7 +254,8 @@ describe('database error diagnostics', () => {
     );
     const rendered = renderErrorSurfaces(error);
 
-    expect(rendered).not.toContain('(42, 2026-08-30, t, customer-secret)');
+    expect(rendered).not.toContain('2026-08-30');
+    expect(rendered).not.toContain('customer-secret\nsecond-line)');
     expect(rendered).toContain('Failing row contains ([redacted]).');
     expect(rendered).toContain('null value in column required');
     expect((error.cause as Error & { code?: string }).code).toBe('23502');

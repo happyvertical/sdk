@@ -62,7 +62,7 @@ const SQL_NUMERIC_LITERAL =
 const POSTGRES_KEY_VALUE =
   /(\bKey\s*\([^\r\n)]*\)\s*=\s*\()([\s\S]*?)(\)\s*(?:already exists|is duplicated)\b)/giu;
 const POSTGRES_FAILING_ROW =
-  /(\bFailing row contains\s*\()([^\r\n]*)(\)(?:\.|$))/giu;
+  /(\bFailing row contains\s*\()([\s\S]*)(\)(?:\.|$))/giu;
 const CAST_INPUT_VALUE =
   /(\bwith value\s+)([\s\S]*?)(\s+(?:can't|cannot)\s+be cast\b)/giu;
 

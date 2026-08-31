@@ -171,7 +171,7 @@ describe('postgres tests', () => {
   it('redacts values from PostgreSQL failing-row diagnostics', async () => {
     if (!postgresAvailable) return;
     const table = 'issue_744_failing_row';
-    const secret = 'postgres-failing-row-secret-744';
+    const secret = 'postgres-failing-row-secret-744\nsecond-line)';
     await db.query(
       `CREATE TEMP TABLE ${table} (occurred_on date, required text NOT NULL, secret text)`,
     );
