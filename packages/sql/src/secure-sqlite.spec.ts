@@ -187,6 +187,11 @@ describe('secure SQLite file acquisition', () => {
         'drwx------+ 2 user staff 64 Aug 29 15:07 /data\n malformed entry',
       ),
     ).toThrow('unrecognized entry');
+    expect(() =>
+      parseDarwinAclListing(
+        'drwx------  2 user staff 64 Aug 29 15:07 /data\n 0: user:guest allow write',
+      ),
+    ).toThrow('entries without a marker');
   });
 
   it('rejects a macOS ACL before loading the driver', async () => {

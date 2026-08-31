@@ -96,6 +96,9 @@ export function parseDarwinAclListing(listing: string): boolean {
     }
     return false;
   }
+  if (permissionMarker !== '+' && permissionMarker !== '@') {
+    throw new Error('macOS ACL inspection returned entries without a marker');
+  }
   let grantsAuthority = false;
   for (const entry of aclEntries) {
     const parsed = /^\s+\d+:\s+.+\s+(allow|deny)\s+[A-Za-z_,]+\s*$/.exec(entry);
