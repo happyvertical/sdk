@@ -4,6 +4,7 @@ import {
   executionAsyncId,
 } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
+import { types as utilTypes } from 'node:util';
 import { DatabaseError } from '@happyvertical/utils';
 import type { Client } from '@libsql/client';
 import { DatabaseSchemaManager } from './schema-manager';
@@ -518,13 +519,35 @@ function isNativePromiseAssimilation(
   );
 }
 
-function isNativePromiseCapabilityExecutor(executor: unknown): boolean {
+function looksLikeNativePromiseCapabilityExecutor(executor: unknown): boolean {
   return (
     typeof executor === 'function' &&
+    !utilTypes.isProxy(executor) &&
     executor.name === '' &&
     executor.length === 2 &&
     /\{\s*\[native code\]\s*\}/.test(Function.prototype.toString.call(executor))
   );
+}
+
+function isConsumedPromiseCapabilityExecutor(
+  executor: (
+    resolve: (value: unknown) => void,
+    reject: (reason?: any) => void,
+  ) => void,
+): boolean {
+  try {
+    executor(
+      () => undefined,
+      () => undefined,
+    );
+    return false;
+  } catch (error) {
+    return (
+      error instanceof TypeError &&
+      error.message ===
+        'Promise executor has already been invoked with non-undefined arguments'
+    );
+  }
 }
 
 /**
@@ -552,23 +575,6 @@ function withRejectionObservation<T>(
       } finally {
         targetObservation.suppressIntrinsicRecovery -= 1;
       }
-    };
-    const createBranch = (
-      parentObservation: PromiseObservation = observation,
-    ): PromiseObservation => {
-      const branches =
-        parentObservation.branches ?? new Set<PromiseObservation>();
-      parentObservation.branches = branches;
-      const branch: PromiseObservation = {
-        observed: false,
-        handlers: new Set(),
-        nativeTransfers: new Set(),
-        unhandledNativeTransfers: new Set(),
-        nativeCorrelationIds: new Set(),
-        branches,
-      };
-      branches.add(branch);
-      return branch;
     };
     // The transaction owns detached rejection reporting. Prevent the native
     // derived Promise from also surfacing as an unhandledRejection while its
@@ -599,20 +605,17 @@ function withRejectionObservation<T>(
         ) {
           const suppressed =
             (parentObservation.suppressIntrinsicRecovery ?? 0) > 0;
-          const tracksRecovery =
-            !suppressed && isNativePromiseCapabilityExecutor(executor);
-          const branch: PromiseObservation = tracksRecovery
-            ? createBranch(parentObservation)
-            : suppressed
-              ? parentObservation
-              : {
-                  observed: false,
-                  handlers: new Set(),
-                  nativeTransfers: new Set(),
-                  unhandledNativeTransfers: new Set(),
-                  nativeCorrelationIds: new Set(),
-                };
-          if (tracksRecovery) parentObservation.observed = true;
+          const candidateRecovery =
+            !suppressed && looksLikeNativePromiseCapabilityExecutor(executor);
+          const branch: PromiseObservation = suppressed
+            ? parentObservation
+            : {
+                observed: false,
+                handlers: new Set(),
+                nativeTransfers: new Set(),
+                unhandledNativeTransfers: new Set(),
+                nativeCorrelationIds: new Set(),
+              };
           let finishHandling: () => void = () => {};
           const handling = new Promise<void>((resolveHandling) => {
             finishHandling = resolveHandling;
@@ -621,7 +624,7 @@ function withRejectionObservation<T>(
             try {
               executor(
                 (value) => {
-                  if (tracksRecovery) {
+                  if (candidateRecovery) {
                     // Observe the final adoption outcome rather than merely
                     // resolve(): a fulfilled handler can return a rejected
                     // thenable, which must remain a branch-local failure.
@@ -646,7 +649,7 @@ function withRejectionObservation<T>(
                   resolve(value);
                 },
                 (reason) => {
-                  if (tracksRecovery) {
+                  if (candidateRecovery) {
                     branch.error = reason;
                     if (branch.propagateFailureToParent) {
                       branch.propagateFailureToParent.observed = true;
@@ -657,7 +660,7 @@ function withRejectionObservation<T>(
                 },
               );
             } catch (error) {
-              if (tracksRecovery) {
+              if (candidateRecovery) {
                 branch.error = error;
                 if (branch.propagateFailureToParent) {
                   branch.propagateFailureToParent.observed = true;
@@ -667,6 +670,16 @@ function withRejectionObservation<T>(
               throw error;
             }
           });
+          const tracksRecovery =
+            candidateRecovery && isConsumedPromiseCapabilityExecutor(executor);
+          if (tracksRecovery) {
+            const branches =
+              parentObservation.branches ?? new Set<PromiseObservation>();
+            parentObservation.branches = branches;
+            branch.branches = branches;
+            branches.add(branch);
+            parentObservation.observed = true;
+          }
           this.#observation = branch;
           intrinsicPromiseObservations.set(this, branch);
           // Transaction draining owns detached rejection reporting. The sink

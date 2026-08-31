@@ -1738,13 +1738,18 @@ describe('secure SQLite file acquisition', () => {
     };
     const constructUnrelatedSpecies = async (
       promise: Promise<unknown>,
+      useProxy = false,
     ): Promise<void> => {
       const promiseConstructor = promise.constructor as {
         [Symbol.species]?: PromiseConstructor;
       };
       const Species = promiseConstructor[Symbol.species];
       if (!Species) throw new Error('transaction Promise species unavailable');
-      await new Species((resolve) => resolve('unrelated success'));
+      const executor = (
+        resolve: (value: unknown) => void,
+        _reject: () => void,
+      ) => resolve('unrelated success');
+      await new Species(useProxy ? new Proxy(executor, {}) : executor);
     };
     for (const options of [
       { type: 'sqlite' as const, url: ':memory:', cache: false },
@@ -1775,6 +1780,7 @@ describe('secure SQLite file acquisition', () => {
           void Promise.prototype.then.call(failed, undefined, () => undefined);
           readSpeciesWithoutConstructing(failed);
           await constructUnrelatedSpecies(failed);
+          await constructUnrelatedSpecies(failed, true);
           void Promise.resolve(failed);
         }),
       ).rejects.toThrow();
@@ -1812,6 +1818,7 @@ describe('secure SQLite file acquisition', () => {
     );
     readSpeciesWithoutConstructing(manualNativeFailure);
     await constructUnrelatedSpecies(manualNativeFailure);
+    await constructUnrelatedSpecies(manualNativeFailure, true);
     void Promise.resolve(manualNativeFailure);
     await expect(nativeSiblingManual.commit()).rejects.toThrow();
     expect(await db.count('branch_recovery')).toBe(0);
@@ -1842,6 +1849,7 @@ describe('secure SQLite file acquisition', () => {
           );
           readSpeciesWithoutConstructing(nestedNativeFailure);
           await constructUnrelatedSpecies(nestedNativeFailure);
+          await constructUnrelatedSpecies(nestedNativeFailure, true);
           void Promise.resolve(nestedNativeFailure);
         });
       }),
