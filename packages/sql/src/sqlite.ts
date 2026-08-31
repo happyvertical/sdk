@@ -234,24 +234,7 @@ interface PromiseObservation {
   nativeTrackingActive?: boolean;
   nativeCorrelationIncomplete?: boolean;
   suppressIntrinsicRecovery?: number;
-  pendingIntrinsicSpeciesReads?: Set<symbol>;
-}
-
-function recordIntrinsicSpeciesRead(observation: PromiseObservation): symbol {
-  const pending = observation.pendingIntrinsicSpeciesReads ?? new Set<symbol>();
-  observation.pendingIntrinsicSpeciesReads = pending;
-  const token = Symbol();
-  pending.add(token);
-  queueMicrotask(() => pending.delete(token));
-  return token;
-}
-
-function consumeIntrinsicSpeciesRead(observation: PromiseObservation): boolean {
-  const pending = observation.pendingIntrinsicSpeciesReads;
-  const token = pending?.values().next().value;
-  if (token === undefined) return false;
-  pending?.delete(token);
-  return true;
+  propagateFailureToParent?: PromiseObservation;
 }
 
 const activeNativeTransferObservations = new Set<PromiseObservation>();
@@ -578,29 +561,6 @@ function withRejectionObservation<T>(
       branches.add(branch);
       return branch;
     };
-    const registerBranchOutcome = <V>(
-      promise: Promise<V>,
-      branch: PromiseObservation,
-    ): void => {
-      const handling = suppressIntrinsicRecovery(
-        () =>
-          Promise.prototype.then.call(
-            promise,
-            () => {
-              branch.observed = true;
-            },
-            (error) => {
-              branch.error = error;
-            },
-          ) as Promise<void>,
-      );
-      branch.handlers.add(handling);
-      void Promise.prototype.then.call(
-        handling,
-        () => branch.handlers.delete(handling),
-        () => branch.handlers.delete(handling),
-      );
-    };
     // The transaction owns detached rejection reporting. Prevent the native
     // derived Promise from also surfacing as an unhandledRejection while its
     // shared observation record remains deliberately unhandled. Use the
@@ -608,18 +568,16 @@ function withRejectionObservation<T>(
     suppressIntrinsicRecovery(() => {
       void Promise.prototype.then.call(promise, undefined, () => undefined);
     });
+    const intrinsicPromiseObservations = new WeakMap<
+      Promise<unknown>,
+      PromiseObservation
+    >();
     const createIntrinsicDerivedPromise = (
       parentObservation: PromiseObservation,
-      speciesReadToken?: symbol,
     ): PromiseConstructor => {
-      const tracksRecovery =
-        (parentObservation.suppressIntrinsicRecovery ?? 0) === 0;
-      const branch = tracksRecovery
-        ? createBranch(parentObservation)
-        : parentObservation;
-      if (tracksRecovery) parentObservation.observed = true;
-
       class IntrinsicDerivedPromise extends Promise<unknown> {
+        readonly #observation: PromiseObservation;
+
         static get [Symbol.species](): PromiseConstructor {
           return Promise;
         }
@@ -630,11 +588,12 @@ function withRejectionObservation<T>(
             reject: (reason?: any) => void,
           ) => void,
         ) {
-          if (speciesReadToken !== undefined) {
-            parentObservation.pendingIntrinsicSpeciesReads?.delete(
-              speciesReadToken,
-            );
-          }
+          const tracksRecovery =
+            (parentObservation.suppressIntrinsicRecovery ?? 0) === 0;
+          const branch = tracksRecovery
+            ? createBranch(parentObservation)
+            : parentObservation;
+          if (tracksRecovery) parentObservation.observed = true;
           let finishHandling: () => void = () => {};
           const handling = new Promise<void>((resolveHandling) => {
             finishHandling = resolveHandling;
@@ -656,6 +615,9 @@ function withRejectionObservation<T>(
                       },
                       (error) => {
                         branch.error = error;
+                        if (branch.propagateFailureToParent) {
+                          branch.propagateFailureToParent.observed = true;
+                        }
                         finishHandling();
                       },
                     );
@@ -665,17 +627,29 @@ function withRejectionObservation<T>(
                   resolve(value);
                 },
                 (reason) => {
-                  if (tracksRecovery) branch.error = reason;
+                  if (tracksRecovery) {
+                    branch.error = reason;
+                    if (branch.propagateFailureToParent) {
+                      branch.propagateFailureToParent.observed = true;
+                    }
+                  }
                   finishHandling();
                   reject(reason);
                 },
               );
             } catch (error) {
-              if (tracksRecovery) branch.error = error;
+              if (tracksRecovery) {
+                branch.error = error;
+                if (branch.propagateFailureToParent) {
+                  branch.propagateFailureToParent.observed = true;
+                }
+              }
               finishHandling();
               throw error;
             }
           });
+          this.#observation = branch;
+          intrinsicPromiseObservations.set(this, branch);
           // Transaction draining owns detached rejection reporting. The sink
           // prevents a process-level unhandledRejection; branch state above
           // still fails the transaction unless a later child handles it.
@@ -690,10 +664,7 @@ function withRejectionObservation<T>(
           const speciesOwner = function transactionObservedPromiseBranch() {};
           Object.defineProperty(speciesOwner, Symbol.species, {
             configurable: true,
-            get: () => {
-              const token = recordIntrinsicSpeciesRead(branch);
-              return createIntrinsicDerivedPromise(branch, token);
-            },
+            get: () => createIntrinsicDerivedPromise(branch),
           });
           Object.defineProperty(this, 'constructor', {
             configurable: true,
@@ -710,39 +681,30 @@ function withRejectionObservation<T>(
             | ((reason: any) => TResult2 | PromiseLike<TResult2>)
             | null,
         ): Promise<TResult1 | TResult2> {
-          const followsIntrinsicSpeciesRead =
-            consumeIntrinsicSpeciesRead(branch);
-          const transfersToNativePromise =
-            !followsIntrinsicSpeciesRead &&
-            isNativePromiseAssimilation(onFulfilled, onRejected);
-          if (!transfersToNativePromise) {
-            const derived = Promise.prototype.then.call(
-              this,
-              onFulfilled,
-              onRejected,
-            ) as Promise<TResult1 | TResult2>;
-            consumeIntrinsicSpeciesRead(branch);
-            return derived;
-          }
-
+          const branch = this.#observation;
+          const transfersToNativePromise = isNativePromiseAssimilation(
+            onFulfilled,
+            onRejected,
+          );
           const handleRejected =
-            typeof onRejected === 'function'
+            transfersToNativePromise && typeof onRejected === 'function'
               ? (reason: any) => {
                   recordNativePromiseTransfer(branch);
                   return onRejected(reason);
                 }
               : onRejected;
-          const derived = suppressIntrinsicRecovery(
-            () =>
-              Promise.prototype.then.call(
-                this,
-                onFulfilled,
-                handleRejected,
-              ) as Promise<TResult1 | TResult2>,
-            branch,
-          );
-          consumeIntrinsicSpeciesRead(branch);
-          return wrap(derived, branch);
+          const wasObserved = branch.observed;
+          const derived = Promise.prototype.then.call(
+            this,
+            onFulfilled,
+            handleRejected,
+          ) as Promise<TResult1 | TResult2>;
+          if (transfersToNativePromise) {
+            branch.observed = wasObserved;
+            const child = intrinsicPromiseObservations.get(derived);
+            if (child) child.propagateFailureToParent = branch;
+          }
+          return derived;
         }
 
         override catch<TResult = never>(
@@ -777,8 +739,7 @@ function withRejectionObservation<T>(
 
     class ObservedPromise extends Promise<U> {
       static get [Symbol.species](): PromiseConstructor {
-        const token = recordIntrinsicSpeciesRead(observation);
-        return createIntrinsicDerivedPromise(observation, token);
+        return createIntrinsicDerivedPromise(observation);
       }
 
       constructor() {
@@ -798,34 +759,29 @@ function withRejectionObservation<T>(
         // enclosing callback still rejects if an await is not caught; a caught
         // await is therefore valid recovery and must not be rolled back again
         // by detached-operation draining.
-        const followsIntrinsicSpeciesRead =
-          consumeIntrinsicSpeciesRead(observation);
-        const transfersToNativePromise =
-          !followsIntrinsicSpeciesRead &&
-          isNativePromiseAssimilation(onFulfilled, onRejected);
-        const explicitlyHandlesRejection =
-          typeof onRejected === 'function' && !transfersToNativePromise;
-        const branch = transfersToNativePromise ? undefined : createBranch();
-        if (branch) observation.observed = true;
-        const handleRejected = explicitlyHandlesRejection
-          ? (reason: any) => onRejected(reason)
-          : transfersToNativePromise && typeof onRejected === 'function'
+        const transfersToNativePromise = isNativePromiseAssimilation(
+          onFulfilled,
+          onRejected,
+        );
+        const handleRejected =
+          transfersToNativePromise && typeof onRejected === 'function'
             ? (reason: any) => {
                 recordNativePromiseTransfer(observation);
                 return onRejected(reason);
               }
             : onRejected;
-        const derived = suppressIntrinsicRecovery(
-          () =>
-            Promise.prototype.then.call(
-              this,
-              onFulfilled,
-              handleRejected,
-            ) as Promise<TResult1 | TResult2>,
-        );
-        consumeIntrinsicSpeciesRead(observation);
-        if (branch) registerBranchOutcome(derived, branch);
-        return wrap(derived, branch ?? observation);
+        const wasObserved = observation.observed;
+        const derived = Promise.prototype.then.call(
+          this,
+          onFulfilled,
+          handleRejected,
+        ) as Promise<TResult1 | TResult2>;
+        if (transfersToNativePromise) {
+          observation.observed = wasObserved;
+          const child = intrinsicPromiseObservations.get(derived);
+          if (child) child.propagateFailureToParent = observation;
+        }
+        return derived;
       }
 
       override catch<TResult = never>(

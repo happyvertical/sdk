@@ -1728,6 +1728,14 @@ describe('secure SQLite file acquisition', () => {
 
   it('keeps rejection recovery local to one derived Promise branch', async () => {
     const root = await makeTempRoot();
+    const readSpeciesWithoutConstructing = (
+      promise: Promise<unknown>,
+    ): void => {
+      const promiseConstructor = promise.constructor as {
+        [Symbol.species]?: unknown;
+      };
+      void promiseConstructor[Symbol.species];
+    };
     for (const options of [
       { type: 'sqlite' as const, url: ':memory:', cache: false },
       {
@@ -1755,6 +1763,7 @@ describe('secure SQLite file acquisition', () => {
           await tx.insert('branch_recovery', { id: 4 });
           const failed = tx.insert('branch_recovery', { id: 4 });
           void Promise.prototype.then.call(failed, undefined, () => undefined);
+          readSpeciesWithoutConstructing(failed);
           void Promise.resolve(failed);
         }),
       ).rejects.toThrow();
@@ -1790,6 +1799,7 @@ describe('secure SQLite file acquisition', () => {
       undefined,
       () => undefined,
     );
+    readSpeciesWithoutConstructing(manualNativeFailure);
     void Promise.resolve(manualNativeFailure);
     await expect(nativeSiblingManual.commit()).rejects.toThrow();
     expect(await db.count('branch_recovery')).toBe(0);
@@ -1818,6 +1828,7 @@ describe('secure SQLite file acquisition', () => {
             undefined,
             () => undefined,
           );
+          readSpeciesWithoutConstructing(nestedNativeFailure);
           void Promise.resolve(nestedNativeFailure);
         });
       }),
