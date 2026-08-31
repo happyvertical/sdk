@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.89.4
+
+### Patch Changes
+
+- ### Features
+
+  - add trusted-parent local SQLite acquisition (#1212) (sql)
+
 ## 0.89.3
 
 ## 0.89.2
