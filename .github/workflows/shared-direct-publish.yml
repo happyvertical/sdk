@@ -86,13 +86,13 @@ jobs:
     steps:
       - name: Generate token from GitHub App
         id: generate_token
-        uses: tibdex/github-app-token@3beb63f4bd073e61482598c45c71c1019b59b73a # v2
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3
         with:
-          app_id: ${{ secrets.HAVE_RELEASE_APP_ID }}
-          private_key: ${{ secrets.HAVE_RELEASE_APP_PRIVATE_KEY }}
+          app-id: ${{ secrets.HAVE_RELEASE_APP_ID }}
+          private-key: ${{ secrets.HAVE_RELEASE_APP_PRIVATE_KEY }}
 
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
           # Use the release app token for tags, releases, and main-branch sync
@@ -105,7 +105,7 @@ jobs:
           install-deps: 'true'
 
       - name: Configure npm publish registry
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: ${{ inputs.node-version }}
           registry-url: ${{ inputs.registry-url }}

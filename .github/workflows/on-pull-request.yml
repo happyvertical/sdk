@@ -61,7 +61,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 0
@@ -200,7 +200,7 @@ jobs:
 
     steps:
       - name: Checkout PR branch
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 0
@@ -370,13 +370,13 @@ jobs:
 
     steps:
       - name: Checkout PR branch
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ env.CHECKOUT_REF }}
 
       - name: Get changed workflow files
         id: changed-files
-        uses: tj-actions/changed-files@48d8f15b2aaa3d255ca5af3eba4870f807ce6b3c # v45
+        uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # v47
         with:
           files: .github/workflows/*.{yml,yaml}
 
@@ -406,10 +406,17 @@ jobs:
       - name: Validate with actionlint
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          bash <(curl -sSfL \
-            https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          # actionlint is part of the brokered runner tool contract. Using the
+          # image copy keeps validation deterministic and avoids an
+          # unauthenticated download during every workflow-changing PR.
+          if ! command -v actionlint >/dev/null 2>&1; then
+            echo '::error::actionlint is missing from the runner image; it is part of the runner tool contract'
+            exit 1
+          fi
+          actionlint --version
+
           for file in ${{ steps.changed-files.outputs.all_changed_files }}; do
-            ./actionlint -config-file .github/actionlint.yaml \
+            actionlint -config-file .github/actionlint.yaml \
               -ignore 'SC2086|SC2094|SC2129' "$file"
           done
 
@@ -430,13 +437,13 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ env.CHECKOUT_REF }}
 
       - name: Get changed markdown files
         id: changed-md
-        uses: tj-actions/changed-files@48d8f15b2aaa3d255ca5af3eba4870f807ce6b3c # v45
+        uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # v47
         with:
           files: '**/*.md'
 
@@ -469,14 +476,14 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 0
 
       - name: Get changed files
         id: changed-files
-        uses: tj-actions/changed-files@48d8f15b2aaa3d255ca5af3eba4870f807ce6b3c # v45
+        uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # v47
         with:
           files: |
             packages/*/src/**
@@ -544,14 +551,14 @@ jobs:
 
     steps:
       - name: Checkout PR branch
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ env.CHECKOUT_REF }}
 
       - name: Get changed files
         id: changed-files
         if: github.event_name == 'pull_request_target'
-        uses: tj-actions/changed-files@48d8f15b2aaa3d255ca5af3eba4870f807ce6b3c # v45
+        uses: tj-actions/changed-files@24d32ffd492484c1d75e0c0b894501ddb9d30d62 # v47
         with:
           files: |
             docs/**
@@ -592,7 +599,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout PR history
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 0
@@ -629,13 +636,13 @@ jobs:
       required: ${{ github.event_name == 'merge_group' && 'true' || steps.filter.outputs.postgres }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ env.CHECKOUT_REF }}
       - name: Detect PostgreSQL-sensitive changes
         id: filter
         if: github.event_name == 'pull_request_target'
-        uses: dorny/paths-filter@d1c1ffe0248fe513906c8e24db8ea791d46f8590 # v3
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4
         with:
           filters: |
             postgres:
