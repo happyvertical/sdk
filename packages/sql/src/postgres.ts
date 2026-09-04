@@ -1155,7 +1155,10 @@ async function createDatabase(
       if (errorCode(error) === '25P02' && firstError !== undefined) {
         return firstError;
       }
-      firstError ??= error;
+      const code = errorCode(error);
+      if (code !== undefined && /^[0-9A-Z]{5}$/.test(code)) {
+        firstError ??= error;
+      }
       return error;
     };
 
@@ -1192,6 +1195,41 @@ async function createDatabase(
               });
               pending.add(completion);
               args[callbackIndex] = (error: unknown, result: unknown) => {
+                const callbackError =
+                  error === null || error === undefined
+                    ? error
+                    : preserveFirstError(error);
+                if (callbackError === null || callbackError === undefined) {
+                  if (isRollbackToSavepoint(query)) firstError = undefined;
+                }
+                pending.delete(completion);
+                complete();
+                callback(callbackError, result);
+              };
+              try {
+                return Reflect.apply(target.query, target, args);
+              } catch (error) {
+                pending.delete(completion);
+                complete();
+                throw preserveFirstError(error);
+              }
+            }
+
+            if (
+              typeof query === 'object' &&
+              query !== null &&
+              'submit' in query &&
+              typeof query.submit === 'function' &&
+              'callback' in query &&
+              typeof query.callback === 'function'
+            ) {
+              const callback = query.callback;
+              let complete!: () => void;
+              const completion = new Promise<void>((resolve) => {
+                complete = resolve;
+              });
+              pending.add(completion);
+              query.callback = (error: unknown, result: unknown) => {
                 const callbackError =
                   error === null || error === undefined
                     ? error

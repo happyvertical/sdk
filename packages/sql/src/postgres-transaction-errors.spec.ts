@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { DatabaseError } from '@happyvertical/utils';
-import { DatabaseError as PgDatabaseError } from 'pg';
+import { DatabaseError as PgDatabaseError, Query } from 'pg';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getDatabase } from './index';
 import type { DatabaseInterface } from './shared/types';
@@ -363,6 +363,43 @@ describe('postgres transaction error contract', () => {
     await manual.commit();
     expect(await db.get(table, { id: 104 })).toMatchObject({
       v: 'callback query completed',
+    });
+  }, 30000);
+
+  it('tracks callback-bearing pg Query objects without hanging teardown', async () => {
+    if (!postgresAvailable) return;
+
+    const manual = await beginOf(db)();
+    const statementError = await new Promise<unknown>((resolve) => {
+      manual.client.query(
+        new Query('SELECT * FROM table_that_does_not_exist', (error: unknown) =>
+          resolve(error),
+        ),
+      );
+    });
+    expect(statementError).toBeInstanceOf(PgDatabaseError);
+
+    const commitError = await captureError(() => manual.commit());
+    expect(commitError).toBeInstanceOf(PgDatabaseError);
+    expect(commitError.code).toBe('42P01');
+  }, 30000);
+
+  it('does not poison commit for a client-side named-query rejection', async () => {
+    if (!postgresAvailable) return;
+
+    const name = `named_${randomUUID().replace(/-/g, '')}`;
+    await txOf(db)(async (tx) => {
+      await tx.client.query({ name, text: 'SELECT 1' });
+      const error = await captureError(() =>
+        tx.client.query({ name, text: 'SELECT 2' }),
+      );
+      expect(error).toBeInstanceOf(Error);
+      expect(error).not.toBeInstanceOf(PgDatabaseError);
+      await tx.insert(table, { id: 105, v: 'after client-side rejection' });
+    });
+
+    expect(await db.get(table, { id: 105 })).toMatchObject({
+      v: 'after client-side rejection',
     });
   }, 30000);
 
