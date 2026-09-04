@@ -320,6 +320,54 @@ describe('postgres transaction error contract', () => {
     });
   }, 30000);
 
+  it('clears a recovered caller-managed savepoint error', async () => {
+    if (!postgresAvailable) return;
+
+    await txOf(db)(async (tx) => {
+      await tx.query('SAVEPOINT caller_recovery');
+      await captureError(() => tx.query('SELECT $1::jsonb', '{invalid json'));
+      await tx.query('ROLLBACK TO SAVEPOINT caller_recovery');
+      await tx.query('RELEASE SAVEPOINT caller_recovery');
+      await tx.insert(table, { id: 100, v: 'callback recovered' });
+    });
+
+    const manual = await beginOf(db)();
+    await manual.query('SAVEPOINT manual_recovery');
+    await captureError(() => manual.query('SELECT $1::jsonb', '{invalid json'));
+    await manual.query('ROLLBACK TO manual_recovery');
+    await manual.query('RELEASE SAVEPOINT manual_recovery');
+    await manual.insert(table, { id: 101, v: 'manual recovered' });
+    await manual.commit();
+
+    const recovered = await db.query(
+      `SELECT id, v FROM ${table} WHERE id >= 100 ORDER BY id`,
+    );
+    expect(recovered.rows).toEqual([
+      { id: 100, v: 'callback recovered' },
+      { id: 101, v: 'manual recovered' },
+    ]);
+  }, 30000);
+
+  it('preserves a root error when the next operation opens a nested scope', async () => {
+    if (!postgresAvailable) return;
+
+    const error = await captureError(() =>
+      txOf(db)(async (tx) => {
+        await captureError(() =>
+          tx.query('SELECT * FROM table_that_does_not_exist'),
+        );
+        await txOf(tx)(async () => {});
+      }),
+    );
+
+    expect(error).toBeInstanceOf(PgDatabaseError);
+    expect(error.code).toBe('42P01');
+    expect(String(error.message)).toContain('does not exist');
+    expect(String(error.message)).not.toContain(
+      'current transaction is aborted',
+    );
+  }, 30000);
+
   it('returns the connection when COMMIT itself throws', async () => {
     if (!postgresAvailable) return;
 

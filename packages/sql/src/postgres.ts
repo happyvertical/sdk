@@ -1759,6 +1759,13 @@ async function createDatabase(
       const query = normalizePostgresRawQuery(sql, values);
       try {
         const result = await executor.query(query.sql, query.values);
+        // A successful rollback to a caller-managed savepoint restores the
+        // transaction to the state at that savepoint, so any recorded
+        // statement failure has been contained and must no longer poison the
+        // enclosing commit. This mirrors the adapter-managed savepoint paths.
+        if (/^\s*ROLLBACK\s+TO(?:\s+SAVEPOINT)?\s+/i.test(query.sql)) {
+          clearTransactionError();
+        }
         return {
           rows: result.rows,
           rowCount: result.rowCount ?? 0,
@@ -2145,11 +2152,11 @@ async function createDatabase(
    * rather than on a lock, so `deadlock_timeout` never fires and the process
    * hangs until some unrelated timeout.
    *
-   * @param txClient - The client running the enclosing transaction
+   * @param executor - Error-preserving executor bound to the enclosing client
    * @param scopeFor - Builds the interface handed to the nested callback
    */
   const createNestedTransaction = (
-    txClient: PoolClient,
+    executor: PostgresQueryExecutor,
     scopeFor: () => DatabaseInterface,
     clearTransactionError: () => void,
   ) => {
@@ -2175,13 +2182,13 @@ async function createDatabase(
     ): Promise<T> => {
       savepointSequence += 1;
       const name = `hv_sp_${savepointSequence}`;
-      await txClient.query(`SAVEPOINT ${name}`);
+      await executor.query(`SAVEPOINT ${name}`);
       try {
         const result = await callback(scopeFor());
         // A callback may start nested work without awaiting it. Its savepoint
         // must remain open until that work is finished.
         await scope.tail;
-        await txClient.query(`RELEASE SAVEPOINT ${name}`);
+        await executor.query(`RELEASE SAVEPOINT ${name}`);
         return result;
       } catch (error) {
         // Promise.all rejects as soon as one sibling fails, but queued siblings
@@ -2190,9 +2197,9 @@ async function createDatabase(
         try {
           // ROLLBACK TO leaves the savepoint defined, so release it too or it
           // accumulates for the life of the transaction.
-          await txClient.query(`ROLLBACK TO SAVEPOINT ${name}`);
+          await executor.query(`ROLLBACK TO SAVEPOINT ${name}`);
           clearTransactionError();
-          await txClient.query(`RELEASE SAVEPOINT ${name}`);
+          await executor.query(`RELEASE SAVEPOINT ${name}`);
         } catch {
           // The enclosing transaction is already unwinding; its own teardown
           // owns the connection from here.
@@ -2242,7 +2249,7 @@ async function createDatabase(
       // Create a transaction-scoped database interface
       let txDb!: DatabaseInterface;
       nestedTransaction = createNestedTransaction(
-        txClient,
+        transactionState.executor,
         () => txDb,
         transactionState.clearError,
       );
@@ -2345,7 +2352,7 @@ async function createDatabase(
     // Create a transaction-scoped database interface with commit/rollback
     let txHandle!: TransactionHandle;
     nestedTransaction = createNestedTransaction(
-      txClient,
+      transactionState.executor,
       () => txHandle,
       transactionState.clearError,
     );
