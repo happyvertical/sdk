@@ -169,6 +169,10 @@ test('validates authored commit messages on pull requests, not generated merge-g
 
   assert.ok(validateCommits, 'validate-commits job is present');
   assert.match(
+    source,
+    /pull_request_target:\n    branches: \[main, dependency-updates\]\n    types: \[opened, synchronize, reopened, edited\]/,
+  );
+  assert.match(
     validateCommits,
     /name: Validate repository-authored commit messages\n        if: >-\n          github\.event_name == 'pull_request_target' &&\n          env\.VALIDATE_REVIEWED_HEAD == 'true'\n        uses: wagoid\/commitlint-github-action/,
   );
