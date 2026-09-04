@@ -413,14 +413,20 @@ describe('postgres transaction error contract', () => {
     });
 
     const manual = await beginOf(db)();
-    await manual.client.query('SAVEPOINT raw_client_recovery');
+    const probe = await manual.client.query({ text: 'SELECT 1 AS n' });
+    expect(probe.rows).toEqual([{ n: 1 }]);
+    await manual.client.query({ text: 'SAVEPOINT raw_client_recovery' });
     await captureError(() =>
-      manual.client.query('SELECT * FROM table_that_does_not_exist'),
+      manual.client.query({
+        text: 'SELECT * FROM table_that_does_not_exist',
+      }),
     );
-    await manual.client.query(
-      '/* raw client recovery */ ROLLBACK TO SAVEPOINT raw_client_recovery',
-    );
-    await manual.client.query('RELEASE SAVEPOINT raw_client_recovery');
+    await manual.client.query({
+      text: '/* raw client recovery */ ROLLBACK TO SAVEPOINT raw_client_recovery',
+    });
+    await manual.client.query({
+      text: 'RELEASE SAVEPOINT raw_client_recovery',
+    });
     await manual.insert(table, { id: 103, v: 'raw client recovered' });
     await manual.commit();
 

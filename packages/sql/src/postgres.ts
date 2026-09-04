@@ -1112,7 +1112,18 @@ async function createDatabase(
     let firstError: unknown;
     const pending = new Set<Promise<unknown>>();
 
-    const isRollbackToSavepoint = (sql: string): boolean => {
+    const isRollbackToSavepoint = (query: unknown): boolean => {
+      const sql =
+        typeof query === 'string'
+          ? query
+          : typeof query === 'object' &&
+              query !== null &&
+              'text' in query &&
+              typeof query.text === 'string'
+            ? query.text
+            : undefined;
+      if (sql === undefined) return false;
+
       let statement = sql.trimStart();
       while (statement.startsWith('--') || statement.startsWith('/*')) {
         if (statement.startsWith('--')) {
