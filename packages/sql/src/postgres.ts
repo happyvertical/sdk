@@ -866,6 +866,9 @@ async function createDatabase(
     if (value instanceof Date) {
       return value.toISOString();
     }
+    if (Buffer.isBuffer(value) || ArrayBuffer.isView(value)) {
+      return value;
+    }
     if (typeof value === 'object') {
       return JSON.stringify(value);
     }

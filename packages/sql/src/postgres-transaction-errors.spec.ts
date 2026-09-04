@@ -201,7 +201,8 @@ describe('postgres transaction error contract', () => {
         happened timestamptz,
         note text,
         enabled boolean,
-        score int
+        score int,
+        payload bytea
       )`,
     );
     try {
@@ -212,9 +213,17 @@ describe('postgres transaction error contract', () => {
         note: null,
         enabled: true,
         score: 7,
+        payload: Buffer.from([1, 2, 254, 255]),
       };
       await db.insert(shapes, { id: 1, ...initial });
       await txOf(db)((tx) => tx.insert(shapes, { id: 2, ...initial }));
+      const inserted = await db.query(
+        `SELECT id, payload FROM ${shapes} ORDER BY id`,
+      );
+      expect(inserted.rows).toEqual([
+        { id: 1, payload: Buffer.from([1, 2, 254, 255]) },
+        { id: 2, payload: Buffer.from([1, 2, 254, 255]) },
+      ]);
 
       await txOf(db)((tx) =>
         tx.update(
@@ -226,6 +235,7 @@ describe('postgres transaction error contract', () => {
             note: null,
             enabled: false,
             score: 9,
+            payload: new Uint8Array([3, 4, 5]),
           },
         ),
       );
@@ -234,12 +244,16 @@ describe('postgres transaction error contract', () => {
       await manual.update(
         shapes,
         { id: 1 },
-        { meta: ['manual'], happened: happenedAt },
+        {
+          meta: ['manual'],
+          happened: happenedAt,
+          payload: Buffer.from([9, 8, 7]),
+        },
       );
       await manual.commit();
 
       const rows = await db.query(
-        `SELECT id, meta, happened, note, enabled, score FROM ${shapes} ORDER BY id`,
+        `SELECT id, meta, happened, note, enabled, score, payload FROM ${shapes} ORDER BY id`,
       );
       expect(rows.rows).toEqual([
         {
@@ -249,6 +263,7 @@ describe('postgres transaction error contract', () => {
           note: null,
           enabled: true,
           score: 7,
+          payload: Buffer.from([9, 8, 7]),
         },
         {
           id: 2,
@@ -257,6 +272,7 @@ describe('postgres transaction error contract', () => {
           note: null,
           enabled: false,
           score: 9,
+          payload: Buffer.from([3, 4, 5]),
         },
       ]);
     } finally {

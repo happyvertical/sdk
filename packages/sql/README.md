@@ -355,8 +355,9 @@ accepted child scopes before ending the transaction. PostgreSQL pools separate
 connections, so top-level transactions there run concurrently and never queue.
 PostgreSQL CRUD helpers apply the same value serialization both inside and
 outside a transaction: objects and arrays are encoded for JSON/JSONB columns,
-dates use ISO timestamps, `null` remains SQL `NULL`, and scalar values pass
-through unchanged. If a PostgreSQL statement aborts a transaction, later
+dates use ISO timestamps, binary buffers and views retain their native `bytea`
+representation, `null` remains SQL `NULL`, and scalar values pass through
+unchanged. If a PostgreSQL statement aborts a transaction, later
 operations and commit preserve the first statement error rather than replacing
 it with the generic `25P02 current transaction is aborted` state error.
 Every SQLite transaction-scoped operation is registered when its public method
