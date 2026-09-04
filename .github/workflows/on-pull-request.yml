@@ -205,8 +205,16 @@ jobs:
           ref: ${{ env.CHECKOUT_REF }}
           fetch-depth: 0
 
-      - name: Validate commit messages
-        if: env.VALIDATE_REVIEWED_HEAD == 'true'
+      # GitHub manufactures the merge-group squash commit message from the
+      # queued PR's title and every source-commit body. It is not an
+      # author-controlled repository commit, and linting it can reject a
+      # queue entry that already passed the PR-head and title gates. The
+      # merge group still runs this required job; its successful PR checks
+      # represent the authored commit and squash-title validation.
+      - name: Validate repository-authored commit messages
+        if: >-
+          github.event_name == 'pull_request_target' &&
+          env.VALIDATE_REVIEWED_HEAD == 'true'
         uses: wagoid/commitlint-github-action@b948419dd99f3fd78a6548d48f94e3df7f6bf3ed # v6
         with:
           configFile: commitlint.config.mjs
