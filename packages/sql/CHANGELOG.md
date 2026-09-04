@@ -1,5 +1,13 @@
 # @happyvertical/sql
 
+## 0.89.6
+
+### Patch Changes
+
+- 040bb22: Republish the finalized PostgreSQL transaction serialization and error-handling
+  fix after the previous package version was occupied by an incomplete artifact.
+  - @happyvertical/utils@0.89.6
+
 ## 0.89.5
 
 ### Patch Changes
