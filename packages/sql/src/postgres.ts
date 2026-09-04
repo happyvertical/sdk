@@ -1161,6 +1161,9 @@ async function createDatabase(
       if (errorCode(error) === '25P02' && firstError !== undefined) {
         return firstError;
       }
+      if (errorCode(error) === '25P02' && firstUnconfirmedError !== undefined) {
+        return firstUnconfirmedError;
+      }
       if (error instanceof PgDatabaseError) {
         firstError ??= error;
       } else {
@@ -1257,6 +1260,43 @@ async function createDatabase(
               }
             }
 
+            if (
+              typeof query === 'object' &&
+              query !== null &&
+              'submit' in query &&
+              typeof query.submit === 'function' &&
+              'callback' in query &&
+              query.callback === undefined &&
+              'emit' in query &&
+              typeof query.emit === 'function'
+            ) {
+              let complete!: () => void;
+              const completion = new Promise<void>((resolve) => {
+                complete = resolve;
+              });
+              const finish = () => {
+                pending.delete(completion);
+                complete();
+              };
+              pending.add(completion);
+              query.callback = (error: unknown) => {
+                if (error === null || error === undefined) {
+                  if (isRollbackToSavepoint(query)) firstError = undefined;
+                  finish();
+                  return;
+                }
+                const callbackError = preserveFirstError(error);
+                finish();
+                query.emit('error', callbackError);
+              };
+              try {
+                return Reflect.apply(target.query, target, args);
+              } catch (error) {
+                finish();
+                throw preserveFirstError(error);
+              }
+            }
+
             const result = Reflect.apply(target.query, target, args);
             if (
               typeof result === 'object' &&
@@ -1285,7 +1325,10 @@ async function createDatabase(
                 preserveFirstError(error);
                 finish();
               });
-              result.once('end', finish);
+              result.once('end', () => {
+                if (isRollbackToSavepoint(query)) firstError = undefined;
+                finish();
+              });
               result.once('close', finish);
             }
             return result;

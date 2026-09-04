@@ -384,6 +384,53 @@ describe('postgres transaction error contract', () => {
     expect(commitError.code).toBe('42P01');
   }, 30000);
 
+  it('preserves the first failure for callback-free pg Query objects', async () => {
+    if (!postgresAvailable) return;
+
+    const manual = await beginOf(db)();
+    const first = new Query('SELECT * FROM table_that_does_not_exist');
+    const firstError = new Promise<unknown>((resolve) =>
+      first.once('error', resolve),
+    );
+    manual.client.query(first);
+    expect(await firstError).toMatchObject({ code: '42P01' });
+
+    const later = new Query('SELECT 1');
+    const laterError = new Promise<unknown>((resolve) =>
+      later.once('error', resolve),
+    );
+    manual.client.query(later);
+    expect(await laterError).toMatchObject({ code: '42P01' });
+
+    const commitError = await captureError(() => manual.commit());
+    expect(commitError).toMatchObject({ code: '42P01' });
+  }, 30000);
+
+  it('clears a recovered error through a callback-free pg Query object', async () => {
+    if (!postgresAvailable) return;
+
+    const manual = await beginOf(db)();
+    await manual.query('SAVEPOINT event_recovery');
+    await captureError(() =>
+      manual.query('SELECT * FROM table_that_does_not_exist'),
+    );
+
+    const rollback = new Query('ROLLBACK TO SAVEPOINT event_recovery');
+    const rollbackEnd = new Promise<void>((resolve, reject) => {
+      rollback.once('end', () => resolve());
+      rollback.once('error', reject);
+    });
+    manual.client.query(rollback);
+    await rollbackEnd;
+
+    await manual.query('RELEASE SAVEPOINT event_recovery');
+    await manual.insert(table, { id: 109, v: 'event query recovered' });
+    await manual.commit();
+    expect(await db.get(table, { id: 109 })).toMatchObject({
+      v: 'event query recovered',
+    });
+  }, 30000);
+
   it('does not poison commit for a client-side named-query rejection', async () => {
     if (!postgresAvailable) return;
 
@@ -446,6 +493,8 @@ describe('postgres transaction error contract', () => {
           }),
         );
         expect(String(timeout.message)).toContain('Query read timeout');
+        const later = await captureError(() => tx.query('SELECT 1'));
+        expect(String(later.message)).toContain('Query read timeout');
       }),
     );
 
