@@ -1112,6 +1112,22 @@ async function createDatabase(
     let firstError: unknown;
     const pending = new Set<Promise<unknown>>();
 
+    const isRollbackToSavepoint = (sql: string): boolean => {
+      let statement = sql.trimStart();
+      while (statement.startsWith('--') || statement.startsWith('/*')) {
+        if (statement.startsWith('--')) {
+          const newline = statement.search(/[\r\n]/);
+          if (newline === -1) return false;
+          statement = statement.slice(newline + 1).trimStart();
+          continue;
+        }
+        const commentEnd = statement.indexOf('*/', 2);
+        if (commentEnd === -1) return false;
+        statement = statement.slice(commentEnd + 2).trimStart();
+      }
+      return /^ROLLBACK\s+TO(?:\s+SAVEPOINT)?\s+/i.test(statement);
+    };
+
     const errorCode = (error: unknown): string | undefined => {
       if (
         typeof error === 'object' &&
@@ -1126,13 +1142,19 @@ async function createDatabase(
 
     const executor: PostgresQueryExecutor = {
       query: (sql, values) => {
-        const operation = txClient.query(sql, values).catch((error) => {
-          if (errorCode(error) === '25P02' && firstError !== undefined) {
-            throw firstError;
-          }
-          firstError ??= error;
-          throw error;
-        });
+        const operation = txClient
+          .query(sql, values)
+          .then((result) => {
+            if (isRollbackToSavepoint(sql)) firstError = undefined;
+            return result;
+          })
+          .catch((error) => {
+            if (errorCode(error) === '25P02' && firstError !== undefined) {
+              throw firstError;
+            }
+            firstError ??= error;
+            throw error;
+          });
         pending.add(operation);
         void operation.finally(() => pending.delete(operation)).catch(() => {});
         return operation;
@@ -1778,21 +1800,6 @@ async function createDatabase(
         // transaction to the state at that savepoint, so any recorded
         // statement failure has been contained and must no longer poison the
         // enclosing commit. This mirrors the adapter-managed savepoint paths.
-        let statement = query.sql.trimStart();
-        while (statement.startsWith('--') || statement.startsWith('/*')) {
-          if (statement.startsWith('--')) {
-            const newline = statement.search(/[\r\n]/);
-            if (newline === -1) break;
-            statement = statement.slice(newline + 1).trimStart();
-            continue;
-          }
-          const commentEnd = statement.indexOf('*/', 2);
-          if (commentEnd === -1) break;
-          statement = statement.slice(commentEnd + 2).trimStart();
-        }
-        if (/^ROLLBACK\s+TO(?:\s+SAVEPOINT)?\s+/i.test(statement)) {
-          clearTransactionError();
-        }
         return {
           rows: result.rows,
           rowCount: result.rowCount ?? 0,

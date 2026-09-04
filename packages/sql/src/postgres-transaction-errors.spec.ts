@@ -411,6 +411,22 @@ describe('postgres transaction error contract', () => {
     expect(await db.get(table, { id: 102 })).toMatchObject({
       v: 'commented rollback recovered',
     });
+
+    const manual = await beginOf(db)();
+    await manual.client.query('SAVEPOINT raw_client_recovery');
+    await captureError(() =>
+      manual.client.query('SELECT * FROM table_that_does_not_exist'),
+    );
+    await manual.client.query(
+      '/* raw client recovery */ ROLLBACK TO SAVEPOINT raw_client_recovery',
+    );
+    await manual.client.query('RELEASE SAVEPOINT raw_client_recovery');
+    await manual.insert(table, { id: 103, v: 'raw client recovered' });
+    await manual.commit();
+
+    expect(await db.get(table, { id: 103 })).toMatchObject({
+      v: 'raw client recovered',
+    });
   }, 30000);
 
   it('preserves a root error when the next operation opens a nested scope', async () => {
