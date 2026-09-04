@@ -161,17 +161,14 @@ test('repository workflows reference no retired runner labels', () => {
   assert.deepEqual(findRetiredRunnerLabels(WORKFLOWS_DIR), []);
 });
 
-test('validates authored commit messages on pull requests, not generated merge-group squashes', () => {
+test('validates merge-group squash titles without linting generated bodies', () => {
   const source = readFileSync(PULL_REQUEST_WORKFLOW, 'utf8');
   const validateCommits = source.match(
     /  validate-commits:\n([\s\S]*?)(?=\n  validate-workflows:)/,
   )?.[1];
 
   assert.ok(validateCommits, 'validate-commits job is present');
-  assert.match(
-    source,
-    /pull_request_target:\n    branches: \[main, dependency-updates\]\n    types: \[opened, synchronize, reopened, edited\]/,
-  );
+  assert.doesNotMatch(source, /types: \[opened, synchronize, reopened, edited\]/);
   assert.match(
     validateCommits,
     /name: Validate repository-authored commit messages\n        if: >-\n          github\.event_name == 'pull_request_target' &&\n          env\.VALIDATE_REVIEWED_HEAD == 'true'\n        uses: wagoid\/commitlint-github-action/,
@@ -179,6 +176,10 @@ test('validates authored commit messages on pull requests, not generated merge-g
   assert.match(
     validateCommits,
     /name: Validate PR title for squash merge[\s\S]*?--config commitlint\.config\.mjs/,
+  );
+  assert.match(
+    validateCommits,
+    /name: Validate merge-group squash title[\s\S]*?git log -1 --format=%s[\s\S]*?--config commitlint\.config\.mjs/,
   );
   assert.match(validateCommits, /github\.event_name == 'merge_group'/);
 });
