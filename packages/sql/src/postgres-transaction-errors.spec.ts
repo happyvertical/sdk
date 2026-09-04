@@ -305,6 +305,53 @@ describe('postgres transaction error contract', () => {
     expect(manualError.code).toBe('22P02');
   }, 30000);
 
+  it('tracks failures issued through the exposed transaction client', async () => {
+    if (!postgresAvailable) return;
+
+    const callbackError = await captureError(() =>
+      txOf(db)(async (tx) => {
+        await captureError(() =>
+          tx.client.query('SELECT * FROM table_that_does_not_exist'),
+        );
+        await captureError(() => tx.query('SELECT 1'));
+      }),
+    );
+    expect(callbackError).toBeInstanceOf(PgDatabaseError);
+    expect(callbackError.code).toBe('42P01');
+
+    const manual = await beginOf(db)();
+    await captureError(() =>
+      manual.client.query('SELECT * FROM table_that_does_not_exist'),
+    );
+    const manualError = await captureError(() => manual.commit());
+    expect(manualError).toBeInstanceOf(PgDatabaseError);
+    expect(manualError.code).toBe('42P01');
+  }, 30000);
+
+  it('waits for started queries before callback or manual commit', async () => {
+    if (!postgresAvailable) return;
+
+    const callbackError = await captureError(() =>
+      txOf(db)((tx) => {
+        void tx
+          .query('SELECT * FROM table_that_does_not_exist')
+          .catch(() => undefined);
+        return Promise.resolve();
+      }),
+    );
+    expect(callbackError).toBeInstanceOf(PgDatabaseError);
+    expect(callbackError.code).toBe('42P01');
+
+    const manual = await beginOf(db)();
+    const pending = manual
+      .query('SELECT * FROM table_that_does_not_exist')
+      .catch(() => undefined);
+    const manualError = await captureError(() => manual.commit());
+    await pending;
+    expect(manualError).toBeInstanceOf(PgDatabaseError);
+    expect(manualError.code).toBe('42P01');
+  }, 30000);
+
   it('clears a recovered nested-savepoint error before outer commit', async () => {
     if (!postgresAvailable) return;
 
@@ -346,6 +393,24 @@ describe('postgres transaction error contract', () => {
       { id: 100, v: 'callback recovered' },
       { id: 101, v: 'manual recovered' },
     ]);
+  }, 30000);
+
+  it('recognizes a comment-prefixed caller-managed savepoint rollback', async () => {
+    if (!postgresAvailable) return;
+
+    await txOf(db)(async (tx) => {
+      await tx.query('SAVEPOINT commented_recovery');
+      await captureError(() => tx.query('SELECT $1::jsonb', '{invalid json'));
+      await tx.query(
+        '/* recover the failed statement */ ROLLBACK TO SAVEPOINT commented_recovery',
+      );
+      await tx.query('RELEASE SAVEPOINT commented_recovery');
+      await tx.insert(table, { id: 102, v: 'commented rollback recovered' });
+    });
+
+    expect(await db.get(table, { id: 102 })).toMatchObject({
+      v: 'commented rollback recovered',
+    });
   }, 30000);
 
   it('preserves a root error when the next operation opens a nested scope', async () => {

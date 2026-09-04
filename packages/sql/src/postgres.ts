@@ -1110,6 +1110,7 @@ async function createDatabase(
    */
   const createTransactionExecutor = (txClient: PoolClient) => {
     let firstError: unknown;
+    const pending = new Set<Promise<unknown>>();
 
     const errorCode = (error: unknown): string | undefined => {
       if (
@@ -1124,23 +1125,37 @@ async function createDatabase(
     };
 
     const executor: PostgresQueryExecutor = {
-      query: async (sql, values) => {
-        try {
-          return await txClient.query(sql, values);
-        } catch (error) {
+      query: (sql, values) => {
+        const operation = txClient.query(sql, values).catch((error) => {
           if (errorCode(error) === '25P02' && firstError !== undefined) {
             throw firstError;
           }
           firstError ??= error;
           throw error;
-        }
+        });
+        pending.add(operation);
+        void operation.finally(() => pending.delete(operation)).catch(() => {});
+        return operation;
       },
     };
 
+    const client = new Proxy(txClient, {
+      get(target, property) {
+        if (property === 'query') return executor.query;
+        return Reflect.get(target, property, target);
+      },
+    });
+
     return {
+      client,
       executor,
       clearError: () => {
         firstError = undefined;
+      },
+      drain: async () => {
+        while (pending.size > 0) {
+          await Promise.allSettled([...pending]);
+        }
       },
       getError: () => firstError,
     };
@@ -1763,7 +1778,19 @@ async function createDatabase(
         // transaction to the state at that savepoint, so any recorded
         // statement failure has been contained and must no longer poison the
         // enclosing commit. This mirrors the adapter-managed savepoint paths.
-        if (/^\s*ROLLBACK\s+TO(?:\s+SAVEPOINT)?\s+/i.test(query.sql)) {
+        let statement = query.sql.trimStart();
+        while (statement.startsWith('--') || statement.startsWith('/*')) {
+          if (statement.startsWith('--')) {
+            const newline = statement.search(/[\r\n]/);
+            if (newline === -1) break;
+            statement = statement.slice(newline + 1).trimStart();
+            continue;
+          }
+          const commentEnd = statement.indexOf('*/', 2);
+          if (commentEnd === -1) break;
+          statement = statement.slice(commentEnd + 2).trimStart();
+        }
+        if (/^ROLLBACK\s+TO(?:\s+SAVEPOINT)?\s+/i.test(statement)) {
           clearTransactionError();
         }
         return {
@@ -2255,7 +2282,7 @@ async function createDatabase(
       );
       txDb = {
         url,
-        client: txClient,
+        client: transactionState.client,
         ...createClientMethods(
           transactionState.executor,
           true,
@@ -2267,6 +2294,7 @@ async function createDatabase(
 
       const result = await callback(txDb);
       await nestedTransaction.drain();
+      await transactionState.drain();
       const statementError = transactionState.getError();
       if (statementError !== undefined) {
         throw statementError;
@@ -2278,6 +2306,7 @@ async function createDatabase(
       // Promise.all may reject before queued nested scopes finish. Do not
       // release this client until their savepoint work has drained.
       await nestedTransaction?.drain();
+      await transactionState.drain();
       // Never let a failing ROLLBACK replace the caller's error. On a dead
       // connection the rollback throws "Connection terminated unexpectedly",
       // which would otherwise be the only thing the caller ever sees.
@@ -2326,6 +2355,7 @@ async function createDatabase(
       }
       try {
         await nestedTransaction?.drain();
+        await transactionState.drain();
         const statementError = transactionState.getError();
         if (command === 'COMMIT' && statementError !== undefined) {
           throw statementError;
@@ -2358,7 +2388,7 @@ async function createDatabase(
     );
     txHandle = {
       url,
-      client: txClient,
+      client: transactionState.client,
       ...createClientMethods(
         transactionState.executor,
         true,
