@@ -1,5 +1,13 @@
 # @happyvertical/sql
 
+## 0.89.5
+
+### Patch Changes
+
+- 42bc763: Serialize PostgreSQL transaction CRUD values consistently with pool-backed
+  operations and preserve the first statement error when a transaction aborts.
+  - @happyvertical/utils@0.89.5
+
 ## 0.89.4
 
 ### Patch Changes

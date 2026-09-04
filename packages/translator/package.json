@@ -1,6 +1,6 @@
 {
   "name": "@happyvertical/translator",
-  "version": "0.89.4",
+  "version": "0.89.5",
   "description": "Standardized translation interface supporting Google Translate, DeepL, and LibreTranslate",
   "type": "module",
   "main": "./dist/index.js",
