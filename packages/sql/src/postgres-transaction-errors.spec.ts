@@ -328,6 +328,44 @@ describe('postgres transaction error contract', () => {
     expect(manualError.code).toBe('42P01');
   }, 30000);
 
+  it('preserves native callback queries while tracking their completion', async () => {
+    if (!postgresAvailable) return;
+
+    const callbackError = await captureError(() =>
+      txOf(db)(async (tx) => {
+        const statementError = await new Promise<unknown>((resolve) => {
+          tx.client.query(
+            'SELECT * FROM table_that_does_not_exist',
+            (error: unknown) => resolve(error),
+          );
+        });
+        expect(statementError).toBeInstanceOf(PgDatabaseError);
+      }),
+    );
+    expect(callbackError).toBeInstanceOf(PgDatabaseError);
+    expect(callbackError.code).toBe('42P01');
+
+    const manual = await beginOf(db)();
+    const result = await new Promise<{ rows: Array<{ n: number }> }>(
+      (resolve, reject) => {
+        manual.client.query(
+          'SELECT $1::int AS n',
+          [7],
+          (error: unknown, queryResult: { rows: Array<{ n: number }> }) => {
+            if (error) reject(error);
+            else resolve(queryResult);
+          },
+        );
+      },
+    );
+    expect(result.rows).toEqual([{ n: 7 }]);
+    await manual.insert(table, { id: 104, v: 'callback query completed' });
+    await manual.commit();
+    expect(await db.get(table, { id: 104 })).toMatchObject({
+      v: 'callback query completed',
+    });
+  }, 30000);
+
   it('waits for started queries before callback or manual commit', async () => {
     if (!postgresAvailable) return;
 

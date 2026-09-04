@@ -1151,30 +1151,101 @@ async function createDatabase(
       return undefined;
     };
 
+    const preserveFirstError = (error: unknown): unknown => {
+      if (errorCode(error) === '25P02' && firstError !== undefined) {
+        return firstError;
+      }
+      firstError ??= error;
+      return error;
+    };
+
+    const track = <T>(operation: Promise<T>, query: unknown): Promise<T> => {
+      const tracked = operation
+        .then((result) => {
+          if (isRollbackToSavepoint(query)) firstError = undefined;
+          return result;
+        })
+        .catch((error) => {
+          throw preserveFirstError(error);
+        });
+      pending.add(tracked);
+      void tracked.finally(() => pending.delete(tracked)).catch(() => {});
+      return tracked;
+    };
+
     const executor: PostgresQueryExecutor = {
-      query: (sql, values) => {
-        const operation = txClient
-          .query(sql, values)
-          .then((result) => {
-            if (isRollbackToSavepoint(sql)) firstError = undefined;
-            return result;
-          })
-          .catch((error) => {
-            if (errorCode(error) === '25P02' && firstError !== undefined) {
-              throw firstError;
-            }
-            firstError ??= error;
-            throw error;
-          });
-        pending.add(operation);
-        void operation.finally(() => pending.delete(operation)).catch(() => {});
-        return operation;
-      },
+      query: (sql, values) => track(txClient.query(sql, values), sql),
     };
 
     const client = new Proxy(txClient, {
       get(target, property) {
-        if (property === 'query') return executor.query;
+        if (property === 'query') {
+          return (...args: any[]) => {
+            const query = args[0];
+            const callbackIndex =
+              typeof args.at(-1) === 'function' ? args.length - 1 : -1;
+            if (callbackIndex !== -1) {
+              const callback = args[callbackIndex];
+              let complete!: () => void;
+              const completion = new Promise<void>((resolve) => {
+                complete = resolve;
+              });
+              pending.add(completion);
+              args[callbackIndex] = (error: unknown, result: unknown) => {
+                const callbackError =
+                  error === null || error === undefined
+                    ? error
+                    : preserveFirstError(error);
+                if (callbackError === null || callbackError === undefined) {
+                  if (isRollbackToSavepoint(query)) firstError = undefined;
+                }
+                pending.delete(completion);
+                complete();
+                callback(callbackError, result);
+              };
+              try {
+                return Reflect.apply(target.query, target, args);
+              } catch (error) {
+                pending.delete(completion);
+                complete();
+                throw preserveFirstError(error);
+              }
+            }
+
+            const result = Reflect.apply(target.query, target, args);
+            if (
+              typeof result === 'object' &&
+              result !== null &&
+              'then' in result &&
+              typeof result.then === 'function'
+            ) {
+              return track(Promise.resolve(result), query);
+            }
+            if (
+              typeof result === 'object' &&
+              result !== null &&
+              'once' in result &&
+              typeof result.once === 'function'
+            ) {
+              let complete!: () => void;
+              const completion = new Promise<void>((resolve) => {
+                complete = resolve;
+              });
+              const finish = () => {
+                pending.delete(completion);
+                complete();
+              };
+              pending.add(completion);
+              result.once('error', (error: unknown) => {
+                preserveFirstError(error);
+                finish();
+              });
+              result.once('end', finish);
+              result.once('close', finish);
+            }
+            return result;
+          };
+        }
         return Reflect.get(target, property, target);
       },
     });
