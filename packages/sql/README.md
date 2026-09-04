@@ -353,6 +353,12 @@ child rollback therefore cannot silently remove a successful parent operation.
 The enclosing commit or rollback drains all
 accepted child scopes before ending the transaction. PostgreSQL pools separate
 connections, so top-level transactions there run concurrently and never queue.
+PostgreSQL CRUD helpers apply the same value serialization both inside and
+outside a transaction: objects and arrays are encoded for JSON/JSONB columns,
+dates use ISO timestamps, `null` remains SQL `NULL`, and scalar values pass
+through unchanged. If a PostgreSQL statement aborts a transaction, later
+operations and commit preserve the first statement error rather than replacing
+it with the generic `25P02 current transaction is aborted` state error.
 Every SQLite transaction-scoped operation is registered when its public method
 is called. Ending a callback or invoking a manual handle's commit/rollback
 seals the scope synchronously, drains operations already accepted, and rejects

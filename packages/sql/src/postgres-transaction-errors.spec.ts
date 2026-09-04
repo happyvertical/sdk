@@ -190,38 +190,134 @@ describe('postgres transaction error contract', () => {
     expect(error).not.toBeInstanceOf(PgDatabaseError);
   }, 30000);
 
-  it('keeps each interface writing values the way it always has', async () => {
+  it('serializes CRUD values identically inside and outside transactions', async () => {
     if (!postgresAvailable) return;
 
-    // Building both interfaces from one factory made it tempting to unify how
-    // `insert` serializes values too. It must not be: the pool-backed methods
-    // JSON-stringify objects and arrays, the transaction-scoped ones never did,
-    // and PostgreSQL accepts exactly one of those per column type —
-    //
-    //                  text[] column                  jsonb column
-    //   raw JS array   accepted                       invalid input syntax
-    //   JSON string    malformed array literal        accepted
-    //
-    // so collapsing them silently breaks one shape of write. This pins both.
     const shapes = `${table}_shapes`;
     await db.query(
-      `CREATE TABLE ${shapes} (id int primary key, tags text[], meta jsonb)`,
+      `CREATE TABLE ${shapes} (
+        id int primary key,
+        meta jsonb,
+        happened timestamptz,
+        note text,
+        enabled boolean,
+        score int
+      )`,
     );
     try {
-      // Transaction-scoped: raw values, so an array column works.
-      await txOf(db)((tx) => tx.insert(shapes, { id: 1, tags: ['a', 'b'] }));
+      const happenedAt = new Date('2026-09-03T12:34:56.000Z');
+      const initial = {
+        meta: { source: 'pool', values: [1, 2] },
+        happened: happenedAt,
+        note: null,
+        enabled: true,
+        score: 7,
+      };
+      await db.insert(shapes, { id: 1, ...initial });
+      await txOf(db)((tx) => tx.insert(shapes, { id: 2, ...initial }));
 
-      // Pool-backed: serialized, so a jsonb column takes an array.
-      await db.insert(shapes, { id: 2, meta: ['a', 'b'] });
+      await txOf(db)((tx) =>
+        tx.update(
+          shapes,
+          { id: 2 },
+          {
+            meta: ['transaction', { nested: true }],
+            happened: new Date('2026-09-04T01:02:03.000Z'),
+            note: null,
+            enabled: false,
+            score: 9,
+          },
+        ),
+      );
+
+      const manual = await beginOf(db)();
+      await manual.update(
+        shapes,
+        { id: 1 },
+        { meta: ['manual'], happened: happenedAt },
+      );
+      await manual.commit();
 
       const rows = await db.query(
-        `SELECT id, tags, meta FROM ${shapes} ORDER BY id`,
+        `SELECT id, meta, happened, note, enabled, score FROM ${shapes} ORDER BY id`,
       );
-      expect(rows.rows[0].tags).toEqual(['a', 'b']);
-      expect(rows.rows[1].meta).toEqual(['a', 'b']);
+      expect(rows.rows).toEqual([
+        {
+          id: 1,
+          meta: ['manual'],
+          happened: happenedAt,
+          note: null,
+          enabled: true,
+          score: 7,
+        },
+        {
+          id: 2,
+          meta: ['transaction', { nested: true }],
+          happened: new Date('2026-09-04T01:02:03.000Z'),
+          note: null,
+          enabled: false,
+          score: 9,
+        },
+      ]);
     } finally {
       await db.query(`DROP TABLE IF EXISTS ${shapes}`);
     }
+  }, 30000);
+
+  it('preserves the first statement failure when a later query sees 25P02', async () => {
+    if (!postgresAvailable) return;
+
+    const error = await captureError(() =>
+      txOf(db)(async (tx) => {
+        await captureError(() => tx.query('SELECT $1::jsonb', '{invalid json'));
+        await tx.query('SELECT 1');
+      }),
+    );
+
+    expect(error).toBeInstanceOf(DatabaseError);
+    if (!(error.cause instanceof Error) || !('code' in error.cause)) {
+      throw new Error('expected the original PostgreSQL code on the cause');
+    }
+    expect(error.cause.code).toBe('22P02');
+    expect(String(error.context.originalError)).toContain(
+      'invalid input syntax for type json',
+    );
+    expect(String(error.context.originalError)).not.toContain(
+      'current transaction is aborted',
+    );
+  }, 30000);
+
+  it('rejects commit with the first error after a callback swallows it', async () => {
+    if (!postgresAvailable) return;
+
+    const callbackError = await captureError(() =>
+      txOf(db)(async (tx) => {
+        await captureError(() => tx.query('SELECT $1::jsonb', '{invalid json'));
+      }),
+    );
+    expect(callbackError).toBeInstanceOf(PgDatabaseError);
+    expect(callbackError.code).toBe('22P02');
+
+    const manual = await beginOf(db)();
+    await captureError(() => manual.query('SELECT $1::jsonb', '{invalid json'));
+    const manualError = await captureError(() => manual.commit());
+    expect(manualError).toBeInstanceOf(PgDatabaseError);
+    expect(manualError.code).toBe('22P02');
+  }, 30000);
+
+  it('clears a recovered nested-savepoint error before outer commit', async () => {
+    if (!postgresAvailable) return;
+
+    await txOf(db)(async (tx) => {
+      await captureError(() =>
+        txOf(tx)((nested) => nested.query('SELECT $1::jsonb', '{invalid json')),
+      );
+      await tx.insert(table, { id: 99, v: 'after savepoint rollback' });
+    });
+
+    expect(await db.get(table, { id: 99 })).toMatchObject({
+      v: 'after savepoint rollback',
+    });
   }, 30000);
 
   it('returns the connection when COMMIT itself throws', async () => {

@@ -870,18 +870,6 @@ async function createDatabase(
   /**
    * Serializes all values in an object for database storage
    */
-  /**
-   * The serializer the transaction-scoped interfaces have always used: none.
-   *
-   * Identity, deliberately — not even the `undefined`-dropping the pool-backed
-   * `serializeRecord` does. Those copies bound `undefined` straight through to
-   * `pg`, which stores NULL, whereas dropping the key omits the column and lets
-   * its default apply. Preserving that is the point of this parameter.
-   */
-  const passThroughRecord = (
-    record: Record<string, any>,
-  ): Record<string, any> => record;
-
   const serializeRecord = (
     record: Record<string, any>,
   ): Record<string, any> => {
@@ -1110,6 +1098,54 @@ async function createDatabase(
     }
   };
 
+  /**
+   * Keeps the first PostgreSQL statement failure attached to a transaction.
+   *
+   * PostgreSQL reports every later statement in an aborted transaction as
+   * 25P02. Replacing the first failure with that generic state error hides the
+   * actionable code and diagnostics from callers. The scoped executor instead
+   * rethrows the first failure whenever PostgreSQL reports 25P02, and exposes
+   * the recorded failure so a swallowed statement error cannot make COMMIT's
+   * implicit rollback look successful.
+   */
+  const createTransactionExecutor = (txClient: PoolClient) => {
+    let firstError: unknown;
+
+    const errorCode = (error: unknown): string | undefined => {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        typeof error.code === 'string'
+      ) {
+        return error.code;
+      }
+      return undefined;
+    };
+
+    const executor: PostgresQueryExecutor = {
+      query: async (sql, values) => {
+        try {
+          return await txClient.query(sql, values);
+        } catch (error) {
+          if (errorCode(error) === '25P02' && firstError !== undefined) {
+            throw firstError;
+          }
+          firstError ??= error;
+          throw error;
+        }
+      },
+    };
+
+    return {
+      executor,
+      clearError: () => {
+        firstError = undefined;
+      },
+      getError: () => firstError,
+    };
+  };
+
   const executeNullAwarePostgresUpsertInTransaction = async (
     table: string,
     conflictColumns: string[],
@@ -1241,37 +1277,18 @@ async function createDatabase(
    * Binding a client is the only difference between the two, so it is the only
    * thing this factory parameterizes.
    *
-   * One thing is deliberately NOT unified: how `insert` and `update` serialize
-   * values. The pool-backed methods run every value through `serializeRecord`,
-   * which JSON-stringifies objects and arrays; the transaction-scoped copies
-   * never did, so they handed the raw value to `pg`. That is not a cosmetic
-   * difference — it decides what lands in the column, and no single answer is
-   * right for both shapes:
-   *
-   * ```
-   *                    text[] column     jsonb column
-   *   raw JS array     accepted          "invalid input syntax for type json"
-   *   JSON string      "malformed        accepted
-   *                     array literal"
-   * ```
-   *
-   * So collapsing the two would have silently broken array-column writes inside
-   * a transaction while fixing jsonb-array writes, or the reverse — and would
-   * have corrupted `bytea` writes, where a Buffer would become the JSON of a
-   * Buffer with no error anywhere. Neither belongs in a fix for the error
-   * contract, so the serializer is a parameter: each interface keeps exactly
-   * the behaviour it had, and the difference is stated here instead of being an
-   * accident of two copies drifting apart.
-   *
    * @param executor - Pool or checked-out client every statement runs on
    * @param inTransaction - Whether `executor` is already inside a transaction
    * @param serialize - Applied to each record before `insert`/`update` builds
-   *   its SQL. Pass-through for the transaction-scoped interfaces.
+   *   its SQL
+   * @param clearTransactionError - Clears a statement error after a savepoint
+   *   has successfully restored the transaction to a usable state
    */
   const createClientMethods = (
     executor: PostgresQueryExecutor,
     inTransaction: boolean,
     serialize: (record: Record<string, any>) => Record<string, any>,
+    clearTransactionError: () => void = () => {},
   ) => {
     /**
      * Inserts one or more records into a table
@@ -1803,6 +1820,7 @@ async function createDatabase(
       } catch (error) {
         // ROLLBACK TO leaves the savepoint defined, so release it too.
         await executor.query(`ROLLBACK TO SAVEPOINT ${name}`);
+        clearTransactionError();
         await executor.query(`RELEASE SAVEPOINT ${name}`);
         throw error;
       }
@@ -2133,6 +2151,7 @@ async function createDatabase(
   const createNestedTransaction = (
     txClient: PoolClient,
     scopeFor: () => DatabaseInterface,
+    clearTransactionError: () => void,
   ) => {
     // PostgreSQL permits nested savepoints, but a sibling savepoint cannot be
     // released while a later sibling is still open: releasing the earlier one
@@ -2172,6 +2191,7 @@ async function createDatabase(
           // ROLLBACK TO leaves the savepoint defined, so release it too or it
           // accumulates for the life of the transaction.
           await txClient.query(`ROLLBACK TO SAVEPOINT ${name}`);
+          clearTransactionError();
           await txClient.query(`RELEASE SAVEPOINT ${name}`);
         } catch {
           // The enclosing transaction is already unwinding; its own teardown
@@ -2215,21 +2235,35 @@ async function createDatabase(
     let nestedTransaction:
       | ReturnType<typeof createNestedTransaction>
       | undefined;
+    const transactionState = createTransactionExecutor(txClient);
     try {
       await txClient.query('BEGIN');
 
       // Create a transaction-scoped database interface
       let txDb!: DatabaseInterface;
-      nestedTransaction = createNestedTransaction(txClient, () => txDb);
+      nestedTransaction = createNestedTransaction(
+        txClient,
+        () => txDb,
+        transactionState.clearError,
+      );
       txDb = {
         url,
         client: txClient,
-        ...createClientMethods(txClient, true, passThroughRecord),
+        ...createClientMethods(
+          transactionState.executor,
+          true,
+          serializeRecord,
+          transactionState.clearError,
+        ),
         transaction: nestedTransaction,
       };
 
       const result = await callback(txDb);
       await nestedTransaction.drain();
+      const statementError = transactionState.getError();
+      if (statementError !== undefined) {
+        throw statementError;
+      }
       await txClient.query('COMMIT');
       releaseTxClient(txClient);
       return result;
@@ -2272,6 +2306,7 @@ async function createDatabase(
     let nestedTransaction:
       | ReturnType<typeof createNestedTransaction>
       | undefined;
+    const transactionState = createTransactionExecutor(txClient);
 
     // COMMIT and ROLLBACK both throw in ordinary operation — deferred
     // constraint violations, serialization failures, a connection lost at
@@ -2284,6 +2319,10 @@ async function createDatabase(
       }
       try {
         await nestedTransaction?.drain();
+        const statementError = transactionState.getError();
+        if (command === 'COMMIT' && statementError !== undefined) {
+          throw statementError;
+        }
         await txClient.query(command);
         active = false;
         releaseTxClient(txClient);
@@ -2305,11 +2344,20 @@ async function createDatabase(
 
     // Create a transaction-scoped database interface with commit/rollback
     let txHandle!: TransactionHandle;
-    nestedTransaction = createNestedTransaction(txClient, () => txHandle);
+    nestedTransaction = createNestedTransaction(
+      txClient,
+      () => txHandle,
+      transactionState.clearError,
+    );
     txHandle = {
       url,
       client: txClient,
-      ...createClientMethods(txClient, true, passThroughRecord),
+      ...createClientMethods(
+        transactionState.executor,
+        true,
+        serializeRecord,
+        transactionState.clearError,
+      ),
       transaction: nestedTransaction,
       commit,
       rollback,
