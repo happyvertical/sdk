@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { DatabaseError } from '@happyvertical/utils';
-import { DatabaseError as PgDatabaseError } from 'pg';
+import { DatabaseError as PgDatabaseError, Query } from 'pg';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { getDatabase } from './index';
 import type { DatabaseInterface } from './shared/types';
@@ -190,38 +190,556 @@ describe('postgres transaction error contract', () => {
     expect(error).not.toBeInstanceOf(PgDatabaseError);
   }, 30000);
 
-  it('keeps each interface writing values the way it always has', async () => {
+  it('serializes CRUD values identically inside and outside transactions', async () => {
     if (!postgresAvailable) return;
 
-    // Building both interfaces from one factory made it tempting to unify how
-    // `insert` serializes values too. It must not be: the pool-backed methods
-    // JSON-stringify objects and arrays, the transaction-scoped ones never did,
-    // and PostgreSQL accepts exactly one of those per column type —
-    //
-    //                  text[] column                  jsonb column
-    //   raw JS array   accepted                       invalid input syntax
-    //   JSON string    malformed array literal        accepted
-    //
-    // so collapsing them silently breaks one shape of write. This pins both.
     const shapes = `${table}_shapes`;
     await db.query(
-      `CREATE TABLE ${shapes} (id int primary key, tags text[], meta jsonb)`,
+      `CREATE TABLE ${shapes} (
+        id int primary key,
+        meta jsonb,
+        happened timestamptz,
+        note text,
+        enabled boolean,
+        score int,
+        payload bytea
+      )`,
     );
     try {
-      // Transaction-scoped: raw values, so an array column works.
-      await txOf(db)((tx) => tx.insert(shapes, { id: 1, tags: ['a', 'b'] }));
+      const happenedAt = new Date('2026-09-03T12:34:56.000Z');
+      const initial = {
+        meta: { source: 'pool', values: [1, 2] },
+        happened: happenedAt,
+        note: null,
+        enabled: true,
+        score: 7,
+        payload: Buffer.from([1, 2, 254, 255]),
+      };
+      await db.insert(shapes, { id: 1, ...initial });
+      await txOf(db)((tx) => tx.insert(shapes, { id: 2, ...initial }));
+      const inserted = await db.query(
+        `SELECT id, payload FROM ${shapes} ORDER BY id`,
+      );
+      expect(inserted.rows).toEqual([
+        { id: 1, payload: Buffer.from([1, 2, 254, 255]) },
+        { id: 2, payload: Buffer.from([1, 2, 254, 255]) },
+      ]);
 
-      // Pool-backed: serialized, so a jsonb column takes an array.
-      await db.insert(shapes, { id: 2, meta: ['a', 'b'] });
+      await txOf(db)((tx) =>
+        tx.update(
+          shapes,
+          { id: 2 },
+          {
+            meta: ['transaction', { nested: true }],
+            happened: new Date('2026-09-04T01:02:03.000Z'),
+            note: null,
+            enabled: false,
+            score: 9,
+            payload: new Uint8Array([3, 4, 5]),
+          },
+        ),
+      );
+
+      const manual = await beginOf(db)();
+      await manual.update(
+        shapes,
+        { id: 1 },
+        {
+          meta: ['manual'],
+          happened: happenedAt,
+          payload: Buffer.from([9, 8, 7]),
+        },
+      );
+      await manual.commit();
 
       const rows = await db.query(
-        `SELECT id, tags, meta FROM ${shapes} ORDER BY id`,
+        `SELECT id, meta, happened, note, enabled, score, payload FROM ${shapes} ORDER BY id`,
       );
-      expect(rows.rows[0].tags).toEqual(['a', 'b']);
-      expect(rows.rows[1].meta).toEqual(['a', 'b']);
+      expect(rows.rows).toEqual([
+        {
+          id: 1,
+          meta: ['manual'],
+          happened: happenedAt,
+          note: null,
+          enabled: true,
+          score: 7,
+          payload: Buffer.from([9, 8, 7]),
+        },
+        {
+          id: 2,
+          meta: ['transaction', { nested: true }],
+          happened: new Date('2026-09-04T01:02:03.000Z'),
+          note: null,
+          enabled: false,
+          score: 9,
+          payload: Buffer.from([3, 4, 5]),
+        },
+      ]);
     } finally {
       await db.query(`DROP TABLE IF EXISTS ${shapes}`);
     }
+  }, 30000);
+
+  it('preserves the first statement failure when a later query sees 25P02', async () => {
+    if (!postgresAvailable) return;
+
+    const error = await captureError(() =>
+      txOf(db)(async (tx) => {
+        await captureError(() => tx.query('SELECT $1::jsonb', '{invalid json'));
+        await tx.query('SELECT 1');
+      }),
+    );
+
+    expect(error).toBeInstanceOf(DatabaseError);
+    if (!(error.cause instanceof Error) || !('code' in error.cause)) {
+      throw new Error('expected the original PostgreSQL code on the cause');
+    }
+    expect(error.cause.code).toBe('22P02');
+    expect(String(error.context.originalError)).toContain(
+      'invalid input syntax for type json',
+    );
+    expect(String(error.context.originalError)).not.toContain(
+      'current transaction is aborted',
+    );
+  }, 30000);
+
+  it('rejects commit with the first error after a callback swallows it', async () => {
+    if (!postgresAvailable) return;
+
+    const callbackError = await captureError(() =>
+      txOf(db)(async (tx) => {
+        await captureError(() => tx.query('SELECT $1::jsonb', '{invalid json'));
+      }),
+    );
+    expect(callbackError).toBeInstanceOf(PgDatabaseError);
+    expect(callbackError.code).toBe('22P02');
+
+    const manual = await beginOf(db)();
+    await captureError(() => manual.query('SELECT $1::jsonb', '{invalid json'));
+    const manualError = await captureError(() => manual.commit());
+    expect(manualError).toBeInstanceOf(PgDatabaseError);
+    expect(manualError.code).toBe('22P02');
+  }, 30000);
+
+  it('tracks failures issued through the exposed transaction client', async () => {
+    if (!postgresAvailable) return;
+
+    const callbackError = await captureError(() =>
+      txOf(db)(async (tx) => {
+        await captureError(() =>
+          tx.client.query('SELECT * FROM table_that_does_not_exist'),
+        );
+        await captureError(() => tx.query('SELECT 1'));
+      }),
+    );
+    expect(callbackError).toBeInstanceOf(PgDatabaseError);
+    expect(callbackError.code).toBe('42P01');
+
+    const manual = await beginOf(db)();
+    await captureError(() =>
+      manual.client.query('SELECT * FROM table_that_does_not_exist'),
+    );
+    const manualError = await captureError(() => manual.commit());
+    expect(manualError).toBeInstanceOf(PgDatabaseError);
+    expect(manualError.code).toBe('42P01');
+  }, 30000);
+
+  it('preserves native callback queries while tracking their completion', async () => {
+    if (!postgresAvailable) return;
+
+    const callbackError = await captureError(() =>
+      txOf(db)(async (tx) => {
+        const statementError = await new Promise<unknown>((resolve) => {
+          tx.client.query(
+            'SELECT * FROM table_that_does_not_exist',
+            (error: unknown) => resolve(error),
+          );
+        });
+        expect(statementError).toBeInstanceOf(PgDatabaseError);
+      }),
+    );
+    expect(callbackError).toBeInstanceOf(PgDatabaseError);
+    expect(callbackError.code).toBe('42P01');
+
+    const manual = await beginOf(db)();
+    const result = await new Promise<{ rows: Array<{ n: number }> }>(
+      (resolve, reject) => {
+        manual.client.query(
+          'SELECT $1::int AS n',
+          [7],
+          (error: unknown, queryResult: { rows: Array<{ n: number }> }) => {
+            if (error) reject(error);
+            else resolve(queryResult);
+          },
+        );
+      },
+    );
+    expect(result.rows).toEqual([{ n: 7 }]);
+    await manual.insert(table, { id: 104, v: 'callback query completed' });
+    await manual.commit();
+    expect(await db.get(table, { id: 104 })).toMatchObject({
+      v: 'callback query completed',
+    });
+  }, 30000);
+
+  it('tracks callback-bearing pg Query objects without hanging teardown', async () => {
+    if (!postgresAvailable) return;
+
+    const manual = await beginOf(db)();
+    const statementError = await new Promise<unknown>((resolve) => {
+      manual.client.query(
+        new Query('SELECT * FROM table_that_does_not_exist', (error: unknown) =>
+          resolve(error),
+        ),
+      );
+    });
+    expect(statementError).toBeInstanceOf(PgDatabaseError);
+
+    const commitError = await captureError(() => manual.commit());
+    expect(commitError).toBeInstanceOf(PgDatabaseError);
+    expect(commitError.code).toBe('42P01');
+  }, 30000);
+
+  it('preserves the first failure for callback-free pg Query objects', async () => {
+    if (!postgresAvailable) return;
+
+    const manual = await beginOf(db)();
+    const first = new Query('SELECT * FROM table_that_does_not_exist');
+    const firstError = new Promise<unknown>((resolve) =>
+      first.once('error', resolve),
+    );
+    manual.client.query(first);
+    expect(await firstError).toMatchObject({ code: '42P01' });
+
+    const later = new Query('SELECT 1');
+    const laterError = new Promise<unknown>((resolve) =>
+      later.once('error', resolve),
+    );
+    manual.client.query(later);
+    expect(await laterError).toMatchObject({ code: '42P01' });
+
+    const commitError = await captureError(() => manual.commit());
+    expect(commitError).toMatchObject({ code: '42P01' });
+  }, 30000);
+
+  it('preserves callback-free pg Query row streaming', async () => {
+    if (!postgresAvailable) return;
+
+    const manual = await beginOf(db)();
+    const query = new Query<{ n: number }>(
+      'SELECT generate_series(1, 200)::int AS n',
+    );
+    const streamed: number[] = [];
+    query.on('row', (row) => streamed.push(row.n));
+    const completed = new Promise<{ rows: Array<{ n: number }> }>(
+      (resolve, reject) => {
+        query.once('end', resolve);
+        query.once('error', reject);
+      },
+    );
+    manual.client.query(query);
+    const result = await completed;
+
+    expect(streamed).toHaveLength(200);
+    expect(streamed.at(0)).toBe(1);
+    expect(streamed.at(-1)).toBe(200);
+    expect(result.rows).toEqual([]);
+    await manual.insert(table, { id: 110, v: 'stream completed' });
+    await manual.commit();
+    expect(await db.get(table, { id: 110 })).toMatchObject({
+      v: 'stream completed',
+    });
+  }, 30000);
+
+  it('tracks a non-EventEmitter Submittable through pg protocol handlers', async () => {
+    if (!postgresAvailable) return;
+
+    const manual = await beginOf(db)();
+    const inner = new Query('SELECT * FROM table_that_does_not_exist');
+    const statementError = new Promise<unknown>((resolve) => {
+      manual.client.query({
+        submit: inner.submit.bind(inner),
+        handleError: resolve,
+        handleReadyForQuery: () => {},
+      });
+    });
+
+    expect(await statementError).toMatchObject({ code: '42P01' });
+    const commitError = await captureError(() => manual.commit());
+    expect(commitError).toMatchObject({ code: '42P01' });
+  }, 30000);
+
+  it('clears a recovered error through a callback-free pg Query object', async () => {
+    if (!postgresAvailable) return;
+
+    const manual = await beginOf(db)();
+    await manual.query('SAVEPOINT event_recovery');
+    await captureError(() =>
+      manual.query('SELECT * FROM table_that_does_not_exist'),
+    );
+
+    const rollback = new Query('ROLLBACK TO SAVEPOINT event_recovery');
+    const rollbackEnd = new Promise<void>((resolve, reject) => {
+      rollback.once('end', () => resolve());
+      rollback.once('error', reject);
+    });
+    manual.client.query(rollback);
+    await rollbackEnd;
+
+    await manual.query('RELEASE SAVEPOINT event_recovery');
+    await manual.insert(table, { id: 109, v: 'event query recovered' });
+    await manual.commit();
+    expect(await db.get(table, { id: 109 })).toMatchObject({
+      v: 'event query recovered',
+    });
+  }, 30000);
+
+  it('does not poison commit for a client-side named-query rejection', async () => {
+    if (!postgresAvailable) return;
+
+    const name = `named_${randomUUID().replace(/-/g, '')}`;
+    await txOf(db)(async (tx) => {
+      await tx.client.query({ name, text: 'SELECT 1' });
+      const error = await captureError(() =>
+        tx.client.query({ name, text: 'SELECT 2' }),
+      );
+      expect(error).toBeInstanceOf(Error);
+      expect(error).not.toBeInstanceOf(PgDatabaseError);
+      await tx.insert(table, { id: 105, v: 'after client-side rejection' });
+    });
+
+    expect(await db.get(table, { id: 105 })).toMatchObject({
+      v: 'after client-side rejection',
+    });
+  }, 30000);
+
+  it('does not poison commit for a SQLSTATE-shaped client parser error', async () => {
+    if (!postgresAvailable) return;
+
+    const parserError = Object.assign(new Error('custom parser failed'), {
+      code: 'ABCDE',
+    });
+    await txOf(db)(async (tx) => {
+      const error = await captureError(() =>
+        tx.client.query({
+          text: 'SELECT 1::int AS n',
+          types: {
+            getTypeParser: () => () => {
+              throw parserError;
+            },
+          },
+        }),
+      );
+      expect(error).toBe(parserError);
+      await tx.insert(table, { id: 106, v: 'after parser rejection' });
+    });
+
+    expect(await db.get(table, { id: 106 })).toMatchObject({
+      v: 'after parser rejection',
+    });
+  }, 30000);
+
+  it('rejects a timed-out statement when COMMIT reports rollback', async () => {
+    if (!postgresAvailable) return;
+
+    const error = await captureError(() =>
+      txOf(db)(async (tx) => {
+        await tx.insert(table, { id: 107, v: 'must roll back' });
+        const timeout = await captureError(() =>
+          tx.client.query({
+            text: `DO $$ BEGIN
+              PERFORM pg_sleep(0.05);
+              RAISE EXCEPTION 'delayed transaction failure';
+            END $$`,
+            // biome-ignore lint/style/useNamingConvention: native pg QueryConfig option
+            query_timeout: 10,
+          }),
+        );
+        expect(String(timeout.message)).toContain('Query read timeout');
+        const later = await captureError(() => tx.query('SELECT 1'));
+        expect(String(later.message)).toContain('Query read timeout');
+      }),
+    );
+
+    expect(String(error.message)).toContain('Query read timeout');
+    expect(await db.get(table, { id: 107 })).toBeNull();
+
+    const manual = await beginOf(db)();
+    await manual.insert(table, { id: 108, v: 'manual must roll back' });
+    const manualTimeout = await captureError(() =>
+      manual.client.query({
+        text: `DO $$ BEGIN
+          PERFORM pg_sleep(0.05);
+          RAISE EXCEPTION 'delayed manual transaction failure';
+        END $$`,
+        // biome-ignore lint/style/useNamingConvention: native pg QueryConfig option
+        query_timeout: 10,
+      }),
+    );
+    expect(String(manualTimeout.message)).toContain('Query read timeout');
+
+    const commitError = await captureError(() => manual.commit());
+    expect(String(commitError.message)).toContain('Query read timeout');
+    expect(await db.get(table, { id: 108 })).toBeNull();
+  }, 30000);
+
+  it('discards a harmless client error before a later timeout abort', async () => {
+    if (!postgresAvailable) return;
+
+    const name = `named_${randomUUID().replace(/-/g, '')}`;
+    const error = await captureError(() =>
+      txOf(db)(async (tx) => {
+        await tx.client.query({ name, text: 'SELECT 1' });
+        const harmless = await captureError(() =>
+          tx.client.query({ name, text: 'SELECT 2' }),
+        );
+        expect(harmless).not.toBeInstanceOf(PgDatabaseError);
+        await tx.query('SELECT 1');
+
+        const timeout = await captureError(() =>
+          tx.client.query({
+            text: `DO $$ BEGIN
+              PERFORM pg_sleep(0.05);
+              RAISE EXCEPTION 'delayed transaction failure';
+            END $$`,
+            // biome-ignore lint/style/useNamingConvention: native pg QueryConfig option
+            query_timeout: 10,
+          }),
+        );
+        expect(String(timeout.message)).toContain('Query read timeout');
+        await captureError(() => tx.query('SELECT 1'));
+      }),
+    );
+
+    expect(String(error.message)).toContain('Query read timeout');
+    expect(String(error.message)).not.toContain('Prepared statements');
+  }, 30000);
+
+  it('waits for started queries before callback or manual commit', async () => {
+    if (!postgresAvailable) return;
+
+    const callbackError = await captureError(() =>
+      txOf(db)((tx) => {
+        void tx
+          .query('SELECT * FROM table_that_does_not_exist')
+          .catch(() => undefined);
+        return Promise.resolve();
+      }),
+    );
+    expect(callbackError).toBeInstanceOf(PgDatabaseError);
+    expect(callbackError.code).toBe('42P01');
+
+    const manual = await beginOf(db)();
+    const pending = manual
+      .query('SELECT * FROM table_that_does_not_exist')
+      .catch(() => undefined);
+    const manualError = await captureError(() => manual.commit());
+    await pending;
+    expect(manualError).toBeInstanceOf(PgDatabaseError);
+    expect(manualError.code).toBe('42P01');
+  }, 30000);
+
+  it('clears a recovered nested-savepoint error before outer commit', async () => {
+    if (!postgresAvailable) return;
+
+    await txOf(db)(async (tx) => {
+      await captureError(() =>
+        txOf(tx)((nested) => nested.query('SELECT $1::jsonb', '{invalid json')),
+      );
+      await tx.insert(table, { id: 99, v: 'after savepoint rollback' });
+    });
+
+    expect(await db.get(table, { id: 99 })).toMatchObject({
+      v: 'after savepoint rollback',
+    });
+  }, 30000);
+
+  it('clears a recovered caller-managed savepoint error', async () => {
+    if (!postgresAvailable) return;
+
+    await txOf(db)(async (tx) => {
+      await tx.query('SAVEPOINT caller_recovery');
+      await captureError(() => tx.query('SELECT $1::jsonb', '{invalid json'));
+      await tx.query('ROLLBACK TO SAVEPOINT caller_recovery');
+      await tx.query('RELEASE SAVEPOINT caller_recovery');
+      await tx.insert(table, { id: 100, v: 'callback recovered' });
+    });
+
+    const manual = await beginOf(db)();
+    await manual.query('SAVEPOINT manual_recovery');
+    await captureError(() => manual.query('SELECT $1::jsonb', '{invalid json'));
+    await manual.query('ROLLBACK TO manual_recovery');
+    await manual.query('RELEASE SAVEPOINT manual_recovery');
+    await manual.insert(table, { id: 101, v: 'manual recovered' });
+    await manual.commit();
+
+    const recovered = await db.query(
+      `SELECT id, v FROM ${table} WHERE id >= 100 ORDER BY id`,
+    );
+    expect(recovered.rows).toEqual([
+      { id: 100, v: 'callback recovered' },
+      { id: 101, v: 'manual recovered' },
+    ]);
+  }, 30000);
+
+  it('recognizes a comment-prefixed caller-managed savepoint rollback', async () => {
+    if (!postgresAvailable) return;
+
+    await txOf(db)(async (tx) => {
+      await tx.query('SAVEPOINT commented_recovery');
+      await captureError(() => tx.query('SELECT $1::jsonb', '{invalid json'));
+      await tx.query(
+        '/* recover the failed statement */ ROLLBACK TO SAVEPOINT commented_recovery',
+      );
+      await tx.query('RELEASE SAVEPOINT commented_recovery');
+      await tx.insert(table, { id: 102, v: 'commented rollback recovered' });
+    });
+
+    expect(await db.get(table, { id: 102 })).toMatchObject({
+      v: 'commented rollback recovered',
+    });
+
+    const manual = await beginOf(db)();
+    const probe = await manual.client.query({ text: 'SELECT 1 AS n' });
+    expect(probe.rows).toEqual([{ n: 1 }]);
+    await manual.client.query({ text: 'SAVEPOINT raw_client_recovery' });
+    await captureError(() =>
+      manual.client.query({
+        text: 'SELECT * FROM table_that_does_not_exist',
+      }),
+    );
+    await manual.client.query({
+      text: '/* raw client recovery */ ROLLBACK TO SAVEPOINT raw_client_recovery',
+    });
+    await manual.client.query({
+      text: 'RELEASE SAVEPOINT raw_client_recovery',
+    });
+    await manual.insert(table, { id: 103, v: 'raw client recovered' });
+    await manual.commit();
+
+    expect(await db.get(table, { id: 103 })).toMatchObject({
+      v: 'raw client recovered',
+    });
+  }, 30000);
+
+  it('preserves a root error when the next operation opens a nested scope', async () => {
+    if (!postgresAvailable) return;
+
+    const error = await captureError(() =>
+      txOf(db)(async (tx) => {
+        await captureError(() =>
+          tx.query('SELECT * FROM table_that_does_not_exist'),
+        );
+        await txOf(tx)(async () => {});
+      }),
+    );
+
+    expect(error).toBeInstanceOf(PgDatabaseError);
+    expect(error.code).toBe('42P01');
+    expect(String(error.message)).toContain('does not exist');
+    expect(String(error.message)).not.toContain(
+      'current transaction is aborted',
+    );
   }, 30000);
 
   it('returns the connection when COMMIT itself throws', async () => {
