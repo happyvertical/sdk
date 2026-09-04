@@ -406,6 +406,53 @@ describe('postgres transaction error contract', () => {
     expect(commitError).toMatchObject({ code: '42P01' });
   }, 30000);
 
+  it('preserves callback-free pg Query row streaming', async () => {
+    if (!postgresAvailable) return;
+
+    const manual = await beginOf(db)();
+    const query = new Query<{ n: number }>(
+      'SELECT generate_series(1, 200)::int AS n',
+    );
+    const streamed: number[] = [];
+    query.on('row', (row) => streamed.push(row.n));
+    const completed = new Promise<{ rows: Array<{ n: number }> }>(
+      (resolve, reject) => {
+        query.once('end', resolve);
+        query.once('error', reject);
+      },
+    );
+    manual.client.query(query);
+    const result = await completed;
+
+    expect(streamed).toHaveLength(200);
+    expect(streamed.at(0)).toBe(1);
+    expect(streamed.at(-1)).toBe(200);
+    expect(result.rows).toEqual([]);
+    await manual.insert(table, { id: 110, v: 'stream completed' });
+    await manual.commit();
+    expect(await db.get(table, { id: 110 })).toMatchObject({
+      v: 'stream completed',
+    });
+  }, 30000);
+
+  it('tracks a non-EventEmitter Submittable through pg protocol handlers', async () => {
+    if (!postgresAvailable) return;
+
+    const manual = await beginOf(db)();
+    const inner = new Query('SELECT * FROM table_that_does_not_exist');
+    const statementError = new Promise<unknown>((resolve) => {
+      manual.client.query({
+        submit: inner.submit.bind(inner),
+        handleError: resolve,
+        handleReadyForQuery: () => {},
+      });
+    });
+
+    expect(await statementError).toMatchObject({ code: '42P01' });
+    const commitError = await captureError(() => manual.commit());
+    expect(commitError).toMatchObject({ code: '42P01' });
+  }, 30000);
+
   it('clears a recovered error through a callback-free pg Query object', async () => {
     if (!postgresAvailable) return;
 
@@ -518,6 +565,38 @@ describe('postgres transaction error contract', () => {
     const commitError = await captureError(() => manual.commit());
     expect(String(commitError.message)).toContain('Query read timeout');
     expect(await db.get(table, { id: 108 })).toBeNull();
+  }, 30000);
+
+  it('discards a harmless client error before a later timeout abort', async () => {
+    if (!postgresAvailable) return;
+
+    const name = `named_${randomUUID().replace(/-/g, '')}`;
+    const error = await captureError(() =>
+      txOf(db)(async (tx) => {
+        await tx.client.query({ name, text: 'SELECT 1' });
+        const harmless = await captureError(() =>
+          tx.client.query({ name, text: 'SELECT 2' }),
+        );
+        expect(harmless).not.toBeInstanceOf(PgDatabaseError);
+        await tx.query('SELECT 1');
+
+        const timeout = await captureError(() =>
+          tx.client.query({
+            text: `DO $$ BEGIN
+              PERFORM pg_sleep(0.05);
+              RAISE EXCEPTION 'delayed transaction failure';
+            END $$`,
+            // biome-ignore lint/style/useNamingConvention: native pg QueryConfig option
+            query_timeout: 10,
+          }),
+        );
+        expect(String(timeout.message)).toContain('Query read timeout');
+        await captureError(() => tx.query('SELECT 1'));
+      }),
+    );
+
+    expect(String(error.message)).toContain('Query read timeout');
+    expect(String(error.message)).not.toContain('Prepared statements');
   }, 30000);
 
   it('waits for started queries before callback or manual commit', async () => {

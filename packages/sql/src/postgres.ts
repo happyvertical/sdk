@@ -1176,6 +1176,7 @@ async function createDatabase(
       const tracked = operation
         .then((result) => {
           if (isRollbackToSavepoint(query)) firstError = undefined;
+          firstUnconfirmedError = undefined;
           return result;
         })
         .catch((error) => {
@@ -1197,6 +1198,71 @@ async function createDatabase(
             const query = args[0];
             const callbackIndex =
               typeof args.at(-1) === 'function' ? args.length - 1 : -1;
+            const submittable =
+              typeof query === 'object' &&
+              query !== null &&
+              'submit' in query &&
+              typeof query.submit === 'function';
+
+            if (submittable) {
+              if (
+                !('handleError' in query) ||
+                typeof query.handleError !== 'function' ||
+                !('handleReadyForQuery' in query) ||
+                typeof query.handleReadyForQuery !== 'function'
+              ) {
+                return Reflect.apply(target.query, target, args);
+              }
+
+              const handleError = query.handleError;
+              const handleReadyForQuery = query.handleReadyForQuery;
+              let complete!: () => void;
+              const completion = new Promise<void>((resolve) => {
+                complete = resolve;
+              });
+              let completed = false;
+              const finish = () => {
+                if (completed) return;
+                completed = true;
+                query.handleError = handleError;
+                query.handleReadyForQuery = handleReadyForQuery;
+                pending.delete(completion);
+                complete();
+              };
+              pending.add(completion);
+              query.handleError = function (...handlerArgs: unknown[]) {
+                const error = preserveFirstError(handlerArgs[0]);
+                try {
+                  return Reflect.apply(handleError, this, [
+                    error,
+                    ...handlerArgs.slice(1),
+                  ]);
+                } finally {
+                  finish();
+                }
+              };
+              query.handleReadyForQuery = function (...handlerArgs: unknown[]) {
+                try {
+                  const result = Reflect.apply(
+                    handleReadyForQuery,
+                    this,
+                    handlerArgs,
+                  );
+                  if (isRollbackToSavepoint(query)) firstError = undefined;
+                  firstUnconfirmedError = undefined;
+                  return result;
+                } finally {
+                  finish();
+                }
+              };
+              try {
+                return Reflect.apply(target.query, target, args);
+              } catch (error) {
+                finish();
+                throw preserveFirstError(error);
+              }
+            }
+
             if (callbackIndex !== -1) {
               const callback = args[callbackIndex];
               let complete!: () => void;
@@ -1211,6 +1277,7 @@ async function createDatabase(
                     : preserveFirstError(error);
                 if (callbackError === null || callbackError === undefined) {
                   if (isRollbackToSavepoint(query)) firstError = undefined;
+                  firstUnconfirmedError = undefined;
                 }
                 pending.delete(completion);
                 complete();
@@ -1221,78 +1288,6 @@ async function createDatabase(
               } catch (error) {
                 pending.delete(completion);
                 complete();
-                throw preserveFirstError(error);
-              }
-            }
-
-            if (
-              typeof query === 'object' &&
-              query !== null &&
-              'submit' in query &&
-              typeof query.submit === 'function' &&
-              'callback' in query &&
-              typeof query.callback === 'function'
-            ) {
-              const callback = query.callback;
-              let complete!: () => void;
-              const completion = new Promise<void>((resolve) => {
-                complete = resolve;
-              });
-              pending.add(completion);
-              query.callback = (error: unknown, result: unknown) => {
-                const callbackError =
-                  error === null || error === undefined
-                    ? error
-                    : preserveFirstError(error);
-                if (callbackError === null || callbackError === undefined) {
-                  if (isRollbackToSavepoint(query)) firstError = undefined;
-                }
-                pending.delete(completion);
-                complete();
-                callback(callbackError, result);
-              };
-              try {
-                return Reflect.apply(target.query, target, args);
-              } catch (error) {
-                pending.delete(completion);
-                complete();
-                throw preserveFirstError(error);
-              }
-            }
-
-            if (
-              typeof query === 'object' &&
-              query !== null &&
-              'submit' in query &&
-              typeof query.submit === 'function' &&
-              'callback' in query &&
-              query.callback === undefined &&
-              'emit' in query &&
-              typeof query.emit === 'function'
-            ) {
-              let complete!: () => void;
-              const completion = new Promise<void>((resolve) => {
-                complete = resolve;
-              });
-              const finish = () => {
-                pending.delete(completion);
-                complete();
-              };
-              pending.add(completion);
-              query.callback = (error: unknown) => {
-                if (error === null || error === undefined) {
-                  if (isRollbackToSavepoint(query)) firstError = undefined;
-                  finish();
-                  return;
-                }
-                const callbackError = preserveFirstError(error);
-                finish();
-                query.emit('error', callbackError);
-              };
-              try {
-                return Reflect.apply(target.query, target, args);
-              } catch (error) {
-                finish();
                 throw preserveFirstError(error);
               }
             }
@@ -1327,6 +1322,7 @@ async function createDatabase(
               });
               result.once('end', () => {
                 if (isRollbackToSavepoint(query)) firstError = undefined;
+                firstUnconfirmedError = undefined;
                 finish();
               });
               result.once('close', finish);
