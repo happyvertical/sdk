@@ -1,7 +1,12 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { webcrypto } from 'node:crypto';
 import { DatabaseError } from '@happyvertical/utils';
-import { Pool, type PoolClient } from 'pg';
+import {
+  DatabaseError as PgDatabaseError,
+  type QueryResult as PgQueryResult,
+  Pool,
+  type PoolClient,
+} from 'pg';
 import { DatabaseSchemaManager } from './schema-manager';
 import {
   generateAddColumnStatement,
@@ -1110,6 +1115,7 @@ async function createDatabase(
    */
   const createTransactionExecutor = (txClient: PoolClient) => {
     let firstError: unknown;
+    let firstUnconfirmedError: unknown;
     const pending = new Set<Promise<unknown>>();
 
     const isRollbackToSavepoint = (query: unknown): boolean => {
@@ -1155,9 +1161,10 @@ async function createDatabase(
       if (errorCode(error) === '25P02' && firstError !== undefined) {
         return firstError;
       }
-      const code = errorCode(error);
-      if (code !== undefined && /^[0-9A-Z]{5}$/.test(code)) {
+      if (error instanceof PgDatabaseError) {
         firstError ??= error;
+      } else {
+        firstUnconfirmedError ??= error;
       }
       return error;
     };
@@ -1300,7 +1307,26 @@ async function createDatabase(
         }
       },
       getError: () => firstError,
+      getUnconfirmedError: () => firstUnconfirmedError,
     };
+  };
+
+  const assertCommitted = (
+    result: PgQueryResult,
+    transactionState?: ReturnType<typeof createTransactionExecutor>,
+  ): void => {
+    if (result.command === 'COMMIT') return;
+
+    const queryError =
+      transactionState?.getError() ?? transactionState?.getUnconfirmedError();
+    if (queryError !== undefined) throw queryError;
+
+    throw new DatabaseError(
+      'PostgreSQL rolled back the transaction at commit',
+      {
+        command: result.command,
+      },
+    );
   };
 
   const executeNullAwarePostgresUpsertInTransaction = async (
@@ -1318,7 +1344,8 @@ async function createDatabase(
         conflictColumns,
         serializedData,
       );
-      await txClient.query('COMMIT');
+      const commitResult = await txClient.query('COMMIT');
+      assertCommitted(commitResult);
       releaseTxClient(txClient);
       return result;
     } catch (error) {
@@ -2426,7 +2453,8 @@ async function createDatabase(
       if (statementError !== undefined) {
         throw statementError;
       }
-      await txClient.query('COMMIT');
+      const commitResult = await txClient.query('COMMIT');
+      assertCommitted(commitResult, transactionState);
       releaseTxClient(txClient);
       return result;
     } catch (error) {
@@ -2487,7 +2515,8 @@ async function createDatabase(
         if (command === 'COMMIT' && statementError !== undefined) {
           throw statementError;
         }
-        await txClient.query(command);
+        const result = await txClient.query(command);
+        if (command === 'COMMIT') assertCommitted(result, transactionState);
         active = false;
         releaseTxClient(txClient);
       } catch (error) {

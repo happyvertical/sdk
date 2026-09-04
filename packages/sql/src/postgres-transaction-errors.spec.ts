@@ -403,6 +403,74 @@ describe('postgres transaction error contract', () => {
     });
   }, 30000);
 
+  it('does not poison commit for a SQLSTATE-shaped client parser error', async () => {
+    if (!postgresAvailable) return;
+
+    const parserError = Object.assign(new Error('custom parser failed'), {
+      code: 'ABCDE',
+    });
+    await txOf(db)(async (tx) => {
+      const error = await captureError(() =>
+        tx.client.query({
+          text: 'SELECT 1::int AS n',
+          types: {
+            getTypeParser: () => () => {
+              throw parserError;
+            },
+          },
+        }),
+      );
+      expect(error).toBe(parserError);
+      await tx.insert(table, { id: 106, v: 'after parser rejection' });
+    });
+
+    expect(await db.get(table, { id: 106 })).toMatchObject({
+      v: 'after parser rejection',
+    });
+  }, 30000);
+
+  it('rejects a timed-out statement when COMMIT reports rollback', async () => {
+    if (!postgresAvailable) return;
+
+    const error = await captureError(() =>
+      txOf(db)(async (tx) => {
+        await tx.insert(table, { id: 107, v: 'must roll back' });
+        const timeout = await captureError(() =>
+          tx.client.query({
+            text: `DO $$ BEGIN
+              PERFORM pg_sleep(0.05);
+              RAISE EXCEPTION 'delayed transaction failure';
+            END $$`,
+            // biome-ignore lint/style/useNamingConvention: native pg QueryConfig option
+            query_timeout: 10,
+          }),
+        );
+        expect(String(timeout.message)).toContain('Query read timeout');
+      }),
+    );
+
+    expect(String(error.message)).toContain('Query read timeout');
+    expect(await db.get(table, { id: 107 })).toBeNull();
+
+    const manual = await beginOf(db)();
+    await manual.insert(table, { id: 108, v: 'manual must roll back' });
+    const manualTimeout = await captureError(() =>
+      manual.client.query({
+        text: `DO $$ BEGIN
+          PERFORM pg_sleep(0.05);
+          RAISE EXCEPTION 'delayed manual transaction failure';
+        END $$`,
+        // biome-ignore lint/style/useNamingConvention: native pg QueryConfig option
+        query_timeout: 10,
+      }),
+    );
+    expect(String(manualTimeout.message)).toContain('Query read timeout');
+
+    const commitError = await captureError(() => manual.commit());
+    expect(String(commitError.message)).toContain('Query read timeout');
+    expect(await db.get(table, { id: 108 })).toBeNull();
+  }, 30000);
+
   it('waits for started queries before callback or manual commit', async () => {
     if (!postgresAvailable) return;
 
