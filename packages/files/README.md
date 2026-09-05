@@ -167,6 +167,31 @@ try {
 }
 ```
 
+### Bounded reads and create-without-overwrite
+
+All providers accept a byte ceiling for reads and reject content above it with
+`FileSizeLimitExceededError`. The S3 provider enforces the ceiling while it
+consumes the response stream, including responses without a content length.
+
+```typescript
+const object = await fs.read('objects/sha256.bin', {
+  raw: true,
+  maxBytes: 10 * 1024 * 1024,
+});
+
+await fs.write('objects/sha256.bin', object, { overwrite: false });
+```
+
+`overwrite: false` is an atomic create operation for the local provider. S3
+fails with `ConditionalWriteUnsupportedError` before sending a request unless
+its options explicitly declare `conditionalWriteStrategy: 'if-none-match'`.
+Set that option only when the resolved endpoint's documented contract
+guarantees that PUT honors `If-None-Match: *`; accepting the header without
+enforcing it is insufficient. The setting is explicit even for native AWS S3
+because AWS SDK environment configuration can redirect endpoints. An existing
+destination raises `FileExistsError` and is never overwritten. A concurrent S3
+operation raises the retryable `ConditionalWriteConflictError` (`EAGAIN`).
+
 ### Legacy Functions
 
 Standalone functions from the original API, still exported for backward compatibility:
@@ -187,14 +212,14 @@ const files = await listFiles('/path/to/dir', { match: /\.json$/ });
 |----------|--------|---------|
 | Local | Implemented | `basePath?` |
 | Google Drive | Implemented | `clientId`, `clientSecret`, `refreshToken` (or `serviceAccountKey` / `accessToken`) |
-| S3 | Types only | `region`, `bucket`, `accessKeyId?`, `secretAccessKey?` |
+| S3 | Implemented | `region`, `bucket`, `accessKeyId?`, `secretAccessKey?`, `endpoint?`, `conditionalWriteStrategy?` |
 | WebDAV | Types only | `baseUrl`, `username`, `password` |
 
 ## API Overview
 
 **Factory**: `getFilesystem(options)`, `registerProvider(type, factory)`, `getAvailableProviders()`, `isProviderAvailable(type)`, `getProviderInfo(type)`
 
-**Provider classes**: `LocalFilesystemProvider`, `GoogleDriveProvider`
+**Provider classes**: `LocalFilesystemProvider`, `GoogleDriveProvider`, `S3FilesystemProvider`
 
 **Interface methods**: `exists`, `read`, `write`, `delete`, `copy`, `move`, `createDirectory`, `list`, `getStats`, `getMimeType`, `upload`, `download`, `downloadWithCache`, `cache.get/set/clear`, `getCapabilities`
 

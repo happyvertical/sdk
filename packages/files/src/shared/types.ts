@@ -15,6 +15,12 @@ export interface ReadOptions {
    * Whether to return raw buffer data instead of string
    */
   raw?: boolean;
+
+  /**
+   * Maximum number of bytes to return. Providers reject the read when the
+   * content exceeds this limit.
+   */
+  maxBytes?: number;
 }
 
 /**
@@ -35,6 +41,12 @@ export interface WriteOptions {
    * Whether to create parent directories if they don't exist
    */
   createParents?: boolean;
+
+  /**
+   * Whether an existing file may be replaced. Defaults to true. When false,
+   * providers must create atomically or fail closed when they cannot.
+   */
+  overwrite?: boolean;
 }
 
 /**
@@ -470,6 +482,13 @@ export interface S3Options extends BaseProviderOptions {
   secretAccessKey?: string;
   endpoint?: string;
   forcePathStyle?: boolean;
+  /**
+   * Conditional-write contract provided by the resolved endpoint. Leave unset
+   * unless the endpoint documents and preserves `If-None-Match: *` for PUT.
+   * This must be explicit because SDK environment configuration can redirect
+   * requests even when `endpoint` is omitted.
+   */
+  conditionalWriteStrategy?: 'if-none-match';
 }
 
 /**
@@ -557,6 +576,54 @@ export class FileNotFoundError extends FilesystemError {
   constructor(path: string, provider?: string) {
     super(`File not found: ${path}`, 'ENOENT', path, provider);
     this.name = 'FileNotFoundError';
+  }
+}
+
+export class FileExistsError extends FilesystemError {
+  constructor(path: string, provider?: string) {
+    super(`File already exists: ${path}`, 'EEXIST', path, provider);
+    this.name = 'FileExistsError';
+  }
+}
+
+export class ConditionalWriteUnsupportedError extends FilesystemError {
+  constructor(path: string, provider?: string) {
+    super(
+      `Atomic create without overwrite is not supported: ${path}`,
+      'ENOTSUP',
+      path,
+      provider,
+    );
+    this.name = 'ConditionalWriteUnsupportedError';
+  }
+}
+
+export class ConditionalWriteConflictError extends FilesystemError {
+  constructor(path: string, provider?: string) {
+    super(
+      `Conditional write conflicted with another operation: ${path}`,
+      'EAGAIN',
+      path,
+      provider,
+    );
+    this.name = 'ConditionalWriteConflictError';
+  }
+}
+
+export class FileSizeLimitExceededError extends FilesystemError {
+  constructor(
+    path: string,
+    public readonly maxBytes: number,
+    public readonly observedBytes: number,
+    provider?: string,
+  ) {
+    super(
+      `File exceeds maxBytes (${observedBytes} > ${maxBytes}): ${path}`,
+      'EFBIG',
+      path,
+      provider,
+    );
+    this.name = 'FileSizeLimitExceededError';
   }
 }
 
