@@ -22,20 +22,20 @@
     "dev": "npm run build:watch & npm run test:watch"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1034.0",
+    "@aws-sdk/client-s3": "^3.1127.0",
     "@happyvertical/utils": "workspace:*",
-    "google-auth-library": "^9.15.1",
-    "googleapis": "^144.0.0"
+    "google-auth-library": "^11.0.2",
+    "googleapis": "^178.0.0"
   },
   "devDependencies": {
-    "@testing-library/jest-dom": "6.9.1",
-    "@testing-library/svelte": "5.3.1",
-    "@types/node": "25.0.10",
-    "happy-dom": "20.9.0",
-    "jsdom": "27.4.0",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/svelte": "5.4.2",
+    "@types/node": "25.9.5",
+    "happy-dom": "20.14.0",
+    "jsdom": "30.0.1",
     "typescript": "5.9.3",
     "vite": "8.1.4",
-    "vite-plugin-dts": "4.5.4",
+    "vite-plugin-dts": "5.1.0",
     "vitest": "4.1.10"
   },
   "bin": {

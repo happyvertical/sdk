@@ -50,17 +50,17 @@
     "dev": "npm run build:watch & npm run test:watch"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "0.90.0",
-    "@aws-sdk/client-bedrock-runtime": "3.1034.0",
-    "@google/genai": "1.50.1",
+    "@anthropic-ai/sdk": "0.124.0",
+    "@aws-sdk/client-bedrock-runtime": "3.1127.0",
+    "@google/genai": "2.21.0",
     "@happyvertical/utils": "workspace:*",
-    "openai": "6.34.0"
+    "openai": "7.10.0"
   },
   "devDependencies": {
-    "@types/node": "25.0.10",
+    "@types/node": "25.9.5",
     "typescript": "5.9.3",
     "vite": "8.1.4",
-    "vite-plugin-dts": "4.5.4",
+    "vite-plugin-dts": "5.1.0",
     "vitest": "4.1.10"
   }
 }

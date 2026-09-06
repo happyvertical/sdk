@@ -37,15 +37,15 @@
     "@happyvertical/logger": "workspace:*",
     "@happyvertical/utils": "workspace:*",
     "@openpgp/web-stream-tools": "^0.3.1",
-    "openpgp": "^6.3.0",
+    "openpgp": "^6.3.1",
     "tweetnacl": "^1.0.3",
     "tweetnacl-util": "^0.15.1"
   },
   "devDependencies": {
-    "@types/node": "25.0.10",
+    "@types/node": "25.9.5",
     "typescript": "5.9.3",
     "vite": "8.1.4",
-    "vite-plugin-dts": "4.5.4",
+    "vite-plugin-dts": "5.1.0",
     "vitest": "4.1.10"
   },
   "keywords": [

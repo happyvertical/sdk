@@ -44,17 +44,17 @@
   },
   "dependencies": {
     "@happyvertical/utils": "workspace:*",
-    "jose": "^6.2.2"
+    "jose": "^6.2.12"
   },
   "optionalDependencies": {
-    "@aws-sdk/client-cognito-identity-provider": "^3.1034.0",
-    "nostr-tools": "^2.23.3"
+    "@aws-sdk/client-cognito-identity-provider": "^3.1127.0",
+    "nostr-tools": "^2.25.2"
   },
   "devDependencies": {
-    "@types/node": "25.0.10",
+    "@types/node": "25.9.5",
     "typescript": "5.9.3",
     "vite": "8.1.4",
-    "vite-plugin-dts": "4.5.4",
+    "vite-plugin-dts": "5.1.0",
     "vitest": "4.1.10"
   }
 }

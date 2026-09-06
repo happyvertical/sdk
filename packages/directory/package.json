@@ -33,17 +33,17 @@
   },
   "dependencies": {
     "@happyvertical/utils": "workspace:*",
-    "@aws-sdk/client-iam": "^3.1034.0",
-    "@aws-sdk/client-organizations": "^3.1034.0",
-    "@aws-sdk/client-sts": "^3.1034.0",
-    "pg": "^8.20.0"
+    "@aws-sdk/client-iam": "^3.1127.0",
+    "@aws-sdk/client-organizations": "^3.1127.0",
+    "@aws-sdk/client-sts": "^3.1127.0",
+    "pg": "^8.23.0"
   },
   "devDependencies": {
-    "@types/node": "25.0.10",
-    "@types/pg": "^8.20.0",
+    "@types/node": "25.9.5",
+    "@types/pg": "^8.23.1",
     "typescript": "5.9.3",
     "vite": "8.1.4",
-    "vite-plugin-dts": "4.5.4",
+    "vite-plugin-dts": "5.1.0",
     "vitest": "4.1.10"
   },
   "keywords": [

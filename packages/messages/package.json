@@ -35,13 +35,13 @@
     "@happyvertical/email": "workspace:*",
     "@happyvertical/logger": "workspace:*",
     "@happyvertical/utils": "workspace:*",
-    "@slack/web-api": "^7.15.1"
+    "@slack/web-api": "^8.1.1"
   },
   "devDependencies": {
-    "@types/node": "25.0.10",
+    "@types/node": "25.9.5",
     "typescript": "5.9.3",
     "vite": "8.1.4",
-    "vite-plugin-dts": "4.5.4",
+    "vite-plugin-dts": "5.1.0",
     "vitest": "4.1.10"
   },
   "keywords": [

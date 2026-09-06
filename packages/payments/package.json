@@ -59,9 +59,9 @@
   "homepage": "https://github.com/happyvertical/sdk/tree/main/packages/payments#readme",
   "license": "MIT",
   "peerDependencies": {
-    "@noble/curves": "~2.0.1",
-    "@noble/hashes": "~2.0.1",
-    "@scure/bip32": "~2.0.1"
+    "@noble/curves": "~2.4.0",
+    "@noble/hashes": "~2.4.0",
+    "@scure/bip32": "~2.4.0"
   },
   "peerDependenciesMeta": {
     "@noble/curves": {
@@ -75,14 +75,14 @@
     }
   },
   "devDependencies": {
-    "@noble/curves": "2.0.1",
-    "@noble/hashes": "2.0.1",
-    "@scure/bip32": "2.0.1",
-    "@types/node": "24.12.2",
+    "@noble/curves": "2.4.0",
+    "@noble/hashes": "2.4.0",
+    "@scure/bip32": "2.4.0",
+    "@types/node": "24.13.3",
     "@vitest/coverage-v8": "4.1.10",
     "typescript": "5.9.3",
     "vite": "8.1.4",
-    "vite-plugin-dts": "4.5.4",
+    "vite-plugin-dts": "5.1.0",
     "vitest": "4.1.10"
   }
 }

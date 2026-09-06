@@ -57,13 +57,13 @@
   "dependencies": {
     "@duckdb/node-api": "1.4.3-r.3",
     "@happyvertical/utils": "workspace:*",
-    "@libsql/client": "0.17.2",
-    "pg": "^8.20.0",
+    "@libsql/client": "0.18.0",
+    "pg": "^8.23.0",
     "sqlite-vss": "^0.1.2"
   },
   "peerDependencies": {
-    "@russellthehippo/honker-node": "^0.3.3",
-    "@sqliteai/sqlite-vector": "^1.0.0"
+    "@russellthehippo/honker-node": "^0.5.1",
+    "@sqliteai/sqlite-vector": "^1.1.0"
   },
   "peerDependenciesMeta": {
     "@russellthehippo/honker-node": {
@@ -74,11 +74,11 @@
     }
   },
   "devDependencies": {
-    "@types/node": "25.0.10",
-    "@types/pg": "^8.20.0",
+    "@types/node": "25.9.5",
+    "@types/pg": "^8.23.1",
     "typescript": "5.9.3",
     "vite": "8.1.4",
-    "vite-plugin-dts": "4.5.4",
+    "vite-plugin-dts": "5.1.0",
     "vitest": "4.1.10"
   }
 }

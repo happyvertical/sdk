@@ -23,13 +23,13 @@
     "@happyvertical/images": "workspace:*",
     "@happyvertical/logger": "workspace:*",
     "@happyvertical/utils": "workspace:*",
-    "sharp": "^0.35.3"
+    "sharp": "^0.35.4"
   },
   "devDependencies": {
-    "@types/node": "25.0.10",
+    "@types/node": "25.9.5",
     "typescript": "5.9.3",
     "vite": "8.1.4",
-    "vite-plugin-dts": "4.5.4",
+    "vite-plugin-dts": "5.1.0",
     "vitest": "4.1.10"
   },
   "files": [
