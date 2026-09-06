@@ -494,16 +494,25 @@ export class GoogleWeatherProvider implements IWeatherProvider {
    * Test connection to Google Weather API
    */
   async testConnection(): Promise<boolean> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
     try {
       // Probe the daily forecast endpoint (Mountain View, CA - Google HQ).
       //
-      // This deliberately matches the production fetch path
-      // (fetchForLocation -> fetchDailyForecast). Google Weather access can be
-      // restricted per endpoint, so probing /currentConditions:lookup here
-      // would let the health check disagree with the calls this provider
-      // actually makes: a key with current-conditions but no forecast access
-      // would report healthy while every fetch fails, and a key with only
-      // forecast access would report unhealthy while the provider works.
+      // This probes the forecast surface the provider actually serves, rather
+      // than /currentConditions:lookup. Google Weather access can be restricted
+      // per endpoint, so probing current conditions let the health check
+      // disagree with the forecast calls this provider makes: a key with
+      // current-conditions but no forecast access reported healthy while every
+      // forecast fetch failed, and a key with only forecast access reported
+      // unhealthy while the provider worked.
+      //
+      // Scope note: this covers fetchDailyForecast only. fetchForLocation also
+      // awaits fetchHourlyForecast (/forecast/hours:lookup), so a key permitted
+      // for daily but not hourly forecasts still passes this probe and then
+      // fails fetchForLocation. Probing both endpoints would double the cost of
+      // every health check against a paid API; see issue #1233.
       //
       // Only one day is requested to keep the probe within a single page.
       const url = this.buildUrl(
@@ -512,11 +521,8 @@ export class GoogleWeatherProvider implements IWeatherProvider {
         -122.084,
         '&days=1',
       );
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
       const response = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
 
       if (!response.ok) {
         return false;
@@ -524,10 +530,17 @@ export class GoogleWeatherProvider implements IWeatherProvider {
 
       // A 2xx alone is not enough: an empty forecastDays array would still make
       // fetchDailyForecast throw NoResultsError, so require usable payload.
+      //
+      // The abort timer stays armed across this read: a peer that returns
+      // headers and then stalls the body would otherwise hang the health check
+      // forever, and this method must always settle rather than block provider
+      // selection. An abort here surfaces as a rejection and fails closed.
       const data = (await response.json()) as GoogleDailyForecastResponse;
       return Array.isArray(data?.forecastDays) && data.forecastDays.length > 0;
     } catch {
       return false;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

@@ -129,6 +129,36 @@ describe('Google Weather Provider', () => {
         await expect(provider.testConnection()).resolves.toBe(false);
       });
 
+      it('stays bounded by the timeout when the body stalls after headers', async () => {
+        // A peer can return 200 headers and then stall the body. The abort
+        // timer must still cover that read, or testConnection() never settles
+        // and blocks provider selection instead of failing closed.
+        const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => ({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          json: () =>
+            new Promise((_resolve, reject) => {
+              init?.signal?.addEventListener('abort', () => {
+                reject(
+                  Object.assign(new Error('The operation was aborted.'), {
+                    name: 'AbortError',
+                  }),
+                );
+              });
+            }),
+          text: async () => '',
+        }));
+        vi.stubGlobal('fetch', fetchMock);
+
+        const provider = new GoogleWeatherProvider({
+          apiKey: 'test-key',
+          timeout: 25,
+        });
+
+        await expect(provider.testConnection()).resolves.toBe(false);
+      }, 1000);
+
       it('returns false when the body is not valid JSON', async () => {
         stubFetch({ body: undefined });
 
