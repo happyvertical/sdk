@@ -1,15 +1,51 @@
 /**
- * Google Weather Provider Integration Tests
+ * Google Weather Provider Tests
  *
- * Tests the Google Weather API provider with real API calls.
- * Requires GOOGLE_API_KEY environment variable.
+ * The `Offline behavior` block is deterministic: `fetch` is stubbed, so it runs
+ * on every CI run and needs no credentials.
+ *
+ * The remaining blocks exercise the real API and require GOOGLE_API_KEY; they
+ * skip when it is unset.
  */
 
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getWeatherAdapter } from '../index';
 import { GoogleWeatherProvider } from '../providers/google-weather';
 import type { IWeatherAdapter, WeatherAlert } from '../shared/types';
-import { AuthenticationError, WeatherError } from '../shared/types';
+import {
+  AuthenticationError,
+  RateLimitError,
+  WeatherError,
+} from '../shared/types';
+
+/**
+ * Stub `fetch` with a fixed response and return the mock so tests can assert on
+ * the request URL the provider built.
+ */
+function stubFetch(response: {
+  ok?: boolean;
+  status?: number;
+  statusText?: string;
+  body?: unknown;
+  text?: string;
+}) {
+  const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => ({
+    ok: response.ok ?? true,
+    status: response.status ?? 200,
+    statusText: response.statusText ?? 'OK',
+    json: async () => {
+      if (response.body === undefined) {
+        throw new SyntaxError('Unexpected end of JSON input');
+      }
+      return response.body;
+    },
+    text: async () => response.text ?? '',
+  }));
+
+  vi.stubGlobal('fetch', fetchMock);
+
+  return fetchMock;
+}
 
 describe('Google Weather Provider', () => {
   let adapter: IWeatherAdapter;
@@ -37,6 +73,167 @@ describe('Google Weather Provider', () => {
         apiKey: '',
       }),
     ).rejects.toThrow(WeatherError);
+  });
+
+  describe('Offline behavior', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    describe('testConnection', () => {
+      it('probes the same forecast endpoint the fetch path uses', async () => {
+        const fetchMock = stubFetch({
+          body: { forecastDays: [{ displayDate: { year: 2026 } }] },
+        });
+
+        const provider = new GoogleWeatherProvider({ apiKey: 'test-key' });
+
+        await expect(provider.testConnection()).resolves.toBe(true);
+
+        const requestedUrl = fetchMock.mock.calls[0][0] as string;
+        expect(requestedUrl).toContain('/forecast/days:lookup');
+        // Regression guard: the health check must not probe an endpoint the
+        // production fetch path never calls, or the two can disagree whenever
+        // Google restricts access per endpoint.
+        expect(requestedUrl).not.toContain('/currentConditions:lookup');
+      });
+
+      it('returns false when the response carries no forecast days', async () => {
+        stubFetch({ body: { forecastDays: [] } });
+
+        const provider = new GoogleWeatherProvider({ apiKey: 'test-key' });
+
+        // A 200 with an empty array would still make fetchDailyForecast throw
+        // NoResultsError, so it must not be reported as healthy.
+        await expect(provider.testConnection()).resolves.toBe(false);
+      });
+
+      it('returns false when forecastDays is missing entirely', async () => {
+        stubFetch({ body: { timeZone: { id: 'America/Los_Angeles' } } });
+
+        const provider = new GoogleWeatherProvider({ apiKey: 'test-key' });
+
+        await expect(provider.testConnection()).resolves.toBe(false);
+      });
+
+      it('returns false on a non-ok response', async () => {
+        stubFetch({
+          ok: false,
+          status: 403,
+          statusText: 'Forbidden',
+          body: {},
+        });
+
+        const provider = new GoogleWeatherProvider({ apiKey: 'test-key' });
+
+        await expect(provider.testConnection()).resolves.toBe(false);
+      });
+
+      it('returns false when the body is not valid JSON', async () => {
+        stubFetch({ body: undefined });
+
+        const provider = new GoogleWeatherProvider({ apiKey: 'test-key' });
+
+        await expect(provider.testConnection()).resolves.toBe(false);
+      });
+    });
+
+    describe('HTTP error mapping', () => {
+      const lat = 37.422;
+      const lng = -122.084;
+
+      it('maps a 400 with an API_KEY_INVALID reason to AuthenticationError', async () => {
+        stubFetch({
+          ok: false,
+          status: 400,
+          statusText: 'Bad Request',
+          text: JSON.stringify({
+            error: {
+              code: 400,
+              message: 'API key not valid. Please pass a valid API key.',
+              status: 'INVALID_ARGUMENT',
+              details: [{ reason: 'API_KEY_INVALID' }],
+            },
+          }),
+        });
+
+        const provider = new GoogleWeatherProvider({ apiKey: 'bad-key' });
+
+        await expect(provider.fetchCurrentConditions(lat, lng)).rejects.toThrow(
+          AuthenticationError,
+        );
+      });
+
+      it('maps a 400 whose body only carries the "API key not valid" message', async () => {
+        stubFetch({
+          ok: false,
+          status: 400,
+          statusText: 'Bad Request',
+          text: 'API key not valid. Please pass a valid API key.',
+        });
+
+        const provider = new GoogleWeatherProvider({ apiKey: 'bad-key' });
+
+        await expect(provider.fetchCurrentConditions(lat, lng)).rejects.toThrow(
+          AuthenticationError,
+        );
+      });
+
+      it('leaves an unrelated 400 as a generic WeatherError', async () => {
+        stubFetch({
+          ok: false,
+          status: 400,
+          statusText: 'Bad Request',
+          text: JSON.stringify({
+            error: {
+              code: 400,
+              message: 'Request contains an invalid argument.',
+              status: 'INVALID_ARGUMENT',
+            },
+          }),
+        });
+
+        const provider = new GoogleWeatherProvider({ apiKey: 'test-key' });
+
+        const error = await provider
+          .fetchCurrentConditions(lat, lng)
+          .catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(WeatherError);
+        expect(error).not.toBeInstanceOf(AuthenticationError);
+        expect((error as WeatherError).code).toBe('HTTP_400');
+      });
+
+      it('still maps 401 to AuthenticationError', async () => {
+        stubFetch({
+          ok: false,
+          status: 401,
+          statusText: 'Unauthorized',
+          text: 'unauthorized',
+        });
+
+        const provider = new GoogleWeatherProvider({ apiKey: 'test-key' });
+
+        await expect(provider.fetchCurrentConditions(lat, lng)).rejects.toThrow(
+          AuthenticationError,
+        );
+      });
+
+      it('still maps 429 to RateLimitError', async () => {
+        stubFetch({
+          ok: false,
+          status: 429,
+          statusText: 'Too Many Requests',
+          text: 'rate limited',
+        });
+
+        const provider = new GoogleWeatherProvider({ apiKey: 'test-key' });
+
+        await expect(provider.fetchCurrentConditions(lat, lng)).rejects.toThrow(
+          RateLimitError,
+        );
+      });
+    });
   });
 
   describeWithKey('with API key', () => {
