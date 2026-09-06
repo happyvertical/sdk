@@ -80,22 +80,22 @@
     "@happyvertical/utils": "workspace:*"
   },
   "devDependencies": {
-    "@aws-sdk/client-sqs": "^3.1034.0",
-    "@google-cloud/tasks": "^6.2.1",
+    "@aws-sdk/client-sqs": "^3.1127.0",
+    "@google-cloud/tasks": "^7.0.0",
     "@types/bull": "^4.10.4",
-    "@types/node": "25.0.10",
+    "@types/node": "25.9.5",
     "bull": "^4.16.5",
-    "bullmq": "^5.80.4",
+    "bullmq": "^6.3.4",
     "typescript": "5.9.3",
     "vite": "8.1.4",
-    "vite-plugin-dts": "4.5.4",
+    "vite-plugin-dts": "5.1.0",
     "vitest": "4.1.10"
   },
   "peerDependencies": {
-    "@aws-sdk/client-sqs": ">=3.1034.0",
-    "@google-cloud/tasks": ">=4.1.0",
+    "@aws-sdk/client-sqs": ">=3.1127.0",
+    "@google-cloud/tasks": ">=7.0.0",
     "bull": ">=4.16.5",
-    "bullmq": ">=5.76.0"
+    "bullmq": ">=6.3.4"
   },
   "peerDependenciesMeta": {
     "bull": {
