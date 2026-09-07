@@ -209,6 +209,20 @@ interface GoogleAlertsResponse {
   alerts?: GoogleAlert[];
 }
 
+/**
+ * Detect a Google Weather invalid-API-key error body.
+ *
+ * Google returns HTTP 400 (not 401/403) with an `API_KEY_INVALID` reason and an
+ * "API key not valid" message when the key is malformed or restricted.
+ */
+function isInvalidApiKeyError(errorText: string): boolean {
+  const normalized = errorText.toLowerCase();
+  return (
+    normalized.includes('api_key_invalid') ||
+    normalized.includes('api key not valid')
+  );
+}
+
 export class GoogleWeatherProvider implements IWeatherProvider {
   readonly name = 'Google Weather';
   readonly providerType = 'commercial' as const;
@@ -480,18 +494,53 @@ export class GoogleWeatherProvider implements IWeatherProvider {
    * Test connection to Google Weather API
    */
   async testConnection(): Promise<boolean> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+
     try {
-      // Test with a known location (Mountain View, CA - Google HQ)
-      const url = this.buildUrl('/currentConditions:lookup', 37.422, -122.084);
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+      // Probe the daily forecast endpoint (Mountain View, CA - Google HQ).
+      //
+      // This probes the forecast surface the provider actually serves, rather
+      // than /currentConditions:lookup. Google Weather access can be restricted
+      // per endpoint, so probing current conditions let the health check
+      // disagree with the forecast calls this provider makes: a key with
+      // current-conditions but no forecast access reported healthy while every
+      // forecast fetch failed, and a key with only forecast access reported
+      // unhealthy while the provider worked.
+      //
+      // Scope note: this covers fetchDailyForecast only. fetchForLocation also
+      // awaits fetchHourlyForecast (/forecast/hours:lookup), so a key permitted
+      // for daily but not hourly forecasts still passes this probe and then
+      // fails fetchForLocation. Probing both endpoints would double the cost of
+      // every health check against a paid API; see issue #1233.
+      //
+      // Only one day is requested to keep the probe within a single page.
+      const url = this.buildUrl(
+        '/forecast/days:lookup',
+        37.422,
+        -122.084,
+        '&days=1',
+      );
 
       const response = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
 
-      return response.ok;
+      if (!response.ok) {
+        return false;
+      }
+
+      // A 2xx alone is not enough: an empty forecastDays array would still make
+      // fetchDailyForecast throw NoResultsError, so require usable payload.
+      //
+      // The abort timer stays armed across this read: a peer that returns
+      // headers and then stalls the body would otherwise hang the health check
+      // forever, and this method must always settle rather than block provider
+      // selection. An abort here surfaces as a rejection and fails closed.
+      const data = (await response.json()) as GoogleDailyForecastResponse;
+      return Array.isArray(data?.forecastDays) && data.forecastDays.length > 0;
     } catch {
       return false;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -586,6 +635,15 @@ export class GoogleWeatherProvider implements IWeatherProvider {
     }
 
     const errorText = await response.text();
+
+    // Google Weather reports a malformed or restricted key as HTTP 400 with an
+    // API_KEY_INVALID reason rather than 401/403. Without this mapping callers
+    // that branch on AuthenticationError to stop retrying would keep retrying a
+    // credential that can never succeed.
+    if (response.status === 400 && isInvalidApiKeyError(errorText)) {
+      throw new AuthenticationError(this.name, 'Invalid API key');
+    }
+
     throw new WeatherError(
       `API request failed: ${response.statusText} - ${errorText}`,
       this.name,
