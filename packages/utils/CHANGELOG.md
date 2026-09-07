@@ -1,5 +1,51 @@
 # @happyvertical/utils
 
+## 0.89.6
+
+## 0.89.5
+
+## 0.89.4
+
+### Patch Changes
+
+- ### Features
+
+  - add trusted-parent local SQLite acquisition (#1212) (sql)
+
+## 0.89.3
+
+## 0.89.2
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - quote PostgreSQL upsert columns (#1218) (sql)
+
+## 0.89.1
+
+## 0.89.0
+
+## 0.88.2
+
+### Patch Changes
+
+- 596e262: Expose sanitized database driver diagnostics through `DatabaseError` messages,
+  native causes, and JSON serialization while redacting SQL statements, bound
+  values, and credential-shaped details.
+
+## 0.88.1
+
+## 0.88.0
+
+## 0.87.0
+
+## 0.86.4
+
+### Patch Changes
+
+- 7515331: Make environment-backed configuration and universal temporary-directory helpers safe when imported in browsers without a Node.js `process` global.
+
 ## 0.86.3
 
 ### Patch Changes

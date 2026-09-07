@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
   extractRunnerLabels,
@@ -9,6 +10,9 @@ import {
 
 const WORKFLOWS_DIR = fileURLToPath(
   new URL('../.github/workflows', import.meta.url),
+);
+const PULL_REQUEST_WORKFLOW = fileURLToPath(
+  new URL('../.github/workflows/on-pull-request.yml', import.meta.url),
 );
 
 test('flags exactly the retired GitHub-hosted runner labels', () => {
@@ -34,7 +38,6 @@ test('flags exactly the retired GitHub-hosted runner labels', () => {
     'ubuntu-latest',
     'windows-2022',
     'windows-2025',
-    'arc-happyvertical',
     'self-hosted',
   ]) {
     assert.equal(isRetiredRunnerLabel(live), false, live);
@@ -47,7 +50,7 @@ test('extracts runs-on scalars, flow lists, and matrix os entries', () => {
     '  a:',
     '    runs-on: ubuntu-24.04',
     '  b:',
-    '    runs-on: [self-hosted, arc-happyvertical]',
+    '    runs-on: [self-hosted, ubuntu-latest]',
     '  c:',
     '    runs-on: ${{ matrix.os }}',
     '    strategy:',
@@ -60,7 +63,7 @@ test('extracts runs-on scalars, flow lists, and matrix os entries', () => {
   assert.deepEqual(extractRunnerLabels(source), [
     { line: 3, label: 'ubuntu-24.04' },
     { line: 5, label: 'self-hosted' },
-    { line: 5, label: 'arc-happyvertical' },
+    { line: 5, label: 'ubuntu-latest' },
     { line: 11, label: 'macos-13' },
     { line: 13, label: 'macos-15-intel' },
   ]);
@@ -156,4 +159,27 @@ test('handles CRLF line endings in every supported form', () => {
 
 test('repository workflows reference no retired runner labels', () => {
   assert.deepEqual(findRetiredRunnerLabels(WORKFLOWS_DIR), []);
+});
+
+test('validates merge-group squash titles without linting generated bodies', () => {
+  const source = readFileSync(PULL_REQUEST_WORKFLOW, 'utf8');
+  const validateCommits = source.match(
+    /  validate-commits:\n([\s\S]*?)(?=\n  validate-workflows:)/,
+  )?.[1];
+
+  assert.ok(validateCommits, 'validate-commits job is present');
+  assert.doesNotMatch(source, /types: \[opened, synchronize, reopened, edited\]/);
+  assert.match(
+    validateCommits,
+    /name: Validate repository-authored commit messages\n        if: >-\n          github\.event_name == 'pull_request_target' &&\n          env\.VALIDATE_REVIEWED_HEAD == 'true'\n        uses: wagoid\/commitlint-github-action/,
+  );
+  assert.match(
+    validateCommits,
+    /name: Validate PR title for squash merge[\s\S]*?--config commitlint\.config\.mjs/,
+  );
+  assert.match(
+    validateCommits,
+    /name: Validate merge-group squash title[\s\S]*?git log -1 --format=%s[\s\S]*?--config commitlint\.config\.mjs/,
+  );
+  assert.match(validateCommits, /github\.event_name == 'merge_group'/);
 });

@@ -16,6 +16,7 @@ Database interface with support for SQLite, PostgreSQL, and DuckDB
 ```bash
 pnpm --filter @happyvertical/sql build
 pnpm --filter @happyvertical/sql test
+pnpm --filter @happyvertical/sql typecheck
 pnpm --filter @happyvertical/sql clean
 ```
 

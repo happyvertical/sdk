@@ -57,8 +57,9 @@ export class BaseError extends Error {
     message: string,
     code: ErrorCode = ErrorCode.UNKNOWN_ERROR,
     context?: Record<string, unknown>,
+    options?: ErrorOptions,
   ) {
-    super(message);
+    super(message, options);
     this.name = this.constructor.name;
     this.code = code;
     this.context = context;
@@ -80,6 +81,37 @@ export class BaseError extends Error {
       stack: this.stack,
     };
   }
+}
+
+/**
+ * Produces a shallow JSON representation of a native error cause.
+ *
+ * Error properties are non-enumerable, so serializing a cause directly loses
+ * the message and driver diagnostics. Keep the projection intentionally
+ * shallow to avoid cycles while retaining the fields database drivers use for
+ * actionable failures.
+ */
+function serializeErrorCause(cause: unknown): unknown {
+  if (!(cause instanceof Error)) return cause;
+
+  const driverFields = ['code', 'detail', 'hint', 'severity', 'errno'] as const;
+  const serialized: Record<string, unknown> = {
+    name: cause.name,
+    message: cause.message,
+  };
+
+  for (const field of driverFields) {
+    const value = (cause as unknown as Record<string, unknown>)[field];
+    if (
+      typeof value === 'string' ||
+      typeof value === 'number' ||
+      typeof value === 'boolean'
+    ) {
+      serialized[field] = value;
+    }
+  }
+
+  return serialized;
 }
 
 /**
@@ -156,16 +188,41 @@ export class NetworkError extends BaseError {
  *
  * @example
  * ```typescript
- * throw new DatabaseError('Connection failed', {
- *   database: 'production',
- *   query: 'SELECT * FROM users',
- *   errorCode: 'ECONNREFUSED'
+ * const cause = Object.assign(new Error('relation does not exist'), {
+ *   code: '42P01'
  * });
+ * throw new DatabaseError(
+ *   'Query failed: relation does not exist',
+ *   { operation: 'query' },
+ *   cause
+ * );
  * ```
+ *
+ * SQL adapters supply a sanitized error snapshot as `cause`. It remains a
+ * standard, non-enumerable native Error cause, while `toJSON()` exposes a
+ * shallow projection of common driver diagnostics for structured logging.
  */
 export class DatabaseError extends BaseError {
-  constructor(message: string, context?: Record<string, unknown>) {
-    super(message, ErrorCode.DATABASE_ERROR, context);
+  constructor(
+    message: string,
+    context?: Record<string, unknown>,
+    cause?: unknown,
+  ) {
+    super(
+      message,
+      ErrorCode.DATABASE_ERROR,
+      context,
+      cause === undefined ? undefined : { cause },
+    );
+  }
+
+  override toJSON() {
+    return {
+      ...super.toJSON(),
+      ...(this.cause === undefined
+        ? {}
+        : { cause: serializeErrorCause(this.cause) }),
+    };
   }
 }
 

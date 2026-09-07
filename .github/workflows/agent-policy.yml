@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       pr_number:
-        description: Pull request to recheck after released_at or another claim-only transition
+        description: Pull request number to recheck after a claim-only transition
         required: true
         type: number
 
@@ -20,19 +20,9 @@ permissions:
   statuses: read
   packages: read
 
-concurrency:
-  group: >-
-    agent-policy-diagnostic-${{
-      github.event.merge_group.head_sha ||
-      github.event.pull_request.number ||
-      inputs.pr_number ||
-      github.ref
-    }}
-  cancel-in-progress: true
-
 jobs:
   lifecycle:
-    name: lifecycle / diagnostic
+    name: lifecycle
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -219,6 +209,7 @@ jobs:
               "policy_revision": manifest.get("policy_revision"),
               "source_commit": manifest.get("source_commit"),
               "source_tree_sha256": manifest.get("source_tree_sha256"),
+              "rollout": manifest.get("rollout"),
           }
           for field, value in expected.items():
               if lock.get(field) != value:
@@ -236,6 +227,7 @@ jobs:
           POLICY_ARTIFACT: ${{ env.HV_POLICY_ARTIFACT }}
           EVENT_NAME: ${{ github.event_name }}
           EVENT_ACTION: ${{ github.event.action }}
+          HV_AGENT_LOCAL_LIFECYCLE: "true"
           PR_NUMBER: ${{ inputs.pr_number || github.event.pull_request.number }}
           MERGE_GROUP_HEAD_SHA: ${{ github.event.merge_group.head_sha }}
           MERGE_GROUP_HEAD_REF: ${{ github.event.merge_group.head_ref }}
@@ -249,7 +241,7 @@ jobs:
           "$HV_POLICY_DIR/scripts/hv-agent-lifecycle-prs" > "$numbers_file"
           while IFS= read -r number; do
             if ! python3 "$HV_POLICY_DIR/scripts/hv-agent" check-pr "$number"; then
-              echo "ERROR $HV_POLICY_IDENTITY from $POLICY_ARTIFACT rejected PR #$number; correct canonical claim/PR state, then rerun the organization-required workflow execution; a repository-local lifecycle-only dispatch is not protected merge authority and draft toggles are invalid" >&2
+              echo "ERROR $HV_POLICY_IDENTITY from $POLICY_ARTIFACT rejected PR #$number; correct canonical claim/PR state, then rerun lifecycle for this exact head; draft toggles are invalid" >&2
               exit 1
             fi
           done < "$numbers_file"

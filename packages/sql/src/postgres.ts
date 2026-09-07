@@ -1,11 +1,17 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { webcrypto } from 'node:crypto';
 import { DatabaseError } from '@happyvertical/utils';
-import { Pool, type PoolClient } from 'pg';
+import {
+  DatabaseError as PgDatabaseError,
+  type QueryResult as PgQueryResult,
+  Pool,
+  type PoolClient,
+} from 'pg';
 import { DatabaseSchemaManager } from './schema-manager';
 import {
   generateAddColumnStatement,
   generateCreateIndexStatement,
+  quotePostgresColumnName,
   validateColumnName,
   validateColumnNames,
   validateIndexName,
@@ -37,7 +43,10 @@ import {
   buildWhere,
   formatDbError,
   resolveInsertColumns,
+  wrapDatabaseError,
 } from './shared/utils';
+
+const MAX_TIMER_DELAY_MILLIS = 2_147_483_647;
 
 /**
  * Configuration options for PostgreSQL database connections
@@ -87,6 +96,20 @@ export interface PostgresOptions extends DatabaseCacheOptions {
    * for applications with many SMRT collections.
    */
   max?: number;
+
+  /**
+   * Maximum time to wait for a pool connection, in milliseconds.
+   * Must not exceed Node.js's maximum timer delay of 2,147,483,647.
+   * Set to 0 to wait indefinitely. When omitted, pg's default is used.
+   */
+  connectionTimeoutMillis?: number;
+
+  /**
+   * Maximum time an idle client remains in the pool, in milliseconds.
+   * Must not exceed Node.js's maximum timer delay of 2,147,483,647.
+   * Set to 0 to retain idle clients. When omitted, pg's default is used.
+   */
+  idleTimeoutMillis?: number;
 
   /**
    * Schema definitions for tables.
@@ -155,6 +178,8 @@ type EffectivePostgresConfig = {
   password?: string;
   port: number;
   max: number;
+  connectionTimeoutMillis?: number;
+  idleTimeoutMillis?: number;
 };
 
 function resolvePostgresConfig(
@@ -186,11 +211,32 @@ function resolvePostgresConfig(
       legacyPort === undefined ? undefined : Number(legacyPort),
     ) ?? 5432;
   const max = options.max ?? 20;
+  const { connectionTimeoutMillis, idleTimeoutMillis } = options;
   if (!Number.isInteger(port) || port < 1 || port > 65_535) {
     throw new Error('PostgreSQL port must be an integer between 1 and 65535');
   }
   if (!Number.isInteger(max) || max < 1) {
     throw new Error('PostgreSQL pool max must be a positive integer');
+  }
+  if (
+    connectionTimeoutMillis !== undefined &&
+    (!Number.isInteger(connectionTimeoutMillis) ||
+      connectionTimeoutMillis < 0 ||
+      connectionTimeoutMillis > MAX_TIMER_DELAY_MILLIS)
+  ) {
+    throw new Error(
+      `PostgreSQL pool connectionTimeoutMillis must be an integer between 0 and ${MAX_TIMER_DELAY_MILLIS}`,
+    );
+  }
+  if (
+    idleTimeoutMillis !== undefined &&
+    (!Number.isInteger(idleTimeoutMillis) ||
+      idleTimeoutMillis < 0 ||
+      idleTimeoutMillis > MAX_TIMER_DELAY_MILLIS)
+  ) {
+    throw new Error(
+      `PostgreSQL pool idleTimeoutMillis must be an integer between 0 and ${MAX_TIMER_DELAY_MILLIS}`,
+    );
   }
 
   return {
@@ -201,6 +247,8 @@ function resolvePostgresConfig(
     password: legacy(primary.password, process.env.SQLOO_PASSWORD),
     port,
     max,
+    connectionTimeoutMillis,
+    idleTimeoutMillis,
   };
 }
 
@@ -220,6 +268,8 @@ async function derivePostgresConnectionCacheKey(
     user: effective.user ?? null,
     password: effective.password ?? null,
     max: effective.max,
+    connectionTimeoutMillis: effective.connectionTimeoutMillis ?? null,
+    idleTimeoutMillis: effective.idleTimeoutMillis ?? null,
   });
   const hmacKey = await globalThis.__haveSqlPostgresCacheHmacKey;
   if (!hmacKey) {
@@ -743,10 +793,15 @@ async function createDatabase(
   // Create a connection pool with explicit max to prevent exhaustion.
   // pg defaults to 10 which is too low for SMRT apps that sync 30+ table
   // schemas on startup. Default to 20 but allow callers to override.
-  const poolMax = config.max;
+  const { max: poolMax, connectionTimeoutMillis, idleTimeoutMillis } = config;
   const pool = new Pool(
     config.url
-      ? { connectionString: config.url as string, max: poolMax }
+      ? {
+          connectionString: config.url as string,
+          max: poolMax,
+          connectionTimeoutMillis,
+          idleTimeoutMillis,
+        }
       : {
           host: host as string,
           user: user as string,
@@ -754,6 +809,8 @@ async function createDatabase(
           port: port as number,
           database: database as string,
           max: poolMax,
+          connectionTimeoutMillis,
+          idleTimeoutMillis,
         },
   );
 
@@ -809,6 +866,9 @@ async function createDatabase(
     if (value instanceof Date) {
       return value.toISOString();
     }
+    if (Buffer.isBuffer(value) || ArrayBuffer.isView(value)) {
+      return value;
+    }
     if (typeof value === 'object') {
       return JSON.stringify(value);
     }
@@ -818,18 +878,6 @@ async function createDatabase(
   /**
    * Serializes all values in an object for database storage
    */
-  /**
-   * The serializer the transaction-scoped interfaces have always used: none.
-   *
-   * Identity, deliberately — not even the `undefined`-dropping the pool-backed
-   * `serializeRecord` does. Those copies bound `undefined` straight through to
-   * `pg`, which stores NULL, whereas dropping the key omits the column and lets
-   * its default apply. Preserving that is the point of this parameter.
-   */
-  const passThroughRecord = (
-    record: Record<string, any>,
-  ): Record<string, any> => record;
-
   const serializeRecord = (
     record: Record<string, any>,
   ): Record<string, any> => {
@@ -922,12 +970,15 @@ async function createDatabase(
     serializedData: Record<string, any>,
   ) => {
     const keys = Object.keys(serializedData);
+    const columns = keys.map(quotePostgresColumnName);
     const values = Object.values(serializedData);
     const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
-    const updateSet = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
-    const conflict = conflictColumns.join(', ');
+    const updateSet = columns
+      .map((column, i) => `${column} = $${i + 1}`)
+      .join(', ');
+    const conflict = conflictColumns.map(quotePostgresColumnName).join(', ');
 
-    return { keys, values, placeholders, updateSet, conflict };
+    return { columns, values, placeholders, updateSet, conflict };
   };
 
   const executeStandardPostgresUpsert = async (
@@ -936,9 +987,9 @@ async function createDatabase(
     conflictColumns: string[],
     serializedData: Record<string, any>,
   ): Promise<BaseQueryResult> => {
-    const { keys, values, placeholders, updateSet, conflict } =
+    const { columns, values, placeholders, updateSet, conflict } =
       buildPostgresUpsertParts(conflictColumns, serializedData);
-    const sql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
+    const sql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders}) ON CONFLICT(${conflict}) DO UPDATE SET ${updateSet}`;
     const result = await executor.query(sql, values);
     return { operation: 'upsert', affected: result.rowCount ?? 0 };
   };
@@ -949,10 +1000,8 @@ async function createDatabase(
     conflictColumns: string[],
     serializedData: Record<string, any>,
   ): Promise<BaseQueryResult> => {
-    const { keys, values, placeholders } = buildPostgresUpsertParts(
-      conflictColumns,
-      serializedData,
-    );
+    const { columns, values, placeholders, updateSet } =
+      buildPostgresUpsertParts(conflictColumns, serializedData);
     const lockKey = conflictColumns
       .map((col) => `${col}:${JSON.stringify(serializedData[col])}`)
       .join('|');
@@ -962,10 +1011,12 @@ async function createDatabase(
       [`@happyvertical/sql.upsert:${table}`, lockKey],
     );
 
-    const updateSet = keys.map((key, i) => `${key} = $${i + 1}`).join(', ');
     const whereStart = values.length + 1;
     const whereClause = conflictColumns
-      .map((col, i) => `${col} IS NOT DISTINCT FROM $${whereStart + i}`)
+      .map(
+        (col, i) =>
+          `${quotePostgresColumnName(col)} IS NOT DISTINCT FROM $${whereStart + i}`,
+      )
       .join(' AND ');
     const whereValues = conflictColumns.map((col) => serializedData[col]);
     const updateSql = `UPDATE ${table} SET ${updateSet} WHERE ${whereClause}`;
@@ -978,7 +1029,7 @@ async function createDatabase(
       return { operation: 'upsert', affected: updateResult.rowCount ?? 0 };
     }
 
-    const insertSql = `INSERT INTO ${table} (${keys.join(', ')}) VALUES (${placeholders})`;
+    const insertSql = `INSERT INTO ${table} (${columns.join(', ')}) VALUES (${placeholders})`;
     const insertResult = await executor.query(insertSql, values);
     return { operation: 'upsert', affected: insertResult.rowCount ?? 0 };
   };
@@ -1055,6 +1106,271 @@ async function createDatabase(
     }
   };
 
+  /**
+   * Keeps the first PostgreSQL statement failure attached to a transaction.
+   *
+   * PostgreSQL reports every later statement in an aborted transaction as
+   * 25P02. Replacing the first failure with that generic state error hides the
+   * actionable code and diagnostics from callers. The scoped executor instead
+   * rethrows the first failure whenever PostgreSQL reports 25P02, and exposes
+   * the recorded failure so a swallowed statement error cannot make COMMIT's
+   * implicit rollback look successful.
+   */
+  const createTransactionExecutor = (txClient: PoolClient) => {
+    let firstError: unknown;
+    let firstUnconfirmedError: unknown;
+    const pending = new Set<Promise<unknown>>();
+
+    const isRollbackToSavepoint = (query: unknown): boolean => {
+      const sql =
+        typeof query === 'string'
+          ? query
+          : typeof query === 'object' &&
+              query !== null &&
+              'text' in query &&
+              typeof query.text === 'string'
+            ? query.text
+            : undefined;
+      if (sql === undefined) return false;
+
+      let statement = sql.trimStart();
+      while (statement.startsWith('--') || statement.startsWith('/*')) {
+        if (statement.startsWith('--')) {
+          const newline = statement.search(/[\r\n]/);
+          if (newline === -1) return false;
+          statement = statement.slice(newline + 1).trimStart();
+          continue;
+        }
+        const commentEnd = statement.indexOf('*/', 2);
+        if (commentEnd === -1) return false;
+        statement = statement.slice(commentEnd + 2).trimStart();
+      }
+      return /^ROLLBACK\s+TO(?:\s+SAVEPOINT)?\s+/i.test(statement);
+    };
+
+    const errorCode = (error: unknown): string | undefined => {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        typeof error.code === 'string'
+      ) {
+        return error.code;
+      }
+      return undefined;
+    };
+
+    const preserveFirstError = (error: unknown): unknown => {
+      if (errorCode(error) === '25P02' && firstError !== undefined) {
+        return firstError;
+      }
+      if (errorCode(error) === '25P02' && firstUnconfirmedError !== undefined) {
+        return firstUnconfirmedError;
+      }
+      if (error instanceof PgDatabaseError) {
+        firstError ??= error;
+      } else {
+        firstUnconfirmedError ??= error;
+      }
+      return error;
+    };
+
+    const track = <T>(operation: Promise<T>, query: unknown): Promise<T> => {
+      const tracked = operation
+        .then((result) => {
+          if (isRollbackToSavepoint(query)) firstError = undefined;
+          firstUnconfirmedError = undefined;
+          return result;
+        })
+        .catch((error) => {
+          throw preserveFirstError(error);
+        });
+      pending.add(tracked);
+      void tracked.finally(() => pending.delete(tracked)).catch(() => {});
+      return tracked;
+    };
+
+    const executor: PostgresQueryExecutor = {
+      query: (sql, values) => track(txClient.query(sql, values), sql),
+    };
+
+    const client = new Proxy(txClient, {
+      get(target, property) {
+        if (property === 'query') {
+          return (...args: any[]) => {
+            const query = args[0];
+            const callbackIndex =
+              typeof args.at(-1) === 'function' ? args.length - 1 : -1;
+            const submittable =
+              typeof query === 'object' &&
+              query !== null &&
+              'submit' in query &&
+              typeof query.submit === 'function';
+
+            if (submittable) {
+              if (
+                !('handleError' in query) ||
+                typeof query.handleError !== 'function' ||
+                !('handleReadyForQuery' in query) ||
+                typeof query.handleReadyForQuery !== 'function'
+              ) {
+                return Reflect.apply(target.query, target, args);
+              }
+
+              const handleError = query.handleError;
+              const handleReadyForQuery = query.handleReadyForQuery;
+              let complete!: () => void;
+              const completion = new Promise<void>((resolve) => {
+                complete = resolve;
+              });
+              let completed = false;
+              const finish = () => {
+                if (completed) return;
+                completed = true;
+                query.handleError = handleError;
+                query.handleReadyForQuery = handleReadyForQuery;
+                pending.delete(completion);
+                complete();
+              };
+              pending.add(completion);
+              query.handleError = function (...handlerArgs: unknown[]) {
+                const error = preserveFirstError(handlerArgs[0]);
+                try {
+                  return Reflect.apply(handleError, this, [
+                    error,
+                    ...handlerArgs.slice(1),
+                  ]);
+                } finally {
+                  finish();
+                }
+              };
+              query.handleReadyForQuery = function (...handlerArgs: unknown[]) {
+                try {
+                  const result = Reflect.apply(
+                    handleReadyForQuery,
+                    this,
+                    handlerArgs,
+                  );
+                  if (isRollbackToSavepoint(query)) firstError = undefined;
+                  firstUnconfirmedError = undefined;
+                  return result;
+                } finally {
+                  finish();
+                }
+              };
+              try {
+                return Reflect.apply(target.query, target, args);
+              } catch (error) {
+                finish();
+                throw preserveFirstError(error);
+              }
+            }
+
+            if (callbackIndex !== -1) {
+              const callback = args[callbackIndex];
+              let complete!: () => void;
+              const completion = new Promise<void>((resolve) => {
+                complete = resolve;
+              });
+              pending.add(completion);
+              args[callbackIndex] = (error: unknown, result: unknown) => {
+                const callbackError =
+                  error === null || error === undefined
+                    ? error
+                    : preserveFirstError(error);
+                if (callbackError === null || callbackError === undefined) {
+                  if (isRollbackToSavepoint(query)) firstError = undefined;
+                  firstUnconfirmedError = undefined;
+                }
+                pending.delete(completion);
+                complete();
+                callback(callbackError, result);
+              };
+              try {
+                return Reflect.apply(target.query, target, args);
+              } catch (error) {
+                pending.delete(completion);
+                complete();
+                throw preserveFirstError(error);
+              }
+            }
+
+            const result = Reflect.apply(target.query, target, args);
+            if (
+              typeof result === 'object' &&
+              result !== null &&
+              'then' in result &&
+              typeof result.then === 'function'
+            ) {
+              return track(Promise.resolve(result), query);
+            }
+            if (
+              typeof result === 'object' &&
+              result !== null &&
+              'once' in result &&
+              typeof result.once === 'function'
+            ) {
+              let complete!: () => void;
+              const completion = new Promise<void>((resolve) => {
+                complete = resolve;
+              });
+              const finish = () => {
+                pending.delete(completion);
+                complete();
+              };
+              pending.add(completion);
+              result.once('error', (error: unknown) => {
+                preserveFirstError(error);
+                finish();
+              });
+              result.once('end', () => {
+                if (isRollbackToSavepoint(query)) firstError = undefined;
+                firstUnconfirmedError = undefined;
+                finish();
+              });
+              result.once('close', finish);
+            }
+            return result;
+          };
+        }
+        return Reflect.get(target, property, target);
+      },
+    });
+
+    return {
+      client,
+      executor,
+      clearError: () => {
+        firstError = undefined;
+      },
+      drain: async () => {
+        while (pending.size > 0) {
+          await Promise.allSettled([...pending]);
+        }
+      },
+      getError: () => firstError,
+      getUnconfirmedError: () => firstUnconfirmedError,
+    };
+  };
+
+  const assertCommitted = (
+    result: PgQueryResult,
+    transactionState?: ReturnType<typeof createTransactionExecutor>,
+  ): void => {
+    if (result.command === 'COMMIT') return;
+
+    const queryError =
+      transactionState?.getError() ?? transactionState?.getUnconfirmedError();
+    if (queryError !== undefined) throw queryError;
+
+    throw new DatabaseError(
+      'PostgreSQL rolled back the transaction at commit',
+      {
+        command: result.command,
+      },
+    );
+  };
+
   const executeNullAwarePostgresUpsertInTransaction = async (
     table: string,
     conflictColumns: string[],
@@ -1070,7 +1386,8 @@ async function createDatabase(
         conflictColumns,
         serializedData,
       );
-      await txClient.query('COMMIT');
+      const commitResult = await txClient.query('COMMIT');
+      assertCommitted(commitResult);
       releaseTxClient(txClient);
       return result;
     } catch (error) {
@@ -1186,37 +1503,18 @@ async function createDatabase(
    * Binding a client is the only difference between the two, so it is the only
    * thing this factory parameterizes.
    *
-   * One thing is deliberately NOT unified: how `insert` and `update` serialize
-   * values. The pool-backed methods run every value through `serializeRecord`,
-   * which JSON-stringifies objects and arrays; the transaction-scoped copies
-   * never did, so they handed the raw value to `pg`. That is not a cosmetic
-   * difference — it decides what lands in the column, and no single answer is
-   * right for both shapes:
-   *
-   * ```
-   *                    text[] column     jsonb column
-   *   raw JS array     accepted          "invalid input syntax for type json"
-   *   JSON string      "malformed        accepted
-   *                     array literal"
-   * ```
-   *
-   * So collapsing the two would have silently broken array-column writes inside
-   * a transaction while fixing jsonb-array writes, or the reverse — and would
-   * have corrupted `bytea` writes, where a Buffer would become the JSON of a
-   * Buffer with no error anywhere. Neither belongs in a fix for the error
-   * contract, so the serializer is a parameter: each interface keeps exactly
-   * the behaviour it had, and the difference is stated here instead of being an
-   * accident of two copies drifting apart.
-   *
    * @param executor - Pool or checked-out client every statement runs on
    * @param inTransaction - Whether `executor` is already inside a transaction
    * @param serialize - Applied to each record before `insert`/`update` builds
-   *   its SQL. Pass-through for the transaction-scoped interfaces.
+   *   its SQL
+   * @param clearTransactionError - Clears a statement error after a savepoint
+   *   has successfully restored the transaction to a usable state
    */
   const createClientMethods = (
     executor: PostgresQueryExecutor,
     inTransaction: boolean,
     serialize: (record: Record<string, any>) => Record<string, any>,
+    clearTransactionError: () => void = () => {},
   ) => {
     /**
      * Inserts one or more records into a table
@@ -1414,9 +1712,9 @@ async function createDatabase(
       // exact arrays the executors interpolate — outside the try. `data` is
       // serialized (a plain-object snapshot) and `conflictColumns` is copied,
       // so neither a hostile record nor a hostile conflict-column array can
-      // present different identifiers to the check and the unquoted SQL, and an
+      // present different identifiers to the check and the SQL renderer. An
       // invalid identifier surfaces by name rather than as the generic wrapper
-      // below. Conflict columns are interpolated bare into `ON CONFLICT(...)`.
+      // below; PostgreSQL columns are lowercased and quoted after validation.
       const serializedData = serializeRecord(data);
       const conflictCols = [...conflictColumns];
       validateColumnNames([...conflictCols, ...Object.keys(serializedData)]);
@@ -1687,15 +1985,18 @@ async function createDatabase(
       const query = normalizePostgresRawQuery(sql, values);
       try {
         const result = await executor.query(query.sql, query.values);
+        // A successful rollback to a caller-managed savepoint restores the
+        // transaction to the state at that savepoint, so any recorded
+        // statement failure has been contained and must no longer poison the
+        // enclosing commit. This mirrors the adapter-managed savepoint paths.
         return {
           rows: result.rows,
           rowCount: result.rowCount ?? 0,
         };
       } catch (e) {
-        throw new DatabaseError('Failed to execute raw query', {
+        throw wrapDatabaseError('Failed to execute raw query', e, {
           sql: query.sql,
           values: query.values,
-          originalError: formatDbError(e),
         });
       }
     };
@@ -1749,6 +2050,7 @@ async function createDatabase(
       } catch (error) {
         // ROLLBACK TO leaves the savepoint defined, so release it too.
         await executor.query(`ROLLBACK TO SAVEPOINT ${name}`);
+        clearTransactionError();
         await executor.query(`RELEASE SAVEPOINT ${name}`);
         throw error;
       }
@@ -1760,17 +2062,24 @@ async function createDatabase(
         .split(';')
         .filter((command) => command.trim() !== '');
 
-      // Match CREATE INDEX statements (Issue #867)
-      // Supports: CREATE INDEX, CREATE UNIQUE INDEX, with IF NOT EXISTS
+      // Match CREATE INDEX statements (Issues #867 and #1040).
+      // Named groups keep optional clauses from shifting identifier captures.
       const createIndexRegex =
-        /CREATE (UNIQUE )?INDEX (IF NOT EXISTS )?"?(\w+)"? ON "?(\w+)"?\s*\(([^)]+)\)/i;
+        /CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:CONCURRENTLY\s+)?(?:IF\s+NOT\s+EXISTS\s+)?"?(?<indexName>\w+)"?\s+ON\s+"?(?<tableName>\w+)"?\s*(?:USING\s+"?\w+"?\s*)?\([^)]+\)/i;
+      const parseCreateIndex = (
+        command: string,
+      ): { indexName: string; tableName: string } | null => {
+        const { indexName, tableName } =
+          command.match(createIndexRegex)?.groups ?? {};
+        return indexName && tableName ? { indexName, tableName } : null;
+      };
 
       // Pre-scan commands to collect all index names for batch existence check (Issue #798)
       const indexNames: string[] = [];
       for (const command of commands) {
-        const indexMatch = command.trim().match(createIndexRegex);
+        const indexMatch = parseCreateIndex(command.trim());
         if (indexMatch) {
-          indexNames.push(indexMatch[3]);
+          indexNames.push(indexMatch.indexName);
         }
       }
 
@@ -1810,11 +2119,27 @@ async function createDatabase(
             // Table exists, check for missing columns
             for (const column of columns) {
               const columnDef = column.trim();
+              // Table constraints are not column definitions. In particular,
+              // a quoted constraint name would otherwise let the unanchored
+              // column matcher start at that name and generate an invalid
+              // ADD COLUMN statement.
+              if (
+                /^(?:CONSTRAINT\s+(?:"(?:[^"]|"")*"|\w+)\s+)?(?:(?:PRIMARY\s+KEY|FOREIGN\s+KEY|UNIQUE|CHECK)\b|EXCLUDE(?=\s+(?:USING\b|\()))/i.test(
+                  columnDef,
+                )
+              ) {
+                continue;
+              }
               // Match column name with optional quotes: "id" or id
-              const columnMatch = columnDef.match(/"?(\w+)"?\s+(\w+[^,]*)/);
+              const columnMatch = columnDef.match(
+                /^("(?:[^"]|"")*"|\w+)\s+\w+[^,]*/,
+              );
 
               if (columnMatch) {
-                const columnName = columnMatch[1];
+                const identifier = columnMatch[1];
+                const columnName = identifier.startsWith('"')
+                  ? identifier.slice(1, -1).replace(/""/g, '"')
+                  : identifier;
 
                 // Skip constraint definitions
                 if (
@@ -1860,11 +2185,10 @@ async function createDatabase(
           continue;
         }
 
-        const indexMatch = trimmedCommand.match(createIndexRegex);
+        const indexMatch = parseCreateIndex(trimmedCommand);
 
         if (indexMatch) {
-          const indexName = indexMatch[3];
-          const indexTableName = indexMatch[4];
+          const { indexName, tableName: indexTableName } = indexMatch;
 
           // Use pre-fetched batch result instead of per-index query
           if (!existingIndexes.has(indexName)) {
@@ -1995,10 +2319,9 @@ async function createDatabase(
             rowCount: result.rowCount ?? 0,
           };
         } catch (e) {
-          throw new DatabaseError('Failed to execute session query', {
+          throw wrapDatabaseError('Failed to execute session query', e, {
             sql: normalized.sql,
             values: normalized.values,
-            originalError: formatDbError(e),
           });
         }
       },
@@ -2052,12 +2375,13 @@ async function createDatabase(
    * rather than on a lock, so `deadlock_timeout` never fires and the process
    * hangs until some unrelated timeout.
    *
-   * @param txClient - The client running the enclosing transaction
+   * @param executor - Error-preserving executor bound to the enclosing client
    * @param scopeFor - Builds the interface handed to the nested callback
    */
   const createNestedTransaction = (
-    txClient: PoolClient,
+    executor: PostgresQueryExecutor,
     scopeFor: () => DatabaseInterface,
+    clearTransactionError: () => void,
   ) => {
     // PostgreSQL permits nested savepoints, but a sibling savepoint cannot be
     // released while a later sibling is still open: releasing the earlier one
@@ -2081,13 +2405,13 @@ async function createDatabase(
     ): Promise<T> => {
       savepointSequence += 1;
       const name = `hv_sp_${savepointSequence}`;
-      await txClient.query(`SAVEPOINT ${name}`);
+      await executor.query(`SAVEPOINT ${name}`);
       try {
         const result = await callback(scopeFor());
         // A callback may start nested work without awaiting it. Its savepoint
         // must remain open until that work is finished.
         await scope.tail;
-        await txClient.query(`RELEASE SAVEPOINT ${name}`);
+        await executor.query(`RELEASE SAVEPOINT ${name}`);
         return result;
       } catch (error) {
         // Promise.all rejects as soon as one sibling fails, but queued siblings
@@ -2096,8 +2420,9 @@ async function createDatabase(
         try {
           // ROLLBACK TO leaves the savepoint defined, so release it too or it
           // accumulates for the life of the transaction.
-          await txClient.query(`ROLLBACK TO SAVEPOINT ${name}`);
-          await txClient.query(`RELEASE SAVEPOINT ${name}`);
+          await executor.query(`ROLLBACK TO SAVEPOINT ${name}`);
+          clearTransactionError();
+          await executor.query(`RELEASE SAVEPOINT ${name}`);
         } catch {
           // The enclosing transaction is already unwinding; its own teardown
           // owns the connection from here.
@@ -2140,28 +2465,45 @@ async function createDatabase(
     let nestedTransaction:
       | ReturnType<typeof createNestedTransaction>
       | undefined;
+    const transactionState = createTransactionExecutor(txClient);
     try {
       await txClient.query('BEGIN');
 
       // Create a transaction-scoped database interface
       let txDb!: DatabaseInterface;
-      nestedTransaction = createNestedTransaction(txClient, () => txDb);
+      nestedTransaction = createNestedTransaction(
+        transactionState.executor,
+        () => txDb,
+        transactionState.clearError,
+      );
       txDb = {
         url,
-        client: txClient,
-        ...createClientMethods(txClient, true, passThroughRecord),
+        client: transactionState.client,
+        ...createClientMethods(
+          transactionState.executor,
+          true,
+          serializeRecord,
+          transactionState.clearError,
+        ),
         transaction: nestedTransaction,
       };
 
       const result = await callback(txDb);
       await nestedTransaction.drain();
-      await txClient.query('COMMIT');
+      await transactionState.drain();
+      const statementError = transactionState.getError();
+      if (statementError !== undefined) {
+        throw statementError;
+      }
+      const commitResult = await txClient.query('COMMIT');
+      assertCommitted(commitResult, transactionState);
       releaseTxClient(txClient);
       return result;
     } catch (error) {
       // Promise.all may reject before queued nested scopes finish. Do not
       // release this client until their savepoint work has drained.
       await nestedTransaction?.drain();
+      await transactionState.drain();
       // Never let a failing ROLLBACK replace the caller's error. On a dead
       // connection the rollback throws "Connection terminated unexpectedly",
       // which would otherwise be the only thing the caller ever sees.
@@ -2197,6 +2539,7 @@ async function createDatabase(
     let nestedTransaction:
       | ReturnType<typeof createNestedTransaction>
       | undefined;
+    const transactionState = createTransactionExecutor(txClient);
 
     // COMMIT and ROLLBACK both throw in ordinary operation — deferred
     // constraint violations, serialization failures, a connection lost at
@@ -2209,7 +2552,13 @@ async function createDatabase(
       }
       try {
         await nestedTransaction?.drain();
-        await txClient.query(command);
+        await transactionState.drain();
+        const statementError = transactionState.getError();
+        if (command === 'COMMIT' && statementError !== undefined) {
+          throw statementError;
+        }
+        const result = await txClient.query(command);
+        if (command === 'COMMIT') assertCommitted(result, transactionState);
         active = false;
         releaseTxClient(txClient);
       } catch (error) {
@@ -2230,11 +2579,20 @@ async function createDatabase(
 
     // Create a transaction-scoped database interface with commit/rollback
     let txHandle!: TransactionHandle;
-    nestedTransaction = createNestedTransaction(txClient, () => txHandle);
+    nestedTransaction = createNestedTransaction(
+      transactionState.executor,
+      () => txHandle,
+      transactionState.clearError,
+    );
     txHandle = {
       url,
-      client: txClient,
-      ...createClientMethods(txClient, true, passThroughRecord),
+      client: transactionState.client,
+      ...createClientMethods(
+        transactionState.executor,
+        true,
+        serializeRecord,
+        transactionState.clearError,
+      ),
       transaction: nestedTransaction,
       commit,
       rollback,
@@ -2447,14 +2805,15 @@ async function createDatabase(
       validateTableName(table);
       validateColumnName(column.name);
 
+      let sql: string | undefined;
       try {
-        const sql = generateAddColumnStatement(table, column, 'postgres');
+        sql = generateAddColumnStatement(table, column, 'postgres');
         await client.query(sql);
       } catch (e) {
-        throw new DatabaseError('Failed to add column to table', {
+        throw wrapDatabaseError('Failed to add column to table', e, {
           table,
           column: column.name,
-          originalError: formatDbError(e),
+          ...(sql ? { sql } : {}),
         });
       }
     },
@@ -2475,14 +2834,15 @@ async function createDatabase(
         validateColumnName(col);
       }
 
+      let sql: string | undefined;
       try {
-        const sql = generateCreateIndexStatement(table, index);
+        sql = generateCreateIndexStatement(table, index);
         await client.query(sql);
       } catch (e) {
-        throw new DatabaseError('Failed to create index on table', {
+        throw wrapDatabaseError('Failed to create index on table', e, {
           table,
           index: index.name,
-          originalError: formatDbError(e),
+          ...(sql ? { sql } : {}),
         });
       }
     },

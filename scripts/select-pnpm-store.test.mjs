@@ -13,15 +13,10 @@ const script = fileURLToPath(
   ),
 );
 
-// Runner names observed serving the consolidated `arc-happyvertical` pool.
-// The retired `arc-happyvertical-node-*` prefix matches none of them, which is
-// what silently disabled persistent store reuse. Store selection must not
-// consult the runner name at all.
-const CONSOLIDATED_RUNNER_NAMES = [
-  'landgraf-9175a7e5b7fc301f96cced3d',
-  'landgraf-d089e2b07b8f3ffc99eab938',
-  'patdown-jit-124ee1a96d100de58647a7be-runner',
-  'patdown-jit-0f7aac129209b3507ec6bfee-runner',
+// Store selection must not depend on a provider-specific runner name.
+const SELF_HOSTED_RUNNER_NAMES = [
+  'self-hosted-linux-x64-a',
+  'self-hosted-linux-x64-b',
 ];
 
 function runScript(env) {
@@ -75,7 +70,7 @@ function selectStore(env) {
 }
 
 test('reuses the node-local persistent store whatever the runner is named', () => {
-  for (const runnerName of CONSOLIDATED_RUNNER_NAMES) {
+  for (const runnerName of SELF_HOSTED_RUNNER_NAMES) {
     assert.deepEqual(
       selectStore({
         RUNNER_ENVIRONMENT: 'self-hosted',

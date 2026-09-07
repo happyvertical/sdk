@@ -1,95 +1,45 @@
 # SDK continuous integration
 
-SDK routes portable CI for trusted repository work through the provider-neutral
-`arc-happyvertical` broker alias. No validation family is removed: pull
-requests run affected closures after the rollout flag is enabled, while merge
-groups run the exhaustive build, typecheck, lint, test, optional-adapter,
-documentation, package, and PostgreSQL suites.
+SDK runs portable Linux CI on GitHub-hosted `ubuntu-latest` runners. No
+validation family is removed: pull requests run affected closures after the
+rollout flag is enabled, while merge groups run the exhaustive build, typecheck,
+lint, test, optional-adapter, documentation, package, and PostgreSQL suites.
 
 ## Runner selection
 
-- `arc-happyvertical` is the sole workflow-facing selector for portable,
-  repository-owned Linux CI. Runner-pool policy chooses its backing capacity;
-  workflows must not name a provider-specific backing label.
+- Active portable workflows use `ubuntu-latest`.
 - Matrix-native jobs such as `build-json-native.yml` retain their hosted OS
   runners.
-- The public `shared-direct-publish.yml` reusable workflow remains hosted so
-  arbitrary external callers are never routed into HappyVertical capacity.
+- Every GitHub-hosted job receives an isolated workspace and uses the
+  Actions-backed pnpm store cache selected by
+  `.github/actions/setup-environment/select-pnpm-store.sh`.
 
-Each brokered runner keeps the workspace isolated from concurrent jobs. The
-node-local pnpm store is deliberately not isolated: every job landing on a node
-shares it, which is what makes reuse possible and why a runner that advertises no
-persistent store is treated as a fault below. Only the per-job fallback store is
-job-scoped. Safe caches may survive sequential jobs on a warm host.
-
-The runner workspace and the pnpm store derived by `pnpm store path` must share
-a filesystem. The smoke workflow verifies matching device IDs, confirms that
-installed dependency files have hardlink counts above one, and validates the
-digest-pinned PostgreSQL/pgvector service contract. The persistent store is
-never restored through GitHub Actions.
-
-`.github/actions/setup-environment/select-pnpm-store.sh` picks between the
-three stores. A self-hosted runner that exports `PNPM_STORE_DIR` gets the
-node-local persistent store; a hosted runner gets the Actions-backed cache.
-Selection keys on `RUNNER_ENVIRONMENT` and that export only — never on
-`RUNNER_NAME`. Runner names are provider-specific and the runner contract
-forbids naming a provider-specific backing label, so a name-based gate silently
-stops matching whenever a pool is renamed or consolidated.
-`scripts/select-pnpm-store.test.mjs`, under `pnpm test:ci-scripts`, gates that
-decision table on every pull request.
-
-### A self-hosted runner without `PNPM_STORE_DIR` fails the job
-
-`PNPM_STORE_DIR` is **not** part of the runner target contract, so no provider
-is obligated to export it. Every `arc-runners-happyvertical` variant and the
-Landgraf broker provider do export it today, but a provider that quietly
-stopped would cost a cold store on every job while every check stayed green —
-the same silent degradation that made this bug invisible for as long as it was.
-happyvertical/have-config#335 proposes raising it into the contract, which
-would make the guarantee real rather than conventional.
-
-So that case is a hard error, not a fallback. Two opt-outs accept a cold per-job
-store under `$RUNNER_TEMP` instead, and the job then warns — naming the runner
-and which opt-out applied — rather than failing:
-
-- `allow-ephemeral-store: true` passed to `setup-environment`, for a single
-  workflow that knowingly runs without a persistent store. It needs no
-  infrastructure access and wins over the environment variable.
-- `CI_ALLOW_EPHEMERAL_PNPM_STORE=true` exported from the runner or set in a
-  workflow `env:` block, for recovering fleet-wide without a code change if a
-  provider stops exporting `PNPM_STORE_DIR`.
-
-Only the exact string `true` opts out. Anything else fails closed, and the
-error names all three remedies.
-
-The device-ID and hardlink-count checks prove the store and workspace can
-hardlink; they cannot prove reuse, because pnpm hardlinks into `node_modules`
-on every install regardless of whether the store was already populated. So each
-smoke job also asserts `use-actions-cache=false` and a resolved store path under
-`PNPM_STORE_DIR`, and the `store-reuse` job reports whether the store arrived
-warm from the preceding job. Warmth is reported rather than gated: the broker
-spans several nodes and issues ephemeral JIT identities, so a later job may
-legitimately land on an untouched node.
+The cache is an acceleration, not a correctness dependency: a cache miss must
+leave a clean install that succeeds. The runner smoke workflow verifies the
+hosted environment, cache strategy, pnpm hardlink layout, and the digest-pinned
+PostgreSQL/pgvector service contract. `scripts/select-pnpm-store.test.mjs`, run
+by `pnpm test:ci-scripts`, continues to cover the composite action's supported
+self-hosted fallback behavior without making it part of this repository's CI.
 
 ## Trusted-base public pull requests
 
-The brokered PR and Dependabot workflows use `pull_request_target`, so GitHub
-loads runner selection from the trusted base branch rather than
-contributor-controlled merge YAML. Only a same-repository PR explicitly checks
-out `github.event.pull_request.head.sha`; that SHA is passed into reusable
-validation workflows as `checkout_ref`. Merge groups use their synthetic
-`github.sha` normally.
+The PR and Dependabot workflows use `pull_request_target`, so GitHub loads the
+workflow definition from the trusted base branch rather than contributor-
+controlled merge YAML. Direct hosted checks use `CHECKOUT_REF`: a
+same-repository PR selects its reviewed head while a fork selects the trusted
+base. The reusable code-validation workflows retain the same-repository guard
+and receive the reviewed head as `checkout_ref`. Merge groups use their
+synthetic `github.sha` normally.
 
 The lifecycle workflow stays on plain `pull_request` by design — the agent
-policy audits `on.pull_request.types` and rejects a narrowed trigger set — and
-is hosted, so it never reaches brokered capacity. See "External fork pull
-requests" for what that means on a fork.
+policy audits `on.pull_request.types` and rejects a narrowed trigger set. Fork
+code is never checked out in a trusted-base job. See "External fork pull
+requests" for the supported contribution route.
 
-An external fork never gets an `arc-happyvertical` job: each job is guarded by
-the same-repository test before GitHub allocates a runner, and fork code is
-never checked out in this path. Broker-side admission independently denies fork
-events before reservation. This boundary is intentional; do not replace it
-with a job-level guard in an ordinary `pull_request` workflow.
+For an external fork, hosted baseline jobs run only the trusted base. The
+same-repository reusable validation jobs skip before allocation, so fork code
+is never checked out in this workflow. This boundary is intentional; do not
+replace it with a job-level guard in an ordinary `pull_request` workflow.
 
 ## Turbo cache behavior
 
@@ -156,15 +106,12 @@ already proven by the merge group and performs release/deployment work only.
 ## External fork pull requests
 
 A pull request opened from a fork receives no validation of its code, by
-design, and `Required CI` can never pass on one. Every protected job is guarded
-by the same-repository test described under "Trusted-base public pull
-requests", so on a fork pull request all of them skip; `required-ci` is a
-hosted `always()` fan-in that rejects a skipped result, so it fails. The runner
-target contract independently fixes `public_fork_pull_requests: "deny"` as a
-schema constant — not a tunable default — so untrusted fork code is never
-admitted to the root-capable pool even if a job-level guard were removed. The
-contract ships in the agent-policy artifact as
-`contracts/runner-target-contract-v2.json`.
+design, and `Required CI` can never pass on one. Hosted baseline jobs run the
+trusted base, while each protected reusable validation job is guarded by the
+same-repository test and skips before allocation. The hosted `always()` fan-in
+rejects that skipped protected result, so it fails. This boundary is necessary
+because these are `pull_request_target` jobs, which must not check out
+unreviewed fork code with trusted-base permissions.
 
 `Required CI` is the fork guard, and it is the check that fails here.
 `lifecycle`, the other required check, is hosted, triggers on plain
@@ -216,8 +163,8 @@ exist today; until it does, in-repo re-creation is the only supported option.
 ## PostgreSQL isolation
 
 `postgres-tests.yml` provisions its own PostgreSQL for every run: a
-digest-pinned `pgvector/pgvector:pg17` service container on the brokered
-runner, reached over `localhost` with throwaway `postgres`/`postgres`
+digest-pinned `pgvector/pgvector:pg17` service container on the GitHub-hosted
+Ubuntu runner, reached over `localhost` with throwaway `postgres`/`postgres`
 credentials. There is exactly one backend, so the workflow offers no backend
 choice and has no fallback lane.
 
@@ -227,8 +174,8 @@ credential to scope, no long-lived database reachable from CI, and no
 abandoned-database cleanup to schedule. The `postgres`/`postgres` credentials
 are public constants checked into the workflow, not secrets: they grant
 superuser inside that one throwaway container and are worth nothing as a secret.
-Because a service container is now the only backend, the runner capacity the
-broker selects must support service containers.
+Because a service container is the only backend, this workflow requires the
+GitHub-hosted Ubuntu service-container capability.
 
 PostgreSQL-sensitive packages register one `test:postgres` script. The wrapper
 takes the maintenance connection from `CI_POSTGRES_BASE_URL`, creates a unique
@@ -283,8 +230,8 @@ remains independent and unchanged.
 ## Measurement and rollback
 
 For every rollout phase, record ten successful baseline and ten successful
-post-change runs. Capture setup time, wall time, queue time, self-hosted
-runner-minutes, peak Node-runner memory, and retries/flakes in the table below.
+post-change runs. Capture setup time, wall time, queue time, runner-minutes,
+peak Node-runner memory, and retries/flakes in the table below.
 
 | Phase | Window | Runs | Setup p50/p95 | Queue p95 | Runner min/PR | Memory p95/max | Retries |
 | --- | --- | ---: | --- | --- | ---: | --- | ---: |
@@ -300,7 +247,7 @@ runner-minutes, peak Node-runner memory, and retries/flakes in the table below.
 Stop or roll back if setup p95 exceeds 45 seconds, memory exceeds 8 GiB,
 required contexts disappear, or failure/retry rates increase. Targets are setup
 p50 below 30 seconds, queue p95 below two minutes, memory p95 below 5 GiB, and
-at least 30% fewer self-hosted runner-minutes per pull request.
+no material increase in runner-minutes per pull request.
 
 Rollback order:
 
@@ -308,7 +255,7 @@ Rollback order:
    `CI_POSTGRES_ENABLED` stops every automatic PostgreSQL run — pull request,
    merge group, and nightly — and there is no alternate backend to fail over
    to. Manual `workflow_dispatch` still runs the lane, as does the
-   dispatch-only brokered runner smoke test.
+   dispatch-only GitHub-hosted runner smoke test.
 2. Restore the previous required-context list and disable the merge queue.
 3. Use manual `publish-mode=changesets` only when artifact publication itself
    is the failing phase.

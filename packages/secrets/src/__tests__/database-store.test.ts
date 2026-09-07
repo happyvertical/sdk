@@ -62,7 +62,7 @@ describe('DatabaseSecretStore', () => {
     });
 
     it('encrypts and decrypts a secret', async () => {
-      const secretValue = 'sk_live_xxx123';
+      const secretValue = 'synthetic-secret-value';
 
       const envelope = await store.encrypt(
         testTenantId,

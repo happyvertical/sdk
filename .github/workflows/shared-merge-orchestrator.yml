@@ -55,7 +55,7 @@ jobs:
   summary:
     needs: [test, publish]
     if: always()
-    runs-on: arc-happyvertical
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:

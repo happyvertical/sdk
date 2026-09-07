@@ -1,5 +1,89 @@
 # @happyvertical/github-actions
 
+## 0.89.6
+
+### Patch Changes
+
+- @happyvertical/projects@0.89.6
+- @happyvertical/repos@0.89.6
+
+## 0.89.5
+
+### Patch Changes
+
+- @happyvertical/projects@0.89.5
+- @happyvertical/repos@0.89.5
+
+## 0.89.4
+
+### Patch Changes
+
+- @happyvertical/projects@0.89.4
+- @happyvertical/repos@0.89.4
+
+## 0.89.3
+
+### Patch Changes
+
+- @happyvertical/projects@0.89.3
+- @happyvertical/repos@0.89.3
+
+## 0.89.2
+
+### Patch Changes
+
+- @happyvertical/projects@0.89.2
+- @happyvertical/repos@0.89.2
+
+## 0.89.1
+
+### Patch Changes
+
+- @happyvertical/projects@0.89.1
+- @happyvertical/repos@0.89.1
+
+## 0.89.0
+
+### Patch Changes
+
+- @happyvertical/projects@0.89.0
+- @happyvertical/repos@0.89.0
+
+## 0.88.2
+
+### Patch Changes
+
+- @happyvertical/projects@0.88.2
+- @happyvertical/repos@0.88.2
+
+## 0.88.1
+
+### Patch Changes
+
+- @happyvertical/projects@0.88.1
+- @happyvertical/repos@0.88.1
+
+## 0.88.0
+
+### Patch Changes
+
+- @happyvertical/projects@0.88.0
+- @happyvertical/repos@0.88.0
+
+## 0.87.0
+
+### Patch Changes
+
+- @happyvertical/projects@0.87.0
+- @happyvertical/repos@0.87.0
+
+## 0.86.4
+
+### Patch Changes
+
+- @happyvertical/projects@0.86.4
+- @happyvertical/repos@0.86.4
+
 ## 0.86.3
 
 ### Patch Changes

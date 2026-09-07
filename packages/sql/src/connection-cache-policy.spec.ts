@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { Pool } from 'pg';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getDatabase } from './index';
 import {
@@ -8,7 +9,10 @@ import {
   getPostgresConnectionCacheKey,
   getDatabase as getPostgresDatabase,
 } from './postgres';
-import { ConnectionCache } from './shared/connection-cache';
+import {
+  ConnectionCache,
+  enableCachedValidation,
+} from './shared/connection-cache';
 import { createDuckDBResourceCloser } from './shared/duckdb-resources';
 import { redactDatabaseUrl } from './shared/redact-database-url';
 import { getCachedSqliteDatabase } from './shared/sqlite-connection-cache';
@@ -104,6 +108,229 @@ describe('shared connection cache policy', () => {
     releaseClose?.();
     await eviction;
     expect((await ordinaryCaller).id).toBe(2);
+  });
+
+  it('does not return a resource evicted while its cached validation awaits', async () => {
+    const cache = new ConnectionCache<{ id: number }>();
+    let created = 0;
+    let releaseValidation: (() => void) | undefined;
+    let releaseClose: (() => void) | undefined;
+    const validationStarted = vi.fn();
+    const closeStarted = vi.fn();
+    const create = async () => ({ id: ++created });
+    const close = async () => {
+      closeStarted();
+      await new Promise<void>((resolve) => {
+        releaseClose = resolve;
+      });
+    };
+    const first = await cache.getOrCreate('db', {}, create, close);
+    const reused = cache.getOrCreate('db', {}, create, close, async () => {
+      validationStarted();
+      await new Promise<void>((resolve) => {
+        releaseValidation = resolve;
+      });
+      return true;
+    });
+
+    await vi.waitFor(() => expect(validationStarted).toHaveBeenCalledOnce());
+    const eviction = cache.evict('db', close);
+    await vi.waitFor(() => expect(closeStarted).toHaveBeenCalledOnce());
+    releaseValidation?.();
+    expect(created).toBe(1);
+    releaseClose?.();
+
+    await eviction;
+    expect(await reused).not.toBe(first);
+    expect(created).toBe(2);
+  });
+
+  it('coalesces concurrent rejected cached validations for the same resource', async () => {
+    const cache = new ConnectionCache<{ id: number }>();
+    let created = 0;
+    let releaseClose: (() => void) | undefined;
+    const releaseValidation: (() => void)[] = [];
+    const close = vi.fn(async ({ id }: { id: number }) => {
+      if (id === 1) {
+        await new Promise<void>((resolve) => {
+          releaseClose = resolve;
+        });
+      }
+    });
+    const create = async () => ({ id: ++created });
+    await cache.getOrCreate('db', {}, create, close);
+    const validate = async ({ id }: { id: number }) => {
+      if (id !== 1) return true;
+      await new Promise<void>((resolve) => {
+        releaseValidation.push(resolve);
+      });
+      return false;
+    };
+    const first = cache.getOrCreate('db', {}, create, close, validate);
+    const second = cache.getOrCreate('db', {}, create, close, validate);
+
+    await vi.waitFor(() => expect(releaseValidation).toHaveLength(2));
+    for (const release of releaseValidation) release();
+    await vi.waitFor(() => expect(close).toHaveBeenCalledTimes(1));
+    releaseClose?.();
+
+    const [replacement, concurrent] = await Promise.all([first, second]);
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(created).toBe(2);
+    expect(concurrent).toBe(replacement);
+  });
+
+  it('keeps a cached resource when validation fails closed', async () => {
+    const cache = new ConnectionCache<{ id: number }>();
+    let created = 0;
+    const close = vi.fn(async () => {});
+    const create = async () => ({ id: ++created });
+    const cached = await cache.getOrCreate('db', {}, create, close);
+
+    await expect(
+      cache.getOrCreate('db', {}, create, close, async () => {
+        throw new Error('validation failed');
+      }),
+    ).rejects.toThrow('validation failed');
+    await expect(
+      cache.getOrCreate('db', {}, create, close, async () => true),
+    ).resolves.toBe(cached);
+    expect(created).toBe(1);
+    expect(close).not.toHaveBeenCalled();
+  });
+
+  it('upgrades a shared legacy cache that ignores cached validation', async () => {
+    const backing = new ConnectionCache<{ id: number }>();
+    const legacy = {
+      clear: backing.clear.bind(backing),
+      evict: backing.evict.bind(backing),
+      getOrCreate: (
+        key: string | undefined,
+        options: Record<string, boolean>,
+        create: () => Promise<{ id: number }>,
+        close: (connection: { id: number }) => Promise<void>,
+      ) => backing.getOrCreate(key, options, create, close),
+    } as unknown as ConnectionCache<{ id: number }>;
+    const cache = enableCachedValidation(legacy);
+    let created = 0;
+    const create = async () => ({ id: ++created });
+    const close = vi.fn(async () => {});
+    const original = await cache.getOrCreate('db', {}, create, close);
+    const validate = async ({ id }: { id: number }) => id !== original.id;
+
+    const [first, second] = await Promise.all([
+      cache.getOrCreate('db', {}, create, close, validate),
+      cache.getOrCreate('db', {}, create, close, validate),
+    ]);
+
+    expect(close).toHaveBeenCalledOnce();
+    expect(created).toBe(2);
+    expect(first).toBe(second);
+    expect(first).not.toBe(original);
+  });
+
+  it('keeps a legacy cache clear active through cached validation', async () => {
+    const backing = new ConnectionCache<{ id: number }>();
+    const legacy = {
+      clear: backing.clear.bind(backing),
+      evict: backing.evict.bind(backing),
+      getOrCreate: (
+        key: string | undefined,
+        options: Record<string, boolean>,
+        create: () => Promise<{ id: number }>,
+        close: (connection: { id: number }) => Promise<void>,
+      ) => backing.getOrCreate(key, options, create, close),
+    } as unknown as ConnectionCache<{ id: number }>;
+    const cache = enableCachedValidation(legacy);
+    let created = 0;
+    const create = async () => ({ id: ++created });
+    const close = vi.fn(async () => {});
+    await cache.getOrCreate('db', {}, create, close);
+    let validationStarted!: () => void;
+    let releaseValidation!: () => void;
+    const started = new Promise<void>((resolve) => {
+      validationStarted = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      releaseValidation = resolve;
+    });
+    const acquisition = cache.getOrCreate('db', {}, create, close, async () => {
+      validationStarted();
+      await blocked;
+      return true;
+    });
+
+    await started;
+    const clearing = cache.clear(close);
+    await vi.waitFor(() => expect(close).toHaveBeenCalledOnce());
+    releaseValidation();
+
+    await expect(acquisition).rejects.toThrow('cancelled by cache clear');
+    await clearing;
+    expect(created).toBe(1);
+    expect(backing.size).toBe(0);
+  });
+
+  it('cancels a legacy acquisition cleared during final reacquisition', async () => {
+    const resource = { id: 1 };
+    let calls = 0;
+    let reacquisitionStarted!: () => void;
+    let releaseReacquisition!: () => void;
+    const started = new Promise<void>((resolve) => {
+      reacquisitionStarted = resolve;
+    });
+    const blocked = new Promise<void>((resolve) => {
+      releaseReacquisition = resolve;
+    });
+    const close = vi.fn(async () => {});
+    const legacy = {
+      clear: async (closeResource: (value: { id: number }) => Promise<void>) =>
+        closeResource(resource),
+      evict: async () => {},
+      getOrCreate: async () => {
+        calls += 1;
+        if (calls === 3) {
+          reacquisitionStarted();
+          await blocked;
+        }
+        return resource;
+      },
+    } as unknown as ConnectionCache<{ id: number }>;
+    const cache = enableCachedValidation(legacy);
+    await cache.getOrCreate('db', {}, async () => resource, close);
+
+    const acquisition = cache.getOrCreate(
+      'db',
+      {},
+      async () => resource,
+      close,
+      async () => true,
+    );
+    await started;
+    const clearing = cache.clear(close);
+    await vi.waitFor(() => expect(close).toHaveBeenCalledOnce());
+    releaseReacquisition();
+
+    await expect(acquisition).rejects.toThrow('cancelled by cache clear');
+    await clearing;
+  });
+
+  it('preserves an undefined legacy clear rejection', async () => {
+    const legacy = {
+      clear: async () => Promise.reject(),
+      evict: async () => {},
+      getOrCreate: async () => ({ id: 1 }),
+    } as unknown as ConnectionCache<{ id: number }>;
+    const cache = enableCachedValidation(legacy);
+
+    const outcome = await cache
+      .clear(async () => {})
+      .then(
+        () => ({ status: 'fulfilled' as const, reason: undefined }),
+        (reason) => ({ status: 'rejected' as const, reason }),
+      );
+
+    expect(outcome).toEqual({ status: 'rejected', reason: undefined });
   });
 
   it('cannot republish an initializer that eviction caught in flight', async () => {
@@ -354,6 +581,61 @@ describe('PostgreSQL cache identity', () => {
     expect(firstKey).not.toContain('max');
   });
 
+  it.each([
+    'connectionTimeoutMillis',
+    'idleTimeoutMillis',
+  ] as const)('includes %s in the implicit pool identity', async (option) => {
+    const base = {
+      url: 'postgresql://cache-user:secret@localhost:5432/cache-db',
+      connectionTimeoutMillis: 1_000,
+      idleTimeoutMillis: 10_000,
+    };
+
+    const firstKey = await getPostgresConnectionCacheKey(base);
+    const changedKey = await getPostgresConnectionCacheKey({
+      ...base,
+      [option]: base[option] + 1,
+    });
+
+    expect(changedKey).not.toBe(firstKey);
+  });
+
+  it.each([
+    {
+      connection: 'URL',
+      options: {
+        url: 'postgresql://pool-user:secret@localhost:5432/pool-db',
+        connectionTimeoutMillis: 1_250,
+        idleTimeoutMillis: 2_500,
+      },
+    },
+    {
+      connection: 'discrete fields',
+      options: {
+        host: 'localhost',
+        database: 'pool-db',
+        user: 'pool-user',
+        password: 'secret',
+        connectionTimeoutMillis: 0,
+        idleTimeoutMillis: 0,
+      },
+    },
+  ])('forwards pool lifecycle options with $connection configuration', async ({
+    options,
+  }) => {
+    const db = await getPostgresDatabase({ ...options, cache: false });
+    const pool = db.client as Pool;
+
+    try {
+      expect(pool.options.connectionTimeoutMillis).toBe(
+        options.connectionTimeoutMillis,
+      );
+      expect(pool.options.idleTimeoutMillis).toBe(options.idleTimeoutMillis);
+    } finally {
+      await db.close?.();
+    }
+  });
+
   it('does not reuse a pool after password rotation or with cache:false', async () => {
     const base = {
       host: 'localhost',
@@ -429,6 +711,40 @@ describe('PostgreSQL cache identity', () => {
   it.each([
     { option: { max: Number.NaN }, message: 'pool max' },
     { option: { max: Number.POSITIVE_INFINITY }, message: 'pool max' },
+    {
+      option: { connectionTimeoutMillis: Number.NaN },
+      message: 'connectionTimeoutMillis',
+    },
+    {
+      option: { connectionTimeoutMillis: Number.POSITIVE_INFINITY },
+      message: 'connectionTimeoutMillis',
+    },
+    {
+      option: { connectionTimeoutMillis: -1 },
+      message: 'connectionTimeoutMillis',
+    },
+    {
+      option: { connectionTimeoutMillis: 1.5 },
+      message: 'connectionTimeoutMillis',
+    },
+    {
+      option: { connectionTimeoutMillis: 2_147_483_648 },
+      message: 'connectionTimeoutMillis',
+    },
+    {
+      option: { idleTimeoutMillis: Number.NaN },
+      message: 'idleTimeoutMillis',
+    },
+    {
+      option: { idleTimeoutMillis: Number.POSITIVE_INFINITY },
+      message: 'idleTimeoutMillis',
+    },
+    { option: { idleTimeoutMillis: -1 }, message: 'idleTimeoutMillis' },
+    { option: { idleTimeoutMillis: 1.5 }, message: 'idleTimeoutMillis' },
+    {
+      option: { idleTimeoutMillis: 2_147_483_648 },
+      message: 'idleTimeoutMillis',
+    },
     { option: { port: Number.NaN }, message: 'port' },
     { option: { port: 0 }, message: 'port' },
     { option: { port: 65_536 }, message: 'port' },

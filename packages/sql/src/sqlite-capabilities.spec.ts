@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseError } from '@happyvertical/utils';
 import { describe, expect, it } from 'vitest';
 import { getDatabase } from './index';
 import type { DatabaseInterface } from './shared/types';
@@ -134,6 +135,54 @@ describe('sqlite optional native capabilities', () => {
         await expect(
           db.get('widgets', { id: 'widget-1' }),
         ).resolves.toMatchObject({ id: 'widget-1', name: 'Test Widget' });
+      } finally {
+        await closeDb(db);
+      }
+    });
+  });
+
+  it('wraps native SQLite schema-alter failures with safe causes', async () => {
+    if (!(await optionalPackageAvailable('@sqliteai/sqlite-vector'))) {
+      return;
+    }
+
+    await withTempDb('sdk-sqlite-native-alter-', async (dbPath) => {
+      let db: DatabaseInterface | undefined;
+
+      try {
+        db = await getDatabase({
+          type: 'sqlite',
+          url: dbPath,
+          capabilities: { vector: true },
+        });
+        await db.query(
+          'CREATE TABLE native_alter_issue_744 (id TEXT PRIMARY KEY, name TEXT)',
+        );
+
+        const duplicateColumn = await db.alterTable
+          ?.addColumn('native_alter_issue_744', { name: 'name', type: 'text' })
+          .catch((error: unknown) => error);
+        expect(duplicateColumn).toBeInstanceOf(DatabaseError);
+        expect((duplicateColumn as DatabaseError).message).toContain(
+          'duplicate column name',
+        );
+        expect((duplicateColumn as DatabaseError).cause).toBeInstanceOf(Error);
+
+        await db.alterTable?.addIndex('native_alter_issue_744', {
+          name: 'native_alter_issue_744_name_idx',
+          columns: ['name'],
+        });
+        const duplicateIndex = await db.alterTable
+          ?.addIndex('native_alter_issue_744', {
+            name: 'native_alter_issue_744_name_idx',
+            columns: ['name'],
+          })
+          .catch((error: unknown) => error);
+        expect(duplicateIndex).toBeInstanceOf(DatabaseError);
+        expect((duplicateIndex as DatabaseError).message).toContain(
+          'already exists',
+        );
+        expect((duplicateIndex as DatabaseError).cause).toBeInstanceOf(Error);
       } finally {
         await closeDb(db);
       }

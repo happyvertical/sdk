@@ -274,11 +274,12 @@ export function validateColumnName(columnName: string): void {
  * Validates every identifier in a column list to prevent SQL injection
  *
  * Column names reaching the CRUD methods come from `Object.keys(data)` and the
- * caller's `conflictColumns`, both of which are interpolated into SQL. They are
- * checked rather than quoted deliberately: the accepted shape has no character
- * that can end an identifier, so quoting adds nothing to safety, and quoting a
- * name on PostgreSQL makes it case-sensitive, which would silently change which
- * column an existing caller addresses.
+ * caller's `conflictColumns`, both of which are interpolated into SQL. The
+ * accepted shape has no character that can end an identifier. Adapters may
+ * render a validated name bare, or quote it under an adapter-specific contract.
+ * PostgreSQL upsert uses {@link quotePostgresColumnName}, which canonicalizes
+ * the name before quoting so its established unquoted case-folding semantics
+ * do not change.
  *
  * @param columnNames - Column names to validate
  * @throws Error if any column name contains invalid characters
@@ -287,6 +288,25 @@ export function validateColumnNames(columnNames: string[]): void {
   for (const columnName of columnNames) {
     validateColumnName(columnName);
   }
+}
+
+/**
+ * Quotes a validated column name using PostgreSQL's historic case semantics.
+ *
+ * PostgreSQL folds every unquoted identifier to lowercase. The CRUD API has
+ * always accepted mixed-case inputs while rendering them unquoted, so quoting
+ * the caller's spelling directly would silently change which physical column
+ * is addressed. Validate the existing plain-identifier contract first, then
+ * lowercase before quoting: `mixedCase` still addresses `mixedcase`, while a
+ * reserved word such as `end` is no longer parsed as SQL syntax.
+ *
+ * @param columnName - Plain column name to render for PostgreSQL
+ * @returns A lowercase, double-quoted PostgreSQL identifier
+ * @throws Error if the column name is outside the CRUD identifier contract
+ */
+export function quotePostgresColumnName(columnName: string): string {
+  validateColumnName(columnName);
+  return `"${columnName.toLowerCase()}"`;
 }
 
 /**

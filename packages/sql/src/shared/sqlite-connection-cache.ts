@@ -1,7 +1,7 @@
 import { ConnectionCache } from './connection-cache';
 import type { DatabaseInterface, DatabaseOptions } from './types';
 
-export type SqliteAdapterPath = 'libsql' | 'native';
+export type SqliteAdapterPath = 'libsql' | 'native' | 'secure';
 
 const sqliteConnectionCache = new ConnectionCache<DatabaseInterface>();
 type SqliteCacheGroup = {
@@ -31,6 +31,10 @@ async function clearSqliteCacheGroup(dbid: string): Promise<void> {
         ),
         sqliteConnectionCache.evict(
           cacheKey(dbid, 'native'),
+          closeSqliteDatabase,
+        ),
+        sqliteConnectionCache.evict(
+          cacheKey(dbid, 'secure'),
           closeSqliteDatabase,
         ),
       ]);
@@ -91,17 +95,23 @@ export async function getCachedSqliteDatabase(
       const originalClose = db.close?.bind(db);
       let closePromise: Promise<void> | undefined;
       db.close = async () => {
-        sqliteConnectionCache.forget(db);
         if (!closePromise) {
           closePromise = originalClose?.() ?? Promise.resolve();
         }
         try {
           await closePromise;
+          sqliteConnectionCache.forget(db);
         } catch (error) {
           closePromise = undefined;
           throw error;
         }
       };
+      // Secure SQLite exposes a guarded public client.close() seam. Route it
+      // through the same cache-aware close boundary so a direct client close
+      // cannot leave a closed adapter cached under an explicit dbid.
+      if ((db.client as any)?.transactionReservation === 'exclusive') {
+        (db.client as any).close = db.close;
+      }
       return db;
     },
     closeSqliteDatabase,

@@ -1335,6 +1335,7 @@
       "commands": {
         "build": "pnpm --filter @happyvertical/sql build",
         "test": "pnpm --filter @happyvertical/sql test",
+        "typecheck": "pnpm --filter @happyvertical/sql typecheck",
         "clean": "pnpm --filter @happyvertical/sql clean"
       },
       "correctionLoops": [

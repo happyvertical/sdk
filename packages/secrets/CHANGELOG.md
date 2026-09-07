@@ -1,5 +1,111 @@
 # @happyvertical/secrets
 
+## 0.89.6
+
+### Patch Changes
+
+- Updated dependencies [040bb22]
+  - @happyvertical/sql@0.89.6
+  - @happyvertical/utils@0.89.6
+
+## 0.89.5
+
+### Patch Changes
+
+- Updated dependencies [42bc763]
+  - @happyvertical/sql@0.89.5
+  - @happyvertical/utils@0.89.5
+
+## 0.89.4
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.89.4
+  - @happyvertical/sql@0.89.4
+
+## 0.89.3
+
+### Patch Changes
+
+- Updated dependencies [faf905b]
+  - @happyvertical/sql@0.89.3
+  - @happyvertical/utils@0.89.3
+
+## 0.89.2
+
+### Patch Changes
+
+- Updated dependencies
+  - @happyvertical/utils@0.89.2
+  - @happyvertical/sql@0.89.2
+
+## 0.89.1
+
+### Patch Changes
+
+- Updated dependencies [d26f687]
+  - @happyvertical/sql@0.89.1
+  - @happyvertical/utils@0.89.1
+
+## 0.89.0
+
+### Patch Changes
+
+- Updated dependencies [c882a7f]
+- Updated dependencies [d914770]
+  - @happyvertical/sql@0.89.0
+  - @happyvertical/utils@0.89.0
+
+## 0.88.2
+
+### Patch Changes
+
+- Updated dependencies [596e262]
+  - @happyvertical/sql@0.88.2
+  - @happyvertical/utils@0.88.2
+
+## 0.88.1
+
+### Patch Changes
+
+- Updated dependencies [7cad57d]
+  - @happyvertical/sql@0.88.1
+  - @happyvertical/utils@0.88.1
+
+## 0.88.0
+
+### Minor Changes
+
+- ad6904d: Add provider-neutral fail-closed credential custody orchestration with explicit
+  ephemeral and durable modes, opaque secret material, attributable non-secret
+  receipts, rotation and reconciliation history, bounded environment injection,
+  bounded child-process injection and cleanup, structured errors, and token
+  redaction. Receipts carry required Ed25519 attestations bound to the submitted
+  credential and complete canonical custody locator.
+  Issuance also requires a staged prepare/commit/abort finalizer with a durable
+  recovery identity, keeping downstream activation inside the rollback boundary.
+
+### Patch Changes
+
+- @happyvertical/sql@0.88.0
+- @happyvertical/utils@0.88.0
+
+## 0.87.0
+
+### Patch Changes
+
+- @happyvertical/sql@0.87.0
+- @happyvertical/utils@0.87.0
+
+## 0.86.4
+
+### Patch Changes
+
+- Updated dependencies [7515331]
+  - @happyvertical/utils@0.86.4
+  - @happyvertical/sql@0.86.4
+
 ## 0.86.3
 
 ### Patch Changes

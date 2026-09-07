@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { DatabaseError } from '@happyvertical/utils';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getDatabase } from './index';
 
 async function checkPostgreSQLConnection(): Promise<boolean> {
@@ -80,6 +81,122 @@ describe('postgres tests', () => {
       select * from contents
     `;
     expect(result).toEqual(expect.arrayContaining([]));
+  });
+
+  it('surfaces a safe cause for raw query failures', async () => {
+    if (!postgresAvailable) return;
+    const secret = 'postgres-bound-secret-issue-744';
+    let caught: unknown;
+
+    try {
+      await db.query(
+        'SELECT * FROM missing_issue_744_table WHERE token = $1',
+        secret,
+      );
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(DatabaseError);
+    const error = caught as DatabaseError;
+    expect(error.message).toContain('missing_issue_744_table');
+    expect(error.cause).toBeInstanceOf(Error);
+    expect((error.cause as Error & { code?: string }).code).toBe('42P01');
+    expect(error.context).toMatchObject({
+      sql: '[redacted]',
+      values: '[redacted]',
+    });
+    expect(JSON.stringify(error)).not.toContain(secret);
+  });
+
+  it('redacts PostgreSQL-normalized bound values in duplicate diagnostics', async () => {
+    if (!postgresAvailable) return;
+    const cases = [
+      {
+        name: 'boolean',
+        type: 'boolean',
+        value: true,
+        diagnosticValue: '(t)',
+      },
+      {
+        name: 'date',
+        type: 'date',
+        value: new Date('2026-08-30T12:34:56.789Z'),
+        diagnosticValue: '(2026-08-30)',
+      },
+      {
+        name: 'bytea',
+        type: 'bytea',
+        value: Buffer.from([1, 2, 254, 255]),
+        diagnosticValue: '(\\x0102feff)',
+      },
+      {
+        name: 'numeric',
+        type: 'numeric',
+        value: 1e21,
+        diagnosticValue: '(1000000000000000000000)',
+      },
+    ];
+
+    for (const testCase of cases) {
+      const table = `issue_744_normalized_${testCase.name}`;
+      await db.query(
+        `CREATE TEMP TABLE ${table} (value ${testCase.type} UNIQUE)`,
+      );
+      await db.query(
+        `INSERT INTO ${table} (value) VALUES ($1)`,
+        testCase.value,
+      );
+      const caught = await db
+        .query(`INSERT INTO ${table} (value) VALUES ($1)`, testCase.value)
+        .catch((error: unknown) => error);
+
+      expect(caught).toBeInstanceOf(DatabaseError);
+      const error = caught as DatabaseError;
+      const rendered = [
+        String(error),
+        error.stack,
+        String(error.cause),
+        JSON.stringify(error),
+      ].join('\n');
+      expect(rendered).not.toContain(testCase.diagnosticValue);
+      expect(rendered).toContain(
+        'duplicate key value violates unique constraint',
+      );
+      expect(rendered).toContain('Key (value)=([redacted]) already exists');
+      expect((error.cause as Error & { code?: string }).code).toBe('23505');
+    }
+  });
+
+  it('redacts values from PostgreSQL failing-row diagnostics', async () => {
+    if (!postgresAvailable) return;
+    const table = 'issue_744_failing_row';
+    const secret = 'postgres-failing-row-secret-744\nsecond-line)';
+    await db.query(
+      `CREATE TEMP TABLE ${table} (occurred_on date, required text NOT NULL, secret text)`,
+    );
+
+    const caught = await db
+      .query(
+        `INSERT INTO ${table} (occurred_on, required, secret) VALUES ($1, $2, $3)`,
+        new Date('2026-08-30T12:34:56.789Z'),
+        null,
+        secret,
+      )
+      .catch((error: unknown) => error);
+
+    expect(caught).toBeInstanceOf(DatabaseError);
+    const error = caught as DatabaseError;
+    const rendered = [
+      String(error),
+      error.stack,
+      String(error.cause),
+      JSON.stringify(error),
+    ].join('\n');
+    expect(rendered).not.toContain('2026-08-30');
+    expect(rendered).not.toContain(secret);
+    expect(rendered).toContain('Failing row contains ([redacted]).');
+    expect((error.cause as Error & { code?: string }).code).toBe('23502');
   });
 
   it('should be able to insert data', async () => {
@@ -285,6 +402,33 @@ describe('postgres tests', () => {
     await expect(session.query('SELECT 1')).rejects.toThrow(
       /Session has been released/,
     );
+  });
+
+  it('redacts failed session-query values while preserving diagnostics', async () => {
+    if (!postgresAvailable) return;
+    const secret = 'session-bound-secret-issue-744';
+    const session = await db.acquireSession?.();
+    if (!session) throw new Error('acquireSession returned no handle');
+    let caught: unknown;
+
+    try {
+      await session.query('SELECT $1::integer AS value', secret);
+    } catch (error) {
+      caught = error;
+    } finally {
+      await session.release();
+    }
+
+    expect(caught).toBeInstanceOf(DatabaseError);
+    const error = caught as DatabaseError;
+    expect(error.message).toContain('invalid input syntax for type integer');
+    expect((error.cause as Error & { code?: string }).code).toBe('22P02');
+    expect(error.context).toMatchObject({
+      sql: '[redacted]',
+      values: '[redacted]',
+    });
+    expect(String(error)).not.toContain(secret);
+    expect(JSON.stringify(error)).not.toContain(secret);
   });
 
   it('should preserve PostgreSQL JSONB existence operators in raw queries', async () => {
@@ -761,6 +905,122 @@ describe('postgres nullable-conflict upsert', () => {
   afterEach(async () => {
     if (!postgresAvailable || !db) return;
     await db.client.end();
+  });
+
+  it('quotes a reserved update column in a standard upsert', async () => {
+    if (!postgresAvailable) return;
+
+    const tableName = `reserved_standard_${randomUUID().replace(/-/g, '_')}`;
+
+    try {
+      await db.client.query(`
+        CREATE TABLE ${tableName} (
+          id TEXT PRIMARY KEY,
+          slug TEXT UNIQUE NOT NULL,
+          "end" TEXT NOT NULL
+        )
+      `);
+
+      await db.upsert(tableName, ['slug'], {
+        id: 'item-1',
+        slug: 'shared-item',
+        end: 'Initial',
+      });
+      await db.upsert(tableName, ['slug'], {
+        id: 'item-2',
+        slug: 'shared-item',
+        end: 'Updated',
+      });
+
+      const result = await db.client.query(
+        `SELECT id, "end" FROM ${tableName} WHERE slug = $1`,
+        ['shared-item'],
+      );
+      expect(result.rows).toEqual([{ id: 'item-2', end: 'Updated' }]);
+    } finally {
+      await db.client.query(`DROP TABLE IF EXISTS ${tableName}`);
+    }
+  });
+
+  it('quotes a reserved conflict column in a null-aware upsert', async () => {
+    if (!postgresAvailable) return;
+
+    const tableName = `reserved_nullable_${randomUUID().replace(/-/g, '_')}`;
+
+    try {
+      await db.client.query(`
+        CREATE TABLE ${tableName} (
+          id TEXT PRIMARY KEY,
+          slug TEXT NOT NULL,
+          "end" TEXT,
+          name TEXT,
+          UNIQUE(slug, "end")
+        )
+      `);
+
+      await db.upsert(tableName, ['slug', 'end'], {
+        id: 'item-1',
+        slug: 'shared-item',
+        end: null,
+        name: 'Initial Name',
+      });
+      await db.upsert(tableName, ['slug', 'end'], {
+        id: 'item-2',
+        slug: 'shared-item',
+        end: null,
+        name: 'Updated Name',
+      });
+
+      const result = await db.client.query(
+        `SELECT id, "end", name FROM ${tableName} WHERE slug = $1 AND "end" IS NULL`,
+        ['shared-item'],
+      );
+      expect(result.rows).toEqual([
+        { id: 'item-2', end: null, name: 'Updated Name' },
+      ]);
+    } finally {
+      await db.client.query(`DROP TABLE IF EXISTS ${tableName}`);
+    }
+  });
+
+  it('preserves PostgreSQL folding for mixed-case upsert inputs', async () => {
+    if (!postgresAvailable) return;
+
+    const tableName = `upsert_casefold_${randomUUID().replace(/-/g, '_')}`;
+
+    try {
+      await db.client.query(`
+        CREATE TABLE ${tableName} (
+          id TEXT PRIMARY KEY,
+          mixedcase TEXT UNIQUE NOT NULL,
+          updatedvalue TEXT
+        )
+      `);
+
+      await db.upsert(tableName, ['mixedCase'], {
+        id: 'item-1',
+        mixedCase: 'shared-item',
+        updatedValue: 'Initial',
+      });
+      await db.upsert(tableName, ['mixedCase'], {
+        id: 'item-2',
+        mixedCase: 'shared-item',
+        updatedValue: 'Updated',
+      });
+
+      const result = await db.client.query(
+        `SELECT id, mixedcase, updatedvalue FROM ${tableName}`,
+      );
+      expect(result.rows).toEqual([
+        {
+          id: 'item-2',
+          mixedcase: 'shared-item',
+          updatedvalue: 'Updated',
+        },
+      ]);
+    } finally {
+      await db.client.query(`DROP TABLE IF EXISTS ${tableName}`);
+    }
   });
 
   it('should update one row when a composite conflict column is null', async () => {
@@ -1273,6 +1533,50 @@ describe('postgres syncSchema with CREATE INDEX (Issue #867)', () => {
     expect(indexes).toHaveLength(1);
   });
 
+  it.each([
+    ['CREATE INDEX CONCURRENTLY', false, '', '"slug"'],
+    ['CREATE INDEX CONCURRENTLY IF NOT EXISTS', false, '', '"slug"'],
+    ['CREATE UNIQUE INDEX CONCURRENTLY', true, '', '"slug"'],
+    ['CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS', true, '', '"slug"'],
+    ['CREATE INDEX CONCURRENTLY', false, 'USING gin ', '"tags"'],
+  ])('should apply %s idempotently', async (createIndexClause, expectedUnique, indexMethod, indexedColumn) => {
+    if (!postgresAvailable) return;
+
+    const indexName = `${testTableName}_concurrent_idx`;
+    const schema = `
+        CREATE TABLE IF NOT EXISTS "${testTableName}" (
+          "id" TEXT PRIMARY KEY NOT NULL,
+          "slug" TEXT NOT NULL,
+          "tags" TEXT[] NOT NULL DEFAULT '{}'
+        );
+        ${createIndexClause} "${indexName}" ON "${testTableName}" ${indexMethod}(${indexedColumn});
+      `;
+
+    await db.syncSchema(schema);
+
+    const indexes = await db.many`
+        SELECT indexdef FROM pg_indexes
+        WHERE schemaname = 'public' AND indexname = ${indexName}
+      `;
+    expect(indexes).toHaveLength(1);
+    expect(indexes[0].indexdef.includes('UNIQUE')).toBe(expectedUnique);
+
+    const querySpy = vi.spyOn(db.client, 'query');
+    try {
+      await db.syncSchema(schema);
+
+      const repeatedIndexDdl = querySpy.mock.calls.filter(([query]) => {
+        return (
+          typeof query === 'string' &&
+          /^CREATE\s+(?:UNIQUE\s+)?INDEX\s+CONCURRENTLY\b/i.test(query)
+        );
+      });
+      expect(repeatedIndexDdl).toHaveLength(0);
+    } finally {
+      querySpy.mockRestore();
+    }
+  });
+
   it('should handle non-unique indexes', async () => {
     if (!postgresAvailable) return;
 
@@ -1400,6 +1704,93 @@ describe('postgres syncSchema with quoted identifiers (Issue #860)', () => {
     const columnNames = columns.map((c) => c.column_name);
     expect(columnNames).toContain('id');
     expect(columnNames).toContain('description');
+  });
+
+  it('does not treat named deferred foreign keys as missing columns', async () => {
+    if (!postgresAvailable) return;
+
+    await db.client.query(`
+      CREATE TABLE "${testTableName}" (
+        id TEXT PRIMARY KEY NOT NULL,
+        profile_id TEXT
+      )
+    `);
+
+    const constraintName = `${testTableName}_profile_id_profiles_id_fkey`;
+    const schema = `CREATE TABLE IF NOT EXISTS "${testTableName}" (
+      "id" TEXT PRIMARY KEY NOT NULL,
+      "profile_id" TEXT,
+      "description" TEXT DEFAULT '',
+      CONSTRAINT "${constraintName}" FOREIGN KEY ("profile_id")
+        REFERENCES profiles (id) DEFERRABLE INITIALLY DEFERRED
+    );`;
+    const consoleError = vi
+      .spyOn(console, 'error')
+      .mockImplementation(() => {});
+
+    try {
+      await db.syncSchema(schema);
+      await db.syncSchema(schema);
+      expect(consoleError).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
+
+    const columns = await db.many`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = ${testTableName}
+    `;
+    const columnNames = columns.map((column) => column.column_name);
+    expect(columnNames).toContain('description');
+    expect(columnNames).not.toContain(constraintName);
+  });
+
+  it('adds a column named exclude', async () => {
+    if (!postgresAvailable) return;
+
+    await db.client.query(`
+      CREATE TABLE "${testTableName}" (
+        id TEXT PRIMARY KEY NOT NULL
+      )
+    `);
+
+    const schema = `CREATE TABLE IF NOT EXISTS "${testTableName}" (
+      id TEXT PRIMARY KEY NOT NULL,
+      exclude TEXT
+    );`;
+
+    await db.syncSchema(schema);
+
+    const columns = await db.many`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = ${testTableName}
+    `;
+    expect(columns.map((column) => column.column_name)).toContain('exclude');
+  });
+
+  it('adds quoted column names with non-word characters', async () => {
+    if (!postgresAvailable) return;
+
+    await db.client.query(`
+      CREATE TABLE "${testTableName}" (
+        id TEXT PRIMARY KEY NOT NULL
+      )
+    `);
+
+    const schema = `CREATE TABLE IF NOT EXISTS "${testTableName}" (
+      id TEXT PRIMARY KEY NOT NULL,
+      "display-name" TEXT
+    );`;
+
+    await db.syncSchema(schema);
+
+    const columns = await db.many`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_schema = 'public' AND table_name = ${testTableName}
+    `;
+    expect(columns.map((column) => column.column_name)).toContain(
+      'display-name',
+    );
   });
 
   it('should handle multiple CREATE TABLE statements with quoted identifiers', async () => {

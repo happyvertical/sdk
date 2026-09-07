@@ -21,6 +21,17 @@ const db = await getDatabase({ type: 'sqlite', url: ':memory:' });
 // SQLite (file)
 const fileDb = await getDatabase({ type: 'sqlite', url: 'file:./app.db' });
 
+// Local file under an application-custodied data directory (macOS and Linux)
+const secureFileDb = await getDatabase({
+  type: 'sqlite',
+  url: './data/app.db',
+  secureFile: {
+    driver: 'node:sqlite',
+    custody: 'trusted-parent',
+    root: './data',
+  },
+});
+
 // LibSQL/Turso (remote)
 const tursoDb = await getDatabase({
   type: 'sqlite',
@@ -32,6 +43,8 @@ const tursoDb = await getDatabase({
 const pgDb = await getDatabase({
   type: 'postgres',
   url: 'postgresql://user:pass@localhost:5432/dbname',
+  connectionTimeoutMillis: 10_000,
+  idleTimeoutMillis: 30_000,
 });
 
 // DuckDB with JSON file auto-registration
@@ -49,6 +62,11 @@ const jsonDb = await getDatabase({
   writeStrategy: 'immediate',
 });
 ```
+
+PostgreSQL also accepts `max` (20 by default), `connectionTimeoutMillis`, and
+`idleTimeoutMillis`. Lifecycle timeouts must be integer milliseconds from `0`
+through Node.js's maximum timer delay of `2,147,483,647`; `0` disables the
+corresponding timeout. Omitted timeout values retain `pg`'s defaults.
 
 ### Connection caching and cleanup
 
@@ -76,22 +94,123 @@ cached adapter. Combine it with `cache: false` to evict first and return an
 uncached replacement. A concurrent initializer caught by eviction is closed
 and cannot repopulate the cache.
 
+With automatic file registration enabled (the default), cached JSON adapters
+also detect external changes to JSON data and companion `.schema.sql` files when
+a later `getDatabase()` call acquires the same cache identity. A changed, added,
+or removed source file causes the old DuckDB adapter to close before one fresh
+shared adapter is created. Existing references point to the closed adapter
+after replacement; acquire the database again before continuing work after an
+external file change. Writes made through the adapter refresh its snapshot and
+do not invalidate the adapter itself when the tracked sources are otherwise
+unchanged. If an external change is already visible before an adapter export,
+the export fails closed so the caller can reacquire the database and retry.
+Freshness checks are not a cross-process file lock: an external process writing
+the same table's JSON or companion schema file at the same instant as an adapter
+export remains last-writer-wins and must be coordinated by the application.
+
 The JSON adapter's exported `clearConnectionCache()` helper is asynchronous:
 always `await clearConnectionCache()` before opening a replacement connection.
 
 An explicit `dbid` is an opaque, stable caller-owned cache identity and must be
 non-empty. Without
 one, PostgreSQL derives a credential- and pool-option-sensitive identity using
-a process-keyed digest; connection URLs, usernames, passwords, and option names
-are not stored in readable cache keys. SQLite caches only connections with a
-`dbid` (automatically assigned to the default `:memory:` path). JSON derives an
-identity from its directory and behavior options.
+a process-keyed digest. The pool identity includes `max`,
+`connectionTimeoutMillis`, and `idleTimeoutMillis`; connection URLs, usernames,
+passwords, and option names are not stored in readable cache keys. SQLite
+caches only connections with a `dbid` (automatically assigned to the default
+`:memory:` path). JSON derives an identity from its directory and behavior
+options.
 
 DuckDB already creates a fresh adapter for every call, so `cache` and
 `clearCache` are accepted for uniform configuration but do not change its
 behavior. Call `close()` on uncached and DuckDB adapters when finished.
 
 Configuration is also loaded from `HAVE_SQL_*` environment variables (e.g. `HAVE_SQL_TYPE`, `HAVE_SQL_URL`). User-provided options take precedence.
+
+### Secure local SQLite acquisition
+
+Secure mode requires an explicit custody contract:
+
+```typescript
+secureFile: {
+  driver: 'node:sqlite',
+  custody: 'trusted-parent',
+  root: './data', // optional; defaults to the database's direct parent
+}
+```
+
+Boolean `true` fails closed. Before loading the driver, the adapter verifies
+that the database is beneath the custody root, that static path components are
+real directories rather than symlinks, and that the root plus database-parent
+chain is owned by the current uid with no group/world write permission. An
+existing leaf must likewise be a current-user-owned regular file with no
+group/world write permission. A missing leaf is created exclusively with mode
+`0600` before driver acquisition, independent of a permissive process umask, and
+is removed if the driver cannot acquire it and its device/inode identity is
+still unchanged. If identity inspection itself fails, acquisition fails closed
+and leaves the restrictive empty leaf in place rather than risking deletion of
+a replacement. On macOS, every inspected component and existing leaf must also
+have no ACL entry that grants authority; restrictive deny-only entries
+(including the standard home-directory `group:everyone deny delete` entry) are
+accepted. ACL inspection errors or unrecognized/ambiguous ACL entries fail
+closed.
+The adapter invokes `/bin/ls -lde -- <path>` directly with an argument vector,
+never through a shell, and parses every numbered ACL entry even when macOS's
+extended-attribute `@` marker takes display precedence over the ACL `+` marker.
+Ancestors above the custody root may not allow replacement by another principal
+and must be owned either by the current uid or privileged uid `0` (the explicit
+system-root exception). A sticky root-owned shared parent such as `/tmp` is
+accepted. The application must create and retain custody of this directory;
+mode `0700` with no permissive ACL is the conventional choice.
+
+After custody validation, the adapter opens the path with Node's built-in
+`node:sqlite` driver. Static ancestor and leaf symlinks are rejected. Under the
+contract, other principals cannot replace entries beneath the current-user-owned
+custody root, so there is no cross-principal pathname race between validation
+and open. This is not an atomic path boundary against a hostile process
+running as the same account: that process can already read, rewrite, unlink, or
+replace an unencrypted user-owned database and its directory. Separating
+same-account processes requires OS sandboxing plus a descriptor-relative/custom
+SQLite VFS. Keep the custody contract in force for the full connection lifetime.
+
+The secure path is supported on macOS and Linux with Node.js 24.18.0 or newer.
+The runtime version is checked before `node:sqlite` is imported or the database
+is opened. Secure mode fails closed on older or malformed runtime versions,
+other platforms, and when combined with remote LibSQL URLs, `:memory:`, LibSQL
+authentication or encryption, or optional native capabilities. Omit
+`secureFile` to retain the existing LibSQL behavior on older consumers.
+
+Every secure prepared statement enables exact BigInt reads. Safe SQLite integer
+columns retain legacy JavaScript `number` results; integers outside the safe
+range are returned as `bigint`, and `bigint` parameters bind exactly. Boolean
+parameters are normalized to SQLite integers (`1`/`0`) at the driver boundary;
+objects and arrays continue through the adapter's JSON serialization unchanged.
+The public row-count contract remains `number`, so an exact `changes` metric
+above `Number.MAX_SAFE_INTEGER` fails explicitly instead of rounding.
+
+Secure connections also guard the public `client.execute()` seam with the same
+invocation and transaction-scope lifetime rules as the database helpers. A
+client call accepted before `close()` drains first; calls made after close or
+after a transaction scope ends reject without reaching SQLite. Use
+`database.transaction()` or `database.beginTransaction()` for transaction
+control—direct `client.transaction()` and transaction-scoped `client.close()`
+fail closed. Raw `BEGIN`, `COMMIT`, `END`, `ROLLBACK`, `SAVEPOINT`, and
+`RELEASE` statements are likewise rejected through root and transaction-scoped
+database/client routes so they cannot create an untracked transaction, bypass
+callback/manual rollback, or invalidate an owned savepoint. A parent transaction
+handle also rejects when invoked from inside a nested callback; use the nested
+callback's handle or wait for the child to settle before reusing its parent.
+If SQLite itself ends a transaction through a statement policy
+such as `ON CONFLICT ROLLBACK`, already-accepted later work rejects before
+execution and commit reports the automatic rollback. If an explicit rollback
+fails, the secure client is invalidated and rejects later work rather than
+returning a connection with uncertain transaction state to service.
+
+Every static component must be a real path component. For example, macOS exposes
+`/var` as a symlink, so use the resolved `/private/var/...` path when secure
+acquisition is intentional. Secure mode requires the package's supported Node
+runtime with built-in `node:sqlite`; it installs no additional native peer.
+Default LibSQL use remains unchanged.
 
 ### Template Literal Queries
 
@@ -129,6 +248,20 @@ await pgDb.query(`SELECT ('{"db":true}'::jsonb ? 'db') AS has_db`);
 ```
 
 For PostgreSQL, a single array argument is treated as a values list unless the SQL shows a single array-typed placeholder, such as `$1::text[]`, `CAST($1 AS text[])`, `ANY($1)`, or the equivalent legacy `?` placeholder form. Transaction handles follow the same raw query behavior as the root database handle.
+
+When a raw query or schema alteration fails, the adapter throws a
+`DatabaseError` whose message includes the database driver's diagnostic. The
+error also carries a native `cause`, and `JSON.stringify(error)` includes a
+shallow cause summary with common driver fields such as `code`, `detail`,
+`hint`, `severity`, and `errno`.
+
+The cause is a sanitized snapshot rather than the original driver object.
+Statements, bound parameter values, connection credentials, and
+credential-shaped driver text are redacted from the message, context, cause,
+stack, and JSON form. This makes the error safe for ordinary application and CI
+logging while keeping migration failures actionable. Use the driver's error
+code and the non-secret diagnostic details for troubleshooting; do not expect
+`error.cause` to have object identity with the driver's thrown error.
 
 ### CRUD Helpers
 
@@ -206,14 +339,45 @@ Two consequences worth knowing:
   back. End it in a `finally` — a handle that is never ended holds the
   connection for the life of the process, and every later transaction on it
   fails with the queue timeout.
-- Inside a `transaction()` callback, use the `tx` you were handed. Calling a
-  top-level `db.*` method that opens its own transaction makes it wait on the
-  connection its own caller is holding.
+- Inside a `transaction()` callback, use the `tx` you were handed. With secure
+  SQLite, calling a top-level `db.*` or `db.client.execute()` method is rejected
+  immediately so detached work cannot escape into autocommit after the callback
+  ends. While a manual transaction handle is open, top-level calls wait on its
+  connection and reject at `transactionQueueTimeout` rather than hang forever.
 
-PostgreSQL pools its connections, so transactions there run concurrently and
-never queue. Nested scopes on one PostgreSQL transaction use savepoints; if
-sibling nested scopes are started concurrently, they serialize so PostgreSQL's
-stack-ordered savepoint lifecycle remains intact.
+Nested SQLite and PostgreSQL scopes use savepoints. If sibling nested scopes are
+started concurrently on one transaction, they serialize so the stack-ordered
+savepoint lifecycle remains intact. While a secure SQLite child savepoint is
+open, operations invoked through its parent scope queue behind that child; a
+child rollback therefore cannot silently remove a successful parent operation.
+The enclosing commit or rollback drains all
+accepted child scopes before ending the transaction. PostgreSQL pools separate
+connections, so top-level transactions there run concurrently and never queue.
+PostgreSQL CRUD helpers apply the same value serialization both inside and
+outside a transaction: objects and arrays are encoded for JSON/JSONB columns,
+dates use ISO timestamps, binary buffers and views retain their native `bytea`
+representation, `null` remains SQL `NULL`, and scalar values pass through
+unchanged. If a PostgreSQL statement aborts a transaction, later
+operations and commit preserve the first statement error rather than replacing
+it with the generic `25P02 current transaction is aborted` state error.
+Every SQLite transaction-scoped operation is registered when its public method
+is called. Ending a callback or invoking a manual handle's commit/rollback
+seals the scope synchronously, drains operations already accepted, and rejects
+later operations so work cannot escape into autocommit after the transaction.
+If a SQLite statement failure is intentionally recoverable, attach an explicit
+`.catch(...)` or `.then(..., onRejected)` to the transaction-scoped operation.
+Passing it through `Promise.resolve`, `Promise.all`, or an async helper only
+counts as recovery when the derived rejection is itself awaited or caught. A
+detached rejected adoption fails closed and rolls back. `Promise.allSettled`
+intentionally consumes each rejection, so using it permits the transaction to
+commit after the caller inspects those results.
+
+While transaction-scoped Promise observations are active, SQLite temporarily
+enables a process-wide Node Promise lifecycle hook and an
+`unhandledRejection` observer. Both are removed when the accepted work drains;
+another reason to always end a manual `beginTransaction()` handle in `finally`
+is that an abandoned handle can retain this bookkeeping as well as its database
+connection.
 
 ### Identifiers
 
@@ -225,10 +389,17 @@ object with a `toString` — is rejected outright rather than coerced, so the va
 validated is always the value interpolated. Values are always parameterized and
 are unaffected.
 
-Note that `buildWhere` treats a condition key carrying an explicit operator
-suffix (`'price >'`, `'name like'`) as SQL expression text and does **not**
-validate it. That is deliberate, and it means those keys must stay
-developer-controlled — never build them from request input.
+PostgreSQL `upsert()` additionally lowercases each validated column name before
+double-quoting it. PostgreSQL has always folded the adapter's unquoted column
+names to lowercase, so this preserves existing behavior (`mixedCase` still
+addresses `mixedcase`) while allowing reserved words such as `end` in insert,
+conflict and update positions. Delimited, case-sensitive physical names such as
+`"MixedCase"` remain outside the CRUD identifier contract.
+
+`buildWhere` separates a supported operator suffix (`'price >'`,
+`'name contains'`) from the field and then validates the field as an identifier.
+Unsupported suffixes remain part of the field and fail validation rather than
+becoming SQL. Use `raw()` only for developer-authored expression text.
 
 ### WHERE Clause Building
 
@@ -246,6 +417,25 @@ const { sql, values } = buildWhere({
 });
 // Use with raw query: db.query(`SELECT * FROM products ${sql}`, values)
 ```
+
+`contains` performs a literal, case-sensitive substring match on text. `%`,
+`_`, and `\` are ordinary characters in its value, so
+`{ 'description contains': '100%_off\\today' }` searches for that exact text;
+it does not provide JSON containment. The value must be a string; an empty
+string matches every non-NULL text value. Adapter methods such as `list()`
+select the dialect automatically. When calling `buildWhere()` directly with
+`contains`, pass the adapter type as its third argument so it can emit the
+correct case-sensitive expression:
+
+```typescript
+buildWhere({ 'description contains': '100% cotton' }, 1, 'sqlite');
+```
+
+`like` remains pattern-based: `%` matches any sequence and `_` matches one
+character. Every adapter now uses an explicit backslash escape character, so
+`\%`, `\_`, and `\\` in the pattern match a literal percent sign, underscore,
+and backslash respectively. Escape the JavaScript string as well; for example,
+`{ 'name like': '%100\\%%' }` matches text containing the literal `100%`.
 
 Supports 2D array format for OR/AND compound logic:
 ```typescript
@@ -330,6 +520,10 @@ await syncSchema({
 
 const exists = await db.tableExists('users');
 ```
+
+On PostgreSQL, `syncSchema()` recognizes `CREATE [UNIQUE] INDEX CONCURRENTLY
+[IF NOT EXISTS]` statements, including optional `USING` index methods, and
+skips indexes that already exist when a schema is applied again.
 
 ### Vector Search (PostgreSQL)
 
@@ -418,7 +612,7 @@ shipping it beyond development or test environments.
 
 | Adapter | `type` | Backend | Notes |
 |---------|--------|---------|-------|
-| SQLite | `'sqlite'` | LibSQL (`@libsql/client`) by default; native `node:sqlite` when capabilities are enabled | Supports `:memory:`, file, and remote Turso URLs by default. Native capabilities are local-only |
+| SQLite | `'sqlite'` | LibSQL (`@libsql/client`) by default; built-in `node:sqlite` for capabilities and `secureFile` | Supports `:memory:`, file, and remote Turso URLs by default. Native capabilities are local-only; trusted-parent secure files are macOS/Linux-only |
 | PostgreSQL | `'postgres'` | `pg` Pool | Connection pooling, pgvector support |
 | DuckDB | `'duckdb'` | `@duckdb/node-api` | JSON file auto-registration, write-back strategies |
 | JSON | `'json'` | DuckDB in-memory | Queries JSON files as tables, connection caching |

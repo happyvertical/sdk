@@ -142,6 +142,25 @@ describe('loadEnvConfig', () => {
   });
 
   describe('basic functionality', () => {
+    it('uses user options when process is unavailable in a browser', () => {
+      const nodeProcess = globalThis.process;
+      vi.stubGlobal('process', undefined);
+
+      try {
+        const config = loadEnvConfig(
+          { level: 'warn' },
+          {
+            packageName: 'logger',
+            schema: { level: 'string' },
+          },
+        );
+
+        expect(config).toEqual({ level: 'warn' });
+      } finally {
+        vi.stubGlobal('process', nodeProcess);
+      }
+    });
+
     it('returns user options when no env vars set', () => {
       const config = loadEnvConfig(
         { provider: 'openai' },

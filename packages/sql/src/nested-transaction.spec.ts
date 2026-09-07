@@ -29,6 +29,41 @@ function beginOf(db: DatabaseInterface) {
  */
 describe('nested transactions', () => {
   describe('sqlite (savepoint re-entry)', () => {
+    it('returns native Promise instances for nested transactions', async () => {
+      const db = await getDatabase({ type: 'sqlite', url: ':memory:' });
+      await db.query('CREATE TABLE native_promise (id INTEGER PRIMARY KEY)');
+      let recovered = false;
+
+      await txOf(db)(async (tx) => {
+        const nested = txOf(tx)(async () => 42);
+        expect(nested).toBeInstanceOf(Promise);
+        await expect(
+          Promise.prototype.then.call(nested, (value) => value),
+        ).resolves.toBe(42);
+
+        await tx.query('INSERT INTO native_promise VALUES (1)');
+        const failed = txOf(tx)(async (inner) => {
+          await inner.query('INSERT INTO native_promise VALUES (2)');
+          throw new Error('intrinsic recovery');
+        });
+        void Promise.prototype.then.call(failed, undefined, async (error) => {
+          expect(error).toMatchObject({ message: 'intrinsic recovery' });
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          recovered = true;
+        });
+        await tx.query('INSERT INTO native_promise VALUES (3)');
+        expect(recovered).toBe(false);
+      });
+
+      // The enclosing transaction waits for an accepted asynchronous recovery
+      // handler before it decides whether the savepoint failure was handled.
+      expect(recovered).toBe(true);
+      expect((await db.query('SELECT id FROM native_promise')).rows).toEqual([
+        { id: 1 },
+        { id: 3 },
+      ]);
+    });
+
     it('sees the enclosing transaction and does not end it', async () => {
       const db = await getDatabase({ type: 'sqlite', url: ':memory:' });
       await db.query('CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)');
@@ -58,12 +93,12 @@ describe('nested transactions', () => {
 
       await txOf(db)(async (tx) => {
         await tx.query(`INSERT INTO t VALUES (1, 'outer')`);
-        await expect(
-          txOf(tx)(async (inner) => {
-            await inner.query(`INSERT INTO t VALUES (2, 'inner')`);
-            throw new Error('__nested_failed__');
-          }),
-        ).rejects.toThrow('__nested_failed__');
+        await txOf(tx)(async (inner) => {
+          await inner.query(`INSERT INTO t VALUES (2, 'inner')`);
+          throw new Error('__nested_failed__');
+        }).catch((error) => {
+          expect(error).toMatchObject({ message: '__nested_failed__' });
+        });
 
         // The enclosing transaction survives a failed nested scope and can
         // still be used.
@@ -103,12 +138,12 @@ describe('nested transactions', () => {
           await txOf(a)(async (b) => {
             await b.query('INSERT INTO t VALUES (3)');
           });
-          await expect(
-            txOf(a)(async (c) => {
-              await c.query('INSERT INTO t VALUES (4)');
-              throw new Error('__deep_failed__');
-            }),
-          ).rejects.toThrow('__deep_failed__');
+          await txOf(a)(async (c) => {
+            await c.query('INSERT INTO t VALUES (4)');
+            throw new Error('__deep_failed__');
+          }).catch((error) => {
+            expect(error).toMatchObject({ message: '__deep_failed__' });
+          });
         });
       });
 

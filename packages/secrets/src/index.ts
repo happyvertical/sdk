@@ -23,11 +23,11 @@
  * });
  *
  * // Encrypt a secret for a tenant
- * const envelope = await store.encrypt('tenant-123', 'api-key', 'sk_live_xxx');
+ * const envelope = await store.encrypt('tenant-123', 'api-key', 'synthetic-secret');
  *
  * // Decrypt the secret
  * const { value } = await store.decrypt('tenant-123', envelope);
- * console.log(value); // 'sk_live_xxx'
+ * // Use value without logging or retaining plaintext.
  *
  * // Rotate tenant's encryption key
  * await store.rotateTenantKey('tenant-123');
@@ -38,6 +38,43 @@
 
 // Direct adapter exports (for advanced usage)
 export { DatabaseSecretStore } from './adapters/database.js';
+export type {
+  CredentialChildProcessOptions,
+  CredentialChildProcessResult,
+  CredentialCustodyFinalizer,
+  CredentialCustodyOptions,
+  CredentialIssuanceMode,
+  CredentialIssueRequest,
+  CredentialIssuer,
+  CredentialLease,
+  CredentialReceiptAttestor,
+  CredentialSecretSink,
+  CredentialVerifier,
+  CustodyAttribution,
+  CustodyEvent,
+  CustodyEventType,
+  CustodyIssuanceRequest,
+  CustodyLedger,
+  CustodyReceipt,
+  CustodyReceiptAttestation,
+  CustodyReconciliation,
+  CustodyStage,
+  IssuedCredential,
+  SecretSinkInventoryEntry,
+  SecretSinkRecord,
+} from './shared/custody.js';
+export {
+  CredentialCustody,
+  CustodyError,
+  Ed25519CustodyReceiptAttestor,
+  InMemoryCustodyLedger,
+  redactCredentialText,
+  redactCredentialValues,
+  runCredentialChildProcess,
+  SecretMaterial,
+  verifyCustodyReceiptAttestation,
+  withEnvironmentSecret,
+} from './shared/custody.js';
 // Envelope encryption primitives
 export { EnvelopeEncryption } from './shared/envelope.js';
 // Error classes
@@ -52,7 +89,6 @@ export {
   StoreNotInitializedError,
   TenantKeyMissingError,
 } from './shared/errors.js';
-
 // Factory function
 export {
   getSecretStore,

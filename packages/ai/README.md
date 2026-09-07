@@ -1,6 +1,6 @@
 # @happyvertical/ai
 
-Unified interface for AI model interactions across multiple providers. Supports OpenAI, LiteLLM, Bifrost, Ollama, Anthropic Claude, Google Gemini, AWS Bedrock, Hugging Face, Claude CLI, Qwen3-TTS, and video-generation providers (Gemini Veo, BytePlus ModelArk/Seedance, OpenAI-compatible `/v1/videos` gateways) with a consistent API for chat, completions, embeddings, streaming, function calling, image operations, asynchronous video generation, text-to-speech, and gateway admin provisioning where available.
+Unified interface for AI model interactions across multiple providers. Supports OpenAI, LiteLLM, Bifrost, Ollama, Anthropic Claude, Google Gemini, AWS Bedrock, Hugging Face, Claude CLI, Qwen3-TTS, and video-generation providers (Gemini Veo, BytePlus ModelArk/Seedance, Seevio/Seedance 2.5, OpenAI-compatible `/v1/videos` gateways) with a consistent API for chat, completions, embeddings, streaming, function calling, image operations, asynchronous video generation, text-to-speech, and gateway admin provisioning where available.
 
 ## Installation
 
@@ -106,6 +106,13 @@ const modelark = await getAI({
   apiKey: process.env.MODELARK_API_KEY!, // or ARK_API_KEY
 });
 
+// Seevio / Seedance 2.5 (video generation only)
+const seevio = await getAI({
+  type: 'seevio',
+  apiKey: process.env.SEEVIO_API_KEY!,
+  // Default model is pinned to seedance-2-5.
+});
+
 // OpenAI-compatible /v1/videos gateway (video generation only)
 const video = await getAI({
   type: 'openai-compat-video',
@@ -151,7 +158,8 @@ await ai.cancelVideoGenerationJob(job).catch((error) => {
 ```
 
 Supported providers: `gemini` (Veo, via `@google/genai` long-running operations),
-`byteplus-modelark` (Seedance, raw-HTTP ModelArk task API), and `openai-compat-video`
+`byteplus-modelark` (Seedance, raw-HTTP ModelArk task API), `seevio` (native
+Seedance 2.5 task API), and `openai-compat-video`
 (thin adapter over a `/v1/videos`-shaped REST surface — LiteLLM's Veo passthrough,
 Sora-shaped gateways). Providers without video support throw `NOT_IMPLEMENTED`, and
 `ai.getCapabilities()` reports `videoGeneration: false` for them.
@@ -179,6 +187,56 @@ Gemini/ModelArk, a single-resource probe for `openai-compat-video` since LiteLLM
 list route requires a parameter this generic adapter can't supply). It is not free —
 callers on a hot path must cache the result themselves rather than calling it on every
 iteration.
+
+### Seevio / Seedance 2.5
+
+`seevio` is an independent adapter, not a ModelArk compatibility mode. It pins
+generation to `seedance-2-5`, which supports 4–30 second 480p/720p video,
+native audio, adaptive aspect ratio, first/last-frame image-to-video, and up
+to 50 multimodal reference assets. It rejects floating or alternate model IDs
+so an application does not silently move to a different billed model.
+
+Use the generic `referenceMedia` extension for public HTTPS image, video, and
+audio URLs. Existing `referenceImages` remains available; Seevio accepts it
+only when every value is a public HTTPS URL because its API retrieves media
+directly and has no upload endpoint. Buffers and data URLs are intentionally
+rejected. One or two image-only references select first/last-frame
+image-to-video; otherwise media references select reference-to-video.
+
+```typescript
+const job = await seevio.submitVideoGenerationJob({
+  prompt: 'Use the product image and camera movement reference',
+  durationSeconds: 8,
+  resolution: '720p',
+  aspectRatio: 'adaptive',
+  generateAudio: true,
+  referenceMedia: [
+    { type: 'image', url: 'https://assets.example.com/product.jpg' },
+    { type: 'video', url: 'https://assets.example.com/motion.mp4', durationSeconds: 4 },
+  ],
+});
+```
+
+Seevio reserves credits on submission. The serialized job handle preserves the
+reserved credit metadata; status results expose normalized `billing` data and
+result URL expiry metadata. Submit transport failures are never retried because
+Seevio documents no idempotency key. Polling is enforced at no more than once
+per task every 10 seconds. Seevio does not document task cancellation, so
+`cancelVideoGenerationJob` explicitly throws `NOT_IMPLEMENTED`.
+
+Generated URLs are accepted only from `https://cdn.seevio.ai` by default (or
+from `resultUrlOrigins` you explicitly review); `fetchVideoGenerationResult`
+checks every redirect against that allow-list before downloading bytes. The
+unbilled access check is a random `GET /v1/tasks/:id`: an authenticated 404 is
+considered valid access, while 401, 403, 402, and 429 retain distinct errors.
+
+`fetchVideoGenerationResult` limits downloads to 200 MiB by default (override
+with `maxResultBytes`), verifies a `video/*` response type, and enforces the
+provider timeout while streaming—before buffering the result. For a Node
+deployment behind an HTTPS proxy, enable Node's environment-proxy support
+before startup (for example `NODE_USE_ENV_PROXY=1` or `node --use-env-proxy`
+on supported Node releases); this adapter uses standard `fetch` and does not
+silently configure a proxy dispatcher.
 
 ## Gateway Admin
 

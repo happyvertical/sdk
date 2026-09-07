@@ -10,7 +10,7 @@ import type { SqliteOptions } from './sqlite';
 /**
  * Union type of options for creating different database types
  */
-type GetDatabaseOptions =
+export type GetDatabaseOptions =
   | (PostgresOptions & { type?: 'postgres' })
   | (SqliteOptions & { type?: 'sqlite' })
   | (DuckDBOptions & { type?: 'duckdb' })
@@ -268,6 +268,7 @@ export type { SchemaInitializationResult } from './schema-manager';
 // Export schema management
 export { DatabaseSchemaManager } from './schema-manager';
 export * from './shared/types';
+export type { SecureSqliteFileOptions, SqliteOptions } from './sqlite.js';
 export { convertUniqueIndexesToInlineConstraints };
 
 export default {
