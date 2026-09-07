@@ -1,5 +1,16 @@
 # @happyvertical/weather
 
+## 0.89.7
+
+### Patch Changes
+
+- 0328fa1: Fix `GoogleWeatherProvider.testConnection()` so it probes the daily forecast
+  endpoint used by the production fetch path instead of current conditions, and
+  require the probe to return at least one forecast day rather than trusting the
+  HTTP status. Also map a `400` carrying an `API_KEY_INVALID` reason to
+  `AuthenticationError` so callers stop retrying a credential that cannot succeed.
+  - @happyvertical/utils@0.89.7
+
 ## 0.89.6
 
 ### Patch Changes
