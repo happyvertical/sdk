@@ -18,3 +18,8 @@ sending `max_tokens` and `temperature` unchanged. The predicate matches on
 the final path segment of the model id, so vendor-prefixed gateway ids such
 as `openai/gpt-5-mini` (Bifrost's own naming convention) are shaped
 correctly too.
+
+The same helper is now also applied to the legacy `OpenAIClient.textCompletion()`
+request bodies (`packages/ai/src/shared/client.ts`), exported for backward
+compatibility and used by `AIThread.do()`, which had the identical bug on its
+own separate OpenAI request builder.

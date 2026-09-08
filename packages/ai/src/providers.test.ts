@@ -5,6 +5,7 @@
 
 import { ValidationError } from '@happyvertical/utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { OpenAIClient } from './shared/client';
 import { AnthropicProvider } from './shared/providers/anthropic';
 import { BedrockProvider } from './shared/providers/bedrock';
 import { BifrostProvider } from './shared/providers/bifrost';
@@ -263,6 +264,52 @@ describe('OpenAI Provider', () => {
     }
 
     const body = createStream.mock.calls[0][0];
+    expect(body.max_tokens).toBe(500);
+    expect(body.temperature).toBe(0.9);
+    expect(body).not.toHaveProperty('max_completion_tokens');
+  });
+});
+
+describe('OpenAIClient (legacy)', () => {
+  it('should send max_completion_tokens and no temperature for a gpt-5-mini textCompletion', async () => {
+    const createChatCompletion = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: 'ok' } }],
+    });
+
+    const client = await OpenAIClient.create({ apiKey: 'test-key' });
+    (client as any).openai = {
+      chat: { completions: { create: createChatCompletion } },
+    };
+
+    await client.textCompletion('Hello', {
+      model: 'gpt-5-mini',
+      maxTokens: 500,
+      temperature: 0.9,
+    });
+
+    const body = createChatCompletion.mock.calls[0][0];
+    expect(body.max_completion_tokens).toBe(500);
+    expect(body).not.toHaveProperty('max_tokens');
+    expect(body).not.toHaveProperty('temperature');
+  });
+
+  it('should keep max_tokens and temperature unchanged for a gpt-4o textCompletion', async () => {
+    const createChatCompletion = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: 'ok' } }],
+    });
+
+    const client = await OpenAIClient.create({ apiKey: 'test-key' });
+    (client as any).openai = {
+      chat: { completions: { create: createChatCompletion } },
+    };
+
+    await client.textCompletion('Hello', {
+      model: 'gpt-4o',
+      maxTokens: 500,
+      temperature: 0.9,
+    });
+
+    const body = createChatCompletion.mock.calls[0][0];
     expect(body.max_tokens).toBe(500);
     expect(body.temperature).toBe(0.9);
     expect(body).not.toHaveProperty('max_completion_tokens');

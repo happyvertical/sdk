@@ -2,6 +2,7 @@ import { ApiError, ValidationError } from '@happyvertical/utils';
 import OpenAI from 'openai';
 
 import type { AIMessageOptions } from './message';
+import { buildTokenLimitRequestFields } from './providers/openai';
 import type { AIProviderType, AIRateLimitOptions } from './types';
 import { AI_PROVIDER_TYPES } from './types';
 
@@ -602,13 +603,12 @@ export class OpenAIClient extends AIClient {
         logit_bias: logitBias,
         logprobs,
         top_logprobs: topLogprobs,
-        max_tokens: maxTokens,
+        ...buildTokenLimitRequestFields(model, maxTokens, temperature),
         n,
         presence_penalty: presencePenalty,
         response_format: responseFormat,
         seed,
         stop,
-        temperature,
         top_p: topP,
         tools,
         tool_choice: toolChoice,
@@ -631,14 +631,13 @@ export class OpenAIClient extends AIClient {
       logit_bias: logitBias,
       logprobs,
       top_logprobs: topLogprobs,
-      max_tokens: maxTokens,
+      ...buildTokenLimitRequestFields(model, maxTokens, temperature),
       n,
       presence_penalty: presencePenalty,
       response_format: responseFormat,
       seed,
       stop,
       stream: false,
-      temperature,
       top_p: topP,
       tools,
       tool_choice: toolChoice,
