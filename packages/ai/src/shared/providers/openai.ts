@@ -56,6 +56,62 @@ import {
 import { emitUsage } from './usage';
 
 /**
+ * Determines whether a model uses OpenAI's newer reasoning-model request
+ * shape: `max_completion_tokens` in place of `max_tokens`, and no
+ * `temperature` parameter at all (a non-default `temperature` is rejected
+ * with a 400 error).
+ *
+ * This applies to the `gpt-5` family (`gpt-5`, `gpt-5-mini`, `gpt-5-nano`,
+ * and future `gpt-5*` variants) and the `o`-series reasoning models (`o1`,
+ * `o3`, `o4`, and their variants such as `o1-mini`, `o3-mini`, `o4-mini`).
+ * See OpenAI's reasoning models guide and the Chat Completions API
+ * reference for `max_completion_tokens`:
+ * https://platform.openai.com/docs/guides/reasoning
+ * https://platform.openai.com/docs/api-reference/chat/create
+ *
+ * The match is a conservative prefix/family check so future `gpt-5*` and
+ * `o1`/`o3`/`o4` variants are covered without needing an allowlist update.
+ * Models outside these families (`gpt-4.x`, `gpt-3.5`, etc.) are unaffected
+ * and keep sending `max_tokens` and `temperature` as before.
+ *
+ * @param model - The model identifier (e.g. `gpt-5-mini`, `gpt-4.1-mini`)
+ * @returns `true` when the model requires `max_completion_tokens` and rejects `temperature`
+ */
+export function usesCompletionTokenLimit(model: string | undefined): boolean {
+  if (!model) return false;
+  const normalized = model.toLowerCase();
+  return normalized.startsWith('gpt-5') || /^o[134](-|$)/.test(normalized);
+}
+
+/**
+ * Builds the output-token-limit and temperature fields for a chat/completion
+ * request body, shaped for the given model per {@link usesCompletionTokenLimit}.
+ *
+ * For models that require it: sends `max_completion_tokens` and omits
+ * `max_tokens`, and omits `temperature` entirely (never sends a default
+ * value in its place). For all other models: sends `max_tokens` and
+ * `temperature` unchanged. Fields whose source value is `undefined` are
+ * omitted rather than included as `undefined` keys.
+ */
+export function buildTokenLimitRequestFields(
+  model: string,
+  maxTokens: number | undefined,
+  temperature: number | undefined,
+): {
+  max_tokens?: number;
+  max_completion_tokens?: number;
+  temperature?: number;
+} {
+  if (usesCompletionTokenLimit(model)) {
+    return maxTokens === undefined ? {} : { max_completion_tokens: maxTokens };
+  }
+  return {
+    ...(maxTokens === undefined ? {} : { max_tokens: maxTokens }),
+    ...(temperature === undefined ? {} : { temperature }),
+  };
+}
+
+/**
  * Shared profile for OpenAI-compatible providers
  */
 export interface OpenAICompatibleProfile {
@@ -222,8 +278,11 @@ export class OpenAIProvider implements AIInterface {
       const request = {
         model,
         messages: this.mapMessagesToOpenAI(messages),
-        max_tokens: options.maxTokens,
-        temperature: options.temperature,
+        ...buildTokenLimitRequestFields(
+          model,
+          options.maxTokens,
+          options.temperature,
+        ),
         top_p: options.topP,
         n: options.n,
         stop: options.stop,
@@ -798,8 +857,11 @@ export class OpenAIProvider implements AIInterface {
       const request = {
         model,
         messages: this.mapMessagesToOpenAI(messages),
-        max_tokens: options.maxTokens,
-        temperature: options.temperature,
+        ...buildTokenLimitRequestFields(
+          model,
+          options.maxTokens,
+          options.temperature,
+        ),
         top_p: options.topP,
         stop: options.stop,
         frequency_penalty: options.frequencyPenalty,
