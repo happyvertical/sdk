@@ -26,7 +26,7 @@ jobs:
           --health-retries 5
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup environment
         id: setup
@@ -39,7 +39,7 @@ jobs:
           set -euo pipefail
           test "${RUNNER_ENVIRONMENT:-}" = 'github-hosted'
           test "$(node --version)" = 'v24.18.0'
-          test "$(pnpm --version)" = '11.13.0'
+          test "$(pnpm --version)" = '11.13.1'
           command -v psql
 
       - name: Verify Actions-backed pnpm cache selection
@@ -86,7 +86,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Checkout repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Setup environment
         id: setup
