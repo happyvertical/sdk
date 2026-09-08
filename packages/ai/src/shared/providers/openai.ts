@@ -74,13 +74,21 @@ import { emitUsage } from './usage';
  * Models outside these families (`gpt-4.x`, `gpt-3.5`, etc.) are unaffected
  * and keep sending `max_tokens` and `temperature` as before.
  *
- * @param model - The model identifier (e.g. `gpt-5-mini`, `gpt-4.1-mini`)
+ * Gateway providers (`BifrostProvider`, some `LiteLLMProvider` deployments)
+ * route with a vendor-prefixed model id, e.g. `openai/gpt-5-mini` — see
+ * `BifrostProvider`'s own `defaultModel: 'openai/gpt-4o-mini'` convention in
+ * `bifrost.ts`. Only the final path segment is matched against the family
+ * checks so those gateway-routed ids are recognized the same as a bare
+ * `gpt-5-mini`.
+ *
+ * @param model - The model identifier (e.g. `gpt-5-mini`, `openai/gpt-5-mini`, `gpt-4.1-mini`)
  * @returns `true` when the model requires `max_completion_tokens` and rejects `temperature`
  */
 export function usesCompletionTokenLimit(model: string | undefined): boolean {
   if (!model) return false;
   const normalized = model.toLowerCase();
-  return normalized.startsWith('gpt-5') || /^o[134](-|$)/.test(normalized);
+  const lastSegment = normalized.slice(normalized.lastIndexOf('/') + 1);
+  return lastSegment.startsWith('gpt-5') || /^o[134](-|$)/.test(lastSegment);
 }
 
 /**

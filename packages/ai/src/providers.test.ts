@@ -136,6 +136,13 @@ describe('OpenAI Provider', () => {
       expect(usesCompletionTokenLimit('o200k-harmony')).toBe(false);
       expect(usesCompletionTokenLimit(undefined)).toBe(false);
     });
+
+    it('matches vendor-prefixed gateway model ids by their final path segment', () => {
+      expect(usesCompletionTokenLimit('openai/gpt-5-mini')).toBe(true);
+      expect(usesCompletionTokenLimit('openai/o3-mini')).toBe(true);
+      expect(usesCompletionTokenLimit('openai/gpt-4o-mini')).toBe(false);
+      expect(usesCompletionTokenLimit('openai/gpt-4.1-mini')).toBe(false);
+    });
   });
 
   describe('buildTokenLimitRequestFields', () => {
@@ -903,6 +910,36 @@ describe('Bifrost Provider', () => {
     expect(
       deriveGatewayAdminBaseUrl('https://gateway.example.com/pydanticai/v1'),
     ).toBe('https://gateway.example.com');
+  });
+
+  it('should send max_completion_tokens and no temperature for a vendor-prefixed gpt-5 model routed through Bifrost', async () => {
+    const createChatCompletion = vi
+      .fn()
+      .mockResolvedValue(
+        chatCompletionResponse({ model: 'openai/gpt-5-mini' }),
+      );
+
+    const provider = new BifrostProvider({
+      type: 'bifrost',
+      apiKey: 'runtime-key',
+      baseUrl: 'http://localhost:8080/openai',
+    });
+
+    (provider as any).client = {
+      chat: { completions: { create: createChatCompletion } },
+    };
+
+    await provider.chat([{ role: 'user', content: 'Hello' }], {
+      model: 'openai/gpt-5-mini',
+      maxTokens: 500,
+      temperature: 0.9,
+    });
+
+    const body = createChatCompletion.mock.calls[0][0];
+    expect(body.model).toBe('openai/gpt-5-mini');
+    expect(body.max_completion_tokens).toBe(500);
+    expect(body).not.toHaveProperty('max_tokens');
+    expect(body).not.toHaveProperty('temperature');
   });
 });
 

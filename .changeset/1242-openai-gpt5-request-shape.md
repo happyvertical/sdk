@@ -14,4 +14,7 @@ OpenAI provider builds a chat/completion request body (non-streaming,
 streaming, and the reasoning-gateway path shared by `BifrostProvider` and
 `LiteLLMProvider`): affected models now send `max_completion_tokens` and omit
 `temperature` entirely, while `gpt-4.x`, `gpt-3.5`, and all other models keep
-sending `max_tokens` and `temperature` unchanged.
+sending `max_tokens` and `temperature` unchanged. The predicate matches on
+the final path segment of the model id, so vendor-prefixed gateway ids such
+as `openai/gpt-5-mini` (Bifrost's own naming convention) are shaped
+correctly too.
