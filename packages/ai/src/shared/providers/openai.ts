@@ -81,6 +81,10 @@ import { emitUsage } from './usage';
  * checks so those gateway-routed ids are recognized the same as a bare
  * `gpt-5-mini`.
  *
+ * Internal request-shaping helper: exported at module level only so it can
+ * be unit-tested directly. It is not re-exported from the package entry
+ * point (`src/index.ts`) and is not part of the package's public API.
+ *
  * @param model - The model identifier (e.g. `gpt-5-mini`, `openai/gpt-5-mini`, `gpt-4.1-mini`)
  * @returns `true` when the model requires `max_completion_tokens` and rejects `temperature`
  */
@@ -100,6 +104,10 @@ export function usesCompletionTokenLimit(model: string | undefined): boolean {
  * value in its place). For all other models: sends `max_tokens` and
  * `temperature` unchanged. Fields whose source value is `undefined` are
  * omitted rather than included as `undefined` keys.
+ *
+ * Internal request-shaping helper: exported at module level only so it can
+ * be unit-tested directly. It is not re-exported from the package entry
+ * point (`src/index.ts`) and is not part of the package's public API.
  */
 export function buildTokenLimitRequestFields(
   model: string,
