@@ -5,6 +5,7 @@
 
 import { ValidationError } from '@happyvertical/utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { OpenAIClient } from './shared/client';
 import { AnthropicProvider } from './shared/providers/anthropic';
 import { BedrockProvider } from './shared/providers/bedrock';
 import { BifrostProvider } from './shared/providers/bifrost';
@@ -13,13 +14,41 @@ import { GeminiProvider } from './shared/providers/gemini';
 import { HuggingFaceProvider } from './shared/providers/huggingface';
 import { LiteLLMProvider } from './shared/providers/litellm';
 import { OllamaProvider } from './shared/providers/ollama';
-import { OpenAIProvider } from './shared/providers/openai';
+import {
+  buildTokenLimitRequestFields,
+  OpenAIProvider,
+  usesCompletionTokenLimit,
+} from './shared/providers/openai';
 import { AIError } from './shared/types';
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
     headers: { 'Content-Type': 'application/json' },
   });
+}
+
+function chatCompletionResponse(overrides: Record<string, unknown> = {}) {
+  return {
+    choices: [
+      {
+        message: { content: 'ok' },
+        finish_reason: 'stop',
+      },
+    ],
+    model: 'gpt-5-mini',
+    usage: {
+      prompt_tokens: 10,
+      completion_tokens: 5,
+      total_tokens: 15,
+    },
+    ...overrides,
+  };
+}
+
+async function* asyncChunks(chunks: unknown[]) {
+  for (const chunk of chunks) {
+    yield chunk;
+  }
 }
 
 function ndjsonResponse(lines: unknown[]): Response {
@@ -82,6 +111,208 @@ describe('OpenAI Provider', () => {
         'image_generation',
       ],
     });
+  });
+
+  describe('usesCompletionTokenLimit', () => {
+    it('matches gpt-5 family models', () => {
+      expect(usesCompletionTokenLimit('gpt-5')).toBe(true);
+      expect(usesCompletionTokenLimit('gpt-5-mini')).toBe(true);
+      expect(usesCompletionTokenLimit('gpt-5-nano')).toBe(true);
+      expect(usesCompletionTokenLimit('gpt-5.1-preview')).toBe(true);
+      expect(usesCompletionTokenLimit('GPT-5-MINI')).toBe(true);
+    });
+
+    it('matches o1/o3/o4 reasoning families', () => {
+      expect(usesCompletionTokenLimit('o1')).toBe(true);
+      expect(usesCompletionTokenLimit('o1-mini')).toBe(true);
+      expect(usesCompletionTokenLimit('o3')).toBe(true);
+      expect(usesCompletionTokenLimit('o3-mini')).toBe(true);
+      expect(usesCompletionTokenLimit('o4-mini')).toBe(true);
+    });
+
+    it('does not match gpt-4.x, gpt-3.5, or unrelated models', () => {
+      expect(usesCompletionTokenLimit('gpt-4.1-mini')).toBe(false);
+      expect(usesCompletionTokenLimit('gpt-4o')).toBe(false);
+      expect(usesCompletionTokenLimit('gpt-3.5-turbo')).toBe(false);
+      expect(usesCompletionTokenLimit('o200k-harmony')).toBe(false);
+      expect(usesCompletionTokenLimit(undefined)).toBe(false);
+    });
+
+    it('matches vendor-prefixed gateway model ids by their final path segment', () => {
+      expect(usesCompletionTokenLimit('openai/gpt-5-mini')).toBe(true);
+      expect(usesCompletionTokenLimit('openai/o3-mini')).toBe(true);
+      expect(usesCompletionTokenLimit('openai/gpt-4o-mini')).toBe(false);
+      expect(usesCompletionTokenLimit('openai/gpt-4.1-mini')).toBe(false);
+    });
+  });
+
+  describe('buildTokenLimitRequestFields', () => {
+    it('sends max_completion_tokens and omits temperature for gpt-5 models', () => {
+      expect(buildTokenLimitRequestFields('gpt-5-mini', 500, 0.9)).toEqual({
+        max_completion_tokens: 500,
+      });
+    });
+
+    it('sends max_tokens and temperature unchanged for gpt-4.x models', () => {
+      expect(buildTokenLimitRequestFields('gpt-4.1-mini', 500, 0.9)).toEqual({
+        max_tokens: 500,
+        temperature: 0.9,
+      });
+    });
+
+    it('omits undefined fields rather than sending undefined keys', () => {
+      expect(
+        buildTokenLimitRequestFields('gpt-5-mini', undefined, 0.9),
+      ).toEqual({});
+      expect(
+        buildTokenLimitRequestFields('gpt-4.1-mini', undefined, undefined),
+      ).toEqual({});
+    });
+  });
+
+  it('should send max_completion_tokens and no temperature for a gpt-5-mini chat request', async () => {
+    const createChatCompletion = vi
+      .fn()
+      .mockResolvedValue(chatCompletionResponse());
+
+    const provider = new OpenAIProvider({ apiKey: 'test-key' });
+    (provider as any).client = {
+      chat: { completions: { create: createChatCompletion } },
+    };
+
+    await provider.chat([{ role: 'user', content: 'Hello' }], {
+      model: 'gpt-5-mini',
+      maxTokens: 500,
+      temperature: 0.9,
+    });
+
+    const body = createChatCompletion.mock.calls[0][0];
+    expect(body.max_completion_tokens).toBe(500);
+    expect(body).not.toHaveProperty('max_tokens');
+    expect(body).not.toHaveProperty('temperature');
+  });
+
+  it('should keep max_tokens and temperature unchanged for a gpt-4.1-mini chat request', async () => {
+    const createChatCompletion = vi
+      .fn()
+      .mockResolvedValue(chatCompletionResponse({ model: 'gpt-4.1-mini' }));
+
+    const provider = new OpenAIProvider({ apiKey: 'test-key' });
+    (provider as any).client = {
+      chat: { completions: { create: createChatCompletion } },
+    };
+
+    await provider.chat([{ role: 'user', content: 'Hello' }], {
+      model: 'gpt-4.1-mini',
+      maxTokens: 500,
+      temperature: 0.9,
+    });
+
+    const body = createChatCompletion.mock.calls[0][0];
+    expect(body.max_tokens).toBe(500);
+    expect(body.temperature).toBe(0.9);
+    expect(body).not.toHaveProperty('max_completion_tokens');
+  });
+
+  it('should send max_completion_tokens and no temperature when streaming a gpt-5-mini request', async () => {
+    const createStream = vi
+      .fn()
+      .mockResolvedValue(
+        asyncChunks([
+          { choices: [{ delta: { content: 'hi' } }] },
+          { choices: [{ delta: { content: ' there' } }] },
+        ]),
+      );
+
+    const provider = new OpenAIProvider({ apiKey: 'test-key' });
+    (provider as any).client = {
+      chat: { completions: { create: createStream } },
+    };
+
+    const chunks: string[] = [];
+    for await (const chunk of provider.stream(
+      [{ role: 'user', content: 'Hello' }],
+      { model: 'gpt-5-mini', maxTokens: 500, temperature: 0.9 },
+    )) {
+      chunks.push(chunk);
+    }
+
+    expect(chunks.join('')).toBe('hi there');
+    const body = createStream.mock.calls[0][0];
+    expect(body.max_completion_tokens).toBe(500);
+    expect(body).not.toHaveProperty('max_tokens');
+    expect(body).not.toHaveProperty('temperature');
+  });
+
+  it('should keep max_tokens and temperature unchanged when streaming a gpt-4.1-mini request', async () => {
+    const createStream = vi
+      .fn()
+      .mockResolvedValue(
+        asyncChunks([{ choices: [{ delta: { content: 'hi' } }] }]),
+      );
+
+    const provider = new OpenAIProvider({ apiKey: 'test-key' });
+    (provider as any).client = {
+      chat: { completions: { create: createStream } },
+    };
+
+    for await (const _chunk of provider.stream(
+      [{ role: 'user', content: 'Hello' }],
+      { model: 'gpt-4.1-mini', maxTokens: 500, temperature: 0.9 },
+    )) {
+      // drain
+    }
+
+    const body = createStream.mock.calls[0][0];
+    expect(body.max_tokens).toBe(500);
+    expect(body.temperature).toBe(0.9);
+    expect(body).not.toHaveProperty('max_completion_tokens');
+  });
+});
+
+describe('OpenAIClient (legacy)', () => {
+  it('should send max_completion_tokens and no temperature for a gpt-5-mini textCompletion', async () => {
+    const createChatCompletion = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: 'ok' } }],
+    });
+
+    const client = await OpenAIClient.create({ apiKey: 'test-key' });
+    (client as any).openai = {
+      chat: { completions: { create: createChatCompletion } },
+    };
+
+    await client.textCompletion('Hello', {
+      model: 'gpt-5-mini',
+      maxTokens: 500,
+      temperature: 0.9,
+    });
+
+    const body = createChatCompletion.mock.calls[0][0];
+    expect(body.max_completion_tokens).toBe(500);
+    expect(body).not.toHaveProperty('max_tokens');
+    expect(body).not.toHaveProperty('temperature');
+  });
+
+  it('should keep max_tokens and temperature unchanged for a gpt-4o textCompletion', async () => {
+    const createChatCompletion = vi.fn().mockResolvedValue({
+      choices: [{ message: { content: 'ok' } }],
+    });
+
+    const client = await OpenAIClient.create({ apiKey: 'test-key' });
+    (client as any).openai = {
+      chat: { completions: { create: createChatCompletion } },
+    };
+
+    await client.textCompletion('Hello', {
+      model: 'gpt-4o',
+      maxTokens: 500,
+      temperature: 0.9,
+    });
+
+    const body = createChatCompletion.mock.calls[0][0];
+    expect(body.max_tokens).toBe(500);
+    expect(body.temperature).toBe(0.9);
+    expect(body).not.toHaveProperty('max_completion_tokens');
   });
 });
 
@@ -225,6 +456,54 @@ describe('LiteLLM Provider', () => {
     );
     expect(createChatCompletion.mock.calls[0][0]).not.toHaveProperty(
       'reasoning',
+    );
+  });
+
+  it('should map reasoning.maxTokens onto the gateway reasoning field while still shaping the request for a gpt-5 model', async () => {
+    const createChatCompletion = vi.fn().mockResolvedValue({
+      choices: [
+        {
+          message: { content: 'ok' },
+          finish_reason: 'stop',
+        },
+      ],
+      model: 'gpt-5-mini',
+      usage: {
+        prompt_tokens: 10,
+        completion_tokens: 5,
+        total_tokens: 15,
+      },
+    });
+
+    const provider = new LiteLLMProvider({
+      type: 'litellm',
+      apiKey: 'test-key',
+      baseUrl: 'https://llm.example.com/v1',
+      defaultModel: 'gpt-5-mini',
+    });
+
+    (provider as any).client = {
+      chat: {
+        completions: {
+          create: createChatCompletion,
+        },
+      },
+    };
+
+    await provider.chat([{ role: 'user', content: 'Hello' }], {
+      model: 'gpt-5-mini',
+      maxTokens: 500,
+      temperature: 0.9,
+      reasoning: { maxTokens: 200, effort: 'high' },
+    });
+
+    const body = createChatCompletion.mock.calls[0][0];
+    expect(body.model).toBe('gpt-5-mini');
+    expect(body.max_completion_tokens).toBe(500);
+    expect(body).not.toHaveProperty('max_tokens');
+    expect(body).not.toHaveProperty('temperature');
+    expect(body.reasoning).toEqual(
+      expect.objectContaining({ effort: 'high', max_tokens: 200 }),
     );
   });
 
@@ -678,6 +957,36 @@ describe('Bifrost Provider', () => {
     expect(
       deriveGatewayAdminBaseUrl('https://gateway.example.com/pydanticai/v1'),
     ).toBe('https://gateway.example.com');
+  });
+
+  it('should send max_completion_tokens and no temperature for a vendor-prefixed gpt-5 model routed through Bifrost', async () => {
+    const createChatCompletion = vi
+      .fn()
+      .mockResolvedValue(
+        chatCompletionResponse({ model: 'openai/gpt-5-mini' }),
+      );
+
+    const provider = new BifrostProvider({
+      type: 'bifrost',
+      apiKey: 'runtime-key',
+      baseUrl: 'http://localhost:8080/openai',
+    });
+
+    (provider as any).client = {
+      chat: { completions: { create: createChatCompletion } },
+    };
+
+    await provider.chat([{ role: 'user', content: 'Hello' }], {
+      model: 'openai/gpt-5-mini',
+      maxTokens: 500,
+      temperature: 0.9,
+    });
+
+    const body = createChatCompletion.mock.calls[0][0];
+    expect(body.model).toBe('openai/gpt-5-mini');
+    expect(body.max_completion_tokens).toBe(500);
+    expect(body).not.toHaveProperty('max_tokens');
+    expect(body).not.toHaveProperty('temperature');
   });
 });
 
