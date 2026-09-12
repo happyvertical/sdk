@@ -298,6 +298,11 @@ values so nullable composite keys update the existing row instead of inserting a
 duplicate. Pass `{ nullsDistinct: true }` as the fourth argument to preserve the
 database-native behavior where `NULL` conflict values are distinct.
 
+For PostgreSQL 15+, a matching `UNIQUE (...) NULLS NOT DISTINCT` index lets
+nullable upserts use one native `ON CONFLICT` statement. An ordinary `UNIQUE`
+constraint still treats `NULL` values as distinct, so the adapter retains its
+race-safe NULL-aware fallback for that schema.
+
 ### Transactions
 
 ```typescript

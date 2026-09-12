@@ -1347,12 +1347,25 @@ describe('postgres nullable-conflict upsert', () => {
         name: 'Initial Name',
       });
 
-      await db.upsert(tableName, ['slug', 'tenant_id'], {
-        id: 'item-2',
-        slug: 'shared-item',
-        tenant_id: null,
-        name: 'Updated Name',
-      });
+      // The first nullable upsert discovers and caches the matching native
+      // index. Once discovered, the native path must issue only the UPSERT,
+      // rather than the advisory-lock + UPDATE/INSERT fallback.
+      const querySpy = vi.spyOn(db.client, 'query');
+      try {
+        await db.upsert(tableName, ['slug', 'tenant_id'], {
+          id: 'item-2',
+          slug: 'shared-item',
+          tenant_id: null,
+          name: 'Updated Name',
+        });
+
+        expect(querySpy).toHaveBeenCalledTimes(1);
+        expect(querySpy.mock.calls[0]?.[0]).toMatch(
+          /^INSERT INTO .* ON CONFLICT\("slug", "tenant_id"\) DO UPDATE SET /,
+        );
+      } finally {
+        querySpy.mockRestore();
+      }
 
       const result = await db.client.query(
         `SELECT * FROM ${tableName} WHERE slug = $1 AND tenant_id IS NULL`,
