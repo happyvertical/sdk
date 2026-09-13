@@ -2009,7 +2009,18 @@ async function createDatabase(
      */
     const tableExists = async (tableName: string): Promise<boolean> => {
       const result = await executor.query(
-        `SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = $1 AND table_schema = 'public')`,
+        `SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.tables
+          WHERE table_name = $1
+            AND table_schema = (
+              SELECT namespace.nspname
+              FROM pg_catalog.pg_class AS relation
+              JOIN pg_catalog.pg_namespace AS namespace
+                ON namespace.oid = relation.relnamespace
+              WHERE relation.oid = pg_catalog.to_regclass(pg_catalog.quote_ident($1))
+            )
+        )`,
         [tableName],
       );
       return result.rows[0].exists;
@@ -2075,24 +2086,38 @@ async function createDatabase(
       };
 
       // Pre-scan commands to collect all index names for batch existence check (Issue #798)
-      const indexNames: string[] = [];
+      const indexTargets: Array<{ indexName: string; tableName: string }> = [];
       for (const command of commands) {
         const indexMatch = parseCreateIndex(command.trim());
         if (indexMatch) {
-          indexNames.push(indexMatch.indexName);
+          indexTargets.push(indexMatch);
         }
       }
 
-      // Batch query to check which indexes already exist
+      // Resolve each table through the executor's search_path. Index names are
+      // only unique within a schema, so a name-only public lookup can suppress
+      // a needed index when another schema has the same name.
       const existingIndexes = new Set<string>();
-      if (indexNames.length > 0) {
+      if (indexTargets.length > 0) {
         const result = await executor.query(
-          `SELECT indexname FROM pg_indexes
-           WHERE schemaname = 'public' AND indexname = ANY($1::text[])`,
-          [indexNames],
+          `SELECT target.table_name, target.index_name
+           FROM unnest($1::text[], $2::text[])
+             AS target(table_name, index_name)
+           JOIN pg_catalog.pg_class AS relation
+             ON relation.oid = pg_catalog.to_regclass(pg_catalog.quote_ident(target.table_name))
+           JOIN pg_catalog.pg_namespace AS namespace
+             ON namespace.oid = relation.relnamespace
+           JOIN pg_catalog.pg_indexes AS existing
+             ON existing.schemaname = namespace.nspname
+             AND existing.tablename = target.table_name
+             AND existing.indexname = target.index_name`,
+          [
+            indexTargets.map((target) => target.tableName),
+            indexTargets.map((target) => target.indexName),
+          ],
         );
         for (const row of result.rows) {
-          existingIndexes.add(row.indexname);
+          existingIndexes.add(`${row.table_name}\u0000${row.index_name}`);
         }
       }
 
@@ -2160,7 +2185,13 @@ async function createDatabase(
                         SELECT 1 FROM information_schema.columns
                         WHERE table_name = $1
                         AND column_name = $2
-                        AND table_schema = 'public'
+                        AND table_schema = (
+                          SELECT namespace.nspname
+                          FROM pg_catalog.pg_class AS relation
+                          JOIN pg_catalog.pg_namespace AS namespace
+                            ON namespace.oid = relation.relnamespace
+                          WHERE relation.oid = pg_catalog.to_regclass(pg_catalog.quote_ident($1))
+                        )
                       )`,
                       [tableName, columnName],
                     );
@@ -2191,11 +2222,12 @@ async function createDatabase(
           const { indexName, tableName: indexTableName } = indexMatch;
 
           // Use pre-fetched batch result instead of per-index query
-          if (!existingIndexes.has(indexName)) {
+          const indexKey = `${indexTableName}\u0000${indexName}`;
+          if (!existingIndexes.has(indexKey)) {
             try {
               await runTolerated(() => executor.query(trimmedCommand));
               // Track newly created index for idempotency within this call
-              existingIndexes.add(indexName);
+              existingIndexes.add(indexKey);
             } catch (error) {
               // Log error but continue - index creation failures shouldn't block schema sync
               console.warn(
@@ -2670,7 +2702,13 @@ async function createDatabase(
           column_default
         FROM information_schema.columns
         WHERE table_name = ${table}
-          AND table_schema = 'public'
+          AND table_schema = (
+            SELECT namespace.nspname
+            FROM pg_catalog.pg_class AS relation
+            JOIN pg_catalog.pg_namespace AS namespace
+              ON namespace.oid = relation.relnamespace
+            WHERE relation.oid = pg_catalog.to_regclass(pg_catalog.quote_ident(${table}))
+          )
         ORDER BY ordinal_position
       `;
 
@@ -2682,7 +2720,13 @@ async function createDatabase(
           ON tc.constraint_name = kcu.constraint_name
           AND tc.table_schema = kcu.table_schema
         WHERE tc.table_name = ${table}
-          AND tc.table_schema = 'public'
+          AND tc.table_schema = (
+            SELECT namespace.nspname
+            FROM pg_catalog.pg_class AS relation
+            JOIN pg_catalog.pg_namespace AS namespace
+              ON namespace.oid = relation.relnamespace
+            WHERE relation.oid = pg_catalog.to_regclass(pg_catalog.quote_ident(${table}))
+          )
           AND tc.constraint_type = 'PRIMARY KEY'
       `;
 
@@ -2706,7 +2750,13 @@ async function createDatabase(
           indexdef
         FROM pg_indexes
         WHERE tablename = ${table}
-          AND schemaname = 'public'
+          AND schemaname = (
+            SELECT namespace.nspname
+            FROM pg_catalog.pg_class AS relation
+            JOIN pg_catalog.pg_namespace AS namespace
+              ON namespace.oid = relation.relnamespace
+            WHERE relation.oid = pg_catalog.to_regclass(pg_catalog.quote_ident(${table}))
+          )
           AND indexname NOT LIKE '%_pkey'
       `;
 
@@ -2751,7 +2801,13 @@ async function createDatabase(
           AND rc.constraint_schema = tc.table_schema
         WHERE tc.constraint_type = 'FOREIGN KEY'
           AND tc.table_name = ${table}
-          AND tc.table_schema = 'public'
+          AND tc.table_schema = (
+            SELECT namespace.nspname
+            FROM pg_catalog.pg_class AS relation
+            JOIN pg_catalog.pg_namespace AS namespace
+              ON namespace.oid = relation.relnamespace
+            WHERE relation.oid = pg_catalog.to_regclass(pg_catalog.quote_ident(${table}))
+          )
       `;
 
       const foreignKeys: Array<{
