@@ -16,7 +16,7 @@
     }
   },
   "peerDependencies": {
-    "@sentry/node": ">=10.49.0"
+    "@sentry/node": ">=10.74.0"
   },
   "peerDependenciesMeta": {
     "@sentry/node": {
@@ -48,8 +48,8 @@
     "@happyvertical/utils": "workspace:*"
   },
   "devDependencies": {
-    "@sentry/node": "^10.49.0",
-    "@types/node": "25.0.10",
+    "@sentry/node": "^10.74.0",
+    "@types/node": "25.9.6",
     "typescript": "5.9.3",
     "vite": "8.1.4",
     "vitest": "4.1.10"
