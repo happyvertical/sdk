@@ -530,6 +530,17 @@ On PostgreSQL, `syncSchema()` recognizes `CREATE [UNIQUE] INDEX CONCURRENTLY
 [IF NOT EXISTS]` statements, including optional `USING` index methods, and
 skips indexes that already exist when a schema is applied again.
 
+PostgreSQL `tableExists()`, `getTableSchema()`, and `syncSchema()` resolve an
+unqualified table name through the executing connection's `search_path`, so a
+non-`public` schema can be used without changing the API. Root PostgreSQL
+helpers use a pool: do not issue `SET search_path` on one root call and assume
+later root helpers will use that same session. Configure the path for every
+pool connection, or keep transaction-scoped schema work on the supplied `tx`
+handle with `SET LOCAL search_path` before calling `tx.tableExists()` or
+`tx.syncSchema()`. `acquireSession()` pins raw PostgreSQL queries to one
+connection for session-scoped state; root metadata helpers are not part of
+that raw session handle.
+
 ### Vector Search (PostgreSQL)
 
 PostgreSQL adapters expose `db.vector` when pgvector is available:
