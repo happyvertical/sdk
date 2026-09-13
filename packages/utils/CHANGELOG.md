@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.89.9
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - honor PostgreSQL schema metadata (#1248) (sql)
+
 ## 0.89.8
 
 ## 0.89.7
