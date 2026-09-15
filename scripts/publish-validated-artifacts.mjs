@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { verifyPublishArtifacts } from './publish-artifacts-lib.mjs';
 
@@ -24,6 +26,16 @@ function exists(name, version, runNpm) {
   }) !== null;
 }
 
+function registryShasum(name, version, runNpm) {
+  return runNpm(['view', `${name}@${version}`, 'dist.shasum', '--registry', registry], {
+    allowNotFound: true,
+  });
+}
+
+function defaultArtifactShasum(artifact) {
+  return createHash('sha1').update(readFileSync(artifact.path)).digest('hex');
+}
+
 function waitForRegistry(ms) {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
@@ -34,12 +46,27 @@ export function publishRelease(release, {
   wait = waitForRegistry,
   maxAttempts = registryVerificationAttempts,
   retryDelayMs = registryVerificationDelayMs,
+  artifactShasum = defaultArtifactShasum,
 } = {}) {
+  const toPublish = [];
   for (const artifact of release.packages) {
     if (exists(artifact.name, artifact.version, runNpm)) {
-      log(`Skipping existing ${artifact.name}@${artifact.version}`);
-      continue;
+      const remote = registryShasum(artifact.name, artifact.version, runNpm);
+      const local = artifactShasum(artifact);
+      if (remote && remote === local) {
+        log(`Skipping existing ${artifact.name}@${artifact.version} (identical shasum ${local})`);
+        continue;
+      }
+      throw new Error(
+        `${artifact.name}@${artifact.version} is already on npm with different content `
+        + `(registry ${remote ?? 'unavailable'}, local ${local}). A previous run published this version `
+        + 'from another head; add a changeset so the next release cuts a new version instead of republishing.',
+      );
     }
+    toPublish.push(artifact);
+  }
+
+  for (const artifact of toPublish) {
     runNpm(['publish', artifact.path, '--registry', registry, '--access', 'public']);
   }
 
