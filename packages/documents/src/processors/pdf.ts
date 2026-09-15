@@ -1,7 +1,7 @@
+import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { getCached, setCached } from '@happyvertical/files';
 import { getPDFReader } from '@happyvertical/pdf';
-import { v4 as uuidv4 } from 'uuid';
 import { Document as BaseDocument } from '../document';
 import type {
   Document,
@@ -117,7 +117,7 @@ export class PDFProcessor implements DocumentProcessor {
 
     // Create main document part
     const mainPart: DocumentPart = {
-      id: uuidv4(),
+      id: randomUUID(),
       title: getTitleFromUrl(url, 'PDF Document'),
       content: extractedText || '',
       type: 'text',
