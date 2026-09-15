@@ -1,5 +1,13 @@
 # @happyvertical/utils
 
+## 0.89.12
+
+### Patch Changes
+
+- ### Bug Fixes
+
+  - fail publish when the version already exists on npm with different content (#1261) (release)
+
 ## 0.89.11
 
 ## 0.89.10
