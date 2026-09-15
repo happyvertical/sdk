@@ -3,7 +3,14 @@
  */
 
 import { createId as cuid2CreateId, isCuid } from '@paralleldrive/cuid2';
-import { add, format, isValid, parse, parseISO } from 'date-fns';
+// Subpath imports on purpose: the `date-fns` barrel links ~300 modules and
+// costs ~330 ms per fresh Node process, and this module is on the import
+// graph of every SDK package. The five subpaths cost ~30 ms.
+import { add } from 'date-fns/add';
+import { format } from 'date-fns/format';
+import { isValid } from 'date-fns/isValid';
+import { parse } from 'date-fns/parse';
+import { parseISO } from 'date-fns/parseISO';
 import pluralize from 'pluralize';
 import { ParsingError, TimeoutError } from './types';
 
