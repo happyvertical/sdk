@@ -1,5 +1,11 @@
 # @happyvertical/accounting
 
+## 0.89.11
+
+### Patch Changes
+
+- @happyvertical/utils@0.89.11
+
 ## 0.89.10
 
 ### Patch Changes

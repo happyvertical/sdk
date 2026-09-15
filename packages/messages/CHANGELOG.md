@@ -1,5 +1,14 @@
 # @happyvertical/messages
 
+## 0.89.11
+
+### Patch Changes
+
+- fd56720: Republish: npm 0.89.10 was cut from a head that predates the `uuid` removal in `@happyvertical/documents` (#1256) and the ESM import fix in `@happyvertical/messages` (#1257). This release carries both.
+  - @happyvertical/email@0.89.11
+  - @happyvertical/logger@0.89.11
+  - @happyvertical/utils@0.89.11
+
 ## 0.89.10
 
 ### Patch Changes
