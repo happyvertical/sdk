@@ -411,9 +411,7 @@
           "@happyvertical/pdf",
           "@happyvertical/spider"
         ],
-        "external": [
-          "uuid"
-        ]
+        "external": []
       },
       "dependents": [],
       "stability": {

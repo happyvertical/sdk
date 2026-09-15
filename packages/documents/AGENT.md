@@ -26,7 +26,7 @@ pnpm --filter @happyvertical/documents test
 ## Ecosystem Relationships
 - Provides: Multi-part document processing with support for PDF, HTML, and Markdown
 - Implements: none
-- Requires: @happyvertical/files, @happyvertical/utils, @happyvertical/ocr, @happyvertical/pdf, @happyvertical/spider, uuid
+- Requires: @happyvertical/files, @happyvertical/utils, @happyvertical/ocr, @happyvertical/pdf, @happyvertical/spider
 - Stability: stable (Primary package surface is described as implemented and production-oriented.)
 <!-- END AGENT:GENERATED -->
 
