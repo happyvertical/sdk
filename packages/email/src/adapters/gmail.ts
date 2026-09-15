@@ -4,7 +4,6 @@
 
 import type { OAuth2Client } from 'google-auth-library';
 import type { gmail_v1 } from 'googleapis';
-import { google } from 'googleapis';
 import { simpleParser } from 'mailparser';
 import { BaseEmailClient } from '../shared/base';
 import {
@@ -58,6 +57,11 @@ export class GmailAdapter extends BaseEmailClient {
 
   async connect(): Promise<void> {
     try {
+      // Loaded on first connect rather than at module scope: `googleapis` is
+      // a large CommonJS graph that costs ~215 ms per fresh Node process, and
+      // every consumer of this package paid it whether or not Gmail was used.
+      const { google } = await import('googleapis');
+
       // Create OAuth2 client
       const auth = new google.auth.OAuth2(
         this.options.auth.clientId,
