@@ -63,8 +63,11 @@ export default defineConfig({
         'v8',
         'inspector',
 
-        // External dependencies - don't bundle these
-        'date-fns',
+        // External dependencies - don't bundle these.
+        // date-fns is deliberately NOT listed: universal.ts imports it by
+        // subpath and the bundler tree-shakes the five functions into this
+        // package (~13 modules, ~8 ms cold). Left external, even the subpaths
+        // link ~100 files (~95 ms); the barrel linked ~300 (~330 ms).
         'pluralize',
         'uuid',
         '@paralleldrive/cuid2',
