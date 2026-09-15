@@ -1,5 +1,15 @@
 # @happyvertical/messages
 
+## 0.89.10
+
+### Patch Changes
+
+- 8a6085b: Fix the ESM build: a CommonJS dependency was bundled into `dist/index.js` and its `require("node:os")` threw on import under Node. It is now external, and a dist import smoke test guards the entry.
+- Updated dependencies [7bb953e]
+  - @happyvertical/utils@0.89.10
+  - @happyvertical/email@0.89.10
+  - @happyvertical/logger@0.89.10
+
 ## 0.89.9
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @happyvertical/utils
 
+## 0.89.10
+
+### Patch Changes
+
+- 7bb953e: Cut cold-start import cost. `@happyvertical/utils` now imports `date-fns` by subpath instead of the barrel, which linked ~300 modules (~330 ms) on every fresh Node process for every package that depends on utils. `@happyvertical/email` loads `googleapis` on first Gmail connect instead of at module scope (~215 ms).
+
 ## 0.89.9
 
 ### Patch Changes

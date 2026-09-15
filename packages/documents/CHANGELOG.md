@@ -1,5 +1,14 @@
 # @happyvertical/documents
 
+## 0.89.10
+
+### Patch Changes
+
+- 92652fa: Replace the `uuid` dependency with `crypto.randomUUID()`; one fewer dependency and ~20 fewer modules on every cold start of `@happyvertical/documents`.
+- Updated dependencies [7bb953e]
+  - @happyvertical/utils@0.89.10
+  - @happyvertical/files@0.89.10
+
 ## 0.89.9
 
 ### Patch Changes
