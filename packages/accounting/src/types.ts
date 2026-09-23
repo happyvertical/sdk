@@ -167,7 +167,11 @@ export interface InvoiceLineItemInput {
   sku?: string;
   /** Quantity */
   quantity: number;
-  /** Unit price */
+  /**
+   * Unit price in the currency's major unit (for example, `12.34` USD or
+   * `1200` JPY). The Stripe provider converts this value to Stripe's smallest
+   * currency unit.
+   */
   unitPrice: number;
   /** Discount amount */
   discount?: number;
@@ -201,11 +205,11 @@ export interface InvoiceInput {
   dueDate: Date;
   /** Line items */
   lineItems: InvoiceLineItemInput[];
-  /** Subtotal before tax */
+  /** Subtotal before tax, in the currency's major unit. */
   subtotal: number;
-  /** Tax amount */
+  /** Tax amount in the currency's major unit. Ignored by Stripe when automaticTax is enabled. */
   taxAmount: number;
-  /** Total amount */
+  /** Total amount in the currency's major unit. */
   totalAmount: number;
   /** Currency code (ISO 4217) */
   currency?: string;
@@ -215,6 +219,18 @@ export interface InvoiceInput {
   memo?: string;
   /** Additional metadata */
   metadata?: Record<string, unknown>;
+  /**
+   * Stable caller-owned key for replaying the same provider invoice. Stripe
+   * invoice-item and invoice requests derive deterministic provider keys from
+   * it, and the adapter reconciles tagged provider resources after Stripe's
+   * idempotency retention window.
+   */
+  idempotencyKey?: string;
+  /**
+   * Ask Stripe Tax to calculate tax from the synced customer's billing
+   * address. The provider-calculated amount is returned by invoice reads.
+   */
+  automaticTax?: boolean;
 }
 
 /**
@@ -363,6 +379,7 @@ export interface ExternalInvoice extends ExternalRecord {
   customerExternalId: string;
   issueDate: Date;
   dueDate: Date;
+  /** Monetary values are in the currency's major unit. */
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
@@ -459,6 +476,8 @@ export interface StripeCheckoutSessionInput {
   lineItems: StripeCheckoutLineItem[];
   metadata?: Record<string, string | number | boolean | null | undefined>;
   allowPromotionCodes?: boolean;
+  /** Stable caller-owned key reused when creating the same Checkout Session. */
+  idempotencyKey?: string;
 }
 
 export interface StripeCheckoutSession {
@@ -612,6 +631,8 @@ export interface AuditReport<T> {
  * Webhook event from provider
  */
 export interface WebhookEvent {
+  /** Verified provider event identifier for durable inbox deduplication. */
+  id?: string;
   /** Event type */
   type: string;
   /** Provider */

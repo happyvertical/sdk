@@ -85,11 +85,18 @@ interface StripeInvoice {
   due_date?: number | null;
   subtotal?: number | null;
   tax?: number | null;
+  total_taxes?: Array<{ amount?: number | null }> | null;
   total?: number | null;
   amount_paid?: number | null;
   amount_remaining?: number | null;
   status?: string | null;
   currency?: string | null;
+  metadata?: Record<string, string> | null;
+}
+
+interface StripeInvoiceItem {
+  id: string;
+  metadata?: Record<string, string> | null;
 }
 
 interface StripePaymentIntent {
@@ -128,6 +135,7 @@ interface StripeSubscription {
 }
 
 interface StripeWebhookPayload {
+  id?: string | null;
   type?: string | null;
   created?: number | null;
   data?: {
@@ -180,10 +188,14 @@ export class StripeProvider implements StripeAccountingProvider {
     method: 'GET' | 'POST' | 'DELETE',
     endpoint: string,
     params?: Record<string, StripeFormValue>,
+    options: { idempotencyKey?: string } = {},
   ): Promise<T> {
     const timeout = this.options.timeout || 30000;
     const maxRetries = this.options.maxRetries || 3;
-    const idempotencyKey = method === 'POST' ? `sdk-${randomUUID()}` : null;
+    const idempotencyKey =
+      method === 'POST'
+        ? (options.idempotencyKey ?? `sdk-${randomUUID()}`)
+        : null;
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
@@ -333,25 +345,68 @@ class StripeInvoiceOperations implements InvoiceOperations {
       throw new Error('Stripe invoices require customerExternalId');
     }
 
-    for (const lineItem of invoice.lineItems) {
-      await this.provider.request('POST', '/v1/invoiceitems', {
-        customer: invoice.customerExternalId,
-        currency: invoice.currency || 'usd',
-        description: lineItem.description,
-        quantity: lineItem.quantity,
-        unit_amount_decimal: String(Math.round(lineItem.unitPrice * 100)),
-        metadata: normalizeMetadata({
-          local_sku: lineItem.sku,
-          local_discount: lineItem.discount,
-          local_tax_rate: lineItem.taxRate,
-        }),
-      });
+    const existingInvoice = invoice.idempotencyKey
+      ? await this.findInvoiceByLocalId(invoice.customerExternalId, invoice.id)
+      : undefined;
+    if (existingInvoice) {
+      return {
+        action: 'created',
+        externalId: existingInvoice.id,
+        syncedAt: new Date(),
+      };
+    }
+
+    const existingLineItemIndexes = invoice.idempotencyKey
+      ? await this.findPendingLineItemIndexes(
+          invoice.customerExternalId,
+          invoice.id,
+        )
+      : new Set<number>();
+
+    for (const [index, lineItem] of invoice.lineItems.entries()) {
+      if (existingLineItemIndexes.has(index)) {
+        continue;
+      }
+      await this.provider.request(
+        'POST',
+        '/v1/invoiceitems',
+        {
+          customer: invoice.customerExternalId,
+          currency: invoice.currency || 'usd',
+          description: lineItem.description,
+          quantity: lineItem.quantity,
+          unit_amount_decimal: String(
+            moneyToStripeMinorUnits(
+              lineItem.unitPrice,
+              invoice.currency || 'usd',
+            ),
+          ),
+          tax_behavior: invoice.automaticTax ? 'exclusive' : undefined,
+          metadata: normalizeMetadata({
+            local_invoice_id: invoice.id,
+            local_line_index: index,
+            local_sku: lineItem.sku,
+            local_discount: lineItem.discount,
+            local_tax_rate: lineItem.taxRate,
+          }),
+        },
+        {
+          idempotencyKey: invoice.idempotencyKey
+            ? `${invoice.idempotencyKey}:item:${index}`
+            : undefined,
+        },
+      );
     }
 
     const response = await this.provider.request<StripeInvoice>(
       'POST',
       '/v1/invoices',
       mapInvoiceToStripe(invoice),
+      {
+        idempotencyKey: invoice.idempotencyKey
+          ? `${invoice.idempotencyKey}:invoice`
+          : undefined,
+      },
     );
 
     return {
@@ -407,6 +462,61 @@ class StripeInvoiceOperations implements InvoiceOperations {
       `/v1/invoices/${encodeURIComponent(externalId)}/void`,
     );
   }
+
+  private async findInvoiceByLocalId(
+    customerExternalId: string,
+    localInvoiceId: string,
+  ): Promise<StripeInvoice | undefined> {
+    let startingAfter: string | undefined;
+    do {
+      const response = await this.provider.request<
+        StripeListResponse<StripeInvoice>
+      >('GET', '/v1/invoices', {
+        customer: customerExternalId,
+        limit: 100,
+        starting_after: startingAfter,
+      });
+      const existing = response.data.find(
+        (invoice) => invoice.metadata?.local_id === localInvoiceId,
+      );
+      if (existing) {
+        return existing;
+      }
+      startingAfter = response.has_more ? response.data.at(-1)?.id : undefined;
+    } while (startingAfter);
+
+    return undefined;
+  }
+
+  private async findPendingLineItemIndexes(
+    customerExternalId: string,
+    localInvoiceId: string,
+  ): Promise<Set<number>> {
+    const indexes = new Set<number>();
+    let startingAfter: string | undefined;
+    do {
+      const response = await this.provider.request<
+        StripeListResponse<StripeInvoiceItem>
+      >('GET', '/v1/invoiceitems', {
+        customer: customerExternalId,
+        pending: true,
+        limit: 100,
+        starting_after: startingAfter,
+      });
+      for (const item of response.data) {
+        if (item.metadata?.local_invoice_id !== localInvoiceId) {
+          continue;
+        }
+        const index = Number(item.metadata.local_line_index);
+        if (Number.isSafeInteger(index) && index >= 0) {
+          indexes.add(index);
+        }
+      }
+      startingAfter = response.has_more ? response.data.at(-1)?.id : undefined;
+    } while (startingAfter);
+
+    return indexes;
+  }
 }
 
 class StripePaymentOperations implements PaymentOperations {
@@ -438,6 +548,7 @@ class StripeBillingOperationsImpl implements StripeBillingOperations {
       'POST',
       '/v1/checkout/sessions',
       mapCheckoutSessionToStripe(input),
+      { idempotencyKey: input.idempotencyKey },
     );
 
     return {
@@ -625,6 +736,7 @@ class StripeWebhookOperations implements WebhookOperations {
     const resource = event?.data?.object;
     return {
       type: event?.type || 'unknown',
+      id: typeof event?.id === 'string' ? event.id : undefined,
       provider: 'stripe',
       timestamp: unixToDate(event?.created) || new Date(),
       payload: event,
@@ -718,6 +830,7 @@ function mapInvoiceToStripe(
     due_date: invoice.dueDate,
     auto_advance: false,
     pending_invoice_items_behavior: 'include',
+    automatic_tax: invoice.automaticTax ? { enabled: true } : undefined,
     metadata: normalizeMetadata({
       local_id: invoice.id,
       invoice_number: invoice.invoiceNumber,
@@ -831,7 +944,7 @@ function mapStripeCustomer(customer: StripeCustomer): ExternalCustomer {
     balance:
       customer.balance === null || customer.balance === undefined
         ? undefined
-        : centsToMoney(customer.balance),
+        : stripeMinorUnitsToMoney(customer.balance, customer.currency),
     currency: customer.currency || undefined,
     raw: customer,
   };
@@ -850,11 +963,20 @@ function mapStripeInvoice(invoice: StripeInvoice): ExternalInvoice {
     issueDate: unixToDate(invoice.created) || new Date(),
     dueDate:
       unixToDate(invoice.due_date) || unixToDate(invoice.created) || new Date(),
-    subtotal: centsToMoney(invoice.subtotal || 0),
-    taxAmount: centsToMoney(invoice.tax || 0),
-    totalAmount: centsToMoney(invoice.total || 0),
-    amountPaid: centsToMoney(invoice.amount_paid || 0),
-    balance: centsToMoney(invoice.amount_remaining || 0),
+    subtotal: stripeMinorUnitsToMoney(invoice.subtotal || 0, invoice.currency),
+    taxAmount: stripeMinorUnitsToMoney(
+      stripeInvoiceTaxAmount(invoice),
+      invoice.currency,
+    ),
+    totalAmount: stripeMinorUnitsToMoney(invoice.total || 0, invoice.currency),
+    amountPaid: stripeMinorUnitsToMoney(
+      invoice.amount_paid || 0,
+      invoice.currency,
+    ),
+    balance: stripeMinorUnitsToMoney(
+      invoice.amount_remaining || 0,
+      invoice.currency,
+    ),
     status: mapStripeInvoiceStatus(invoice.status, invoice.due_date),
     currency: invoice.currency || 'usd',
     raw: invoice,
@@ -868,7 +990,10 @@ function mapStripePaymentIntent(
     externalId: paymentIntent.id,
     provider: 'stripe',
     syncedAt: new Date(),
-    amount: centsToMoney(paymentIntent.amount || 0),
+    amount: stripeMinorUnitsToMoney(
+      paymentIntent.amount || 0,
+      paymentIntent.currency,
+    ),
     currency: paymentIntent.currency || 'usd',
     paidAt: unixToDate(paymentIntent.created) || new Date(),
     method: paymentIntent.payment_method_types?.[0],
@@ -1122,6 +1247,65 @@ function valuesEqual(left: unknown, right: unknown): boolean {
     return Math.abs(left - right) < 0.01;
   }
   return false;
+}
+
+function stripeInvoiceTaxAmount(invoice: StripeInvoice): number {
+  if (typeof invoice.tax === 'number') {
+    return invoice.tax;
+  }
+  return (invoice.total_taxes || []).reduce(
+    (total, tax) => total + (tax.amount || 0),
+    0,
+  );
+}
+
+const STRIPE_ZERO_DECIMAL_CURRENCIES = new Set([
+  'BIF',
+  'CLP',
+  'DJF',
+  'GNF',
+  'JPY',
+  'KMF',
+  'KRW',
+  'MGA',
+  'PYG',
+  'RWF',
+  'VND',
+  'VUV',
+  'XAF',
+  'XOF',
+  'XPF',
+]);
+const STRIPE_THREE_DECIMAL_CURRENCIES = new Set([
+  'BHD',
+  'IQD',
+  'JOD',
+  'KWD',
+  'LYD',
+  'OMR',
+  'TND',
+]);
+
+function stripeCurrencyMinorUnitFactor(currency?: string | null): number {
+  const normalized = (currency || 'usd').toUpperCase();
+  if (STRIPE_ZERO_DECIMAL_CURRENCIES.has(normalized)) {
+    return 1;
+  }
+  if (STRIPE_THREE_DECIMAL_CURRENCIES.has(normalized)) {
+    return 1_000;
+  }
+  return 100;
+}
+
+function moneyToStripeMinorUnits(amount: number, currency: string): number {
+  return Math.round(amount * stripeCurrencyMinorUnitFactor(currency));
+}
+
+function stripeMinorUnitsToMoney(
+  amount: number,
+  currency?: string | null,
+): number {
+  return amount / stripeCurrencyMinorUnitFactor(currency);
 }
 
 function centsToMoney(cents: number): number {
