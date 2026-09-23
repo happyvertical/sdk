@@ -118,7 +118,7 @@ These packages form the foundation everything else builds on.
 
 ## Installation
 
-Published packages are available on public npm under the `@happyvertical` scope. No GitHub Packages token or scoped registry configuration is required. Packages that still depend on legacy internal packages, such as `@happyvertical/documents`, remain workspace-only until those dependencies are also available on public npm.
+Published packages are released to the HappyVertical registry (`https://npm.happyvertical.com/`) and mirrored to public npm under the `@happyvertical` scope. The mirror is best-effort, so a new version can reach npm.happyvertical.com before public npm; to get it immediately, add `@happyvertical:registry=https://npm.happyvertical.com/` to your `.npmrc` (reads are anonymous, and it proxies npmjs for older versions). No GitHub Packages token or scoped registry configuration is required. Packages that still depend on legacy internal packages, such as `@happyvertical/documents`, remain workspace-only until those dependencies are also available on public npm.
 
 ### Install what you need
 

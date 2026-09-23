@@ -5,8 +5,8 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { verifyPublishArtifacts } from './publish-artifacts-lib.mjs';
+import { primaryRegistry, registryArgs } from './release-registry.mjs';
 
-const registry = 'https://registry.npmjs.org/';
 const registryVerificationAttempts = 12;
 const registryVerificationDelayMs = 10_000;
 
@@ -20,14 +20,14 @@ function npm(args, { allowNotFound = false } = {}) {
   return result.stdout.trim();
 }
 
-function exists(name, version, runNpm) {
-  return runNpm(['view', `${name}@${version}`, 'version', '--registry', registry], {
+function exists(name, version, registry, runNpm) {
+  return runNpm(['view', `${name}@${version}`, 'version', ...registryArgs(registry), '--prefer-online'], {
     allowNotFound: true,
   }) !== null;
 }
 
-function registryShasum(name, version, runNpm) {
-  return runNpm(['view', `${name}@${version}`, 'dist.shasum', '--registry', registry], {
+function registryShasum(name, version, registry, runNpm) {
+  return runNpm(['view', `${name}@${version}`, 'dist.shasum', ...registryArgs(registry), '--prefer-online'], {
     allowNotFound: true,
   });
 }
@@ -41,6 +41,7 @@ function waitForRegistry(ms) {
 }
 
 export function publishRelease(release, {
+  registry = primaryRegistry(),
   runNpm = npm,
   log = console.log,
   wait = waitForRegistry,
@@ -50,15 +51,15 @@ export function publishRelease(release, {
 } = {}) {
   const toPublish = [];
   for (const artifact of release.packages) {
-    if (exists(artifact.name, artifact.version, runNpm)) {
-      const remote = registryShasum(artifact.name, artifact.version, runNpm);
+    if (exists(artifact.name, artifact.version, registry, runNpm)) {
+      const remote = registryShasum(artifact.name, artifact.version, registry, runNpm);
       const local = artifactShasum(artifact);
       if (remote && remote === local) {
         log(`Skipping existing ${artifact.name}@${artifact.version} (identical shasum ${local})`);
         continue;
       }
       throw new Error(
-        `${artifact.name}@${artifact.version} is already on npm with different content `
+        `${artifact.name}@${artifact.version} is already on ${registry} with different content `
         + `(registry ${remote ?? 'unavailable'}, local ${local}). A previous run published this version `
         + 'from another head; add a changeset so the next release cuts a new version instead of republishing.',
       );
@@ -66,23 +67,24 @@ export function publishRelease(release, {
     toPublish.push(artifact);
   }
 
+  log(`Publishing ${toPublish.length} verified tarball(s) to ${registry}`);
   for (const artifact of toPublish) {
-    runNpm(['publish', artifact.path, '--registry', registry, '--access', 'public']);
+    runNpm(['publish', artifact.path, ...registryArgs(registry), '--access', 'public']);
   }
 
   let missing = [];
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    missing = release.packages.filter((artifact) => !exists(artifact.name, artifact.version, runNpm));
+    missing = release.packages.filter((artifact) => !exists(artifact.name, artifact.version, registry, runNpm));
     if (missing.length === 0) return;
     if (attempt < maxAttempts) {
       log(
-        `Waiting for npm registry propagation (attempt ${attempt}/${maxAttempts}): `
+        `Waiting for ${registry} propagation (attempt ${attempt}/${maxAttempts}): `
         + missing.map((artifact) => `${artifact.name}@${artifact.version}`).join(', '),
       );
       wait(attempt * retryDelayMs);
     }
   }
-  if (missing.length) throw new Error(`Registry verification failed for: ${missing.map((entry) => entry.name)}`);
+  if (missing.length) throw new Error(`Registry verification on ${registry} failed for: ${missing.map((entry) => entry.name)}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
