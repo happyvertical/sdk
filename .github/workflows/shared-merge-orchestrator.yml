@@ -22,8 +22,11 @@ on:
       HAVE_RELEASE_APP_PRIVATE_KEY:
         description: 'GitHub App private key for release automation'
         required: true
+      NPM_HAPPYVERTICAL_PUBLISH_TOKEN:
+        description: 'Publish token for the primary registry (npm.happyvertical.com)'
+        required: true
       NPM_TOKEN:
-        description: 'npm automation token for publishing public packages'
+        description: 'npmjs token for the best-effort mirror'
         required: true
 
 permissions:
@@ -50,6 +53,7 @@ jobs:
     secrets:
       HAVE_RELEASE_APP_ID: ${{ secrets.HAVE_RELEASE_APP_ID }}
       HAVE_RELEASE_APP_PRIVATE_KEY: ${{ secrets.HAVE_RELEASE_APP_PRIVATE_KEY }}
+      NPM_HAPPYVERTICAL_PUBLISH_TOKEN: ${{ secrets.NPM_HAPPYVERTICAL_PUBLISH_TOKEN }}
       NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   summary:
@@ -69,6 +73,7 @@ jobs:
           publish_result="${{ needs.publish.result || 'skipped (no publish.yml)' }}"
           publish_reason="${{ needs.publish.outputs.reason || '' }}"
           publish_version="${{ needs.publish.outputs.version || '' }}"
+          mirror_status="${{ needs.publish.outputs.npmjs-mirror || '' }}"
 
           if [ "$publish_result" != "success" ]; then
             echo "- **Build + Publish**: $publish_result" >> $GITHUB_STEP_SUMMARY
@@ -78,4 +83,9 @@ jobs:
             echo "- **Build + Publish**: success (no version changes detected)" >> $GITHUB_STEP_SUMMARY
           else
             echo "- **Build + Publish**: success" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "$mirror_status" = "not-mirrored" ]; then
+            echo "- **npmjs mirror**: NOT MIRRORED (release is on npm.happyvertical.com; see Mirror Release to npmjs)" >> "$GITHUB_STEP_SUMMARY"
+          elif [ -n "$mirror_status" ]; then
+            echo "- **npmjs mirror**: $mirror_status" >> "$GITHUB_STEP_SUMMARY"
           fi

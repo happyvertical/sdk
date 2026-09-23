@@ -41,7 +41,7 @@ test('fails final verification when a published version remains missing', () => 
     runNpm: (args) => (args[0] === 'publish' ? '' : null),
     log: () => {},
     maxAttempts: 1,
-  }), /Registry verification failed/);
+  }), /Registry verification on https:\/\/npm\.happyvertical\.com\/ failed/);
 });
 
 test('waits for eventual npm registry visibility after publishing', () => {
@@ -98,7 +98,28 @@ test('fails the release when the registry version has different content', () => 
       log: () => {},
       artifactShasum: localShasum,
     }),
-    /@happyvertical\/a@0\.80\.0 is already on npm with different content/,
+    /@happyvertical\/a@0\.80\.0 is already on https:\/\/npm\.happyvertical\.com\/ with different content/,
   );
   assert.equal(publishCalls, 0);
+});
+
+test('publishes and verifies against the primary registry with the scope pinned', () => {
+  const calls = [];
+  const published = new Set();
+  publishRelease({ releaseVersion: '0.80.0', packages: [release().packages[0]] }, {
+    runNpm: (args) => {
+      calls.push(args);
+      if (args[0] === 'publish') { published.add('@happyvertical/a@0.80.0'); return ''; }
+      if (args[2] === 'version') return published.has(args[1]) ? '0.80.0' : null;
+      return null;
+    },
+    log: () => {},
+    artifactShasum: localShasum,
+  });
+  for (const args of calls) {
+    assert.ok(args.includes('https://npm.happyvertical.com/'), `missing --registry: ${args}`);
+    assert.ok(args.includes('--@happyvertical:registry=https://npm.happyvertical.com/'), `missing scope pin: ${args}`);
+    assert.ok(!args.some((arg) => arg.includes('registry.npmjs.org')), `leaked npmjs: ${args}`);
+  }
+  assert.equal(calls.filter((args) => args[0] === 'publish').length, 1);
 });

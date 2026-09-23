@@ -26,6 +26,16 @@ Reusable workflows:
 - `shared-project-sync.yml` performs deterministic GitHub Projects V2 sync.
 - `shared-merge-orchestrator.yml`, `shared-direct-publish.yml`, and other release/build workflows support the normal CI pipeline.
 
+## Release Registries
+
+`publish.yml` publishes every release to the HappyVertical registry, `https://npm.happyvertical.com/`, which is the release's system of record; npmjs is a best-effort mirror. This matches happyvertical/smrt.
+
+- The primary is the `RELEASE_PRIMARY_REGISTRY` literal in `publish.yml`, and `scripts/release-registry.mjs` refuses any host outside its reviewed allowlist before the token is written or sent.
+- Publishing requires the org secret `NPM_HAPPYVERTICAL_PUBLISH_TOKEN` (granted to selected repositories). `Prepare Release` fails in seconds without it, and `Publish Verified Release` writes a fresh temporary npmrc holding only that credential and runs `npm whoami` against the primary before tagging or publishing.
+- `scripts/publish-validated-artifacts.mjs` publishes the SHA-256-verified tarballs to the primary. Every npm call passes both `--registry` and `--@happyvertical:registry` so the packages' `publishConfig` and npmrc scope mappings cannot redirect it.
+- `Mirror Release to npmjs` (`scripts/mirror-release-to-npmjs.mjs`, using `NPM_TOKEN`) republishes the exact tarballs the primary serves for every version newer than npmjs has. It runs after every publish run, so a missed mirror is repaired later without a version bump. It never fails the release (`continue-on-error`). If npmjs does not end up holding the newest version of every package, the job goes red, adds an error annotation, and its step summary and the merge summary say **NOT MIRRORED**.
+- The emergency `publish-mode: changesets` dispatch still publishes directly to npmjs with `NPM_TOKEN` and skips the mirror.
+
 ## Project Sync Configuration
 
 Project sync reads `.github/triage-config.json`. The filename is retained for compatibility, but CI only uses the project fields:

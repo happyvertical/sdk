@@ -8,7 +8,7 @@ MCP server for the HAVE SDK that routes developer queries to package documentati
 pnpm install @happyvertical/sdk-mcp
 ```
 
-> Published to public npm. No scoped registry configuration is required.
+> Released to npm.happyvertical.com and mirrored to public npm, which can lag; see the root README's installation notes for the `@happyvertical:registry` line. Public npm needs no scoped registry configuration.
 
 ## Usage
 

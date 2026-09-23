@@ -28,12 +28,19 @@ on:
       reason:
         description: 'Why publish ran, skipped, or produced no version change'
         value: ${{ jobs.release.outputs.reason }}
+      npmjs-mirror:
+        description: 'complete, not-mirrored, or empty when the mirror did not run'
+        value: ${{ jobs.mirror-npmjs.outputs.status }}
     secrets:
       HAVE_RELEASE_APP_ID:
         required: true
       HAVE_RELEASE_APP_PRIVATE_KEY:
         required: true
+      NPM_HAPPYVERTICAL_PUBLISH_TOKEN:
+        description: 'Publish token for the primary registry (npm.happyvertical.com)'
+        required: true
       NPM_TOKEN:
+        description: 'npmjs token for the best-effort mirror and the emergency changesets mode'
         required: true
   workflow_dispatch:
     inputs:
@@ -56,6 +63,14 @@ on:
 
 env:
   PUBLISH_PACK_SHARD_COUNT: '2'
+  # Releases are published to, and recorded against, our own registry; npmjs
+  # is a best-effort mirror (#1266, matching smrt#3002). A suspended npmjs
+  # account, an expired npmjs token, or an npmjs outage must not stop a
+  # release. Installs still READ third-party dependencies from npmjs.
+  # A literal, not a repository variable: the publish token is written for and
+  # sent to this host, so changing it must be a reviewed workflow change, and
+  # scripts/release-registry.mjs refuses any host outside its allowlist.
+  RELEASE_PRIMARY_REGISTRY: 'https://npm.happyvertical.com/'
 
 permissions:
   contents: write
@@ -84,6 +99,17 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ steps.token.outputs.token }}
+      # The release needs the primary registry's credential, not npmjs's:
+      # fail here, in seconds, rather than after the build and validation.
+      - name: Verify primary registry publish token
+        if: inputs.publish-mode != 'changesets'
+        env:
+          PRIMARY_TOKEN: ${{ secrets.NPM_HAPPYVERTICAL_PUBLISH_TOKEN }}
+        run: |
+          if [ -z "${PRIMARY_TOKEN:-}" ]; then
+            echo "::error::NPM_HAPPYVERTICAL_PUBLISH_TOKEN is required to publish to $RELEASE_PRIMARY_REGISTRY"
+            exit 1
+          fi
       - name: Setup environment
         uses: ./.github/actions/setup-environment
         with:
@@ -251,6 +277,35 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           auth-token: ${{ secrets.NPM_TOKEN }}
           github-packages-token: ${{ secrets.GITHUB_TOKEN }}
+      # Write a fresh npmrc holding only the primary's credential and point npm
+      # at it for the rest of the job; never append to setup-node's file (it
+      # ends without a newline, so an appended line fuses onto its last line:
+      # smrt#3005). `npm whoami` then proves the token against the primary
+      # before anything irreversible. The emergency changesets mode publishes
+      # to npmjs through setup-node's npmrc, so this step is artifacts-only.
+      - name: Authenticate to the primary registry
+        if: inputs.publish-mode != 'changesets'
+        env:
+          PRIMARY_TOKEN: ${{ secrets.NPM_HAPPYVERTICAL_PUBLISH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PRIMARY_TOKEN:-}" ]; then
+            echo "::error::NPM_HAPPYVERTICAL_PUBLISH_TOKEN is required to publish to $RELEASE_PRIMARY_REGISTRY"
+            exit 1
+          fi
+          # Refuse any host outside the reviewed allowlist BEFORE the token is
+          # written for it or sent to it.
+          node --input-type=module -e "import { primaryRegistry } from './scripts/release-registry.mjs'; primaryRegistry();"
+          host="${RELEASE_PRIMARY_REGISTRY#https://}"
+          host="${host%/}"
+          rc="$RUNNER_TEMP/release-npmrc"
+          umask 077
+          printf '//%s/:_authToken=%s\n' "$host" "$PRIMARY_TOKEN" > "$rc"
+          echo "NPM_CONFIG_USERCONFIG=$rc" >> "$GITHUB_ENV"
+          export NPM_CONFIG_USERCONFIG="$rc"
+          who=$(npm whoami --registry "$RELEASE_PRIMARY_REGISTRY" \
+            "--@happyvertical:registry=$RELEASE_PRIMARY_REGISTRY")
+          echo "Authenticated to $RELEASE_PRIMARY_REGISTRY as $who"
       - name: Configure Git
         run: |
           git config user.name 'github-actions[bot]'
@@ -287,7 +342,7 @@ jobs:
           if ! gh release view "v$RELEASE_VERSION" >/dev/null 2>&1; then
             gh release create "v$RELEASE_VERSION" \
               --title "v$RELEASE_VERSION" \
-              --notes "All SDK packages were published from verified SHA-256 tarballs. Full changelog: https://github.com/${GITHUB_REPOSITORY}/compare/v${PREVIOUS_VERSION}...v${RELEASE_VERSION}" \
+              --notes "All SDK packages were published to ${RELEASE_PRIMARY_REGISTRY} from verified SHA-256 tarballs. Mirroring to npmjs is a separate best-effort follow-up; see the Mirror Release to npmjs job of this run. Full changelog: https://github.com/${GITHUB_REPOSITORY}/compare/v${PREVIOUS_VERSION}...v${RELEASE_VERSION}" \
               --latest
           fi
 
@@ -327,6 +382,53 @@ jobs:
           else
             exit 1
           fi
+
+  # A release is complete once it is on the primary. Mirroring it to npmjs is
+  # a separate, idempotent job that publishes the exact tarballs the primary
+  # serves for every version newer than npmjs has, so a mirror that failed is
+  # repaired by a later run without a version bump. It never fails the
+  # release, but unlike smrt#3086 it never reports success it did not reach:
+  # the script re-reads npmjs, and any gap turns this job red (the workflow
+  # stays green through continue-on-error) with an error annotation and a
+  # "NOT MIRRORED" step summary.
+  mirror-npmjs:
+    name: Mirror Release to npmjs
+    needs: [prepare-release, publish-release]
+    if: |
+      always() && !cancelled() &&
+      inputs.publish-mode != 'changesets' &&
+      needs.prepare-release.result == 'success' &&
+      (needs.publish-release.result == 'success' || needs.publish-release.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    permissions:
+      contents: read
+    outputs:
+      status: ${{ steps.mirror.outputs.status || 'not-mirrored' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '24.18.0'
+          registry-url: 'https://registry.npmjs.org'
+      - name: Mirror to npmjs
+        id: mirror
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          # This checkout is the workflow's original commit, so name the
+          # version this run released for the cross-registry checksum check.
+          MIRROR_RELEASE_VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: node scripts/mirror-release-to-npmjs.mjs
+      - name: Fail visibly when npmjs is not mirrored
+        if: steps.mirror.outputs.status != 'complete'
+        run: |
+          echo "::error::NOT MIRRORED: npmjs is missing versions published to $RELEASE_PRIMARY_REGISTRY (see the step summary). The release itself succeeded."
+          exit 1
 
   sync-smrt:
     name: Sync SMRT SDK Dependencies
@@ -370,13 +472,10 @@ jobs:
         run: |
           node scripts/update-smrt-sdk-version.js "$GITHUB_WORKSPACE/smrt" "$SDK_VERSION"
           cd smrt
-          cp .npmrc .npmrc.sdk-sync.bak
-          trap 'mv .npmrc.sdk-sync.bak .npmrc' EXIT
-          grep -v '^@happyvertical:registry=' .npmrc.sdk-sync.bak > .npmrc
-          echo '@happyvertical:registry=https://registry.npmjs.org' >> .npmrc
+          # Resolve through smrt's committed .npmrc, which maps @happyvertical
+          # to npm.happyvertical.com: the new version is guaranteed to be
+          # there, while the npmjs mirror is best-effort.
           pnpm install --lockfile-only --ignore-scripts
-          mv .npmrc.sdk-sync.bak .npmrc
-          trap - EXIT
       - name: Commit and open dependency update
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
