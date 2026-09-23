@@ -15,7 +15,7 @@ Unified filesystem interface for the HAVE SDK. Provides a consistent API across 
 pnpm add @happyvertical/files
 ```
 
-> Published to public npm. Depends on `@happyvertical/utils`.
+> Released to npm.happyvertical.com and mirrored to public npm, which can lag (see the root README's installation notes). Depends on `@happyvertical/utils`.
 
 ## Usage
 

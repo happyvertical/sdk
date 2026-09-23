@@ -186,9 +186,12 @@ export async function mirrorRelease({
         } catch (error) {
           const message = firstLine(error);
           if (isPermanentlyRejected(message)) {
-            // npmjs reserves an unpublished version forever; retrying cannot help.
-            result.skipped.push(`${spec}: npmjs permanently refuses this version (published there before and removed)`);
-            if (expected.get(name) === version) expected.delete(name);
+            // npmjs reserves an unpublished version forever; retrying cannot
+            // help. An older one is skipped so later versions still mirror,
+            // but if it is the newest, npmjs is genuinely behind: report it.
+            const detail = `${spec}: npmjs permanently refuses this version (published there before and removed)`;
+            if (expected.get(name) === version) fail(name, `${detail}; only a new version can fix npmjs`);
+            else result.skipped.push(detail);
             continue;
           }
           fail(name, `${spec}: ${message}`);

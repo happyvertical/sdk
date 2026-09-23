@@ -96,7 +96,7 @@ test('an unreadable npmjs is not an empty one', async () => {
   assert.match(result.notMirrored[0], /could not read versions \(ETIMEDOUT\)/);
 });
 
-test('never publishes older gaps or versions npmjs permanently refuses, and still completes', async () => {
+test('never publishes older gaps and still completes', async () => {
   const { runNpm, published } = registries({
     primary: { '@happyvertical/a': ['0.88.0', '0.89.0', '0.89.12'] },
     npmjs: { '@happyvertical/a': ['0.89.0', '0.89.12'] },
@@ -104,15 +104,31 @@ test('never publishes older gaps or versions npmjs permanently refuses, and stil
   const result = await mirrorRelease({ ...base, packages: ['@happyvertical/a'], runNpm });
   assert.deepEqual(published, []);
   assert.equal(result.status, 'complete');
+});
 
-  const refused = registries({
-    primary: { '@happyvertical/a': ['0.89.12', '0.90.0'] },
+test('a permanently refused older version is skipped, but a refused newest is NOT MIRRORED', async () => {
+  const refusal = 'You cannot publish over the previously published versions: 0.90.0.';
+  const older = registries({
+    primary: { '@happyvertical/a': ['0.89.12', '0.90.0', '0.90.1'] },
     npmjs: { '@happyvertical/a': ['0.89.12'] },
-    publishError: 'You cannot publish over the previously published versions: 0.90.0.',
   });
-  const skipped = await mirrorRelease({ ...base, packages: ['@happyvertical/a'], runNpm: refused.runNpm });
+  const olderRun = (args, options) => {
+    if (args[0] === 'publish' && args[1].endsWith('-0.90.0.tgz')) throw new Error(refusal);
+    return older.runNpm(args, options);
+  };
+  const skipped = await mirrorRelease({ ...base, packages: ['@happyvertical/a'], runNpm: olderRun });
+  assert.deepEqual(older.published, ['@happyvertical/a@0.90.1']);
   assert.equal(skipped.status, 'complete');
   assert.equal(skipped.skipped.length, 1);
+
+  const newest = registries({
+    primary: { '@happyvertical/a': ['0.89.12', '0.90.0'] },
+    npmjs: { '@happyvertical/a': ['0.89.12'] },
+    publishError: refusal,
+  });
+  const result = await mirrorRelease({ ...base, packages: ['@happyvertical/a'], runNpm: newest.runNpm });
+  assert.equal(result.status, 'not-mirrored');
+  assert.match(result.notMirrored[0], /permanently refuses.*only a new version can fix npmjs/);
 });
 
 test('refuses a tarball the primary serves from another origin', async () => {
