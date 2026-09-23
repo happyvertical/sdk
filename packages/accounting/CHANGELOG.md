@@ -1,5 +1,16 @@
 # @happyvertical/accounting
 
+## 0.90.0
+
+### Minor Changes
+
+- 3dd71d2: Add replay-safe Stripe invoice and Checkout idempotency, Stripe Tax invoice
+  support, normalized webhook event IDs, and explicit currency-unit conversion.
+
+### Patch Changes
+
+- @happyvertical/utils@0.90.0
+
 ## 0.89.12
 
 ### Patch Changes
