@@ -1,5 +1,11 @@
 # @happyvertical/auth
 
+## 0.94.0
+
+### Patch Changes
+
+- @happyvertical/utils@0.94.0
+
 ## 0.93.0
 
 ### Patch Changes

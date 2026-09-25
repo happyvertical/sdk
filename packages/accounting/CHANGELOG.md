@@ -1,5 +1,15 @@
 # @happyvertical/accounting
 
+## 0.94.0
+
+### Minor Changes
+
+- 5fd7534: Add optional `invoices.markPaidOutOfBand()` (Stripe `invoices/:id/pay` with `paid_out_of_band`, idempotent, finalizes drafts without automatic collection, refuses void invoices) and `ExternalInvoice.paidOutOfBand`, so an invoice paid on another rail can be closed at Stripe.
+
+### Patch Changes
+
+- @happyvertical/utils@0.94.0
+
 ## 0.93.0
 
 ### Patch Changes
