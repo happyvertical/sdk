@@ -394,62 +394,6 @@ describe('BtcpayClient', () => {
     ).rejects.toMatchObject({ status: 0, retryable: true });
   });
 
-  it('reads an on-chain wallet transaction confirmation count', async () => {
-    const fetch = vi.fn(async () =>
-      jsonResponse({
-        transactionHash:
-          'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-        confirmations: 3,
-        blockHeight: 968_581,
-        amount: '0.00029411',
-        status: 'Confirmed',
-        timestamp: 1_790_000_300,
-      }),
-    );
-    const tx = await client(fetch).getOnChainWalletTransaction(
-      'BTC-CHAIN',
-      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-    );
-    expect(String(fetch.mock.calls[0]?.[0])).toBe(
-      'https://btcpay.example.com/api/v1/stores/store%2F1/payment-methods/BTC-CHAIN/wallet/transactions/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-    );
-    expect(tx).toMatchObject({
-      transactionHash:
-        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-      confirmations: 3,
-      blockHeight: 968_581,
-      amount: '0.00029411',
-      status: 'Confirmed',
-    });
-    await expect(
-      client(
-        vi.fn(async () =>
-          jsonResponse({
-            transactionHash:
-              'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-          }),
-        ),
-      ).getOnChainWalletTransaction(
-        'BTC-CHAIN',
-        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-      ),
-    ).rejects.toThrow(/confirmation count/);
-    await expect(
-      client(
-        vi.fn(async () =>
-          jsonResponse({
-            transactionHash:
-              'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-            confirmations: -1,
-          }),
-        ),
-      ).getOnChainWalletTransaction(
-        'BTC-CHAIN',
-        'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-      ),
-    ).rejects.toThrow(/confirmation count/);
-  });
-
   it('rejects malformed success bodies', async () => {
     await expect(
       client(vi.fn(async () => new Response('not json'))).getInvoice('x'),

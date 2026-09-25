@@ -31,8 +31,9 @@ export type BtcpayInvoiceAdditionalStatus =
   | 'PaidOver';
 
 /**
- * Confirmations before BTCPay settles an on-chain payment: `HighSpeed` 0,
- * `MediumSpeed` 1, `LowMediumSpeed` 2, `LowSpeed` 6.
+ * Confirmations before BTCPay settles an on-chain payment: `HighSpeed` 0
+ * (1 for RBF-signalling transactions), `MediumSpeed` 1, `LowMediumSpeed` 2,
+ * `LowSpeed` 6. These are the only values BTCPay supports.
  */
 export type BtcpaySpeedPolicy =
   | 'HighSpeed'
@@ -128,19 +129,6 @@ export interface BtcpayInvoicePaymentMethod {
    */
   due?: string;
   payments: BtcpayInvoicePayment[];
-  raw: Record<string, unknown>;
-}
-
-/** An on-chain wallet transaction (`…/wallet/transactions/{txid}`). */
-export interface BtcpayWalletTransaction {
-  transactionHash: string;
-  /** Confirmations at read time (0 while unconfirmed). */
-  confirmations: number;
-  blockHeight?: number;
-  /** Signed decimal amount in the wallet's currency. */
-  amount: string;
-  status?: string;
-  timestamp?: Date;
   raw: Record<string, unknown>;
 }
 
@@ -293,61 +281,6 @@ export class BtcpayClient {
       );
     }
     return raw.filter(isRecord).map(toPaymentMethod);
-  }
-
-  /**
-   * `GET /api/v1/stores/{storeId}/payment-methods/{paymentMethodId}/wallet/transactions/{transactionId}`.
-   *
-   * Invoice payments do not report their confirmation count, so this is the
-   * way to check an exact count. BTCPay requires
-   * `btcpay.store.canmodifystoresettings` for it, which can also change the
-   * store's wallet: use a separate key and `BtcpayClient` instance for these
-   * reads, never the key that creates invoices.
-   */
-  async getOnChainWalletTransaction(
-    paymentMethodId: string,
-    transactionId: string,
-  ): Promise<BtcpayWalletTransaction> {
-    const method = requireString(paymentMethodId, 'BTCPay paymentMethodId');
-    const txid = requireString(transactionId, 'BTCPay transactionId');
-    const raw = await this.request(
-      'GET',
-      this.storePath(
-        `/payment-methods/${encodeURIComponent(method)}/wallet/transactions/${encodeURIComponent(txid)}`,
-      ),
-    );
-    if (!isRecord(raw)) {
-      throw new BtcpayApiError(
-        'BTCPay wallet transaction response was not an object.',
-        200,
-      );
-    }
-    const confirmations = raw.confirmations;
-    const hash = readString(raw, 'transactionHash');
-    if (
-      !hash ||
-      typeof confirmations !== 'number' ||
-      !Number.isSafeInteger(confirmations) ||
-      confirmations < 0
-    ) {
-      throw new BtcpayApiError(
-        'BTCPay wallet transaction response has no hash or confirmation count.',
-        200,
-      );
-    }
-    const blockHeight = raw.blockHeight;
-    return {
-      transactionHash: hash,
-      confirmations,
-      blockHeight:
-        typeof blockHeight === 'number' && Number.isSafeInteger(blockHeight)
-          ? blockHeight
-          : undefined,
-      amount: readDecimalSigned(raw.amount) ?? '0',
-      status: readString(raw, 'status'),
-      timestamp: readDate(raw.timestamp),
-      raw,
-    };
   }
 
   private storePath(suffix: string): string {
@@ -686,13 +619,6 @@ function readDecimal(value: unknown): string | undefined {
       : text;
   }
   return undefined;
-}
-
-function readDecimalSigned(value: unknown): string | undefined {
-  if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value.trim())) {
-    return value.trim();
-  }
-  return readDecimal(value);
 }
 
 function onChainTransactionId(id: string | undefined): string | undefined {
