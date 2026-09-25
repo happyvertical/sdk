@@ -83,6 +83,12 @@ const delivery = parseBtcpayWebhook(rawBody); // persist delivery.deliveryId to 
 const current = await btcpay.getInvoice(delivery.invoiceId!); // act on re-read state
 ```
 
+Invoice payments do not report confirmation counts (an on-chain payment's
+`transactionId` is parsed from its `<txid>-<vout>` id). BTCPay settles by the
+invoice `speedPolicy` (0, 1, 2 or 6 confirmations). For an exact count use
+`getOnChainWalletTransaction('BTC-CHAIN', txid)`, which needs a key with
+`btcpay.store.canmodifystoresettings`.
+
 Errors are `BtcpayApiError` (`status`, Greenfield `apiCode`, `retryable` for
 429 and for reads that failed on the network or with 5xx). A `createInvoice`
 that failed on the network or with 5xx may have created the invoice, so it is
