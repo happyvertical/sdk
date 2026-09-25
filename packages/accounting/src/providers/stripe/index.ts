@@ -665,27 +665,46 @@ class StripeInvoiceOperations implements InvoiceOperations {
   }
 
   /**
-   * Close an invoice paid on another rail (`paid_out_of_band`). An already
-   * paid invoice is left as is; a draft is finalized first (without
-   * automatic collection); a void invoice cannot be paid and throws. An
-   * uncollectible invoice can still be paid, as in Stripe.
+   * Close an invoice paid on another rail (`paid_out_of_band`). An invoice
+   * already marked paid out of band is left as is; one Stripe collected
+   * itself throws (a second collection needs a refund, not a silent close).
+   * A draft is finalized first without automatic collection, and refused if
+   * finalization raised the amount due. A void invoice throws; an
+   * uncollectible one can still be paid, as in Stripe.
    */
   async markPaidOutOfBand(externalId: string): Promise<void> {
     const path = `/v1/invoices/${encodeURIComponent(externalId)}`;
-    const invoice = await this.provider.request<StripeInvoice>('GET', path);
-    if (invoice.status === 'paid') return;
+    let invoice = await this.provider.request<StripeInvoice>('GET', path);
+    if (invoice.status === 'paid') {
+      if (invoice.paid_out_of_band === true) return;
+      // Stripe collected it itself: closing it again would hide a second
+      // collection. The caller must refund or credit the other payment.
+      throw new Error(
+        `Stripe invoice ${externalId} was already paid through Stripe; it was not marked paid out of band.`,
+      );
+    }
     if (invoice.status === 'void') {
       throw new Error(
         `Stripe invoice ${externalId} is void and cannot be marked paid.`,
       );
     }
     if (invoice.status === 'draft') {
-      await this.provider.request(
+      const draftDue = invoice.amount_remaining ?? invoice.total ?? 0;
+      invoice = await this.provider.request<StripeInvoice>(
         'POST',
         `${path}/finalize`,
         { auto_advance: false },
         { idempotencyKey: `${externalId}:finalize_out_of_band` },
       );
+      // Finalizing settles zero-balance invoices on its own.
+      if (invoice.status === 'paid') return;
+      // Finalization computes tax, credits, and discounts; never forgive an
+      // amount larger than the one the caller saw.
+      if ((invoice.amount_remaining ?? 0) > draftDue) {
+        throw new Error(
+          `Stripe invoice ${externalId} grew from ${draftDue} to ${invoice.amount_remaining} on finalization; not marking it paid out of band.`,
+        );
+      }
     }
     await this.provider.request(
       'POST',

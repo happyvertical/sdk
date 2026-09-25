@@ -943,8 +943,9 @@ export interface InvoiceOperations {
   markUncollectible?(externalId: string): Promise<void>;
   /**
    * Close an invoice as paid outside the provider, stopping its collection
-   * (emails, dunning, automatic charges). Idempotent: an already-paid
-   * invoice is a no-op. Optional: providers without the concept omit it.
+   * (emails, dunning, automatic charges). Idempotent: an invoice already
+   * closed this way is a no-op; one the provider collected itself throws.
+   * Optional: providers without the concept omit it.
    */
   markPaidOutOfBand?(externalId: string): Promise<void>;
 }
