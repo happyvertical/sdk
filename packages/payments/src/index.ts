@@ -3,7 +3,8 @@
  *
  * The default entrypoint exports only provider contracts, shared errors, and
  * the dynamic factory. Adapter implementations live behind subpath exports:
- * `@happyvertical/payments/base-usdc`, `@happyvertical/payments/btc`, and
+ * `@happyvertical/payments/base-usdc`, `@happyvertical/payments/btc`,
+ * `@happyvertical/payments/btcpay` (BTCPay Greenfield client), and
  * `@happyvertical/payments/stripe`.
  */
 

@@ -18,6 +18,10 @@
       "types": "./dist/adapters/btc.d.ts",
       "import": "./dist/adapters/btc.js"
     },
+    "./btcpay": {
+      "types": "./dist/adapters/btcpay.d.ts",
+      "import": "./dist/adapters/btcpay.js"
+    },
     "./stripe": {
       "types": "./dist/adapters/stripe.d.ts",
       "import": "./dist/adapters/stripe.js"
