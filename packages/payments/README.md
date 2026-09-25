@@ -95,6 +95,49 @@ never `retryable`: look it up by `orderId` before creating another. Messages nev
 API key needs only `btcpay.store.canviewinvoices` and
 `btcpay.store.cancreateinvoice` for these calls.
 
+### Crypto checkout gateway (provider-neutral)
+
+`CryptoCheckoutGateway` (root export, types only) is the narrow port billing
+code uses for **hosted crypto checkouts priced in fiat**. BTCPay is one
+implementation (`createBtcpayCheckoutGateway` from
+`@happyvertical/payments/btcpay`); a dedicated crypto-payments service can
+implement the same port later without changing callers.
+
+- `createCheckout({ orderId, amount, currency, metadata, redirectUrl })` —
+  `amount` is integer fiat minor units. Idempotent by `orderId`: a live
+  checkout is returned (a different price for the same order is refused); an
+  expired or invalid one is never revived.
+- `getCheckout(id)` / `listCheckouts({ orderId })` return `status`
+  (`open` → `confirming` → `settled`, or `expired` / `invalid`), an
+  `exception` (`underpaid`, `overpaid`, `paid_late`, `manually_marked`), the
+  locked fiat `amount`, `amountPaid` (fiat minor units, rounded down), native
+  amounts, rate, rate source, and each payment (asset, rail, amount, fee,
+  status, txid).
+- `verifyWebhook(rawBody, headers)` authenticates a delivery and returns ids
+  only (`eventId` is stable across redeliveries). Always act on
+  `getCheckout()`, never on the webhook body.
+
+**Settlement belongs to the gateway.** `settled` means the gateway's own
+confirmation policy is met; callers never count confirmations. For BTCPay that
+policy is the required `speedPolicy` option (`HighSpeed` 0, `MediumSpeed` 1,
+`LowMediumSpeed` 2, `LowSpeed` 6 confirmations — the only values BTCPay
+supports). Lightning needs no caller change: add `BTC-LN` to `paymentMethods`
+and payments arrive with `rail: 'lightning'`.
+
+```ts
+import { BtcpayClient, createBtcpayCheckoutGateway } from '@happyvertical/payments/btcpay';
+
+const gateway = createBtcpayCheckoutGateway({
+  client: new BtcpayClient({ baseUrl, apiKey, storeId }),
+  webhookSecret,
+  speedPolicy: 'LowSpeed',
+  paymentMethods: ['BTC-CHAIN'],
+  expirationMinutes: 15,
+  paymentTolerance: 0,
+  rateSource: 'kraken',
+});
+```
+
 ### Save a card (setup) → charge later
 
 ```ts
