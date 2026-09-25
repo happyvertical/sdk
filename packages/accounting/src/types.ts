@@ -267,10 +267,12 @@ export interface InvoiceInput {
   /**
    * How the provider collects this invoice. Defaults to `send_invoice`. With
    * `charge_automatically`, Stripe charges the customer's default payment
-   * method (see `billing.setDefaultPaymentMethod`) once the invoice is sent,
-   * and Stripe's retry settings drive `invoice.payment_failed` /
-   * `invoice.paid` webhooks. `dueDate` is not sent for automatically charged
-   * invoices.
+   * method (see `billing.setDefaultPaymentMethod`) after the invoice is sent,
+   * on Stripe's own collection schedule (not necessarily immediately), and
+   * Stripe's retry settings drive `invoice.payment_failed` / `invoice.paid`
+   * webhooks. `dueDate` is not sent for automatically charged invoices. On
+   * `sync()` of an existing invoice, a set `collectionMethod` is sent too;
+   * Stripe only allows changing it while the invoice is a draft.
    */
   collectionMethod?: InvoiceCollectionMethod;
 }
@@ -532,7 +534,12 @@ export interface SavedPaymentMethodChargeInput {
    * Required stable caller-owned key for this logical charge. Every retry
    * with the same key returns the original charge instead of charging again,
    * including after the provider's own idempotency window. Providers tag the
-   * charge with it, and payment webhooks report it as `chargeKey`.
+   * charge with it, and payment webhooks report it as `chargeKey`. Scope it
+   * to the payer (keys are global to the provider account) and use a new key
+   * for a new attempt: a key reused with a different amount, currency,
+   * customer, or payment method is refused, not charged. Pass
+   * `paymentMethodExternalId` to pin the method across retries; otherwise a
+   * change of the customer's default between retries is such a difference.
    */
   idempotencyKey: string;
   /** Statement/description text shown to the customer where supported. */
@@ -981,16 +988,18 @@ export interface StripeBillingOperations {
   ): Promise<StripeCheckoutSession>;
   /**
    * Retrieve a Checkout Session, resolving the payment method it collected
-   * (use after a `setup` mode session completes).
+   * (use after a `setup` mode session completes). Optional so existing
+   * structural implementations keep compiling; `StripeProvider` implements it.
    */
-  retrieveCheckoutSession(
+  retrieveCheckoutSession?(
     sessionExternalId: string,
   ): Promise<StripeCheckoutSessionDetails>;
   /**
    * Make a saved payment method the customer's default for invoices and for
-   * `payments.chargeSavedPaymentMethod` without an explicit method.
+   * `payments.chargeSavedPaymentMethod` without an explicit method. Optional
+   * for the same reason; `StripeProvider` implements it.
    */
-  setDefaultPaymentMethod(
+  setDefaultPaymentMethod?(
     customerExternalId: string,
     paymentMethodExternalId: string,
   ): Promise<void>;

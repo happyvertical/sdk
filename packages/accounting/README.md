@@ -51,9 +51,10 @@ Invoice lines carry more than an amount:
 `collectionMethod: 'charge_automatically'` bills the customer's default
 payment method instead of emailing a payable invoice (the default,
 `send_invoice`). `invoices.send()` then finalizes the invoice with automatic
-collection on: Stripe charges the card, retries failures under your Stripe
-retry settings, and reports the result as `invoice.paid` or
-`invoice.payment_failed`. Automatically charged invoices carry no due date.
+collection on: Stripe charges the card on its own collection schedule (not
+necessarily at once, so activate service on `invoice.paid` rather than on
+`send()`), retries failures under your Stripe retry settings, and reports the
+result as `invoice.paid` or `invoice.payment_failed`. Automatically charged invoices carry no due date.
 `invoices.markUncollectible()` writes an open invoice off, and invoice reads
 report that state as `status: 'uncollectible'`.
 
@@ -166,7 +167,17 @@ A decline (`failureCode: 'card_declined'`) or an authentication requirement
 thrown; other Stripe errors throw a `StripeApiError` carrying `status`,
 `type`, and `code`. Every retry with the same key returns the original
 charge: Stripe replays it inside its idempotency window, and after it the
-adapter finds the PaymentIntent by its `hv_charge_key` metadata. Payment
+adapter finds the PaymentIntent by its `hv_charge_key` metadata. Scope keys
+to the payer and use a new key for a new attempt: a key reused for a
+different amount, currency, customer, or payment method is refused (Stripe
+`idempotency_error`, or an adapter error after the window), never charged.
+Pass `paymentMethodExternalId` to keep retries identical when the customer's
+default card may change in between.
+
+Minor-unit amounts use ISO 4217 exponents. The few currencies whose runtime
+`Intl` digits disagree with ISO 4217 (for example IQD and MGA) are refused,
+since callers that derive minor units from `Intl` would otherwise be off by a
+power of ten. Payment
 webhooks (`payment_intent.*`) carry a normalized `WebhookEvent.payment`
 summary with the status, minor-unit amount, and `chargeKey`. After `webhooks.verify` succeeds,
 the parsed Stripe webhook exposes its provider event as `WebhookEvent.id`.

@@ -147,6 +147,8 @@ describe('Stripe off-session saved payment method charges (#1270)', () => {
     ).resolves.toMatchObject({
       status: 'requires_action',
       paymentExternalId: 'pi_sca',
+      // Kept although Stripe's embedded PaymentIntent omits it.
+      paymentMethodExternalId: 'pm_card',
       failureCode: 'authentication_required',
     });
   });
@@ -201,6 +203,9 @@ describe('Stripe off-session saved payment method charges (#1270)', () => {
                 id: 'pi_original',
                 created: 10,
                 status: 'succeeded',
+                amount: 2500,
+                currency: 'usd',
+                customer: 'cus_1',
                 payment_method: 'pm_card',
                 metadata: { hv_charge_key: 'topup:policy-7:3' },
               },
@@ -216,6 +221,46 @@ describe('Stripe off-session saved payment method charges (#1270)', () => {
       paymentExternalId: 'pi_original',
     });
     expect(calls).toHaveLength(1);
+  });
+
+  it.each([
+    [{ amount: 9900, currency: 'usd', customer: 'cus_1' }],
+    [{ amount: 2500, currency: 'eur', customer: 'cus_1' }],
+    [{ amount: 2500, currency: 'usd', customer: 'cus_other' }],
+  ])('refuses a key reused for a different charge after the window (%o)', async (original) => {
+    const { provider, calls } = createFakeStripe((call) => {
+      if (call.path === '/v1/payment_intents/search') {
+        return {
+          body: {
+            object: 'search_result',
+            data: [
+              {
+                id: 'pi_original',
+                status: 'succeeded',
+                metadata: { hv_charge_key: 'topup:policy-7:3' },
+                ...original,
+              },
+            ],
+          },
+        };
+      }
+    });
+    await expect(
+      provider.payments.chargeSavedPaymentMethod?.(charge),
+    ).rejects.toThrow('idempotencyKey was already used for a different charge');
+    expect(calls.some((call) => call.method === 'POST')).toBe(false);
+  });
+
+  it('refuses currencies whose ISO 4217 and runtime minor units disagree', async () => {
+    const { provider, calls } = createFakeStripe(() => emptySearch);
+    await expect(
+      provider.payments.chargeSavedPaymentMethod?.({
+        ...charge,
+        currency: 'IQD',
+        amountMinor: 5000,
+      }),
+    ).rejects.toThrow('ambiguous minor unit');
+    expect(calls).toHaveLength(0);
   });
 
   it('replays a lost response with the same Stripe idempotency key', async () => {
@@ -360,6 +405,22 @@ describe('Stripe off-session saved payment method charges (#1270)', () => {
         event('payment_intent.canceled', { id: 'pi_4', status: 'canceled' }),
       );
       expect(canceled.payment?.status).toBe('canceled');
+    });
+
+    it('omits an amount it cannot convert exactly instead of failing the event', () => {
+      const parsed = provider.webhooks.parse(
+        event('payment_intent.succeeded', {
+          id: 'pi_iqd',
+          status: 'succeeded',
+          amount: 5000,
+          currency: 'iqd',
+        }),
+      );
+      expect(parsed.payment).toMatchObject({
+        status: 'succeeded',
+        currency: 'IQD',
+      });
+      expect(parsed.payment?.amountMinor).toBeUndefined();
     });
 
     it('leaves non-payment events without a payment summary', () => {

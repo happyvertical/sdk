@@ -215,7 +215,7 @@ export class StripeProvider implements StripeAccountingProvider {
   readonly payments: PaymentOperations;
   readonly audit: AuditOperations;
   readonly webhooks: WebhookOperations;
-  readonly billing: StripeBillingOperations;
+  readonly billing: Required<StripeBillingOperations>;
 
   constructor(options: StripeOptions) {
     this.options = {
@@ -771,6 +771,12 @@ class StripePaymentOperations implements PaymentOperations {
     // first look for the PaymentIntent an earlier attempt created.
     const existing = await this.findByChargeKey(chargeKey);
     if (existing) {
+      assertSameCharge(
+        existing,
+        input.customerExternalId,
+        stripeAmount,
+        currency,
+      );
       return { ...base, ...mapChargeOutcome(existing) };
     }
 
@@ -824,8 +830,9 @@ class StripePaymentOperations implements PaymentOperations {
           : undefined;
         return {
           ...base,
-          paymentMethodExternalId: paymentMethod,
           ...(paymentIntent ? mapChargeOutcome(paymentIntent) : {}),
+          paymentMethodExternalId:
+            idOf(paymentIntent?.payment_method) ?? paymentMethod,
           status:
             error.code === 'authentication_required'
               ? 'requires_action'
@@ -899,6 +906,7 @@ class StripeBillingOperationsImpl implements StripeBillingOperations {
 
     return {
       ...mapCheckoutSessionResponse(session),
+      raw: withoutClientSecrets(session),
       status: oneOf(session.status, ['open', 'complete', 'expired'] as const),
       paymentStatus: oneOf(session.payment_status, [
         'paid',
@@ -1229,6 +1237,10 @@ function mapInvoiceUpdateToStripe(
   collectionMethod: 'send_invoice' | 'charge_automatically',
 ): Record<string, StripeFormValue> {
   return {
+    // Sent only when the caller sets it, so existing updates are unchanged.
+    // Stripe accepts a collection method change on draft invoices and rejects
+    // it on finalized ones rather than ignoring it.
+    collection_method: invoice.collectionMethod ? collectionMethod : undefined,
     due_date: collectionMethod === 'send_invoice' ? invoice.dueDate : undefined,
     metadata: normalizeMetadata({
       local_id: invoice.id,
@@ -1310,7 +1322,7 @@ function mapCheckoutSessionResponse(
     subscriptionExternalId: idOf(response.subscription),
     paymentIntentExternalId: idOf(response.payment_intent),
     setupIntentExternalId: idOf(response.setup_intent),
-    raw: response,
+    raw: withoutClientSecrets(response),
   };
 }
 
@@ -1868,6 +1880,41 @@ function mapChargeOutcome(
   };
 }
 
+/**
+ * A PaymentIntent found by charge key after Stripe's idempotency window must
+ * be the charge this call describes; a key reused for a different amount,
+ * currency, or customer is refused instead of reporting the wrong charge.
+ */
+function assertSameCharge(
+  paymentIntent: StripePaymentIntent,
+  customerExternalId: string,
+  stripeAmount: number,
+  currency: string,
+): void {
+  const customer = idOf(paymentIntent.customer);
+  if (
+    paymentIntent.amount !== stripeAmount ||
+    (paymentIntent.currency || '').toUpperCase() !== currency ||
+    (customer !== undefined && customer !== customerExternalId)
+  ) {
+    throw new Error(
+      `idempotencyKey was already used for a different charge (${paymentIntent.id}); use a new key for a new charge`,
+    );
+  }
+}
+
+/** Remove `client_secret` from a Stripe object and its expanded intents. */
+function withoutClientSecrets<T extends object>(value: T): T {
+  const copy = withoutClientSecret(value) as Record<string, unknown>;
+  for (const key of ['payment_intent', 'setup_intent']) {
+    const nested = copy[key];
+    if (isRecord(nested)) {
+      copy[key] = withoutClientSecret(nested);
+    }
+  }
+  return copy as T;
+}
+
 /** Drop the PaymentIntent client secret before handing objects to callers. */
 function withoutClientSecret<T extends object>(value: T): T {
   const { client_secret: _secret, ...rest } = value as T & {
@@ -1969,13 +2016,62 @@ function normalizeCurrencyCode(currency: string): string {
   return code;
 }
 
-/** ISO 4217 minor-unit exponent (2 for USD, 0 for JPY and ISK). */
+/** ISO 4217 minor-unit exponents other than 2. */
+const ISO_ZERO_DECIMAL_CURRENCIES = new Set([
+  'BIF',
+  'CLP',
+  'DJF',
+  'GNF',
+  'ISK',
+  'JPY',
+  'KMF',
+  'KRW',
+  'PYG',
+  'RWF',
+  'UGX',
+  'UYI',
+  'VND',
+  'VUV',
+  'XAF',
+  'XOF',
+  'XPF',
+]);
+const ISO_THREE_DECIMAL_CURRENCIES = new Set([
+  'BHD',
+  'IQD',
+  'JOD',
+  'KWD',
+  'LYD',
+  'OMR',
+  'TND',
+]);
+const ISO_FOUR_DECIMAL_CURRENCIES = new Set(['CLF', 'UYW']);
+
+/**
+ * ISO 4217 minor-unit exponent (2 for USD, 0 for JPY and ISK). Callers such
+ * as smrt-commerce derive minor units from the runtime's `Intl` currency
+ * digits (CLDR), which differ from ISO 4217 for a few currencies (for example
+ * IQD and MGA). Those currencies are refused rather than risking a charge off
+ * by a power of ten.
+ */
 function isoMinorUnitExponent(currency: string): number {
-  const digits = new Intl.NumberFormat('en', {
+  const iso = ISO_ZERO_DECIMAL_CURRENCIES.has(currency)
+    ? 0
+    : ISO_THREE_DECIMAL_CURRENCIES.has(currency)
+      ? 3
+      : ISO_FOUR_DECIMAL_CURRENCIES.has(currency)
+        ? 4
+        : 2;
+  const cldr = new Intl.NumberFormat('en', {
     style: 'currency',
     currency,
   }).resolvedOptions().maximumFractionDigits;
-  return typeof digits === 'number' ? digits : 2;
+  if (cldr !== iso) {
+    throw new Error(
+      `Currency ${currency} has an ambiguous minor unit (ISO 4217 ${iso}, runtime ${cldr}); minor-unit amounts are not supported for it`,
+    );
+  }
+  return iso;
 }
 
 /**
@@ -2012,7 +2108,15 @@ function stripeAmountToMinorUnitsOrUndefined(
   if (!Number.isSafeInteger(amount)) {
     return undefined;
   }
-  const iso = 10 ** isoMinorUnitExponent(currency);
+  let exponent: number;
+  try {
+    exponent = isoMinorUnitExponent(currency);
+  } catch {
+    // Reads (webhooks, session totals) omit an amount they cannot convert
+    // exactly instead of failing a verified event.
+    return undefined;
+  }
+  const iso = 10 ** exponent;
   const stripe = stripeCurrencyMinorUnitFactor(currency);
   const minor = (amount * iso) / stripe;
   return Number.isSafeInteger(minor) ? minor : undefined;

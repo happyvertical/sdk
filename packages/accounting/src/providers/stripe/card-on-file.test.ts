@@ -115,7 +115,13 @@ describe('Stripe card-on-file billing (#1273)', () => {
             status: 'complete',
             payment_status: 'no_payment_required',
             customer: 'cus_1',
-            setup_intent: { id: 'seti_1', payment_method: 'pm_card' },
+            client_secret: 'cs_secret_session',
+            setup_intent: {
+              id: 'seti_1',
+              payment_method: 'pm_card',
+              client_secret: 'seti_secret',
+            },
+            payment_intent: { id: 'pi_x', client_secret: 'pi_secret' },
             metadata: { account: '42' },
           },
         };
@@ -138,6 +144,8 @@ describe('Stripe card-on-file billing (#1273)', () => {
       method: 'GET',
       params: { 'expand[0]': 'setup_intent', 'expand[1]': 'payment_intent' },
     });
+    const details = await provider.billing.retrieveCheckoutSession('cs_setup');
+    expect(JSON.stringify(details.raw)).not.toContain('secret');
   });
 
   it('reports taxed payment-session totals in ISO minor units', async () => {
@@ -224,7 +232,7 @@ describe('Stripe card-on-file billing (#1273)', () => {
       });
     });
 
-    it('omits the due date when updating an automatically charged invoice', async () => {
+    it('sends the collection method and no due date when updating to automatic collection', async () => {
       const { provider, calls } = createFakeStripe(() => ({
         body: { id: 'in_1' },
       }));
@@ -233,7 +241,17 @@ describe('Stripe card-on-file billing (#1273)', () => {
         externalId: 'in_1',
         collectionMethod: 'charge_automatically',
       });
+      expect(calls[0]?.params.collection_method).toBe('charge_automatically');
       expect(calls[0]?.params.due_date).toBeUndefined();
+    });
+
+    it('leaves updates without a collection method unchanged', async () => {
+      const { provider, calls } = createFakeStripe(() => ({
+        body: { id: 'in_1' },
+      }));
+      await provider.invoices.sync({ ...invoice, externalId: 'in_1' });
+      expect(calls[0]?.params.collection_method).toBeUndefined();
+      expect(calls[0]?.params.due_date).toBeDefined();
     });
 
     it('rejects an unknown collection method', async () => {
