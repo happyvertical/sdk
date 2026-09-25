@@ -170,6 +170,9 @@ describe('BtcpayClient', () => {
     await expect(
       client(fetch).createInvoice({ amount: '-1', currency: 'CAD' }),
     ).rejects.toThrow(/decimal string/);
+    await expect(
+      client(fetch).createInvoice({ amount: '0.00', currency: 'CAD' }),
+    ).rejects.toThrow(/positive decimal string/);
     expect(fetch).not.toHaveBeenCalled();
   });
 
@@ -281,6 +284,7 @@ describe('BtcpayClient', () => {
       paymentMethodPaid: '0',
       payments: [],
     });
+    expect(methods[1]?.due).toBeUndefined();
   });
 
   it('maps Greenfield errors without leaking the API key', async () => {
@@ -306,7 +310,7 @@ describe('BtcpayClient', () => {
       jsonResponse([{ path: 'amount', message: 'must be positive' }], 422),
     );
     await expect(
-      client(validation).createInvoice({ amount: '0', currency: 'CAD' }),
+      client(validation).createInvoice({ amount: '1', currency: 'CAD' }),
     ).rejects.toMatchObject({
       status: 422,
       apiCode: 'validation-error',
@@ -358,6 +362,26 @@ describe('BtcpayClient', () => {
     await expect(
       client(limited).createInvoice({ amount: '1.00', currency: 'CAD' }),
     ).rejects.toMatchObject({ status: 429, retryable: true });
+  });
+
+  it('wraps a failed response-body read and keeps it non-retryable for POST', async () => {
+    const brokenBody = () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.error(new TypeError('terminated'));
+          },
+        }),
+        { status: 200 },
+      );
+    const post = await client(vi.fn(async () => brokenBody()))
+      .createInvoice({ amount: '1.00', currency: 'CAD' })
+      .catch((error: unknown) => error);
+    expect(post).toBeInstanceOf(BtcpayApiError);
+    expect(post).toMatchObject({ status: 0, retryable: false });
+    await expect(
+      client(vi.fn(async () => brokenBody())).getInvoice('x'),
+    ).rejects.toMatchObject({ status: 0, retryable: true });
   });
 
   it('rejects malformed success bodies', async () => {

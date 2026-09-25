@@ -111,16 +111,19 @@ export interface BtcpayInvoicePaymentMethod {
   currency?: string;
   destination?: string;
   paymentLink?: string;
-  /** Invoice-currency price of one unit of the payment currency. */
-  rate: string;
+  /** Invoice-currency price of one unit of the payment currency, if reported. */
+  rate?: string;
   /** Decimal amount due in the payment currency when created. */
   amount: string;
   /** Decimal amount paid through this method. */
   paymentMethodPaid: string;
   /** Decimal amount paid through all methods, in this method's currency. */
   totalPaid: string;
-  /** Decimal amount still due, in this method's currency. */
-  due: string;
+  /**
+   * Decimal amount still due, in this method's currency. Undefined when
+   * BTCPay did not report it — never read a missing value as "nothing due".
+   */
+  due?: string;
   payments: BtcpayInvoicePayment[];
   raw: Record<string, unknown>;
 }
@@ -197,7 +200,10 @@ export class BtcpayClient {
    * another.
    */
   async createInvoice(input: BtcpayCreateInvoiceInput): Promise<BtcpayInvoice> {
-    const amount = requireDecimal(input.amount, 'BTCPay invoice amount');
+    const amount = requirePositiveDecimal(
+      input.amount,
+      'BTCPay invoice amount',
+    );
     const currency = requireString(input.currency, 'BTCPay invoice currency');
     const metadata: Record<string, unknown> = { ...(input.metadata ?? {}) };
     if (input.orderId !== undefined) {
@@ -302,7 +308,18 @@ export class BtcpayClient {
         { cause: error, method },
       );
     }
-    const text = await response.text();
+    let text: string;
+    try {
+      text = await response.text();
+    } catch (error) {
+      // The server answered, so a POST may already have taken effect.
+      throw new BtcpayApiError(
+        `BTCPay ${method} ${redactPath(path)} failed reading the response: ${errorName(error)}.`,
+        0,
+        undefined,
+        { cause: error, method },
+      );
+    }
     let parsed: unknown;
     if (text) {
       try {
@@ -448,11 +465,11 @@ function toPaymentMethod(
     currency: readString(value, 'currency') ?? readString(value, 'cryptoCode'),
     destination: readString(value, 'destination'),
     paymentLink: readString(value, 'paymentLink'),
-    rate: readDecimal(value.rate) ?? '0',
+    rate: readDecimal(value.rate),
     amount: readDecimal(value.amount) ?? '0',
     paymentMethodPaid: readDecimal(value.paymentMethodPaid) ?? '0',
     totalPaid: readDecimal(value.totalPaid) ?? '0',
-    due: readDecimal(value.due) ?? '0',
+    due: readDecimal(value.due),
     payments: Array.isArray(value.payments)
       ? value.payments.filter(isRecord).map((payment) => ({
           id: readString(payment, 'id') ?? '',
@@ -541,10 +558,14 @@ function requireString(value: unknown, label: string): string {
   return value.trim();
 }
 
-function requireDecimal(value: unknown, label: string): string {
-  if (typeof value !== 'string' || !/^\d+(\.\d+)?$/.test(value.trim())) {
+function requirePositiveDecimal(value: unknown, label: string): string {
+  if (
+    typeof value !== 'string' ||
+    !/^\d+(\.\d+)?$/.test(value.trim()) ||
+    !/[1-9]/.test(value)
+  ) {
     throw new PaymentConfigurationError(
-      `${label} must be a non-negative decimal string.`,
+      `${label} must be a positive decimal string.`,
     );
   }
   return value.trim();
